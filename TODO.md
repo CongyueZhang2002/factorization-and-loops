@@ -72,16 +72,18 @@ defined here. Every module lands with its tests in the same commit.
       `coefficientAppendRecord`/`coefficientScanRecords` layer) as the
       only format for large data; small human-readable manifests with
       SHA-256 fingerprints; validate at write time, check hash on load.
-- [ ] Streaming one-family-at-a-time Kira import and rule closure with
-      progress and peak-RSS reporting (supersedes the 2026-08-07 OOM
-      redesign list below; its acceptance criteria still apply).
-      Note 2026-08-10: the "preserved solved NNLO workspace" named in
-      the 2026-08-07 record does not exist on disk (the successful
-      Aug-7 run deleted it after saving KiraResult.wl). Validation
-      therefore runs on an NLO workspace retained by the new
-      solve/import stage separation; NNLO validation folds into the
-      NNLO rerun (which regenerates pair artifacts and adds the ghost
-      grid anyway).
+- [x] Streaming one-family-at-a-time Kira import and rule closure
+      (2026-08-10): `StreamingKira.wl` — KiraSolve (workspace-retaining
+      stage separation), KiraStreamImport (per-family WXF record store,
+      family-wise disk-backed closure, kira2math frontier fallback,
+      fingerprinted directory artifact), KiraStreamResult
+      (compatibility loader). NLO acceptance: identical targets,
+      masters, and closed images vs the monolithic path; peak
+      MemoryInUse 223 MB. Note: the "preserved solved NNLO workspace"
+      from the 2026-08-07 record does not exist on disk (that run
+      deleted it after saving), so NNLO validation folds into the NNLO
+      rerun. Remaining at NNLO scale: bounded parallel family import
+      benchmark; frontier-export branch first exercised at NNLO.
 - [ ] Replace stdout regex parsing of Kira ("unreduced integrals") with
       checks on the exported results files.
 
