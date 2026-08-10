@@ -8,6 +8,15 @@ defined here. Every module lands with its tests in the same commit.
 
 ### 0. Decisions taken
 
+- **Performance requirement (user, 2026-08-10):** every stage of the
+  rewritten workflow must be at least as fast as the historical run.
+  Reference points: double-real pair generation 4 h 15 m on 8
+  subkernels (2026-08 original) vs 35 min on 6 subkernels (rewrite,
+  measured); canonicalization post-pass 27.5 min replaces the
+  in-reduction pairwise equivalence search; import: monolithic path
+  OOM-killed at 47.7 GB vs streaming path (NLO 223 MB, ghost grid
+  573 MB peak). Per-stage wall times recorded in WORKLOG.md.
+
 - Keep the pair-level (forward × conjugate) work unit, but emit all
   coefficients on canonical integral families (see item 2).
 - Conjugation symmetry (compute only forward ≤ conjugate, take 2 Re):
