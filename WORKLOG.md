@@ -165,6 +165,19 @@ tests in the same commit.
   refresh stored fingerprints - stage separation paying for itself:
   no re-solve needed.
 
+- Post-fix rerun (15:10): the fingerprint fix VALIDATED - collection
+  passed cleanly regardless of ordering, and the light regression
+  subset is 61/61 green. The run then hit a NEW independent blocker
+  deep in target normalization: one target's Kira-image coefficient
+  (GLI[CF424, {1,1,1,-1,1,1,1,1,-1}], an aux-numerator target) failed
+  the branch-grammar / positive-root-lift preparation. Also found: the
+  failure report leaks an unevaluated local (failedMaster) instead of
+  naming the master - reporting bug to fix. Single-target diagnostic
+  running to identify which master coefficient fails and why (timeout
+  in positivity certification vs genuine grammar violation). Note:
+  this is exactly the root-lifting machinery that rewrite item 4
+  (rationalized kinematics) is designed to delete.
+
 **Morning plan (recommended supervised next steps):**
 
 1. NNLO finite-field coefficient reconstruction on the canonical gluon
