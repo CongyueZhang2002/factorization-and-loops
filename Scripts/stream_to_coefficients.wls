@@ -48,10 +48,27 @@ pairFiles = Sort[FileNames[
 ]];
 Print["PAIRFILES: ", Length[pairFiles]];
 
+(* The project form late-binds HadronicVariables, CoefficientKinematics
+   and KinematicMassDimensions from the card, so declaration updates do
+   not require regenerating the pair artifacts. It writes
+   CoefficientResult.wl into the result directory itself. *)
+cardName = First[StringSplit[FileNameTake[First[pairFiles]], "_"]];
+cardName = Lookup[
+  Quiet @ Check[Get[First[pairFiles]], <||>],
+  "CardName",
+  $Failed
+];
+If[! StringQ[cardName],
+  Print["CARDNAME: FAILED"];
+  Exit[1]
+];
+Print["CARDNAME: ", cardName];
+
 {coefficientSeconds, result} = AbsoluteTiming[
   FeynFacet`CoefficientSimplification[
-    pairFiles,
-    kiraFile,
+    processDirectory,
+    cardName,
+    resultName,
     "Threads" -> threads,
     "NormalizationKernels" -> kernels
   ]
@@ -62,8 +79,5 @@ If[! AssociationQ[result],
 ];
 Print["COEFFICIENTSECONDS: ", Round[coefficientSeconds, 0.1]];
 Print["COEFFICIENTMASTERS: ", Length[result["Masters"]]];
-
-coefficientFile = FileNameJoin[{resultDirectory, "CoefficientResult.wl"}];
-Put[result, coefficientFile];
-Print["COEFFICIENTFILE: ", coefficientFile, " (",
-  Round[FileByteCount[coefficientFile]/2.^20, 0.1], " MB)"];
+Print["COEFFICIENTFILE: ",
+  FileNameJoin[{resultDirectory, "CoefficientResult.wl"}]];

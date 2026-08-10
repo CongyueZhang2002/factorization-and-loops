@@ -81,7 +81,7 @@ With[
   "CoefficientKinematics" -> <|
     "PositiveFractions" -> Automatic,
     "DistributionFactor" -> f1[xa] f1[xb] D1[zh],
-    "LaurentValuation" -> Automatic,
+    "LaurentValuation" -> <|xa -> -1, xb -> -1, zh -> -2|>,
     "Scale" -> s,
     "DimensionlessCoordinates" -> <|x -> -t/s, y -> -u/s|>,
     "ForbiddenVariables" -> Automatic,
