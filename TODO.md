@@ -15,7 +15,11 @@ defined here. Every module lands with its tests in the same commit.
   measured); canonicalization post-pass 27.5 min replaces the
   in-reduction pairwise equivalence search; import: monolithic path
   OOM-killed at 47.7 GB vs streaming path (NLO 223 MB, ghost grid
-  573 MB peak). Per-stage wall times recorded in WORKLOG.md.
+  573 MB peak); NNLO Kira solve reference ~2.5 h with 12 workers (user,
+  2026-08-10) — note the current ibpRunKira default caps workers at 8
+  unless Global`$FACETKernelLimit is set; set 12+ on the 20-core
+  machine for like-for-like runs. Per-stage wall times recorded in
+  WORKLOG.md.
 
 - Keep the pair-level (forward × conjugate) work unit, but emit all
   coefficients on canonical integral families (see item 2).
