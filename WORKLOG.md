@@ -178,6 +178,20 @@ tests in the same commit.
   this is exactly the root-lifting machinery that rewrite item 4
   (rationalized kinematics) is designed to delete.
 
+- Normalization blocker diagnosed and hardened (15:40): the failing
+  target's master coefficients certify INSTANTLY on an idle kernel -
+  the production failure is load/cold-start sensitivity of hard-coded
+  10 s TimeConstrained windows around FullSimplify positivity
+  certification inside 8-way-loaded subkernels. Fix: caps raised to
+  60 s, successful certifications memoized per kernel (False stays
+  retryable - it may be a timeout artifact), failure report now names
+  the master (was leaking an unevaluated local). Guard
+  t_nlo_coefficient_golden green (6/6). Gluon coefficients relaunched
+  (15:45) - the ONE bounded fix for this blocker; a recurrence stops
+  the chain for write-up. (Also: fourth context-qualification incident
+  of the project, this time in my own diagnostic - the rewrite's
+  symbol-hygiene item keeps earning its place.)
+
 **Morning plan (recommended supervised next steps):**
 
 1. NNLO finite-field coefficient reconstruction on the canonical gluon
