@@ -52,10 +52,19 @@ defined here. Every module lands with its tests in the same commit.
 - [ ] Global cut-aware family registry: map every partial-fractioned
       denominator set onto canonical families (Pak-style canonical form
       with cut propagators distinguished, energy directions preserved);
-      family identity independent of the diagram pair.
-- [ ] Target: collapse the NNLO double-real 374 families to O(10);
-      re-run Kira and compare masters/rules against the preserved
-      solved workspace.
+      family identity independent of the diagram pair. Design and
+      measurements in `Design/CanonicalFamilies.md`; prototype in
+      progress (Opus agent, 2026-08-10).
+- [x] Validation measurements (2026-08-10): Pak partition identical to
+      the stored affine-verified equivalence on NLO (178 -> 11) and
+      NNLO (1898 -> 430; 374 = classes with targets); the 342 NNLO
+      masters are all Pak-distinct. The existing merging is optimal at
+      its level; the registry's win is incremental O(N) merging and
+      stable cross-run family identity, not a smaller class count.
+- [ ] Benchmark sector embedding (430 completed families -> few
+      maximal cut families with sub-sector GLIs) on a target subset:
+      compare Kira wall time and exported rule mass against the
+      preserved solved workspace before adopting.
 
 ### 3. Kira interface and artifact format
 

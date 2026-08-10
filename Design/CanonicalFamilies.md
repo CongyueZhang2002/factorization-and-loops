@@ -16,8 +16,32 @@ Cut-aware Pak canonicalization probe (2026-08-10):
   classes**, exactly equal to the 11 classes the affine-verified
   `TopologyEquivalence` found. Neither over- nor under-merging on the
   case where ground truth exists.
-- NNLO double-real: measurement over all 1296 pairs (result recorded in
-  the commit that lands the prototype).
+- NNLO double-real, all 1296 pairs, 1898 records, zero failures:
+  **430 Pak classes, identical partition** to the stored affine-verified
+  `TopologyEquivalence` (0 stored classes split by Pak, 0 extra Pak
+  merges). The previously quoted 374 is the subset of classes that
+  carried Kira targets.
+- Master-level check: the 342 NNLO masters are **all Pak-distinct**
+  across the 374 reduced families - no cross-family master
+  duplication exists.
+
+## Measured conclusions (2026-08-10)
+
+1. The existing equivalence merging is *optimal* at the
+   completed-family level, and the master set is already minimal. The
+   registry does not reduce the class count below 430; its wins are
+   architectural: O(N) incremental merging at build time instead of the
+   post-hoc pairwise search, stable family identity across runs and
+   process cards (the ghost grid lands on the gluon grid's families),
+   and smaller pair artifacts.
+2. The NNLO blocker is the in-memory Kira import/closure (rewrite
+   item 3, streaming importer), not family proliferation.
+3. **Sector embedding** (mapping the 430 completed families into a few
+   maximal cut families as sub-sectors with zero/negative indices) may
+   still shrink the Kira system by sharing sub-sector reductions, but
+   this is now a benchmarkable hypothesis, not a presumed win: fewer
+   families trade against larger per-family index spaces. Benchmark on
+   a target subset before adopting.
 
 ## Canonical key
 
