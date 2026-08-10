@@ -128,6 +128,15 @@ tests in the same commit.
   10/10 assertions. sigma_gg = (1/2) gluon - ghost is now one function
   call away once the gluon coefficients finish.
 
+- Gluon FF coefficient run FAILED at target collection (13:00): the
+  KiraResult materialization (52 s, 829 MB) and rule-store indexing
+  (44,895 rules) succeeded, but coefficientCollectTargetRecords
+  returned a silent $Failed. The identical path succeeded for the
+  ghost-canonical set, so the failure is scale- or data-linked, not
+  structural. Diagnostic script running to isolate which of the
+  collection's fail-closed checks fires (per-source validation, target
+  set equality vs the reduction, or the source fingerprint).
+
 **Morning plan (recommended supervised next steps):**
 
 1. NNLO finite-field coefficient reconstruction on the canonical gluon
