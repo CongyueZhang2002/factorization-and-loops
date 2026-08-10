@@ -137,6 +137,17 @@ tests in the same commit.
   collection's fail-closed checks fires (per-source validation, target
   set equality vs the reduction, or the source fingerprint).
 
+- Diagnosis (13:35): stepwise diagnostic passed every check (0 source
+  failures, target sets identical, fingerprint match), and an
+  instrumented rerun of the REAL collection function succeeded
+  end-to-end, writing a valid target store. The original failure is
+  not reproducible - most plausibly transient I/O or load interaction
+  with the ghost-shared chain that overlapped the first attempt.
+  Lesson recorded in TODO: the collection's silent $Failed exits must
+  become labeled messages. Gluon coefficient run relaunched (13:40);
+  it will reuse the validated target store and go straight to
+  normalization + trace + FireFly.
+
 **Morning plan (recommended supervised next steps):**
 
 1. NNLO finite-field coefficient reconstruction on the canonical gluon

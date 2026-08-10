@@ -224,6 +224,12 @@ now; codify later as:
 - [ ] Rename FACET -> Factorization and Loops in README/AGENTS once the
       final name is chosen; refresh README layout description for the
       new tree (symlinked addons, frozen legacy tree).
+- [ ] Replace the silent Return[$Failed] exits in
+      coefficientCollectTargetRecords (and siblings) with labeled
+      fail-closed messages: the 2026-08-10 gluon collection failure
+      cost a full diagnostic cycle only because the function cannot say
+      which of its ~10 checks fired (instrumented rerun succeeded;
+      original failure transient under concurrent load).
 - [ ] Fold the remaining first-answer inefficiency list into item 6 as
       encountered: repeated full-artifact revalidation on load,
       `validateCutGLIs` full-expression scans per stage, repeated
