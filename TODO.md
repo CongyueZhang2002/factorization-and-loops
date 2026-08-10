@@ -147,6 +147,17 @@ now; codify later as:
 
 ### 9. Additional hardening and cleanups (2026-08-09 review items)
 
+- [ ] **Artifact version skew (found 2026-08-10):** `analyticContextQ`
+      (Core.wl) requires `"CoefficientKinematics"` in the analytic
+      context, but the saved 2026-08-05 NLO artifacts predate that key,
+      so `topologyRecordQ` now rejects every one of them - breaking
+      `TopologyEquivalence`, `MasterIntegralAmFlow[result, ...]`, and
+      the artifact validators on exactly the data the golden regression
+      tests need. The context stores a self-consistent fingerprint, so
+      in-place patching is impossible: either make the required-key set
+      version-aware or regenerate the NLO artifacts. Decide before the
+      golden-file tests (item 7) and the NNLO rerun.
+
 - [ ] Scope kinematics into the process object: stop mutating global
       `SP/SPD/SPE` DownValues in `BuildGlobalBasis`/`declareGlobalBasis`;
       pass the basis and on-shell rules explicitly.
