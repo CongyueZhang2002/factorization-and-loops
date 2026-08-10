@@ -25,22 +25,27 @@ defined here. Every module lands with its tests in the same commit.
 
 ### 1. Physics correctness gate (before any porting)
 
-- [ ] Double-real gluon polarization sums: current code uses
-      `DoPolarizationSums[.., 0]` (-g) with no ghost contributions.
-      Decision: add cut ghost–antighost process cards (U[5], -U[5])
-      combined with the -g gluon sum, standard relative minus sign and
-      symmetry-factor bookkeeping. Ghost pairs replace the gluon pair —
-      same 2 -> 4 kinematics, still two-loop cut integrals.
-- [ ] Audit the identical-particle symmetry factor (1/2! for the gg
-      final state) through prefactor assembly; verify it is applied
-      exactly once.
+- [x] Double-real gluon polarization sums: decision taken and landed
+      2026-08-10 — cut ghost–antighost card
+      `ppHX_NNLO_DoubleReal/Cards/UU_Ghost.wl` (7 diagrams, pipeline
+      unmodified, `Tests/t_ghost_card_pipeline.wls` passes). Assembly
+      convention in the card header:
+      sigma_gg = (1/2!) x gluon grid - ghost grid.
+- [x] Symmetry-factor audit (2026-08-10): the identical-gluon 1/2! is
+      absent everywhere in the current pipeline and notes; it must be
+      applied at assembly together with the ghost subtraction. The
+      general rule is 1/n! per identical untagged final-state parton
+      species, derivable from the card.
+- [ ] Wire the (1/2!) gluon + (-1) ghost combination into the
+      assembly stage.
 - [ ] Validate the combination by a gauge/known-result check at a
       numeric phase-space point.
-- [ ] Brute-force numeric validation of `masslessSquareBounds` /
-      `IdentifySafePropagator` (random massless phase-space points vs
-      the claimed pairwise-product extrema); compare against the
-      derivation in the Overleaf notes
-      (`Factorization_Agent_for_Collider_and_Event_shape_Theory.pdf`).
+- [x] Brute-force numeric validation of `masslessSquareBounds` /
+      `IdentifySafePropagator` (2026-08-10):
+      `Tests/t_fixed_sign_theorem.wls`, 7 assertions pass (6000 RAMBO
+      points, implementation vs direct extrema, accept/reject paths).
+      The Overleaf notes prove the bound exactly (Sec. 3.1, max-flow /
+      min-cut convex decomposition); proof reviewed and sound.
 
 ### 2. Canonical integral families
 
@@ -98,8 +103,10 @@ defined here. Every module lands with its tests in the same commit.
 
 ### 7. Test infrastructure
 
-- [ ] Minimal assertion runner for `Codex/Tests`; every test declares
-      its acceptance criterion machine-checkably.
+- [x] Minimal assertion runner (2026-08-10): `Tests/TestKit.wl` +
+      `Tests/run_tests.sh`, one kernel per test, nonzero exit on
+      failure. Migration of the legacy `Codex/Tests` scripts onto it
+      remains open.
 - [ ] Golden-file regression tests: frozen NLO UU/TT results (masters,
       coefficients, finite hard function) must reproduce bit-exactly.
 - [ ] End-to-end numeric stage: evaluate the assembled hard function at
