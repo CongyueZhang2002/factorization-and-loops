@@ -1,0 +1,843 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=0.82in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,longtable,tabularx,array,multirow}
+\usepackage{pdflscape}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{siunitx}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+
+\definecolor{facetblue}{RGB}{32,98,155}
+\definecolor{facetgreen}{RGB}{37,132,82}
+\definecolor{facetred}{RGB}{190,62,54}
+\definecolor{lightblue}{RGB}{235,243,249}
+\definecolor{lightgray}{RGB}{245,245,245}
+
+\hypersetup{
+  pdftitle={Hadronic-Coefficient Simplification in FACET},
+  pdfauthor={FACET calculation record}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{FACET calculation record}
+\rhead{Hadronic-coefficient simplification}
+\cfoot{\thepage}
+\setlength{\headheight}{14pt}
+
+\setlist[itemize]{leftmargin=1.35em,itemsep=2pt,topsep=4pt}
+\setlist[enumerate]{leftmargin=1.55em,itemsep=2pt,topsep=4pt}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\eps}{\epsilon}
+\newcommand{\GLI}{\mathrm{GLI}}
+\newcommand{\bytes}{\,\mathrm{bytes}}
+\newcommand{\Sec}{\,\mathrm{s}}
+\newcommand{\good}{\textcolor{facetgreen}{\textbf{useful}}}
+\newcommand{\bad}{\textcolor{facetred}{\textbf{not retained}}}
+
+\title{\vspace{-1.1cm}\textbf{Hadronic-Coefficient Simplification in FACET}\\[0.35em]
+\large A measured NLO and NNLO comparison of algebraic orderings}
+\author{Internal calculation record}
+\date{9 August 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report reconstructs the hadronic-coefficient simplification calculations
+performed during 7--8 August 2026 and records their consolidation into a
+process-card-driven FACET routine.  It distinguishes algebra done on
+amplitude-pair coefficients, complete unreduced integral coefficients, and
+final master-integral coefficients.  Every quoted size is identified as either
+Mathematica \code{ByteCount} or an actual serialized file size.  At NLO,
+simplifying complete target coefficients before inserting the Kira reduction
+rules is the best measured ordering; a bounded master-level cleanup is then
+inexpensive.  At NNLO, constructing a monolithic master coefficient is not
+viable.  The measured alternative retains additive contributions, performs
+exact rational algebra in positive momentum-fraction roots, and certifies the
+common Laurent monomial only after cancellations.  NLO and NNLO now use one
+physical normalization declared by the process card; they differ only in
+whether a coefficient is supplied already assembled or as additive
+contributions.  The reviewed implementation separately certifies the source
+kinematic chamber and its dimensionless image, verifies the mass dimension and
+invertibility of the coordinate map, and freezes branch-sensitive analytic
+objects while rational coefficient algebra is performed.  The report also
+isolates the TT BMHV dimension-bookkeeping
+error and separates coefficient algebra from the still-open analytic
+evaluation of NNLO cut masters.
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+\section{Scientific object and scope}
+
+The object being reduced is an exact coefficient multiplying a cut master
+integral.  For an amplitude labelled by $p$ and its conjugate labelled by $q$,
+write
+\begin{align}
+  \mathcal A_p\mathcal A_q^{*}
+  &=\sum_{T} c_{T}^{(pq)}\,T,
+  &
+  T&=\sum_m R_{Tm}\,M_m .
+\end{align}
+Here $T$ is a cut integral before IBP reduction, $M_m$ is a master integral,
+and $R_{Tm}$ is the exact Kira reduction coefficient.  The final coefficient
+of $M_m$ is therefore
+\begin{equation}
+  C_m=\sum_{p,q,T}c_T^{(pq)}R_{Tm}.
+  \label{eq:master-coeff}
+\end{equation}
+This identity defines three distinct places where algebra can be attempted:
+\begin{enumerate}
+  \item simplify each $c_T^{(pq)}$ before summing amplitude pairs;
+  \item form $c_T=\sum_{p,q}c_T^{(pq)}$, simplify it, and then insert
+        $R_{Tm}$;
+  \item form the complete $C_m$ and simplify only after IBP substitution.
+\end{enumerate}
+
+Let the nontrivial momentum fractions be
+$\boldsymbol{\xi}=(\xi_1,\ldots,\xi_r)$.  After exact hadronic-coordinate
+substitution, every nonzero coefficient accepted by the simplifier must have
+the form
+\begin{equation}
+  C_m=\mathcal D(\boldsymbol{\xi})
+  \boldsymbol{\xi}^{\boldsymbol{\nu}} H_m(I,\eps),
+  \qquad
+  \boldsymbol{\xi}^{\boldsymbol{\nu}}
+  \equiv\prod_{i=1}^{r}\xi_i^{\nu_i},
+  \label{eq:generic-hard-factor}
+\end{equation}
+where $\mathcal D$ is the product of twist-two distributions, $I$ denotes
+the chosen partonic invariants, and $H_m$ contains neither momentum fractions
+nor forbidden hadronic vectors.  The card may state $\mathcal D$ and
+$\boldsymbol{\nu}$ explicitly, or request their exact derivation.
+
+For the ppHX UU example this gives
+\begin{equation}
+  \mathcal P_{\rm UU}=
+  \frac{f_1(x_a)f_1(x_b)D_1(z_h)}{x_a x_b z_h^2},
+  \qquad
+  C_m=\mathcal P_{\rm UU}\,H_m(s,t,u,\eps),
+  \label{eq:universal-factor}
+\end{equation}
+up to coupling, color, and conventional powers of $\pi$.  Equation
+\eqref{eq:universal-factor} is an example supplied by the ppHX card, not an
+assumption embedded in the reusable simplifier.
+
+This report concerns coefficient algebra.  It does not claim that the 342
+NNLO cut masters have been evaluated analytically, nor that endpoint and
+distributional reconstruction has been completed.
+
+\section{What every quoted size means}
+
+Several earlier notes used the word ``bytes'' for different objects.  The
+distinction is essential:
+\begin{description}[leftmargin=3.1cm,style=nextline]
+  \item[Mathematica \code{ByteCount}] An in-kernel estimate of the expression
+  tree.  It is meaningful for comparisons in the same Mathematica version.
+  \item[Serialized bytes] The exact \code{FileByteCount} of a saved \code{.wl}
+  or binary artifact.  It measures I/O and disk use and depends on the chosen
+  serialization grammar.
+  \item[Additive terms] The number of summands after splitting only the
+  top-level \code{Plus}.  A different outer factorization changes this count.
+  \item[Objects] Independently scheduled pair, target, or master
+  coefficients.  Counts at different algebraic stages are not comparable.
+  \item[Target leaves] Individual Kira-rule contributions entering a selected
+  master column.
+  \item[Fractions] Stored exact numerator-denominator pairs after local
+  hadronic cleanup.
+\end{description}
+No reduction ratio in this report mixes \code{ByteCount} with serialized
+bytes.
+
+\section{Physical substitution and branch control}
+
+\subsection{The process-card contract}
+
+Every card used for hard-coefficient simplification contains a
+\code{CoefficientKinematics} block declaring
+\begin{enumerate}
+  \item the positive fractions $\boldsymbol{\xi}$, either explicitly or by
+        exact inference from the card's momentum-fraction map;
+  \item the expected distribution product $\mathcal D$ and Laurent valuation
+        $\boldsymbol{\nu}$, or \code{Automatic} for exact derivation;
+  \item the physical invariant chamber;
+  \item a positive scale $Q^2$ and an invertible map to dimensionless
+        invariant coordinates;
+  \item variables forbidden in $H_m$, with automatic inclusion of all
+        declared fractions and hadronic basis vectors;
+  \item the allowed branch grammar.
+\end{enumerate}
+The routine rejects a missing block, a missing declaration, a noninvertible
+coordinate map, a dimensionful coordinate, a scale whose positivity is not
+implied by the card, and an explicit fraction list that differs from the
+momentum-fraction map.  It also requires the source chamber and the
+dimensionless chamber to be separately nonempty.  If
+\(X_i=X_i(I_1,\ldots,I_n)\) denotes the forward coordinate map and
+\(I_a=I_a(Q^2,X_1,\ldots,X_n)\) its inverse, the exact checks are
+\begin{align}
+ X_i\bigl(I(Q^2,X)\bigr)&=X_i,
+ &
+ I_a\bigl(Q^2,X(I)\bigr)&=I_a,\\
+ \mathcal R_I&\Longrightarrow \mathcal R_X\bigl(X(I)\bigr),
+ &
+ \mathcal R_X&\Longrightarrow \mathcal R_I\bigl(I(Q^2,X)\bigr),
+ \label{eq:chamber-map}
+\end{align}
+where \(\mathcal R_I\) and \(\mathcal R_X\) are the source and dimensionless
+physical regions.  They are never conjoined before the coordinate equations
+are imposed; this prevents an inconsistent card from making an equality check
+vacuously true.
+
+For ppHX, the NLO UU and TT cards contain exact coordinates for
+\begin{equation}
+  P_a,\ P_b,\ P_h,\ n_h,\ \bar n_h,\ S_T,\ S_{hT}
+\end{equation}
+in terms of $s,t,u,x_a,x_b,z_h$ and the spin azimuths.  The physical chamber
+contains
+\begin{equation}
+  s>0,\qquad t<0,\qquad u<0,\qquad s+t+u>0,
+  \qquad 0<x_a,x_b,z_h<1,
+  \label{eq:physical-chamber}
+\end{equation}
+together with the required reality assumptions.  The package infers
+$0<\xi<1$ for each nonempty momentum fraction declared in the card and
+combines those inequalities with the card assumptions.
+
+\subsection{Why known signs do not remove branch bookkeeping}
+
+There is no physical ambiguity about the signs in
+Eq.~\eqref{eq:physical-chamber}.  The algebraic issue is that Mathematica does
+not globally replace, for example,
+\begin{equation}
+  \sqrt{x_a x_b}\longrightarrow \sqrt{x_a}\sqrt{x_b}
+\end{equation}
+unless positivity is built into the transformation.  The identity is false
+on a general complex domain.  A global \code{PowerExpand} would therefore
+erase information that the final analytic result must retain.
+
+The implemented branch grammar, \code{PositiveMonomialRoots}, introduces one
+positive root $r_i$ for each declared fraction,
+\begin{equation}
+  \xi_i=r_i^2,\qquad r_i>0,\qquad i=1,\ldots,r.
+  \label{eq:root-lift}
+\end{equation}
+Only a certified Laurent monomial in the declared fractions is lifted.  Thus
+\begin{equation}
+  \prod_{i=1}^{r}\xi_i^{n_i/2}
+  \longmapsto \prod_{i=1}^{r}r_i^{n_i}.
+\end{equation}
+A nonmonomial fraction base such as $\xi_1+\xi_2$ is rejected.  A logarithm,
+Gamma function, hypergeometric function, absolute value, step function, or
+distribution whose argument depends on a fraction is also rejected rather
+than transformed.  Fraction-independent noninteger powers, logarithms, Gamma
+functions, angular functions, distributions, and BMHV tensors are replaced by
+inert symbols while the rational coefficient is simplified and are restored
+afterward.  Exact equality is checked before and after this freezing; no
+\code{PowerExpand} is used.
+
+For an additive coefficient $C_m=\mathcal D\sum_j c_{mj}$, write each lifted
+contribution as $c_{mj}=N_{mj}(\boldsymbol r)/D_{mj}(\boldsymbol r)$ and form
+the exact sum
+\begin{equation}
+  \sum_j c_{mj}=\frac{N_m(\boldsymbol r)}{D_m(\boldsymbol r)}.
+\end{equation}
+The Laurent valuation is accepted only if there is an integer vector
+$\boldsymbol n$ and a fraction-independent $H_m$ such that
+\begin{equation}
+  N_m(\boldsymbol r)=
+  H_m\,\boldsymbol r^{\boldsymbol n}D_m(\boldsymbol r),
+  \qquad
+  \boldsymbol\nu=\frac{1}{2}\boldsymbol n.
+  \label{eq:root-certificate}
+\end{equation}
+The identity in Eq.~\eqref{eq:root-certificate} is checked coefficient by
+coefficient in the sparse root polynomial.  This is why square-root terms may
+cancel between contributions without being discarded prematurely.
+
+The scale and coordinates are likewise card data.  In the ppHX cards they are
+\begin{equation}
+  x=-\frac{t}{s},\qquad y=-\frac{u}{s},
+  \qquad s>0,\quad x>0,\quad y>0,\quad x+y<1,
+  \label{eq:dimensionless}
+\end{equation}
+and the routine derives the power $p_m$ from exact homogeneity:
+\begin{equation}
+  H_m(s,t,u,\eps)=s^{p_m}\widehat H_m(x,y,\eps).
+\end{equation}
+No common value of $p_m$ is assumed across masters, and $p_m$ may depend on
+$\eps$.  The inverse coordinate map and the reconstruction of the dimensional
+coefficient are checked exactly.
+
+\section{NLO UU: where simplification should occur}
+
+\subsection{Complete 5 by 5 calculation}
+
+The complete 25-pair calculation gives six masters.  Table~\ref{tab:nlo5}
+records the measured stages.
+
+\begin{table}[ht]
+\centering
+\caption{NLO UU 5 by 5 calculation.  The final size is an actual serialized
+file size; intermediate input sizes were not retained in this compact
+summary.}
+\label{tab:nlo5}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Quantity & Measured result \\
+\midrule
+Pair construction & $13.3465\Sec$ \\
+Pair store & $1{,}086{,}418$ serialized bytes \\
+Kira reduction & $50.1824\Sec$ \\
+Unreduced targets & $77$ \\
+Masters & $6$ \\
+Hadronic substitution & $2.01\Sec$ \\
+Complete-target cleanup & $6.65\Sec$ \\
+Complete-master cleanup & $9.04\Sec$ \\
+Complete coefficient stage & $48.5528\Sec$ \\
+Final result & $170{,}483$ serialized bytes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The extracted prefactor was
+\begin{equation}
+ \frac{C_F\,\pi^{3+\eps}\alpha_s^3
+ D_1(z_h)f_1(x_a)f_1(x_b)}{x_a x_b z_h^2}.
+\end{equation}
+All six remaining coefficients were exactly free of momentum fractions and
+hadronic basis vectors.
+
+\subsection{The four orderings on the 10 by 10 sample}
+
+The four measured orderings are summarized in Table~\ref{tab:nlo-order}.
+
+\begin{table}[ht]
+\centering
+\caption{NLO UU orderings.  All sizes are Mathematica \code{ByteCount}.
+The target-then-master time is the second stage only.}
+\label{tab:nlo-order}
+\scriptsize
+\begin{tabular}{@{}lrrrrl@{}}
+\toprule
+Ordering & Objects & Input & Output & Time & Result after composition \\
+\midrule
+Pair first & 1332 & 89,111,000 & 2,694,944 & 43.403 s &
+Master size 1,574,064 \\
+Target first & 117 & 46,940,920 & 1,362,792 & 23.715 s &
+Master size 1,548,952 \\
+Master first & 1 tested & -- & -- & $>281$ s &
+One coefficient unfinished \\
+Target then master & 8 & 1,646,272 & 1,036,008 & 62.125 s &
+Final size 1,041,912 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Target first is the best first expensive operation because pair-to-pair
+cancellations have already occurred while the Kira map has not yet inflated
+the expression.  Pair first repeats algebra.  Master first presents the
+simplifier with the largest sum.  Target then master gives the smallest final
+object, but the sequential time is
+\begin{equation}
+  23.715\Sec+62.125\Sec=85.840\Sec,
+\end{equation}
+not 62.125 s as stated in the earlier narrative.
+
+The compact benchmark summary did not finish its independent equality test
+between all four routes.  The timing and size comparison is valid; exactness
+claims in the final NLO calculation instead come from the later production
+calculation and the certified fraction-normalization tests.
+
+\subsection{Detailed NLO algebraic comparisons}
+
+The largest target illustrates why a generic rational normal form is not
+automatically a compact physics form:
+\begin{center}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Method & Input \code{ByteCount} & Output \code{ByteCount} & Time \\
+\midrule
+Termwise \code{Simplify} & 3,517,376 & 49,016 & 4.838 s \\
+Whole \code{Simplify} & 3,517,376 & 327,568 & 86.378 s \\
+Whole \code{FullSimplify} & 3,517,376 & no result & 120.045 s \\
+\code{FactorTerms[Cancel[Together]]} & 3,517,376 & 6,812,872 & 50.350 s \\
+\bottomrule
+\end{tabular}
+\end{center}
+\par\medskip
+The isolated equality tests for the first two entries reached their time
+bounds, so those two rows establish timing and representation size, not a
+separate exact identity.  The complete later route was checked exactly.
+
+The best NLO factor-first chain was:
+\begin{align}
+  1{,}362{,}792&\xrightarrow[3.393\Sec]{\text{extract common factor}}
+  684{,}744,\\
+  855{,}104&\xrightarrow[10.741\Sec]{\text{final master cleanup}}
+  759{,}840,
+\end{align}
+where all sizes are \code{ByteCount}.  Including the preceding target cleanup
+gives about 37.76 s.  Repeating the master cleanup for 9.426 s left the size
+unchanged.
+
+Direct target cleanup without factor extraction needed 450.188 s to change
+1,542,536 to 727,376 bytes.  By contrast, certified division by the universal
+fraction monomial followed by \code{Simplify} changed 1,035,984 to 283,144
+bytes in 5.877 s.  A further \code{FullSimplify} gave only a modest reduction
+to 256,456 bytes in 32.352 s.  \code{Factor}, color collection, signature
+grouping, and denominator grouping all expanded the expression.  The complete
+measurements appear in Appendix~\ref{app:all-methods}.
+
+\section{NLO TT: correction, branch structure, and timing}
+
+\subsection{The BMHV error}
+
+TT contains evanescent tensor monomials.  Let a loop-independent factor from
+the original trace be $F(D)$, and let $\mathcal T_r^{(D)}$ denote the rank
+$2r$ evanescent tensor integral.  The correct bookkeeping is schematically
+\begin{equation}
+  F(D)\,\mathcal T_r^{(D)}
+  \longrightarrow
+  F(D)\sum_j a_j(D+2r)I_j^{(D+2r)},
+  \label{eq:tt-correct}
+\end{equation}
+followed by dimensional recurrence for the scalar integrals.  The incorrect
+code instead changed the inherited factor to $F(D+2r)$.
+
+The diagnostic rank-two angular identity is
+\begin{equation}
+  \left\langle (k\cdot Y)^2\right\rangle_N
+  =-\frac{k_\perp^2}{N-3},\qquad Y^2=-1.
+  \label{eq:tt-toy}
+\end{equation}
+At tensor stage zero, $N=D$ and the denominator is $D-3$.  After one
+dimension shift, $N=D+2$ and the denominator is $D-1$.  A pre-existing
+loop-free factor such as $D-4$ remains $D-4$.  Exact tests checked rank one,
+rank two, cut projection, both denominators, preservation of the original
+factor, and rejection of the incorrect denominator.
+
+The practical consequence was large:
+\begin{center}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Route & \code{ByteCount} & GLI occurrences & Distinct GLIs \\
+\midrule
+Incorrect degree-zero tensor route & 184,796,536 & 39,036 & 31 \\
+Correct sparse cut route & 27,754,864 & 9 & 9 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\par\medskip
+The TT code therefore did require a physics correction before simplification
+measurements were meaningful.
+
+\subsection{TT coefficient algebra}
+
+For the 5 by 5 sample, target cleanup changed
+139,298,664 to 10,562,384 \code{ByteCount} bytes in 52.02 s on four kernels.
+Final-master cleanup took 30.36 s.  The final six-master file occupies 750,504
+serialized bytes.  The angular dependence closes on
+\begin{equation}
+  \left\{\cos\phi_a\cos\phi_h,\ \sin\phi_a\sin\phi_h\right\},
+\end{equation}
+and both mixed sine-cosine structures vanish exactly.
+
+For four representative TT targets, \code{Together} was fastest but returned
+the larger rational form.  \code{Simplify}, \code{Together} followed by
+\code{Simplify}, and the historical collect routine all reached the same
+smaller size.  Reversing the order, \code{Simplify} followed by
+\code{Together}, returned the larger form.  For example, the 6,438,104-byte
+target changed to 22,848 bytes in 1.528 s with \code{Simplify}, to the same
+size in 0.836 s with \code{Together} then \code{Simplify}, but to 74,048 bytes
+in 0.480 s with the reverse order.
+
+An explicit overall $i$ in an intermediate TT coefficient is not, by itself,
+evidence of a wrong square-root branch.  It may originate from the amplitude,
+cut, or projector convention.  Reality must be checked only after the full
+normalization and angular projection.  The positive-root rules address the
+separate issue of algebraically valid radical identities.
+
+\section{NNLO: why monolithic master simplification fails}
+
+The NNLO double-real UU reduction contains 44,877 Kira targets and 342
+masters.  The earlier post-IBP master files entering the old final cleanup
+occupy 3,960,695,102 serialized bytes; the resulting files occupy
+3,597,827,125 bytes.  This is only a 1.101-fold reduction.
+
+\subsection{Target-level tests}
+
+The 64 largest target coefficients changed from 83,386,848 to 28,279,424
+\code{ByteCount} bytes in 75.643 s on four kernels.  On the largest isolated
+target, whole \code{Simplify} gave
+\begin{equation}
+  2{,}434{,}656\to811{,}576\quad(15.30\Sec),
+\end{equation}
+while termwise \code{Simplify} gave
+\begin{equation}
+  2{,}434{,}656\to701{,}328\quad(6.92\Sec).
+\end{equation}
+Both isolated differences were exactly zero.  Pure rational normalization was
+faster but expanded the target: \code{Cancel[Together]} produced 3,748,912
+bytes, and adding \code{FactorTerms} produced 5,316,312 bytes.
+
+A stratified set of 125 complete targets changed from 52,630,888 to 559,984
+\code{ByteCount} bytes in 30.45 s on four kernels.  The fraction dependence
+consisted only of explicit half-integer Laurent powers; no
+fraction-dependent logarithm, Gamma function, or hypergeometric function was
+found in that sample.
+
+\subsection{Final-master tests}
+
+Eight whole-master \code{Simplify} jobs each reached 1,800 s and 4 GiB without
+producing retained output.  Aggregate memory was approximately 34 GiB.
+Termwise simplification of master 8 was feasible: 377 terms changed a
+4,655,210-byte serialized file to 3,082,976 bytes in 175.070 s on eight
+kernels.
+
+The rational/signature decomposition gave only moderate serialized
+reductions:
+\begin{center}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Master & Input & Output & Time \\
+\midrule
+1 & 1,607,146,927 & 920,945,177 & about 19.5 min \\
+2 & 903,734,615 & 464,281,765 & about 15 min \\
+4 & 83,696,010 & 47,987,161 & 68.55 s \\
+\bottomrule
+\end{tabular}
+\end{center}
+\par\medskip
+Master 4 had 2,591 terms and 2,591 different signatures, so there was no
+cross-term signature merge.  The gain came only from rational normalization
+inside individual terms.
+
+Symbolica did not improve the tested coefficient: direct Mathematica took
+5.91 s and produced 0.70 MB, while Symbolica followed by Mathematica took
+12.16 s and produced 0.81 MB before including preprocessing time.  No exact
+end-to-end FORM or SymPy route was established for the full grammar.
+
+\section{NNLO: exact entrywise and denominator algebra}
+
+\subsection{Entrywise positive-root cleanup}
+
+Three post-IBP master columns were selected by incoming target-leaf count:
+one small, one median, and the largest column.  Together they contain 38,460
+target leaves in 38,400 exact denominator entries.  The source occupies
+859,107,253 serialized bytes.  Applying the root lift
+\eqref{eq:root-lift}, proving the universal Laurent factor entry by entry, and
+reducing in the positive-$s$ root ring produced a 131,787,741-byte store in
+1,304.639 s on eight kernels, a 6.52-fold reduction.
+
+The independent audit checked source hashes, numerator and denominator hashes,
+entry and leaf counts, exact arithmetic, nonzero denominators, absence of
+momentum fractions and temporary roots, and integer powers of $s$.
+
+\subsection{Equal-denominator assembly}
+
+For a class of exactly equal denominators,
+\begin{equation}
+  \sum_i\frac{n_i}{d}=\frac{\sum_i n_i}{d}.
+  \label{eq:equal-denom}
+\end{equation}
+A hash only locates candidate classes; structural equality decides whether
+Eq.~\eqref{eq:equal-denom} is used.
+
+Always retaining the cancelled form was a mistake for storage.  For the
+largest master, the fraction count fell from 38,306 to 6,290 in 6,375.22 s,
+but the fraction-list \code{ByteCount} grew from 422,282,520 to
+1,727,567,608 and the serialized output occupied 488,886,853 bytes.
+
+The corrected size-monotone rule constructs
+\begin{align}
+  \text{raw}&=\left\{\sum_i n_i,d\right\},\\
+  \text{cancelled}&=\operatorname{NumDen}
+  \!\left[\operatorname{Cancel}\!\left(\frac{\sum_i n_i}{d}\right)\right]
+\end{align}
+and retains the smaller exact pair according to \code{ByteCount}.  The largest
+master then changed from 38,306 to 6,557 fractions in 1,260.216 s.  Its
+fraction-list size changed from 422,282,520 to 351,559,840 bytes and its
+serialized output occupied 99,892,985 bytes.
+
+\subsection{Dimensionless normalization}
+
+The exact homogeneity transformation in Eq.~\eqref{eq:dimensionless} found
+scale powers $p_m=4,2,-2$ for the three selected masters.  For the largest
+master it changed 351,559,840 to 296,802,344 \code{ByteCount} bytes and
+99,892,985 to 92,385,524 serialized bytes in 430.914 s on eight kernels.
+
+A second size-monotone denominator merge changed 6,557 to 5,973 fractions and
+296,802,344 to 296,275,768 \code{ByteCount} bytes in 904.575 s.  The final
+serialized file occupies 92,241,826 bytes.  A complete independent replay took
+943.22 s.
+
+Factoring every dimensionless denominator over $\mathbb Q(\eps)$ took 27.94 s
+and found only 30 distinct $x,y$-dependent factors.  However, a separate
+factor dictionary occupied 91,385,453 serialized bytes, only 0.93 percent less
+than the direct fraction list.  It is useful for identifying the singular
+locus, but not as a new storage representation.
+
+\section{Is the simplification post-IBP?}
+
+The answer depends on the row being discussed:
+\begin{itemize}
+  \item Pair-first and target-first simplification act before the Kira rules
+  are inserted into Eq.~\eqref{eq:master-coeff}, although the rules have
+  already been computed.
+  \item Master-first, target-then-master's second stage, every final-master
+  comparison from 7 August, and the complete NNLO selected-column root-ring
+  study act after the IBP rules have been inserted.
+  \item The NNLO selected-column entries are not unreduced integrals.  They are
+  the individual post-IBP contributions $c_T R_{Tm}$ to a fixed master
+  coefficient $C_m$.
+\end{itemize}
+Thus the measurements used to estimate the final 342 coefficients are
+post-IBP master-coefficient algebra, as expected.
+
+\section{Card-driven implementation and exact tests}
+
+The reusable implementation is now contained in
+\code{FeynFacet/Private/Simplification.wl}.  It contains no literal ppHX
+fraction names, distribution product, Laurent valuation, invariant ratios, or
+selected master labels.  These enter through the card contract stated above.
+Historical benchmark drivers still contain ppHX-specific choices because they
+record the measurements in this report; they are not the maintained
+simplification interface.
+
+The public routine \code{SimplifyHardCoefficients} applies the same physical
+normalization to two exact input forms:
+\begin{align}
+  \text{assembled:}&\qquad \{C_1,\ldots,C_N\},\nonumber\\
+  \text{contribution-wise:}&\qquad
+  \bigl\{\{c_{11},\ldots,c_{1n_1}\},\ldots,
+  \{c_{N1},\ldots,c_{Nn_N}\}\bigr\},
+  \quad C_m=\sum_j c_{mj}.
+  \label{eq:two-input-forms}
+\end{align}
+The second form is needed when constructing $C_m$ first would exceed memory or
+when the cancellation in Eq.~\eqref{eq:root-certificate} must be exposed
+without a global simplification.  It is not an NNLO-specific definition.
+Either form may be used at any perturbative order.
+
+The acceptance criteria in the exact tests were: the card schema is complete;
+the source and dimensionless chambers satisfy Eq.~\eqref{eq:chamber-map}; every
+coordinate is dimensionless; the distribution product and Laurent valuation
+are derived or agree with their explicit declarations; no forbidden variable
+remains; every scale-separated coefficient reconstructs the dimensional
+expression exactly; and every result contains exact data only.  A renamed
+synthetic process used
+$\{\rho_A,\rho_B,\rho_H\}$, scale $Q^2$, and coordinates $X,Y$.  It also
+included two contributions proportional to $\sqrt{\rho_A\rho_B}$ that cancel
+only after addition.  The routine derived
+\begin{equation}
+  \boldsymbol\nu=(-1,-1,-2)
+\end{equation}
+and reconstructed both hard coefficients exactly.  The negative tests reject
+a missing or incomplete block, contradictory coordinate chamber, dimensionful
+coordinate, incomplete coordinate map, wrong twist-two channel, reciprocal
+distribution factor, wrong Laurent valuation, residual parton momentum,
+nonmonomial fraction root, and fraction-dependent analytic function.
+
+Stored physics expressions gave the following measured results:
+\begin{center}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Input & Exact coefficients & Time & Result \code{ByteCount} \\
+\midrule
+NLO UU & 6 & 48.51 s & 859.88 KiB \\
+NLO TT, smallest retained coefficient & 1 & 2.58 s & 67.16 KiB \\
+NNLO UU, one stored target & 1 (2 contributions) & 2.34 s & 27.91 KiB \\
+\bottomrule
+\end{tabular}
+\end{center}
+\par\medskip
+For all three, the extracted distribution factor agreed with the card value.
+The NLO cards declare and verify
+\begin{equation}
+  \mathcal D_{\rm extracted}=\mathcal D_{\rm card}
+  =f_1(x_a)f_1(x_b)D_1(z_h),
+  \qquad \boldsymbol\nu=(-1,-1,-2),
+\end{equation}
+and the extracted hard coefficient was exactly independent of
+$x_a,x_b,z_h$.  The NNLO card currently derives the valuation from the exact
+contribution sum; it should be made explicit only after the complete
+342-master data establish a common value.  The NNLO timing is a test of one
+two-contribution stored target, not an estimate for all 342 masters.
+
+An independent end-to-end NLO calculation generated 16 cut integrals, reduced
+them to one master, and reconstructed the final expression exactly.  Kira took
+17.50 s and the coefficient stage took 10.34 s; the compact result occupied
+122.48 KiB.  This test exercises the same public simplification routine used
+for the stored-data calculations.
+
+\section{Eight-kernel time estimate}
+
+The selected post-IBP source occupies 859,107,253 serialized bytes.  The old
+all-master post-IBP source occupies 3,960,695,102 bytes, giving the measured
+size ratio
+\begin{equation}
+  \rho=\frac{3{,}960{,}695{,}102}{859{,}107{,}253}=4.61.
+\end{equation}
+Scaling the selected-column measurements by $\rho$ gives
+\begin{align}
+  t_{\rm roots}&\simeq 4.61\times1{,}304.64\Sec=1.67\ \mathrm{h},\\
+  t_{\rm assemble+scale}&\simeq
+  4.61\times(1{,}260.22+430.91+904.57)\Sec=3.32\ \mathrm{h}.
+\end{align}
+Uneven column sizes, serialization, scheduling, and exact audits motivate a
+planning interval of
+\begin{equation}
+  \boxed{6\text{--}10\ \mathrm{hours}}
+\end{equation}
+for the complete post-IBP coefficient stage on eight kernels, starting from
+the existing Kira reduction.  This extrapolation assumes that the selected
+columns are representative per serialized source byte; it has not yet been
+measured on all 342 columns.
+
+A contemporaneous note quoted 1,313.82 s for one Kira calculation, but the
+matching timing log was not found during this audit.  That number is not used
+in the estimate above.
+
+There is no defensible time estimate for the \emph{complete exact NNLO hard
+function}.  Analytic evaluation of the 342 cut masters, boundary data,
+endpoint expansion, plus distributions, and combination with the remaining
+NNLO sectors are outside this one-day timing sample.  A numerical master check
+cannot replace those analytic steps.
+
+\section{Unified simplification route}
+
+The physics sequence is common to NLO and NNLO:
+\begin{enumerate}
+  \item read the complete kinematic, fraction, distribution, scale, forbidden
+        variable, and branch declarations from the card;
+  \item substitute the exact hadronic coordinates;
+  \item derive or verify the common twist-two distribution product;
+  \item lift only certified half-integer Laurent monomials in positive
+        fractions and prove Eq.~\eqref{eq:root-certificate};
+  \item derive or verify the common fraction valuation and reject any remaining
+        forbidden variable;
+  \item derive each scale power from exact homogeneity, transform to the card's
+        dimensionless invariants, and verify exact reconstruction.
+\end{enumerate}
+Both input forms are converted to contribution groups before step 2 and then
+enter the same algebraic kernel.  Consequently perturbative order does not
+select a different mathematical normal form.  The only scheduling difference
+is whether contributions are summed before entering the routine or retained as
+a bounded list until their distribution and Laurent factors have been
+certified.
+When complete $C_m$ expressions remain small, the assembled input in
+Eq.~\eqref{eq:two-input-forms} is shorter and allows Mathematica to simplify
+each coefficient directly.  When assembly is the memory bottleneck, the
+contribution-wise input performs bounded exact denominator algebra before the
+same physical checks.  This scheduling decision should be made from measured
+expression size, not from the labels NLO and NNLO.
+
+\clearpage
+\appendix
+\begin{landscape}
+\section{Complete measured method inventory}
+\label{app:all-methods}
+
+The following tables include every method for which a numeric result was
+retained.  A dash means that the corresponding metric was not measured or no
+result was produced.
+
+\scriptsize
+\begin{longtable}{@{}llrrrl@{}}
+\caption{NLO UU simplification measurements.}\label{tab:all-nlouu}\\
+\toprule
+Method & Object and metric & Input & Output & Time & Interpretation \\
+\midrule
+\endfirsthead
+\toprule
+Method & Object and metric & Input & Output & Time & Interpretation \\
+\midrule
+\endhead
+Pair first & 1332 objects, \code{ByteCount} & 89,111,000 & 2,694,944 & 43.403 s & Repeats algebra; final master 1,574,064 bytes.\\
+Target first & 117 objects, \code{ByteCount} & 46,940,920 & 1,362,792 & 23.715 s & Fastest first nontrivial route; final master 1,548,952 bytes.\\
+Master first & one coefficient & -- & -- & $>281$ s & Unfinished.\\
+Target then master & 8 objects, \code{ByteCount} & 1,646,272 & 1,036,008 & 62.125 s & Second stage only; sequential total 85.840 s.\\
+Largest target, termwise \code{Simplify} & \code{ByteCount} & 3,517,376 & 49,016 & 4.838 s & Equality check later reached its time bound.\\
+Largest target, whole \code{Simplify} & \code{ByteCount} & 3,517,376 & 327,568 & 86.378 s & Slower and larger than termwise.\\
+Largest target, whole \code{FullSimplify} & \code{ByteCount} & 3,517,376 & -- & 120.045 s & Unfinished.\\
+Largest target, structural rational form & \code{ByteCount} & 3,517,376 & 6,812,872 & 50.350 s & Expanded.\\
+Common-factor extraction & \code{ByteCount} & 1,362,792 & 684,744 & 3.393 s & Fraction-free targets.\\
+Factored-route final cleanup & \code{ByteCount} & 855,104 & 759,840 & 10.741 s & Full factor-first route about 37.76 s.\\
+Second master sweep & \code{ByteCount} & 759,840 & 759,840 & 9.426 s & No change.\\
+Direct target cleanup & \code{ByteCount} & 1,542,536 & 727,376 & 450.188 s & Much slower than factor-first.\\
+33-rule certified normalization & \code{ByteCount} & 1,035,984 & 283,144 & 9.437 s & Exact fraction independence.\\
+Divide only & \code{ByteCount} & 1,035,984 & 1,089,000 & 0.800 s & Fractions remain.\\
+Divide then \code{Simplify} & \code{ByteCount} & 1,035,984 & 283,144 & 5.877 s & Best compact strip variant.\\
+Divide then \code{FactorTerms} & \code{ByteCount} & 1,035,984 & 1,090,008 & 5.384 s & Fractions remain.\\
+Final \code{FullSimplify} & \code{ByteCount} & 283,144 & 256,456 & 32.352 s & Modest extra reduction.\\
+Final \code{Factor} & \code{ByteCount} & 283,144 & 925,968 & 0.146 s & Expanded.\\
+Final color collection & \code{ByteCount} & 283,144 & 562,496 & 0.185 s & Expanded.\\
+Signature cleanup & \code{ByteCount} & 1,035,984 & 3,879,816 & 1.868 s & Expanded 3.745-fold.\\
+Strip only & \code{ByteCount} & 1,035,984 & 1,935,248 & 1.741 s & Expanded.\\
+Term cleanup & \code{ByteCount} & 1,035,984 & 1,935,248 & 1.691 s & Expanded.\\
+Denominator groups & \code{ByteCount} & 1,035,984 & 1,937,768 & 1.905 s & Expanded.\\
+Color collection variant & \code{ByteCount} & 1,035,984 & 1,935,248 & 1.821 s & Expanded.\\
+Automatic common factor & Syntactic factor & -- & incomplete & 0.0067 s & Missed $1/(x_a x_b)$.\\
+\bottomrule
+\end{longtable}
+\scriptsize
+\begin{longtable}{@{}llrrrl@{}}
+\caption{NLO TT and NNLO simplification measurements.}\label{tab:all-ttnnlo}\\
+\toprule
+Method & Object and metric & Input & Output & Time & Interpretation \\
+\midrule
+\endfirsthead
+\toprule
+Method & Object and metric & Input & Output & Time & Interpretation \\
+\midrule
+\endhead
+TT incorrect tensor route & \code{ByteCount} & -- & 184,796,536 & -- & Wrong dimension replacement; 39,036 GLIs.\\
+TT corrected sparse cut route & \code{ByteCount} & -- & 27,754,864 & -- & Exact tensor tests; nine GLIs.\\
+TT target first, 5 by 5 & \code{ByteCount} & 139,298,664 & 10,562,384 & 52.02 s & Four kernels.\\
+TT final master cleanup & serialized bytes & -- & 750,504 & 30.36 s & Six masters.\\
+TT angular master & \code{ByteCount} & 1,224,256 & 119,520 & 1.874 s & Two angular coefficients.\\
+64 largest NNLO targets & \code{ByteCount} & 83,386,848 & 28,279,424 & 75.643 s & Four kernels; 2.949-fold.\\
+Largest target, whole \code{Simplify} & \code{ByteCount} & 2,434,656 & 811,576 & 15.30 s & Exact zero difference.\\
+Largest target, termwise \code{Simplify} & \code{ByteCount} & 2,434,656 & 701,328 & 6.92 s & Exact zero difference.\\
+Largest target, \code{Cancel[Together]} & \code{ByteCount} & 2,434,656 & 3,748,912 & 0.37 s & Expanded.\\
+Largest target, add \code{FactorTerms} & \code{ByteCount} & 2,434,656 & 5,316,312 & 0.83 s & Expanded further.\\
+Whole-master \code{Simplify} & serialized bytes & 4.7--129.8 MB & -- & 1,800 s each & Eight jobs unfinished; about 34 GiB total.\\
+Master 8 termwise & serialized bytes & 4,655,210 & 3,082,976 & 175.070 s & 377 terms, eight kernels.\\
+Master 1 signatures & serialized bytes & 1,607,146,927 & 920,945,177 & about 19.5 min & Rational normalization within signatures.\\
+Master 2 signatures & serialized bytes & 903,734,615 & 464,281,765 & about 15 min & Rational normalization within signatures.\\
+Master 4 signatures & serialized bytes & 83,696,010 & 47,987,161 & 68.55 s & 2,591 different signatures.\\
+Old all-master cleanup & serialized bytes & 3,960,695,102 & 3,597,827,125 & -- & Only 1.101-fold.\\
+Symbolica then Mathematica & serialized MB & -- & 0.81 MB & 12.16 s & Direct Mathematica: 0.70 MB in 5.91 s.\\
+125-target root sample & \code{ByteCount} & 52,630,888 & 559,984 & 30.45 s & Four kernels; certified root grammar.\\
+Entrywise root cleanup & serialized bytes & 859,107,253 & 131,787,741 & 1,304.639 s & Three post-IBP master columns, eight kernels.\\
+Eager denominator merge & \code{ByteCount} & 422,282,520 & 1,727,567,608 & 6,375.22 s & 6,290 fractions; expanded strongly.\\
+Size-monotone merge & \code{ByteCount} & 422,282,520 & 351,559,840 & 1,260.216 s & 6,557 fractions; serialized 99,892,985 bytes.\\
+Dimensionless scale separation & \code{ByteCount} & 351,559,840 & 296,802,344 & 430.914 s & Serialized 99,892,985 to 92,385,524.\\
+Dimensionless denominator merge & \code{ByteCount} & 296,802,344 & 296,275,768 & 904.575 s & 5,973 fractions; serialized 92,241,826.\\
+Denominator-factor inventory & serialized bytes & 92,241,826 & 91,385,453 & 27.94 s & Only 0.93 percent smaller; 30 factors.\\
+\bottomrule
+\end{longtable}
+\end{landscape}
+
+\section{Provenance and retained records}
+
+The documentation directory contains:
+\begin{itemize}
+  \item the two earlier narrative records;
+  \item the compact NLO UU, TT, and NNLO manifests quoted above;
+  \item scripts for every principal benchmark and branch-safe transformation;
+  \item a machine-readable CSV table naming every size metric;
+  \item an artifact index pointing to the original large expressions and their
+  stored hashes.
+\end{itemize}
+The report does not duplicate multi-gigabyte coefficient files.
+
+\end{document}

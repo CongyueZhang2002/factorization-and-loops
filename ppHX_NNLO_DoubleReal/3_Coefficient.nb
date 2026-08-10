@@ -1,0 +1,64 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+Notebook[{
+Cell[BoxData["Quit"], "Input"],
+
+Cell["pp-hX NNLO Double Real: Coefficients", "Title"],
+
+Cell[CellGroupData[{
+Cell["Setup", "Section"],
+
+Cell[BoxData[{
+ RowBox[{"FACETRoot", "=", "\"\</home/maxzhang/FACET\>\"", ";"}], "\n",
+ RowBox[{"ProjectDirectory", "=", RowBox[{"NotebookDirectory", "[", "]"}], ";"}], "\n",
+ RowBox[{"CardName", "=", "\"\<UU\>\"", ";"}], "\n",
+ RowBox[{"ResultFolder", "=", "Automatic", ";"}], "\n",
+ RowBox[{"NormalizationKernels", "=", "8", ";"}], "\n",
+ RowBox[{"ReconstructionThreads", "=", "8", ";"}]
+}], "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["Initialization", "Section"],
+
+Cell[BoxData[
+ RowBox[{"Get", "[",
+  RowBox[{"FileNameJoin", "[",
+   RowBox[{"{",
+    RowBox[{"FACETRoot", ",", "\"\<Addon\>\"", ",", "\"\<Load\>\"", ",", "\"\<LoadFACET.wl\>\""}],
+   "}"}], "]"}], "]"}]], "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["Progress", "Section"],
+
+Cell[BoxData[
+ RowBox[{"CoefficientProgressPanel", "[", "]"}]], "Input"]
+}, Open]],
+
+Cell[CellGroupData[{
+Cell["Coefficient Reconstruction", "Section"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"CoefficientResult", "=",
+   RowBox[{"CoefficientSimplification", "[",
+    RowBox[{
+     "ProjectDirectory", ",",
+     "CardName", ",",
+     "ResultFolder", ",",
+     RowBox[{"\"\<NormalizationKernels\>\"", "->", "NormalizationKernels"}], ",",
+     RowBox[{"\"\<Threads\>\"", "->", "ReconstructionThreads"}]
+    }], "]"}]}], ";"
+ }]], "Input"]
+}, Open]]
+},
+WindowTitle -> "pp-hX NNLO Double Real: Coefficients",
+WindowSize -> {1200, 800},
+WindowMargins -> {{40, Automatic}, {40, Automatic}},
+ShowCellBracket -> True,
+StyleDefinitions -> "Default.nb"
+]

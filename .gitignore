@@ -1,0 +1,33 @@
+# --- Agent workspaces and generated run data (kept locally, not in git) ---
+Output/
+Work/
+Codex/ppHX_NLO/
+Codex/ppHX_NNLO_DoubleReal/
+Codex/EvaluateMasters/
+Codex/General/
+Codex/Backups/
+Codex/Staging/
+Codex/TestResults/
+!Codex/README.md
+Codex/Tests/QGRAF/output.m
+
+# --- Large result artifacts (regenerable from cards + pipeline; keep locally) ---
+ppHX_NLO/Results/
+ppHX_NNLO_DoubleReal/Results/
+
+# --- Third-party software (own licenses; installed locally, not redistributed) ---
+Addon/Mathematica_Addon/*
+!Addon/Mathematica_Addon/MANIFEST.md
+!Addon/Mathematica_Addon/README.md
+!Addon/Mathematica_Addon/LoadAddons.wl
+Addon/Other_Addon/
+
+# --- Generated file types ---
+*.mx
+*.log
+__pycache__/
+*.pyc
+*.tmp-*
+
+# --- Windows/WSL metadata ---
+*Zone.Identifier

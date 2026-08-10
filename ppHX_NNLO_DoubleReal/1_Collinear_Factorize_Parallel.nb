@@ -1,0 +1,690 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Wolfram 14.2' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       154,          7]
+NotebookDataLength[     27905,        681]
+NotebookOptionsPosition[     26292,        641]
+NotebookOutlinePosition[     26771,        659]
+CellTagsIndexPosition[     26728,        656]
+WindowTitle->FACET Parallel Collinear Factorization
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell["Parallel Collinear Factorization", "Title",ExpressionUUID->"6ccad935-c272-45f5-9305-67fbbe0da459"],
+
+Cell[CellGroupData[{
+
+Cell["Choose Card", "Section",ExpressionUUID->"2f0ff9a2-5593-4dd2-9afd-1841619e34ee"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+  "RootPath", " ", "=", " ", "\"\</home/maxzhang/FACET/ppHX_NNLO_DoubleReal\>\""}], 
+  ";"}], "\n", 
+ RowBox[{
+  RowBox[{"CardName", " ", "=", " ", "\"\<UU\>\""}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"RequestedKernels", " ", "=", " ", "4"}], ";"}]}], "Input",
+ CellLabel->"In[1]:=",ExpressionUUID->"fb992153-372e-4352-91ae-ba79bd76045b"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Initialization", "Section",ExpressionUUID->"6cae280e-79fb-4919-a9bf-c8c11c9b7bbc"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"LoadFile", " ", "=", " ", 
+   RowBox[{"FileNameJoin", "[", 
+    RowBox[{"{", "\n", "  ", 
+     RowBox[{
+      RowBox[{"ParentDirectory", "[", "RootPath", "]"}], ",", 
+      " ", "\"\<Addon\>\"", ",", " ", "\"\<Load\>\"", ",", 
+      " ", "\"\<LoadFACET.wl\>\""}], "\n", "}"}], "]"}]}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"Global`$FeynCalcStartupMessages", " ", "=", " ", "False"}], 
+  ";"}], "\n", 
+ RowBox[{
+  RowBox[{"Block", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"$Output", " ", "=", " ", 
+      RowBox[{"{", "}"}]}], "}"}], ",", " ", 
+    RowBox[{"Get", "[", "LoadFile", "]"}]}], "]"}], ";"}]}], "Input",
+ CellLabel->"In[4]:=",ExpressionUUID->"a2c13d46-1909-4698-9a90-c3e953e3cc61"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Setup", "Section",ExpressionUUID->"8215fe8d-8606-46c9-a4a9-0c05342a6d68"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Setup", " ", "=", " ", 
+   RowBox[{"Get", "[", 
+    RowBox[{"FileNameJoin", "[", 
+     RowBox[{"{", 
+      RowBox[{"RootPath", ",", " ", "\"\<Cards\>\"", ",", " ", 
+       RowBox[{"CardName", " ", "<>", " ", "\"\<.wl\>\""}]}], "}"}], "]"}], 
+    "]"}]}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"Setup", "[", "\"\<CardName\>\"", "]"}], " ", "=", " ", 
+   "CardName"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{
+   RowBox[{
+    RowBox[{"Setup", "[", "\"\<SourceNotebook\>\"", "]"}], " ", "=", " ", 
+    RowBox[{"FileNameJoin", "[", 
+     RowBox[{"{", 
+      RowBox[{
+      "RootPath", ",", " ", "\"\<1_Collinear_Factorize_Parallel.nb\>\""}], 
+      "}"}], "]"}]}], ";"}], "\n"}], "\n", 
+ RowBox[{
+  RowBox[{"ResultsRoot", " ", "=", " ", 
+   RowBox[{"FileNameJoin", "[", 
+    RowBox[{"{", 
+     RowBox[{"RootPath", ",", " ", "\"\<Results\>\""}], "}"}], "]"}]}], 
+  ";"}], "\n", 
+ RowBox[{
+  RowBox[{"If", "[", 
+   RowBox[{
+    RowBox[{"!", " ", 
+     RowBox[{"DirectoryQ", "[", "ResultsRoot", "]"}]}], ",", " ", 
+    RowBox[{"CreateDirectory", "[", 
+     RowBox[{"ResultsRoot", ",", " ", 
+      RowBox[{"CreateIntermediateDirectories", " ", "->", " ", "True"}]}], 
+     "]"}]}], "]"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"RunPrefix", " ", "=", " ", 
+   RowBox[{"CardName", " ", "<>", " ", "\"\<_\>\"", " ", "<>", " ", 
+    RowBox[{"DateString", "[", 
+     RowBox[{"{", 
+      RowBox[{"\"\<Month\>\"", ",", " ", "\"\<_\>\"", ",", 
+       " ", "\"\<Day\>\""}], "}"}], "]"}], " ", "<>", " ", "\"\<_\>\""}]}], 
+  ";"}], "\n", 
+ RowBox[{
+  RowBox[{"RunDirectories", " ", "=", " ", 
+   RowBox[{"Select", "[", 
+    RowBox[{
+     RowBox[{"FileNames", "[", 
+      RowBox[{
+       RowBox[{"RunPrefix", " ", "<>", " ", "\"\<*\>\""}], ",", " ", 
+       "ResultsRoot"}], "]"}], ",", " ", "DirectoryQ"}], "]"}]}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"RunNumbers", " ", "=", " ", 
+   RowBox[{"FromDigits", " ", "/@", " ", 
+    RowBox[{"Flatten", " ", "@", " ", 
+     RowBox[{"StringCases", "[", "\n", "  ", 
+      RowBox[{
+       RowBox[{"FileNameTake", " ", "/@", " ", "RunDirectories"}], ",", "\n", 
+       "  ", 
+       RowBox[{
+        RowBox[{
+        "StartOfString", " ", "~~", " ", "RunPrefix", " ", "~~", " ", 
+         RowBox[{"number", " ", ":", " ", 
+          RowBox[{"DigitCharacter", " ", ".."}]}], " ", "~~", " ", 
+         "EndOfString"}], " ", ":>", " ", "number"}]}], "\n", "]"}]}]}]}], 
+  ";"}], "\n", 
+ RowBox[{
+  RowBox[{"RunNumber", " ", "=", " ", 
+   RowBox[{"If", "[", 
+    RowBox[{
+     RowBox[{"RunNumbers", " ", "===", " ", 
+      RowBox[{"{", "}"}]}], ",", " ", "1", ",", " ", 
+     RowBox[{
+      RowBox[{"Max", "[", "RunNumbers", "]"}], " ", "+", " ", "1"}]}], 
+    "]"}]}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"ResultDirectory", " ", "=", " ", 
+   RowBox[{"FileNameJoin", "[", 
+    RowBox[{"{", 
+     RowBox[{"ResultsRoot", ",", " ", 
+      RowBox[{"RunPrefix", " ", "<>", " ", 
+       RowBox[{"ToString", "[", "RunNumber", "]"}]}]}], "}"}], "]"}]}], 
+  ";"}], "\n", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"CreateDirectory", "[", "ResultDirectory", "]"}], ";"}], "\n"}], "\n", 
+ RowBox[{
+  RowBox[{"PairDirectory", " ", "=", " ", 
+   RowBox[{"FileNameJoin", "[", 
+    RowBox[{"{", 
+     RowBox[{"ResultDirectory", ",", " ", "\"\<Pairs\>\""}], "}"}], "]"}]}], 
+  ";"}], "\n", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"CreateDirectory", "[", "PairDirectory", "]"}], ";"}], "\n"}], "\n", 
+ RowBox[{
+  RowBox[{"ForwardIndices", " ", "=", " ", 
+   RowBox[{"Setup", "[", 
+    RowBox[{"\"\<ForwardAmplitudes\>\"", ",", " ", "\"\<DiagramIndices\>\""}],
+     "]"}]}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"BackwardIndices", " ", "=", " ", 
+   RowBox[{"Setup", "[", 
+    RowBox[{"\"\<ConjugateAmplitudes\>\"", ",", 
+     " ", "\"\<DiagramIndices\>\""}], "]"}]}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"PairIndices", " ", "=", " ", 
+   RowBox[{"Tuples", "[", 
+    RowBox[{"{", 
+     RowBox[{"ForwardIndices", ",", " ", "BackwardIndices"}], "}"}], "]"}]}], 
+  ";"}], "\n", 
+ RowBox[{
+  RowBox[{"PairSetups", " ", "=", " ", 
+   RowBox[{
+    RowBox[{"Function", "[", 
+     RowBox[{"pair", ",", "\n", "  ", 
+      RowBox[{"Join", "[", "\n", "    ", 
+       RowBox[{"Setup", ",", "\n", "    ", 
+        RowBox[{"<|", "\n", "      ", 
+         RowBox[{
+          RowBox[{"\"\<ForwardAmplitudes\>\"", " ", "->", " ", 
+           RowBox[{"Join", "[", "\n", "        ", 
+            RowBox[{
+             RowBox[{"Setup", "[", "\"\<ForwardAmplitudes\>\"", "]"}], ",", 
+             "\n", "        ", 
+             RowBox[{"<|", 
+              RowBox[{"\"\<SelectedIndex\>\"", " ", "->", " ", 
+               RowBox[{"pair", "[", 
+                RowBox[{"[", "1", "]"}], "]"}]}], "|>"}]}], "\n", "      ", 
+            "]"}]}], ",", "\n", "      ", 
+          RowBox[{"\"\<ConjugateAmplitudes\>\"", " ", "->", " ", 
+           RowBox[{"Join", "[", "\n", "        ", 
+            RowBox[{
+             RowBox[{"Setup", "[", "\"\<ConjugateAmplitudes\>\"", "]"}], ",", 
+             "\n", "        ", 
+             RowBox[{"<|", 
+              RowBox[{"\"\<SelectedIndex\>\"", " ", "->", " ", 
+               RowBox[{"pair", "[", 
+                RowBox[{"[", "2", "]"}], "]"}]}], "|>"}]}], "\n", "      ", 
+            "]"}]}]}], "\n", "    ", "|>"}]}], "\n", "  ", "]"}]}], "\n", 
+     "]"}], " ", "/@", " ", "PairIndices"}]}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"PairFiles", " ", "=", " ", 
+   RowBox[{
+    RowBox[{"Function", "[", 
+     RowBox[{"pair", ",", "\n", "  ", 
+      RowBox[{"FileNameJoin", "[", 
+       RowBox[{"{", "\n", "    ", 
+        RowBox[{"PairDirectory", ",", "\n", "    ", 
+         RowBox[{"\"\<F\>\"", " ", "<>", " ", 
+          RowBox[{"ToString", "[", 
+           RowBox[{"pair", "[", 
+            RowBox[{"[", "1", "]"}], "]"}], "]"}], " ", "<>", 
+          " ", "\"\<_C\>\"", " ", "<>", " ", 
+          RowBox[{"ToString", "[", 
+           RowBox[{"pair", "[", 
+            RowBox[{"[", "2", "]"}], "]"}], "]"}], " ", "<>", 
+          " ", "\"\<.wl\>\""}]}], "\n", "  ", "}"}], "]"}]}], "\n", "]"}], 
+    " ", "/@", " ", "PairIndices"}]}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"PairJobs", " ", "=", " ", 
+    RowBox[{"MapThread", "[", "\n", "  ", 
+     RowBox[{
+      RowBox[{
+       RowBox[{"<|", 
+        RowBox[{
+         RowBox[{"\"\<Pair\>\"", " ", "->", " ", "#1"}], ",", " ", 
+         RowBox[{"\"\<Setup\>\"", " ", "->", " ", "#2"}], ",", " ", 
+         RowBox[{"\"\<File\>\"", " ", "->", " ", "#3"}]}], "|>"}], " ", "&"}],
+       ",", "\n", "  ", 
+      RowBox[{"{", 
+       RowBox[{"PairIndices", ",", " ", "PairSetups", ",", " ", "PairFiles"}],
+        "}"}]}], "\n", "]"}]}], ";"}], "\n"}], "\n", 
+ RowBox[{"Grid", "[", "\n", "  ", 
+  RowBox[{
+   RowBox[{"{", "\n", "    ", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{"\"\<Forward indices\>\"", ",", " ", "ForwardIndices"}], "}"}], 
+     ",", "\n", "    ", 
+     RowBox[{"{", 
+      RowBox[{"\"\<Backward indices\>\"", ",", " ", "BackwardIndices"}], 
+      "}"}], ",", "\n", "    ", 
+     RowBox[{"{", 
+      RowBox[{"\"\<Pair jobs\>\"", ",", " ", 
+       RowBox[{"Length", "[", "PairJobs", "]"}]}], "}"}], ",", "\n", "    ", 
+     RowBox[{"{", 
+      RowBox[{"\"\<Result directory\>\"", ",", " ", "ResultDirectory"}], 
+      "}"}]}], "\n", "  ", "}"}], ",", "\n", "  ", 
+   RowBox[{"Frame", " ", "->", " ", "All"}], ",", "\n", "  ", 
+   RowBox[{"Alignment", " ", "->", " ", "Left"}]}], "\n", "]"}]}], "Input",
+ CellLabel->"In[7]:=",ExpressionUUID->"6ccbb7e9-a775-46e1-9383-145931f6b1d6"],
+
+Cell[BoxData[
+ TagBox[GridBox[{
+    {"\<\"Forward indices\"\>", 
+     RowBox[{"{", 
+      RowBox[{"1", ",", "2", ",", "3", ",", "9", ",", "10"}], "}"}]},
+    {"\<\"Backward indices\"\>", 
+     RowBox[{"{", 
+      RowBox[{"1", ",", "2", ",", "3", ",", "9", ",", "10"}], "}"}]},
+    {"\<\"Pair jobs\"\>", "25"},
+    {"\<\"Result directory\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1\"\>"}
+   },
+   AutoDelete->False,
+   GridBoxAlignment->{"Columns" -> {{Left}}},
+   GridBoxFrame->{"Columns" -> {{True}}, "Rows" -> {{True}}},
+   GridBoxItemSize->{"Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}],
+  "Grid"]], "Output",
+ CellChangeTimes->{3.9948173087069283`*^9, 3.9948200734785852`*^9},
+ CellLabel->"Out[26]=",ExpressionUUID->"97f28a88-8313-4cd9-bcdc-22b071edb8ef"]
+}, Open  ]]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Dynamic Pool", "Section",ExpressionUUID->"57c8d1e3-f045-48ca-9389-1f9d816aba93"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"RunSummary", " ", "=", " ", 
+  RowBox[{"Module", "[", "\n", "  ", 
+   RowBox[{
+    RowBox[{"{", "\n", "    ", 
+     RowBox[{
+     "kernelCount", ",", " ", "launchedKernels", ",", " ", 
+      "initializationStatus", ",", " ", "tasks", ",", " ", "pending", ",", 
+      "\n", "    ", "nextResult", ",", " ", "finishedTask", ",", " ", 
+      RowBox[{"completed", " ", "=", " ", "0"}], ",", " ", 
+      RowBox[{"results", " ", "=", " ", 
+       RowBox[{"{", "}"}]}], ",", " ", "rows"}], "\n", "  ", "}"}], ",", "\n",
+     "  ", 
+    RowBox[{
+     RowBox[{"If", "[", 
+      RowBox[{
+       RowBox[{"PairJobs", " ", "===", " ", 
+        RowBox[{"{", "}"}]}], ",", " ", 
+       RowBox[{"Return", "[", "$Failed", "]"}]}], "]"}], ";", "\n", "  ", 
+     RowBox[{"If", "[", 
+      RowBox[{
+       RowBox[{
+        RowBox[{"!", " ", 
+         RowBox[{"IntegerQ", "[", "RequestedKernels", "]"}]}], " ", "||", " ", 
+        RowBox[{"RequestedKernels", " ", "<", " ", "1"}]}], ",", "\n", "    ", 
+       RowBox[{
+        RowBox[{
+        "Print", "[", "\"\<RequestedKernels must be a positive integer.\>\"", 
+         "]"}], ";", "\n", "    ", 
+        RowBox[{"Return", "[", "$Failed", "]"}]}]}], "\n", "  ", "]"}], ";", 
+     "\n", "  ", 
+     RowBox[{"kernelCount", " ", "=", " ", 
+      RowBox[{"Min", "[", 
+       RowBox[{"RequestedKernels", ",", " ", 
+        RowBox[{"Length", "[", "PairJobs", "]"}]}], "]"}]}], ";", "\n", "  ", 
+     
+     RowBox[{"CloseKernels", "[", "]"}], ";", "\n", "  ", 
+     RowBox[{"launchedKernels", " ", "=", " ", 
+      RowBox[{"LaunchKernels", "[", "kernelCount", "]"}]}], ";", "\n", "  ", 
+     RowBox[{"If", "[", 
+      RowBox[{
+       RowBox[{"launchedKernels", " ", "===", " ", 
+        RowBox[{"{", "}"}]}], ",", "\n", "    ", 
+       RowBox[{
+        RowBox[{
+        "Print", "[", "\"\<No subkernels could be launched.\>\"", "]"}], ";", 
+        "\n", "    ", 
+        RowBox[{"Return", "[", "$Failed", "]"}]}]}], "\n", "  ", "]"}], ";", 
+     "\n", "  ", 
+     RowBox[{"initializationStatus", " ", "=", " ", 
+      RowBox[{"With", "[", 
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{"loader", " ", "=", " ", "LoadFile"}], "}"}], ",", "\n", 
+        "    ", 
+        RowBox[{"ParallelEvaluate", "[", "\n", "      ", 
+         RowBox[{
+          RowBox[{"$HistoryLength", " ", "=", " ", "0"}], ";", "\n", "      ", 
+          RowBox[{
+          "ToExpression", 
+           "[", "\"\<Global`$FeynCalcStartupMessages = False\>\"", "]"}], ";",
+           "\n", "      ", 
+          RowBox[{"Block", "[", 
+           RowBox[{
+            RowBox[{"{", 
+             RowBox[{
+              RowBox[{"$Output", " ", "=", " ", 
+               RowBox[{"{", "}"}]}], ",", " ", 
+              RowBox[{"$Messages", " ", "=", " ", 
+               RowBox[{"{", "}"}]}]}], "}"}], ",", " ", 
+            RowBox[{"Get", "[", "loader", "]"}]}], "]"}], ";", "\n", "      ", 
+          RowBox[{
+           RowBox[{"Length", "[", 
+            RowBox[{
+            "DownValues", "[", 
+             "FeynFacet`GenerateCollinearFactorizePreIBPResult", "]"}], "]"}],
+            " ", ">", " ", "0"}]}], "\n", "    ", "]"}]}], "\n", "  ", 
+       "]"}]}], ";", "\n", "  ", 
+     RowBox[{"If", "[", 
+      RowBox[{
+       RowBox[{"!", " ", 
+        RowBox[{"AllTrue", "[", 
+         RowBox[{"initializationStatus", ",", " ", "TrueQ"}], "]"}]}], ",", 
+       "\n", "    ", 
+       RowBox[{
+        RowBox[{"CloseKernels", "[", "]"}], ";", "\n", "    ", 
+        RowBox[{
+        "Print", 
+         "[", "\"\<FeynFacet initialization failed on a subkernel.\>\"", 
+         "]"}], ";", "\n", "    ", 
+        RowBox[{"Return", "[", "$Failed", "]"}]}]}], "\n", "  ", "]"}], ";", 
+     "\n", "  ", 
+     RowBox[{"tasks", " ", "=", " ", 
+      RowBox[{
+       RowBox[{"Function", "[", 
+        RowBox[{"job", ",", "\n", "    ", 
+         RowBox[{"With", "[", 
+          RowBox[{
+           RowBox[{"{", 
+            RowBox[{"pairJob", " ", "=", " ", "job"}], "}"}], ",", "\n", 
+           "      ", 
+           RowBox[{"ParallelSubmit", "[", "\n", "        ", 
+            RowBox[{"Module", "[", 
+             RowBox[{
+              RowBox[{"{", 
+               RowBox[{
+                RowBox[{"Setup", " ", "=", " ", 
+                 RowBox[{"pairJob", "[", "\"\<Setup\>\"", "]"}]}], ",", " ", 
+                RowBox[{"resultFile", " ", "=", " ", 
+                 RowBox[{"pairJob", "[", "\"\<File\>\"", "]"}]}], ",", " ", 
+                "values", ",", " ", "result", ",", " ", "savedFile"}], "}"}], 
+              ",", "\n", "          ", 
+              RowBox[{
+               RowBox[{"savedFile", " ", "=", " ", 
+                RowBox[{"Block", "[", 
+                 RowBox[{
+                  RowBox[{"{", 
+                   RowBox[{"$Output", " ", "=", " ", 
+                    RowBox[{"{", "}"}]}], "}"}], ",", "\n", "            ", 
+                  RowBox[{"Catch", "[", "\n", "              ", 
+                   RowBox[{
+                    RowBox[{"values", " ", "=", " ", 
+                    RowBox[{"CollinearFactorizePreIBP", "[", "Setup", "]"}]}],
+                     ";", "\n", "              ", 
+                    RowBox[{"If", "[", 
+                    RowBox[{
+                    RowBox[{"!", " ", 
+                    RowBox[{"MatchQ", "[", 
+                    RowBox[{"values", ",", " ", 
+                    RowBox[{"{", 
+                    RowBox[{
+                    "_", ",", " ", "_", ",", " ", "_", ",", " ", "_", ",", 
+                    " ", "_"}], "}"}]}], "]"}]}], ",", " ", 
+                    RowBox[{"Throw", "[", "$Failed", "]"}]}], "]"}], ";", 
+                    "\n", "              ", 
+                    RowBox[{"result", " ", "=", " ", 
+                    RowBox[{"GenerateCollinearFactorizePreIBPResult", "[", 
+                    RowBox[{"Setup", ",", " ", 
+                    RowBox[{"Sequence", " ", "@@", " ", "values"}]}], "]"}]}],
+                     ";", "\n", "              ", 
+                    RowBox[{"If", "[", 
+                    RowBox[{
+                    RowBox[{"result", " ", "===", " ", "$Failed"}], ",", " ", 
+                    
+                    RowBox[{"Throw", "[", "$Failed", "]"}]}], "]"}], ";", 
+                    "\n", "              ", 
+                    RowBox[{"Put", "[", 
+                    RowBox[{"result", ",", " ", "resultFile"}], "]"}], ";", 
+                    "\n", "              ", 
+                    RowBox[{"If", "[", 
+                    RowBox[{
+                    RowBox[{"!", " ", 
+                    RowBox[{"FileExistsQ", "[", "resultFile", "]"}]}], ",", 
+                    " ", 
+                    RowBox[{"Throw", "[", "$Failed", "]"}]}], "]"}], ";", 
+                    "\n", "              ", 
+                    RowBox[{"If", "[", 
+                    RowBox[{
+                    RowBox[{
+                    RowBox[{"Get", "[", "resultFile", "]"}], " ", "=!=", " ", 
+                    "result"}], ",", " ", 
+                    RowBox[{
+                    RowBox[{"DeleteFile", "[", "resultFile", "]"}], ";", " ", 
+                    
+                    RowBox[{"Throw", "[", "$Failed", "]"}]}]}], "]"}], ";", 
+                    "\n", "              ", "resultFile"}], "\n", 
+                   "            ", "]"}]}], "\n", "          ", "]"}]}], ";", 
+               "\n", "          ", 
+               RowBox[{"<|", 
+                RowBox[{
+                 RowBox[{"\"\<Pair\>\"", " ", "->", " ", 
+                  RowBox[{"pairJob", "[", "\"\<Pair\>\"", "]"}]}], ",", " ", 
+                 RowBox[{"\"\<File\>\"", " ", "->", " ", "savedFile"}]}], 
+                "|>"}]}]}], "\n", "        ", "]"}], "\n", "      ", "]"}]}], 
+          "\n", "    ", "]"}]}], "\n", "  ", "]"}], " ", "/@", " ", 
+       "PairJobs"}]}], ";", "\n", "  ", 
+     RowBox[{"pending", " ", "=", " ", "tasks"}], ";", "\n", "  ", 
+     RowBox[{"CheckAbort", "[", "\n", "    ", 
+      RowBox[{
+       RowBox[{"Monitor", "[", "\n", "      ", 
+        RowBox[{
+         RowBox[{"While", "[", 
+          RowBox[{
+           RowBox[{"pending", " ", "=!=", " ", 
+            RowBox[{"{", "}"}]}], ",", "\n", "        ", 
+           RowBox[{
+            RowBox[{
+             RowBox[{"{", 
+              RowBox[{
+              "nextResult", ",", " ", "finishedTask", ",", " ", "pending"}], 
+              "}"}], " ", "=", " ", 
+             RowBox[{"WaitNext", "[", "pending", "]"}]}], ";", "\n", 
+            "        ", 
+            RowBox[{"AppendTo", "[", 
+             RowBox[{"results", ",", " ", "nextResult"}], "]"}], ";", "\n", 
+            "        ", 
+            RowBox[{"completed", "++"}]}]}], "\n", "      ", "]"}], ",", "\n",
+          "      ", 
+         RowBox[{"Column", "[", 
+          RowBox[{"{", "\n", "        ", 
+           RowBox[{
+            RowBox[{"ProgressIndicator", "[", 
+             RowBox[{"completed", ",", " ", 
+              RowBox[{"{", 
+               RowBox[{"0", ",", " ", 
+                RowBox[{"Length", "[", "tasks", "]"}]}], "}"}]}], "]"}], ",", 
+            "\n", "        ", 
+            RowBox[{"Row", "[", 
+             RowBox[{"{", 
+              RowBox[{"completed", ",", " ", "\"\< / \>\"", ",", " ", 
+               RowBox[{"Length", "[", "tasks", "]"}], ",", 
+               " ", "\"\< pairs\>\""}], "}"}], "]"}]}], "\n", "      ", "}"}],
+           "]"}]}], "\n", "    ", "]"}], ",", "\n", "    ", 
+       RowBox[{
+        RowBox[{"CloseKernels", "[", "]"}], ";", "\n", "    ", 
+        RowBox[{"Abort", "[", "]"}]}]}], "\n", "  ", "]"}], ";", "\n", "  ", 
+     RowBox[{"CloseKernels", "[", "]"}], ";", "\n", "  ", 
+     RowBox[{"results", " ", "=", " ", 
+      RowBox[{"SortBy", "[", 
+       RowBox[{"results", ",", " ", 
+        RowBox[{
+         RowBox[{"#", "[", "\"\<Pair\>\"", "]"}], " ", "&"}]}], "]"}]}], ";", 
+     "\n", "  ", 
+     RowBox[{"rows", " ", "=", " ", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{"{", "\n", "    ", 
+          RowBox[{
+           RowBox[{"\"\<F\>\"", " ", "<>", " ", 
+            RowBox[{"ToString", "[", 
+             RowBox[{
+              RowBox[{"#", "[", "\"\<Pair\>\"", "]"}], "[", 
+              RowBox[{"[", "1", "]"}], "]"}], "]"}], " ", "<>", 
+            " ", "\"\< C\>\"", " ", "<>", " ", 
+            RowBox[{"ToString", "[", 
+             RowBox[{
+              RowBox[{"#", "[", "\"\<Pair\>\"", "]"}], "[", 
+              RowBox[{"[", "2", "]"}], "]"}], "]"}]}], ",", "\n", "    ", 
+           RowBox[{"If", "[", 
+            RowBox[{
+             RowBox[{"StringQ", "[", 
+              RowBox[{"#", "[", "\"\<File\>\"", "]"}], "]"}], ",", 
+             " ", "\"\<Saved\>\"", ",", " ", "\"\<Failed\>\""}], "]"}], ",", 
+           "\n", "    ", 
+           RowBox[{"#", "[", "\"\<File\>\"", "]"}]}], "\n", "  ", "}"}], " ", 
+         "&"}], ")"}], " ", "/@", " ", "results"}]}], ";", "\n", "  ", 
+     RowBox[{"Column", "[", 
+      RowBox[{"{", "\n", "    ", 
+       RowBox[{
+        RowBox[{"ProgressIndicator", "[", 
+         RowBox[{
+          RowBox[{"Length", "[", "results", "]"}], ",", " ", 
+          RowBox[{"{", 
+           RowBox[{"0", ",", " ", 
+            RowBox[{"Length", "[", "tasks", "]"}]}], "}"}]}], "]"}], ",", 
+        "\n", "    ", 
+        RowBox[{"Grid", "[", 
+         RowBox[{
+          RowBox[{"Prepend", "[", 
+           RowBox[{"rows", ",", " ", 
+            RowBox[{"{", 
+             
+             RowBox[{"\"\<Pair\>\"", ",", " ", "\"\<Status\>\"", ",", 
+              " ", "\"\<File\>\""}], "}"}]}], "]"}], ",", " ", 
+          RowBox[{"Frame", " ", "->", " ", "All"}], ",", " ", 
+          RowBox[{"Alignment", " ", "->", " ", "Left"}]}], "]"}]}], "\n", 
+       "  ", "}"}], "]"}]}]}], "\n", "]"}]}]], "Input",
+ CellLabel->"In[27]:=",ExpressionUUID->"3280bb0b-6955-40cb-86f3-ea08a8dfc506"],
+
+Cell[BoxData[
+ TagBox[GridBox[{
+    {
+     ProgressIndicatorBox[25, {0, 25}]},
+    {
+     TagBox[GridBox[{
+        {"\<\"Pair\"\>", "\<\"Status\"\>", "\<\"File\"\>"},
+        {"\<\"F1 C1\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F1_C1.wl\"\>"},
+        {"\<\"F1 C2\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F1_C2.wl\"\>"},
+        {"\<\"F1 C3\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F1_C3.wl\"\>"},
+        {"\<\"F1 C9\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F1_C9.wl\"\>"},
+        {"\<\"F1 C10\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F1_C10.wl\"\>"},
+        {"\<\"F2 C1\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F2_C1.wl\"\>"},
+        {"\<\"F2 C2\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F2_C2.wl\"\>"},
+        {"\<\"F2 C3\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F2_C3.wl\"\>"},
+        {"\<\"F2 C9\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F2_C9.wl\"\>"},
+        {"\<\"F2 C10\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F2_C10.wl\"\>"},
+        {"\<\"F3 C1\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F3_C1.wl\"\>"},
+        {"\<\"F3 C2\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F3_C2.wl\"\>"},
+        {"\<\"F3 C3\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F3_C3.wl\"\>"},
+        {"\<\"F3 C9\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F3_C9.wl\"\>"},
+        {"\<\"F3 C10\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F3_C10.wl\"\>"},
+        {"\<\"F9 C1\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F9_C1.wl\"\>"},
+        {"\<\"F9 C2\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F9_C2.wl\"\>"},
+        {"\<\"F9 C3\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F9_C3.wl\"\>"},
+        {"\<\"F9 C9\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F9_C9.wl\"\>"},
+        {"\<\"F9 C10\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F9_C10.wl\"\>"},
+        {"\<\"F10 C1\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F10_C1.wl\"\>"},
+        {"\<\"F10 C2\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F10_C2.wl\"\>"},
+        {"\<\"F10 C3\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F10_C3.wl\"\>"},
+        {"\<\"F10 C9\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F10_C9.wl\"\>"},
+        {"\<\"F10 C10\"\>", "\<\"Saved\"\>", \
+"\<\"/home/maxzhang/FACET/ppHX_NLO/Results/UU_08_04_1/Pairs/F10_C10.wl\"\>"}
+       },
+       AutoDelete->False,
+       GridBoxAlignment->{"Columns" -> {{Left}}},
+       GridBoxFrame->{"Columns" -> {{True}}, "Rows" -> {{True}}},
+       GridBoxItemSize->{"Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}],
+      "Grid"]}
+   },
+   DefaultBaseStyle->"Column",
+   GridBoxAlignment->{"Columns" -> {{Left}}},
+   GridBoxItemSize->{"Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}],
+  "Column"]], "Output",
+ CellChangeTimes->{3.994817320880356*^9, 3.994820085126925*^9},
+ CellLabel->"Out[27]=",ExpressionUUID->"269d550c-d630-4270-8340-7f9325300b4a"]
+}, Open  ]]
+}, Open  ]]
+}, Open  ]]
+},
+WindowSize->{1200, 800.25},
+WindowMargins->{{0, Automatic}, {Automatic, 0}},
+WindowTitle->"FACET Parallel Collinear Factorization",
+ShowCellBracket->True,
+FrontEndVersion->"14.2 for Linux x86 (64-bit) (March 16, 2025)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"95741075-ea1b-40a1-bed8-9699fdaaef61"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[628, 23, 104, 0, 96, "Title",ExpressionUUID->"6ccad935-c272-45f5-9305-67fbbe0da459"],
+Cell[CellGroupData[{
+Cell[757, 27, 85, 0, 65, "Section",ExpressionUUID->"2f0ff9a2-5593-4dd2-9afd-1841619e34ee"],
+Cell[845, 29, 359, 9, 69, "Input",ExpressionUUID->"fb992153-372e-4352-91ae-ba79bd76045b"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[1241, 43, 88, 0, 65, "Section",ExpressionUUID->"6cae280e-79fb-4919-a9bf-c8c11c9b7bbc"],
+Cell[1332, 45, 732, 19, 115, "Input",ExpressionUUID->"a2c13d46-1909-4698-9a90-c3e953e3cc61"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[2101, 69, 79, 0, 65, "Section",ExpressionUUID->"8215fe8d-8606-46c9-a4a9-0c05342a6d68"],
+Cell[CellGroupData[{
+Cell[2205, 73, 7493, 194, 1255, "Input",ExpressionUUID->"6ccbb7e9-a775-46e1-9383-145931f6b1d6"],
+Cell[9701, 269, 785, 18, 106, "Output",ExpressionUUID->"97f28a88-8313-4cd9-bcdc-22b071edb8ef"]
+}, Open  ]]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[10535, 293, 86, 0, 65, "Section",ExpressionUUID->"57c8d1e3-f045-48ca-9389-1f9d816aba93"],
+Cell[CellGroupData[{
+Cell[10646, 297, 11820, 268, 1726, "Input",ExpressionUUID->"3280bb0b-6955-40cb-86f3-ea08a8dfc506"],
+Cell[22469, 567, 3783, 69, 632, "Output",ExpressionUUID->"269d550c-d630-4270-8340-7f9325300b4a"]
+}, Open  ]]
+}, Open  ]]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)

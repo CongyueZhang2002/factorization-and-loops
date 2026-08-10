@@ -1,0 +1,758 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Wolfram 14.2' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       154,          7]
+NotebookDataLength[     32923,        858]
+NotebookOptionsPosition[     30024,        800]
+NotebookOutlinePosition[     30503,        819]
+CellTagsIndexPosition[     30460,        816]
+WindowTitle->pp-hX NLO: IBP
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[BoxData["Quit"], "Input",
+ CellLabel->"In[28]:=",ExpressionUUID->"b0ed9e00-b747-4888-b439-e682bc9a3d3f"],
+
+Cell[CellGroupData[{
+
+Cell["pp-hX NLO: IBP", "Title",ExpressionUUID->"1daca53a-f8ae-4858-a39a-54237b4e2e12"],
+
+Cell[CellGroupData[{
+
+Cell["Setup", "Section",ExpressionUUID->"e3704393-e900-42c5-a21a-ee7431d44e6e"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"FACETRoot", " ", "=", " ", "\"\</home/maxzhang/FACET\>\""}], 
+  ";"}], "\n", 
+ RowBox[{
+  RowBox[{"CardName", " ", "=", " ", "\"\<UU\>\""}], ";"}]}], "Input",
+ CellLabel->"In[1]:=",ExpressionUUID->"087d28da-8045-4b43-a90f-475b45286481"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Initialization", "Section",ExpressionUUID->"8012fff2-117b-4559-86f7-846ac01292ca"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Get", "[", 
+   RowBox[{"FileNameJoin", "[", 
+    RowBox[{"{", 
+     RowBox[{
+     "FACETRoot", ",", " ", "\"\<Addon\>\"", ",", " ", "\"\<Load\>\"", ",", 
+      " ", "\"\<LoadFACET.wl\>\""}], "}"}], "]"}], "]"}], ";"}]], "Input",
+ CellLabel->"In[3]:=",ExpressionUUID->"d479be41-6af6-4e68-8886-67d80475824c"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{
+   StyleBox["\<\"FeynCalc \"\>", "Text",
+    StripOnInput->False,
+    FontWeight->Bold], "\[InvisibleSpace]", 
+   StyleBox["\<\"10.2.1 (stable version). For help, use the \"\>", "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox[
+      RowBox[{
+       RowBox[{"online", " ", "documentation"}], ","}],
+      BaseStyle->"Hyperlink",
+      ButtonData:>{
+        URL["https://feyncalc.github.io/referenceDev"], None},
+      ButtonNote->"https://feyncalc.github.io/referenceDev"],
+     DisplayForm], "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox["\<\" visit the \"\>", "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox["forum",
+      BaseStyle->"Hyperlink",
+      ButtonData:>{
+        URL["https://github.com/FeynCalc/feyncalc/discussions"], None},
+      ButtonNote->"https://github.com/FeynCalc/feyncalc/discussions/"],
+     DisplayForm], "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox["\<\" and have a look at the supplied \"\>", "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox[
+      RowBox[{"examples", "."}],
+      BaseStyle->"Hyperlink",
+      ButtonFunction:>SystemOpen[
+        FileNameJoin[{FeynCalc`$FeynCalcDirectory, "Examples"}]],
+      Evaluator->Automatic,
+      Method->"Preemptive"],
+     DisplayForm], "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox["\<\" The PDF-version of the manual can be downloaded \"\>", 
+    "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox[
+      RowBox[{"here", "."}],
+      BaseStyle->"Hyperlink",
+      ButtonData:>{
+        URL[
+        "https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-\
+manual/FeynCalcManual.pdf"], None},
+      ButtonNote->
+       "https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-\
+manual/FeynCalcManual.pdf"],
+     DisplayForm], "Text",
+    StripOnInput->False]}],
+  SequenceForm[
+   Style["FeynCalc ", "Text", Bold], 
+   Style["10.2.1 (stable version). For help, use the ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox["online documentation,", ButtonData :> {
+        URL["https://feyncalc.github.io/referenceDev"], None}, BaseStyle -> 
+      "Hyperlink", ButtonNote -> "https://feyncalc.github.io/referenceDev"]], 
+    "Text"], 
+   Style[" visit the ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox["forum", ButtonData :> {
+        URL["https://github.com/FeynCalc/feyncalc/discussions"], None}, 
+      BaseStyle -> "Hyperlink", ButtonNote -> 
+      "https://github.com/FeynCalc/feyncalc/discussions/"]], "Text"], 
+   Style[" and have a look at the supplied ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox[
+     "examples.", BaseStyle -> "Hyperlink", ButtonFunction :> SystemOpen[
+        FileNameJoin[{FeynCalc`$FeynCalcDirectory, "Examples"}]], Evaluator -> 
+      Automatic, Method -> "Preemptive"]], "Text"], 
+   Style[" The PDF-version of the manual can be downloaded ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox["here.", ButtonData :> {
+        URL[
+        "https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-\
+manual/FeynCalcManual.pdf"], None}, BaseStyle -> "Hyperlink", ButtonNote -> 
+      "https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-\
+manual/FeynCalcManual.pdf"]], "Text"]],
+  Editable->False]], "Print",
+ CellChangeTimes->{3.994820110710252*^9},
+ CellLabel->
+  "During evaluation of \
+In[3]:=",ExpressionUUID->"06f42438-7618-45c6-b26f-835c1c7c9ac5"],
+
+Cell[BoxData[
+ StyleBox["\<\"If you use FeynCalc in your research, please evaluate \
+FeynCalcHowToCite[] to learn how to cite this software.\"\>", "Text",
+  StripOnInput->False]], "Print",
+ CellChangeTimes->{3.994820110718754*^9},
+ CellLabel->
+  "During evaluation of \
+In[3]:=",ExpressionUUID->"b3e3a2e7-eec1-4f62-8de4-0d00d57654c3"],
+
+Cell[BoxData[
+ StyleBox["\<\"Please keep in mind that the proper academic attribution of \
+our work is crucial to ensure the future development of this package!\"\>", 
+  "Text",
+  StripOnInput->False,
+  FontSlant->Italic]], "Print",
+ CellChangeTimes->{3.9948201107193604`*^9},
+ CellLabel->
+  "During evaluation of \
+In[3]:=",ExpressionUUID->"99d3d119-50f5-4859-b195-6a6760b0c99b"],
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{
+   StyleBox["\<\"FeynCalcLegacy \"\>", "Text",
+    StripOnInput->False,
+    FontWeight->Bold], "\[InvisibleSpace]", 
+   StyleBox["\<\"1.0.0\"\>", ". For help, use the ", "Text",
+    StripOnInput->False]}],
+  SequenceForm[
+   Style["FeynCalcLegacy ", "Text", Bold], 
+   Style["1.0.0", ". For help, use the ", "Text"]],
+  Editable->False]], "Print",
+ CellChangeTimes->{3.99482011112663*^9},
+ CellLabel->
+  "During evaluation of \
+In[3]:=",ExpressionUUID->"3cfe27ff-7022-41aa-9cfe-c224ce319e8c"],
+
+Cell[BoxData[
+ StyleBox["\<\"FeynCalcLegacy contains legacy functions and symbols that were \
+removed in FeynCalc 10.2.1\"\>", "Text",
+  StripOnInput->False]], "Print",
+ CellChangeTimes->{3.994820111127925*^9},
+ CellLabel->
+  "During evaluation of \
+In[3]:=",ExpressionUUID->"28295445-ab2d-41ac-8dfc-d820170d5b52"],
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{
+   StyleBox["\<\"FeynHelpers \"\>", "Text",
+    StripOnInput->False,
+    FontWeight->Bold], "\[InvisibleSpace]", 
+   StyleBox["\<\"2.0.0 (). For help, use the \"\>", "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox[
+      RowBox[{
+       RowBox[{"online", " ", "documentation"}], ","}],
+      BaseStyle->"Hyperlink",
+      ButtonData:>{
+        URL["https://feyncalc.github.io/referenceFeynHelpersDev"], None},
+      ButtonNote->"https://feyncalc.github.io/referenceFeynHelpersDev"],
+     DisplayForm], "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox["\<\" visit the \"\>", "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox["forum",
+      BaseStyle->"Hyperlink",
+      ButtonData:>{
+        URL["https://github.com/FeynCalc/feyncalc/discussions"], None},
+      ButtonNote->"https://github.com/FeynCalc/feyncalc/discussions/"],
+     DisplayForm], "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox["\<\" and have a look at the supplied \"\>", "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox[
+      RowBox[{"examples", "."}],
+      BaseStyle->"Hyperlink",
+      ButtonFunction:>SystemOpen[
+        FileNameJoin[{FeynCalc`$FeynHelpersDirectory, "Examples"}]],
+      Evaluator->Automatic,
+      Method->"Preemptive"],
+     DisplayForm], "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox["\<\" The PDF-version of the manual can be downloaded \"\>", 
+    "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox[
+      RowBox[{"here", "."}],
+      BaseStyle->"Hyperlink",
+      ButtonData:>{
+        URL[
+        "https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-\
+manual/FeynHelpersManual.pdf"], None},
+      ButtonNote->
+       "https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-\
+manual/FeynHelpersManual.pdf"],
+     DisplayForm], "Text",
+    StripOnInput->False]}],
+  SequenceForm[
+   Style["FeynHelpers ", "Text", Bold], 
+   Style["2.0.0 (). For help, use the ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox["online documentation,", ButtonData :> {
+        URL["https://feyncalc.github.io/referenceFeynHelpersDev"], None}, 
+      BaseStyle -> "Hyperlink", ButtonNote -> 
+      "https://feyncalc.github.io/referenceFeynHelpersDev"]], "Text"], 
+   Style[" visit the ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox["forum", ButtonData :> {
+        URL["https://github.com/FeynCalc/feyncalc/discussions"], None}, 
+      BaseStyle -> "Hyperlink", ButtonNote -> 
+      "https://github.com/FeynCalc/feyncalc/discussions/"]], "Text"], 
+   Style[" and have a look at the supplied ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox[
+     "examples.", BaseStyle -> "Hyperlink", ButtonFunction :> SystemOpen[
+        FileNameJoin[{FeynCalc`$FeynHelpersDirectory, "Examples"}]], 
+      Evaluator -> Automatic, Method -> "Preemptive"]], "Text"], 
+   Style[" The PDF-version of the manual can be downloaded ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox["here.", ButtonData :> {
+        URL[
+        "https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-\
+manual/FeynHelpersManual.pdf"], None}, BaseStyle -> "Hyperlink", ButtonNote -> 
+      "https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-\
+manual/FeynHelpersManual.pdf"]], "Text"]],
+  Editable->False]], "Print",
+ CellChangeTimes->{3.994820111161037*^9},
+ CellLabel->
+  "During evaluation of \
+In[3]:=",ExpressionUUID->"288bedae-e51a-4f1d-8b85-2a707ab08760"],
+
+Cell[BoxData[
+ StyleBox["\<\" If you use FeynHelpers in your research, please evaluate \
+FeynHelpersHowToCite[] to learn how to cite this work.\"\>", "Text",
+  StripOnInput->False]], "Print",
+ CellChangeTimes->{3.994820111161974*^9},
+ CellLabel->
+  "During evaluation of \
+In[3]:=",ExpressionUUID->"477600f2-88db-4751-98b1-1a622ef0fee7"],
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{
+   StyleBox["\<\"FeynArts \"\>", "Text",
+    StripOnInput->False,
+    FontWeight->Bold], "\[InvisibleSpace]", 
+   StyleBox["\<\"3.12 (27 Mar 2025) patched for use with FeynCalc, for \
+documentation see the \"\>", "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox["manual",
+      BaseStyle->"Hyperlink",
+      ButtonFunction:>SystemOpen[
+        First[
+         FileNames[{"*.pdf", "*.PDF"}, 
+          FileNameJoin[{FeynCalc`$FeynArtsDirectory, "manual"}]]]],
+      Evaluator->Automatic,
+      Method->"Preemptive"],
+     DisplayForm], "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox["\<\" or visit \"\>", "Text",
+    StripOnInput->False], "\[InvisibleSpace]", 
+   StyleBox[
+    TagBox[
+     ButtonBox[
+      RowBox[{"www", ".", "feynarts", ".", "de", "."}],
+      BaseStyle->"Hyperlink",
+      ButtonData:>{
+        URL["http://www.feynarts.de/"], None},
+      ButtonNote->"www.feynarts.de/"],
+     DisplayForm], "Text",
+    StripOnInput->False]}],
+  SequenceForm[
+   Style["FeynArts ", "Text", Bold], 
+   Style["3.12 (27 Mar 2025) patched for use with FeynCalc, for documentation \
+see the ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox[
+     "manual", BaseStyle -> "Hyperlink", ButtonFunction :> SystemOpen[
+        First[
+         FileNames[{"*.pdf", "*.PDF"}, 
+          FileNameJoin[{FeynCalc`$FeynArtsDirectory, "manual"}]]]], Evaluator -> 
+      Automatic, Method -> "Preemptive"]], "Text"], 
+   Style[" or visit ", "Text"], 
+   Style[
+    DisplayForm[
+     ButtonBox["www.feynarts.de.", ButtonData :> {
+        URL["http://www.feynarts.de/"], None}, BaseStyle -> "Hyperlink", 
+      ButtonNote -> "www.feynarts.de/"]], "Text"]],
+  Editable->False]], "Print",
+ CellChangeTimes->{3.9948201111931677`*^9},
+ CellLabel->
+  "During evaluation of \
+In[3]:=",ExpressionUUID->"eed70ee2-2dfd-4645-8d9e-dd7c5a21b638"],
+
+Cell[BoxData[
+ StyleBox["\<\"If you use FeynArts in your research, please cite\"\>", "Text",
+  
+  StripOnInput->False]], "Print",
+ CellChangeTimes->{3.9948201111947107`*^9},
+ CellLabel->
+  "During evaluation of \
+In[3]:=",ExpressionUUID->"2a18e343-57c6-40a1-9db4-ca9eeae82fe6"],
+
+Cell[BoxData[
+ StyleBox["\<\" \[Bullet] T. Hahn, Comput. Phys. Commun., 140, 418-431, 2001, \
+arXiv:hep-ph/0012260\"\>", "Text",
+  StripOnInput->False]], "Print",
+ CellChangeTimes->{3.9948201111950006`*^9},
+ CellLabel->
+  "During evaluation of \
+In[3]:=",ExpressionUUID->"2bc2ec1c-741c-451d-a8ba-674b3db97d45"],
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{
+   StyleBox["\<\"FeynFacet \"\>", "Text",
+    StripOnInput->False,
+    FontWeight->Bold], "\[InvisibleSpace]", 
+   StyleBox["\<\"0.1\"\>", "Text",
+    StripOnInput->False]}],
+  SequenceForm[
+   Style["FeynFacet ", "Text", Bold], 
+   Style["0.1", "Text"]],
+  Editable->False]], "Print",
+ CellChangeTimes->{3.9948201112138166`*^9},
+ CellLabel->
+  "During evaluation of \
+In[3]:=",ExpressionUUID->"df0b7e8d-d81d-4ff8-bd5d-a7f22d19f8ef"]
+}, Open  ]]
+}, Open  ]]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["Load Results", "Section",ExpressionUUID->"2b903b27-38a7-4e89-8866-26d22f9d5ee4"],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{"ResultDirectory", " ", "=", " ", 
+    RowBox[{"FileNameJoin", "[", 
+     RowBox[{"{", 
+      RowBox[{
+      "FACETRoot", ",", " ", "\"\<ppHX_NLO\>\"", ",", " ", "\"\<Results\>\"", 
+       ",", " ", "\"\<UU_08_04_1\>\""}], "}"}], "]"}]}], ";"}], 
+  "\n"}], "\n", 
+ RowBox[{
+  RowBox[{"PairResults", " ", "=", " ", 
+   RowBox[{"Catch", "[", "\n", "  ", 
+    RowBox[{
+     RowBox[{"Module", "[", 
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{
+        "card", ",", " ", "forwardIndices", ",", " ", "conjugateIndices", ",",
+          " ", "expectedPairs", ",", " ", "pairDirectory", ",", " ", 
+         "pairFiles", ",", " ", "pairData", ",", " ", "results", ",", " ", 
+         "parsePairFile", ",", " ", "fail"}], "}"}], ",", "\n", "    ", 
+       RowBox[{
+        RowBox[{
+         RowBox[{"fail", "[", "message_", "]"}], " ", ":=", " ", 
+         RowBox[{"(", 
+          RowBox[{
+           RowBox[{"Print", "[", "message", "]"}], ";", " ", 
+           RowBox[{"Throw", "[", 
+            RowBox[{"$Failed", ",", " ", "\"\<LoadResults\>\""}], "]"}]}], 
+          ")"}]}], ";", "\n", "    ", 
+        RowBox[{"card", " ", "=", " ", 
+         RowBox[{"Get", "[", 
+          RowBox[{"FileNameJoin", "[", 
+           RowBox[{"{", 
+            RowBox[{
+            "FACETRoot", ",", " ", "\"\<ppHX_NLO\>\"", ",", 
+             " ", "\"\<Cards\>\"", ",", " ", 
+             RowBox[{"CardName", " ", "<>", " ", "\"\<.wl\>\""}]}], "}"}], 
+           "]"}], "]"}]}], ";", "\n", "    ", 
+        RowBox[{"forwardIndices", " ", "=", " ", 
+         RowBox[{
+          RowBox[{"card", "[", "\"\<ForwardAmplitudes\>\"", "]"}], 
+          "[", "\"\<DiagramIndices\>\"", "]"}]}], ";", "\n", "    ", 
+        RowBox[{"conjugateIndices", " ", "=", " ", 
+         RowBox[{
+          RowBox[{"card", "[", "\"\<ConjugateAmplitudes\>\"", "]"}], 
+          "[", "\"\<DiagramIndices\>\"", "]"}]}], ";", "\n", "    ", 
+        RowBox[{"expectedPairs", " ", "=", " ", 
+         RowBox[{"Sort", " ", "@", " ", 
+          RowBox[{"Tuples", "[", 
+           RowBox[{"{", 
+            RowBox[{"forwardIndices", ",", " ", "conjugateIndices"}], "}"}], 
+           "]"}]}]}], ";", "\n", "    ", 
+        RowBox[{
+         RowBox[{"parsePairFile", "[", "file_", "]"}], " ", ":=", " ", 
+         RowBox[{"Module", "[", 
+          RowBox[{
+           RowBox[{"{", "match", "}"}], ",", "\n", "      ", 
+           RowBox[{
+            RowBox[{"match", " ", "=", " ", 
+             RowBox[{"StringCases", "[", "\n", "        ", 
+              RowBox[{
+               RowBox[{"FileBaseName", "[", "file", "]"}], ",", "\n", 
+               "        ", 
+               RowBox[{
+                RowBox[{
+                "StartOfString", " ", "~~", " ", "\"\<F\>\"", " ", "~~", " ", 
+                 
+                 RowBox[{"forward", " ", ":", " ", 
+                  RowBox[{"DigitCharacter", " ", ".."}]}], " ", "~~", "\n", 
+                 "          ", "\"\<_C\>\"", " ", "~~", " ", 
+                 RowBox[{"conjugate", " ", ":", " ", 
+                  RowBox[{"DigitCharacter", " ", ".."}]}], " ", "~~", " ", 
+                 "EndOfString"}], " ", ":>", "\n", "          ", 
+                RowBox[{"{", 
+                 RowBox[{
+                  RowBox[{"FromDigits", "[", "forward", "]"}], ",", " ", 
+                  RowBox[{"FromDigits", "[", "conjugate", "]"}]}], "}"}]}]}], 
+              "\n", "      ", "]"}]}], ";", "\n", "      ", 
+            RowBox[{"If", "[", 
+             RowBox[{
+              RowBox[{
+               RowBox[{"Length", "[", "match", "]"}], " ", "===", " ", "1"}], 
+              ",", " ", 
+              RowBox[{"First", "[", "match", "]"}], ",", " ", "$Failed"}], 
+             "]"}]}]}], "\n", "    ", "]"}]}], ";", "\n", "    ", 
+        RowBox[{"If", "[", 
+         RowBox[{
+          RowBox[{"!", " ", 
+           RowBox[{"DirectoryQ", "[", "ResultDirectory", "]"}]}], ",", " ", 
+          RowBox[{"fail", "[", 
+           
+           RowBox[{"\"\<Result folder not found: \>\"", " ", "<>", " ", 
+            "ResultDirectory"}], "]"}]}], "]"}], ";", "\n", "    ", 
+        RowBox[{"pairDirectory", " ", "=", " ", 
+         RowBox[{"FileNameJoin", "[", 
+          RowBox[{"{", 
+           RowBox[{"ResultDirectory", ",", " ", "\"\<Pairs\>\""}], "}"}], 
+          "]"}]}], ";", "\n", "    ", 
+        RowBox[{"If", "[", 
+         RowBox[{
+          RowBox[{"!", " ", 
+           RowBox[{"DirectoryQ", "[", "pairDirectory", "]"}]}], ",", " ", 
+          RowBox[{"fail", "[", 
+           
+           RowBox[{"\"\<Pair folder not found: \>\"", " ", "<>", " ", 
+            "pairDirectory"}], "]"}]}], "]"}], ";", "\n", "    ", 
+        RowBox[{"pairFiles", " ", "=", " ", 
+         RowBox[{"FileNames", "[", 
+          RowBox[{"\"\<F*_C*.wl\>\"", ",", " ", "pairDirectory"}], "]"}]}], ";",
+         "\n", "    ", 
+        RowBox[{"pairData", " ", "=", " ", 
+         RowBox[{
+          RowBox[{
+           RowBox[{"<|", 
+            RowBox[{
+             RowBox[{"\"\<File\>\"", " ", "->", " ", "#"}], ",", " ", 
+             RowBox[{"\"\<Pair\>\"", " ", "->", " ", 
+              RowBox[{"parsePairFile", "[", "#", "]"}]}]}], "|>"}], " ", 
+           "&"}], " ", "/@", " ", "pairFiles"}]}], ";", "\n", "    ", 
+        RowBox[{"If", "[", 
+         RowBox[{
+          RowBox[{"MemberQ", "[", 
+           RowBox[{
+            RowBox[{"Lookup", "[", 
+             RowBox[{"pairData", ",", " ", "\"\<Pair\>\""}], "]"}], ",", " ", 
+            "$Failed"}], "]"}], ",", " ", 
+          RowBox[{"fail", "[", 
+           
+           RowBox[{"\"\<Invalid pair filename in \>\"", " ", "<>", " ", 
+            "pairDirectory"}], "]"}]}], "]"}], ";", "\n", "    ", 
+        RowBox[{"pairData", " ", "=", " ", 
+         RowBox[{"SortBy", "[", 
+          RowBox[{"pairData", ",", " ", 
+           RowBox[{
+            RowBox[{"#", "[", "\"\<Pair\>\"", "]"}], " ", "&"}]}], "]"}]}], ";",
+         "\n", "    ", 
+        RowBox[{"If", "[", 
+         RowBox[{
+          RowBox[{
+           RowBox[{"!", " ", 
+            RowBox[{"DuplicateFreeQ", "[", 
+             RowBox[{"Lookup", "[", 
+              RowBox[{"pairData", ",", " ", "\"\<Pair\>\""}], "]"}], "]"}]}], 
+           " ", "||", " ", 
+           RowBox[{
+            RowBox[{"Lookup", "[", 
+             RowBox[{"pairData", ",", " ", "\"\<Pair\>\""}], "]"}], " ", "=!=",
+             " ", "expectedPairs"}]}], ",", "\n", "      ", 
+          RowBox[{
+          "fail", "[", "\"\<The result folder does not contain exactly the \
+card's expected pairs.\>\"", "]"}]}], "\n", "    ", "]"}], ";", "\n", "    ", 
+        
+        RowBox[{"results", " ", "=", " ", 
+         RowBox[{
+          RowBox[{"Function", "[", 
+           RowBox[{"file", ",", " ", 
+            RowBox[{"Append", "[", 
+             RowBox[{
+              RowBox[{"Get", "[", "file", "]"}], ",", " ", 
+              
+              RowBox[{"\"\<ResultDirectory\>\"", " ", "->", " ", 
+               "ResultDirectory"}]}], "]"}]}], "]"}], " ", "/@", " ", 
+          RowBox[{"Lookup", "[", 
+           RowBox[{"pairData", ",", " ", "\"\<File\>\""}], "]"}]}]}], ";", 
+        "\n", "    ", 
+        RowBox[{"If", "[", 
+         RowBox[{
+          RowBox[{"!", " ", 
+           RowBox[{"AllTrue", "[", 
+            RowBox[{"results", ",", " ", "AssociationQ"}], "]"}]}], ",", " ", 
+          
+          RowBox[{
+          "fail", "[", "\"\<A pair result is not an Association.\>\"", 
+           "]"}]}], "]"}], ";", "\n", "    ", 
+        RowBox[{"If", "[", 
+         RowBox[{
+          RowBox[{"!", " ", 
+           RowBox[{"AllTrue", "[", 
+            RowBox[{"results", ",", " ", 
+             RowBox[{
+              RowBox[{
+               RowBox[{"Lookup", "[", 
+                RowBox[{"#", ",", " ", "\"\<CardName\>\"", ",", " ", "None"}],
+                 "]"}], " ", "===", " ", "CardName"}], " ", "&"}]}], "]"}]}], 
+          ",", " ", 
+          RowBox[{
+          "fail", "[", "\"\<A pair result belongs to a different card.\>\"", 
+           "]"}]}], "]"}], ";", "\n", "    ", 
+        RowBox[{"If", "[", 
+         RowBox[{
+          RowBox[{"!", " ", 
+           RowBox[{"And", " ", "@@", " ", 
+            RowBox[{"MapThread", "[", 
+             RowBox[{
+              RowBox[{"(", 
+               RowBox[{
+                RowBox[{
+                 RowBox[{"Lookup", "[", 
+                  RowBox[{
+                   RowBox[{"#1", "[", "\"\<Pair\>\"", "]"}], ",", " ", 
+                   RowBox[{"{", 
+                    
+                    RowBox[{"\"\<Forward\>\"", ",", 
+                    " ", "\"\<Conjugate\>\""}], "}"}]}], "]"}], " ", "===", 
+                 " ", "#2"}], " ", "&"}], ")"}], ",", " ", 
+              RowBox[{"{", 
+               RowBox[{"results", ",", " ", 
+                RowBox[{"Lookup", "[", 
+                 RowBox[{"pairData", ",", " ", "\"\<Pair\>\""}], "]"}]}], 
+               "}"}]}], "]"}]}]}], ",", "\n", "      ", 
+          RowBox[{
+          "fail", "[", "\"\<Stored pair metadata does not match the \
+filenames.\>\"", "]"}]}], "\n", "    ", "]"}], ";", "\n", "    ", 
+        RowBox[{"Print", " ", "@", " ", 
+         RowBox[{"Grid", "[", 
+          RowBox[{
+           RowBox[{"{", 
+            RowBox[{
+             RowBox[{"{", 
+              RowBox[{"\"\<Card\>\"", ",", " ", "CardName"}], "}"}], ",", " ", 
+             RowBox[{"{", 
+              RowBox[{"\"\<Result folder\>\"", ",", " ", 
+               RowBox[{"FileNameTake", "[", "ResultDirectory", "]"}]}], "}"}],
+              ",", " ", 
+             RowBox[{"{", 
+              RowBox[{"\"\<Pair files\>\"", ",", " ", 
+               RowBox[{"Length", "[", "results", "]"}]}], "}"}]}], "}"}], ",",
+            " ", 
+           RowBox[{"Frame", " ", "->", " ", "All"}]}], "]"}]}], ";", "\n", 
+        "    ", "results"}]}], "\n", "  ", "]"}], ",", "\n", 
+     "  ", "\"\<LoadResults\>\""}], "\n", "]"}]}], ";"}]}], "Input",
+ CellLabel->"In[4]:=",ExpressionUUID->"2b5cac33-c5a4-44de-b5b5-626ac9aa4b6d"],
+
+Cell[BoxData[
+ TagBox[GridBox[{
+    {"\<\"Card\"\>", "\<\"UU\"\>"},
+    {"\<\"Result folder\"\>", "\<\"UU_08_04_1\"\>"},
+    {"\<\"Pair files\"\>", "25"}
+   },
+   AutoDelete->False,
+   GridBoxFrame->{"Columns" -> {{True}}, "Rows" -> {{True}}},
+   GridBoxItemSize->{"Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}],
+  "Grid"]], "Print",
+ CellChangeTimes->{3.99482011155405*^9},
+ CellLabel->
+  "During evaluation of \
+In[4]:=",ExpressionUUID->"e1b3f3f4-1610-4ea6-b5d9-b03f193130de"]
+}, Open  ]]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell["IBP", "Section",ExpressionUUID->"232e0648-a03a-48e3-b39e-929a4b84701f"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"KiraResultFile", " ", "=", " ",
+   RowBox[{"FileNameJoin", "[",
+    RowBox[{"{",
+     RowBox[{"ResultDirectory", ",", " ", "\"\<KiraResult.wl\>\""}],
+     "}"}], "]"}]}], ";"}], "\n",
+ RowBox[{
+  RowBox[{"If", "[", "\n", "  ",
+   RowBox[{
+    RowBox[{"MatchQ", "[",
+     RowBox[{"PairResults", ",", " ", RowBox[{"{", "__Association", "}"}]}],
+     "]"}], ",", "\n", "  ",
+    RowBox[{"KiraReduction", "[",
+     RowBox[{"PairResults", ",", " ", "KiraResultFile"}], "]"}], ",", "\n",
+    "  ",
+    RowBox[{
+     RowBox[{"Print", "[",
+      "\"\<Load Results must succeed before IBP.\>\""}], ";", "\n",
+     "  ", "$Failed"}]}], "\n", "]"}], ";"}]}], "Input",
+ ExpressionUUID->"d72b214f-c948-48b4-a6ca-3a9653c11555"]
+}, Open  ]]
+}, Open  ]]
+},
+WindowSize->{1200, 800},
+WindowMargins->{{0, Automatic}, {Automatic, 0}},
+WindowTitle->"pp-hX NLO: IBP",
+ShowCellBracket->True,
+Magnification->1.15,
+FrontEndVersion->"14.2 for Linux x86 (64-bit) (March 16, 2025)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"ee8b9c83-c39f-4193-8646-068ea12a6341"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[582, 21, 109, 1, 33, "Input",ExpressionUUID->"b0ed9e00-b747-4888-b439-e682bc9a3d3f"],
+Cell[CellGroupData[{
+Cell[716, 26, 86, 0, 111, "Title",ExpressionUUID->"1daca53a-f8ae-4858-a39a-54237b4e2e12"],
+Cell[CellGroupData[{
+Cell[827, 30, 79, 0, 76, "Section",ExpressionUUID->"e3704393-e900-42c5-a21a-ee7431d44e6e"],
+Cell[909, 32, 272, 6, 57, "Input",ExpressionUUID->"087d28da-8045-4b43-a90f-475b45286481"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[1218, 43, 88, 0, 76, "Section",ExpressionUUID->"8012fff2-117b-4559-86f7-846ac01292ca"],
+Cell[CellGroupData[{
+Cell[1331, 47, 341, 8, 35, "Input",ExpressionUUID->"d479be41-6af6-4e68-8886-67d80475824c"],
+Cell[CellGroupData[{
+Cell[1697, 59, 3625, 96, 30, "Print",ExpressionUUID->"06f42438-7618-45c6-b26f-835c1c7c9ac5"],
+Cell[5325, 157, 334, 7, 30, "Print",ExpressionUUID->"b3e3a2e7-eec1-4f62-8de4-0d00d57654c3"],
+Cell[5662, 166, 380, 9, 30, "Print",ExpressionUUID->"99d3d119-50f5-4859-b195-6a6760b0c99b"],
+Cell[6045, 177, 537, 15, 30, "Print",ExpressionUUID->"3cfe27ff-7022-41aa-9cfe-c224ce319e8c"],
+Cell[6585, 194, 314, 7, 30, "Print",ExpressionUUID->"28295445-ab2d-41ac-8dfc-d820170d5b52"],
+Cell[6902, 203, 3677, 96, 30, "Print",ExpressionUUID->"288bedae-e51a-4f1d-8b85-2a707ab08760"],
+Cell[10582, 301, 337, 7, 30, "Print",ExpressionUUID->"477600f2-88db-4751-98b1-1a622ef0fee7"],
+Cell[10922, 310, 1934, 55, 30, "Print",ExpressionUUID->"eed70ee2-2dfd-4645-8d9e-dd7c5a21b638"],
+Cell[12859, 367, 277, 7, 30, "Print",ExpressionUUID->"2a18e343-57c6-40a1-9db4-ca9eeae82fe6"],
+Cell[13139, 376, 310, 7, 30, "Print",ExpressionUUID->"2bc2ec1c-741c-451d-a8ba-674b3db97d45"],
+Cell[13452, 385, 478, 15, 30, "Print",ExpressionUUID->"df0b7e8d-d81d-4ff8-bd5d-a7f22d19f8ef"]
+}, Open  ]]
+}, Open  ]]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[13991, 407, 86, 0, 76, "Section",ExpressionUUID->"2b903b27-38a7-4e89-8866-26d22f9d5ee4"],
+Cell[CellGroupData[{
+Cell[14102, 411, 9997, 233, 1009, "Input",ExpressionUUID->"2b5cac33-c5a4-44de-b5b5-626ac9aa4b6d"],
+Cell[24102, 646, 485, 13, 76, "Print",ExpressionUUID->"e1b3f3f4-1610-4ea6-b5d9-b03f193130de"]
+}, Open  ]]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[24636, 665, 77, 0, 76, "Section",ExpressionUUID->"232e0648-a03a-48e3-b39e-929a4b84701f"],
+Cell[CellGroupData[{
+Cell[24738, 669, 2588, 62, 442, "Input",ExpressionUUID->"d72b214f-c948-48b4-a6ca-3a9653c11555"],
+Cell[27329, 733, 1965, 46, 192, "Print",ExpressionUUID->"13d2681f-964f-4d8c-8edd-3873ec063d8d"],
+Cell[29297, 781, 687, 14, 29, "Message",ExpressionUUID->"2ca1f778-113c-4dbf-93b3-37ba0ed22f8e"]
+}, Open  ]]
+}, Open  ]]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)

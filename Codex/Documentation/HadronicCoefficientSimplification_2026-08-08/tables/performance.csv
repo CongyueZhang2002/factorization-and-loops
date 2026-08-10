@@ -1,0 +1,54 @@
+id,order_channel,sample,algebraic_stage,method,object_count,kernels,input_metric,input_bytes,output_metric,output_bytes,seconds,exactness,remarks
+NLO-UU-5-pairs,NLO UU,5x5,pair construction,full pair construction,25,,serialized bytes,,serialized bytes,1086418,13.346533,exact symbolic result,Output is the complete pair store
+NLO-UU-5-kira,NLO UU,5x5,IBP,Kira reduction,77 targets,,not recorded,,serialized bytes,131294,50.182383,77 targets to 6 masters,KiraResult.wl size is listed
+NLO-UU-5-final,NLO UU,5x5,post-IBP,complete coefficient stage,6,4,not recorded,,serialized bytes,170483,48.552773,exact zero checks and fraction independence,Final IBPResult.wl
+NLO-UU-10-pairfirst,NLO UU,10x10,pre-IBP-substitution,pair-first Simplify,1332,4,ByteCount,89111000,ByteCount,2694944,43.403437,route comparison not independently certified in BenchmarkSummary,Final master ByteCount 1574064
+NLO-UU-10-targetfirst,NLO UU,10x10,pre-IBP-substitution,target-first Simplify,117,4,ByteCount,46940920,ByteCount,1362792,23.715032,route comparison not independently certified in BenchmarkSummary,Final master ByteCount 1548952
+NLO-UU-10-masterfirst,NLO UU,10x10,post-IBP,master-first Simplify,1,,not recorded,,not recorded,,281,unfinished,One coefficient still running at lower bound
+NLO-UU-10-targetmaster,NLO UU,10x10,post-IBP,target-then-master second stage,8,4,ByteCount,1646272,ByteCount,1036008,62.125419,exact symbolic data,Additional to 23.715032 s target stage; final master ByteCount 1041912
+NLO-UU-largest-termwise,NLO UU,largest target,pre-IBP-substitution,termwise Simplify,,1,ByteCount,3517376,ByteCount,49016,4.837548,equality check reached time bound,Compression and timing only
+NLO-UU-largest-whole,NLO UU,largest target,pre-IBP-substitution,whole Simplify,,1,ByteCount,3517376,ByteCount,327568,86.377599,equality check reached time bound,Slower and larger than termwise
+NLO-UU-largest-full,NLO UU,largest target,pre-IBP-substitution,whole FullSimplify,,1,ByteCount,3517376,not recorded,,120.045474,unfinished,No retained result
+NLO-UU-largest-struct,NLO UU,largest target,pre-IBP-substitution,FactorTerms Cancel Together,,1,ByteCount,3517376,ByteCount,6812872,50.349633,exact rational transformation,Expression expanded
+NLO-UU-factor-extract,NLO UU,10x10 targets,pre-IBP-substitution,common fraction factor extraction,117,4,ByteCount,1362792,ByteCount,684744,3.39273,fraction-free coefficients,Target cleanup itself took 23.62377 s
+NLO-UU-factored-master,NLO UU,10x10 masters,post-IBP,factored target route final master cleanup,7,4,ByteCount,855104,ByteCount,759840,10.740831,fraction-free coefficients,Composition took 0.003035 s
+NLO-UU-second-sweep,NLO UU,10x10 masters,post-IBP,second master sweep,7,4,ByteCount,759840,ByteCount,759840,9.42602,unchanged exact result,Redundant sweep
+NLO-UU-target-direct,NLO UU,10x10 targets,pre-IBP-substitution,direct target cleanup,117,4,ByteCount,1542536,ByteCount,727376,450.18754,fraction-free coefficients,Far slower than factor-first
+NLO-UU-certified,NLO UU,10x10 masters,post-IBP,33-rule certified normalization,7,4,ByteCount,1035984,ByteCount,283144,9.437143,fraction-free coefficients,NewProductionNormalizationTest
+NLO-UU-divide-only,NLO UU,10x10 masters,post-IBP,divide universal factor only,7,4,ByteCount,1035984,ByteCount,1089000,0.799752,fraction dependence remains,Fast but incomplete
+NLO-UU-divide-simplify,NLO UU,10x10 masters,post-IBP,divide then Simplify,7,4,ByteCount,1035984,ByteCount,283144,5.877322,fraction-free coefficients,Best compact strip variant
+NLO-UU-divide-factor,NLO UU,10x10 masters,post-IBP,divide then FactorTerms,7,4,ByteCount,1035984,ByteCount,1090008,5.383676,fraction dependence remains,No useful reduction
+NLO-UU-final-full,NLO UU,10x10 masters,post-IBP,FullSimplify after certified division,7,4,ByteCount,283144,ByteCount,256456,32.352196,exact symbolic result,Only 1.104-fold further reduction
+NLO-UU-final-factor,NLO UU,10x10 masters,post-IBP,Factor after certified division,7,4,ByteCount,283144,ByteCount,925968,0.145982,exact symbolic result,Expanded
+NLO-UU-final-color,NLO UU,10x10 masters,post-IBP,color collection after certified division,7,4,ByteCount,283144,ByteCount,562496,0.185032,exact symbolic result,Expanded
+NLO-UU-signature,NLO UU,10x10 masters,post-IBP,signature rational cleanup,7,4,ByteCount,1035984,ByteCount,3879816,1.868188,fraction-free coefficients,Expanded 3.745-fold
+NLO-UU-auto-factor,NLO UU,10x10 masters,post-IBP,automatic common factor,7,1,not recorded,,not recorded,,0.006659,missed 1 over xa xb,Insufficient factor
+NLO-TT-tensor-old,NLO TT,representative pair,pre-IBP,incorrect degree-zero tensor route,,1,ByteCount,,ByteCount,184796536,,incorrect dimensional bookkeeping,39036 GLI occurrences and 31 unique
+NLO-TT-tensor-fixed,NLO TT,representative pair,pre-IBP,correct sparse cut tensor route,,1,ByteCount,,ByteCount,27754864,,exact tensor identities satisfied,9 GLI occurrences and 9 unique
+NLO-TT-rank1,NLO TT,rank-one tensor,pre-IBP,tensor reduction and absorption,,1,ByteCount,155968,ByteCount,296096,0.056378,loop momentum and SPE removed,Tensor-reduced intermediate 89736 bytes; 199 GLIs
+NLO-TT-rank2,NLO TT,rank-two tensor,pre-IBP,tensor reduction and absorption,,1,ByteCount,253968,ByteCount,16465224,0.197349,loop momentum and SPE removed,Tensor-reduced intermediate 449680 bytes; 6932 GLIs
+NLO-TT-target,NLO TT,5x5,pre-IBP-substitution,target-first cleanup,,4,ByteCount,139298664,ByteCount,10562384,52.02,exact angular and fraction checks,6 masters after Kira composition
+NLO-TT-master,NLO TT,5x5,post-IBP,final master cleanup,6,4,not recorded,,serialized bytes,750504,30.36,exact angular and fraction checks,Final master file
+NLO-TT-angular,NLO TT,one hard master,post-IBP,angular coefficient Simplify,2,1,ByteCount,1224256,ByteCount,119520,1.874022,assumption-aware equality true,Components: 580784 to 57752 and 643472 to 61768
+NNLO-target64,NNLO UU,64 largest targets,pre-IBP-substitution,termwise Simplify,64,4,ByteCount,83386848,ByteCount,28279424,75.643305,exact symbolic data retained,2.949-fold
+NNLO-target-largest-whole,NNLO UU,largest target,pre-IBP-substitution,whole Simplify,1,1,ByteCount,2434656,ByteCount,811576,15.30,exact difference zero,3.000-fold
+NNLO-target-largest-term,NNLO UU,largest target,pre-IBP-substitution,termwise Simplify,1,1,ByteCount,2434656,ByteCount,701328,6.92,exact difference zero,3.471-fold
+NNLO-target-largest-cancel,NNLO UU,largest target,pre-IBP-substitution,Cancel Together,1,1,ByteCount,2434656,ByteCount,3748912,0.37,exact difference zero,Expanded
+NNLO-target-largest-factor,NNLO UU,largest target,pre-IBP-substitution,FactorTerms Cancel Together,1,1,ByteCount,2434656,ByteCount,5316312,0.83,exact difference zero,Expanded
+NNLO-whole-master,NNLO UU,masters 3 through 10,post-IBP,whole Simplify,8,8,serialized bytes,4655210 to 129816704,not recorded,,1800 per job,all unfinished,About 34 GiB aggregate memory
+NNLO-master8-termwise,NNLO UU,master 8,post-IBP,termwise Simplify,377,8,serialized bytes,4655210,serialized bytes,3082976,175.070063,exact symbolic data retained,Current fast artifact was 7978901 bytes
+NNLO-master1-signature,NNLO UU,master 1,post-IBP,rational signature modules,24050,,serialized bytes,1607146927,serialized bytes,920945177,1170 approximate,exact symbolic data retained,About 19.5 min
+NNLO-master2-signature,NNLO UU,master 2,post-IBP,rational signature modules,,,serialized bytes,903734615,serialized bytes,464281765,900 approximate,exact symbolic data retained,About 15 min
+NNLO-master4-signature,NNLO UU,master 4,post-IBP,rational signature modules,2591,,serialized bytes,83696010,serialized bytes,47987161,68.55,exact symbolic data retained,2591 distinct signatures
+NNLO-all-old-final,NNLO UU,342 masters,post-IBP,old all-master final cleanup,342,,serialized bytes,3960695102,serialized bytes,3597827125,,exact symbolic data retained,Only 1.101-fold
+NNLO-symbolica,NNLO UU,test coefficient,post-IBP,Symbolica then Mathematica,1,1,serialized MB,,serialized MB,0.81,12.16,exact symbolic data retained,Direct Mathematica was 5.91 s and 0.70 MB
+NNLO-sample125,NNLO UU,125 stratified targets,pre-IBP-substitution,complete target cleanup,125,4,ByteCount,52630888,ByteCount,559984,30.45,exact data and certified root grammar,No fraction-dependent logs Gamma or hypergeometric functions
+NNLO-entry-root,NNLO UU,3 selected post-IBP master columns,post-IBP,entrywise positive-root cleanup,38400,8,serialized bytes,859107253,serialized bytes,131787741,1304.639067,complete independent audit,38460 target leaves
+NNLO-eager-mem,NNLO UU,largest selected master,post-IBP,eager equal-denominator cancellation,38306,8,ByteCount,422282520,ByteCount,1727567608,6375.22,complete independent audit,6290 final fractions
+NNLO-eager-file,NNLO UU,largest selected master,post-IBP,eager equal-denominator cancellation,38306,8,serialized bytes,131787741,serialized bytes,488886853,6375.22,complete independent audit,Output larger than entrywise three-master store
+NNLO-monotone-mem,NNLO UU,largest selected master,post-IBP,size-monotone equal-denominator cancellation,38306,8,ByteCount,422282520,ByteCount,351559840,1260.216288,complete independent audit,6557 final fractions
+NNLO-monotone-file,NNLO UU,largest selected master,post-IBP,size-monotone equal-denominator cancellation,38306,8,serialized bytes,,serialized bytes,99892985,1260.216288,complete independent audit,Input is one column of the 131787741-byte three-master store
+NNLO-dimscale-mem,NNLO UU,largest selected master,post-IBP,dimensionless scale separation,6557,8,ByteCount,351559840,ByteCount,296802344,430.91434,exact homogeneity and parity checks,Scale power minus 2
+NNLO-dimscale-file,NNLO UU,largest selected master,post-IBP,dimensionless scale separation,6557,8,serialized bytes,99892985,serialized bytes,92385524,430.91434,exact homogeneity and parity checks,No equal-denominator merge yet
+NNLO-dimmerge,NNLO UU,largest selected master,post-IBP,dimensionless size-monotone merge,6557,8,ByteCount,296802344,ByteCount,296275768,904.574899,complete independent replay,5973 final fractions and 92241826 serialized bytes
+NNLO-factor-census,NNLO UU,largest selected master,post-IBP,denominator factor inventory,5973,8,serialized bytes,92241826,serialized bytes,91385453,27.94,all denominators reconstructed exactly,Only 0.93 percent smaller
