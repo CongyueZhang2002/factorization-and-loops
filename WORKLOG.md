@@ -192,6 +192,27 @@ tests in the same commit.
   of the project, this time in my own diagnostic - the rewrite's
   symbol-hygiene item keeps earning its place.)
 
+- BLOCKER, definitively diagnosed (16:00): the NNLO gluon coefficient
+  normalization fails deterministically on target
+  GLI[CF424,{1,1,1,-1,1,1,1,1,-1}], master GLI[CF1,{1,1,0,0,1,0,0,0,0}].
+  Stage-by-stage on the exact coefficient (1.1 MB; 2.4 MB after
+  hadronic substitution): hadronic 0.4 s OK, branch grammar OK, root
+  lift 0.3 s OK - then the mandatory final Cancel[Together[...]] of
+  the root-lifted rational (which performs the root-parity cancellation
+  that makes the result root-free for the trace) exceeds its 300 s
+  budget. Not load, not a bug: a scalability wall of the
+  PositiveMonomialRoots lifting machinery at NNLO coefficient sizes,
+  multiplied by 45k targets. This is precisely the machinery rewrite
+  item 4 (rationalized card kinematics) deletes: with root-free
+  variables the hadronic substitution never introduces half-integer
+  powers, so there is no lift and no giant Cancel. RECOMMENDATION:
+  pull item 4 forward; do not tune timeouts (even 30 s/coefficient x
+  45k targets x ~3 masters is days of Cancel).
+  (Diagnostic honesty: my first two single-target probes were
+  invalidated by my own script bugs - a context-qualification miss and
+  a rule-vs-list destructuring miss - both now fixed in the record;
+  the third probe is the one that holds.)
+
 **Morning plan (recommended supervised next steps):**
 
 1. NNLO finite-field coefficient reconstruction on the canonical gluon
