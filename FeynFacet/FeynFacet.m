@@ -154,6 +154,7 @@ $feynFacetPrivateDirectory = FileNameJoin[{$feynFacetDirectory, "Private"}];
 $feynFacetPrivateFiles = FileNameJoin[{$feynFacetPrivateDirectory, #}] & /@ {
     "Core.wl", "Process.wl", "Topologies.wl", "CanonicalFamilies.wl",
     "DimensionalShift.wl", "Collinear.wl", "Reduction.wl",
+    "StreamingKira.wl",
     "MasterIntegralAmFlow.wl", "Simplification.wl",
     "CoefficientStore.wl", "CoefficientModules.wl"
 };
