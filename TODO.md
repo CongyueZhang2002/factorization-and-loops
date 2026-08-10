@@ -66,9 +66,12 @@ defined here. Every module lands with its tests in the same commit.
       pipeline integration landed (`CanonicalFamilies.wl`,
       `CanonicalizePairArtifacts` post-pass, reduction-side dedupe and
       CanonicalIdentity fast path in both reduction paths); NLO
-      acceptance reproduces the reference reduction exactly. Open
-      follow-up: registry-seeding API so two grids (gluon + ghost) can
-      share one registry.
+      acceptance reproduces the reference reduction exactly.
+- [x] Registry-seeding API (2026-08-10): CanonicalizePairArtifacts
+      "SeedRegistry" option — seeded grids keep the seed's family names
+      and numbering, corner slots merge across grids, sector-partition
+      mismatches rejected (Tests/t_registry_seeding.wls). Enables the
+      gluon+ghost shared namespace for assembly.
 - [x] Validation measurements (2026-08-10): Pak partition identical to
       the stored affine-verified equivalence on NLO (178 -> 11) and
       NNLO (1898 -> 430; 374 = classes with targets); the 342 NNLO

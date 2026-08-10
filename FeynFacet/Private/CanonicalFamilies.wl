@@ -889,7 +889,55 @@ canonicalPutArtifact[result_Association, file_String] := Module[
 ];
 
 
-Options[CanonicalizePairArtifacts] = {"AllowCollisions" -> False};
+Options[CanonicalizePairArtifacts] = {
+  "AllowCollisions" -> False,
+  "SeedRegistry" -> None
+};
+
+CanonicalizePairArtifacts::seed =
+  "The seed registry is invalid, or its loop-sector partition differs from the supplied pair artifacts: `1`.";
+
+(* A seed makes several grids of one process share one family
+   namespace: families already in the seed keep their names, new
+   topologies continue the numbering. Accepts a registry Association,
+   a CanonicalRegistry.wxf file, or a canonicalized result directory. *)
+canonicalRegistrySeed[None] := None;
+
+canonicalRegistrySeed[registry_Association] /;
+    canonicalFamilyRegistryQ[registry] := <|
+  "Registry" -> registry,
+  "Slots" -> <||>
+|>;
+
+canonicalRegistrySeed[path_String] := Module[{file, record, registry},
+  file = Which[
+    DirectoryQ[path],
+      FileNameJoin[{path, "CanonicalRegistry.wxf"}],
+    True,
+      path
+  ];
+  If[! FileExistsQ[file], Return[$Failed]];
+  record = Quiet @ Check[coefficientReadRecord[file], $Failed];
+  If[
+    ! AssociationQ[record] ||
+      record["Type"] =!= "FeynFacetCanonicalFamilyRegistryRecord",
+    Return[$Failed]
+  ];
+  registry = record["Registry"];
+  If[! canonicalFamilyRegistryQ[registry], Return[$Failed]];
+  <|
+    "Registry" -> registry,
+    (* Family-intrinsic corner slots from the seeding run: the merged
+       corner over all grids keeps shared-family records identical
+       across grids, and covers seed families this grid never uses. *)
+    "Slots" -> Association @ KeyValueMap[
+      #1 -> canonicalActiveSlots[#2] &,
+      Lookup[record, "FamilyBaseGLI", <||>]
+    ]
+  |>
+];
+
+canonicalRegistrySeed[_] := $Failed;
 
 CanonicalizePairArtifacts[
     pairFiles_List,
@@ -902,7 +950,8 @@ CanonicalizePairArtifacts[
       families, mappings, rules, names, statuses, collisions, mappedBases,
       slotsByName, entryByName, fingerprint, output, pairDirectory,
       rulesByPair, namesByPair, canonicalized, written, registryFile,
-      manifestFile, registryRecord, manifest, verification
+      manifestFile, registryRecord, manifest, verification,
+      seed, seededFamilyCount
     },
 
     If[
@@ -949,10 +998,41 @@ CanonicalizePairArtifacts[
     allRecords = Join @@ Lookup[artifacts, "Topologies"];
     sourceNames = #["Topology"][[1]] & /@ allRecords;
 
-    run = CanonicalizeTopologyRecords[artifacts];
+    seed = canonicalRegistrySeed[OptionValue["SeedRegistry"]];
+    If[seed === $Failed,
+      Message[
+        CanonicalizePairArtifacts::seed,
+        OptionValue["SeedRegistry"]
+      ];
+      Throw[$Failed, $canonicalFamilyFailure]
+    ];
+    run = If[seed === None,
+      CanonicalizeTopologyRecords[artifacts],
+      Module[{sectors},
+        sectors = DeleteDuplicates[
+          Catch[loopSectorsFromSetup[#], $collinearFailure] & /@
+            Lookup[artifacts, "Setup"]
+        ];
+        If[
+          Length[sectors] =!= 1 || ! AssociationQ[First[sectors]] ||
+            First[sectors] =!= seed["Registry"]["SectorData"],
+          Message[
+            CanonicalizePairArtifacts::seed,
+            "loop-sector partition mismatch"
+          ];
+          Throw[$Failed, $canonicalFamilyFailure]
+        ];
+        CanonicalizeTopologyRecords[allRecords, seed["Registry"]]
+      ]
+    ];
     If[! AssociationQ[run] || ! canonicalFamilyRegistryQ[run["Registry"]],
       Message[CanonicalizePairArtifacts::records];
       Throw[$Failed, $canonicalFamilyFailure]
+    ];
+    seededFamilyCount = If[
+      seed === None,
+      0,
+      Length[seed["Registry"]["Families"]]
     ];
     registry = run["Registry"];
     families = registry["Families"];
@@ -983,8 +1063,23 @@ CanonicalizePairArtifacts[
       {position, Length[allRecords]}
     ];
     slotsByName = Merge[
-      MapThread[#1 -> canonicalActiveSlots[#2] &, {names, mappedBases}],
+      Join[
+        If[seed === None, {}, Normal[seed["Slots"]]],
+        MapThread[#1 -> canonicalActiveSlots[#2] &, {names, mappedBases}]
+      ],
       Union @@ # &
+    ];
+
+    If[
+      ! AllTrue[
+        Lookup[families, "Name"],
+        KeyExistsQ[slotsByName, #] &
+      ],
+      Message[
+        CanonicalizePairArtifacts::seed,
+        "a seed family has no recorded corner slots; seed from the CanonicalRegistry.wxf file, not a bare registry"
+      ];
+      Throw[$Failed, $canonicalFamilyFailure]
     ];
 
     entryByName = AssociationThread[Lookup[families, "Name"], families];
@@ -1041,6 +1136,12 @@ CanonicalizePairArtifacts[
       "Version" -> $canonicalFamilyRegistryVersion,
       "Created" -> DateString[{"ISODate", "T", "Time"}],
       "Fingerprint" -> fingerprint,
+      "SeededFingerprint" -> If[
+        seed === None,
+        Missing["NotSeeded"],
+        canonicalRegistryFingerprint[seed["Registry"]]
+      ],
+      "SeededFamilyCount" -> seededFamilyCount,
       "OutputDirectory" -> output,
       "PairFiles" -> FileNameTake /@ files,
       "Registry" -> registry,
@@ -1083,6 +1184,9 @@ CanonicalizePairArtifacts[
       "FamilyCount" -> Length[families],
       "Statuses" -> Sort @ Tally[statuses],
       "Collisions" -> collisions,
+      "SeededFingerprint" -> registryRecord["SeededFingerprint"],
+      "SeededFamilyCount" -> seededFamilyCount,
+      "NewFamilyCount" -> Length[families] - seededFamilyCount,
       "Families" -> Function[entry,
         <|
           "Name" -> entry["Name"],
