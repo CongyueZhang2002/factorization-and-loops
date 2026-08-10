@@ -65,6 +65,18 @@ tests in the same commit.
 - Step 3a done (03:00): ghost grid 49/49 regenerated, zero failures
   (UU_Ghost_08_10_1). Gluon grid 36x36 (UU_08_10_1) launched in
   background (expect hours; resumable).
+- Step 3a done for the gluon grid too (03:35, far faster than
+  expected): 1296/1296 pairs regenerated, zero failures, ~35 min on 6
+  subkernels (1.1 GB of artifacts).
+- Step 3b+c done for the ghost grid (09:00): full chain green -
+  canonicalization 49 pairs -> 25 canonical families in 28 s (0
+  rejected), Kira solve 239 s, streaming import 12.9 s at peak 573 MB;
+  2451 targets -> 27 masters, 2447 rules
+  (UU_Ghost_08_10_canonical/KiraStream). First NNLO-style exercise of
+  the full canonicalize+solve+stream chain.
+- Step 3b+c gluon chain launched (09:02): canonicalization of 1296
+  artifacts, then the big Kira solve, then the first true NNLO-scale
+  streaming import.
 
 Plan, in order; each step appends its outcome here:
 
