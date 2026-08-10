@@ -49,12 +49,13 @@ defined here. Every module lands with its tests in the same commit.
 
 ### 2. Canonical integral families
 
-- [ ] Global cut-aware family registry: map every partial-fractioned
-      denominator set onto canonical families (Pak-style canonical form
-      with cut propagators distinguished, energy directions preserved);
-      family identity independent of the diagram pair. Design and
-      measurements in `Design/CanonicalFamilies.md`; prototype in
-      progress (Opus agent, 2026-08-10).
+- [x] Global cut-aware family registry (2026-08-10): prototype +
+      pipeline integration landed (`CanonicalFamilies.wl`,
+      `CanonicalizePairArtifacts` post-pass, reduction-side dedupe and
+      CanonicalIdentity fast path in both reduction paths); NLO
+      acceptance reproduces the reference reduction exactly. Open
+      follow-up: registry-seeding API so two grids (gluon + ghost) can
+      share one registry.
 - [x] Validation measurements (2026-08-10): Pak partition identical to
       the stored affine-verified equivalence on NLO (178 -> 11) and
       NNLO (1898 -> 430; 374 = classes with targets); the 342 NNLO
@@ -128,9 +129,10 @@ defined here. Every module lands with its tests in the same commit.
 - [ ] Golden-file regression tests: frozen NLO UU/TT results (masters,
       coefficients, finite hard function) must reproduce bit-exactly.
       Done 2026-08-10 for UU at the pre-IBP and reduction level
-      (`Tests/t_nlo_golden.wls`: 100 pairs, 400 field comparisons,
-      identical 7-master set). Remaining: coefficient-level golden
-      (CoefficientResult), the TT card, and the finite hard function.
+      (`Tests/t_nlo_golden.wls`) and at the coefficient level
+      (`Tests/t_nlo_coefficient_golden.wls`: identical 7-master
+      finite-field coefficients vs the 2026-08-09 reference).
+      Remaining: the TT card and the finite hard function.
 - [ ] End-to-end numeric stage: evaluate the assembled hard function at
       rational phase-space points against AMFlow on the weighted master
       sum.

@@ -53,6 +53,17 @@ tests in the same commit.
 
 ## 2026-08-10/11 (overnight)
 
+**Outcomes so far:**
+
+- Step 1 done (02:35): canonical-families integration verified
+  independently (7 tests, 87 assertions) and committed (d0f8b6c).
+- Step 2 done (02:52): coefficient-level NLO golden green 6/6
+  (59c0f03). The finite-field reconstruction on the regenerated set
+  reproduces the reference CoefficientResult.wl exactly (7 masters,
+  every coefficient product and the remainder identical). NLO UU is
+  golden-locked at pre-IBP, reduction, and coefficient level.
+- Step 3a started (02:53): ghost grid regeneration (7x7) running.
+
 Plan, in order; each step appends its outcome here:
 
 1. Independent full-suite verification of the canonical integration
