@@ -118,6 +118,10 @@ defined here. Every module lands with its tests in the same commit.
       remains open.
 - [ ] Golden-file regression tests: frozen NLO UU/TT results (masters,
       coefficients, finite hard function) must reproduce bit-exactly.
+      Done 2026-08-10 for UU at the pre-IBP and reduction level
+      (`Tests/t_nlo_golden.wls`: 100 pairs, 400 field comparisons,
+      identical 7-master set). Remaining: coefficient-level golden
+      (CoefficientResult), the TT card, and the finite hard function.
 - [ ] End-to-end numeric stage: evaluate the assembled hard function at
       rational phase-space points against AMFlow on the weighted master
       sum.
@@ -147,16 +151,22 @@ now; codify later as:
 
 ### 9. Additional hardening and cleanups (2026-08-09 review items)
 
-- [ ] **Artifact version skew (found 2026-08-10):** `analyticContextQ`
-      (Core.wl) requires `"CoefficientKinematics"` in the analytic
-      context, but the saved 2026-08-05 NLO artifacts predate that key,
-      so `topologyRecordQ` now rejects every one of them - breaking
-      `TopologyEquivalence`, `MasterIntegralAmFlow[result, ...]`, and
-      the artifact validators on exactly the data the golden regression
-      tests need. The context stores a self-consistent fingerprint, so
-      in-place patching is impossible: either make the required-key set
-      version-aware or regenerate the NLO artifacts. Decide before the
-      golden-file tests (item 7) and the NNLO rerun.
+- [x] **Artifact version skew (found 2026-08-10, resolved by
+      regeneration):** the saved 2026-08-05 NLO artifacts predate the
+      `"CoefficientKinematics"` context key and are rejected by current
+      validation. Decision: regenerate. Done via
+      `Scripts/regenerate_nlo_pairs.wls` -> `UU_08_10_10x10_regen`
+      (100/100 pairs, all pass current validation).
+- [x] **Stale-artifact delta (found and resolved 2026-08-10):** 98 of
+      100 regenerated UU integrands differ *structurally* from the
+      2026-08-05 ones (the 2026-08-08 BMHV dimensional-shift correction
+      landed after they were generated), but the difference is exactly
+      zero pair by pair: old - new vanishes algebraically at the
+      integrand level, and the fresh reduction reproduces the same 7
+      masters. For the unpolarized UU card the correction was
+      representation-only; TT (polarized) remains the case where it
+      matters. `UU_08_10_10x10_regen` is the golden baseline
+      (Tests/t_nlo_golden.wls, 5 assertions).
 
 - [ ] Scope kinematics into the process object: stop mutating global
       `SP/SPD/SPE` DownValues in `BuildGlobalBasis`/`declareGlobalBasis`;
