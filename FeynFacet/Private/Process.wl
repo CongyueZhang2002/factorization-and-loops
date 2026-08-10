@@ -859,6 +859,40 @@ AMFlowPrescription[config_] := (
 );
 
 
+IdenticalParticleSymmetryFactor::setup =
+  "Setup must declare Partons and HadronMomentum as incoming -> outgoing lists with outgoing sides of equal length.";
+
+(* 1/n! per species of identical, hadron-untagged outgoing partons. The
+   measured (fragmenting) leg is distinguished by the measurement and is
+   excluded; incoming legs never contribute a phase-space symmetry
+   factor. Distinct species (for example a ghost-antighost pair) give 1. *)
+IdenticalParticleSymmetryFactor[setup_Association] := Module[
+  {partons, hadrons, outgoingPartons, outgoingHadrons, untagged},
+
+  partons = Lookup[setup, "Partons", Missing["NotFound"]];
+  hadrons = Lookup[setup, "HadronMomentum", Missing["NotFound"]];
+  If[
+    ! MatchQ[partons, Rule[_List, _List]] ||
+      ! MatchQ[hadrons, Rule[_List, _List]] ||
+      Length[Last[partons]] =!= Length[Last[hadrons]],
+    Message[IdenticalParticleSymmetryFactor::setup];
+    Return[$Failed]
+  ];
+  outgoingPartons = Last[partons];
+  outgoingHadrons = Last[hadrons];
+  untagged = Pick[
+    outgoingPartons,
+    (MissingQ[#] || # === NA) & /@ outgoingHadrons
+  ];
+  1/(Times @@ (Factorial[Last[#]] & /@ Tally[untagged, SameQ]))
+];
+
+IdenticalParticleSymmetryFactor[setup_] := (
+  Message[IdenticalParticleSymmetryFactor::setup];
+  $Failed
+);
+
+
 momentumEliminationRule[process_Association] := Module[
   {momentum, incoming, outgoing},
 

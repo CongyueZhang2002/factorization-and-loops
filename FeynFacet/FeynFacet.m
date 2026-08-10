@@ -96,6 +96,9 @@ CoefficientProgressPanel::usage =
 $CoefficientSimplificationProgress::usage =
   "$CoefficientSimplificationProgress stores the current coefficient-reconstruction progress data.";
 
+IdenticalParticleSymmetryFactor::usage =
+  "IdenticalParticleSymmetryFactor[setup] is the exact phase-space symmetry factor 1/n! per species of identical, hadron-untagged outgoing partons declared by the process card. The measured fragmenting leg is excluded; a ghost-antighost pair is distinct and gives 1.";
+
 AMFlowPrescription::usage =
   "AMFlowPrescription[setup] derives AMFlow loop prescriptions from Setup: 0 for phase-space integrations, +1 for forward virtual loops and -1 for conjugate virtual loops. AMFlowPrescription[setup,topology] additionally derives the cut mask and rejects active denominators that mix forward and conjugate virtual loops; it does not persist denominator-sign metadata.";
 
@@ -125,6 +128,8 @@ SyntaxInformation[KiraImportReduction] = {"ArgumentsPattern" -> {_, _}};
 SyntaxInformation[CoefficientSimplification] =
   {"ArgumentsPattern" -> {_, _, _., OptionsPattern[]}};
 SyntaxInformation[CoefficientProgressPanel] = {"ArgumentsPattern" -> {}};
+SyntaxInformation[IdenticalParticleSymmetryFactor] =
+  {"ArgumentsPattern" -> {_}};
 SyntaxInformation[AMFlowPrescription] = {"ArgumentsPattern" -> {_, _.}};
 SyntaxInformation[MasterIntegralAmFlow] =
   {"ArgumentsPattern" -> {_, _, _., OptionsPattern[]}};
