@@ -97,6 +97,14 @@ tests in the same commit.
   finite-field coefficients, (b) optional cross-check mapping the old
   798 MB KiraResult through the canonical registry.
 
+- NLO cross-test of the canonical+streaming composition (11:20):
+  green - 11 families, 116 targets, 7 masters, peak 214 MB
+  (UU_08_10_canonical_stream). Every path combination is now exercised.
+- Ghost-grid finite-field coefficients launched (11:25) via the new
+  stream-to-coefficients bridge (KiraStreamResult materialization) -
+  first NNLO-shaped run of the coefficient machinery, at the safe
+  2451-target scale.
+
 **Morning plan (recommended supervised next steps):**
 
 1. NNLO finite-field coefficient reconstruction on the canonical gluon
