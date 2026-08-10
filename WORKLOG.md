@@ -105,6 +105,19 @@ tests in the same commit.
   first NNLO-shaped run of the coefficient machinery, at the safe
   2451-target scale.
 
+- Ghost-grid finite-field coefficients GREEN (12:05, exit 0): 2451
+  targets -> 27 master coefficients in 34 min on 6 kernels (FireFly
+  100 s). The declared NNLO Laurent valuation xa^-1 xb^-1 zh^-2 was
+  VERIFIED EXACTLY by the reconstruction (first finding of the run: the
+  NNLO cards declared LaurentValuation -> Automatic, which the FF path
+  rejects fail-closed; declared + verified, cards updated).
+- Registry seeding landed (df4821b, 6/6 assertions): grids of one
+  process now share one family namespace; ghost re-canonicalization on
+  the gluon seed running (UU_Ghost_08_10_shared).
+- Gluon-grid finite-field coefficients launched (12:10; 45,129 targets,
+  8 kernels / 12 FireFly threads; ghost-scaling estimate ~6-8 h,
+  historical symbolic-path estimate was 6-10 h on 8 kernels).
+
 **Morning plan (recommended supervised next steps):**
 
 1. NNLO finite-field coefficient reconstruction on the canonical gluon
