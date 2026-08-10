@@ -96,6 +96,9 @@ CoefficientProgressPanel::usage =
 $CoefficientSimplificationProgress::usage =
   "$CoefficientSimplificationProgress stores the current coefficient-reconstruction progress data.";
 
+AssembleCutContributions::usage =
+  "AssembleCutContributions[{result1, ...}] combines coefficient results of one process on a shared canonical family namespace. Each contribution enters with the exact weight IdenticalParticleSymmetryFactor[setup] times (-1) per outgoing ghost-antighost pair, realizing the Slavnov-Taylor completion of -g gluon polarization sums.";
+
 IdenticalParticleSymmetryFactor::usage =
   "IdenticalParticleSymmetryFactor[setup] is the exact phase-space symmetry factor 1/n! per species of identical, hadron-untagged outgoing partons declared by the process card. The measured fragmenting leg is excluded; a ghost-antighost pair is distinct and gives 1.";
 
@@ -128,6 +131,7 @@ SyntaxInformation[KiraImportReduction] = {"ArgumentsPattern" -> {_, _}};
 SyntaxInformation[CoefficientSimplification] =
   {"ArgumentsPattern" -> {_, _, _., OptionsPattern[]}};
 SyntaxInformation[CoefficientProgressPanel] = {"ArgumentsPattern" -> {}};
+SyntaxInformation[AssembleCutContributions] = {"ArgumentsPattern" -> {_}};
 SyntaxInformation[IdenticalParticleSymmetryFactor] =
   {"ArgumentsPattern" -> {_}};
 SyntaxInformation[AMFlowPrescription] = {"ArgumentsPattern" -> {_, _.}};
@@ -155,7 +159,7 @@ $feynFacetPrivateFiles = FileNameJoin[{$feynFacetPrivateDirectory, #}] & /@ {
     "Core.wl", "Process.wl", "Topologies.wl", "CanonicalFamilies.wl",
     "DimensionalShift.wl", "Collinear.wl", "Reduction.wl",
     "StreamingKira.wl",
-    "MasterIntegralAmFlow.wl", "Simplification.wl",
+    "MasterIntegralAmFlow.wl", "Simplification.wl", "Assembly.wl",
     "CoefficientStore.wl", "CoefficientModules.wl"
 };
 $feynFacetSourceFiles = Join[

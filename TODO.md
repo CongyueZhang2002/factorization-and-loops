@@ -49,8 +49,13 @@ defined here. Every module lands with its tests in the same commit.
       applied at assembly together with the ghost subtraction. The
       general rule is 1/n! per identical untagged final-state parton
       species, derivable from the card.
-- [ ] Wire the (1/2!) gluon + (-1) ghost combination into the
-      assembly stage.
+- [x] Wire the (1/2!) gluon + (-1) ghost combination into the
+      assembly stage (2026-08-10): `AssembleCutContributions`
+      (Assembly.wl) - weight = IdenticalParticleSymmetryFactor x (-1)
+      per ghost pair, GLI-by-GLI merging on the shared canonical
+      namespace, fail-closed on namespace or measure mismatches
+      (Tests/t_assembly.wls, 10 assertions). The production sigma_gg
+      assembly runs once the gluon coefficients land.
 - [ ] Validate the combination by a gauge/known-result check at a
       numeric phase-space point.
 - [x] Brute-force numeric validation of `masslessSquareBounds` /

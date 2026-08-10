@@ -118,6 +118,16 @@ tests in the same commit.
   8 kernels / 12 FireFly threads; ghost-scaling estimate ~6-8 h,
   historical symbolic-path estimate was 6-10 h on 8 kernels).
 
+- Ghost shared-namespace rerun (12:35): ALL 25 ghost families land on
+  gluon-registry families, zero new (ghost cut topologies are a strict
+  subset of gluon ones, as physics predicts); same 27 masters, now in
+  the shared namespace; solve 290 s, import 15.7 s, peak 586 MB
+  (UU_Ghost_08_10_shared).
+- Assembly module landed (12:50): AssembleCutContributions with derived
+  weights (+1 NLO, +1/2 gluon, -1 ghost), exact GLI-by-GLI merging,
+  10/10 assertions. sigma_gg = (1/2) gluon - ghost is now one function
+  call away once the gluon coefficients finish.
+
 **Morning plan (recommended supervised next steps):**
 
 1. NNLO finite-field coefficient reconstruction on the canonical gluon
