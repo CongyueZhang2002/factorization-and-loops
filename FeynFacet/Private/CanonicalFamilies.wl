@@ -335,7 +335,17 @@ canonicalCandidateMapping[
   indices = Table[Unique["canonicalIndex$"], {Length[indexMap]}];
   probe = FeynCalc`GLI[sourceName, indices];
   mapped = Replace[probe, rule, {0}];
-  If[! MatchQ[mapped, _FeynCalc`GLI] || mapped === probe, Return[$Failed]];
+  (* The rule has to fire and to land on the canonical family. Firing is
+     tested on the pattern, not on the image: canonicalizing already
+     canonical artifacts registers a family under the name its own source
+     already carries, and there the verified rule is the identity, so the
+     image legitimately equals the probe. *)
+  If[
+    ! MatchQ[mapped, _FeynCalc`GLI] ||
+      ! MatchQ[probe, First[rule]] ||
+      mapped[[1]] =!= targetName,
+    Return[$Failed]
+  ];
   <|
     "Source" -> sourceName,
     "Target" -> targetName,
@@ -680,6 +690,466 @@ CanonicalizeTopologyRecords[arguments___] := (
   Message[
     CanonicalizeTopologyRecords::input,
     HoldForm[CanonicalizeTopologyRecords[arguments]]
+  ];
+  $Failed
+);
+
+
+(* ------------------------------------------------------------------ *)
+(* Post-pass over saved pre-IBP pair artifacts                         *)
+(* (Design/CanonicalFamiliesIntegration.md).                           *)
+(*                                                                     *)
+(* Pair generation runs on parallel subkernels, so the registry is not *)
+(* built during generation but folded here, sequentially, in sorted    *)
+(* file order: the registry order, the family numbering and therefore  *)
+(* the registry fingerprint are deterministic functions of the input   *)
+(* artifacts alone.                                                    *)
+(* ------------------------------------------------------------------ *)
+
+CanonicalizePairArtifacts::input =
+  "CanonicalizePairArtifacts expects a nonempty list of saved pre-IBP pair artifact files and an output directory, but received `1`.";
+
+CanonicalizePairArtifacts::artifact =
+  "`1` is missing or is not a valid saved pre-IBP pair artifact.";
+
+CanonicalizePairArtifacts::records =
+  "The topology records of the supplied pair artifacts could not be canonicalized.";
+
+CanonicalizePairArtifacts::collision =
+  "`1` topology record(s) opened a colliding canonical family. Canonicalization is fail-closed; pass \"AllowCollisions\" -> True to accept them.";
+
+CanonicalizePairArtifacts::rule =
+  "The verified GLI rule of topology record `1` does not map it onto its canonical family.";
+
+CanonicalizePairArtifacts::directory =
+  "Could not create the output directory `1`.";
+
+CanonicalizePairArtifacts::pair =
+  "The canonicalized artifact of `1` is invalid: `2`.";
+
+CanonicalizePairArtifacts::write =
+  "Could not write and verify `1`.";
+
+
+(* Family-intrinsic data of one canonical record.
+
+   A canonicalized artifact carries ONE record per canonical family, so the
+   record can no longer be the image of one partial-fraction term: several
+   records of one pair, and records of different pairs, share a family while
+   their BaseGLI powers and FamilyCoefficient differ. The record therefore
+   declares the family itself: the corner integral of the propagator slots
+   that the family's members actually raise, with unit coefficient. This is
+   the only choice that is a function of the family alone, which is what
+   makes the identical records of different pairs deduplicable downstream
+   (ibpInputData) and canonicalization idempotent. The integrals really used
+   by the pair are carried, exactly, by the rewritten Integrand. *)
+canonicalActiveSlots[gli_FeynCalc`GLI] := Flatten @ Position[
+  gli[[2]],
+  _Integer?Positive,
+  {1},
+  Heads -> False
+];
+
+canonicalUnitBaseGLI[name_, slots_List, count_Integer] := FeynCalc`GLI[
+  name,
+  Table[If[MemberQ[slots, slot], 1, 0], {slot, count}]
+];
+
+canonicalPairRecord[
+    entry_Association,
+    slots_List,
+    pair_Association,
+    context_Association
+  ] := <|
+  "Type" -> "FeynFacetTopologyRecord",
+  "Version" -> 3,
+  "DiagramPair" -> pair,
+  "Topology" -> entry["Topology"],
+  "BaseGLI" -> canonicalUnitBaseGLI[
+    entry["Name"],
+    slots,
+    Length[entry["Topology"][[2]]]
+  ],
+  "FamilyCoefficient" -> 1,
+  "CutMomenta" -> entry["CutMomenta"],
+  "CutIndices" -> entry["CutIndices"],
+  "CutDirections" -> entry["CutDirections"],
+  "CanonicalKey" -> entry["Key"],
+  "AnalyticContext" -> context
+|>;
+
+
+(* The fingerprint identifies the registry as a mathematical object: the
+   per-entry FirstSource records which topology happened to open a family
+   and is dropped, so canonicalizing already canonical artifacts reproduces
+   it. There are no timestamps in the registry itself. *)
+canonicalRegistryPayload[registry_Association] := <|
+  "Type" -> Lookup[registry, "Type", None],
+  "Version" -> Lookup[registry, "Version", None],
+  "Families" -> (
+    KeyDrop[#, {"FirstSource", "Created"}] & /@
+      Lookup[registry, "Families", {}]
+  ),
+  "Index" -> Lookup[registry, "Index", <||>],
+  "SectorData" -> Lookup[registry, "SectorData", Missing["NotSet"]],
+  "Rejected" -> Lookup[registry, "Rejected", {}]
+|>;
+
+canonicalRegistryFingerprint[registry_Association] :=
+  reductionFingerprint[canonicalRegistryPayload[registry]];
+
+
+canonicalizeOnePairArtifact[
+    artifact_Association,
+    rules_List,
+    names_List,
+    entryByName_Association,
+    slotsByName_Association,
+    output_String,
+    fingerprint_String
+  ] := Module[
+  {pair, context, parts, mapped, integrand, used, imageFamilies, records},
+
+  pair = artifact["Pair"];
+  context = artifact["AnalyticContext"];
+  parts = linearIntegralSum[artifact["Integrand"]];
+  If[! linearIntegralSumQ[parts],
+    Return[{$Failed, "the integrand is not a linear combination of GLIs"}]
+  ];
+  mapped = linearMapIntegrals[parts, rules];
+  If[! linearIntegralSumQ[mapped],
+    Return[{$Failed, "the integrand GLIs could not be mapped"}]
+  ];
+  integrand = linearToExpression[mapped];
+  used = DeleteDuplicates[names];
+  imageFamilies = DeleteDuplicates[First /@ Keys[mapped["Terms"]]];
+  If[! ContainsAll[used, imageFamilies],
+    Return[{$Failed, "the rewritten integrand keeps a non-canonical family"}]
+  ];
+  records = Function[name,
+    canonicalPairRecord[
+      entryByName[name],
+      slotsByName[name],
+      pair,
+      context
+    ]
+  ] /@ used;
+  If[! AllTrue[records, topologyRecordQ[#, pair] &],
+    Return[{$Failed, "a canonical topology record is invalid"}]
+  ];
+  If[! AllTrue[records, SameQ[#["AnalyticContext"], context] &],
+    Return[{$Failed, "a canonical topology record carries a foreign context"}]
+  ];
+  {
+    Join[
+      artifact,
+      <|
+        "Created" -> DateString[{"ISODate", "T", "Time"}],
+        "ResultDirectory" -> output,
+        "Integrand" -> integrand,
+        "Topologies" -> records,
+        "CanonicalRegistryFingerprint" -> fingerprint
+      |>
+    ],
+    "canonicalized"
+  }
+];
+
+
+canonicalPutArtifact[result_Association, file_String] := Module[
+  {temporary, saved, valid},
+
+  temporary = file <> ".tmp-" <> StringReplace[CreateUUID[], "-" -> ""];
+  If[
+    Quiet @ Check[
+      Put[result, temporary];
+      FileExistsQ[temporary] && FileByteCount[temporary] > 0,
+      False
+    ] =!= True,
+    Quiet @ Check[DeleteFile[temporary], Null];
+    Return[$Failed]
+  ];
+  saved = Quiet @ Check[Get[temporary], $Failed];
+  valid = validPreIBPResultQ[saved] && SameQ[saved, result];
+  Clear[saved];
+  If[! TrueQ[valid],
+    Quiet @ Check[DeleteFile[temporary], Null];
+    Return[$Failed]
+  ];
+  If[
+    Quiet @ Check[
+      RenameFile[temporary, file, OverwriteTarget -> True];
+      True,
+      False
+    ] =!= True,
+    Quiet @ Check[DeleteFile[temporary], Null];
+    Return[$Failed]
+  ];
+  file
+];
+
+
+Options[CanonicalizePairArtifacts] = {"AllowCollisions" -> False};
+
+CanonicalizePairArtifacts[
+    pairFiles_List,
+    outputDirectory_String,
+    options : OptionsPattern[]
+  ] := Catch[
+  Module[
+    {
+      files, artifacts, counts, allRecords, sourceNames, run, registry,
+      families, mappings, rules, names, statuses, collisions, mappedBases,
+      slotsByName, entryByName, fingerprint, output, pairDirectory,
+      rulesByPair, namesByPair, canonicalized, written, registryFile,
+      manifestFile, registryRecord, manifest, verification
+    },
+
+    If[
+      pairFiles === {} || ! AllTrue[pairFiles, StringQ] ||
+        StringLength[StringTrim[outputDirectory]] === 0,
+      Message[
+        CanonicalizePairArtifacts::input,
+        HoldForm[CanonicalizePairArtifacts[pairFiles, outputDirectory]]
+      ];
+      Throw[$Failed, $canonicalFamilyFailure]
+    ];
+
+    files = Sort[ExpandFileName /@ pairFiles];
+    Do[
+      If[! FileExistsQ[file],
+        Message[CanonicalizePairArtifacts::artifact, file];
+        Throw[$Failed, $canonicalFamilyFailure]
+      ],
+      {file, files}
+    ];
+    artifacts = (Quiet @ Check[Get[#], $Failed]) & /@ files;
+    Do[
+      If[! validPreIBPResultQ[artifacts[[position]]],
+        Message[CanonicalizePairArtifacts::artifact, files[[position]]];
+        Throw[$Failed, $canonicalFamilyFailure]
+      ],
+      {position, Length[files]}
+    ];
+
+    output = FileNameJoin @ FileNameSplit @ ExpandFileName[outputDirectory];
+    pairDirectory = FileNameJoin[{output, "Pairs"}];
+    If[! DirectoryQ[pairDirectory],
+      Quiet @ Check[
+        CreateDirectory[pairDirectory, CreateIntermediateDirectories -> True],
+        Null
+      ]
+    ];
+    If[! DirectoryQ[pairDirectory],
+      Message[CanonicalizePairArtifacts::directory, pairDirectory];
+      Throw[$Failed, $canonicalFamilyFailure]
+    ];
+
+    counts = Length[#["Topologies"]] & /@ artifacts;
+    allRecords = Join @@ Lookup[artifacts, "Topologies"];
+    sourceNames = #["Topology"][[1]] & /@ allRecords;
+
+    run = CanonicalizeTopologyRecords[artifacts];
+    If[! AssociationQ[run] || ! canonicalFamilyRegistryQ[run["Registry"]],
+      Message[CanonicalizePairArtifacts::records];
+      Throw[$Failed, $canonicalFamilyFailure]
+    ];
+    registry = run["Registry"];
+    families = registry["Families"];
+    mappings = run["Mappings"];
+    rules = run["Rules"];
+    names = Lookup[mappings, "Name"];
+    statuses = Lookup[mappings, "Status"];
+    collisions = Count[statuses, "CollisionRegistered"];
+    If[collisions > 0 && ! TrueQ[OptionValue["AllowCollisions"]],
+      Message[CanonicalizePairArtifacts::collision, collisions];
+      Throw[$Failed, $canonicalFamilyFailure]
+    ];
+
+    (* Each record's BaseGLI moves to its canonical family through the same
+       verified rule that rewrites the integrand; only the propagator slots
+       are permuted, the scalar FamilyCoefficient is untouched by it. *)
+    mappedBases = MapThread[
+      Replace[#1["BaseGLI"], #2, {0}] &,
+      {allRecords, rules}
+    ];
+    Do[
+      If[
+        ! MatchQ[mappedBases[[position]], _FeynCalc`GLI] ||
+          mappedBases[[position]][[1]] =!= names[[position]],
+        Message[CanonicalizePairArtifacts::rule, sourceNames[[position]]];
+        Throw[$Failed, $canonicalFamilyFailure]
+      ],
+      {position, Length[allRecords]}
+    ];
+    slotsByName = Merge[
+      MapThread[#1 -> canonicalActiveSlots[#2] &, {names, mappedBases}],
+      Union @@ # &
+    ];
+
+    entryByName = AssociationThread[Lookup[families, "Name"], families];
+    fingerprint = canonicalRegistryFingerprint[registry];
+    rulesByPair = TakeList[rules, counts];
+    namesByPair = TakeList[names, counts];
+
+    canonicalized = Table[
+      canonicalizeOnePairArtifact[
+        artifacts[[position]],
+        rulesByPair[[position]],
+        namesByPair[[position]],
+        entryByName,
+        slotsByName,
+        output,
+        fingerprint
+      ],
+      {position, Length[files]}
+    ];
+    Do[
+      If[First[canonicalized[[position]]] === $Failed,
+        Message[
+          CanonicalizePairArtifacts::pair,
+          files[[position]],
+          Last[canonicalized[[position]]]
+        ];
+        Throw[$Failed, $canonicalFamilyFailure]
+      ],
+      {position, Length[files]}
+    ];
+
+    written = Table[
+      canonicalPutArtifact[
+        First[canonicalized[[position]]],
+        FileNameJoin[{pairDirectory, FileNameTake[files[[position]]]}]
+      ],
+      {position, Length[files]}
+    ];
+    Do[
+      If[written[[position]] === $Failed,
+        Message[
+          CanonicalizePairArtifacts::write,
+          FileNameJoin[{pairDirectory, FileNameTake[files[[position]]]}]
+        ];
+        Throw[$Failed, $canonicalFamilyFailure]
+      ],
+      {position, Length[files]}
+    ];
+
+    registryFile = FileNameJoin[{output, "CanonicalRegistry.wxf"}];
+    manifestFile = FileNameJoin[{output, "CanonicalRegistry.wl"}];
+    registryRecord = <|
+      "Type" -> "FeynFacetCanonicalFamilyRegistryRecord",
+      "Version" -> $canonicalFamilyRegistryVersion,
+      "Created" -> DateString[{"ISODate", "T", "Time"}],
+      "Fingerprint" -> fingerprint,
+      "OutputDirectory" -> output,
+      "PairFiles" -> FileNameTake /@ files,
+      "Registry" -> registry,
+      "Classes" -> run["Classes"],
+      "Rejected" -> run["Rejected"],
+      "Mappings" -> mappings,
+      "GLIRules" -> rules,
+      "SourceNames" -> sourceNames,
+      "CanonicalNames" -> names,
+      "Statuses" -> statuses,
+      "FamilyBaseGLI" -> Association[
+        Function[entry,
+          entry["Name"] -> canonicalUnitBaseGLI[
+            entry["Name"],
+            slotsByName[entry["Name"]],
+            Length[entry["Topology"][[2]]]
+          ]
+        ] /@ families
+      ]
+    |>;
+    If[coefficientWriteRecord[registryFile, registryRecord] === $Failed,
+      Message[CanonicalizePairArtifacts::write, registryFile];
+      Throw[$Failed, $canonicalFamilyFailure]
+    ];
+    verification = Quiet @ Check[coefficientReadRecord[registryFile], $Failed];
+    If[verification =!= registryRecord,
+      Message[CanonicalizePairArtifacts::write, registryFile];
+      Throw[$Failed, $canonicalFamilyFailure]
+    ];
+    Clear[verification];
+
+    manifest = <|
+      "Type" -> "FeynFacetCanonicalFamilyManifest",
+      "Version" -> $canonicalFamilyRegistryVersion,
+      "Created" -> registryRecord["Created"],
+      "Fingerprint" -> fingerprint,
+      "OutputDirectory" -> output,
+      "PairFileCount" -> Length[files],
+      "RecordCount" -> Length[allRecords],
+      "FamilyCount" -> Length[families],
+      "Statuses" -> Sort @ Tally[statuses],
+      "Collisions" -> collisions,
+      "Families" -> Function[entry,
+        <|
+          "Name" -> entry["Name"],
+          "Key" -> entry["Key"],
+          "FirstSource" -> entry["FirstSource"],
+          "BaseGLI" -> registryRecord["FamilyBaseGLI"][entry["Name"]],
+          "CutIndices" -> entry["CutIndices"],
+          "CutDirections" -> entry["CutDirections"],
+          "Members" -> FirstCase[
+            run["Classes"],
+            class_ /; class["Name"] === entry["Name"] :> class["Members"],
+            {}
+          ]
+        |>
+      ] /@ families,
+      "Rejected" -> run["Rejected"],
+      "PairFiles" -> FileNameTake /@ files
+    |>;
+    Put[manifest, manifestFile];
+    If[! FileExistsQ[manifestFile] || Get[manifestFile] =!= manifest,
+      Message[CanonicalizePairArtifacts::write, manifestFile];
+      Throw[$Failed, $canonicalFamilyFailure]
+    ];
+
+    Print @ Grid[
+      {
+        {"Canonicalized pairs", Length[written]},
+        {"Topology records", Length[allRecords]},
+        {"Canonical families", Length[families]},
+        {"Collisions", collisions},
+        {"Rejected candidates", Length[run["Rejected"]]},
+        {"Registry fingerprint", StringTake[fingerprint, 12]},
+        {"Output directory", output}
+      },
+      Frame -> All
+    ];
+
+    <|
+      "OutputDirectory" -> output,
+      "PairDirectory" -> pairDirectory,
+      "Files" -> written,
+      "SourceFiles" -> files,
+      "RegistryFile" -> registryFile,
+      "ManifestFile" -> manifestFile,
+      "Registry" -> registry,
+      "Fingerprint" -> fingerprint,
+      "Families" -> families,
+      "FamilyCount" -> Length[families],
+      "FamilyBaseGLI" -> registryRecord["FamilyBaseGLI"],
+      "Classes" -> run["Classes"],
+      "Rejected" -> run["Rejected"],
+      "Mappings" -> mappings,
+      "GLIRules" -> rules,
+      "SourceNames" -> sourceNames,
+      "CanonicalNames" -> names,
+      "Statuses" -> statuses,
+      "Collisions" -> collisions,
+      "Manifest" -> manifest
+    |>
+  ],
+  $canonicalFamilyFailure
+];
+
+CanonicalizePairArtifacts[arguments___] := (
+  Message[
+    CanonicalizePairArtifacts::input,
+    HoldForm[CanonicalizePairArtifacts[arguments]]
   ];
   $Failed
 );

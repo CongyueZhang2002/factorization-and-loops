@@ -133,6 +133,11 @@ ibpInputSummary[item_, includeTargets_] := Module[
     "PhaseSpace" -> result["PhaseSpace"],
     "AnalyticContext" -> result["AnalyticContext"],
     "ResultDirectory" -> ExpandFileName[directory],
+    "CanonicalRegistryFingerprint" -> Lookup[
+      result,
+      "CanonicalRegistryFingerprint",
+      Missing["NotCanonicalized"]
+    ],
     "Records" -> result["Topologies"],
     "Targets" -> If[TrueQ[includeTargets],
       DeleteDuplicates[
@@ -144,8 +149,28 @@ ibpInputSummary[item_, includeTargets_] := Module[
   |>
 ];
 
+(* Canonicalized artifacts declare one record per canonical family, so the
+   same record repeats across pairs. Records that share a name and agree on
+   everything but their pair bookkeeping are one record; a name shared by
+   records that differ stays a hard failure. Legacy artifacts have pairwise
+   distinct record names, so this is the identity on them. *)
+ibpDedupedRecords[records_List] := KeyValueMap[
+  Function[{name, group},
+    If[
+      ! SameQ @@ (KeyDrop[#, {"DiagramPair", "Created"}] & /@ group),
+      ibpFail[
+        "input validation",
+        "topology records named " <> ToString[name, InputForm] <>
+          " differ beyond their diagram pair"
+      ]
+    ];
+    First[group]
+  ],
+  GroupBy[records, #1["Topology"][[1]] &]
+];
+
 ibpInputData[items_List, includeTargets_: False] := Module[
-  {summaries, unique, pairs, data},
+  {summaries, unique, pairs, data, fingerprints, canonicalized},
   If[items === {} || ! (AllTrue[items, AssociationQ] || AllTrue[items, StringQ]),
     ibpFail["input validation", "expected nonempty Associations or saved result files"]
   ];
@@ -173,12 +198,56 @@ ibpInputData[items_List, includeTargets_: False] := Module[
       "ResultDirectory", "AnalyticContext"
     }
   ];
+  fingerprints = Lookup[summaries, "CanonicalRegistryFingerprint"];
+  canonicalized = AllTrue[fingerprints, StringQ] &&
+    Length[DeleteDuplicates[fingerprints]] === 1;
   Join[data, <|
     "Pairs" -> pairs,
-    "Records" -> Flatten[Lookup[summaries, "Records"], 1],
+    "Records" -> ibpDedupedRecords[
+      Flatten[Lookup[summaries, "Records"], 1]
+    ],
     "RawTargets" -> DeleteDuplicates[Flatten[Lookup[summaries, "Targets"], 1]],
-    "Sources" -> Lookup[summaries, "Source"]
+    "Sources" -> Lookup[summaries, "Source"],
+    "Canonicalized" -> canonicalized,
+    "CanonicalRegistryFingerprint" -> If[
+      canonicalized,
+      First[fingerprints],
+      Missing["NotCanonicalized"]
+    ]
   |>]
+];
+
+(* Canonicalized inputs already carry the partition: every record is its own
+   class and no GLI has to move. The conservative pairwise search is only
+   needed for legacy inputs. *)
+ibpTopologyEquivalenceForData[data_Association] := Module[{records, classes},
+  records = data["Records"];
+  If[! TrueQ[data["Canonicalized"]],
+    Return[TopologyEquivalence[records, data["Setup"]]]
+  ];
+  classes = Function[record,
+    <|
+      "Representative" -> record["Topology"][[1]],
+      "Members" -> {record["Topology"][[1]]},
+      "SearchStatus" -> "Canonical"
+    |>
+  ] /@ records;
+  Print @ Grid[
+    Prepend[
+      {#1["Representative"], 1, #1["Members"]} & /@ classes,
+      {"Representative", "Count", "Members"}
+    ],
+    Frame -> All
+  ];
+  <|
+    "Scope" -> "CutAwareIBP",
+    "SearchStatus" -> "CanonicalIdentity",
+    "Representatives" -> records,
+    "Classes" -> classes,
+    "Mappings" -> {},
+    "GLIRules" -> {},
+    "RejectedCandidateMappings" -> {}
+  |>
 ];
 
 (* Kira-only completion of scalar-product kinematics. *)
@@ -1963,7 +2032,7 @@ ibpKiraReductionCore[
     ]]
   ];
 
-  equivalence = TopologyEquivalence[records, data["Setup"]];
+  equivalence = ibpTopologyEquivalenceForData[data];
   If[! AssociationQ[equivalence],
     ibpFail["topology equivalence", "classification failed"]
   ];

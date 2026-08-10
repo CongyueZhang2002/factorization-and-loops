@@ -203,7 +203,7 @@ kiraStreamPrepare[inputs_List, resultDirectory_String] := Module[
       "the streaming reduction requires at least one topology record"
     ]
   ];
-  equivalence = TopologyEquivalence[records, data["Setup"]];
+  equivalence = ibpTopologyEquivalenceForData[data];
   If[! AssociationQ[equivalence],
     ibpFail["topology equivalence", "classification failed"]
   ];
