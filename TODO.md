@@ -111,9 +111,17 @@ defined here. Every module lands with its tests in the same commit.
 
 ### 4. Rationalized card kinematics
 
+**Priority raised 2026-08-10: this now BLOCKS the NNLO gluon master
+coefficients** - the PositiveMonomialRoots lift's mandatory Cancel of
+multi-MB root-lifted rationals does not scale (see WORKLOG 16:00).
+Root-free card variables eliminate the lift and the Cancel entirely.
+
 - [ ] Redefine the hadronic-coordinate variables so every square root
       is a perfect square (roots as primary variables); coefficients
       become rational in (coordinates, fractions, eps) by construction.
+      Needs a user decision on the variable choice (e.g. xi_a^2 = xa
+      style square-root substitutions vs a rational frame
+      parametrization).
 - [ ] Port the NLO UU/TT cards and reproduce the frozen NLO golden
       results exactly.
 

@@ -213,6 +213,43 @@ tests in the same commit.
   a rule-vs-list destructuring miss - both now fixed in the record;
   the third probe is the one that holds.)
 
+- Ghost-shared coefficients green (16:05): 27 masters in 35 min - the
+  ghost side of sigma_gg is complete on the shared namespace. Deferred
+  kernel-heavy tests re-run green. Final suite: 10 tests, 109
+  assertions, 0 failures.
+
+## Day summary (2026-08-10, end of autonomous session)
+
+**Per-stage performance vs historical (requirement: at least as fast):**
+
+| Stage | Rewrite | Historical | 
+|---|---|---|
+| NNLO pair generation (1296) | 35 min / 6 subkernels | 4 h 15 m / 8 subkernels |
+| Canonicalization (new) | 27.5 min (replaces in-reduction search) | - |
+| Kira solve (374 fam / 45k targets) | 1 h 58 m / 8 workers | ~2.5 h / 12 workers |
+| Streaming import + closure | 12.6 min, peak 7.9 GB | OOM-killed at 47.7 GB |
+| Ghost coefficients (2451 targets) | 34 min | - |
+| Gluon coefficients (45k targets) | BLOCKED (root-lift Cancel wall) | est 6-10 h (symbolic path) |
+
+**The one red item:** NNLO gluon master coefficients. Root cause fully
+diagnosed (16:00 entry): the PositiveMonomialRoots lift's mandatory
+final Cancel of multi-MB root-lifted rationals does not scale. The fix
+is architectural and already planned: rewrite item 4 (rationalized
+card kinematics) makes hadronic substitution root-free by
+construction. Needs a card-variable design decision from the user.
+
+**Everything else is landed, tested, and pushed** - see the dated
+entries above; every landed item carries its test. sigma_gg assembly
+is one function call away once gluon coefficients exist
+(AssembleCutContributions, tested; ghost ingredient ready on disk).
+
+**Prioritized open list:** (1) item 4 rationalized kinematics -
+unblocks NNLO coefficients, wants user input on variable choices;
+(2) gauge/known-result numeric check; (3) old-vs-new NNLO reduction
+cross-validation through the canonical registry; (4) dead-code
+removal (item 6); (5) dimensional-shift benchmark (item 5); (6) TT
+golden; (7) legacy Codex test migration; (8) items 8/9 remainders.
+
 **Morning plan (recommended supervised next steps):**
 
 1. NNLO finite-field coefficient reconstruction on the canonical gluon
