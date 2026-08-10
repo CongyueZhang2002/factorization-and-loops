@@ -164,7 +164,19 @@ ibpDedupedRecords[records_List] := KeyValueMap[
           " differ beyond their diagram pair"
       ]
     ];
-    First[group]
+    (* The kept representative must not depend on the source file
+       ordering: its DiagramPair and Created enter the stored
+       SourceInputFingerprint, and different drivers order the pair
+       files differently (lexicographic vs numeric). Keep the member
+       with the least diagram pair. *)
+    First @ SortBy[
+      group,
+      {
+        Lookup[#["DiagramPair"], "Forward", Infinity] &,
+        Lookup[#["DiagramPair"], "Conjugate", Infinity] &,
+        ToString[Lookup[#, "Created", ""], InputForm] &
+      }
+    ]
   ],
   GroupBy[records, #1["Topology"][[1]] &]
 ];

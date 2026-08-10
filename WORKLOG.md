@@ -148,6 +148,23 @@ tests in the same commit.
   it will reuse the validated target store and go straight to
   normalization + trace + FireFly.
 
+- ROOT CAUSE of the gluon coefficient failure (14:25, deterministic
+  after all): the canonicalized-record dedupe kept the FIRST-SEEN copy
+  of each family record, whose DiagramPair/Created enter the stored
+  SourceInputFingerprint - so the fingerprint depended on pair-file
+  ordering. The reduction ran with lexicographic ordering, the
+  project-form coefficient driver sorts numerically; for the 36x36
+  grid the orders diverge -> different kept representatives ->
+  fingerprint mismatch -> fail-closed abort. Consistent with every
+  observation: ghost 7x7 orders coincide (success), instrumented rerun
+  used lexicographic (success), NLO used the direct form with
+  lexicographic (success). Fix: ibpDedupedRecords keeps the member
+  with the LEAST diagram pair (order-independent); legacy inputs are
+  unaffected (dedupe is the identity there). The two NNLO stream
+  artifacts are being re-imported from their retained workspaces to
+  refresh stored fingerprints - stage separation paying for itself:
+  no re-solve needed.
+
 **Morning plan (recommended supervised next steps):**
 
 1. NNLO finite-field coefficient reconstruction on the canonical gluon
