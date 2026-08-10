@@ -129,6 +129,37 @@ now; codify later as:
 - [ ] Future: exploit conjugation symmetry (item 0) to halve the pair
       grid.
 
+### 9. Additional hardening and cleanups (2026-08-09 review items)
+
+- [ ] Scope kinematics into the process object: stop mutating global
+      `SP/SPD/SPE` DownValues in `BuildGlobalBasis`/`declareGlobalBasis`;
+      pass the basis and on-shell rules explicitly.
+- [ ] Symbol hygiene: generated names (`Global`TopologyF*`, invariant
+      aliases `f<hash>p*`, `FACETff*`) move into a dedicated context
+      with deterministic naming.
+- [ ] Replace `canonicalizeLinearTerms` string-based key ordering
+      (`ToString[InputForm[...]]` per GLI per merge) with a fast
+      canonical order.
+- [ ] Deduplicate the `$ibpFailure` tag vs the `"FeynFacetIBPFailure"`
+      string literal in the parallel import.
+- [ ] Script-first drivers: `.wl`/`.wls` drivers for every pipeline
+      stage; notebooks only for inspection (removes the notebook-safety
+      hazard class documented in AGENTS.md).
+- [ ] Record and check third-party versions at load (FeynCalc,
+      FeynHelpers, FeynArts, Kira, Ratracer hashes are already in the
+      reduction payload; surface a mismatch warning at package load).
+- [ ] Gluon twist-2 correlators: `densityHead` currently fails for
+      hadron-associated gluon legs; needed for qg/gg channels later.
+      Design the correlator interface now so the card schema does not
+      change again.
+- [ ] Rename FACET -> Factorization and Loops in README/AGENTS once the
+      final name is chosen; refresh README layout description for the
+      new tree (symlinked addons, frozen legacy tree).
+- [ ] Fold the remaining first-answer inefficiency list into item 6 as
+      encountered: repeated full-artifact revalidation on load,
+      `validateCutGLIs` full-expression scans per stage, repeated
+      `exactZeroQ`/`Cancel@Together` in hot loops.
+
 ## Kira rule import and closure (2026-08-07 record)
 
 Superseded by rewrite items 2–3 above, but the measurements and
