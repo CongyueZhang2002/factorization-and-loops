@@ -218,6 +218,14 @@ tests in the same commit.
   kernel-heavy tests re-run green. Final suite: 10 tests, 109
   assertions, 0 failures.
 
+- TT baseline chain green (16:45): 25 pairs regenerated (0 failures),
+  87 targets -> 6 masters, FF coefficients in 6.7 min
+  (TT_08_10_1/CoefficientResult.wl - the first TT result on post-fix
+  code; no prior reference existed). IMPORTANT for item 4 scoping: the
+  evanescent-rich polarized TT coefficients pass the root-lift
+  machinery cleanly at NLO scale - the Cancel wall is
+  NNLO-coefficient-SIZE specific, not polarization or BMHV specific.
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**
