@@ -20,7 +20,7 @@ Addon/Mathematica_Addon/*
 !Addon/Mathematica_Addon/MANIFEST.md
 !Addon/Mathematica_Addon/README.md
 !Addon/Mathematica_Addon/LoadAddons.wl
-Addon/Other_Addon/
+Addon/Other_Addon
 
 # --- Generated file types ---
 *.mx
