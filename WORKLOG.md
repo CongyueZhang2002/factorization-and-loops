@@ -77,6 +77,39 @@ tests in the same commit.
 - Step 3b+c gluon chain launched (09:02): canonicalization of 1296
   artifacts, then the big Kira solve, then the first true NNLO-scale
   streaming import.
+- Step 3b+c gluon chain COMPLETE (10:55, exit 0). Full NNLO double-real
+  reduction reproduced from cards on current code:
+    - canonicalization: 27.5 min, 430 canonical families, 0 rejected
+      (exactly the measured Pak-class count);
+    - Kira solve: 1 h 58 m on 8 workers (historical ~2.5 h on 12
+      workers - FASTER on fewer workers; requirement met);
+    - streaming import + closure + artifact: 12.6 min, peak
+      MemoryInUse 7.9 GB (the stage that OOM-killed the old importer
+      at 47.7 GB; closure ran 4 family-wise rounds, 45,513 integrals);
+    - 374 solve families, 45,129 targets -> 347 masters, 45,171 rules
+      (UU_08_10_canonical/KiraStream).
+- FINDING: 347 masters vs historical 342. All 347 are Pak-distinct (no
+  cross-family duplicates; checked). Exactly 5 masters carry
+  irreducible-numerator indices; the post-BMHV-fix integrand
+  representation reaches a slightly different target set (45,129 vs
+  44,877), steering Kira to a slightly different (equally valid) master
+  basis. Physics equality to be established downstream: (a) NNLO
+  finite-field coefficients, (b) optional cross-check mapping the old
+  798 MB KiraResult through the canonical registry.
+
+**Morning plan (recommended supervised next steps):**
+
+1. NNLO finite-field coefficient reconstruction on the canonical gluon
+   set (first NNLO-scale exercise of the CoefficientStore target
+   collection; run supervised, not blind).
+2. Same for the ghost grid (small), then the sigma_gg assembly:
+   (1/2!) x gluon - ghost via IdenticalParticleSymmetryFactor.
+3. Optional: cross-validate old-vs-new NNLO reduction images by
+   canonicalizing the OLD topology records (Pak partition proven
+   identical) and comparing target images through the registry.
+4. NLO cross-test of the canonical+streaming composition (closes the
+   last untested path combination; minutes).
+5. Registry-seeding API so gluon+ghost grids share one registry.
 
 Plan, in order; each step appends its outcome here:
 
