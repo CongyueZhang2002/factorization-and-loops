@@ -62,7 +62,9 @@ tests in the same commit.
   reproduces the reference CoefficientResult.wl exactly (7 masters,
   every coefficient product and the remainder identical). NLO UU is
   golden-locked at pre-IBP, reduction, and coefficient level.
-- Step 3a started (02:53): ghost grid regeneration (7x7) running.
+- Step 3a done (03:00): ghost grid 49/49 regenerated, zero failures
+  (UU_Ghost_08_10_1). Gluon grid 36x36 (UU_08_10_1) launched in
+  background (expect hours; resumable).
 
 Plan, in order; each step appends its outcome here:
 
