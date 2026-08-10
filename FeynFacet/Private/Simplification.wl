@@ -1060,17 +1060,32 @@ coefficientFractionMonomialData[base_, fractions_List] := Catch @ Module[
   ]
 ];
 
+(* Memoized per kernel: the same root-coefficient bases recur across
+   thousands of targets, and a certification that succeeds once need
+   not rerun FullSimplify. Only True is cached - a False may be a
+   TimeConstrained artifact under load and must stay retryable. *)
 coefficientCertifiedPositiveQ[
     expression_,
     assumptions_,
-    timeLimit_: 10
-  ] := TrueQ @ TimeConstrained[
-  Quiet @ CheckAbort[
-    Check[FullSimplify[expression > 0, Assumptions -> assumptions], False],
-    False
-  ],
-  timeLimit,
-  False
+    timeLimit_: 60
+  ] := With[
+  {
+    certified = TrueQ @ TimeConstrained[
+      Quiet @ CheckAbort[
+        Check[
+          FullSimplify[expression > 0, Assumptions -> assumptions],
+          False
+        ],
+        False
+      ],
+      timeLimit,
+      False
+    ]
+  },
+  If[certified,
+    coefficientCertifiedPositiveQ[expression, assumptions, _] = True
+  ];
+  certified
 ];
 
 coefficientForbiddenFractionObjectQ[
@@ -1141,7 +1156,7 @@ validateCoefficientBranchGrammar[
           coefficientCertifiedPositiveQ[
             data["Coefficient"],
             assumptions,
-            10
+            60
           ]
       ]
     ],
@@ -1191,7 +1206,7 @@ coefficientPositiveRootLift[
           ! coefficientCertifiedPositiveQ[
             coefficient,
             assumptions,
-            Min[10, timeLimit]
+            Min[60, timeLimit]
           ],
         Throw[$Failed]
       ];
@@ -2344,7 +2359,7 @@ finiteFieldCertifiedPowerExpand[
       coefficientCertifiedPositiveQ[
         #,
         effectiveAssumptions,
-        Min[10, timeLimit]
+        Min[60, timeLimit]
       ] &
     ],
     Return[$Failed]
@@ -2453,10 +2468,14 @@ finiteFieldNormalizeTraceTarget[
     ! MissingQ[failedMaster],
     Return @ Failure[
       "KiraCoefficientNormalization",
-      <|
-        "Target" -> HoldComplete[target],
-        "Master" -> HoldComplete[failedMaster]
-      |>
+      (* Inject the value: HoldComplete on the local symbol would leak
+         the unevaluated variable name into the report. *)
+      With[{failedMasterValue = failedMaster},
+        <|
+          "Target" -> HoldComplete[target],
+          "Master" -> HoldComplete[failedMasterValue]
+        |>
+      ]
     ]
   ];
   preparedRemainder = finiteFieldPrepareReductionCoefficient[
