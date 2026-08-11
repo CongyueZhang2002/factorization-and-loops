@@ -3415,6 +3415,30 @@ finiteFieldBuildTrace[
       "list-outputs", "--to=" <> outputsFile
     }
   ];
+  (* RunProcess cannot launch a process with thousands of arguments
+     (measured: 100 fine, 4400 returns no result), and one NNLO trace
+     names 2203 expression files. Route the command through a script;
+     the OS itself handles the argv fine (proven from a shell). *)
+  Module[{script},
+    script = FileNameJoin[{directory, "BuildTrace.sh"}];
+    Export[
+      script,
+      StringRiffle[
+        {
+          "#!/bin/bash",
+          "set -u",
+          StringRiffle[
+            "'" <> StringReplace[#, "'" -> "'\\''"] <> "'" & /@
+              arguments,
+            " "
+          ]
+        },
+        "\n"
+      ] <> "\n",
+      "String"
+    ];
+    arguments = {"/bin/bash", script}
+  ];
   {seconds, result} = AbsoluteTiming @ finiteFieldRunProcess[
     arguments,
     directory,
