@@ -291,6 +291,16 @@ tests in the same commit.
   ceiling and the root-lift Cancel wall were never seen before: this
   code path never ran at this scale.
 
+- Shared-vs-split reconstruction experiment (user suggestion, 10:00):
+  on the ghost set, sequential per-master-column FireFly (162 s) is on
+  par with the shared trace (179 s), but the time is dominated by two
+  hard columns and the split is embarrassingly parallel with free
+  per-column progress. Since each shared-run probe evaluates the full
+  302 MB trace while a column trace is ~50x smaller, a SPLIT GLUON
+  RACE was launched on the spare cores (2 niced jobs x 3 threads over
+  all master columns; shared run untouched at 13 cores): first to
+  finish wins; split outputs are format-compatible by concatenation.
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**
