@@ -3360,7 +3360,11 @@ finiteFieldRestoreTraceCheckpoint[
       "the stored trace data is not an Association",
     ! AllTrue[
         record["TraceData"]["OutputFiles"],
-        FileExistsQ[FileNameJoin[{directory, #}]] &
+        (* OutputFiles are absolute paths; FileNameJoin would
+           concatenate, not reset, on an absolute second component. *)
+        FileExistsQ[
+          If[StringStartsQ[#, "/"], #, FileNameJoin[{directory, #}]]
+        ] &
       ],
       "an expression file named by the checkpoint is missing",
     True,
