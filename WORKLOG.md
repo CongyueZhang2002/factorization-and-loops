@@ -279,6 +279,18 @@ tests in the same commit.
 - Invocation 5 (06:40-): checkpoint restored, 302 MB trace built via
   BuildTrace.sh, FireFly reconstructing (13 cores, 5.5 GB RSS).
 
+- Historical finding (user question, 2026-08-11): the NNLO rational
+  reconstruction was NEVER completed before. The frozen tree's record
+  (Codex/ppHX_NNLO_DoubleReal/FiniteFieldReconstruction/
+  Overnight_2026-08-09) contains exactly two single-master feasibility
+  probes (master 0064: full column pipeline with certificate and
+  independent verification, ~63 s FireFly; master 0185: trivial); the
+  6-10 h figure in the documentation was a symbolic-path
+  extrapolation. The current shared-trace run is the first full-set
+  NNLO reconstruction attempt - which is also why the RunProcess argv
+  ceiling and the root-lift Cancel wall were never seen before: this
+  code path never ran at this scale.
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**
