@@ -174,6 +174,19 @@ canceled; root-freeness is verified on the small reconstructed output).
       rational phase-space points against AMFlow on the weighted master
       sum.
 
+### 7b. Queued wrap-up items
+
+- [ ] Live progress for long external stages: route the FireFly
+      reconstruct invocation through a wrapper script with a live
+      stdout redirect (as BuildTrace.sh does), so probe progress is
+      tail-able during multi-hour reconstructions (no ETA is possible
+      in principle - FireFly discovers degrees adaptively - but
+      progress visibility is; requested 2026-08-11).
+- [ ] **/code-review ultra** (user-triggered, billed): independent
+      multi-agent cloud review of the branch after the other items are
+      done (user decision 2026-08-11). Covers the Codex-era core plus
+      the 2026-08-10/11 rewrite work.
+
 ### 8. Deferred: steps 9–10 master plan (skip this round)
 
 Analytic master evaluation and endpoint assembly stay agent-driven for
