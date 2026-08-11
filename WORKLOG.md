@@ -238,6 +238,19 @@ tests in the same commit.
   Open API decision flagged: SimplifyHardCoefficients now has no
   in-repo callers.
 
+- Rationalized coefficient variables LANDED (19:45, Opus agent,
+  reviewed): the root-lift Cancel wall is gone from the finite-field
+  path. Substitutions xa->xia^2, xb->xib^2, s->2q^2, x->rx^2, y->ry^2
+  derived once per run from the card; structural positivity, no
+  FullSimplify/Cancel/TimeConstrained on the hot path; evenness checked
+  on the small reconstructed coefficients and collapsed back, schema
+  unchanged. Fraction roots cancel completely against the Laurent
+  factor - only the s/x/y roots reach the trace. Acceptance: NLO UU
+  golden unchanged, stored TT and ghost-shared results reproduced
+  EXACTLY (new t_rationalized_coefficients, 14/14); suite now 11
+  tests / 123 assertions green. The supervised NNLO gluon run - the
+  one the old path could not complete - launched 19:50.
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**
