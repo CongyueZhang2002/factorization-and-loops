@@ -24,6 +24,9 @@ ClearAll[
   coefficientForbiddenFractionObjectQ,
   validateCoefficientBranchGrammar,
   coefficientPositiveRootLift,
+  coefficientRootVariable,
+  coefficientPositiveQuantities,
+  coefficientRootSubstitutionSet,
   coefficientValidExponentQ,
   coefficientValidSparseMapQ,
   coefficientSparseLookup,
@@ -64,6 +67,12 @@ ClearAll[
   coefficientResolveResultDirectory,
   coefficientRunProject,
   finiteFieldNormalizationKernelCount,
+  finiteFieldRootFail,
+  finiteFieldRootMonomialData,
+  finiteFieldRationalizePower,
+  finiteFieldRationalize,
+  finiteFieldCollapseRootVariables,
+  finiteFieldCombineSignatures,
   finiteFieldNormalizeTraceTarget,
   finiteFieldNormalizeTraceBatch,
   finiteFieldCoefficientSimplificationCore,
@@ -665,11 +674,66 @@ coefficientDeclaredFractions[
     $Failed
 ];
 
+(* Rationalizing square-root substitution variables (Design/
+   RationalizedCoefficients.md).  Every quantity that the card region
+   certifies positive - the momentum fractions, the scale and the
+   dimensionless coordinates - can be traded for a dedicated positive
+   root variable, q -> constant rootVariable^2, so that half-integer
+   powers of monomials in those quantities become rational.  The
+   constant is 2 for the declared scale, because the frame vectors
+   carry s/2 combinations; it is 1 otherwise. *)
+
+coefficientRootVariable[quantity_Symbol] :=
+  Symbol["Global`FACETroot" <> SymbolName[quantity]];
+
+coefficientPositiveQuantities[
+    fractions_List,
+    scale_,
+    coordinates_List
+  ] := DeleteDuplicates @ Join[
+  fractions,
+  If[MatchQ[scale, _Symbol], {scale}, {}],
+  coordinates
+];
+
+(* The card's hadronic coordinates are the only source of half-integer
+   powers in the coefficient pipeline, so the set of quantities that
+   needs a root variable is fixed by the card and is the same for every
+   target and every master coefficient of a run.  A quantity that never
+   occurs under a root keeps its own name (no degree doubling); a root
+   base that needs an undeclared one is a hard failure in
+   finiteFieldRationalize, not a silent extension. *)
+coefficientRootSubstitutionSet[
+    hadronic_Association,
+    quantities_List,
+    scale_,
+    dimensionlessRules_
+  ] := Module[{coordinates, bases, needed},
+  If[quantities === {}, Return[<||>]];
+  coordinates = Values[Lookup[hadronic, "Coordinates", <||>]];
+  bases = DeleteDuplicates @ Cases[
+    coordinates /. dimensionlessRules,
+    Power[base_, exponent_Rational /; ! IntegerQ[exponent]] :> base,
+    {0, Infinity}
+  ];
+  needed = Select[quantities, ! FreeQ[bases, #] &];
+  Association @ Map[
+    Function[quantity,
+      quantity -> <|
+        "Root" -> coefficientRootVariable[quantity],
+        "Constant" -> If[quantity === scale, 2, 1]
+      |>
+    ],
+    needed
+  ]
+];
+
 BuildSimplificationContext[config_Association] := Catch[
   Module[
     {
       hadronic, kinematics, sourceAssumptions, coordinateRegion,
       inferredFractions, fractions, roots, forbidden, scale, scalePositive,
+      positiveQuantities, rootSubstitutions,
       sourceVariables, sourceKinematicAssumptions,
       mappedSourceKinematics, sourceNonempty, coordinateNonempty,
       forwardChamberCheck, backwardChamberCheck,
@@ -815,9 +879,22 @@ BuildSimplificationContext[config_Association] := Catch[
       (sourceAssumptions /. kinematics["DimensionlessRules"]) &&
         coordinateRegion
     ];
+    positiveQuantities = coefficientPositiveQuantities[
+      fractions,
+      scale,
+      Lookup[kinematics, "DimensionlessVariables", {}]
+    ];
+    rootSubstitutions = coefficientRootSubstitutionSet[
+      hadronic,
+      positiveQuantities,
+      scale,
+      kinematics["DimensionlessRules"]
+    ];
     <|
       "FractionVariables" -> fractions,
       "FractionRootVariables" -> roots,
+      "PositiveQuantities" -> positiveQuantities,
+      "RootSubstitutions" -> rootSubstitutions,
       "ExpectedDistributionFactor" -> kinematics["DistributionFactor"],
       "ExpectedLaurentValuation" -> kinematics["LaurentValuation"],
       "HadronicVariables" -> hadronic,
@@ -2269,24 +2346,199 @@ finiteFieldForbiddenQ[expression_, context_Association] := Module[
     ! FreeQ[expression, System`D]
 ];
 
+(* --- rationalizing square-root substitution ------------------------ *)
+
+$finiteFieldRootFailure = Unique["finiteFieldRootFailure$"];
+
+CoefficientSimplification::rootbase =
+  "A half-integer power survives rationalization: its base `1` is not an \
+exact positive rational times a monomial in the declared positive \
+quantities with a declared root substitution.";
+
+CoefficientSimplification::rootparity =
+  "A reconstructed coefficient is not even in the substitution variable \
+`1`: the rationalized kinematics did not cancel.";
+
+(* Structural decomposition base -> positive rational x monomial in the
+   declared positive quantities.  Structural on purpose: positivity is
+   read off the card region (0 < xa, xb, zh < 1, s > 0, x > 0, y > 0),
+   never certified by FullSimplify. *)
+finiteFieldRootMonomialData[base_, quantities_List] := Catch[
+  Module[{factors, constant = 1, exponents},
+    exponents = Association[# -> 0 & /@ quantities];
+    factors = If[Head[base] === Times, List @@ base, {base}];
+    Do[
+      Which[
+        KeyExistsQ[exponents, factor],
+          exponents[factor] += 1,
+        MatchQ[factor, Power[_, _Integer]] &&
+            KeyExistsQ[exponents, factor[[1]]],
+          exponents[factor[[1]]] += factor[[2]],
+        MatchQ[factor, _Integer | _Rational] && TrueQ[factor > 0],
+          constant *= factor,
+        True,
+          Throw[$Failed, $finiteFieldRootFailure]
+      ],
+      {factor, factors}
+    ];
+    <|"Constant" -> constant, "Exponents" -> exponents|>
+  ],
+  $finiteFieldRootFailure,
+  $Failed &
+];
+
+(* Inject the value: HoldForm on the local symbol would leak the
+   unevaluated variable name into the report. *)
+finiteFieldRootFail[base_] := With[
+  {reportedBase = base},
+  Throw[HoldForm[reportedBase], $finiteFieldRootFailure]
+];
+
+(* base^(k/2) -> (rationalized base)^k.  The square root of the base is
+   built symbolically: sqrt(constant) x product(rootVariable^power),
+   with sqrt(constant) either rational or an exact constant root that
+   the existing signature mechanism carries. *)
+finiteFieldRationalizePower[
+    power_,
+    substitutions_Association,
+    quantities_List
+  ] := Module[{base, exponent, doubled, data, constant, monomial},
+  base = power[[1]];
+  exponent = power[[2]];
+  If[FreeQ[base, Alternatives @@ quantities], Return[power]];
+  doubled = 2 exponent;
+  If[! IntegerQ[doubled], finiteFieldRootFail[base]];
+  data = finiteFieldRootMonomialData[base, quantities];
+  If[data === $Failed, finiteFieldRootFail[base]];
+  constant = data["Constant"] Times @@ KeyValueMap[
+    Function[{quantity, exponentValue},
+      If[
+        KeyExistsQ[substitutions, quantity],
+        substitutions[quantity]["Constant"]^exponentValue,
+        1
+      ]
+    ],
+    data["Exponents"]
+  ];
+  monomial = Times @@ KeyValueMap[
+    Function[{quantity, exponentValue},
+      Which[
+        KeyExistsQ[substitutions, quantity],
+          substitutions[quantity]["Root"]^(exponentValue doubled),
+        IntegerQ[exponentValue doubled/2],
+          quantity^(exponentValue doubled/2),
+        True,
+          finiteFieldRootFail[base]
+      ]
+    ],
+    data["Exponents"]
+  ];
+  constant^(doubled/2) monomial
+];
+
+(* No Cancel, no TimeConstrained, no FullSimplify: the reconstruction
+   does not care whether the trace input is canceled. *)
+finiteFieldRationalize[expression_, context_Association] := Catch[
+  Module[{substitutions, quantities, powers, rules, substitutionRules},
+    substitutions = Lookup[context, "RootSubstitutions", <||>];
+    quantities = Lookup[context, "PositiveQuantities", {}];
+    If[! AssociationQ[substitutions] || quantities === {},
+      Return[expression]
+    ];
+    (* Level 0 included: a bare Sqrt can be the whole expression. *)
+    powers = DeleteDuplicates @ Cases[
+      expression,
+      power : Power[_, _Rational] /; ! IntegerQ[power[[2]]] :> power,
+      {0, Infinity}
+    ];
+    rules = Map[
+      # -> finiteFieldRationalizePower[#, substitutions, quantities] &,
+      powers
+    ];
+    substitutionRules = KeyValueMap[
+      Function[{quantity, substitutionData},
+        quantity -> substitutionData["Constant"] substitutionData["Root"]^2
+      ],
+      substitutions
+    ];
+    If[substitutionRules === {} && rules === {}, Return[expression]];
+    (expression /. Dispatch[rules]) /. Dispatch[substitutionRules]
+  ],
+  $finiteFieldRootFailure,
+  (Message[CoefficientSimplification::rootbase, #1]; $Failed) &
+];
+
+(* Post-reconstruction: every coefficient must be even in each root
+   variable; collapse rootVariable^(2n) -> (q/constant)^n back to the
+   physical quantity so the result schema is unchanged. *)
+finiteFieldCollapseRootVariables[
+    expression_,
+    context_Association
+  ] := Module[{substitutions, roots, rules, collapsed, remaining},
+  substitutions = Lookup[context, "RootSubstitutions", <||>];
+  If[! AssociationQ[substitutions] || substitutions === <||>,
+    Return[expression]
+  ];
+  roots = #["Root"] & /@ Values[substitutions];
+  If[FreeQ[expression, Alternatives @@ roots], Return[expression]];
+  rules = KeyValueMap[
+    Function[{quantity, substitutionData},
+      With[
+        {
+          rootVariable = substitutionData["Root"],
+          value = quantity/substitutionData["Constant"]
+        },
+        HoldPattern[
+          Power[rootVariable, exponent_Integer /; EvenQ[exponent]]
+        ] :> value^(exponent/2)
+      ]
+    ],
+    substitutions
+  ];
+  collapsed = expression /. rules;
+  If[! FreeQ[collapsed, Alternatives @@ roots],
+    collapsed = Cancel[Together[expression]] /. rules
+  ];
+  remaining = Select[roots, ! FreeQ[collapsed, #] &];
+  If[remaining =!= {},
+    Message[CoefficientSimplification::rootparity, First[remaining]];
+    Return[$Failed]
+  ];
+  collapsed
+];
+
+(* Constant roots that rationalization leaves behind (Sqrt[2] from a
+   base carrying an odd power of 2) ride along in the signature. *)
+finiteFieldCombineSignatures[
+    first_HoldComplete,
+    second_HoldComplete
+  ] := Which[
+  second === HoldComplete[1], first,
+  first === HoldComplete[1], second,
+  True,
+    With[
+      {value = ReleaseHold[first] ReleaseHold[second]},
+      HoldComplete[value]
+    ]
+];
+
 finiteFieldNormalizeTarget[
     expression_,
     distributionFactor_,
-    liftedLaurentFactor_,
+    rationalLaurentFactor_,
     context_Association,
     timeLimit_
   ] := Module[
   {
     physical, distributionFreeTerms, distributionFree,
-    liftedData, lifted, terms, stripped, dimensionless, module
+    dimensionless, rationalized, terms, stripped, module
   },
   physical = applyHadronicVariables[
     expression,
     context["HadronicVariables"]
   ];
   If[
-    physical === $Failed || ! exactDataQ[physical] ||
-      ! validateCoefficientBranchGrammar[physical, context],
+    physical === $Failed || ! exactDataQ[physical],
     Return[$Failed]
   ];
   distributionFreeTerms =
@@ -2301,31 +2553,19 @@ finiteFieldNormalizeTarget[
     ],
     Return[$Failed]
   ];
-  liftedData = coefficientPositiveRootLift[
-    distributionFree,
-    context,
-    timeLimit
-  ];
-  If[MemberQ[{$Failed, $TimedOut}, liftedData], Return[$Failed]];
-  lifted = liftedData["Expression"];
-  terms = finiteFieldCancel[#/liftedLaurentFactor, timeLimit] & /@
-    additiveTerms[lifted];
+  dimensionless = distributionFree /. context["DimensionlessRules"];
+  rationalized = finiteFieldRationalize[dimensionless, context];
+  If[rationalized === $Failed, Return[$Failed]];
+  terms = finiteFieldCancel[#/rationalLaurentFactor, timeLimit] & /@
+    additiveTerms[rationalized];
   If[MemberQ[terms, $Failed | $TimedOut], Return[$Failed]];
   stripped = Total[terms];
-  dimensionless = stripped /. context["DimensionlessRules"];
-  dimensionless = finiteFieldCertifiedPowerExpand[
-    dimensionless,
-    context,
-    timeLimit,
-    context["DimensionlessAssumptions"]
-  ];
   If[
-    MemberQ[{$Failed, $TimedOut}, dimensionless] ||
-      ! exactDataQ[dimensionless] ||
-      finiteFieldForbiddenQ[dimensionless, context],
+    ! exactDataQ[stripped] ||
+      finiteFieldForbiddenQ[stripped, context],
     Return[$Failed]
   ];
-  module = finiteFieldSignatureModule[dimensionless];
+  module = finiteFieldSignatureModule[stripped];
   If[
     module === $Failed ||
       ! AllTrue[Values[module], finiteFieldRationalQ] ||
@@ -2368,40 +2608,40 @@ finiteFieldCertifiedPowerExpand[
   finiteFieldCancel[expanded, timeLimit]
 ];
 
+(* Returns the signature module of the rationalized Kira coefficient:
+   an Association from an exact non-rational signature (normally 1) to
+   an expression rational in the trace variables. *)
 finiteFieldPrepareReductionCoefficient[
     expression_,
     metadata_Association,
     context_Association,
     timeLimit_
-  ] := Module[{prepared, liftedData},
+  ] := Module[{prepared, module},
   prepared = expression /.
     metadata["ReverseRules"] /. metadata["DimensionRule"];
   prepared = applyHadronicVariables[
     prepared,
     context["HadronicVariables"]
   ];
+  If[prepared === $Failed || ! exactDataQ[prepared], Return[$Failed]];
+  prepared = prepared /. context["DimensionlessRules"];
+  prepared = finiteFieldRationalize[prepared, context];
   If[prepared === $Failed, Return[$Failed]];
-  If[! validateCoefficientBranchGrammar[prepared, context], Return[$Failed]];
-  liftedData = coefficientPositiveRootLift[prepared, context, timeLimit];
-  If[MemberQ[{$Failed, $TimedOut}, liftedData], Return[$Failed]];
-  prepared = finiteFieldCancel[liftedData["Expression"], timeLimit];
   If[
-    MemberQ[{$Failed, $TimedOut}, prepared] ||
-      ! FreeQ[
-        prepared,
-        Alternatives @@ context["FractionRootVariables"]
+    ! exactDataQ[prepared] || finiteFieldForbiddenQ[prepared, context],
+    Return[$Failed]
+  ];
+  module = finiteFieldSignatureModule[prepared];
+  If[
+    module === $Failed ||
+      ! AllTrue[Values[module], finiteFieldRationalQ] ||
+      AnyTrue[
+        Keys[module],
+        finiteFieldForbiddenQ[ReleaseHold[#], context] &
       ],
     Return[$Failed]
   ];
-  prepared = finiteFieldCertifiedPowerExpand[prepared, context, timeLimit];
-  If[MemberQ[{$Failed, $TimedOut}, prepared], Return[$Failed]];
-  prepared = prepared /. context["DimensionlessRules"];
-  If[
-    ! exactDataQ[prepared] || ! finiteFieldRationalQ[prepared] ||
-      finiteFieldForbiddenQ[prepared, context],
-    $Failed,
-    prepared
-  ]
+  module
 ];
 
 finiteFieldNormalizationKernelCount[value_, targetCount_Integer] := Module[
@@ -2432,7 +2672,7 @@ finiteFieldNormalizeTraceTarget[
   targetModule = finiteFieldNormalizeTarget[
     expression,
     workerData["DistributionFactor"],
-    workerData["LiftedLaurentFactor"],
+    workerData["RationalLaurentFactor"],
     workerData["Context"],
     workerData["TimeLimit"]
   ];
@@ -2490,7 +2730,7 @@ finiteFieldNormalizeTraceTarget[
       "KiraCoefficientNormalization",
       <|
         "Target" -> HoldComplete[target],
-        "Detail" -> "the scalar remainder is not rational"
+        "Detail" -> "the scalar remainder does not rationalize"
       |>
     ]
   ];
@@ -2562,8 +2802,8 @@ finiteFieldTraceInputs[
   Module[
     {
       manifest, shardCount, expectedByShard, expressionDirectory,
-      distributionFactor, laurentFactor, liftedFactorData,
-      liftedLaurentFactor, masters, masterIndices,
+      distributionFactor, laurentFactor, rationalLaurentFactor,
+      masters, masterIndices,
       signatures = {}, signatureBuckets = <||>, signatureID,
       symbolRules = <||>, aliasPrefix, registerSymbols, aliasRules,
       outputFiles = <||>, outputMetadata = <||>, firstTerm = <||>,
@@ -2593,18 +2833,16 @@ finiteFieldTraceInputs[
 
     distributionFactor = context["ExpectedDistributionFactor"];
     laurentFactor = Cancel[physicalFactor/distributionFactor];
-    liftedFactorData = coefficientPositiveRootLift[
-      laurentFactor,
-      context,
-      timeLimit
+    rationalLaurentFactor = finiteFieldRationalize[
+      laurentFactor /. context["DimensionlessRules"],
+      context
     ];
-    If[MemberQ[{$Failed, $TimedOut}, liftedFactorData],
+    If[rationalLaurentFactor === $Failed,
       finiteFieldFail[
         "physical normalization",
-        "the declared distribution and Laurent factor could not be lifted on the physical branch"
+        "the declared distribution and Laurent factor do not rationalize"
       ]
     ];
-    liftedLaurentFactor = liftedFactorData["Expression"];
 
     masters = metadata["Masters"];
     masterIndices = AssociationThread[masters, Range[Length[masters]]];
@@ -2721,8 +2959,7 @@ finiteFieldTraceInputs[
       preparedRemainder = record["PreparedRemainder"];
       KeyValueMap[
         Function[{signature, rationalTarget},
-          Module[{id, targetString},
-            id = signatureID[signature];
+          Module[{targetString},
             registerSymbols[rationalTarget];
             aliasRules = Dispatch[Normal[symbolRules]];
             targetString = finiteFieldToString[
@@ -2730,7 +2967,7 @@ finiteFieldTraceInputs[
               aliasRules
             ];
             KeyValueMap[
-              Function[{master, reductionCoefficient},
+              Function[{master, coefficientModule},
                 masterIndex = Lookup[
                   masterIndices,
                   master,
@@ -2739,22 +2976,36 @@ finiteFieldTraceInputs[
                 If[MissingQ[masterIndex],
                   finiteFieldFail["Kira image", HoldForm[master]]
                 ];
-                writeContribution[
-                  masterIndex,
-                  id,
-                  targetString,
-                  reductionCoefficient
+                KeyValueMap[
+                  Function[{coefficientSignature, reductionCoefficient},
+                    writeContribution[
+                      masterIndex,
+                      signatureID @ finiteFieldCombineSignatures[
+                        signature,
+                        coefficientSignature
+                      ],
+                      targetString,
+                      reductionCoefficient
+                    ]
+                  ],
+                  coefficientModule
                 ]
               ],
               preparedTerms
             ];
-            If[! TrueQ[preparedRemainder === 0],
-              writeContribution[
-                0,
-                id,
-                targetString,
-                preparedRemainder
-              ]
+            KeyValueMap[
+              Function[{remainderSignature, rationalRemainder},
+                writeContribution[
+                  0,
+                  signatureID @ finiteFieldCombineSignatures[
+                    signature,
+                    remainderSignature
+                  ],
+                  targetString,
+                  rationalRemainder
+                ]
+              ],
+              preparedRemainder
             ]
           ]
         ],
@@ -2789,7 +3040,7 @@ finiteFieldTraceInputs[
     ];
     workerData = <|
       "DistributionFactor" -> distributionFactor,
-      "LiftedLaurentFactor" -> liftedLaurentFactor,
+      "RationalLaurentFactor" -> rationalLaurentFactor,
       "Context" -> context,
       "TimeLimit" -> timeLimit,
       "ReductionMetadata" -> KeyTake[
@@ -2953,7 +3204,7 @@ finiteFieldTraceInputs[
         remainderModule = finiteFieldNormalizeTarget[
           remainder /. metadata["DimensionRule"],
           distributionFactor,
-          liftedLaurentFactor,
+          rationalLaurentFactor,
           context,
           timeLimit
         ];
@@ -3215,7 +3466,7 @@ finiteFieldAssembleResult[
     recordsByName, equivalence, classByName, masterData,
     reconstructed, forbiddenMomenta, remainingMomenta,
     remainingFractionObjects, cutCheck,
-    reconstructionData
+    reconstructionData, collapseRootVariables, rootSubstitutions
   },
   outputs = MapThread[
     Join[#1, <|"RationalExpression" -> #2|>] &,
@@ -3226,25 +3477,28 @@ finiteFieldAssembleResult[
   ];
   grouped = GroupBy[outputs, #1["MasterIndex"] &];
   directRules = Normal[context["DimensionlessCoordinates"]];
-  coefficients = AssociationMap[
-    Function[index,
-      Total[
-        Function[entry,
-          ReleaseHold[
-            traceData["Signatures"][entry["SignatureIndex"]]
-          ] entry["RationalExpression"]
-        ] /@ Lookup[grouped, index, {}]
-      ] /. directRules
-    ],
-    Range[Length[traceData["Masters"]]]
-  ];
-  remainder = Total[
+  (* Root-freeness is a property of the reconstructed coefficients:
+     verify it here, on the small output, not on the trace inputs. *)
+  collapseRootVariables[entries_List] := finiteFieldCollapseRootVariables[
+    Total[
       Function[entry,
         ReleaseHold[
           traceData["Signatures"][entry["SignatureIndex"]]
         ] entry["RationalExpression"]
-      ] /@ Lookup[grouped, 0, {}]
-    ] /. directRules;
+      ] /@ entries
+    ],
+    context
+  ];
+  coefficients = AssociationMap[
+    Function[index, collapseRootVariables[Lookup[grouped, index, {}]]],
+    Range[Length[traceData["Masters"]]]
+  ];
+  remainder = collapseRootVariables[Lookup[grouped, 0, {}]];
+  If[MemberQ[Values[coefficients], $Failed] || remainder === $Failed,
+    Return[$Failed]
+  ];
+  coefficients = (# /. directRules) & /@ coefficients;
+  remainder = remainder /. directRules;
   recordsByName = Association[
     #1["Topology"][[1]] -> #1 & /@ metadata["Topologies"]
   ];
@@ -3289,10 +3543,16 @@ finiteFieldAssembleResult[
     {Lookup[masterData, "Coefficient"], remainder},
     forbiddenMomenta
   ];
+  rootSubstitutions = Lookup[context, "RootSubstitutions", <||>];
   remainingFractionObjects = Select[
     Join[
       context["FractionVariables"],
-      context["FractionRootVariables"]
+      context["FractionRootVariables"],
+      If[
+        AssociationQ[rootSubstitutions],
+        #["Root"] & /@ Values[rootSubstitutions],
+        {}
+      ]
     ],
     ! FreeQ[{Lookup[masterData, "Coefficient"], remainder}, #] &
   ];
@@ -3355,7 +3615,18 @@ finiteFieldAssembleResult[
         "DistributionFactor" -> context["ExpectedDistributionFactor"],
         "LaurentValuation" -> context["ExpectedLaurentValuation"],
         "DimensionlessCoordinates" -> context["DimensionlessCoordinates"],
-        "BranchGrammar" -> context["BranchGrammar"]
+        "BranchGrammar" -> context["BranchGrammar"],
+        "RootSubstitutions" -> If[
+          AssociationQ[rootSubstitutions],
+          Association @ KeyValueMap[
+            Function[{quantity, substitutionData},
+              quantity ->
+                substitutionData["Constant"] substitutionData["Root"]^2
+            ],
+            rootSubstitutions
+          ],
+          <||>
+        ]
       |>,
       "FiniteFieldReconstruction" -> reconstructionData,
       "Topologies" -> metadata["Topologies"],
