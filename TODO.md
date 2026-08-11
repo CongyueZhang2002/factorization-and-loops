@@ -8,6 +8,13 @@ defined here. Every module lands with its tests in the same commit.
 
 ### 0. Decisions taken
 
+- **Method-development rule (user, 2026-08-11):** new methods and
+  fixes are developed and measured at the cheapest sufficient scale
+  (NLO -> ghost grid -> NNLO subset via MaximumTargets) before any
+  full-NNLO run; a full-scale run is a validation of a measured
+  method, never an experiment. (Adopted after the FireFly
+  reconstruction consumed >100 core-hours without a prior small-scale
+  degree measurement.)
 - **Performance requirement (user, 2026-08-10):** every stage of the
   rewritten workflow must be at least as fast as the historical run.
   Reference points: double-real pair generation 4 h 15 m on 8
@@ -182,12 +189,19 @@ canceled; root-freeness is verified on the small reconstructed output).
       tail-able during multi-hour reconstructions (no ETA is possible
       in principle - FireFly discovers degrees adaptively - but
       progress visibility is; requested 2026-08-11).
-- [ ] Degree-halving for the finite-field probes: reconstructed
-      coefficients are even in the root variables (sq, rx, ry), but
-      FireFly probes in the roots themselves, doubling effective
-      degrees and inflating probe counts at NNLO scale (measured
-      2026-08-11: gluon column 1 at 587k probes vs ghost's ~2k).
-      Design a probing change or variable-level evenness exploitation.
+- [ ] **TOP PRIORITY - Degree reduction for the finite-field probes**
+      (blocks NNLO coefficients; shared run terminated at 8h/100
+      core-hours by user instruction). Two candidates, both to be
+      measured at ghost scale first per the method-development rule:
+      (a) scale elimination: the s-dependence of every coefficient is
+      a monomial fixed by mass dimension, so probe at s=2 (q=1) and
+      restore the power at assembly - removes one variable and its
+      doubling at zero expression-growth cost; (b) evenization: since
+      values are even in each root r, f = (N(r)D(-r)+N(-r)D(r)) /
+      (2 D(r)D(-r)) termwise-even -> substitute r^2 -> physical
+      variable; halves degrees at the cost of bounded polynomial
+      growth (measure the growth factor at ghost scale before
+      committing to gluon).
 - [ ] **/code-review ultra** (user-triggered, billed): independent
       multi-agent cloud review of the branch after the other items are
       done (user decision 2026-08-11). Covers the Codex-era core plus
