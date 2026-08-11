@@ -301,6 +301,20 @@ tests in the same commit.
   all master columns; shared run untouched at 13 cores): first to
   finish wins; split outputs are format-compatible by concatenation.
 
+- Split race verdict at gluon scale (14:36): OPPOSITE of the ghost
+  result - gluon column 1 alone consumed ~12 core-hours at 587k
+  FireFly probes without converging (ghost's hardest column: ~2k
+  probes). Probe sharing is exactly what the shared trace buys, so the
+  shared run is the right design at this scale; race killed, cores
+  returned. IMPORTANT STRUCTURAL FINDING: the probe counts are
+  inflated by the root-variable substitution - the reconstructed
+  values are even in (sq, rx, ry), but FireFly probes the black box in
+  the root variables themselves, so effective polynomial degrees are
+  DOUBLED relative to (s, x, y). A future degree-halving optimization
+  (probing in even variables) would cut probe counts massively; design
+  item queued. No ETA is derivable for the shared run (~95 core-hours
+  so far; FireFly's remaining probe need is unknowable in advance).
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**

@@ -182,6 +182,12 @@ canceled; root-freeness is verified on the small reconstructed output).
       tail-able during multi-hour reconstructions (no ETA is possible
       in principle - FireFly discovers degrees adaptively - but
       progress visibility is; requested 2026-08-11).
+- [ ] Degree-halving for the finite-field probes: reconstructed
+      coefficients are even in the root variables (sq, rx, ry), but
+      FireFly probes in the roots themselves, doubling effective
+      degrees and inflating probe counts at NNLO scale (measured
+      2026-08-11: gluon column 1 at 587k probes vs ghost's ~2k).
+      Design a probing change or variable-level evenness exploitation.
 - [ ] **/code-review ultra** (user-triggered, billed): independent
       multi-agent cloud review of the branch after the other items are
       done (user decision 2026-08-11). Covers the Codex-era core plus
