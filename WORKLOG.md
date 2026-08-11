@@ -263,6 +263,22 @@ tests in the same commit.
   normalization checkpoint (Expressions + TraceManifest on disk, trace
   stage resumable in a fresh small kernel) - stage separation again.
 
+- Trace-stage debugging arc (01:00-07:00) and a process lesson (user
+  called it out, correctly): the ratracer launch failure went through
+  one wrong theory (fork-from-big-kernel; the checkpoint machinery it
+  motivated is still valuable) before the 10-second echo test proved
+  the real cause - Mathematica's RunProcess cannot pass ~4400
+  arguments (100 fine, 4400 returns no result) - and a 60-second
+  manifest probe found the checkpoint restore path bug (FileNameJoin
+  concatenates on absolute components). Both fixes are one-liners;
+  several expensive gluon invocations were burned that cheap isolated
+  tests would have avoided. RULES ADOPTED: a driver relaunch is the
+  last step, never the test - unit-test the failing stage against
+  on-disk state first; use the ghost grid or MaximumTargets subsets
+  as the NNLO-shaped smoke test for coefficient-stage iterations.
+- Invocation 5 (06:40-): checkpoint restored, 302 MB trace built via
+  BuildTrace.sh, FireFly reconstructing (13 cores, 5.5 GB RSS).
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**
