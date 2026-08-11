@@ -3290,7 +3290,22 @@ finiteFieldRunProcess[arguments_List, directory_String, log_String] := Module[
   If[DirectoryQ[temporary], DeleteDirectory[temporary, DeleteContents -> True]];
   CreateDirectory[temporary, CreateIntermediateDirectories -> True];
   command = Join[{"/usr/bin/env", "TMPDIR=" <> temporary}, arguments];
-  result = RunProcess[command];
+  result = Quiet @ Check[RunProcess[command], $Failed];
+  (* A fork failure from a large kernel (observed on WSL2 with a
+     multi-GB session) returns no process Association at all. Say so,
+     instead of exporting an unevaluated Lookup. *)
+  If[! AssociationQ[result],
+    Export[
+      log,
+      "RunProcess failed to launch the process (no result). " <>
+        "Kernel MemoryInUse (MB): " <>
+        ToString[Round[MemoryInUse[]/2.^20]] <>
+        ". Re-running in a fresh kernel resumes from the trace " <>
+        "checkpoint with a small footprint.",
+      "Text"
+    ];
+    Return[$Failed]
+  ];
   Export[
     log,
     Lookup[result, "StandardOutput", ""] <>
@@ -3299,6 +3314,55 @@ finiteFieldRunProcess[arguments_List, directory_String, log_String] := Module[
   ];
   If[DirectoryQ[temporary], DeleteDirectory[temporary, DeleteContents -> True]];
   If[Lookup[result, "ExitCode", 1] === 0, result, $Failed]
+];
+
+$finiteFieldTraceManifestName = "TraceManifest.wxf";
+
+finiteFieldTraceManifestFile[directory_String] :=
+  FileNameJoin[{directory, $finiteFieldTraceManifestName}];
+
+finiteFieldWriteTraceManifest[
+    directory_String, traceData_Association,
+    inputFingerprint_String, kiraHash_String
+  ] := coefficientWriteRecord[
+  finiteFieldTraceManifestFile[directory],
+  <|
+    "Format" -> "FeynFacet-TraceCheckpoint",
+    "FormatVersion" -> 1,
+    "InputFileFingerprint" -> inputFingerprint,
+    "KiraFileHash" -> kiraHash,
+    "TraceData" -> traceData
+  |>
+];
+
+(* A valid checkpoint lets a fresh (small) kernel skip the
+   normalization stage entirely: the expression files and the exact
+   traceData are restored from disk, so the ratracer/FireFly forks
+   happen from a low-RSS kernel. *)
+finiteFieldRestoreTraceCheckpoint[
+    directory_String, inputFingerprint_String, kiraHash_String
+  ] := Module[{file, record, traceData, expressionDirectory},
+  file = finiteFieldTraceManifestFile[directory];
+  If[! FileExistsQ[file], Return[$Failed]];
+  record = Quiet @ Check[coefficientReadRecord[file], $Failed];
+  If[
+    ! AssociationQ[record] ||
+      record["Format"] =!= "FeynFacet-TraceCheckpoint" ||
+      record["InputFileFingerprint"] =!= inputFingerprint ||
+      record["KiraFileHash"] =!= kiraHash,
+    Return[$Failed]
+  ];
+  traceData = record["TraceData"];
+  expressionDirectory = FileNameJoin[{directory, "Expressions"}];
+  If[
+    ! AssociationQ[traceData] ||
+      ! AllTrue[
+        traceData["OutputFiles"],
+        FileExistsQ[FileNameJoin[{directory, #}]] &
+      ],
+    Return[$Failed]
+  ];
+  traceData
 ];
 
 finiteFieldBuildTrace[
@@ -3310,6 +3374,24 @@ finiteFieldBuildTrace[
   traceFile = FileNameJoin[{directory, "MasterCoefficients.trace.gz"}];
   inputsFile = FileNameJoin[{directory, "TraceInputs.txt"}];
   outputsFile = FileNameJoin[{directory, "TraceOutputs.txt"}];
+  (* A completed trace whose output list matches the checkpoint can be
+     reused: rebuilding is deterministic given the same expressions. *)
+  If[
+    FileExistsQ[traceFile] && FileExistsQ[inputsFile] &&
+      FileExistsQ[outputsFile] &&
+      Length[
+        Select[StringSplit[Import[outputsFile, "Text"], "\n"], # =!= "" &]
+      ] === Length[traceData["OutputFiles"]],
+    Print["Reusing the existing shared trace (",
+      Round[FileByteCount[traceFile]/2.^20, 0.1], " MB)"];
+    Return[<|
+      "TraceFile" -> traceFile,
+      "InputsFile" -> inputsFile,
+      "OutputsFile" -> outputsFile,
+      "BuildSeconds" -> 0,
+      "TraceBytes" -> FileByteCount[traceFile]
+    |>]
+  ];
   arguments = Join[
     {executable},
     Flatten[
@@ -3799,22 +3881,41 @@ finiteFieldCoefficientSimplificationCore[
     ];
 
     traceDirectory = FileNameJoin[{workDirectory, "FiniteField"}];
-    If[coefficientResetDirectory[traceDirectory] === $Failed,
-      finiteFieldFail["working directory", traceDirectory]
-    ];
-    traceData = finiteFieldTraceInputs[
-      targetDirectory,
-      store,
-      metadata,
-      context,
-      physicalFactor,
+    traceData = finiteFieldRestoreTraceCheckpoint[
       traceDirectory,
-      timeLimit,
-      maximumTargets,
-      normalizationKernels
+      coefficientInputFileFingerprint[data["Sources"]],
+      coefficientFileHash[kiraFile]
     ];
-    If[traceData === $Failed,
-      finiteFieldFail["trace emission", "target normalization failed"]
+    If[AssociationQ[traceData],
+      coefficientProgressStage["Restored the trace checkpoint"];
+      Print["Reusing the normalized trace checkpoint (",
+        Length[traceData["OutputFiles"]], " outputs)"],
+      If[coefficientResetDirectory[traceDirectory] === $Failed,
+        finiteFieldFail["working directory", traceDirectory]
+      ];
+      traceData = finiteFieldTraceInputs[
+        targetDirectory,
+        store,
+        metadata,
+        context,
+        physicalFactor,
+        traceDirectory,
+        timeLimit,
+        maximumTargets,
+        normalizationKernels
+      ];
+      If[traceData === $Failed,
+        finiteFieldFail["trace emission", "target normalization failed"]
+      ];
+      If[
+        finiteFieldWriteTraceManifest[
+          traceDirectory,
+          traceData,
+          coefficientInputFileFingerprint[data["Sources"]],
+          coefficientFileHash[kiraFile]
+        ] === $Failed,
+        finiteFieldFail["trace checkpoint", "could not write the manifest"]
+      ]
     ];
     If[traceData["OutputFiles"] === {},
       finiteFieldFail["trace emission", "all reconstructed coefficients are zero"]
