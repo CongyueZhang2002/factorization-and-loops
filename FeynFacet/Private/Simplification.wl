@@ -3341,28 +3341,36 @@ finiteFieldWriteTraceManifest[
    happen from a low-RSS kernel. *)
 finiteFieldRestoreTraceCheckpoint[
     directory_String, inputFingerprint_String, kiraHash_String
-  ] := Module[{file, record, traceData, expressionDirectory},
+  ] := Module[{file, record, traceData, reason},
   file = finiteFieldTraceManifestFile[directory];
   If[! FileExistsQ[file], Return[$Failed]];
   record = Quiet @ Check[coefficientReadRecord[file], $Failed];
-  If[
-    ! AssociationQ[record] ||
-      record["Format"] =!= "FeynFacet-TraceCheckpoint" ||
-      record["InputFileFingerprint"] =!= inputFingerprint ||
-      record["KiraFileHash"] =!= kiraHash,
-    Return[$Failed]
-  ];
-  traceData = record["TraceData"];
-  expressionDirectory = FileNameJoin[{directory, "Expressions"}];
-  If[
-    ! AssociationQ[traceData] ||
-      ! AllTrue[
-        traceData["OutputFiles"],
+  reason = Which[
+    ! AssociationQ[record],
+      "the manifest record could not be read",
+    record["Format"] =!= "FeynFacet-TraceCheckpoint",
+      "unexpected manifest format",
+    record["InputFileFingerprint"] =!= inputFingerprint,
+      "the pair-source fingerprint changed (stored " <>
+        ToString[record["InputFileFingerprint"]] <> " vs current " <>
+        inputFingerprint <> ")",
+    record["KiraFileHash"] =!= kiraHash,
+      "the Kira artifact hash changed",
+    ! AssociationQ[record["TraceData"]],
+      "the stored trace data is not an Association",
+    ! AllTrue[
+        record["TraceData"]["OutputFiles"],
         FileExistsQ[FileNameJoin[{directory, #}]] &
       ],
+      "an expression file named by the checkpoint is missing",
+    True,
+      None
+  ];
+  If[reason =!= None,
+    Print["Trace checkpoint present but not restorable: ", reason];
     Return[$Failed]
   ];
-  traceData
+  record["TraceData"]
 ];
 
 finiteFieldBuildTrace[
