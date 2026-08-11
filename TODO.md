@@ -18,6 +18,15 @@ defined here. Every module lands with its tests in the same commit.
 - **Resource budget (user, 2026-08-11):** heavy stages may use 16
   cores (FireFly --threads=16, Kira workers, subkernel pools; machine
   has 20).
+- **NNLO coefficient-stage bar (user, 2026-08-11): full projected time
+  UNDER 5 h at 16 cores.** Reference points (Codex estimate for its
+  own design, 8 cores): input construction 4-6 h, FireFly 0.5-2 h,
+  verification+assembly 0.5-2 h, central 7 h total; and the key rate
+  datum: a hard 5-variable coefficient at 169,567 probes in 20.2 s on
+  8 threads = ~8,400 probes/s. Our terminated run measured ~80
+  probes/s on uncanceled inputs - probe RATE (compact inputs), not
+  only probe count, is a first-class acceptance criterion: measure
+  probes/s at NLO for every candidate trace format.
 - **Performance requirement (user, 2026-08-10):** every stage of the
   rewritten workflow must be at least as fast as the historical run.
   Reference points: double-real pair generation 4 h 15 m on 8
