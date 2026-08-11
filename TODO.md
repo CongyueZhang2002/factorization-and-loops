@@ -112,16 +112,16 @@ defined here. Every module lands with its tests in the same commit.
 ### 4. Rationalized card kinematics
 
 **Priority raised 2026-08-10: this now BLOCKS the NNLO gluon master
-coefficients** - the PositiveMonomialRoots lift's mandatory Cancel of
-multi-MB root-lifted rationals does not scale (see WORKLOG 16:00).
-Root-free card variables eliminate the lift and the Cancel entirely.
+coefficients** (WORKLOG 16:00). **User decision 2026-08-10: option 1**
+- square-root substitution variables confined to the finite-field
+coefficient stage; cards, Distributions.wl and collinear factorization
+untouched. Full spec: `Design/RationalizedCoefficients.md` (the giant
+Cancel is not accelerated but REMOVED: FireFly input need not be
+canceled; root-freeness is verified on the small reconstructed output).
 
-- [ ] Redefine the hadronic-coordinate variables so every square root
-      is a perfect square (roots as primary variables); coefficients
-      become rational in (coordinates, fractions, eps) by construction.
-      Needs a user decision on the variable choice (e.g. xi_a^2 = xa
-      style square-root substitutions vs a rational frame
-      parametrization).
+- [ ] Implement finiteFieldRationalize per the spec; acceptance = NLO
+      UU golden + TT baseline + ghost-shared reproduced EXACTLY, full
+      suite green, then the supervised NNLO gluon run.
 - [ ] Port the NLO UU/TT cards and reproduce the frozen NLO golden
       results exactly.
 
