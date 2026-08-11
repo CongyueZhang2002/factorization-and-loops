@@ -329,6 +329,22 @@ tests in the same commit.
   core-hours; split-race telemetry preserved the degree table that
   motivated all of this.
 
+- NLO-first validation round (16:30, per the user's directive): scale
+  monomiality is EXACT on all genuine outputs (NLO-UU 43/43, TT
+  149/149, ghost 186/186 nonzero; the single flagged file was a stale
+  16-byte zero-content output - separate cleanup fix). Candidate B
+  (evenization) REJECTED in current form below NNLO: slower at ghost
+  scale and its transform reintroduces Together (watched at 1 gluon
+  file per 10 min before killing); the granular-evenization variant is
+  parked for if A alone misses the bar. Candidate A production design:
+  per-output k by exact rational evaluation (no symbolic algebra),
+  divide q^k out of the trace text with q kept in the variable list
+  (wrong k = q-dependence survives = existing labeled parity failure),
+  restore at assembly through the existing collapse; guards = the
+  stored-reference golden tests which carry full s-dependence. Then
+  the MaximumTargets NNLO subset measurement at 16 threads decides
+  sufficiency.
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**
