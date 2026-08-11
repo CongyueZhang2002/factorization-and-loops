@@ -251,6 +251,18 @@ tests in the same commit.
   tests / 123 assertions green. The supervised NNLO gluon run - the
   one the old path could not complete - launched 19:50.
 
+- Supervised gluon run on the rationalized path (20:45): the OLD WALL
+  IS GONE - normalization of all 45k targets completed (~45 min,
+  2203 expression files, 1.2 GB) - but the run failed one stage later:
+  RunProcess returned no result for the ratracer trace build (the
+  BuildTrace.log contains an unevaluated Lookup - the process never
+  launched). Argv is ~375 KB (well under ARG_MAX); prime suspect is
+  fork-from-a-multi-GB-kernel failure under WSL2. Reproducing the
+  exact ratracer invocation from bash to isolate (and, if ratracer is
+  fine, to salvage tonight's trace); the principled fix is a
+  normalization checkpoint (Expressions + TraceManifest on disk, trace
+  stage resumable in a fresh small kernel) - stage separation again.
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**
