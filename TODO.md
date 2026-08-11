@@ -15,6 +15,9 @@ defined here. Every module lands with its tests in the same commit.
   method, never an experiment. (Adopted after the FireFly
   reconstruction consumed >100 core-hours without a prior small-scale
   degree measurement.)
+- **Resource budget (user, 2026-08-11):** heavy stages may use 16
+  cores (FireFly --threads=16, Kira workers, subkernel pools; machine
+  has 20).
 - **Performance requirement (user, 2026-08-10):** every stage of the
   rewritten workflow must be at least as fast as the historical run.
   Reference points: double-real pair generation 4 h 15 m on 8
