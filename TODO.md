@@ -206,6 +206,18 @@ canceled; root-freeness is verified on the small reconstructed output).
       bar. (Supersedes the root-variable trace, whose doubled degrees
       caused the 100x blowup; the earlier degree-reduction notes below
       are historical.)
+- [ ] Escalation ladder beyond the 5-variable recipe (Codex proposal
+      via user, 2026-08-11), to be invoked only if the measured
+      column estimate misses the bar: (1) CA/CF as polynomial output
+      labels inside the existing signature/bucket machinery (all
+      color outputs share each (x,y) probe; cheap, low-risk);
+      (2) epsilon Laurent expansion before reconstruction - 2-variable
+      rational core, but verify first at NLO that denominators
+      factorize as Q_xy(x,y) x Q_eps(eps) (else x,y degrees inflate
+      per order), and note it changes storage to truncated-eps series
+      (step-9/10 exactness policy decision). FireFly is not a naive
+      dense box (factor scan/sparse/racing), so adopt by measurement,
+      not by the box-count arithmetic.
 - [ ] (historical) Degree reduction for the finite-field probes
       (blocks NNLO coefficients; shared run terminated at 8h/100
       core-hours by user instruction). Two candidates, both to be
