@@ -136,11 +136,19 @@ Root-free card variables eliminate the lift and the Cancel entirely.
 
 ### 6. Dead code and duplication removal
 
-- [ ] Delete: `coefficientSimplificationStoredCore` and helpers,
-      `coefficientRunPendingMasterJobsLegacy`, all of
-      `CoefficientModules.wl`, `FeynFacet/Legacy/`, the symbolic
-      `CoefficientSimplification[inputs, kira_Association]` path and
-      its `parallelNormalizeCoefficients` scheduler.
+- [x] Delete dead pipelines (2026-08-10, -3987 lines, commit 432f862):
+      stored-symbolic core + 24-helper closure, CoefficientModules.wl,
+      Legacy/, the symbolic CoefficientSimplification path. Finding:
+      structuralAdditiveFactor was called in both deleted paths but
+      DEFINED NOWHERE - they were broken, not just unused. Remaining
+      open decision: SimplifyHardCoefficients (public export) has no
+      in-repo callers left; removing it would also drop
+      parallelNormalizeCoefficients + the frozen-branch chain (~400
+      more lines) - API removal, user call.
+- [ ] Newly-orphaned Core.wl helpers to sweep in a later pass:
+      compileSparseReduction/linearApplyReduction (orphaned by this
+      cut), atomizeProtectedAnalyticObjects, structuralCommonFactor
+      (pre-existing orphans).
 - [ ] One parallel job runner (single work-queue utility with optional
       per-job timeout) replacing the four ad-hoc pools.
 - [ ] One analytic-context validator (remove the
@@ -232,12 +240,10 @@ now; codify later as:
 - [ ] Rename FACET -> Factorization and Loops in README/AGENTS once the
       final name is chosen; refresh README layout description for the
       new tree (symlinked addons, frozen legacy tree).
-- [ ] Replace the silent Return[$Failed] exits in
-      coefficientCollectTargetRecords (and siblings) with labeled
-      fail-closed messages: the 2026-08-10 gluon collection failure
-      cost a full diagnostic cycle only because the function cannot say
-      which of its ~10 checks fired (instrumented rerun succeeded;
-      original failure transient under concurrent load).
+- [x] Silent Return[$Failed] exits in coefficientCollectTargetRecords
+      replaced with labeled messages naming the failed check
+      (2026-08-10, commit 432f862); the $ibpFailure string-literal
+      duplication is also gone.
 - [ ] Fold the remaining first-answer inefficiency list into item 6 as
       encountered: repeated full-artifact revalidation on load,
       `validateCutGLIs` full-expression scans per stage, repeated

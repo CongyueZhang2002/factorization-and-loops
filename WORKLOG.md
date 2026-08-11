@@ -226,6 +226,18 @@ tests in the same commit.
   machinery cleanly at NLO scale - the Cancel wall is
   NNLO-coefficient-SIZE specific, not polarization or BMHV specific.
 
+- Dead-code removal landed (17:45, Opus agent, reviewed, 432f862):
+  -3987 lines. The never-called streaming-symbolic pipeline, all of
+  CoefficientModules.wl, the legacy symbolic coefficient path, and
+  Legacy/ are gone; collection failures now name their check. KEY
+  FINDING: structuralAdditiveFactor was called at four sites across
+  both deleted paths yet defined NOWHERE in the repository - the
+  legacy paths were broken, not merely redundant (direct confirmation
+  of the original code-quality concern that started this rewrite).
+  Suite identical after removal: 10 tests, 109 assertions, 0 failures.
+  Open API decision flagged: SimplifyHardCoefficients now has no
+  in-repo callers.
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**
