@@ -88,7 +88,7 @@ KiraImportReduction::usage =
   "KiraImportReduction[inputs,file] validates and imports the matching solved Kira workspace, closes its exact reduction rules, writes and verifies the compact artifact, then removes the workspace. It never reruns Kira.";
 
 CoefficientSimplification::usage =
-  "CoefficientSimplification[inputs,kiraReduction] reconstructs exact master coefficients. CoefficientSimplification[projectDirectory,cardName,resultFolder] automatically loads one saved diagram-pair set and KiraResult.wl, reconstructs the coefficients and writes CoefficientResult.wl. resultFolder may be Automatic. The option \"NormalizationKernels\" controls the Mathematica workers; \"Threads\" controls FireFly.";
+  "CoefficientSimplification[inputs,kiraFile] reconstructs exact master coefficients from one saved diagram-pair set and the KiraResult.wl artifact path by finite-field reconstruction. CoefficientSimplification[projectDirectory,cardName,resultFolder] automatically loads one saved diagram-pair set and KiraResult.wl, reconstructs the coefficients and writes CoefficientResult.wl. resultFolder may be Automatic. The option \"NormalizationKernels\" controls the Mathematica workers; \"Threads\" controls FireFly.";
 
 CoefficientProgressPanel::usage =
   "CoefficientProgressPanel[] displays the current coefficient-reconstruction stage, target progress, elapsed time and estimated remaining time.";
@@ -160,7 +160,7 @@ $feynFacetPrivateFiles = FileNameJoin[{$feynFacetPrivateDirectory, #}] & /@ {
     "DimensionalShift.wl", "Collinear.wl", "Reduction.wl",
     "StreamingKira.wl",
     "MasterIntegralAmFlow.wl", "Simplification.wl", "Assembly.wl",
-    "CoefficientStore.wl", "CoefficientModules.wl"
+    "CoefficientStore.wl"
 };
 $feynFacetSourceFiles = Join[
   {ExpandFileName[$InputFileName], FileNameJoin[{$feynFacetDirectory, "Distributions.wl"}]},
