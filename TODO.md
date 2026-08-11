@@ -192,7 +192,21 @@ canceled; root-freeness is verified on the small reconstructed output).
       tail-able during multi-hour reconstructions (no ETA is possible
       in principle - FireFly discovers degrees adaptively - but
       progress visibility is; requested 2026-08-11).
-- [ ] **TOP PRIORITY - Degree reduction for the finite-field probes**
+- [ ] **TOP PRIORITY (rev. 2) - Trace in physical variables {CA, CF,
+      eps, x, y}**: the pre-rewrite record (Overnight_2026-08-09,
+      master 0064, ~63 s/column at NNLO) proves the working recipe -
+      roots eliminated entry-by-entry (equal-denominator merging, the
+      2026-08-08 study's NNLO recommendation), scale by dimension
+      (monomiality validated exactly on all datasets 2026-08-11),
+      fractions by the declared valuation. Port into the validated
+      shared-trace/checkpoint infrastructure. Acceptance ladder:
+      exact NLO -> TT -> ghost reproduction; NLO shared-vs-one-by-one
+      comparison; 3-5 timed NNLO columns for the total estimate;
+      MaximumTargets subset; full run only with a projection under the
+      bar. (Supersedes the root-variable trace, whose doubled degrees
+      caused the 100x blowup; the earlier degree-reduction notes below
+      are historical.)
+- [ ] (historical) Degree reduction for the finite-field probes
       (blocks NNLO coefficients; shared run terminated at 8h/100
       core-hours by user instruction). Two candidates, both to be
       measured at ghost scale first per the method-development rule:
