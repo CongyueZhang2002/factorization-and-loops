@@ -315,6 +315,20 @@ tests in the same commit.
   item queued. No ETA is derivable for the shared run (~95 core-hours
   so far; FireFly's remaining probe need is unknowable in advance).
 
+- Degree-reduction experiment, ghost scale (15:30): candidate A
+  (scale elimination, q->1) is a free 1.64x - FireFly 109 s vs 179 s
+  baseline, expressions shrink, transform 0.4 s. Candidate B
+  (+evenized x,y) is SLOWER at ghost scale (203 s): the 3.15x
+  expression growth prices every probe up while low ghost degrees
+  leave little to halve. B's verdict therefore moves to where it
+  matters: a timeout-capped FireFly degree measurement on gluon
+  column 1 (256 functions, the measured hardest) under both variants
+  at 16 threads - factor-scan degree tables print in minutes and
+  decide whether halving 150-500-range degrees repays the 3x probe
+  cost. Shared gluon run terminated by user instruction at ~8 h/100
+  core-hours; split-race telemetry preserved the degree table that
+  motivated all of this.
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**
