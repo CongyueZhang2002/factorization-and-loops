@@ -214,6 +214,14 @@ canceled; root-freeness is verified on the small reconstructed output).
       targets -> 0.8 MB text). Then rebuild the 5h projection from a
       capped canonical-set measurement; full launch only on user
       go-ahead.
+- [ ] **Trace partition for the full run** (decide after the capped
+      measurement): the shared trace charges every probe with the SUM
+      of all column costs at the MAX probe count; with masters 1
+      (462 MB, 0.159 s/probe) and 2 (268 MB) dominating and 345 small
+      columns riding along, a hybrid - one shared trace for the small
+      columns, separate traces for masters 1 and 2 - is likely
+      optimal.  Rev. 2's shared>=one-by-one NLO measurement stands for
+      homogeneous columns only.
 - (historical rev. 2 spec follows)
   Old text: the pre-rewrite record (Overnight_2026-08-09,
       master 0064, ~63 s/column at NNLO) proves the working recipe -
