@@ -71,9 +71,25 @@ ClearAll[
   finiteFieldRootMonomialData,
   finiteFieldRationalizePower,
   finiteFieldRationalize,
-  finiteFieldCollapseRootVariables,
+  finiteFieldCountDescend,
+  finiteFieldRootFamilies,
+  finiteFieldRootEvenRestore,
+  finiteFieldRootPolynomialRestore,
+  finiteFieldRootEvenOddParts,
+  finiteFieldRootExactZeroQ,
+  finiteFieldRootDescendReduced,
+  finiteFieldRootDescend,
+  finiteFieldDescendEntry,
+  finiteFieldDescendEntries,
+  finiteFieldTraceGrammarViolation,
+  finiteFieldMonomialVariables,
+  finiteFieldMonomialStep,
+  finiteFieldMonomialSplit,
+  finiteFieldEntryModule,
+  finiteFieldCertifyRootFree,
   finiteFieldCombineSignatures,
   finiteFieldNormalizeTraceTarget,
+  finiteFieldNormalizeTraceTargetCore,
   finiteFieldNormalizeTraceBatch,
   finiteFieldCoefficientSimplificationCore,
   BuildSimplificationContext,
@@ -2224,7 +2240,7 @@ SimplifyHardCoefficients[___] := (
 
 $finiteFieldReconstructionFormat =
   "FeynFacet-SharedFiniteFieldReconstruction";
-$finiteFieldReconstructionVersion = 1;
+$finiteFieldReconstructionVersion = 2;
 $finiteFieldFailure = Unique["finiteFieldFailure$"];
 
 CoefficientSimplification::finitefield =
@@ -2309,14 +2325,6 @@ finiteFieldSplitTerm[term_] := Module[
   signature = Times @@ Pick[factors, rationalMask, False];
   If[! SameQ[term, rational signature], Return[$Failed]];
   (HoldComplete @@ {signature}) -> rational
-];
-
-finiteFieldSignatureModule[expression_] := Module[
-  {entries, merged},
-  entries = finiteFieldSplitTerm /@ additiveTerms[expression];
-  If[MemberQ[entries, $Failed], Return[$Failed]];
-  merged = Merge[Association /@ entries, Total];
-  Select[merged, ! TrueQ[# === 0] &]
 ];
 
 finiteFieldCancel[expression_, timeLimit_] := Module[{result},
@@ -2468,43 +2476,403 @@ finiteFieldRationalize[expression_, context_Association] := Catch[
   (Message[CoefficientSimplification::rootbase, #1]; $Failed) &
 ];
 
-(* Post-reconstruction: every coefficient must be even in each root
-   variable; collapse rootVariable^(2n) -> (q/constant)^n back to the
-   physical quantity so the result schema is unchanged. *)
-finiteFieldCollapseRootVariables[
+(* --- exact descend from the root ring back to physical variables ---
+
+   Ported from the 2026-08-08 hadronic-simplification study
+   (Codex/Documentation/HadronicCoefficientSimplification_2026-08-08/
+   scripts/NNLOInvariantRootRing.wl).
+
+   finiteFieldRationalize lifts an additive entry into Q(physical)[root].
+   That lift must stay transient: FireFly probes the black box in the
+   variables it is handed, and a root variable doubles the effective
+   degree of its invariant (measured: ~100-fold probe inflation at NNLO,
+   WORKLOG 2026-08-11).  The trace is therefore emitted in the physical
+   variables, and the lift is undone here - entry by entry, before
+   anything is written.
+
+   For one family, an entry is N(r)/D(r) with r^2 = invariant.  Writing
+   N = Ne + r No and D = De + r Do with Ne, No, De, Do free of r, the
+   quotient is invariant under the branch flip r -> -r exactly when
+   Ne Do - No De = 0, and then N/D = Ne/De.  The exact-zero
+   certification runs on that SMALL combination only - never on a whole
+   output.  Entries whose root content is already even skip the descend
+   completely: their powers are restored structurally, with no rational
+   algebra at all. *)
+
+CoefficientSimplification::rootdescend =
+  "An additive entry does not descend to the physical variables: its \
+dependence on the root variable `1` is not even, and neither \
+equal-denominator merging nor the merged remainder certified the odd \
+part exactly zero.";
+
+(* Per-kernel descend telemetry.  Block-bound around one target so the
+   counters travel back with that target's record; Null outside means
+   "not counting", never an error. *)
+$finiteFieldDescendCounters = Null;
+
+finiteFieldCountDescend[key_String, amount_: 1] := If[
+  AssociationQ[$finiteFieldDescendCounters],
+  $finiteFieldDescendCounters[key] =
+    Lookup[$finiteFieldDescendCounters, key, 0] + amount
+];
+
+(* {root variable, invariant} per family; r^2 = quantity/constant. *)
+finiteFieldRootFamilies[context_Association] := Module[{substitutions},
+  substitutions = Lookup[context, "RootSubstitutions", <||>];
+  If[! AssociationQ[substitutions], Return[{}]];
+  KeyValueMap[
+    Function[{quantity, substitutionData},
+      {substitutionData["Root"], quantity/substitutionData["Constant"]}
+    ],
+    substitutions
+  ]
+];
+
+finiteFieldRootEvenRestore[expression_, root_Symbol, invariant_] := With[
+  {rootVariable = root, value = invariant},
+  expression /. HoldPattern[
+    Power[rootVariable, exponent_Integer /; EvenQ[exponent]]
+  ] :> value^(exponent/2)
+];
+
+finiteFieldRootPolynomialRestore[
+    polynomial_,
+    root_Symbol,
+    invariant_
+  ] := Module[{direct, rules},
+  direct = finiteFieldRootEvenRestore[polynomial, root, invariant];
+  If[FreeQ[direct, root], Return[direct]];
+  If[! PolynomialQ[polynomial, root], Return[$Failed]];
+  rules = CoefficientRules[polynomial, {root}];
+  If[! AllTrue[rules, EvenQ[First[First[#]]] &], Return[$Failed]];
+  Total[(Last[#] invariant^(First[First[#]]/2)) & /@ rules]
+];
+
+finiteFieldRootEvenOddParts[
+    polynomial_,
+    root_Symbol,
+    invariant_
+  ] := Module[{rules},
+  If[! PolynomialQ[polynomial, root], Return[$Failed]];
+  rules = CoefficientRules[polynomial, {root}];
+  <|
+    "Even" -> Total @ Cases[
+      rules,
+      Rule[{power_Integer?EvenQ}, coefficient_] :>
+        coefficient invariant^(power/2)
+    ],
+    "Odd" -> Total @ Cases[
+      rules,
+      Rule[{power_Integer?OddQ}, coefficient_] :>
+        coefficient invariant^((power - 1)/2)
+    ]
+  |>
+];
+
+finiteFieldRootExactZeroQ[expression_, timeLimit_] := Module[{result},
+  If[TrueQ[expression === 0], Return[True]];
+  finiteFieldCountDescend["OddCertifications"];
+  result = TimeConstrained[
+    Quiet @ CheckAbort[
+      Check[TrueQ[Cancel[Together[expression]] === 0], False],
+      False
+    ],
+    timeLimit,
+    $TimedOut
+  ];
+  If[result === $TimedOut, finiteFieldCountDescend["TimeConstrainedHits"]];
+  result
+];
+
+(* The expression must already be a reduced N/D in the root variable. *)
+finiteFieldRootDescendReduced[
+    expression_,
+    root_Symbol,
+    invariant_,
+    timeLimit_
+  ] := Module[
+  {
+    numerator, denominator, restoredNumerator, restoredDenominator,
+    numeratorParts, denominatorParts, pe, po, qe, qo, oddStatus,
+    evenStatus, result
+  },
+  numerator = Numerator[expression];
+  denominator = Denominator[expression];
+  restoredNumerator = finiteFieldRootPolynomialRestore[
+    numerator, root, invariant
+  ];
+  restoredDenominator = finiteFieldRootPolynomialRestore[
+    denominator, root, invariant
+  ];
+  If[
+    FreeQ[{restoredNumerator, restoredDenominator}, $Failed],
+    finiteFieldCountDescend["EvenEntries"];
+    Return @ finiteFieldCancel[
+      restoredNumerator/restoredDenominator,
+      timeLimit
+    ]
+  ];
+  numeratorParts = finiteFieldRootEvenOddParts[numerator, root, invariant];
+  denominatorParts = finiteFieldRootEvenOddParts[
+    denominator, root, invariant
+  ];
+  If[MemberQ[{numeratorParts, denominatorParts}, $Failed],
+    Return[$Failed]
+  ];
+  {pe, po} = Lookup[numeratorParts, {"Even", "Odd"}];
+  {qe, qo} = Lookup[denominatorParts, {"Even", "Odd"}];
+  (* The only nontrivial certification of the method, on the small
+     combination pe qo - po qe - not on the entry itself. *)
+  oddStatus = finiteFieldRootExactZeroQ[pe qo - po qe, timeLimit];
+  If[oddStatus =!= True, Return[$Failed]];
+  evenStatus = finiteFieldRootExactZeroQ[qe, timeLimit];
+  result = Which[
+    evenStatus === False, pe/qe,
+    evenStatus === True,
+      If[finiteFieldRootExactZeroQ[qo, timeLimit] === False,
+        po/qo,
+        Return[$Failed]
+      ],
+    True, Return[$Failed]
+  ];
+  finiteFieldCountDescend["DescendedEntries"];
+  finiteFieldCancel[result, timeLimit]
+];
+
+finiteFieldRootDescend[
+    expression_,
+    root_Symbol,
+    invariant_,
+    timeLimit_
+  ] := Module[{restored, rational, result},
+  (* Structural first: an entry whose root powers are already even -
+     the measured norm - never enters rational algebra at all. *)
+  restored = finiteFieldRootEvenRestore[expression, root, invariant];
+  If[FreeQ[restored, root],
+    finiteFieldCountDescend["StructuralEntries"];
+    Return[restored]
+  ];
+  rational = TimeConstrained[
+    Quiet @ CheckAbort[
+      Check[Cancel[Together[expression]], $Failed],
+      $Failed
+    ],
+    timeLimit,
+    $TimedOut
+  ];
+  If[rational === $TimedOut,
+    finiteFieldCountDescend["TimeConstrainedHits"]
+  ];
+  If[MemberQ[{$Failed, $TimedOut}, rational], Return[$Failed]];
+  result = finiteFieldRootDescendReduced[
+    rational, root, invariant, timeLimit
+  ];
+  If[
+    MemberQ[{$Failed, $TimedOut}, result] || ! FreeQ[result, root] ||
+      ! exactDataQ[result],
+    $Failed,
+    result
+  ]
+];
+
+finiteFieldDescendEntry[entry_, families_List, timeLimit_] := Catch @ Module[
+  {current = entry, descended},
+  Do[
+    If[FreeQ[current, First[family]], Continue[]];
+    descended = finiteFieldRootDescend[
+      current, First[family], Last[family], timeLimit
+    ];
+    If[descended === $Failed, Throw[$Failed]];
+    current = descended,
+    {family, families}
+  ];
+  current
+];
+
+(* Entry granularity of the 2026-08-08 study: descend the small pieces
+   first and merge only exactly equal denominators when a piece does not
+   descend on its own.  A whole-output Together never happens. *)
+finiteFieldDescendEntries[
+    entries_List,
+    families_List,
+    timeLimit_
+  ] := Module[
+  {roots, values, descended, residues, groups, sums, merged, failedRoot},
+  If[families === {} || entries === {}, Return[entries]];
+  roots = First /@ families;
+  finiteFieldCountDescend["Entries", Length[entries]];
+  values = Map[
+    Function[entry,
+      If[
+        FreeQ[entry, Alternatives @@ roots],
+        entry,
+        finiteFieldDescendEntry[entry, families, timeLimit]
+      ]
+    ],
+    entries
+  ];
+  descended = DeleteCases[values, $Failed];
+  residues = MapThread[
+    If[#2 === $Failed, #1, Nothing] &,
+    {entries, values}
+  ];
+  If[residues === {}, Return[descended]];
+  finiteFieldCountDescend["MergedEntries", Length[residues]];
+  groups = Values @ GroupBy[residues, Denominator];
+  sums = Total /@ groups;
+  values = finiteFieldDescendEntry[#, families, timeLimit] & /@ sums;
+  descended = Join[descended, DeleteCases[values, $Failed]];
+  residues = MapThread[
+    If[#2 === $Failed, #1, Nothing] &,
+    {sums, values}
+  ];
+  If[residues === {}, Return[descended]];
+  finiteFieldCountDescend["MergedRemainders"];
+  merged = finiteFieldDescendEntry[Total[residues], families, timeLimit];
+  If[merged === $Failed,
+    failedRoot = SelectFirst[
+      roots,
+      ! FreeQ[residues, #] &,
+      First[roots]
+    ];
+    Message[CoefficientSimplification::rootdescend, failedRoot];
+    Return[$Failed]
+  ];
+  Append[descended, merged]
+];
+
+(* --- monomial variables carried by the signature, not by the trace ---
+
+   Every entry is a monomial in the declared scale (mass-dimension
+   homogeneity: exact on all measured outputs, WORKLOG 2026-08-11 16:30)
+   and in the strong coupling.  Those powers ride along in the inert
+   signature, so the trace variables reduce to the genuine rational
+   kinematics.  The degree is read off structurally with the card's mass
+   dimensions - no symbolic algebra, no evaluation at sample points.
+   An entry that is not homogeneous simply keeps the variable: the
+   emission stays exact, only the variable count grows. *)
+finiteFieldMonomialVariables[context_Association] := Module[
+  {scale, dimensions, scaleDimension},
+  scale = Lookup[context, "Scale", None];
+  dimensions = Lookup[context, "KinematicMassDimensions", <||>];
+  scaleDimension = If[
+    AssociationQ[dimensions] && MatchQ[scale, _Symbol],
+    Lookup[dimensions, scale, 0],
+    0
+  ];
+  Join[
+    If[
+      MatchQ[scale, _Symbol] && NumberQ[scaleDimension] &&
+        TrueQ[scaleDimension > 0],
+      {<|
+        "Variable" -> scale,
+        "Dimensions" -> KeyTake[dimensions, {scale}],
+        "Unit" -> scaleDimension
+      |>},
+      {}
+    ],
+    {<|
+      "Variable" -> FeynFacet`\[Alpha]s,
+      "Dimensions" -> <|FeynFacet`\[Alpha]s -> 1|>,
+      "Unit" -> 1
+    |>}
+  ]
+];
+
+finiteFieldMonomialStep[
+    {monomial_, current_},
+    data_Association
+  ] := Module[{variable, degree, reduced},
+  variable = data["Variable"];
+  If[FreeQ[current, variable], Return[{monomial, current}]];
+  degree = coefficientMassDimension[current, data["Dimensions"]];
+  If[! NumberQ[degree], Return[{monomial, current}]];
+  degree = degree/data["Unit"];
+  If[! IntegerQ[degree], Return[{monomial, current}]];
+  reduced = current /. variable -> 1;
+  If[! FreeQ[reduced, variable], Return[{monomial, current}]];
+  {monomial variable^degree, reduced}
+];
+
+finiteFieldMonomialSplit[entry_, monomialVariables_List] :=
+  Fold[finiteFieldMonomialStep, {1, entry}, monomialVariables];
+
+(* Signature module of a list of descended entries: an Association from
+   an exact non-rational signature to an expression rational in the
+   trace variables. *)
+finiteFieldEntryModule[
+    entries_List,
+    monomialVariables_List
+  ] := Module[{records},
+  records = Catch @ Map[
+    Function[term,
+      Module[{monomial, reduced, split},
+        {monomial, reduced} = finiteFieldMonomialSplit[
+          term, monomialVariables
+        ];
+        split = finiteFieldSplitTerm[reduced];
+        If[split === $Failed, Throw[$Failed]];
+        If[
+          TrueQ[monomial === 1],
+          split,
+          With[
+            {signature = ReleaseHold[First[split]] monomial},
+            (HoldComplete @@ {signature}) -> Last[split]
+          ]
+        ]
+      ]
+    ],
+    Flatten[additiveTerms /@ entries, 1]
+  ];
+  If[records === $Failed, Return[$Failed]];
+  Select[Merge[Association /@ records, Total], ! TrueQ[# === 0] &]
+];
+
+CoefficientSimplification::tracegrammar =
+  "A normalized `1` is not rational in the physical trace variables: \
+`2` survives the entrywise root descend.";
+
+(* The offending object itself, so a normalization failure names its
+   cause instead of only its target. *)
+finiteFieldTraceGrammarViolation[
     expression_,
     context_Association
-  ] := Module[{substitutions, roots, rules, collapsed, remaining},
+  ] := Module[{candidates, offenders},
+  candidates = Join[
+    First /@ finiteFieldRootFamilies[context],
+    Lookup[context, "ForbiddenVariables", {}],
+    {System`D}
+  ];
+  offenders = Select[candidates, ! FreeQ[expression, #] &];
+  Which[
+    offenders =!= {},
+      First[offenders],
+    finiteFieldForbiddenQ[expression, context],
+      HoldForm["a distribution object"],
+    True,
+      None
+  ]
+];
+
+(* Post-reconstruction guard.  The descend leaves no root variable in
+   the trace, so a reconstructed coefficient that carries one is a
+   regression, not a parity accident: report it with the parity message
+   the root-variable path used. *)
+finiteFieldCertifyRootFree[
+    expression_,
+    context_Association
+  ] := Module[{substitutions, roots, remaining},
   substitutions = Lookup[context, "RootSubstitutions", <||>];
   If[! AssociationQ[substitutions] || substitutions === <||>,
     Return[expression]
   ];
   roots = #["Root"] & /@ Values[substitutions];
-  If[FreeQ[expression, Alternatives @@ roots], Return[expression]];
-  rules = KeyValueMap[
-    Function[{quantity, substitutionData},
-      With[
-        {
-          rootVariable = substitutionData["Root"],
-          value = quantity/substitutionData["Constant"]
-        },
-        HoldPattern[
-          Power[rootVariable, exponent_Integer /; EvenQ[exponent]]
-        ] :> value^(exponent/2)
-      ]
-    ],
-    substitutions
-  ];
-  collapsed = expression /. rules;
-  If[! FreeQ[collapsed, Alternatives @@ roots],
-    collapsed = Cancel[Together[expression]] /. rules
-  ];
-  remaining = Select[roots, ! FreeQ[collapsed, #] &];
+  remaining = Select[roots, ! FreeQ[expression, #] &];
   If[remaining =!= {},
     Message[CoefficientSimplification::rootparity, First[remaining]];
     Return[$Failed]
   ];
-  collapsed
+  expression
 ];
 
 (* Constant roots that rationalization leaves behind (Sqrt[2] from a
@@ -2531,7 +2899,7 @@ finiteFieldNormalizeTarget[
   ] := Module[
   {
     physical, distributionFreeTerms, distributionFree,
-    dimensionless, rationalized, terms, stripped, module
+    dimensionless, rationalized, terms, descended, violation, module
   },
   physical = applyHadronicVariables[
     expression,
@@ -2559,13 +2927,25 @@ finiteFieldNormalizeTarget[
   terms = finiteFieldCancel[#/rationalLaurentFactor, timeLimit] & /@
     additiveTerms[rationalized];
   If[MemberQ[terms, $Failed | $TimedOut], Return[$Failed]];
-  stripped = Total[terms];
-  If[
-    ! exactDataQ[stripped] ||
-      finiteFieldForbiddenQ[stripped, context],
+  descended = finiteFieldDescendEntries[
+    terms,
+    finiteFieldRootFamilies[context],
+    timeLimit
+  ];
+  If[descended === $Failed, Return[$Failed]];
+  violation = finiteFieldTraceGrammarViolation[descended, context];
+  If[! exactDataQ[descended] || violation =!= None,
+    Message[
+      CoefficientSimplification::tracegrammar,
+      "target coefficient",
+      Replace[violation, None -> HoldForm["inexact data"]]
+    ];
     Return[$Failed]
   ];
-  module = finiteFieldSignatureModule[stripped];
+  module = finiteFieldEntryModule[
+    descended,
+    finiteFieldMonomialVariables[context]
+  ];
   If[
     module === $Failed ||
       ! AllTrue[Values[module], finiteFieldRationalQ] ||
@@ -2578,36 +2958,6 @@ finiteFieldNormalizeTarget[
   module
 ];
 
-finiteFieldCertifiedPowerExpand[
-    expression_,
-    context_Association,
-    timeLimit_,
-    assumptions_: Automatic
-  ] := Module[{bases, effectiveAssumptions, expanded},
-  bases = DeleteDuplicates @ Cases[
-    expression,
-    Power[base_, exponent_] /; ! IntegerQ[exponent] :> base,
-    Infinity
-  ];
-  effectiveAssumptions = Replace[
-    assumptions,
-    Automatic :> context["PhysicalAssumptions"]
-  ];
-  If[
-    ! AllTrue[
-      bases,
-      coefficientCertifiedPositiveQ[
-        #,
-        effectiveAssumptions,
-        Min[60, timeLimit]
-      ] &
-    ],
-    Return[$Failed]
-  ];
-  expanded = PowerExpand[expression];
-  finiteFieldCancel[expanded, timeLimit]
-];
-
 (* Returns the signature module of the rationalized Kira coefficient:
    an Association from an exact non-rational signature (normally 1) to
    an expression rational in the trace variables. *)
@@ -2616,7 +2966,7 @@ finiteFieldPrepareReductionCoefficient[
     metadata_Association,
     context_Association,
     timeLimit_
-  ] := Module[{prepared, module},
+  ] := Module[{prepared, descended, violation, module},
   prepared = expression /.
     metadata["ReverseRules"] /. metadata["DimensionRule"];
   prepared = applyHadronicVariables[
@@ -2627,11 +2977,25 @@ finiteFieldPrepareReductionCoefficient[
   prepared = prepared /. context["DimensionlessRules"];
   prepared = finiteFieldRationalize[prepared, context];
   If[prepared === $Failed, Return[$Failed]];
-  If[
-    ! exactDataQ[prepared] || finiteFieldForbiddenQ[prepared, context],
+  descended = finiteFieldDescendEntries[
+    additiveTerms[prepared],
+    finiteFieldRootFamilies[context],
+    timeLimit
+  ];
+  If[descended === $Failed, Return[$Failed]];
+  violation = finiteFieldTraceGrammarViolation[descended, context];
+  If[! exactDataQ[descended] || violation =!= None,
+    Message[
+      CoefficientSimplification::tracegrammar,
+      "Kira reduction coefficient",
+      Replace[violation, None -> HoldForm["inexact data"]]
+    ];
     Return[$Failed]
   ];
-  module = finiteFieldSignatureModule[prepared];
+  module = finiteFieldEntryModule[
+    descended,
+    finiteFieldMonomialVariables[context]
+  ];
   If[
     module === $Failed ||
       ! AllTrue[Values[module], finiteFieldRationalQ] ||
@@ -2662,6 +3026,21 @@ finiteFieldNormalizationKernelCount[value_, targetCount_Integer] := Module[
 ];
 
 finiteFieldNormalizeTraceTarget[
+    job_List,
+    workerData_Association
+  ] := Block[
+  {$finiteFieldDescendCounters = <||>},
+  With[
+    {record = finiteFieldNormalizeTraceTargetCore[job, workerData]},
+    If[
+      AssociationQ[record] && ! FailureQ[record],
+      Append[record, "DescendStatistics" -> $finiteFieldDescendCounters],
+      record
+    ]
+  ]
+];
+
+finiteFieldNormalizeTraceTargetCore[
     {target_, expression_, rhs_},
     workerData_Association
   ] := Module[
@@ -2813,6 +3192,7 @@ finiteFieldTraceInputs[
       expected, keys, reductionString, masterIndex,
       processed = 0, selectedTargets, targetLimit, shard, remainder,
       remainderModule, outputOrder, traceVariables, signatureRegistry,
+      descendStatistics = <||>, scalePowers,
       workerCount, workerData, jobs, chunks, chunkSize,
       normalizedChunks, normalizedBatch, failedResult, processingResult,
       existingKernels, launchedKernels = {}, loadFile, initialized,
@@ -2917,6 +3297,12 @@ finiteFieldTraceInputs[
         targetString_String,
         reductionCoefficient_
       ] := Module[{key, stream, separator},
+      (* Zero contributions create nothing.  A stale 16-byte
+         zero-content output file was found in the ghost set; an output
+         that never receives a nonzero term must not exist at all. *)
+      If[TrueQ[reductionCoefficient === 0] || targetString === "0",
+        Return[Null]
+      ];
       registerSymbols[reductionCoefficient];
       aliasRules = Dispatch[Normal[symbolRules]];
       reductionString = finiteFieldToString[
@@ -3173,6 +3559,16 @@ finiteFieldTraceInputs[
               If[failedResult === $Failed, "a worker failed", failedResult]
             ]
           ];
+          (* Lookup on a list of Associations only threads in its
+             two-argument form; the three-argument form reads the list
+             as a rule list and quietly returns the default. *)
+          descendStatistics = Merge[
+            Join[
+              {descendStatistics},
+              Map[Lookup[#, "DescendStatistics", <||>] &, normalizedBatch]
+            ],
+            Total
+          ];
           Scan[emitNormalizedTarget, normalizedBatch];
           coefficientProgressUpdate[processed, progressTotal];
           Clear[
@@ -3230,6 +3626,22 @@ finiteFieldTraceInputs[
     ];
 
     closeStreams[];
+    (* An output key exists only once a nonzero contribution reached it;
+       anything else is dropped from the trace instead of being written
+       as a zero-content expression file. *)
+    Scan[
+      Function[key,
+        If[TrueQ[firstTerm[key]],
+          If[FileExistsQ[outputFiles[key]],
+            DeleteFile[outputFiles[key]]
+          ];
+          KeyDropFrom[outputFiles, key];
+          KeyDropFrom[outputMetadata, key];
+          KeyDropFrom[contributionCounts, key]
+        ]
+      ],
+      Keys[outputFiles]
+    ];
     outputOrder = SortBy[
       Keys[outputFiles],
       {
@@ -3239,19 +3651,15 @@ finiteFieldTraceInputs[
     ];
     Scan[
       Function[key,
-        If[
-          TrueQ[firstTerm[key]],
-          Export[outputFiles[key], "0\n", "Text"],
-          Module[{stream = OpenAppend[outputFiles[key]]},
-            If[Head[stream] =!= OutputStream,
-              finiteFieldFail[
-                "trace emission",
-                "an expression file could not be finalized"
-              ]
-            ];
-            WriteString[stream, "\n"];
-            Close[stream]
-          ]
+        Module[{stream = OpenAppend[outputFiles[key]]},
+          If[Head[stream] =!= OutputStream,
+            finiteFieldFail[
+              "trace emission",
+              "an expression file could not be finalized"
+            ]
+          ];
+          WriteString[stream, "\n"];
+          Close[stream]
         ]
       ],
       outputOrder
@@ -3263,6 +3671,20 @@ finiteFieldTraceInputs[
     signatureRegistry = AssociationThread[
       Range[Length[signatures]],
       signatures
+    ];
+    (* Scale monomiality is an exact property of the emitted data here:
+       the scale rides in the signature, so its per-output power is read
+       off the signature rather than fitted. *)
+    scalePowers = If[
+      MatchQ[context["Scale"], _Symbol],
+      Map[
+        Exponent[
+          ReleaseHold[signatures[[outputMetadata[#]["SignatureIndex"]]]],
+          context["Scale"]
+        ] &,
+        outputOrder
+      ],
+      ConstantArray[0, Length[outputOrder]]
     ];
     <|
       "PhysicalFactor" -> physicalFactor,
@@ -3278,6 +3700,8 @@ finiteFieldTraceInputs[
       "OutputFiles" -> Lookup[outputFiles, outputOrder],
       "OutputMetadata" -> Lookup[outputMetadata, outputOrder],
       "ContributionCounts" -> Lookup[contributionCounts, outputOrder],
+      "ScalePowers" -> scalePowers,
+      "DescendStatistics" -> descendStatistics,
       "ExpressionBytes" -> FileByteCount /@ Lookup[outputFiles, outputOrder]
     |>
   ],
@@ -3318,6 +3742,11 @@ finiteFieldRunProcess[arguments_List, directory_String, log_String] := Module[
 
 $finiteFieldTraceManifestName = "TraceManifest.wxf";
 
+(* Version 2 is the physical-variable trace: a version-1 checkpoint
+   holds root-variable expressions and must never be restored into the
+   current emitter. *)
+$finiteFieldTraceCheckpointVersion = 2;
+
 finiteFieldTraceManifestFile[directory_String] :=
   FileNameJoin[{directory, $finiteFieldTraceManifestName}];
 
@@ -3328,7 +3757,7 @@ finiteFieldWriteTraceManifest[
   finiteFieldTraceManifestFile[directory],
   <|
     "Format" -> "FeynFacet-TraceCheckpoint",
-    "FormatVersion" -> 1,
+    "FormatVersion" -> $finiteFieldTraceCheckpointVersion,
     "InputFileFingerprint" -> inputFingerprint,
     "KiraFileHash" -> kiraHash,
     "TraceData" -> traceData
@@ -3350,6 +3779,10 @@ finiteFieldRestoreTraceCheckpoint[
       "the manifest record could not be read",
     record["Format"] =!= "FeynFacet-TraceCheckpoint",
       "unexpected manifest format",
+    record["FormatVersion"] =!= $finiteFieldTraceCheckpointVersion,
+      "the checkpoint predates the physical-variable trace (stored " <>
+        ToString[record["FormatVersion"]] <> " vs current " <>
+        ToString[$finiteFieldTraceCheckpointVersion] <> ")",
     record["InputFileFingerprint"] =!= inputFingerprint,
       "the pair-source fingerprint changed (stored " <>
         ToString[record["InputFileFingerprint"]] <> " vs current " <>
@@ -3584,7 +4017,7 @@ finiteFieldAssembleResult[
     recordsByName, equivalence, classByName, masterData,
     reconstructed, forbiddenMomenta, remainingMomenta,
     remainingFractionObjects, cutCheck,
-    reconstructionData, collapseRootVariables, rootSubstitutions
+    reconstructionData, certifiedColumn, rootSubstitutions
   },
   outputs = MapThread[
     Join[#1, <|"RationalExpression" -> #2|>] &,
@@ -3595,9 +4028,11 @@ finiteFieldAssembleResult[
   ];
   grouped = GroupBy[outputs, #1["MasterIndex"] &];
   directRules = Normal[context["DimensionlessCoordinates"]];
-  (* Root-freeness is a property of the reconstructed coefficients:
-     verify it here, on the small output, not on the trace inputs. *)
-  collapseRootVariables[entries_List] := finiteFieldCollapseRootVariables[
+  (* The trace is emitted in physical variables, so a reconstructed
+     coefficient carrying a root variable is a regression of the
+     descend, not a parity accident.  The check stays where it is
+     cheap: on the small reconstructed output, never on trace inputs. *)
+  certifiedColumn[entries_List] := finiteFieldCertifyRootFree[
     Total[
       Function[entry,
         ReleaseHold[
@@ -3608,10 +4043,10 @@ finiteFieldAssembleResult[
     context
   ];
   coefficients = AssociationMap[
-    Function[index, collapseRootVariables[Lookup[grouped, index, {}]]],
+    Function[index, certifiedColumn[Lookup[grouped, index, {}]]],
     Range[Length[traceData["Masters"]]]
   ];
-  remainder = collapseRootVariables[Lookup[grouped, 0, {}]];
+  remainder = certifiedColumn[Lookup[grouped, 0, {}]];
   If[MemberQ[Values[coefficients], $Failed] || remainder === $Failed,
     Return[$Failed]
   ];
@@ -3734,17 +4169,27 @@ finiteFieldAssembleResult[
         "LaurentValuation" -> context["ExpectedLaurentValuation"],
         "DimensionlessCoordinates" -> context["DimensionlessCoordinates"],
         "BranchGrammar" -> context["BranchGrammar"],
-        "RootSubstitutions" -> If[
-          AssociationQ[rootSubstitutions],
-          Association @ KeyValueMap[
-            Function[{quantity, substitutionData},
-              quantity ->
-                substitutionData["Constant"] substitutionData["Root"]^2
+        (* Provenance of the root treatment.  The root variables are no
+           longer a representation of the result - they are the
+           transient lift of the entrywise descend, and what the result
+           records is which of them were eliminated, with the exact
+           relation used, plus the descend telemetry. *)
+        "RootDescend" -> <|
+          "EliminatedRoots" -> If[
+            AssociationQ[rootSubstitutions],
+            Association @ KeyValueMap[
+              Function[{quantity, substitutionData},
+                quantity ->
+                  substitutionData["Constant"] substitutionData["Root"]^2
+              ],
+              rootSubstitutions
             ],
-            rootSubstitutions
+            <||>
           ],
-          <||>
-        ]
+          "TraceVariables" -> traceData["Variables"],
+          "ScalePowers" -> Lookup[traceData, "ScalePowers", {}],
+          "Statistics" -> Lookup[traceData, "DescendStatistics", <||>]
+        |>
       |>,
       "FiniteFieldReconstruction" -> reconstructionData,
       "Topologies" -> metadata["Topologies"],
@@ -4028,6 +4473,24 @@ finiteFieldCoefficientSimplificationCore[
         {"Masters", Length[result["Masters"]]},
         {"Analytic signatures", Length[traceData["Signatures"]]},
         {"Shared outputs", Length[traceData["OutputOrder"]]},
+        {
+          "Trace variables",
+          ToString[traceData["Variables"], InputForm]
+        },
+        {
+          "Scale powers",
+          ToString[
+            MinMax[Append[Lookup[traceData, "ScalePowers", {}], 0]],
+            InputForm
+          ]
+        },
+        {
+          "Root descend",
+          ToString[
+            Normal @ Lookup[traceData, "DescendStatistics", <||>],
+            InputForm
+          ]
+        },
         {"Trace size (MB)", Round[trace["TraceBytes"]/2.^20, 0.01]},
         {
           "FireFly time (s)",

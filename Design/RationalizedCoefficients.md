@@ -1,5 +1,63 @@
 # Rationalized coefficient variables (rewrite item 4, option 1)
 
+## Rev. 2 (2026-08-11): the trace is emitted in physical variables
+
+Everything below rev. 1 is retained as the record of the step that
+removed the `Cancel` wall.  It is superseded on one point: the root
+variables must not reach the trace.
+
+Measured reason (WORKLOG 2026-08-11, split race at gluon scale):
+FireFly probes the black box in the variables it is handed, so
+`x -> rx^2` doubles the effective degree in `x`.  The reconstructed
+values are even in the root variables, but FireFly cannot know that;
+gluon column 1 consumed ~12 core-hours at 587k probes without
+converging, against ~63 s / 480k probes for the pre-rewrite
+single-column probe that reconstructed in `{CA, CF, Epsilon, x, y}`
+(Codex/ppHX_NNLO_DoubleReal/FiniteFieldReconstruction/
+Overnight_2026-08-09).
+
+Rev. 2 keeps the rev. 1 substitution as a *transient lift* and adds the
+descend, ported from the 2026-08-08 study
+(`Codex/Documentation/HadronicCoefficientSimplification_2026-08-08/
+scripts/NNLOInvariantRootRing.wl`):
+
+1. Per additive entry - never per output - lift with
+   `finiteFieldRationalize`, divide the declared distribution and
+   Laurent factors, `Cancel` (all as in rev. 1).
+2. Descend each root family back to its invariant
+   (`finiteFieldDescendEntries`).  An entry whose root powers are
+   already even is restored structurally, with no rational algebra at
+   all - the measured norm on NLO UU, TT and the NNLO ghost grid.  An
+   entry that is not even is written `N = Ne + r No`,
+   `D = De + r Do`; the branch flip `r -> -r` leaves `N/D` invariant
+   exactly when `Ne Do - No De = 0`, and then `N/D = Ne/De`.  The
+   `Cancel@Together` zero certification runs on that small combination
+   only.  Entries that fail alone are merged by *exactly equal
+   denominator* and retried, then as one remainder; a survivor is a
+   labeled hard failure (`CoefficientSimplification::rootdescend`).
+3. The declared scale and the strong coupling leave the trace through
+   the existing signature mechanism, not through the rational part:
+   each entry's degree in them is read off structurally with the card's
+   `KinematicMassDimensions` (`coefficientMassDimension`), so the
+   monomial is exact and the emitted rational part is scale-free.  An
+   entry that is not homogeneous simply keeps the variable - the
+   emission stays exact, only the variable count grows.
+4. `finiteFieldAssembleResult` no longer collapses roots; it certifies
+   that no root variable reached the reconstruction
+   (`finiteFieldCertifyRootFree`, still reported through
+   `CoefficientSimplification::rootparity`), and
+   `HadronicNormalization["RootDescend"]` records which roots were
+   eliminated, the achieved trace variables, the per-output scale
+   powers and the descend telemetry.
+5. Zero-content outputs are never written: an expression file exists
+   only once a nonzero contribution reaches it.
+
+Acceptance for rev. 2 is the rev. 1 ladder (items 1-4 below) plus the
+NLO shared-vs-one-by-one comparison and a timed NNLO column subset;
+the test is `Tests/t_physical_variable_coefficients.wls` (renamed from
+`t_rationalized_coefficients.wls`, assertion F now checks the descend
+provenance and that no root variable is a trace variable).
+
 ## Decision (user, 2026-08-10)
 
 Square-root substitution variables, confined to the finite-field
