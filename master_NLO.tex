@@ -253,24 +253,78 @@ while keeping its essential feature, the exact $\dd\log$ prefactors.)
 
 A first-order system in two variables needs one constant of
 integration per master (as a function of $\eps$).  These come from
-integrals that are simpler than the masters themselves:
-\begin{itemize}
-\item the two-body phase-space volume is elementary,
-  \begin{equation}
-    I_{\rm vol}
-    = \frac{2\pi^{\frac{d-1}{2}}}{\Gamma\!\big(\tfrac{d-1}{2}\big)}\,
-      2^{1-d}\, \big(s_{12}(1{-}v{-}w)\big)^{\frac{d-4}{2}} ,
-    \qquad d = 4-2\eps ;
-  \end{equation}
-\item the remaining constants are fixed by regularity conditions
-  (a master must not be singular on alphabet lines where its
-  definition is manifestly finite) and, where needed, by matching a
-  single independent evaluation --- here a two-angle numerical
-  integration of Eq.~\eqref{eq:integral} in the $P$ rest frame,
-  performed at negative $\eps$ where the angular integrals converge
-  absolutely, and at high precision so that the $\eps$-series
-  coefficients can be identified exactly.
-\end{itemize}
+integrals that are simpler than the masters themselves.  All of them
+live in the rest frame of $P$: with $M^2 = P^2 = s_{12}(1-v-w)$, the
+two cuts localize the loop momentum completely,
+$k_e = \tfrac{M}{2}\,(1, \hat n)$, since
+$\delta^{+}(k_e^2)$ fixes $k_e^0 = |\vec k_e|$ and
+$\delta^{+}\big((P-k_e)^2\big) = \delta\big(M^2 - 2 M k_e^0\big)$
+fixes the energy.  What remains of Eq.~\eqref{eq:integral} is an
+angular integral over the direction $\hat n$:
+\begin{equation}
+  I \;=\;
+  \frac{1}{4M}\Big(\frac{M}{2}\Big)^{d-3}
+  \int \dd\Omega_{d-1}\;
+  \frac{1}{D_2\, D_3}\bigg|_{k_e = \frac{M}{2}(1,\hat n)} .
+  \label{eq:boundaryintegral}
+\end{equation}
+
+\emph{The volume.}  With $D_2 = D_3 = 1$ the angular integral is the
+sphere volume $\Omega_{d-1} = 2\pi^{\frac{d-1}{2}}/
+\Gamma\big(\tfrac{d-1}{2}\big)$, giving the closed form
+\begin{equation}
+  I_{\rm vol}
+  \;=\;
+  \frac{1}{4M}\Big(\frac{M}{2}\Big)^{d-3} \Omega_{d-1}
+  \;=\;
+  \frac{2\pi^{\frac{d-1}{2}}}{\Gamma\!\big(\tfrac{d-1}{2}\big)}\,
+  2^{1-d}\, \big(s_{12}(1{-}v{-}w)\big)^{\frac{d-4}{2}} ,
+  \qquad d = 4-2\eps .
+  \label{eq:volume}
+\end{equation}
+
+\emph{The propagator integrals.}  For the other masters each on-shell
+propagator is linear in $\hat n$,
+$D_j = (k_e + K_j)^2 = \alpha_j - \vec\beta_j\!\cdot\hat n$ with
+$\alpha_j = K_j^2 + M K_j^0$ and $\vec\beta_j = M \vec K_j$ (the
+$K_j$ are combinations of $k_a, k_b, k_c$), so
+Eq.~\eqref{eq:boundaryintegral} is a two-denominator angular integral
+of the classic van Neerven type,
+\begin{equation}
+  \int \dd\Omega_{d-1}
+  \frac{1}{(\alpha_2 - \vec\beta_2\!\cdot\hat n)
+            (\alpha_3 - \vec\beta_3\!\cdot\hat n)}
+  \;=\;
+  \Omega_{d-3}
+  \int_0^{\pi}\!\dd\theta\, \sin^{d-3}\!\theta
+  \int_0^{\pi}\!\dd\varphi\, \sin^{d-4}\!\varphi\;
+  \frac{1}{D_2(\theta)\, D_3(\theta,\varphi)} ,
+\end{equation}
+with the $z$-axis along $\vec\beta_2$.  The azimuthal integral is
+elementary,
+\begin{equation}
+  \int_0^{\pi} \frac{\sin^{d-4}\!\varphi\;\dd\varphi}
+    {A - B\cos\varphi}
+  \;=\;
+  \mathrm{B}\Big(\tfrac{d-3}{2}, \tfrac12\Big)\,
+  \frac{1}{A}\;
+  {}_2F_1\!\Big(\tfrac12, 1; \tfrac{d-2}{2};
+    \tfrac{B^2}{A^2}\Big) ,
+  \label{eq:azimuthal}
+\end{equation}
+leaving a one-dimensional polar integral.  These are the actual
+boundary objects of the method: evaluated in a limit (a corner of the
+$(v,w)$ region, or the soft surface) they collapse to
+$\Gamma$-function expressions and fix the constants analytically;
+evaluated numerically at an interior point (at negative $\eps$, where
+the collinear endpoints $\theta \to 0, \pi$ are integrable) they
+over-constrain the same constants and independently test the
+solution.  Regularity supplies the rest: the homogeneous solution of
+each scalar equation is the pure prefactor
+$v^{\rho_1} w^{\rho_2} q^{\rho_6}$ of the table above, and an
+admixture is forbidden whenever the master is manifestly finite on a
+surface where that prefactor diverges.
+
 The crucial point, developed next, is \emph{how little} boundary
 information is needed: only $\eps$-\emph{expanded} numbers, never
 exact-in-$\eps$ functions.
