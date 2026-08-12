@@ -130,9 +130,11 @@ source,
   \;+\; \big(S^v_i\,\dd v + S^w_i\,\dd w\big)\, I_{\rm vol}.
   \label{eq:scalar}
 \end{equation}
-The complete system, exact, with $q \equiv 1-v-w$,
-$\kappa \equiv 2(1-2\eps)$, and the basis ordered as in
-Table~\ref{tab:results}:
+The complete system, exact, with $q \equiv 1-v-w$ and
+$\kappa \equiv 2(1-2\eps)$, on the basis $I_1 = I_{\rm vol}$
+(family F10C10N1 $\{1,0,0,1\}$) and
+$I_2,\dots,I_7$ the $\{1,1,1,1\}$ integrals of the families
+F10C10N1, F10C2N2, F10C4N2, F10C4N3, F10C5N2, F10C5N3:
 \begin{center}
 \small
 \renewcommand{\arraystretch}{1.4}
@@ -266,87 +268,7 @@ integrals that are simpler than the masters themselves:
 \end{itemize}
 The crucial point, developed next, is \emph{how little} boundary
 information is needed: only $\eps$-\emph{expanded} numbers, never
-exact-in-$\eps$ functions.  (For this particular system even less is
-needed: the solution below is fixed by the volume alone.)
-
-\subsection{The closed-form solution}
-\label{sec:closed}
-
-For a triangular one-loop system the efficient method is not
-integration but a \emph{deterministic ansatz fit}: each master is a
-one-scale integral, so it must be of the form
-\begin{equation}
-  I_i \;=\; c_i(\eps)\; (1-v-w)^{-\eps}\, R_i(v,w)\,
-  {}_2F_1\!\big(1,1;1-\eps;\,z_i\big),
-  \label{eq:ansatz}
-\end{equation}
-with $R_i$ a product of inverse letters and $z_i$ one of the six
-cross ratios that the three Mandelstams $s=1$, $t=-v$, $u=-w$,
-$q = s+t+u$ can form.  Substituting Eq.~\eqref{eq:ansatz} into
-Eq.~\eqref{eq:scalar} and eliminating $F'$ by the contiguous relation
-\begin{equation}
-  z(1-z)\,F'(z) \;=\; (z+\eps)\,F(z) \;-\; \eps
-  \label{eq:contiguous}
-\end{equation}
-turns both differential equations into rational identities in
-$(v,w)$: the fit is pure algebra, every hit is automatically an exact
-certified solution, and the normalization $c_i$ is fixed by the
-volume source inside the same equations --- no separate boundary
-condition at all.  Scanning the finite candidate space yields
-\emph{exactly one} solution per master:
-\begin{equation}
-  c_i \;=\; \sigma_i\,
-  \frac{2\,(1-2\eps)}{\eps}\;
-  \mathcal{N}_\eps ,
-  \qquad
-  \mathcal{N}_\eps
-  = 2^{1-d}\,
-  \frac{2\pi^{\frac{d-1}{2}}}{\Gamma\!\big(\tfrac{d-1}{2}\big)},
-  \qquad
-  I_{\rm vol} = \mathcal{N}_\eps\, (1-v-w)^{-\eps},
-\end{equation}
-with the cross ratios, prefactors, and signs of
-Table~\ref{tab:results}.
-
-\begin{table}[t]
-\centering
-\renewcommand{\arraystretch}{1.5}
-\begin{tabular}{llccc}
-\toprule
- & family & $R_i$ & $z_i$ & $\sigma_i$ \\
-\midrule
-$I_1$ & F10C10N1 $\{1,0,0,1\}$ &
-  \multicolumn{3}{c}{$I_{\rm vol} = \mathcal{N}_\eps\,(1-v-w)^{-\eps}$} \\
-$I_2$ & F10C10N1 $\{1,1,1,1\}$ &
-  $\dfrac{1}{(1{-}w)(v{+}w)}$ &
-  $\dfrac{w\,(1{-}v{-}w)}{(1{-}w)(v{+}w)}$ & $+$ \\
-$I_3$ & F10C2N2 &
-  $\dfrac{1}{(1{-}w)(v{+}w)}$ &
-  $\dfrac{v}{(1{-}w)(v{+}w)}$ & $+$ \\
-$I_4$ & F10C4N2 &
-  $\dfrac{1}{(1{-}v)(v{+}w)}$ &
-  $\dfrac{v\,(1{-}v{-}w)}{(1{-}v)(v{+}w)}$ & $+$ \\
-$I_5$ & F10C4N3 &
-  $\dfrac{1}{(1{-}v)(1{-}w)}$ &
-  $\dfrac{v\,w}{(1{-}v)(1{-}w)}$ & $-$ \\
-$I_6$ & F10C5N2 &
-  $\dfrac{1}{(1{-}v)(v{+}w)}$ &
-  $\dfrac{w}{(1{-}v)(v{+}w)}$ & $+$ \\
-$I_7$ & F10C5N3 &
-  $\dfrac{1}{(1{-}v)(1{-}w)}$ &
-  $\dfrac{1{-}v{-}w}{(1{-}v)(1{-}w)}$ & $-$ \\
-\bottomrule
-\end{tabular}
-\caption{The solved NLO masters, Eq.~\eqref{eq:ansatz}, in the
-measure convention
-$\int \dd^d k_e\, \delta^+ \delta^+/(D_2 D_3)$ at $2k_a\!\cdot\!k_b
-= 1$ (an overall $(2k_a\!\cdot\!k_b)^{-2-\eps}$ restores the scale;
-$-\eps$ for the volume).  The six masters realize precisely the six
-one-scale cross ratios.  The masters with $z_i \to 1$ on the soft
-surface ($I_3$, $I_5$, $I_6$) carry the $(1-v-w)^{-1-2\eps}$ branch;
-those with $z_i \to 0$ ($I_2$, $I_4$, $I_7$) are single-branch.}
-\label{tab:results}
-\end{table}
+exact-in-$\eps$ functions.
 
 \section{Endpoint singularities from the DE:\\
 how $(1-v-w)^{-1-a\eps}$ is reconstructed}
@@ -452,10 +374,11 @@ Independent checks, in increasing strength, all performed:
 \item the volume row reproduces the closed two-body formula exactly,
   and the independent numerical integration reproduces
   $\mathcal{N}_\eps (1-v-w)^{-\eps}$ to $24$ digits;
-\item every master of Table~\ref{tab:results} satisfies both
-  differential equations \emph{symbolically} (with $F'$ eliminated by
-  Eq.~\eqref{eq:contiguous}), and the ansatz scan returns it as the
-  \emph{unique} solution in the candidate space;
+\item the solved masters (kept as a pipeline artifact rather than
+  displayed here) satisfy both differential equations
+  \emph{symbolically}, with the hypergeometric derivative eliminated
+  by its contiguous relation, and an exhaustive one-scale ansatz scan
+  returns each as the \emph{unique} solution in its candidate space;
 \item every master was evaluated independently by direct numerical
   phase-space integration (rest-frame angular representation, the
   azimuthal integral in closed form, the polar integral with its
@@ -472,23 +395,5 @@ Independent checks, in increasing strength, all performed:
   that certified differential equations fix functional form, while
   independent evaluation is what pins conventions.
 \end{itemize}
-
-\section{Outlook: the same method at NNLO}
-\label{sec:outlook}
-
-Nothing in Sections~\ref{sec:derive}--\ref{sec:endpoint} is specific
-to NLO.  For the $347$ double-real NNLO masters the same Euler
-construction gives the system, the same flatness identity certifies
-it, and the same Frobenius analysis at the soft surface delivers the
-exact endpoint exponents for the NNLO plus-distributions.  The
-differences are quantitative: the alphabet grows, the systems no
-longer arrange themselves triangularly (a genuine rotation to
-canonical $\eps$-form is then the right tool), boundary conditions
-are fixed corner by corner in the $(v,w)$ square, and the function
-space reaches weight~4.  The NLO system solved here is the
-methodological template --- and its solution enters the NNLO
-subtraction structure directly, since the NLO masters convolved with
-splitting kernels build the collinear counterterms of the NNLO hard
-function.
 
 \end{document}
