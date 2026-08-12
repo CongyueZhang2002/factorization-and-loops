@@ -594,3 +594,40 @@ Plan, in order; each step appends its outcome here:
   structure; may force square-root letters in canonical form).
 - Next: rung 2 = top master-count families sequentially in one
   kernel; full 374-family sweep after cost projection.
+
+## 2026-08-12 morning — two-loop DE sweep COMPLETE (all 91 families)
+
+- 91/91 master-hosting families built: every one of the 347 canonical
+  NNLO double-real masters has its differential-equation block, and
+  EVERY block is exactly flat (90 stored flags True + CF21 certified
+  in its own run; zero failures).  Standalone per-family blocks incl.
+  subsector closure: total dimension 1561; largest blocks 47, 45, 44,
+  41, 32.  Cost: ~50 s/family average, whole sweep a few hours on one
+  kernel + single-family Kira runs (seconds each; closure loop
+  converges in <= 2 iterations everywhere).
+- Fat masters demystified: ordinals 1 and 2 live in CF1 as
+  {1,1,0,0,1,0,0,0,0} and {1,1,1,0,1,0,0,0,0} - the pure 3-cut
+  phase-space volume and its single-propagator cousin; simplest
+  integrals, largest coefficient columns.
+- GLOBAL TWO-LOOP ALPHABET (38 letters): the NLO set {v, w, 1+-v,
+  1+-w, v+w, 1-v-w, 1+v+w} plus ~20 quadratics, notably the Kallen
+  letter (1-v-w)^2 - 4vw, the family v^2 +- 4w / w^2 +- 4v, 1 - 4vw,
+  and shifted quadratics like 1-w+vw, (v+w)^2 +- v etc.  Quadratic
+  letters => square-root letters in any canonical form.
+- Artifacts: ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/
+  DifferentialEquations/ (91 blocks + summary, 7 MB); scripts
+  build_nnlo_de.wls / nnlo_de_core.wl / drive_nnlo_de.wls.
+- RECOMMENDED NEXT (for user review):
+  1. Consolidate the 91 standalone blocks into ONE global system on
+     the canonical 347 basis by routing the derivative reduction
+     through the full 374-family Kira job (subsectors then land on
+     canonical names; projected cost ~ the 2 h production solve).
+  2. Soft-surface residue matrices of all blocks -> exact NNLO
+     endpoint exponents (the plus-distribution seeds) are extractable
+     NOW from the saved systems, before any canonical form.
+  3. Solving: NLO-style one-scale 2F1 ansatz will not cover the
+     quadratic-letter sectors; options are (a) canonical form with
+     algebraic letters (square roots of the Kallen family), or
+     (b) branch-factored eps-expansion solving with numeric anchoring
+     (the validated NLO toolkit generalizes).  CF1's volume masters
+     have closed forms - the normalization anchor, as at NLO.
