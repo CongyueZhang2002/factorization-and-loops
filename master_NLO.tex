@@ -252,26 +252,13 @@ while keeping its essential feature, the exact $\dd\log$ prefactors.)
 \subsection{Boundary conditions}
 
 A first-order system in two variables needs one constant of
-integration per master (as a function of $\eps$).  These come from
-integrals that are simpler than the masters themselves.  All of them
-live in the rest frame of $P$: with $M^2 = P^2 = s_{12}(1-v-w)$, the
-two cuts localize the loop momentum completely,
-$k_e = \tfrac{M}{2}\,(1, \hat n)$, since
-$\delta^{+}(k_e^2)$ fixes $k_e^0 = |\vec k_e|$ and
-$\delta^{+}\big((P-k_e)^2\big) = \delta\big(M^2 - 2 M k_e^0\big)$
-fixes the energy.  What remains of Eq.~\eqref{eq:integral} is an
-angular integral over the direction $\hat n$:
-\begin{equation}
-  I \;=\;
-  \frac{1}{4M}\Big(\frac{M}{2}\Big)^{d-3}
-  \int \dd\Omega_{d-1}\;
-  \frac{1}{D_2\, D_3}\bigg|_{k_e = \frac{M}{2}(1,\hat n)} .
-  \label{eq:boundaryintegral}
-\end{equation}
+integration per master, as a function of $\eps$.  Two kinds of
+boundary data fix them.
 
-\emph{The volume.}  With $D_2 = D_3 = 1$ the angular integral is the
-sphere volume $\Omega_{d-1} = 2\pi^{\frac{d-1}{2}}/
-\Gamma\big(\tfrac{d-1}{2}\big)$, giving the closed form
+\emph{The volume.}  The two cuts saturate this integral: in the rest
+frame of $P$, with $M^2 = s_{12}(1-v-w)$, they localize the loop
+momentum to $k_e = \tfrac{M}{2}(1, \hat n)$, and only the bare
+sphere volume remains,
 \begin{equation}
   I_{\rm vol}
   \;=\;
@@ -282,32 +269,24 @@ sphere volume $\Omega_{d-1} = 2\pi^{\frac{d-1}{2}}/
   \qquad d = 4-2\eps .
   \label{eq:volume}
 \end{equation}
+This holds at every $(v,w)$, and through the source column of the
+system it fixes all inhomogeneous normalizations.
 
-\emph{The propagator masters.}  For these no exact evaluation is
-attempted --- at generic $(v,w)$, Eq.~\eqref{eq:boundaryintegral} is
-just the master itself.  The boundary data of the method live on the
-\emph{edges} of the $(v,w)$ triangle, not at a chosen interior point
-$(v_0, w_0)$: as $v \to 0$ or $w \to 0$ two external momenta become
-collinear, and as $v+w \to 1$ the recoil mass vanishes; in each case
-the angular geometry of Eq.~\eqref{eq:boundaryintegral} degenerates,
-the integral becomes single-scale, and it collapses to a pure ratio
-of $\Gamma$-functions of the type
+\emph{Edge data.}  The remaining constants live on the edges of the
+$(v,w)$ triangle --- $v \to 0$, $w \to 0$ (collinear
+configurations) and $v+w \to 1$ (vanishing recoil mass) --- where
+the masters become single-scale and collapse to ratios of
+$\Gamma$-functions of the type
 \begin{equation}
   \int_0^{\pi} \dd\theta\, \sin^{d-3}\!\theta\,
     \big(1-\cos\theta\big)^{-n}
   \;=\;
   2^{\,d-3-n}\,
-  \mathrm{B}\Big(\tfrac{d-2}{2}-n,\ \tfrac{d-2}{2}\Big)
+  \mathrm{B}\Big(\tfrac{d-2}{2}-n,\ \tfrac{d-2}{2}\Big) ,
   \label{eq:edge}
 \end{equation}
---- the classic eikonal/collinear boundary integrals.  This is the
-generalizable statement: boundary conditions are $\Gamma$-valued edge
-data, obtained from degenerate one-scale integrals, never from
-solving anything at interior kinematics.
-
-For the present triangular system even Eq.~\eqref{eq:edge} is not
-needed: the volume supplies all inhomogeneous data through the source
-column, and the edges enter only through regularity --- the
+the eikonal and collinear boundary integrals.  For the present system
+their values are not needed explicitly: regularity suffices.  The
 homogeneous solution of each scalar equation is the pure prefactor
 $v^{\rho_1} w^{\rho_2} q^{\rho_6}$ of the table above, and an
 admixture is forbidden whenever the master is manifestly finite on an
