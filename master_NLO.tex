@@ -123,7 +123,48 @@ $\partial_v \log I_{\rm vol} = -\eps\,\partial_v\log(1-v-w)$
 (so $I_{\rm vol} \propto (1-v-w)^{-\eps}$, as expected from
 $(P^2)^{d/2-2}$), and each remaining master couples only to itself
 and to $I_{\rm vol}$: six scalar first-order equations with a known
-source.
+source,
+\begin{equation}
+  \dd I_i \;=\;
+  \Big[\textstyle\sum_l \rho^{(i)}_l\, \dd\log \alpha_l\Big]\, I_i
+  \;+\; \big(S^v_i\,\dd v + S^w_i\,\dd w\big)\, I_{\rm vol}.
+  \label{eq:scalar}
+\end{equation}
+The complete system, exact, with $q \equiv 1-v-w$,
+$\kappa \equiv 2(1-2\eps)$, and the basis ordered as in
+Table~\ref{tab:results}:
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lccc}
+\toprule
+master & $\rho$ on $\big(v,\ w,\ q\big)$ &
+$S^v_i$ & $S^w_i$ \\
+\midrule
+$I_2$ & $(-1{-}\eps,\ \eps,\ 0)$ &
+$\dfrac{\kappa}{v\,q\,(v{+}w)}$ &
+$\dfrac{\kappa\,(v{+}2w{-}1)}{(1{-}w)\,w\,q\,(v{+}w)}$ \\
+$I_3$ & $(\eps,\ -1{-}\eps,\ -1{-}2\eps)$ &
+$-\dfrac{\kappa}{v\,q\,(v{+}w)}$ &
+$-\dfrac{\kappa\,(v{+}2w{-}1)}{(1{-}w)\,w\,q\,(v{+}w)}$ \\
+$I_4$ & $(\eps,\ -1{-}\eps,\ 0)$ &
+$\dfrac{\kappa\,(2v{+}w{-}1)}{(1{-}v)\,v\,q\,(v{+}w)}$ &
+$\dfrac{\kappa}{w\,q\,(v{+}w)}$ \\
+$I_5$ & $(\eps,\ \eps,\ -1{-}2\eps)$ &
+$\dfrac{\kappa}{(1{-}v)\,v\,q}$ &
+$\dfrac{\kappa}{(1{-}w)\,w\,q}$ \\
+$I_6$ & $(-1{-}\eps,\ \eps,\ -1{-}2\eps)$ &
+$-\dfrac{\kappa\,(2v{+}w{-}1)}{(1{-}v)\,v\,q\,(v{+}w)}$ &
+$-\dfrac{\kappa}{w\,q\,(v{+}w)}$ \\
+$I_7$ & $(-1{-}\eps,\ -1{-}\eps,\ 0)$ &
+$-\dfrac{\kappa}{(1{-}v)\,v\,q}$ &
+$-\dfrac{\kappa}{(1{-}w)\,w\,q}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+The residues on the letters $1{-}v$, $1{-}w$, $v{+}w$ vanish on every
+diagonal, and the $-1-2\eps$ residues on $q$ in rows $3,5,6$ are the
+soft exponents discussed in Section~\ref{sec:endpoint}.
 
 \section{Solving the system}
 \label{sec:solve}
@@ -177,7 +218,87 @@ integrals that are simpler than the masters themselves:
 \end{itemize}
 The crucial point, developed next, is \emph{how little} boundary
 information is needed: only $\eps$-\emph{expanded} numbers, never
-exact-in-$\eps$ functions.
+exact-in-$\eps$ functions.  (For this particular system even less is
+needed: the solution below is fixed by the volume alone.)
+
+\subsection{The closed-form solution}
+\label{sec:closed}
+
+For a triangular one-loop system the efficient method is not
+integration but a \emph{deterministic ansatz fit}: each master is a
+one-scale integral, so it must be of the form
+\begin{equation}
+  I_i \;=\; c_i(\eps)\; (1-v-w)^{-\eps}\, R_i(v,w)\,
+  {}_2F_1\!\big(1,1;1-\eps;\,z_i\big),
+  \label{eq:ansatz}
+\end{equation}
+with $R_i$ a product of inverse letters and $z_i$ one of the six
+cross ratios that the three Mandelstams $s=1$, $t=-v$, $u=-w$,
+$q = s+t+u$ can form.  Substituting Eq.~\eqref{eq:ansatz} into
+Eq.~\eqref{eq:scalar} and eliminating $F'$ by the contiguous relation
+\begin{equation}
+  z(1-z)\,F'(z) \;=\; (z+\eps)\,F(z) \;-\; \eps
+  \label{eq:contiguous}
+\end{equation}
+turns both differential equations into rational identities in
+$(v,w)$: the fit is pure algebra, every hit is automatically an exact
+certified solution, and the normalization $c_i$ is fixed by the
+volume source inside the same equations --- no separate boundary
+condition at all.  Scanning the finite candidate space yields
+\emph{exactly one} solution per master:
+\begin{equation}
+  c_i \;=\; \sigma_i\,
+  \frac{2\,(1-2\eps)}{\eps}\;
+  \mathcal{N}_\eps ,
+  \qquad
+  \mathcal{N}_\eps
+  = 2^{1-d}\,
+  \frac{2\pi^{\frac{d-1}{2}}}{\Gamma\!\big(\tfrac{d-1}{2}\big)},
+  \qquad
+  I_{\rm vol} = \mathcal{N}_\eps\, (1-v-w)^{-\eps},
+\end{equation}
+with the cross ratios, prefactors, and signs of
+Table~\ref{tab:results}.
+
+\begin{table}[t]
+\centering
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{llccc}
+\toprule
+ & family & $R_i$ & $z_i$ & $\sigma_i$ \\
+\midrule
+$I_1$ & F10C10N1 $\{1,0,0,1\}$ &
+  \multicolumn{3}{c}{$I_{\rm vol} = \mathcal{N}_\eps\,(1-v-w)^{-\eps}$} \\
+$I_2$ & F10C10N1 $\{1,1,1,1\}$ &
+  $\dfrac{1}{(1{-}w)(v{+}w)}$ &
+  $\dfrac{w\,(1{-}v{-}w)}{(1{-}w)(v{+}w)}$ & $+$ \\
+$I_3$ & F10C2N2 &
+  $\dfrac{1}{(1{-}w)(v{+}w)}$ &
+  $\dfrac{v}{(1{-}w)(v{+}w)}$ & $+$ \\
+$I_4$ & F10C4N2 &
+  $\dfrac{1}{(1{-}v)(v{+}w)}$ &
+  $\dfrac{v\,(1{-}v{-}w)}{(1{-}v)(v{+}w)}$ & $+$ \\
+$I_5$ & F10C4N3 &
+  $\dfrac{1}{(1{-}v)(1{-}w)}$ &
+  $\dfrac{v\,w}{(1{-}v)(1{-}w)}$ & $-$ \\
+$I_6$ & F10C5N2 &
+  $\dfrac{1}{(1{-}v)(v{+}w)}$ &
+  $\dfrac{w}{(1{-}v)(v{+}w)}$ & $+$ \\
+$I_7$ & F10C5N3 &
+  $\dfrac{1}{(1{-}v)(1{-}w)}$ &
+  $\dfrac{1{-}v{-}w}{(1{-}v)(1{-}w)}$ & $-$ \\
+\bottomrule
+\end{tabular}
+\caption{The solved NLO masters, Eq.~\eqref{eq:ansatz}, in the
+measure convention
+$\int \dd^d k_e\, \delta^+ \delta^+/(D_2 D_3)$ at $2k_a\!\cdot\!k_b
+= 1$ (an overall $(2k_a\!\cdot\!k_b)^{-2-\eps}$ restores the scale;
+$-\eps$ for the volume).  The six masters realize precisely the six
+one-scale cross ratios.  The masters with $z_i \to 1$ on the soft
+surface ($I_3$, $I_5$, $I_6$) carry the $(1-v-w)^{-1-2\eps}$ branch;
+those with $z_i \to 0$ ($I_2$, $I_4$, $I_7$) are single-branch.}
+\label{tab:results}
+\end{table}
 
 \section{Endpoint singularities from the DE:\\
 how $(1-v-w)^{-1-a\eps}$ is reconstructed}
@@ -276,17 +397,32 @@ The practical consequences:
 \section{Validation}
 \label{sec:validation}
 
-Independent checks, in increasing strength:
+Independent checks, in increasing strength, all performed:
 \begin{itemize}
-\item the exact flatness of the connection
-  (Section~\ref{sec:derive});
-\item the volume row reproduces the known closed form exactly;
-\item every master is evaluated numerically at interior phase-space
-  points by the direct two-angle representation of
-  Eq.~\eqref{eq:integral} at several negative values of $\eps$, and
-  compared with the DE solution: agreement at one point fixes the
-  constant, agreement at a second point (and at multiple $\eps$) is a
-  genuine test of the full function.
+\item the flatness of the connection holds \emph{exactly}
+  (symbolic zero);
+\item the volume row reproduces the closed two-body formula exactly,
+  and the independent numerical integration reproduces
+  $\mathcal{N}_\eps (1-v-w)^{-\eps}$ to $24$ digits;
+\item every master of Table~\ref{tab:results} satisfies both
+  differential equations \emph{symbolically} (with $F'$ eliminated by
+  Eq.~\eqref{eq:contiguous}), and the ansatz scan returns it as the
+  \emph{unique} solution in the candidate space;
+\item every master was evaluated independently by direct numerical
+  phase-space integration (rest-frame angular representation, the
+  azimuthal integral in closed form, the polar integral with its
+  collinear-cone singularities isolated at exact algebraic points) at
+  five $(v,w,\eps)$ configurations: the exact solutions agree to
+  $10^{-18}$ at $\eps = -0.15$ and to the integrator's own accuracy
+  ($10^{-4}$) at $\eps = -0.05$;
+\item the family shared with the independent earlier (Codex)
+  evaluation of the same masters agrees exactly after converting its
+  $(2\pi)^{d-2}$ measure convention --- and that comparison caught a
+  double-counted normalization in an intermediate version of the fit,
+  visible as a kinematics-independent mismatch
+  $\mathcal{N}_\eps$ with $\mathcal{N}_0 = \pi/2$: a useful reminder
+  that certified differential equations fix functional form, while
+  independent evaluation is what pins conventions.
 \end{itemize}
 
 \section{Outlook: the same method at NNLO}
