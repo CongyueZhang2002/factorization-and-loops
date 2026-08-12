@@ -649,3 +649,21 @@ Plan, in order; each step appends its outcome here:
   system via the full 374-family canonical Kira job (staged +
   checkpointed in ppHX_NNLO_DoubleReal/Kira/UU_08_12_derivatives, so
   it resumes after interruption).
+
+## 2026-08-12 afternoon — census + closure fix + parallel lanes
+
+- Global closure hit its iteration cap with an r-boundary oscillation
+  (62 -> 23 -> 4 -> 8 new members): each pass raised r by one and
+  moved the spurious-master frontier instead of closing it.  Fixed:
+  r/s margins +2, cap 10 iterations; rerun resumes from checkpointed
+  iterations 1-4.
+- BLOCK CENSUS: 32/91 blocks are NLO-letters-only (incl. CF1 anchors,
+  CF21 benchmark; sizes 2-14) -> immediately solvable with the
+  validated NLO machinery.  59 blocks carry quadratic letters, mostly
+  1-3 extra letters; hard structure concentrated in CF259 (47-dim, 5
+  quadratics), CF385 (44, 7), CF303 (45, 3), CF408 (41, 5).
+- Core cap 10 (user): all jobs pinned to cores 0-9 (taskset), Kira
+  parallel=10, FireFly threads=10.  FireFly master-1 measurement
+  resumed after a SIGSTOP pause (probes preserved; harness handle
+  lost - tracked via m1_final.log).
+- CF1 closed forms (3-body volume + one-propagator anchor) running.
