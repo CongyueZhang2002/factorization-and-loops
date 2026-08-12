@@ -1,0 +1,296 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue]{hyperref}
+
+\newcommand{\eps}{\varepsilon}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\Li}{\mathrm{Li}}
+
+\title{Solving the NLO phase-space master integrals\\
+by differential equations\\[1ex]
+\large Method note for the $pp \to h X$ workflow}
+\author{Max Zhang}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This note explains, on the concrete example of the seven NLO
+double-parton phase-space masters of the unpolarized $pp \to hX$
+channel, how the differential-equation (DE) method produces exact
+master integrals: how the system of first-order equations is derived
+from integration-by-parts identities, how boundary conditions enter,
+and --- the point most relevant for single-inclusive kinematics ---
+how the method reconstructs the \emph{exact} endpoint exponents
+$(1-v-w)^{\,n+a\eps}$ that the plus-distribution expansion of the
+partonic cross section requires, even though every explicit result is
+only ever written as an expansion in $\eps$.
+\end{abstract}
+
+\section{The objects}
+\label{sec:objects}
+
+At NLO the real correction to $ab \to c\,X$ is a $2\to3$ process with
+the fragmenting parton momentum $k_c$ fixed and two unobserved
+partons integrated over their on-shell phase space.  By reverse
+unitarity the phase-space integrals are loop integrals with two cut
+propagators: after eliminating one unobserved momentum by momentum
+conservation, every integral is of the form
+\begin{equation}
+  I_{\nu_1\nu_2\nu_3\nu_4}
+  \;=\;
+  \int \dd^d k_e\;
+  \frac{\delta^{+}\!\big(k_e^2\big)\,
+        \delta^{+}\!\big((P-k_e)^2\big)}
+       {D_2^{\nu_2}\, D_3^{\nu_3}},
+  \qquad P = k_a + k_b - k_c ,
+  \label{eq:integral}
+\end{equation}
+with massless external momenta $k_a, k_b, k_c$ and family-dependent
+propagators $D_{2,3}$ (e.g.\ $(k_e+k_c)^2$, $(k_e-k_a)^2$, \dots).
+The integrals depend on the three invariants only through an overall
+power of $s_{12} = 2k_a\!\cdot\!k_b$ and the two dimensionless ratios
+\begin{equation}
+  v = \frac{2k_a\!\cdot\!k_c}{2k_a\!\cdot\!k_b},
+  \qquad
+  w = \frac{2k_b\!\cdot\!k_c}{2k_a\!\cdot\!k_b},
+  \qquad
+  0 < v,\; 0 < w,\; v + w < 1 ,
+\end{equation}
+where $1 - v - w = P^2/s_{12}$ is the normalized invariant mass of
+the unobserved pair: the boundary $v+w \to 1$ is the soft endpoint
+where the plus-distributions of the collinear-factorized cross
+section live.  The IBP reduction of the full amplitude (Kira, with
+the cut declared so that any sector with a vanished cut propagator is
+zero) leaves seven master integrals: the pure two-body phase-space
+volume $I_{\rm vol}$ and six one-and-two-propagator integrals, one
+per family.
+
+\section{Deriving the differential equations}
+\label{sec:derive}
+
+The masters are functions of the invariants, so their derivatives are
+again integrals of the same families.  Concretely, apply the three
+Euler operators $k\!\cdot\!\partial_k$ ($k = k_a, k_b, k_c$) under
+the integral sign in Eq.~\eqref{eq:integral}: each operator acts on
+the propagators (raising powers and producing scalar products), and
+the loop-momentum scalar products are rewritten back through the
+propagators of the family --- the families are complete, so this
+rewriting is a linear solve.  On the other side, acting on
+$I(s_{12}, s_{13}, s_{23})$ as a function, the same operators give
+\begin{equation}
+  k_a\!\cdot\!\partial_{k_a} = s_{12}\partial_{12} + s_{13}\partial_{13},
+  \quad
+  k_b\!\cdot\!\partial_{k_b} = s_{12}\partial_{12} + s_{23}\partial_{23},
+  \quad
+  k_c\!\cdot\!\partial_{k_c} = s_{13}\partial_{13} + s_{23}\partial_{23},
+\end{equation}
+an invertible linear system for the invariant derivatives.  The
+result is a set of integrals with indices raised or lowered by one
+unit; a small dedicated IBP reduction (the derivative integrals raise
+\emph{cut} indices, which the amplitude reduction never needed) maps
+them back onto the masters.  The output is a closed linear system
+\begin{equation}
+  \partial_v \vec I \;=\; A_v(v,w;\eps)\, \vec I,
+  \qquad
+  \partial_w \vec I \;=\; A_w(v,w;\eps)\, \vec I,
+  \label{eq:system}
+\end{equation}
+with $A_{v,w}$ \emph{exact rational functions} of $v,w,\eps$.  Two
+structural checks certify the construction:
+\begin{itemize}
+\item \textbf{Flatness.}  The integrability condition
+  $\partial_w A_v - \partial_v A_w + [A_v, A_w] = 0$ must hold
+  identically; for our system it does, exactly.  This single check
+  exercises the Euler construction, the completeness rewriting, and
+  the IBP tables at once.
+\item \textbf{Alphabet.}  The matrix entries only have poles on the
+  hypersurfaces
+  \begin{equation}
+    \{\, v,\; w,\; 1-v,\; 1-w,\; v+w,\; 1-v-w \,\},
+    \label{eq:alphabet}
+  \end{equation}
+  the \emph{symbol alphabet} of the problem: every singularity of
+  every master lies on one of these six lines.
+\end{itemize}
+For the NLO system the matrices come out lower-triangular in a
+convenient ordering: the volume decouples,
+$\partial_v \log I_{\rm vol} = -\eps\,\partial_v\log(1-v-w)$
+(so $I_{\rm vol} \propto (1-v-w)^{-\eps}$, as expected from
+$(P^2)^{d/2-2}$), and each remaining master couples only to itself
+and to $I_{\rm vol}$: six scalar first-order equations with a known
+source.
+
+\section{Solving the system}
+\label{sec:solve}
+
+\subsection{Exact integrating factors}
+
+The diagonal entries of $A_{v,w}$ are $\dd\log$-forms in the alphabet
+with residues linear in $\eps$, so each master has an exact
+integrating factor: a product $\prod_l \alpha_l^{\rho_l(\eps)}$ over
+the letters.  Writing $I_i = p_i(v,w;\eps)\, h_i(v,w;\eps)$ with the
+prefactor $p_i$ chosen to absorb the diagonal, the remaining
+equations are pure quadratures,
+\begin{equation}
+  \partial_v h_i = p_i^{-1} (A_v)_{i1}\, I_{\rm vol},
+  \qquad
+  \partial_w h_i = p_i^{-1} (A_w)_{i1}\, I_{\rm vol},
+\end{equation}
+whose right-hand sides are rational functions times products of
+letters with $\eps$-linear exponents.  Expanding those exponents
+order by order in $\eps$ produces integrands of the form
+(rational)$\times$(logarithms of letters), and each order integrates
+in closed form: the solutions live in the space of classical
+polylogarithms of the letters, $\log$, $\Li_2$, $\Li_3$, \dots\ ---
+at weight $\le 3$ for our purposes.  (In the general, non-triangular
+case one first rotates the basis to Henn's canonical form
+$A = \eps \sum_l M_l\, \dd\log \alpha_l$ and solves by iterated
+integrals; the triangular NLO system lets us shortcut that machinery
+while keeping its essential feature, the exact $\dd\log$ prefactors.)
+
+\subsection{Boundary conditions}
+
+A first-order system in two variables needs one constant of
+integration per master (as a function of $\eps$).  These come from
+integrals that are simpler than the masters themselves:
+\begin{itemize}
+\item the two-body phase-space volume is elementary,
+  \begin{equation}
+    I_{\rm vol}
+    = \frac{2\pi^{\frac{d-1}{2}}}{\Gamma\!\big(\tfrac{d-1}{2}\big)}\,
+      2^{1-d}\, \big(s_{12}(1{-}v{-}w)\big)^{\frac{d-4}{2}} ,
+    \qquad d = 4-2\eps ;
+  \end{equation}
+\item the remaining constants are fixed by regularity conditions
+  (a master must not be singular on alphabet lines where its
+  definition is manifestly finite) and, where needed, by matching a
+  single independent evaluation --- here a two-angle numerical
+  integration of Eq.~\eqref{eq:integral} in the $P$ rest frame,
+  performed at negative $\eps$ where the angular integrals converge
+  absolutely, and at high precision so that the $\eps$-series
+  coefficients can be identified exactly.
+\end{itemize}
+The crucial point, developed next, is \emph{how little} boundary
+information is needed: only $\eps$-\emph{expanded} numbers, never
+exact-in-$\eps$ functions.
+
+\section{Endpoint singularities from the DE:\\
+how $(1-v-w)^{-1-a\eps}$ is reconstructed}
+\label{sec:endpoint}
+
+The partonic cross section must ultimately be expanded in
+distributions at the soft endpoint,
+\begin{equation}
+  (1-v-w)^{-1-a\eps}
+  \;=\;
+  -\frac{\delta(1-v-w)}{a\eps}
+  + \left[\frac{1}{1-v-w}\right]_+
+  - a\eps \left[\frac{\ln(1-v-w)}{1-v-w}\right]_+
+  + \dots,
+  \label{eq:plus}
+\end{equation}
+and this expansion needs the exponent $-1-a\eps$ \emph{exactly}: an
+$\eps$-truncated $\frac{1}{1-v-w}\big(1 - a\eps\ln(1-v-w)+\dots\big)$
+carries no $\delta$-term.  At first sight a solution obtained order
+by order in $\eps$ seems to have discarded exactly this information.
+It has not, for the following reason.
+
+The connection matrices in Eq.~\eqref{eq:system} were never expanded:
+they are exact rational functions of $\eps$.  Near the soft surface
+the system has a \emph{regular singular point} in the sense of
+Fuchsian ODE theory,
+\begin{equation}
+  A_w \;=\; \frac{R(\eps)}{w - (1-v)} + \mathcal{O}(1),
+\end{equation}
+and the local solution space is governed entirely by the residue
+matrix $R(\eps)$: by the Frobenius construction,
+\begin{equation}
+  \vec I(v,w)
+  \;=\;
+  \sum_i c_i(\eps)\,(1-v-w)^{\lambda_i(\eps)}\,
+  \vec h_i(v,w;\eps),
+  \qquad
+  \lambda_i(\eps) \in \operatorname{eig} R(\eps),
+  \label{eq:frobenius}
+\end{equation}
+with $\vec h_i$ analytic on the surface.  The exponents
+$\lambda_i(\eps) = n_i + a_i\eps$ are \emph{eigenvalues of an exact
+rational matrix} --- they are exact in $\eps$ by construction,
+whatever expansion is used later for the analytic parts.  In our
+system one reads off, for example,
+\begin{equation}
+  I_{\rm vol} \sim (1-v-w)^{-\eps},
+  \qquad
+  I_{3} \sim (1-v-w)^{-1-2\eps} \times \big(\dots\big)
+  \;+\; (1-v-w)^{-\eps} \times \big(\dots\big),
+\end{equation}
+the $-1-2\eps$ being precisely the residue eigenvalue $d-5$ of the
+corresponding diagonal entry: this is the seed of
+Eq.~\eqref{eq:plus}.
+
+The practical consequences:
+\begin{enumerate}
+\item \textbf{Solve per branch.}  The solution is organized as
+  (exact endpoint prefactor) $\times$ ($\eps$-expanded analytic
+  part), Eq.~\eqref{eq:frobenius}.  Because the non-analyticity is
+  factored out exactly, the $\eps$-expansion of the analytic part
+  commutes with the endpoint limit: nothing is lost by truncating.
+\item \textbf{Boundary data can be $\eps$-expanded.}  The constants
+  $c_i(\eps)$ multiply the branches; they do not shape them.  This is
+  the resolution of the apparent tension above: the singular
+  structure comes from the exact DE, the boundary only normalizes
+  each branch --- and a normalization is needed only as a series.
+  (One caveat: the branch feeding the $\delta$-term in
+  Eq.~\eqref{eq:plus} carries an explicit $1/\eps$, so its constant
+  is needed to one order in $\eps$ beyond the target accuracy.)
+\item \textbf{Store masters branch-factored.}  A naive expanded
+  series with $\ln^k(1-v-w)$ terms is valid pointwise in the open
+  region but meaningless as a distribution across the endpoint.  The
+  artifact format for solved masters is therefore
+  $(1-v-w)^{n+a\eps} \times$ (analytic $\eps$-series): this is the
+  form the plus-distribution extraction against the declared
+  prefactor $f_1(x_a) f_1(x_b) D_1(z_h)$ consumes directly.  The same
+  discipline applies at NNLO, where the double-real masters carry
+  branches like $(1-v-w)^{-1-4\eps}$ from two unresolved partons.
+\end{enumerate}
+
+\section{Validation}
+\label{sec:validation}
+
+Independent checks, in increasing strength:
+\begin{itemize}
+\item the exact flatness of the connection
+  (Section~\ref{sec:derive});
+\item the volume row reproduces the known closed form exactly;
+\item every master is evaluated numerically at interior phase-space
+  points by the direct two-angle representation of
+  Eq.~\eqref{eq:integral} at several negative values of $\eps$, and
+  compared with the DE solution: agreement at one point fixes the
+  constant, agreement at a second point (and at multiple $\eps$) is a
+  genuine test of the full function.
+\end{itemize}
+
+\section{Outlook: the same method at NNLO}
+\label{sec:outlook}
+
+Nothing in Sections~\ref{sec:derive}--\ref{sec:endpoint} is specific
+to NLO.  For the $347$ double-real NNLO masters the same Euler
+construction gives the system, the same flatness identity certifies
+it, and the same Frobenius analysis at the soft surface delivers the
+exact endpoint exponents for the NNLO plus-distributions.  The
+differences are quantitative: the alphabet grows, the systems no
+longer arrange themselves triangularly (a genuine rotation to
+canonical $\eps$-form is then the right tool), boundary conditions
+are fixed corner by corner in the $(v,w)$ square, and the function
+space reaches weight~4.  The NLO system solved here is the
+methodological template --- and its solution enters the NNLO
+subtraction structure directly, since the NLO masters convolved with
+splitting kernels build the collinear counterterms of the NNLO hard
+function.
+
+\end{document}
