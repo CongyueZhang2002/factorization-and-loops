@@ -550,3 +550,33 @@ Plan, in order; each step appends its outcome here:
   columns shared, masters 1/2 solo); ceiling breach -> the naive
   per-column path is dead and the CA/CF-split / eps-expansion ladder
   (user-gated) is next.
+
+## 2026-08-12 — NLO UU masters SOLVED (DE method, exact in eps)
+
+- System: Euler-operator construction + dedicated Kira run (stored
+  amplitude rules never raise cut indices); 7x7 triangular; flatness
+  EXACTLY zero; alphabet {v,w,1-v,1-w,v+w,1-v-w}.  Caught along the
+  way: kira2math uses lowercase d for the dimension.
+- Solution: 2F1 ansatz fit (6 cross ratios x inverse-letter pairs),
+  contiguous elimination, pure algebra, UNIQUE hit per master:
+  I_i = +-2(1-2eps)/eps * N(eps) (1-v-w)^(-eps) R_i 2F1(1,1;1-eps;z_i);
+  volume alone fixes everything - no boundary integrals at all.
+- Validation: all 14 DEs symbolically exact; independent two-angle
+  numeric integration (stable via half-angle variables, exact edge
+  factoring, z->1-z connection with elementary second branch, exact
+  cone-root splits, 200-digit constants) agrees to 1e-18 at
+  eps=-0.15 over 5 configurations; VOL to 24 digits; shared family
+  F10C2N2 = Codex evaluation modulo (2Pi)^(d-2).  A double-counted
+  volN in the fit save line was caught by the kinematics-independent
+  N(eps) mismatch (N(0) = Pi/2) - conventions need independent
+  numbers, DEs alone certify only functional form.
+- Landed: ppHX_NLO/Results/NLO_UU_Masters.wl (exact + soft branches:
+  I3, I5, I6 carry (1-v-w)^(-1-2eps) - the plus-distribution seeds),
+  Tests/t_nlo_masters.wls 6/6 green, Scripts/{build_nlo_de,
+  solve_nlo_exact, numeric_nlo_masters, build_nlo_masters_artifact}.
+- master_NLO.tex updated with the full system table, the closed-form
+  solution table, endpoint/plus-distribution section, and validation;
+  pushed to Overleaf for the user's afternoon meeting.
+- NEXT (user): overnight start on the NNLO double-real (two-loop)
+  masters: same Euler construction on the 347-master canonical basis,
+  flatness gate, alphabet discovery; solving strategy after review.
