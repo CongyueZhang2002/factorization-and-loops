@@ -201,8 +201,21 @@ canceled; root-freeness is verified on the small reconstructed output).
       tail-able during multi-hour reconstructions (no ETA is possible
       in principle - FireFly discovers degrees adaptively - but
       progress visibility is; requested 2026-08-11).
-- [ ] **TOP PRIORITY (rev. 2) - Trace in physical variables {CA, CF,
-      eps, x, y}**: the pre-rewrite record (Overnight_2026-08-09,
+- [x] **Trace in physical variables (rev. 2) MERGED to main
+      2026-08-11** (f307e28): full acceptance ladder green; reference
+      match on the old benchmark GLI (19s/46k probes vs 20.2s/170k).
+- [ ] **TOP PRIORITY (rev. 3) - signature canonicalization modulo
+      Q(CA,CF,eps,x,y)*** (Codex-confirmed rule): fold the maximal
+      rational-in-trace-variables factor of every signature into the
+      coefficient; buckets merge at registration. Plus: bucket-merge
+      post-pass for the existing gluon checkpoint (proven by hand on
+      masters 1 and 107), and the master-1 entry-size audit (462 MB vs
+      ~10-15 MB expected from contributor scaling; reference: 1,129
+      targets -> 0.8 MB text). Then rebuild the 5h projection from a
+      capped canonical-set measurement; full launch only on user
+      go-ahead.
+- (historical rev. 2 spec follows)
+  Old text: the pre-rewrite record (Overnight_2026-08-09,
       master 0064, ~63 s/column at NNLO) proves the working recipe -
       roots eliminated entry-by-entry (equal-denominator merging, the
       2026-08-08 study's NNLO recommendation), scale by dimension
