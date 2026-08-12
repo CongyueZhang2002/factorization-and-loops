@@ -631,3 +631,21 @@ Plan, in order; each step appends its outcome here:
      (b) branch-factored eps-expansion solving with numeric anchoring
      (the validated NLO toolkit generalizes).  CF1's volume masters
      have closed forms - the normalization anchor, as at NLO.
+
+## 2026-08-12 — post-restart: soft exponents + global consolidation
+
+- Windows update restarted the machine; nothing lost (all artifacts
+  committed beforehand; scratchpad Kira workspaces disposable).
+- Soft-surface (1-v-w -> 0) exponent extraction over the 91 blocks
+  (exact a + b*eps identification from rational-eps probes of the
+  residue matrices): global spectrum {0, -2eps, -3eps, 1-2eps,
+  -1-2eps} - the -1-2eps plus-distribution seeds and the -3eps
+  double-unresolved branch.  ~8 blocks (CF67, CF71, CF86, CF88, CF90,
+  CF91, CF97, CF98) have SECOND-ORDER poles at the surface: they need
+  Moser local normalization before Frobenius exponents can be read -
+  deferred to the canonical-form stage.  Spectra saved
+  (soft_exponent_spectra.wl, scratch).
+- Launched Scripts/build_nnlo_global_de.wls: the global 347-master
+  system via the full 374-family canonical Kira job (staged +
+  checkpointed in ppHX_NNLO_DoubleReal/Kira/UU_08_12_derivatives, so
+  it resumes after interruption).
