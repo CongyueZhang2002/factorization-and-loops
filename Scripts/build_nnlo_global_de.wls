@@ -204,8 +204,8 @@ runKiraGlobal[targets_List, iteration_Integer] := Module[
           maxR = Max[Total[Select[#, Positive]] & /@ idx];
           maxS = Max[0, Max[-Total[Select[#, Negative]] & /@ idx]];
           "        - {topologies: [" <> nm <> "], sectors: [" <>
-            sectorOf[nm] <> "], r: " <> ToString[maxR + 1] <>
-            ", s: " <> ToString[maxS + 1] <> " }"
+            sectorOf[nm] <> "], r: " <> ToString[maxR + 2] <>
+            ", s: " <> ToString[maxS + 2] <> " }"
         ],
         {nm, names}
       ],
@@ -234,7 +234,7 @@ runKiraGlobal[targets_List, iteration_Integer] := Module[
     Print["B: Kira iteration ", iteration, ": ", Length[targets],
       " targets over ", Length[names], " families"];
     run = RunProcess[
-      {kiraExe, "--parallel=14", "jobs.yaml"},
+      {kiraExe, "--parallel=10", "jobs.yaml"},
       All,
       ProcessDirectory -> kdir,
       ProcessEnvironment -> <|"FERMATPATH" -> fermat|>
@@ -261,7 +261,7 @@ kiraRules = {};
 iteration = 0;
 While[True,
   iteration++;
-  If[iteration > 4, Print["NO CONVERGENCE"]; Exit[1]];
+  If[iteration > 9, Print["NO CONVERGENCE"]; Exit[1]];
   Module[{needed, dispatch, reduceRaw, appearing, newMembers},
     needed = DeleteDuplicates @ Join[
       blockBasis,
