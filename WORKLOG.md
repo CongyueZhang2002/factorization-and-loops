@@ -345,6 +345,26 @@ tests in the same commit.
   the MaximumTargets NNLO subset measurement at 16 threads decides
   sufficiency.
 
+- Rung-D measurements + complete coefficient-stage diagnosis (21:30,
+  evidence-closed): (1) probe counts of 1e5-1e6 are INTRINSIC - the
+  hardest master's coefficient genuinely has degrees ~450-700 in x,y
+  (confirmed on the canonically merged bucket, so not an artifact);
+  the old path saw 480k probes too. (2) The decisive lever is probe
+  RATE = input compactness: the old record's column input was 0.8 MB
+  (consolidated num/den via the 2026-08-08 entry-first cleanup) giving
+  ~7,600 probes/s and 63 s/column; our concatenated-entry outputs are
+  93-485 MB giving 37-85 probes/s = hours-to-days. (3) Secondary real
+  bug: the signature registry splits classes differing by RATIONAL
+  factors (the 2^k from s->2q^2 leaked into signatures) - master 1
+  fragmented into 13 buckets / 462 MB, all one canonical class
+  (verified: every pairwise ratio rational). (4) The easy majority:
+  three signature classes spanning ~350 buckets reconstruct in 7-16 s
+  at 11-13 probes. NEXT BUILD (bounded, spec and measured benchmarks
+  exist in the study's tables and scripts): post-descend output
+  consolidation via the benchmarked entry-first cleanup + signature
+  canonicalization modulo rational factors; target ~1 MB/output;
+  measure at NLO -> ghost -> NNLO subset before any full run.
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**
