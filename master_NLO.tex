@@ -367,33 +367,13 @@ The practical consequences:
 \section{Validation}
 \label{sec:validation}
 
-Independent checks, in increasing strength, all performed:
+Independent checks on the system itself:
 \begin{itemize}
 \item the flatness of the connection holds \emph{exactly}
   (symbolic zero);
 \item the volume row reproduces the closed two-body formula exactly,
   and the independent numerical integration reproduces
   $\mathcal{N}_\eps (1-v-w)^{-\eps}$ to $24$ digits;
-\item the solved masters (kept as a pipeline artifact rather than
-  displayed here) satisfy both differential equations
-  \emph{symbolically}, with the hypergeometric derivative eliminated
-  by its contiguous relation, and an exhaustive one-scale ansatz scan
-  returns each as the \emph{unique} solution in its candidate space;
-\item every master was evaluated independently by direct numerical
-  phase-space integration (rest-frame angular representation, the
-  azimuthal integral in closed form, the polar integral with its
-  collinear-cone singularities isolated at exact algebraic points) at
-  five $(v,w,\eps)$ configurations: the exact solutions agree to
-  $10^{-18}$ at $\eps = -0.15$ and to the integrator's own accuracy
-  ($10^{-4}$) at $\eps = -0.05$;
-\item the family shared with the independent earlier (Codex)
-  evaluation of the same masters agrees exactly after converting its
-  $(2\pi)^{d-2}$ measure convention --- and that comparison caught a
-  double-counted normalization in an intermediate version of the fit,
-  visible as a kinematics-independent mismatch
-  $\mathcal{N}_\eps$ with $\mathcal{N}_0 = \pi/2$: a useful reminder
-  that certified differential equations fix functional form, while
-  independent evaluation is what pins conventions.
 \end{itemize}
 
 \end{document}
