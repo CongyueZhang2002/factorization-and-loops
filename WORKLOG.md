@@ -580,3 +580,17 @@ Plan, in order; each step appends its outcome here:
 - NEXT (user): overnight start on the NNLO double-real (two-loop)
   masters: same Euler construction on the 347-master canonical basis,
   flatness gate, alphabet discovery; solving strategy after review.
+
+## 2026-08-12 overnight — two-loop DE ladder
+
+- RUNG 1 (CF21, the benchmark family): two-loop Euler construction
+  generalized (2 loop momenta, 9 propagators incl. the bilinear
+  1/(kc.ke); sp-solve from all 9; iterative closure loop with fresh
+  Kira per extension).  Block: 14x14 = 11 canonical + 3 subsector
+  masters, closed after 2 iterations (133 targets, r 10, s 2; Kira
+  seconds per pass).  FLATNESS EXACTLY ZERO.  Alphabet: NLO letters
+  {v, w, 1-w, v+w, 1-v-w} PLUS the quadratic letter
+  (1+v+w)^2 - 4w  (Kallen/threshold type - first genuinely two-loop
+  structure; may force square-root letters in canonical form).
+- Next: rung 2 = top master-count families sequentially in one
+  kernel; full 374-family sweep after cost projection.
