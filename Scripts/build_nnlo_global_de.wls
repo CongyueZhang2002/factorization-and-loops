@@ -256,29 +256,36 @@ cutZeroAll[expr_] := expr /. g : gli[f_, idx_] :>
   With[{cuts = familyFor[f]["Cuts"]},
     If[Min[idx[[cuts]]] <= 0, 0, g]];
 
-blockBasis = masterList;
+(* Closure loop.  Invariants: every integral we ever need is
+   REQUESTED from Kira; kira2math rule right-hand sides contain only
+   masters; therefore "requested and unruled" = master.  A workspace
+   is reused only if it covered the current request set. *)
+blockBasis = Keys[derivatives];
+targetsRequested = {};
 kiraRules = {};
 iteration = 0;
 While[True,
   iteration++;
   If[iteration > 9, Print["NO CONVERGENCE"]; Exit[1]];
-  Module[{needed, dispatch, reduceRaw, appearing, newMembers},
+  Module[{needed, ruled, mastersNow, newMembers},
     needed = DeleteDuplicates @ Join[
       blockBasis,
       Cases[Values[derivatives], g_gli, {0, Infinity}]
     ];
-    kiraRules = runKiraGlobal[needed, iteration];
-    Print["C: rules ", Length[kiraRules]];
-    dispatch = Dispatch[kiraRules];
-    reduceRaw[expr_] := cutZeroAll[expr] //. dispatch;
-    appearing = DeleteDuplicates @ Cases[
-      reduceRaw /@ needed, g_gli, {0, Infinity}];
-    newMembers = Complement[appearing, blockBasis];
+    Print["iteration ", iteration, ": needed ", Length[needed]];
+    If[! SubsetQ[targetsRequested, needed],
+      kiraRules = runKiraGlobal[needed, iteration];
+      targetsRequested = needed;
+      Print["C: rules ", Length[kiraRules]]
+    ];
+    ruled = kiraRules[[All, 1]];
+    mastersNow = Complement[needed, ruled];
+    newMembers = Complement[mastersNow, blockBasis];
     If[newMembers === {},
       Print["C: CLOSED after iteration ", iteration];
       Break[]
     ];
-    Print["C: ", Length[newMembers], " new basis members"];
+    Print["C: ", Length[newMembers], " new masters"];
     blockBasis = Join[blockBasis, newMembers];
     Scan[(derivatives[#] = computeDerivatives[#]) &, newMembers];
     Put[derivatives, derivativesFile]
