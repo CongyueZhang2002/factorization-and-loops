@@ -1,0 +1,114 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\Fp}{\mathbb{F}_p}
+\newcommand{\Q}{\mathbb{Q}}
+\pagestyle{empty}
+\begin{document}
+\section*{How rational reconstruction works}
+
+\paragraph{0. What is being reconstructed.}
+A \emph{rational function} in $n$ variables is a ratio of two
+multivariate polynomials with rational coefficients,
+\[
+  f(x_1,\dots,x_n) \;=\; \frac{N(x_1,\dots,x_n)}{D(x_1,\dots,x_n)},
+\]
+where $N$ and $D$ are each ordinary polynomials in the variables
+$x_1,\dots,x_n$ whose coefficients are rational numbers (in ring
+notation, $N, D \in \Q[x_1,\dots,x_n]$), with $N/D$ in lowest
+terms and one denominator coefficient fixed to
+$1$ to remove the overall rescaling ambiguity --- e.g.
+$f = \dfrac{3x^2 + \tfrac72 xy - y}{x - 2y^2 + 5}$.
+``Reconstructing'' $f$ means determining \emph{everything}: which
+monomials occur in $N$ and in $D$, and every rational coefficient ---
+given nothing but the ability to evaluate $f$ at chosen numerical
+points.  That this is possible, and how cheaply, rests on one
+observation: a single evaluation $f(t) = y$ is a \emph{linear}
+condition on the unknown coefficients,
+\[
+  N(t) - y\, D(t) \;=\; 0 ,
+\]
+so roughly (\#terms of $N$) + (\#terms of $D$) probes suffice in
+principle, and the whole problem is structured linear algebra plus
+the number theory of step~4.
+
+\paragraph{1. The setting in our pipeline.}
+For us $f$ is a master coefficient in the variables
+$C_A, C_F, \eps, x, y$: numerator degrees up to $\sim 100$ and many
+thousands of terms, yet evaluable cheaply --- the trace is a black
+box returning one number per point.  The strategy is therefore never
+to manipulate the expression symbolically; only to sample it, and
+rebuild the unique rational function consistent with the samples.
+
+\paragraph{2. Why finite fields.}
+Direct evaluation over $\Q$ blows up: numerators and denominators
+grow at every step.  Instead pick a 63-bit prime $p$ and work in
+$\Fp$, mapping $a/b \mapsto a\, b^{-1} \bmod p$.  Every probe is then
+a fixed number of machine-word operations --- exact arithmetic with
+no intermediate swell.  Probe cost depends only on the size of the
+evaluation program (the trace), never on the size of the answer.
+
+\paragraph{3. Interpolation.}
+In one variable, a rational function with numerator degree $d_N$ and
+denominator degree $d_D$ is fixed, up to normalization, by
+$d_N + d_D + 1$ values (Thiele continued fractions, or the linear
+Pad\'e system).  In many variables one interpolates recursively and
+\emph{sparsely}: Zippel and Ben-Or--Tiwari methods need a probe count
+scaling with the number of \emph{terms} actually present, not the
+dense volume $\prod_i (d_i + 1)$.  FireFly mixes dense (one variable)
+with sparse (the rest).  Hence the probe count is intrinsic to the
+function --- set by its true degrees and term count --- which is why
+master 107 costs $\sim$170k probes in every implementation.
+
+\paragraph{4. Lifting back to $\Q$ (the step the name comes from).}
+Interpolation delivers each coefficient as a residue
+$r \bmod m$, with $m = p_1 p_2 \cdots$ assembled from several primes
+by the Chinese Remainder Theorem.  \emph{Rational reconstruction}
+recovers the fraction: find $a/b$ with
+\[
+  a \;\equiv\; b\, r \pmod m,
+  \qquad |a|,\, b \;\le\; \sqrt{m/2},
+\]
+computed by running the extended Euclidean algorithm on $(m, r)$ and
+stopping halfway (Wang's algorithm; equivalently a continued-fraction
+expansion of $r/m$).  The answer is unique once $m$ exceeds twice the
+square of the true numerator and denominator, so one adds primes
+until the guess \emph{stabilizes}, then verifies against one more
+independent prime --- the ``$2+1$ primes'' in the FireFly logs.
+
+\paragraph{Why it is exact.}
+A candidate is checked on fresh random probes.  By the
+Schwartz--Zippel lemma, a wrong rational function of degree $d$
+agrees with the truth at a random point of $\Fp^n$ with probability
+at most $d/p \sim 10^{-14}$; every verification probe multiplies this
+bound.  Probes landing on poles, or primes dividing a true
+denominator, are detected and discarded.
+
+\paragraph{Why the coefficients are rational (no $\pi$).}
+Finite fields encode only fractions: $a/b \mapsto a\, b^{-1} \bmod
+p$ works because $b \cdot (a/b) = a$ is an arithmetic relation that
+survives modulo $p$, whereas $\pi$ satisfies no polynomial relation
+with rationals at all --- it has no residue in $\Fp$, and the
+Euclidean lifting can only ever return fractions.  Our coefficients
+are guaranteed to be $\pi$-free because they arise from IBP
+reduction: Gaussian elimination over rational functions of $d$ and
+the invariants, and field operations never leave the field.  All
+transcendental content ($\pi$, $\zeta$-values, polylogarithms)
+lives inside the \emph{master integrals} --- which is exactly why
+``hard function $=$ $\sum$ (rational coefficient) $\times$
+(master)'' is the right factorization: it quarantines what
+finite fields cannot represent into the objects solved by other
+means.  Non-rational \emph{prefactors} that do appear
+($2^{\eps}$, $\sqrt2$, $\pi^{-\eps}$-type normalizations) are
+split off exactly as inert signature factors before tracing; a
+constant mixed additively into a coefficient could be handled by
+adjoining it as one more formal variable, at the price of an extra
+variable's worth of probes.
+
+\paragraph{The pipeline's two levers, in this language.}
+Signature canonicalization reduced the \emph{number of functions} to
+reconstruct (fewer columns $\Rightarrow$ fewer total probes); entry
+compaction shrank the \emph{black box} (smaller trace $\Rightarrow$
+cheaper probe).  The count is mathematics; the time is engineering.
+\end{document}
