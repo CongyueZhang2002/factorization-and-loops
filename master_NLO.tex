@@ -66,9 +66,32 @@ the unobserved pair: the boundary $v+w \to 1$ is the soft endpoint
 where the plus-distributions of the collinear-factorized cross
 section live.  The IBP reduction of the full amplitude (Kira, with
 the cut declared so that any sector with a vanished cut propagator is
-zero) leaves seven master integrals: the pure two-body phase-space
-volume $I_{\rm vol}$ and six one-and-two-propagator integrals, one
-per family.
+zero) leaves seven master integrals.  Writing
+$\dd\Phi \equiv \dd^d k_e\,
+\delta^{+}(k_e^2)\,\delta^{+}\!\big((P-k_e)^2\big)$ for the cut
+measure, they are, explicitly,
+\begin{equation}
+\begin{aligned}
+  I_1 &= \int \dd\Phi
+    && \text{(the two-body volume, family F10C10N1)} , \\
+  I_2 &= \int \frac{\dd\Phi}{(k_c+k_e)^2\,(k_a-k_c-k_e)^2}
+    && \text{(F10C10N1)} , \\
+  I_3 &= \int \frac{\dd\Phi}{(k_e-k_b)^2\,(k_c+k_e)^2}
+    && \text{(F10C2N2)} , \\
+  I_4 &= \int \frac{\dd\Phi}{(k_c+k_e-k_b)^2\,(k_c+k_e)^2}
+    && \text{(F10C4N2)} , \\
+  I_5 &= \int \frac{\dd\Phi}{(k_c+k_e-k_b)^2\,(k_a-k_c-k_e)^2}
+    && \text{(F10C4N3)} , \\
+  I_6 &= \int \frac{\dd\Phi}{(k_e-k_a)^2\,(k_c+k_e)^2}
+    && \text{(F10C5N2)} , \\
+  I_7 &= \int \frac{\dd\Phi}{(k_e-k_a)^2\,(k_a-k_c-k_e)^2}
+    && \text{(F10C5N3)} ,
+\end{aligned}
+\label{eq:masters}
+\end{equation}
+all with unit propagator powers: five distinct propagators
+--- $(k_c{+}k_e)^2$, $(k_a{-}k_c{-}k_e)^2$, $(k_e{-}k_a)^2$,
+$(k_e{-}k_b)^2$, $(k_c{+}k_e{-}k_b)^2$ --- paired in six ways.
 
 \section{Deriving the differential equations}
 \label{sec:derive}
@@ -131,10 +154,8 @@ source,
   \label{eq:scalar}
 \end{equation}
 The complete system, exact, with $q \equiv 1-v-w$ and
-$\kappa \equiv 2(1-2\eps)$, on the basis $I_1 = I_{\rm vol}$
-(family F10C10N1 $\{1,0,0,1\}$) and
-$I_2,\dots,I_7$ the $\{1,1,1,1\}$ integrals of the families
-F10C10N1, F10C2N2, F10C4N2, F10C4N3, F10C5N2, F10C5N3:
+$\kappa \equiv 2(1-2\eps)$, on the basis of
+Eq.~\eqref{eq:masters}:
 \begin{center}
 \small
 \renewcommand{\arraystretch}{1.4}
