@@ -345,6 +345,50 @@ tests in the same commit.
   the MaximumTargets NNLO subset measurement at 16 threads decides
   sufficiency.
 
+- Rung-D measurements + complete coefficient-stage diagnosis (21:30,
+  evidence-closed): (1) probe counts of 1e5-1e6 are INTRINSIC - the
+  hardest master's coefficient genuinely has degrees ~450-700 in x,y
+  (confirmed on the canonically merged bucket, so not an artifact);
+  the old path saw 480k probes too. (2) The decisive lever is probe
+  RATE = input compactness: the old record's column input was 0.8 MB
+  giving ~7,600 probes/s and 63 s/column; our concatenated-entry
+  outputs are 93-485 MB giving 37-85 probes/s = hours-to-days.
+  [CORRECTED 2026-08-11 per Codex: the 0.8 MB was NOT a consolidated
+  num/den - it was the plus-concatenated file of 1,129 entrywise
+  normalized contributions (12.8 MB ByteCount -> 0.8 MB text), with an
+  extracted exact monomial; no consolidation stage existed. Reference
+  degrees for that master: (CA,CF,eps,x,y) = (4,2,22,22,23); our
+  hardest bucket's measured (24,45,200,450,700) has physically
+  impossible color degrees -> our emission pollutes buckets; signature
+  equivalence must be modulo the full field Q(CA,CF,eps,x,y)*, not Q.] (3) Secondary real
+  bug: the signature registry splits classes differing by RATIONAL
+  factors (the 2^k from s->2q^2 leaked into signatures) - master 1
+  fragmented into 13 buckets / 462 MB, all one canonical class
+  (verified: every pairwise ratio rational). (4) The easy majority:
+  three signature classes spanning ~350 buckets reconstruct in 7-16 s
+  at 11-13 probes. NEXT BUILD (bounded, spec and measured benchmarks
+  exist in the study's tables and scripts): post-descend output
+  consolidation via the benchmarked entry-first cleanup + signature
+  canonicalization modulo rational factors; target ~1 MB/output;
+  measure at NLO -> ghost -> NNLO subset before any full run.
+
+- REFERENCE MATCH (22:30, the Codex-endorsed apples-to-apples): the
+  old benchmark GLI translates to our GLI[CF21,{1,1,2,0,0,1,0,1,0}]
+  (master 107); our emission had fragmented it into 9 buckets (4.8 MB)
+  whose signatures differ only by 2^k - the rational-factor bug on the
+  reference object. Merged with rational weights it reconstructs FULLY
+  in 19 s / 46,320 probes on 16 threads vs the reference 20.2 s /
+  169,567 on 8 threads. The pipeline is sound; signature
+  canonicalization modulo the full field Q(CA,CF,eps,x,y)* (Codex Q4)
+  is the one production fix for the broad population. Also corrected:
+  factor-scan probe counts are NOT degrees (master 107 scans {42,280,
+  517,743,783} at true degrees (4,2,22,22,23)) - the master-1 "color
+  degree" alarm dissolves; master 1's real issue is SIZE (462 MB vs
+  ~10-15 MB expected from contributor scaling) -> bounded entry-fat
+  audit. Build plan: (a) signature canonicalization at emission +
+  bucket-merge post-pass on the existing checkpoint; (b) master-1
+  entry audit.
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**

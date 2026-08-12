@@ -1,9 +1,9 @@
-(* Rationalized coefficient variables (Design/RationalizedCoefficients.md):
-   the finite-field path now trades the positive quantities of the card
-   region for square-root substitution variables instead of lifting
-   fraction roots and canceling the lifted rational.  The rewrite is
-   exact, so two independently stored baselines must be reproduced
-   bit-for-bit in value.
+(* Physical-variable coefficient trace: the finite-field path lifts each
+   additive entry into the root ring only transiently and descends it
+   back, so the trace is emitted in the physical variables themselves
+   (no root variable, no doubled degree).  The rewrite is exact, so two
+   independently stored baselines must be reproduced bit-for-bit in
+   value.
 
    Acceptance criteria, per data set (TT = polarized NLO baseline,
    Ghost = NNLO double-real ghost grid on the shared namespace):
@@ -21,9 +21,10 @@
       globalPreFactor x masterPreFactor x Coefficient agrees exactly
       with the reference, and the Remainders agree exactly.
    E. The shared measure fields (FractionMeasure, PhaseSpace) agree.
-   F. The result records the substitution set actually used in
-      HadronicNormalization["RootSubstitutions"], as exact
-      quantity -> constant rootVariable^2 rules. *)
+   F. The result records the descend provenance in
+      HadronicNormalization["RootDescend"]: the roots that were
+      eliminated, as exact quantity -> constant rootVariable^2
+      relations, and a trace-variable list that contains none of them. *)
 
 root = ExpandFileName[FileNameJoin[{DirectoryName[$InputFileName], ".."}]];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
@@ -77,7 +78,7 @@ exactlyEqualQ[first_, second_] := TrueQ @ FeynFacet`Private`exactZeroQ[
   Cancel @ Together[first - second]
 ];
 
-rootSubstitutionRuleQ[quantity_, value_] :=
+eliminatedRootRuleQ[quantity_, value_] :=
   MatchQ[quantity, _Symbol] &&
   MatchQ[
     value,
@@ -89,14 +90,29 @@ rootSubstitutionRuleQ[quantity_, value_] :=
   ] &&
   FeynFacet`Private`exactDataQ[value];
 
-recordedRootSubstitutionsQ[result_] := Module[{normalization, substitutions},
+rootVariablesOf[eliminated_Association] := DeleteDuplicates @ Cases[
+  Values[eliminated],
+  Power[symbol_Symbol, 2] :> symbol,
+  {0, 3}
+];
+
+recordedRootDescendQ[result_] := Module[
+  {normalization, descend, eliminated, variables},
   normalization = Lookup[result, "HadronicNormalization", <||>];
-  substitutions = Lookup[normalization, "RootSubstitutions", Missing["None"]];
-  AssociationQ[substitutions] && Length[substitutions] > 0 &&
+  descend = Lookup[normalization, "RootDescend", Missing["None"]];
+  If[! AssociationQ[descend], Return[False]];
+  eliminated = Lookup[descend, "EliminatedRoots", Missing["None"]];
+  variables = Lookup[descend, "TraceVariables", Missing["None"]];
+  AssociationQ[eliminated] && Length[eliminated] > 0 &&
     AllTrue[
-      Normal[substitutions],
-      rootSubstitutionRuleQ[First[#], Last[#]] &
-    ]
+      Normal[eliminated],
+      eliminatedRootRuleQ[First[#], Last[#]] &
+    ] &&
+    ListQ[variables] && variables =!= {} &&
+    (* the whole point of the rewrite: not one root variable reaches
+       the reconstruction *)
+    Intersection[variables, rootVariablesOf[eliminated]] === {} &&
+    AssociationQ[Lookup[descend, "Statistics", Missing["None"]]]
 ];
 
 checkDataSet[dataSet_Association] := Module[
@@ -178,14 +194,14 @@ checkDataSet[dataSet_Association] := Module[
   ];
 
   FTTest`FTAssert[
-    label <> " F. HadronicNormalization records RootSubstitutions",
-    recordedRootSubstitutionsQ[result]
+    label <> " F. HadronicNormalization records a root-free descend",
+    recordedRootDescendQ[result]
   ];
 
   Print["    ", label, ": masters compared ", Length[coefficientDifferences]];
-  Print["    ", label, ": root substitutions ",
+  Print["    ", label, ": root descend ",
     ToString[
-      Lookup[result["HadronicNormalization"], "RootSubstitutions", <||>],
+      Lookup[result["HadronicNormalization"], "RootDescend", <||>],
       InputForm
     ]
   ];
