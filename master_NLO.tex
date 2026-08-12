@@ -272,25 +272,45 @@ sphere volume remains,
 This holds at every $(v,w)$, and through the source column of the
 system it fixes all inhomogeneous normalizations.
 
-\emph{Edge data.}  The remaining constants live on the edges of the
-$(v,w)$ triangle --- $v \to 0$, $w \to 0$ (collinear
-configurations) and $v+w \to 1$ (vanishing recoil mass) --- where
-the masters become single-scale and collapse to ratios of
-$\Gamma$-functions of the type
-\begin{equation}
-  \int_0^{\pi} \dd\theta\, \sin^{d-3}\!\theta\,
-    \big(1-\cos\theta\big)^{-n}
-  \;=\;
-  2^{\,d-3-n}\,
-  \mathrm{B}\Big(\tfrac{d-2}{2}-n,\ \tfrac{d-2}{2}\Big) ,
-  \label{eq:edge}
-\end{equation}
-the eikonal and collinear boundary integrals.  For the present system
-their values are not needed explicitly: regularity suffices.  The
-homogeneous solution of each scalar equation is the pure prefactor
-$v^{\rho_1} w^{\rho_2} q^{\rho_6}$ of the table above, and an
-admixture is forbidden whenever the master is manifestly finite on an
-edge where that prefactor diverges.
+\emph{The six edge conditions.}  Each remaining master needs
+exactly one condition.  At every edge of the $(v,w)$ triangle the
+system admits exactly two local exponents for $I_i$: the homogeneous
+one ($\rho^{(i)}$ of the table above) and the one driven by the
+volume source ($0$ at the collinear edges $v{=}0$, $w{=}0$, where the
+volume is regular; $-\eps$ at the soft edge $q{=}0$, where it scales
+as $q^{-\eps}$).  The general solution contains both branches; the
+boundary condition states which branch the actual integral carries.
+The conditions used are:
+\begin{center}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{lccl}
+\toprule
+master & edge & local exponents & condition \\
+\midrule
+$I_2$ & $w=0$ & $\{\eps,\ 0\}$ & no $w^{\eps}$ branch \\
+$I_3$ & $v=0$ & $\{\eps,\ 0\}$ & no $v^{\eps}$ branch \\
+$I_4$ & $v=0$ & $\{\eps,\ 0\}$ & no $v^{\eps}$ branch \\
+$I_5$ & $v=0$ & $\{\eps,\ 0\}$ & no $v^{\eps}$ branch \\
+$I_6$ & $w=0$ & $\{\eps,\ 0\}$ & no $w^{\eps}$ branch \\
+$I_7$ & $q=0$ & $\{0,\ -\eps\}$ &
+  no analytic ($q^{0}$) branch \\
+\bottomrule
+\end{tabular}
+\end{center}
+Each absence is a statement about momentum regions of
+Eq.~\eqref{eq:integral}: an anomalous branch at an edge requires a
+region where \emph{both} propagators vanish simultaneously there (a
+collinear pinch), and at the listed edge no such region exists for
+the listed master --- its edge limit is a plain one-scale integral
+carrying only the retained exponent.  The choice of edge matters: for
+example $I_2$ \emph{does} have a genuine singular branch
+$v^{-1-\eps}$ at its other collinear edge $v \to 0$, where its two
+propagators pinch along $k_e \parallel k_a \parallel k_c$; its
+condition is therefore imposed at $w = 0$, which is pinch-free.  For
+$I_7$ the soft edge works: as $q \to 0$ the whole integral inherits
+the phase-space scaling $q^{-\eps}$ (the external energies in the
+$P$ frame grow as $1/M$ and cancel the softness of $k_e$ in the
+propagators), so the analytic branch is absent.
 
 The crucial point, developed next, is \emph{how little} boundary
 information is needed: only $\eps$-\emph{expanded} numbers, never
