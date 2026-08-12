@@ -481,3 +481,39 @@ Plan, in order; each step appends its outcome here:
   reconstructs ~19 s, capped canonical-set measurement rebuilds the
   5 h projection. Full NNLO reconstruction launches only on user
   go-ahead.
+
+## 2026-08-11 late — rev. 3 signature canonicalization LANDED (ed2aea2)
+
+- Emission fix in Simplification.wl: every combined signature is
+  canonicalized at registration modulo Q(CA,CF,eps,x,y)*: rational
+  bases decompose over primes, integer exponent parts and foldable
+  rational-function factors fold into the coefficient, scale and
+  alpha_s never touched.  Unit test t_signature_canonicalization:
+  15/15.
+- NLO golden with FRESH emission (rev.2 checkpoint set aside as
+  FiniteField_rev2_backup): 6/6 exact, signatures 18 -> 4, outputs
+  40 -> 14 = one per (master, scale power), FireFly 0.31 s.
+- Post-pass Scripts/canonicalize_trace_buckets.wls over the stored
+  gluon checkpoint -> FiniteFieldCanonical (input untouched):
+  2045 outputs -> 347 = ONE COLUMN PER MASTER, 83 signatures -> 7
+  classes, largest fragmentation was 13 buckets; every signature
+  split certified exact.  First script version had a Lookup/Key
+  association bug (2045 unique signatures instead of 7) - fixed with
+  the production hash-bucket idiom.
+- Master 107 canonical column: 169,735 probes = the reference count
+  (169,567; hand merge 169,753).  Wall 27.9 s at 16 threads UNDER
+  LOAD (NLO test running concurrently; idle hand merge was 18.3 s,
+  probe 1.49 ms vs 2.06 ms) - probe count, not wall, is the
+  apples-to-apples number here.
+- ENTRY-FAT AUDIT (closes the master-1 question): no defect.
+  Master 1 = 44,175 contributions (~every target) x 11.0 KB/entry
+  = 462.6 MB; master 2 = 24,082 x 11.7 KB = 267.6 MB; together 75%
+  of the 977.6 MB set.  Master 107: 1,260 contributions ~ reference's
+  1,129 - the structure matches Codex; our entries are ~5x fatter
+  (no entrywise Cancel).  Median column 0.039 MB; only 6 columns
+  over 10 MB, 2 over 50 MB.  The 5 h projection therefore hinges on
+  masters 1 and 2 alone (master 1 measured at 0.159 s/probe, degrees
+  108/56, killed mid-prime at 48.5k probes in the pre-restart run).
+- Next: ghost fresh-emission acceptance (running), then a CAPPED
+  master-1 probe-rate/degree measurement on an idle machine, then the
+  full projection.  No full launch without user go-ahead.
