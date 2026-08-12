@@ -351,9 +351,16 @@ tests in the same commit.
   (confirmed on the canonically merged bucket, so not an artifact);
   the old path saw 480k probes too. (2) The decisive lever is probe
   RATE = input compactness: the old record's column input was 0.8 MB
-  (consolidated num/den via the 2026-08-08 entry-first cleanup) giving
-  ~7,600 probes/s and 63 s/column; our concatenated-entry outputs are
-  93-485 MB giving 37-85 probes/s = hours-to-days. (3) Secondary real
+  giving ~7,600 probes/s and 63 s/column; our concatenated-entry
+  outputs are 93-485 MB giving 37-85 probes/s = hours-to-days.
+  [CORRECTED 2026-08-11 per Codex: the 0.8 MB was NOT a consolidated
+  num/den - it was the plus-concatenated file of 1,129 entrywise
+  normalized contributions (12.8 MB ByteCount -> 0.8 MB text), with an
+  extracted exact monomial; no consolidation stage existed. Reference
+  degrees for that master: (CA,CF,eps,x,y) = (4,2,22,22,23); our
+  hardest bucket's measured (24,45,200,450,700) has physically
+  impossible color degrees -> our emission pollutes buckets; signature
+  equivalence must be modulo the full field Q(CA,CF,eps,x,y)*, not Q.] (3) Secondary real
   bug: the signature registry splits classes differing by RATIONAL
   factors (the 2^k from s->2q^2 leaked into signatures) - master 1
   fragmented into 13 buckets / 462 MB, all one canonical class
