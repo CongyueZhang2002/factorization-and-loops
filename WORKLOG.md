@@ -461,3 +461,23 @@ Plan, in order; each step appends its outcome here:
    input wanted), dead-code removal + runner consolidation (items 6/9,
    should not race the overnight chain), legacy Codex test migration,
    assembly module + gauge check (needs both grids' coefficients).
+
+## 2026-08-11 (continued) — physical-variable trace MERGED to main
+
+- Rung E full suite: 11 tests, 123 assertions, 0 failed, SUITE_EXIT 0.
+- Merged wip/physical-variable-trace into main (f307e28, --no-ff) and
+  pushed. Rev. 2 is production: the trace is emitted in
+  {CA, CF, Epsilon, x, y}, root variables never reach FireFly.
+- Next build (TOP PRIORITY rev. 3): signature canonicalization modulo
+  Q(CA,CF,eps,x,y)* at emission (Codex-confirmed rule: fold the
+  maximal rational factor of a signature into the coefficient, e.g.
+  2^(m+n eps) contributes 2^m to the coefficient and (2^eps)^n to the
+  signature). Then a bucket-merge post-pass over the existing gluon
+  checkpoint (UU_08_10_canonical/FiniteField, 2045 expressions), and
+  the master-1 entry-size audit (462 MB vs ~0.8 MB text for the
+  reference's 1,129-contribution column).
+- Acceptance for rev. 3: NLO golden + t_physical_variable exact, ghost
+  not slower, master 107 merges to ONE bucket at emission and
+  reconstructs ~19 s, capped canonical-set measurement rebuilds the
+  5 h projection. Full NNLO reconstruction launches only on user
+  go-ahead.
