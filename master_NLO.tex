@@ -166,6 +166,54 @@ The residues on the letters $1{-}v$, $1{-}w$, $v{+}w$ vanish on every
 diagonal, and the $-1-2\eps$ residues on $q$ in rows $3,5,6$ are the
 soft exponents discussed in Section~\ref{sec:endpoint}.
 
+Explicitly, as single matrices on the basis
+$(I_1,\dots,I_7)$ --- only the diagonal and the volume column are
+nonzero --- with $q = 1-v-w$, $\kappa = 2(1-2\eps)$,
+$\bar v = 1-v$, $\bar w = 1-w$, $\sigma = v+w$:
+\begin{equation}
+A_v =
+{\footnotesize
+\setlength{\arraycolsep}{3pt}
+\begin{pmatrix}
+\frac{\eps}{q} & 0 & 0 & 0 & 0 & 0 & 0 \\[1.1ex]
+\frac{\kappa}{v q \sigma} & -\frac{1+\eps}{v} & 0 & 0 & 0 & 0 & 0 \\[1.1ex]
+-\frac{\kappa}{v q \sigma} & 0 &
+  \frac{\eps}{v}+\frac{1+2\eps}{q} & 0 & 0 & 0 & 0 \\[1.1ex]
+\frac{\kappa\,(2v+w-1)}{\bar v\, v q \sigma} & 0 & 0 &
+  \frac{\eps}{v} & 0 & 0 & 0 \\[1.1ex]
+\frac{\kappa}{\bar v\, v q} & 0 & 0 & 0 &
+  \frac{\eps}{v}+\frac{1+2\eps}{q} & 0 & 0 \\[1.1ex]
+-\frac{\kappa\,(2v+w-1)}{\bar v\, v q \sigma} & 0 & 0 & 0 & 0 &
+  -\frac{1+\eps}{v}+\frac{1+2\eps}{q} & 0 \\[1.1ex]
+-\frac{\kappa}{\bar v\, v q} & 0 & 0 & 0 & 0 & 0 &
+  -\frac{1+\eps}{v}
+\end{pmatrix}
+}
+\label{eq:Av}
+\end{equation}
+\begin{equation}
+A_w =
+{\footnotesize
+\setlength{\arraycolsep}{3pt}
+\begin{pmatrix}
+\frac{\eps}{q} & 0 & 0 & 0 & 0 & 0 & 0 \\[1.1ex]
+\frac{\kappa\,(v+2w-1)}{\bar w\, w q \sigma} & \frac{\eps}{w} &
+  0 & 0 & 0 & 0 & 0 \\[1.1ex]
+-\frac{\kappa\,(v+2w-1)}{\bar w\, w q \sigma} & 0 &
+  -\frac{1+\eps}{w}+\frac{1+2\eps}{q} & 0 & 0 & 0 & 0 \\[1.1ex]
+\frac{\kappa}{w q \sigma} & 0 & 0 & -\frac{1+\eps}{w} &
+  0 & 0 & 0 \\[1.1ex]
+\frac{\kappa}{\bar w\, w q} & 0 & 0 & 0 &
+  \frac{\eps}{w}+\frac{1+2\eps}{q} & 0 & 0 \\[1.1ex]
+-\frac{\kappa}{w q \sigma} & 0 & 0 & 0 & 0 &
+  \frac{\eps}{w}+\frac{1+2\eps}{q} & 0 \\[1.1ex]
+-\frac{\kappa}{\bar w\, w q} & 0 & 0 & 0 & 0 & 0 &
+  -\frac{1+\eps}{w}
+\end{pmatrix}
+}
+\label{eq:Aw}
+\end{equation}
+
 \section{Solving the system}
 \label{sec:solve}
 
