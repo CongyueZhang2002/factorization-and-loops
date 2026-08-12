@@ -2890,6 +2890,103 @@ finiteFieldCombineSignatures[
     ]
 ];
 
+(* --- signature canonicalization modulo the trace-variable field -----
+
+   Trace classes are equal modulo the multiplicative group of the
+   rational function field of the trace variables (Codex convention,
+   2026-08-11): any factor of a signature that is rational in the trace
+   variables belongs to the coefficient, e.g. 2^(m + n Epsilon) puts
+   2^m into the coefficient and keeps 2^(n Epsilon).  Without this,
+   classes fragment into buckets differing by 2^k (measured: master 107
+   split into 9 buckets, master 1 into 13 buckets of one rational
+   class), which multiplies the FireFly probe count.  The declared
+   scale and the strong coupling route through signatures and are never
+   folded. *)
+
+finiteFieldFoldableFactorQ[expression_, excluded_List] :=
+  finiteFieldRationalQ[expression] &&
+    FreeQ[expression, Alternatives @@ excluded];
+
+(* base^exponent with the integer part of the exponent's exact-number
+   component split off: {folded factor, kept factor}.  Splitting an
+   INTEGER power off b^(m + r) -> b^m b^r is an exact identity for any
+   nonzero base; no positivity assumption is used. *)
+finiteFieldResidualPower[base_, exponent_] := Module[
+  {terms, constant, integerPart, residual},
+  terms = If[Head[exponent] === Plus, List @@ exponent, {exponent}];
+  constant = Total @ Cases[terms, _Integer | _Rational];
+  integerPart = Floor[constant];
+  residual = exponent - integerPart;
+  Which[
+    TrueQ[residual === 0], {base^integerPart, 1},
+    IntegerQ[residual], {base^(integerPart + residual), 1},
+    True, {If[integerPart === 0, 1, base^integerPart], base^residual}
+  ]
+];
+
+finiteFieldCanonicalizeSignature[
+    held_HoldComplete,
+    excluded_List
+  ] := Module[
+  {signature, factors, fold = 1, keep = {}, primes = <||>, bases = <||>,
+   resolve},
+  signature = ReleaseHold[held];
+  If[finiteFieldFoldableFactorQ[signature, excluded],
+    Return[{HoldComplete[1], signature}]
+  ];
+  factors = If[Head[signature] === Times, List @@ signature, {signature}];
+  Scan[
+    Function[factor,
+      Which[
+        finiteFieldFoldableFactorQ[factor, excluded],
+          fold *= factor,
+        (* A rational-number base decomposes over its primes: b^e with
+           b = sign * Times[p^a] is exactly Times[p^(a e)] (positive
+           base, principal branch), so 4^Epsilon and 2^(2 Epsilon) land
+           in one class.  Exponents accumulate per prime, so pairs like
+           2^Epsilon * 2^(1 - Epsilon) collapse before folding. *)
+        MatchQ[factor, Power[_Integer | _Rational, _]],
+          Module[{base = factor[[1]], exponent = factor[[2]], magnitude},
+            magnitude = If[base < 0,
+              primes[-1] = Lookup[primes, -1, 0] + exponent; -base,
+              base
+            ];
+            Scan[
+              If[#[[1]] =!= 1,
+                primes[#[[1]]] = Lookup[primes, #[[1]], 0] + #[[2]] exponent
+              ] &,
+              FactorInteger[magnitude]
+            ]
+          ],
+        MatchQ[factor, Power[_, _]] &&
+            finiteFieldFoldableFactorQ[factor[[1]], excluded],
+          bases[factor[[1]]] = Lookup[bases, factor[[1]], 0] + factor[[2]],
+        True,
+          AppendTo[keep, factor]
+      ]
+    ],
+    factors
+  ];
+  resolve = Function[{base, exponent},
+    Module[{pair = finiteFieldResidualPower[base, exponent]},
+      fold *= First[pair];
+      Last[pair]
+    ]
+  ];
+  keep = Join[
+    KeyValueMap[resolve, KeySort[primes]],
+    KeyValueMap[
+      resolve,
+      KeySortBy[bases, ToString[#, InputForm] &]
+    ],
+    keep
+  ];
+  With[
+    {canonical = Times @@ keep},
+    {HoldComplete[canonical], fold}
+  ]
+];
+
 finiteFieldNormalizeTarget[
     expression_,
     distributionFactor_,
@@ -3192,7 +3289,8 @@ finiteFieldTraceInputs[
       expected, keys, reductionString, masterIndex,
       processed = 0, selectedTargets, targetLimit, shard, remainder,
       remainderModule, outputOrder, traceVariables, signatureRegistry,
-      descendStatistics = <||>, scalePowers,
+      descendStatistics = <||>, scalePowers, monomialExcluded,
+      registerContribution,
       workerCount, workerData, jobs, chunks, chunkSize,
       normalizedChunks, normalizedBatch, failedResult, processingResult,
       existingKernels, launchedKernels = {}, loadFile, initialized,
@@ -3226,6 +3324,8 @@ finiteFieldTraceInputs[
 
     masters = metadata["Masters"];
     masterIndices = AssociationThread[masters, Range[Length[masters]]];
+    monomialExcluded =
+      #["Variable"] & /@ finiteFieldMonomialVariables[context];
     aliasPrefix = "FACETff" <>
       StringReplace[StringTake[CreateUUID[], 8], "-" -> ""] <> "v";
 
@@ -3338,6 +3438,28 @@ finiteFieldTraceInputs[
       contributionCounts[key] = contributionCounts[key] + 1;
     ];
 
+    (* Every contribution registers through the canonicalized class:
+       the rational-in-trace-variables part of the combined signature
+       folds into the coefficient, so buckets differing by such a
+       factor merge at registration. *)
+    registerContribution[
+        index_Integer,
+        combined_HoldComplete,
+        targetString_String,
+        coefficient_
+      ] := Module[{split},
+      split = finiteFieldCanonicalizeSignature[combined, monomialExcluded];
+      writeContribution[
+        index,
+        signatureID @ First[split],
+        targetString,
+        If[TrueQ[Last[split] === 1],
+          coefficient,
+          Last[split] coefficient
+        ]
+      ]
+    ];
+
     emitNormalizedTarget[record_Association] := Module[
       {targetModule, preparedTerms, preparedRemainder},
       targetModule = record["TargetModule"];
@@ -3364,9 +3486,9 @@ finiteFieldTraceInputs[
                 ];
                 KeyValueMap[
                   Function[{coefficientSignature, reductionCoefficient},
-                    writeContribution[
+                    registerContribution[
                       masterIndex,
-                      signatureID @ finiteFieldCombineSignatures[
+                      finiteFieldCombineSignatures[
                         signature,
                         coefficientSignature
                       ],
@@ -3381,9 +3503,9 @@ finiteFieldTraceInputs[
             ];
             KeyValueMap[
               Function[{remainderSignature, rationalRemainder},
-                writeContribution[
+                registerContribution[
                   0,
-                  signatureID @ finiteFieldCombineSignatures[
+                  finiteFieldCombineSignatures[
                     signature,
                     remainderSignature
                   ],
