@@ -372,6 +372,23 @@ tests in the same commit.
   canonicalization modulo rational factors; target ~1 MB/output;
   measure at NLO -> ghost -> NNLO subset before any full run.
 
+- REFERENCE MATCH (22:30, the Codex-endorsed apples-to-apples): the
+  old benchmark GLI translates to our GLI[CF21,{1,1,2,0,0,1,0,1,0}]
+  (master 107); our emission had fragmented it into 9 buckets (4.8 MB)
+  whose signatures differ only by 2^k - the rational-factor bug on the
+  reference object. Merged with rational weights it reconstructs FULLY
+  in 19 s / 46,320 probes on 16 threads vs the reference 20.2 s /
+  169,567 on 8 threads. The pipeline is sound; signature
+  canonicalization modulo the full field Q(CA,CF,eps,x,y)* (Codex Q4)
+  is the one production fix for the broad population. Also corrected:
+  factor-scan probe counts are NOT degrees (master 107 scans {42,280,
+  517,743,783} at true degrees (4,2,22,22,23)) - the master-1 "color
+  degree" alarm dissolves; master 1's real issue is SIZE (462 MB vs
+  ~10-15 MB expected from contributor scaling) -> bounded entry-fat
+  audit. Build plan: (a) signature canonicalization at emission +
+  bucket-merge post-pass on the existing checkpoint; (b) master-1
+  entry audit.
+
 ## Day summary (2026-08-10, end of autonomous session)
 
 **Per-stage performance vs historical (requirement: at least as fast):**
