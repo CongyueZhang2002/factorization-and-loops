@@ -517,3 +517,36 @@ Plan, in order; each step appends its outcome here:
 - Next: ghost fresh-emission acceptance (running), then a CAPPED
   master-1 probe-rate/degree measurement on an idle machine, then the
   full projection.  No full launch without user go-ahead.
+
+## 2026-08-12 early — fresh-emission acceptances + entry compaction
+
+- Ghost FRESH emission through the canonicalizer: 14/14 exact, 27
+  masters -> 27 outputs (one column each), FireFly 18.84 s vs rev.2's
+  60.6 s = 3.2x FASTER.  TT fresh emission also exact (14/14); TT only
+  collapses 149 -> 136 outputs - its residual signatures are genuinely
+  non-rational (evanescent ST/STh structures), intrinsic and harmless
+  at 0.01 MB scale.
+- Entrywise compaction (Scripts/compact_trace_columns.wls +
+  split_merged.py): each merged contribution (w)*(t)*(r) replaced by
+  its exact Together, in parallel; originals kept as .expr.fat;
+  manifest bytes rewritten through the record writer (NOT plain WXF
+  Export - the manifest is a length-prefixed record store).
+  Certified on master 107: byte-identical FireFly result
+  (169,751 probes, 17.8 s), 4.6 -> 3.6 MB.
+- Compacted the six big columns: master 1 462.6 -> 88.8 MB in 109 s
+  (= Codex's reported largest-column size, ~90-100 MB - structures
+  match); master 2 267.6 -> 46.1 MB; 209/92/91/93 -> 6.8-9.7 MB.
+  Sample measurement that justified it: byte-tail entries compact 28x
+  at 1.9 s/MB, zero timeouts (300-entry stratified sample).
+- Master 1 measurements: fat trace 0.234 s/probe (prime 1 killed at
+  182k probes/44 min); compacted trace 0.054 s/probe, optimize leaves
+  83 MB instructions, prime 1 STILL >773k probes at the 45-min cap.
+  Degrees (CA,CF,eps,x,y) = (5,3,33,57,60), num/den 108/56 - the
+  probe count is intrinsic to the function.  Extrapolation: if prime 1
+  ends near 1M probes, master 1 totals 80-90 min; consistent with
+  Codex's 0.5-2 h FireFly estimate at 8 cores for their m1-analog.
+- DECISIVE RUN in flight: master 1 uncapped with a 3 h ceiling.
+  Completion -> full projection (expect total ~2.5 h hybrid: small
+  columns shared, masters 1/2 solo); ceiling breach -> the naive
+  per-column path is dead and the CA/CF-split / eps-expansion ladder
+  (user-gated) is next.
