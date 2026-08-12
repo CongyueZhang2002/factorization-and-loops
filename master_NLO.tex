@@ -312,18 +312,41 @@ elementary,
     \tfrac{B^2}{A^2}\Big) ,
   \label{eq:azimuthal}
 \end{equation}
-leaving a one-dimensional polar integral.  These are the actual
-boundary objects of the method: evaluated in a limit (a corner of the
-$(v,w)$ region, or the soft surface) they collapse to
-$\Gamma$-function expressions and fix the constants analytically;
-evaluated numerically at an interior point (at negative $\eps$, where
-the collinear endpoints $\theta \to 0, \pi$ are integrable) they
-over-constrain the same constants and independently test the
-solution.  Regularity supplies the rest: the homogeneous solution of
-each scalar equation is the pure prefactor
-$v^{\rho_1} w^{\rho_2} q^{\rho_6}$ of the table above, and an
-admixture is forbidden whenever the master is manifestly finite on a
-surface where that prefactor diverges.
+leaving a one-dimensional polar integral.
+
+Two clarifications about where the simplification actually happens.
+First, the volume is simpler than a boundary value: the two cuts
+saturate the integral completely (no propagators remain), so
+Eq.~\eqref{eq:volume} is exact at \emph{every} $(v,w)$ --- it is a
+global input, and through the source column of the system it fixes
+every inhomogeneous normalization.  Second, for the propagator
+masters, Eq.~\eqref{eq:boundaryintegral} at a generic interior point
+is nothing but the master itself --- useful as an independent check,
+but not simpler.  The simplification occurs on the \emph{edges} of
+the $(v,w)$ triangle, not at a chosen point $(v_0, w_0)$: as
+$v \to 0$ or $w \to 0$ two of the external momenta become collinear,
+the reference vectors align ($\vec\beta_2 \parallel \vec\beta_3$),
+the azimuthal dependence drops out, and the hypergeometric in
+Eq.~\eqref{eq:azimuthal} collapses at argument $0$ or $1$; as
+$v+w \to 1$ the recoil mass $M \to 0$ degenerates the frame in the
+same way.  On such an edge the surviving polar integral is
+single-scale,
+\begin{equation}
+  \int_0^{\pi} \dd\theta\, \sin^{d-3}\!\theta\,
+    \big(1-\cos\theta\big)^{-n}
+  \;=\;
+  2^{\,d-3-n}\,
+  \mathrm{B}\Big(\tfrac{d-2}{2}-n,\ \tfrac{d-2}{2}\Big) ,
+  \label{eq:edge}
+\end{equation}
+a pure ratio of $\Gamma$-functions --- these are the classic
+eikonal/collinear boundary integrals of the method.  For the present
+triangular system even Eq.~\eqref{eq:edge} is not needed: the volume
+supplies all inhomogeneous data, and the edges enter only through
+regularity --- the homogeneous solution of each scalar equation is
+the pure prefactor $v^{\rho_1} w^{\rho_2} q^{\rho_6}$ of the table
+above, and an admixture is forbidden whenever the master is
+manifestly finite on an edge where that prefactor diverges.
 
 The crucial point, developed next, is \emph{how little} boundary
 information is needed: only $\eps$-\emph{expanded} numbers, never
