@@ -714,3 +714,22 @@ Plan, in order; each step appends its outcome here:
 - Process fixes: per-run progress monitor + status command
   (Reconstruction_2026_08_13/status.sh); routine coding delegated to
   Opus (assembly + slice-verification scripts in progress).
+
+## 2026-08-13 — NNLO UU reconstruction COMPLETE and VERIFIED
+
+- Production: 345 exact rational columns (3.4h, 5am run) + masters 1
+  and 2 as eps^5 series: m1 18.1 min / 345,682 probes, m2 5.3 min /
+  198,027 probes.  The full coefficient set exists.
+- Verification: m1 maxorder-4 vs maxorder-5 independent
+  reconstructions agree EXACTLY on all 9 common Laurent orders (the
+  column starts at eps^-4 - the eps^5 depth choice has margin);
+  univariate slice checks 8/8 PASS on sampled rest columns (plus the
+  agent's earlier 7/7 with negative controls).  Composition-bypass
+  check (Codex protocol #1) deferred to the package module hooks.
+- Standardization: Design/ReconstructionModule.md spec committed;
+  Opus implementation in progress (golden-gated on NLO both modes).
+- NEXT after standardization (user): back to master solving
+  infrastructure; boundary constants via SubTropica
+  (Addon/Mathematica_Addon/SubTropica; prior probes exist in
+  ~/FACET/Codex/MasterEvaluationWorkflow/ProbeBoundarySubTropica*.wls
+  - study those first).
