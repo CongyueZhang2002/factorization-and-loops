@@ -745,3 +745,47 @@ Plan, in order; each step appends its outcome here:
   certified blocks; boundary constants via SubTropica (probe scripts
   from Codex's MasterEvaluationWorkflow to study first); cheap-first
   at NLO edges where answers are known exactly.
+
+## 2026-08-13 — masters strategy pivot: eps-forms via CANONICA, method
+   gate PASSED at NLO
+
+- Context: user directive — two assistants run in parallel (Codex +
+  this session) so genuinely different routes get explored; do not
+  copy Codex's MasterEvaluationWorkflow wholesale.  Their method
+  (their MASTER_EVALUATION.md): CANONICA eps-form + Jordan/Fuchsian
+  boundary counting + Baikov/SubTropica periods + Libra transport;
+  NLO done + three demo two-loop families, with 7 family-dependent
+  manual steps each.  Our divergence: the canonical-family lattice
+  (91 blocks, subsector triangularity, registry names) solved in
+  global dependency order with cheap branch-absence boundary
+  conditions first, SubTropica only for residual constants.
+- Exact-in-eps solutions demoted (user): no consumer needs all
+  orders; closed forms kept only where cheaper (pure-prefactor
+  blocks, NLO golden reference).
+- CANONICA probes: CF3 (my stuck closed-form block) to eps-form in
+  0.30s; NLO 7x7 in 0.50s.  Full sweep over all 91 NNLO blocks:
+  83/91 OK = 317/347 masters, 854s total solver time (47-dim block:
+  2.6s), {T, eps-form, basis order} stored per block
+  (scratch canonica_sweep/forms/).  The 32-linear/59-quadratic
+  alphabet split was too pessimistic: polynomial quadratic letters
+  are rational dlogs (11 OK blocks carry them).  The 8 Moser-flagged
+  blocks (CF67/71/86/88/90/91/97/98) all succeeded — Moser work item
+  KILLED.  Holdouts: CF360/123/215/218/12 (linear alphabets — ansatz
+  depth suspected), CF263/269/311 (true quadratics — possible sqrt);
+  30 hosted masters total.  Deeper-ansatz pass 2 running.
+- NLO METHOD GATE (Opus harness, scratch validate_epsform_nlo.wls):
+  eps-form + explicit-primitive transport (1/4,1/4)->(v,1/4)->(v,w)
+  + boundary from ONLY volume + six branch-absence conditions
+  reproduces all 7 exact masters at eps^-1..eps^2, 3 chamber points,
+  to >76 digits; 3min24s wall.  Measured: the 1/eps in T costs
+  exactly one canonical weight (dropping weight 3 gives relative
+  error 3.08 at eps^2); weight 3 stays in {Log, PolyLog, Zeta} but
+  leaf growth is 7-12x/weight and weight >=4 generically leaves the
+  classical class -> GPL representation (Libra/PolyLogTools) needed
+  at NNLO depth.  Free cross-check: CANONICA diagonal residues
+  reproduce master_NLO.tex §3.2 exponent table letter for letter.
+- NEXT: pass-2 holdout results; NNLO boundary program on the
+  eps-forms (corner residues + physical exponents from stored soft
+  spectra + subsector inheritance across the lattice + SubTropica
+  residual periods); conclusions note to Codex for
+  confirm/challenge before scaling.
