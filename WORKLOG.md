@@ -667,3 +667,24 @@ Plan, in order; each step appends its outcome here:
   resumed after a SIGSTOP pause (probes preserved; harness handle
   lost - tracked via m1_final.log).
 - CF1 closed forms (3-body volume + one-propagator anchor) running.
+
+## 2026-08-13 early — variable-split method test (cheap-scale, as due)
+
+- CA/CF-split vs direct joint reconstruction, measured at NLO and
+  ghost scale (text-substituted traces, minimal grids from measured
+  color degrees):
+    NLO:   joint 5,643 probes | split (2x3 grid) 9,397  -> 1.7x WORSE
+    ghost: joint 23,807       | split (4x3 grid) 94,560 -> 4.0x WORSE
+  Joint sparse interpolation absorbs the low-degree polynomial CA/CF
+  dependence for ~3x the 3-variable cost, always below the grid
+  factor.  Projected to master 1 (grid 24): ~24M vs the measured
+  3.9M direct -> 6x worse.  FIRST ESCALATION RUNG CLOSED BY
+  MEASUREMENT: the direct 5-variable method stands.
+- Remaining untested alternative: eps-Laurent truncation (win would
+  come from series truncation, not variable removal; needs
+  series-mode tooling + user sign-off on truncated storage).
+- Master-1 direct measurement (from tonight): prime 1 = 2,721,256
+  probes, prime 2 = 757k (cum. 3.48M); verification prime killed by a
+  too-tight ceiling but bounded small.  PROJECTION: full NNLO
+  coefficient stage ~5-6.5h at 16 cores (marginal vs the 5h bar) or
+  8-10h at the 10-core cap (overnight-sized).
