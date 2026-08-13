@@ -182,6 +182,17 @@ runKiraGlobal[targets_List, iteration_Integer] := Module[
       FileNameJoin[{kdir, "config", "integralfamilies.yaml"}]];
     CopyFile[FileNameJoin[{configSource, "kinematics.yaml"}],
       FileNameJoin[{kdir, "config", "kinematics.yaml"}]];
+    (* pin Kira's master choice to the canonical trace basis *)
+    Export[
+      FileNameJoin[{kdir, "preferred"}],
+      StringRiffle[
+        (ToString[#[[1]]] <> "[" <>
+          StringRiffle[ToString /@ #[[2]], ","] <> "]") & /@
+          (List @@@ masterList),
+        "\n"
+      ] <> "\n",
+      "String"
+    ];
     byFamily = GroupBy[targets, First -> Last];
     names = Sort[Keys[byFamily]];
     Do[
@@ -216,7 +227,8 @@ runKiraGlobal[targets_List, iteration_Integer] := Module[
         {nm, names}
       ],
       {
-        "      run_initiate: true",
+        "      preferred_masters: preferred",
+      "      run_initiate: true",
         "      run_triangular: true",
         "      run_back_substitution: true",
         "      integral_ordering: 2",
