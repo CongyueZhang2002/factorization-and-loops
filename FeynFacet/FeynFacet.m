@@ -90,6 +90,12 @@ KiraImportReduction::usage =
 CoefficientSimplification::usage =
   "CoefficientSimplification[inputs,kiraFile] reconstructs exact master coefficients from one saved diagram-pair set and the KiraResult.wl artifact path by finite-field reconstruction. CoefficientSimplification[projectDirectory,cardName,resultFolder] automatically loads one saved diagram-pair set and KiraResult.wl, reconstructs the coefficients and writes CoefficientResult.wl. resultFolder may be Automatic. The option \"NormalizationKernels\" controls the Mathematica workers; \"Threads\" controls FireFly.";
 
+ReconstructCoefficients::usage =
+  "ReconstructCoefficients[traceDirectory] reconstructs the master coefficients of one emitted finite-field trace and returns the production CoefficientResult. Columns whose expression file is below \"BundleBelowBytes\" share one trace; larger columns run solo, ascending by size. \"SeriesVariable\" -> Automatic truncates the reconstruction to a Laurent series in the context regulator through \"SeriesOrder\", None reconstructs the full rational form. A completed result file carrying its DONE marker is never redone. \"VerifySlices\" and \"VerifySeriesOrders\" add exact boundary checks, and every job appends its probe count to <traceDirectory>/progress.";
+
+ReconstructionStatus::usage =
+  "ReconstructionStatus[traceDirectory] reports the phase, probe count, measured probe rate and estimated remaining time of every reconstruction job in traceDirectory, reading the progress files a running job appends to. It is meant to be called from a second kernel while the reconstruction runs.";
+
 CoefficientProgressPanel::usage =
   "CoefficientProgressPanel[] displays the current coefficient-reconstruction stage, target progress, elapsed time and estimated remaining time.";
 
@@ -130,6 +136,9 @@ SyntaxInformation[KiraReduction] = {"ArgumentsPattern" -> {_, _}};
 SyntaxInformation[KiraImportReduction] = {"ArgumentsPattern" -> {_, _}};
 SyntaxInformation[CoefficientSimplification] =
   {"ArgumentsPattern" -> {_, _, _., OptionsPattern[]}};
+SyntaxInformation[ReconstructCoefficients] =
+  {"ArgumentsPattern" -> {_, OptionsPattern[]}};
+SyntaxInformation[ReconstructionStatus] = {"ArgumentsPattern" -> {_}};
 SyntaxInformation[CoefficientProgressPanel] = {"ArgumentsPattern" -> {}};
 SyntaxInformation[AssembleCutContributions] = {"ArgumentsPattern" -> {_}};
 SyntaxInformation[IdenticalParticleSymmetryFactor] =
@@ -160,7 +169,7 @@ $feynFacetPrivateFiles = FileNameJoin[{$feynFacetPrivateDirectory, #}] & /@ {
     "DimensionalShift.wl", "Collinear.wl", "Reduction.wl",
     "StreamingKira.wl",
     "MasterIntegralAmFlow.wl", "Simplification.wl", "Assembly.wl",
-    "CoefficientStore.wl"
+    "CoefficientStore.wl", "Reconstruction.wl"
 };
 $feynFacetSourceFiles = Join[
   {ExpandFileName[$InputFileName], FileNameJoin[{$feynFacetDirectory, "Distributions.wl"}]},

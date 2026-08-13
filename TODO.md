@@ -369,3 +369,9 @@ acceptance criteria remain the reference for the NNLO workspace:
       both forms (the new script does).
 - [ ] finiteFieldParseReconstruction does one full-text scan per
       output and returns an undiagnosed $Failed for six causes.
+- [ ] Return[Nothing] leak in finiteFieldAssembleResult
+      (Simplification.wl:4191): Return inside Module inside anonymous
+      Function is not caught; zero columns poison the assembly.
+      Reconstruction.wl works around it (reconstructionRepairAssembly)
+      - fix at source and drop the repair. Same latent pattern in
+      validateCutGLIs (Reduction.wl:92).
