@@ -357,3 +357,15 @@ acceptance criteria remain the reference for the NNLO workspace:
   per left-hand side, no conflicting duplicates, no pinched cuts, zero
   undeclared frontier integrals, the same 342-master set; record wall
   time and peak RSS separately for Kira, import, closure, and save.
+
+## Parser defects found during reconstruction assembly (Opus review, 2026-08-13)
+- [ ] finiteFieldParseReconstruction (Simplification.wl:4027) is only
+      correct when given ALL markers in file order: on a subset it
+      silently swallows intervening blocks; no monotonicity check.
+      Add assertions or route through Scripts/assemble_reconstruction.
+- [ ] Marker paths: ratracer writes them as passed on its command
+      line; relative-path launches (cd + relative) make the package's
+      absolute-path markers match nothing -> bare $Failed. Resolve
+      both forms (the new script does).
+- [ ] finiteFieldParseReconstruction does one full-text scan per
+      output and returns an undiagnosed $Failed for six causes.
