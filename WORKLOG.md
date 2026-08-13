@@ -688,3 +688,29 @@ Plan, in order; each step appends its outcome here:
   too-tight ceiling but bounded small.  PROJECTION: full NNLO
   coefficient stage ~5-6.5h at 16 cores (marginal vs the 5h bar) or
   8-10h at the 10-core cap (overnight-sized).
+
+## 2026-08-13 — eps-truncation VERIFIED: the fat-column problem is solved
+
+- Codex exchange resolved the representation question: the 809KB-vs-
+  3.8MB text gap is 94% alias-name length (renamed: 965KB vs 809KB =
+  1.19x, matching our +12% entry count from signature-bucket targets).
+  Representations algebraically equivalent; no compression lever.
+- Ratracer to-series (eps truncation, Laurent-pole aware) measured:
+  m107: 18,369 probes / 1.9s vs 169,685 / 39s full-rational (9x
+  probes, 20x wall).  VERIFIED exact: series-sum vs full-rational
+  differs only by truncation (scaling exponent 5.8 across eps
+  halvings); the initial "mismatch" was a bug in my comparison
+  harness, not the data.
+- MASTER 1 (the 3.9M-probe column): series reconstruction complete in
+  15.5 min / 297,094 probes at 16 threads (vs ~6h full-rational at 10
+  threads).  13x probe reduction.
+- Production depth: eps^5 (user decision - safety margin over master
+  pole depths; ~15% extra probes).  Production runs for masters 1+2
+  launched; the other 345 columns remain exact full-rational (already
+  complete from the 5am run).
+- Also closed today: CA/CF grid split (4x worse at ghost scale, 6x
+  projected on m1), denominator merging (no gain - ratracer CSE),
+  size-linearity claim (Codex correction: sublinear).
+- Process fixes: per-run progress monitor + status command
+  (Reconstruction_2026_08_13/status.sh); routine coding delegated to
+  Opus (assembly + slice-verification scripts in progress).
