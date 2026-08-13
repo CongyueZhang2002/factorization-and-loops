@@ -256,18 +256,60 @@ stage, together with the sign of Eq.~\eqref{eq:ghost}.
 
 The scalar integrands populate integral \emph{families}: sets of
 propagators (including the cut ones) closed under the IBP operations.
-Families arising from different pairs are recognized as equivalent by
-a cut-aware canonicalization based on the Pak algorithm: cut
-propagators are marked by auxiliary masses so that the canonical form
-distinguishes cut from uncut lines, and momentum shifts identified on
-the canonical form are verified exactly.  Equivalent families are
-merged into a global registry with stable, cross-run family names;
-registries of related channels (e.g.\ the gluon and ghost grids of
-Eq.~\eqref{eq:ghost}) are seeded from one another so that both
-channels live in a single family namespace and can be assembled
-integral by integral.  At NNLO double-real this merges $1898$ raw
-sectors into $430$ canonical families, of which $374$ carry reduction
-targets.
+Families arising from different diagram pairs are very often the same
+family in disguise, and recognizing this is essential: without it the
+same integrals are reduced many times over, and --- fatally for the
+assembly --- coefficients cannot be summed across diagram pairs or
+between the gluon and ghost grids, because the same master carries a
+different name in each.
+
+\emph{Equivalence} of two families is defined by the existence of an
+affine loop-momentum transformation,
+\begin{equation}
+  k_i \;\longrightarrow\; \sum_j M_{ij}\, k_j
+    \;+\; (\text{combination of external momenta}),
+  \qquad M \in GL(L,\mathbb{Z}),\ \ |\det M| = 1,
+\end{equation}
+mapping one propagator set bijectively onto the other (up to
+reordering and signs) \emph{and preserving cut status}: a cut line
+must map to a cut line.  Such a transformation leaves the integration
+measure invariant, so every integral of one family equals a relabeled
+integral of the other.  Equivalence is detected without searching for
+transformations: a family is characterized, up to exactly these
+transformations, by its Symanzik polynomials in Feynman parameters,
+and Pak's algorithm computes a canonical parameter ordering
+(lexicographically extremal coefficient lists) such that two families
+are equivalent if and only if their canonical forms are identical.
+Cut propagators are tagged with auxiliary marker masses beforehand,
+so the canonical form distinguishes cut from uncut lines and illegal
+identifications cannot occur.  Every detected equivalence is then
+verified constructively: the explicit momentum shift is computed,
+applied, and checked exactly.
+
+Equivalent families are merged into a global registry with stable,
+cross-run family names; registries of related channels (the gluon and
+ghost grids of Eq.~\eqref{eq:ghost}) are seeded from one another so
+that both live in a single namespace and assemble integral by
+integral.  At NNLO double-real this merges $1898$ raw families into
+$430$ canonical ones, of which $374$ carry reduction targets.  The
+canonical partition was validated against an independently
+constructed, shift-verified pairwise equivalence search: the two
+agree exactly at NLO ($178 \to 11$) and NNLO ($1898 \to 430$); the
+canonical-form route replaces an $O(N^2)$ pairwise search by $O(N)$
+hashing and, unlike per-run pairwise merging, keeps names stable
+across runs and channels.
+
+Canonical families also organize the later master-integral stage.
+Differentiation with respect to the invariants is \emph{family
+local}: the derivative of a master of family $F$ is a combination of
+integrals of $F$ itself, which IBP reduction expresses through $F$'s
+own masters and those of its subsectors --- never through unrelated
+families.  The differential-equation problem for the full set of
+masters therefore decomposes into independent blocks, one per
+master-carrying family (at NNLO double-real: $347$ masters in $91$
+blocks of dimension $2$ to $47$), each small and triangular by
+sector; the registry's name mapping reconnects the blocks' shared
+subsector masters at assembly time.
 
 \subsection{IBP reduction}
 
