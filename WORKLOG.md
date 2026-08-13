@@ -733,3 +733,15 @@ Plan, in order; each step appends its outcome here:
   (Addon/Mathematica_Addon/SubTropica; prior probes exist in
   ~/FACET/Codex/MasterEvaluationWorkflow/ProbeBoundarySubTropica*.wls
   - study those first).
+
+## 2026-08-13 — reconstruction standardized into the package
+
+- ReconstructCoefficients / ReconstructionStatus landed (Opus
+  implementation against the committed spec; my review via golden
+  gates + old-path regression).  NLO series mode: 4.8x fewer probes
+  than full rational; ghost: 7.1s vs 18.8s baseline.  Latent
+  Return[Nothing] assembly bug discovered, worked around, filed.
+- NEXT: masters program - solving infrastructure over the 91
+  certified blocks; boundary constants via SubTropica (probe scripts
+  from Codex's MasterEvaluationWorkflow to study first); cheap-first
+  at NLO edges where answers are known exactly.
