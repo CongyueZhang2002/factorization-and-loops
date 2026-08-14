@@ -1108,3 +1108,29 @@ Plan, in order; each step appends its outcome here:
   measurements (12s total kernel wall) — cost-benefit rule applied
   back at us.  Codex wrote 6 boundary-census scripts into our
   Scripts/ on Aug 13 (untracked, flagged for exchange).
+
+## 2026-08-14 — THE BOUNDARY COUNT: <=33 distinct periods
+
+- Nullity counter delivered (scratch nullity/, NullityReport.md entry
+  point; 170/170 substrate with exact dlog certificates; smoke 21/21;
+  NLO acceptance PASSED with N_new=0).  Global result: 75 family-level
+  surviving mode coefficients across 80/91 evaluated families
+  deduplicate at class level to 33 DISTINCT new boundary periods —
+  an upper bound (regularity rows omitted by policy; inheritance
+  through inhomogeneous couplings not modeled; chart ordered corners
+  not derived, so cornerRay does not vote for 34 families).
+- Structure: ALL 33 survivors have eps-exponent ZERO — pure integer
+  Frobenius modes, i.e. normalization CONSTANTS of blocks regular at
+  all anchor strata, not transcendental branch modes (structural:
+  normal-residue rows fix exactly the lambda!=0 modes).
+- Pending additions: the 11 families blocked on classes 77/79/97.
+- Provenance caution (agent): the "20-40" figure came through the
+  user-shuttled Codex message, not their tree; their nearest on-disk
+  figure is 17 maximal boundary SUPPORTS (families, not periods).
+- CF231_B1 comparison machinery built (their RowReduce@NullSpace
+  convention) — activates once class 79 has a form and the corner is
+  Moser-reduced; E13 = 24-dim ruTopology53, mapping via registry to
+  be settled in next exchange.
+- Process lesson, now doctrine: FOUR silent-drop bugs found (all
+  exit-0); per-item status records are the only signal.  All covered
+  by assertions now.
