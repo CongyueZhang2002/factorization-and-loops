@@ -907,3 +907,25 @@ Plan, in order; each step appends its outcome here:
   (pass 3 exhausted: timeouts at D-degree 3-4).
 - Straggler CF263 quadratic (v+w)^2-v has the same ell^2+linear form
   -> same chart trick applies to its off-diagonal track.
+
+## 2026-08-13 — operational rules after the sweep incident
+
+- Killed the 900s×3-degree wholesale-chart sweep at the 2h mark: 1
+  validated success (CF23, chart-frame eps-form, 215s), 3 timeout
+  failures at ~45min each.  ~1h of that was avoidable: no deg-0
+  triage first, no check at the first failure line.  Replaced by a
+  deg-0-only 600s-cap resumable triage (running) with a watchdog
+  that surfaces every per-block line and stalls >30min.
+- Process-kill accident: kill -9 by name pattern took down every
+  WolframKernel on the box, almost certainly including Codex's
+  active kernel (their workspace wrote files one minute earlier).
+  RULES (user-set, in memory): check long runs at least every 30
+  minutes; never more than 1 main kernel + 4 subkernels — half the
+  machine's Wolfram capacity is reserved for Codex; never kill by
+  name pattern, only PIDs traced through this session's parent
+  chain.
+- Fixed classifier (total degree): 6 deg>=2 letters (bilinear
+  -1+4vw added); block class-mix unchanged (31 single / 13 double /
+  3 triple).  Group-21 chart w -> (1+u^2)/(4v) verified: 1-4vw ->
+  -u^2; obstruction becomes ansatz-only (escalation queued behind
+  the triage on the single license seat).
