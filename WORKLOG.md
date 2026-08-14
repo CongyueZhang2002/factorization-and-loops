@@ -1036,3 +1036,39 @@ Plan, in order; each step appends its outcome here:
 - Overnight: extended-cap chart-frame runs on the 7; VoC engine
   build (Opus) starts in parallel on code (kernel tests seat-
   coordinated).
+
+## 2026-08-14 (overnight) — hard classes 26/33 cracked; VoC engine
+   built, assembly certified, transport backend needs GPL layer
+
+- Extended-cap chart runs: classes 26 (324s) and 33 (631s) fell at
+  deg 0 — the campaign's 300s cap had missed 26 by 24s.  Class
+  ledger now 168/173.  Remaining: 79 (deg 0+1 timeouts at 1200s),
+  115 (bilinear — refuses even in chart frame; dim 2, queued for
+  direct second-order-ODE analysis), 97/77/118 (deg-0 requeued this
+  morning after license incidents).
+- VoC engine (Opus, scratch voc_engine/): COMPLETE as machinery —
+  SCC assembly + five-part exact conjugation certificate PASSES on
+  NLO and CF3 (block-triangularity, mapped class eps-forms entry-by-
+  entry, eps-linearity, flatness); equivalence maps cached; sqrtQ
+  chart pullback verified (residual 1e-39); computed (not assumed)
+  weight budgets incl. CF3's rmin=-1 from its 1/eps coupling; NDSolve
+  realization of the recursion reproduces all 7 NLO masters to 43.6+
+  digits at two chamber points.  NOT passed as specified: the
+  symbolic-constants quadrature backend (Integrate) fails at weight
+  >=3 (NLO sector-2 eps^1 after 619s/955s; CF3 sector-2 eps^2 hung
+  twice ignoring SIGTERM) — root cause confirmed: need a shuffle-
+  algebra GPL integration layer over linear-in-tau letters (O(ms)
+  per integral) instead of Integrate.  Also confirmed: base point
+  (1/4,1/4) lies ON lambda(1,v,w)=0 — Kallen-chart transport needs a
+  shifted base point.  Coverage: 44 families fully rational today,
+  32 assemble-only, 15 blocked on the 5 open classes.
+- Incidents: agent's stray probe kernel likely killed the hard-class
+  run via the ~2-kernel license cap (classes 26/33 already saved);
+  its log files were truncated by a license misfire (results
+  preserved in transcript); two runs ignored timeout SIGTERM and
+  needed coordinator kills.  Rules tightened: seat check before
+  EVERY kernel invocation including probes.
+- NEXT (day): GPL integration layer (the one identified blocker on
+  the critical path); rerun VoC gates; stragglers + rational-family
+  sweep; base-point shift for chart sectors; 79/115 special
+  handling; boundary program.
