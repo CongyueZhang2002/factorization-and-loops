@@ -102,6 +102,21 @@ CoefficientProgressPanel::usage =
 $CoefficientSimplificationProgress::usage =
   "$CoefficientSimplificationProgress stores the current coefficient-reconstruction progress data.";
 
+DecomposeFamilyBlocks::usage =
+  "DecomposeFamilyBlocks[deDirectory] decomposes every family differential-equation artifact in deDirectory into the strongly connected components of its dependency graph. It returns the block list, the per-family block-lower-triangularity certificate that licenses solving a family block by block, and the block-dimension histogram. \"FilePattern\" selects the artifacts, \"ZeroTest\" chooses structural or algebraic vanishing of a connection entry, and \"OutputDirectory\" writes blocks.wl and decomposition.wl atomically.";
+
+ClassifyBlocks::usage =
+  "ClassifyBlocks[blocks] quotients a block set by connection equivalence: basis permutation composed with an optional v<->w relabelling. Blocks are bucketed by permutation-invariant multisets and then matched exactly, so every class member carries an explicit permutation and swap that reproduce its connection matrices from the representative entry by entry. Classes are keyed by the content address of their exact orbit key; integer ClassID labels are a convenience only.";
+
+CanonicalizeClasses::usage =
+  "CanonicalizeClasses[classes] runs CANONICA over the class representatives and stores one certified epsilon-form per class. It walks the \"AnsatzDegrees\" ladder in the original variables, retries in a conic chart when the class has exactly one irreducible quadratic denominator, and stores a form only after ValidateCanonicalForm accepts it. \"TimeConstraint\" and \"MemoryConstraint\" cap each attempt, \"Resume\" skips classes whose form file exists, \"Classes\" restricts the run, and \"Solver\" replaces the CANONICA call for testing. Writes are atomic and progress is one greppable line per class.";
+
+ValidateCanonicalForm::usage =
+  "ValidateCanonicalForm[form] certifies an epsilon-form by exact dlog reconstruction: it extracts the alphabet, requires every residue matrix to be constant, and requires the stored matrices to be reproduced exactly as eps times the sum of residues against dlog of the letters. form may be a canonical-form record, a form file, or matrices with their variables. Any stored \"Validated\" flag is ignored, because CANONICA reports a failed sector as {False,{partial,partial}}, which has the same shape as a success.";
+
+CanonicalBlocksStatus::usage =
+  "CanonicalBlocksStatus[formDirectory] prints one greppable line per stored canonical-form file giving class, content address, dimension, ansatz degree and frame, and a closing summary. With \"Classes\" it also lists the classes that have no form yet, and with \"Validate\"->True it re-runs ValidateCanonicalForm on every stored form. It is meant to be called from a second kernel while a campaign runs.";
+
 AssembleCutContributions::usage =
   "AssembleCutContributions[{result1, ...}] combines coefficient results of one process on a shared canonical family namespace. Each contribution enters with the exact weight IdenticalParticleSymmetryFactor[setup] times (-1) per outgoing ghost-antighost pair, realizing the Slavnov-Taylor completion of -g gluon polarization sums.";
 
@@ -140,6 +155,16 @@ SyntaxInformation[ReconstructCoefficients] =
   {"ArgumentsPattern" -> {_, OptionsPattern[]}};
 SyntaxInformation[ReconstructionStatus] = {"ArgumentsPattern" -> {_}};
 SyntaxInformation[CoefficientProgressPanel] = {"ArgumentsPattern" -> {}};
+SyntaxInformation[DecomposeFamilyBlocks] =
+  {"ArgumentsPattern" -> {_, OptionsPattern[]}};
+SyntaxInformation[ClassifyBlocks] =
+  {"ArgumentsPattern" -> {_, OptionsPattern[]}};
+SyntaxInformation[CanonicalizeClasses] =
+  {"ArgumentsPattern" -> {_, OptionsPattern[]}};
+SyntaxInformation[ValidateCanonicalForm] =
+  {"ArgumentsPattern" -> {_, _., OptionsPattern[]}};
+SyntaxInformation[CanonicalBlocksStatus] =
+  {"ArgumentsPattern" -> {_, OptionsPattern[]}};
 SyntaxInformation[AssembleCutContributions] = {"ArgumentsPattern" -> {_}};
 SyntaxInformation[IdenticalParticleSymmetryFactor] =
   {"ArgumentsPattern" -> {_}};
@@ -169,7 +194,8 @@ $feynFacetPrivateFiles = FileNameJoin[{$feynFacetPrivateDirectory, #}] & /@ {
     "DimensionalShift.wl", "Collinear.wl", "Reduction.wl",
     "StreamingKira.wl",
     "MasterIntegralAmFlow.wl", "Simplification.wl", "Assembly.wl",
-    "CoefficientStore.wl", "Reconstruction.wl"
+    "CoefficientStore.wl", "Reconstruction.wl",
+    "CanonicalBlocks.wl"
 };
 $feynFacetSourceFiles = Join[
   {ExpandFileName[$InputFileName], FileNameJoin[{$feynFacetDirectory, "Distributions.wl"}]},
