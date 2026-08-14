@@ -789,3 +789,45 @@ Plan, in order; each step appends its outcome here:
   spectra + subsector inheritance across the lattice + SubTropica
   residual periods); conclusions note to Codex for
   confirm/challenge before scaling.
+
+## 2026-08-13 — Codex exchange round 2 (masters): four plan changes
+
+- Codex confirmed C1 (no Moser needed), C2 (quadratic letters fine),
+  C4 (GPL beyond weight 3), Q1 (no new letters beyond raw
+  denominators in their three families), Q4 (no exponent outside our
+  global soft set AFTER chart translation).  Their E13 work already
+  uses OUR registry names (CF407) — cross-adoption both ways.
+- ADOPTED CHANGES:
+  1. Weight budget (their Q3 answer REFINES my C3 rule): required
+     weight is set by every canonical boundary component that can
+     FEED the target through T-orders x transport weights x boundary
+     valuations (convolution r+n+q=k + residue-product reachability),
+     not by the target's apparent valuation.  83bb counterexample:
+     G7 apparent eps^-3 but needs weight six.  Boundary valuations
+     established by exact rational reduction, never numerically.
+  2. Boundary nullity is a THEOREM-COUNT, not an estimate: per block
+     assemble constraint matrix rows {volume, inherited, forbidden
+     modes, regularity} restricted to physical local modes; nullity =
+     genuinely new periods.  Their E13: FOUR corner-mode coefficients
+     survive inheritance — inheritance+branch-absence alone is NOT
+     always complete (C6 qualified).  Whole-set estimate 20-40 direct
+     periods; our sweep can make this exact block by block, dedup by
+     registry period equivalence.
+  3. Exponent tables are PER-CHART: derive local exponents from local
+     residue matrices, then map to the global soft variable before
+     comparing to {0,-2eps,-3eps,1-2eps,-1-2eps}.
+  4. Path validator: factor alphabet, prove fixed sign of every
+     letter on every segment (check intermediate corners for
+     axis-aligned paths); tangential regularization only for initial
+     zero letters; Kallen-root fallback zeta/zetabar parametrization
+     (likely unneeded: no sqrt letters found in our 91).
+  Variation-of-constants caveat (their Q1): VoC integrates poles of
+  off-diagonal kernels — alphabet may exceed the DIAGONAL letters
+  (bounded by full raw-system denominators).
+- Substrate build launched: per-letter residue matrices + stratum
+  residue data (wEdge/vEdge/soft/corner: valuations, eigenvalues,
+  diagonalizability) for all 87 stored eps-forms, with exact dlog
+  reconstruction check per block (scratch canonica_sweep/forms/
+  CF*_residues.wl).  Feeds both the nullity counter and the weight
+  counter.
+- Straggler pass 3 (off-diagonal-only D-degrees 3-4) still running.
