@@ -884,3 +884,26 @@ Plan, in order; each step appends its outcome here:
   alphabet/eps-in-T statistics over validated blocks only; (4)
   nullity counter on the 40 (Codex Q4/Q5/Q10); (5) answers to Codex
   round-3 questions with this data.
+
+## 2026-08-13 — frontier rationalized: 5/5 quadratic classes admit
+   rational eps-forms in conic charts
+
+- Representative hard sectors of all five quadratic classes
+  rationalize at ansatz degree 0 (rationalize.wls; charts verified
+  symbolically before use: each q = ell^2 + linear, chart u = ell+2t,
+  linear remainder solved rationally; e.g. class v^2+4w -> chart
+  w = t^2 + t v, letters {t, v, t+v, 2t+v}).  NO ELLIPTIC SECTOR
+  demonstrated anywhere in the 91 blocks so far.  Stored:
+  forms/class*_rationalized.wl (transformation + eps-form per rep).
+- Per-block class mix of the 47 blocked blocks: 31 single-class
+  (wholesale chart -> full-block CANONICA in chart variables is the
+  next sweep), 13 two-class, 3 three-class (CF259 with three genuine
+  quadratics; CF300/CF303 include the quadratic-free group 21).
+  Multi-class blocks: sector-local charts + variation-of-constants
+  assembly, or joint rationalization (Besier-van-Straten-Weinzierl
+  style) where it exists — open design question.
+- Still open: group 21 (3 instances, size 2, nonrational WITHOUT a
+  quadratic denominator); 4 straggler blocks on the VoC track
+  (pass 3 exhausted: timeouts at D-degree 3-4).
+- Straggler CF263 quadratic (v+w)^2-v has the same ell^2+linear form
+  -> same chart trick applies to its off-diagonal track.
