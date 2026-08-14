@@ -983,3 +983,29 @@ Plan, in order; each step appends its outcome here:
   off-diagonal stitching + the boundary nullity counter dedup'd by
   their class quotient.  Next deliverable: block-restricted 181/184
   transformations extracted from CF20/CF23 forms.
+
+## 2026-08-14 — hybrid workflow adopted; Codex class quotient corrected
+   (186 -> 173); 309/347 block-level coverage
+
+- Codex proposed a hybrid workflow (their SCC/class decomposition +
+  our whole-family forms + one VoC engine + strict completion
+  criterion) — ACCEPTED.  Opus verification agent reproduced their
+  inventory independently then aligned: blocks EXACT (1119; their
+  "1117" = required subset, exclusion justified); their class
+  partition OVER-SPLITS — true count 173, not 186; 13 missed
+  equivalences from a non-canonical canonical form (their 181 == 186
+  by pure column permutation) + structural === on equal-but-textually-
+  different matrices (120 == 138).  Refutation bound: raw equality
+  already gives only 6 dim-4 classes vs their 11.
+- Payoff: 5 of their 20 unresolved classes resolve for free
+  (181/183/186 == their solved 177; 179/184 == 176; explicit maps
+  stored).  Corrected coverage 309/347 masters, 63/91 families
+  (newly CF20/CF23/CF226).  92/173 classes covered by our 42 family
+  forms; of the 81 uncovered, 53 purely linear (ordinary work).
+  5 zero-matrix singleton blocks flagged for confirmation.
+- Round-3 note with all five answers + work-split proposal:
+  External/CodexExchange/hybrid_inventory_answers_2026-08-14.md.
+  Division: we take the 53-class linear batch campaign + VoC engine +
+  soft/collinear boundary; they take the 3 open chart geometries +
+  hard region; labels rebuilt on the corrected 173 partition after a
+  joint canonical-form fix.
