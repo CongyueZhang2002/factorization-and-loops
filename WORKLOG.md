@@ -929,3 +929,33 @@ Plan, in order; each step appends its outcome here:
   3 triple).  Group-21 chart w -> (1+u^2)/(4v) verified: 1-4vw ->
   -u^2; obstruction becomes ansatz-only (escalation queued behind
   the triage on the single license seat).
+
+## 2026-08-14 — wholesale-chart triage CLOSED: 2/31; final tier map
+
+- Final verdicts over the 31 single-class blocked blocks (deg-0 chart
+  frame, 600s caps, exact-reconstruction gate): CANONICALIZED CF20 +
+  CF23 only; 21 FAILED (fast ansatz refusals), 8 TIMEOUT.  The 9-block
+  tail was completed by an instance whose stdout had been severed by a
+  pipeline bug (head -5 SIGPIPE) — computation and atomic file writes
+  were unaffected; verdicts recovered from the results file and
+  consistent with all reconfirmed prior runs.
+- FINAL LEDGER (certificate-backed): canonicalized 42/91 blocks
+  (46%), 123/347 masters (35%).  Tier-3 (block-diagonal + VoC per
+  Design/MasterSolvingArchitecture.md): 49 blocks / 224 masters
+  (29 single-class + 16 multi-class + 4 off-diagonal stragglers).
+  Wholesale-chart experiments are closed; no degree escalation.
+- Incident log (all recorded as memory rules): WaitNext 3-element
+  destructuring bug (garbage output from minute one — caught late);
+  results-file corruption from kill-9 mid-Put (now atomic
+  write+rename with an init guard); pgrep self-match (third
+  occurrence — now exact-executable pgrep -x only); head-in-pipeline
+  SIGPIPE.  Babysitter-agent pattern (user directive): every long
+  run gets an active 5-min health-checker with kill authority
+  limited to parent-chain-verified own processes.
+- Codex coexistence: their normalize_class180 run (1 main + 4 subs,
+  matching the machine-split convention) ran unharmed through
+  tonight's cleanups after the one kernel kill earlier (reported).
+- NEXT: tier-3 solving infrastructure (per-sector diagonal eps-forms
+  + coupling conjugation + per-order VoC quadratures), boundary
+  nullity counter on the 42 canonicalized blocks, round-3 answers to
+  Codex (their Q1/Q2/Q9 now have final data).
