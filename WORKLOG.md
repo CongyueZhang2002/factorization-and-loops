@@ -1072,3 +1072,39 @@ Plan, in order; each step appends its outcome here:
   the critical path); rerun VoC gates; stragglers + rational-family
   sweep; base-point shift for chart sectors; 79/115 special
   handling; boundary program.
+
+## 2026-08-14 — stage 1 standardized and committed; GPL layer working;
+   nullity counter closing in on the global count
+
+- CanonicalBlocks.wl + tests (22/22 green, 13s) + fresh-agent
+  workflow doc committed.  The test suite caught, in our own code,
+  the same swap-relabeling over-splitting bug that gave Codex 186
+  classes; fix makes correctness independent of the bucket invariant
+  (orbit-key merge).  Open item documented: T-conjugation
+  re-verification of stored forms (covered downstream by the VoC
+  assembly certificate).
+- GPL layer: complete decision procedure, 51/51 self-tests,
+  primitives 0.3-5.8ms, the 619s-timeout integral now 8.41s with
+  exact zeros; gates rerunning with numeric endpoints after measured
+  coefficient swell at symbolic endpoints.  Pre-existing engine bug
+  found (path-frame DE check compared unrestricted T — could never
+  have passed); fixed.
+- Nullity counter: acceptance (a) PASSED — N_new(NLO)=0, saturating
+  at the COLLINEAR edges (single-stratum counting would fabricate
+  3-4 periods; cross-stratum intersection is essential).  (b)
+  correctly demands the CF231 blow-up; my E13<->CF231 conflation
+  corrected (E13 = 24-dim ruTopology53 — mapping via registry goes
+  in next exchange).  Three silent-drop bugs found via per-item
+  records; substrate now 169/169 clean.  Global count rerunning.
+- Specials: class 115 SOLVED (secretly one-variable 2F1 in z=vw;
+  exact eps-form + closed form shipped to exchange); class 79 chart
+  verified + two stored-basis defects with explicit balance fix
+  handed to Codex.  Hard-class runs: 118 canonicalized (623s);
+  77/97 deg-0 timeouts at 1200s — balance-fix route queued.
+  Ledger: 170/173 effective.
+- Ops: ours-vs-Codex kernel ownership via /proc cwd (both agents
+  independently converged); dynamic two-main rule while Codex idle;
+  nullity agent correctly REFUSED subkernel parallelization with
+  measurements (12s total kernel wall) — cost-benefit rule applied
+  back at us.  Codex wrote 6 boundary-census scripts into our
+  Scripts/ on Aug 13 (untracked, flagged for exchange).
