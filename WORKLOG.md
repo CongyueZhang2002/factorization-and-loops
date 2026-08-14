@@ -959,3 +959,27 @@ Plan, in order; each step appends its outcome here:
   + coupling conjugation + per-order VoC quadratures), boundary
   nullity counter on the 42 canonicalized blocks, round-3 answers to
   Codex (their Q1/Q2/Q9 now have final data).
+
+## 2026-08-14 — inventory reconciliation with Codex: exact overlap table
+
+- Same inventory confirmed at source level (their NNLOInventoryAudit
+  reads our nnlo_de_CF*.wl; 91/347/1561 identical).  Their SCC
+  decomposition (1117 required blocks, max coupled dim 4) is finer
+  than our sector split — adopted for class-level work.
+- Overlap: their unresolved classes 181 {CF20_B5, CF88_B5} and 184
+  {CF231_B6, CF23_B7, CF303_B7, CF305_B9, CF97_B5} sit inside our
+  verified CF20/CF23 whole-family eps-forms -> both classes RESOLVED
+  by restriction; also resolves bad sectors in five of our tier-3
+  families (CF88/97/231/303/305).  Their 20 open classes -> 18.
+- Q3: our 4 stragglers all lie in their clean set with proof-grade
+  off-diagonal-only diagnostics; +18 plausible-unproven.
+- Found one counting bug in their Tools/count_canonical_coverage.wls
+  (ALL blocks iterated vs required-only catalog -> Lookup Missing ->
+  CF429 spuriously unresolved): 59 clean families should be 60.
+  Their 305/347 block-level master coverage verified independently
+  (57 unresolved instances host exactly 42 physical masters).
+- Division of work agreed (their 4-point route + our ledger states):
+  they take the 18 open classes per-class; we take whole-family
+  off-diagonal stitching + the boundary nullity counter dedup'd by
+  their class quotient.  Next deliverable: block-restricted 181/184
+  transformations extracted from CF20/CF23 forms.
