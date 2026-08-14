@@ -1009,3 +1009,30 @@ Plan, in order; each step appends its outcome here:
   soft/collinear boundary; they take the 3 open chart geometries +
   hard region; labels rebuilt on the corrected 173 partition after a
   joint canonical-form fix.
+
+## 2026-08-14 — class ledger self-contained: 166/173 canonicalized
+   in our own artifacts; 7 hard classes identified
+
+- Label-space closure check caught the merged-ledger inference gap
+  (14 classes with no verified form on either side despite the
+  cross-space bookkeeping); response: canonicalize ALL 173 class
+  representatives directly from our artifacts.  Result: 166/173 with
+  exact-reconstruction certificates (scratch class_campaign/forms/),
+  including 9 of the 14 both-sides-missing classes, most at ansatz
+  degree 0, chart branch engaging automatically for quadratic
+  classes (~30 chart successes, up to 82s each).
+- Three script bugs found by monitors during the runs (Return-in-Do
+  discarding successes; v=Global`v self-assignment iteration-limit
+  poison; license race + SIGPIPE'd tee) — all fixed; the babysitter
+  pattern caught each within one event cycle.
+- The 7 refusals {26, 33, 77, 79, 97, 115, 118}: all single-quadratic
+  and certified NONRATIONAL in (v,w).  26/77/97 carry Kallen
+  (1-v-w)^2-4vw variants; 33/79/118 the (v+w-1)^2+4v variant; sizes
+  3-6 family instances each — these correspond to Codex's open chart
+  geometries.  115 = the bilinear CF299{1,2} class; its chart branch
+  silently failed to engage in campaign context (1s verdict) — bug
+  hunt queued; manual deg-0 chart attempt is known to ansatz-fail,
+  escalation untested.
+- Overnight: extended-cap chart-frame runs on the 7; VoC engine
+  build (Opus) starts in parallel on code (kernel tests seat-
+  coordinated).
