@@ -852,3 +852,35 @@ Plan, in order; each step appends its outcome here:
   consistent with Codex's E13 warning).
 - Rule adopted: no stored transformation counts as OK without exact
   eps-form reconstruction from constant residues.
+
+## 2026-08-13 — the true obstruction map: 39 distinct non-rational
+   sectors, one quadratic each
+
+- Pass 5/6 over the 47 unresolved blocks (per-sector diagonal scans;
+  message-capture bug fixed via HoldFirst — pass-5 NR/ansatz split was
+  invalid): ALL 94 failing sector instances are CANONICA-certified
+  NONRATIONAL (no rational eps-form transformation exists in (v,w));
+  zero ansatz-depth cases.  Dedup by exact diagonal-system identity:
+  94 instances = 39 DISTINCT systems, sizes 2-7, recurring across
+  families exactly as the registry lattice predicts (e.g. group 18
+  appears in 7 families, group 19 in 6 incl. CF407 — the family
+  Codex's E13 also fights).
+- Each distinct system carries EXACTLY ONE irreducible quadratic
+  denominator (38 of 39; group 21 has none — separate investigation).
+  Only 5 quadratics occur in total: the Kallen variants
+  (1-v-w)^2-4vw, (1+v-w)^2+4vw, (1-v+w)^2+4vw, and v^2+4w, 4v+w^2.
+  No multi-root sector exists -> every hard sector is a genus-0
+  single-conic case, rationalizable by one parametrization (Codex
+  zeta/zetabar for Kallen; standard conic maps for the others).
+  Elliptic candidates: none demonstrated; certification = rerun
+  CANONICA post-substitution per representative (5 runs pending).
+- Moser-8 correction: only CF67/71/86/90 validated; CF88/91/97/98
+  are diag-hard (their flagged second-order poles live in these
+  non-rational sectors) — C1 narrowed accordingly in the exchange.
+- Ledger (Codex three-state convention): canonicalized 40/91 blocks
+  (109/347 masters); 47 blocked by the 39 hard cores; 4 blocked in
+  off-diagonal only.  NEXT: (1) rationalization runs on 5
+  representatives; (2) group-21 direct analysis; (3) recompute
+  alphabet/eps-in-T statistics over validated blocks only; (4)
+  nullity counter on the 40 (Codex Q4/Q5/Q10); (5) answers to Codex
+  round-3 questions with this data.
