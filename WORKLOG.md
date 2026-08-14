@@ -1134,3 +1134,29 @@ Plan, in order; each step appends its outcome here:
 - Process lesson, now doctrine: FOUR silent-drop bugs found (all
   exit-0); per-item status records are the only signal.  All covered
   by assertions now.
+
+## 2026-08-14 (afternoon) — first boundary periods SOLVED; both GPT-Pro
+   rungs rejected on measurement; pre-balance rung promising
+
+- QF pilot + extension (scratch qf_pilot/, PILOT.md 914 lines):
+  PIDs 1, 6, 7 solved EXACTLY (all = 0) — the whole 1-uncut-
+  denominator tier; e.g. R = -(2-3eps)/(v(1-2eps)) 2F1(1-eps,1;
+  2-2eps;-s/v) for CF1, verified by exact DE checks + ~30-digit
+  numerics + non-circular branch pinning (the agent caught its own
+  circular first derivation).  All 20 one-dim certificates written
+  in the exchange schema; 12 carry explicit realization-transfer
+  caveats (no unverified transfer claimed).  17 resisters need a
+  5-VARIABLE PARAMETRIZATION (>=3 uncut denominators) — one build
+  serving all 17 = the highest-leverage boundary item.  Repricing:
+  CF-class<->template map EXISTS (BoundaryTemplateTopologies.wl),
+  coverage 1/20 is the gap; SubTropica failure was helper-kernel
+  spawning (no HyperFLINT; Codex passes "Kernels"->1).
+- Quasi-finite verdict: DEFER stands on measurement from both sides
+  (shift count 0 = no-op at 1 denominator; >=1 at 6, cost unmeasured).
+- Rung benchmark: Libra REJECTED (3 failure modes incl. a 1370s
+  unbounded seat burn with no output); LS-proxy REJECTED
+  (precondition only on dim-1 classes, settled off-seat in 15 min);
+  pre-balance rung (our specials finding) fires on 18/173, scan
+  0.27s/class off-seat, removed class 26's apparent singularity in
+  0.4s — head-to-head vs 324s/631s baselines + class-77 attempt in
+  flight.
