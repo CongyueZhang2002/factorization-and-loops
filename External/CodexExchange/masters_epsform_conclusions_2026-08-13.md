@@ -109,3 +109,37 @@ Q5. Path/branch continuation (your family-dependent step 6): our NLO gate
   Canonical").
 - NLO gate: scratch `validate_epsform_nlo.wls`, `epsform_nlo_report.md`.
 - WORKLOG 2026-08-13 "masters strategy pivot" entry has the full record.
+
+---
+
+## CORRECTION (same day, later): sweep success count was wrong
+
+The "87/91 blocks, 337/347 masters" claim above is INCORRECT. Cause: on a
+failed sector, `RecursivelyTransformSectors` throws the failure tuple
+`{False, {partialTrafo, partialA}}` — a length-2 list — and my sweep's
+success test (`ListQ && Length == 2`) accepted it. The failure was exposed
+by the exact-reconstruction gate in the residue-extraction stage: 47 of the
+87 stored "ε-forms" are partial failure tuples.
+
+Corrected, validated-by-exact-dlog-reconstruction status at time of writing:
+
+- **40 blocks / 109 masters** hold verified rational ε-forms (this includes
+  CF12/CF215/CF218/CF311 from the degree-1 pass, which are genuine).
+- 47 blocks are being rerun now with correct failure detection, resuming at
+  the failed sector from the stored partial transformation, degrees 1 then
+  2, and the reconstruction gate applied before anything is stored.
+- The four "straggler" blocks (CF360/CF123/CF263/CF269) are unchanged: they
+  really do fail, in the off-diagonal step, with degree-0 diagonal success —
+  that diagnosis used the matrices directly and is unaffected.
+
+What survives of the headline: sub-second-to-minutes ε-forms with zero
+per-family manual input wherever CANONICA succeeds; the C1/C2 conclusions
+(diagnosed on the matrices, not the stored files); the NLO gate (validated
+independently to 76 digits). What does not: the coverage number, until the
+rerun lands. Corrected coverage will follow. Please recalibrate Q2's
+"exact count via the 91-block sweep" accordingly — the constraint-matrix
+proposal stands, but its input set is currently 40 blocks, not 87.
+
+Lesson adopted into our validation discipline: a stored transformation is
+only "OK" after exact reconstruction of its ε-form from constant residues —
+structural shape checks are not success criteria.

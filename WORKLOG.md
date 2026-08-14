@@ -831,3 +831,24 @@ Plan, in order; each step appends its outcome here:
   CF*_residues.wl).  Feeds both the nullity counter and the weight
   counter.
 - Straggler pass 3 (off-diagonal-only D-degrees 3-4) still running.
+
+## 2026-08-13 — CORRECTION: sweep acceptance bug; validated 40/91, retry
+   pass running
+
+- The 83/91 sweep claim was WRONG: CANONICA returns {False, {partial
+  trafo, partial a}} on sector failure — a 2-list — and the sweep's
+  ListQ && Length==2 test accepted 47 failure tuples as successes.
+  Caught by the exact dlog-reconstruction gate of the residue
+  extractor (all 47 refused; 40 reconstructed exactly).
+- Validated: 40 blocks / 109 masters (incl. pass-2 deg-1 recoveries
+  CF12/215/218/311).  Invalid files quarantined (scratch
+  forms/partial/).  Pass 4 running: resume at failed sector from
+  stored partials, degrees 1 then 2, 600s/8GB caps, reconstruction
+  gate before storing.  Codex note corrected in place (appended
+  section) — coverage number retracted until pass 4 lands.
+- Unaffected: straggler diagnosis (matrix-level), NLO gate, C1/C2,
+  residue/stratum substrate for the validated 40 (21 blocks have
+  non-diagonalizable corner residues — Jordan logs at the corner,
+  consistent with Codex's E13 warning).
+- Rule adopted: no stored transformation counts as OK without exact
+  eps-form reconstruction from constant residues.
