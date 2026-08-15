@@ -1,0 +1,420 @@
+================================================================================
+GPL INTEGRATION LAYER FOR THE VoC MASTER-SOLVING ENGINE -- FINAL REPORT
+2026-08-14
+================================================================================
+
+Deliverables
+  voc_engine/GPLLayer.wl        closed shuffle-algebra quadrature layer
+  voc_engine/VoCEngine.wl       backend switch + 4 fixes (see section 6)
+  voc_engine/gpl_selftest.wls   51-test layer self-test
+  voc_engine/nlo_gate_num.wls   gate (a)
+  voc_engine/cf3_gate_gpl.wls   gate (b)
+  voc_engine/cf360_gate.wls     gate (c) proving ground (2x2 block)
+  voc_engine/stragglers_gpl.wls production tier-3 families
+  logs: gpl_selftest.log, nlo_gate_num.log, cf3_gate_gpl.log, cf360_gate.log,
+        cf123_k1.log, cf269_263_k1.log, and the diagnosis logs test_*.log,
+        diag_*.log
+
+================================================================================
+1. WHAT WAS REPLACED AND WHY
+================================================================================
+
+Every path quadrature has the form  Int_0^tau Sum_i r_i(sigma) F_i(sigma) dsigma
+with r_i rational in the path parameter and F_i lower-weight objects already in
+the layer's representation. The old backend handed this to Integrate.
+
+Measured failures of that route:
+  NLO   sector 2, eps^1   Integrate never returned   619.6 s, then 955.5 s
+  CF3   sector 2, eps^2   Integrate never returned   > 1 h, abandoned
+
+Same integrals on the GPL backend:
+  NLO   sector 2, eps^1   8.41 s (symbolic endpoint); ~41 ms (numeric endpoint)
+  CF3   sector 2, eps^2   12 ms
+
+The layer is a complete decision procedure for the integrand class. There is no
+fallback to Integrate anywhere in it.
+
+================================================================================
+2. THE LAYER
+================================================================================
+
+Representation, all in the span of
+    G[{a1..an}, tau],  G[{}, tau] = 1,  G[{a,rest},tau] = Int_0^tau dt/(t-a) G[rest,t]
+    G[{0..0}, tau] = Log[tau]^n/n!            (shuffle-regularised convention)
+Canonical form: Sum_j q_j(tau) G[w_j, tau] with q_j rational. Products of G at
+the same argument are reduced by the shuffle product, keeping the basis linear.
+
+Integration primitives (GPLIntRatG), after exact partial fractions in tau with
+the kinematics symbolic:
+    1/(tau-a) * G[w]            -> G[{a}~Join~w]        depth extension
+    1/(tau-a)^k * G[w], k>=2    -> IBP, weight drops by 1
+    tau^m * G[w]                -> IBP, weight drops by 1
+Both IBP branches recurse on strictly smaller weight and bottom out at w={},
+so the recursion terminates on every input in the class.
+
+Partial fractions are done by our own routine, not Apart: the denominator is
+factored, roots become G-indices (linear -> rational indices, quadratic -> the
+two radical roots), equal roots merged, and pole coefficients obtained from
+c_{i,m-t} = h_i^(t)(a_i)/t! where h_i OMITS the (tau-a_i)^m factor rather than
+cancelling it, so no 0/0 ever arises.
+
+Endpoints:
+  tau=1   substitute into coefficients; refuse (loudly) if a coefficient has a
+          pole at 1 or a LEADING index equals 1.
+  tau->0  GPLLimit0 expands each term with the exact asymptotic expansion
+          G[w,tau] = Sum c_{n,m} tau^n Log[tau]^m against the Laurent expansion
+          of the coefficient, then ASSERTS that every 1/tau^k and every
+          Log[tau]^m piece cancels. Divergences are never silently dropped.
+
+Numerics: GPLNValue solves the triangular ODE chain that IS the recursive
+definition, by a deterministic Taylor stepper (step h = theta*min|t-a_i|,
+truncation error theta^ord, theta=1/4) with initial values from the exact
+series at a small t0. Adaptive ODE solving is only a fallback and its domain is
+checked. An interior index at the endpoint (e.g. G[{0,1},1] = -pi^2/6, finite
+though its own sub-chain diverges) is routed through the Hoelder convolution
+at p=2.
+
+================================================================================
+3. VERIFICATION CONTRACT
+================================================================================
+
+Distinct G-words are linearly independent over the field of rational functions.
+After shuffle-normalisation an expression vanishes IFF each collected
+word-coefficient vanishes, and each coefficient is a rational function whose
+vanishing Together decides exactly. GPLZeroQ is therefore a decision procedure,
+and every check below returns EXACT SYMBOLIC ZEROS -- no Simplify-with-timeout,
+no numeric probe.
+
+Two independent exact checks:
+  (i)  per quadrature   d/dtau F_{s,k} - source_{s,k} == 0
+  (ii) assembled        d/dtau I_n - (Ahat . I)_n == 0   vs the ORIGINAL family
+                        DE, with integration constants still symbolic.
+
+The (v,w)-frame check is NOT performed and is not needed. It would require the
+Goncharov parameter differential of G[{a(v,w)..},1], which this layer does not
+implement; VoCCheckDEvw reports NeedsParamDeriv rather than a meaningless zero.
+The path frame is complete by uniqueness along rays:
+
+    Let K solve the full flat system with K(x0)=c. Along P(tau)=x0+tau(x-x0),
+    K(P(tau)) satisfies the same linear ODE in tau as the engine's I(tau) with
+    the same value at tau=0. By uniqueness for linear ODEs,
+    I(tau;v,w) = K(P(tau;v,w)), so at tau=1 the engine's answer IS the solution
+    of the full (v,w) system.
+
+The one extra ingredient, integrability of the connection, is exactly what the
+assembly certificate verifies independently (FlatnessOriginal,
+FlatnessConjugated). Path-frame exact zeros + flatness certificate => the full
+DE, with no numerics in the argument.
+
+================================================================================
+4. GATES
+================================================================================
+
+Layer self-test (gpl_selftest.log): 51 passed, 0 failed.
+  - 12 randomized integrands (higher poles, polynomial parts, symbolic indices,
+    a pole coinciding with a word index): d/dx primitive - integrand == 0 EXACT,
+    in 0.3 - 5.8 ms each.
+  - 12 regularisation tests incl. the assertions: 1/x*G[{2},x] -> -1/2 and
+    1/x^2*G[{2,3},x] -> 1/12 found finite; 1/x^3*G[{2,3},x] and a log-divergent
+    quadrature REJECTED, never silently dropped.
+  - numerics to full requested precision: G[{0},x]=Log x, G[{a},x]=Log(1-x/a),
+    Li2/Li3/Li4, G[{0,1},1]=-pi^2/6, G[{0,0,1},1]=-Zeta[3], G[{0,0,0,1},1]=
+    -pi^4/90, a weight-2 x weight-2 shuffle, and 7 definite integrals vs
+    NIntegrate.
+
+GATE (a) NLO -- PASS
+  numeric endpoints, symbolic constants, orders eps^-1..eps^2
+  point {1/2,1/5}   28 quadratures @ 41.0 ms   28/28 exact zeros
+  point {1/10,3/5}  28 quadratures @ 43.7 ms   28/28 exact zeros
+  path-frame exact DE zeros at eps^-1, eps^0, eps^1 -- True at BOTH points
+  agreement vs exact masters: >= 40 digits at both points (limited by the
+  precision carried, not by disagreement; requirement was 25)
+
+GATE (b) CF3 -- PASS
+  numeric endpoint {1/2,1/5}, kmin 0, kmax 3, constants symbolic
+  14 quadratures, solve 3.65 s;  14/14 exact zeros
+  path-frame exact DE zeros at eps^0, eps^1, eps^2 -- all True
+  914 distinct G words, max weight 6, indices {5/2, -15, -1}
+  master series leaves {351, 1800, 6835, 23359}
+
+GATE (c) CF360 -- PASS   (the 2x2-block proving ground)
+  4 masters, 3 blocks, classes {1,3,134}, certificate OK
+  valuation: KMin(physical)=0, ord(T^-1)min=-1, F solved from eps^-1,
+             constrained orders {-1}, 25 equations fixed 5 of 19 constants,
+             ValuationOK=True, assertion "I vanishes on eps^-1" OK
+  19 quadratures in 147.26 s (7750.4 ms each); 19/19 exact zeros
+  assembled DE: eps^0 = {True} on every row; eps^1 = InsufficientOrders
+  119 G words, max weight 3; master series leaves {295, 2323, 11962}
+
+CF123 -- quadrature-verified, assembled check NOT PERFORMABLE at kmax=1
+  11 masters, 9 blocks, dims {{1,7},{2,2}}, certificate OK, RMin -2
+  depth {3,1,1,2,1,1,1,1,1}
+  valuation: 311 equations fixed 13 of 36 constants, assertion OK
+  36 quadratures in 2767.46 s (76873.9 ms each), total 2820.4 s
+  36/36 exact quadrature zeros
+  assembled DE: {{0, InsufficientOrders}} -- see the arithmetic in section 5
+
+CF269, CF263 -- kmax=1 verbose runs scheduled; results in stragglers_gpl/*.wl
+
+================================================================================
+5. THE rmin / kmax ARITHMETIC  (why kmax=1 can never be checked)
+================================================================================
+
+The master series spans orders [n0, n1] with n1 = n0 + kmax, i.e. kmax+1 orders.
+The assembled check at order n consumes I_{n-r} for r down to rmin(A), i.e. it
+needs I up to  n + |rmin(A)|.  Hence
+
+    order n is checkable  <=>  n <= n0 + kmax - |rmin(A)|
+    number of checkable orders = kmax - |rmin(A)| + 1
+    ANY check at all requires  kmax >= |rmin(A)|
+
+Confirmed against every gate:
+    NLO     |rmin|=0, kmax=2  -> 3 checkable (eps^-1, eps^0, eps^1)   observed 3
+    CF3     |rmin|=1, kmax=3  -> 3 checkable (eps^0..eps^2)           observed 3
+    CF360   |rmin|=2, kmax=2  -> 1 checkable (eps^0)                  observed 1
+    CF123   |rmin|=2, kmax=1  -> 0 checkable                          observed 0
+
+So CF360 passing at exactly kmax=2 was the minimum, not luck; and CF123 at
+kmax=1 is not a failure of the solution but of the checkable window. Making
+CF123 fully certified needs kmax>=2, i.e. depth 4 instead of 3: at the growth
+measured below that is ~3-8 h, which is exactly why the earlier 3600 s guard
+expired. The guard was not too small -- the order was too deep.
+
+================================================================================
+6. FOUR ENGINE BUGS FOUND (all silent, all fixed)
+================================================================================
+
+B1  VoCFVector: Module initialisers are NOT sequentially scoped.
+        Module[{n = asm["N"], out = ConstantArray[0, n], ...}, ...]
+    The n inside the second initialiser is the still-unassigned local symbol, so
+    in 14.2 ConstantArray[0, n] returns a structured SymbolicZerosArray[{n}] of
+    length 1 -- with no error. The first sector's Part assignment mutated that
+    1-element object; every later sector failed with Set::partw. Result: I = T.F
+    silently kept ONLY sector 1 and degenerated to a scalar Plus at higher
+    orders. INVISIBLE for single-sector systems. This invalidated every
+    assembled path-frame check; it had never been reached before because the
+    Integrate backend died in the quadratures first.
+
+B2  VoCMasterSeries left T as a function of (v,w) while VoCCheckDEPath compares
+    d/dtau I against the PATH-RESTRICTED A. Those are inconsistent, so that
+    check could never have passed as written. T is now restricted to the same
+    segment (identity at tau=1, so (v,w)-frame use is unaffected).
+    ANY earlier claim resting on VoCCheckDEPath must be re-run.
+
+B3  VoCFormInVW: 7 of the 170 stored class forms (100, 134, 138, 147, 155, 161,
+    172) were written with NO "Chart" key while the rest carry "Chart" -> None.
+    form["Chart"] then returns Missing[...], which is not === None, so the chart
+    branch was entered with a Missing chart and every family using one of those
+    classes died with "NoForm". This is what killed CF360.
+
+B4  VoCCheckDEPath silently dropped master-series orders outside the computed
+    window and reported a spurious False. It now reports InsufficientOrders
+    with the order it would need. (Note only orders ABOVE the top are missing;
+    orders below the valuation are zero by construction -- once the valuation
+    constraints of section 7 are imposed.)
+
+================================================================================
+7. THE VALUATION CONSTRAINTS  (the deepest finding)
+================================================================================
+
+Symptom: CF360's assembled DE check failed on exactly the 2x2-block rows, with
+the residual depending only on the LOWER sector's integration constants, while
+every other link was verified exact.
+
+Root cause: F = T^-1 . I. On a block where T is singular at eps=0 (det T ~ eps,
+so ord(T^-1) < 0), F has valuation BELOW that of I and must be solved from
+kminF = n0 + ord(T^-1). Solving from there admits extra low-order homogeneous
+solutions that are pure gauge: the GENERAL family has I_n =/= 0 for n < n0,
+which the PHYSICAL answer forbids. "I starts at its true Laurent valuation" is a
+physics statement that constrains the free constants, exactly like a boundary
+condition -- and the engine never imposed it.
+
+Fix (VoCEngine.wl section 7'):
+  - kminF = n0 + min(0, ord(T^-1)) per assembly; F is solved from there.
+  - I_n == 0 for n0 > n >= kminF+tr0, imposed identically in tau. Via GPLCollect
+    per G-word and tau-coefficients of the numerator this is a LINEAR system on
+    the integration constants; solving it cuts the family to the physical
+    subfamily.
+  - An ASSERTION re-derives those orders after the substitution and requires
+    them to vanish. It runs in EVERY production solve, never only in tests, and
+    reports loudly. An unconstrained family can no longer reach a gate silently.
+
+CRITICAL COUPLING (documented in the module header): KMin means ONE thing --
+the true Laurent valuation n0 of the physical masters. It is simultaneously the
+reference for these constraints AND the starting order the boundary-fixing stage
+uses. These are one physics statement and must never be split by a refactor; if
+they diverge, the constrained subfamily and the boundary data describe different
+functions and every downstream check silently compares apples to pears.
+
+Evidence it is general, not a CF360 quirk:
+    CF360  ord(T^-1) = -1 on the 2x2 block;  25 equations fixed  5 of 19 consts
+    CF123  independently has ord(T^-1) = -1; 311 equations fixed 13 of 36 consts
+Two families, different block structures, same mechanism.
+
+Corroboration: the constrained solution is much simpler than the unconstrained
+one -- CF360 went from 1282 G-words at max weight 6 to 119 at max weight 3, and
+master-series leaves from {1028, 7917, 34062} to {295, 2323, 11962}. The
+spurious low-order freedom is gone.
+
+COST: the fix adds one order per affected sector and widens the A' Laurent range
+(r1 = Max[need] - kminF). This is now a measured production parameter, not a
+free correctness win.
+
+================================================================================
+8. COST CURVE
+================================================================================
+
+8.1 Per-order growth, 2x2 block (CF360, numeric endpoint, valuation applied)
+
+    order      time        leaves      time x    leaves x
+    eps^-1     0.12 s       3 199        --         --
+    eps^0      1.62 s      11 723      13.5       3.7
+    eps^1      9.20 s      37 647       5.7       3.2
+    eps^2    126.48 s     121 513      13.7       3.2
+
+    Leaf count grows ~3.2-3.7x per order; time ~6-14x per order. The 2x2 blocks
+    dominate; 1x1 blocks are milliseconds throughout.
+
+8.2 Symbolic vs numeric endpoint (NLO, same system)
+
+    symbolic (v,w):  sector 2  eps^-1 0.01 s /     92 leaves
+                               eps^0  0.75 s /  1 670
+                               eps^1  8.41 s / 11 680
+                               eps^2 88.08 s / 50 053
+    numeric point:   28 quadratures at 41 ms each
+
+    ~2000x at the top order. Symbolic endpoints make the G-indices rational
+    FUNCTIONS of the kinematics and the partial-fraction coefficients swell
+    accordingly. Numeric rational endpoints are the production default; the
+    symbolic mode remains available with a documented swell warning.
+
+8.3 Per-family totals (numeric endpoints)
+
+    family  masters  blocks  kmax  quadratures  ms/quad    solve
+    CF3         3      3       3       14          ~260     3.65 s
+    NLO         7      7       2       28            41     1.8 s
+    CF360       4      3       2       19         7 750   147.3 s
+    CF123      11      9       1       36        76 874  2 820.4 s
+
+8.4 Cost is a property of the CLASS, not the family
+
+    CF123 and CF269 produce IDENTICAL leaf counts per sector
+    (sector 2: 254 / 954 / 2582; sector 3 (2x2): 933 / 5861) because both draw
+    the same canonical classes for those blocks: the conjugated solutions F are
+    literally the same expressions up to their integration constants. Runtime is
+    therefore predictable from the class content of a family.
+
+================================================================================
+9. OPTIMIZATION TARGETS IMPLIED BY THE COST DATA
+================================================================================
+
+O1  Class-level quadrature caching (highest value). Section 8.4 shows F is the
+    same expression for the same class at the same endpoint, across families.
+    Cache F keyed by (ClassID, endpoint, order) and the straggler tier collapses
+    to solving each distinct class once. CF123/CF269/CF263 share classes.
+
+O2  Swell control. The GPL primitives are NOT the bottleneck (0.3-5.8 ms each,
+    section 4); the cost is Together/Expand on swollen rational coefficients.
+    Targets: keep coefficients factored rather than Together-ing whole
+    expressions; normalise per G-word lazily; avoid re-Together-ing inside the
+    verification.
+
+O3  Verification cost. The exact d/dtau check scales with the same swell as the
+    solve. Options: verify at a random rational tau point first as a cheap
+    filter and only then exactly; or verify incrementally per pole term.
+
+O4  Depth budget is computed for SOLVING only. The assembled check needs
+    kmax >= |rmin(A)| (section 5). Production depth should be set from both
+    requirements at once, or families get solved to a depth that cannot be
+    certified.
+
+O5  VoCPathLetterCheck runs before the eps-expansion and so sees eps-dependent
+    denominator factors that CountRoots cannot decide -- e.g. CF123's
+    25 + 40 eps + 4 tau + 5 eps tau was flagged VanishesOnPath, though the true
+    letter after expansion is 25 + 4 tau with root tau = -6.25, far off the
+    segment. Check post-expansion, or skip eps-dependent factors, so that a real
+    vanishing letter is not lost among false alarms.
+
+================================================================================
+10. TRAP LIST
+================================================================================
+
+T1  Module initialisers are not sequentially scoped. ConstantArray[0, n] with an
+    unassigned local n silently yields SymbolicZerosArray[{n}] (length 1) and
+    Part assignment into it fails with Set::partw.
+    SIGNATURE: assembled results missing all but the first sector; a scalar Plus
+    where a vector was expected; invisible for single-block systems.
+
+T2  Stored class forms may omit "Chart"; Missing[] is not === None.
+    SIGNATURE: "NoForm" for classes 100/134/138/147/155/161/172.
+
+T3  F starts BELOW KMin wherever T is singular at eps=0.
+    DIAGNOSTIC SIGNATURE: ord(T^-1) < 0 for a block; and the below-KMin residual
+    Sum_p A'_p F_{m-p} =/= 0 for m < KMin. Requires the valuation constraints of
+    section 7. Every future family with det T ~ eps hits this.
+
+T4  Silent order-window truncation in any check produces a spurious False.
+    Always report InsufficientOrders with the order needed.
+
+T5  NDSolve can stop before the requested endpoint; with a blanket Quiet the
+    result is then a silently EXTRAPOLATED value that looks plausible (we saw
+    ~5 correct digits where 30 were requested). Always check that
+    InterpolatingFunction["Domain"] reaches the endpoint AND that Precision of
+    the returned value supports the claim.
+
+T6  Global`D from data files carrying the spacetime dimension shadows System`D.
+    Parse order saves us (GPLLayer.wl binds D before the data loads) -- keep it
+    that way.
+
+T7  pkill -f PATTERN matches your own shell when PATTERN appears in its command
+    line: the launcher kills itself mid-script. Use cwd-verified PID kills.
+
+T9  An unsupported check must count as NOT-PERFORMABLE, never as a pass.
+    DEPass is computed over SUPPORTED orders only (MissingShifts === {}), and
+    a run with zero supported orders reports False = "not performable" rather
+    than vacuously True over an empty set. CF123 at kmax=1 is exactly this
+    case: 36/36 quadratures exact, yet zero assembled orders checkable. A
+    vacuous-truth reading would have shipped it as certified.
+
+T10 Process-ownership checks are BLOCKING, never informational -- including
+    against your own strays. A stray of mine (an orphaned diagnostic whose
+    `timeout` wrapper failed to reap it) ran alongside three later runs because
+    I printed the busy PID and proceeded. Results were unaffected (separate
+    deterministic kernels) but the machine was over-subscribed. Classify by
+    /proc/<pid>/cwd every time.
+
+================================================================================
+11. STATUS AT CLOSE
+================================================================================
+
+PASS   gate (a) NLO      assembled DE exact + >=40 digits at two chamber points
+PASS   gate (b) CF3      assembled DE exact at eps^0..eps^2, constants symbolic
+PASS   gate (c) CF360    assembled DE exact at eps^0; valuation asserted
+PART   CF123             solve + 36/36 quadrature zeros + valuation asserted;
+                         assembled check not performable at kmax=1 (section 5)
+RUN    CF269, CF263      kmax=1 verbose; results land in stragglers_gpl/*.wl
+QUEUE  CF123 kmax=2       8 h guard, verbose -- converts CF123 from
+                          quadrature-verified to FULLY certified (kmax=2 is the
+                          minimum that makes any order checkable at |rmin|=2,
+                          section 5). Queued by queue_cf123_k2.sh, which waits
+                          for our own runs, then leaves the seat deliberately
+                          free for a 30-MINUTE COURTESY WINDOW so the hard-class
+                          toolkit agent's two short CANONICA runs (class 97, 77)
+                          can take it, then waits for the seat to clear before
+                          claiming it. The kmax=1 record is preserved as
+                          stragglers_gpl/CF123_kmax1_result.wl before the rerun
+                          overwrites CF123.wl.
+
+OVERNIGHT SEQUENCE
+  1. CF269, CF263 at kmax=1 (running)      -> quadrature-verified + cost data
+  2. 30-minute courtesy window             -> toolkit agent, class 97 / 77
+  3. CF123 at kmax=2, 8 h guard            -> fully certified through morning
+  Logs: cf269_263_k1.log, queue_cf123_k2.log, cf123_k2.log.
+
+The engine's assembled-DE certificate stands on three independent families
+covering all three structural cases: 1x1 blocks with non-singular T (NLO, CF3)
+and a 2x2 block with det T ~ eps requiring valuation constraints (CF360).
+
+Not implemented, and not needed for the above: the Goncharov parameter
+differential (section 3 explains why the path frame plus flatness is complete).
+================================================================================
