@@ -1404,3 +1404,164 @@ Plan, in order; each step appends its outcome here:
 - New traps recorded (asy's ~200 Global` symbols + bare x + Abort[];
   PExpand {} ambiguity; HypExp silent half-load; SubTropica exports
   `line`).
+
+## 2026-08-15 (rework) — Codex round-6 assessment: stage-1/2 items
+   W1-W5 addressed; exactness taxonomy separated from evidence
+
+Working from CodexAssessmentOfFableRound6_2026-08-15.md as the
+requirements document.  Their central charge was classification, not
+computation: "exact identities, analytic candidates, and numerical
+branch checks are presently reported too similarly".
+
+- **W1 reproducibility (their §4, §7.1).** The 170 class canonical forms
+  + class115 moved to `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/
+  ClassForms/`, and blocks/classes/block_class_assign to `.../
+  BlockClasses/` (1.7 MB total, largest file 703 KB — no placement
+  problem).  `t_master_transport.wls` resolves every input from the repo
+  root; the absolute `/tmp` scratch path is gone and a missing input is
+  now a HARD failure, not a NOT-PERFORMABLE skip, because with the data
+  in the repository absence means a broken checkout.  `.gitignore`
+  opened just those two directories out of the otherwise-excluded
+  Results tree (a negation cannot re-include under an excluded parent,
+  so both enclosing levels are opened with a `*` re-exclusion) —
+  verified to expose exactly 173 files and nothing else.
+  `t_canonical_blocks.wls` needed no change: its `$TemporaryDirectory`
+  use is PID-scoped write-scratch for artifacts it generates itself.
+  Remaining `/tmp` literals in the tree are all in
+  `Archive/voc_engine_2026-08-14/` — retired engine, not a committed
+  test.
+
+- **W2 exactness taxonomy (their §2, §7.2).**  `Exact` /
+  `AnalyticCandidate` / `Rejected`, combined as a MINIMUM and never a
+  vote.  Only symbolic proof of dPhi - A Phi = 0 in BOTH variables plus
+  Phi^-1 Phi = 1 reaches `Exact`; the series+numeric route reaches
+  `AnalyticCandidate` and no status on that route contains the string
+  "Exact" anywhere.  Route names were renamed `Exact` -> `Symbolic` so
+  that a MECHANISM can never be misread as a VERDICT.  The old family
+  status `OKExactInEps`, which both routes used to earn, is gone.
+
+- **W3 exact Gauss certificate (their §2 end, §5.3).**  Class 115's
+  hypergeometric Phi is now proved EXACTLY, by the inert-head technique
+  this repo already uses for the NLO masters.  Two identities do it:
+  every parameter-raised 2F1 that differentiation produces collapses
+  onto derivatives of one tower base via
+  d^n/dz^n 2F1(a,b;c;z) = ((a)_n(b)_n/(c)_n) 2F1(a+n,b+n;c+n;z) used
+  right-to-left, and the Gauss equation reduces every f^(m), m>=2, to
+  {f, f'}.  The residual is then linear in the free atoms {f, f'} and
+  its coefficients are literally zero.  Class 115 earns `Exact` in
+  0.3 s, where the old series+numeric route took far longer and could
+  only ever have earned `AnalyticCandidate`.  The certificate is stored
+  with the class record (`ClosedFormSector`/`ExactCertificate`, incl.
+  the fundamental matrix itself, `"Numerics" -> "none"`), and the test
+  checks the stored Phi against an independent reconstruction rather
+  than trusting it.
+  That the taxonomy is not vacuous is asserted directly: the SAME Phi
+  with the certificate route suppressed earns `AnalyticCandidate`.
+
+- **W4 gate GREEN, after a silent-failure trap in D.**  The coupled
+  route was correct all along; what failed was the certificate's own
+  check.  `D` differentiates the INTEGRAND slot of the quadrature head
+  as well, and `D[Function[s, g[s]], t]` returns `Function[s, 0]` —
+  the zero function, in a form that survives Expand, Together and
+  Simplify alike.  So
+
+      D[TransportQuadrature[f,t,0], t]
+        = f[t] + Function[s,0] * Derivative[1,0,0][TransportQuadrature][...]
+
+  and the derivative was never syntactically equal to its integrand,
+  which made every identity built on it fail while the mathematics was
+  fine.  Fixed by declaring `Derivative[1,0,0][TransportQuadrature] =
+  0` — the slot holds a pure function, not a quantity, so
+  differentiating with respect to it is not a meaningful operation —
+  and by ASSERTING the invariant that makes that sound (no integrand
+  may still mention the path parameter), so the rule can never silently
+  drop a real chain-rule term.
+
+  Measured on the synthetic gate, 2.5 s: `OKFormalQuadrature`;
+  certificate proved by `ByFactorisation` with all four components
+  True (derivative rule, regrouping identity, homogeneous residual,
+  right inverse); lower rows per-order DE check
+  `{{True},{True},{True}}`; sector still `Exact`; integrand reproduces
+  Phi^-1 B I_l against B, I_l, Phi^-1 built independently in the test;
+  both unsupported structures refused by name.
+
+  Lesson worth keeping: the certificate that failed was the one
+  checking OUR OWN formalism, not the physics.  Splitting it into a
+  derivative-rule half and an algebra half is what localised it in one
+  run after a generic boolean had hidden it for several.
+
+- **W5 CF360: DEFERRED by coordinator decision.**  Stays a documented
+  expected-partial.  `Scripts/diag_cf360_path.wls` measures the
+  obstruction (polynomial part in tau per candidate path, and which
+  block carries it) for the next attempt; the module header at the
+  PexpExpansion abort site points at it and records that an irregular
+  singularity at infinity is intrinsic — reparametrizing tau cannot
+  remove it, Fuchsifying might.
+
+- **W4 Phi-weighted quadrature (their §1, §7.6).**  Coupled closed-form
+  blocks are no longer refused as "conjugated connection not rational".
+  d I_h = A_h I_h + B I_l is solved by I_h = Phi J,
+  J = J0 + Int Phi^-1 B I_l, with the integral carried as a
+  package-owned inert head `TransportQuadrature` whose integrand is a
+  pure FUNCTION (an expression in tau would make D apply the chain rule
+  through the integrand).  The differentiate-back certificate is proved
+  with I_l left as ARBITRARY unknown functions of tau — the residual
+  regroups as (dPhi - A_h Phi).J + (Phi Phi^-1 - 1) B I_l and uses no
+  property of I_l — so the representation is correct for every
+  inhomogeneity.  The regrouping itself is verified, not asserted.
+  Status is `OKFormalQuadrature`, deliberately OUTSIDE the exactness
+  taxonomy: the integral is not evaluated and the result says so in a
+  `Claim` field.  Refusals are structural and by name
+  (`CoupledClosedFormNotSupported`) for a graded block reading from a
+  closed-form block, or nested closed-form blocks.
+
+- **Certificate honesty fix found on the way.**  With a coupled
+  closed-form sector the five-part assembly certificate's
+  `FlatnessConjugated` came out False — but it is NOT false, it is
+  NOT PERFORMABLE: the residual carries 2F1s that Together/Simplify
+  cannot reduce, and `masterTransportZeroQ`'s "Inconclusive" was being
+  collapsed to False by AllTrue.  Reporting a check that could not be
+  performed as one that was performed and FAILED is the same false-
+  verdict family as the reverse.  Flatness is gauge-covariant
+  (F(A') = T^-1 F(A) T), so it is a theorem given the ORIGINAL flatness,
+  which IS verified computationally.  The route is now recorded:
+  `Verified` or `ByGaugeEquivalence`, and a rational A' that fails still
+  fails.
+
+- **New Wolfram trap (H1), measured.**  The pattern
+  `Hypergeometric2F1[_,_,_,_]` EVALUATES to `(1-_)^(-_)`: its four
+  `Blank[]` arguments are structurally identical, so the built-in rule
+  2F1(a,b;b;z) = (1-z)^-a fires on the pattern itself.  `Cases` against
+  it silently returns {} on a Phi full of 2F1s — a false negative that
+  costs an `Exact` status and looks like "route not applicable".  Match
+  on the head (`_Hypergeometric2F1`) or use named blanks.  Recorded in
+  the MasterTransport trap list.
+
+- **Suite cost made opt-in.**  The series-and-numeric comparison
+  (E10-E12) is the most expensive item in the transport suite -- it
+  drives Series and Simplify at hypergeometric residuals they cannot
+  close, which is exactly why that route was superseded.  It is now
+  behind `FT_LEGACY_ROUTE=1`, default OFF.  A cheap always-on
+  replacement (E10a) pins the combination rule directly, so the
+  taxonomy's non-vacuity is still guaranteed on every run.  Measured
+  effect: CF3 transports in 37 s and the suite reaches the coupled gate
+  in about 90 s.
+
+- **Reproducibility VERIFIED, not asserted.**  Clean-checkout
+  simulation with `class_campaign/` and `scc_verify/` renamed away:
+  `t_canonical_blocks` 22 assertions / 0 failed, `t_master_transport`
+  68 / 3 -- and all three failures are the W4 certificate above, none
+  path-related.  Every migrated record was read from the repository.
+  Scratch restored by the script's exit trap.
+
+- **Two further bugs found by running the gate rather than reasoning
+  about it.**  (i) `None[[{1}]]`: the assembly's basis guard tested
+  `MissingQ` only, so an explicit `"Basis" -> None` -- which the coupled
+  route's own sub-system passed -- slipped through into
+  `None[[permutation]]`.  The M3 trap from the other side; both
+  spellings of "absent" are now tested, and the sub-system omits the key
+  instead.  (ii) An unbounded `Together` normalising the quadrature
+  kernel: cosmetic, no budget, on 2F1-dressed entries against a
+  word-carrying lower solution -- it presented as a hang.  Budgeted with
+  fallback to the un-normalised form.  Also stopped proving the same
+  Gauss certificate twice per coupled solve.

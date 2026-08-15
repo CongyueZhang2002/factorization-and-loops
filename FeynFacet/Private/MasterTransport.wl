@@ -128,6 +128,22 @@
          tested with MissingQ.
      M4  Put is not atomic; a kill during a write leaves a truncated
          artifact that Get later accepts as a partial expression.
+     D1  D differentiates EVERY slot, including one holding a pure
+         function, and D[Function[s, g[s]], t] returns Function[s, 0]
+         rather than 0.  A head with an integrand slot therefore picks
+         up a term  Function[s,0] * Derivative[1,0,0][head][...]  that
+         is mathematically zero and survives Expand, Together and
+         Simplify.  Its derivative is then never syntactically equal to
+         its integrand, and identities built on it fail silently while
+         the mathematics is correct.  Declare the slot's derivative to
+         be 0 and ASSERT the invariant that justifies it.
+     H1  The pattern Hypergeometric2F1[_,_,_,_] EVALUATES to (1-_)^(-_),
+         because its four Blank[] arguments are structurally identical
+         and the built-in rule 2F1(a,b;b;z) = (1-z)^-a therefore fires
+         on the pattern itself.  Cases/MatchQ against it silently find
+         NOTHING in an expression full of 2F1s.  Match on the head
+         (_Hypergeometric2F1) or use named blanks, which are distinct
+         expressions and do not trigger the rule.
 
    Frames.  The exact per-order check is made in the PATH frame,
    d/dtau I_n = sum_r Ahat^(r) . I_{n-r}, with the basis transformation
@@ -170,6 +186,9 @@ ClearAll[
   masterTransportOrderBlocks,
   masterTransportScalarEpsForm,
   masterTransportBlockProvider,
+  masterTransportCombineExactness,
+  masterTransportGaussPQ,
+  masterTransportHypergeometricCertificate,
   masterTransportClosedFormSector,
   masterTransportAssemble,
   masterTransportCertificateOK,
@@ -191,6 +210,11 @@ ClearAll[
   masterTransportTOrderMin,
   masterTransportCheckDE,
   masterTransportExactSectors,
+  masterTransportClosedFormCoupling,
+  masterTransportQuadratureDerivativeRule,
+  masterTransportQuadratureIdentity,
+  masterTransportPhiQuadrature,
+  masterTransportCoupledSolve,
   masterTransportCardSetting,
   masterTransportResolveCard
 ];
@@ -324,6 +348,46 @@ TransportWord[{}, _] := 1;
 
 Derivative[iw_List, 1][TransportWord][word_List, z_] :=
   If[word === {}, 0, TransportWord[Rest[word], z]/(z - First[word])];
+
+(* TransportQuadrature[f, t, t0] is the unevaluated Int_t0^t f[s] ds.
+
+   Like TransportWord it is a package-owned inert head carrying its own
+   derivative rule, so a stored solution never depends on any package
+   being loaded, and so that nothing can silently "simplify" a formal
+   integral into a wrong closed form.
+
+   The integrand is a pure FUNCTION, not an expression in t.  That is
+   the whole reason the derivative tag below is unambiguous: with an
+   expression the chain rule would also differentiate through the first
+   argument and produce Derivative[1,0,0] terms that mean nothing here.
+   The tag is {0,1,0} -- the derivative with respect to the UPPER LIMIT
+   -- and it is the fundamental theorem of calculus, nothing more. *)
+Derivative[0, 1, 0][TransportQuadrature][f_, t_, t0_] := f[t];
+
+(* MEASURED, and the reason the coupled certificate did not close.
+
+   D also differentiates the INTEGRAND slot, and D[Function[s, g[s]], t]
+   returns Function[s, 0] -- the zero function, but written in a form no
+   simplifier reduces to the number 0.  So
+
+     D[TransportQuadrature[f, t, 0], t]
+       =  f[t]  +  Function[s, 0] * Derivative[1,0,0][TransportQuadrature][...]
+
+   and the second term, though mathematically zero, survives Expand,
+   Together and Simplify alike.  The derivative was therefore never
+   syntactically equal to its integrand, and every downstream identity
+   built on it failed while the mathematics was correct.
+
+   The slot holds a pure FUNCTION, not a quantity, so differentiating
+   with respect to it is not a meaningful operation and the honest value
+   is zero.  The invariant that makes this sound -- the integrand never
+   depends on the path parameter, because it is always built by
+   substituting that parameter out -- is asserted where the quadrature
+   is constructed, not assumed here. *)
+Derivative[1, 0, 0][TransportQuadrature][f_, t_, t0_] := 0;
+
+(* the lower limit is a base point, so the quadrature vanishes there *)
+TransportQuadrature[f_, t_, t_] := 0;
 
 masterTransportWordFreeQ[e_] := FreeQ[e, TransportWord];
 
@@ -505,6 +569,231 @@ masterTransportScalarEpsForm[av_, aw_, eps_, variables_] := Module[
     "Ew" -> {{ew}}, "Source" -> "scalar-dlog"|>
 ];
 
+(* ------------------------------------------------------------------ *)
+(*  Exactness taxonomy                                                  *)
+(* ------------------------------------------------------------------ *)
+
+(* The three states, in decreasing strength:
+
+     "Exact"              proved symbolically;
+     "AnalyticCandidate"  finite series and finitely many numerical
+                          points agree, no proof;
+     "Rejected"           a residual is nonzero or a check could not be
+                          completed.
+
+   Combining is a MINIMUM, never a vote: one Rejected rejects the whole,
+   and one AnalyticCandidate stops the whole from being Exact.  An empty
+   list is "Exact" -- there is nothing left unproved -- which is what
+   makes a family with no closed-form sector fall through unchanged.
+
+   An unrecognised state is treated as "Rejected" rather than ignored,
+   so a typo downstream can never silently promote a sector. *)
+masterTransportCombineExactness[states_List] := Which[
+  ! AllTrue[states, MemberQ[{"Exact", "AnalyticCandidate", "Rejected"}, #] &],
+    "Rejected",
+  MemberQ[states, "Rejected"], "Rejected",
+  MemberQ[states, "AnalyticCandidate"], "AnalyticCandidate",
+  True, "Exact"];
+
+(* ------------------------------------------------------------------ *)
+(*  Exact Gauss certificate for a hypergeometric fundamental matrix     *)
+(* ------------------------------------------------------------------ *)
+
+(* Reduction coefficients of the Gauss differential equation.
+
+     z(1-z) f'' + [c - (a+b+1) z] f' - a b f = 0
+
+   is solved for f'' and differentiated repeatedly, giving
+
+     f^(m)(z) = P_m(z) f(z) + Q_m(z) f'(z)
+
+   with P_m, Q_m rational.  The recursion is the derivative of that
+   statement, using the m = 2 case to eliminate the f'' it produces:
+
+     P_{m+1} = P_m' + Q_m P_2,
+     Q_{m+1} = P_m + Q_m' + Q_m Q_2.
+
+   Returned as two lists indexed from order 0, so order m sits at part
+   m+1.  Nothing here is truncated: these are exact rational functions
+   and the identity they encode holds for every z. *)
+masterTransportGaussPQ[a0_, b0_, c0_, zsym_Symbol, mmax_Integer] :=
+  Module[{pl, ql, p2, q2, m},
+    p2 = Together[a0 b0/(zsym (1 - zsym))];
+    q2 = Together[-(c0 - (a0 + b0 + 1) zsym)/(zsym (1 - zsym))];
+    (* M1: built in the body, not in a Module initializer that refers to
+       another local of the same Module. *)
+    pl = {1, 0, p2};
+    ql = {0, 1, q2};
+    Do[
+      AppendTo[pl, Together[D[pl[[m + 1]], zsym] + ql[[m + 1]] p2]];
+      AppendTo[ql, Together[pl[[m + 1]] + D[ql[[m + 1]], zsym] + ql[[m + 1]] q2]],
+      {m, 2, mmax - 1}];
+    {pl, ql}
+  ];
+
+(* The exact certificate itself.
+
+   Mathematica's built-in derivative of Hypergeometric2F1 RAISES all
+   three parameters, so differentiating a 2F1 with eps-dependent
+   parameters walks up an infinite tower that Simplify cannot close.
+   That is the whole reason the class-115 sector previously fell back to
+   series-plus-numerics.  It is not an obstruction in the mathematics,
+   only in the default rewriting, and the standard fix is the inert-head
+   technique this repository already uses for the NLO masters
+   (Tests/t_nlo_masters.wls): substitute an inert head BEFORE any D, then
+   supply the exact identity by hand.
+
+   Two exact identities do the whole job.
+
+   1. Every parameter-raised instance is a derivative of the tower base:
+
+        d^n/dz^n 2F1(a,b;c;z) = ((a)_n (b)_n / (c)_n) 2F1(a+n,b+n;c+n;z),
+
+      so 2F1(a+n,b+n;c+n;z) = ((c)_n / ((a)_n (b)_n)) f^(n)(z) with f the
+      inert head of the base.  This is what collapses the tower: instead
+      of infinitely many unrelated functions there is one function and
+      its derivatives.
+
+   2. The Gauss equation reduces every f^(m), m >= 2, to {f, f'} with
+      exact rational coefficients (masterTransportGaussPQ).
+
+   After both, the residual dPhi - A Phi is a rational-coefficient
+   LINEAR combination of the independent atoms {f, f'} of each tower.
+   The identity is proved by extracting those coefficients and showing
+   each is literally zero -- Together on the whole residual is not
+   trusted to see it, because the atoms are not polynomial variables to
+   it.  No series is truncated and no number is substituted anywhere in
+   this function, which is what lets its verdict be "Exact".
+
+   `pairs` is a list of {connection, variable}: {{Av,v},{Aw,w}} in the
+   kinematic frame, {{Ahat,tau}} on a path.  Every pair must come out
+   zero for the certificate to be proved.
+
+   Returns <|"Proved" -> True|False, ...|>; "Proved" -> False with a
+   "Reason" means this route does not apply, NOT that Phi is wrong. *)
+masterTransportHypergeometricCertificate[phi_, pairs_List, eps_,
+    record_, timeLimit_] := Module[
+  {instances, groups, rules, atoms, heads, towers, phiInert,
+   zsym, freshVars, atomRules, zeroByCoefficients, reduce, outcome,
+   applicable},
+  (* H1: the pattern Hypergeometric2F1[_,_,_,_] EVALUATES, and therefore
+     matches nothing.  Its four Blank[] arguments are structurally
+     identical expressions, so the built-in rule 2F1(a,b;b;z) = (1-z)^-a
+     fires on the pattern itself and turns it into (1 - _)^(-_).  Cases
+     then silently returns {} on a Phi that is full of 2F1s, and the
+     certificate would report "not applicable" instead of proving the
+     identity -- a false negative that costs an Exact status.  Matching
+     on the HEAD cannot evaluate. *)
+  instances = DeleteDuplicates[Cases[phi, _Hypergeometric2F1, {0, Infinity}]];
+  If[instances === {},
+    Return[<|"Proved" -> False, "Reason" -> "NoHypergeometric2F1InPhi"|>]];
+
+  zsym = Unique["masterTransportGaussZ"];
+  rules = {}; atoms = {}; heads = {}; towers = {}; applicable = True;
+
+  (* A tower is fixed by its argument and by the two parameter
+     DIFFERENCES b-a and c-a, both of which are invariant under the
+     common integer shift that raising produces. *)
+  groups = GatherBy[instances,
+    Function[h, {h[[4]], Simplify[h[[2]] - h[[1]]], Simplify[h[[3]] - h[[1]]]}]];
+
+  Do[
+    Module[{group, shifts, base, a0, b0, c0, zz, order, mmax, head, pq, pl, ql,
+       n, m},
+      group = groups[[k]];
+      zz = group[[1, 4]];
+      (* Part on a Hypergeometric2F1 expression returns an expression with
+         the SAME head, so group[[i]][[1;;3]] would be a 3-argument
+         Hypergeometric2F1 (and would emit an argument-count message),
+         not a list.  Parts are taken one at a time. *)
+      shifts = Table[group[[i]][[1]], {i, Length[group]}];
+      order = Ordering[shifts];
+      base = group[[First[order]]];
+      {a0, b0, c0} = {base[[1]], base[[2]], base[[3]]};
+      shifts = Table[Simplify[group[[i]][[1]] - a0], {i, Length[group]}];
+      If[! AllTrue[shifts, IntegerQ[#] && # >= 0 &],
+        applicable = False,
+        (* the b and c shifts must be the SAME integer, or the instances
+           are not one tower and the Pochhammer identity does not apply *)
+        If[! AllTrue[Range[Length[group]],
+             TrueQ[Simplify[group[[#]][[2]] - b0] === shifts[[#]]] &&
+             TrueQ[Simplify[group[[#]][[3]] - c0] === shifts[[#]]] &],
+          applicable = False,
+          head = Unique["masterTransportHyp"];
+          AppendTo[heads, head];
+          Do[
+            n = shifts[[i]];
+            AppendTo[rules,
+              group[[i]] -> Derivative[n][head][zz] *
+                Pochhammer[c0, n]/(Pochhammer[a0, n] Pochhammer[b0, n])],
+            {i, Length[group]}];
+          (* Phi carries derivatives up to Max[shifts]; one more comes
+             from d/dv and d/dw.  Two spare orders cost nothing. *)
+          mmax = Max[shifts] + 4;
+          pq = masterTransportGaussPQ[a0, b0, c0, zsym, mmax];
+          pl = pq[[1]]; ql = pq[[2]];
+          (* RuleDelayed is HoldRest and Do scopes its iterator, so a rule
+             written directly in terms of m would carry an m with no value
+             by the time the rule is USED, and would silently reduce
+             nothing.  Everything is frozen with With at construction. *)
+          Do[
+            With[{mm = m, pp = pl[[m + 1]], qq = ql[[m + 1]], hh = head,
+                  zs = zsym},
+              AppendTo[rules,
+                HoldPattern[Derivative[mm][hh][arg_]] :>
+                  (pp /. zs -> arg) hh[arg] +
+                  (qq /. zs -> arg) Derivative[1][hh][arg]]],
+            {m, 2, mmax}];
+          AppendTo[atoms, head[zz]];
+          AppendTo[atoms, Derivative[1][head][zz]];
+          AppendTo[towers, <|"Base" -> {a0, b0, c0}, "Argument" -> zz,
+            "Shifts" -> shifts, "MaxReducedOrder" -> mmax|>]]]],
+    {k, Length[groups]}];
+
+  If[! applicable,
+    Return[<|"Proved" -> False, "Reason" -> "NotAContiguousTower"|>]];
+
+  phiInert = phi /. rules;
+  If[! FreeQ[phiInert, Hypergeometric2F1],
+    Return[<|"Proved" -> False, "Reason" -> "UnmatchedHypergeometricInstance"|>]];
+
+  reduce[e_] := FixedPoint[Function[x, Together[x /. rules]], e, 8];
+
+  freshVars = Table[Unique["masterTransportGaussAtom"], {Length[atoms]}];
+  atomRules = Thread[atoms -> freshVars];
+  zeroByCoefficients[res_] := Module[{sub, cl},
+    sub = res /. atomRules;
+    (* an inert head that survived the atom substitution means a
+       derivative order the reduction did not reach: not a proof *)
+    If[! FreeQ[sub, Alternatives @@ heads], Return[False, Module]];
+    cl = Flatten[Map[CoefficientList[#, freshVars] &, Flatten[{sub}]]];
+    AllTrue[cl, TrueQ[Together[#] === 0] &]];
+
+  outcome = TimeConstrained[
+    Table[
+      zeroByCoefficients[
+        reduce[D[phiInert, pairs[[i, 2]]] - pairs[[i, 1]] . phiInert]],
+      {i, Length[pairs]}],
+    timeLimit, $Failed];
+
+  If[outcome === $Failed,
+    Return[<|"Proved" -> False, "Reason" -> "TimedOut", "Towers" -> towers|>]];
+
+  <|"Proved" -> AllTrue[outcome, TrueQ],
+    "Method" -> "GaussODE+PochhammerTower",
+    "Identities" -> {
+      "d^n/dz^n 2F1(a,b;c;z) = ((a)_n (b)_n/(c)_n) 2F1(a+n,b+n;c+n;z)",
+      "z(1-z) f'' + [c-(a+b+1) z] f' - a b f = 0"},
+    "Statement" -> "dPhi/dx - A_x.Phi = 0 for every listed variable x, \
+proved symbolically as an identity in the free atoms {f, f'} of each \
+hypergeometric tower; no series truncation and no numerical substitution.",
+    "Towers" -> towers,
+    "Variables" -> pairs[[All, 2]],
+    "PerVariableZero" -> outcome,
+    "ClassID" -> Lookup[record, "ClassID",
+      Lookup[Lookup[record, "Certificate", <||>], "ClassID", None]]|>
+];
+
 (* The standardized consumption interface for the Phi route.
 
    Phi is a fundamental matrix of the block's ORIGINAL connection, in
@@ -521,12 +810,37 @@ masterTransportScalarEpsForm[av_, aw_, eps_, variables_] := Module[
    the same code path as an epsilon-form and needs no special case
    anywhere above this function.
 
-   The exact symbolic check is attempted first.  For hypergeometric Phi
-   it often does not close, and in that case the fallback is a Frobenius
-   series check to a declared order together with a high-precision
-   numeric check at several points.  The route actually taken is
-   recorded in "CheckRoute", and a route that could not be performed
-   makes the block fail -- it never counts as a pass. *)
+   EXACTNESS TAXONOMY.  Two different things are recorded, and they are
+   deliberately not the same field:
+
+     "CheckRoute"  -- the MECHANISM that was run, "Symbolic" or
+                      "SeriesAndNumeric".  Neither name contains the
+                      word Exact, so a route can never be misread as a
+                      verdict.
+     "Exactness"   -- the VERDICT, and the only thing downstream code
+                      and the tests are allowed to assert:
+
+       "Exact"             all three displayed identities -- the two
+                           derivative residuals and the inverse -- are
+                           proved SYMBOLICALLY, with no series
+                           truncation and no numerical substitution;
+       "AnalyticCandidate" the symbolic route did not close, and a
+                           Frobenius truncation plus finitely many
+                           high-precision numerical points agree.  This
+                           is evidence, not a proof: a finite Taylor
+                           expansion and finitely many values cannot
+                           establish a functional identity;
+       "Rejected"          a residual is nonzero, or a required check
+                           could not be completed.
+
+   The inverse identity is required SYMBOLICALLY in every accepted case,
+   including "AnalyticCandidate" -- Phi^-1 is constructed here by
+   Together[Inverse[phi]] and its verification is rational algebra, so a
+   failure there is a genuine defect rather than a limitation of
+   Simplify on contiguous relations.
+
+   A route that could not be performed makes the block "Rejected"; it
+   never counts as a pass. *)
 Options[masterTransportClosedFormSector] = {
   "SeriesOrder" -> 12,
   "NumericPoints" -> 4,
@@ -542,23 +856,29 @@ masterTransportClosedFormSector[record_Association, av_, aw_, eps_,
     variables_, opts : OptionsPattern[]] := Module[
   {phi, phiInverse, dim, v, w, residualV, residualW, identity, route,
    exactV, exactW, exactI, seriesOK, numericOK, chartVariable, checks,
-   timeLimit, seriesOrder, numericPoints, precision, frame},
+   timeLimit, seriesOrder, numericPoints, precision, frame, exactness,
+   certificate, certificateResult},
   {v, w} = variables[[{1, 2}]];
   timeLimit = OptionValue["TimeConstraint"];
   seriesOrder = OptionValue["SeriesOrder"];
   numericPoints = OptionValue["NumericPoints"];
   precision = OptionValue["Precision"];
   phi = Lookup[record, "Phi", $Failed];
-  If[! MatrixQ[phi], Return[<|"Status" -> "NoPhi"|>]];
+  If[! MatrixQ[phi],
+    Return[<|"Status" -> "Rejected", "Exactness" -> "Rejected",
+      "Reason" -> "NoPhi"|>]];
   dim = Length[phi];
-  If[dim =!= Length[av], Return[<|"Status" -> "PhiDimensionMismatch"|>]];
+  If[dim =!= Length[av],
+    Return[<|"Status" -> "Rejected", "Exactness" -> "Rejected",
+      "Reason" -> "PhiDimensionMismatch"|>]];
   frame = Lookup[record, "Frame", Lookup[record, "Chart", None]];
   chartVariable = If[AssociationQ[frame], Lookup[frame, "ChartVariable", None], None];
   phiInverse = Lookup[record, "PhiInverse", Automatic];
   If[phiInverse === Automatic || MissingQ[phiInverse],
     phiInverse = TimeConstrained[Together[Inverse[phi]], timeLimit, $Failed]];
   If[phiInverse === $Failed || ! MatrixQ[phiInverse],
-    Return[<|"Status" -> "PhiNotInvertible"|>]];
+    Return[<|"Status" -> "Rejected", "Exactness" -> "Rejected",
+      "Reason" -> "PhiNotInvertible"|>]];
 
   identity = TimeConstrained[
     Together[phiInverse . phi - IdentityMatrix[dim]], timeLimit, $Failed];
@@ -572,7 +892,28 @@ masterTransportClosedFormSector[record_Association, av_, aw_, eps_,
   exactW = residualW =!= $Failed &&
     TrueQ[TimeConstrained[masterTransportZeroMatQ[residualW], timeLimit, False]];
 
-  route = "Exact";
+  (* Second symbolic attempt, before any truncation is contemplated.
+     Together alone does not close the contiguous relations of a 2F1
+     with eps-dependent parameters, but the certificate route does it by
+     construction: inert heads, the Gauss equation and exact contiguous
+     identities.  It is still a SYMBOLIC proof, so it earns "Exact". *)
+  certificate = None; certificateResult = None;
+  (* "GaussCertificate" -> False suppresses this route.  It exists so a
+     test can exercise the series-and-numeric branch on a Phi that the
+     certificate WOULD prove, and check that the same matrix then earns
+     "AnalyticCandidate" instead of "Exact" -- i.e. that the taxonomy
+     separates the routes rather than always reporting the best one.
+     Default Automatic: attempt the proof. *)
+  If[! (exactV && exactW) &&
+      Lookup[record, "GaussCertificate", Automatic] =!= False,
+    certificateResult = masterTransportHypergeometricCertificate[
+      phi, {{av, v}, {aw, w}}, eps, record, timeLimit];
+    If[AssociationQ[certificateResult] &&
+        TrueQ[certificateResult["Proved"]],
+      exactV = True; exactW = True;
+      certificate = certificateResult]];
+
+  route = "Symbolic";
   seriesOK = Null; numericOK = Null;
   If[! (exactV && exactW),
     (* Frobenius series fallback: expand the residual around the chart
@@ -598,31 +939,45 @@ masterTransportClosedFormSector[record_Association, av_, aw_, eps_,
         AllTrue[values, NumericQ[#] && Abs[#] < 10^(-precision + 10) &]],
       timeLimit, $Failed]];
 
+  (* THE verdict.  Note the asymmetry that Codex's taxonomy demands: a
+     symbolic proof of both derivative identities AND the inverse is the
+     only way to reach "Exact".  The series/numeric route can never
+     reach it, however many orders or digits it is given. *)
+  exactness = Which[
+    ! TrueQ[exactI], "Rejected",
+    TrueQ[exactV] && TrueQ[exactW], "Exact",
+    TrueQ[seriesOK] && TrueQ[numericOK], "AnalyticCandidate",
+    True, "Rejected"];
+
   checks = <|
+    "SymbolicDerivativeV" -> exactV,
+    "SymbolicDerivativeW" -> exactW,
+    "SymbolicInverse" -> exactI,
+    (* retained under the old names so a stored result stays readable;
+       they carry the same booleans, not a verdict *)
     "ExactDerivativeV" -> exactV,
     "ExactDerivativeW" -> exactW,
     "ExactInverse" -> exactI,
     "SeriesResidualZero" -> seriesOK,
     "NumericResidualZero" -> numericOK,
     "CheckRoute" -> route,
-    "SeriesOrder" -> If[route === "Exact", None, seriesOrder],
+    "Exactness" -> exactness,
+    "Certificate" -> certificate,
+    "SeriesOrder" -> If[route === "SeriesAndNumeric", seriesOrder, None],
     "StoredCertificate" -> Lookup[record, "Certificate", None]
   |>;
 
-  If[! TrueQ[exactI], Return[<|"Status" -> "PhiInverseNotVerified", "Checks" -> checks|>]];
-  If[route === "Exact",
-    Return[<|"Status" -> "OK", "Type" -> "ClosedFormSector",
-      "T" -> phi, "TInverse" -> phiInverse,
-      "Ev" -> ConstantArray[0, {dim, dim}],
-      "Ew" -> ConstantArray[0, {dim, dim}],
-      "Source" -> "closed-form", "Frame" -> frame, "Checks" -> checks|>]];
-  If[TrueQ[seriesOK] && TrueQ[numericOK],
-    Return[<|"Status" -> "OK", "Type" -> "ClosedFormSector",
-      "T" -> phi, "TInverse" -> phiInverse,
-      "Ev" -> ConstantArray[0, {dim, dim}],
-      "Ew" -> ConstantArray[0, {dim, dim}],
-      "Source" -> "closed-form", "Frame" -> frame, "Checks" -> checks|>]];
-  <|"Status" -> "PhiNotVerified", "Checks" -> checks|>
+  If[exactness === "Rejected",
+    Return[<|"Status" -> "Rejected", "Exactness" -> "Rejected",
+      "Reason" -> If[! TrueQ[exactI], "PhiInverseNotVerified", "PhiNotVerified"],
+      "Checks" -> checks|>]];
+
+  <|"Status" -> "OK", "Type" -> "ClosedFormSector",
+    "Exactness" -> exactness,
+    "T" -> phi, "TInverse" -> phiInverse,
+    "Ev" -> ConstantArray[0, {dim, dim}],
+    "Ew" -> ConstantArray[0, {dim, dim}],
+    "Source" -> "closed-form", "Frame" -> frame, "Checks" -> checks|>
 ];
 
 (* Resolve one block's provider into {T, Ev, Ew} plus provenance. *)
@@ -786,8 +1141,37 @@ masterTransportAssemble[system_Association, eps_Symbol, variables_List,
       apv[[ranges[[i]], ranges[[j]]]] = conjugated[{i, j}][[1]];
       apw[[ranges[[i]], ranges[[j]]]] = conjugated[{i, j}][[2]]],
     {i, nb}, {j, nb}];
+  (* Flatness of the CONJUGATED connection.
+
+     Curvature is gauge-covariant: with A' = T^-1 A T - T^-1 dT and T
+     invertible, F(A') = T^-1 F(A) T.  So flatness of A' is a THEOREM
+     given flatness of A, and this check exists to catch a bookkeeping
+     error in building A', not to discover new mathematics.
+
+     For a rational A' the direct computation settles it and is kept as
+     the primary route.  When a COUPLED closed-form sector dresses the
+     off-diagonal couplings with Phi and Phi^-1, the residual carries
+     hypergeometric functions that Together and Simplify cannot reduce,
+     and masterTransportZeroQ then answers "Inconclusive" -- which
+     AllTrue turns into a bare False.  Recording that as a FAILED
+     certificate would be the same false-verdict family this file exists
+     to avoid, in the opposite direction: reporting a check that could
+     not be performed as one that was performed and failed.
+
+     So the route is recorded.  "ByGaugeEquivalence" is accepted only
+     when the ORIGINAL flatness was verified computationally -- the
+     theorem's hypothesis -- and only when the residual genuinely
+     carries closed-form dressing.  A rational A' that fails still
+     fails. *)
   certificate["FlatnessConjugated"] = masterTransportZeroMatQ[
     D[apv, w] - D[apw, v] + apv . apw - apw . apv];
+  certificate["FlatnessConjugatedRoute"] = Which[
+    TrueQ[certificate["FlatnessConjugated"]], "Verified",
+    TrueQ[certificate["FlatnessOriginal"]] &&
+      ! FreeQ[{apv, apw},
+        Hypergeometric2F1 | HypergeometricPFQ | MeijerG],
+      "ByGaugeEquivalence",
+    True, "Failed"];
 
   masterTransportLog[verbose, "  certificate: triangular ", certificate["BlockLowerTriangular"],
     ", flat(A) ", certificate["FlatnessOriginal"],
@@ -799,7 +1183,15 @@ masterTransportAssemble[system_Association, eps_Symbol, variables_List,
     "Blocks" -> blocks, "Ranges" -> ranges, "Forms" -> forms,
     "TInverse" -> tInverse, "Apv" -> apv, "Apw" -> apw,
     "Av" -> pav, "Aw" -> paw,
-    "Basis" -> If[MissingQ[system["Basis"]], None, system["Basis"][[permutation]]],
+    (* M3: Missing["KeyAbsent",...] =!= None, and the converse bites too.
+       A caller that passes "Basis" -> None explicitly (the coupled
+       closed-form route builds its lower sub-system that way) is NOT
+       caught by MissingQ, and the permutation was then applied to the
+       symbol None -- Part::partd, a stream of messages, and a Basis of
+       None[[...]] carried downstream.  Both spellings of "absent" are
+       tested. *)
+    "Basis" -> If[MissingQ[system["Basis"]] || system["Basis"] === None,
+      None, system["Basis"][[permutation]]],
     "Certificate" -> certificate|>
 ];
 
@@ -811,8 +1203,14 @@ masterTransportCertificateOK[assembly_] :=
     assembly["Certificate"]["BlockLowerTriangular"],
     assembly["Certificate"]["FlatnessOriginal"],
     assembly["Certificate"]["DiagonalEqualsDeclaredForm"],
-    assembly["Certificate"]["EpsFormLinear"],
-    assembly["Certificate"]["FlatnessConjugated"]});
+    assembly["Certificate"]["EpsFormLinear"]}) &&
+  (* the fifth part passes on the direct computation, or on the gauge
+     -equivalence theorem whose hypothesis is the SECOND part above --
+     never on an unexplained "Inconclusive" *)
+  MemberQ[{"Verified", "ByGaugeEquivalence"},
+    Lookup[assembly["Certificate"], "FlatnessConjugatedRoute",
+      If[TrueQ[assembly["Certificate"]["FlatnessConjugated"]],
+        "Verified", "Failed"]]];
 
 (* A stored class form provides T in its own frame.  Pull it back to the
    kinematic variables when it carries a chart, and re-derive Ev/Ew from
@@ -1031,7 +1429,18 @@ masterTransportBackendLibra[m_, tau_, wmax_Integer, root_String] := Module[
      analysis reports a pole at Infinity.  An escaping Abort would kill
      the whole run, so it is caught and turned into a status.  The usual
      cause is a path restriction that left an extra power of the path
-     parameter in the numerators. *)
+     parameter in the numerators.
+
+     CF360 is the standing instance and is a DOCUMENTED EXPECTED-PARTIAL,
+     not an open bug: it returns TransportFailed with this backend
+     status, and the suite asserts that controlled failure rather than
+     accepting an unverified transport.  Repairing it needs a path or a
+     gauge on which the conjugated connection is Fuchsian at infinity,
+     which is a next-session item.  Scripts/diag_cf360_path.wls measures
+     the obstruction -- polynomial part in tau per candidate path, and
+     which block carries it -- so that attempt starts from data rather
+     than from a guess.  Note an irregular singularity at infinity is
+     intrinsic: reparametrizing tau cannot remove it, Fuchsifying might. *)
   raw = CheckAbort[
     Quiet[Block[{Print = (Null &)}, Libra`PexpExpansion[{m, wmax}, tau, 0]]],
     $Aborted];
@@ -1420,10 +1829,16 @@ masterTransportCheckDE[assembly_, series_, orders_, base_, target_, tau_,
 
    What is checked here is the path-frame residual of the fundamental
    matrix itself, dPhi/dtau - Ahat . Phi, which is independent of the
-   constant vector.  The exact symbolic route is tried first; where the
-   contiguous relations do not close under Simplify the fallback is a
-   Frobenius series to a declared order plus a high-precision numeric
-   residual at several points, and the route taken is recorded. *)
+   constant vector.  Three routes are tried in order and the one taken
+   is recorded: plain symbolic (Together), then the exact Gauss
+   certificate, and only then a Frobenius truncation plus a
+   high-precision numeric residual.
+
+   The per-sector "Exactness" obeys the same taxonomy as the block
+   verdict, and it is the MINIMUM of the two statements: a sector whose
+   path-frame identity is only an analytic candidate cannot be Exact
+   even if its block certificate was, and vice versa.  Nothing here can
+   upgrade a series-and-numeric result. *)
 masterTransportExactSectors[assembly_, closedBlocks_, base_, target_, tau_,
     variables_, eps_, seriesOrder_Integer, precision_Integer, timeLimit_] :=
   Module[{v, w, dv, dw, substitution, ahatOriginal, records},
@@ -1435,16 +1850,30 @@ masterTransportExactSectors[assembly_, closedBlocks_, base_, target_, tau_,
       (assembly["Av"] /. substitution) dv + (assembly["Aw"] /. substitution) dw, {2}];
     records = Table[
       Module[{range, phi, residual, exactOK, seriesOK, numericOK, route, constants,
-         blockCertified},
+         blockCertified, blockExactness, certificateResult, certificate,
+         pathExactness, exactness},
         range = assembly["Ranges"][[s]];
         (* the substantive statement is the BLOCK certificate, already
            re-established by masterTransportClosedFormSector *)
         blockCertified = TrueQ[assembly["Forms"][[s]]["Status"] === "OK"];
+        blockExactness = Lookup[assembly["Forms"][[s]], "Exactness", "Rejected"];
         phi = assembly["Forms"][[s]]["T"] /. substitution;
         residual = D[phi, tau] - ahatOriginal[[range, range]] . phi;
         exactOK = TrueQ[TimeConstrained[
           masterTransportZeroMatQ[Together[residual]], timeLimit, False]];
-        route = "Exact"; seriesOK = Null; numericOK = Null;
+        certificate = None; certificateResult = None;
+        If[! exactOK && blockExactness =!= "AnalyticCandidate",
+          (* the same exact machinery as the block verdict, on the path
+             connection: a single {Ahat, tau} pair.  Skipped when the
+             block itself only reached AnalyticCandidate, since the
+             combined verdict cannot exceed that and the proof attempt
+             would be spent for nothing. *)
+          certificateResult = masterTransportHypergeometricCertificate[
+            phi, {{ahatOriginal[[range, range]], tau}}, eps,
+            Lookup[assembly["Forms"][[s]], "Checks", <||>], timeLimit];
+          If[AssociationQ[certificateResult] && TrueQ[certificateResult["Proved"]],
+            exactOK = True; certificate = certificateResult]];
+        route = "Symbolic"; seriesOK = Null; numericOK = Null;
         If[! exactOK,
           route = "SeriesAndNumeric";
           seriesOK = TimeConstrained[
@@ -1461,25 +1890,463 @@ masterTransportExactSectors[assembly_, closedBlocks_, base_, target_, tau_,
               AllTrue[values, NumericQ[#] && Abs[#] < 10^(-precision + 10) &]],
             timeLimit, $Failed]];
         constants = Table[TransportConstant[s, "Exact", i], {i, Length[range]}];
+        (* The path-frame identity FOLLOWS from the block certificate by
+           the chain rule, so this stage confirms the path restriction
+           rather than re-proving the sector.  It is accepted on the
+           block certificate plus a passing numeric residual; a series
+           route that did not return is recorded as not-performable and
+           does not by itself condemn the sector -- but a numeric
+           residual that FAILS does, and so does a failed block
+           certificate. *)
+        pathExactness = Which[
+          TrueQ[exactOK], "Exact",
+          blockCertified && TrueQ[numericOK], "AnalyticCandidate",
+          True, "Rejected"];
+        (* the weaker of the two statements wins; nothing upgrades *)
+        exactness = masterTransportCombineExactness[
+          {blockExactness, pathExactness}];
         <|"Block" -> s, "Rows" -> assembly["Blocks"][[s]], "Range" -> range,
           "Constants" -> constants, "I" -> phi . constants,
           "CheckRoute" -> route, "ExactResidualZero" -> exactOK,
           "SeriesResidualZero" -> seriesOK, "NumericResidualZero" -> numericOK,
-          "SeriesOrder" -> If[route === "Exact", None, seriesOrder],
-          (* The path-frame identity FOLLOWS from the block certificate by
-             the chain rule, so this stage confirms the path restriction
-             rather than re-proving the sector.  It is accepted on the
-             block certificate plus a passing numeric residual; a series
-             route that did not return is recorded as not-performable and
-             does not by itself condemn the sector -- but a numeric
-             residual that FAILS does, and so does a failed block
-             certificate. *)
-          "OK" -> (exactOK || (blockCertified && TrueQ[numericOK])),
+          "SeriesOrder" -> If[route === "SeriesAndNumeric", seriesOrder, None],
+          "Exactness" -> exactness,
+          "BlockExactness" -> blockExactness,
+          "PathExactness" -> pathExactness,
+          "Certificate" -> certificate,
+          "OK" -> (exactness =!= "Rejected"),
           "BlockCertified" -> blockCertified,
           "BlockCertificate" -> Lookup[assembly["Forms"][[s]], "Checks", None]|>],
       {s, closedBlocks}];
     <|"Status" -> If[AllTrue[records, TrueQ[#["OK"]] &], "OK", "NotVerified"],
+      "Exactness" -> masterTransportCombineExactness[
+        Table[r["Exactness"], {r, records}]],
       "Sectors" -> records|>
+  ];
+
+(* ------------------------------------------------------------------ *)
+(*  Phi-weighted quadrature for COUPLED closed-form blocks              *)
+(* ------------------------------------------------------------------ *)
+
+(* The structure this route handles, and the structure it refuses.
+
+   With a hard block whose homogeneous solution is known in closed form
+   and already-solved lower blocks,
+
+     d I_h = A_h I_h + B I_l,     d I_l = A_l I_l,
+
+   the substitution I_h = Phi J turns the hard equation into a pure
+   quadrature,
+
+     d J = Phi^-1 B I_l,   J(tau) = J(0) + Int_0^tau Phi^-1 B I_l ds.
+
+   Supported: a closed-form block may READ any number of graded blocks
+   below it.  Refused, explicitly and by name rather than by a wrong
+   answer:
+
+     - a graded block that reads FROM a closed-form block, which would
+       require the word backend to integrate 2F1-dressed sources;
+     - a closed-form block that reads from another closed-form block,
+       which would require nested quadrature.
+
+   Both refusals are structural facts about the block DAG, decided here
+   before any integration is attempted. *)
+masterTransportClosedFormCoupling[assembly_, closedBlocks_, gradedBlocks_] :=
+  Module[{ranges, av, aw, nb, nonzeroQ, sources, feedsGraded, closedToClosed},
+    ranges = assembly["Ranges"];
+    av = assembly["Av"]; aw = assembly["Aw"];
+    nb = Length[ranges];
+    nonzeroQ[i_, j_] := ! (
+      TrueQ[masterTransportZeroMatQ[av[[ranges[[i]], ranges[[j]]]]]] &&
+      TrueQ[masterTransportZeroMatQ[aw[[ranges[[i]], ranges[[j]]]]]]);
+    sources = Association @ Table[
+      s -> Select[Range[nb], # =!= s && nonzeroQ[s, #] &],
+      {s, closedBlocks}];
+    feedsGraded = Flatten[
+      Table[If[nonzeroQ[i, s], {{i, s}}, {}], {i, gradedBlocks}, {s, closedBlocks}],
+      2];
+    closedToClosed = Flatten[
+      Table[If[MemberQ[closedBlocks, j], {{s, j}}, {}],
+        {s, closedBlocks}, {j, sources[s]}],
+      2];
+    <|"Sources" -> sources,
+      "Coupled" -> AnyTrue[closedBlocks, sources[#] =!= {} &],
+      "FeedsGraded" -> feedsGraded,
+      "ClosedToClosed" -> closedToClosed,
+      "Supported" -> (feedsGraded === {} && closedToClosed === {})|>
+  ];
+
+(* The regrouping identity, proved ONCE on generic matrices.
+
+   With J = J0 + Int Phi^-1 B I_l, so that dJ/dt = Phi^-1 B I_l,
+
+     d/dt[Phi J] - A Phi J - B I_l
+       = (dPhi/dt - A Phi) J + (Phi Phi^-1 - 1) B I_l
+
+   is an identity of matrix algebra: it holds for ANY Phi, PhiInverse,
+   A, B, I_l of the right shapes, because it is nothing but expanding
+   the product rule and regrouping.  It says nothing about
+   hypergeometric functions.
+
+   Proving it per family, on the actual 2F1-dressed entries, therefore
+   spends a large Together to re-derive a fact that does not depend on
+   those entries -- and on the synthetic gate that Together did not
+   close in budget, which reported the certificate as unproved when the
+   mathematics was fine.  It is verified here on matrices of INDEPENDENT
+   SYMBOLS instead, where the check is small and exact, and the
+   family-specific content is left to the two factors:
+
+     dPhi/dt - A Phi = 0   (the sector's Gauss certificate)
+     Phi Phi^-1 - 1  = 0   (rational algebra in Phi's entries)
+
+   Both of those ARE checked per family.  Nothing is assumed. *)
+
+(* The statement is split into two independently diagnosable halves,
+   because they fail for completely different reasons and a single
+   boolean would not say which:
+
+     (a) the DERIVATIVE RULE -- that d/dt of the inert quadrature head
+         really returns its integrand.  This is about the head, not
+         about the algebra, and it is where an integrand accidentally
+         left as an expression in t (rather than a pure function) shows
+         up;
+     (b) the ALGEBRA -- the regrouping itself, with the integrand's
+         derivative substituted explicitly, so it tests rearrangement
+         and nothing else. *)
+masterTransportQuadratureDerivativeRule[t_Symbol, timeLimit_] :=
+  TimeConstrained[
+    Module[{g, sv, f, q},
+      g = Unique["mtqG"];
+      sv = Unique["mtqS"];
+      f = Function @@ {sv, g[sv]};
+      q = TransportQuadrature[f, t, 0];
+      TrueQ[D[q, t] === g[t]]],
+    timeLimit, False];
+
+masterTransportQuadratureIdentity[dim_Integer, nLower_Integer, t_Symbol,
+    timeLimit_] :=
+  TimeConstrained[
+    Module[{phi, phiInv, am, bm, lv, cv, jv, kern, lhs, rhs},
+      phi = Table[Unique["mtqPhi"][t], {dim}, {dim}];
+      phiInv = Table[Unique["mtqPhiInv"][t], {dim}, {dim}];
+      am = Table[Unique["mtqA"][t], {dim}, {dim}];
+      bm = Table[Unique["mtqB"][t], {dim}, {nLower}];
+      lv = Table[Unique["mtqL"][t], {nLower}];
+      jv = Table[Unique["mtqJ"][t], {dim}];
+      kern = phiInv . bm . lv;
+      (* dJ/dt = Phi^-1 B I_l is SUBSTITUTED rather than obtained by
+         differentiating the inert head -- that half is (a) above.  What
+         is left here is pure rearrangement. *)
+      lhs = D[phi, t] . jv + phi . kern - am . phi . jv - bm . lv;
+      rhs = (D[phi, t] - am . phi) . jv +
+        (phi . phiInv - IdentityMatrix[dim]) . bm . lv;
+      TrueQ[Expand[lhs - rhs] === ConstantArray[0, dim]]],
+    timeLimit, False];
+
+(* Build the formal integral and its exact differentiate-back
+   certificate for ONE closed-form block.
+
+   The integrand mixes Phi^-1 (hypergeometric) with the lower solution
+   (Goncharov words), which is a genuinely new integral class -- it is
+   NOT claimed to be evaluated.  What is produced is a formal integral
+   with a derivative rule, and what is proved is that differentiating
+   the representation returns the differential equation:
+
+     d/dtau [ Phi (J0 + Int Phi^-1 B I_l) ] - A_h Phi (J0 + Int ...)
+       - B I_l
+     = (dPhi/dtau - A_h Phi)(J0 + Int ...) + (Phi Phi^-1 - 1) B I_l
+     = 0.
+
+   Both brackets vanish identically -- the first by the sector's own
+   certificate, the second by rational algebra in the entries of Phi --
+   and NEITHER uses any property of I_l.  So the identity is proved with
+   I_l left as arbitrary unknown functions of tau, which is a stronger
+   statement than proving it for the particular lower solution at hand:
+   the representation is correct for every inhomogeneity, so a later
+   change of lower solution cannot invalidate it.
+
+   What this does NOT establish: that the integral has a closed form,
+   what function class it lies in, or any value for it. *)
+masterTransportPhiQuadrature[assembly_, s_, lowerRows_, iLower_, base_, target_,
+    tau_, variables_, eps_, timeLimit_, priorCertificate_ : None] :=
+  Module[{v, w, dv, dw, substitution, ahatOriginal, range, phi, phiInverse, ah,
+     bMatrix, kernel, quadrature, constants, jVector, iHard, dim, integrationVar,
+     proved, rightInverse, certificate, identityOK, derivativeRuleOK,
+     homogeneous, homogeneousZero, certificateUsed},
+    {v, w} = variables[[{1, 2}]];
+    dv = target[[1]] - base[[1]];
+    dw = target[[2]] - base[[2]];
+    substitution = {v -> base[[1]] + tau dv, w -> base[[2]] + tau dw};
+    ahatOriginal = Map[Together,
+      (assembly["Av"] /. substitution) dv + (assembly["Aw"] /. substitution) dw, {2}];
+    range = assembly["Ranges"][[s]];
+    dim = Length[range];
+    phi = assembly["Forms"][[s]]["T"] /. substitution;
+    phiInverse = assembly["Forms"][[s]]["TInverse"] /. substitution;
+    ah = ahatOriginal[[range, range]];
+    bMatrix = ahatOriginal[[range, lowerRows]];
+
+    (* Phi^-1 B I_l, one scalar per hard row.
+
+       Together here is COSMETIC -- the kernel is a representation, not a
+       proof, and nothing downstream needs it in lowest terms.  On a
+       2F1-dressed Phi^-1 against a word-carrying lower solution it can
+       also run for a very long time, so it is budgeted and falls back
+       to the un-normalised form.  An unbounded tidy-up in the middle of
+       a solve is a hang, not a nicety. *)
+    kernel = phiInverse . bMatrix . iLower;
+    kernel = TimeConstrained[Together /@ kernel, Min[timeLimit, 60], kernel];
+
+    (* The integrand is carried as a pure FUNCTION of the integration
+       variable, never as an expression in tau.  If it were an
+       expression in tau, D[TransportQuadrature[expr, tau, 0], tau]
+       would apply the chain rule through the first argument as well and
+       silently produce the wrong derivative.  With a Function the first
+       argument is free of tau and the rule is unambiguous. *)
+    integrationVar = Unique["masterTransportQuadratureVar"];
+    quadrature = Table[
+      (* Function is HoldAll, so Function[integrationVar, body] would
+         hold the LOCAL symbols rather than their values.  Apply builds
+         the pure function from the evaluated parts. *)
+      Function @@ {integrationVar, kernel[[i]] /. tau -> integrationVar},
+      {i, dim}];
+    (* The invariant behind Derivative[1,0,0][TransportQuadrature] = 0:
+       no integrand may still mention the path parameter.  It holds by
+       the substitution just made, and it is ASSERTED rather than
+       trusted, because if it ever failed the derivative rule would
+       silently drop a real chain-rule term. *)
+    If[! AllTrue[quadrature, FreeQ[#[[2]], tau] &],
+      Return[<|"Block" -> s, "Range" -> range, "OK" -> False,
+        "Certificate" -> <|"Proved" -> False,
+          "Reason" -> "IntegrandStillDependsOnPathParameter",
+          "Evaluated" -> False|>|>, Module]];
+    quadrature = Table[
+      TransportQuadrature[quadrature[[i]], tau, 0], {i, dim}];
+
+    constants = Table[TransportConstant[s, "Quadrature", i], {i, dim}];
+    jVector = constants + quadrature;
+    iHard = phi . jVector;
+
+    (* ---- the exact differentiate-back certificate ------------------- *)
+
+    (* Three statements, each checked, together giving
+       d/dtau[Phi J] = A_h Phi J + B I_l:
+
+         (1) the regrouping identity, on generic matrices, once;
+         (2) dPhi/dtau - A_h Phi = 0, for THIS Phi on THIS path;
+         (3) Phi Phi^-1 - 1 = 0, for THIS Phi.
+
+       (1) is the part that does not depend on the entries, so it is not
+       re-derived per family on 2F1-dressed expressions -- doing that was
+       measured to exceed the budget on the synthetic gate and reported
+       the certificate as unproved while the mathematics was fine.  (2)
+       and (3) are the family-specific content and are checked here. *)
+    derivativeRuleOK = masterTransportQuadratureDerivativeRule[tau,
+      Min[timeLimit, 60]];
+    identityOK = masterTransportQuadratureIdentity[dim, Length[lowerRows], tau,
+      Min[timeLimit, 120]];
+
+    (* Phi Phi^-1 = 1 is needed on the RIGHT here, where the sector
+       verified it on the left.  For a square matrix the two are
+       equivalent, but the equivalence is a theorem about the matrix and
+       not about this code, so it is checked rather than assumed. *)
+    rightInverse = TrueQ[TimeConstrained[
+      masterTransportZeroMatQ[
+        Together[phi . phiInverse - IdentityMatrix[dim]]],
+      timeLimit, False]];
+
+    homogeneous = masterTransportDTau[phi, tau] - ah . phi;
+    homogeneousZero = TrueQ[TimeConstrained[
+      masterTransportZeroMatQ[Together[homogeneous]], Min[timeLimit, 120], False]];
+    certificateUsed = None;
+    If[! homogeneousZero,
+      (* The sector check has already proved dPhi/dtau - A_h Phi = 0 on
+         THIS path for THIS Phi.  Re-proving it would double the cost of
+         the coupled route to establish a statement already in hand, so a
+         prior certificate is reused when it carries a proof -- and
+         re-derived when it does not. *)
+      certificateUsed = If[AssociationQ[priorCertificate] &&
+          TrueQ[priorCertificate["Proved"]],
+        priorCertificate,
+        masterTransportHypergeometricCertificate[
+          phi, {{ah, tau}}, eps, <||>, timeLimit]];
+      homogeneousZero = AssociationQ[certificateUsed] &&
+        TrueQ[certificateUsed["Proved"]]];
+
+    proved = If[TrueQ[derivativeRuleOK] && TrueQ[identityOK] &&
+        TrueQ[homogeneousZero] && TrueQ[rightInverse],
+      "ByFactorisation", False];
+
+    certificate = <|
+      "Statement" -> "d/dtau [Phi (J0 + Int Phi^-1 B I_l)] = A_h Phi (J0 + \
+Int Phi^-1 B I_l) + B I_l, proved with I_l left as arbitrary unknown \
+functions of tau, so the representation is correct for every \
+inhomogeneity.",
+      "Proved" -> (proved === True || proved === "ByFactorisation"),
+      "Route" -> proved,
+      (* the three checked components of the proof, reported separately so
+         a failure names which one did not close *)
+      "DerivativeRule" -> derivativeRuleOK,
+      "RegroupingIdentity" -> identityOK,
+      "HomogeneousResidualZero" -> homogeneousZero,
+      "RightInverseVerified" -> rightInverse,
+      "GaussCertificate" -> certificateUsed,
+      "Evaluated" -> False,
+      "Claim" -> "A formal integral with an exact differentiate-back \
+certificate.  The integrand mixes hypergeometric Phi^-1 with the lower \
+solution's Goncharov words; no closed form for the integral is claimed, \
+no function class for it is claimed, and no value for it is computed.",
+      "LowerRows" -> lowerRows|>;
+
+    <|"Block" -> s, "Range" -> range, "Rows" -> assembly["Blocks"][[s]],
+      "Kernel" -> kernel, "Quadrature" -> quadrature,
+      "Constants" -> constants, "J" -> jVector, "I" -> iHard,
+      "Certificate" -> certificate,
+      "OK" -> TrueQ[certificate["Proved"]]|>
+  ];
+
+(* The coupled route as a whole.
+
+   Three stages, each of which reports its own verdict:
+
+     1. the closed-form sectors are re-verified exactly as in the
+        decoupled route (masterTransportExactSectors);
+     2. the graded blocks are solved by the ORDINARY machinery on the
+        reduced system -- word transport, regrading, valuation and the
+        per-order check against the original DE all apply unchanged,
+        because the structural gate guarantees no graded block reads a
+        closed-form block, so the graded rows really are a closed
+        subsystem;
+     3. each closed-form block is represented by Phi-weighted
+        quadrature with its differentiate-back certificate.
+
+   The status is deliberately NOT one of the exactness states.  A
+   coupled family is returned as a REPRESENTATION containing unevaluated
+   integrals, so calling it Exact would claim an evaluation that has not
+   happened, and calling it AnalyticCandidate would suggest numerical
+   evidence that was never gathered.  It is "OKFormalQuadrature", and
+   the "Claim" field states in words exactly what has and has not been
+   established. *)
+masterTransportCoupledSolve[assembly_, system_, coupling_, closedBlocks_,
+    gradedBlocks_, base_, target_, tau_, variables_, regulator_, caps_, card_,
+    physicalValuation_, orders_, backend_, verbose_, start_, timeConstraint_] :=
+  Module[{perm, blocks, ranges, gradedOriginal, subSystem, subBlocks, subResult,
+     subPerm, subSeries, subOrders, gradedRows, closedRows, indexOf, iLower,
+     exact, quadratures, lowerRowsPermuted, status, allProved, n},
+    perm = assembly["Perm"];
+    blocks = assembly["Blocks"];
+    ranges = assembly["Ranges"];
+    n = assembly["N"];
+    closedRows = Flatten[ranges[[closedBlocks]]];
+    gradedRows = Sort[Flatten[ranges[[gradedBlocks]]]];
+    (* ORIGINAL row indices of the graded rows, which is what a
+       sub-system has to be cut out of *)
+    gradedOriginal = Sort[Flatten[blocks[[gradedBlocks]]]];
+
+    (* ---- 1. the sectors themselves --------------------------------- *)
+    exact = masterTransportExactSectors[assembly, closedBlocks, base, target, tau,
+      variables, regulator, 8, 40, Min[timeConstraint, 120]];
+    If[exact["Status"] =!= "OK",
+      Return[<|"Status" -> "Rejected", "Exactness" -> "Rejected",
+        "Reason" -> "ClosedFormSectorNotVerified", "Exact" -> exact,
+        "Assembly" -> assembly, "Family" -> assembly["Family"]|>, Module]];
+
+    (* ---- 2. the lower system, by the ordinary route ----------------- *)
+    (* The already-resolved epsilon-forms are handed straight back, so
+       the sub-call re-derives nothing and cannot pick a different
+       provider than the parent did. *)
+    (* the Basis key is OMITTED rather than set to None when there is no
+       basis: an absent key and a None value are different things to
+       every Lookup downstream, and only one of them is what "no basis"
+       has always meant here *)
+    subSystem = <|
+      "Family" -> ToString[assembly["Family"]] <> ":lower",
+      "Av" -> system["Av"][[gradedOriginal, gradedOriginal]],
+      "Aw" -> system["Aw"][[gradedOriginal, gradedOriginal]]|>;
+    If[! (MissingQ[system["Basis"]] || system["Basis"] === None),
+      subSystem = Append[subSystem,
+        "Basis" -> system["Basis"][[gradedOriginal]]]];
+    subBlocks = Table[
+      {Flatten[Position[gradedOriginal, #] & /@ blocks[[g]]],
+       <|"Type" -> "EpsForm", "T" -> assembly["Forms"][[g]]["T"],
+         "Ev" -> assembly["Forms"][[g]]["Ev"],
+         "Ew" -> assembly["Forms"][[g]]["Ew"]|>},
+      {g, gradedBlocks}];
+    masterTransportLog[verbose, "  coupled closed-form route: solving ",
+      Length[gradedOriginal], " lower rows by the ordinary machinery"];
+    subResult = TransportFamily[subSystem,
+      "Variables" -> variables, "Regulator" -> regulator,
+      "Blocks" -> subBlocks, "BasePoint" -> base, "Target" -> target,
+      "PathParameter" -> tau, "PhysicalValuation" -> physicalValuation,
+      "Orders" -> orders, "TransportBackend" -> backend,
+      "MaxWeight" -> caps["MaxWeight"], "TimeConstraint" -> caps["TimeConstraint"],
+      "MemoryConstraint" -> caps["MemoryConstraint"], "Verbose" -> verbose];
+    If[! AssociationQ[subResult] ||
+        ! MemberQ[{"OK", "SolvedNotCheckable"}, subResult["Status"]],
+      Return[<|"Status" -> "LowerSystemNotSolved", "Lower" -> subResult,
+        "Assembly" -> assembly, "Exact" -> exact,
+        "Family" -> assembly["Family"]|>, Module]];
+
+    (* ---- the lower solution, in the PARENT's permuted row order ----- *)
+    subPerm = subResult["Assembly"]["Perm"];
+    subSeries = subResult["I"]["I"];
+    subOrders = subResult["I"]["Orders"];
+    (* parent permuted position -> index into the sub-system series *)
+    indexOf[p_] := Position[subPerm,
+      Position[gradedOriginal, perm[[p]]][[1, 1]]][[1, 1]];
+    iLower = Table[
+      Sum[regulator^subOrders[[k]] *
+        subSeries[[k]][[indexOf[gradedRows[[i]]]]], {k, Length[subOrders]}],
+      {i, Length[gradedRows]}];
+
+    (* ---- 3. Phi-weighted quadrature per closed-form block ----------- *)
+    lowerRowsPermuted = gradedRows;
+    quadratures = Table[
+      masterTransportPhiQuadrature[assembly, closedBlocks[[k]],
+        lowerRowsPermuted, iLower, base, target, tau, variables, regulator,
+        Min[timeConstraint, 300],
+        Lookup[exact["Sectors"][[k]], "Certificate", None]],
+      {k, Length[closedBlocks]}];
+    allProved = AllTrue[quadratures, TrueQ[#["OK"]] &];
+    Do[
+      masterTransportLog[verbose, "  block ", q["Block"], " rows ", q["Rows"],
+        " quadrature certificate ", q["Certificate"]["Route"]],
+      {q, quadratures}];
+
+    status = If[allProved, "OKFormalQuadrature", "QuadratureNotCertified"];
+
+    <|"Status" -> status,
+      "Family" -> assembly["Family"],
+      "N" -> n,
+      "Assembly" -> assembly,
+      "Certificate" -> assembly["Certificate"],
+      "Coupling" -> coupling,
+      "Exact" -> exact,
+      "Exactness" -> exact["Exactness"],
+      "Quadrature" -> quadratures,
+      "QuadratureCertified" -> allProved,
+      "Lower" -> subResult,
+      "LowerRows" -> gradedRows,
+      "ClosedFormBlocks" -> closedBlocks,
+      "ClosedRows" -> closedRows,
+      (* The per-order check against the ORIGINAL differential equation
+         for the graded rows.  It is the parent's check, not merely the
+         sub-system's: the structural gate established that no graded row
+         reads a closed-form row, so the two systems agree exactly on
+         these rows. *)
+      "DECheck" -> subResult["DECheck"],
+      "DECheckRows" -> gradedRows,
+      "I" -> <|"Orders" -> {"FormalQuadrature"},
+        "Lower" -> iLower,
+        "Hard" -> Table[q["I"], {q, quadratures}]|>,
+      "Claim" -> "The lower blocks are solved and checked per epsilon order \
+against the original differential equation.  The hard blocks are returned as \
+Phi (J0 + Int Phi^-1 B I_l), a FORMAL integral with an exact \
+differentiate-back certificate: no closed form for that integral is claimed \
+and no value for it is computed.",
+      "Path" -> <|"Base" -> base, "Target" -> target, "Parameter" -> tau|>,
+      "Variables" -> variables, "Regulator" -> regulator, "Caps" -> caps,
+      "Seconds" -> AbsoluteTime[] - start|>
   ];
 
 (* ------------------------------------------------------------------ *)
@@ -1531,8 +2398,8 @@ TransportFamily[input_, opts : OptionsPattern[]] := Catch[
     base, target, backend, orders, n0, n1, blocks, formDirectory,
     caps, timeConstraint, memoryConstraint, maxWeight,
     ahat, monic, budget, shift, kminPerBlock, kminF, tr0, kmaxF, jmax, seriesLow,
-   closedBlocks, gradedBlocks, closedRows, gradedRows, exact, solutionLow,
-   diagnostics,
+   closedBlocks, gradedBlocks, closedRows, gradedRows, exact, exactness,
+   coupling, solutionLow, diagnostics,
     wmax, backendResult, verification, regraded, solution, valuation,
     series, checkable, deCheck, elapsed, start, status, tinvOrder, nb,
     dimension, targetOrder, checkableRecord, rational},
@@ -1621,16 +2488,51 @@ TransportFamily[input_, opts : OptionsPattern[]] := Catch[
     dimension = assembly["N"];
     (* A closed-form sector conjugates its own diagonal block to zero, so
        it takes no part in the word transport and no part in the graded
-       series.  It is also necessarily DECOUPLED: any coupling to or from
-       it would be dressed by Phi and Phi^-1 and would make the
-       conjugated connection non-rational, which the gate below refuses.
-       Coupled closed-form sectors need Phi-weighted quadrature, which is
-       a separate capability and is not claimed here. *)
+       series.  If it is DECOUPLED the conjugated connection stays
+       rational and the ordinary route below applies.
+
+       If it is COUPLED to lower blocks, the conjugated connection
+       acquires Phi^-1-dressed entries and the word backend cannot
+       consume them.  That case is no longer refused: it is routed to
+       the Phi-weighted quadrature, which solves the lower blocks with
+       the ordinary machinery and represents the hard block by variation
+       of constants.  The refusal that remains is structural and named
+       (a graded block reading FROM a closed-form block, or nested
+       closed-form blocks). *)
     closedBlocks = Select[Range[nb],
       assembly["Forms"][[#]]["Type"] === "ClosedFormSector" &];
     gradedBlocks = Complement[Range[nb], closedBlocks];
     closedRows = Flatten[assembly["Ranges"][[closedBlocks]]];
     gradedRows = Sort[Flatten[assembly["Ranges"][[gradedBlocks]]]];
+
+    coupling = If[closedBlocks === {}, None,
+      masterTransportClosedFormCoupling[assembly, closedBlocks, gradedBlocks]];
+    (* The UNSUPPORTED structures are diagnosed even when the closed-form
+       block itself reads nothing.  Otherwise a family whose only
+       irregularity is a graded block reading FROM a closed-form block
+       would fall through to the generic
+       "ConjugatedConnectionNotRational" -- true, but it names the
+       symptom rather than the cause, and the cause is structural and
+       known here. *)
+    If[AssociationQ[coupling] &&
+        (TrueQ[coupling["Coupled"]] || coupling["FeedsGraded"] =!= {} ||
+         coupling["ClosedToClosed"] =!= {}),
+      If[! TrueQ[coupling["Supported"]],
+        Return[<|"Status" -> "CoupledClosedFormNotSupported",
+          "Coupling" -> coupling, "Assembly" -> assembly,
+          "Reason" -> If[coupling["FeedsGraded"] =!= {},
+            "a graded block reads from a closed-form block: the word backend \
+would have to integrate 2F1-dressed sources",
+            "a closed-form block reads from another closed-form block: this \
+needs nested quadrature"],
+          "Family" -> assembly["Family"]|>, Module]];
+      Return[
+        masterTransportCoupledSolve[assembly, system, coupling, closedBlocks,
+          gradedBlocks, base, target, tau, variables, regulator, caps, card,
+          OptionValue["PhysicalValuation"], OptionValue["Orders"], backend,
+          verbose, start, timeConstraint],
+        Module]];
+
     ahat = masterTransportPathMatrix[assembly["Apv"], assembly["Apw"], target,
       base, tau, variables];
     rational = FreeQ[ahat, Hypergeometric2F1 | HypergeometricPFQ | Log | PolyLog |
@@ -1653,20 +2555,34 @@ TransportFamily[input_, opts : OptionsPattern[]] := Catch[
       masterTransportExactSectors[assembly, closedBlocks, base, target, tau,
         variables, regulator, 8, 40, Min[timeConstraint, 120]]];
     If[exact =!= None && exact["Status"] =!= "OK",
-      Return[<|"Status" -> "ClosedFormSectorNotVerified", "Exact" -> exact,
+      Return[<|"Status" -> "Rejected", "Exactness" -> "Rejected",
+        "Reason" -> "ClosedFormSectorNotVerified", "Exact" -> exact,
         "Assembly" -> assembly, "Family" -> assembly["Family"]|>, Module]];
+    (* "NotApplicable", not "Exact": a family with no closed-form sector
+       has nothing for this taxonomy to describe, and reporting the
+       vacuous truth as "Exact" would read as a claim about the family. *)
+    exactness = If[exact === None, "NotApplicable", exact["Exactness"]];
     If[exact =!= None,
       masterTransportLog[verbose, "  closed-form sectors verified: ",
-        Table[r["CheckRoute"], {r, exact["Sectors"]}]]];
+        Table[r["CheckRoute"], {r, exact["Sectors"]}],
+        " -> ", exactness]];
 
     (* A family made ENTIRELY of closed-form sectors has no word
-       transport and no graded series: its solution is exact in eps and
-       the certificate above is the whole statement. *)
+       transport and no graded series: the certificate above is the whole
+       statement, and the STATUS IS THAT CERTIFICATE'S VERDICT.
+
+       This is the distinction Codex's assessment turns on.  The old
+       status "OKExactInEps" was returned on either route, so a sector
+       accepted on a Frobenius truncation plus four numerical points read
+       exactly like one proved symbolically.  Now the series-and-numeric
+       route returns "AnalyticCandidate" -- a status that does not
+       contain the word Exact, and cannot be mistaken for it by a
+       reader, a grep, or a test. *)
     If[gradedBlocks === {},
-      Return[<|"Status" -> "OKExactInEps", "Family" -> assembly["Family"],
+      Return[<|"Status" -> exactness, "Family" -> assembly["Family"],
         "N" -> dimension, "Assembly" -> assembly,
         "Certificate" -> assembly["Certificate"], "Backend" -> None,
-        "Weight" -> 0, "Exact" -> exact,
+        "Weight" -> 0, "Exact" -> exact, "Exactness" -> exactness,
         "Constants" -> Association[
           Table[{r["Block"], "Exact"} -> r["Constants"], {r, exact["Sectors"]}]],
         "I" -> <|"Orders" -> {"Exact"},
@@ -1857,6 +2773,10 @@ TransportFamily[input_, opts : OptionsPattern[]] := Catch[
       "Constants" -> solution["Constants"],
       "Valuation" -> KeyDrop[valuation, "Solution"],
       "Exact" -> exact,
+      (* the closed-form sectors' verdict travels with a mixed family
+         too, where the family Status describes the WORD transport and
+         says nothing about how the Phi blocks were established *)
+      "Exactness" -> exactness,
       "ClosedFormBlocks" -> closedBlocks,
       "GradedRows" -> gradedRows,
       "I" -> series,
@@ -1903,6 +2823,22 @@ TransportStatus[result_Association, OptionsPattern[]] := Module[{lines, print},
       " orders=", ToString[Lookup[result["Valuation"], "Orders", {}]],
       " equations=", ToString[Lookup[result["Valuation"], "Equations", 0]],
       " assertion=", ToString[Lookup[result["Valuation"], "AssertionOK", "?"]]]]];
+  (* one greppable line per closed-form sector, carrying the verdict and
+     the mechanism separately so a watchdog can never read a route name
+     as a proof *)
+  If[KeyExistsQ[result, "Exact"] && AssociationQ[result["Exact"]],
+    AppendTo[lines, StringJoin[
+      "  exactness=", ToString[Lookup[result["Exact"], "Exactness", "?"]],
+      " sectors=", ToString[Length[Lookup[result["Exact"], "Sectors", {}]]]]];
+    Do[
+      AppendTo[lines, StringJoin[
+        "  sector block=", ToString[Lookup[record, "Block", "?"]],
+        " rows=", ToString[Lookup[record, "Rows", "?"]],
+        " exactness=", ToString[Lookup[record, "Exactness", "?"]],
+        " route=", ToString[Lookup[record, "CheckRoute", "?"]],
+        " block=", ToString[Lookup[record, "BlockExactness", "?"]],
+        " path=", ToString[Lookup[record, "PathExactness", "?"]]]],
+      {record, Lookup[result["Exact"], "Sectors", {}]}]];
   If[KeyExistsQ[result, "Checkable"],
     AppendTo[lines, StringJoin[
       "  checkable orders=", ToString[Lookup[result["Checkable"], "Checkable", {}]],

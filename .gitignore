@@ -13,7 +13,17 @@ Codex/Tests/QGRAF/output.m
 
 # --- Large result artifacts (regenerable from cards + pipeline; keep locally) ---
 ppHX_NLO/Results/
-ppHX_NNLO_DoubleReal/Results/
+# Results/ is excluded wholesale EXCEPT for the small, load-bearing test inputs
+# below.  A negation cannot re-include a path whose parent directory is itself
+# excluded, so the two enclosing levels are opened with a `*` re-exclusion
+# rather than a plain directory rule.  Everything not named here (KiraStream,
+# Pairs, KiraResult.wl, ...) stays ignored exactly as before.
+ppHX_NNLO_DoubleReal/Results/*
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/
+ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/*
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/ClassForms/
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/BlockClasses/
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/BoundaryPeriods/
 
 # --- Third-party software (own licenses; installed locally, not redistributed) ---
 Addon/Mathematica_Addon/*
@@ -31,3 +41,4 @@ __pycache__/
 
 # --- Windows/WSL metadata ---
 *Zone.Identifier
+ppHX_NNLO_DoubleReal/Kira/

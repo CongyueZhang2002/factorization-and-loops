@@ -1,0 +1,10 @@
+<|"ClassID" -> 85, "RepFamily" -> "CF236", "RepRows" -> {22, 23}, "Dim" -> 2, 
+ "Transformation" -> {{(1 + Global`eps)/(v + v^2 - v*w), 0}, 
+   {-(((1 + 2*Global`eps)*(1 + 3*Global`eps)*(-1 + w))/(v*(1 + v - w)^2)), 
+    (Global`eps*(1 + 2*Global`eps))/(v*(1 + v - w)^2)}}, 
+ "EpsForm" -> {{{(-2*Global`eps)/(1 + v - w), 0}, 
+    {0, (-2*Global`eps)/(1 + v - w)}}, 
+   {{(2*Global`eps*(1 + v))/((1 + v - w)*w), Global`eps/(w - w^2)}, 
+    {(-2*Global`eps)/w, -((Global`eps*(1 + v - 3*w))/((1 + v - w)*w))}}}, 
+ "Variables" -> {v, w}, "Chart" -> None, "AnsatzDegree" -> 0, 
+ "Validated" -> True|>

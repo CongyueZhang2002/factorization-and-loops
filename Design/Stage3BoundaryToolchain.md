@@ -1,9 +1,14 @@
 # Stage 3: boundary toolchain (measured; joint with Codex)
 
-Decided by the 2026-08-15 package survey (scratch stage3_survey/
-SURVEY_REPORT.md) and Codex's boundary findings/plan (their Exchange/
-CodexBoundaryFindingsPlan_2026-08-15.md). Every adoption below is
+Decided by the 2026-08-15 package survey (Design/Stage3PackageSurvey.md,
+migrated into the repository 2026-08-15) and Codex's boundary
+findings/plan (External/CodexExchange/
+codex_boundary_findings_plan_2026-08-15.md). Every adoption below is
 probe-verified against certified controls, by us or by Codex (marked).
+
+Boundary-period evidence and the exact ledger now live under
+ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/BoundaryPeriods/
+(start at its LEDGER.md); all references are repository-relative.
 
 ## Toolchain by step
 
@@ -31,7 +36,8 @@ probe-verified against certified controls, by us or by Codex (marked).
    - hyperlogarithmic integration for linearly reducible densities
      (Codex route; HyperInt itself is Maple-gated);
    - `SubTropica` high-precision numerics (reference driver in
-     qf_pilot PILOT.md sec. 19.4; HyperFLINT present on this box).
+     BoundaryPeriods/QFPilotReport.md sec. 19.4; HyperFLINT present
+     on this box).
 5. **Recognition guard (mandatory)**: `FindIntegerNullVector`/PSLQ
    FABRICATES relations for basis-free constants at every tested
    precision (<=50 digits; negative control in the survey). It is a
@@ -68,11 +74,20 @@ ledger entry ONLY as the independent check. They MAY guide derivation
 steps (branch guesses, candidate generation, region sanity), but the
 recorded proof chain of every entry must be numerics-free — an
 analytic derivation must exist independently for any step numerics
-assisted. Audit note: PIDs 6/7 satisfy this (Codex's dominated-
-convergence proof replaced the pilot's numeric branch selection);
-PID 1's analytic zero proof is an OPEN ITEM to be recorded
-explicitly (mirror of the same argument on its kernel) before its
-entry is ledger-final.
+assisted.
+
+Audit note (updated 2026-08-15, stage-3 rework): PIDs 1, 6 and 7 all
+satisfy this and are now `Exact`. Codex's dominated-convergence
+argument was formalized as a shared lemma covering all three kernels
+(BoundaryPeriods/Proofs/SoftEndpointDomination.md), so PID 1's zero
+proof is no longer an open item. Three further numeric links were
+also replaced by exact ones: PID 1's DE residual (was 1.25e-9, now a
+literal zero under Together), the 2F1 contiguous relation (was a
+25-digit spot check, now proved from the Pochhammer recursion), and
+the CF124 reconstruction check (was 29.7-digit agreement, now an
+exact closed-form soft value). The parametric representations are
+re-derived symbolically from the Kira family definitions rather than
+taken from the pilot's hand derivation.
 
 ## Division of work (round-6/Codex-plan state)
 
@@ -84,6 +99,12 @@ entry is ledger-final.
   periods; T121 dimensional recurrence (D+4 quasi-finite
   representative); hard region ({M1, M3, T} catalogue).
 - Open joint items: stage-4 NLO distributional pilot format verdict
-  (gates production depth — UNANSWERED, follow up); the 12
-  realization-transfer checks (needs a named owner); PSLQ warning
+  (gates production depth — UNANSWERED, follow up); PSLQ warning
   acknowledgment by Codex.
+- Closed 2026-08-15: the 12 realization-transfer checks. All twelve
+  verified exactly (BoundaryPeriods/Proofs/RealizationTransfers.md).
+  That record also reports a defect in NullityPeriods.wl: its
+  `Families` and `BlockRows` lists are independently deduplicated, so
+  the family-to-row pairing is not recoverable and no consumer should
+  read them positionally. Fixing the nullity counter's output schema
+  is a new open item.

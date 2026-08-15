@@ -1,0 +1,4 @@
+<|"ClassID" -> 131, "RepFamily" -> "CF321", "RepRows" -> {1}, "Dim" -> 1, 
+ "Transformation" -> {{1/(v*w)}}, "EpsForm" -> {{{(2*Global`eps)/(-1 + v)}}, 
+   {{(-2*Global`eps)/w}}}, "Variables" -> {v, w}, "Chart" -> None, 
+ "AnsatzDegree" -> 0, "Validated" -> True|>
