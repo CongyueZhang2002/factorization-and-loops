@@ -1226,3 +1226,29 @@ Plan, in order; each step appends its outcome here:
   (fix that would have shipped was wrong); defect cornered to the
   series constructor's I = sum T_r F_{n-r} assembly; order-0 binary
   split authorized and running.
+
+## 2026-08-14 (night, cont.) — CF360 mystery RESOLVED: not a bug,
+   missing valuation constraints; engine vindicated
+
+- Fourth hypothesis (missing physical-valuation constraint set)
+  CONFIRMED by construction: imposing I_{-1} = 0 identically (25
+  linear equations on 17 constants; 5 fixed — exactly the constants
+  every residual localized to all night) makes the order-0 assembled
+  check pass on all rows incl. the 2x2.  The eps^1 line is top-edge
+  support, understood.  Chain: 4 hypotheses tested by prediction,
+  3 falsified (depth; padding-vs-cancellation; F-below-KMin, killed
+  by index-shift evidence), 1 confirmed.  THE CHECK WAS CORRECT ALL
+  NIGHT — it rejected the unconstrained general solution for
+  violating the assumed Laurent valuation; gates (a)/(b) passed
+  because boundary-fixing imposes the valuation implicitly.
+- Fix (in build): solve-time valuation-constraint step — per-block
+  valuation from ord(T^-1), I_n = 0 below it as linear constraints
+  on the constant vector, verified by the below-window residual
+  assertion in EVERY production solve; valuation reference coupled
+  by design to the boundary-fixing n0 (one physics statement).
+  Then CF360 end-to-end; stragglers at 3600s overnight.
+- SubTropica: our defect report RETRACTED, Codex's correction
+  confirmed materially (kernel storm was our own $ProcessorCount-1
+  request); remaining narrow finding: HyperFLINT order-finder fails
+  on a textbook integral with no HF library on disk — decisive
+  correct-options+forced-HyperIntica test queued.
