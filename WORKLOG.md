@@ -1326,3 +1326,33 @@ Plan, in order; each step appends its outcome here:
   tomorrow.
 - Two "unsupported check scored as pass" harness bugs caught by the
   agent's own negative controls — the false-pass family again.
+
+## 2026-08-15 (early) — benchmark complete: production stack decided
+   on measurement
+
+- SYMBOLIC TRANSPORT: Libra primary (0.03s, exact zeros, 40 digits);
+  PolyLogTools validated alternative (0.39s, after three silent
+  traps incl. its 1699 exported symbols causing a false pass).
+  Custom layer RETIRED as solver; retained as the Laurent/valuation
+  layer on top of Libra — the CF3 run shows conjugated tier-3
+  systems keep 1/eps off-diagonal couplings (weight-grading !=
+  eps-grading), and that re-expansion + valuation bookkeeping is
+  the one place the custom machinery genuinely earns production
+  status.
+- HARD CLASSES 77/97/79: eps-form pursuit formally CLOSED — Libra
+  Rookie timed out at 1800s on all three with admission genuinely
+  MET (monic-normalized alphabets; no Rookie::sorry) and its Moser
+  machinery structurally unreachable (irreducible single blocks:
+  Fuchsify only walks off-diagonal indices).  CANONICA and Libra
+  now fail identically; cap escalation contraindicated.  The
+  Phi-route (toolkit R2/R3 operator identification / Codex maximal
+  cuts -> closed-form homogeneous matrix -> VoC transport, no
+  eps-form needed) is the committed path.
+- T3 HONESTY ITEM: the documented "Integrate fails at 619s" claim
+  did NOT reproduce on an independently built weight-1 integrand
+  (0.87s; custom 48.6ms).  Weight-2 adjudication incomplete.  The
+  claim is QUARANTINED — not to be cited until rerun on the
+  engine's own sector-2 eps^1 expression.
+- NUMERIC MODE: DiffExp driven successfully (0.2s transport, 0.5h
+  setup); agreement digits pending; no default-by-incumbency.
+- Verdict trail: BENCHMARK_REPORT.md (scratch pkg_benchmark/).
