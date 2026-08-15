@@ -117,6 +117,18 @@ ValidateCanonicalForm::usage =
 CanonicalBlocksStatus::usage =
   "CanonicalBlocksStatus[formDirectory] prints one greppable line per stored canonical-form file giving class, content address, dimension, ansatz degree and frame, and a closing summary. With \"Classes\" it also lists the classes that have no form yet, and with \"Validate\"->True it re-runs ValidateCanonicalForm on every stored form. It is meant to be called from a second kernel while a campaign runs.";
 
+TransportFamily::usage =
+  "TransportFamily[system] solves a family differential-equation system symbolically with symbolic integration constants. It assembles the system into block-lower-triangular form against certified per-block data and returns the five-part conjugation certificate, builds the path-ordered transport with a mature package (\"TransportBackend\" -> \"Libra\", or \"PolyLogTools\", or a function for testing), regrades that weight-graded transport into epsilon orders, imposes the physical valuation constraints, and checks the result order by order against the ORIGINAL family differential equation in the path frame. \"TransportDepth\" fixes the transport weight and Automatic derives it from the depth-budget arithmetic given \"TransportTargetOrder\"; \"Card\" supplies any of those as declarative configuration, with an explicit option taking precedence over a card key over the built-in. A diagonal block may be provided as a certified class epsilon-form or as a \"ClosedFormSector\" carrying a fundamental matrix Phi, which is re-verified here and never trusted from its stored certificate.";
+
+TransportStatus::usage =
+  "TransportStatus[result] prints one greppable line per certificate, per regrading budget and per block of a TransportFamily result, for a watchdog running in a second kernel. It returns the lines and prints them unless \"Print\" -> False.";
+
+TransportWord::usage =
+  "TransportWord[{a1,...,an},z] is the Goncharov polylogarithm G(a1,...,an;z), the representation TransportFamily returns. It is a package-owned inert head carrying its own derivative rule, so a stored solution never depends on a backend package being loaded, and Libra's II[{a},x,x0] = G(a-x0;x-x0) is converted at the backend boundary.";
+
+TransportConstant::usage =
+  "TransportConstant[block,order,index] is a symbolic integration constant of TransportFamily: component index of the constant vector of the given block at the given epsilon order. The valuation constraints are linear equations on these, and the boundary-fixing stage substitutes them.";
+
 AssembleCutContributions::usage =
   "AssembleCutContributions[{result1, ...}] combines coefficient results of one process on a shared canonical family namespace. Each contribution enters with the exact weight IdenticalParticleSymmetryFactor[setup] times (-1) per outgoing ghost-antighost pair, realizing the Slavnov-Taylor completion of -g gluon polarization sums.";
 
@@ -195,7 +207,7 @@ $feynFacetPrivateFiles = FileNameJoin[{$feynFacetPrivateDirectory, #}] & /@ {
     "StreamingKira.wl",
     "MasterIntegralAmFlow.wl", "Simplification.wl", "Assembly.wl",
     "CoefficientStore.wl", "Reconstruction.wl",
-    "CanonicalBlocks.wl"
+    "CanonicalBlocks.wl", "MasterTransport.wl"
 };
 $feynFacetSourceFiles = Join[
   {ExpandFileName[$InputFileName], FileNameJoin[{$feynFacetDirectory, "Distributions.wl"}]},
