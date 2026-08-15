@@ -63,6 +63,17 @@ or exact zero proof; exact substitution into the differential
 equations; an independent high-precision comparison at a physical
 point. Exchange as exact source files and certificates, not prose.
 
+**Numerics policy (user rule, 2026-08-15):** numerics appear in a
+ledger entry ONLY as the independent check. They MAY guide derivation
+steps (branch guesses, candidate generation, region sanity), but the
+recorded proof chain of every entry must be numerics-free — an
+analytic derivation must exist independently for any step numerics
+assisted. Audit note: PIDs 6/7 satisfy this (Codex's dominated-
+convergence proof replaced the pilot's numeric branch selection);
+PID 1's analytic zero proof is an OPEN ITEM to be recorded
+explicitly (mirror of the same argument on its kernel) before its
+entry is ledger-final.
+
 ## Division of work (round-6/Codex-plan state)
 
 - Ours: asy/MB/HypExp campaign over the one-dim tier (pending the
