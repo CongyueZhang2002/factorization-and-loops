@@ -1356,3 +1356,25 @@ Plan, in order; each step appends its outcome here:
 - NUMERIC MODE: DiffExp driven successfully (0.2s transport, 0.5h
   setup); agreement digits pending; no default-by-incumbency.
 - Verdict trail: BENCHMARK_REPORT.md (scratch pkg_benchmark/).
+
+## 2026-08-15 — stage 2 standardized and committed; custom engine
+   archived; stage-3 package survey launched
+
+- MasterTransport.wl committed: Libra core + the four earned custom
+  components + ClosedFormSector (Phi-route consumption).  Suite 53/0
+  green in fresh kernel, independently verified.  G3 = documented
+  expected-partial (Libra PexpExpansion aborts on CF360's conjugated
+  connection at tau->infinity — backend boundary, next-path item).
+  Close-out found the tau self-assignment trap IN THE TEST (module
+  guard correct — now with a named diagnostic), two vacuous passes
+  hardened with positive controls.
+- Custom engine archived (Archive/voc_engine_2026-08-14, committed)
+  with retirement README; "keep only relevant tools" executed.
+- Phi-route policy (user): DSolve probe -> free-CAS Kovacic (Maxima/
+  FriCAS) -> existing toolkit as-is; NO bespoke template matcher.
+- NEXT: stage-3 boundary package survey (user directive: find which
+  boundary steps existing packages simplify before any hand-solving):
+  asy.m regions automation; AMBRE/MB.m Mellin-Barnes for the periods
+  (may obsolete the 5-var parametrization build); HypExp for pFq
+  expansions; SubTropica/AMFlow + PSLQ as certified last resort;
+  probes on solved-tier controls + one blocked period each tier.
