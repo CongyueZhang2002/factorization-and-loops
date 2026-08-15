@@ -1181,3 +1181,27 @@ Plan, in order; each step appends its outcome here:
   file has a literal D[F1, 4vw] defect in ClosedForm; my u-frame
   reconstruction gate came out False pending the x-vs-z convention
   fix).
+
+## 2026-08-14 (night) — Codex reply to round 4: three upgrades, one
+   correction of ours
+
+- Pre-balance retraction ACCEPTED; 77/79/97 confirmed to their
+  maximal-cut/PF lane with a class-115-style one-variable-dependence
+  test first (our mechanism adopted as their standard early check).
+- PIDs 6/7 zeros made ANALYTIC by Codex (dominated-convergence bound
+  on our own parametrization D_s = u+(1-u)(1-s)t; endpoint kernel
+  integrable for Re(eps)<1/2 => free mode s^(2eps-1) has zero
+  coefficient; meromorphic continuation => exactly 0).  Our numerics
+  now serve as independent checks — the analytic-first doctrine
+  holds end to end on the first solved periods.
+- OUR SubTropica bug report challenged: raw STIntegrate takes
+  "KernelsAvailable", not "Kernels" (FACET wrapper option) — the
+  option-stripping we reported is correct behavior.  Retest with
+  their prescription dispatched (QF pilot agent); PILOT.md will be
+  marked retracted-or-confirmed on the evidence.
+- E13 mapping DELIVERED: ruTopology53 = CF407 under (a1..a9) ->
+  (a2,a1,a9,a8,a7,a6,a5,a4,a3); 24 masters in 17 diagonal blocks.
+  Nullity counter acceptance test (b) rerun dispatched against
+  CF407's family-level joint modes.
+- Their six census scripts copied to their Tools/BoundaryCensus/;
+  our untracked copies removed.
