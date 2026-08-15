@@ -1160,3 +1160,24 @@ Plan, in order; each step appends its outcome here:
   0.27s/class off-seat, removed class 26's apparent singularity in
   0.4s — head-to-head vs 324s/631s baselines + class-77 attempt in
   flight.
+
+## 2026-08-14 (evening) — rung benchmark closed: ladder unchanged;
+   round-4 exchange with a retraction
+
+- Final benchmark verdicts (controls reproduced baselines +7.2%/-1.3%):
+  Libra REJECT (structurally unusable in chart frames; 1370s dead-
+  kernel burn); LS-proxy REJECT (precondition only on dim-1); pre-
+  balance REJECT EMPHATICALLY (destructive: 26: 347s success->946s
+  FAIL; 33: 623s->1202s timeout; 77: +87s for nothing).  "Removing a
+  letter is not simplifying the system."  Ladder stays as measured.
+  Class 97 proven obstructed (2400s) -> 77/97/79 to maximal-cut/PF
+  (Codex already on CF258 Kallen residues).
+- Round-4 exchange note committed (round4_periods_and_benchmarks):
+  RETRACTION of this morning's pre-balance advice to Codex (measured
+  harmful before a rational-ansatz search); solved periods 1/6/7
+  certificates; SubTropica option-stripping bug report; template-map
+  coverage gap; their stray scripts; ruTopology53 mapping question.
+- Class-115 registration delegated back to the specials agent (its
+  file has a literal D[F1, 4vw] defect in ClosedForm; my u-frame
+  reconstruction gate came out False pending the x-vs-z convention
+  fix).
