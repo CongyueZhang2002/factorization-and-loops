@@ -433,4 +433,25 @@ has NO first-order right factor — 1,906 forced-degree Beke candidates,
 counted as survivors; none occurred), subsuming the earlier pure-power
 exhaustion. `DSolve` times out at 300 s. The exterior square Λ²(A)
 scalarizes to an order-6 operator (cyclic vector {1,0,0,0,0,0}); its
-first-order factors + Plücker condition are the order-2 rung, pending.
+first-order factors + Plücker condition are the order-2 rung.
+
+**Irreducibility closed (2026-08-15, ore_algebra):** `ore_algebra`
+(Kauers et al.; van-Hoeij-type operator factorization) is now installed
+at `~/.venvs/ore` (PassageMath wheels, pure-Python build — the box
+lacks mpfi headers for its numeric extension, which we don't use).
+Positive controls: it splits an order-1×order-1 product and finds the
+order-2 right factor of an order-3 product exactly. On the class-97
+operator specialized at (y,ε) = (3/7, 17/1000) and (5/11, 23/900) —
+leading-coefficient degrees stable at both points, so neither sits on
+the degeneracy locus — `factor()` returns the operator whole in 1–3 s:
+**no right factor of order 1, 2, or 3 at either specialization**. Since
+a factorization over Q(y,ε)(x) specializes to all but a proper closed
+set of rational points, the symbolic operator is irreducible
+(decision-grade at orders 2–3; order 1 is additionally closed by the
+exact symbolic Beke exhaustion above). Consequence for the Φ-route:
+no factorization ladder exists — class 97 needs an irreducible rank-4
+recognition (Appell F2/F3/F4-type system or the maximal-cut
+Picard–Fuchs lane), not further factor search. The same two-point
+`ore_algebra` probe is the FIRST move for any future hard class (it
+subsumes the R-ladder's factor rungs at specialized points, seconds
+per class).
