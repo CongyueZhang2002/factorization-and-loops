@@ -868,17 +868,22 @@ If[! FileExistsQ[class115File],
      "TransportBackend" -> "Libra", "MaxWeight" -> 6];
    log["G5 status ", Lookup[h5, "Status", "?"]];
 
-   (* EXPECTED-PARTIAL (2026-08-15): the generic regrouping identity of
-      the quadrature certificate does not yet close, so the module
-      honestly returns QuadratureNotCertified instead of
-      OKFormalQuadrature.  This assertion pins the CURRENT truthful
-      status; when the certificate lands, flip it back to
-      OKFormalQuadrature deliberately.  Tracking: WORKLOG 2026-08-15
-      W4 PARTIAL. *)
+   (* This assertion demands the CORRECT outcome, not the current one.
+
+      It was briefly rewritten to require QuadratureNotCertified -- the
+      failing status -- as an "expected partial".  That is the one thing
+      a gate must never do: an assertion that pins a defect as the
+      expected value goes green forever and removes the only signal that
+      would ever have led anyone back to it.  The defect was real (D
+      returns Function[s,0], not 0, for the integrand slot) and it took
+      one targeted diagnostic to find.  A test asserting its symptom
+      would have retired that diagnostic permanently.
+
+      If this fails, the certificate is broken and the right response is
+      to fix the certificate. *)
    FTAssert["H1 the coupled closed-form structure is DETECTED and routed to \
-quadrature (certificate pending: status is the honest \
-QuadratureNotCertified, not a refusal)",
-     resultQ[h5] && statusOf[h5] === "QuadratureNotCertified" &&
+quadrature, not refused as a non-rational connection",
+     resultQ[h5] && statusOf[h5] === "OKFormalQuadrature" &&
        TrueQ[h5["Coupling"]["Coupled"]] && TrueQ[h5["Coupling"]["Supported"]]];
 
    FTAssert["H2 the lower rows are solved by the ordinary machinery and pass \
@@ -890,14 +895,20 @@ the per-order check against the ORIGINAL differential equation",
 verdict, and here it is Exact",
      resultQ[h5] && h5["Exactness"] === "Exact"];
 
-   (* EXPECTED-PARTIAL (2026-08-15), same tracking as H1: the
-      differentiate-back certificate is not yet established, and the
-      module must SAY so.  The family-specific halves that DO verify
-      (RightInverseVerified, HomogeneousResidualZero) are asserted;
-      the closed certificate is asserted ABSENT, not present. *)
-   FTAssert["H4 the quadrature certificate is honestly reported ABSENT \
-while its verified sub-parts hold",
-     resultQ[h5] && ! TrueQ[h5["QuadratureCertified"]] &&
+   (* Every component of the certificate is asserted separately, so a
+      future failure names which one broke rather than reporting a bare
+      False.  The derivative rule is listed first because it is the one
+      that failed silently: D differentiates the integrand slot too, and
+      D[Function[s,g[s]],t] is Function[s,0] -- the zero function in a
+      form that survives Expand, Together and Simplify alike. *)
+   FTAssert["H4 the quadrature carries an exact differentiate-back \
+certificate: derivative rule, regrouping identity, homogeneous residual \
+and RIGHT inverse all verified",
+     resultQ[h5] && TrueQ[h5["QuadratureCertified"]] &&
+       TrueQ[h5["Quadrature"][[1]]["Certificate"]["Proved"]] &&
+       TrueQ[h5["Quadrature"][[1]]["Certificate"]["DerivativeRule"]] &&
+       TrueQ[h5["Quadrature"][[1]]["Certificate"]["RegroupingIdentity"]] &&
+       TrueQ[h5["Quadrature"][[1]]["Certificate"]["HomogeneousResidualZero"]] &&
        TrueQ[h5["Quadrature"][[1]]["Certificate"]["RightInverseVerified"]]];
 
    (* The independent bookkeeping check.

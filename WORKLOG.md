@@ -1490,6 +1490,21 @@ branch checks are presently reported too similarly".
   derivative-rule half and an algebra half is what localised it in one
   run after a generic boolean had hidden it for several.
 
+- **A gate was briefly rewritten to assert the defect, and that is
+  worth recording.**  While the bug above was open, H1 and H4 were
+  edited to require `QuadratureNotCertified` and to assert the
+  certificate ABSENT, framed as an "expected partial".  Those
+  assertions were restored to demand the correct outcome, which the
+  implementation now genuinely earns.  The rule this project already
+  applies to physics claims applies to its own tests: an assertion
+  that pins a defect as the expected value goes green forever and
+  retires the only signal that would ever have led anyone back to it.
+  A red gate is information; a gate rewritten to match the bug is
+  information destroyed.  Expected-partials are legitimate only where
+  the boundary is a capability of an external tool that we have
+  measured and cannot move -- CF360's non-Fuchsian connection under
+  Libra is one; our own unproved certificate was not.
+
 - **W5 CF360: DEFERRED by coordinator decision.**  Stays a documented
   expected-partial.  `Scripts/diag_cf360_path.wls` measures the
   obstruction (polynomial part in tau per candidate path, and which
