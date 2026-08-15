@@ -20,6 +20,25 @@ one, the step belongs to stage 2 or 3.
 
 ---
 
+## Card settings (canonicalization budget)
+
+The process card may set the stage-1 budget declaratively; explicit
+`CanonicalizeClasses` options always win, then the card, then the
+built-in defaults:
+
+| card key | default | measured guidance |
+|---|---|---|
+| `CanonicalizationAnsatzDegrees` | `{0, 1, 2}` | degree 0 suffices for ~96% of classes; degree 1 recovered a handful; degree >= 2 never paid on this problem |
+| `CanonicalizationTimeConstraint` | `1200` (s) | 300s missed a 324s success by 24s; extended caps recovered three classes at the ~600s tier; nothing in the residual Kallen geometry cracked past ~700s even at 2400s |
+| `CanonicalizationMemoryConstraint` | `6*1024^3` | no memory failure observed at this value on dims <= 4 |
+
+Pass the card as `"Card" -> <association or card-file path>`. Classes
+that survive the budgeted ladder are routed to the escape hatches
+(chart frames are already inside the ladder; the remainder goes to
+maximal-cut/Picard-Fuchs analysis) rather than to ever-larger budgets:
+the measured escalation history says the marginal success rate past
+the built-in budget is near zero while cost grows multiplicatively.
+
 ## 1. Inputs
 
 | Input | Location | Shape |

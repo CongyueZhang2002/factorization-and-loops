@@ -1058,9 +1058,10 @@ canonicalBlocksProgressLine[class_, status_, record_, seconds_] :=
 
 Options[CanonicalizeClasses] = {
   "OutputDirectory" -> Automatic,
-  "AnsatzDegrees" -> {0, 1, 2},
-  "TimeConstraint" -> 1200,
-  "MemoryConstraint" -> 6 1024^3,
+  "Card" -> None,
+  "AnsatzDegrees" -> Automatic,
+  "TimeConstraint" -> Automatic,
+  "MemoryConstraint" -> Automatic,
   "Chart" -> True,
   "ChartParameter" -> Automatic,
   "Resume" -> True,
@@ -1074,10 +1075,10 @@ Options[CanonicalizeClasses] = {
 };
 
 CanonicalizeClasses[input_, OptionsPattern[]] := Catch[
-  Module[{classes, directory, degrees, timeConstraint, memoryConstraint,
-      chartEnabled, parameter, resume, selection, solver, progress, verbose,
-      order, results = {}, count, canonicalized = 0, unresolved = 0,
-      skipped = 0},
+  Module[{classes, directory, card, cardSetting, degrees, timeConstraint,
+      memoryConstraint, chartEnabled, parameter, resume, selection, solver,
+      progress, verbose, order, results = {}, count, canonicalized = 0,
+      unresolved = 0, skipped = 0},
     classes = canonicalBlocksClassList[input];
     If[classes === $Failed,
       canonicalBlocksFail[CanonicalizeClasses, "classes", input]];
@@ -1093,16 +1094,35 @@ CanonicalizeClasses[input_, OptionsPattern[]] := Catch[
     If[! DirectoryQ[directory],
       canonicalBlocksFail[CanonicalizeClasses, "directory", directory]];
 
-    degrees = OptionValue["AnsatzDegrees"];
+    (* card-sourced defaults: explicit option > card key > built-in.
+       The card is the channel's declarative configuration; keys
+       "CanonicalizationAnsatzDegrees", "CanonicalizationTimeConstraint",
+       "CanonicalizationMemoryConstraint" let a process card set the
+       budget without touching code.  Built-ins encode the measured
+       lessons (WORKLOG 2026-08-14: 300s missed class 26 by 24s;
+       nothing in the residual geometry cracked past the ~700s tier). *)
+    card = OptionValue["Card"];
+    If[StringQ[card] && FileExistsQ[card],
+      card = Quiet @ Check[Get[card], $Failed]];
+    If[card =!= None && ! AssociationQ[card],
+      canonicalBlocksFail[CanonicalizeClasses, "option", "Card",
+        OptionValue["Card"]]];
+    cardSetting = Function[{explicit, key, builtin},
+      If[explicit =!= Automatic, explicit,
+        If[AssociationQ[card], Lookup[card, key, builtin], builtin]]];
+    degrees = cardSetting[OptionValue["AnsatzDegrees"],
+      "CanonicalizationAnsatzDegrees", {0, 1, 2}];
     If[! (ListQ[degrees] && degrees =!= {} &&
         AllTrue[degrees, IntegerQ[#] && # >= 0 &]),
       canonicalBlocksFail[CanonicalizeClasses, "option", "AnsatzDegrees",
         degrees]];
-    timeConstraint = OptionValue["TimeConstraint"];
+    timeConstraint = cardSetting[OptionValue["TimeConstraint"],
+      "CanonicalizationTimeConstraint", 1200];
     If[! (NumericQ[timeConstraint] && timeConstraint > 0),
       canonicalBlocksFail[CanonicalizeClasses, "option", "TimeConstraint",
         timeConstraint]];
-    memoryConstraint = OptionValue["MemoryConstraint"];
+    memoryConstraint = cardSetting[OptionValue["MemoryConstraint"],
+      "CanonicalizationMemoryConstraint", 6 1024^3];
     chartEnabled = TrueQ[OptionValue["Chart"]];
     parameter = OptionValue["ChartParameter"];
     If[parameter === Automatic, parameter = Symbol["Global`t"]];
