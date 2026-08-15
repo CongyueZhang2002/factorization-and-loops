@@ -1274,3 +1274,29 @@ Plan, in order; each step appends its outcome here:
   selection doubly derived, periods split 17-one-dim (us, one
   5-var build) / 13-multi-dim + fair QF test (them), their lane
   unchanged; regulator-normalization trap-list recommendation.
+
+## 2026-08-14 (midnight) — hard-class toolkit delivered; class 97's
+   "obstructed" verdict DISPROVED as chart-specific
+
+- HardClassToolkit ladder (Scripts/HardClassToolkit.wl +
+  Design/HardClassToolkit.md, uncommitted pending review): R1
+  diagnostics / R2 cyclic-vector / R3 operator-ID / R3b
+  rationalization / R4 certification / R5 obstruction handoff.
+  Acceptance gate PASSED: class 115 rediscovered blind (z=vw derived
+  mechanically, correct 2F1 parameters, exact certification; caveat
+  recorded: agent had prior sight of the report during orientation —
+  mitigated by auditable derivation, no stored constants).
+- MAJOR: class 97's "proven obstructed (2400s)" verdict was
+  CHART-SPECIFIC, not intrinsic — under v=xy, w=(1-x)(1-y) the
+  Kallen curve becomes (x-y)^2 exactly; census shows NO half-integer,
+  non-Fuchsian, or eps-dependent loci; 7-letter rational alphabet.
+  Chart discovery cost 0.5s.  Lesson for the toolkit doc: "obstructed
+  in a chart" is never "obstructed" — R3b tries the alternative
+  rationalizations before any such verdict.  CANONICA runs on 97 (and
+  77, sqrt cleared, residuals remain) in the new chart green-lit,
+  seat-queued behind the straggler production runs.
+- Class 79: toolkit R1 agrees with class79_localdata on every locus,
+  adds one row; left to Codex.
+- Toolkit found 3 of its own bugs by disbelieving output
+  (non-deterministic tie-break; half-integer detector false-negative
+  on algebraic loci; timeout discarding completed work).
