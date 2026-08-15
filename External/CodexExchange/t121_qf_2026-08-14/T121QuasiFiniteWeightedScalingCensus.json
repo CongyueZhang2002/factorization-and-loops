@@ -1,0 +1,870 @@
+{
+  "Object": "T121QuasiFiniteWeightedScalingCensus",
+  "Master": "GLI[CF385,{1,1,1,1,1,1,1,1,1}]",
+  "WeightRange": [
+    1,
+    8
+  ],
+  "Shifts": {
+    "0": {
+      "Dimension": "D",
+      "OrdinaryBoundary": {
+        "Count": 30496,
+        "DegreeCounts": {
+          "-1": 1764,
+          "-10": 1458,
+          "-11": 1476,
+          "-12": 1172,
+          "-13": 1204,
+          "-14": 988,
+          "-15": 944,
+          "-16": 752,
+          "-17": 716,
+          "-18": 616,
+          "-19": 628,
+          "-2": 1768,
+          "-20": 516,
+          "-21": 512,
+          "-22": 432,
+          "-23": 428,
+          "-24": 312,
+          "-25": 316,
+          "-26": 204,
+          "-27": 196,
+          "-28": 108,
+          "-29": 100,
+          "-3": 1788,
+          "-30": 48,
+          "-31": 36,
+          "-32": 8,
+          "-4": 1752,
+          "-5": 1824,
+          "-6": 1722,
+          "-7": 1784,
+          "-8": 1652,
+          "-9": 1676,
+          "0": 1596
+        },
+        "Examples": [
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 1,
+              "u": 1
+            },
+            "Degree": -4
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 1,
+              "u": 2
+            },
+            "Degree": -2
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 1,
+              "u": 3
+            },
+            "Degree": 0
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 2,
+              "u": 1
+            },
+            "Degree": -2
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 2,
+              "u": 3
+            },
+            "Degree": -6
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 2,
+              "u": 5
+            },
+            "Degree": -2
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 3,
+              "u": 1
+            },
+            "Degree": 0
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 3,
+              "u": 2
+            },
+            "Degree": -6
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 3,
+              "u": 4
+            },
+            "Degree": -10
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 3,
+              "u": 5
+            },
+            "Degree": -8
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 3,
+              "u": 7
+            },
+            "Degree": -4
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 3,
+              "u": 8
+            },
+            "Degree": -2
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 4,
+              "u": 3
+            },
+            "Degree": -10
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 4,
+              "u": 5
+            },
+            "Degree": -14
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 4,
+              "u": 7
+            },
+            "Degree": -10
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 5,
+              "u": 2
+            },
+            "Degree": -2
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 5,
+              "u": 3
+            },
+            "Degree": -8
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 5,
+              "u": 4
+            },
+            "Degree": -14
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 5,
+              "u": 6
+            },
+            "Degree": -18
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 5,
+              "u": 7
+            },
+            "Degree": -16
+          }
+        ]
+      },
+      "P1ZeroSet": {
+        "Count": 7673,
+        "DegreeCounts": {
+          "-1": 544,
+          "-10": 469,
+          "-11": 510,
+          "-12": 397,
+          "-13": 408,
+          "-14": 283,
+          "-15": 238,
+          "-16": 100,
+          "-2": 472,
+          "-3": 534,
+          "-4": 472,
+          "-5": 544,
+          "-6": 462,
+          "-7": 544,
+          "-8": 472,
+          "-9": 534,
+          "0": 690
+        },
+        "Examples": [
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "fixed",
+            "Weights": {
+              "normal": 1,
+              "v": 1
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 1
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 2
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 3
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 4
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 5
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 6
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 7
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 8
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 2,
+              "v": 2,
+              "h": 1
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 2,
+              "v": 2,
+              "h": 3
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 2,
+              "v": 2,
+              "h": 5
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 2,
+              "v": 2,
+              "h": 7
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 3,
+              "v": 3,
+              "h": 1
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 3,
+              "v": 3,
+              "h": 2
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 3,
+              "v": 3,
+              "h": 4
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 3,
+              "v": 3,
+              "h": 5
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 3,
+              "v": 3,
+              "h": 7
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 3,
+              "v": 3,
+              "h": 8
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P1",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 4,
+              "v": 4,
+              "h": 1
+            },
+            "Degree": 0
+          }
+        ]
+      },
+      "P4ZeroSet": {
+        "Count": 6367,
+        "DegreeCounts": {
+          "-1": 715,
+          "-10": 207,
+          "-11": 214,
+          "-12": 99,
+          "-13": 89,
+          "-14": 33,
+          "-15": 31,
+          "-2": 624,
+          "-3": 676,
+          "-4": 562,
+          "-5": 613,
+          "-6": 460,
+          "-7": 494,
+          "-8": 346,
+          "-9": 347,
+          "0": 857
+        },
+        "Examples": [
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "fixed",
+            "Weights": {
+              "normal": 1,
+              "v": 1
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 1
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 2
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 3
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 4
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 5
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 6
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 7
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 1,
+              "v": 1,
+              "h": 8
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 2,
+              "v": 2,
+              "h": 1
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 2,
+              "v": 2,
+              "h": 3
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 2,
+              "v": 2,
+              "h": 5
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 2,
+              "v": 2,
+              "h": 7
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 3,
+              "v": 3,
+              "h": 1
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 3,
+              "v": 3,
+              "h": 2
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 3,
+              "v": 3,
+              "h": 4
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 3,
+              "v": 3,
+              "h": 5
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 3,
+              "v": 3,
+              "h": 7
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 3,
+              "v": 3,
+              "h": 8
+            },
+            "Degree": 0
+          },
+          {
+            "Surface": "P4",
+            "RState": "fixed",
+            "HState": "zero",
+            "Weights": {
+              "normal": 4,
+              "v": 4,
+              "h": 1
+            },
+            "Degree": 0
+          }
+        ]
+      }
+    },
+    "1": {
+      "Dimension": "D+2",
+      "OrdinaryBoundary": {
+        "Count": 2,
+        "DegreeCounts": {
+          "0": 2
+        },
+        "Examples": [
+          {
+            "States": {
+              "r": "fixed",
+              "a": "zero",
+              "u": "zero",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 1,
+              "u": 1
+            },
+            "Degree": 0
+          },
+          {
+            "States": {
+              "r": "fixed",
+              "a": "infinity",
+              "u": "infinity",
+              "v": "fixed"
+            },
+            "Weights": {
+              "a": 1,
+              "u": 1
+            },
+            "Degree": 0
+          }
+        ]
+      },
+      "P1ZeroSet": {
+        "Count": 0,
+        "DegreeCounts": {},
+        "Examples": []
+      },
+      "P4ZeroSet": {
+        "Count": 0,
+        "DegreeCounts": {},
+        "Examples": []
+      }
+    },
+    "2": {
+      "Dimension": "D+4",
+      "OrdinaryBoundary": {
+        "Count": 0,
+        "DegreeCounts": {},
+        "Examples": []
+      },
+      "P1ZeroSet": {
+        "Count": 0,
+        "DegreeCounts": {},
+        "Examples": []
+      },
+      "P4ZeroSet": {
+        "Count": 0,
+        "DegreeCounts": {},
+        "Examples": []
+      }
+    }
+  },
+  "MinimumPureDimensionShifts": 2,
+  "Checks": {
+    "DPlus2HasTwoCoordinateLogarithms": true,
+    "DPlus2DenominatorZeroSetsConvergent": true,
+    "DPlus4OrdinaryBoundariesConvergent": true,
+    "DPlus4DenominatorZeroSetsConvergent": true
+  }
+}
