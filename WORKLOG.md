@@ -1378,3 +1378,29 @@ Plan, in order; each step appends its outcome here:
   (may obsolete the 5-var parametrization build); HypExp for pFq
   expansions; SubTropica/AMFlow + PSLQ as certified last resort;
   probes on solved-tier controls + one blocked period each tier.
+
+## 2026-08-15 (early) — stage-3 package survey delivered: boundary
+   toolchain decided
+
+- Verdicts vs certified controls (scratch stage3_survey/
+  SURVEY_REPORT.md): asy 2.1 ADOPT (region identification mechanized
+  — reproduced PID-1's certified soft-edge structure + 4
+  discriminating controls; CHART CHOICE remains hand-work); MB.m +
+  barnesroutines ADOPT (Barnes1 closed the control period exactly;
+  12-digit numeric pipeline); HypExp 2.0 ADOPT (certified soft limit
+  exact through eps^4); SubTropica ADOPT WITH MANDATORY GUARD —
+  FindIntegerNullVector FABRICATES relations for basis-free
+  constants at every precision incl. 50 digits (negative control):
+  candidate generator only, exact certification load-bearing.
+- S2-B: the 5-variable parametrization build is NOT obsoleted by MB
+  (MB consumes parametric reps; AMBRE has zero cut/phase-space
+  support).  The one cheap gating experiment before committing the
+  build: Codex's BuildBaikovCutBoundaryIntegralFromTopology on
+  CF123 (their machinery, coverage currently 1/20) — next-session
+  item / round-6 exchange request.
+- Two pilot open items closed: CleanOutput hypothesis refuted;
+  SubTropica banner reports HyperFLINT present (contradicting the
+  earlier "no HF library" — pilot §19.2 to be corrected).
+- New traps recorded (asy's ~200 Global` symbols + bare x + Abort[];
+  PExpand {} ambiguity; HypExp silent half-load; SubTropica exports
+  `line`).
