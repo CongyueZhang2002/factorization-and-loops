@@ -1300,3 +1300,29 @@ Plan, in order; each step appends its outcome here:
 - Toolkit found 3 of its own bugs by disbelieving output
   (non-deterministic tie-break; half-integer detector false-negative
   on algebraic loci; timeout discarding completed work).
+
+## 2026-08-14 (late) — PACKAGE BENCHMARK VERDICT: Libra wins symbolic
+   transport by >=40,000x; custom layer demoted
+
+- T1 (decisive, symbolic): Libra builds the weight-3 NLO transport in
+  0.03s (fibration) with exact per-weight DE zeros and 40-digit
+  agreement vs certified masters at both chamber points (GiNaC as
+  neutral referee).  The custom GPL layer, same task same path,
+  completed NO order in a generous 30-min budget.  Mechanism
+  identified: representation — shuffle-expanded rational-FUNCTION
+  coefficients (~50k leaves for one sector at eps^2) vs Libra's
+  compact word form (9,174 leaves for the whole 7x7); path choice is
+  a 1.4x effect only.  PolyLogTools transport also correct (0.34s);
+  scoring blocked by our harness, un-eliminated.  DiffExp fetched,
+  not yet driven; T3/CF3 staged.
+- DECISION (user's mature-packages-first correction fully
+  vindicated): Libra becomes the symbolic transport engine of
+  production; the custom layer is demoted to certification/
+  post-processing reference.  Still ours and unaffected: the
+  assembly architecture (class forms -> family systems), valuation
+  constraints (engine-independent physics), boundary counter,
+  toolkit, class quotient.  Remaining benchmark items (CF3 gate on
+  Libra, tier-3 coupling handling, DiffExp numeric role) queue for
+  tomorrow.
+- Two "unsupported check scored as pass" harness bugs caught by the
+  agent's own negative controls — the false-pass family again.
