@@ -1252,3 +1252,25 @@ Plan, in order; each step appends its outcome here:
   request); remaining narrow finding: HyperFLINT order-finder fails
   on a textbook integral with no HF library on disk — decisive
   correct-options+forced-HyperIntica test queued.
+
+## 2026-08-14 (close) — ALL THREE ENGINE GATES GREEN; round-5 shipped
+
+- Valuation-constraint step implemented as a universal solve-time
+  stage (per-block from ord(T^-1); below-valuation assertion in
+  every production solve; valuation reference coupled to boundary-
+  fixing n0 by design, documented).  CF360 END-TO-END PASS (19/19
+  exact quadrature zeros; assembled DE exact with symbolic
+  constants).  Gates: NLO (>=40 digits, 2 points), CF3 (exact
+  eps^0-2), CF360.  Stragglers CF123/CF269/CF263 running overnight
+  (3600s guards, monitor); CF123 certificate OK, in solve.
+- SubTropica saga closed: tool exonerated; final root cause OUR
+  regulator symbol (ep vs its routing eps); Route R evaluates PID-1
+  in 0.68s exact; six caller-side faults tabulated; "the prior sits
+  on our invocation" adopted.  Open: whether eps>=2 orders need
+  HyperFLINT (queued) — joint infra decision if so.
+- Round-5 note committed + shuttled: 24/24 validation with the
+  (1,-1) question; SubTropica retraction; valuation story; proposed
+  division — stage-4 distributional pilot to Codex, survivor
+  selection doubly derived, periods split 17-one-dim (us, one
+  5-var build) / 13-multi-dim + fair QF test (them), their lane
+  unchanged; regulator-normalization trap-list recommendation.
