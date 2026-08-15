@@ -804,6 +804,40 @@ HCTObstruction[out_Association] := Module[{s},
     AppendTo[s, "SOLVED: exact hypergeometric certificate"]];
   If[s === {}, "no obstruction recorded", StringRiffle[s, "; "]]];
 
+(* ------------------------------------------------------- kernel mission pool *)
+
+(* HCTMissionPool[missions, runFn]: dynamic mission queue on 1 main +
+   k subkernels.  Every mission spec is submitted up front; WaitNext
+   hands each finished subkernel the next spec, so heterogeneous jobs
+   (search chunks, DSolve probes, reductions) share the pool without a
+   second main kernel.  runFn[spec] runs on a subkernel and must
+   return its own tagged result; the CALLER must DistributeDefinitions
+   runFn and every symbol it uses BEFORE calling (DistributeDefinitions
+   is HoldAll, so the pool cannot forward a symbol list faithfully).
+   Returns results in completion order.
+   Measured 2026-08-15 (class-97 pool: 12 y-specialized Beke chunks +
+   DSolve probe + exterior-square reduction): 331s on 4 subkernels vs
+   ~19min serial, single license main. *)
+Options[HCTMissionPool] = {"Kernels" -> 4, "Progress" -> Automatic};
+HCTMissionPool[missions_List, runFn_, OptionsPattern[]] := Module[
+  {nk = OptionValue["Kernels"], prog = OptionValue["Progress"],
+   queue, running, results = {}, r, res, t0},
+  If[Length[Kernels[]] < nk, LaunchKernels[nk - Length[Kernels[]]]];
+  queue = With[{f = runFn, t = #}, ParallelSubmit[f[t]]] & /@ missions;
+  running = queue; t0 = AbsoluteTime[];
+  While[Length[running] > 0,
+    r = WaitNext[running];
+    res = r[[1]]; running = r[[3]];
+    AppendTo[results, res];
+    If[prog === Automatic,
+      Print["POOL done ",
+        If[ListQ[res] && Length[res] > 0, ToString[res[[1]]],
+          ToString[Head[res]]],
+        " | remaining=", Length[running],
+        " elapsed=", Round[AbsoluteTime[] - t0], "s"],
+      prog[res, Length[running], AbsoluteTime[] - t0]]];
+  results];
+
 (* ------------------------------------------------------- report / registry *)
 
 HCTPut[expr_, file_] := Module[{tmp},

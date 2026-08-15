@@ -413,3 +413,24 @@ out["R5Obstruction"]                                   (* the handoff *)
 `classData` is one entry of `classes.wl` (needs `RepAv`, `RepAw`; `ClassID`,
 `Dim`, `RepFamily`, `RepRows` are used for labelling). Symbol naming is
 normalized on entry, so any regulator spelling works.
+
+## Kernel mission pool (added 2026-08-15)
+
+`HCTMissionPool[missions, runFn, "Kernels" -> 4]` runs a heterogeneous
+mission queue on 1 main + k subkernels: every spec is submitted up
+front, `WaitNext` hands each finished subkernel the next spec. Use it
+whenever a class attack has several independent jobs (search chunks,
+`DSolve` probes, reductions) — it keeps the second main-kernel license
+seat free. The caller must `DistributeDefinitions` `runFn` and its data
+first (`DistributeDefinitions` is HoldAll, so the pool cannot forward a
+symbol list). Measured on the class-97 order-1 campaign: 12
+y-specialized Beke chunks + `DSolve` probe + exterior-square reduction
+in 331 s on 4 subkernels (~19 min serial), zero extra main kernels.
+
+Class-97 outcome update (2026-08-15, pooled run): the order-4 operator
+has NO first-order right factor — 1,906 forced-degree Beke candidates,
+0 survivors at two independent rational y specializations (timeouts
+counted as survivors; none occurred), subsuming the earlier pure-power
+exhaustion. `DSolve` times out at 300 s. The exterior square Λ²(A)
+scalarizes to an order-6 operator (cyclic vector {1,0,0,0,0,0}); its
+first-order factors + Plücker condition are the order-2 rung, pending.
