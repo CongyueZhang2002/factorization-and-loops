@@ -202,7 +202,21 @@ independent — a single `Simplify[resid == 0]` is not a proof). Certificate
 grade is recorded: exact-symbolic, or high-precision numeric with
 `$MaxExtraPrecision`, never conflated.
 
-### R5 — report
+### External algebraic-geometry probes (Codex-measured, adopted 2026-08-15)
+
+Before R3 declares an operator unidentifiable, probe with the
+free-CAS quartet Codex measured (their Exchange/
+CodexBoundaryFindingsPlan_2026-08-15.md): **ore_algebra** for
+singularities/indicial equations of the reduced scalar operator;
+**PassageMath/SageMath** for genus and exact rational parametrization
+of the maximal-cut curve (CF231's conic fell to this); **QEPCAD** for
+exact sign/chamber decisions; **Singular gmssing.lib** for Bernstein
+polynomials. Also: Maxima/FriCAS Kovacic for order-2 pieces (free;
+policy: probe existing CAS before any bespoke identification code —
+user ruling 2026-08-15). All candidates still pass R4's exact
+certificate; foreign-CAS provenance is recorded in the class record.
+
+## R5 — report
 
 Per-rung findings, timings, certificates, and the precise forwarded obstruction.
 
