@@ -1205,3 +1205,24 @@ Plan, in order; each step appends its outcome here:
   CF407's family-level joint modes.
 - Their six census scripts copied to their Tools/BoundaryCensus/;
   our untracked copies removed.
+
+## 2026-08-14 (late night) — nullity counter FULLY VALIDATED:
+   E13/CF407 comparison 24/24 PASS
+
+- Acceptance test (b) closed: class-130's ordered corner turned out
+  to be an ordinary coordinate corner (mixed-kind loci; unramified),
+  no two-parameter solve needed; the genuinely hard curve-curve case
+  stays honestly not-derived (affects corner_ws_* only).  Full
+  24/24-master comparison at corner_vw_w1: ALL FIVE of Codex's
+  candidate pairs reproduced with exact multiplicities, incl. the
+  3-dim (0,-2) space; the (-2,-2) mode confirmed to originate in
+  exactly the previously blocked class-130 block (hypothesis ->
+  result).  Both counter acceptance tests now PASS.
+- On record: we carry one negative pair they don't enumerate,
+  (1,-1) x2 — round-5 question; and the agreement is on the corner
+  MODE SPACE, not an independent rederivation of survivor selection
+  (that needs ordered-corner constraint rows — future work).
+- GPL engine: depth hypothesis FALSIFIED by its own prediction test
+  (fix that would have shipped was wrong); defect cornered to the
+  series constructor's I = sum T_r F_{n-r} assembly; order-0 binary
+  split authorized and running.
