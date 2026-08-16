@@ -64,6 +64,49 @@ HCTMissionPool), symrep97.wls (symbolic-y replay), pool_phase2.wls
   CANONICA at higher ansatz degrees) is in
   External/FableBridge/prompts/c79_quadratic_locus_2026-08-16.md.
 
+## Phase 2/3 result and the interpolation obstruction (2026-08-16 pm)
+
+Phase 2 ran to completion: CANONICA factorizes the SYMBOLICALLY
+NORMALIZED family `symnorm_c97.wl` at **12/12 sampled y values**
+(~23 min per point, 4-wide pool). Artifacts `p2_c97_y*.wl` hold each
+slice's transform T2 and its verified eps-form. Chain links verified
+exactly at y=3/7: Ttot maps the chart system to A_norm, and T2 maps
+A_norm to an eps-form.
+
+Phase 3 (interpolate T2 in y, then gate) does NOT work naively, for a
+mathematical reason worth stating clearly:
+
+- The canonical transform is fixed only up to RIGHT MULTIPLICATION BY A
+  MATRIX CONSTANT IN x. CANONICA chooses it independently per slice, so
+  raw T2 samples are not a function of y at all — interpolation of entry
+  (1,2) fails outright.
+- Normalizing each slice by T2 -> T2 . T2(x0)^{-1} makes the samples
+  interpolable (verified: the fit reproduces the y=3/7 sample exactly in
+  all 16 entries) **but destroys the eps-form property**: the gauge
+  matrix C = T2(x0) is EPS-DEPENDENT (checked), and conjugating
+  A' = eps*M by an eps-dependent constant gives eps*(C M C^{-1}), whose
+  bracket still depends on eps. The gate then fails even AT a sample
+  point — which is the correct behaviour of the gate, not a bug in it.
+
+So slice interpolation needs an **eps-independent** gauge fix, or a
+different lift entirely. Options for the next session, cheapest first:
+
+1. **Structure-then-solve**: read the ansatz structure off the slice
+   transforms (which letters and powers appear in T's entries), then
+   solve the defining equation
+   `T^{-1} A_norm T - T^{-1} d_x T = eps M(x,y)` for the coefficients
+   with y symbolic. Bounded linear problem, no interpolation.
+2. **eps-independent normalization**: fix the gauge by a condition that
+   cannot absorb eps — e.g. normalize the residue matrix at one locus to
+   a fixed eps-independent Jordan/diagonal form, or divide out the
+   eps-dependent factor by matching leading behaviour at a regular point
+   — then interpolate as before.
+3. **Two-variable CANONICA in-chart**: now that the system is normalized
+   symbolically, run CANONICA with both variables (it accepts multiple
+   invariants) rather than slice-by-slice.
+4. Use the y-equation as the constraint that fixes the remaining gauge
+   (the correct object is an eps-form in BOTH directions simultaneously).
+
 ## Next steps (in order)
 
 1. **97 finish**: phase 2 = CANONICA on slices of the NORMALIZED family
