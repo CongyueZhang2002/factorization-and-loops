@@ -1,4 +1,0 @@
-{"prompt": "hardclass_review_2026-08-16.md", "sha256": "be66184a655db6fe8965e57ec1a9119ea3255ccd1011cd2bcc779b576a05ca7a",
- "preparedAt": "2026-08-16T20:13:24Z",
- "model": "claude-fable-5", "transport": "subagent|cli",
- "response": "../responses/hardclass_review_2026-08-16_response.md"}
