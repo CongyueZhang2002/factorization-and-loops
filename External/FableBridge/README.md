@@ -10,7 +10,14 @@ FRESH-CONTEXT invocation of that model on a self-contained prompt: the
 value of "asking Max" is the clean context and review framing, not a
 different network.
 
-## Transport A (primary, zero-auth): in-session subagent
+## Tiering (user-confirmed 2026-08-16)
+Transport A consumes the same subscription pool as Claude Code work,
+and its thinking budget is the harness default — likely LESS than chat
+"Fable Max" extended thinking.  Convention: heavyweight strategic
+reviews go through the MANUAL chat-Max paste (full thinking budget,
+user in the loop); routine technical consults use Transport A.
+
+## Transport A (routine consults, zero-auth): in-session subagent
 The coordinating agent (Fable, in Claude Code) runs, verbatim:
 
   Agent tool, subagent_type "general-purpose", model "fable",
