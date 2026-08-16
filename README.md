@@ -1,12 +1,17 @@
-# FACET
+# factorization-and-loops (FeynFacet)
 
-FACET is the Linux production tree for the Factorization Agent for Collider
-and Event-shape Theory. This repository starts with infrastructure only; the
-existing exploratory Windows and Linux projects remain unchanged.
+Production tree for the FeynFacet package: collinear factorization and the
+NNLO hard function for pp -> h+X. **New agent sessions: read `CLAUDE.md`
+first** for workflow orientation, then `AGENTS.md` for house rules.
+
+The legacy tree `~/FACET` is frozen reference material and the parallel
+assistant's workspace — never write there.
 
 ## Layout
 
-- `External/ChatGPT`: bridge files for the signed-in ChatGPT Pro session.
+- `External/CodexExchange`: exchange with the parallel assistant (Codex),
+  as exact source files and certificates.
+- `External/FableBridge`: standardized fresh-context Fable consults.
 - `Addon/Load`: FACET's repository-relative loader.
 - `Addon/Mathematica_Addon`: third-party Wolfram Language packages.
 - `Addon/Other_Addon`: non-Mathematica tools, currently Kira.
@@ -14,15 +19,22 @@ existing exploratory Windows and Linux projects remain unchanged.
   public facade; focused files under `Private` own core exact algebra, process
   cards, topology and cut handling, dimensional shifts, collinear
   factorization, and Kira reduction.
-- `Codex`: agent-owned Kira workspaces, run state, scratch files, logs,
-  staging files, backups, and the reusable test suite under `Codex/Tests`,
-  organized by calculation. Production code and durable analytic results are
-  kept outside this directory.
+- `Scripts`: campaign drivers (hard-class toolkit and kernel-pool helper,
+  eps-form pipeline, eps-graded solver).
+- `Design`: architecture and method records (master-solving architecture,
+  hard-class toolkit, stage-3 boundary toolchain).
+- `Tests` + `run_tests.sh`: the acceptance suite.
+- `ppHX_NNLO_DoubleReal/Results`: class forms, block classes, boundary
+  periods, hard-class artifacts.
+- `Archive`: retired implementations kept as certification references.
+
+Scratch work belongs in the session scratchpad, not in this tree; evidence
+a reported result depends on must be moved into `Results/` first.
 
 ## Load
 
 ```wl
-Get["/home/maxzhang/FACET/Addon/Load/LoadFACET.wl"];
+Get["/home/maxzhang/factorization-and-loops/Addon/Load/LoadFACET.wl"];
 ```
 
 This resolves dependencies relative to this repository. It does not depend on

@@ -1,5 +1,13 @@
 # Factorization and Loops — To Do
 
+> **Status note (2026-08-16):** this file records the ORIGINAL rewrite
+> plan (2026-08-09) and remains useful as the record of that plan's
+> items and their outcomes. It is NOT the current frontier. For where
+> the project actually stands, read `CLAUDE.md`, then
+> `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/HardClasses/EpsFormRoute/README.md`.
+> Paths of the form `/home/maxzhang/FACET/...` below refer to the frozen
+> legacy tree (read-only reference); current work lives in this repo.
+
 ## Rewrite plan (agreed 2026-08-09)
 
 Management model: Fable acts as architect/manager and reviewer; Opus
