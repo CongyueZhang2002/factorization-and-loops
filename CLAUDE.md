@@ -88,9 +88,19 @@ gave a first route (eps-graded recursion, `Scripts/EpsilonGraded.wl`,
 certified solutions through eps^3/eps^2 — now the VERIFICATION track).
 The production route is the eps-form found on 2026-08-16: rationalizing
 chart -> Fuchsify -> two-point Lee balances -> CANONICA. Class 97 is
-normalized symbolically in (x,y); 97 and 77 have slice eps-forms at 10
-y-points; 79 is blocked by integer offsets on an irreducible quadratic
-locus.
+normalized symbolically in (x,y) (flat, integrability verified) and its
+normalized family factorizes at 12/12 sampled y values; what remains is
+the eps-factorizing gauge with y symbolic — a two-variable CANONICA run
+was progressing when the session ended and is the first thing to
+restart. Class 77 has slice eps-forms at 10 y-points and follows the
+same template. Class 79 is blocked by integer offsets on an irreducible
+quadratic locus (mechanism question written up, unanswered).
+
+Do NOT try to lift the gauge by interpolating independent slice
+transforms: the canonical transform is fixed only up to an
+EPS-DEPENDENT constant matrix, so slices are incomparable, and
+normalizing them at a reference point destroys the eps-form. This is
+measured and recorded, with four alternatives, in the route README.
 
 ## Two-assistant setup (important)
 

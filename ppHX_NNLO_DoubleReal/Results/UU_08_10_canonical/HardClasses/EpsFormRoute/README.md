@@ -1,4 +1,4 @@
-# Hard classes 97/77/79 — the eps-form route (state at 2026-08-16 14:00)
+# Hard classes 97/77/79 — the eps-form route (state at 2026-08-16 15:35)
 
 This directory supersedes the eps-graded route (parent directory) as the
 PRODUCTION plan for the last three connection classes.  The eps-graded
@@ -107,14 +107,39 @@ different lift entirely. Options for the next session, cheapest first:
 4. Use the y-equation as the constraint that fixes the remaining gauge
    (the correct object is an eps-form in BOTH directions simultaneously).
 
+## Two-variable CANONICA: attempted, stopped mid-run (not a verdict)
+
+After the interpolation obstruction, the natural fix is to let the
+y-equation fix the gauge, i.e. run CANONICA on BOTH connections at once.
+Prepared and launched (`Scripts/canonica2var.wls`):
+
+- The y-connection of the normalized system is built by transporting the
+  chart's A_y through the same Ttot:
+  `Ay_norm = Ttot^-1 Ay_chart Ttot - Ttot^-1 d_y Ttot`.
+- **Integrability verified**: dA_x/dy - dA_y/dx + [A_x, A_y] = 0 exactly.
+  So the normalized pair is a genuine flat two-variable connection and
+  the symbolic replay's bookkeeping is correct in both directions.
+- Input format matters: CANONICA takes a FLAT list of connection
+  matrices, one per invariant (`{Ax, Ay}`), sectors handled by the
+  boundaries argument — the same convention `CanonicalBlocks.wl` uses.
+  An extra nesting level produces `CheckDE::notsquare`/`varnumber`.
+- The run reached "Transforming diagonal block of sector 1" and then
+  "Generating equations at order eps^1", computing at ~340% CPU with a
+  FLAT 1.23 GB footprint for ~35 min (measured: no expression swell).
+  It was stopped by the user for the session handoff, NOT because it
+  failed. **Rerunning it is the single cheapest next action**;
+  ansatz degrees are currently (2,2,2,2).
+
 ## Next steps (in order)
 
-1. **97 finish**: phase 2 = CANONICA on slices of the NORMALIZED family
-   (pool_phase2.wls, was running at handoff) -> T2(y_i) samples ->
-   phase 3 = entrywise rational interpolation in y -> phase 4 = exact
-   two-variable gate (both transformation identities + stage-1
-   ValidateCanonicalForm).  Only the gate is load-bearing;
-   interpolation is a candidate generator.
+1. **97 finish**: phase 2 is DONE (12/12 slices).  The remaining task is
+   the eps-factorizing gauge with y symbolic — take one of the four
+   routes in the section above (two-variable CANONICA on
+   `symnorm_c97.wl` is the cheapest to try; structure-then-solve is the
+   most likely to succeed).  Whatever produces a candidate U(x,y,eps),
+   the acceptance is the same exact gate: push the ORIGINAL chart system
+   through U and check entrywise that the result is eps times an
+   eps-free matrix, then stage-1 ValidateCanonicalForm.
 2. **77**: same, after either symbolic descent or the finisher.
 3. **79**: implement the quadratic-locus mechanism from the consult,
    then rerun the pipeline.
