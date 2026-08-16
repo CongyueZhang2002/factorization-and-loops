@@ -36,7 +36,22 @@ Conventions:
   new prompt files that QUOTE the relevant part of the prior response
   (fresh context each time; no hidden conversational state).
 
-## Transport B (fallback, shell-only): claude CLI print mode
+## Transport B (manual, full thinking budget): paste into chat Fable Max
+For heavyweight strategic reviews: coordinator writes the self-contained
+prompt to prompts/, user pastes it into a claude.ai "Fable Max" chat,
+saves the reply to responses/.  This is the DEFAULT for anything
+strategic — full extended-thinking budget, user in the loop.
+
+## Transport C: WITHDRAWN (2026-08-16)
+An automated claude.ai cookie-bridge sender was built and then removed
+at user direction: it tripped model safeguards (browser-session
+impersonation of the same subscription is not a genuine independent
+reviewer, unlike Codex's separate-product ChatGPT bridge).  If
+programmatic Fable is ever wanted, use an official Anthropic API key
+with model claude-fable-5 and an explicit thinking budget — clean dial,
+separate metering — not the web cookie.
+
+## (removed) shell-only CLI print mode
   ~/.claude/remote/ccd-cli/<ver> -p --model claude-fable-5 < prompt.md
 Requires a one-time `/login` in an interactive `claude` (the remote
 bridge's auth does not extend to print mode).  Useful for scripts that
