@@ -1,0 +1,4 @@
+{"prompt": "c79_quadratic_locus_2026-08-16.md", "sha256": "d9131bc598ce205abd78cea551c53cca8dfd0f10b0a8b728a4bc1a2f28caed1a",
+ "preparedAt": "2026-08-16T20:13:58Z",
+ "model": "claude-fable-5", "transport": "subagent|cli",
+ "response": "../responses/c79_quadratic_locus_2026-08-16_response.md"}

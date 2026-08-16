@@ -455,3 +455,58 @@ Picard–Fuchs lane), not further factor search. The same two-point
 `ore_algebra` probe is the FIRST move for any future hard class (it
 subsumes the R-ladder's factor rungs at specialized points, seconds
 per class).
+
+## The epsilon-graded route (2026-08-15/16, all three hard classes)
+
+Since 97/77/79 are order-4 irreducible at generic eps but factor
+COMPLETELY at eps=0 (ore_algebra [1,1,1,1] at two independent
+specializations each), the production route is the eps-graded scalar
+recursion in `Scripts/EpsilonGraded.wl`: grade the monic operator in
+eps, invert L0 through its verified first-order chain by exact
+anchored quadratures (Hlog words), certify every order by an exact
+residual identity.  Chains and the class-97 solution through eps^3
+live in Results/UU_08_10_canonical/HardClasses/ (see its README for
+provenance and certificates); suite: Tests/t_epsilon_graded.wls.
+Class-97's order-1 solve matches the independently derived Codex route
+in structure; system-level cross-check pending gauge alignment.
+
+Trap-list addition (measured): **HyperIntica's `HyperInticaPrimitive`
+returns HALF the true primitive on pure-zero words** (Log powers) in
+every on-box version (SubTropica 1.1.10/1.2.3/1.2.9), while words with
+any nonzero letter are exact.  EpsilonGraded.wl therefore certifies
+every package primitive by an exact derivative identity and routes
+failures (and all pure-zero content) to its own by-parts recursion.
+Also measured: chain/flag factorizations of these operators generically
+carry APPARENT factors in their stage weights (97: one linear-in-x
+apparent letter, workable; 77/79: an apparent sextic, not directly
+quadrature-ready) — gauge choice (cyclic covector) controls this, and
+a letter-only-weight gauge scan is the standard cleanup step.
+
+**Endpoint deliverable requirement (user physics input, 2026-08-16):**
+plus-distribution extraction needs the UNEXPANDED endpoint modes
+(1-w)^(alpha eps + m) x analytic — an eps-expanded log tower has lost
+its delta-function content.  The eps-graded route therefore delivers,
+per hard class: the expanded solution PLUS the exact endpoint indicial
+exponents and the finite linear matching that resums the log towers
+onto the mode basis (exact, since the exponents are DE data; care at
+integer-degenerate exponent pairs).  Canonical-class transport keeps
+modes resummed natively; the hard classes pay this extra step.
+Depth rule restated: an ingredient's eps depth = target order + the
+deepest pole it multiplies anywhere in the subtracted assembly
+(measure factors, IBP coefficient poles, transport regulator shifts,
+subtraction kernels) — the NLO analogue being LO carried to eps (eps^2
+for NNLO subtraction).  The stage-4 format question is thereby
+narrowed: endpoint content is physics-forced to resummed modes; only
+the interior (v,w) representation remains open with Codex.
+
+**Laurent-graded reconstruction (measured 2026-08-16, class 97):** the
+cyclic covector stack degenerates at eps=0 (det ~ eps) and its symbolic
+inverse carries 1/eps poles in the columns acting on the higher scalar
+derivatives.  Consequences: (i) scalar->vector reconstruction is
+Laurent-graded — every vector eps-order draws on scalar orders one
+deeper (a +1 entry in the depth budget for this gauge); (ii) the eps^0
+vector kernel is built from kernel elements CONTINUED to eps^1, so all
+four kernel continuations are required, not just the seed mode; (iii)
+naive Inverse at eps=0 and naive eps->0 substitution both lie — pole
+orders must be read from Series with Cancel'd entries (unsimplified
+CoefficientList valuations report false zeros).

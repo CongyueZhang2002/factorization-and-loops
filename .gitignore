@@ -24,6 +24,7 @@ ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/*
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/ClassForms/
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/BlockClasses/
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/BoundaryPeriods/
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/HardClasses/
 
 # --- Third-party software (own licenses; installed locally, not redistributed) ---
 Addon/Mathematica_Addon/*
