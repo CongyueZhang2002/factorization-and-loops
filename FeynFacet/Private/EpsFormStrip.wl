@@ -260,8 +260,8 @@ Options[SolveResidueRationalGauge] = {
   "Tag" -> "residue_strip",
   "TimeLimit" -> 1800,
   "ResidueKernels" -> 4,
-  "LetterDenominatorPowers" -> {1, 2},
-  "NumeratorDegreeOffsets" -> {0},
+  "LetterDenominatorPowers" -> {1, 2, 3},
+  "NumeratorDegreeOffsets" -> {0, 1, 2},
   "Verbose" -> False
 };
 
@@ -691,8 +691,8 @@ Options[SolveEpsFormStrip] = {
   "MapleLibrary" -> Automatic,
   "MapleTimeLimit" -> 1800,
   "MapleResidueKernels" -> 4,
-  "MapleLetterDenominatorPowers" -> {1, 2},
-  "MapleNumeratorDegreeOffsets" -> {0},
+  "MapleLetterDenominatorPowers" -> {1, 2, 3},
+  "MapleNumeratorDegreeOffsets" -> {0, 1, 2},
   "ScratchDirectory" -> Automatic,
   "Tag" -> "strip",
   "Verbose" -> False
