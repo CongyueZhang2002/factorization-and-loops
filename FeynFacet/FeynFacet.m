@@ -132,6 +132,12 @@ TransportQuadrature::usage =
 TransportConstant::usage =
   "TransportConstant[block,order,index] is a symbolic integration constant of TransportFamily: component index of the constant vector of the given block at the given epsilon order. The valuation constraints are linear equations on these, and the boundary-fixing stage substitutes them.";
 
+SolveResidueRationalGauge::usage =
+  "SolveResidueRationalGauge[{e,c,bbar},{x,y},eps] constructs the exact residue-compatible inhomogeneous system for one off-diagonal differential-equation strip, solves its rational gauge with Maple IntegrableConnections, and returns the gauge only after exact checks in both variables.";
+
+SolveEpsFormStrip::usage =
+  "SolveEpsFormStrip[{e,c,bbar},{x,y},eps] recognizes an existing dlog strip, otherwise searches CANONICA numerator degrees 0,1,2,3 concurrently with 120 seconds per degree, and invokes SolveResidueRationalGauge only when none gives an exact dlog gauge. Options change the degrees, time limits, denominator degree, scratch directory, and Maple paths.";
+
 AssembleCutContributions::usage =
   "AssembleCutContributions[{result1, ...}] combines coefficient results of one process on a shared canonical family namespace. Each contribution enters with the exact weight IdenticalParticleSymmetryFactor[setup] times (-1) per outgoing ghost-antighost pair, realizing the Slavnov-Taylor completion of -g gluon polarization sums.";
 
@@ -180,6 +186,10 @@ SyntaxInformation[ValidateCanonicalForm] =
   {"ArgumentsPattern" -> {_, _., OptionsPattern[]}};
 SyntaxInformation[CanonicalBlocksStatus] =
   {"ArgumentsPattern" -> {_, OptionsPattern[]}};
+SyntaxInformation[SolveResidueRationalGauge] =
+  {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
+SyntaxInformation[SolveEpsFormStrip] =
+  {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
 SyntaxInformation[AssembleCutContributions] = {"ArgumentsPattern" -> {_}};
 SyntaxInformation[IdenticalParticleSymmetryFactor] =
   {"ArgumentsPattern" -> {_}};
@@ -210,7 +220,7 @@ $feynFacetPrivateFiles = FileNameJoin[{$feynFacetPrivateDirectory, #}] & /@ {
     "StreamingKira.wl",
     "MasterIntegralAmFlow.wl", "Simplification.wl", "Assembly.wl",
     "CoefficientStore.wl", "Reconstruction.wl",
-    "CanonicalBlocks.wl", "MasterTransport.wl"
+    "CanonicalBlocks.wl", "EpsFormStrip.wl", "MasterTransport.wl"
 };
 $feynFacetSourceFiles = Join[
   {ExpandFileName[$InputFileName], FileNameJoin[{$feynFacetDirectory, "Distributions.wl"}]},
