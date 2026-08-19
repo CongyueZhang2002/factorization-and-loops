@@ -259,6 +259,7 @@ Options[SolveResidueRationalGauge] = {
   "ScratchDirectory" -> Automatic,
   "Tag" -> "residue_strip",
   "TimeLimit" -> 1800,
+  "MethodTimeLimit" -> 120,
   "ResidueKernels" -> 4,
   "LetterDenominatorPowers" -> {1, 2, 3},
   "NumeratorDegreeOffsets" -> {0, 1, 2},
@@ -271,6 +272,7 @@ SolveResidueRationalGauge[
     OptionsPattern[]] :=
  Module[
   {mapleExecutable, mapleLibrary, scratchDirectory, tag, timeLimit,
+   methodTimeLimit,
    residueKernels, denominatorPowers, numeratorOffsets, verbose, residueData,
    freeResidues, forcing, shape, dimension,
    connection, externalIndices, mapleUnknownHead, mapleUnknowns,
@@ -298,6 +300,7 @@ SolveResidueRationalGauge[
       "EpsFormStrip"}]];
   tag = epsFormStripSafeTag[OptionValue["Tag"]];
   timeLimit = OptionValue["TimeLimit"];
+  methodTimeLimit = OptionValue["MethodTimeLimit"];
   residueKernels = OptionValue["ResidueKernels"];
   denominatorPowers = DeleteDuplicates[
     OptionValue["LetterDenominatorPowers"]];
@@ -305,6 +308,7 @@ SolveResidueRationalGauge[
     OptionValue["NumeratorDegreeOffsets"]];
   verbose = TrueQ[OptionValue["Verbose"]];
   If[! IntegerQ[residueKernels] || residueKernels < 1 ||
+     ! NumericQ[methodTimeLimit] || methodTimeLimit <= 0 ||
      denominatorPowers === {} || numeratorOffsets === {} ||
      ! AllTrue[denominatorPowers, IntegerQ[#] && # >= 1 &] ||
      ! AllTrue[numeratorOffsets, IntegerQ[#] && # >= 0 &],
@@ -375,9 +379,10 @@ SolveResidueRationalGauge[
         StringRiffle[toMaple /@ source[[2]], ","], "]):\n",
       "solved := false:\nmethod := \"None\":\n",
       "try\n",
-      "  Vtry := Mratsolde(A", ToString[firstVariableIndex], ",",
+      "  Vtry := timelimit(", ToString[methodTimeLimit],
+        ",Mratsolde(A", ToString[firstVariableIndex], ",",
         ToString[variables[[firstVariableIndex]], InputForm], ",b",
-        ToString[firstVariableIndex], "):\n",
+        ToString[firstVariableIndex], ")):\n",
       "  if Vtry <> {} then V := Vtry: solved := true: ",
         "method := \"IntegrableConnections\" end if:\n",
       "catch: end try:\n",
@@ -410,7 +415,8 @@ SolveResidueRationalGauge[
       "      unknowns := {seq(seq(aa[i,k],k=0..ansatzdegree),i=1..",
         ToString[dimension], ")}:\n",
       "      try\n",
-      "        ansatzsolution := solve(equations,unknowns):\n",
+      "        ansatzsolution := timelimit(", ToString[methodTimeLimit],
+        ",solve(equations,unknowns)):\n",
       "        if type(ansatzsolution,set) then\n",
       "          Vcandidate := map(normal,eval(Vtry,ansatzsolution)):\n",
       "          candidatecheck := map(normal,evalm(map(diff,Vcandidate,",
@@ -549,6 +555,7 @@ SolveResidueRationalGauge[
         "LetterDenominatorPower" -> denominatorPower,
         "NumeratorDegreeOffset" -> numeratorOffset,
         "MapleSeconds" -> elapsed,
+        "MapleMethodTimeLimit" -> methodTimeLimit,
         "ResiduePreparationSeconds" -> Total[Lookup[residueData,
           {"CompatibilitySeconds", "EquationSeconds", "SolveSeconds"}]],
         "ResidueKernels" -> residueKernels,
@@ -690,6 +697,7 @@ Options[SolveEpsFormStrip] = {
   "MapleExecutable" -> "maple",
   "MapleLibrary" -> Automatic,
   "MapleTimeLimit" -> 1800,
+  "MapleMethodTimeLimit" -> 120,
   "MapleResidueKernels" -> 4,
   "MapleLetterDenominatorPowers" -> {1, 2, 3},
   "MapleNumeratorDegreeOffsets" -> {0, 1, 2},
@@ -704,7 +712,8 @@ SolveEpsFormStrip[
     OptionsPattern[]] :=
  Module[
   {degrees, denominatorDegree, canonicaTime, canonicaKernels,
-   mapleExecutable, mapleLibrary, mapleTime, mapleResidueKernels,
+   mapleExecutable, mapleLibrary, mapleTime, mapleMethodTime,
+   mapleResidueKernels,
    mapleDenominatorPowers,
    mapleNumeratorOffsets, scratchDirectory,
    tag, verbose, alphabet, converted, irreducibles,
@@ -721,6 +730,7 @@ SolveEpsFormStrip[
   mapleExecutable = OptionValue["MapleExecutable"];
   mapleLibrary = OptionValue["MapleLibrary"];
   mapleTime = OptionValue["MapleTimeLimit"];
+  mapleMethodTime = OptionValue["MapleMethodTimeLimit"];
   mapleResidueKernels = OptionValue["MapleResidueKernels"];
   mapleDenominatorPowers = OptionValue[
     "MapleLetterDenominatorPowers"];
@@ -784,6 +794,7 @@ SolveEpsFormStrip[
     "ScratchDirectory" -> scratchDirectory,
     "Tag" -> tag,
     "TimeLimit" -> mapleTime,
+    "MethodTimeLimit" -> mapleMethodTime,
     "ResidueKernels" -> mapleResidueKernels,
     "LetterDenominatorPowers" -> mapleDenominatorPowers,
     "NumeratorDegreeOffsets" -> mapleNumeratorOffsets,
