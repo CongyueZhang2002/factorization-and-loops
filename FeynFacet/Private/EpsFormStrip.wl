@@ -21,6 +21,8 @@ ClearAll[
   epsFormStripAlphabet,
   epsFormStripExactDLogQ,
   epsFormStripBuildResidueCompatibility,
+  epsFormStripMonicPolynomial,
+  epsFormStripVariableFactors,
   epsFormStripRunCanonica,
   epsFormStripSafeTag
 ];
@@ -205,12 +207,30 @@ epsFormStripBuildResidueCompatibility[
   |>
 ];
 
+epsFormStripMonicPolynomial[polynomial_, variable_] := Module[
+  {expanded, degree, leading},
+  expanded = Expand[polynomial];
+  degree = Exponent[expanded, variable];
+  If[! IntegerQ[degree] || degree <= 0, Return[expanded]];
+  leading = Coefficient[expanded, variable, degree];
+  Together[expanded/leading]
+];
+
+epsFormStripVariableFactors[
+    alphabet_List, variables_List, variable_] :=
+  DeleteDuplicates[
+    epsFormStripMonicPolynomial[#, variable] & /@
+      Select[alphabet,
+        PolynomialQ[#, variables] && ! FreeQ[#, variable] &]];
+
 Options[SolveResidueRationalGauge] = {
   "MapleExecutable" -> "maple",
   "MapleLibrary" -> Automatic,
   "ScratchDirectory" -> Automatic,
   "Tag" -> "residue_strip",
   "TimeLimit" -> 1800,
+  "LetterDenominatorPowers" -> {1, 2},
+  "NumeratorDegreeOffsets" -> {0},
   "Verbose" -> False
 };
 
@@ -220,11 +240,15 @@ SolveResidueRationalGauge[
     OptionsPattern[]] :=
  Module[
   {mapleExecutable, mapleLibrary, scratchDirectory, tag, timeLimit,
-   verbose, residueData, freeResidues, forcing, shape, dimension,
+   denominatorPowers, numeratorOffsets, verbose, residueData,
+   freeResidues, forcing, shape, dimension,
    connection, externalIndices, mapleUnknownHead, mapleUnknowns,
    forcingUnknown, source, toMaple, normalizeRegulator,
-   rationalZeroCoefficients, firstVariableIndex, mapleFile, outputFile,
+   rationalZeroCoefficients, firstVariableIndex, variableFactors,
+   ansatzDenominator, mapleFile, outputFile,
    mapleText, process, elapsed, raw, lines, solutionText, residueText,
+   methodText, methodParts, mapleMethod, denominatorPower,
+   numeratorOffset,
    indexedConstantIndices, indexedConstantSymbols, indexedConstantRules,
    parseMaple, gaugeVectorParametric, residueValuesParametric,
    gaugeParametric, residueRulesParametric, forcingParametric,
@@ -243,7 +267,15 @@ SolveResidueRationalGauge[
       "EpsFormStrip"}]];
   tag = epsFormStripSafeTag[OptionValue["Tag"]];
   timeLimit = OptionValue["TimeLimit"];
+  denominatorPowers = DeleteDuplicates[
+    OptionValue["LetterDenominatorPowers"]];
+  numeratorOffsets = DeleteDuplicates[
+    OptionValue["NumeratorDegreeOffsets"]];
   verbose = TrueQ[OptionValue["Verbose"]];
+  If[denominatorPowers === {} || numeratorOffsets === {} ||
+     ! AllTrue[denominatorPowers, IntegerQ[#] && # >= 1 &] ||
+     ! AllTrue[numeratorOffsets, IntegerQ[#] && # >= 0 &],
+    Message[SolveResidueRationalGauge::maple]; Return[$Failed]];
   log[items___] := If[verbose, Print[items]];
   If[! DirectoryQ[scratchDirectory],
     CreateDirectory[scratchDirectory, CreateIntermediateDirectories -> True]];
@@ -285,13 +317,18 @@ SolveResidueRationalGauge[
   ];
 
   Do[
+    variableFactors = epsFormStripVariableFactors[
+      residueData["Alphabet"], variables,
+      variables[[firstVariableIndex]]];
+    ansatzDenominator = Times @@ variableFactors;
     mapleFile = FileNameJoin[{scratchDirectory,
       tag <> "_first_" <> ToString[firstVariableIndex] <> ".mpl"}];
     outputFile = FileNameJoin[{scratchDirectory,
       tag <> "_first_" <> ToString[firstVariableIndex] <> ".out"}];
     If[FileExistsQ[outputFile], DeleteFile[outputFile]];
     mapleText = StringJoin[
-      "restart:\nlibname := \"", mapleLibrary, "\", libname:\n",
+      "restart:\ninterface(prettyprint=0):\nlibname := \"",
+        mapleLibrary, "\", libname:\n",
       "with(IntegrableConnections):\nwith(linalg):\n",
       "A1 := matrix(", ToString[dimension], ",", ToString[dimension],
         ",[", StringRiffle[toMaple /@ Flatten[connection[[1]]], ","],
@@ -303,15 +340,64 @@ SolveResidueRationalGauge[
         StringRiffle[toMaple /@ source[[1]], ","], "]):\n",
       "b2 := vector(", ToString[dimension], ",[",
         StringRiffle[toMaple /@ source[[2]], ","], "]):\n",
-      "fd := fopen(\"", outputFile, "\", WRITE):\n",
+      "solved := false:\nmethod := \"None\":\n",
       "try\n",
-      "  V := Mratsolde(A", ToString[firstVariableIndex], ",",
+      "  Vtry := Mratsolde(A", ToString[firstVariableIndex], ",",
         ToString[variables[[firstVariableIndex]], InputForm], ",b",
         ToString[firstVariableIndex], "):\n",
-      "  if V = {} then fprintf(fd, \"FAIL\\n\") else ",
-        "fprintf(fd, \"OK\\n%a\\n%a\\n\",convert(V,list),",
-        toMaple[mapleUnknowns], ") end if:\n",
-      "catch: fprintf(fd, \"ERROR\\n%a\\n\",lastexception): end try:\n",
+      "  if Vtry <> {} then V := Vtry: solved := true: ",
+        "method := \"IntegrableConnections\" end if:\n",
+      "catch: end try:\n",
+      "if not solved then\n",
+      "  denbase := ", toMaple[ansatzDenominator], ":\n",
+      "  for denpower in [",
+        StringRiffle[ToString /@ denominatorPowers, ","],
+        "] while not solved do\n",
+      "    den := denbase^denpower:\n",
+      "    basedegree := degree(den,",
+        ToString[variables[[firstVariableIndex]], InputForm], "):\n",
+      "    for degreeoffset in [",
+        StringRiffle[ToString /@ numeratorOffsets, ","],
+        "] while not solved do\n",
+      "      ansatzdegree := basedegree + degreeoffset:\n",
+      "      Vtry := vector(", ToString[dimension], ",[seq(add(",
+        "aa[i,k]*",
+        ToString[variables[[firstVariableIndex]], InputForm],
+        "^k,k=0..ansatzdegree)/den,i=1..",
+        ToString[dimension], ")]):\n",
+      "      residual := map(normal,evalm(map(diff,Vtry,",
+        ToString[variables[[firstVariableIndex]], InputForm], ")-A",
+        ToString[firstVariableIndex], "&*Vtry-b",
+        ToString[firstVariableIndex], ")):\n",
+      "      equations := {}:\n",
+      "      for i from 1 to ", ToString[dimension], " do\n",
+      "        equations := equations union {coeffs(numer(residual[i]),",
+        ToString[variables[[firstVariableIndex]], InputForm], ")}:\n",
+      "      end do:\n",
+      "      unknowns := {seq(seq(aa[i,k],k=0..ansatzdegree),i=1..",
+        ToString[dimension], ")}:\n",
+      "      try\n",
+      "        ansatzsolution := solve(equations,unknowns):\n",
+      "        if type(ansatzsolution,set) then\n",
+      "          Vcandidate := map(normal,eval(Vtry,ansatzsolution)):\n",
+      "          candidatecheck := map(normal,evalm(map(diff,Vcandidate,",
+        ToString[variables[[firstVariableIndex]], InputForm], ")-A",
+        ToString[firstVariableIndex], "&*Vcandidate-b",
+        ToString[firstVariableIndex], ")):\n",
+      "          if convert(candidatecheck,set) = {0} then\n",
+      "            V := Vcandidate: solved := true:\n",
+      "            method := cat(\"ExactLetterAnsatz:\",denpower,\":\",",
+        "degreeoffset):\n",
+      "          end if:\n",
+      "        end if:\n",
+      "      catch: end try:\n",
+      "    end do:\n",
+      "  end do:\n",
+      "end if:\n",
+      "fd := fopen(\"", outputFile, "\", WRITE):\n",
+      "if solved then fprintf(fd, \"OK\\n%a\\n%a\\n%s\\n\",",
+        "convert(V,list),", toMaple[mapleUnknowns], ",method) ",
+        "else fprintf(fd, \"FAIL\\n\") end if:\n",
       "fclose(fd):\nquit:\n"];
     Export[mapleFile, mapleText, "Text"];
     {elapsed, process} = AbsoluteTiming[
@@ -329,6 +415,15 @@ SolveResidueRationalGauge[
       Continue[]];
     solutionText = lines[[2]];
     residueText = lines[[3]];
+    methodText = If[Length[lines] >= 4, lines[[4]],
+      "IntegrableConnections"];
+    methodParts = StringSplit[methodText, ":"];
+    mapleMethod = If[First[methodParts] === "ExactLetterAnsatz",
+      "MapleExactLetterAnsatz", "MapleResidueCompatibility"];
+    denominatorPower = If[Length[methodParts] >= 2,
+      ToExpression[methodParts[[2]]], Missing["NotApplicable"]];
+    numeratorOffset = If[Length[methodParts] >= 3,
+      ToExpression[methodParts[[3]]], Missing["NotApplicable"]];
 
     indexedConstantIndices = Union[StringCases[
       solutionText <> residueText,
@@ -408,7 +503,7 @@ SolveResidueRationalGauge[
        epsFormStripZeroQ[transformedResidual],
       result = <|
         "Status" -> "Solved",
-        "Method" -> "MapleResidueCompatibility",
+        "Method" -> mapleMethod,
         "Gauge" -> gauge,
         "ResidueRules" -> residueRules,
         "ResidueMatrices" -> residueMatrices,
@@ -418,6 +513,8 @@ SolveResidueRationalGauge[
         "Alphabet" -> residueData["Alphabet"],
         "FirstVariableIndex" -> firstVariableIndex,
         "FirstVariable" -> variables[[firstVariableIndex]],
+        "LetterDenominatorPower" -> denominatorPower,
+        "NumeratorDegreeOffset" -> numeratorOffset,
         "MapleSeconds" -> elapsed,
         "ResiduePreparationSeconds" -> Total[Lookup[residueData,
           {"CompatibilitySeconds", "EquationSeconds", "SolveSeconds"}]],
@@ -559,6 +656,8 @@ Options[SolveEpsFormStrip] = {
   "MapleExecutable" -> "maple",
   "MapleLibrary" -> Automatic,
   "MapleTimeLimit" -> 1800,
+  "MapleLetterDenominatorPowers" -> {1, 2},
+  "MapleNumeratorDegreeOffsets" -> {0},
   "ScratchDirectory" -> Automatic,
   "Tag" -> "strip",
   "Verbose" -> False
@@ -570,7 +669,8 @@ SolveEpsFormStrip[
     OptionsPattern[]] :=
  Module[
   {degrees, denominatorDegree, canonicaTime, canonicaKernels,
-   mapleExecutable, mapleLibrary, mapleTime, scratchDirectory,
+   mapleExecutable, mapleLibrary, mapleTime, mapleDenominatorPowers,
+   mapleNumeratorOffsets, scratchDirectory,
    tag, verbose, alphabet, converted, irreducibles,
    check, alreadyDLog, canonica, selected, maple, result},
 
@@ -585,6 +685,10 @@ SolveEpsFormStrip[
   mapleExecutable = OptionValue["MapleExecutable"];
   mapleLibrary = OptionValue["MapleLibrary"];
   mapleTime = OptionValue["MapleTimeLimit"];
+  mapleDenominatorPowers = OptionValue[
+    "MapleLetterDenominatorPowers"];
+  mapleNumeratorOffsets = OptionValue[
+    "MapleNumeratorDegreeOffsets"];
   scratchDirectory = Replace[OptionValue["ScratchDirectory"],
     Automatic :> FileNameJoin[{$TemporaryDirectory, "FeynFacet",
       "EpsFormStrip"}]];
@@ -643,6 +747,8 @@ SolveEpsFormStrip[
     "ScratchDirectory" -> scratchDirectory,
     "Tag" -> tag,
     "TimeLimit" -> mapleTime,
+    "LetterDenominatorPowers" -> mapleDenominatorPowers,
+    "NumeratorDegreeOffsets" -> mapleNumeratorOffsets,
     "Verbose" -> verbose];
   If[AssociationQ[maple],
     Return[Join[maple,
