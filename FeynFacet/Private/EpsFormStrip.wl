@@ -127,13 +127,16 @@ epsFormStripExactDLogQ[
 
 epsFormStripBuildResidueCompatibility[
     strip : {e_List, c_List, bbar_List},
-    variables : {_, _}, epsilon_Symbol] :=
+    variables : {_, _}, epsilon_Symbol,
+    kernelCount_Integer : 1] :=
  Module[
   {extract, rationalZeroCoefficients, dimensions, alphabet, residueTag,
    rawResidueMatrices, residueVariables, dlog, forcing, compatibility,
+   rawCompatibility, compatibilityEntries, equationLists,
    equations, solutions, residueRules, residueMatrices, freeResidues,
    solvedForcing, solvedCompatibility, compatibilitySeconds,
-   equationSeconds, solveSeconds},
+   equationSeconds, solveSeconds, needed, launched = {}, canonicaFile,
+   rationalZeroCoefficientsName},
 
   If[! epsFormStripShapeQ[strip], Return[$Failed]];
   If[! epsFormStripLoadCanonica[], Return[$Failed]];
@@ -164,18 +167,45 @@ epsFormStripBuildResidueCompatibility[
       {a, Length[alphabet]}],
     {mu, 2}];
 
-  {compatibilitySeconds, compatibility} = AbsoluteTiming[
-    Together[
-      D[forcing[[2]], variables[[1]]] -
-        epsilon (e[[1]].forcing[[2]] - forcing[[2]].c[[1]]) -
-      D[forcing[[1]], variables[[2]]] +
-        epsilon (e[[2]].forcing[[1]] - forcing[[1]].c[[2]])]];
-  {equationSeconds, equations} = AbsoluteTiming[
-    DeleteCases[
-      DeleteDuplicates@Flatten[
-        rationalZeroCoefficients[#, variables] & /@
-          Flatten[compatibility]],
-      0]];
+  rawCompatibility =
+    D[forcing[[2]], variables[[1]]] -
+      epsilon (e[[1]].forcing[[2]] - forcing[[2]].c[[1]]) -
+    D[forcing[[1]], variables[[2]]] +
+      epsilon (e[[2]].forcing[[1]] - forcing[[1]].c[[2]]);
+  needed = Min[Max[1, kernelCount], Length[Flatten[rawCompatibility]]];
+  If[needed > 1 && Length[Kernels[]] < needed,
+    launched = Quiet[LaunchKernels[needed - Length[Kernels[]]]]];
+  If[needed > 1 && Length[Kernels[]] >= needed,
+    canonicaFile = $epsFormStripCanonicaFile;
+    With[{file = canonicaFile},
+      ParallelEvaluate[
+        Block[{$Output = {}}, Quiet[Get[file], General::shdw]];
+        CANONICA`$ComputeParallel = False;
+        CANONICA`Private`$ComputeParallel = False;
+        Off[General::shdw]]];
+    rationalZeroCoefficientsName =
+      Context[Evaluate[rationalZeroCoefficients]] <>
+        SymbolName[Evaluate[rationalZeroCoefficients]];
+    {compatibilitySeconds, compatibilityEntries} = AbsoluteTiming[
+      ParallelMap[Together, Flatten[rawCompatibility],
+        Method -> "FinestGrained", DistributedContexts -> Automatic]];
+    {equationSeconds, equationLists} = AbsoluteTiming[
+      With[{name = rationalZeroCoefficientsName, vars = variables},
+        ParallelMap[
+          Function[entry, ToExpression[name][entry, vars]],
+          compatibilityEntries,
+          Method -> "FinestGrained",
+          DistributedContexts -> Automatic]]];
+    ParallelEvaluate[On[General::shdw]];
+    If[launched =!= {}, Quiet[CloseKernels[launched]]],
+    If[launched =!= {}, Quiet[CloseKernels[launched]]];
+    {compatibilitySeconds, compatibilityEntries} = AbsoluteTiming[
+      Together /@ Flatten[rawCompatibility]];
+    {equationSeconds, equationLists} = AbsoluteTiming[
+      rationalZeroCoefficients[#, variables] & /@
+        compatibilityEntries]];
+  compatibility = ArrayReshape[compatibilityEntries, dimensions];
+  equations = DeleteCases[DeleteDuplicates@Flatten[equationLists], 0];
   {solveSeconds, solutions} = AbsoluteTiming[
     Quiet[Solve[Thread[equations == 0], residueVariables]]];
   If[solutions === {}, Return[$Failed]];
@@ -229,6 +259,7 @@ Options[SolveResidueRationalGauge] = {
   "ScratchDirectory" -> Automatic,
   "Tag" -> "residue_strip",
   "TimeLimit" -> 1800,
+  "ResidueKernels" -> 4,
   "LetterDenominatorPowers" -> {1, 2},
   "NumeratorDegreeOffsets" -> {0},
   "Verbose" -> False
@@ -240,7 +271,7 @@ SolveResidueRationalGauge[
     OptionsPattern[]] :=
  Module[
   {mapleExecutable, mapleLibrary, scratchDirectory, tag, timeLimit,
-   denominatorPowers, numeratorOffsets, verbose, residueData,
+   residueKernels, denominatorPowers, numeratorOffsets, verbose, residueData,
    freeResidues, forcing, shape, dimension,
    connection, externalIndices, mapleUnknownHead, mapleUnknowns,
    forcingUnknown, source, toMaple, normalizeRegulator,
@@ -267,12 +298,14 @@ SolveResidueRationalGauge[
       "EpsFormStrip"}]];
   tag = epsFormStripSafeTag[OptionValue["Tag"]];
   timeLimit = OptionValue["TimeLimit"];
+  residueKernels = OptionValue["ResidueKernels"];
   denominatorPowers = DeleteDuplicates[
     OptionValue["LetterDenominatorPowers"]];
   numeratorOffsets = DeleteDuplicates[
     OptionValue["NumeratorDegreeOffsets"]];
   verbose = TrueQ[OptionValue["Verbose"]];
-  If[denominatorPowers === {} || numeratorOffsets === {} ||
+  If[! IntegerQ[residueKernels] || residueKernels < 1 ||
+     denominatorPowers === {} || numeratorOffsets === {} ||
      ! AllTrue[denominatorPowers, IntegerQ[#] && # >= 1 &] ||
      ! AllTrue[numeratorOffsets, IntegerQ[#] && # >= 0 &],
     Message[SolveResidueRationalGauge::maple]; Return[$Failed]];
@@ -281,7 +314,7 @@ SolveResidueRationalGauge[
     CreateDirectory[scratchDirectory, CreateIntermediateDirectories -> True]];
 
   residueData = epsFormStripBuildResidueCompatibility[
-    strip, variables, epsilon];
+    strip, variables, epsilon, residueKernels];
   If[residueData === $Failed,
     Message[SolveResidueRationalGauge::residue]; Return[$Failed]];
   rationalZeroCoefficients =
@@ -518,6 +551,7 @@ SolveResidueRationalGauge[
         "MapleSeconds" -> elapsed,
         "ResiduePreparationSeconds" -> Total[Lookup[residueData,
           {"CompatibilitySeconds", "EquationSeconds", "SolveSeconds"}]],
+        "ResidueKernels" -> residueKernels,
         "ODEEquationZero" -> True,
         "TransformedDLogZero" -> True
       |>;
@@ -656,6 +690,7 @@ Options[SolveEpsFormStrip] = {
   "MapleExecutable" -> "maple",
   "MapleLibrary" -> Automatic,
   "MapleTimeLimit" -> 1800,
+  "MapleResidueKernels" -> 4,
   "MapleLetterDenominatorPowers" -> {1, 2},
   "MapleNumeratorDegreeOffsets" -> {0},
   "ScratchDirectory" -> Automatic,
@@ -669,7 +704,8 @@ SolveEpsFormStrip[
     OptionsPattern[]] :=
  Module[
   {degrees, denominatorDegree, canonicaTime, canonicaKernels,
-   mapleExecutable, mapleLibrary, mapleTime, mapleDenominatorPowers,
+   mapleExecutable, mapleLibrary, mapleTime, mapleResidueKernels,
+   mapleDenominatorPowers,
    mapleNumeratorOffsets, scratchDirectory,
    tag, verbose, alphabet, converted, irreducibles,
    check, alreadyDLog, canonica, selected, maple, result},
@@ -685,6 +721,7 @@ SolveEpsFormStrip[
   mapleExecutable = OptionValue["MapleExecutable"];
   mapleLibrary = OptionValue["MapleLibrary"];
   mapleTime = OptionValue["MapleTimeLimit"];
+  mapleResidueKernels = OptionValue["MapleResidueKernels"];
   mapleDenominatorPowers = OptionValue[
     "MapleLetterDenominatorPowers"];
   mapleNumeratorOffsets = OptionValue[
@@ -747,6 +784,7 @@ SolveEpsFormStrip[
     "ScratchDirectory" -> scratchDirectory,
     "Tag" -> tag,
     "TimeLimit" -> mapleTime,
+    "ResidueKernels" -> mapleResidueKernels,
     "LetterDenominatorPowers" -> mapleDenominatorPowers,
     "NumeratorDegreeOffsets" -> mapleNumeratorOffsets,
     "Verbose" -> verbose];
