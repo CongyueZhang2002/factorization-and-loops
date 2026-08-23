@@ -1,0 +1,25 @@
+CF300 Galois channel-orbit V6d independent Wolfram parse seals
+Date: 2026-08-23
+
+Core target
+  SHA256: 7a6fa652def2eed1c7315e6c0260ca9c275e7d8c8a06221f22abc8c7a2b311ed
+  mission: diagnose_v6d_core_wolfram_parse_xh_v1
+  worker: 24; helper ceiling: 0
+  parsed bytes: 29171; SyntaxLength: 29171
+  ParsedHead: HoldComplete; messages: none; exit: 0; status: OK
+  log SHA256: b0399354629191ad0a987c8b32b70596e6d5e7d2fb2db62f8e7a99c00fc8aff4
+  status SHA256: 1ca40d763cd71d60f2c75ebc1c5972ed2dacfc8458cfa7172ff380962053f3a0
+  done-wrapper SHA256: 1ae15bbdab437c5173280647770a17ea9a98c46508e0aabf9171441b5f0cd342
+
+Driver target
+  SHA256: 921422ec0f78c8a56a707fb487115d0b0a5debe6b84e5257e0d3df638e43988d
+  mission: diagnose_v6d_driver_wolfram_parse_xh_v1
+  worker: 141; helper ceiling: 0
+  parsed bytes: 46590; SyntaxLength: 46561
+  ParsedHead: HoldComplete; messages: none; exit: 0; status: OK
+  log SHA256: 277e19e9a17843891d9408696b20fe8613547965950d6962dc1d9052ab27060d
+  status SHA256: 6ade27fef487656ef334fced3100f58a7e77b9f91649bb78471499a0ac3fc36c
+  done-wrapper SHA256: 1da5b4675ec7a497ec4e59715de3475938174e48254edaed0ef17283ce014592
+
+The central pool owner independently reran static 81/81 and all adversarial
+suites before launching the full V6d mission.

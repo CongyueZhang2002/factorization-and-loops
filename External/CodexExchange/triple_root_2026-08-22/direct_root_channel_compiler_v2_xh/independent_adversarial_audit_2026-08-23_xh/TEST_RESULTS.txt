@@ -1,0 +1,32 @@
+Independent audit commands and results, 2026-08-23
+
+Command:
+  ./test_direct_root_channel_compiler_v2_static.sh
+Result:
+  PASS (all compiler static checks)
+
+Command:
+  ./test_direct_root_channel_compiler_v2_drivers_static.sh
+Result:
+  PASS (all driver static checks)
+
+Command:
+  python3 independent_adversarial_audit_2026-08-23_xh/test_static_independent_audit.py
+Result:
+  PASS recursive compiler has no dense fallback
+  PASS compiler owns its decomposition path
+  PASS compiler and drivers do not acquire nested kernels or signal processes
+  PASS both scalar and polynomial hash buckets require structural equality
+  PASS recursive split treats the last root as the high bit
+  PASS inverse and field round trips fail closed
+  PASS observed: default V1 and V2 SourceABIFingerprint payloads differ
+  PASS observed: adversarial exact-equality gate omits four V1 fields
+  PASS observed: physical exact-equality gate omits four V1 fields
+  PASS observed: detached V1 compatibility view has no explicit V2 provenance field
+
+Command:
+  python3 independent_adversarial_audit_2026-08-23_xh/test_recursive_norm_independent.py
+Result:
+  PASS independent recursive-vs-dense exact algebra cases=1000 invertible=978 singular=22 explicit_zero_divisors=3
+
+No Wolfram/Mathematica kernel was launched by this audit.

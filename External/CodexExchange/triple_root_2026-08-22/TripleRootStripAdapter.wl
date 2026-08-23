@@ -12,6 +12,8 @@ TRFieldDecompose::usage =
   "TRFieldDecompose[expr, roots] writes a rational expression in declared square roots as its 2^r rational channels.";
 TRFieldCompose::usage =
   "TRFieldCompose[channels, roots] reconstructs a multiquadratic expression from its rational channels.";
+TRLiftLocalChannels::usage =
+  "TRLiftLocalChannels[channels,indices,rank] embeds a local 2^Length[indices] channel vector into the declared global rank, including the rank-0 grade.";
 TRDecomposeStripRecord::usage =
   "TRDecomposeStripRecord[record, frame] decomposes every entry of a captured strip into rational root channels.";
 TRDiagonalOneFormBasis::usage =
@@ -59,7 +61,8 @@ TRClassifyStripRecord[record_Association, frame_Association] := Module[
   radicals = trRadicalBases[record["Strip"]];
   matches[base_] := Flatten[Position[rootBases, candidate_ /;
     TrueQ[Together[base - candidate] === 0]]];
-  indices = DeleteDuplicates[Flatten[matches /@ radicals]];
+  (* The root ordering is part of the channel-mask ABI. *)
+  indices = Sort[DeleteDuplicates[Flatten[matches /@ radicals]]];
   unknown = Select[radicals, matches[#1] === {} &];
   <|"Status" -> If[unknown === {}, "ExactRootClassification",
       "UnclassifiedRadicals"],
@@ -109,11 +112,20 @@ TRFieldDecompose[expr_, roots_List] := Module[
   {rank = Length[roots], deltas, symbols, replaced, rational,
    numerator, denominator, numeratorChannels, denominatorChannels,
    denominatorInverse, result},
+  If[rank === 0,
+    rational = Together[expr];
+    (* The classifier's declared-root census is quadratic.  Unsupported
+       fractional powers therefore fail closed at decomposition rather
+       than being mislabeled as a rational grade-0 coefficient. *)
+    If[! FreeQ[rational,
+        Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
+      Return[$Failed]];
+    Return[{rational}]];
   deltas = Together /@ (#1["Root"]^2 & /@ roots);
   symbols = Array[Unique["trRoot"] &, rank];
   replaced = trReplaceRootsWithSymbols[expr, roots, symbols];
   If[! FreeQ[replaced,
-      Power[_, exponent_Rational /; Denominator[exponent] === 2]],
+      Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
     Return[$Failed]];
   rational = Together[replaced];
   numerator = Numerator[rational];
@@ -134,6 +146,31 @@ TRFieldDecompose[expr_, roots_List] := Module[
 TRFieldCompose[channels_List, roots_List] /;
     Length[channels] === 2^Length[roots] :=
   CodexTripleRoot`TRToExpression[channels, Lookup[roots, "Root", {}]];
+
+TRLiftLocalChannels[channels_List, indices_List, rank_Integer] := Module[
+  {lifted, masks, globalMask},
+  If[rank < 0 || indices =!= Sort[indices] ||
+      ! VectorQ[indices, IntegerQ] ||
+      Length[DeleteDuplicates[indices]] =!= Length[indices] ||
+      ! AllTrue[indices, 1 <= #1 <= rank &] ||
+      Length[channels] =!= 2^Length[indices], Return[$Failed]];
+  lifted = ConstantArray[0, 2^rank];
+  If[indices === {},
+    lifted[[1]] = First[channels];
+    Return[lifted]];
+  masks = Table[Sum[
+      BitGet[localMask, bit - 1] 2^(indices[[bit]] - 1),
+      {bit, Length[indices]}],
+    {localMask, 0, Length[channels] - 1}];
+  If[Length[DeleteDuplicates[masks]] =!= Length[masks] ||
+      ! AllTrue[masks, 0 <= #1 < 2^rank &], Return[$Failed]];
+  Do[
+    globalMask = masks[[localMask + 1]];
+    lifted[[globalMask + 1]] = channels[[localMask + 1]],
+    {localMask, 0, Length[channels] - 1}];
+  lifted
+];
+TRLiftLocalChannels[___] := $Failed;
 
 trDecomposePair[pair_List, roots_List] :=
   Map[TRFieldDecompose[#1, roots] &, pair, {3}];

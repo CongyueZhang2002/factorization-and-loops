@@ -1,0 +1,27 @@
+CF300 Galois exact-channel V6a no-kernel verification
+Date: 2026-08-23
+
+STATIC
+  PASS 63/63
+  Wolfram delimiter/namespace/source-pin/hot-loop/cache/rebind/driver gates
+  wolfram kernels launched: 0
+
+ADVERSARIAL MODEL
+  PASS exact_character_checks=1254
+  PASS stabilizer_adversaries=6
+  PASS exact_channel_rebind_adversaries=12
+  PASS subset_certificate_schema_and_mutants=14
+  PASS finite_field_second_order_jet_trials=160
+  INFO primes={10007,10039}
+  INFO singular_sample_retries=0
+  wolfram kernels launched: 0
+
+ACTIVE V5
+  source edited: no
+  process signalled/stopped/restarted: no
+  pool/watchlist edited: no
+  last read-only observation: 38.5 min, no target_ready milestone
+
+V6a RUNTIME
+  launched by this audit: no
+  independent clean-worker seal/run still required: yes

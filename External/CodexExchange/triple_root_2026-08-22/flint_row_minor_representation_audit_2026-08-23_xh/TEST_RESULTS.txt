@@ -1,0 +1,40 @@
+CF300 row-minor representation audit: static/non-Wolfram results
+Date: 2026-08-23
+
+No Wolfram/Mathematica kernel was launched. No process was signaled or stopped.
+No active adapter, native source, or package source was edited by this audit.
+
+1. Retained-wire independent verification
+
+Command:
+python3 verify_wire_row_minor.py /tmp/m00003537554061/request.bin /tmp/m00003537554061/response.bin --trials 8
+
+Result:
+{"columns": 1040, "independent_rows_sorted": true, "leading_sample_identity": true, "left_failures": [], "nullity": 12, "pivots_sorted": true, "prime": 10007, "rank": 1028, "right_failures": [], "rows": 1088, "status": "OK", "trials": 8}
+
+2. Static/artifact evidence classifier
+
+Command:
+python3 audit_static_evidence.py
+
+Result: PASS (30 checks)
+- qdiag and qwire-v6 isolate RowMinorInverseWitness;
+- all retained hashes match;
+- C producer and both consumers agree on row-major layout;
+- independent wire verifier passes both multiplication directions;
+- active adapter now materializes one dense exact identity and normalizes both
+  products before SameQ.
+
+3. Proposed managed-regression structural audit
+
+Command:
+python3 audit_proposed_regression_static.py
+
+Result: PASS (6 checks)
+- targets the observed rank 1028;
+- requires good-inverse acceptance;
+- requires rejection after corruption of either factor;
+- binds to the active two-sided representation-safe verifier.
+
+The proposed `.wls` regression was intentionally not executed. It is for a
+future managed-kernel slot after the active source-hashed mission is terminal.

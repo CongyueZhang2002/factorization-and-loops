@@ -32,6 +32,36 @@ FTAssert["the three-root inventory resolves to exact multiquadratic frames",
       TrueQ[#["ChartCertificate"]["OK"]] &&
       Length[#["Roots"]] === 3 &]];
 
+orderingFrame = First[familyFrames];
+orderingRoots = orderingFrame["Roots"];
+orderingForward = FeynFacet`Private`transportChartRootIndices[
+  {orderingRoots[[1, "Root"]], orderingRoots[[3, "Root"]]},
+  orderingRoots];
+orderingReverse = FeynFacet`Private`transportChartRootIndices[
+  {orderingRoots[[3, "Root"]], orderingRoots[[1, "Root"]]},
+  orderingRoots];
+FTAssert["root-channel indices follow frame order, not expression order",
+  orderingForward["RootIndices"] === {1, 3} &&
+    orderingReverse["RootIndices"] === {1, 3}];
+
+cf300Roots = FeynFacet`Private`transportChartCurrentRoots[
+  familyFrames[[2]], {v, w}];
+zeroNoChartStrip = {
+  {{{cf300Roots[[2, "Root"]]}}, {{cf300Roots[[2, "Root"]]}}},
+  {{{cf300Roots[[3, "Root"]]}}, {{cf300Roots[[3, "Root"]]}}},
+  {{{0}}, {{0}}}};
+zeroNoChartSolution = SolveEpsFormStripInFrame[
+  zeroNoChartStrip, {v, w}, eps, familyFrames[[2]],
+  "FiniteFieldFirst" -> True, "Verbose" -> False];
+FTAssert["zero forcing bypasses a missing joint root chart",
+  AssociationQ[zeroNoChartSolution] &&
+    zeroNoChartSolution["Status"] === "Solved" &&
+    zeroNoChartSolution["Method"] === "ZeroForcing" &&
+    zeroNoChartSolution["RootIndices"] === {2, 3} &&
+    zeroNoChartSolution["Gauge"] === {{0}} &&
+    TrueQ[zeroNoChartSolution["FrameCertificate", "Exact"]] &&
+    zeroNoChartSolution["FrameCertificate", "SamplingEntered"] === False];
+
 FTAssert["exact root-set lookup selects the known joint Kallen charts",
   TransportRootSetChart[{lambda1, lambda3}]["Name"] === "Kallen13" &&
     TransportRootSetChart[{lambda2, lambda3}]["Name"] === "Kallen23" &&

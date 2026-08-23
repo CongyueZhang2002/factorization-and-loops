@@ -1,0 +1,96 @@
+*** Begin Patch
+*** Update File: FeynFacet/Private/FamilyRegulatorFactor.wl
+@@
+   familyRegulatorPropagateTruncation,
++  familyRegulatorPropagationSeal,
+@@
++familyRegulatorPropagationSeal[
++    inputPrefix : {_List, _List}, transformedPrefix : {_List, _List},
++    inverse_List, transformation_List] := Module[{payload},
++  payload = <|
++    "Schema" -> "FeynFacetRegulatorPropagationSeal",
++    "SchemaVersion" -> 1,
++    "InputPrefixSHA256" ->
++      Hash[inputPrefix, "SHA256", "HexString"],
++    "TransformedPrefixSHA256" ->
++      Hash[transformedPrefix, "SHA256", "HexString"],
++    "InverseSHA256" -> Hash[inverse, "SHA256", "HexString"],
++    "TransformationSHA256" ->
++      Hash[transformation, "SHA256", "HexString"]|>;
++  Join[payload, <|"Fingerprint" ->
++    Hash[KeySort[payload], "SHA256", "HexString"]|>]
++];
++familyRegulatorPropagationSeal[___] := $Failed;
+@@
+ familyRegulatorPropagateTruncation[
+     connection : {_List, _List}, transformedPrefix : {_List, _List},
+     inverse_List, transformation_List, prefix_Integer?Positive,
+-    variables : {_Symbol, _Symbol}, futureMode_: "Together"] := Module[
++    variables : {_Symbol, _Symbol}, seal_Association,
++    futureMode_: "Together"] := Module[
+   {n, futureRows, upperRightZeroQ, newConnection = connection,
+    transformationColumnSupport, left, leftRowSupport, support, terms,
+    value, products = 0, touched = 0, deferred = 0, singleTerm = 0,
+-   tFull, tInverse, inverseExactQ, mu, i, j},
++   tFull, tInverse, inverseExactQ, expectedSeal, mu, i, j},
+@@
+   If[! inverseExactQ,
+     Return[<|"Status" -> "RegulatorTransformationInverseInvalid"|>]];
++  expectedSeal = familyRegulatorPropagationSeal[
++    connection[[All, Range[prefix], Range[prefix]]],
++    transformedPrefix, inverse, transformation];
++  If[expectedSeal === $Failed || ! SameQ[seal, expectedSeal],
++    Return[<|"Status" -> "RegulatorPropagationSealMismatch"|>]];
++
++(* Each successful FactorFamilyRegulatorDependence and
++   FactorFamilyRegulatorDependenceInFrame result must attach the seal here,
++   inside the factor routine where {ax,ay} is still the authoritative input:
++     "PropagationSeal" -> familyRegulatorPropagationSeal[
++       {ax, ay}, {newAx, newAy}, inverse, transformation]
++   Do not manufacture the authoritative seal in the sector driver. *)
+*** Update File: Scripts/family_epsform_sector.wls
+@@
+   propagation = FeynFacet`Private`familyRegulatorPropagateTruncation[
+     state["A"], factor["Connection"], factor["Inverse"],
+-    factor["Transformation"], nm, {xx, yy}, futureAMode];
++    factor["Transformation"], nm, {xx, yy},
++    Lookup[factor, "PropagationSeal", <||>], futureAMode];
+*** Update File: External/CodexExchange/run_deferred_row_gauge_sequential_exact_unit.wls
+@@
++regulatorSeal = FeynFacet`Private`familyRegulatorPropagationSeal[
++  deferred1["Connection"][[All, Range[prefix], Range[prefix]]],
++  transformedPrefix, regulatorInverse, regulatorT];
++
+ deferredRegulator =
+@@
+     deferred1["Connection"], transformedPrefix, regulatorInverse,
+-    regulatorT, prefix, {x, y}, "Deferred"];
++    regulatorT, prefix, {x, y}, regulatorSeal, "Deferred"];
+@@
+     deferred1["Connection"], transformedPrefix, regulatorInverse,
+-    regulatorT, prefix, {x, y}, "Together"];
++    regulatorT, prefix, {x, y}, regulatorSeal, "Together"];
+@@
+   badUpper, transformedPrefix, regulatorInverse, regulatorT, prefix,
+-  {x, y}, "Deferred"];
++  {x, y}, regulatorSeal, "Deferred"];
+@@
+     ReplacePart[regulatorT, {1, 1} -> 1 + x], prefix, {x, y},
+-    "Deferred"];
++    regulatorSeal, "Deferred"];
+@@
+     ReplacePart[regulatorInverse, {1, 1} -> 2], regulatorT, prefix,
+-    {x, y}, "Deferred"];
++    {x, y}, regulatorSeal, "Deferred"];
++badSealPropagation =
++  FeynFacet`Private`familyRegulatorPropagateTruncation[
++    deferred1["Connection"], transformedPrefix, regulatorInverse,
++    regulatorT, prefix, {x, y}, Join[regulatorSeal,
++      <|"Fingerprint" -> StringRepeat["0", 64]|>], "Deferred"];
+@@
+ FTTest`FTAssert["regulator helper rejects a false inverse",
+   badInversePropagation["Status"] ===
+     "RegulatorTransformationInverseInvalid"];
++FTTest`FTAssert["regulator helper rejects a mismatched factor seal",
++  badSealPropagation["Status"] === "RegulatorPropagationSealMismatch"];
+*** End Patch

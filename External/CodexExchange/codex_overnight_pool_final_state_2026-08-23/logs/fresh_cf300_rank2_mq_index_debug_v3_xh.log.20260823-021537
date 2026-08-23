@@ -1,0 +1,43 @@
+MISSION fresh_cf300_rank2_mq_index_debug_v3_xh.wl kernel 18 start 2026-08-23T02:15:31
+"PRIVATE_CONTEXT=""CodexTripleRootReconstruction`Private`"
+"DOWNVALUES="InputForm[{HoldPattern[CodexTripleRootReconstruction`Private`tr\
+GaugeIndex[CodexTripleRootReconstruction`Private`upperDimension_Integer, 
+       CodexTripleRootReconstruction`Private`lowerDimension_Integer, 
+       CodexTripleRootReconstruction`Private`gradeCount_Integer, 
+       CodexTripleRootReconstruction`Private`supportCount_Integer, 
+       CodexTripleRootReconstruction`Private`i_Integer, 
+       CodexTripleRootReconstruction`Private`j_Integer, 
+       CodexTripleRootReconstruction`Private`grade_Integer, 
+       CodexTripleRootReconstruction`Private`monomial_Integer]] :> 
+     (((CodexTripleRootReconstruction`Private`i - 1)*
+             CodexTripleRootReconstruction`Private`lowerDimension + 
+            (CodexTripleRootReconstruction`Private`j - 1))*
+          CodexTripleRootReconstruction`Private`gradeCount + 
+         CodexTripleRootReconstruction`Private`grade)*
+       CodexTripleRootReconstruction`Private`supportCount + 
+      CodexTripleRootReconstruction`Private`monomial}]
+"DIRECT="1
+"PUBLIC="1
+"MOD_DOWNVALUES="InputForm[{HoldPattern[CodexTripleRootReconstruction`Privat\
+e`trModNumber[CodexTripleRootReconstruction`Private`value_, 
+       CodexTripleRootReconstruction`Private`prime_Integer]] :> 
+     Module[{CodexTripleRootReconstruction`Private`rational = 
+        Together[CodexTripleRootReconstruction`Private`value], 
+       CodexTripleRootReconstruction`Private`numerator, 
+       CodexTripleRootReconstruction`Private`denominator}, 
+      If[ !FreeQ[CodexTripleRootReconstruction`Private`rational, _Symbol], 
+        Return[$Failed]]; CodexTripleRootReconstruction`Private`numerator = 
+        Mod[Numerator[CodexTripleRootReconstruction`Private`rational], 
+         CodexTripleRootReconstruction`Private`prime]; 
+       CodexTripleRootReconstruction`Private`denominator = 
+        Mod[Denominator[CodexTripleRootReconstruction`Private`rational], 
+         CodexTripleRootReconstruction`Private`prime]; 
+       If[CodexTripleRootReconstruction`Private`denominator === 0, 
+        Return[$Failed]]; Mod[CodexTripleRootReconstruction`Private`numerat\
+or*PowerMod[CodexTripleRootReconstruction`Private`denominator, -1, 
+          CodexTripleRootReconstruction`Private`prime], 
+        CodexTripleRootReconstruction`Private`prime]]}]
+"MOD_2_3="$Failed
+"RAT_INPUT="InputForm[2/3]" together="InputForm[2/3]" free="False" num="2" \
+den="3" inv="3336
+MISSION end 2026-08-23T02:15:31 wall 0. s status OK

@@ -10,7 +10,7 @@ Begin["`Private`"];
 
 trModNumber[value_, prime_Integer] := Module[
   {rational = Together[value], numerator, denominator},
-  If[! FreeQ[rational, _Symbol], Return[$Failed]];
+  If[! MatchQ[rational, _Integer | _Rational], Return[$Failed]];
   numerator = Mod[Numerator[rational], prime];
   denominator = Mod[Denominator[rational], prime];
   If[denominator === 0, Return[$Failed]];

@@ -1,0 +1,69 @@
+CF300 V6e post-run verifier -- independent no-kernel validation
+Date: 2026-08-23 PDT
+
+Frozen inputs audited:
+  runtime driver SHA256 = 2f83b12a6d33e5f8f34afb56bc349471580913bc4269c265f6a919c3e1ccc884
+  KernelPool mission wrapper SHA256 = 04ed1f5df890acff7fbebfcb743b8e80d93f71bf69713189b833d450add70e56
+  runtime manifest SHA256 = 9a11296f92aaa16543138c622738b1eab2121b7c7693f1ea69c0b47fdaa0a845
+  production source-path/hash audit = 15/15 exact, 0 mismatches
+
+Static validation:
+  python3 -m py_compile verify_cf300_v6e_full_mission_xh.py test_verify_cf300_v6e_full_mission_adversarial_xh.py
+  PASS
+  forbidden execution/process APIs (subprocess, Popen, os.kill, signal, system) = 0 occurrences
+
+Production wrapper structural audit (read-only, while still in pool/running):
+  wrapper hash exact
+  one literal $ScriptCommandLine assignment exact
+  target plus seven ordered arguments exact
+  final native thread argument = "4"
+  helper-ceiling binding = exactly one literal zero
+  target Import/Get/SetDirectory linkage exact
+  PASS
+
+Real large-artifact parser stress (read-only):
+  input = /tmp/codex-triple-root-20260823c.vx654S/cf300_s12_galois_orbit_forcing_xh_v6d.wl
+  bytes = 163154433
+  decoded status = CF300Sector12GaloisOrbitForcingScreenPassedV6d
+  decoded image count = 4
+  elapsed = 26.3 s
+  PASS
+
+Command:
+  python3 test_verify_cf300_v6e_full_mission_adversarial_xh.py
+
+Result:
+  test_consumer_metadata_mutation ... ok
+  test_correct_but_performance_not_accepted_status ... ok
+  test_cross_image_plan_mutation ... ok
+  test_duplicate_seal_nonce ... ok
+  test_helper_ceiling ... ok
+  test_live_input_hash_mutation ... ok
+  test_live_source_hash_mutation ... ok
+  test_log_message_marker ... ok
+  test_malformed_manifest ... ok
+  test_mission_wrapper_argument_order_mutation ... ok
+  test_mission_wrapper_argument_path_mutation ... ok
+  test_mission_wrapper_duplicate_assignment_mutation ... ok
+  test_mission_wrapper_hash_mutation ... ok
+  test_mission_wrapper_helper_ceiling_mutation ... ok
+  test_mission_wrapper_native_threads_mutation ... ok
+  test_mission_wrapper_target_import_linkage_mutation ... ok
+  test_mission_wrapper_target_mismatch_mutation ... ok
+  test_nested_kernel_inventory ... ok
+  test_parser_line_continuation_comments_and_duplicate_rejection ... ok
+  test_performance_regression ... ok
+  test_pool_messages ... ok
+  test_prerequisite_hash_linkage_mutation ... ok
+  test_prerequisite_policy_mutation ... ok
+  test_prerequisite_residue_link_mutation ... ok
+  test_rank_mutation ... ok
+  test_semantic_oracle_gate ... ok
+  test_stale_atomic_temporary_inventory ... ok
+  test_valid_full_fixture ... ok
+  test_wrong_kernel ... ok
+
+  Ran 29 tests in 0.983 s
+  OK
+
+No Wolfram kernel was launched. No process was signaled, stopped, or restarted.

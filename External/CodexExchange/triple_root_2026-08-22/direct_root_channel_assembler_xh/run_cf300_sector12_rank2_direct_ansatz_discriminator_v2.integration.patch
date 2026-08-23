@@ -1,0 +1,300 @@
+*** Begin Patch
+*** Update File: run_cf300_sector12_rank2_direct_ansatz_discriminator_v2.wls
+@@
+ expectedPreparationSHA256 =
+-  "a674f449a8d46e7655f1b74927420ed4dcb42f7a07f1294fcbdd3ae64e13c8f6";
++  "6d8d3e594927214c32c05f19686ab653b92e9c1dc8cf5692ab8e83e8752ae5d4";
+@@
+ assemblerFile = FileNameJoin[{driverDirectory,
+   "DirectRootChannelAssembler.wl"}];
++atomicHelperFile = FileNameJoin[{driverDirectory,
++  "DirectDiscriminatorAtomicCheckpointV2.wl"}];
+ adapterDirectory = FileNameJoin[{exchangeDirectory,
+@@
+ expectedAssemblerSHA256 =
+   "227a323762a8803b2bf03a9a96dc0d96c61a48d8e4f4213fa6b5a736d216e4f6";
++expectedAtomicHelperSHA256 =
++  "dbd36f7f078f08ed329490dd6b91bef950d977a1d70474ce2ccd6d8617fcad30";
+ expectedAdapterSHA256 =
+-  "ec35738a2ee518ece02173fd0c1bdb7bbade2aa6455943cd418cbba1725c160c";
++  "d5dbc6542ee21f6390963c57698e56992df9a04612464bc54f562398a1d78605";
+@@
+   "External/CodexExchange/triple_root_2026-08-22/direct_root_channel_assembler_xh/DirectRootChannelAssembler.wl" -> "227a323762a8803b2bf03a9a96dc0d96c61a48d8e4f4213fa6b5a736d216e4f6",
++  "External/CodexExchange/triple_root_2026-08-22/direct_root_channel_assembler_xh/DirectDiscriminatorAtomicCheckpointV2.wl" -> "dbd36f7f078f08ed329490dd6b91bef950d977a1d70474ce2ccd6d8617fcad30",
+-  "External/CodexExchange/triple_root_2026-08-22/flint_affine_rref_wl_xh/FlintAffineRREFAdapter.wl" -> "ec35738a2ee518ece02173fd0c1bdb7bbade2aa6455943cd418cbba1725c160c",
++  "External/CodexExchange/triple_root_2026-08-22/flint_affine_rref_wl_xh/FlintAffineRREFAdapter.wl" -> "d5dbc6542ee21f6390963c57698e56992df9a04612464bc54f562398a1d78605",
+@@
+ explicitRuntimeFiles = Join[coreDependencyFiles, <|
+   "DirectRootChannelAssembler" -> assemblerFile,
++  "DirectDiscriminatorAtomicCheckpointV2" -> atomicHelperFile,
+   "FLINTAffineRREFAdapter" -> adapterFile,
+@@
+     "DirectRootChannelAssembler" -> assemblerFile,
++    "DirectDiscriminatorAtomicCheckpointV2" -> atomicHelperFile,
+     "FLINTAffineRREFAdapter" -> adapterFile,
+@@
+-fingerprint[value_] := Hash[ToString[InputForm[value]],
+-  "SHA256", "HexString"];
+-deleteIfPresent[file_String] := Module[{},
+-  If[FileExistsQ[file], Quiet[Check[DeleteFile[file], $Failed]]];
+-  ! FileExistsQ[file]
+-];
+-writeAtomic[value_, commitCheck_: Automatic] := Module[
+-  {temporary, written, renamed, committed, postCommitValid},
+-  If[FileExistsQ[outputFile], Return[$Failed]];
+-  temporary = outputFile <> ".tmp." <>
+-    StringReplace[CreateUUID[], "-" -> ""];
+-  written = Quiet[Check[Put[value, temporary], $Failed]];
+-  If[written === $Failed || ! FileExistsQ[temporary],
+-    deleteIfPresent[temporary]; Return[$Failed]];
+-  If[commitCheck =!= Automatic && ! TrueQ[commitCheck[]],
+-    deleteIfPresent[temporary]; Return[$Failed]];
+-  renamed = Quiet[Check[RenameFile[temporary, outputFile,
+-    OverwriteTarget -> False], $Failed]];
+-  If[renamed === $Failed || ! FileExistsQ[outputFile] ||
+-      FileExistsQ[temporary], deleteIfPresent[temporary]; Return[$Failed]];
+-  committed = Quiet[Check[Get[outputFile], $Failed]];
+-  postCommitValid = SameQ[committed, value] && AssociationQ[committed] &&
+-    Lookup[committed, "Status", None] === Lookup[value, "Status", None] &&
+-    (commitCheck === Automatic || TrueQ[commitCheck[]]);
+-  If[! TrueQ[postCommitValid],
+-    If[! TrueQ[deleteIfPresent[outputFile]],
+-      Print["CF300S12R2DIRECTDISC FAIL invalid committed target remains output=",
+-        outputFile]];
+-    Return[$Failed]];
+-  outputFile
+-];
+-finish[status_String, data_: <||>, code_: 2] := Module[{artifact},
++If[FileHash[atomicHelperFile, "SHA256", "HexString"] =!=
++    expectedAtomicHelperSHA256,
++  Print["CF300S12R2DIRECTDISC FAIL atomic helper hash mismatch"];
++  Exit[66]];
++Get[atomicHelperFile];
++fingerprint[value_] := Hash[ToString[InputForm[value]],
++  "SHA256", "HexString"];
++finish[status_String, data_: <||>, code_: 2] := Module[
++  {artifact, commit},
+   artifact = Join[<|"Status" -> status,
+     "PreparationFile" -> preparationFile,
+     "NativeBinary" -> nativeBinary|>, data];
+-  If[writeAtomic[artifact] === $Failed,
+-    Print["CF300S12R2DIRECTDISC FAIL atomic output race output=", outputFile];
++  commit = CodexDirectDiscriminatorAtomicCheckpointV2`DDACWriteAtomic[
++    outputFile, artifact];
++  If[Lookup[commit, "Status", None] =!= "AtomicWriteCommittedV2",
++    Print["CF300S12R2DIRECTDISC FAIL typed_atomic_commit=",
++      InputForm[commit]];
+     Exit[98]];
+   Print["CF300S12R2DIRECTDISC RESULT status=", status,
+-    " output=", outputFile];
++    " output=", outputFile, " atomic_sha256=", commit["TargetSHA256"]];
+   Exit[code]
+ ];
+@@
+   preparation, pointCount, image, seed, sampleSeconds, sample,
+   matrix, right, imageResult, nested, nestedMatrix, nestedRight,
+-   sourceStateAtCompletion, expectedSourceState, currentSourceState,
+-   boundedCensus, result},
++   sourceStateAtCompletion, expectedSourceState, currentSourceState,
++   checkpointFile, checkpointRead, checkpointPayload, checkpointCommit,
++   imageVariantResults, rankSummary, boundedCensus, result},
+@@
+   assembleSharedSamples[localImage_Association, localSeed_Integer] :=
+       Module[{labels, pointCounts, maximumPointCount, maximumAttempts,
+        fullVariantData, fullPreparation, directSeconds, directSample,
+        acceptedPoints, deltaValues, residueCharacters, splitFlags,
+        nonsplitPointCount, selectedRows, selectedRight, projectedRows,
+-       columnMap, pointCount, variantLabel, preparation},
++       columnMap, pointCount, variantLabel, preparation, rejectedPoints,
++       rejectedReasonHistogram},
+@@
+     splitFlags = AllTrue[#1, Function[value, value === 1]] & /@
+       residueCharacters;
+     nonsplitPointCount = Count[splitFlags, False];
+     If[nonsplitPointCount < 1, Return[$Failed]];
++    rejectedPoints = directSample["RejectedPoints"];
++    rejectedReasonHistogram =
++      CodexDirectDiscriminatorAtomicCheckpointV2`DDACRejectedReasonHistogram[rejectedPoints];
++    If[rejectedReasonHistogram === $Failed, Return[$Failed]];
+     AssociateTo[sharedPointStreams,
+@@
+         "NonsplitPointCount" -> nonsplitPointCount,
+         "RejectedPointCount" ->
+-          Length[directSample["RejectedPoints"]],
+-        "RejectedReasonHistogram" -> Counts[
+-          Lookup[directSample["RejectedPoints"], "FailureReason", None]],
++          Length[rejectedPoints],
++        "RejectedReasonHistogram" -> rejectedReasonHistogram,
+@@
+-  results = AssociationThread[Lookup[variants, "Label"],
++  currentSourceState[] := <|
++    "Preparation" -> FileHash[preparationFile, "SHA256", "HexString"],
++    "Input" -> FileHash[inputFile, "SHA256", "HexString"],
++    "PreparationDriver" -> FileHash[preparationDriverFile,
++      "SHA256", "HexString"],
++    "NamedRuntimeHashes" -> namedRuntimeHashes[],
++    "SourceClosure" -> sourceClosureSnapshot[],
++    "Driver" -> FileHash[$InputFileName, "SHA256", "HexString"]|>;
++  expectedSourceState = <|
++    "Preparation" -> preparationHashBefore,
++    "Input" -> expectedInputSHA256,
++    "PreparationDriver" -> preparationArtifact["DriverSHA256"],
++    "NamedRuntimeHashes" -> namedRuntimeHashesBefore,
++    "SourceClosure" -> sourceClosureBefore,
++    "Driver" -> driverHashBefore|>;
++  checkpointFile[imageID_String] :=
++    outputFile <> ".checkpoint." <> imageID <> ".wl";
++  results = AssociationThread[Lookup[variants, "Label"],
+     ConstantArray[{}, Length[variants]]];
+   Do[
++    checkpointRead =
++      CodexDirectDiscriminatorAtomicCheckpointV2`DDACReadSealed[
++        checkpointFile[image["ImageID"]]];
++    If[Lookup[checkpointRead, "Status", None] === "AtomicArtifactReadV2",
++      checkpointPayload = checkpointRead["Payload"];
++      If[Lookup[checkpointPayload, "Status", None] =!=
++            "CF300Sector12Rank2DirectImageCheckpointV2" ||
++          checkpointPayload["DriverSHA256"] =!= driverHashBefore ||
++          checkpointPayload["PreparationSHA256"] =!=
++            preparationHashBefore ||
++          checkpointPayload["InputSHA256"] =!= expectedInputSHA256 ||
++          checkpointPayload["RuntimeHashes"] =!= namedRuntimeHashesBefore ||
++          checkpointPayload["SourceClosure"] =!= sourceClosureBefore ||
++          checkpointPayload["ImageSpecification"] =!= image ||
++          checkpointPayload["DirectAssemblyFingerprint"] =!=
++            fullDirectPreparation["AssemblyFingerprint"] ||
++          ! AssociationQ[checkpointPayload["VariantResults"]] ||
++          Sort[Keys[checkpointPayload["VariantResults"]]] =!=
++            Sort[Lookup[variants, "Label"]] ||
++          ! AssociationQ[checkpointPayload["SharedPointStream"]],
++        raise["ImageCheckpointValidationFailed", <|
++          "ImageID" -> image["ImageID"],
++          "CheckpointRead" -> KeyDrop[checkpointRead, "Payload"]|>]];
++      rankSummary =
++        CodexDirectDiscriminatorAtomicCheckpointV2`DDACRankSummary[
++          checkpointPayload["VariantResults"], image["ImageID"]];
++      If[! AssociationQ[rankSummary] ||
++          rankSummary =!= checkpointPayload["RankSummary"],
++        raise["ImageCheckpointRankSummaryInvalid", <|
++          "ImageID" -> image["ImageID"]|>]];
++      AssociateTo[sharedPointStreams, image["ImageID"] ->
++        checkpointPayload["SharedPointStream"]];
++      KeyValueMap[(results[#1] = Append[results[#1], First[#2]]) &,
++        checkpointPayload["VariantResults"]];
++      Print["CF300S12R2DIRECTDISC milestone=image_checkpoint_resumed image=",
++        image["ImageID"], " checkpoint_sha256=",
++        checkpointRead["FileSHA256"], " elapsed_s=",
++        N[AbsoluteTime[] - campaignStartTime]];
++      CodexDirectDiscriminatorAtomicCheckpointV2`DDACPrintRankSummary[
++        "CF300S12R2DIRECTDISC", image["ImageID"], rankSummary];
++      Continue[]];
++    If[Lookup[checkpointRead, "Status", None] =!=
++        "AtomicArtifactAbsentV2",
++      raise["ImageCheckpointUnreadableOrInvalid", <|
++        "ImageID" -> image["ImageID"],
++        "CheckpointRead" -> KeyDrop[checkpointRead, "Payload"]|>]];
+     seed = Hash[{730000 + Mod[image["Prime"], 100000],
+@@
+      imageResult = rankImage[matrix, right, image["Prime"],
+        variantLabel, image["ImageID"], "full"];
++      Print["CF300S12R2DIRECTDISC rank_summary image=",
++        image["ImageID"], " variant=", variantLabel,
++        " coefficient_rank=", imageResult["CoefficientRank"],
++        " augmented_rank=", imageResult["AugmentedRank"],
++        " nullity=", imageResult["CoefficientNullity"],
++        " consistent=", imageResult["Consistent"]];
+      nested = If[variantLabel === "A0" && image["ImageID"] === "I00",
+@@
+     Print["CF300S12R2DIRECTDISC milestone=image_ranks_complete image=",
+       image["ImageID"], " elapsed_s=",
+-      N[AbsoluteTime[] - campaignStartTime]],
++      N[AbsoluteTime[] - campaignStartTime]];
++    imageVariantResults = Association@Table[
++      variantData["Label"] -> {Last[results[variantData["Label"]]]},
++      {variantData, variants}];
++    rankSummary =
++      CodexDirectDiscriminatorAtomicCheckpointV2`DDACRankSummary[
++        imageVariantResults, image["ImageID"]];
++    If[! AssociationQ[rankSummary],
++      raise["ComputedImageRankSummaryInvalid", <|
++        "ImageID" -> image["ImageID"]|>]];
++    CodexDirectDiscriminatorAtomicCheckpointV2`DDACPrintRankSummary[
++      "CF300S12R2DIRECTDISC", image["ImageID"], rankSummary];
++    checkpointPayload = <|
++      "Status" -> "CF300Sector12Rank2DirectImageCheckpointV2",
++      "DriverSHA256" -> driverHashBefore,
++      "PreparationSHA256" -> preparationHashBefore,
++      "InputSHA256" -> expectedInputSHA256,
++      "RuntimeHashes" -> namedRuntimeHashesBefore,
++      "SourceClosure" -> sourceClosureBefore,
++      "ImageSpecification" -> image,
++      "DirectAssemblyFingerprint" ->
++        fullDirectPreparation["AssemblyFingerprint"],
++      "SharedPointStream" -> sharedPointStreams[image["ImageID"]],
++      "VariantResults" -> imageVariantResults,
++      "RankSummary" -> rankSummary|>;
++    checkpointCommit =
++      CodexDirectDiscriminatorAtomicCheckpointV2`DDACWriteAtomic[
++        checkpointFile[image["ImageID"]], checkpointPayload,
++        Function[Null, currentSourceState[] === expectedSourceState]];
++    If[Lookup[checkpointCommit, "Status", None] =!=
++        "AtomicWriteCommittedV2",
++      raise["ImageCheckpointCommitFailed", <|
++        "ImageID" -> image["ImageID"],
++        "AtomicCommit" -> checkpointCommit|>]];
++    Print["CF300S12R2DIRECTDISC milestone=image_checkpoint_committed image=",
++      image["ImageID"], " checkpoint_sha256=",
++      checkpointCommit["TargetSHA256"], " elapsed_s=",
++      N[AbsoluteTime[] - campaignStartTime]],
+     {image, imageSpecs}];
+@@
+-  currentSourceState[] := <|
+-    "Preparation" -> FileHash[preparationFile, "SHA256", "HexString"],
+-    "Input" -> FileHash[inputFile, "SHA256", "HexString"],
+-    "PreparationDriver" -> FileHash[preparationDriverFile,
+-      "SHA256", "HexString"],
+-    "NamedRuntimeHashes" -> namedRuntimeHashes[],
+-    "SourceClosure" -> sourceClosureSnapshot[],
+-    "Driver" -> FileHash[$InputFileName, "SHA256", "HexString"]|>;
+-  expectedSourceState = <|
+-    "Preparation" -> preparationHashBefore,
+-    "Input" -> expectedInputSHA256,
+-    "PreparationDriver" -> preparationArtifact["DriverSHA256"],
+-    "NamedRuntimeHashes" -> namedRuntimeHashesBefore,
+-    "SourceClosure" -> sourceClosureBefore,
+-    "Driver" -> driverHashBefore|>;
+   sourceStateAtCompletion = currentSourceState[];
+@@
+-    "Status" -> "CF300Sector12Rank2DirectAnsatzDiscriminatorV1",
++    "Status" -> "CF300Sector12Rank2DirectAnsatzDiscriminatorV2",
+@@
+     "SharedPointStreams" -> sharedPointStreams,
+     "Results" -> results,
++    "ImageCheckpointFiles" -> AssociationThread[
++      Lookup[imageSpecs, "ImageID"],
++      checkpointFile /@ Lookup[imageSpecs, "ImageID"]],
++    "AtomicWriter" -> "CF300DirectDiscriminatorAtomicCommitV2",
+@@
+ If[Lookup[mainResult, "Status", None] =!=
+-    "CF300Sector12Rank2DirectAnsatzDiscriminatorV1",
++    "CF300Sector12Rank2DirectAnsatzDiscriminatorV2",
+@@
+-If[writeAtomic[mainResult,
+-      Function[Null, finalCurrentSourceState[] ===
+-        mainResult["ExpectedSourceState"]]] ===
+-    $Failed,
+-  Print["CF300S12R2DIRECTDISC FAIL atomic output race output=", outputFile];
++finalCommit = CodexDirectDiscriminatorAtomicCheckpointV2`DDACWriteAtomic[
++  outputFile, mainResult,
++  Function[Null, finalCurrentSourceState[] ===
++    mainResult["ExpectedSourceState"]]];
++If[Lookup[finalCommit, "Status", None] =!= "AtomicWriteCommittedV2",
++  Print["CF300S12R2DIRECTDISC FAIL typed_atomic_commit=",
++    InputForm[finalCommit]];
+   Exit[98]];
+ Print["CF300S12R2DIRECTDISC RESULT status=", mainResult["Status"],
+-  " output=", outputFile];
++  " output=", outputFile,
++  " atomic_sha256=", finalCommit["TargetSHA256"]];
+ Exit[0];
+*** End Patch

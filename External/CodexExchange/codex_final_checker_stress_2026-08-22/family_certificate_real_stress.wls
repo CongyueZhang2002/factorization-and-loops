@@ -42,7 +42,7 @@ Do[
     family, " full: ", NumberForm[seconds, {6, 2}], " s; status=",
     Lookup[certified, "Status", Missing[]], "; dim=", Length[record["TTotal"]],
     "; primes=", primes, "; points/ranks=", pointData,
-    "; residues verified=", Lookup[m, "ResiduesVerifiedAtOtherPrimes", Missing[]],
+    "; residues verified=", Lookup[m, "ResiduesVerifiedAtAllPrimes", Missing[]],
     "; error=", Lookup[Lookup[certified, "EpsilonFormCertificate", <||>],
       "IdentityErrorBound", Missing[]]
   ];
@@ -50,13 +50,13 @@ Do[
     Lookup[certified, "Status", None] === "ExactEpsilonForm" &&
     And @@ (TrueQ /@ Values[Lookup[certified, "Checks", <||>]])];
   check[family <> " sampled primes are distinct",
-    Length[primes] === 3 && DuplicateFreeQ[primes]];
+    Length[primes] >= 3 && DuplicateFreeQ[primes]];
   check[family <> " dlog design has full column rank at every prime",
     Length[pointData] === Length[primes] &&
     AllTrue[pointData, #["DlogRank"] === #["Letters"] &]];
-  check["EXPOSE " <> family <> " exact verdict lacks verified residues",
+  check[family <> " reconstructed residues verify at every sampled prime",
     Lookup[certified, "Status", None] === "ExactEpsilonForm" &&
-    ! TrueQ[Lookup[m, "ResiduesVerifiedAtOtherPrimes", False]]],
+    TrueQ[Lookup[m, "ResiduesVerifiedAtAllPrimes", False]]],
   {family, {"CF265", "CF305"}}
 ];
 

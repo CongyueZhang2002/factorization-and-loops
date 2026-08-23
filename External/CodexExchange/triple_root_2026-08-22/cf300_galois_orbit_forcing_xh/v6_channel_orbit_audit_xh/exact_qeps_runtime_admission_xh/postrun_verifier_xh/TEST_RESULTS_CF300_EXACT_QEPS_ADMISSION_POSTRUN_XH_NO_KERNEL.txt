@@ -1,0 +1,61 @@
+CF300 exact-Q(eps) admission post-run verifier -- no-kernel validation
+Date: 2026-08-23 PDT
+
+No Wolfram kernel, native solver, pool mission, subprocess API, or process
+control was used by the verifier.
+
+Static checks:
+  python3 -m py_compile verify_cf300_exact_qeps_admission_postrun_xh.py
+      test_verify_cf300_exact_qeps_admission_postrun_adversarial_xh.py
+  PASS
+  read-only/no-subprocess source scan
+  PASS
+
+Frozen production preflight (outputs and wrapper intentionally absent):
+  exact source hashes = 12/12 exact
+  held/admission source hashes = 5/5 exact
+  admission runtime source hashes = 7/7 exact
+  exact manifest = exact, all entries verified
+  admission manifest = exact, all entries verified
+  frozen exact driver NativeThreads literal four = exactly one
+  modular source NativeThreads default literal four = exactly one
+  PASS
+
+Synthetic adversarial command:
+  python3 test_verify_cf300_exact_qeps_admission_postrun_adversarial_xh.py
+
+Result:
+  test_certificate_size_ceiling ... ok
+  test_certificate_typed_diagnostic_status ... ok
+  test_held_parse_failed_status ... ok
+  test_held_parse_receipt_hash_linkage ... ok
+  test_held_parse_record_context_split ... ok
+  test_log_failure_marker ... ok
+  test_modular_source_thread_literal_mutation ... ok
+  test_modular_typed_diagnostic_status ... ok
+  test_native_thread_artifact_mutation ... ok
+  test_native_thread_source_literal_mutation ... ok
+  test_nested_certificate_failed_status ... ok
+  test_pool_nonzero_result ... ok
+  test_pool_wrong_kernel ... ok
+  test_prerequisite_hash_linkage ... ok
+  test_receipt_failed_status ... ok
+  test_receipt_nested_kernel ... ok
+  test_receipt_output_hash_linkage ... ok
+  test_receipt_size_ceiling ... ok
+  test_source_hash_mutation ... ok
+  test_stale_atomic_temporary ... ok
+  test_valid_fixture ... ok
+  test_wrapper_argument_order ... ok
+  test_wrapper_duplicate_assignment ... ok
+  test_wrapper_hash_pin ... ok
+  test_wrapper_helper_ceiling ... ok
+  test_wrapper_target_linkage ... ok
+
+  Ran 26 tests in 0.319 s
+  OK
+
+Deferred by design:
+  wrapper hash capture immediately after the authorized admission submission
+  final moved wrapper/status/log verification
+  held/prerequisite/certificate/receipt real-artifact verification

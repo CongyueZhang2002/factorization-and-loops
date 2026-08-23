@@ -1,0 +1,56 @@
+diff --git a/External/CodexExchange/triple_root_2026-08-22/direct_root_channel_compiler_v2_xh/DirectRootChannelCompilerV2.wl b/External/CodexExchange/triple_root_2026-08-22/direct_root_channel_compiler_v2_xh/DirectRootChannelCompilerV2.wl
+--- a/External/CodexExchange/triple_root_2026-08-22/direct_root_channel_compiler_v2_xh/DirectRootChannelCompilerV2.wl
++++ b/External/CodexExchange/triple_root_2026-08-22/direct_root_channel_compiler_v2_xh/DirectRootChannelCompilerV2.wl
+@@ -276,31 +276,36 @@ drcav2DecomposeCanonical[expression_, roots_List,
+    numerator, denominator, numeratorChannels, denominatorChannels,
+    denominatorInverse, inverseResult, channels, reconstructed, pairs,
+    statistics = inputStatistics},
+-  If[rank === 0,
++  deltas = Together /@ Lookup[roots, "RootSquare", {}];
++  symbols = Table[Unique["drcav2Root$"], {rank}];
++  replaced = If[rank === 0, expression,
++    CodexTripleRootStrip`TRApplyRootBranches[
++      expression, roots, symbols]];
++  If[replaced === $Failed || ! FreeQ[replaced,
++      Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
++    Return[$Failed]];
++  rational = Together[replaced];
++  If[! FreeQ[rational,
++      Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
++    Return[$Failed]];
++  (* A rank-r bundle contains many scalars that do not use any root.
++     Preserve the full 2^r grade ABI, but do not send such a scalar
++     through polynomial field reduction and recursive norm inversion. *)
++  If[rank === 0 || FreeQ[rational, Alternatives @@ symbols],
+     AssociateTo[statistics, "RootFreeFastPathCount" ->
+       (Lookup[statistics, "RootFreeFastPathCount", 0] + 1)];
+-    rational = Together[expression];
+-    If[! FreeQ[rational,
+-        Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
+-      Return[$Failed]];
+-    If[! TrueQ[Together[rational - expression] === 0],
++    channels = PadRight[{rational}, 2^rank, 0];
++    reconstructed = CodexTripleRootStrip`TRFieldCompose[channels, roots];
++    If[! TrueQ[Together[reconstructed - expression] === 0],
+       Return[$Failed]];
+-    pairs = {drcav2CanonicalPair[rational]};
++    pairs = drcav2CanonicalPair /@ channels;
+     If[MemberQ[pairs, $Failed], Return[$Failed]];
+     AssociateTo[statistics, "IndependentRoundTripChecks" ->
+       (Lookup[statistics, "IndependentRoundTripChecks", 0] + 1)];
+-    Return[<|"Channels" -> {rational}, "Pairs" -> pairs,
++    Return[<|"Channels" -> channels, "Pairs" -> pairs,
+       "Path" -> "RootFree", "Statistics" -> statistics|>]];
+   AssociateTo[statistics, "AlgebraicPathCount" ->
+     (Lookup[statistics, "AlgebraicPathCount", 0] + 1)];
+-  deltas = Together /@ Lookup[roots, "RootSquare", {}];
+-  symbols = Table[Unique["drcav2Root$"], {rank}];
+-  replaced = CodexTripleRootStrip`TRApplyRootBranches[
+-    expression, roots, symbols];
+-  If[! FreeQ[replaced,
+-      Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
+-    Return[$Failed]];
+-  rational = Together[replaced];
+   numerator = Numerator[rational];
+   denominator = Denominator[rational];
+   If[! PolynomialQ[numerator, symbols] ||

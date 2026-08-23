@@ -1,0 +1,36 @@
+CF300 exact-Q(eps) runtime admission: no-kernel verification
+Date: 2026-08-23
+
+No Wolfram kernel, native process, process pool, or mission was launched.
+
+python3 test_runtime_admission_static.py
+PASS 82/82 runtime-admission static checks
+
+python3 test_runtime_admission_adversarial.py
+PASS 40/40 runtime-admission adversarial checks
+
+Frozen exact-bundle regression evidence:
+PASS 111/111 static no-kernel checks
+PASS 97/97 adversarial no-kernel checks
+All eight SHA256 manifest entries OK
+
+Admission coverage:
+- K24 exact dispatch, task-broker helper ceiling zero, nested kernels empty
+- preflight precedes argument parsing and source I/O
+- post-run K24/helper/nested state revalidation
+- passed central held-parse artifact required and hash-bound
+- five held-parsed sources, full SyntaxLength, zero messages, cleanup
+- context-backtick split-line guard and exact mutant
+- immutable original driver/helper/modular/schema/manifest/V6d/kpsubmit pins
+- exact four-Exit transform occurrence guard and transformed-text SHA256
+- transformed-driver held parse before evaluation
+- 1 GiB certificate memory/disk ceiling
+- 16 MiB held-parse and admission-receipt ceilings
+- atomic fresh-target/non-overwrite policy
+- rollback on oversize, failed post-admission, or missing success receipt
+- exact watcher PASS/FAIL and artifact status markers
+
+Deferred:
+- central K24 held parse
+- V6e prerequisite capture completion
+- admitted exact-Q(eps) runtime

@@ -1,0 +1,20 @@
+*** Begin Patch
+*** Update File: External/CodexExchange/triple_root_2026-08-22/direct_root_channel_compiler_v2_xh/DirectRootChannelCompilerV2.wl
+@@
+-  AssociateTo[pool,
+-    "Values" -> Append[pool["Values"], polynomial],
+-    "Compiled" -> Append[pool["Compiled"], compiled],
+-    "Misses" -> (pool["Misses"] + 1)];
++  AssociateTo[pool, <|
++    "Values" -> Append[pool["Values"], polynomial],
++    "Compiled" -> Append[pool["Compiled"], compiled],
++    "Misses" -> (pool["Misses"] + 1)|>];
+@@
+-  AssociateTo[pool,
+-    "Values" -> Append[pool["Values"], expression],
+-    "Misses" -> (pool["Misses"] + 1)];
++  AssociateTo[pool, <|
++    "Values" -> Append[pool["Values"], expression],
++    "Misses" -> (pool["Misses"] + 1)|>];
+*** End Patch
+

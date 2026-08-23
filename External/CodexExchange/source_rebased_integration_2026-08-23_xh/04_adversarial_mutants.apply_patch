@@ -1,0 +1,202 @@
+*** Begin Patch
+*** Update File: External/CodexExchange/finite_field_backend_hardening_2026-08-23_xh/run_finite_field_backend_plan_adversarial.wls
+@@
+ decision = FeynFacet`Private`finiteFieldStripBackendDecision;
++planDecision =
++  FeynFacet`Private`finiteFieldStripPlanDiscoveryBackendDecision;
+@@
+ checks["ExplicitFLINTNeverAllowsFallback"] =
+@@
+     "Wolfram";
++checks["PlanDiscoveryWolframRecordedSeparately"] =
++  planDecision["Wolfram"] === <|"Status" -> "OK",
++    "PlanDiscoveryBackendRequested" -> "Wolfram",
++    "PlanDiscoveryBackendUsed" -> "Wolfram"|>;
++checks["NativeAffineRREFNotSmuggledThroughFixedCore"] =
++  planDecision["FLINTAffineRREF"]["Status"] ===
++    "PlanDiscoveryBackendUnavailable" &&
++  decision["FLINT", 2, 600]["UseBackend"] =!= "FLINTAffineRREF";
++checks["UnknownPlanDiscoveryBackendRejected"] =
++  planDecision["TypoDiscovery"]["Status"] ===
++    "InvalidPlanDiscoveryBackendOption";
++
++coreFixture = IdentityMatrix[2];
++rhsFixture = {{3}, {7}};
++canonicalSolution = rhsFixture;
++noncanonicalSolution = {{3 + 1000003}, {7}};
++checks["CanonicalNativeResiduesAccepted"] =
++  FeynFacet`Private`finiteFieldStripCoreSolutionQ[
++    coreFixture, rhsFixture, canonicalSolution, 1000003];
++checks["CongruentButNoncanonicalNativeResiduesRejected"] =
++  ! FeynFacet`Private`finiteFieldStripCoreSolutionQ[
++    coreFixture, rhsFixture, noncanonicalSolution, 1000003];
++
++wolframBackendConfiguration =
++  FeynFacet`Private`finiteFieldStripBackendConfiguration["Wolfram", 2];
++otherBackendConfiguration = Join[wolframBackendConfiguration,
++  <|"BackendRequested" -> "FLINT"|>];
++artifactFixture = <|"RecordFingerprint" -> "record-fixture",
++  "SelectedNumeratorDegreeOffset" -> {0, 0},
++  "SelectedSupportShell" -> 0,
++  "EliminationPlanFingerprint" -> "plan-fixture",
++  "BackendConfiguration" -> wolframBackendConfiguration,
++  "PlanDiscoveryBackend" -> "Wolfram"|>;
++artifactValid =
++  FeynFacet`Private`finiteFieldStripModularArtifactValidQ;
++checks["FullyBoundModularArtifactAccepted"] = artifactValid[
++  artifactFixture, "record-fixture", {0, 0}, 0, "plan-fixture",
++  wolframBackendConfiguration, "Wolfram"];
++checks["LegacyUnboundModularArtifactIsStale"] = ! artifactValid[
++  KeyDrop[artifactFixture,
++    {"EliminationPlanFingerprint", "BackendConfiguration"}],
++  "record-fixture", {0, 0}, 0, "plan-fixture",
++  wolframBackendConfiguration, "Wolfram"];
++checks["WolframCacheRejectedForDifferentFixedCoreRequest"] =
++  ! artifactValid[artifactFixture, "record-fixture", {0, 0}, 0,
++    "plan-fixture", otherBackendConfiguration, "Wolfram"];
++checks["CacheRejectedForChangedPlanFingerprint"] =
++  ! artifactValid[artifactFixture, "record-fixture", {0, 0}, 0,
++    "another-plan", wolframBackendConfiguration, "Wolfram"];
+@@
+-  "Purpose" -> "FiniteFieldBackendAndPlanAdversarialV1",
++  "Purpose" -> "FiniteFieldBackendPlanAndCacheAdversarialV2",
+*** Update File: External/CodexExchange/finite_field_backend_hardening_2026-08-23_xh/run_solver_configuration_resume_adversarial.wls
+@@
+ direct = configuration["DirectRationalFiniteField", "Rational",
+-  rationalFrame, "Numerical", Automatic, 2];
++  rationalFrame, "Numerical", Automatic, 2, "Wolfram"];
+ chart = configuration["RationalChartFiniteField", "Multiquadratic",
+-  algebraicFrame, "Numerical", Automatic, 2];
++  algebraicFrame, "Numerical", Automatic, 2, "Wolfram"];
+ zero = configuration["ZeroForcing", "Rational", rationalFrame,
+-  None, None, None];
++  None, None, None, None];
+@@
+   configuration["RationalChartFiniteField", "Rational", rationalFrame,
+-    "Numerical", Automatic, 2]["Status"] ===
++    "Numerical", Automatic, 2, "Wolfram"]["Status"] ===
+@@
+   configuration["DirectRationalFiniteField", "Rational", rationalFrame,
+-    "Numerical", "TypoBackend", 2]["Status"] ===
++    "Numerical", "TypoBackend", 2, "Wolfram"]["Status"] ===
+@@
+ checks["ProvenanceMutationRejected"] = ! validQ[Join[direct,
+@@
+     <|"SolverABIVersion" -> 99|>]|>]];
++checks["BackendImplementationProvenanceMutationRejected"] =
++  ! validQ[refingerprint[Join[direct,
++    <|"BackendImplementationProvenance" ->
++      Join[direct["BackendImplementationProvenance"],
++        <|"FLINTBinarySHA256" -> StringRepeat["0", 64]|>]|>]]];
++checks["PlanDiscoveryBackendMutationRejected"] =
++  ! validQ[refingerprint[Join[direct,
++    <|"PlanDiscoveryBackend" -> "FLINTAffineRREF"|>]]];
++checks["CompleteImplementationProvenancePresent"] =
++  ContainsAll[Keys[direct["ImplementationProvenance", "SourceSHA256"]],
++    {"FiniteFieldStripSolve.wl", "FamilyRowGaugeResume.wl",
++      "FamilyRowGauge.wl", "family_epsform_sector.wls"}] &&
++  StringQ[direct["BackendImplementationProvenance",
++    "FiniteFieldStripSolveSHA256"]];
+@@
+ otherDirect = configuration["DirectRationalFiniteField", "Rational",
+-  rationalFrame, "Numerical", "Wolfram", 2];
++  rationalFrame, "Numerical", "Wolfram", 2, "Wolfram"];
+@@
+ checks["OversizedStatusNeverPersists"] =
+   oversizedStatusSummary["Status"] ===
+-      "SolverAssociationWithNonStringStatus" &&
++      "SolverAssociationWithInvalidStatus" &&
+     ByteCount[oversizedStatusSummary] < 100000;
+@@
+ zeroExact = configuration["ZeroForcing", "Rational", rationalFrame,
+-  None, None, None];
++  None, None, None, None];
+*** Update File: External/CodexExchange/run_deferred_row_gauge_sequential_exact_unit.wls
+@@
+ transformedPrefix =
+   expectedRegulated[[All, Range[prefix], Range[prefix]]];
++regulatorSeal = FeynFacet`Private`familyRegulatorPropagationSeal[
++  deferred1["Connection"][[All, Range[prefix], Range[prefix]]],
++  transformedPrefix, regulatorInverse, regulatorT];
+ 
+ deferredRegulator =
+   FeynFacet`Private`familyRegulatorPropagateTruncation[
+     deferred1["Connection"], transformedPrefix, regulatorInverse,
+-    regulatorT, prefix, "Deferred"];
++    regulatorT, prefix, {x, y}, regulatorSeal, "Deferred"];
+ togetherRegulator =
+   FeynFacet`Private`familyRegulatorPropagateTruncation[
+     deferred1["Connection"], transformedPrefix, regulatorInverse,
+-    regulatorT, prefix, "Together"];
++    regulatorT, prefix, {x, y}, regulatorSeal, "Together"];
+@@
+ badPropagation = FeynFacet`Private`familyRegulatorPropagateTruncation[
+   badUpper, transformedPrefix, regulatorInverse, regulatorT, prefix,
+-  "Deferred"];
++  {x, y}, regulatorSeal, "Deferred"];
+ FTTest`FTAssert["regulator propagation rejects a nonzero upper-right block",
+   AssociationQ[badPropagation] &&
+     badPropagation["Status"] === "InvalidBlockStructure"];
++badVariableTransformation =
++  FeynFacet`Private`familyRegulatorPropagateTruncation[
++    deferred1["Connection"], transformedPrefix, regulatorInverse,
++    ReplacePart[regulatorT, {1, 1} -> 1 + x], prefix, {x, y},
++    regulatorSeal, "Deferred"];
++badInversePropagation =
++  FeynFacet`Private`familyRegulatorPropagateTruncation[
++    deferred1["Connection"], transformedPrefix,
++    ReplacePart[regulatorInverse, {1, 1} -> 2], regulatorT, prefix,
++    {x, y}, regulatorSeal, "Deferred"];
++badSealPropagation =
++  FeynFacet`Private`familyRegulatorPropagateTruncation[
++    deferred1["Connection"], transformedPrefix, regulatorInverse,
++    regulatorT, prefix, {x, y}, Join[regulatorSeal,
++      <|"Fingerprint" -> StringRepeat["0", 64]|>], "Deferred"];
++FTTest`FTAssert["regulator helper rejects a kinematic transformation",
++  badVariableTransformation["Status"] ===
++    "RegulatorTransformationNotConstant"];
++FTTest`FTAssert["regulator helper rejects a false inverse",
++  badInversePropagation["Status"] ===
++    "RegulatorTransformationInverseInvalid"];
++FTTest`FTAssert["regulator helper rejects a mismatched factor seal",
++  badSealPropagation["Status"] === "RegulatorPropagationSealMismatch"];
+@@
+ siRegulated = FeynFacet`Private`familyRegulatorSparseDot[
+   gFullInverse, deferred1["Inverse"], True];
+@@
+     matrixZeroQ[siRegulated . sRegulated - IdentityMatrix[n]]];
++sDirectionSwap = FeynFacet`Private`familyRegulatorSparseDot[
++  gFull, deferred1["Transformation"], True];
++siDirectionSwap = FeynFacet`Private`familyRegulatorSparseDot[
++  deferred1["Inverse"], gFullInverse, False];
++FTTest`FTAssert["left-multiplying S is an adversarial direction mutant",
++  ! matrixZeroQ[sDirectionSwap . siRegulated - IdentityMatrix[n]] &&
++    ! sameMatrixQ[sDirectionSwap, sRegulated]];
++FTTest`FTAssert["right-multiplying SInverse is an adversarial direction mutant",
++  ! matrixZeroQ[sRegulated . siDirectionSwap - IdentityMatrix[n]] &&
++    ! sameMatrixQ[siDirectionSwap, siRegulated]];
++swappedBothConnection = transformConnection[
++  connection, sDirectionSwap, siDirectionSwap];
++FTTest`FTAssert["mutually inverse double swap still implements the wrong gauge",
++  matrixZeroQ[sDirectionSwap . siDirectionSwap - IdentityMatrix[n]] &&
++    ! sameConnectionQ[swappedBothConnection, expectedRegulated]];
+*** Update File: External/CodexExchange/run_deferred_row_gauge_patch_contract_static.wls
+@@
+   "RegulatorPropagationStatisticsPersisted" ->
+     ListQ[propagationStatisticsPosition],
++  "RegulatorTransformationDirections" ->
++    StringContainsQ[sectorSource,
++      "familyRegulatorSparseDot[state[\"S\"], tFull, False]"] &&
++    StringContainsQ[sectorSource,
++      "familyRegulatorSparseDot[tInv, state[\"SInverse\"], True]"],
++  "RegulatorConstantInverseAndSealGuards" ->
++    StringContainsQ[regulatorSource,
++      "RegulatorTransformationNotConstant"] &&
++    StringContainsQ[regulatorSource,
++      "RegulatorTransformationInverseInvalid"] &&
++    StringContainsQ[regulatorSource,
++      "RegulatorPropagationSealMismatch"],
++  "FactorRoutinesCreatePropagationSeal" ->
++    Length[StringPosition[regulatorSource,
++      "\"PropagationSeal\" -> familyRegulatorPropagationSeal["]] === 2,
+*** End Patch

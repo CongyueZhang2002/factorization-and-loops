@@ -1,0 +1,85 @@
+*** Begin Patch
+*** Update File: FeynFacet/Private/FamilyRowGaugeResume.wl
+@@
+-$familyRowGaugeSolverConfigurationSchemaVersion = 1;
++$familyRowGaugeSolverConfigurationSchemaVersion = 2;
+@@
+   "FinalCheck", "FiniteFieldBackend", "FiniteFieldBackendThreads",
+-  "FrameFingerprint", "ImplementationProvenance", "Fingerprint"};
++  "FrameFingerprint", "ImplementationProvenance",
++  "BackendImplementationProvenance", "Fingerprint"};
+@@
+ familyRowGaugeSolverImplementationProvenance[route_String] := Module[
+-  {names, files, hashes, base},
+-  names = Switch[route,
+-    "ZeroForcing", {"FamilyRowGaugeResume.wl"},
+-    "DirectRationalFiniteField",
+-      {"FiniteFieldStripSolve.wl", "FamilyRowGaugeResume.wl"},
+-    "RationalChartFiniteField",
+-      {"FiniteFieldStripSolve.wl", "TransportCharts.wl",
+-        "FamilyRowGaugeResume.wl"},
+-    _, Return[$Failed]];
+-  files = Association@Table[name ->
+-    FileNameJoin[{$feynFacetPrivateDirectory, name}], {name, names}];
++  {common, files, hashes, base},
++  common = <|
++    "FamilyRowGaugeResume.wl" -> FileNameJoin[
++      {$feynFacetPrivateDirectory, "FamilyRowGaugeResume.wl"}],
++    "FamilyRowGauge.wl" -> FileNameJoin[
++      {$feynFacetPrivateDirectory, "FamilyRowGauge.wl"}],
++    "family_epsform_sector.wls" -> FileNameJoin[
++      {$feynFacetRoot, "Scripts", "family_epsform_sector.wls"}]|>;
++  files = Switch[route,
++    "ZeroForcing", common,
++    "DirectRationalFiniteField", Join[common, <|
++      "FiniteFieldStripSolve.wl" -> FileNameJoin[
++        {$feynFacetPrivateDirectory, "FiniteFieldStripSolve.wl"}]|>],
++    "RationalChartFiniteField", Join[common, <|
++      "FiniteFieldStripSolve.wl" -> FileNameJoin[
++        {$feynFacetPrivateDirectory, "FiniteFieldStripSolve.wl"}],
++      "TransportCharts.wl" -> FileNameJoin[
++        {$feynFacetPrivateDirectory, "TransportCharts.wl"}]|>],
++    _, Return[$Failed]];
+@@
+ familyRowGaugeSolverConfiguration[route_String,
+     coefficientField_String, frame_Association, finalCheck_, backend_,
+-    backendThreads_] := Module[{frameFingerprint, provenance, payload},
++    backendThreads_] := Module[{frameFingerprint, provenance,
++      backendProvenance, payload},
+@@
+   provenance = familyRowGaugeSolverImplementationProvenance[route];
+   If[provenance === $Failed,
+     Return[<|"Status" -> "SolverImplementationProvenanceUnavailable"|>]];
++  backendProvenance = If[route === "ZeroForcing", None,
++    FeynFacet`Private`finiteFieldStripBackendConfiguration[
++      backend, backendThreads]];
++  If[route =!= "ZeroForcing" &&
++      Lookup[backendProvenance, "Schema", None] =!=
++        "FeynFacetFiniteFieldBackendConfiguration",
++    Return[<|"Status" ->
++      "BackendImplementationProvenanceUnavailable"|>]];
+@@
+     "FrameFingerprint" -> frameFingerprint,
+-    "ImplementationProvenance" -> provenance|>;
++    "ImplementationProvenance" -> provenance,
++    "BackendImplementationProvenance" -> backendProvenance|>;
+@@
+ familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
+-  {route, field, expectedProvenance, fingerprint},
++  {route, field, expectedProvenance, expectedBackendProvenance,
++   fingerprint},
+@@
+   expectedProvenance =
+     familyRowGaugeSolverImplementationProvenance[route];
+   If[expectedProvenance === $Failed, Return[False]];
++  expectedBackendProvenance = If[route === "ZeroForcing", None,
++    finiteFieldStripBackendConfiguration[
++      Lookup[configuration, "FiniteFieldBackend", None],
++      Lookup[configuration, "FiniteFieldBackendThreads", None]]];
+   If[! SameQ[Lookup[configuration, "ImplementationProvenance", None],
+-      expectedProvenance] ||
++      expectedProvenance] ||
++      ! SameQ[Lookup[configuration,
++        "BackendImplementationProvenance", Missing[]],
++        expectedBackendProvenance] ||
+*** End Patch

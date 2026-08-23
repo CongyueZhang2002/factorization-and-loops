@@ -1,0 +1,55 @@
+CF300 exact Q(eps) left-obstruction bundle: frozen no-kernel test record
+Date: 2026-08-23
+
+Constraint honored:
+  No Wolfram kernel, native solver, process pool, or live CF300 job was launched.
+  Only Python/shell read-only static and finite-field model tests were run.
+
+Command:
+  python3 test_exact_qeps_left_obstruction_static.py
+Result:
+  PASS 111/111 static no-kernel checks
+
+Command:
+  python3 test_exact_qeps_left_obstruction_adversarial.py
+Result:
+  PASS 97/97 adversarial no-kernel checks
+
+Static coverage includes:
+  - balanced Wolfram delimiters and no split context-backtick line
+  - no symbolic 889x889 LinearSolve and no Position/Heads->True path
+  - all V6d/assembly/point/plan/source/backend hashes pinned
+  - strict capture schema and exact terminal residual APIs
+  - CFFA4 wire protocol, typed RunProcess failures, adaptive primes
+  - degree-80 exploratory cap/fail-fast evidence and honest work bounds
+  - one interpolation kernel per nonzero coordinate/stage
+  - cache revalidation, zero work on cache hits, two-of-three profile consensus
+  - construction/held-out epsilon disjointness and exceptional-image guards
+  - driver pins the exact helper and modular source hashes
+
+Adversarial/model coverage includes:
+  - the observed V6d 0..288 head-traversal bug versus safe 1..288 Pick indices
+  - strict 30-point/60-record rational-lift capture mutants
+  - exact 2x2 characteristic-zero obstruction oracle
+  - modular rational interpolation with asymmetric degrees (0,3)
+  - nonzero constant with expected nullity 5 and basis-order independence
+  - spurious type-(D,D), denominator-zero, residual, and extra-nullity mutants
+  - lower-degree cache acceptance, alias rejection, and non-duplicated work counts
+  - AAB/ABA/ABB profile consensus behavior and minority rejection
+  - unseen regulator residues across representative pinned primes
+  - duplicate generated assignment/terminal lines and split-context mutant
+
+Independent read-only review:
+  Final modular SHA256 0c50fe48adc4bd28181e0954a2191a8c49452779a134405e1c27b6cd27def1ce
+  No concrete correctness or syntax blocker found.
+
+Deferred runtime-only gates:
+  - central Wolfram held parse/source load on frozen hashes
+  - V6e prerequisite capture validation
+  - modular/native reconstruction and terminal exact cleared identities
+
+Frozen source hashes:
+  e055bb88e0884c33edb51c3b52f26943b93e69f27317caead8b0d462b580325b  CF300ExactQepsLeftObstruction.wl
+  0c50fe48adc4bd28181e0954a2191a8c49452779a134405e1c27b6cd27def1ce  CF300ModularQepsWitnessReconstruction.wl
+  909bc658858dc701cf05643e943655ea69fe301240f13272c70cc560c5506b45  CF300_V6D_EXACT_LIFT_PREREQUISITE_SCHEMA.wl
+  446da75743811e2c3d1e2a438205a74786883fa7a4363304c37d911685bfa174  run_cf300_sector12_exact_qeps_left_obstruction_v1.wls

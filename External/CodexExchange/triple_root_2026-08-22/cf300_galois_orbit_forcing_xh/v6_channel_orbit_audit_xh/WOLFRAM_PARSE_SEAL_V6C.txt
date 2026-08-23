@@ -1,0 +1,26 @@
+CF300 Galois channel-orbit V6c independent Wolfram parse seal
+Date: 2026-08-23
+
+Frozen target
+  path: /home/maxzhang/factorization-and-loops/External/CodexExchange/triple_root_2026-08-22/cf300_galois_orbit_forcing_xh/v6_channel_orbit_audit_xh/run_cf300_sector12_galois_orbit_forcing_screen_v6c.wls
+  SHA256: 86bd849d1e129be5db7c788cf99fc99069a52732b90fb04e423a9321e504b0fc
+
+Independent mission
+  name: diagnose_v6c_wolfram_parse_xh_v1
+  worker: 24
+  helper ceiling: 0
+  parsed bytes: 43162
+  SyntaxLength: 43133
+  ParsedHead: HoldComplete
+  messages: none
+  exit: 0
+  status: OK
+  wall: 0.039169 seconds
+
+Pool evidence
+  log SHA256: c62bd51c6f4659c73ddcf393d0b9788abdab7d02c866bf5d29c4b51e7f1387ac
+  status SHA256: 3714e17327cf89151c75c7b074aa1475f8e83f488a5626313d096b20fba4bf11
+  done-wrapper SHA256: f9842be6d6311995605a8add00f8d92e38c28fcac01e2e428dc27ce0d2dc40de
+
+The central pool owner independently reran the no-kernel static gate (69/69)
+and all adversarial suites before launching the full V6c mission.

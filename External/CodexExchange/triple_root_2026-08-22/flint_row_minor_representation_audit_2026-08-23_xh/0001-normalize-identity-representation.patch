@@ -1,0 +1,40 @@
+*** Begin Patch
+*** Update File: External/CodexExchange/triple_root_2026-08-22/flint_affine_rref_wl_xh/FlintAffineRREFAdapter.wl
+@@
+ cffrInverseWitnessQ[matrix_, inverse_, size_Integer, prime_Integer] :=
+   If[size === 0, matrix === {} && inverse === {},
+     cffrCanonicalMatrixQ[matrix, size, size, prime] &&
+     cffrCanonicalMatrixQ[inverse, size, size, prime] &&
+-    Mod[matrix . inverse, prime] === IdentityMatrix[size] &&
+-    Mod[inverse . matrix, prime] === IdentityMatrix[size]];
++    Normal[Mod[matrix . inverse, prime]] ===
++      Normal[IdentityMatrix[size]] &&
++    Normal[Mod[inverse . matrix, prime]] ===
++      Normal[IdentityMatrix[size]]];
+@@
+     "CanonicalFreeIdentity" -> TrueQ[
+-      nullity === 0 || nullspace[[All, free]] === IdentityMatrix[nullity]],
++      nullity === 0 || Normal[nullspace[[All, free]]] ===
++        Normal[IdentityMatrix[nullity]]],
+*** Update File: External/CodexExchange/triple_root_2026-08-22/flint_affine_rref_wl_xh/NativeAffinePilotPrime.wl
+@@
+       (plan["Nullity"] === 0 ||
+-        certificate["NullspaceBasis"][[All,
+-          plan["NormalizationColumns"]]] === IdentityMatrix[plan["Nullity"]]),
++        Normal[certificate["NullspaceBasis"][[All,
++          plan["NormalizationColumns"]]]] ===
++          Normal[IdentityMatrix[plan["Nullity"]]]),
+*** Update File: External/CodexExchange/triple_root_2026-08-22/flint_affine_rref_wl_xh/test_flint_affine_rref_wl_static.sh
+@@
+-require_literal canonical_free_identity "$adapter" 'nullspace[[All, free]] === IdentityMatrix[nullity]'
++require_literal canonical_free_identity "$adapter" 'Normal[nullspace[[All, free]]] ==='
++require_literal canonical_free_identity_dense "$adapter" 'Normal[IdentityMatrix[nullity]]'
+@@
+-require_literal row_inverse_both_sides "$adapter" 'Mod[matrix . inverse, prime] === IdentityMatrix[size]'
+-require_literal inverse_other_side "$adapter" 'Mod[inverse . matrix, prime] === IdentityMatrix[size]'
++require_literal row_inverse_both_sides "$adapter" 'Normal[Mod[matrix . inverse, prime]] ==='
++require_literal inverse_other_side "$adapter" 'Normal[Mod[inverse . matrix, prime]] ==='
++require_literal inverse_dense_identity "$adapter" 'Normal[IdentityMatrix[size]]'
++reject_literal no_raw_automatic_identity_comparison "$adapter" '=== IdentityMatrix['
+*** End Patch
+

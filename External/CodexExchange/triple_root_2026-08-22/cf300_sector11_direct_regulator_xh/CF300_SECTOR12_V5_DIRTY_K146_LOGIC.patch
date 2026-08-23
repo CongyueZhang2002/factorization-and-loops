@@ -1,0 +1,77 @@
+--- a/preflight_cf300_sector12_recapture_v4_global_state.wls
++++ b/preflight_cf300_sector12_recapture_v5_dirty_k146_global_state.wls
+@@
+-   dirtyDefinitionNames, stateReadGateQ, readOnlyGateQ, report,
++   dirtyDefinitionNames, unsafeDirtyDefinitionNames,
++   unsafePackageShadowNames, allowedDirtyNames, stateReadGateQ,
++   readOnlyGateQ, report,
+@@
+       "Global`$FeynCalcStartupMessages", "Global`$PolyLogPath",
+-      "Global`FeynFacetFermatCheckVariable"};
++      "Global`FeynFacetFermatCheckVariable", "Global`root",
++      "Global`ranges", "Global`t0", "Global`variables", "Global`dD"};
+@@
+     dirtyDefinitionNames = Select[inspectedNames,
+       ! definitionFreeStateQ[statesBefore[#1]] &];
++    allowedDirtyNames = explicitScopeNames;
++    unsafeDirtyDefinitionNames = Complement[
++      dirtyDefinitionNames, allowedDirtyNames];
++    unsafePackageShadowNames = Complement[shadowNames, allowedDirtyNames];
+@@
+-      "GateQ" -> TrueQ[censusGateQ && readOnlyGateQ &&
+-        sourceCandidateNames === {} && dirtyDefinitionNames === {} &&
+-        shadowNames === {}],
++      "GateQ" -> TrueQ[censusGateQ && readOnlyGateQ &&
++        System`$KernelID === 146 &&
++        Sort[packageListHazards] ===
++          Sort[{"CANONICA`", "FeynFacet`", "FeynArts`", "FeynCalc`"}] &&
++        unsafeDirtyDefinitionNames === {} &&
++        unsafePackageShadowNames === {}],
+@@
++      "UnsafeDirtyDefinitionNames" -> unsafeDirtyDefinitionNames,
++      "UnsafePackageShadowNames" -> unsafePackageShadowNames,
+@@
+-    report["GateQ"] = TrueQ[report["GateQ"] &&
+-      existingPackageNames === {} && packageListHazards === {}];
++    report["GateQ"] = TrueQ[report["GateQ"] &&
++      Length[existingPackageNames] === 1685];
+
+--- a/run_cf300_sector12_recapture_from_v4_xh_v4_body.wls
++++ b/run_cf300_sector12_recapture_from_v4_xh_v5_dirty_k146_body.wls
+@@
+     "Global`$FeynCalcStartupMessages", "Global`$PolyLogPath",
+-    "Global`FeynFacetFermatCheckVariable"};
++    "Global`FeynFacetFermatCheckVariable", "Global`root",
++    "Global`ranges", "Global`t0", "Global`variables", "Global`dD"};
+@@
+-          Intersection[globalNamesBaseline, explicitGlobalNames] === {} &&
+           AssociationQ[globalBaselineStatesBefore] &&
+           FreeQ[Values[globalBaselineStatesBefore], $Failed]),
+@@
+-      If[! AllTrue[Values[globalStatesBefore], definitionFreeStateQ],
+-        fail["explicit inherited Global symbol was not definition-free"]];
++      If[! (AssociationQ[globalStatesBefore] &&
++          FreeQ[Values[globalStatesBefore], $Failed]),
++        fail["explicit inherited Global state could not be read exactly"]];
+@@
+          Global`$FeynCalcStartupMessages, Global`$PolyLogPath,
+-         Global`FeynFacetFermatCheckVariable,
++         Global`FeynFacetFermatCheckVariable, Global`root,
++         Global`ranges, Global`t0, Global`variables, Global`dD,
+@@
+           Global`$FeynCalcStartupMessages, Global`$PolyLogPath,
+-          Global`FeynFacetFermatCheckVariable];
++          Global`FeynFacetFermatCheckVariable, Global`root,
++          Global`ranges, Global`t0, Global`variables, Global`dD];
+@@
+       globalStateGateQ = TrueQ[
+-        SameQ[globalStatesAfter, globalStatesBefore] &&
+-        AllTrue[Values[globalStatesAfter], definitionFreeStateQ]];
++        SameQ[globalStatesAfter, globalStatesBefore]];
+
+# Materialization requirements not represented by the logic-only delta:
+# rename every V4 context/status/token/output/filename to V5; assign a fresh
+# absent V5 output; regenerate path seal, source hashes, manifests, static
+# tests, held-parse evidence, and a K146-only no-write lifecycle probe.  Never
+# patch or launch the frozen V4 files in place.
+

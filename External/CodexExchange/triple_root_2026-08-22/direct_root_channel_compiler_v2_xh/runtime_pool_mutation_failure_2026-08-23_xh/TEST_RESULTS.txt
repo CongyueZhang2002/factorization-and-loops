@@ -1,0 +1,27 @@
+Static runtime-failure diagnosis, 2026-08-23
+
+Active source SHA-256:
+  79749c288c95e46f6956b0722087abce041f7f240a3e6eb110a0fd6699d2b153
+
+Active driver SHA-256:
+  cef09398bfbd09d8c3e597778590d75dd9d963de6cfb2710c828dc74ccf1f561
+
+Live mission log snapshot:
+  ranks 0, 1, and 2 each failed V1 exact assembly, point differential,
+  and telemetry contract.
+
+Live captured runtime-message snapshot:
+  AssociateTo::argrx: AssociateTo called with 3 arguments; 2 arguments are expected.
+  Part::partw: Part 1 of {} does not exist.
+  Both messages repeat and are then suppressed by General::stop.
+
+Command:
+  python3 audit_associateto_arity.py ../DirectRootChannelCompilerV2.wl
+
+Expected diagnostic result on the active source:
+  FAIL AssociateTo top-level arity=4 line=161
+  FAIL AssociateTo top-level arity=3 line=205
+
+No Wolfram/Mathematica kernel was launched, no process was signalled, and the
+active compiler/driver were not edited.
+

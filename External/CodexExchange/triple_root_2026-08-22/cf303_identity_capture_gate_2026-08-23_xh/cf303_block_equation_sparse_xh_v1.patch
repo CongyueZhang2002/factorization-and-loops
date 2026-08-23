@@ -1,0 +1,71 @@
+diff --git a/Scripts/family_epsform_sector.wls b/Scripts/family_epsform_sector.wls
+--- a/Scripts/family_epsform_sector.wls
++++ b/Scripts/family_epsform_sector.wls
+@@ -493,12 +493,43 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
+    Together'd n^3 products: 30 GB on CF385 sector 31 (44 masters). *)
+ blockRows[m_] := ranges[[m]];
++(* Exact sparse block product.  Literal zeros are the only terms omitted;
++   every retained product has the same order and scalar factors as Dot.
++   Deliberately do not Together here: blockEquation owns the single final
++   normalization of each forcing entry. *)
++ClearAll[blockEquationSparseDot];
++blockEquationSparseDot[left_List, right_List] := Module[
++  {leftSupport, rightSupport, common},
++  If[! MatrixQ[left] || ! MatrixQ[right] ||
++      left === {} || right === {} ||
++      Length[First[left]] =!= Length[right], Return[$Failed]];
++  leftSupport =
++    Flatten[Position[#, Except[0], {1}, Heads -> False]] & /@ left;
++  rightSupport =
++    Flatten[Position[#, Except[0], {1}, Heads -> False]] & /@
++      Transpose[right];
++  Table[
++    common = Intersection[leftSupport[[i]], rightSupport[[j]]];
++    Which[
++      common === {}, 0,
++      Length[common] === 1,
++        left[[i, First[common]]] right[[First[common], j]],
++      True, Total[(left[[i, #]] right[[#, j]]) & /@ common]],
++    {i, Length[left]}, {j, Length[First[right]]}]
++];
+ (* the equation of block (k, j) from the current connection and the
+    solved blocks of this row (an association j -> D_{kj}) *)
+-blockEquation[k_, j_, solved_Association] := Module[{rk = blockRows[k], rj = blockRows[j], A = state["A"], e, c, bbar},
++blockEquation[k_, j_, solved_Association] := Module[
++  {rk = blockRows[k], rj = blockRows[j], A = state["A"], e, c,
++   bbar, higher, products},
+   e = Table[Map[Together[#/ee] &, A[[mu, rk, rk]], {2}], {mu, 2}];
+   c = Table[Map[Together[#/ee] &, A[[mu, rj, rj]], {2}], {mu, 2}];
+-  bbar = Table[Map[Together, A[[mu, rk, rj]] -
+-    Sum[solved[m] . A[[mu, blockRows[m], rj]], {m, Select[Keys[solved], j < # < k &]}], {2}], {mu, 2}];
++  higher = Select[Keys[solved], j < # < k &];
++  bbar = Table[
++    products = blockEquationSparseDot[
++        solved[m], A[[mu, blockRows[m], rj]]] & /@ higher;
++    If[MemberQ[products, $Failed], Return[$Failed]];
++    Map[Together, A[[mu, rk, rj]] - Total[products], {2}],
++    {mu, 2}];
+   {e, c, bbar}];
+ (* apply the completed row gauge of sector k to the state *)
+ applyRowGauge[k_, solved_Association, installedRow_: Automatic] := Module[
+@@ -567,5 +598,5 @@ applyRowGauge[k_, solved_Association, installedRow_: Automatic] := Module[
+       blockColumns, checkpointData, solvedForms, solvedForm,
+       stripSolvers = {}, transformation, stripCheckpoint,
+       checkpointValid, stripInputFile, extraLetters, obstruction,
+-      resumeHydration, resumeReset, zeroForcingQ,
++      resumeHydration, resumeReset, zeroForcingQ, blockEquationResult,
+       requestedSolverConfiguration, solverConfiguration},
+@@ -667,7 +698,12 @@ applyRowGauge[k_, solved_Association, installedRow_: Automatic] := Module[
+         If[blockwiseRouteQ,
+           nlow = k - 1 - Length[solvedBlocks];
+           memtrace["block " <> ToString[{k, nlow}] <> " before equation"];
+-          {e, c, bbar} = blockEquation[k, nlow, solvedBlocks];
++          blockEquationResult = blockEquation[k, nlow, solvedBlocks];
++          If[blockEquationResult === $Failed,
++            log["  !! sparse block equation rejected incompatible dimensions for ",
++              {k, nlow}];
++            putAtomic[state, stateFile]; Exit[2]];
++          {e, c, bbar} = blockEquationResult;
+           memtrace["block " <> ToString[{k, nlow}] <> " after equation"];
+           nextEq = True,
+           nextEq = canonicaNextEq[aP, invariants, sb, prevD];

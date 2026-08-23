@@ -1,0 +1,9 @@
+CF300_GALOIS_ORBIT_V5_STATIC PASS 91/91
+Wolfram no-kernel nested-comment/string/context-token/delimiter guard PASS
+V4 live substantive hydration/validator/fingerprint gates PASS
+V4 live sole false negative: Names returned short strings inside visible context
+V5 held Context/SymbolName/FullName namespace audit statically PASS
+V5 direct raw-string namespace comparisons absent
+V5 literal artifact-context removal preserved
+No V5 kernel was launched by the subagent
+

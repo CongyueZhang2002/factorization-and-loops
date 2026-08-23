@@ -1,0 +1,21 @@
+CF300 Galois channel-orbit V6c pre-parse freeze
+Date: 2026-08-23
+Wolfram kernels launched by this audit agent: 0
+
+test_galois_channel_orbit_v6c_static.py
+  PASS 69/69
+  Includes a lexer-aware context-mark check and an adversarial mutant that
+  splits `CodexDirectRootChannelExactOneFormRebindV6` from its symbol name.
+
+test_galois_channel_orbit_v6c_adversarial.py
+  PASS exact character checks: 1254
+  PASS finite-field second-order bivariate rational jet trials: 160
+       primes: 10007, 10039; singular retries: 0
+  PASS stabilizer adversaries: 6
+  PASS exact-channel rebind adversaries: 12
+  PASS subset-certificate schema/mutants: 14
+
+Required independent runtime gate before a full launch:
+  diagnose_wolfram_parse_target_v1.wls must parse the frozen V6c driver under
+  ToExpression[..., InputForm, HoldComplete], print ParsedHead -> HoldComplete,
+  and exit 0.  This gate is intentionally delegated to the central pool owner.

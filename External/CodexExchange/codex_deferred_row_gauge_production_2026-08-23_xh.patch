@@ -1,0 +1,182 @@
+*** Begin Patch
+*** Update File: FeynFacet/Private/FamilyRegulatorFactor.wl
+@@
+-ClearAll[familyRegulatorFactoredQ, familyRegulatorSpecialize, familyRegulatorConjugate, familyRegulatorSparseDot, familyRegulatorPointFactoredQ];
++ClearAll[familyRegulatorFactoredQ, familyRegulatorSpecialize,
++  familyRegulatorConjugate, familyRegulatorSparseDot,
++  familyRegulatorPropagateTruncation, familyRegulatorPointFactoredQ];
+@@
+ familyRegulatorConjugate[inverse_List, matrix_List, transformation_List] :=
+   familyRegulatorSparseDot[familyRegulatorSparseDot[inverse, matrix, True], transformation, False];
++
++(* Propagate a constant regulator factor found and certified on the leading
++   prefix.  For G = diag(T,I) and a block-lower-triangular connection,
++     G^-1 A G = {{T^-1 A00 T, 0}, {A10 T, A11}}.
++   Deferred changes representation only: the accepted transformed prefix is
++   installed, while future/lower entries retain exact sparse right-product
++   sums.  Together preserves the historical full-conjugation path. *)
++familyRegulatorPropagateTruncation[
++    connection : {_List, _List}, transformedPrefix : {_List, _List},
++    inverse_List, transformation_List, prefix_Integer?Positive,
++    futureMode_: "Together"] := Module[
++  {n, futureRows, upperRightZeroQ, newConnection = connection,
++   transformationColumnSupport, left, leftRowSupport, support, terms,
++   value, products = 0, touched = 0, deferred = 0, singleTerm = 0,
++   tFull, tInverse, mu, i, j},
++  If[! And @@ (MatrixQ /@ connection) ||
++      Dimensions[connection[[1]]] =!= Dimensions[connection[[2]]] ||
++      Length[connection[[1]]] =!= Length[First[connection[[1]]]],
++    Return[<|"Status" -> "InvalidConnectionDimensions"|>]];
++  n = Length[connection[[1]]];
++  If[prefix > n || Dimensions[transformedPrefix] =!= {2, prefix, prefix} ||
++      Dimensions[inverse] =!= {prefix, prefix} ||
++      Dimensions[transformation] =!= {prefix, prefix} ||
++      ! FreeQ[transformedPrefix,
++        Alternatives[_Missing, Automatic, $Failed]],
++    Return[<|"Status" -> "InvalidTruncationDimensions"|>]];
++  If[! MemberQ[{"Together", "Deferred"}, futureMode],
++    Return[<|"Status" -> "InvalidFutureAMode", "Actual" -> futureMode|>]];
++  upperRightZeroQ = prefix === n || AllTrue[
++    Flatten[connection[[All, Range[prefix], Range[prefix + 1, n]]]],
++    SameQ[#, 0] &];
++  If[! upperRightZeroQ,
++    Return[<|"Status" -> "InvalidBlockStructure",
++      "Reason" -> "the leading-prefix upper-right block must be structurally zero"|>]];
++  If[futureMode === "Together",
++    tFull = IdentityMatrix[n];
++    tFull[[1 ;; prefix, 1 ;; prefix]] = transformation;
++    tInverse = IdentityMatrix[n];
++    tInverse[[1 ;; prefix, 1 ;; prefix]] = inverse;
++    Return[<|"Status" -> "OK",
++      "Connection" -> Table[
++        familyRegulatorConjugate[tInverse, connection[[mu]], tFull],
++        {mu, 2}],
++      "Statistics" -> <|"FutureAMode" -> "Together",
++        "FutureCandidateEntries" -> 2 (n - prefix) prefix,
++        "FutureProducts" -> Missing["CanonicalFullConjugation"],
++        "FutureTouched" -> Missing["CanonicalFullConjugation"],
++        "DeferredFutureEntries" -> 0,
++        "SingleTermFastPath" -> Missing["CanonicalFullConjugation"]|>|>]];
++  newConnection[[All, Range[prefix], Range[prefix]]] = transformedPrefix;
++  futureRows = Range[prefix + 1, n];
++  transformationColumnSupport = Table[
++    Flatten[Position[transformation[[All, j]], Except[0], {1},
++      Heads -> False]], {j, prefix}];
++  Do[
++    left = connection[[mu, futureRows, Range[prefix]]];
++    leftRowSupport = Table[Flatten[Position[left[[i]], Except[0], {1},
++      Heads -> False]], {i, Length[futureRows]}];
++    Do[
++      support = Intersection[leftRowSupport[[i]],
++        transformationColumnSupport[[j]]];
++      products += Length[support];
++      terms = (left[[i, #]] transformation[[#, j]] &) /@ support;
++      value = Which[terms === {}, 0,
++        Length[terms] === 1, singleTerm++; First[terms],
++        True, deferred++; Total[terms]];
++      If[! SameQ[value, connection[[mu, futureRows[[i]], j]]],
++        newConnection[[mu, futureRows[[i]], j]] = value;
++        touched++],
++      {i, Length[futureRows]}, {j, prefix}],
++    {mu, 2}];
++  <|"Status" -> "OK", "Connection" -> newConnection,
++    "Statistics" -> <|"FutureAMode" -> "Deferred",
++      "FutureCandidateEntries" -> 2 Length[futureRows] prefix,
++      "FutureProducts" -> products, "FutureTouched" -> touched,
++      "DeferredFutureEntries" -> deferred,
++      "SingleTermFastPath" -> singleTerm|>|>
++];
++familyRegulatorPropagateTruncation[___] :=
++  <|"Status" -> "InvalidArguments"|>;
+*** Update File: Scripts/family_epsform_sector.wls
+@@
+-factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull, tInv},
++factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
++  tInv, rowCertificate, futureAMode, propagation},
+@@
+   If[! (AssociationQ[factor] && factor["Status"] === "OK"),
+     log["  !! regulator factorization of rows 1..", m, " failed: ", If[AssociationQ[factor], factor["Status"], factor]];
+     Return[False]];
++  rowCertificate = SelectFirst[
++    Reverse[Lookup[state, "SectorCertificates", {}]],
++    Lookup[#, "Sector", None] === m &, <||>];
++  futureAMode = If[productionQ,
++    Lookup[Lookup[Lookup[rowCertificate, "RowGaugeStatistics", <||>],
++      "A", <||>], "FutureAMode", "Together"], "Together"];
++  propagation = FeynFacet`Private`familyRegulatorPropagateTruncation[
++    state["A"], factor["Connection"], factor["Inverse"],
++    factor["Transformation"], nm, futureAMode];
++  If[! AssociationQ[propagation] ||
++      Lookup[propagation, "Status", None] =!= "OK",
++    log["  !! regulator propagation of rows 1..", m,
++      " rejected: ", propagation];
++    state["Stop"] = <|"Status" -> "RegulatorPropagationRejected",
++      "Rows" -> m, "Detail" -> propagation|>;
++    putAtomic[state, stateFile]; Exit[2]];
+   tFull = IdentityMatrix[n]; tFull[[1 ;; nm, 1 ;; nm]] = factor["Transformation"];
+   tInv = IdentityMatrix[n]; tInv[[1 ;; nm, 1 ;; nm]] = factor["Inverse"];
+@@
+-    "A" -> Table[FeynFacet`Private`familyRegulatorConjugate[tInv, state["A"][[mu]], tFull], {mu, 2}],
++    "A" -> propagation["Connection"],
+@@
+-        "Chart" -> Lookup[factor, "Chart", None], "RootIndices" -> Lookup[factor, "RootIndices", {}]|>]|>];
++        "Chart" -> Lookup[factor, "Chart", None],
++        "RootIndices" -> Lookup[factor, "RootIndices", {}],
++        "PropagationStatistics" -> propagation["Statistics"]|>]|>];
+@@
+-    Round[factor["Seconds"], 0.1], " s -> eps-factored ", epsFormQ[state["A"][[1, 1 ;; nm, 1 ;; nm]]] && epsFormQ[state["A"][[2, 1 ;; nm, 1 ;; nm]]]];
++    Round[factor["Seconds"], 0.1], " s; future A mode ", futureAMode,
++    " -> eps-factored ", epsFormQ[state["A"][[1, 1 ;; nm, 1 ;; nm]]] && epsFormQ[state["A"][[2, 1 ;; nm, 1 ;; nm]]]];
+@@
+-applyRowGauge[k_, solved_Association, installedRow_: Automatic] := Module[{rk = blockRows[k], start = First[blockRows[k]], cols, Dk, result},
++applyRowGauge[k_, solved_Association, installedRow_: Automatic] := Module[
++  {rk = blockRows[k], start = First[blockRows[k]], cols, Dk, result,
++   futureAMode},
+@@
+   Do[Dk[[All, blockRows[m] ]] = solved[m], {m, Keys[solved]}];
++  futureAMode = If[productionQ && installedRow =!= Automatic,
++    "Deferred", "Together"];
+   result = FeynFacet`Private`familyRowGaugeApply[
+     state["A"], state["S"], state["SInverse"], rk, Dk, {xx, yy},
+-    installedRow];
++    installedRow, futureAMode];
+@@
+         ", dlog row entries installed ",
+-        Lookup[rowGaugeStatistics["A"], "InstalledRowEntries", 0]];
++        Lookup[rowGaugeStatistics["A"], "InstalledRowEntries", 0],
++        ", future A mode ",
++        Lookup[rowGaugeStatistics["A"], "FutureAMode", "Together"],
++        ", deferred future entries/touched ",
++        Lookup[rowGaugeStatistics["A"], "DeferredFutureEntries", 0], "/",
++        Lookup[rowGaugeStatistics["A"], "FutureTouched", 0]];
+@@
+     sectorCertificate = <|"Sector" -> k, "TransformationInverse" -> stageInverse,
+       "GaugeIdentity" -> stageGauge, "Exact" -> ! productionQ && TrueQ[stageGauge],
+-      "CheckLevel" -> checkLevel, "Route" -> "Blockwise"|>;
++      "CheckLevel" -> checkLevel, "Route" -> "Blockwise",
++      "RowGaugeStatistics" -> rowGaugeStatistics|>;
+@@
+-  remaining = Length[badStrips[state["A"], nb]];
+-  memtrace["sector " <> ToString[k] <> " after badStrips"];
+-  log["  sector ", k,
+-    " done; non-eps-factored strips remaining (all sectors): ", remaining]],
++  If[productionQ && AssociationQ[rowGaugeStatistics] &&
++      Lookup[Lookup[rowGaugeStatistics, "A", <||>], "FutureAMode",
++        "Together"] === "Deferred",
++    remaining = Missing["DeferredProductionCensus"];
++    memtrace["sector " <> ToString[k] <> " full badStrips census deferred"];
++    log["  sector ", k, " done; full non-eps-factored strip census " <>
++      "deferred in Production; exact acceptance remains the family certificate"],
++    remaining = Length[badStrips[state["A"], nb]];
++    memtrace["sector " <> ToString[k] <> " after badStrips"];
++    log["  sector ", k,
++      " done; non-eps-factored strips remaining (all sectors): ", remaining]]],
+@@
+   "SectorCertificates" -> state["SectorCertificates"],
+   "StripSolvers" -> state["StripSolvers"],
++  "RowGaugePropagationPolicy" -> If[productionQ,
++    "DeferredFutureAWithCompleteInstalledRowElseTogether", "Together"],
+@@
+-  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip; numerator degrees 0,1,2,3 are searched concurrently, followed only when needed by exact Maple rational gauges from IntegrableConnections or a strip-letter denominator ansatz. Mathematica checks every strip in both variables and then checks the complete family gauge identity, flatness, and epsilon factorization."|>;
++  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip. In Production, a complete materialized current row is installed, future A row-gauge corrections and constant regulator right-products retain exact deferred sums, and unavailable installed rows fall back to Together; CertifyFamilyEpsilonForm is the sole exact acceptance test. Development retains Together propagation and its exact intermediate checks."|>;
+*** End Patch

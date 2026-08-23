@@ -1,0 +1,49 @@
+V6e exact-channel rebind prototype: no-kernel test record
+Date: 2026-08-23
+
+Scope
+-----
+- No Wolfram kernel or subkernel was launched.
+- No process, pool worker, V6d-pinned source, package source, or live output was
+  modified.
+- Tests are structural source gates and an independent adversarial model.
+
+Commands
+--------
+python3 test_v6e_exact_rebind_static.py
+  PASS 65 / 65
+
+python3 test_v6e_exact_rebind_adversarial.py
+  PASS 57 / 57
+  randomized memo fixtures: 800 / 800
+
+Covered mutants
+---------------
+- forced SHA-key collision with unequal exact canonical pairs
+- numerator, denominator, zero-denominator, proportional-noncanonical pair
+- exact channel, record fingerprint, component, grade, and record-order changes
+- equation and compiled core changes
+- base prefix, target ABI, gauge/residue/total count and column layout changes
+- exact suffix, canonical suffix, stale compiled cache and assembly fingerprint
+- assembler/validator source changes
+- stale seal fingerprint, false/non-Boolean certificate
+- raw/unique/reuse conservation, compile-count and collision-count changes
+- fresh versus replayed nonce ({True, False})
+
+Frozen source facts checked
+---------------------------
+- active V6d core SHA256:
+  7a6fa652def2eed1c7315e6c0260ca9c275e7d8c8a06221f22abc8c7a2b311ed
+- active V6d driver SHA256:
+  921422ec0f78c8a56a707fb487115d0b0a5debe6b84e5257e0d3df638e43988d
+- V6e plan SHA256:
+  64a70f8d2083dc986e6ed31b1e4c824c1c97d86c0aef0bb21fb98d5f6765a521
+- V6e helper SHA256:
+  2fea1e07c691ade811162f47db1d71d82a385dd01d07afd20beaa3aa0262f2e8
+- V6e integration block SHA256:
+  7ea7a437cd25a440e4713040d0882947977a71f092510f0c02c940d8d02f0dbe
+
+Qualification
+-------------
+The actual Wolfram held-parse gate and CF300 runtime benchmark remain mandatory.
+No performance speedup is claimed from these static counts or model tests.

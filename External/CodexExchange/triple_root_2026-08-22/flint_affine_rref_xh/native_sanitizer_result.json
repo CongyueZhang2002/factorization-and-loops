@@ -1,0 +1,15 @@
+{
+  "binary": "/home/maxzhang/factorization-and-loops/External/CodexExchange/triple_root_2026-08-22/flint_affine_rref_xh/bin/flint_affine_rref_sanitize",
+  "binary_sha256": "64e6fc6eaab1c3979c7151d52ae9f129284fd5450aec4ba95c1d29195e2fbf44",
+  "checks": 36,
+  "status": "PASS",
+  "test_sha256": "d0c55ad4c1fc8db42781b7aa7947ea420dc461ee5ddad3cf5c4af55cb735391c",
+  "timings_seconds": {
+    "full_column_rank": 0.009410874001332559,
+    "largest_64bit_prime": 0.009397675999935018,
+    "mersenne_61bit": 0.00910613200176158,
+    "rank_zero": 0.009108121001190739,
+    "rectangular_rank3": 0.012941529999807244,
+    "wide_rank2": 0.008632602002762724
+  }
+}

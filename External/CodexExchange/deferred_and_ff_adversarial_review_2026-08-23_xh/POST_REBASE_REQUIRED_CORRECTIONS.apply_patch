@@ -1,0 +1,146 @@
+*** Begin Patch
+*** Update File: FeynFacet/Private/FiniteFieldStripSolve.wl
+@@
+   finiteFieldStripBackendDecision,
++  finiteFieldStripBackendConfiguration,
+   finiteFieldStripCoreSolutionQ,
+@@
+-finiteFieldStripCoreSolutionQ[core_, rhs_, solution_, prime_Integer] :=
+-  MatrixQ[solution, IntegerQ] &&
+-    Dimensions[solution] === {Dimensions[core][[2]], Dimensions[rhs][[2]]} &&
+-    AllTrue[Flatten[Mod[core . solution - rhs, prime]], SameQ[#, 0] &];
++finiteFieldStripCoreSolutionQ[core_, rhs_, solution_, prime_Integer] :=
++  MatrixQ[solution, IntegerQ] &&
++    Dimensions[solution] ===
++      {Dimensions[core][[2]], Dimensions[rhs][[2]]} &&
++    AllTrue[Flatten[solution], Between[#, {0, prime - 1}] &] &&
++    AllTrue[Flatten[Mod[core . solution - rhs, prime]],
++      SameQ[#, 0] &];
++
++finiteFieldStripBackendConfiguration[requested_, threads_] := Module[
++  {decision, binary, source, payload},
++  decision = finiteFieldStripBackendDecision[requested, threads, 0];
++  If[Lookup[decision, "Status", None] =!= "OK", Return[decision]];
++  binary = finiteFieldStripFLINTBinary[];
++  source = FileNameJoin[{$feynFacetPrivateDirectory,
++    "FiniteFieldStripSolve.wl"}];
++  payload = <|
++    "Schema" -> "FeynFacetFiniteFieldBackendConfiguration",
++    "SchemaVersion" -> 1, "BackendRequested" -> requested,
++    "BackendThreads" -> threads,
++    "FiniteFieldStripSolveSHA256" ->
++      FileHash[source, "SHA256", "HexString"],
++    "FLINTBinarySHA256" -> If[
++      MemberQ[{Automatic, "FLINT"}, requested] && StringQ[binary],
++      FileHash[binary, "SHA256", "HexString"], None]|>;
++  Join[payload, <|"Fingerprint" ->
++    Hash[KeySort[payload], "SHA256", "HexString"]|>]
++];
+@@
+-   liftReason = "OK", backendDecision},
++   liftReason = "OK", backendDecision, backendConfiguration,
++   eliminationPlanFingerprint, planDiscoveryBackendUsed = "Wolfram"},
+@@
+   sampleOptions = {
+@@
+     "EliminationPlan" -> eliminationPlan};
++  eliminationPlanFingerprint = If[AssociationQ[eliminationPlan],
++    Lookup[eliminationPlan, "PlanFingerprint", None], None];
++  backendConfiguration = finiteFieldStripBackendConfiguration[
++    OptionValue["Backend"], OptionValue["BackendThreads"]];
++  If[Lookup[backendConfiguration, "Schema", None] =!=
++      "FeynFacetFiniteFieldBackendConfiguration",
++    Return[backendConfiguration]];
+@@
+       If[! (AssociationQ[interpolation] &&
+           Lookup[interpolation, "RecordFingerprint", Missing[]] === recordFingerprint &&
+           Lookup[interpolation, "SelectedNumeratorDegreeOffset", Missing[]] === selectedOffset &&
+-          Lookup[interpolation, "SelectedSupportShell", "Rectangle"] === selectedShell),
++          Lookup[interpolation, "SelectedSupportShell", "Rectangle"] === selectedShell &&
++          Lookup[interpolation, "EliminationPlanFingerprint", Missing[]] ===
++            eliminationPlanFingerprint &&
++          SameQ[Lookup[interpolation, "BackendConfiguration", Missing[]],
++            backendConfiguration]),
+@@
+           "SelectedSupportShell" -> selectedShell,
+           "RecordFingerprint" -> recordFingerprint,
++          "EliminationPlanFingerprint" -> eliminationPlanFingerprint,
++          "BackendConfiguration" -> backendConfiguration,
+@@
+     "BackendRequested" -> OptionValue["Backend"],
+     "BackendThreads" -> OptionValue["BackendThreads"],
++    "BackendConfiguration" -> backendConfiguration,
++    "PlanDiscoveryBackendRequested" -> "Wolfram",
++    "PlanDiscoveryBackendUsed" -> planDiscoveryBackendUsed,
+*** Update File: FeynFacet/Private/FamilyRegulatorFactor.wl
+@@
+ familyRegulatorPropagateTruncation[
+     connection : {_List, _List}, transformedPrefix : {_List, _List},
+     inverse_List, transformation_List, prefix_Integer?Positive,
+-    futureMode_: "Together"] := Module[
++    variables : {_Symbol, _Symbol}, futureMode_: "Together"] := Module[
+   {n, futureRows, upperRightZeroQ, newConnection = connection,
+    transformationColumnSupport, left, leftRowSupport, support, terms,
+    value, products = 0, touched = 0, deferred = 0, singleTerm = 0,
+-   tFull, tInverse, mu, i, j},
++   tFull, tInverse, inverseExactQ, mu, i, j},
+@@
+     Return[<|"Status" -> "InvalidTruncationDimensions"|>]];
++  If[! FreeQ[{inverse, transformation}, Alternatives @@ variables],
++    Return[<|"Status" -> "RegulatorTransformationNotConstant"|>]];
++  inverseExactQ = And @@ (AllTrue[
++      Flatten[Map[Together, #, {2}]], SameQ[#, 0] &] & /@ {
++        inverse . transformation - IdentityMatrix[prefix],
++        transformation . inverse - IdentityMatrix[prefix]});
++  If[! inverseExactQ,
++    Return[<|"Status" -> "RegulatorTransformationInverseInvalid"|>]];
+*** Update File: Scripts/family_epsform_sector.wls
+@@
+   propagation = FeynFacet`Private`familyRegulatorPropagateTruncation[
+     state["A"], factor["Connection"], factor["Inverse"],
+-    factor["Transformation"], nm, futureAMode];
++    factor["Transformation"], nm, {xx, yy}, futureAMode];
+*** Update File: External/CodexExchange/run_deferred_row_gauge_sequential_exact_unit.wls
+@@
+     deferred1["Connection"], transformedPrefix, regulatorInverse,
+-    regulatorT, prefix, "Deferred"];
++    regulatorT, prefix, {x, y}, "Deferred"];
+@@
+     deferred1["Connection"], transformedPrefix, regulatorInverse,
+-    regulatorT, prefix, "Together"];
++    regulatorT, prefix, {x, y}, "Together"];
+@@
+   badUpper, transformedPrefix, regulatorInverse, regulatorT, prefix,
+-  "Deferred"];
++  {x, y}, "Deferred"];
++badVariableTransformation =
++  FeynFacet`Private`familyRegulatorPropagateTruncation[
++    deferred1["Connection"], transformedPrefix, regulatorInverse,
++    ReplacePart[regulatorT, {1, 1} -> 1 + x], prefix, {x, y},
++    "Deferred"];
++badInversePropagation =
++  FeynFacet`Private`familyRegulatorPropagateTruncation[
++    deferred1["Connection"], transformedPrefix,
++    ReplacePart[regulatorInverse, {1, 1} -> 2], regulatorT, prefix,
++    {x, y}, "Deferred"];
++FTTest`FTAssert["regulator helper rejects a kinematic transformation",
++  badVariableTransformation["Status"] ===
++    "RegulatorTransformationNotConstant"];
++FTTest`FTAssert["regulator helper rejects a false inverse",
++  badInversePropagation["Status"] ===
++    "RegulatorTransformationInverseInvalid"];
+*** Update File: External/CodexExchange/run_deferred_row_gauge_patch_contract_static.wls
+@@
+   "RegulatorPropagationStatisticsPersisted" ->
+     ListQ[propagationStatisticsPosition],
++  "RegulatorTransformationDirections" ->
++    StringContainsQ[sectorSource,
++      "familyRegulatorSparseDot[state[\"S\"], tFull, False]"] &&
++    StringContainsQ[sectorSource,
++      "familyRegulatorSparseDot[tInv, state[\"SInverse\"], True]"],
++  "RegulatorConstantAndInverseGuards" ->
++    StringContainsQ[regulatorSource,
++      "RegulatorTransformationNotConstant"] &&
++    StringContainsQ[regulatorSource,
++      "RegulatorTransformationInverseInvalid"],
+*** End Patch

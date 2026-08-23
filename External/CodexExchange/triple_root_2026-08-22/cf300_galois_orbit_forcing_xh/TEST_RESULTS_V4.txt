@@ -1,0 +1,14 @@
+CF300_GALOIS_ORBIT_V4_STATIC PASS 73/73
+Wolfram no-kernel nested-comment/string/context-token/delimiter guard PASS
+Dedicated hydration gate V1 static PASS 52/52
+Dedicated hydration gate V2 static PASS 48/48
+Dedicated hydration V2 live substantive gates PASS:
+  - Global exact Before===After
+  - dedicated names/definitions
+  - raw preparation/cache association reads
+  - preparation/cache/assembly validators
+  - exact and compiled fingerprints
+  - caller context restoration
+V2 live final EXIT2 was only the held-carrier Context diagnostic corrected in production V4.
+No production V4 kernel was launched by the subagent.
+

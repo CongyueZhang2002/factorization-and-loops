@@ -27,14 +27,17 @@
 ClearAll[
   taskBrokerDirectory, taskBrokerActiveQ, taskBrokerPoolAliveQ,
   taskBrokerPutAtomic, taskBrokerDataFile, taskBrokerRead, taskBrokerCached,
-  taskBrokerFreeKernels, taskBrokerRun, taskBrokerSubmit, taskBrokerCollect, taskBrokerSampleBatch,
+  taskBrokerFreeKernels, taskBrokerNewName, taskBrokerRun, taskBrokerSubmit,
+  taskBrokerCollect, taskBrokerSampleBatch,
   taskBrokerSampleTask, taskBrokerCanonicaLadder, taskBrokerCanonicaTask,
-  $taskBrokerInsideTask, $taskBrokerCache, $taskBrokerCounter, $taskBrokerLog
+  $taskBrokerInsideTask, $taskBrokerCache, $taskBrokerCounter,
+  $taskBrokerNonce, $taskBrokerLog
 ];
 
 $taskBrokerInsideTask = False;
 $taskBrokerCache = <||>;
 $taskBrokerCounter = 0;
+$taskBrokerNonce = StringReplace[CreateUUID[], "-" -> ""];
 $taskBrokerLog = True;
 
 taskBrokerDirectory[] := With[{d = Environment["FACET_TASK_BROKER"]},
@@ -75,11 +78,36 @@ taskBrokerCached[key_, expr_] := Module[{value},
   $taskBrokerCache[key] = value];
 
 (* helpers free right now per the pool's status file (0 when every
-   subkernel is busy; a stale file counts as one) *)
-taskBrokerFreeKernels[] := Module[{status, m},
+   subkernel is busy; a stale file counts as one).  A mission may impose
+   its own ceiling with FACET_TASK_BROKER_MAX_HELPERS; this lets several
+   independent algorithms share one flat pool without nested kernels. *)
+taskBrokerFreeKernels[] := Module[
+  {status, m, free, limitText, environmentLimit, missionLimit},
   status = Quiet[Import[FileNameJoin[{taskBrokerDirectory[], "status.txt"}], "Text"]];
   m = If[StringQ[status], StringCases[status, "free: " ~~ n : DigitCharacter .. :> ToExpression[n]], {}];
-  If[m === {}, 1, First[m]]];
+  free = If[m === {}, 1, First[m]];
+  limitText = Environment["FACET_TASK_BROKER_MAX_HELPERS"];
+  environmentLimit = If[StringQ[limitText] && StringMatchQ[limitText,
+      DigitCharacter ..], FromDigits[limitText], Infinity];
+  (* kpsubmit.sh dynamically scopes this value around one mission.  An
+     environment variable set by the submitting shell cannot alter the
+     environment of an already-running pool subkernel, so the scoped
+     value is the actual per-mission control; the inherited environment
+     remains a pool-wide safety ceiling. *)
+  missionLimit = If[ValueQ[KernelPoolMission`$TaskBrokerMaxHelpers] &&
+      IntegerQ[KernelPoolMission`$TaskBrokerMaxHelpers] &&
+      KernelPoolMission`$TaskBrokerMaxHelpers >= 0,
+    KernelPoolMission`$TaskBrokerMaxHelpers, Infinity];
+  Min[free, environmentLimit, missionLimit]];
+
+(* FeynFacet is reloaded on persistent pool subkernels, resetting the local
+   counter while the PID stays fixed.  A per-load filesystem-safe nonce keeps
+   late results from a timed-out task from satisfying a later handle with the
+   same label and counter. *)
+taskBrokerNewName[label_String] := (
+  $taskBrokerCounter++;
+  StringJoin["tb_", label, "_", ToString[$ProcessID], "_",
+    $taskBrokerNonce, "_", IntegerString[$taskBrokerCounter, 10, 5]]);
 
 (* run a list of task codes (strings of Wolfram code evaluated in a helper
    kernel) and return their results in order; $Failed for a task that
@@ -98,9 +126,7 @@ taskBrokerSubmit[codes_List, OptionsPattern[]] := Module[
   If[dir === None, Return[<|"Directory" -> None, "Codes" -> codes|>]];
   resultDir = FileNameJoin[{dir, "data", "results"}];
   If[! DirectoryQ[resultDir], Quiet[CreateDirectory[resultDir, CreateIntermediateDirectories -> True]]];
-  names = Table[$taskBrokerCounter++;
-    StringJoin["tb_", label, "_", ToString[$ProcessID], "_", IntegerString[$taskBrokerCounter, 10, 5]],
-    {Length[codes]}];
+  names = Table[taskBrokerNewName[label], {Length[codes]}];
   resultFiles = FileNameJoin[{resultDir, # <> ".wl"}] & /@ names;
   files = MapThread[Function[{name, code, resultFile},
     Module[{q = FileNameJoin[{dir, "queue", name <> ".wl"}], text},
@@ -131,6 +157,8 @@ taskBrokerCollect[handle_Association] := Module[
       Quiet[DeleteFile[resultFile]];
       Quiet[DeleteFile[FileNameJoin[{dir, "done", name <> ".status"}]]];
       Quiet[DeleteFile[FileNameJoin[{dir, "done", name <> ".wl"}]]];
+      Quiet[DeleteFile[FileNameJoin[{dir, "failed", name <> ".status"}]]];
+      Quiet[DeleteFile[FileNameJoin[{dir, "failed", name <> ".wl"}]]];
       r]], {names, resultFiles}];
   If[TrueQ[$taskBrokerLog],
     Print["[broker] ", label, ": ", Length[names], " tasks, ",
@@ -190,21 +218,34 @@ taskBrokerCanonicaTask[stripFile_String, denominatorDegree_Integer, timeLimit_, 
     data["Alphabet"], denominatorDegree, timeLimit, degree]];
 
 (* mission side: degree 0 locally (the usual success, too cheap to farm),
-   the remaining degrees concurrently on the helpers; same result shape
-   as the serial ladder (a list of per-degree records) *)
+   then farm only the prefix permitted by the helper ceiling while this
+   kernel evaluates the overflow locally.  Preserve the serial ladder's
+   deterministic degree order and result shape. *)
 taskBrokerCanonicaLadder[strip_List, variables_List, epsilon_Symbol, alphabet_List,
     degrees_List, denominatorDegree_Integer, timeLimit_] :=
- Module[{first, rest, results = {}, stripFile, codes, farmed},
+ Module[{first, rest, results = {}, stripFile, helperCount, farmedDegrees,
+   localDegrees, codes, handle, farmed, local},
   first = First[degrees]; rest = Rest[degrees];
   AppendTo[results, epsFormStripRunCanonicaOne[strip, variables, epsilon, alphabet,
     denominatorDegree, timeLimit, first]];
   If[TrueQ[Lookup[Last[results], "ExactDLog", False]] || rest === {}, Return[results]];
+  helperCount = Min[taskBrokerFreeKernels[], Length[rest]];
+  farmedDegrees = Take[rest, helperCount];
+  localDegrees = Drop[rest, helperCount];
+  If[farmedDegrees === {},
+    Return[Join[results,
+      (epsFormStripRunCanonicaOne[strip, variables, epsilon, alphabet,
+        denominatorDegree, timeLimit, #] &) /@ localDegrees]]];
   stripFile = taskBrokerDataFile["strip_" <> Hash[{strip, variables, epsilon, alphabet}, "SHA256", "HexString"],
     <|"Strip" -> strip, "Variables" -> variables, "Regulator" -> epsilon, "Alphabet" -> alphabet|>];
   codes = StringJoin["FeynFacet`Private`taskBrokerCanonicaTask[\"", stripFile, "\", ",
-    ToString[denominatorDegree], ", ", ToString[timeLimit, InputForm], ", ", ToString[#], "]"] & /@ rest;
-  farmed = taskBrokerRun[codes, "Timeout" -> timeLimit + 300, "Label" -> "canonica"];
+    ToString[denominatorDegree], ", ", ToString[timeLimit, InputForm], ", ", ToString[#], "]"] & /@ farmedDegrees;
+  handle = taskBrokerSubmit[codes, "Timeout" -> timeLimit + 300,
+    "Label" -> "canonica"];
+  local = (epsFormStripRunCanonicaOne[strip, variables, epsilon, alphabet,
+      denominatorDegree, timeLimit, #] &) /@ localDegrees;
+  farmed = taskBrokerCollect[handle];
   Join[results, MapThread[Function[{degree, r},
     If[AssociationQ[r], r,
       epsFormStripRunCanonicaOne[strip, variables, epsilon, alphabet, denominatorDegree, timeLimit, degree]]],
-    {rest, farmed}]]];
+    {farmedDegrees, farmed}], local]];

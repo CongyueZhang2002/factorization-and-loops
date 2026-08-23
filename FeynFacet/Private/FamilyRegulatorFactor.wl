@@ -14,7 +14,10 @@
    Since T is constant in the variables, dT = 0 and A' = T^{-1} A T. *)
 
 Clear[FactorFamilyRegulatorDependence];
-ClearAll[familyRegulatorFactoredQ, familyRegulatorSpecialize, familyRegulatorConjugate, familyRegulatorSparseDot, familyRegulatorPointFactoredQ];
+ClearAll[familyRegulatorFactoredQ, familyRegulatorSpecialize,
+  familyRegulatorConjugate, familyRegulatorSparseDot,
+  familyRegulatorPropagationSeal,
+  familyRegulatorPropagateTruncation, familyRegulatorPointFactoredQ];
 
 (* products with a constant (variable-free) matrix, entry by entry over
    its nonzero pattern, Together applied as each entry is formed: the
@@ -28,6 +31,126 @@ familyRegulatorSparseDot[left_List, right_List, leftConstantQ_] := Module[{n = L
     Table[Together[Sum[left[[i, a]] right[[a, j]], {a, pattern[[j]]}]], {i, n}, {j, m}]]];
 familyRegulatorConjugate[inverse_List, matrix_List, transformation_List] :=
   familyRegulatorSparseDot[familyRegulatorSparseDot[inverse, matrix, True], transformation, False];
+
+(* The seal is created inside the accepted factor routine, where the input
+   prefix is authoritative.  The propagation helper recomputes it before
+   installing any caller-supplied transformed prefix. *)
+familyRegulatorPropagationSeal[
+    inputPrefix : {_List, _List}, transformedPrefix : {_List, _List},
+    inverse_List, transformation_List] := Module[{payload},
+  payload = <|
+    "Schema" -> "FeynFacetRegulatorPropagationSeal",
+    "SchemaVersion" -> 1,
+    "InputPrefixSHA256" ->
+      Hash[inputPrefix, "SHA256", "HexString"],
+    "TransformedPrefixSHA256" ->
+      Hash[transformedPrefix, "SHA256", "HexString"],
+    "InverseSHA256" -> Hash[inverse, "SHA256", "HexString"],
+    "TransformationSHA256" ->
+      Hash[transformation, "SHA256", "HexString"]|>;
+  Join[payload, <|"Fingerprint" ->
+    Hash[KeySort[payload], "SHA256", "HexString"]|>]
+];
+familyRegulatorPropagationSeal[___] := $Failed;
+
+(* Propagate a constant regulator factor found and certified on the leading
+   prefix.  For G = diag(T,I) and a block-lower-triangular connection,
+     G^-1 A G = {{T^-1 A00 T, 0}, {A10 T, A11}}.
+   Deferred changes representation only: the sealed transformed prefix is
+   installed, while future/lower entries retain exact sparse right-product
+   sums.  Together preserves the historical full-conjugation path. *)
+familyRegulatorPropagateTruncation[
+    connection : {_List, _List}, transformedPrefix : {_List, _List},
+    inverse_List, transformation_List, prefix_Integer?Positive,
+    variables : {_Symbol, _Symbol}, seal_Association,
+    futureMode_: "Together"] := Module[
+  {n, futureRows, upperRightZeroQ, newConnection = connection,
+   transformationColumnSupport, left, leftRowSupport, support, terms,
+   value, products = 0, touched = 0, deferred = 0, singleTerm = 0,
+   tFull, tInverse, inverseExactQ, expectedSeal, mu, i, j},
+  If[! And @@ (MatrixQ /@ connection) ||
+      Dimensions[connection[[1]]] =!= Dimensions[connection[[2]]] ||
+      Length[connection[[1]]] =!= Length[First[connection[[1]]]],
+    Return[<|"Status" -> "InvalidConnectionDimensions"|>]];
+  n = Length[connection[[1]]];
+  If[prefix > n || Dimensions[transformedPrefix] =!= {2, prefix, prefix} ||
+      Dimensions[inverse] =!= {prefix, prefix} ||
+      Dimensions[transformation] =!= {prefix, prefix} ||
+      ! FreeQ[transformedPrefix,
+        Alternatives[_Missing, Automatic, $Failed]],
+    Return[<|"Status" -> "InvalidTruncationDimensions"|>]];
+  If[! FreeQ[{inverse, transformation}, Alternatives @@ variables],
+    Return[<|"Status" ->
+      "RegulatorTransformationNotConstant"|>]];
+  inverseExactQ = And @@ (AllTrue[
+      Flatten[Map[Together, #, {2}]], SameQ[#, 0] &] & /@ {
+        inverse . transformation - IdentityMatrix[prefix],
+        transformation . inverse - IdentityMatrix[prefix]});
+  If[! inverseExactQ,
+    Return[<|"Status" ->
+      "RegulatorTransformationInverseInvalid"|>]];
+  expectedSeal = familyRegulatorPropagationSeal[
+    connection[[All, Range[prefix], Range[prefix]]],
+    transformedPrefix, inverse, transformation];
+  If[expectedSeal === $Failed || ! SameQ[seal, expectedSeal],
+    Return[<|"Status" -> "RegulatorPropagationSealMismatch"|>]];
+  If[! MemberQ[{"Together", "Deferred"}, futureMode],
+    Return[<|"Status" -> "InvalidFutureAMode",
+      "Actual" -> futureMode|>]];
+  upperRightZeroQ = prefix === n || AllTrue[
+    Flatten[connection[[All, Range[prefix], Range[prefix + 1, n]]]],
+    SameQ[#, 0] &];
+  If[! upperRightZeroQ,
+    Return[<|"Status" -> "InvalidBlockStructure",
+      "Reason" -> "the leading-prefix upper-right block must be structurally zero"|>]];
+  If[futureMode === "Together",
+    tFull = IdentityMatrix[n];
+    tFull[[1 ;; prefix, 1 ;; prefix]] = transformation;
+    tInverse = IdentityMatrix[n];
+    tInverse[[1 ;; prefix, 1 ;; prefix]] = inverse;
+    Return[<|"Status" -> "OK",
+      "Connection" -> Table[
+        familyRegulatorConjugate[tInverse, connection[[mu]], tFull],
+        {mu, 2}],
+      "Statistics" -> <|"FutureAMode" -> "Together",
+        "FutureCandidateEntries" -> 2 (n - prefix) prefix,
+        "FutureProducts" -> Missing["CanonicalFullConjugation"],
+        "FutureTouched" -> Missing["CanonicalFullConjugation"],
+        "DeferredFutureEntries" -> 0,
+        "SingleTermFastPath" ->
+          Missing["CanonicalFullConjugation"]|>|>]];
+  newConnection[[All, Range[prefix], Range[prefix]]] =
+    transformedPrefix;
+  futureRows = Range[prefix + 1, n];
+  transformationColumnSupport = Table[
+    Flatten[Position[transformation[[All, j]], Except[0], {1},
+      Heads -> False]], {j, prefix}];
+  Do[
+    left = connection[[mu, futureRows, Range[prefix]]];
+    leftRowSupport = Table[Flatten[Position[left[[i]], Except[0], {1},
+      Heads -> False]], {i, Length[futureRows]}];
+    Do[
+      support = Intersection[leftRowSupport[[i]],
+        transformationColumnSupport[[j]]];
+      products += Length[support];
+      terms = (left[[i, #]] transformation[[#, j]] &) /@ support;
+      value = Which[terms === {}, 0,
+        Length[terms] === 1, singleTerm++; First[terms],
+        True, deferred++; Total[terms]];
+      If[! SameQ[value, connection[[mu, futureRows[[i]], j]]],
+        newConnection[[mu, futureRows[[i]], j]] = value;
+        touched++],
+      {i, Length[futureRows]}, {j, prefix}],
+    {mu, 2}];
+  <|"Status" -> "OK", "Connection" -> newConnection,
+    "Statistics" -> <|"FutureAMode" -> "Deferred",
+      "FutureCandidateEntries" -> 2 Length[futureRows] prefix,
+      "FutureProducts" -> products, "FutureTouched" -> touched,
+      "DeferredFutureEntries" -> deferred,
+      "SingleTermFastPath" -> singleTerm|>|>
+];
+familyRegulatorPropagateTruncation[___] :=
+  <|"Status" -> "InvalidArguments"|>;
 
 FactorFamilyRegulatorDependence::input =
   "The connection must be a pair of equally sized square matrices.";
@@ -124,6 +247,8 @@ FactorFamilyRegulatorDependence[{ax_List, ay_List}, {x_Symbol, y_Symbol}, epsilo
   <|"Status" -> "OK", "Method" -> "ExactRationalSamples", "Points" -> pointsUsed,
     "Transformation" -> transformation, "Inverse" -> inverse,
     "Connection" -> {newAx, newAy}, "Attempts" -> attempts,
+    "PropagationSeal" -> familyRegulatorPropagationSeal[
+      {ax, ay}, {newAx, newAy}, inverse, transformation],
     "UseFermat" -> backend["UseFermat"], "Seconds" -> AbsoluteTime[] - start|>
 ];
 
@@ -221,6 +346,8 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     "Chart" -> chart["Name"], "RootIndices" -> rootIndices, "Points" -> inner["Points"],
     "Transformation" -> transformation, "Inverse" -> inverse,
     "Connection" -> {newAx, newAy}, "Attempts" -> inner["Attempts"],
+    "PropagationSeal" -> familyRegulatorPropagationSeal[
+      {ax, ay}, {newAx, newAy}, inverse, transformation],
     "SourceFrameEpsFactored" -> True, "InverseExact" -> True,
     "Seconds" -> AbsoluteTime[] - start|>
 ];

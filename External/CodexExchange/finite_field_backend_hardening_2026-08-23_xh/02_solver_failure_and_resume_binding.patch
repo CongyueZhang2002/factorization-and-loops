@@ -1,0 +1,352 @@
+diff --git a/FeynFacet/Private/FamilyRowGaugeResume.wl b/FeynFacet/Private/FamilyRowGaugeResume.wl
+--- a/FeynFacet/Private/FamilyRowGaugeResume.wl
++++ b/FeynFacet/Private/FamilyRowGaugeResume.wl
+@@
+   familyRowGaugeResumeBlockEquation,
+   familyRowGaugeResumeInvalidatedState,
++  familyRowGaugeSolverConfiguration,
++  familyRowGaugeSolverConfigurationValidQ,
++  familyRowGaugeSolverImplementationProvenance,
++  familyRowGaugeResumeSolverConfigurationCheck,
++  familyRowGaugeSolverFailureSummary,
+   familyRowGaugeHydrateResume
+ ];
++
++$familyRowGaugeSolverConfigurationSchema =
++  "FeynFacetStripSolverConfiguration";
++$familyRowGaugeSolverConfigurationSchemaVersion = 1;
++$familyRowGaugeSolverConfigurationRequiredKeys = {
++  "Status", "Schema", "SchemaVersion", "Route", "CoefficientField",
++  "FinalCheck", "FiniteFieldBackend", "FiniteFieldBackendThreads",
++  "FrameFingerprint", "ImplementationProvenance", "Fingerprint"};
++
++familyRowGaugeSolverImplementationProvenance[route_String] := Module[
++  {names, files, hashes, base},
++  names = Switch[route,
++    "ZeroForcing", {"FamilyRowGaugeResume.wl"},
++    "DirectRationalFiniteField",
++      {"FiniteFieldStripSolve.wl", "FamilyRowGaugeResume.wl"},
++    "RationalChartFiniteField",
++      {"FiniteFieldStripSolve.wl", "TransportCharts.wl",
++        "FamilyRowGaugeResume.wl"},
++    _, Return[$Failed]];
++  files = Association@Table[name ->
++    FileNameJoin[{$feynFacetPrivateDirectory, name}], {name, names}];
++  If[! AllTrue[Values[files], FileExistsQ], Return[$Failed]];
++  hashes = Association@KeyValueMap[#1 ->
++    FileHash[#2, "SHA256", "HexString"] &, files];
++  If[! AllTrue[Values[hashes], StringQ[#] && StringLength[#] === 64 &],
++    Return[$Failed]];
++  base = Switch[route,
++    "ZeroForcing", <|"Solver" -> "ExactZeroGauge",
++      "SolverABIVersion" -> 1|>,
++    "DirectRationalFiniteField", <|
++      "Solver" -> "SolveEpsFormStripFiniteField",
++      "SolverABIVersion" -> 1, "EliminationPlanSchemaVersion" -> 1,
++      "BackendProtocol" -> "CFFA4V1OrWolfram"|>,
++    "RationalChartFiniteField", <|
++      "Solver" -> "SolveEpsFormStripInFrame/RationalChart",
++      "SolverABIVersion" -> 1, "RootOrderingABIVersion" -> 1,
++      "EliminationPlanSchemaVersion" -> 1,
++      "BackendProtocol" -> "CFFA4V1OrWolfram"|>];
++  Join[base, <|"SourceSHA256" -> hashes|>]
++];
++familyRowGaugeSolverImplementationProvenance[___] := $Failed;
++
++familyRowGaugeSolverConfiguration[route_String,
++    coefficientField_String, frame_Association, finalCheck_, backend_,
++    backendThreads_] := Module[{frameFingerprint, provenance, payload},
++  If[! MemberQ[{"ZeroForcing", "DirectRationalFiniteField",
++        "RationalChartFiniteField"}, route] ||
++      ! MemberQ[{"Rational", "Multiquadratic"}, coefficientField] ||
++      ! MemberQ[{None, "Numerical", "Exact"}, finalCheck] ||
++      ! MemberQ[{None, Automatic, "Wolfram", "FLINT"}, backend] ||
++      ! (backendThreads === None ||
++        IntegerQ[backendThreads] && Between[backendThreads, {1, 4}]),
++    Return[<|"Status" -> "InvalidSolverConfigurationArguments"|>]];
++  If[(route === "DirectRationalFiniteField" &&
++        coefficientField =!= "Rational") ||
++      (route === "RationalChartFiniteField" &&
++        coefficientField =!= "Multiquadratic") ||
++      (route === "ZeroForcing" &&
++        ! SameQ[{finalCheck, backend, backendThreads},
++          {None, None, None}]) ||
++      (route =!= "ZeroForcing" &&
++        (! MemberQ[{"Numerical", "Exact"}, finalCheck] ||
++          ! MemberQ[{Automatic, "Wolfram", "FLINT"}, backend] ||
++          ! IntegerQ[backendThreads])),
++    Return[<|"Status" -> "InconsistentSolverConfigurationRoute"|>]];
++  frameFingerprint = If[coefficientField === "Multiquadratic",
++    Hash[KeySort[KeyTake[frame,
++      {"Name", "CoefficientField", "Variables", "Subst", "Roots",
++        "Parents"}]], "SHA256", "HexString"], None];
++  provenance = familyRowGaugeSolverImplementationProvenance[route];
++  If[provenance === $Failed,
++    Return[<|"Status" -> "SolverImplementationProvenanceUnavailable"|>]];
++  payload = <|"Status" -> "OK",
++    "Schema" -> $familyRowGaugeSolverConfigurationSchema,
++    "SchemaVersion" -> $familyRowGaugeSolverConfigurationSchemaVersion,
++    "Route" -> route, "CoefficientField" -> coefficientField,
++    "FinalCheck" -> finalCheck, "FiniteFieldBackend" -> backend,
++    "FiniteFieldBackendThreads" -> backendThreads,
++    "FrameFingerprint" -> frameFingerprint,
++    "ImplementationProvenance" -> provenance|>;
++  Join[payload, <|"Fingerprint" -> Hash[KeySort[payload],
++    "SHA256", "HexString"]|>]
++];
++familyRowGaugeSolverConfiguration[___] :=
++  <|"Status" -> "InvalidSolverConfigurationArguments"|>;
++
++familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
++  {route, field, expectedProvenance, fingerprint},
++  If[! AssociationQ[configuration] ||
++      Sort[Keys[configuration]] =!=
++        Sort[$familyRowGaugeSolverConfigurationRequiredKeys] ||
++      Lookup[configuration, "Status", None] =!= "OK" ||
++      Lookup[configuration, "Schema", None] =!=
++        $familyRowGaugeSolverConfigurationSchema ||
++      Lookup[configuration, "SchemaVersion", None] =!=
++        $familyRowGaugeSolverConfigurationSchemaVersion,
++    Return[False]];
++  {route, field} = Lookup[configuration,
++    {"Route", "CoefficientField"}, None];
++  expectedProvenance =
++    familyRowGaugeSolverImplementationProvenance[route];
++  If[expectedProvenance === $Failed, Return[False]];
++  If[! SameQ[Lookup[configuration, "ImplementationProvenance", None],
++      expectedProvenance] ||
++      ! MemberQ[{"Rational", "Multiquadratic"}, field] ||
++      (route === "DirectRationalFiniteField" && field =!= "Rational") ||
++      (route === "RationalChartFiniteField" &&
++        field =!= "Multiquadratic") ||
++      (field === "Rational" &&
++        Lookup[configuration, "FrameFingerprint", Missing[]] =!= None) ||
++      (field === "Multiquadratic" &&
++        (! StringQ[Lookup[configuration, "FrameFingerprint", None]] ||
++          StringLength[configuration["FrameFingerprint"]] =!= 64)) ||
++      (route === "ZeroForcing" &&
++        ! SameQ[Lookup[configuration,
++          {"FinalCheck", "FiniteFieldBackend",
++            "FiniteFieldBackendThreads"}, Missing[]],
++          {None, None, None}]) ||
++      (route =!= "ZeroForcing" &&
++        (! MemberQ[{"Numerical", "Exact"},
++            Lookup[configuration, "FinalCheck", None]] ||
++          ! MemberQ[{Automatic, "Wolfram", "FLINT"},
++            Lookup[configuration, "FiniteFieldBackend", None]] ||
++          ! IntegerQ[Lookup[configuration,
++            "FiniteFieldBackendThreads", None]] ||
++          ! Between[configuration["FiniteFieldBackendThreads"],
++            {1, 4}])),
++    Return[False]];
++  fingerprint = Hash[KeySort[KeyDrop[configuration, "Fingerprint"]],
++    "SHA256", "HexString"];
++  StringQ[configuration["Fingerprint"]] &&
++    StringLength[configuration["Fingerprint"]] === 64 &&
++    configuration["Fingerprint"] === fingerprint
++];
++familyRowGaugeSolverConfigurationValidQ[___] := False;
++
++(* Missing configurations are accepted only for computations that cannot
++   select another solver (zero forcing) or for the historical in-frame
++   rational-chart route.  A legacy direct-rational checkpoint is recomputed. *)
++familyRowGaugeResumeSolverConfigurationCheck[summary_Association,
++    expected_Association] := Module[{saved, method, route},
++  If[! familyRowGaugeSolverConfigurationValidQ[expected],
++    Return[<|"Status" -> "ExpectedSolverConfigurationInvalid"|>]];
++  saved = Lookup[summary, "SolverConfiguration",
++    Missing["LegacyCheckpoint"]];
++  If[KeyExistsQ[summary, "SolverConfiguration"],
++    If[! AssociationQ[saved],
++      Return[<|"Status" -> "ResumeSolverConfigurationInvalid"|>]];
++    Return[If[familyRowGaugeSolverConfigurationValidQ[saved] &&
++        SameQ[saved, expected],
++      <|"Status" -> "OK", "Mode" -> "Exact"|>,
++      <|"Status" -> "ResumeSolverConfigurationMismatch"|>]];
++  method = Lookup[summary, "Method", None];
++  route = expected["Route"];
++  Which[
++    route === "ZeroForcing" && method === "ZeroForcing",
++      <|"Status" -> "OK", "Mode" -> "LegacyZeroForcing"|>,
++    route === "RationalChartFiniteField" && StringQ[method] &&
++      (StringStartsQ[method, "RationalChart/"] ||
++        StringStartsQ[method, "RationalFrame/"]),
++      <|"Status" -> "OK", "Mode" -> "LegacyRationalChart"|>,
++    True, <|"Status" -> "ResumeSolverConfigurationMissing"|>]
++];
++familyRowGaugeResumeSolverConfigurationCheck[___] :=
++  <|"Status" -> "ResumeSolverConfigurationInvalid"|>;
++
++(* Persist only a fixed diagnostic whitelist, with a 4096-byte ceiling per
++   value.  Never copy gauges, samples, matrices, or inner solutions into an
++   _unsolved artifact. *)
++familyRowGaugeSolverFailureSummary[candidate_] := Module[
++  {keys, bounded, diagnostics, status},
++  keys = {"Method", "RootIndices", "RootSquares", "RadicalBases",
++    "UnclassifiedRadicalBases", "CoefficientField", "BackendRequested",
++    "BackendUsed", "BackendFallbackReason", "BackendFailure",
++    "PlanValidationStatus", "StructuralFailureReasons", "Certificate"};
++  bounded[value_] := If[ByteCount[value] <= 4096, value,
++    <|"Elided" -> True, "ByteCount" -> ByteCount[value],
++      "SHA256" -> Hash[value, "SHA256", "HexString"]|>];
++  Which[
++    candidate === $Failed,
++      <|"Schema" -> "FeynFacetStripSolverFailureSummary",
++        "SchemaVersion" -> 1, "Status" -> "SolverReturnedFailed",
++        "Diagnostics" -> <||>|>,
++    ! AssociationQ[candidate],
++      <|"Schema" -> "FeynFacetStripSolverFailureSummary",
++        "SchemaVersion" -> 1, "Status" -> "InvalidSolverReturn",
++        "ReturnHead" -> ToString[Head[candidate], InputForm],
++        "Diagnostics" -> <||>|>,
++    True,
++      status = Lookup[candidate, "Status",
++        "SolverAssociationWithoutStatus"];
++      diagnostics = Association@KeyValueMap[#1 -> bounded[#2] &,
++        KeyTake[candidate, keys]];
++      <|"Schema" -> "FeynFacetStripSolverFailureSummary",
++        "SchemaVersion" -> 1,
++        "Status" -> If[StringQ[status] && StringLength[status] <= 256,
++          status,
++          "SolverAssociationWithNonStringStatus"],
++        "Diagnostics" -> diagnostics|>]
++];
+@@
+ Options[familyRowGaugeHydrateResume] = {
+   "KernelCount" -> 1,
+   "FinalCheck" -> "Numerical",
++  "FiniteFieldBackend" -> Automatic,
++  "FiniteFieldBackendThreads" -> 2,
+   "MinimumCachedPrimeCount" -> 3,
+@@
+    kernelCount = OptionValue["KernelCount"],
+    finalCheck = OptionValue["FinalCheck"],
++   finiteFieldBackend = OptionValue["FiniteFieldBackend"],
++   finiteFieldBackendThreads = OptionValue["FiniteFieldBackendThreads"],
+@@
+-   algebraicFrameQ,
++   algebraicFrameQ, expectedSolverConfiguration,
++   solverConfigurationCheck,
+@@
+   If[! IntegerQ[kernelCount] || kernelCount < 1 ||
+       ! MemberQ[{"Numerical", "Exact"}, finalCheck] ||
++      ! MemberQ[{Automatic, "Wolfram", "FLINT"}, finiteFieldBackend] ||
++      ! IntegerQ[finiteFieldBackendThreads] ||
++      ! Between[finiteFieldBackendThreads, {1, 4}] ||
+@@
+       zeroQ = familyRowGaugeResumeZeroQ[input["Strip"][[3]]];
++      expectedSolverConfiguration = familyRowGaugeSolverConfiguration[
++        If[zeroQ, "ZeroForcing", If[algebraicFrameQ,
++          "RationalChartFiniteField", "DirectRationalFiniteField"]],
++        coefficientField, frame, If[zeroQ, None, finalCheck],
++        If[zeroQ, None, finiteFieldBackend],
++        If[zeroQ, None, finiteFieldBackendThreads]];
++      solverConfigurationCheck =
++        familyRowGaugeResumeSolverConfigurationCheck[
++          summary, expectedSolverConfiguration];
++      If[Lookup[solverConfigurationCheck, "Status", None] =!= "OK",
++        Throw[<|"Status" -> solverConfigurationCheck["Status"],
++          "LowerSector" -> lowerSector,
++          "ExpectedSolverConfigurationFingerprint" ->
++            Lookup[expectedSolverConfiguration, "Fingerprint", None],
++          "SavedSolverConfigurationFingerprint" -> Lookup[
++            Lookup[summary, "SolverConfiguration", <||>],
++            "Fingerprint", None]|>, tag]];
+       artifactCount = If[DirectoryQ[sourceArtifacts],
+@@
+             "FiniteFieldOptions" -> {
+               "KernelCount" -> kernelCount,
+-              "FinalCheck" -> finalCheck, "Verbose" -> verbose},
++              "FinalCheck" -> finalCheck,
++              "Backend" -> finiteFieldBackend,
++              "BackendThreads" -> finiteFieldBackendThreads,
++              "Verbose" -> verbose},
+@@
+           FeynFacet`SolveEpsFormStripFiniteField[directRecord,
+             "KernelCount" -> kernelCount,
++            "Backend" -> finiteFieldBackend,
++            "BackendThreads" -> finiteFieldBackendThreads,
+@@
+         "Seconds" -> seconds, "Method" -> solution["Method"],
++        "SolverConfigurationMode" -> solverConfigurationCheck["Mode"],
++        "SolverConfigurationFingerprint" ->
++          expectedSolverConfiguration["Fingerprint"],
+diff --git a/Scripts/family_epsform_sector.wls b/Scripts/family_epsform_sector.wls
+--- a/Scripts/family_epsform_sector.wls
++++ b/Scripts/family_epsform_sector.wls
+@@
+ kernelCount = Module[{value = Environment["FACET_KERNEL_COUNT"]},
+@@
+ ];
++(* These are explicit so the exact request can be bound into strip
++   summaries/checkpoints.  A future command-line option must validate against
++   the same exhaustive backend set before changing either value. *)
++finiteFieldBackend = Automatic;
++finiteFieldBackendThreads = 2;
+@@
+ stripSolverSummary[solution_Association, sector_Integer,
+-    lowerSector_Integer, extraLetters_List : {}] := Join[
++    lowerSector_Integer, extraLetters_List : {},
++    solverConfiguration_Association : <||>] := Join[
+@@
+-  <|"ExtraLetters" -> extraLetters|>];
++  <|"ExtraLetters" -> extraLetters,
++    "SolverConfiguration" -> solverConfiguration|>];
++stripSolverConfiguration[route_String] :=
++  FeynFacet`Private`familyRowGaugeSolverConfiguration[
++    route, Lookup[chart, "CoefficientField", "Rational"], chart,
++    If[route === "ZeroForcing", None,
++      If[productionQ, "Numerical", "Exact"]],
++    If[route === "ZeroForcing", None, finiteFieldBackend],
++    If[route === "ZeroForcing", None, finiteFieldBackendThreads]];
+@@
+       checkpointValid, stripInputFile, extraLetters, obstruction,
+-      resumeHydration, resumeReset},
++      resumeHydration, resumeReset, requestedSolverConfiguration,
++      solverConfiguration},
+@@
+             "FinalCheck" -> If[productionQ, "Numerical", "Exact"],
++            "FiniteFieldBackend" -> finiteFieldBackend,
++            "FiniteFieldBackendThreads" -> finiteFieldBackendThreads,
+             "Verbose" -> True];
+@@
+           "ArtifactPrefix" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
++          "Backend" -> finiteFieldBackend,
++          "BackendThreads" -> finiteFieldBackendThreads,
+           "FinalCheck" -> If[productionQ, "Numerical", "Exact"],
+@@
+         extraLetters = {};
++        requestedSolverConfiguration = If[blockwiseRouteQ,
++          stripSolverConfiguration[If[algebraicFrameQ,
++            "RationalChartFiniteField", "DirectRationalFiniteField"]],
++          Missing["LegacySolverRouteNotBound"]];
+@@
+                 "FiniteFieldOptions" -> {
+                   "KernelCount" -> kernelCount,
++                  "Backend" -> finiteFieldBackend,
++                  "BackendThreads" -> finiteFieldBackendThreads,
+                   "FinalCheck" -> If[productionQ, "Numerical", "Exact"],
+@@
+               "Regulator" -> ee, "Strip" -> {e, c, bbar},
++              "SolverConfiguration" -> requestedSolverConfiguration,
++              "SolverFailure" ->
++                FeynFacet`Private`familyRowGaugeSolverFailureSummary[solution],
+               "ObstructionCertificate" -> If[ValueQ[obstruction] && AssociationQ[obstruction],
+@@
+         gauge = solution["Gauge"];
++        solverConfiguration = If[blockwiseRouteQ,
++          stripSolverConfiguration[
++            If[Lookup[solution, "Method", None] === "ZeroForcing",
++              "ZeroForcing", If[algebraicFrameQ,
++                "RationalChartFiniteField", "DirectRationalFiniteField"]]],
++          <||>];
++        If[blockwiseRouteQ &&
++            ! FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
++            solverConfiguration],
++          log["  !! solver configuration could not be sealed for strip ",
++            {k, nlow}]; putAtomic[state, stateFile]; Exit[2]];
+@@
+         AppendTo[stripSolvers,
+-          stripSolverSummary[solution, k, nlow, extraLetters]];
++          stripSolverSummary[solution, k, nlow, extraLetters,
++            solverConfiguration]];

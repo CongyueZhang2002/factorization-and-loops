@@ -1,0 +1,270 @@
+{
+  "cache": "/tmp/codex-triple-root-20260823c.vx654S/cf300_s12_a0_direct_compile_cache_xh_v1.wl",
+  "cache_bytes": 32828503,
+  "cache_sha256": "0f85d336bb75b6e7b91057d80dc6845a2455f6ecfe868582d52528414e0440be",
+  "records": {
+    "DRCAPolynomialExactV1": {
+      "duplicate_occurrence_count": 312,
+      "exact_dedup_byte_saving_upper_bound": 1351618,
+      "exact_dedup_fraction": 0.087803732817241,
+      "record_count": 786,
+      "serialized_record_bytes": 15393628,
+      "top_multiplicities": [
+        {
+          "duplicate_bytes": 8174,
+          "occurrences": 68,
+          "serialized_bytes_each": 122,
+          "sha256": "600862d09561c3c1c2d61a1c9aca85c6f7b9b08e71b3e314eb7cd393d0184218"
+        },
+        {
+          "duplicate_bytes": 9380,
+          "occurrences": 68,
+          "serialized_bytes_each": 140,
+          "sha256": "cef89fe1324031bbe692d8464a67fd69a57f0bb941dd0703d86a0e4660218032"
+        },
+        {
+          "duplicate_bytes": 5658,
+          "occurrences": 47,
+          "serialized_bytes_each": 123,
+          "sha256": "c9614f417155c3661b93150a8dc44bb439c329029efcc4b23fbcabb12af6f962"
+        },
+        {
+          "duplicate_bytes": 6532,
+          "occurrences": 47,
+          "serialized_bytes_each": 142,
+          "sha256": "df8a5b21a3ddf27e13724724b919b24efb7e8186d6ae44dfa5603c4016cd1949"
+        },
+        {
+          "duplicate_bytes": 1408,
+          "occurrences": 12,
+          "serialized_bytes_each": 128,
+          "sha256": "204122fa3d976a3671dde625c6bbca7e3907860206cce9fa9fcb9b4b88d9dd51"
+        },
+        {
+          "duplicate_bytes": 1096,
+          "occurrences": 9,
+          "serialized_bytes_each": 137,
+          "sha256": "04685295db2a08299b1ff17e63cc53936277617b11f55ef6a6362b8134b401db"
+        },
+        {
+          "duplicate_bytes": 762,
+          "occurrences": 7,
+          "serialized_bytes_each": 127,
+          "sha256": "24c16c64122431a5e8ea988a3fd7a5783ad9cdcda32d645f24ea17bb167d85bd"
+        },
+        {
+          "duplicate_bytes": 387,
+          "occurrences": 4,
+          "serialized_bytes_each": 129,
+          "sha256": "5eeee392abe1e53a40cef2f1b32d488488e1bd31bb17a5066707326309cd0136"
+        },
+        {
+          "duplicate_bytes": 426,
+          "occurrences": 4,
+          "serialized_bytes_each": 142,
+          "sha256": "880a8a57a09e1b58d1d487d6c9976c93134830a982d30fd4f4943063a13d50f7"
+        },
+        {
+          "duplicate_bytes": 405,
+          "occurrences": 4,
+          "serialized_bytes_each": 135,
+          "sha256": "2015bfa48b45bc9834193e84bb9398b9814531435cde534246318882fa3a1b30"
+        },
+        {
+          "duplicate_bytes": 420,
+          "occurrences": 4,
+          "serialized_bytes_each": 140,
+          "sha256": "962c02a903e2bb15b652c88302208082e322fbf6fac5cd825e65560aa7a18adc"
+        },
+        {
+          "duplicate_bytes": 2292,
+          "occurrences": 3,
+          "serialized_bytes_each": 1146,
+          "sha256": "dc774dc501a2dce1d5076ba191a6da3136f64a253d20c7e6fcc6b722855e00d9"
+        },
+        {
+          "duplicate_bytes": 256,
+          "occurrences": 3,
+          "serialized_bytes_each": 128,
+          "sha256": "ca33190c90ae132c8024808d326958d1209bb527642340856d24fe4b1a7835b5"
+        },
+        {
+          "duplicate_bytes": 94186,
+          "occurrences": 3,
+          "serialized_bytes_each": 47093,
+          "sha256": "e813d8d6da274d515ed2efa1c724228d3f749cd179b58bfc76525ced13366dde"
+        },
+        {
+          "duplicate_bytes": 27966,
+          "occurrences": 3,
+          "serialized_bytes_each": 13983,
+          "sha256": "7c61bedf8760386eb8e98573cecf6b61e0c06ee10f4fcf5e352fc973ad1f8218"
+        },
+        {
+          "duplicate_bytes": 93490,
+          "occurrences": 3,
+          "serialized_bytes_each": 46745,
+          "sha256": "f08d4286a9da3ff776692e1369c7be249b849475ae0f0186298e8921fe79ace3"
+        },
+        {
+          "duplicate_bytes": 21892,
+          "occurrences": 3,
+          "serialized_bytes_each": 10946,
+          "sha256": "17fe8e871fc91c21df0f314a811e8231524cda8e2a6efd0a80ae7ef65bfabcf8"
+        },
+        {
+          "duplicate_bytes": 33202,
+          "occurrences": 3,
+          "serialized_bytes_each": 16601,
+          "sha256": "ec14b28d5ba3d7ecc11d46d71ff38a139760920bfb93611aeea6cb3c597ee95a"
+        },
+        {
+          "duplicate_bytes": 22622,
+          "occurrences": 3,
+          "serialized_bytes_each": 11311,
+          "sha256": "085cb6961fb3cc52e4295b040ab5daf9d3594acd2ff51996658c9cf87cbcdb79"
+        },
+        {
+          "duplicate_bytes": 166,
+          "occurrences": 2,
+          "serialized_bytes_each": 166,
+          "sha256": "0f4f5555e120ae274baf1becd2b937aa2eccce855700a0bce34606cf4ef0113f"
+        }
+      ],
+      "unique_exact_record_count": 474,
+      "unique_serialized_record_bytes": 14042010
+    },
+    "DRCARationalExactV1": {
+      "duplicate_occurrence_count": 126,
+      "exact_dedup_byte_saving_upper_bound": 45143,
+      "exact_dedup_fraction": 0.00292553251813998,
+      "record_count": 393,
+      "serialized_record_bytes": 15430695,
+      "top_multiplicities": [
+        {
+          "duplicate_bytes": 23852,
+          "occurrences": 68,
+          "serialized_bytes_each": 356,
+          "sha256": "c286d0c19e1731b30c19a6ebd6c29c92223d4203cdb82ea0723737c73a708825"
+        },
+        {
+          "duplicate_bytes": 16606,
+          "occurrences": 47,
+          "serialized_bytes_each": 361,
+          "sha256": "48c09f2f773e97d28d83a408e8a8923fa893ba0e2eadfbf2ba430c209dea7df9"
+        },
+        {
+          "duplicate_bytes": 2888,
+          "occurrences": 9,
+          "serialized_bytes_each": 361,
+          "sha256": "32b1cbaf7e49e0fd0742448f88d9dde1523ce373b511561a2f72e7a5eabba1a1"
+        },
+        {
+          "duplicate_bytes": 1068,
+          "occurrences": 4,
+          "serialized_bytes_each": 356,
+          "sha256": "333cc94e2ced66570b5ffa419e997b35f537e1b48bd536912cd93b54c3777255"
+        },
+        {
+          "duplicate_bytes": 367,
+          "occurrences": 2,
+          "serialized_bytes_each": 367,
+          "sha256": "fd8ce183e81623843b6a02e6f10de4f90cfec9b0f3b556162bd078d9b178935e"
+        },
+        {
+          "duplicate_bytes": 362,
+          "occurrences": 2,
+          "serialized_bytes_each": 362,
+          "sha256": "c4c0ad51d64b0194e330a7eae5140b6e6d12a1f9aad23633e477f9491403b579"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 378,
+          "sha256": "84bda60b23447aa8f2fb3aa3dc86740ea563b0e741e0568038db9b5977b9e0cd"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 412,
+          "sha256": "d9835df0f65876f3b281f727db4cef4b682cac258723a40e4a35a589d66b280a"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 379,
+          "sha256": "c3d8079cb4977f96f3bf9933237606638fb662d60ec12b8f3e9bffefc6b530e5"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 452,
+          "sha256": "d425189d75d16726ff3a00cd327e4d086a47231462d61d455dfe96d0bceae49f"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 388,
+          "sha256": "d4d8fa4050316932062452e11d1f2689682fca3682dba0e98b9b0297917dec89"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 366,
+          "sha256": "2de9c316f8e91f98e77723b8bcfb95950625546298b0d39530e34151b0fa8f01"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 428,
+          "sha256": "52427d615adac64b93935e9433ee51d645873c195ce7ca07478ed8051a8fc331"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 367,
+          "sha256": "65820c316c792e75bcef0c2a847b801f535bbc4caa7aefcafbca04db1e7a0b43"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 378,
+          "sha256": "168c20d37e17a7e4af62e913e27beb5705d82095e585b01903e2faeaf6fb1761"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 390,
+          "sha256": "b457f9785b9ce3c5989ad4021654a72bfdc36909ad889c395ec3f958507fb019"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 492,
+          "sha256": "9bfa979d676f7db4c22607b9c5c581a681c324e6db14ee8d017d6804b37d1fe7"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 367,
+          "sha256": "5ada73ba946c6eed0147b016d73c03277d275d97ff3157b42ac9c9d102c26bef"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 418,
+          "sha256": "8995536ee5af24c6dfc2a75c7c6ab90a4dede50d2a02010c7cd971670d1abc5b"
+        },
+        {
+          "duplicate_bytes": 0,
+          "occurrences": 1,
+          "serialized_bytes_each": 430,
+          "sha256": "58f1ac2e05fba3a43eeebb4c32cd0fc621ca5d0ec3a0ac369a244a672f20ddce"
+        }
+      ],
+      "unique_exact_record_count": 267,
+      "unique_serialized_record_bytes": 15385552
+    }
+  },
+  "status": "SerializedDirectCacheStaticCensusV1"
+}

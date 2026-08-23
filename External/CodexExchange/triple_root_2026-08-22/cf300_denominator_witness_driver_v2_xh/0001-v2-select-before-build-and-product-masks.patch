@@ -1,0 +1,247 @@
+--- a/cf300_sector12_next_ansatz_xh/run_cf300_sector12_denominator_witness_screen.wls
++++ b/cf300_denominator_witness_driver_v2_xh/run_cf300_sector12_denominator_witness_screen_v2.wls
+@@ -5,7 +5,7 @@
+ If[! MemberQ[{5, 6}, Length[arguments]],
+   Print["CF300_DENOM_WITNESS FAIL usage=<project-root> <preparation.wl> " <>
+     "<compiled-cache.wl> <denominator-census.wl> <output.wl> " <>
+-    "[ALL|factor-fingerprint]"];
++    "[ALL|factor-fingerprint|MASK:011|MASK:101|MASK:110|MASK:111]"];
+   Exit[64]];
+ 
+ projectRoot = ExpandFileName[arguments[[1]]];
+@@ -16,6 +16,8 @@
+ candidateSelector = If[Length[arguments] === 6, arguments[[6]], "ALL"];
+ driverDirectory = DirectoryName[$InputFileName];
+ exchangeDirectory = DirectoryName[driverDirectory];
++supportDirectory = FileNameJoin[{exchangeDirectory,
++  "cf300_sector12_next_ansatz_xh"}];
+ directDirectory = FileNameJoin[{exchangeDirectory,
+   "direct_root_channel_assembler_xh"}];
+ adapterDirectory = FileNameJoin[{exchangeDirectory,
+@@ -38,11 +40,11 @@
+     "DirectRootChannelAssembler.wl"}],
+   "ArtifactHelper" -> FileNameJoin[{directDirectory,
+     "DirectRootChannelCompiledArtifact.wl"}],
+-  "AnsatzRebind" -> FileNameJoin[{driverDirectory,
++  "AnsatzRebind" -> FileNameJoin[{supportDirectory,
+     "DirectRootChannelAnsatzRebind.wl"}],
+   "NativeAdapter" -> FileNameJoin[{adapterDirectory,
+     "FlintAffineRREFAdapter.wl"}],
+-  "WitnessHelper" -> FileNameJoin[{driverDirectory,
++  "WitnessHelper" -> FileNameJoin[{supportDirectory,
+     "AffineInconsistencyWitness.wl"}],
+   "NativeBinary" -> FileNameJoin[{nativeDirectory, "bin",
+     "flint_affine_rref"}]|>;
+@@ -79,6 +81,8 @@
+   "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+   "c799eabc0695b12beeccf7a2edfa9702dc5efaddfdec7bf64437b73807eff7ed",
+   "ce44a483203b0cde640e984643bcf415afd24ea95df2b50ee87ae72e232be10e"}];
++allowedProductMaskSelectors = {
++  "MASK:011", "MASK:101", "MASK:110", "MASK:111"};
+ 
+ hashes[] := Map[FileHash[#1, "SHA256", "HexString"] &, files];
+ fingerprint[value_] := Hash[ToString[InputForm[value]],
+@@ -132,6 +136,47 @@
+     {"hi", "lo"};
+   If[nonce === {0, 0}, {0, 1}, nonce]
+ ];
++makeSelectionSpecification[members_List, selector_String] := Module[
++  {memberFingerprints, mask, factor, candidate},
++  memberFingerprints = Lookup[members, "FactorFingerprint"];
++  mask = StringJoin[
++    If[MemberQ[memberFingerprints, #1], "1", "0"] & /@
++      expectedCandidateFingerprints];
++  If[Length[members] === 1,
++    candidate = First[members],
++    factor = Times @@ Lookup[members, "Factor"];
++    candidate = <|
++      "Factor" -> factor,
++      "FactorFingerprint" -> fingerprint[factor],
++      "OmittedByForcingSimplePoleRule" -> AllTrue[members,
++        TrueQ[#1["OmittedByForcingSimplePoleRule"]] &],
++      "EpsilonFree" -> AllTrue[members,
++        TrueQ[#1["EpsilonFree"]] &],
++      "KinematicsDependent" -> AllTrue[members,
++        TrueQ[#1["KinematicsDependent"]] &]|>];
++  <|"Candidate" -> candidate,
++    "RequestedSelector" -> selector,
++    "CatalogMask" -> mask,
++    "CatalogFactorFingerprints" -> memberFingerprints,
++    "CatalogFactorCount" -> Length[members]|>
++];
++resolveCandidateSelector[candidates_List, selector_String] := Module[
++  {catalog, bits, members},
++  catalog = SortBy[candidates, #1["FactorFingerprint"] &];
++  Which[
++    selector === "ALL",
++      makeSelectionSpecification[{#1}, selector] & /@ candidates,
++    MemberQ[expectedCandidateFingerprints, selector],
++      members = Select[catalog, #1["FactorFingerprint"] === selector &];
++      If[Length[members] === 1,
++        {makeSelectionSpecification[members, selector]}, $Failed],
++    MemberQ[allowedProductMaskSelectors, selector],
++      bits = Characters[StringDrop[selector, StringLength["MASK:"]]];
++      members = Pick[catalog, bits, "1"];
++      If[MemberQ[{2, 3}, Length[members]],
++        {makeSelectionSpecification[members, selector]}, $Failed],
++    True, $Failed]
++];
+ 
+ If[! DirectoryQ[projectRoot] || ! AllTrue[Values[files], FileExistsQ] ||
+     ! FileExistsQ[preparationFile] || ! FileExistsQ[cacheFile] ||
+@@ -139,8 +184,8 @@
+     ! DirectoryQ[DirectoryName[outputFile]],
+   Print["CF300_DENOM_WITNESS FAIL invalid inputs or stale output"];
+   Exit[65]];
+-If[! MemberQ[Append[expectedCandidateFingerprints, "ALL"],
+-    candidateSelector],
++If[! MemberQ[Join[{"ALL"}, expectedCandidateFingerprints,
++      allowedProductMaskSelectors], candidateSelector],
+   Print["CF300_DENOM_WITNESS FAIL invalid candidate selector"];
+   Exit[65]];
+ driverHashBefore = FileHash[$InputFileName, "SHA256", "HexString"];
+@@ -204,6 +249,16 @@
+         TrueQ[#1["KinematicsDependent"]] &],
+   finish["BaseOrCandidateContractInvalid", <||>, 69]];
+ 
++candidateCatalog = SortBy[candidates, #1["FactorFingerprint"] &];
++targetSpecifications = resolveCandidateSelector[candidates,
++  candidateSelector];
++If[targetSpecifications === $Failed ||
++    Length[targetSpecifications] =!=
++      If[candidateSelector === "ALL", 3, 1],
++  finish["CandidateSelectorResolutionFailed", <|
++    "CandidateSelector" -> candidateSelector,
++    "AllowedProductMaskSelectors" -> allowedProductMaskSelectors|>, 71]];
++
+ {x, y} = basePreparation["Variables"];
+ epsilon = basePreparation["Regulator"];
+ baseSupport = basePreparation["GaugeSupport"];
+@@ -216,10 +271,11 @@
+       baseResidueCount} =!= {2, 2, 4, 30, 480, 144},
+   finish["PhysicalDimensionContractInvalid", <||>, 70]];
+ 
+-buildTarget[candidate_Association] := Module[
+-  {factor, changedDenominator, changedDegrees, support,
++buildTarget[selection_Association] := Module[
++  {candidate = selection["Candidate"], factor, changedDenominator,
++   changedDegrees, support,
+    factorRules, requiredSupport, payload, gaugeCount, residueCount,
+-   target, rebound, pointCount},
++   oneFormMetadata, target, rebound, pointCount},
+   factor = candidate["Factor"];
+   If[! PolynomialQ[factor, {x, y}] || ! FreeQ[factor, epsilon],
+     Return[$Failed]];
+@@ -244,10 +300,16 @@
+     basePreparation["Dimensions"], changedDenominator, support,
+     basePreparation["OneForms"], basePreparation["Normalizations"]];
+   If[payload === $Failed, Return[$Failed]];
+-  target = Join[basePreparation, <|
+-    "OneFormMetadata" -> <|
+-      "Status" -> "CF300DenominatorWitnessPureSupersetV1",
++  oneFormMetadata = If[selection["CatalogFactorCount"] === 1,
++    <|"Status" -> "CF300DenominatorWitnessPureSupersetV1",
+       "FactorFingerprint" -> candidate["FactorFingerprint"]|>,
++    <|"Status" -> "CF300DenominatorWitnessProductPureSupersetV2",
++      "FactorFingerprint" -> candidate["FactorFingerprint"],
++      "CatalogMask" -> selection["CatalogMask"],
++      "CatalogFactorFingerprints" ->
++        selection["CatalogFactorFingerprints"]|>];
++  target = Join[basePreparation, <|
++    "OneFormMetadata" -> oneFormMetadata,
+     "GaugeDenominator" -> changedDenominator,
+     "GaugeDenominatorDegrees" -> changedDegrees,
+     "GaugeSupport" -> support,
+@@ -265,25 +327,27 @@
+       rebound["SourceABIFingerprint"] =!= target["ABIFingerprint"],
+     Return[$Failed]];
+   pointCount = Max[4, Ceiling[(target["UnknownCount"] + 32)/32]];
+-  <|"Candidate" -> candidate, "FactorRules" -> factorRules,
++  <|"Selection" -> KeyDrop[selection, "Candidate"],
++    "Candidate" -> candidate, "FactorRules" -> factorRules,
+     "RequiredOldGaugeNumeratorSupport" -> requiredSupport,
+     "TargetPreparation" -> target, "TargetAssembly" -> rebound,
+     "PointCount" -> pointCount|>
+ ];
+ 
+-{targetBuildSeconds, targets} = AbsoluteTiming[buildTarget /@ candidates];
+-If[MemberQ[targets, $Failed] || Length[targets] =!= 3,
++{targetBuildSeconds, targets} = AbsoluteTiming[
++  buildTarget /@ targetSpecifications];
++If[MemberQ[targets, $Failed] ||
++    Length[targets] =!= Length[targetSpecifications],
+   finish["CandidateTargetBuildFailed", <|
+-    "TargetBuildSeconds" -> targetBuildSeconds|>, 71]];
+-targets = If[candidateSelector === "ALL", targets,
+-  Select[targets,
+-    #1["Candidate", "FactorFingerprint"] === candidateSelector &]];
+-If[Length[targets] =!= If[candidateSelector === "ALL", 3, 1],
+-  finish["CandidateSelectorResolutionFailed", <|
+-    "CandidateSelector" -> candidateSelector|>, 71]];
++    "TargetBuildSeconds" -> targetBuildSeconds,
++    "CandidateSelector" -> candidateSelector,
++    "SelectedCatalogMasks" ->
++      Lookup[targetSpecifications, "CatalogMask"]|>, 71]];
+ Print["CF300_DENOM_WITNESS milestone=targets_ready elapsed_s=",
+   targetBuildSeconds, " point_counts=", Lookup[targets, "PointCount"],
+-  " candidate_selector=", candidateSelector];
++  " candidate_selector=", candidateSelector,
++  " catalog_masks=", Lookup[Lookup[targets, "Selection"],
++    "CatalogMask"]];
+ 
+ containmentProjection[target_Association, targetMatrix_?MatrixQ,
+     prime_Integer] := Module[
+@@ -443,6 +507,7 @@
+ results = {};
+ Do[
+   candidate = target["Candidate"];
++  selection = target["Selection"];
+   label = candidate["FactorFingerprint"];
+   targetPreparation = target["TargetPreparation"];
+   targetAssembly = target["TargetAssembly"];
+@@ -536,6 +601,11 @@
+   AppendTo[results, <|
+     "Factor" -> candidate["Factor"],
+     "FactorFingerprint" -> label,
++    "RequestedSelector" -> selection["RequestedSelector"],
++    "CatalogMask" -> selection["CatalogMask"],
++    "CatalogFactorFingerprints" ->
++      selection["CatalogFactorFingerprints"],
++    "CatalogFactorCount" -> selection["CatalogFactorCount"],
+     "TargetABIFingerprint" -> targetPreparation["ABIFingerprint"],
+     "TargetAssemblyFingerprint" -> targetAssembly["AssemblyFingerprint"],
+     "SupportCount" -> Length[targetPreparation["GaugeSupport"]],
+@@ -558,9 +628,13 @@
+     FileHash[$InputFileName, "SHA256", "HexString"] =!= driverHashBefore,
+   finish["SourceOrArtifactChangedDuringScreen", <||>, 95]];
+ 
+-finish[If[candidateSelector === "ALL",
+-    "CF300Sector12DenominatorWitnessScreenPassed",
+-    "CF300Sector12DenominatorWitnessTargetedScreenPassed"], <|
++finish[Which[
++    candidateSelector === "ALL",
++      "CF300Sector12DenominatorWitnessScreenPassed",
++    MemberQ[expectedCandidateFingerprints, candidateSelector],
++      "CF300Sector12DenominatorWitnessTargetedScreenPassed",
++    True,
++      "CF300Sector12DenominatorWitnessMaskScreenPassed"], <|
+   "PreparationFile" -> preparationFile,
+   "PreparationSHA256" -> expectedPreparationHash,
+   "CacheFile" -> cacheFile, "CacheSHA256" -> expectedCacheHash,
+@@ -569,6 +643,16 @@
+   "DriverSHA256" -> driverHashBefore,
+   "TargetBuildSeconds" -> targetBuildSeconds,
+   "CandidateSelector" -> candidateSelector,
++  "CandidateSelectorVersion" -> "CF300DenominatorCandidateSelectorV2",
++  "CandidateCatalogBitOrder" -> expectedCandidateFingerprints,
++  "CandidateCatalog" -> MapIndexed[<|
++      "BitPosition" -> First[#2],
++      "Factor" -> #1["Factor"],
++      "FactorFingerprint" -> #1["FactorFingerprint"]|> &,
++    candidateCatalog],
++  "AllowedProductMaskSelectors" -> allowedProductMaskSelectors,
++  "SelectedCatalogMasks" -> Lookup[Lookup[targets, "Selection"],
++    "CatalogMask"],
+   "ImageSpecifications" -> images,
+   "WitnessSemantics" ->
+     "A^T y=0,b^T y=1; zero y^T C rigorously rejects candidate",

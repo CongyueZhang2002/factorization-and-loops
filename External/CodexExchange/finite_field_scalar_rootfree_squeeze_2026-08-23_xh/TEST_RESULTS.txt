@@ -1,0 +1,17 @@
+2026-08-23 no-kernel validation
+
+PASS scalar-local root-free patch static/adversarial audit
+  source_sha256 79749c288c95e46f6956b0722087abce041f7f240a3e6eb110a0fd6699d2b153
+  checks 63
+
+PASS targeted epsilon-content census static/adversarial audit
+  source_sha256 346b3bfe722e1049d02a1d032a40479e19b6866b34811477c8cc12f05e676f64
+  independent_cases 256
+  mutants_rejected 4
+
+PASS git apply --check for patches 0001 and 0002
+PASS no-kernel Wolfram lexical guard for both patched temporary sources
+PASS SHA256SUMS
+
+No Wolfram kernel, native solver, process-control call, or package/live-source
+edit was used by this audit.

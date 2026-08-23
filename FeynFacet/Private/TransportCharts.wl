@@ -229,7 +229,10 @@ transportChartRootIndices[expr_, roots_List] := Module[
   radicals = transportChartRadicalBases[expr];
   matches[base_] := Flatten[Position[rootBases, candidate_ /;
     TrueQ[Together[base - candidate] === 0]]];
-  indices = DeleteDuplicates[Flatten[matches /@ radicals]];
+  (* Root grade masks are an artifact ABI: discovery order can change
+     when an algebraically identical expression is reordered.  Keep the
+     declared frame order so channel 2^i always names the same root. *)
+  indices = Sort[DeleteDuplicates[Flatten[matches /@ radicals]]];
   unknown = Select[radicals, matches[#] === {} &];
   <|"RootIndices" -> indices, "RadicalBases" -> radicals,
     "UnclassifiedRadicalBases" -> unknown|>
@@ -394,6 +397,19 @@ SolveEpsFormStripInFrame[
   rootIndices = classification["RootIndices"];
   usedRoots = allRoots[[rootIndices]];
   rootSquares = Lookup[usedRoots, "RootSquare", {}];
+  (* dD = eps (e.D-D.c)+bbar is solved identically by D=0 when the
+     forcing vanishes.  This must precede chart selection: the diagonal
+     blocks may span a root set with no joint rational chart even though
+     this off-diagonal problem needs no field arithmetic at all. *)
+  If[AllTrue[Flatten[bbar], SameQ[#, 0] &],
+    Return[<|"Status" -> "Solved", "Method" -> "ZeroForcing",
+      "Gauge" -> ConstantArray[0, Dimensions[bbar[[1]]]],
+      "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+      "Chart" -> None, "Alphabet" -> {}, "ExactDLog" -> True,
+      "Certificate" -> "ExactDLog", "FrameCertificate" -> <|
+        "Chart" -> None, "GaugeRoundTrip" -> True,
+        "TransformedOneFormPullBack" -> True, "SourceDLog" -> True,
+        "SamplingEntered" -> False, "Exact" -> True|>|>]];
   optionRules = FilterRules[{opts}, Options[SolveEpsFormStrip]];
   finiteFieldQ = TrueQ[OptionValue["FiniteFieldFallback"]] ||
     TrueQ[OptionValue["FiniteFieldFirst"]];

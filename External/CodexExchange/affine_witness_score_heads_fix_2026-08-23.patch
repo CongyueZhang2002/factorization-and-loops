@@ -1,0 +1,24 @@
+--- a/External/CodexExchange/triple_root_2026-08-22/cf300_sector12_next_ansatz_xh/AffineInconsistencyWitness.wl
++++ b/External/CodexExchange/triple_root_2026-08-22/cf300_sector12_next_ansatz_xh/AffineInconsistencyWitness.wl
+@@
+-  activeColumns = Flatten[Position[scores, Except[0]]];
++  activeColumns = Pick[Range[Length[scores]], scores, Except[0]];
++  If[! VectorQ[activeColumns,
++      IntegerQ[#1] && 1 <= #1 <= columns &] ||
++      Length[activeColumns] > columns,
++    Return[aiwFailure["CandidateColumnScoreIndexInvariantFailed"]]];
+   <|"Status" -> "AffineWitnessCandidateColumnScoreV1",
+
+Required regressions before applying this staged patch:
+
+1. an exactly zero score vector returns `{}`, count zero, and
+   `AllScoresZero -> True`;
+2. an all-nonzero score vector of width `n` returns `Range[n]` and count `n`;
+3. a mixed score vector returns exactly the one-based nonzero positions;
+4. every returned index lies in `1 ;; columns` and the count never exceeds
+   the candidate width;
+5. the frozen V6d and RAD9 artifacts remain admissible as historical evidence,
+   while replayed score metadata loses only the spurious index zero.
+
+Do not apply while the source-pinned CF300 V5 mission is active.  The bug is
+conservative for the existing conclusions: it forced the full two-rank path.

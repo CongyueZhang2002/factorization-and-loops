@@ -1,0 +1,73 @@
+diff --git a/External/CodexExchange/triple_root_2026-08-22/direct_root_channel_assembler_xh/run_cf300_sector12_rank2_direct_ansatz_discriminator_v2.wls b/External/CodexExchange/triple_root_2026-08-22/direct_root_channel_assembler_xh/run_cf300_sector12_rank2_direct_ansatz_discriminator_v2.wls
+--- a/External/CodexExchange/triple_root_2026-08-22/direct_root_channel_assembler_xh/run_cf300_sector12_rank2_direct_ansatz_discriminator_v2.wls
++++ b/External/CodexExchange/triple_root_2026-08-22/direct_root_channel_assembler_xh/run_cf300_sector12_rank2_direct_ansatz_discriminator_v2.wls
+@@ -284,8 +284,9 @@ mainResult = MemoryConstrained[TimeConstrained[Catch[Module[
+    channelExpressions, channelGroup,
+    rawPolynomialRecords, polynomialGroups, polynomialGroup,
+    uniquePolynomials,
+-   factorizations, rawEpsilonFreeFactors, irreducibleFactors,
+-   factorPairs, newFactorForms, unionForms,
++   epsilonContents, contentGroups, contentGroup, uniqueContents,
++   contentFactorizations, contentCertificates, rawEpsilonFreeFactors,
++   irreducibleFactors, factorPairs, newFactorForms, unionForms,
+    unionKeys = <||>, key, existingIndex, appendUniqueForm,
+    currentSupport, widenedSupport, buildVariant, variants,
+    variantData, allImageSpecs, imageSpecs, makeNonce, requestFingerprint,
+@@ -354,13 +355,51 @@ mainResult = MemoryConstrained[TimeConstrained[Catch[Module[
+       raise["PolynomialFingerprintCollision"]],
+     {polynomialGroup, polynomialGroups}];
+   uniquePolynomials = First /@ polynomialGroups;
+-  factorizations = Table[
+-    boundedCensus[Quiet[Check[FactorList[Expand[polynomial]], $Failed]]],
++  (* An epsilon-free irreducible factor divides every coefficient of a
++     polynomial regarded as an element of Q[x,y][epsilon], hence it is
++     exactly a factor of the epsilon-content.  Compute that content by
++     coefficient GCD and factor only the resulting bivariate polynomials;
++     this is equivalent to factoring the full trivariate polynomial and
++     discarding every epsilon-dependent factor, but avoids that work. *)
++  epsilonContents = Table[
++    boundedCensus[Quiet[Check[
++      Module[{coefficients = CoefficientList[
++          Expand[polynomial], epsilon]},
++        If[coefficients === {} ||
++            AllTrue[coefficients, TrueQ[#1 === 0] &], $Failed,
++          Fold[PolynomialGCD, First[coefficients],
++            Rest[coefficients]]]], $Failed]]],
+     {polynomial, uniquePolynomials}];
+-  If[MemberQ[factorizations, $Failed] ||
+-      ! AllTrue[factorizations, ListQ[#1] && #1 =!= {} &],
+-    raise["RationalChannelFactorizationLimitOrFailure"]];
+-  factorPairs = Flatten[Rest /@ factorizations, 1];
++  If[MemberQ[epsilonContents, $Failed] ||
++      ! AllTrue[epsilonContents,
++        ! TrueQ[#1 === 0] && FreeQ[#1, epsilon] &&
++          PolynomialQ[#1, variables] &],
++    raise["EpsilonContentConstructionLimitOrFailure"]];
++  contentGroups = GatherBy[epsilonContents,
++    fingerprint[Expand[#1]] &];
++  Do[
++    If[! AllTrue[Rest[contentGroup],
++        TrueQ[Expand[#1 - First[contentGroup]] === 0] &],
++      raise["EpsilonContentFingerprintCollision"]],
++    {contentGroup, contentGroups}];
++  uniqueContents = First /@ contentGroups;
++  contentFactorizations = Table[
++    boundedCensus[Quiet[Check[FactorList[Expand[content]], $Failed]]],
++    {content, uniqueContents}];
++  If[MemberQ[contentFactorizations, $Failed] ||
++      ! AllTrue[contentFactorizations,
++        ListQ[#1] && #1 =!= {} &],
++    raise["EpsilonContentFactorizationLimitOrFailure"]];
++  (* FactorList is accepted only after exact product reconstruction. *)
++  contentCertificates = MapThread[
++    Function[{content, factorization}, boundedCensus[TrueQ[Expand[
++      Times @@ ((First[#1]^Last[#1]) & /@ factorization) -
++        content] === 0]]],
++    {uniqueContents, contentFactorizations}];
++  If[MemberQ[contentCertificates, $Failed] ||
++      ! AllTrue[contentCertificates, TrueQ],
++    raise["EpsilonContentFactorizationCertificateFailed"]];
++  factorPairs = Flatten[Rest /@ contentFactorizations, 1];
+   rawEpsilonFreeFactors = Cases[factorPairs,
+     {factor_, _Integer} /; ! TrueQ[NumericQ[factor]] &&
+         FreeQ[factor, epsilon] &&

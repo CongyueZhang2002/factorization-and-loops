@@ -62,6 +62,7 @@ TRToExpression[a_List, roots_List] /; Length[a] == 2^Length[roots] :=
 
 TRFromPolynomial[expr_, roots_List, deltas_List] /; Length[roots] == Length[deltas] :=
   Module[{remainder, rules, out, exponents, mask},
+    If[roots === {}, Return[{Together[expr]}]];
     remainder = Last[PolynomialReduce[
       Expand[expr],
       MapThread[#1^2 - #2 &, {roots, deltas}],

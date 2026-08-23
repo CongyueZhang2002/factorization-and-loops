@@ -2711,3 +2711,49 @@ solved.  Reproduced and fixed:
   (8,4)..(8,1) solved; the standalone run was stopped at the user's
   request (main kernel slower than a subkernel) and resumed as a pool
   mission (4 subkernels, cores 0-9) from its checkpoint.
+
+## 2026-08-23 (15:00-15:45) — standardization campaign opened; zombie pool retired
+
+User: kill the two remaining overnight missions, standardize Codex's new
+functions/optimizations into the package (rewrite where needed, with
+tests), Opus subagents for ordinary missions under my oversight.
+
+- Cancelled `cf303_identity_capture_xh_v4` and
+  `probe_cf300_s12_recapture_v2_parse_context_xh_v1` via the pool's
+  per-mission cancel files.  The orphaned overnight pool then topped its
+  subkernels back up to 8 while running only a wedged adversarial mission
+  (log silent 6 h at ~90% CPU) and the no-mutation heartbeat on the
+  permanently Locked worker 144 -- it held every subkernel seat and
+  blocked the licence ("No valid password found" for any new subkernel).
+  Logs and final status archived to
+  `External/CodexExchange/codex_overnight_pool_final_state_2026-08-23/`;
+  pool stopped (stopnow).  Lesson recorded: a pool whose owner is gone
+  still tops up its subkernels; retire it before starting new pools.
+- Verified Codex's integration exactly matches its mirror (four postimage
+  SHA256s) and that two handoff defects (typed SolverFailure persistence,
+  schema-2 SolverConfiguration binding) are already fixed in the tree.
+- KernelPool.wls: target-level top-level Return can no longer escape
+  poolRun before the MISSION end record (function boundary around the
+  Get; Codex handoff defect 1); live regression
+  `Tests/t_kernelpool_return_marker.wls` (needs a free subkernel).
+- FLINT affine-RREF adapter independently re-verified (Opus subagent):
+  all ten pinned hashes match, bit-identical release rebuild, 73/73
+  release + 36/36 ASan/UBSan on both shipped and rebuilt binaries,
+  CF300-shape benchmark byte-identical at 1/2/4 threads and timings
+  within a few percent of Codex's record; no new dependency (system
+  libflint-dev 3.0.1, already in the MANIFEST).  Promoted the C side:
+  `FeynFacet/Backends/flint/{flint_affine_rref.c, PROTOCOL_CFFR1.md,
+  test_affine_rref.py}` + two-target `build.sh` (release/sanitize, FLINT
+  3.0.1 gate, strict warning set), both binaries built; MANIFEST entry
+  amended.  The Wolfram-side CFFR1 writer/parser with certificate
+  binding (nonce, source/binary/protocol hashes, plan fingerprints) is
+  NOT yet implemented -- "PlanDiscoveryBackend" -> "FLINTAffineRREF"
+  still returns PlanDiscoveryBackendUnavailable by design; the CFFA4
+  parser must not be reused for it (handoff boundary).
+- `Design/MultiquadraticPromotion.md`: module layout and gates for
+  promoting the multiquadratic algebra/direct-channel sampler into the
+  package (one neutral algebra ABI; no BranchFlipMask in production;
+  context-free artifact fingerprints; ModularConsistent-not-Solved
+  contract for the OneForms gap; synthetic rank-0..3 tests).
+- Full test battery of the integrated tree in flight (Opus subagent,
+  standalone after the licence contention, watchdog attached).

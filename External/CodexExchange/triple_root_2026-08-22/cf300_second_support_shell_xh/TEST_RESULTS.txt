@@ -1,0 +1,25 @@
+2026-08-23 static-only verification
+
+CF300_ANSATZ_COUNT_MODEL PASS 33/33
+CF300_REUSED_KERNEL_NAMESPACE_STATIC PASS 60/60
+CF300_NEXT_ANSATZ_STATIC passes=93 failures=0
+
+Additional direct checks:
+- nested-comment/string-aware Wolfram delimiter scan: PASS for V1/V2/V3 drivers and hydration probe
+- no-kernel context-token/parse guard: PASS for V1/V2/V3 drivers and hydration probe
+- poisoned Global own/downvalue/Protected/Locked namespace fixture: PASS, including x/y/eps
+- exact V1-to-V2 mechanical transformation audit: PASS
+- V3 canonical hydration scope/raw-reader/public-validator/fail-closed structural audit: PASS
+- canonical-versus-isolated fingerprint instability model: PASS
+- forbidden process-control/parallel/deletion primitive scan: PASS
+- trailing whitespace scan: PASS
+- bash -n static harness: PASS
+
+No Wolfram kernel was launched.
+
+Central runtime evidence (not launched by this subtask):
+- hydration probe reused kernel 144: PASS in 8.0 s
+- canonical artifact/assembly validators: True
+- canonical reader: Association; isolated reader: $Failed
+- stored/canonical exact-form fingerprint: fc5496c7147f6678f32f652d6d2fcf2a5bea908dff32b9031a19d0da6d82e34d
+- isolated exact-form fingerprint: e241f1f4d11a86c96e11cf132a2eb558407505348219f29828d2d0412c241a08

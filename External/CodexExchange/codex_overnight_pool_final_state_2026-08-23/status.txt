@@ -1,0 +1,6 @@
+KernelPool status 2026-08-23T15:27:01
+pool dir: /tmp/codex-triple-root-20260823c.vx654S/pool
+subkernels: 8  busy: 2  free: 6
+queued: 0  done: 154  failed: 115
+  running drcav2_adversarial_xh_v1  elapsed 21640 s
+  running kernel144_quarantine_nomutation_xh_v2c  elapsed 14957 s

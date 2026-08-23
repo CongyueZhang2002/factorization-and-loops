@@ -1,0 +1,43 @@
+CF300 denominator-witness driver V2: static/non-Wolfram validation
+Date: 2026-08-23
+
+No Wolfram/Mathematica kernel was launched. No process was signaled or stopped.
+The active V1 driver, adapter, native source, and package sources were not
+edited. All implementation artifacts are confined to this adjacent directory.
+
+Audited V1 snapshot SHA-256:
+7d27f59d30675f0291f929b4d5f0e8b18e40d7b40047bb53c4a824850ca7b5a6
+
+1. Static selector/pin/algebra contract
+
+Command:
+python3 test_driver_v2_static.py
+
+Result: PASS (34 checks)
+- source and preparation/cache/census pins match the V1 snapshot;
+- legacy ALL and three fingerprint selectors remain accepted;
+- legacy singleton candidate and metadata schemas remain unchanged;
+- the four pair/triple masks have deterministic fingerprint-bit order;
+- pinned bidegree support/unknown/point models match for every mask;
+- selector resolution occurs before buildTarget;
+- no `buildTarget /@ candidates` path remains;
+- selector cardinality and self-hash gates remain fail-closed.
+
+2. Wolfram-language delimiter scan
+
+Command:
+perl ../flint_affine_rref_wl_xh/check_wl_delimiters.pl \
+  run_cf300_sector12_denominator_witness_screen_v2.wls
+
+Result: PASS (exit 0; no mismatched/unclosed delimiter, string, or comment).
+
+3. Staged patch reconstruction
+
+Command:
+python3 verify_unified_patch.py
+
+Result:
+PASS staged patch reconstructs V2 exactly (247 lines)
+
+Runtime/physics tests are intentionally deferred until active source-hashed V1
+missions are terminal and the parent assigns a managed kernel slot.

@@ -1,0 +1,27 @@
+CF300 Galois channel-orbit V6d pre-parse freeze
+Date: 2026-08-23
+Wolfram kernels launched by this audit agent: 0
+
+test_galois_channel_orbit_v6d_static.py
+  PASS 81/81
+  Includes:
+    - lexer-aware checks for driver and core context-qualified symbols
+    - newline-split context mutant rejection
+    - exact 32-occurrence / 28-source / 4-alias contract acceptance
+    - rejection of the 32-as-unique / 128-candidate mutant
+    - runtime-derived count/counter postcondition checks
+
+test_galois_channel_orbit_v6d_adversarial.py
+  PASS exact character checks: 1254
+  PASS finite-field second-order bivariate rational jet trials: 160
+       primes: 10007, 10039; singular retries: 0
+  PASS stabilizer adversaries: 6
+  PASS exact-channel rebind adversaries: 12
+  PASS occurrence-vs-unique source schema/mutants: 16
+  PASS subset-certificate schema/mutants: 14
+
+Required independent runtime gates before a full launch:
+  diagnose_wolfram_parse_target_v1.wls must parse both
+  GaloisChannelOrbitCoreV6d.wl and the frozen V6d driver under
+  ToExpression[..., InputForm, HoldComplete].  Both missions must report
+  ParsedHead -> HoldComplete, no messages, and exit 0.

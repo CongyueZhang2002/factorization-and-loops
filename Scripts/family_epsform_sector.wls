@@ -107,6 +107,11 @@ kernelCount = Module[{value = Environment["FACET_KERNEL_COUNT"]},
     8
   ]
 ];
+(* Fixed-core and plan-discovery backends are intentionally distinct.
+   These values are explicit so checkpoints bind the exact request. *)
+finiteFieldBackend = Automatic;
+finiteFieldBackendThreads = 2;
+planDiscoveryBackend = "Wolfram";
 If[! DirectoryQ[outdir], CreateDirectory[outdir, CreateIntermediateDirectories -> True]];
 start = AbsoluteTime[];
 log[a___] := Print["[sector-epsform ", family, " +", ToString[Round[AbsoluteTime[] - start]], "s] ", StringJoin[ToString[#, InputForm] & /@ {a}]];
@@ -368,11 +373,15 @@ If[! KeyExistsQ[state, "SectorCertificates"],
   state["SectorCertificates"] = {}];
 
 stripSolverSummary[solution_Association, sector_Integer,
-    lowerSector_Integer] := Join[
+    lowerSector_Integer, extraLetters_List : {},
+    solverConfiguration_Association : <||>] := Join[
   <|"Sector" -> sector, "LowerSector" -> lowerSector|>,
   KeyTake[solution, {"Method", "NumeratorDegree", "DenominatorDegree",
     "GaugeNumeratorDegrees", "GaugeDenominatorDegrees",
     "Primes", "ModularPrimeCount", "SelectedNumeratorDegreeOffset",
+    "BackendRequested", "BackendThreads", "BackendsUsed",
+    "PlanDiscoveryBackendRequested", "PlanDiscoveryBackendUsed",
+    "EliminationPlanFingerprint",
     "PrimeSamplingSeconds", "PrimeInterpolationSeconds",
     "TotalSamplingSeconds", "TotalInterpolationSeconds",
     "LiftingSeconds", "ExactCheckSeconds",
@@ -380,7 +389,17 @@ stripSolverSummary[solution_Association, sector_Integer,
     "ResidueKernels",
     "LetterDenominatorPower", "NumeratorDegreeOffset",
     "ExactDLog", "ODEEquationZero", "TransformedDLogZero",
-    "Alphabet", "RootIndices", "FrameCertificate"}]];
+    "Alphabet", "RootIndices", "FrameCertificate"}],
+  <|"ExtraLetters" -> extraLetters,
+    "SolverConfiguration" -> solverConfiguration|>];
+stripSolverConfiguration[route_String] :=
+  FeynFacet`Private`familyRowGaugeSolverConfiguration[
+    route, Lookup[chart, "CoefficientField", "Rational"], chart,
+    If[route === "ZeroForcing", None,
+      If[productionQ, "Numerical", "Exact"]],
+    If[route === "ZeroForcing", None, finiteFieldBackend],
+    If[route === "ZeroForcing", None, finiteFieldBackendThreads],
+    If[route === "ZeroForcing", None, planDiscoveryBackend]];
 
 (* Regulator factorization of the completed rows 1..m (FiniteFieldFirst
    route, 2026-08-22): a completed block may be a dlog form whose residue
@@ -393,7 +412,8 @@ stripSolverSummary[solution_Association, sector_Integer,
    truncated connection; block-triangularity is preserved, the unsampled
    symbolic identity is the acceptance test) does, before the next row is
    constructed. *)
-factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull, tInv},
+factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
+  tInv, rowCertificate, futureAMode, propagation},
   aT = {state["A"][[1, 1 ;; nm, 1 ;; nm]], state["A"][[2, 1 ;; nm, 1 ;; nm]]};
   If[epsFormQ[aT[[1]]] && epsFormQ[aT[[2]]], Return[False]];   (* nothing applied *)
   log["  rows 1..", m, " carry regulator-dependent residues; FactorFamilyRegulatorDependence",
@@ -414,20 +434,42 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull, tInv},
   If[! (AssociationQ[factor] && factor["Status"] === "OK"),
     log["  !! regulator factorization of rows 1..", m, " failed: ", If[AssociationQ[factor], factor["Status"], factor]];
     Return[False]];
+  rowCertificate = SelectFirst[
+    Reverse[Lookup[state, "SectorCertificates", {}]],
+    Lookup[#, "Sector", None] === m &, <||>];
+  futureAMode = If[productionQ,
+    Lookup[Lookup[Lookup[rowCertificate, "RowGaugeStatistics", <||>],
+      "A", <||>], "FutureAMode", "Together"], "Together"];
+  propagation = FeynFacet`Private`familyRegulatorPropagateTruncation[
+    state["A"], factor["Connection"], factor["Inverse"],
+    factor["Transformation"], nm, {xx, yy},
+    Lookup[factor, "PropagationSeal", <||>], futureAMode];
+  If[! AssociationQ[propagation] ||
+      Lookup[propagation, "Status", None] =!= "OK",
+    log["  !! regulator propagation of rows 1..", m,
+      " rejected: ", propagation];
+    state["Stop"] = <|"Status" -> "RegulatorPropagationRejected",
+      "Rows" -> m, "Detail" -> propagation|>;
+    putAtomic[state, stateFile]; Exit[2]];
   tFull = IdentityMatrix[n]; tFull[[1 ;; nm, 1 ;; nm]] = factor["Transformation"];
   tInv = IdentityMatrix[n]; tInv[[1 ;; nm, 1 ;; nm]] = factor["Inverse"];
   (* products with the constant T entry by entry over its nonzero pattern
      (the plain Dot + Together of the full 44x44 triple product took 30 GB
      on CF385 sector 32, 2026-08-22) *)
   state = Join[state, <|
-    "A" -> Table[FeynFacet`Private`familyRegulatorConjugate[tInv, state["A"][[mu]], tFull], {mu, 2}],
-    "S" -> FeynFacet`Private`familyRegulatorSparseDot[state["S"], tFull, False],
-    "SInverse" -> FeynFacet`Private`familyRegulatorSparseDot[tInv, state["SInverse"], True],
+    "A" -> propagation["Connection"],
+    "S" -> FeynFacet`Private`familyRegulatorSparseDot[
+      state["S"], tFull, False],
+    "SInverse" -> FeynFacet`Private`familyRegulatorSparseDot[
+      tInv, state["SInverse"], True],
     "RegulatorFactorizations" -> Append[Lookup[state, "RegulatorFactorizations", {}],
       <|"Rows" -> m, "Method" -> factor["Method"], "Points" -> factor["Points"], "Seconds" -> factor["Seconds"],
-        "Chart" -> Lookup[factor, "Chart", None], "RootIndices" -> Lookup[factor, "RootIndices", {}]|>]|>];
+        "Chart" -> Lookup[factor, "Chart", None],
+        "RootIndices" -> Lookup[factor, "RootIndices", {}],
+        "PropagationStatistics" -> propagation["Statistics"]|>]|>];
   log["  regulator factorization of rows 1..", m, ": ", factor["Method"], ", ", factor["Points"], " points, ",
-    Round[factor["Seconds"], 0.1], " s -> eps-factored ", epsFormQ[state["A"][[1, 1 ;; nm, 1 ;; nm]]] && epsFormQ[state["A"][[2, 1 ;; nm, 1 ;; nm]]]];
+    Round[factor["Seconds"], 0.1], " s; future A mode ", futureAMode,
+    " -> eps-factored ", epsFormQ[state["A"][[1, 1 ;; nm, 1 ;; nm]]] && epsFormQ[state["A"][[2, 1 ;; nm, 1 ;; nm]]]];
   True];
 
 (* synchronous memory trace (stdout is block-buffered when redirected):
@@ -459,28 +501,29 @@ blockEquation[k_, j_, solved_Association] := Module[{rk = blockRows[k], rj = blo
     Sum[solved[m] . A[[mu, blockRows[m], rj]], {m, Select[Keys[solved], j < # < k &]}], {2}], {mu, 2}];
   {e, c, bbar}];
 (* apply the completed row gauge of sector k to the state *)
-applyRowGauge[k_, solved_Association] := Module[{rk = blockRows[k], start = First[blockRows[k]], cols, Dk, A, S, Si, AD, DA, dD, newA, newS, newSi},
+applyRowGauge[k_, solved_Association, installedRow_: Automatic] := Module[
+  {rk = blockRows[k], start = First[blockRows[k]], cols, Dk, result,
+   futureAMode},
   cols = Range[1, start - 1];
   Dk = ConstantArray[0, {Length[rk], start - 1}];
   Do[Dk[[All, blockRows[m] ]] = solved[m], {m, Keys[solved]}];
-  A = state["A"]; S = state["S"]; Si = state["SInverse"];
-  newA = A;
-  Do[
-    AD = A[[mu, start ;; n, rk]] . Dk;                       (* rows >= start, cols < start *)
-    DA = Dk . A[[mu, cols, cols]];                           (* row k, cols < start *)
-    dD = D[Dk, {xx, yy}[[mu]]];
-    newA[[mu, start ;; n, cols]] = Map[Together, A[[mu, start ;; n, cols]] + AD, {2}];
-    newA[[mu, rk, cols]] = Map[Together, newA[[mu, rk, cols]] - DA - dD, {2}],
-    {mu, 2}];
-  newS = S; newS[[All, cols]] = Map[Together, S[[All, cols]] + S[[All, rk]] . Dk, {2}];
-  newSi = Si; newSi[[rk, All]] = Map[Together, Si[[rk, All]] - Dk . Si[[cols, All]], {2}];
-  state = Join[state, <|"A" -> newA, "S" -> newS, "SInverse" -> newSi|>]];
+  futureAMode = If[productionQ && installedRow =!= Automatic,
+    "Deferred", "Together"];
+  result = FeynFacet`Private`familyRowGaugeApply[
+    state["A"], state["S"], state["SInverse"], rk, Dk, {xx, yy},
+    installedRow, futureAMode];
+  If[! AssociationQ[result] || Lookup[result, "Status", None] =!= "OK",
+    Return[result]];
+  state = Join[state, <|"A" -> result["Connection"],
+    "S" -> result["Transformation"], "SInverse" -> result["Inverse"]|>];
+  result["Statistics"]];
 
 (* ---- the sector loop ---- *)
 Do[
  Module[{nk = bounds[[k, 2]], aTrunc, res, directSolved, dk, res2, rowGauge = <||>,
    dk2, sfull, sfullInverse, aPrevious, aNew, secs, remaining,
    stageInverse, stageGauge, newS, newSInverse, sectorCertificate,
+   rowGaugeStatistics, installedRow = Automatic,
    stripCheckpointFile = None},
   log["==== sector ", k, " (rows ", bounds[[k]], ", truncation ", nk, "x", nk, ")"];
   memtrace["sector " <> ToString[k] <> " start"];
@@ -521,8 +564,11 @@ Do[
     Module[{aP = aTrunc, sb = bounds[[1 ;; k]],
       subSize = bounds[[k, 2]] - bounds[[k, 1]] + 1,
       prevD, nextEq, e, c, bbar, nlow, solution, gauge, solvedBlocks,
+      blockColumns, checkpointData, solvedForms, solvedForm,
       stripSolvers = {}, transformation, stripCheckpoint,
-      checkpointValid, stripInputFile, extraLetters, obstruction},
+      checkpointValid, stripInputFile, extraLetters, obstruction,
+      resumeHydration, resumeReset, zeroForcingQ,
+      requestedSolverConfiguration, solverConfiguration},
       stripCheckpointFile = FileNameJoin[{scratch,
         family <> "_" <> ToString[k] <> "_strip_state.wl"}];
       stripCheckpoint = If[FileExistsQ[stripCheckpointFile],
@@ -535,17 +581,24 @@ Do[
         Lookup[stripCheckpoint, "Sector", Missing[]] === k &&
         Lookup[stripCheckpoint, "SubSize", Missing[]] === subSize &&
         Lookup[stripCheckpoint, "Truncation", Missing[]] === nk &&
-        ListQ[Lookup[stripCheckpoint, "PrevD", None]] &&
-        Length[stripCheckpoint["PrevD"]] === subSize &&
-        AllTrue[stripCheckpoint["PrevD"], ListQ];
+        FeynFacet`Private`familyRowGaugeCheckpointGaugeShapeQ[
+          Lookup[stripCheckpoint, "PrevD", None], subSize,
+          Length /@ (blockRows /@ Range[k - 1])] &&
+        FeynFacet`Private`familyRowGaugeCheckpointStripSolversQ[
+          Lookup[stripCheckpoint, "StripSolvers", None],
+          Lookup[stripCheckpoint, "PrevD", None], k,
+          Length /@ (blockRows /@ Range[k - 1])];
       If[AssociationQ[stripCheckpoint] && ! checkpointValid,
         log["  strip checkpoint of sector ", k, " ignored (built on another connection)"]];
       If[checkpointValid,
-        prevD = toC[stripCheckpoint["PrevD"]];
+        checkpointData = FeynFacet`Private`familyRowGaugeDecodeCheckpoint[
+          stripCheckpoint, ee, CANONICA`eps];
+        prevD = checkpointData["PrevD"];
         stripSolvers = Lookup[stripCheckpoint, "StripSolvers", {}];
+        solvedForms = checkpointData["SolvedForms"];
         log["  resuming ", Length[stripSolvers],
-          " exactly checked strips in sector ", k],
-        prevD = Table[{}, {subSize}]];
+          " checked strips in sector ", k],
+        prevD = Table[{}, {subSize}]; solvedForms = <||>];
       (* solved blocks of this row, j -> D_{kj}, recovered from the
          checkpoint's prevD (blocks are prepended: the first solved is
          j = k - 1) *)
@@ -555,6 +608,61 @@ Do[
           assoc[m] = fromC[prevD][[All, col - Length[blockRows[m]] + 1 ;; col]];
           col -= Length[blockRows[m]]; m--];
         assoc];
+      (* Every blockwise resume replays all recovered blocks from exact-
+         matching copied inputs/caches: direct finite-field artifacts in a
+         rational frame, per-strip rational charts in a multiquadratic frame.
+         Existing SolvedForms are SameQ-verified against the replay; missing
+         forms are hydrated.  The helper is read-only with respect to the live
+         checkpoint and this driver remains its sole writer.  Any typed
+         replay failure invalidates the whole recovered row and re-solves its
+         strips.  Explicitly disabling hydration is the opt-out: it trusts the
+         saved gauges but ignores saved forms and uses the exact sparse formula
+         until the mandatory final family certificate. *)
+      If[checkpointValid && blockwiseRouteQ && Length[solvedBlocks] > 0,
+        If[Environment["FACET_RESUME_HYDRATION"] === "False",
+          solvedForms = <||>; installedRow = Automatic;
+          log["  resume hydration explicitly disabled: trusting recovered " <>
+            "checkpoint gauges, ignoring SolvedForms, and using sparse row " <>
+            "propagation; the final family certificate remains mandatory"],
+          resumeHydration = FeynFacet`Private`familyRowGaugeHydrateResume[
+            stripCheckpoint, stripCheckpointFile, solvedBlocks, solvedForms,
+            family, k, invariants, ee, chart, ranges, scratch, state["A"],
+            "KernelCount" -> kernelCount,
+            "FinalCheck" -> If[productionQ, "Numerical", "Exact"],
+            "FiniteFieldBackend" -> finiteFieldBackend,
+            "FiniteFieldBackendThreads" -> finiteFieldBackendThreads,
+            "PlanDiscoveryBackend" -> planDiscoveryBackend,
+            "Verbose" -> True];
+          If[AssociationQ[resumeHydration] &&
+              MemberQ[{"Hydrated", "HydratedPartial", "Verified",
+                "VerifiedPartial"},
+                Lookup[resumeHydration, "Status", None]],
+            solvedForms = resumeHydration["SolvedForms"];
+            If[TrueQ[Lookup[resumeHydration,
+                "ActivateInstalledRow", False]],
+              installedRow = resumeHydration["InstalledRow"]];
+            log["  resume hydration: ", resumeHydration["Status"],
+              ", replayed ",
+              Length[Lookup[resumeHydration, "ReplayRecords", {}]],
+              " forms in ",
+              Round[Lookup[resumeHydration, "Seconds", 0.], 0.1], " s"],
+            (* A replay failure can mean the recovered gauge itself is
+               corrupt, not merely its materialized form.  Discard the whole
+               row suffix and recompute every strip; applying recovered
+               solvedBlocks through the sparse formula would preserve exactly
+               the untrusted payload that replay rejected. *)
+            resumeReset =
+              FeynFacet`Private`familyRowGaugeResumeInvalidatedState[
+                subSize];
+            {prevD, solvedBlocks, solvedForms, stripSolvers, installedRow} =
+              Lookup[resumeReset, {"PrevD", "SolvedBlocks", "SolvedForms",
+                "StripSolvers", "InstalledRow"}];
+            log["  resume hydration unavailable: ",
+              If[AssociationQ[resumeHydration],
+                KeyTake[resumeHydration,
+                  {"Status", "LowerSector", "DiskSameQ",
+                   "CurrentConnectionHashSameQ"}], resumeHydration],
+              "; invalidating the recovered row and resolving every strip"]]]];
       While[Length[prevD[[1]]] + subSize =!= nk,
         If[blockwiseRouteQ,
           nlow = k - 1 - Length[solvedBlocks];
@@ -596,6 +704,9 @@ Do[
           "ArtifactDirectory" -> FileNameJoin[{scratch,
             "finite_field_" <> ToString[k] <> "_" <> ToString[nlow]}],
           "ArtifactPrefix" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
+          "Backend" -> finiteFieldBackend,
+          "BackendThreads" -> finiteFieldBackendThreads,
+          "PlanDiscoveryBackend" -> planDiscoveryBackend,
           "FinalCheck" -> If[productionQ, "Numerical", "Exact"],
           "Verbose" -> True];
         solvedQ[s_] := AssociationQ[s] && Lookup[s, "Status", None] === "Solved" &&
@@ -609,8 +720,18 @@ Do[
              gauge D = 0 (dD = eps(eD - Dc) + bbar - eps K dlog with
              bbar = 0): no sampling (CF408: ~250 of 340 blocks, ~0.7 s
              each through the three-prime machinery, 2026-08-22) *)
+          zeroForcingQ =
+            Environment["FACET_ZERO_FORCING"] =!= "False" && zeroQ[bbar];
+          requestedSolverConfiguration = stripSolverConfiguration[
+            If[zeroForcingQ, "ZeroForcing", If[algebraicFrameQ,
+              "RationalChartFiniteField", "DirectRationalFiniteField"]]];
+          If[! FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
+              requestedSolverConfiguration],
+            log["  !! solver configuration could not be sealed before strip ",
+              {k, nlow}, ": ", requestedSolverConfiguration];
+            putAtomic[state, stateFile]; Exit[2]];
           solution = Which[
-            Environment["FACET_ZERO_FORCING"] =!= "False" && zeroQ[bbar],
+            zeroForcingQ,
               <|"Status" -> "Solved", "Method" -> "ZeroForcing",
                 "Gauge" -> ConstantArray[0, Dimensions[First[bbar]]], "ExactDLog" -> True|>,
             algebraicFrameQ,
@@ -620,6 +741,9 @@ Do[
                 "FiniteFieldOptions" -> {
                   "KernelCount" -> kernelCount,
                   "FinalCheck" -> If[productionQ, "Numerical", "Exact"],
+                  "Backend" -> finiteFieldBackend,
+                  "BackendThreads" -> finiteFieldBackendThreads,
+                  "PlanDiscoveryBackend" -> planDiscoveryBackend,
                   "Verbose" -> True},
                 "ScratchDirectory" -> scratch,
                 "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
@@ -681,6 +805,12 @@ Do[
             <|"Family" -> family, "Sector" -> k,
               "LowerSector" -> nlow, "Variables" -> invariants,
               "Regulator" -> ee, "Strip" -> {e, c, bbar},
+              "SolverConfiguration" -> If[blockwiseRouteQ,
+                requestedSolverConfiguration,
+                Missing["LegacySolverRouteNotBound"]],
+              "SolverFailure" ->
+                FeynFacet`Private`familyRowGaugeSolverFailureSummary[
+                  solution],
               "ObstructionCertificate" -> If[ValueQ[obstruction] && AssociationQ[obstruction],
                 KeyDrop[obstruction, "GaugeSeries"], Missing["NotRun"]]|>,
             FileNameJoin[{scratch,
@@ -688,7 +818,26 @@ Do[
                 ToString[nlow] <> "_unsolved.wl"}]];
           putAtomic[state, stateFile]; Exit[2]];
         gauge = solution["Gauge"];
-        AppendTo[stripSolvers, stripSolverSummary[solution, k, nlow]];
+        solverConfiguration = If[blockwiseRouteQ,
+          stripSolverConfiguration[
+            If[Lookup[solution, "Method", None] === "ZeroForcing",
+              "ZeroForcing", If[algebraicFrameQ,
+                "RationalChartFiniteField",
+                "DirectRationalFiniteField"]]], <||>];
+        If[blockwiseRouteQ &&
+            ! FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
+              solverConfiguration],
+          log["  !! solver configuration could not be sealed for strip ",
+            {k, nlow}, ": ", solverConfiguration];
+          putAtomic[state, stateFile]; Exit[2]];
+        solvedForm = FeynFacet`Private`familyRowGaugeDLogForm[
+          solution, invariants, ee, Dimensions[First[bbar]]];
+        If[ListQ[solvedForm], solvedForms[nlow] = solvedForm,
+          log["    materialized dlog row form unavailable; row propagation " <>
+            "will use the exact sparse formula"]];
+        AppendTo[stripSolvers,
+          stripSolverSummary[solution, k, nlow, extraLetters,
+            solverConfiguration]];
         log["    ", solution["Method"],
           If[KeyExistsQ[solution, "NumeratorDegree"],
             " at numerator degree " <> ToString[solution["NumeratorDegree"]],
@@ -699,10 +848,18 @@ Do[
           <|"Sector" -> k, "SubSize" -> subSize,
             "Truncation" -> nk, "PrevD" -> fromC[prevD],
             "ConnectionHash" -> Hash[aP, "SHA256", "HexString"],
-            "StripSolvers" -> stripSolvers|>,
+            "StripSolvers" -> stripSolvers,
+            "SolvedForms" -> fromC[solvedForms]|>,
           stripCheckpointFile];
       ];
       rowGauge = solvedBlocks;
+      blockColumns = Association[Table[
+        m -> blockRows[m], {m, Keys[solvedBlocks]}]];
+      If[installedRow === Automatic,
+        installedRow =
+          FeynFacet`Private`familyRowGaugeAssembleInstalledRow[
+            solvedForms, solvedBlocks, subSize, First[blockRows[k]] - 1,
+            blockColumns]];
       transformation = If[blockwiseRouteQ, None, canonicaInsertD[sb, prevD]];
       (* CANONICA's TransformDE (the transformed truncated connection,
          fully symbolic) fed only the per-sector TransformDlogToEpsForm,
@@ -725,15 +882,39 @@ Do[
        every strip of the row was exactly checked; in Production the
        exact statement is the family certificate. *)
     Module[{t0 = AbsoluteTime[], exactStrips},
-      applyRowGauge[k, rowGauge];
-      log["  row gauge of sector ", k, " applied blockwise in ", Round[AbsoluteTime[] - t0, 0.1], " s"];
+      rowGaugeStatistics = applyRowGauge[k, rowGauge, installedRow];
+      If[! AssociationQ[rowGaugeStatistics] ||
+          KeyExistsQ[rowGaugeStatistics, "Status"],
+        log["  !! row gauge of sector ", k, " rejected: ",
+          rowGaugeStatistics]; putAtomic[state, stateFile]; Exit[2]];
+      log["  row gauge of sector ", k, " applied blockwise in ",
+        Round[AbsoluteTime[] - t0, 0.1], " s; sparse products/touched A=",
+        rowGaugeStatistics["A", "Products"], "/",
+        rowGaugeStatistics["A", "Touched"], ", S=",
+        rowGaugeStatistics["S", "Products"], "/",
+        rowGaugeStatistics["S", "Touched"], ", SInverse=",
+        rowGaugeStatistics["SInverse", "Products"], "/",
+        rowGaugeStatistics["SInverse", "Touched"], ", normalization ",
+        Round[Total[Lookup[#, "NormalizationSeconds", 0.] & /@
+          Lookup[rowGaugeStatistics, {"A", "S", "SInverse"}, {}]], 0.1],
+        " s, literal single-term fast paths ",
+        Total[Lookup[#, "SingleTermFastPath", 0] & /@
+          Lookup[rowGaugeStatistics, {"A", "S", "SInverse"}, {}]],
+        ", dlog row entries installed ",
+        Lookup[rowGaugeStatistics["A"], "InstalledRowEntries", 0],
+        ", future A mode ",
+        Lookup[rowGaugeStatistics["A"], "FutureAMode", "Together"],
+        ", deferred future entries/touched ",
+        Lookup[rowGaugeStatistics["A"], "DeferredFutureEntries", 0], "/",
+        Lookup[rowGaugeStatistics["A"], "FutureTouched", 0]];
       exactStrips = AllTrue[Select[state["StripSolvers"], #["Sector"] === k &],
         TrueQ[Lookup[#, "ExactDLog", False]] &];
       stageInverse = If[productionQ, Missing["NotRunProduction"], True];
       stageGauge = If[productionQ, Missing["NotRunProduction"], exactStrips]];
     sectorCertificate = <|"Sector" -> k, "TransformationInverse" -> stageInverse,
       "GaugeIdentity" -> stageGauge, "Exact" -> ! productionQ && TrueQ[stageGauge],
-      "CheckLevel" -> checkLevel, "Route" -> "Blockwise"|>;
+      "CheckLevel" -> checkLevel, "Route" -> "Blockwise",
+      "RowGaugeStatistics" -> rowGaugeStatistics|>;
     state = Join[state, <|"Sector" -> k,
       "SectorCertificates" -> Append[state["SectorCertificates"], sectorCertificate]|>],
   dk = fromC[res[[1]]];
@@ -787,10 +968,17 @@ Do[
   memtrace["sector " <> ToString[k] <> " after state write"];
   If[StringQ[stripCheckpointFile] && FileExistsQ[stripCheckpointFile],
     DeleteFile[stripCheckpointFile]];
-  remaining = Length[badStrips[state["A"], nb]];
-  memtrace["sector " <> ToString[k] <> " after badStrips"];
-  log["  sector ", k,
-    " done; non-eps-factored strips remaining (all sectors): ", remaining]],
+  If[productionQ && AssociationQ[rowGaugeStatistics] &&
+      Lookup[Lookup[rowGaugeStatistics, "A", <||>], "FutureAMode",
+        "Together"] === "Deferred",
+    remaining = Missing["DeferredProductionCensus"];
+    memtrace["sector " <> ToString[k] <> " full badStrips census deferred"];
+    log["  sector ", k, " done; full non-eps-factored strip census " <>
+      "deferred in Production; exact acceptance remains the family certificate"],
+    remaining = Length[badStrips[state["A"], nb]];
+    memtrace["sector " <> ToString[k] <> " after badStrips"];
+    log["  sector ", k,
+      " done; non-eps-factored strips remaining (all sectors): ", remaining]]],
  {k, Max[2, state["Sector"] + 1], nb}];
 
 (* ---- family-level regulator factorization (FiniteFieldFirst route) ---- *)
@@ -895,12 +1083,14 @@ out = <|"Family" -> family,
   "Triangular" -> True, "TTotalInvertible" -> finalInverse,
   "SectorCertificates" -> state["SectorCertificates"],
   "StripSolvers" -> state["StripSolvers"],
+  "RowGaugePropagationPolicy" -> If[productionQ,
+    "DeferredFutureAWithCompleteInstalledRowElseTogether", "Together"],
   "Status" -> Which[verdict === True, "ExactEpsilonForm",
     verdict === "DeferredToFamilyCertificate", "CandidateEpsilonForm",
     True, "Incomplete"],
   "CheckLevel" -> checkLevel,
   "WallSeconds" -> AbsoluteTime[] - start,
-  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip; numerator degrees 0,1,2,3 are searched concurrently, followed only when needed by exact Maple rational gauges from IntegrableConnections or a strip-letter denominator ansatz. Mathematica checks every strip in both variables and then checks the complete family gauge identity, flatness, and epsilon factorization."|>;
+  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip. In Production, a complete materialized current row is installed, future A row-gauge corrections and sealed constant-regulator right-products retain exact deferred sums, and unavailable installed rows fall back to Together; CertifyFamilyEpsilonForm is the sole exact acceptance test. Development retains Together propagation and its exact intermediate checks."|>;
 putAtomic[out, FileNameJoin[{outdir, "family_epsform_" <> family <> ".wl"}]];
 log["written family_epsform_", family, ".wl; GateVerdict ", verdict, "; wall ", Round[AbsoluteTime[] - start], " s"];
 If[ownedKernels =!= {}, Quiet[CloseKernels[ownedKernels]]];

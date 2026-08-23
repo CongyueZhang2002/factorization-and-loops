@@ -124,6 +124,43 @@ Rules: at most N-2 family missions in flight (`Scripts/family_epsform_pool.sh`
 enforces it), otherwise no helper is free and every family waits; a task
 never brokers (`$taskBrokerInsideTask`); the sampler brokers only when the
 pilot measured >= "BrokerMinimumSeconds" (1.5 s) of build per sample.
+`FACET_TASK_BROKER_MAX_HELPERS=<n>` on `kpsubmit.sh` is captured into the
+mission wrapper and dynamically scopes a hard per-mission ceiling (including
+zero).  It cannot be implemented by changing only the submitting shell's
+environment, because the pool subkernels are already-running processes.
+Mission names are restricted to a traversal-free filesystem alphabet and the
+target must be a regular file at submission.  The target path, working
+directory and every `$ScriptCommandLine` argument are encoded as Wolfram string
+literals (backslash, quote and control-character escaping); no dynamic value is
+interpolated into wrapper code or comments.
+The generated wrapper parses the actual target file under `HoldComplete`
+before calling `Get` (with a WolframScript shebang removed for parsing).
+This is separate from the server's wrapper parse gate: `Get` on malformed
+target code can emit `Syntax::sntx` yet return `Null`, which otherwise looks
+like a successful mission.  A target import or parse failure now returns
+`$Failed`, is logged explicitly, and is filed under `failed/`, never `done/`.
+Both syntax gates are namespace-neutral for unqualified and `Global\`` names:
+held parsing runs with only `System\`` visible in a unique disposable context,
+the held tree is released, and that context plus any newly interned
+explicitly-qualified `Global\`` names are removed before the real `Get`, also
+on an abort.  Explicit third-party contexts named in source are outside this
+cleanup.  This matters because
+`HoldComplete` prevents evaluation but does not prevent symbol interning;
+without isolation, pre-parsing a TestKit target created `Global\`FTAssert` and
+`Global\`FTReport` and made the later package load emit shadow warnings.  The
+cleanup calls `System\`Names` and `System\`Remove` explicitly: after the
+FeynFacet preload, bare `Names` resolves to `FeynCalc\`Names` and does not query
+the Wolfram symbol table.
+Broker task names include a filesystem-safe UUID generated on every
+TaskBroker load, so a persistent subkernel whose counter resets cannot consume
+a late result from an earlier timed-out task with the same PID and label.
+Timeout currently does not cancel a queued or running helper: correctness is
+protected by the UUID and local fallback, but late status/result artifacts and
+late helper work remain a P2 cleanup-protocol item.
+`Tests/t_kpsubmit_wrapper.sh` checks wrapper escaping, mission-name traversal
+rejection and missing-target rejection without starting a Wolfram kernel;
+`Tests/t_kpsubmit_argv_roundtrip.wls` is its live-pool decoding companion;
+`Tests/t_kpsubmit_target_namespace.wls` is the live no-symbol-leak gate.
 Measured 2026-08-22, CF254 (9,7), 3 helpers: wall 446 s -> 357 s, sampling
 278 s -> 185 s, oracle-identical; CANONICA ladder 180 s -> 97 s.
 
@@ -136,3 +173,10 @@ regression tests: they assume a clean `Global\`` context, and on
 chart symbols, `t_transport_chart_extension`'s output variables) while
 passing standalone. `Scripts/run_tests_pool.sh <pooldir> <N> [tests...]`
 submits every `Tests/t_*.wls` this way and prints a table.
+
+The fresh wrapper returns normally after writing its result and completion
+marker.  On seeing the marker, the server first drains the corresponding
+`EvaluationObject` with `WaitAll` and only then closes the subkernel.  The
+former design blocked forever after the marker; closing a still-live
+evaluation caused Parallel Tools to requeue an orphan and left later waves
+`NEVERSTARTED` despite idle kernels (reproduced and fixed 2026-08-23).

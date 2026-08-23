@@ -33,6 +33,14 @@ ClearAll[
   finiteFieldStripUnseenPrimeResidualQ,
   finiteFieldStripFLINTBinary,
   finiteFieldStripBackendQ,
+  finiteFieldStripBackendDecision,
+  finiteFieldStripBackendConfiguration,
+  finiteFieldStripPlanDiscoveryBackendDecision,
+  finiteFieldStripCoreSolutionQ,
+  finiteFieldStripEliminationPlanFingerprint,
+  finiteFieldStripSealEliminationPlan,
+  finiteFieldStripValidateEliminationPlan,
+  finiteFieldStripModularArtifactValidQ,
   finiteFieldStripFLINTSolve,
   finiteFieldStripPutAtomic,
   finiteFieldStripArtifactTag
@@ -81,10 +89,228 @@ finiteFieldStripFLINTBinary[] := With[{file = FileNameJoin[{$feynFacetDirectory,
     "Backends", "flint", "bin", "flint_modular_solve"}]},
   If[FileExistsQ[file], file, None]];
 
-finiteFieldStripBackendQ[requested_, coreSize_Integer] := Which[
-  requested === "Wolfram", False,
-  requested === "FLINT", finiteFieldStripFLINTBinary[] =!= None,
-  True, finiteFieldStripFLINTBinary[] =!= None && coreSize >= 256];
+(* Backend controls only the fixed constrained core.  Plan discovery is a
+   separate contract below; an explicit fixed-core request never changes
+   the MatrixRank/NullSpace implementation that created the plan. *)
+finiteFieldStripBackendDecision[requested_, threads_,
+    coreSize_Integer?NonNegative] := Module[{binary, reported},
+  reported = Which[requested === Automatic, Automatic,
+    StringQ[requested], requested, True,
+    ToString[Head[requested], InputForm]];
+  If[! MemberQ[{Automatic, "Wolfram", "FLINT"}, requested],
+    Return[<|"Status" -> "InvalidBackendOption",
+      "BackendRequested" -> reported,
+      "AllowedBackends" -> {Automatic, "Wolfram", "FLINT"}|>]];
+  If[! IntegerQ[threads] || ! Between[threads, {1, 4}],
+    Return[<|"Status" -> "InvalidBackendThreads",
+      "BackendRequested" -> requested,
+      "BackendThreads" -> If[IntegerQ[threads], threads,
+        ToString[Head[threads], InputForm]],
+      "AllowedRange" -> {1, 4}|>]];
+  binary = finiteFieldStripFLINTBinary[];
+  Which[
+    requested === "Wolfram",
+      <|"Status" -> "OK", "BackendRequested" -> requested,
+        "BackendThreads" -> threads, "UseBackend" -> "Wolfram",
+        "FallbackAllowed" -> False|>,
+    requested === "FLINT" && binary === None,
+      <|"Status" -> "BackendUnavailable",
+        "BackendRequested" -> requested, "BackendThreads" -> threads,
+        "UseBackend" -> None, "FallbackAllowed" -> False|>,
+    requested === "FLINT",
+      <|"Status" -> "OK", "BackendRequested" -> requested,
+        "BackendThreads" -> threads, "UseBackend" -> "FLINT",
+        "FallbackAllowed" -> False|>,
+    binary =!= None && coreSize >= 256,
+      <|"Status" -> "OK", "BackendRequested" -> Automatic,
+        "BackendThreads" -> threads, "UseBackend" -> "FLINT",
+        "FallbackAllowed" -> True|>,
+    True,
+      <|"Status" -> "OK", "BackendRequested" -> Automatic,
+        "BackendThreads" -> threads, "UseBackend" -> "Wolfram",
+        "FallbackAllowed" -> True|>]
+];
+finiteFieldStripBackendDecision[requested_, threads_, coreSize_] :=
+  <|"Status" -> "InvalidBackendDecisionArguments",
+    "ArgumentHeads" -> (ToString[Head[#], InputForm] & /@
+      {requested, threads, coreSize})|>;
+
+finiteFieldStripBackendQ[requested_, coreSize_Integer] := TrueQ[
+  Lookup[finiteFieldStripBackendDecision[requested, 1, coreSize],
+    "UseBackend", None] === "FLINT"];
+
+(* This merge records the existing Wolfram discovery path honestly.  The
+   native affine-RREF/CFFR protocol must enter through the distinct
+   FLINTAffineRREF value in a later patch; it is not the CFFA4 core solver. *)
+finiteFieldStripPlanDiscoveryBackendDecision[requested_] := Which[
+  requested === "Wolfram",
+    <|"Status" -> "OK", "PlanDiscoveryBackendRequested" -> requested,
+      "PlanDiscoveryBackendUsed" -> "Wolfram"|>,
+  requested === "FLINTAffineRREF",
+    <|"Status" -> "PlanDiscoveryBackendUnavailable",
+      "PlanDiscoveryBackendRequested" -> requested,
+      "PlanDiscoveryBackendUsed" -> None|>,
+  True,
+    <|"Status" -> "InvalidPlanDiscoveryBackendOption",
+      "PlanDiscoveryBackendRequested" -> If[StringQ[requested],
+        requested, ToString[Head[requested], InputForm]],
+      "AllowedBackends" -> {"Wolfram", "FLINTAffineRREF"}|>
+];
+
+finiteFieldStripBackendConfiguration[requested_, threads_] := Module[
+  {decision, binary, source, payload},
+  decision = finiteFieldStripBackendDecision[requested, threads, 0];
+  If[Lookup[decision, "Status", None] =!= "OK", Return[decision]];
+  binary = finiteFieldStripFLINTBinary[];
+  source = FileNameJoin[{$feynFacetPrivateDirectory,
+    "FiniteFieldStripSolve.wl"}];
+  If[! FileExistsQ[source],
+    Return[<|"Status" -> "BackendSourceUnavailable"|>]];
+  payload = <|
+    "Schema" -> "FeynFacetFiniteFieldFixedCoreBackendConfiguration",
+    "SchemaVersion" -> 1, "Contract" -> "FixedConstrainedCore",
+    "BackendProtocol" -> "CFFA4V1/CFFA4X1OrWolfram",
+    "BackendRequested" -> requested, "BackendThreads" -> threads,
+    "FiniteFieldStripSolveSHA256" ->
+      FileHash[source, "SHA256", "HexString"],
+    "FLINTBinarySHA256" -> If[
+      MemberQ[{Automatic, "FLINT"}, requested] && StringQ[binary],
+      FileHash[binary, "SHA256", "HexString"], None]|>;
+  Join[payload, <|"Fingerprint" ->
+    Hash[KeySort[payload], "SHA256", "HexString"]|>]
+];
+finiteFieldStripBackendConfiguration[___] :=
+  <|"Status" -> "InvalidBackendConfigurationArguments"|>;
+
+finiteFieldStripCoreSolutionQ[core_, rhs_, solution_, prime_Integer] :=
+  MatrixQ[solution, IntegerQ] &&
+    Dimensions[solution] ===
+      {Dimensions[core][[2]], Dimensions[rhs][[2]]} &&
+    AllTrue[Flatten[solution], Between[#, {0, prime - 1}] &] &&
+    AllTrue[Flatten[Mod[core . solution - rhs, prime]],
+      SameQ[#, 0] &];
+
+$finiteFieldStripEliminationPlanSchema =
+  "FeynFacetFiniteFieldStripEliminationPlan";
+$finiteFieldStripEliminationPlanSchemaVersion = 1;
+$finiteFieldStripEliminationPlanSolverProvenance = <|
+  "Discoverer" -> "WolframMatrixRankNullSpace",
+  "IndependentRows" -> "WolframLeftNullspacePivots",
+  "PlanDiscoveryBackend" -> "Wolfram",
+  "Implementation" -> "FiniteFieldStripSolve",
+  "ImplementationVersion" -> 1|>;
+$finiteFieldStripEliminationPlanRequiredKeys = {
+  "Status", "PlanSchema", "PlanSchemaVersion", "PlanFingerprint",
+  "PreparationFingerprint", "SolverProvenance",
+  "PlanDiscoveryBackendRequested", "PlanDiscoveryBackendUsed",
+  "NormalizationColumns", "IndependentEquationRows", "GenericRank",
+  "Nullity", "UnknownCount", "GaugeUnknownCount", "FreeResidueCount",
+  "GaugeNumeratorDegrees", "GaugeDenominatorDegrees", "GaugeSupport",
+  "PilotPrime"};
+
+finiteFieldStripEliminationPlanFingerprint[plan_Association] := Hash[
+  KeySort[KeyDrop[plan, "PlanFingerprint"]], "SHA256", "HexString"];
+
+finiteFieldStripSealEliminationPlan[plan_Association,
+    preparationFingerprint_String,
+    planDiscoveryBackend_: "Wolfram"] := Module[{payload, decision},
+  decision = finiteFieldStripPlanDiscoveryBackendDecision[
+    planDiscoveryBackend];
+  If[Lookup[decision, "Status", None] =!= "OK", Return[decision]];
+  payload = Join[plan, <|
+    "PlanSchema" -> $finiteFieldStripEliminationPlanSchema,
+    "PlanSchemaVersion" -> $finiteFieldStripEliminationPlanSchemaVersion,
+    "PreparationFingerprint" -> preparationFingerprint,
+    "SolverProvenance" ->
+      $finiteFieldStripEliminationPlanSolverProvenance,
+    "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
+    "PlanDiscoveryBackendUsed" -> decision[
+      "PlanDiscoveryBackendUsed"]|>];
+  Join[payload, <|"PlanFingerprint" ->
+    finiteFieldStripEliminationPlanFingerprint[payload]|>]
+];
+
+finiteFieldStripValidateEliminationPlan[plan_,
+    matrixDimensions : {equationCount_Integer?NonNegative,
+      unknownCount_Integer?NonNegative}, gaugeUnknownCount_Integer,
+    freeResidueCount_Integer, numeratorDegrees_List,
+    denominatorDegrees_List, support_List,
+    preparationFingerprint_String] := Module[
+  {fail, strictIncreasingQ, rows, columns, rank, nullity, pilotPrime},
+  fail[status_String] := <|"Status" -> status|>;
+  strictIncreasingQ[values_] := VectorQ[values, IntegerQ] &&
+    values === Sort[DeleteDuplicates[values]];
+  If[plan === None, Return[fail["NoEliminationPlan"]]];
+  If[! AssociationQ[plan], Return[fail["PlanNotAssociation"]]];
+  If[Sort[Keys[plan]] =!=
+      Sort[$finiteFieldStripEliminationPlanRequiredKeys],
+    Return[fail["PlanSchemaKeysMismatch"]]];
+  If[Lookup[plan, "Status", None] =!= "OK" ||
+      Lookup[plan, "PlanSchema", None] =!=
+        $finiteFieldStripEliminationPlanSchema ||
+      Lookup[plan, "PlanSchemaVersion", None] =!=
+        $finiteFieldStripEliminationPlanSchemaVersion,
+    Return[fail["PlanSchemaVersionMismatch"]]];
+  If[! SameQ[Lookup[plan, "SolverProvenance", None],
+      $finiteFieldStripEliminationPlanSolverProvenance] ||
+      Lookup[plan, "PlanDiscoveryBackendRequested", None] =!=
+        "Wolfram" ||
+      Lookup[plan, "PlanDiscoveryBackendUsed", None] =!= "Wolfram",
+    Return[fail["PlanSolverProvenanceMismatch"]]];
+  If[Lookup[plan, "PreparationFingerprint", None] =!=
+      preparationFingerprint,
+    Return[fail["PlanPreparationFingerprintMismatch"]]];
+  If[! StringQ[Lookup[plan, "PlanFingerprint", None]] ||
+      StringLength[plan["PlanFingerprint"]] =!= 64 ||
+      plan["PlanFingerprint"] =!=
+        finiteFieldStripEliminationPlanFingerprint[plan],
+    Return[fail["PlanFingerprintMismatch"]]];
+  If[Lookup[plan, "UnknownCount", None] =!= unknownCount ||
+      Lookup[plan, "GaugeUnknownCount", None] =!= gaugeUnknownCount ||
+      Lookup[plan, "FreeResidueCount", None] =!= freeResidueCount ||
+      gaugeUnknownCount + freeResidueCount =!= unknownCount,
+    Return[fail["PlanUnknownLayoutMismatch"]]];
+  If[Lookup[plan, "GaugeNumeratorDegrees", None] =!= numeratorDegrees ||
+      Lookup[plan, "GaugeDenominatorDegrees", None] =!=
+        denominatorDegrees ||
+      Lookup[plan, "GaugeSupport", None] =!= support,
+    Return[fail["PlanAnsatzMismatch"]]];
+  {rows, columns, rank, nullity, pilotPrime} = Lookup[plan,
+    {"IndependentEquationRows", "NormalizationColumns", "GenericRank",
+      "Nullity", "PilotPrime"}, Missing["Absent"]];
+  If[! IntegerQ[rank] || ! IntegerQ[nullity] || rank < 0 ||
+      nullity < 0 || rank + nullity =!= unknownCount ||
+      rank > Min[equationCount, unknownCount],
+    Return[fail["PlanRankNullityInvalid"]]];
+  If[! strictIncreasingQ[rows] || Length[rows] =!= rank ||
+      ! AllTrue[rows, Between[#, {1, equationCount}] &],
+    Return[fail["PlanEquationRowsInvalid"]]];
+  If[! strictIncreasingQ[columns] || Length[columns] =!= nullity ||
+      ! AllTrue[columns, Between[#, {1, unknownCount}] &],
+    Return[fail["PlanNormalizationColumnsInvalid"]]];
+  If[! IntegerQ[pilotPrime] || ! PrimeQ[pilotPrime] ||
+      ! Between[pilotPrime, {5, 2^31 - 1}],
+    Return[fail["PlanPilotPrimeInvalid"]]];
+  <|"Status" -> "OK"|>
+];
+
+finiteFieldStripModularArtifactValidQ[artifact_, recordFingerprint_,
+    selectedOffset_, selectedShell_, planFingerprint_,
+    backendConfiguration_, planDiscoveryBackend_] :=
+  AssociationQ[artifact] &&
+    Lookup[artifact, "RecordFingerprint", Missing[]] ===
+      recordFingerprint &&
+    Lookup[artifact, "SelectedNumeratorDegreeOffset", Missing[]] ===
+      selectedOffset &&
+    Lookup[artifact, "SelectedSupportShell", "Rectangle"] ===
+      selectedShell &&
+    Lookup[artifact, "EliminationPlanFingerprint", Missing[]] ===
+      planFingerprint &&
+    SameQ[Lookup[artifact, "BackendConfiguration", Missing[]],
+      backendConfiguration] &&
+    Lookup[artifact, "PlanDiscoveryBackend", Missing[]] ===
+      planDiscoveryBackend;
+finiteFieldStripModularArtifactValidQ[___] := False;
 
 (* solve core . X = rhs modulo prime through the adapter; X (a dense
    integer matrix) or $Failed.  Format CFFA4V1/CFFA4X1: unsigned 64-bit
@@ -128,6 +354,7 @@ Options[SampleEpsFormStripAffine] = {
   "SupportShell" -> 0,
   "Backend" -> Automatic,
   "BackendThreads" -> 2,
+  "PlanDiscoveryBackend" -> "Wolfram",
   "PointCount" -> Automatic,
   "NumeratorDegreeOffset" -> {0, 0},
   "SolveAffineSystem" -> True,
@@ -474,10 +701,26 @@ SampleEpsFormStripAffine[
    planCompatible, selector, core, rhsMatrix, solutionMatrix,
    constrainedSeconds, normalizationOK, planResult, discard,
    maximumExponents, tableExponents, blockLength, collapsePoly,
-   collapseRational, support, supportX, supportY, backendUsed},
+   collapseRational, support, supportX, supportY, backendUsed = None,
+   backendRequested, backendThreads, backendDecision,
+   planDiscoveryBackend, planDiscoveryDecision,
+   planDiscoveryBackendUsed = None, backendFallbackReason = None,
+   backendFailure = None,
+   planValidation = <|"Status" -> "NoEliminationPlan"|>},
 
   If[! finiteFieldStripRecordQ[record],
     Message[SampleEpsFormStripAffine::record]; Return[$Failed]];
+  backendRequested = OptionValue["Backend"];
+  backendThreads = OptionValue["BackendThreads"];
+  backendDecision = finiteFieldStripBackendDecision[
+    backendRequested, backendThreads, 0];
+  If[Lookup[backendDecision, "Status", None] =!= "OK",
+    Return[backendDecision]];
+  planDiscoveryBackend = OptionValue["PlanDiscoveryBackend"];
+  planDiscoveryDecision = finiteFieldStripPlanDiscoveryBackendDecision[
+    planDiscoveryBackend];
+  If[Lookup[planDiscoveryDecision, "Status", None] =!= "OK",
+    Return[planDiscoveryDecision]];
   degreeOffset = OptionValue["NumeratorDegreeOffset"];
   requestedPointCount = OptionValue["PointCount"];
   solveAffineQ = TrueQ[OptionValue["SolveAffineSystem"]];
@@ -732,14 +975,12 @@ SampleEpsFormStripAffine[
   rightHandSide = Join @@ pointRightHandSides;
   eliminationPlan = OptionValue["EliminationPlan"];
   discoverPlanQ = TrueQ[OptionValue["DiscoverPlan"]];
-  planCompatible = AssociationQ[eliminationPlan] && solveAffineQ &&
-    Lookup[eliminationPlan, "Status", "OK"] === "OK" &&
-    eliminationPlan["UnknownCount"] === Length[First[matrix]] &&
-    eliminationPlan["GaugeUnknownCount"] === gaugeUnknownCount &&
-    eliminationPlan["FreeResidueCount"] === Length[freeResidues] &&
-    eliminationPlan["GaugeNumeratorDegrees"] === numeratorDegrees &&
-    Lookup[eliminationPlan, "GaugeSupport", support] === support &&
-    Max[eliminationPlan["IndependentEquationRows"]] <= Length[matrix];
+  planValidation = finiteFieldStripValidateEliminationPlan[
+    eliminationPlan, Dimensions[matrix], gaugeUnknownCount,
+    Length[freeResidues], numeratorDegrees, denominatorDegrees, support,
+    preparation["Fingerprint"]];
+  planCompatible = solveAffineQ &&
+    Lookup[planValidation, "Status", None] === "OK";
   discard = None;
   If[planCompatible,
     (* M1 constrained path: one factorization, nullity+1 right-hand
@@ -769,15 +1010,33 @@ SampleEpsFormStripAffine[
        large enough to pay for the transfer; the all-row residual checks
        below verify the imported solution exactly like the Wolfram one,
        and any adapter failure falls back to LinearSolve *)
-    backendUsed = "Wolfram";
+    backendDecision = finiteFieldStripBackendDecision[
+      backendRequested, backendThreads, Length[core]];
     {constrainedSeconds, solutionMatrix} = AbsoluteTiming[
       Module[{flint = $Failed},
-        If[finiteFieldStripBackendQ[OptionValue["Backend"], Length[core]],
-          flint = finiteFieldStripFLINTSolve[core, rhsMatrix, prime,
-            OptionValue["BackendThreads"]];
-          If[MatrixQ[flint, IntegerQ], backendUsed = "FLINT"]];
-        If[MatrixQ[flint, IntegerQ], flint,
-          Quiet[Check[LinearSolve[core, rhsMatrix, Modulus -> prime], $Failed]]]]];
+        Which[
+          Lookup[backendDecision, "Status", None] =!= "OK",
+            backendFailure = backendDecision["Status"]; $Failed,
+          backendDecision["UseBackend"] === "FLINT",
+            flint = finiteFieldStripFLINTSolve[core, rhsMatrix, prime,
+              backendThreads];
+            If[finiteFieldStripCoreSolutionQ[
+                core, rhsMatrix, flint, prime],
+              backendUsed = "FLINT"; flint,
+              backendFailure = If[flint === $Failed,
+                "FLINTExecutionFailed", "FLINTCoreCertificateFailed"];
+              If[TrueQ[backendDecision["FallbackAllowed"]],
+                backendFallbackReason = backendFailure;
+                backendFailure = None; backendUsed = "Wolfram";
+                Quiet[Check[LinearSolve[core, rhsMatrix,
+                  Modulus -> prime], $Failed]],
+                $Failed]],
+          True,
+            backendUsed = "Wolfram";
+            Quiet[Check[LinearSolve[core, rhsMatrix,
+              Modulus -> prime], $Failed]]]]];
+    If[StringQ[backendFailure],
+      discard = "DiscardBackendFailure",
     If[solutionMatrix === $Failed || ! MatrixQ[solutionMatrix, IntegerQ] ||
         Dimensions[solutionMatrix] =!=
           {eliminationPlan["UnknownCount"], eliminationPlan["Nullity"] + 1},
@@ -806,23 +1065,39 @@ SampleEpsFormStripAffine[
           # === 0 &],
         "NormalizationCheck" -> normalizationOK,
         "SolvePath" -> "OneConstrainedMultiRHSFactorization",
-        "Backend" -> backendUsed|>;
+        "Backend" -> backendUsed, "BackendRequested" -> backendRequested,
+        "BackendUsed" -> backendUsed,
+        "BackendFallbackReason" -> backendFallbackReason,
+        "BackendFailure" -> backendFailure|>;
       If[! TrueQ[affineData["ParticularCheckZero"] &&
           affineData["NullspaceCheckZero"] && normalizationOK],
-        discard = "DiscardFailedResidualCheck"]];
+        discard = "DiscardFailedResidualCheck"]]];
     If[StringQ[discard],
       (* a discarded sample carries no solution and never reaches the
          interpolation (filtered by its non-generic rank fields) *)
       rank = -1; augmentedRank = -2;
       affineData = <|"Status" -> discard, "SolvePath" ->
         "OneConstrainedMultiRHSFactorization",
-        "ConstrainedSolveSeconds" -> constrainedSeconds|>],
+        "ConstrainedSolveSeconds" -> constrainedSeconds,
+        "Backend" -> backendUsed, "BackendRequested" -> backendRequested,
+        "BackendUsed" -> backendUsed,
+        "BackendFallbackReason" -> backendFallbackReason,
+        "BackendFailure" -> backendFailure|>],
+    If[backendRequested === "FLINT" && ! discoverPlanQ,
+      rank = -1; augmentedRank = -2;
+      backendFailure = "FLINTRequiresValidatedEliminationPlan";
+      affineData = <|"Status" -> "DiscardBackendFailure",
+        "SolvePath" -> "NoValidatedEliminationPlan",
+        "Backend" -> None, "BackendRequested" -> backendRequested,
+        "BackendUsed" -> None, "BackendFallbackReason" -> None,
+        "BackendFailure" -> backendFailure|>,
+    backendUsed = "Wolfram";
     augmented = Join[
       matrix, SparseArray[List /@ rightHandSide], 2];
     {rankSeconds, rank} = AbsoluteTiming[
       MatrixRank[matrix, Modulus -> prime]];
     {augmentedRankSeconds, augmentedRank} = AbsoluteTiming[
-      MatrixRank[augmented, Modulus -> prime]]];
+      MatrixRank[augmented, Modulus -> prime]]]];
   If[! planCompatible && solveAffineQ && TrueQ[rank === augmentedRank],
     {linearSolveSeconds, particularSolution} = AbsoluteTiming[
       LinearSolve[matrix, rightHandSide, Modulus -> prime]];
@@ -840,14 +1115,22 @@ SampleEpsFormStripAffine[
         If[nullspaceBasis === {}, {},
           Flatten[Mod[matrix.Transpose[nullspaceBasis], prime]]],
         # === 0 &],
-      "SolvePath" -> "PilotFourEliminations"
+      "SolvePath" -> "PilotFourEliminations", "Backend" -> "Wolfram",
+      "BackendRequested" -> backendRequested,
+      "BackendUsed" -> "Wolfram", "BackendFallbackReason" -> None,
+      "BackendFailure" -> None,
+      "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
+      "PlanDiscoveryBackendUsed" -> "Wolfram"
     |>;
     If[discoverPlanQ,
+      planDiscoveryBackendUsed = "Wolfram";
       {planSeconds, planResult} = AbsoluteTiming[finiteFieldStripDiscoverPlan[matrix, rank,
         nullspaceBasis, gaugeUnknownCount, Length[freeResidues],
         numeratorDegrees, denominatorDegrees, prime]];
       If[AssociationQ[planResult] && planResult["Status"] === "OK",
-        planResult = Join[planResult, <|"GaugeSupport" -> support|>]];
+        planResult = finiteFieldStripSealEliminationPlan[
+          Join[planResult, <|"GaugeSupport" -> support|>],
+          preparation["Fingerprint"], planDiscoveryBackend]];
       affineData = Join[affineData, <|"EliminationPlan" -> planResult,
         "PlanDiscoverySeconds" -> planSeconds|>]]];
   Join[<|
@@ -878,7 +1161,14 @@ SampleEpsFormStripAffine[
     "SamplingSeconds" -> samplingSeconds,
     "PeakMemoryBytes" -> MaxMemoryUsed[],
     "RankSeconds" -> rankSeconds,
-    "AugmentedRankSeconds" -> augmentedRankSeconds
+    "AugmentedRankSeconds" -> augmentedRankSeconds,
+    "PlanValidationStatus" -> planValidation,
+    "BackendRequested" -> backendRequested,
+    "BackendUsed" -> backendUsed,
+    "BackendFallbackReason" -> backendFallbackReason,
+    "BackendFailure" -> backendFailure,
+    "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
+    "PlanDiscoveryBackendUsed" -> planDiscoveryBackendUsed
   |>, affineData]
 ];
 
@@ -1382,6 +1672,7 @@ Options[SolveEpsFormStripFiniteField] = {
   "RegulatorSampling" -> "HeldOut",
   "Backend" -> Automatic,
   "BackendThreads" -> 2,
+  "PlanDiscoveryBackend" -> "Wolfram",
   "InitialConstructionCount" -> 4,
   "HeldOutCount" -> 3,
   "UnseenPrimeCheck" -> True,
@@ -1427,9 +1718,25 @@ SolveEpsFormStripFiniteField[record_Association,
    canonical, heldOutResult, heldOutValidated, epsilonCursor, regulatorValue, need,
    reservePrimes, lifted, unseen, sampleEpsilon, unseenPrime = None,
    brokerQ = False, pilotSeconds = 0, maximumPrimeCount, loopPrimes,
-   liftReason = "OK"},
+   liftReason = "OK", backendDecision, backendConfiguration,
+   planDiscoveryBackend, planDiscoveryDecision,
+   eliminationPlanFingerprint = None},
   If[! finiteFieldStripRecordQ[record],
     Message[SampleEpsFormStripAffine::record]; Return[$Failed]];
+  backendDecision = finiteFieldStripBackendDecision[
+    OptionValue["Backend"], OptionValue["BackendThreads"], 0];
+  If[Lookup[backendDecision, "Status", None] =!= "OK",
+    Return[backendDecision]];
+  backendConfiguration = finiteFieldStripBackendConfiguration[
+    OptionValue["Backend"], OptionValue["BackendThreads"]];
+  If[Lookup[backendConfiguration, "Schema", None] =!=
+      "FeynFacetFiniteFieldFixedCoreBackendConfiguration",
+    Return[backendConfiguration]];
+  planDiscoveryBackend = OptionValue["PlanDiscoveryBackend"];
+  planDiscoveryDecision = finiteFieldStripPlanDiscoveryBackendDecision[
+    planDiscoveryBackend];
+  If[Lookup[planDiscoveryDecision, "Status", None] =!= "OK",
+    Return[planDiscoveryDecision]];
   (* support learning is an optimization, never a reason to fail: a
      learned support valid at the pilot point may be inconsistent at
      other regulator values (CF67 (9,1), 2026-08-22: "SamplesInvalid"
@@ -1507,6 +1814,7 @@ SolveEpsFormStripFiniteField[record_Association,
       "RegulatorSampling" -> "Deterministic",
       "Backend" -> OptionValue["Backend"],
       "BackendThreads" -> OptionValue["BackendThreads"],
+      "PlanDiscoveryBackend" -> planDiscoveryBackend,
       "UnseenPrimeCheck" -> OptionValue["UnseenPrimeCheck"],
       "Verbose" -> verbose]
   ];
@@ -1608,6 +1916,9 @@ SolveEpsFormStripFiniteField[record_Association,
       "PointCount" -> pointCount,
       "NumeratorDegreeOffset" -> selectedOffset,
       Sequence @@ supportOptions,
+      "Backend" -> "Wolfram",
+      "BackendThreads" -> OptionValue["BackendThreads"],
+      "PlanDiscoveryBackend" -> planDiscoveryBackend,
       "SolveAffineSystem" -> True, "DiscoverPlan" -> True,
       "Preparation" -> preparation,
       "ExpectedFingerprint" -> preparation["Fingerprint"]]];
@@ -1648,6 +1959,9 @@ SolveEpsFormStripFiniteField[record_Association,
         learnedPilot = SampleEpsFormStripAffine[record, First[epsilonSamples], prime,
           "PointCount" -> pointCount, "NumeratorDegreeOffset" -> selectedOffset,
           "Support" -> learned, "SupportShell" -> 0,
+          "Backend" -> "Wolfram",
+          "BackendThreads" -> OptionValue["BackendThreads"],
+          "PlanDiscoveryBackend" -> planDiscoveryBackend,
           "SolveAffineSystem" -> True, "DiscoverPlan" -> True,
           "Preparation" -> preparation, "ExpectedFingerprint" -> preparation["Fingerprint"]];
         learnedPlan = If[AssociationQ[learnedPilot], Lookup[learnedPilot, "EliminationPlan", None], None];
@@ -1686,6 +2000,12 @@ SolveEpsFormStripFiniteField[record_Association,
   If[brokerQ, log["Sample batches go to the KernelPool helpers (",
     Round[pilotSeconds * Max[1, Length[epsilonSamples]], 0.1], " s per prime on one kernel, ",
     taskBrokerFreeKernels[], " free)"]];
+  If[OptionValue["Backend"] === "FLINT" &&
+      ! AssociationQ[eliminationPlan],
+    Return[<|"Status" -> "FLINTRequiresValidatedEliminationPlan",
+      "BackendRequested" -> "FLINT",
+      "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
+      "PlanDiscoveryBackendUsed" -> "Wolfram"|>]];
   If[kernelCount > 1 && Length[Kernels[]] < kernelCount,
     launched = Quiet[LaunchKernels[kernelCount - Length[Kernels[]]]]];
   loadFile = FileNameJoin[{$feynFacetRoot, "Addon", "Load",
@@ -1699,10 +2019,13 @@ SolveEpsFormStripFiniteField[record_Association,
     Sequence @@ supportOptions,
     "Backend" -> OptionValue["Backend"],
     "BackendThreads" -> OptionValue["BackendThreads"],
+    "PlanDiscoveryBackend" -> planDiscoveryBackend,
     "SolveAffineSystem" -> True,
     "Preparation" -> preparation,
     "ExpectedFingerprint" -> preparation["Fingerprint"],
     "EliminationPlan" -> eliminationPlan};
+  eliminationPlanFingerprint = If[AssociationQ[eliminationPlan],
+    Lookup[eliminationPlan, "PlanFingerprint", None], None];
   currentEpsilonSamples = epsilonSamples;
   currentConstructionCount = constructionCount;
   currentMaximumTotalDegree = maximumTotalDegree;
@@ -1718,10 +2041,10 @@ SolveEpsFormStripFiniteField[record_Association,
        overwritten instead of aborting the solve *)
     If[StringQ[file] && FileExistsQ[file],
       interpolation = FamilyArtifactRead[file];
-      If[! (AssociationQ[interpolation] &&
-          Lookup[interpolation, "RecordFingerprint", Missing[]] === recordFingerprint &&
-          Lookup[interpolation, "SelectedNumeratorDegreeOffset", Missing[]] === selectedOffset &&
-          Lookup[interpolation, "SelectedSupportShell", "Rectangle"] === selectedShell),
+      If[! finiteFieldStripModularArtifactValidQ[interpolation,
+          recordFingerprint, selectedOffset, selectedShell,
+          eliminationPlanFingerprint, backendConfiguration,
+          planDiscoveryBackend],
         log["Stale modular interpolation for prime ", prime, " ignored (another record or ansatz)"];
         Quiet[DeleteFile[file]]]];
     If[StringQ[file] && FileExistsQ[file],
@@ -1845,6 +2168,9 @@ SolveEpsFormStripFiniteField[record_Association,
           "SelectedNumeratorDegreeOffset" -> selectedOffset,
           "SelectedSupportShell" -> selectedShell,
           "RecordFingerprint" -> recordFingerprint,
+          "EliminationPlanFingerprint" -> eliminationPlanFingerprint,
+          "BackendConfiguration" -> backendConfiguration,
+          "PlanDiscoveryBackend" -> planDiscoveryBackend,
           (* M0 census: per-sample stage timers persisted with the
              prime artifact, so every production run is self-
              instrumenting (2026-08-20). *)
@@ -1854,7 +2180,10 @@ SolveEpsFormStripFiniteField[record_Association,
             "NullspaceSeconds", "MatrixDimensions", "NonzeroEntries",
             "Rank", "Nullity", "AcceptedPoints", "AttemptCount",
             "PeakMemoryBytes", "PreparationReused", "SolvePath",
-            "ConstrainedSolveSeconds", "Backend", "Status"}] & /@ samples)|>];
+            "ConstrainedSolveSeconds", "Backend", "BackendRequested",
+            "BackendUsed", "BackendFallbackReason", "BackendFailure",
+            "PlanValidationStatus", "PlanDiscoveryBackendRequested",
+            "PlanDiscoveryBackendUsed", "Status"}] & /@ samples)|>];
       If[StringQ[file], finiteFieldStripPutAtomic[interpolation, file]]];
     AppendTo[modularData, interpolation];
     If[adaptivePrimeSampling && regulatorSampling =!= "HeldOut" && Length[modularData] === 1,
@@ -1962,6 +2291,16 @@ SolveEpsFormStripFiniteField[record_Association,
   Join[solution, <|
     "Method" -> "SimultaneousFiniteFieldAffinePDE",
     "EliminationPlan" -> eliminationPlan,
+    "EliminationPlanFingerprint" -> eliminationPlanFingerprint,
+    "BackendRequested" -> OptionValue["Backend"],
+    "BackendThreads" -> OptionValue["BackendThreads"],
+    "BackendConfiguration" -> backendConfiguration,
+    "BackendsUsed" -> DeleteDuplicates[Cases[
+      Lookup[Flatten[Lookup[modularData, "SampleTimings", {}]],
+        "BackendUsed", {}], _String]],
+    "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
+    "PlanDiscoveryBackendUsed" -> If[AssociationQ[eliminationPlan],
+      Lookup[eliminationPlan, "PlanDiscoveryBackendUsed", None], None],
     "SelectedNumeratorDegreeOffset" -> selectedOffset,
     "SelectedSupportShell" -> selectedShell,
     "SupportStrategy" -> supportStrategy,

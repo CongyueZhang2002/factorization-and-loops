@@ -1,0 +1,14 @@
+CF300 Galois-orbit forcing screen V3: no-kernel results
+Date: 2026-08-23
+
+python3 test_galois_orbit_driver_v3_static.py
+  CF300_GALOIS_ORBIT_V3_STATIC PASS 85/85 v3_sha256=8952afbda47958104eb473a4c24705283f517ba6a58816eec9d194d0f294e265 model_v2_sha256=aff670514603ac2a87b9fcf92d88ebd2ef1b29330f2b7d7b41234d339b1393f2
+
+perl ../direct_root_channel_assembler_xh/check_wl_no_kernel_parse_guard.pl run_cf300_sector12_galois_orbit_forcing_screen_v3.wls run_hydration_context_poison_model_v2.wls hydration_context_fixture_v1.wl
+  PASS (exit 0, no diagnostics)
+
+Preservation checks for V1, V2 and failed-model V1
+  PASS
+
+No Wolfram kernel or pool mission was launched by this work item.
+
