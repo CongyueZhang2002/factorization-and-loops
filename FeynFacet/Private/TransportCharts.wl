@@ -227,8 +227,13 @@ transportChartRootIndices[expr_, roots_List] := Module[
   {rootBases, radicals, matches, indices, unknown},
   rootBases = Together /@ (#["Root"]^2 & /@ roots);
   radicals = transportChartRadicalBases[expr];
+  (* level 1 only, no heads: an all-level Position tests SUBexpressions of
+     each root square, so a radical equal to a subexpression of another
+     square contributed flattened position specs as bogus root indices
+     (Sqrt[x] against {x, y, 1+x+y} classified as rank 3; found by the
+     multiquadratic port's census differential, 2026-08-23) *)
   matches[base_] := Flatten[Position[rootBases, candidate_ /;
-    TrueQ[Together[base - candidate] === 0]]];
+    TrueQ[Together[base - candidate] === 0], {1}, Heads -> False]];
   (* Root grade masks are an artifact ABI: discovery order can change
      when an algebraically identical expression is reordered.  Keep the
      declared frame order so channel 2^i always names the same root. *)
