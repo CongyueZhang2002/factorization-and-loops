@@ -286,3 +286,18 @@ wolframscript -file Scripts/diagonal_block_class_campaign.wls /tmp/classff 4 ALL
   Fuchsify steps); finite field ~20 min post-fix (estimate; 66 min as run
   with the bugs), and the only route for the hard families.
 - Nothing of mine running; Codex/GPT kernels were idle at 00:02.
+
+## Update 2026-08-23 01:15 (Fable) — stopped and pushed (commit f96e234)
+- Codex's package bug (multiquadratic rows bypassed the regulator
+  factorization) is fixed in the package and script; tests 12/12 + 7/7;
+  CF300 solved through sector 8 incl. the former blocker (8,5).  The
+  standalone and pool runs were stopped at the user's request; the CF300
+  state through sector 8's strips is in the session scratchpad only
+  (/tmp; will not survive a restart) -- a rerun from scratch costs ~12 min
+  to that point.
+- Open: the sector-8 row gauge (applyRowGauge) on algebraic entries ran
+  > 17 min (Together on square-root expressions; 9-12 s for sectors 6-7);
+  it needs the evaluate-and-reconstruct treatment before CF300 can go on.
+  Then the first rank-3 block needs Codex's 8-channel multiquadratic
+  sampler (no global rational chart exists: K3 cover).
+- Resource rule unchanged; nothing running; pool stopped.
