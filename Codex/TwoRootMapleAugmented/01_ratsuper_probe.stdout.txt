@@ -1,0 +1,261 @@
+License expires in 14 days
+    |\^/|     Maple 2026 (X86 64 LINUX)
+._|\|   |/|_. Copyright (c) Maplesoft, a division of Waterloo Maple Inc. 2026
+ \  MAPLE  /  All rights reserved. Maple is a trademark of
+ <____ ____>  Waterloo Maple Inc.
+      |       Type ? for help.
+> restart:
+> interface(prettyprint=0):
+> interface(verboseproc=3):
+> packageDirectory := "/home/maxzhang/factorization-and-loops/Addon/Other_Addon/Maple/IntegrableConnections":
+> libname := packageDirectory, libname:
+> with(IntegrableConnections):
+
+> printf("BEGIN_RATSUPER\n"):
+BEGIN_RATSUPER
+> print(eval(IntegrableConnections:-ratsuper)):
+proc (A, x, p, lambda, T, invT) local t0, x0, i, j, s, p1, dp, k, n, mk, mktab,
+ntab, vals, M, subG, G, theta, rk, P, Lm, npoly, nu; global PT, subGT, GG, MM,
+AA; nu := 0; AA := evalm(A); if _npassed < 4 or _npassed = 5 or not type(x,'
+name') or not type(lambda,'name') or not type(A,'matrix'(ratpoly(anything,x),
+square)) then ERROR(`wrong number or type of arguments`) end if; userinfo(1,'
+IntegrableConnections:-ratsuper',`enter ratsuper at`,p,`reduction step = 1`); 
+t0 := time(); if p = 1/x then M := map(simplify,evalm(-1/x^2*subs(x = 1/x,eval(
+A)))); p1 := x; x0 := 1/x elif degree(p,x) = 1 and p <> x then x0 := RootOf(p,x
+); M := map(simplify,subs(x = x+x0,eval(A))); p1 := x else x0 := 0; p1 := p; M
+:= copy(A) end if; n := linalg[rowdim](A); if _npassed = 6 then T := 
+IntegrableConnections:-Id(n); invT := evalm(T) end if; k := 1; if p1 = infinity
+then dp := 1 else dp := diff(p1,x) end if; userinfo(5,'IntegrableConnections:-
+ratsuper',`computing pole order, Glambda and mk`); if _npassed = 4 then M := 
+IntegrableConnections:-sortColumns(M,x,p1,n,k,lambda,'s','ntab','vals','mk','G'
+) else M := IntegrableConnections:-sortColumns(M,x,p1,n,k,lambda,'s','ntab','
+vals','mk','G',T,invT) end if; userinfo(3,'IntegrableConnections:-ratsuper',
+`pole order:`,s); userinfo(2,'IntegrableConnections:-ratsuper',`valuations:`,op
+(convert(vals,'list'))); userinfo(3,'IntegrableConnections:-ratsuper',`ntab:`,
+convert(ntab,'list')); userinfo(3,'IntegrableConnections:-ratsuper',`mk:`,mk);
+mktab[1] := mk; npoly := NULL;  while 1 < s and k < s do GG := evalm(G); MM :=
+evalm(M); theta := expand(rem(linalg[det](G),p1,x)); userinfo(5,'
+IntegrableConnections:-ratsuper',`reduction step:`,k,`theta:`,theta); if theta
+= 0 then rk := IntegrableConnections:-pgaussUnimod(linalg[submatrix](G,1 .. n,1
+.. mk),x,p1,'P'); if rk < mk then userinfo(4,'IntegrableConnections:-ratsuper',
+`columns are linearly dependent`); userinfo(5,IntegrableConnections:-ratsuper,
+`kernel dim = `,mk-rk); if _npassed = 4 then M := IntegrableConnections:-
+reduceColRank4(M,x,p1,n,k,-s,ntab,vals,mk,P,iP) else M := IntegrableConnections
+:-reduceColRank4(M,x,p1,n,k,-s,ntab,vals,mk,P,iP,T,invT) end if else userinfo(4
+,'IntegrableConnections:-ratsuper',`columns are linearly independent`); nu := 
+nu+1; if _npassed = 4 then M := IntegrableConnections:-qtcd(M,x,p1,n,k,ntab,mk,
+lambda,G) else M := IntegrableConnections:-qtcd(M,x,p1,n,k,ntab,mk,lambda,G,T,
+invT) end if end if else if k < s-1 then theta := expand(theta/(lambda^ldegree(
+theta,lambda))) end if; if k = 1 and s <> 1 then i := linalg[charpoly](linalg[
+submatrix](G,1 .. ntab[1],1 .. ntab[1]),lambda); npoly := [s-1, primpart(rem(
+subs(lambda = dp*lambda,i),p1,x),lambda)]; userinfo(2,'IntegrableConnections:-
+ratsuper',`slope (Katz approximation):`,s-1,`invariant:`,op(1,[npoly])[2]) end
+if; npoly := [s-k-1, primpart(rem(subs(lambda = -dp*lambda,theta),p1,x),lambda)
+], npoly; userinfo(2,'IntegrableConnections:-ratsuper',`slope:`,s-k-1,
+`invariant:`,op(1,[npoly])[2]); if k = s-1 then break end if; k := k+1; 
+userinfo(1,'IntegrableConnections:-ratsuper',`increase reduction step to: `,k)
+end if; userinfo(5,'IntegrableConnections:-ratsuper',
+`recomputing pole order, Glambda and mk`); if _npassed = 4 then M := 
+IntegrableConnections:-sortColumns(M,x,p1,n,k,lambda,'s','ntab','vals','mk','G'
+) else M := IntegrableConnections:-sortColumns(M,x,p1,n,k,lambda,'s','ntab','
+vals','mk','G',T,invT) end if; userinfo(3,'IntegrableConnections:-ratsuper',
+`pole order:`,s); userinfo(2,'IntegrableConnections:-ratsuper',`valuations:`,op
+(convert(vals,'list'))); userinfo(3,'IntegrableConnections:-ratsuper',`ntab:`,
+convert(ntab,'list')); userinfo(3,'IntegrableConnections:-ratsuper',`mk:`,mk);
+mktab[k] := mk end do; if s = 0 then userinfo(2,'IntegrableConnections:-
+ratsuper',`matrix is analytic at`,p1); if x0 = 1/x then s := -s+2 else s := -s
+end if; RETURN([evalm(A), [s, n], lambda^n, 0]) elif s = 1 then userinfo(2,'
+IntegrableConnections:-ratsuper',`matrix is regular singular at`,p1); 
+IntegrableConnections:-matval(M,x,p1,'G'); theta := linalg[charpoly](G,lambda);
+npoly := [0, primpart(rem(subs(lambda = dp*lambda,theta),p1,x),lambda)]; 
+userinfo(2,'IntegrableConnections:-ratsuper',`slope:`,0,`indicial equation:`,op
+(1,[npoly])[2]); ntab[1] := n else ntab[s] := n-mk end if; if x0 = 1/x then if
+4 < _npassed then T := map(simplify,subs(x = 1/x,eval(T))); invT := map(
+simplify,subs(x = 1/x,eval(invT))) end if; M := map(simplify,evalm(-1/x^2*subs(
+x = 1/x,eval(M)))); s := s-2 elif x0 <> 0 then if 4 < _npassed then T := map(
+simplify,subs(x = x-x0,eval(T))); invT := map(simplify,subs(x = x-x0,eval(invT)
+)) end if; M := map(simplify,subs(x = x-x0,eval(M))) end if; userinfo(1,'
+IntegrableConnections:-ratsuper',`time: `,time()-t0); npoly := [npoly]; if 
+npoly = [] then [evalm(M), [-s, op(convert(ntab,'list'))], [], nu] else [evalm(
+M), [-s, op(convert(ntab,'list'))], npoly[1][2], nu] end if end proc
+> showstat(IntegrableConnections:-ratsuper):
+
+IntegrableConnections:-ratsuper := proc(A, x, p, lambda, T, invT)
+local t0, x0, i, j, s, p1, dp, k, n, mk, mktab, ntab, vals, M, subG, G, theta, rk, P,
+Lm, npoly, nu;
+global PT, subGT, GG, MM, AA;
+   1   nu := 0;
+   2   AA := evalm(A);
+   3   if _npassed < 4 or _npassed = 5 or not type(x,'name') or not type(
+         lambda,'name') or not type(A,'matrix'(ratpoly(anything,x),
+         square)) then
+   4       ERROR(`wrong number or type of arguments`)
+       end if;
+   5   userinfo(1,'IntegrableConnections:-ratsuper',`enter ratsuper at`,p,
+         `reduction step = 1`);
+   6   t0 := time();
+   7   if p = 1/x then
+   8       M := map(simplify,evalm(-1/x^2*subs(x = 1/x,eval(A))));
+   9       p1 := x;
+  10       x0 := 1/x
+       elif degree(p,x) = 1 and p <> x then
+  11       x0 := RootOf(p,x);
+  12       M := map(simplify,subs(x = x+x0,eval(A)));
+  13       p1 := x
+       else
+  14       x0 := 0;
+  15       p1 := p;
+  16       M := copy(A)
+       end if;
+  17   n := linalg[rowdim](A);
+  18   if _npassed = 6 then
+  19       T := IntegrableConnections:-Id(n);
+  20       invT := evalm(T)
+       end if;
+  21   k := 1;
+  22   if p1 = infinity then
+  23       dp := 1
+       else
+  24       dp := diff(p1,x)
+       end if;
+  25   userinfo(5,'IntegrableConnections:-ratsuper',
+         `computing pole order, Glambda and mk`);
+  26   if _npassed = 4 then
+  27       M := IntegrableConnections:-sortColumns(M,x,p1,n,k,lambda,'s','ntab'
+             ,'vals','mk','G')
+       else
+  28       M := IntegrableConnections:-sortColumns(M,x,p1,n,k,lambda,'s','ntab'
+             ,'vals','mk','G',T,invT)
+       end if;
+  29   userinfo(3,'IntegrableConnections:-ratsuper',`pole order:`,s);
+  30   userinfo(2,'IntegrableConnections:-ratsuper',`valuations:`,op(convert(
+         vals,'list')));
+  31   userinfo(3,'IntegrableConnections:-ratsuper',`ntab:`,convert(ntab,'list'
+         ));
+  32   userinfo(3,'IntegrableConnections:-ratsuper',`mk:`,mk);
+  33   mktab[1] := mk;
+  34   npoly := NULL;
+  35   while 1 < s and k < s do
+  36       GG := evalm(G);
+  37       MM := evalm(M);
+  38       theta := expand(rem(linalg[det](G),p1,x));
+  39       userinfo(5,'IntegrableConnections:-ratsuper',`reduction step:`,k,
+             `theta:`,theta);
+  40       if theta = 0 then
+  41           rk := IntegrableConnections:-pgaussUnimod(linalg[submatrix](G,1
+                 .. n,1 .. mk),x,p1,'P');
+  42           if rk < mk then
+  43               userinfo(4,'IntegrableConnections:-ratsuper',
+                     `columns are linearly dependent`);
+  44               userinfo(5,IntegrableConnections:-ratsuper,`kernel dim = `,
+                     mk-rk);
+  45               if _npassed = 4 then
+  46                   M := IntegrableConnections:-reduceColRank4(M,x,p1,n,k,-s
+                         ,ntab,vals,mk,P,iP)
+                   else
+  47                   M := IntegrableConnections:-reduceColRank4(M,x,p1,n,k,-s
+                         ,ntab,vals,mk,P,iP,T,invT)
+                   end if
+               else
+  48               userinfo(4,'IntegrableConnections:-ratsuper',
+                     `columns are linearly independent`);
+  49               nu := nu+1;
+  50               if _npassed = 4 then
+  51                   M := IntegrableConnections:-qtcd(M,x,p1,n,k,ntab,mk,
+                         lambda,G)
+                   else
+  52                   M := IntegrableConnections:-qtcd(M,x,p1,n,k,ntab,mk,
+                         lambda,G,T,invT)
+                   end if
+               end if
+           else
+  53           if k < s-1 then
+  54               theta := expand(theta/(lambda^ldegree(theta,lambda)))
+               end if;
+  55           if k = 1 and s <> 1 then
+  56               i := linalg[charpoly](linalg[submatrix](G,1 .. ntab[1],1 ..
+                   ntab[1]),lambda);
+  57               npoly := [s-1, primpart(rem(subs(lambda = dp*lambda,i),p1,x)
+                     ,lambda)];
+  58               userinfo(2,'IntegrableConnections:-ratsuper',
+                     `slope (Katz approximation):`,s-1,`invariant:`,op(1,[npoly
+                     ])[2])
+               end if;
+  59           npoly := [s-k-1, primpart(rem(subs(lambda = -dp*lambda,theta),p1
+                 ,x),lambda)], npoly;
+  60           userinfo(2,'IntegrableConnections:-ratsuper',`slope:`,s-k-1,
+                 `invariant:`,op(1,[npoly])[2]);
+  61           if k = s-1 then
+  62               break
+               end if;
+  63           k := k+1;
+  64           userinfo(1,'IntegrableConnections:-ratsuper',
+                 `increase reduction step to: `,k)
+           end if;
+  65       userinfo(5,'IntegrableConnections:-ratsuper',
+             `recomputing pole order, Glambda and mk`);
+  66       if _npassed = 4 then
+  67           M := IntegrableConnections:-sortColumns(M,x,p1,n,k,lambda,'s','
+                 ntab','vals','mk','G')
+           else
+  68           M := IntegrableConnections:-sortColumns(M,x,p1,n,k,lambda,'s','
+                 ntab','vals','mk','G',T,invT)
+           end if;
+  69       userinfo(3,'IntegrableConnections:-ratsuper',`pole order:`,s);
+  70       userinfo(2,'IntegrableConnections:-ratsuper',`valuations:`,op(
+             convert(vals,'list')));
+  71       userinfo(3,'IntegrableConnections:-ratsuper',`ntab:`,convert(ntab,'
+             list'));
+  72       userinfo(3,'IntegrableConnections:-ratsuper',`mk:`,mk);
+  73       mktab[k] := mk
+       end do;
+  74   if s = 0 then
+  75       userinfo(2,'IntegrableConnections:-ratsuper',`matrix is analytic at`
+             ,p1);
+  76       if x0 = 1/x then
+  77           s := -s+2
+           else
+  78           s := -s
+           end if;
+  79       RETURN([evalm(A), [s, n], lambda^n, 0])
+       elif s = 1 then
+  80       userinfo(2,'IntegrableConnections:-ratsuper',
+             `matrix is regular singular at`,p1);
+  81       IntegrableConnections:-matval(M,x,p1,'G');
+  82       theta := linalg[charpoly](G,lambda);
+  83       npoly := [0, primpart(rem(subs(lambda = dp*lambda,theta),p1,x),
+             lambda)];
+  84       userinfo(2,'IntegrableConnections:-ratsuper',`slope:`,0,
+             `indicial equation:`,op(1,[npoly])[2]);
+  85       ntab[1] := n
+       else
+  86       ntab[s] := n-mk
+       end if;
+  87   if x0 = 1/x then
+  88       if 4 < _npassed then
+  89           T := map(simplify,subs(x = 1/x,eval(T)));
+  90           invT := map(simplify,subs(x = 1/x,eval(invT)))
+           end if;
+  91       M := map(simplify,evalm(-1/x^2*subs(x = 1/x,eval(M))));
+  92       s := s-2
+       elif x0 <> 0 then
+  93       if 4 < _npassed then
+  94           T := map(simplify,subs(x = x-x0,eval(T)));
+  95           invT := map(simplify,subs(x = x-x0,eval(invT)))
+           end if;
+  96       M := map(simplify,subs(x = x-x0,eval(M)))
+       end if;
+  97   userinfo(1,'IntegrableConnections:-ratsuper',`time: `,time()-t0);
+  98   npoly := [npoly];
+  99   if npoly = [] then
+ 100       [evalm(M), [-s, op(convert(ntab,'list'))], [], nu]
+       else
+ 101       [evalm(M), [-s, op(convert(ntab,'list'))], npoly[1][2], nu]
+       end if
+end proc
+
+> printf("END_RATSUPER\n"):
+END_RATSUPER
+
+> quit:
+memory used=2.5MB, alloc=8.3MB, time=0.02

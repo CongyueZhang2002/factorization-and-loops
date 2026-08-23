@@ -1,0 +1,3480 @@
+<|"Primes" -> {1000003, 2147483563, 2147483587, 2147483629, 2147483647}, 
+ "CombinedModulus" -> 21267710091513184983770675390052891325111609, 
+ "SourceHashes" -> <|"RecordSHA256" -> 11358829562585584542598448635945735753\
+4359552795149057653945626206801590437407, "ResidueSHA256" -> 
+    3947507085841603909842781216444180899545917490067459964096300557571708260\
+9773, "CheckpointSHA256" -> 
+    2213269385536413422837430700330018224388647991875851117681800826320600498\
+0395, "InterpolationSHA256" -> 
+    <|"CF254_9_7_epsilon_interpolation_mod_1000003.wl" -> 3162339515622856890\
+2635308473150823840816888627672434824512343759858363992631, 
+     "CF254_9_7_epsilon_interpolation_mod_2147483563.wl" -> 22969029845661487\
+024305422589679872366014392911408222018867636239421896039126, 
+     "CF254_9_7_epsilon_interpolation_mod_2147483587.wl" -> 41607878446935606\
+992096738205801092406508691186847366922828062592968304178139, 
+     "CF254_9_7_epsilon_interpolation_mod_2147483629.wl" -> 49672299419886222\
+266029861356475687765111620770807441982844882364571623446613, 
+     "CF254_9_7_epsilon_interpolation_mod_2147483647.wl" -> 74766278200939205\
+750947938428140315856434431828409887893300472535882939655244|>|>, 
+ "NormalizationColumns" -> {1937, 1938, 1939, 1940, 1941, 1942, 1943, 1944, 
+   1945, 1946, 1947, 1948, 1949, 1950, 1951, 1952}, 
+ "LiftingSeconds" -> 0.212366, "GaugeDenominatorDegrees" -> {9, 10}, 
+ "GaugeNumeratorDegrees" -> {10, 10}, "ModularDenominatorsMonic" -> True, 
+ "CoefficientLiftChecks" -> {True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True, True, True, True, True, True, True, True, True, True, True, True, 
+   True}, "ResidueRules" -> {kr17a2i1j2 -> 0, kr17a2i1j4 -> 0, 
+   kr17a2i2j2 -> 0, kr17a2i3j2 -> 0, kr17a2i4j2 -> 0, kr17a3i1j3 -> 0, 
+   kr17a3i2j3 -> 0, kr17a3i3j3 -> 0, kr17a3i4j3 -> 0, kr17a6i1j3 -> 0, 
+   kr17a8i1j3 -> 0, kr17a8i2j3 -> 0, kr17a8i3j3 -> 0, kr17a8i4j3 -> 0, 
+   kr17a9i1j3 -> 0, kr17a10i1j3 -> 0, kr17a11i1j2 -> 
+    125623/(68296767018690*(1 + eps))}, 
+ "Gauge" -> 
+  {{((77622*eps^2*(3 + eps))/(11382794503115*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((1973061 + 14249885*eps + 27971202*eps^2 + 
+         22381960*eps^3)*x)/(22765589006230*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-88787745 - 647383237*eps - 1473087678*eps^2 - 
+         1096051532*eps^3)*x^2)/(68296767018690*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((73880173 + 547853271*eps + 1309674086*eps^2 + 
+         982187864*eps^3)*x^3)/(11382794503115*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (2*(645190947 + 4944710095*eps + 12458477310*eps^2 + 
+         9890643176*eps^3)*x^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (4*(304509081 + 2435853419*eps + 6682009806*eps^2 + 
+         5739383608*eps^3)*x^5)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (8*(40118907 + 337393431*eps + 1010670454*eps^2 + 
+         927336592*eps^3)*x^6)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (16*(3726893 + 49764983*eps + 232818470*eps^2 + 
+         271794904*eps^3)*x^7)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (32*(2411519 + 15565259*eps + 23194438*eps^2 + 
+         5422200*eps^3)*x^8)/(11382794503115*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (64*(1973061 + 13811427*eps + 26428286*eps^2 + 
+         14497400*eps^3)*x^9)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (512*eps^2*x^10)/(1265457977*(1 + 6*eps + 8*eps^2)) + 
+      (51748*eps^2*(15 + 11*eps)*y)/(11382794503115*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((5919183 + 42311197*eps + 63118266*eps^2 + 
+         41965040*eps^3)*x*y)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(76949379 + 554649370*eps + 1155949089*eps^2 + 
+         793903865*eps^3)*x^2*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((577229957 + 4219500563*eps + 9518931214*eps^2 + 
+         6708736152*eps^3)*x^3*y)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(917473365 + 6884886745*eps + 16274564346*eps^2 + 
+         12091729280*eps^3)*x^4*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (4*(891165885 + 6876556043*eps + 17109192606*eps^2 + 
+         13477789240*eps^3)*x^5*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (32*(28718999 + 226463557*eps + 588964746*eps^2 + 
+         483042624*eps^3)*x^6*y)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (16*(31349747 + 261540197*eps + 738807458*eps^2 + 
+         654148200*eps^3)*x^7*y)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (64*(-2849977 - 16003717*eps - 12065330*eps^2 + 
+         14211936*eps^3)*x^8*y)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (64*(3288435 + 23019045*eps + 45243746*eps^2 + 
+         25543976*eps^3)*x^9*y)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (5120*eps^2*x^10*y)/(26574617517*
+        (1 + 6*eps + 8*eps^2)) + (25874*eps^2*(39 + 97*eps)*y^2)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-29595915 - 219886687*eps - 739210182*eps^2 - 683608712*eps^3)*x*y^2)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((20388297 + 191386917*eps + 1080148262*eps^2 + 1150414452*eps^3)*x^2*
+        y^2)/(68296767018690*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(92733867 + 630502604*eps + 1068014208*eps^2 + 463145392*eps^3)*x^3*
+        y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(671498427 + 4827203351*eps + 10028324358*eps^2 + 6281656528*eps^3)*
+        x^4*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(253209495 + 1854019653*eps + 3989149106*eps^2 + 2646357256*eps^3)*
+        x^5*y^2)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(96241531 + 703944319*eps + 1521046342*eps^2 + 1010645648*eps^3)*x^6*
+        y^2)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(21703671 + 160694857*eps + 359023770*eps^2 + 248612264*eps^3)*x^7*
+        y^2)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (128*(1534603 + 12057595*eps + 29698846*eps^2 + 23396832*eps^3)*x^8*
+        y^2)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (64*(1534603 + 10742221*eps + 21401506*eps^2 + 12245288*eps^3)*x^9*y^2)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (512*eps^2*x^10*y^2)/(26574617517*(1 + 6*eps + 8*eps^2)) - 
+      (206992*eps^2*(21 + 11*eps)*y^3)/(34148383509345*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(11180679 + 80457043*eps + 164807958*eps^2 + 124747424*eps^3)*x*y^3)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(40557365 + 296616837*eps + 694406654*eps^2 + 510858036*eps^3)*x^2*
+        y^3)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(163106376 + 1237986163*eps + 3056481678*eps^2 + 2367574760*eps^3)*
+        x^3*y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(77387837 + 635983329*eps + 1798720490*eps^2 + 1595058016*eps^3)*x^4*
+        y^3)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(3726893 + 96241531*eps + 606513182*eps^2 + 779975928*eps^3)*x^5*
+        y^3)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (64*(-219229 + 1973061*eps + 23150186*eps^2 + 33298600*eps^3)*x^6*y^3)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(19072923 + 127372049*eps + 222189882*eps^2 + 93207496*eps^3)*x^7*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (64*(8549931 + 62041807*eps + 132482694*eps^2 + 85939856*eps^3)*x^8*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (64*(219229 + 1096145*eps + 887196*eps^2)*x^9*y^3)/
+       (34148383509345*(1 + 5*eps + 4*eps^2)) - 
+      (51748*eps^2*(93 + 127*eps)*y^4)/(34148383509345*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1973061 + 21265213*eps + 248978466*eps^2 + 276298664*eps^3)*x*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((180863925 + 1237547705*eps + 2078312598*eps^2 + 967456828*eps^3)*x^2*
+        y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(162448689 + 1170463631*eps + 2465314998*eps^2 + 1580052696*eps^3)*
+        x^3*y^4)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(62918723 + 463669335*eps + 1022408186*eps^2 + 698304780*eps^3)*x^4*
+        y^4)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(244001877 + 1819381471*eps + 4101059478*eps^2 + 2891560664*eps^3)*
+        x^5*y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(25211335 + 189194627*eps + 434001774*eps^2 + 311185040*eps^3)*x^6*
+        y^4)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(15126801 + 117287515*eps + 282134286*eps^2 + 215573624*eps^3)*x^7*
+        y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(3288435 + 23457503*eps + 48637998*eps^2 + 29876824*eps^3)*x^8*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (103496*eps^2*(-5 + 3*eps)*y^5)/(11382794503115*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (2*(6357641 + 46257319*eps + 112773358*eps^2 + 
+         89646576*eps^3)*x*y^5)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(18634465 + 140087331*eps + 346255224*eps^2 + 
+         267476186*eps^3)*x^2*y^5)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (2*(46695777 + 371593155*eps + 994363374*eps^2 + 
+         835928536*eps^3)*x^3*y^5)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(-15126801 - 58095685*eps + 156439182*eps^2 + 
+         378383296*eps^3)*x^4*y^5)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(13811427 + 89664661*eps + 137579874*eps^2 + 
+         36028744*eps^3)*x^5*y^5)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (32*(3288435 + 22142129*eps + 39908898*eps^2 + 
+         18315472*eps^3)*x^6*y^5)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (16*(5919183 + 43188113*eps + 93299034*eps^2 + 
+         61322440*eps^3)*x^7*y^5)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (51748*eps^2*(25 + 31*eps)*y^6)/
+       (11382794503115*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1534603 + 9426847*eps - 2362650*eps^2 - 14376472*eps^3)*x*y^6)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-29595915 - 209363695*eps - 416031570*eps^2 - 249071836*eps^3)*x^2*
+        y^6)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(10961450 + 80018585*eps + 173247490*eps^2 + 115015608*eps^3)*x^3*
+        y^6)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(59849517 + 443061809*eps + 984677802*eps^2 + 677983312*eps^3)*x^4*
+        y^6)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(21703671 + 119918263*eps + 134624836*eps^2)*x^5*y^6)/
+       (102445150528035*(1 + 5*eps + 4*eps^2)) - 
+      (8*(657687 + 5042267*eps + 11838366*eps^2 + 8738320*eps^3)*x^6*y^6)/
+       (20489030105607*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (206992*eps^2*(1 + 3*eps)*y^7)/(11382794503115*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(1096145 + 8111473*eps + 20109074*eps^2 + 
+         15889600*eps^3)*x*y^7)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (4*(12496053 + 94926157*eps + 231545190*eps^2 + 
+         177410732*eps^3)*x^2*y^7)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (8*(1534603 + 12276824*eps + 32112560*eps^2 + 
+         26621520*eps^3)*x^3*y^7)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (4*(-3288435 - 19949839*eps - 24953910*eps^2 + 
+         2220832*eps^3)*x^4*y^7)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (4*(219229 + 1534603*eps + 3063038*eps^2 + 
+         1757944*eps^3)*x^5*y^7)/(6829676701869*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (25874*eps^2*(33 + 43*eps)*y^8)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-657687 - 2411519*eps + 16007850*eps^2 + 25362536*eps^3)*x*y^8)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((6796099 + 48011151*eps + 95195962*eps^2 + 55578020*eps^3)*x^2*y^8)/
+       (68296767018690*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-21703671 - 158064109*eps - 340219266*eps^2 - 222370760*eps^3)*x^3*
+        y^8)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(5919183 + 31788205*eps + 32415052*eps^2)*x^4*y^8)/
+       (102445150528035*(1 + 5*eps + 4*eps^2)) - 
+      (51748*eps^2*(3 + 7*eps)*y^9)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((1973061 + 14688343*eps + 34545774*eps^2 + 
+         25890320*eps^3)*x*y^9)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(438458 + 3288435*eps + 7555997*eps^2 + 
+         5423339*eps^3)*x^2*y^9)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((3288435 + 24772877*eps + 56591922*eps^2 + 
+         40276456*eps^3)*x^3*y^9)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (25874*eps^2*(3 + 5*eps)*y^10)/(34148383509345*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-657687 - 5042267*eps - 12319518*eps^2 - 9529960*eps^3)*x*y^10)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((657687 + 5042267*eps + 11853786*eps^2 + 8753740*eps^3)*x^2*y^10)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)))/
+     ((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*(3 + 4*x^2 + 2*y - y^2)*
+      (-1 + 6*x + 2*x*y + y^2)^2*(-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 
+       12*eps*x^2 - 6*y - 6*eps*y + 12*x*y + 16*eps*x*y + 3*y^2 + 
+       5*eps*y^2)), ((12937*(27 + 214*eps + 451*eps^2 + 292*eps^3))/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-26532783 - 201203479*eps - 431159110*eps^2 - 287145704*eps^3)*x)/
+       (136593534037380*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((581617647 + 4373025751*eps + 9762163138*eps^2 + 6792196120*eps^3)*
+        x^2)/(409780602112140*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1001207565 - 7718235447*eps - 18333976110*eps^2 - 13557372152*eps^3)*
+        x^3)/(204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((810149019 + 6606479343*eps + 17060253886*eps^2 + 13700880360*eps^3)*
+        x^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(337357201 + 2964575283*eps + 8325362502*eps^2 + 7253984472*eps^3)*
+        x^5)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(106727489 + 1029825077*eps + 3050730738*eps^2 + 2813386712*eps^3)*
+        x^6)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(-325649 + 103563805*eps + 530740602*eps^2 + 657859496*eps^3)*x^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(23502335 + 147431139*eps + 249665366*eps^2 + 91315080*eps^3)*x^8)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(5569703 + 39018065*eps + 80332050*eps^2 + 47377128*eps^3)*x^9)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (256*(3 + 19*eps + 20*eps^2)*x^10)/(11389121793*
+        (1 + 6*eps + 8*eps^2)) + (25874*(81 + 640*eps + 1291*eps^2 + 
+         784*eps^3)*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-88168653 - 658235775*eps - 1338159126*eps^2 - 832864696*eps^3)*x*y)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(177101472 + 1299601318*eps + 2741819315*eps^2 + 1783450760*eps^3)*
+        x^2*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2676006023 - 19981663201*eps - 44731887570*eps^2 - 
+         30953508648*eps^3)*x^3*y)/(204890301056070*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (2*(1182884573 + 9210336217*eps + 22223334018*eps^2 + 
+         16660395704*eps^3)*x^4*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (2*(1049075429 + 8536184131*eps + 22078002102*eps^2 + 
+         17810989688*eps^3)*x^5*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (16*(87510593 + 732693159*eps + 1948235954*eps^2 + 
+         1631147816*eps^3)*x^6*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (8*(76475169 + 707592967*eps + 2022719102*eps^2 + 
+         1820126360*eps^3)*x^7*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (32*(-10929683 - 61160751*eps - 72155710*eps^2 + 
+         14044408*eps^3)*x^8*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (32*(9883201 + 69675847*eps + 141022622*eps^2 + 
+         81394456*eps^3)*x^9*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (512*(5 + 27*eps + 24*eps^2)*x^10*y)/
+       (79723852551*(1 + 6*eps + 8*eps^2)) - 
+      (12937*(135 + 1074*eps + 2523*eps^2 + 1868*eps^3)*y^2)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((50006859 + 417956111*eps + 1231545750*eps^2 + 1086655240*eps^3)*x*
+        y^2)/(409780602112140*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((74249867 + 366945507*eps - 172492750*eps^2 - 872013768*eps^3)*x^2*
+        y^2)/(136593534037380*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(172985855 + 1151896844*eps + 1977198272*eps^2 + 877424288*eps^3)*
+        x^3*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(922633971 + 6646038407*eps + 13944668014*eps^2 + 8753444968*eps^3)*
+        x^4*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(324717407 + 2426959645*eps + 5543998650*eps^2 + 3869508200*eps^3)*
+        x^5*y^2)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(342851985 + 2556852781*eps + 5937464018*eps^2 + 4246948696*eps^3)*
+        x^6*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(64937549 + 488142403*eps + 1122332358*eps^2 + 799155736*eps^3)*x^7*
+        y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (64*(3807765 + 31614529*eps + 81224334*eps^2 + 65577480*eps^3)*x^8*y^2)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(4753257 + 28653878*eps + 38337240*eps^2)*x^9*y^2)/
+       (102445150528035*(1 + 6*eps + 8*eps^2)) + (256*(1 + eps)*x^10*y^2)/
+       (79723852551*(1 + 2*eps)) - (103496*(51 + 402*eps + 831*eps^2 + 
+         524*eps^3)*y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(39834815 + 298956571*eps + 638283598*eps^2 + 421902104*eps^3)*x*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(207781123 + 1571776823*eps + 3603898042*eps^2 + 2560590456*eps^3)*
+        x^2*y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(204792756 + 1648432227*eps + 4206615638*eps^2 + 3319983112*eps^3)*
+        x^3*y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(228471791 + 2173243875*eps + 6806315606*eps^2 + 6350837864*eps^3)*
+        x^4*y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(-56272705 - 60415751*eps + 1294405666*eps^2 + 2238288680*eps^3)*x^5*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(-5390755 - 25913105*eps - 10714750*eps^2 + 40796184*eps^3)*x^6*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(23127939 + 155339001*eps + 293274466*eps^2 + 148057320*eps^3)*x^7*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(2781921 + 20450725*eps + 44346106*eps^2 + 28917592*eps^3)*x^8*y^3)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(686479 + 4118874*eps + 5471272*eps^2)*x^9*y^3)/
+       (102445150528035*(1 + 6*eps + 8*eps^2)) + 
+      (25874*(9 + 82*eps + 481*eps^2 + 588*eps^3)*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((36883195 + 242139107*eps + 263858750*eps^2 - 30523960*eps^3)*x*y^4)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-412652297 - 2821185841*eps - 5063181166*eps^2 - 2506219560*eps^3)*
+        x^2*y^4)/(204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((707216939 + 5122488357*eps + 10861394922*eps^2 + 6956529128*eps^3)*
+        x^3*y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(234443233 + 1769758397*eps + 4068880426*eps^2 + 2869470872*eps^3)*
+        x^4*y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(284065005 + 2188024391*eps + 5235726894*eps^2 + 3872669432*eps^3)*
+        x^5*y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(76463429 + 586504313*eps + 1382663546*eps^2 + 1016432312*eps^3)*x^6*
+        y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(12791113 + 103764323*eps + 257757702*eps^2 + 200663768*eps^3)*x^7*
+        y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(3350155 + 23987551*eps + 49905086*eps^2 + 30599528*eps^3)*x^8*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (51748*(29 + 228*eps + 491*eps^2 + 328*eps^3)*y^5)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-46775115 - 355533869*eps - 816397346*eps^2 - 584501032*eps^3)*x*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(76793937 + 609159001*eps + 1530167292*eps^2 + 1191455352*eps^3)*x^2*
+        y^5)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-137898315 - 1240695569*eps - 3636679218*eps^2 - 3224044392*eps^3)*
+        x^3*y^5)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(-35273785 - 162206405*eps + 18196774*eps^2 + 356952232*eps^3)*x^4*
+        y^5)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(19407675 + 128610845*eps + 231940938*eps^2 + 103179528*eps^3)*x^5*
+        y^5)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(4193543 + 28461769*eps + 54589614*eps^2 + 28745464*eps^3)*x^6*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(5972711 + 43831481*eps + 95238978*eps^2 + 62707560*eps^3)*x^7*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (25874*(-7 - 50*eps - 27*eps^2 + 52*eps^3)*y^6)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-25273601 - 169707917*eps - 262128514*eps^2 - 89108568*eps^3)*x*y^6)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((156561197 + 1108042821*eps + 2234740414*eps^2 + 1341838600*eps^3)*x^2*
+        y^6)/(204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(42236722 + 312530291*eps + 694060766*eps^2 + 471150488*eps^3)*x^3*
+        y^6)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(67854325 + 514661761*eps + 1187202274*eps^2 + 842286424*eps^3)*x^4*
+        y^6)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(23030847 + 176870845*eps + 413352634*eps^2 + 300350184*eps^3)*x^5*
+        y^6)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(655639 + 5074539*eps + 12007102*eps^2 + 8920040*eps^3)*x^6*y^6)/
+       (20489030105607*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (103496*(15 + 118*eps + 271*eps^2 + 196*eps^3)*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(6413915 + 49664475*eps + 119227982*eps^2 + 89391768*eps^3)*x*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(15183321 + 121397477*eps + 305524502*eps^2 + 239009960*eps^3)*x^2*
+        y^7)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(4172397 + 36989168*eps + 103738176*eps^2 + 89604144*eps^3)*x^3*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(4550987 + 27394255*eps + 40054446*eps^2 + 7579912*eps^3)*x^4*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(670031 + 4036634*eps + 5405480*eps^2)*x^5*y^7)/
+       (20489030105607*(1 + 6*eps + 8*eps^2)) + 
+      (12937*(-3 - 6*eps + 117*eps^2 + 188*eps^3)*y^8)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((5556279 + 34341119*eps + 42743638*eps^2 + 2001448*eps^3)*x*y^8)/
+       (409780602112140*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-31837869 - 224666053*eps - 459513222*eps^2 - 280333896*eps^3)*x^2*
+        y^8)/(409780602112140*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((25163839 + 183889125*eps + 401224522*eps^2 + 266861288*eps^3)*x^3*
+        y^8)/(204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5972711 - 44285707*eps - 97933494*eps^2 - 66279688*eps^3)*x^4*y^8)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (25874*(9 + 72*eps + 171*eps^2 + 128*eps^3)*y^9)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-3276037 - 25180671*eps - 59092502*eps^2 - 43308728*eps^3)*x*y^9)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(1529835 + 11639581*eps + 26965537*eps^2 + 19459104*eps^3)*x^2*y^9)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-3309035 - 25103509*eps - 57618554*eps^2 - 41151432*eps^3)*x^3*y^9)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (12937*(3 + 14*eps + 15*eps^2)*y^10)/(102445150528035*
+        (1 + 3*eps + 2*eps^2)) + ((816023 + 6450827*eps + 15727470*eps^2 + 
+         12045480*eps^3)*x*y^10)/(409780602112140*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-660779 - 5105379*eps - 12053362*eps^2 - 
+         8940600*eps^3)*x^2*y^10)/(409780602112140*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)))/((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*
+      (3 + 4*x^2 + 2*y - y^2)*(-1 + 6*x + 2*x*y + y^2)^2*
+      (-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 12*eps*x^2 - 6*y - 6*eps*y + 
+       12*x*y + 16*eps*x*y + 3*y^2 + 5*eps*y^2)), 
+    ((-25874*(27 + 214*eps + 478*eps^2 + 301*eps^3))/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(4804101 + 37440040*eps + 82969087*eps^2 + 52826540*eps^3)*x)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(63095148 + 493006042*eps + 1094630893*eps^2 + 719713645*eps^3)*x^2)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(44833581 + 379280559*eps + 883416024*eps^2 + 644071784*eps^3)*x^3)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(3165927 + 83172721*eps + 285323584*eps^2 + 291004084*eps^3)*x^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(-9757463 - 28976881*eps + 39260668*eps^2 + 115129480*eps^3)*x^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(10509721 + 55598635*eps + 68482126*eps^2 + 8423970*eps^3)*x^6)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (64*(3536369 + 18769899*eps + 29213512*eps^2 + 16577704*eps^3)*x^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (128*(831097 + 6880755*eps + 14864896*eps^2 + 7461832*eps^3)*x^8)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (256*(436669 + 3136701*eps + 6544122*eps^2 + 3759280*eps^3)*x^9)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (512*(3 + 20*eps + 31*eps^2)*x^10)/(11389121793*
+        (1 + 6*eps + 8*eps^2)) - (51748*(81 + 640*eps + 1426*eps^2 + 
+         883*eps^3)*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(16554879 + 127430817*eps + 280215102*eps^2 + 174103246*eps^3)*x*y)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(81988545 + 623322584*eps + 1357886822*eps^2 + 856136535*eps^3)*x^2*
+        y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(133889675 + 1044047377*eps + 2284881356*eps^2 + 1514239516*eps^3)*
+        x^3*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(12211457 + 126888095*eps + 312855152*eps^2 + 250152628*eps^3)*x^4*
+        y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(-13111519 - 47161277*eps + 3633604*eps^2 + 109357348*eps^3)*x^5*y)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (128*(4745842 + 28989893*eps + 46335766*eps^2 + 16429849*eps^3)*x^6*y)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (64*(9943491 + 64122041*eps + 122743084*eps^2 + 73593276*eps^3)*x^7*y)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (256*(90395 + 171457*eps + 622616*eps^2 + 1921008*eps^3)*x^8*y)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (256*(577691 + 4013345*eps + 8097124*eps^2 + 4556100*eps^3)*x^9*y)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (1024*(5 + 31*eps + 47*eps^2)*x^10*y)/(79723852551*
+        (1 + 6*eps + 8*eps^2)) + (25874*(135 + 1074*eps + 2406*eps^2 + 
+         1577*eps^3)*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (2*(3356241 + 32000658*eps + 77869077*eps^2 + 
+         68160392*eps^3)*x*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (2*(24862682 + 169620966*eps + 343117929*eps^2 + 
+         172057195*eps^3)*x^2*y^2)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (32*(14590646 + 99408232*eps + 194117908*eps^2 + 
+         101840081*eps^3)*x^3*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (16*(23157855 + 152752445*eps + 248173392*eps^2 + 
+         91053020*eps^3)*x^4*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (16*(-2934743 - 16903025*eps - 15139244*eps^2 + 
+         2629288*eps^3)*x^5*y^2)/(34148383509345*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (32*(3506181 + 29907571*eps + 63134326*eps^2 + 
+         26296662*eps^3)*x^6*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (128*(3885655 + 27602245*eps + 56352464*eps^2 + 
+         33024132*eps^3)*x^7*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (512*(470688 + 3265937*eps + 6970494*eps^2 + 
+         4640435*eps^3)*x^8*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (256*(234315 + 1606795*eps + 3164934*eps^2 + 
+         1743624*eps^3)*x^9*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (512*(1 + 6*eps + 9*eps^2)*x^10*y^2)/
+       (79723852551*(1 + 6*eps + 8*eps^2)) + 
+      (206992*(51 + 402*eps + 894*eps^2 + 557*eps^3)*y^3)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(6503747 + 50187491*eps + 110166852*eps^2 + 69605476*eps^3)*x*y^3)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(14347222 + 112939937*eps + 248280988*eps^2 + 166674513*eps^3)*x^2*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(796467 + 16301049*eps + 47579932*eps^2 + 48019457*eps^3)*x^3*y^3)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(14623213 + 78810587*eps + 104603632*eps^2 + 1143196*eps^3)*x^4*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(17523133 + 105968183*eps + 153532988*eps^2 + 34823316*eps^3)*x^5*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (256*(1144456 + 7430205*eps + 14043820*eps^2 + 8236747*eps^3)*x^6*y^3)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (128*(-111765 - 1190543*eps - 1909772*eps^2 + 567688*eps^3)*x^7*y^3)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (256*(555585 + 3872303*eps + 8041200*eps^2 + 4973444*eps^3)*x^8*y^3)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (256*(31613 + 152925*eps + 113602*eps^2)*x^9*y^3)/
+       (102445150528035*(1 + 5*eps + 4*eps^2)) - 
+      (51748*(9 + 82*eps + 202*eps^2 + 207*eps^3)*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(9830497 + 70870636*eps + 148585079*eps^2 + 79451980*eps^3)*x*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(47274068 + 335162194*eps + 682448199*eps^2 + 382595491*eps^3)*x^2*
+        y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(26208767 + 184972877*eps + 352712424*eps^2 + 189969124*eps^3)*x^3*
+        y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(-283009 - 1669049*eps + 4969352*eps^2 + 7961476*eps^3)*x^4*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(4383099 + 32201165*eps + 67255140*eps^2 + 36240280*eps^3)*x^5*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(4255909 + 30155975*eps + 61603590*eps^2 + 36449474*eps^3)*x^6*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (64*(1476575 + 10275349*eps + 22093608*eps^2 + 14939888*eps^3)*x^7*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (128*(178625 + 1246607*eps + 2542392*eps^2 + 1517076*eps^3)*x^8*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (103496*(29 + 228*eps + 506*eps^2 + 319*eps^3)*y^5)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(5800029 + 45302759*eps + 99751582*eps^2 + 65746334*eps^3)*x*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(3847401 + 36658142*eps + 89289174*eps^2 + 72886697*eps^3)*x^2*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(8813997 + 51371175*eps + 83229892*eps^2 + 24814312*eps^3)*x^3*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(4144093 + 25398867*eps + 39959408*eps^2 + 14051860*eps^3)*x^4*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(584031 + 3491549*eps + 5836620*eps^2 + 2984732*eps^3)*x^5*y^5)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (128*(32222 + 155381*eps + 423842*eps^2 + 556157*eps^3)*x^6*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (64*(335917 + 2392887*eps + 5092996*eps^2 + 3291500*eps^3)*x^7*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (51748*(7 + 50*eps + 102*eps^2 + 41*eps^3)*y^6)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(4895771 + 34813490*eps + 71120531*eps^2 + 38441288*eps^3)*x*y^6)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(11703878 + 83384958*eps + 167282979*eps^2 + 95809045*eps^3)*x^2*
+        y^6)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(397543 + 2734135*eps + 4418636*eps^2 + 2083051*eps^3)*x^3*y^6)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(1530599 + 11248117*eps + 24579152*eps^2 + 15924684*eps^3)*x^4*y^6)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(948969 + 6825775*eps + 14682468*eps^2 + 9576488*eps^3)*x^5*y^6)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(39323 + 292053*eps + 671834*eps^2 + 492610*eps^3)*x^6*y^6)/
+       (20489030105607*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (206992*(15 + 118*eps + 262*eps^2 + 169*eps^3)*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(587315 + 4741263*eps + 10714720*eps^2 + 7455232*eps^3)*x*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(-65592 + 172547*eps + 1544440*eps^2 + 2408141*eps^3)*x^2*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(379530 + 2544470*eps + 4910864*eps^2 + 2782985*eps^3)*x^3*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(121583 + 660185*eps + 1310224*eps^2 + 1053124*eps^3)*x^4*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(35725 + 244935*eps + 481132*eps^2 + 264212*eps^3)*x^5*y^7)/
+       (20489030105607*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (25874*(-3 - 6*eps + 18*eps^2 + 59*eps^3)*y^8)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(1185837 + 8189392*eps + 16020383*eps^2 + 8186444*eps^3)*x*y^8)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(1659252 + 11685526*eps + 23100399*eps^2 + 13577383*eps^3)*x^2*y^8)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(415721 + 3394291*eps + 7678712*eps^2 + 5002880*eps^3)*x^3*y^8)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(335917 + 1742985*eps + 1743758*eps^2)*x^4*y^8)/
+       (102445150528035*(1 + 5*eps + 4*eps^2)) - 
+      (51748*(9 + 72*eps + 162*eps^2 + 107*eps^3)*y^9)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(209311 + 1678681*eps + 3808022*eps^2 + 2646918*eps^3)*x*y^9)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(96027 + 732932*eps + 1560258*eps^2 + 971313*eps^3)*x^2*y^9)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(188905 + 1384363*eps + 3106788*eps^2 + 2197644*eps^3)*x^3*y^9)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (25874*(3 + 26*eps + 62*eps^2 + 45*eps^3)*y^10)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(773 + 15778*eps + 88705*eps^2 + 111400*eps^3)*x*y^10)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(38038 + 283058*eps + 652559*eps^2 + 481045*eps^3)*x^2*y^10)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)))/
+     ((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*(3 + 4*x^2 + 2*y - y^2)*
+      (-1 + 6*x + 2*x*y + y^2)^2*(-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 
+       12*eps*x^2 - 6*y - 6*eps*y + 12*x*y + 16*eps*x*y + 3*y^2 + 
+       5*eps*y^2)), ((-12937*(27 + 130*eps + 213*eps^2 + 102*eps^3))/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((21647295 + 116052103*eps + 206305542*eps^2 + 105165128*eps^3)*x)/
+       (136593534037380*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-361770687 - 2097300439*eps - 3822675978*eps^2 - 1931935392*eps^3)*
+        x^2)/(409780602112140*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((452404413 + 2706285207*eps + 4505424702*eps^2 + 1868501464*eps^3)*
+        x^3)/(204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-277630827 - 1524213071*eps - 1373883390*eps^2 + 432004984*eps^3)*
+        x^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(-86025985 - 353945555*eps + 589828714*eps^2 + 1242066120*eps^3)*
+        x^5)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(-7389233 + 27550699*eps + 497502270*eps^2 + 547463416*eps^3)*x^6)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(9553793 + 89912771*eps + 264257750*eps^2 + 172692920*eps^3)*x^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(5588879 + 47981571*eps + 115068470*eps^2 + 69265352*eps^3)*x^8)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(684215 + 6901777*eps + 17457826*eps^2 + 11486984*eps^3)*x^9)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (256*(3 + 5*eps)*x^10)/(11389121793*(1 + 4*eps)) - 
+      (25874*(81 + 376*eps + 609*eps^2 + 306*eps^3)*y)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((73512189 + 388773279*eps + 708168630*eps^2 + 388895816*eps^3)*x*y)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(113590128 + 662151894*eps + 1288178241*eps^2 + 734958586*eps^3)*x^2*
+        y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1246729367 + 7728462369*eps + 15068568514*eps^2 + 8381733800*eps^3)*
+        x^3*y)/(204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(425633933 + 2603881161*eps + 4311375522*eps^2 + 1841645976*eps^3)*
+        x^4*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(-313538069 - 1806211011*eps - 1810458118*eps^2 + 236811400*eps^3)*
+        x^5*y)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(-16399601 - 96077423*eps - 39630634*eps^2 + 76912912*eps^3)*x^6*y)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(1149807 + 6426809*eps + 76057458*eps^2 + 45076200*eps^3)*x^7*y)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(3872867 + 28253599*eps + 59793214*eps^2 + 30296968*eps^3)*x^8*y)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(1740721 + 13321415*eps + 29156718*eps^2 + 17904984*eps^3)*x^9*y)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (512*(5 + 13*eps)*x^10*y)/(79723852551*(1 + 4*eps)) + 
+      (12937*(135 + 726*eps + 1269*eps^2 + 574*eps^3)*y^2)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-25579419 - 182103199*eps - 304710294*eps^2 - 66281736*eps^3)*x*y^2)/
+       (409780602112140*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-91077659 - 511428835*eps - 1307634666*eps^2 - 1080987792*eps^3)*x^2*
+        y^2)/(136593534037380*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(96446543 + 637882620*eps + 1602999648*eps^2 + 1187459376*eps^3)*x^3*
+        y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(368402499 + 2475863607*eps + 5768695118*eps^2 + 3963983080*eps^3)*
+        x^4*y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(115727087 + 754643773*eps + 1493853802*eps^2 + 849577800*eps^3)*x^5*
+        y^2)/(34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(104548737 + 704782317*eps + 1230478466*eps^2 + 545328360*eps^3)*x^6*
+        y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(11197181 + 88781219*eps + 181999510*eps^2 + 108339448*eps^3)*x^7*
+        y^2)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (64*(7941 + 1367433*eps + 5102566*eps^2 + 5924320*eps^3)*x^8*y^2)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(953433 + 6870047*eps + 14285630*eps^2 + 8451256*eps^3)*x^9*y^2)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (256*(1 + 3*eps)*x^10*y^2)/(79723852551*(1 + 4*eps)) + 
+      (103496*(51 + 246*eps + 417*eps^2 + 214*eps^3)*y^3)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(30606671 + 170261915*eps + 322857070*eps^2 + 178240712*eps^3)*x*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(107357203 + 659305047*eps + 1277702850*eps^2 + 686621472*eps^3)*x^2*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(70170420 + 419680995*eps + 584527046*eps^2 + 134341000*eps^3)*x^3*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(-36852095 - 109055603*eps + 863929994*eps^2 + 1303773880*eps^3)*x^4*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(65500849 + 467896903*eps + 1584992750*eps^2 + 1390030616*eps^3)*x^5*
+        y^3)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(4847923 + 29107481*eps + 57893942*eps^2 + 30138848*eps^3)*x^6*y^3)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(2461937 + 16782035*eps + 32803910*eps^2 + 16836920*eps^3)*x^7*y^3)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(1288947 + 9999711*eps + 22245710*eps^2 + 14970024*eps^3)*x^8*y^3)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(143647 + 882442*eps + 1210856*eps^2)*x^9*y^3)/
+       (102445150528035*(1 + 6*eps + 8*eps^2)) - 
+      (25874*(9 + 118*eps + 231*eps^2 + 34*eps^3)*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-38511691 - 193499603*eps - 429445502*eps^2 - 330123624*eps^3)*x*y^4)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((263373497 + 1653280945*eps + 3942929702*eps^2 + 2812097568*eps^3)*x^2*
+        y^4)/(204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-304978427 - 1998585733*eps - 4453724058*eps^2 - 2925863240*eps^3)*
+        x^3*y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(78650449 + 505642101*eps + 972921786*eps^2 + 543061480*eps^3)*x^4*
+        y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(82674333 + 526745575*eps + 860451646*eps^2 + 362306904*eps^3)*x^5*
+        y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(14037749 + 106154265*eps + 212345546*eps^2 + 126921576*eps^3)*x^6*
+        y^4)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(305977 + 5866819*eps + 19768662*eps^2 + 21301816*eps^3)*x^7*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(635995 + 4688223*eps + 9941118*eps^2 + 6196744*eps^3)*x^8*y^4)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (51748*(29 + 148*eps + 265*eps^2 + 138*eps^3)*y^5)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((31032987 + 184816461*eps + 357122562*eps^2 + 188919448*eps^3)*x*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(30653217 + 185300697*eps + 280756576*eps^2 + 84784804*eps^3)*x^2*
+        y^5)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((22275099 + 92316241*eps - 269984094*eps^2 - 492332568*eps^3)*x^3*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(22788649 + 164948085*eps + 482013434*eps^2 + 387257912*eps^3)*x^4*
+        y^5)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(8008203 + 50633245*eps + 100349690*eps^2 + 56019336*eps^3)*x^5*y^5)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(1479383 + 9749793*eps + 18646678*eps^2 + 9604272*eps^3)*x^6*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(1087223 + 8206073*eps + 18095154*eps^2 + 12207720*eps^3)*x^7*y^5)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (25874*(7 + 22*eps + 53*eps^2 + 62*eps^3)*y^6)/
+       (34148383509345*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((21473777 + 127295357*eps + 316917250*eps^2 + 240037272*eps^3)*x*y^6)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-83278877 - 535571909*eps - 1211764102*eps^2 - 807636656*eps^3)*x^2*
+        y^6)/(204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(15095122 + 97985187*eps + 196325966*eps^2 + 115563304*eps^3)*x^3*
+        y^6)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(18456613 + 119838609*eps + 218232578*eps^2 + 116564952*eps^3)*x^4*
+        y^6)/(102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(5117391 + 35713885*eps + 72682602*eps^2 + 46361672*eps^3)*x^5*y^6)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(112807 + 892267*eps + 2133326*eps^2 + 1661720*eps^3)*x^6*y^6)/
+       (20489030105607*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (103496*(15 + 82*eps + 153*eps^2 + 78*eps^3)*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(3699755 + 21734555*eps + 36689518*eps^2 + 15106696*eps^3)*x*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(4869513 + 28766277*eps + 37097470*eps^2 + 6467024*eps^3)*x^2*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(-372573 - 1696816*eps + 3804640*eps^2 + 6440656*eps^3)*x^3*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(1836827 + 12518431*eps + 25496526*eps^2 + 13838824*eps^3)*x^4*y^7)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(127199 + 800202*eps + 1112168*eps^2)*x^5*y^7)/
+       (20489030105607*(1 + 6*eps + 8*eps^2)) + 
+      (12937*(3 + 18*eps + 141*eps^2 + 182*eps^3)*y^8)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5013447 - 31997039*eps - 86494230*eps^2 - 67865864*eps^3)*x*y^8)/
+       (409780602112140*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((15010077 + 96813765*eps + 203567710*eps^2 + 125538784*eps^3)*x^2*y^8)/
+       (409780602112140*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-7250383 - 49388677*eps - 99133818*eps^2 - 59232776*eps^3)*x^3*y^8)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1087223 + 8257291*eps + 18474422*eps^2 + 12843624*eps^3)*x^4*y^8)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (25874*(9 + 48*eps + 81*eps^2 + 34*eps^3)*y^9)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1647541 + 9579679*eps + 15772598*eps^2 + 6654920*eps^3)*x*y^9)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(444171 + 2922733*eps + 5551903*eps^2 + 3188306*eps^3)*x^2*y^9)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((594875 + 4595157*eps + 10626602*eps^2 + 7857736*eps^3)*x^3*y^9)/
+       (204890301056070*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (12937*(-3 - 14*eps - 9*eps^2 + 10*eps^3)*y^10)/
+       (102445150528035*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-273191 - 1647579*eps - 2655598*eps^2 - 1175080*eps^3)*x*y^10)/
+       (409780602112140*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((117947 + 923107*eps + 2189866*eps^2 + 1692560*eps^3)*x^2*y^10)/
+       (409780602112140*(1 + 7*eps + 14*eps^2 + 8*eps^3)))/
+     ((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*(3 + 4*x^2 + 2*y - y^2)*
+      (-1 + 6*x + 2*x*y + y^2)^2*(-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 
+       12*eps*x^2 - 6*y - 6*eps*y + 12*x*y + 16*eps*x*y + 3*y^2 + 
+       5*eps*y^2))}, 
+   {((60202532*eps^2*(3 + eps))/(2788784653263175*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((520026262731 + 3755745230835*eps + 
+         7554396211362*eps^2 + 5649010458052*eps^3)*x)/
+       (1338616633566324000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-7800393940965 - 56875464957209*eps - 127462541030014*eps^2 - 
+         91425136264852*eps^3)*x^2)/(1338616633566324000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((58416283513449 + 433181876854923*eps + 1013837624205966*eps^2 + 
+         740710030475912*eps^3)*x^3)/(2007924950349486000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-56682862637679 - 434414531699915*eps - 1072826637350518*eps^2 - 
+         834476318156088*eps^3)*x^4)/(1003962475174743000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((26752462182717 + 214000437229783*eps + 573615814993302*eps^2 + 
+         483213099738488*eps^3)*x^5)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-10573867342197 - 88924490927001*eps - 260020199674170*eps^2 - 
+         234636328728592*eps^3)*x^6)/(250990618793685750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((982271829603 + 13116217959993*eps + 59808271363034*eps^2 + 
+         69120911622040*eps^3)*x^7)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(1906762963347 + 12307288217967*eps + 18203647082206*eps^2 + 
+         4194286820920*eps^3)*x^8)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(520026262731 + 3640183839117*eps + 6809043367754*eps^2 + 
+         3634780928048*eps^3)*x^9)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - (2975776*eps^2*x^10)/
+       (930111613095*(1 + 6*eps + 8*eps^2)) + 
+      (120405064*eps^2*(15 + 11*eps)*y)/(8366353959789525*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1560078788193 + 11151674300787*eps + 18609165918438*eps^2 + 
+         12011456865232*eps^3)*x*y)/(2007924950349486000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-6760341415503 - 48728386841090*eps - 102017938180906*eps^2 - 
+         68272744720426*eps^3)*x^2*y)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((152136572196747 + 1112105053198173*eps + 2478805284017042*eps^2 + 
+         1711283885832888*eps^3)*x^3*y)/(2007924950349486000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-16120814144661 - 120973516896793*eps - 282395321346858*eps^2 - 
+         206477337554016*eps^3)*x^4*y)/(100396247517474300*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((78292842888945 + 604135695669751*eps + 1482701722110166*eps^2 + 
+         1150284900912008*eps^3)*x^5*y)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(7569271157529 + 59687458822347*eps + 152876152472130*eps^2 + 
+         123563335242764*eps^3)*x^6*y)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((2754213169279 + 22977456719929*eps + 63910268879082*eps^2 + 
+         55891237242520*eps^3)*x^7*y)/(41831769798947625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(-751149046167 - 4217990797707*eps - 3346994320686*eps^2 + 
+         3463212351440*eps^3)*x^8*y)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(57780695859 + 404464871013*eps + 790879869858*eps^2 + 
+         443673489208*eps^3)*x^9*y)/(8366353959789525*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (160292096*eps^2*x^10*y)/(97661719374975*
+        (1 + 6*eps + 8*eps^2)) + (60202532*eps^2*(39 + 97*eps)*y^2)/
+       (25099061879368575*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2600131313655 - 19318012648859*eps - 58426874086234*eps^2 - 
+         50952841211612*eps^3)*x*y^2)/(4015849900698972000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((5373604714887 + 50442547484907*eps + 244693874338426*eps^2 + 
+         255508198781660*eps^3)*x^2*y^2)/(4015849900698972000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((8147078116119 + 55392427096828*eps + 96761148939096*eps^2 + 
+         43716443720212*eps^3)*x^3*y^2)/(250990618793685750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-58994090472039 - 424091047373107*eps - 882307934490910*eps^2 - 
+         551085296753264*eps^3)*x^4*y^2)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((66736703717145 + 488651344879563*eps + 1051181208995518*eps^2 + 
+         694480061390264*eps^3)*x^5*y^2)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-25365725482101 - 185533814403249*eps - 399579296388666*eps^2 - 
+         263693368321984*eps^3)*x^6*y^2)/(250990618793685750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(5720288890041 + 42353250064647*eps + 93995355741574*eps^2 + 
+         64550909507608*eps^3)*x^7*y^2)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(134821623671 + 1059312757415*eps + 2583767503882*eps^2 + 
+         2017391116212*eps^3)*x^8*y^2)/(41831769798947625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(404464871013 + 2831254097091*eps + 5649518234262*eps^2 + 
+         3235541907664*eps^3)*x^9*y^2)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - (18713312*eps^2*x^10*y^2)/
+       (97661719374975*(1 + 6*eps + 8*eps^2)) - 
+      (481620256*eps^2*(21 + 11*eps)*y^3)/(25099061879368575*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-982271829603 - 7068505126751*eps - 14607157730102*eps^2 - 
+         10471957778544*eps^3)*x*y^3)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((10689428733915 + 78177281497227*eps + 178935418211342*eps^2 + 
+         127568032175456*eps^3)*x^2*y^3)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-14329612573032 - 108762529838591*eps - 263173594091830*eps^2 - 
+         199735853763532*eps^3)*x^3*y^3)/(250990618793685750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((20396585638227 + 167621798686959*eps + 462793451708518*eps^2 + 
+         402887158054496*eps^3)*x^4*y^3)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-982271829603 - 25365725482101*eps - 150915515386882*eps^2 - 
+         191841327529784*eps^3)*x^5*y^3)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(-57780695859 + 520026262731*eps + 5789427990778*eps^2 + 
+         8306045451700*eps^3)*x^6*y^3)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(1675640179911 + 11190194764693*eps + 19560302640930*eps^2 + 
+         8275612482056*eps^3)*x^7*y^3)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(751149046167 + 5450645642699*eps + 11608183424718*eps^2 + 
+         7507722107856*eps^3)*x^8*y^3)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(57780695859 + 404464871013*eps + 814941393506*eps^2 + 
+         471394643512*eps^3)*x^9*y^3)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (120405064*eps^2*(93 + 127*eps)*y^4)/(25099061879368575*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((173342087577 + 1868242499441*eps + 17234748600550*eps^2 + 
+         18989452351452*eps^3)*x*y^4)/(2007924950349486000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3177938272245 + 21744801874937*eps + 37962906613134*eps^2 + 
+         18197555428900*eps^3)*x^2*y^4)/(401584990069897200*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-42815495631519 - 308491135191201*eps - 649046100210154*eps^2 - 
+         412791676746056*eps^3)*x^3*y^4)/(1003962475174743000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((16583059711533 + 122206171741785*eps + 268745463388886*eps^2 + 
+         182425078621596*eps^3)*x^4*y^4)/(250990618793685750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-21436638163689 - 159840664977947*eps - 358783338716350*eps^2 - 
+         251048546605144*eps^3)*x^5*y^4)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((6644780023785 + 49864740526317*eps + 113608065103202*eps^2 + 
+         80774484206576*eps^3)*x^6*y^4)/(250990618793685750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1328956004757 - 10304224094855*eps - 24695239105894*eps^2 - 
+         18790220458184*eps^3)*x^7*y^4)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(288903479295 + 2060844818971*eps + 4269759842086*eps^2 + 
+         2622792169608*eps^3)*x^8*y^4)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (240810128*eps^2*(-5 + 3*eps)*y^5)/(8366353959789525*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1675640179911 + 12191726826249*eps + 28669257520546*eps^2 + 
+         21623204577904*eps^3)*x*y^5)/(1003962475174743000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-4911359148015 - 36921864653901*eps - 88998285752446*eps^2 - 
+         67007199229508*eps^3)*x^2*y^5)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((12307288217967 + 97938279481005*eps + 256542502144434*eps^2 + 
+         211995477894824*eps^3)*x^3*y^5)/(1003962475174743000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1328956004757 + 5103961467545*eps - 11890814466646*eps^2 - 
+         30378099364896*eps^3)*x^4*y^5)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1213394613039 - 7877434868777*eps - 12345570657450*eps^2 - 
+         3565212548664*eps^3)*x^5*y^5)/(167327079195790500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(288903479295 + 1945283427253*eps + 3499373093838*eps^2 + 
+         1603351312164*eps^3)*x^6*y^5)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-520026262731 - 3794265694741*eps - 8186823857538*eps^2 - 
+         5377967417560*eps^3)*x^7*y^5)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (120405064*eps^2*(25 + 31*eps)*y^6)/(8366353959789525*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((404464871013 + 2484569921937*eps + 627643277438*eps^2 - 
+         2533741085308*eps^3)*x*y^6)/(2007924950349486000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1560078788193 - 11036112909069*eps - 22046889761030*eps^2 - 
+         13094499143476*eps^3)*x^2*y^6)/(401584990069897200*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((577806958590 + 4217990797707*eps + 9115155049134*eps^2 + 
+         6017675085140*eps^3)*x^3*y^6)/(50198123758737150*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5258043323169 - 38924928777013*eps - 86292354684946*eps^2 - 
+         59138627758512*eps^3)*x^4*y^6)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1906762963347 + 14348872804985*eps + 32762423234154*eps^2 + 
+         23412201218344*eps^3)*x^5*y^6)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-57780695859 - 442985334919*eps - 1040052525462*eps^2 - 
+         767271852960*eps^3)*x^6*y^6)/(50198123758737150*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + (481620256*eps^2*(1 + 3*eps)*y^7)/
+       (8366353959789525*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-288903479295 - 2137885746783*eps - 5127154148518*eps^2 - 
+         3888992007344*eps^3)*x*y^7)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1097833221321 + 8339680435649*eps + 20028704997306*eps^2 + 
+         15090602926544*eps^3)*x^2*y^7)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-404464871013 - 3235718968104*eps - 8361667605440*eps^2 - 
+         6854412547788*eps^3)*x^3*y^7)/(250990618793685750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-288903479295 - 1752681107723*eps - 2233726608958*eps^2 + 
+         111642524576*eps^3)*x^4*y^7)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((57780695859 + 404464871013*eps + 805322751138*eps^2 + 
+         461776001144*eps^3)*x^5*y^7)/(100396247517474300*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (60202532*eps^2*(33 + 43*eps)*y^8)/(25099061879368575*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-57780695859 - 211862551483*eps + 1110857262734*eps^2 + 
+         1912827009468*eps^3)*x*y^8)/(4015849900698972000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((597067190543 + 4217990797707*eps + 8400691470618*eps^2 + 
+         4892640670812*eps^3)*x^2*y^8)/(1338616633566324000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1906762963347 - 13886627238113*eps - 29857471040682*eps^2 - 
+         19472036963768*eps^3)*x^3*y^8)/(2007924950349486000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((520026262731 + 3832786158647*eps + 8429969943934*eps^2 + 
+         5691879581448*eps^3)*x^4*y^8)/(1003962475174743000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - (120405064*eps^2*(3 + 7*eps)*y^9)/
+       (25099061879368575*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((173342087577 + 1290435540851*eps + 2989566554950*eps^2 + 
+         2185933122512*eps^3)*x*y^9)/(2007924950349486000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-115561391718 - 866710437885*eps - 1983955208736*eps^2 - 
+         1414747085506*eps^3)*x^2*y^9)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((288903479295 + 2176406210689*eps + 4975151495354*eps^2 + 
+         3540482055352*eps^3)*x^3*y^9)/(2007924950349486000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + (60202532*eps^2*(3 + 5*eps)*y^10)/
+       (25099061879368575*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-57780695859 - 442985334919*eps - 1071955566562*eps^2 - 
+         818439704300*eps^3)*x*y^10)/(4015849900698972000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((57780695859 + 442985334919*eps + 1043058351202*eps^2 + 
+         770277678700*eps^3)*x^2*y^10)/(4015849900698972000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)))/((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*
+      (3 + 4*x^2 + 2*y - y^2)*(-1 + 6*x + 2*x*y + y^2)^2*
+      (-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 12*eps*x^2 - 6*y - 6*eps*y + 
+       12*x*y + 16*eps*x*y + 3*y^2 + 5*eps*y^2)), 
+    ((30101266*(27 + 214*eps + 451*eps^2 + 292*eps^3))/
+       (25099061879368575*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-15874743494259 - 120059501237135*eps - 257262994274138*eps^2 - 
+         170859753309128*eps^3)*x)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((124367844589605 + 933067869842701*eps + 2076618676397286*eps^2 + 
+         1434413338802008*eps^3)*x^2)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-226873626405367 - 1742067562170029*eps - 4097731289002898*eps^2 - 
+         2993445930080376*eps^3)*x^3)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((189788749743457 + 1535319360078085*eps + 3901753806500594*eps^2 + 
+         3088453642878824*eps^3)*x^4)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-80870750420211 - 702486500035809*eps - 1938805190878186*eps^2 - 
+         1665205575509784*eps^3)*x^5)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((26997475272611 + 256021878886183*eps + 751833732722670*eps^2 + 
+         686267018878936*eps^3)*x^6)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-289457498749 - 27903990206639*eps - 140128505605382*eps^2 - 
+         171282037388840*eps^3)*x^7)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5907730441821 - 37183778660001*eps - 62661984407018*eps^2 - 
+         22597751719240*eps^3)*x^8)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(1365894568013 + 9575598127131*eps + 20036041208502*eps^2 + 
+         12063160846664*eps^3)*x^9)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (1487888*(3 + 19*eps + 20*eps^2)*x^10)/(8371004517855*
+        (1 + 6*eps + 8*eps^2)) + (60202532*(81 + 640*eps + 1291*eps^2 + 
+         784*eps^3)*y)/(75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-17457494122239 - 130022797434261*eps - 264843237357634*eps^2 - 
+         164750395488696*eps^3)*x*y)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((37601290063149 + 275712405463450*eps + 582534184147708*eps^2 + 
+         377705478627568*eps^3)*x^2*y)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-603853312719621 - 4503019288446859*eps - 10038659477746686*eps^2 - 
+         6891142140091464*eps^3)*x^3*y)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((55198531680699 + 428030719897855*eps + 1021746407992750*eps^2 + 
+         757236147949160*eps^3)*x^4*y)/(602377485104845800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-248751284134015 - 2011938802014753*eps - 5124738271002778*eps^2 - 
+         4075984935978264*eps^3)*x^5*y)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((21546648378487 + 179364865057841*eps + 471263261843990*eps^2 + 
+         389329708705072*eps^3)*x^6*y)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-19845960260851 - 181533428198061*eps - 518043020945778*eps^2 - 
+         463166353090040*eps^3)*x^7*y)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(-2749038521881 - 15465193225101*eps - 17530815055098*eps^2 + 
+         4502470582120*eps^3)*x^8*y)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(505766877079 + 3576523296361*eps + 7252856842282*eps^2 + 
+         4201337707736*eps^3)*x^9*y)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (64*(1252282 + 6846201*eps + 6178710*eps^2)*x^10*y)/
+       (292985158124925*(1 + 6*eps + 8*eps^2)) - 
+      (30101266*(135 + 1074*eps + 2523*eps^2 + 1868*eps^3)*y^2)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((11152578440045 + 91772121973437*eps + 260489683354422*eps^2 + 
+         223635218658456*eps^3)*x*y^2)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((37246787929059 + 164502607934739*eps - 213242194160598*eps^2 - 
+         594547446455320*eps^3)*x^2*y^2)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-37919235931997 - 253379032577524*eps - 441590315969768*eps^2 - 
+         199948813277216*eps^3)*x^3*y^2)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((213111844493177 + 1536182951274101*eps + 3222681800189770*eps^2 + 
+         2018873909455992*eps^3)*x^4*y^2)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-227431185638615 - 1694000181936269*eps - 3818731949163234*eps^2 - 
+         2625653286184632*eps^3)*x^5*y^2)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((81849721691843 + 608610225499647*eps + 1387555980427118*eps^2 + 
+         970196657967672*eps^3)*x^6*y^2)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-16305853720183 - 122700100038481*eps - 280753803771322*eps^2 - 
+         198118645595224*eps^3)*x^7*y^2)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(975946498259 + 8112249276895*eps + 20970042052618*eps^2 + 
+         16948413240848*eps^3)*x^8*y^2)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(1230709441219 + 8627834929493*eps + 17210881896746*eps^2 + 
+         9819504861112*eps^3)*x^9*y^2)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + (9356656*(1 + eps)*x^10*y^2)/
+       (292985158124925*(1 + 2*eps)) - 
+      (240810128*(51 + 402*eps + 831*eps^2 + 524*eps^3)*y^3)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((8087581903789 + 60527373769753*eps + 129167001219106*eps^2 + 
+         85042731376152*eps^3)*x*y^3)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-46115324455965 - 347727250781341*eps - 791259137723346*eps^2 - 
+         556008135548728*eps^3)*x^2*y^3)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((48034908505836 + 383484999467833*eps + 961008859419690*eps^2 + 
+         746448530439576*eps^3)*x^3*y^3)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-56219381221501 - 521329758090777*eps - 1573636873299074*eps^2 - 
+         1436381332689688*eps^3)*x^4*y^3)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-9871603008851 + 10864212644563*eps + 352267871997486*eps^2 + 
+         549463396495432*eps^3)*x^5*y^3)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(-1055825211717 - 4232956305407*eps + 3118372618254*eps^2 + 
+         14524165635120*eps^3)*x^6*y^3)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5623290387513 - 37647358280339*eps - 69734401759310*eps^2 - 
+         33809204636808*eps^3)*x^7*y^3)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(2112021590521 + 15515476744717*eps + 33629579067994*eps^2 + 
+         21917546228248*eps^3)*x^8*y^3)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(177558543517 + 1058165695302*eps + 1388325460936*eps^2)*x^9*y^3)/
+       (376485928190528625*(1 + 6*eps + 8*eps^2)) + 
+      (60202532*(9 + 82*eps + 481*eps^2 + 588*eps^3)*y^4)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((6707970027349 + 43342074342217*eps + 43765589440710*eps^2 - 
+         10842780211976*eps^3)*x*y^4)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-17569814312951 - 120146912235599*eps - 217409291512082*eps^2 - 
+         108121996693960*eps^3)*x^2*y^4)/(2409509940419383200*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((161513293055857 + 1170615265512903*eps + 2480604074681782*eps^2 + 
+         1583013767144808*eps^3)*x^3*y^4)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-55148074527019 - 414859788029355*eps - 943623652733378*eps^2 - 
+         657512060213968*eps^3)*x^4*y^4)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((67957018752007 + 521010905194941*eps + 1227786964809730*eps^2 + 
+         893292843394232*eps^3)*x^5*y^4)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-19008590430095 - 145969300409651*eps - 342851215352806*eps^2 - 
+         250140246222328*eps^3)*x^6*y^4)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3286417765291 + 26609713279505*eps + 66171078001402*eps^2 + 
+         51449763565272*eps^3)*x^7*y^4)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((839699505745 + 6006430401573*eps + 12479792791298*eps^2 + 
+         7644132376584*eps^3)*x^8*y^4)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (120405064*(29 + 228*eps + 491*eps^2 + 328*eps^3)*y^5)/
+       (25099061879368575*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-9869052695993 - 74743803707887*eps - 170476828820278*eps^2 - 
+         120801759489192*eps^3)*x*y^5)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((17697843421585 + 139453493869443*eps + 344423910610078*eps^2 + 
+         263861898399944*eps^3)*x^2*y^5)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-34107867785041 - 299886297777595*eps - 849277701112542*eps^2 - 
+         735990567653832*eps^3)*x^3*y^5)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-7541949415291 - 33122084642495*eps + 12300469935058*eps^2 + 
+         87012335691288*eps^3)*x^4*y^5)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((13496322619171 + 88279848721213*eps + 153606450500850*eps^2 + 
+         62586601178296*eps^3)*x^5*y^5)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-999242681985 - 6756608162479*eps - 12771992459514*eps^2 - 
+         6522231230672*eps^3)*x^6*y^5)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1477793862053 + 10865593885843*eps + 23657026806414*eps^2 + 
+         15593508707080*eps^3)*x^7*y^5)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (60202532*(-7 - 50*eps - 27*eps^2 + 52*eps^3)*y^6)/
+       (25099061879368575*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-4980423010519 - 33214830159991*eps - 51017765817874*eps^2 - 
+         16696083021896*eps^3)*x*y^6)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((6913015219211 + 48976302430299*eps + 98940428530474*eps^2 + 
+         59210969699496*eps^3)*x^2*y^6)/(2409509940419383200*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1974485293390 - 14593310686109*eps - 32204512857426*eps^2 - 
+         21663830413112*eps^3)*x^3*y^6)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((16324230367487 + 123425417059139*eps + 282198843479878*eps^2 + 
+         198181815399176*eps^3)*x^4*y^6)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5621346722621 - 43209025794895*eps - 100913390147382*eps^2 - 
+         73118174461672*eps^3)*x^5*y^6)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((159523589077 + 1243882990697*eps + 2964352482946*eps^2 + 
+         2211063562440*eps^3)*x^6*y^6)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (240810128*(15 + 118*eps + 271*eps^2 + 196*eps^3)*y^7)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1393597207025 + 10747559525689*eps + 25540136697554*eps^2 + 
+         18911751433752*eps^3)*x*y^7)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-3584384507903 - 28467802926807*eps - 70553732355958*eps^2 - 
+         54391489236392*eps^3)*x^2*y^7)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1055448451399 + 9195597376472*eps + 25238795414320*eps^2 + 
+         21457226928704*eps^3)*x^3*y^7)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1064075980625 + 6355734375389*eps + 8946003491914*eps^2 + 
+         1202489806072*eps^3)*x^4*y^7)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-167939901149 - 1010072483462*eps - 1349850891464*eps^2)*x^5*y^7)/
+       (602377485104845800*(1 + 6*eps + 8*eps^2)) + 
+      (30101266*(-3 - 6*eps + 117*eps^2 + 188*eps^3)*y^8)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1075644390377 + 6520530420989*eps + 7602357995918*eps^2 - 
+         498770054184*eps^3)*x*y^8)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-7172559633967 - 50621594051943*eps - 103157817116242*eps^2 - 
+         62263220341768*eps^3)*x^2*y^8)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((6018493953581 + 44043353759559*eps + 95888639306806*eps^2 + 
+         63452322369384*eps^3)*x^3*y^8)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1477793862053 - 10981962364361*eps - 24337202723082*eps^2 - 
+         16488386626344*eps^3)*x^4*y^8)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (60202532*(9 + 72*eps + 171*eps^2 + 128*eps^3)*y^9)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-729116929031 - 5589328331733*eps - 13031656668450*eps^2 - 
+         9464016772536*eps^3)*x*y^9)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((364519545694 + 2776762841175*eps + 6422104120238*eps^2 + 
+         4615912156968*eps^3)*x^2*y^9)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-815652899825 - 6211256201607*eps - 14303901088022*eps^2 - 
+         10232579710696*eps^3)*x^3*y^9)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (30101266*(3 + 14*eps + 15*eps^2)*y^10)/(75297185638105725*
+        (1 + 3*eps + 2*eps^2)) + ((191426630177 + 1512360478257*eps + 
+         3675305678126*eps^2 + 2801031172600*eps^3)*x*y^10)/
+       (24095099404193832000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-162529414817 - 1261917945137*eps - 2991404914606*eps^2 - 
+         2223086865400*eps^3)*x^2*y^10)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)))/((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*
+      (3 + 4*x^2 + 2*y - y^2)*(-1 + 6*x + 2*x*y + y^2)^2*
+      (-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 12*eps*x^2 - 6*y - 6*eps*y + 
+       12*x*y + 16*eps*x*y + 3*y^2 + 5*eps*y^2)), 
+    ((-60202532*(27 + 214*eps + 478*eps^2 + 301*eps^3))/
+       (25099061879368575*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((520714115748 + 4070153098957*eps + 9034547770498*eps^2 + 
+         5758196350309*eps^3)*x)/(602377485104845800*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-2123046345006 - 16786407127538*eps - 
+         37483718344305*eps^2 - 24750009271337*eps^3)*x^2)/
+       (602377485104845800*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1120484556803 + 10313528572879*eps + 24792392412100*eps^2 + 
+         18660924270844*eps^3)*x^3)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((430400321887 + 756455890775*eps - 2000776160404*eps^2 - 
+         4663948395288*eps^3)*x^4)/(150594371276211450*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-638302341981 - 3015679171261*eps - 3139520888404*eps^2 + 
+         698445594608*eps^3)*x^5)/(75297185638105725*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (2*(500615858243 + 2833936061507*eps + 
+         4432331604962*eps^2 + 1863034180654*eps^3)*x^6)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(157430532559 + 872362980123*eps + 1520687463892*eps^2 + 
+         1012332408956*eps^3)*x^7)/(75297185638105725*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (8*(38308327755 + 313704802243*eps + 
+         677317508132*eps^2 + 328218002672*eps^3)*x^8)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(22712957921 + 165014007023*eps + 350226567648*eps^2 + 
+         201239798214*eps^3)*x^9)/(75297185638105725*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (2975776*(3 + 20*eps + 31*eps^2)*x^10)/
+       (8371004517855*(1 + 6*eps + 8*eps^2)) - 
+      (120405064*(81 + 640*eps + 1426*eps^2 + 883*eps^3)*y)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((599851647147 + 4627553079843*eps + 10190712041876*eps^2 + 
+         6337550712426*eps^3)*x*y)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2787858323904 - 21371034141241*eps - 46778726412905*eps^2 - 
+         29586975509430*eps^3)*x^2*y)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3567861404325 + 29074514057333*eps + 64673409213696*eps^2 + 
+         43517551739384*eps^3)*x^3*y)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((306558459681 + 604793208155*eps - 86424624928*eps^2 - 
+         1435846977380*eps^3)*x^4*y)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1264148567281 - 7234300446873*eps - 12346374114288*eps^2 - 
+         5117798453128*eps^3)*x^5*y)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(247335015313 + 1584305379093*eps + 2936627013381*eps^2 + 
+         1561556802564*eps^3)*x^6*y)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(453713002957 + 3001301416077*eps + 6089662021824*eps^2 + 
+         3970622978488*eps^3)*x^7*y)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(5996379185 + 30159112727*eps + 95237794160*eps^2 + 
+         145495138324*eps^3)*x^8*y)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(25237757933 + 173642761957*eps + 349612751264*eps^2 + 
+         193410768160*eps^3)*x^9*y)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (64*(2504564 + 15612175*eps + 23710658*eps^2)*x^10*y)/
+       (292985158124925*(1 + 6*eps + 8*eps^2)) + 
+      (60202532*(135 + 1074*eps + 2406*eps^2 + 1577*eps^3)*y^2)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-102590490394 - 1038790374719*eps - 2577190260066*eps^2 - 
+         2325151706061*eps^3)*x*y^2)/(602377485104845800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2802752155110 - 19122082145100*eps - 38927380757069*eps^2 - 
+         19965827525695*eps^3)*x^2*y^2)/(602377485104845800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(470174710894 + 3207397909009*eps + 6315393201541*eps^2 + 
+         3362927632694*eps^3)*x^3*y^2)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-331275809725 - 2014472170951*eps - 1842608382780*eps^2 + 
+         998096823084*eps^3)*x^4*y^2)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-307760462681 - 2562701564585*eps - 7699210258004*eps^2 - 
+         6408537664456*eps^3)*x^5*y^2)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(346666614875 + 2631635445899*eps + 5711391428254*eps^2 + 
+         3317614949166*eps^3)*x^6*y^2)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(185791863529 + 1319319518561*eps + 2762683457352*eps^2 + 
+         1699725854244*eps^3)*x^7*y^2)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(21986431115 + 154262658376*eps + 335949783640*eps^2 + 
+         228022623202*eps^3)*x^8*y^2)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(9248283967 + 62770517073*eps + 121380162912*eps^2 + 
+         64374386298*eps^3)*x^9*y^2)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (18713312*(1 + 6*eps + 9*eps^2)*x^10*y^2)/(292985158124925*
+        (1 + 6*eps + 8*eps^2)) + (481620256*(51 + 402*eps + 894*eps^2 + 
+         557*eps^3)*y^3)/(75297185638105725*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-232475687693 - 1800897171667*eps - 
+         3961929159136*eps^2 - 2506996369354*eps^3)*x*y^3)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((435052670631 + 3519661029000*eps + 7817498813109*eps^2 + 
+         5306621358994*eps^3)*x^2*y^3)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(-106021931127 - 344170429110*eps - 316575084849*eps^2 + 
+         330416617000*eps^3)*x^3*y^3)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-758554635763 - 4483716490697*eps - 7752349469368*eps^2 - 
+         3244991882668*eps^3)*x^4*y^3)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((665483557939 + 4085462290779*eps + 6651308076560*eps^2 + 
+         2631108597664*eps^3)*x^5*y^3)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(42679295439 + 280430124221*eps + 555615630437*eps^2 + 
+         355548527612*eps^3)*x^6*y^3)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(12082469883 + 93864310063*eps + 156648564652*eps^2 + 
+         9248235616*eps^3)*x^7*y^3)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(25854467383 + 180659550657*eps + 377450999368*eps^2 + 
+         234561679604*eps^3)*x^8*y^3)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(1234037971 + 8396378939*eps + 15864690272*eps^2 + 
+         8159879872*eps^3)*x^9*y^3)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (120405064*(9 + 82*eps + 202*eps^2 + 207*eps^3)*y^4)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-365734396808 - 2634208751355*eps - 5532043665318*eps^2 - 
+         2976694238471*eps^3)*x*y^4)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1611663162854 + 11463199429718*eps + 23480898610311*eps^2 + 
+         13281860129843*eps^3)*x^2*y^4)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-582698478977 - 4178325820393*eps - 7667149952712*eps^2 - 
+         3817228848940*eps^3)*x^3*y^4)/(150594371276211450*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(144730270795 + 1025909609516*eps + 2501088820812*eps^2 + 
+         1826274583970*eps^3)*x^4*y^4)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((353688131881 + 2539467125609*eps + 5504040459076*eps^2 + 
+         3483154544256*eps^3)*x^5*y^4)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(212446470383 + 1502291912927*eps + 3156711980130*eps^2 + 
+         1974481283366*eps^3)*x^6*y^4)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(68254310113 + 479908803101*eps + 1046991367076*eps^2 + 
+         719956462852*eps^3)*x^7*y^4)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(8574850447 + 59737405011*eps + 121531842420*eps^2 + 
+         71941672024*eps^3)*x^8*y^4)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (240810128*(29 + 228*eps + 506*eps^2 + 319*eps^3)*y^5)/
+       (25099061879368575*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((200205645541 + 1577558045585*eps + 3487537061764*eps^2 + 
+         2307281107678*eps^3)*x*y^5)/(150594371276211450*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-50750267194 - 721302549885*eps - 1936255099467*eps^2 - 
+         1772566640666*eps^3)*x^2*y^5)/(150594371276211450*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-448455187027 - 2776623848183*eps - 5168267035756*eps^2 - 
+         2559158719576*eps^3)*x^3*y^5)/(150594371276211450*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((144522272387 + 890475167553*eps + 1526964925264*eps^2 + 
+         728802256804*eps^3)*x^4*y^5)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-37762326707 - 207968995211*eps - 344659158192*eps^2 - 
+         225269569128*eps^3)*x^5*y^5)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(-597691635 - 5766596763*eps - 4954208635*eps^2 + 12579180404*eps^3)*
+        x^6*y^5)/(75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(17117993219 + 121340515499*eps + 257510913368*eps^2 + 
+         165545091512*eps^3)*x^7*y^5)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (120405064*(7 + 50*eps + 102*eps^2 + 41*eps^3)*y^6)/
+       (25099061879368575*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((178237394498 + 1267827968957*eps + 2598819774798*eps^2 + 
+         1415219340387*eps^3)*x*y^6)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-363138509978 - 2607115538932*eps - 5254016463529*eps^2 - 
+         3025962918735*eps^3)*x^2*y^6)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(11976933995 + 84917222806*eps + 226275845981*eps^2 + 
+         172112513338*eps^3)*x^3*y^6)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((103977309989 + 747345243479*eps + 1630092641612*eps^2 + 
+         1079656896852*eps^3)*x^4*y^6)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-52627513715 - 376708059907*eps - 820427868828*eps^2 - 
+         547463243688*eps^3)*x^5*y^6)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(2135785693 + 15631499165*eps + 35529388282*eps^2 + 
+         25775936706*eps^3)*x^6*y^6)/(15059437127621145*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (481620256*(15 + 118*eps + 262*eps^2 + 169*eps^3)*y^7)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-19120034617 - 157455822779*eps - 358631433240*eps^2 - 
+         251466111706*eps^3)*x*y^7)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-12908112395 - 67227013890*eps - 106164243819*eps^2 - 
+         26005651702*eps^3)*x^2*y^7)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(18011333458 + 122306404399*eps + 249393986835*eps^2 + 
+         156722590776*eps^3)*x^3*y^7)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2643973297 - 13401786963*eps - 35096991736*eps^2 - 
+         42255751828*eps^3)*x^4*y^7)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-8574850447 - 58814518839*eps - 115393360240*eps^2 - 
+         62441344688*eps^3)*x^5*y^7)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (60202532*(-3 - 6*eps + 18*eps^2 + 59*eps^3)*y^8)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-43670254372 - 301953062423*eps - 596353375574*eps^2 - 
+         312074055335*eps^3)*x*y^8)/(602377485104845800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((45157062146 + 319068751542*eps + 628578987491*eps^2 + 
+         372689423699*eps^3)*x^2*y^8)/(602377485104845800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((32770152167 + 245436231723*eps + 535614121100*eps^2 + 
+         345430935932*eps^3)*x^3*y^8)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-17117993219 - 122263401671*eps - 263649395548*eps^2 - 
+         175045418848*eps^3)*x^4*y^8)/(150594371276211450*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (120405064*(9 + 72*eps + 162*eps^2 + 107*eps^3)*y^9)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((6119951011 + 50742806771*eps + 116456204100*eps^2 + 
+         81736996458*eps^3)*x*y^9)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((7991812036 + 57987080731*eps + 124882915031*eps^2 + 
+         81757828474*eps^3)*x^2*y^9)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-9777180743 - 70922375599*eps - 157982243400*eps^2 - 
+         111263626696*eps^3)*x^3*y^9)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (60202532*(3 + 26*eps + 62*eps^2 + 45*eps^3)*y^10)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((540633638 + 3351902981*eps + 5443646182*eps^2 + 1979207255*eps^3)*x*
+        y^10)/(602377485104845800*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1985494406 - 14579460156*eps - 33275018977*eps^2 - 
+         24423315123*eps^3)*x^2*y^10)/(602377485104845800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)))/((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*
+      (3 + 4*x^2 + 2*y - y^2)*(-1 + 6*x + 2*x*y + y^2)^2*
+      (-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 12*eps*x^2 - 6*y - 6*eps*y + 
+       12*x*y + 16*eps*x*y + 3*y^2 + 5*eps*y^2)), 
+    ((-30101266*(27 + 130*eps + 213*eps^2 + 102*eps^3))/
+       (25099061879368575*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((12724131206259 + 69612301397375*eps + 125646559351218*eps^2 + 
+         65557341492528*eps^3)*x)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-77108660269605 - 463625460669341*eps - 872339802713086*eps^2 - 
+         467750854727808*eps^3)*x^2)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((108900699621367 + 690434071514269*eps + 1260441009606738*eps^2 + 
+         645976565734936*eps^3)*x^3)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-75316503279457 - 467703656585205*eps - 695724709258914*eps^2 - 
+         258513104096584*eps^3)*x^4)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((26843584148211 + 151708648499729*eps + 102832143220426*eps^2 - 
+         54321151133736*eps^3)*x^5)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5643325320611 - 27791562173623*eps + 16053362998130*eps^2 + 
+         36033157991864*eps^3)*x^6)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1694261349251 - 16068784908801*eps - 49449229497658*eps^2 - 
+         27170810101880*eps^3)*x^7)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((2056982089821 + 16762113701841*eps + 39949462295578*eps^2 + 
+         24098939848040*eps^3)*x^8)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(315690472013 + 2967998101611*eps + 7414832464582*eps^2 + 
+         4880936433624*eps^3)*x^9)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - (1487888*(3 + 5*eps)*x^10)/
+       (8371004517855*(1 + 4*eps)) - 
+      (60202532*(81 + 376*eps + 609*eps^2 + 306*eps^3)*y)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((14306881834239 + 77095365070181*eps + 141935829472994*eps^2 + 
+         78775883486136*eps^3)*x*y)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-23948636815149 - 144157914736730*eps - 284729711366268*eps^2 - 
+         165873060476528*eps^3)*x^2*y)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((296610269967621 + 1921344775538299*eps + 3868344024950366*eps^2 + 
+         2280104555407304*eps^3)*x^3*y)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-22642204704699 - 149103663341311*eps - 281816129851342*eps^2 - 
+         157666854573448*eps^3)*x^4*y)/(602377485104845800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((90637223014015 + 590040542790193*eps + 959019251729658*eps^2 + 
+         447566319454744*eps^3)*x^5*y)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-6260344314487 - 42984604309721*eps - 68828169845950*eps^2 - 
+         35280534015472*eps^3)*x^6*y)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3159384068851 + 25946782431421*eps + 52264739673618*eps^2 + 
+         48317256706680*eps^3)*x^7*y)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(1232077049881 + 8570848418221*eps + 17590829067258*eps^2 + 
+         8291458130040*eps^3)*x^8*y)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(155698845079 + 1144426347641*eps + 2478631350154*eps^2 + 
+         1523204809688*eps^3)*x^9*y)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (64*(1252282 + 3172055*eps)*x^10*y)/(292985158124925*(1 + 4*eps)) + 
+      (30101266*(135 + 726*eps + 1269*eps^2 + 574*eps^3)*y^2)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5901557960045 - 42353044237517*eps - 75747100004142*eps^2 - 
+         25853913341856*eps^3)*x*y^2)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-48098896921059 - 262778419476739*eps - 661118150133682*eps^2 - 
+         533839781663840*eps^3)*x^2*y^2)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((21466038427997 + 143545947275404*eps + 345385718727328*eps^2 + 
+         244003858610616*eps^3)*x^3*y^2)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-93972024269177 - 649893702683701*eps - 1483973382186570*eps^2 - 
+         1004120846722872*eps^3)*x^4*y^2)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((92654993318615 + 637347101469949*eps + 1340869372628674*eps^2 + 
+         837669603022712*eps^3)*x^5*y^2)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-30623099675843 - 216865495637487*eps - 435504821308718*eps^2 - 
+         252487509773672*eps^3)*x^6*y^2)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((4753608664183 + 36611227749601*eps + 80315165177562*eps^2 + 
+         53222103358424*eps^3)*x^7*y^2)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(159121090259 + 1531175228935*eps + 4070910421298*eps^2 + 
+         3583229730848*eps^3)*x^8*y^2)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(413884033219 + 2928881624453*eps + 6079481659546*eps^2 + 
+         3615451506472*eps^3)*x^9*y^2)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - (9356656*(1 + 3*eps)*x^10*y^2)/
+       (292985158124925*(1 + 4*eps)) + 
+      (240810128*(51 + 246*eps + 417*eps^2 + 214*eps^3)*y^3)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-6103863055789 - 34736767314073*eps - 66643479069666*eps^2 - 
+         37400732004632*eps^3)*x*y^3)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((24527795815965 + 156676980928861*eps + 312712271396226*eps^2 + 
+         178656479734088*eps^3)*x^2*y^3)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-19095951193836 - 124838815302113*eps - 219884492936450*eps^2 - 
+         109207044152176*eps^3)*x^3*y^3)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((15028042789501 + 88652679235417*eps + 27413897220834*eps^2 - 
+         73332398371272*eps^3)*x^4*y^3)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((11855321856851 + 80740242138877*eps + 257014642072754*eps^2 + 
+         200288398572088*eps^3)*x^5*y^3)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(939135867717 + 5577913806327*eps + 10731400400186*eps^2 + 
+         4466600313440*eps^3)*x^6*y^3)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((2239299411513 + 15484942704419*eps + 31177063779150*eps^2 + 
+         16673174108328*eps^3)*x^7*y^3)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(595060118521 + 4485202664877*eps + 9897118123034*eps^2 + 
+         6596773059768*eps^3)*x^8*y^3)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(60869199517 + 430922133779*eps + 881579533998*eps^2 + 
+         514400826056*eps^3)*x^9*y^3)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (60202532*(9 + 118*eps + 231*eps^2 + 34*eps^3)*y^4)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-7058038059349 - 35174255653017*eps - 77154564687310*eps^2 - 
+         58346515374384*eps^3)*x*y^4)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((11151900392951 + 71161365902527*eps + 165275779618170*eps^2 + 
+         114085956136096*eps^3)*x^2*y^4)/(2409509940419383200*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-75046489151857 - 507782284574903*eps - 1122755821713302*eps^2 - 
+         735636332523368*eps^3)*x^3*y^4)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((21658232799019 + 147896717710675*eps + 305916902125578*eps^2 + 
+         190506531409248*eps^3)*x^4*y^4)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-24665272128007 - 169821658098221*eps - 333559753455970*eps^2 - 
+         197402103223672*eps^3)*x^5*y^4)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((5589315870095 + 42255065471171*eps + 91654549021126*eps^2 + 
+         61609192338728*eps^3)*x^6*y^4)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-602562853291 - 5355027624065*eps - 13745500775162*eps^2 - 
+         11742645145912*eps^3)*x^7*y^4)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-256252785745 - 1880580374453*eps - 3996630854418*eps^2 - 
+         2497442288744*eps^3)*x^8*y^4)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (120405064*(29 + 148*eps + 265*eps^2 + 138*eps^3)*y^5)/
+       (25099061879368575*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((6485061719993 + 39684043753727*eps + 78030592533078*eps^2 + 
+         42903415839272*eps^3)*x*y^5)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-7779249181585 - 50357525322563*eps - 89278584349998*eps^2 - 
+         43154750608504*eps^3)*x^2*y^5)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((9253037513041 + 58542970675915*eps + 57365069824222*eps^2 - 
+         677214033048*eps^3)*x^3*y^5)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((4858094503291 + 34145437478975*eps + 90826560173902*eps^2 + 
+         64281915511432*eps^3)*x^4*y^5)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-6144893947171 - 40507850945293*eps - 81757609185490*eps^2 - 
+         44954253290936*eps^3)*x^5*y^5)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((415795961985 + 2825611655239*eps + 5583928671794*eps^2 + 
+         2970586405552*eps^3)*x^6*y^5)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-427589766053 - 3215016932803*eps - 7082686539054*eps^2 - 
+         4764198974920*eps^3)*x^7*y^5)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (60202532*(7 + 22*eps + 53*eps^2 + 62*eps^3)*y^6)/
+       (25099061879368575*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((4163597602519 + 24830515826151*eps + 60676914733914*eps^2 + 
+         44847586391296*eps^3)*x*y^6)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-3762402931211 - 24782134240651*eps - 55210872655506*eps^2 - 
+         36199509908672*eps^3)*x^2*y^6)/(2409509940419383200*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((807591853390 + 5507544119541*eps + 11521487731354*eps^2 + 
+         7218961689472*eps^3)*x^3*y^6)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5705500063487 - 39678947339459*eps - 80991486139398*eps^2 - 
+         50739894909256*eps^3)*x^4*y^6)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1770598370621 + 12904893510175*eps + 28013394563542*eps^2 + 
+         19237560929832*eps^3)*x^5*y^6)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-42834245077 - 337241383737*eps - 800953549826*eps^2 - 
+         620188528920*eps^3)*x^6*y^6)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (240810128*(15 + 82*eps + 153*eps^2 + 78*eps^3)*y^7)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-810150487025 - 4963580390809*eps - 8910832623314*eps^2 - 
+         4287273728792*eps^3)*x*y^7)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1367286971903 + 8932606413847*eps + 15465822075398*eps^2 + 
+         7724795318872*eps^3)*x^2*y^7)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-238623043399 - 1664432346592*eps - 2677307729880*eps^2 - 
+         1620958558024*eps^3)*x^3*y^7)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-480629260625 - 3296069947549*eps - 6553004315434*eps^2 - 
+         3230376932632*eps^3)*x^4*y^7)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((51250557149 + 373210279571*eps + 775774467950*eps^2 + 
+         456688971848*eps^3)*x^5*y^7)/(602377485104845800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (30101266*(3 + 18*eps + 141*eps^2 + 182*eps^3)*y^8)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-958955046377 - 6081647496269*eps - 16023450161238*eps^2 - 
+         12163670752336*eps^3)*x*y^8)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3555189969967 + 23698524526743*eps + 50282445327322*eps^2 + 
+         31241740504128*eps^3)*x^2*y^8)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2167745601581 - 15354221980119*eps - 32209472251446*eps^2 - 
+         20371976550664*eps^3)*x^3*y^8)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((427589766053 + 3229545909401*eps + 7200445053722*eps^2 + 
+         4978196404424*eps^3)*x^4*y^8)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (60202532*(9 + 48*eps + 81*eps^2 + 34*eps^3)*y^9)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((379048897031 + 2337938241893*eps + 4220232232770*eps^2 + 
+         2169307769016*eps^3)*x*y^9)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-131140857694 - 913867616215*eps - 1881350287838*eps^2 - 
+         1209240234168*eps^3)*x^2*y^9)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((232206179825 + 1779887668727*eps + 4085393733302*eps^2 + 
+         2995154941736*eps^3)*x^3*y^9)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (30101266*(-3 - 14*eps - 9*eps^2 + 10*eps^3)*y^10)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-74737286177 - 490130009857*eps - 920709279046*eps^2 - 
+         541899432160*eps^3)*x*y^10)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((45840070817 + 355276338177*eps + 834017632966*eps^2 + 
+         638223483360*eps^3)*x^2*y^10)/(24095099404193832000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)))/((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*
+      (3 + 4*x^2 + 2*y - y^2)*(-1 + 6*x + 2*x*y + y^2)^2*
+      (-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 12*eps*x^2 - 6*y - 6*eps*y + 
+       12*x*y + 16*eps*x*y + 3*y^2 + 5*eps*y^2))}, 
+   {((-1134588302*eps^2*(3 + eps))/(8366353959789525*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-5518096258257 - 39852917420745*eps - 
+         76481189930124*eps^2 - 64892324757094*eps^3)*x)/
+       (4015849900698972000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((82771443873855 + 603516231504923*eps + 1390960101349528*eps^2 + 
+         1067111800366774*eps^3)*x^2)/(4015849900698972000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-619866146344203 - 4596574183128081*eps - 11192129512043382*eps^2 - 
+         8579835484573304*eps^3)*x^3)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((601472492150013 + 4609654114999505*eps + 11831408599834246*eps^2 + 
+         9561019021289376*eps^3)*x^4)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-283875396396999 - 2270798797240501*eps - 6390649613369334*eps^2 - 
+         5594799482557376*eps^3)*x^5)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((112201290584559 + 943594460161947*eps + 2923101072344790*eps^2 + 
+         2732974510104244*eps^3)*x^6)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-10423070710041 - 139178650069371*eps - 689266041269618*eps^2 - 
+         813358597060360*eps^3)*x^7)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(20233019613609 + 130594944778749*eps + 183742106638462*eps^2 + 
+         30996626881360*eps^3)*x^8)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(5518096258257 + 38626673807799*eps + 71458790240678*eps^2 + 
+         37560008854436*eps^3)*x^9)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + (33572368*eps^2*x^10)/
+       (2790334839285*(1 + 6*eps + 8*eps^2)) - 
+      (2269176604*eps^2*(15 + 11*eps)*y)/(25099061879368575*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-16554288774771 - 118332508649289*eps - 158013695642766*eps^2 - 
+         108498571986424*eps^3)*x*y)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((71735251357341 + 517066056792230*eps + 1072632847549162*eps^2 + 
+         753782573455432*eps^3)*x^2*y)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1614349716443409 - 11800755409185831*eps - 26893022229737114*eps^2 - 
+         19292387378305176*eps^3)*x^3*y)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((171060984005967 + 1283672688818971*eps + 3066943551657486*eps^2 + 
+         2309705139308292*eps^3)*x^4*y)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-830780047770915 - 6410597234546197*eps - 16161348715375102*eps^2 - 
+         12911069175113336*eps^3)*x^5*y)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(80318956647963 + 633354826086609*eps + 1676510557426980*eps^2 + 
+         1396099177335098*eps^3)*x^6*y)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-29225472775213 - 243818105040763*eps - 702972155813874*eps^2 - 
+         630784464048280*eps^3)*x^7*y)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(-7970583484149 - 44757891872529*eps - 29087185878162*eps^2 + 
+         46461711375260*eps^3)*x^8*y)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(613121806473 + 4291852645311*eps + 8323006853178*eps^2 + 
+         4614411365320*eps^3)*x^9*y)/(25099061879368575*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + (398991808*eps^2*x^10*y)/
+       (58597031624985*(1 + 6*eps + 8*eps^2)) - 
+      (1134588302*eps^2*(39 + 97*eps)*y^2)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((27590481291285 + 204987057297473*eps + 749522993561008*eps^2 + 
+         721613478542234*eps^3)*x*y^2)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-57020328001989 - 535255337050929*eps - 3397311362396272*eps^2 - 
+         3662078191138490*eps^3)*x^2*y^2)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-86450174712693 - 587779438472116*eps - 965797129796892*eps^2 - 
+         401960893688044*eps^3)*x^3*y^2)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((625997364408933 + 4500109685576329*eps + 9306593581678090*eps^2 + 
+         5826167995698428*eps^3)*x^4*y^2)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-708155686476315 - 5185171117342161*eps - 11104707748426366*eps^2 - 
+         7362620560089248*eps^3)*x^5*y^2)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((269160473041647 + 1968734120584803*eps + 4239662702138142*eps^2 + 
+         2820804084141628*eps^3)*x^6*y^2)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(60699058840827 + 449418284144709*eps + 1004022528121438*eps^2 + 
+         697163482519816*eps^3)*x^7*y^2)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(1430617548437 + 11240566452005*eps + 27678862190344*eps^2 + 
+         21887125100094*eps^3)*x^8*y^2)/(125495309396842875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(4291852645311 + 30042968517177*eps + 59740387182714*eps^2 + 
+         33954026099548*eps^3)*x^9*y^2)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + (54661744*eps^2*x^10*y^2)/
+       (58597031624985*(1 + 6*eps + 8*eps^2)) + 
+      (9076706416*eps^2*(21 + 11*eps)*y^3)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((10423070710041 + 75005234325197*eps + 152363090959394*eps^2 + 
+         120800238956868*eps^3)*x*y^3)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-113427534197505 - 829553804157969*eps - 1979316114735854*eps^2 - 
+         1494211911373112*eps^3)*x^2*y^3)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((152054208005304 + 1154099613717677*eps + 2898056439031690*eps^2 + 
+         2282364832427644*eps^3)*x^3*y^3)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-216431997684969 - 1778666360578173*eps - 5148923703503986*eps^2 - 
+         4641217323253772*eps^3)*x^4*y^3)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((10423070710041 + 269160473041647*eps + 1811525107411834*eps^2 + 
+         2351750162336168*eps^3)*x^5*y^3)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(-613121806473 + 5518096258257*eps + 69637115729056*eps^2 + 
+         100022613684310*eps^3)*x^6*y^3)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(17780532387717 + 118741256520271*eps + 203583711263610*eps^2 + 
+         82059056347592*eps^3)*x^7*y^3)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(7970583484149 + 57837823743953*eps + 123034123463346*eps^2 + 
+         79560126094212*eps^3)*x^8*y^3)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(613121806473 + 4291852645311*eps + 8671505716922*eps^2 + 
+         5001534080584*eps^3)*x^9*y^3)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2269176604*eps^2*(93 + 127*eps)*y^4)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1839365419419 - 19824271742627*eps - 275215052315260*eps^2 - 
+         306442723192794*eps^3)*x*y^4)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-33721699356015 - 230738173169339*eps - 373292993004432*eps^2 - 
+         168898247999470*eps^3)*x^2*y^4)/(1204754970209691600*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((454323258596493 + 3273457324759347*eps + 6883469002256338*eps^2 + 
+         4432147538235512*eps^3)*x^3*y^4)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-175965958457751 - 1296752620690395*eps - 2859030862591592*eps^2 - 
+         1959561664019922*eps^3)*x^4*y^4)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((227468190201483 + 1696099290639809*eps + 3823161266717470*eps^2 + 
+         2707026817901248*eps^3)*x^5*y^4)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-70509007744395 - 529124118986199*eps - 1215734687619614*eps^2 - 
+         875945669765492*eps^3)*x^6*y^4)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((14101801548879 + 109340055487685*eps + 263392240601518*eps^2 + 
+         202004300877848*eps^3)*x^7*y^4)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(3065609032365 + 21868011097537*eps + 45283213252702*eps^2 + 
+         27733332407976*eps^3)*x^8*y^4)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4538353208*eps^2*(-5 + 3*eps)*y^5)/(25099061879368575*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-17780532387717 - 129368701165803*eps - 324981987757522*eps^2 - 
+         269173056646288*eps^3)*x*y^5)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((52115353550205 + 391784834336247*eps + 988775011286062*eps^2 + 
+         779706675416456*eps^3)*x^2*y^5)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-130594944778749 - 1039241461971735*eps - 2838087872169738*eps^2 - 
+         2422264343683208*eps^3)*x^3*y^5)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-14101801548879 - 54159092905115*eps + 169327704279442*eps^2 + 
+         387243816286812*eps^3)*x^4*y^5)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((12875557935933 + 83588939615819*eps + 123688216086210*eps^2 + 
+         27058278013128*eps^3)*x^5*y^5)/(501981237587371500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(3065609032365 + 20641767484591*eps + 36683813607396*eps^2 + 
+         16387971074958*eps^3)*x^6*y^5)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((5518096258257 + 40261665291727*eps + 86799895240266*eps^2 + 
+         56970059861080*eps^3)*x^7*y^5)/(376485928190528625*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2269176604*eps^2*(25 + 31*eps)*y^6)/(25099061879368575*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-4291852645311 - 26364237678339*eps + 18364833284344*eps^2 + 
+         51897793508026*eps^3)*x*y^6)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((16554288774771 + 117106265036343*eps + 230725474134200*eps^2 + 
+         138649692719614*eps^3)*x^2*y^6)/(1204754970209691600*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-6131218064730 - 44757891872529*eps - 96857854179474*eps^2 - 
+         64520854426316*eps^3)*x^3*y^6)/(150594371276211450*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((55794084389043 + 413039723627311*eps + 917840320347382*eps^2 + 
+         633536887283604*eps^3)*x^4*y^6)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-20233019613609 - 152258581940795*eps - 349217989800618*eps^2 - 
+         252056220984928*eps^3)*x^5*y^6)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((613121806473 + 4700600516293*eps + 11036192516514*eps^2 + 
+         8166198217140*eps^3)*x^6*y^6)/(150594371276211450*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (9076706416*eps^2*(1 + 3*eps)*y^7)/(25099061879368575*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3065609032365 + 22685506839501*eps + 57786343486426*eps^2 + 
+         47150844726428*eps^3)*x*y^7)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-11649314322987 - 88493914067603*eps - 218935932270042*eps^2 - 
+         170237400039848*eps^3)*x^2*y^7)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((4291852645311 + 34334821162488*eps + 91054295152820*eps^2 + 
+         76342908043356*eps^3)*x^3*y^7)/(752971856381057250*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3065609032365 + 18598028129681*eps + 22240726037146*eps^2 - 
+         3660186625892*eps^3)*x^4*y^7)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-613121806473 - 4291852645311*eps - 8531025034842*eps^2 - 
+         4861053398504*eps^3)*x^5*y^7)/(301188742552422900*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (1134588302*eps^2*(33 + 43*eps)*y^8)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((613121806473 + 2248113290401*eps - 18003680823428*eps^2 - 
+         26964413973306*eps^3)*x*y^8)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-6335592000221 - 44757891872529*eps - 87927895179576*eps^2 - 
+         51177194683794*eps^3)*x^2*y^8)/(4015849900698972000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((20233019613609 + 147353607489011*eps + 316754336701314*eps^2 + 
+         207141265806536*eps^3)*x^3*y^8)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5518096258257 - 40670413162709*eps - 89427983318758*eps^2 - 
+         60398125276536*eps^3)*x^4*y^8)/(3011887425524229000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2269176604*eps^2*(3 + 7*eps)*y^9)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1839365419419 - 13693053677897*eps - 32620066625470*eps^2 - 
+         24959649454184*eps^3)*x*y^9)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1226243612946 + 9196827097095*eps + 21222935005872*eps^2 + 
+         15338809376272*eps^3)*x^2*y^9)/(1505943712762114500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-3065609032365 - 23094254710483*eps - 52816275782978*eps^2 - 
+         37666326949144*eps^3)*x^3*y^9)/(6023774851048458000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (1134588302*eps^2*(3 + 5*eps)*y^10)/(75297185638105725*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((613121806473 + 4700600516293*eps + 11624695114624*eps^2 + 
+         9117769071890*eps^3)*x*y^10)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-613121806473 - 4700600516293*eps - 11080092729664*eps^2 - 
+         8210098430290*eps^3)*x^2*y^10)/(12047549702096916000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)))/((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*
+      (3 + 4*x^2 + 2*y - y^2)*(-1 + 6*x + 2*x*y + y^2)^2*
+      (-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 12*eps*x^2 - 6*y - 6*eps*y + 
+       12*x*y + 16*eps*x*y + 3*y^2 + 5*eps*y^2)), 
+    ((-567294151*(27 + 214*eps + 451*eps^2 + 292*eps^3))/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((270927407180763 + 2057228901254885*eps + 4408021214013596*eps^2 + 
+         2939511242934776*eps^3)*x)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1910574959697225 - 14382007518204607*eps - 32152544933528712*eps^2 - 
+         22458175873309576*eps^3)*x^2)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3176391965571529 + 24557611074050063*eps + 58689999589863386*eps^2 + 
+         43722821056999752*eps^3)*x^3)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2506190210397319 - 20596997404513435*eps - 53831450234799278*eps^2 - 
+         43665425840663888*eps^3)*x^4)/(18071324553145374000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1020485251288197 + 9114899910375963*eps + 26069135555219242*eps^2 + 
+         22991316321210888*eps^3)*x^5)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-309006147564497 - 3083456301877201*eps - 9360770080361310*eps^2 - 
+         8757410263048672*eps^3)*x^6)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-9816368208797 + 277194922110053*eps + 1579516758823934*eps^2 + 
+         2006040027228440*eps^3)*x^7)/(2258915569143171750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((72390035556987 + 449017744960767*eps + 759605794612646*eps^2 + 
+         281016863998480*eps^3)*x^8)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(16151104365671 + 112610928876057*eps + 235310565702714*eps^2 + 
+         141642419626328*eps^3)*x^9)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16786184*(3 + 19*eps + 20*eps^2)*x^10)/(25113013553565*
+        (1 + 6*eps + 8*eps^2)) - (1134588302*(81 + 640*eps + 1291*eps^2 + 
+         784*eps^3)*y)/(225891556914317175*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((301379311226373 + 2252480832978927*eps + 
+         4574297028415318*eps^2 + 2847662894996712*eps^3)*x*y)/
+       (36142649106290748000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-584844378648918 - 4292263238245960*eps - 9044757123356401*eps^2 - 
+         5892825485973496*eps^3)*x^2*y)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((8528334512546307 + 63721209361333273*eps + 142954790920036062*eps^2 + 
+         99389400786833208*eps^3)*x^3*y)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-735935480797485 - 5750893711199509*eps - 13975824536394214*eps^2 - 
+         10556031623872568*eps^3)*x^4*y)/(1807132455314537400*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3211419795074905 + 26333136816629211*eps + 68952626870727946*eps^2 + 
+         56186145308710728*eps^3)*x^5*y)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-261571891287829 - 2216373737650397*eps - 5987889737563580*eps^2 - 
+         5075298055732204*eps^3)*x^6*y)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((216227229448837 + 2064969035030607*eps + 6059633837539986*eps^2 + 
+         5543782705840520*eps^3)*x^7*y)/(2258915569143171750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(-35398807058527 - 197578656285687*eps - 235337576514186*eps^2 + 
+         36589410236680*eps^3)*x^8*y)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(5988887665585 + 42172288573075*eps + 85551288742954*eps^2 + 
+         49648849199624*eps^3)*x^9*y)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(6234247 + 34587594*eps + 31769706*eps^2)*x^10*y)/
+       (175791094874955*(1 + 6*eps + 8*eps^2)) + 
+      (567294151*(135 + 1074*eps + 2523*eps^2 + 1868*eps^3)*y^2)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-159284200484465 - 1344944155822479*eps - 4052500250637144*eps^2 - 
+         3631463038207272*eps^3)*x*y^2)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-836148014707263 - 4313359224706593*eps + 660981312291576*eps^2 + 
+         8196259493424040*eps^3)*x^2*y^2)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((565220017496099 + 3749394348262948*eps + 6371255454011336*eps^2 + 
+         2795341384589672*eps^3)*x^3*y^2)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2906592114468959 - 20891038521164327*eps - 43724902083799810*eps^2 - 
+         27434514625739784*eps^3)*x^4*y^2)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3030427261683185 + 22658935244111423*eps + 51960889229132178*eps^2 + 
+         36456193960909224*eps^3)*x^5*y^2)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1056629021602721 - 7884117517596369*eps - 18432171144963206*eps^2 - 
+         13298110498346064*eps^3)*x^6*y^2)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((195028676181721 + 1468529992576507*eps + 3401279415061234*eps^2 + 
+         2443765340532808*eps^3)*x^7*y^2)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(10660817820773 + 90461283806155*eps + 238608663346336*eps^2 + 
+         196399203465956*eps^3)*x^8*y^2)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(14833120805353 + 103786464770711*eps + 206848878367142*eps^2 + 
+         118053616849384*eps^3)*x^9*y^2)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - (27330872*(1 + eps)*x^10*y^2)/
+       (175791094874955*(1 + 2*eps)) + 
+      (4538353208*(51 + 402*eps + 831*eps^2 + 524*eps^3)*y^3)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-134393118434563 - 1009983054566611*eps - 2156589769769482*eps^2 - 
+         1428335856331704*eps^3)*x*y^3)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((667499427232035 + 5059626556070287*eps + 11651576167316562*eps^2 + 
+         8332147268625256*eps^3)*x^2*y^3)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-632708680585212 - 5130150840129691*eps - 13255730156810370*eps^2 - 
+         10571654679167712*eps^3)*x^3*y^3)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((668566422698107 + 6563143298046339*eps + 21220828788053498*eps^2 + 
+         20126992579190056*eps^3)*x^4*y^3)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((214730511326837 + 405168721765919*eps - 3834276136389102*eps^2 - 
+         7022789718267544*eps^3)*x^5*y^3)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(-19108350557739 - 95577513242699*eps - 60534547277952*eps^2 + 
+         110987329172940*eps^3)*x^6*y^3)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((72765433448991 + 486516653371793*eps + 916621791176990*eps^2 + 
+         465616574517336*eps^3)*x^7*y^3)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(25091121415327 + 184403309821879*eps + 400482157111498*eps^2 + 
+         261925786623736*eps^3)*x^8*y^3)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(2198502388699 + 12993411272694*eps + 16859129690392*eps^2)*x^9*y^3)/
+       (1129457784571585875*(1 + 6*eps + 8*eps^2)) - 
+      (1134588302*(9 + 82*eps + 481*eps^2 + 588*eps^3)*y^4)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-131773675609333 - 870663102560419*eps - 981883117779660*eps^2 + 
+         57961324286072*eps^3)*x*y^4)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((273093585438731 + 1864673830597205*eps + 3329135039112800*eps^2 + 
+         1644323703768856*eps^3)*x^2*y^4)/(7228529821258149600*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2241148787395759 - 16208847514479501*eps - 34320986997237934*eps^2 - 
+         22008561133358136*eps^3)*x^3*y^4)/(18071324553145374000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((726325697638213 + 5489761992895815*eps + 12673349965363496*eps^2 + 
+         8983936653351796*eps^3)*x^4*y^4)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-869850681073969 - 6725934113723727*eps - 16230563975534050*eps^2 - 
+         12106022036348264*eps^3)*x^5*y^4)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((229066519886645 + 1764344753843477*eps + 4197288819656902*eps^2 + 
+         3115113498312256*eps^3)*x^6*y^4)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-36513400780117 - 300464572782875*eps - 758492496010594*eps^2 - 
+         597850898344104*eps^3)*x^7*y^4)/(2258915569143171750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-10290108533095 - 73181549294931*eps - 151296081545126*eps^2 - 
+         92450443855488*eps^3)*x^8*y^4)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2269176604*(29 + 228*eps + 491*eps^2 + 328*eps^3)*y^5)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((154510931568731 + 1176863900580589*eps + 2711999532555946*eps^2 + 
+         1952402216424024*eps^3)*x*y^5)/(18071324553145374000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-240348296738845 - 1917200015231061*eps - 4868374806473536*eps^2 - 
+         3828847847687528*eps^3)*x^2*y^5)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((406242858522007 + 3743848096718665*eps + 11280299474171454*eps^2 + 
+         10163247457527384*eps^3)*x^3*y^5)/(18071324553145374000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((120250967105197 + 558392201861045*eps - 17498188006906*eps^2 - 
+         1130814303655176*eps^3)*x^4*y^5)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-186081208507957 - 1227368942931151*eps - 2202856343671170*eps^2 - 
+         982096664011432*eps^3)*x^5*y^5)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((13227553695915 + 89456567491123*eps + 171429375850428*eps^2 + 
+         90938980834004*eps^3)*x^6*y^5)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-18030512972291 - 131936777598001*eps - 286288821626958*eps^2 - 
+         188565769290040*eps^3)*x^7*y^5)/(2258915569143171750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (1134588302*(-7 - 50*eps - 27*eps^2 + 52*eps^3)*y^6)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((86876767587163 + 584717787901357*eps + 905582364569728*eps^2 + 
+         314070276091832*eps^3)*x*y^6)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-101309402866079 - 715900518721497*eps - 1439968126802272*eps^2 - 
+         865261351351128*eps^3)*x^2*y^6)/(7228529821258149600*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((26353367195746 + 194880316308695*eps + 433302619353450*eps^2 + 
+         295110207133760*eps^3)*x^3*y^6)/(903566227657268700*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-207609419529449 - 1577601060009713*eps - 3656390847284926*eps^2 - 
+         2608680161447192*eps^3)*x^4*y^6)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((69297374529467 + 534780702544885*eps + 1258974655972134*eps^2 + 
+         921256715470264*eps^3)*x^5*y^6)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1935101109799 - 15047907438359*eps - 35836936876282*eps^2 - 
+         26769933619920*eps^3)*x^6*y^6)/(903566227657268700*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4538353208*(15 + 118*eps + 271*eps^2 + 196*eps^3)*y^7)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-20830954527095 - 161783382463843*eps - 390610086154178*eps^2 - 
+         294872631348504*eps^3)*x*y^7)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((46772049279881 + 376280475292509*eps + 957266045209006*eps^2 + 
+         756065825702264*eps^3)*x^2*y^7)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-12092120980153 - 109834307895104*eps - 315794330321800*eps^2 - 
+         276985225247528*eps^3)*x^3*y^7)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-14769973250375 - 87994652024783*eps - 127204121307778*eps^2 - 
+         24289467819784*eps^3)*x^4*y^7)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((2058021706619 + 12291007862294*eps + 16297206962072*eps^2)*x^5*y^7)/
+       (1807132455314537400*(1 + 6*eps + 8*eps^2)) - 
+      (567294151*(-3 - 6*eps + 117*eps^2 + 188*eps^3)*y^8)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-19325786944049 - 120362920060703*eps - 153798495051236*eps^2 - 
+         14273823311592*eps^3)*x*y^8)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((101932122036619 + 717532138208061*eps + 1464022155516424*eps^2 + 
+         894527169325336*eps^3)*x^2*y^8)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-77636494683347 - 565875569555373*eps - 1233779741826382*eps^2 - 
+         822122821615128*eps^3)*x^3*y^8)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((18030512972291 + 133373179048367*eps + 294643829050254*eps^2 + 
+         199530178335168*eps^3)*x^4*y^8)/(18071324553145374000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (1134588302*(9 + 72*eps + 171*eps^2 + 128*eps^3)*y^9)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((10495117482797 + 80857113981711*eps + 190503330167430*eps^2 + 
+         140366622876072*eps^3)*x*y^9)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-4700054288953 - 35792550039375*eps - 83165320673231*eps^2 - 
+         60267279655296*eps^3)*x^2*y^9)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((9938906827895 + 75383543414829*eps + 173200288468214*eps^2 + 
+         123938864170072*eps^3)*x^3*y^9)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (567294151*(3 + 14*eps + 15*eps^2)*y^10)/(225891556914317175*
+        (1 + 3*eps + 2*eps^2)) + ((-2523603707909 - 20031196053579*eps - 
+         49120961905352*eps^2 - 37837582171720*eps^3)*x*y^10)/
+       (72285298212581496000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1979001322949 + 15311308717259*eps + 36232038794632*eps^2 + 
+         26945534472520*eps^3)*x^2*y^10)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)))/((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*
+      (3 + 4*x^2 + 2*y - y^2)*(-1 + 6*x + 2*x*y + y^2)^2*
+      (-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 12*eps*x^2 - 6*y - 6*eps*y + 
+       12*x*y + 16*eps*x*y + 3*y^2 + 5*eps*y^2)), 
+    ((1134588302*(27 + 214*eps + 478*eps^2 + 301*eps^3))/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-20656027646253 - 160705944379490*eps - 355794359630936*eps^2 - 
+         226398711944765*eps^3)*x)/(3614264910629074800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((94506799892373 + 734179584417217*eps + 1625625018256503*eps^2 + 
+         1066533782231785*eps^3)*x^2)/(3614264910629074800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-38310025767218 - 315432262593847*eps - 726928978525177*eps^2 - 
+         523350303480262*eps^3)*x^3)/(903566227657268700*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((8375889715076 + 104937212840308*eps + 308358574123117*eps^2 + 
+         283653587179452*eps^3)*x^4)/(451783113828634350*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((4164592106964 - 1653290718167*eps - 82898626001729*eps^2 - 
+         125435153549360*eps^3)*x^5)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(-6362998031843 - 29869374353855*eps - 22795099310528*eps^2 + 
+         16400567509625*eps^3)*x^6)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(2517191044162 + 12321635929107*eps + 15266704675501*eps^2 + 
+         4862452030502*eps^3)*x^7)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(314045099376 + 3274476527560*eps + 8221275411563*eps^2 + 
+         4768847511176*eps^3)*x^8)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(265230293687 + 1962945452483*eps + 4226492651931*eps^2 + 
+         2472828166515*eps^3)*x^9)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (33572368*(3 + 20*eps + 31*eps^2)*x^10)/(25113013553565*
+        (1 + 6*eps + 8*eps^2)) + (2269176604*(81 + 640*eps + 1426*eps^2 + 
+         883*eps^3)*y)/(225891556914317175*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-11850609025407 - 91089178776081*eps - 
+         200111375609711*eps^2 - 124256710843008*eps^3)*x*y)/
+       (903566227657268700*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((122368058214630 + 926006207577779*eps + 2011965745135027*eps^2 + 
+         1266294378526020*eps^3)*x^2*y)/(1807132455314537400*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-112567364180820 - 863824887287231*eps - 1880264128855233*eps^2 - 
+         1239176307223448*eps^3)*x^3*y)/(903566227657268700*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((17702115843936 + 155751892024615*eps + 368146844643901*eps^2 + 
+         278923768249544*eps^3)*x^4*y)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((942828992932 - 30166889564649*eps - 151459637639067*eps^2 - 
+         188141582743424*eps^3)*x^5*y)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(-5072789108582 - 28124605657068*eps - 34423582028061*eps^2 + 
+         895404996216*eps^3)*x^6*y)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(6234008328868 + 38387457714183*eps + 67764617636697*eps^2 + 
+         35147692358248*eps^3)*x^7*y)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(220361280080 + 1008074816531*eps + 1572624440843*eps^2 + 
+         1318714753984*eps^3)*x^8*y)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(290753936888 + 2059545690475*eps + 4260983908097*eps^2 + 
+         2436691208080*eps^3)*x^9*y)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(12468494 + 78227323*eps + 119049164*eps^2)*x^10*y)/
+       (175791094874955*(1 + 6*eps + 8*eps^2)) - 
+      (1134588302*(135 + 1074*eps + 2406*eps^2 + 1577*eps^3)*y^2)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((5200564928741 + 48418577418478*eps + 116946949147572*eps^2 + 
+         100915659921417*eps^3)*x*y^2)/(3614264910629074800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((105785702051451 + 719161518345273*eps + 1445367578589907*eps^2 + 
+         712789269436235*eps^3)*x^2*y^2)/(3614264910629074800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-22908055707866 - 155300437241852*eps - 301645977778568*eps^2 - 
+         157194391502701*eps^3)*x^3*y^2)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((23628049309900 + 157703528200105*eps + 277398478407531*eps^2 + 
+         126752607595770*eps^3)*x^4*y^2)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-13847222381272 - 89373816102295*eps - 145720962033601*eps^2 - 
+         68082642934448*eps^3)*x^5*y^2)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(503357774017 - 267605797103*eps - 1285672240198*eps^2 + 
+         8632787157309*eps^3)*x^6*y^2)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(2049206822590 + 14560387806425*eps + 29297007028527*eps^2 + 
+         16361113534536*eps^3)*x^7*y^2)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(602695680988 + 4110841932497*eps + 8560435191824*eps^2 + 
+         5448616208690*eps^3)*x^8*y^2)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(92732691265 + 645411387825*eps + 1280467100097*eps^2 + 
+         705634946997*eps^3)*x^9*y^2)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (54661744*(1 + 6*eps + 9*eps^2)*x^10*y^2)/(175791094874955*
+        (1 + 6*eps + 8*eps^2)) - (9076706416*(51 + 402*eps + 894*eps^2 + 
+         557*eps^3)*y^3)/(225891556914317175*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((4693283288006 + 36135057278863*eps + 
+         79220392976821*eps^2 + 50010989250463*eps^3)*x*y^3)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-22646538342192 - 176307829342977*eps - 386212091533773*eps^2 - 
+         258132596061728*eps^3)*x^2*y^3)/(451783113828634350*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((4148466509922 + 45503307348804*eps + 118580968538412*eps^2 + 
+         104815045125167*eps^3)*x^3*y^3)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((8648710612384 + 40859820958511*eps + 33810655267921*eps^2 - 
+         34036937212112*eps^3)*x^4*y^3)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-12762898200064 - 74458063665369*eps - 99098162419739*eps^2 - 
+         9832101963568*eps^3)*x^5*y^3)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(1672438275336 + 10579761877480*eps + 19038044349625*eps^2 + 
+         10084367417392*eps^3)*x^6*y^3)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(181518356100 + 802311412031*eps + 1472321806049*eps^2 + 
+         1559247164834*eps^3)*x^7*y^3)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(295023002080 + 2066295536229*eps + 4313024090605*eps^2 + 
+         2662734718112*eps^3)*x^8*y^3)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(9273270784 + 66013005833*eps + 125884149851*eps^2 + 
+         65854503832*eps^3)*x^9*y^3)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2269176604*(9 + 82*eps + 202*eps^2 + 207*eps^3)*y^4)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((13892557902247 + 100057115957646*eps + 209344452682944*eps^2 + 
+         111406235191375*eps^3)*x*y^4)/(1807132455314537400*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-70987678098943 - 501126150570919*eps - 1016065218574089*eps^2 - 
+         566662384894651*eps^3)*x^2*y^4)/(1807132455314537400*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((23731432217546 + 166636289279101*eps + 323270963736267*eps^2 + 
+         179681194323472*eps^3)*x^3*y^4)/(451783113828634350*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-4212693778144 - 29357882530019*eps - 50932067780448*eps^2 - 
+         27045035997074*eps^3)*x^4*y^4)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-730068717532 - 5581899585965*eps - 9959414319835*eps^2 - 
+         10012263120*eps^3)*x^5*y^4)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(2254488880847 + 15817383911675*eps + 31415340859020*eps^2 + 
+         17308610751227*eps^3)*x^6*y^4)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(915892936030 + 6285117287477*eps + 13254275185499*eps^2 + 
+         8682354960214*eps^3)*x^7*y^4)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(81486524440 + 583551743766*eps + 1210876475451*eps^2 + 
+         733734269668*eps^3)*x^8*y^4)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4538353208*(29 + 228*eps + 506*eps^2 + 319*eps^3)*y^5)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-4268793262087 - 33202192546367*eps - 72983471060521*eps^2 - 
+         48022218605602*eps^3)*x*y^5)/(451783113828634350*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((7542206673326 + 67219052029317*eps + 160666696490829*eps^2 + 
+         127000207598212*eps^3)*x^2*y^5)/(903566227657268700*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((5077114190536 + 26997342261605*eps + 35490107245051*eps^2 - 
+         1324421840114*eps^3)*x^3*y^5)/(451783113828634350*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-3270985380224 - 19531020215571*eps - 29274980333689*eps^2 - 
+         8208902451880*eps^3)*x^4*y^5)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1794561841604 + 10765539831341*eps + 17822968755015*eps^2 + 
+         8156558879328*eps^3)*x^5*y^5)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(130771467402 + 763834059636*eps + 1548424334917*eps^2 + 
+         1193051984152*eps^3)*x^6*y^5)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(171259863356 + 1239302120441*eps + 2668576416743*eps^2 + 
+         1736415234500*eps^3)*x^7*y^5)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2269176604*(7 + 50*eps + 102*eps^2 + 41*eps^3)*y^6)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-7018899295651 - 49800064147690*eps - 101422943227716*eps^2 - 
+         54528185399703*eps^3)*x*y^6)/(1807132455314537400*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((18471136073923 + 130969345185173*eps + 262702059967199*eps^2 + 
+         150546879450435*eps^3)*x^2*y^6)/(1807132455314537400*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1256844575978 - 8716600731730*eps - 16436287887386*eps^2 - 
+         9429067373491*eps^3)*x^3*y^6)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-466582533452 - 3564895295261*eps - 7926760326971*eps^2 - 
+         4936936905522*eps^3)*x^4*y^6)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((468678150752 + 3325499230555*eps + 7000394358429*eps^2 + 
+         4356036973104*eps^3)*x^5*y^6)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(22443334729 + 165848974409*eps + 378088277422*eps^2 + 
+         272765295165*eps^3)*x^6*y^6)/(45178311382863435*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (9076706416*(15 + 118*eps + 262*eps^2 + 169*eps^3)*y^7)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((445555775260 + 3569908208099*eps + 8048773795785*eps^2 + 
+         5583362382781*eps^3)*x*y^7)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-147666099668 - 2026800017397*eps - 6226667138745*eps^2 - 
+         6281029336696*eps^3)*x^2*y^7)/(451783113828634350*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-459565365050 - 2964416701970*eps - 5332690772094*eps^2 - 
+         2603528380275*eps^3)*x^3*y^7)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((142506711424 + 792137848125*eps + 1398032576107*eps^2 + 
+         831897422512*eps^3)*x^4*y^7)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((16297304888 + 115181244561*eps + 231244661411*eps^2 + 
+         129070810768*eps^3)*x^5*y^7)/(45178311382863435*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (1134588302*(-3 - 6*eps + 18*eps^2 + 59*eps^3)*y^8)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1694181913967 + 11652312624262*eps + 22650755273848*eps^2 + 
+         11404661457679*eps^3)*x*y^8)/(3614264910629074800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2802912010087 - 19600940801811*eps - 38756064092389*eps^2 - 
+         22628035859683*eps^3)*x^2*y^8)/(3614264910629074800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-51722143058 - 717395343243*eps - 1936452323861*eps^2 - 
+         1340417901530*eps^3)*x^3*y^8)/(903566227657268700*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((171259863356 + 1246947641402*eps + 2723229585139*eps^2 + 
+         1824795450328*eps^3)*x^4*y^8)/(451783113828634350*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2269176604*(9 + 72*eps + 162*eps^2 + 107*eps^3)*y^9)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-167160703483 - 1326298079033*eps - 2998349359671*eps^2 - 
+         2076258478764*eps^3)*x*y^9)/(903566227657268700*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-27152527922 - 242034700517*eps - 443832538933*eps^2 - 
+         155279469548*eps^3)*x^2*y^9)/(1807132455314537400*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((99046609700 + 729408903469*eps + 1638237259539*eps^2 + 
+         1156915684492*eps^3)*x^3*y^9)/(903566227657268700*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (1134588302*(3 + 26*eps + 62*eps^2 + 45*eps^3)*y^10)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((13963590353 + 120950716838*eps + 353636299060*eps^2 + 
+         322290982325*eps^3)*x*y^10)/(3614264910629074800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((40496648143 + 300967799613*eps + 690326235119*eps^2 + 
+         506020398495*eps^3)*x^2*y^10)/(3614264910629074800*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)))/((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*
+      (3 + 4*x^2 + 2*y - y^2)*(-1 + 6*x + 2*x*y + y^2)^2*
+      (-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 12*eps*x^2 - 6*y - 6*eps*y + 
+       12*x*y + 16*eps*x*y + 3*y^2 + 5*eps*y^2)), 
+    ((567294151*(27 + 130*eps + 213*eps^2 + 102*eps^3))/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-220239121146903 - 1162896976788665*eps - 2043176716269936*eps^2 - 
+         1022538830310156*eps^3)*x)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1150250669189325 + 6454005465449627*eps + 11415447426078412*eps^2 + 
+         5430336915021756*eps^3)*x^2)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1278397255192549 - 7132030840769563*eps - 10440569554203666*eps^2 - 
+         2754008527683832*eps^3)*x^3)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((664515817833739 + 2898818611660455*eps - 1097618151986562*eps^2 - 
+         6070697613200672*eps^3)*x^4)/(18071324553145374000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-151275013003857 + 13280589233257*eps + 5358440919881198*eps^2 + 
+         7112574034884792*eps^3)*x^5)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-34547791109443 - 640781975833739*eps - 3327361956354410*eps^2 - 
+         3356696139431048*eps^3)*x^6)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((41731214970857 + 426513829502487*eps + 1386979054099546*eps^2 + 
+         1113782548962200*eps^3)*x^7)/(2258915569143171750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-10437685960047 - 115375705057947*eps - 351518783074006*eps^2 - 
+         262719115261760*eps^3)*x^8)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(-744990978949 + 4002398335437*eps + 25412598704554*eps^2 + 
+         22061048607168*eps^3)*x^9)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + (16786184*(3 + 5*eps)*x^10)/
+       (25113013553565*(1 + 4*eps)) + 
+      (1134588302*(81 + 376*eps + 609*eps^2 + 306*eps^3)*y)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-250691025192513 - 1307813580479387*eps - 2363256894457478*eps^2 - 
+         1287340072941312*eps^3)*x*y)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((365195139168858 + 2071213758635900*eps + 3975454346355891*eps^2 + 
+         2225419080048686*eps^3)*x^2*y)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-3585287952281367 - 21161688708104893*eps - 39736973367445622*eps^2 - 
+         20511015802132088*eps^3)*x^3*y)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((212156525114265 + 1158762546526081*eps + 1476220648456126*eps^2 + 
+         160735898259064*eps^3)*x^4*y)/(1807132455314537400*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-667618773746005 - 2898098980511911*eps + 2020265511913614*eps^2 + 
+         7346722040910392*eps^3)*x^5*y)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((15639836827249 - 6808388052643*eps - 739527223519520*eps^2 - 
+         988671731901716*eps^3)*x^6*y)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((52232952137903 + 443318575414133*eps + 1457448511305414*eps^2 + 
+         1226304305396280*eps^3)*x^7*y)/(2258915569143171750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(10993336005187 + 87662169310507*eps + 225263185618146*eps^2 + 
+         156399753409560*eps^3)*x^8*y)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(356855884045 + 3265825694399*eps + 8941166305522*eps^2 + 
+         6451845020648*eps^3)*x^9*y)/(225891556914317175*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(6234247 + 15286382*eps)*x^10*y)/(175791094874955*(1 + 4*eps)) - 
+      (567294151*(135 + 726*eps + 1269*eps^2 + 574*eps^3)*y^2)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((74803723761365 + 528084373154699*eps + 820572459750204*eps^2 + 
+         57103626670812*eps^3)*x*y^2)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1010740999935003 + 5795085068711653*eps + 14898888888779044*eps^2 + 
+         12420145956333860*eps^3)*x^2*y^2)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-300514523763719 - 1972784803205488*eps - 5141034436736776*eps^2 - 
+         3949255294695792*eps^3)*x^3*y^2)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((989823964818179 + 6457983324257227*eps + 15547382487018570*eps^2 + 
+         10943864753791464*eps^3)*x^4*y^2)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-862095025790285 - 5295026635124683*eps - 10014733029797818*eps^2 - 
+         5143979958686024*eps^3)*x^5*y^2)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((232475037570701 + 1477607147300709*eps + 2209816612413326*eps^2 + 
+         536331622480424*eps^3)*x^6*y^2)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-9171627390901 - 83298309231847*eps - 129788306777514*eps^2 - 
+         24101590602488*eps^3)*x^7*y^2)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(2480589669487 + 14942261979485*eps + 31382041629484*eps^2 + 
+         18968650705444*eps^3)*x^8*y^2)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(1691713315093 + 11849167553891*eps + 26295517831222*eps^2 + 
+         16919508226624*eps^3)*x^9*y^2)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + (27330872*(1 + 3*eps)*x^10*y^2)/
+       (175791094874955*(1 + 4*eps)) - 
+      (4538353208*(51 + 246*eps + 417*eps^2 + 214*eps^3)*y^3)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((102478271672503 + 560197925883271*eps + 1052519965724562*eps^2 + 
+         573466446906824*eps^3)*x*y^3)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-320190800703735 - 1888079832773347*eps - 3545386101960282*eps^2 - 
+         1773113870131496*eps^3)*x^2*y^3)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((167127386644572 + 857724350171411*eps + 601431499109690*eps^2 - 
+         614468051315768*eps^3)*x^3*y^3)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5864016403567 + 647865591998441*eps + 5755592738539902*eps^2 + 
+         6907854444655704*eps^3)*x^4*y^3)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-246645358088897 - 1888825968371899*eps - 6619349169014138*eps^2 - 
+         6117291457522696*eps^3)*x^5*y^3)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(17231006630559 + 110623588350939*eps + 252567590116532*eps^2 + 
+         169099206745340*eps^3)*x^6*y^3)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-18322459560771 - 126552172110053*eps - 269489896411350*eps^2 - 
+         159187296861336*eps^3)*x^7*y^3)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(685650361987 + 6554576835819*eps + 16833710422178*eps^2 + 
+         12439797743256*eps^3)*x^8*y^3)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(321158461519 + 2226107023733*eps + 4684853916966*eps^2 + 
+         2858946578552*eps^3)*x^9*y^3)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (1134588302*(9 + 118*eps + 231*eps^2 + 34*eps^3)*y^4)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((137405707390873 + 695837767465359*eps + 1554831145972840*eps^2 + 
+         1205098723957188*eps^3)*x*y^4)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-169839669443831 - 1053528316306537*eps - 2566318034764188*eps^2 - 
+         1875809723654020*eps^3)*x^2*y^4)/(7228529821258149600*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((850036937355379 + 5383429774493441*eps + 12164575568618774*eps^2 + 
+         8050489533415016*eps^3)*x^3*y^4)/(18071324553145374000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-187527990537553 - 1108621454736175*eps - 1945518689372796*eps^2 - 
+         899087483504316*eps^3)*x^4*y^4)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((173356084090189 + 961371427079387*eps + 1032706697236330*eps^2 - 
+         130597987039256*eps^3)*x^5*y^4)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-13171968260945 - 94552628217257*eps - 103051328570302*eps^2 + 
+         23744776462984*eps^3)*x^6*y^4)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-6665509545023 - 40785116488585*eps - 82283256995206*eps^2 - 
+         44969281303976*eps^3)*x^7*y^4)/(2258915569143171750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((903388897195 + 6749751783311*eps + 14998092921606*eps^2 + 
+         9732524139728*eps^3)*x^8*y^4)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2269176604*(29 + 148*eps + 265*eps^2 + 138*eps^3)*y^5)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-100067957680511 - 582236069733569*eps - 1108149658808586*eps^2 - 
+         565979342014064*eps^3)*x*y^5)/(18071324553145374000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((80774062928545 + 443744780351801*eps + 506468941896396*eps^2 - 
+         52952854574492*eps^3)*x^2*y^5)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-6368602032667 + 257440463221955*eps + 2418378269274026*eps^2 + 
+         2931285755199816*eps^3)*x^3*y^5)/(18071324553145374000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-77072056780057 - 585806158411745*eps - 1834677435558814*eps^2 - 
+         1587507681177784*eps^3)*x^4*y^5)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((67808541095617 + 430277355513451*eps + 927604234828810*eps^2 + 
+         596846342748392*eps^3)*x^5*y^5)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-3840834060015 - 25181574118483*eps - 50858050236488*eps^2 - 
+         28978729713124*eps^3)*x^6*y^5)/(1129457784571585875*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1134417627671 + 8833460565781*eps + 20048634871398*eps^2 + 
+         13803314888440*eps^3)*x^7*y^5)/(2258915569143171750*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (1134588302*(7 + 22*eps + 53*eps^2 + 62*eps^3)*y^6)/
+       (75297185638105725*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-73735360096903 - 436154066013057*eps - 1099291319042268*eps^2 - 
+         845543496259492*eps^3)*x*y^6)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((50621116832219 + 318684019762141*eps + 733566065439756*eps^2 + 
+         497536912118996*eps^3)*x^2*y^6)/(7228529821258149600*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-7579927923946 - 46236501390183*eps - 88911453654370*eps^2 - 
+         48553332835528*eps^3)*x^3*y^6)/(903566227657268700*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((36771122156069 + 208448917025933*eps + 292478637563286*eps^2 + 
+         79048694613112*eps^3)*x^4*y^6)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-7345024932527 - 43189089214585*eps - 63591841661854*eps^2 - 
+         21799475453784*eps^3)*x^5*y^6)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((57757182619 + 479336477379*eps + 1087700700242*eps^2 + 
+         930750614520*eps^3)*x^6*y^6)/(903566227657268700*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4538353208*(15 + 82*eps + 153*eps^2 + 78*eps^3)*y^7)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((11444234891195 + 64508864387143*eps + 102165162314618*eps^2 + 
+         34305655668824*eps^3)*x*y^7)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-11102514663461 - 54265254367609*eps - 19946084075126*eps^2 + 
+         60082796814776*eps^3)*x^2*y^7)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1049286510107 - 13417309709276*eps - 63534100628040*eps^2 - 
+         64392067383872*eps^3)*x^3*y^7)/(4517831138286343500*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((5383253614475 + 38392922577523*eps + 88321676719978*eps^2 + 
+         58635656723464*eps^3)*x^4*y^7)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-180677779439 - 1383222931253*eps - 3139566414086*eps^2 - 
+         2016062486072*eps^3)*x^5*y^7)/(1807132455314537400*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (567294151*(3 + 18*eps + 141*eps^2 + 182*eps^3)*y^8)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((17448443016869 + 112160985176603*eps + 308320192458816*eps^2 + 
+         246945937633732*eps^3)*x*y^8)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-43734460294039 - 275054704369041*eps - 585485816021044*eps^2 - 
+         366680502838356*eps^3)*x^2*y^8)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((15684145086407 + 100414862136753*eps + 190078759272822*eps^2 + 
+         103297941475048*eps^3)*x^3*y^8)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1134417627671 - 8667097692827*eps - 19348895722574*eps^2 - 
+         13455526597808*eps^3)*x^4*y^8)/(18071324553145374000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (1134588302*(9 + 48*eps + 81*eps^2 + 34*eps^3)*y^9)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-4863085701257 - 26541441135131*eps - 39184300082070*eps^2 - 
+         11789653333152*eps^3)*x*y^9)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((945366434593 + 5492813977255*eps + 8378923101521*eps^2 + 
+         3049860501726*eps^3)*x^2*y^9)/(9035662276572687000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-552187191995 - 4143452933249*eps - 9035656717934*eps^2 - 
+         6581949036632*eps^3)*x^3*y^9)/(36142649106290748000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (567294151*(-3 - 14*eps - 9*eps^2 + 10*eps^3)*y^10)/
+       (225891556914317175*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((646259780729 + 3284215552759*eps + 3204410199772*eps^2 - 
+         621189389780*eps^3)*x*y^10)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-101657395769 - 742737756279*eps - 1570603044892*eps^2 - 
+         1194151893420*eps^3)*x^2*y^10)/(72285298212581496000*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)))/((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*
+      (3 + 4*x^2 + 2*y - y^2)*(-1 + 6*x + 2*x*y + y^2)^2*
+      (-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 12*eps*x^2 - 6*y - 6*eps*y + 
+       12*x*y + 16*eps*x*y + 3*y^2 + 5*eps*y^2))}, 
+   {((-1947*eps^2*(3 + eps))/(179539345475*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((6210243 + 44851755*eps + 100359126*eps^2 + 
+         53719936*eps^3)*x)/(28726295276000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-93153645 - 679216577*eps - 1415762242*eps^2 - 
+         822706096*eps^3)*x^2)/(28726295276000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((697617297 + 5173132419*eps + 10908728838*eps^2 + 
+         6849818696*eps^3)*x^3)/(43089442914000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-676916487 - 5187852995*eps - 11593162174*eps^2 - 
+         8027789064*eps^3)*x^4)/(21544721457000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((319482501 + 2555629999*eps + 6054104766*eps^2 + 
+         4529613704*eps^3)*x^5)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-126274941 - 1061951553*eps - 2697219450*eps^2 - 
+         2183980456*eps^3)*x^6)/(5386180364250*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((11730459 + 156636129*eps + 592079042*eps^2 + 
+         639101080*eps^3)*x^7)/(2693090182125*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (2*(22770891 + 146975751*eps + 228649318*eps^2 + 
+         69379240*eps^3)*x^8)/(2693090182125*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(6210243 + 43471701*eps + 78725642*eps^2 + 
+         40538984*eps^3)*x^9)/(2693090182125*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (64*eps^2*x^10)/(19959905*(1 + 6*eps + 8*eps^2)) - 
+      (1298*eps^2*(15 + 11*eps)*y)/(179539345475*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((18630729 + 133175211*eps + 331098414*eps^2 + 
+         195584656*eps^3)*x*y)/(43089442914000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-80733159 - 581922770*eps - 1245199558*eps^2 - 
+         733121458*eps^3)*x^2*y)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((1816841091 + 13280949669*eps + 27956971706*eps^2 + 
+         17268983064*eps^3)*x^3*y)/(43089442914000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-192517533 - 1444686529*eps - 3176642778*eps^2 - 
+         2134038168*eps^3)*x^4*y)/(2154472145700*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((934986585 + 7214692303*eps + 16545213358*eps^2 + 
+         11803992584*eps^3)*x^5*y)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (2*(90393537 + 712797891*eps + 1683821430*eps^2 + 
+         1249954352*eps^3)*x^6*y)/(2693090182125*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((32891287 + 274400737*eps + 700230066*eps^2 + 
+         569233720*eps^3)*x^7*y)/(897696727375*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(-8970351 - 50371971*eps - 54220878*eps^2 + 
+         18654200*eps^3)*x^8*y)/(2693090182125*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(690027 + 4830189*eps + 9462186*eps^2 + 
+         5342584*eps^3)*x^9*y)/(179539345475*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (128*eps^2*x^10*y)/(83831601*(1 + 6*eps + 8*eps^2)) - 
+      (649*eps^2*(39 + 97*eps)*y^2)/(538618036425*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-31051215 - 230699027*eps - 339913942*eps^2 - 
+         108182336*eps^3)*x*y^2)/(86178885828000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((64172511 + 602393571*eps + 710850838*eps^2 + 
+         421659680*eps^3)*x^2*y^2)/(86178885828000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((97293807 + 661505884*eps + 1320614808*eps^2 + 
+         689008876*eps^3)*x^3*y^2)/(5386180364250*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-704517567 - 5064568171*eps - 10651465870*eps^2 - 
+         6586499192*eps^3)*x^4*y^2)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((796981185 + 5835558339*eps + 12622124614*eps^2 + 
+         8221280072*eps^3)*x^5*y^2)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-302921853 - 2215676697*eps - 4738651818*eps^2 - 
+         3042775912*eps^3)*x^6*y^2)/(5386180364250*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (2*(68312673 + 505789791*eps + 1096609822*eps^2 + 
+         727378744*eps^3)*x^7*y^2)/(2693090182125*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (8*(1610063 + 12650495*eps + 29824006*eps^2 + 
+         22390176*eps^3)*x^8*y^2)/(897696727375*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(4830189 + 33811323*eps + 68035926*eps^2 + 
+         39568792*eps^3)*x^9*y^2)/(2693090182125*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (64*eps^2*x^10*y^2)/(419158005*(1 + 6*eps + 8*eps^2)) + 
+      (5192*eps^2*(21 + 11*eps)*y^3)/(538618036425*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-11730459 - 84413303*eps - 181658246*eps^2 - 
+         98140872*eps^3)*x*y^3)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((127654995 + 933606531*eps + 1912825766*eps^2 + 
+         1131937088*eps^3)*x^2*y^3)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-171126696 - 1298860823*eps - 2849129470*eps^2 - 
+         1929708436*eps^3)*x^3*y^3)/(5386180364250*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((243579531 + 2001768327*eps + 4882869334*eps^2 + 
+         3812809928*eps^3)*x^4*y^3)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-11730459 - 302921853*eps - 1257521866*eps^2 - 
+         1458230072*eps^3)*x^5*y^3)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (4*(-690027 + 6210243*eps + 48669574*eps^2 + 
+         68836240*eps^3)*x^6*y^3)/(2693090182125*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (2*(20010783 + 133635229*eps + 240936330*eps^2 + 
+         110372168*eps^3)*x^7*y^3)/(2693090182125*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(8970351 + 65092547*eps + 138151854*eps^2 + 
+         88927848*eps^3)*x^8*y^3)/(2693090182125*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (4*(690027 + 3450135*eps + 2862908*eps^2)*x^9*y^3)/
+       (2693090182125*(1 + 5*eps + 4*eps^2)) + 
+      (1298*eps^2*(93 + 127*eps)*y^4)/(538618036425*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((2070081 + 22310873*eps - 49217390*eps^2 - 
+         63329184*eps^3)*x*y^4)/(43089442914000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((37951485 + 259680161*eps + 534071490*eps^2 + 
+         282978352*eps^3)*x^2*y^4)/(8617888582800*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-511310007 - 3684054153*eps - 7737131602*eps^2 - 
+         4751486888*eps^3)*x^3*y^4)/(21544721457000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((198037749 + 1459407105*eps + 3179737658*eps^2 + 
+         2099632368*eps^3)*x^4*y^4)/(5386180364250*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-256000017 - 1908844691*eps - 4221851590*eps^2 - 
+         2853975592*eps^3)*x^5*y^4)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((79353105 + 595493301*eps + 1321543106*eps^2 + 
+         903483848*eps^3)*x^6*y^4)/(5386180364250*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-15870621 - 123054815*eps - 290542462*eps^2 - 
+         216451592*eps^3)*x^7*y^4)/(2693090182125*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) - (2*(3450135 + 24610963*eps + 50959198*eps^2 + 
+         31486824*eps^3)*x^8*y^4)/(2693090182125*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + (2596*eps^2*(-5 + 3*eps)*y^5)/
+       (179539345475*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((20010783 + 145595697*eps + 284784298*eps^2 + 147970432*eps^3)*x*y^5)/
+       (21544721457000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-58652295 - 440927253*eps - 939021118*eps^2 - 608109524*eps^3)*x^2*
+        y^5)/(10772360728500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((146975751 + 1169595765*eps + 2749054362*eps^2 + 2059118312*eps^3)*x^3*
+        y^5)/(21544721457000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((15870621 + 60952385*eps - 29604838*eps^2 - 190932648*eps^3)*x^4*y^5)/
+       (10772360728500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-14490567 - 94073681*eps - 165269970*eps^2 - 69638712*eps^3)*x^5*y^5)/
+       (3590786909500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(3450135 + 23230909*eps + 42374634*eps^2 + 20091792*eps^3)*x^6*y^5)/
+       (2693090182125*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-6210243 - 45311773*eps - 97675434*eps^2 - 64196920*eps^3)*x^7*y^5)/
+       (2693090182125*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (1298*eps^2*(25 + 31*eps)*y^6)/(179539345475*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((4830189 + 29671161*eps + 76463714*eps^2 + 
+         38690336*eps^3)*x*y^6)/(43089442914000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-18630729 - 131795157*eps - 271033370*eps^2 - 
+         155583328*eps^3)*x^2*y^6)/(8617888582800*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((6900270 + 50371971*eps + 108205446*eps^2 + 
+         69633020*eps^3)*x^3*y^6)/(1077236072850*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-62792457 - 464848189*eps - 1021724098*eps^2 - 
+         685868616*eps^3)*x^4*y^6)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((22770891 + 125814923*eps + 133867436*eps^2)*x^5*y^6)/
+       (10772360728500*(1 + 5*eps + 4*eps^2)) + 
+      ((-690027 - 5290207*eps - 12420486*eps^2 - 9097560*eps^3)*x^6*y^6)/
+       (1077236072850*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (5192*eps^2*(1 + 3*eps)*y^7)/(179539345475*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-3450135 - 25530999*eps - 51809734*eps^2 - 
+         30034232*eps^3)*x*y^7)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((13110513 + 99593897*eps + 221598498*eps^2 + 
+         152261552*eps^3)*x^2*y^7)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-4830189 - 38641512*eps - 93722480*eps^2 - 
+         72176964*eps^3)*x^3*y^7)/(5386180364250*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-3450135 - 20930819*eps - 30025774*eps^2 - 
+         4745512*eps^3)*x^4*y^7)/(10772360728500*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((690027 + 4830189*eps + 9598698*eps^2 + 5561336*eps^3)*
+        x^5*y^7)/(2154472145700*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (649*eps^2*(33 + 43*eps)*y^8)/(538618036425*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-690027 - 2530099*eps - 3495718*eps^2 + 4929984*eps^3)*
+        x*y^8)/(86178885828000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((7130279 + 50371971*eps + 103096134*eps^2 + 59688336*eps^3)*x^2*y^8)/
+       (28726295276000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-22770891 - 165836489*eps - 355891986*eps^2 - 229984184*eps^3)*x^3*
+        y^8)/(43089442914000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((6210243 + 33351305*eps + 33938532*eps^2)*x^4*y^8)/
+       (21544721457000*(1 + 5*eps + 4*eps^2)) + (1298*eps^2*(3 + 7*eps)*y^9)/
+       (538618036425*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((2070081 + 15410603*eps + 33204910*eps^2 + 21174896*eps^3)*x*y^9)/
+       (43089442914000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1380054 - 10350405*eps - 23240388*eps^2 - 16004458*eps^3)*x^2*y^9)/
+       (10772360728500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3450135 + 25991017*eps + 59445122*eps^2 + 42116056*eps^3)*x^3*y^9)/
+       (43089442914000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (649*eps^2*(3 + 5*eps)*y^10)/(538618036425*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-690027 - 5290207*eps - 12160366*eps^2 - 
+         8629760*eps^3)*x*y^10)/(86178885828000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((690027 + 5290207*eps + 12471886*eps^2 + 9148960*eps^3)*
+        x^2*y^10)/(86178885828000*(1 + 7*eps + 14*eps^2 + 8*eps^3)))/
+     ((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*(3 + 4*x^2 + 2*y - y^2)*
+      (-1 + 6*x + 2*x*y + y^2)^2*(-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 
+       12*eps*x^2 - 6*y - 6*eps*y + 12*x*y + 16*eps*x*y + 3*y^2 + 
+       5*eps*y^2)), ((-649*(27 + 214*eps + 451*eps^2 + 292*eps^3))/
+       (1077236072850*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((94583313 + 736871665*eps + 1577384626*eps^2 + 1080049336*eps^3)*x)/
+       (517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-166635855 - 1363468307*eps - 3406416342*eps^2 - 3028398056*eps^3)*
+        x^2)/(517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-529576351 - 3671795117*eps - 6198291434*eps^2 - 2231686008*eps^3)*
+        x^3)/(258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((839965801 + 6027718045*eps + 11453591042*eps^2 + 6249542072*eps^3)*
+        x^4)/(129268328742000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-477659403 - 3587398977*eps - 7675909618*eps^2 - 5045160792*eps^3)*
+        x^5)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((243464483 + 1982661439*eps + 5223821670*eps^2 + 4273563688*eps^3)*
+        x^6)/(32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-31033717 - 357740207*eps - 1460401166*eps^2 - 1616999720*eps^3)*x^7)/
+       (16158541092750*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-45602853 - 300941913*eps - 496771034*eps^2 - 161087320*eps^3)*x^8)/
+       (8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(10476029 + 74876283*eps + 166498566*eps^2 + 107032712*eps^3)*x^9)/
+       (8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(3 + 19*eps + 20*eps^2)*x^10)/(179639145*(1 + 6*eps + 8*eps^2)) - 
+      (649*(81 + 640*eps + 1291*eps^2 + 784*eps^3)*y)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((113262033 + 864435387*eps + 1722657998*eps^2 + 1077445512*eps^3)*x*y)/
+       (258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-69439413 - 516565130*eps - 1022339306*eps^2 - 740084576*eps^3)*x^2*
+        y)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1223712813 - 8887487947*eps - 17460102678*eps^2 - 8562370632*eps^3)*
+        x^3*y)/(258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((227529651 + 1662515935*eps + 3313628662*eps^2 + 1917876200*eps^3)*x^4*
+        y)/(12926832874200*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1289570935 - 9632610369*eps - 19691014594*eps^2 - 12053978712*eps^3)*
+        x^5*y)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((157656631 + 1233994733*eps + 2859231410*eps^2 + 2032887736*eps^3)*x^6*
+        y)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-208197643 - 1730707053*eps - 4681289754*eps^2 - 3923596280*eps^3)*
+        x^7*y)/(16158541092750*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(-18710593 - 110195613*eps - 90442434*eps^2 + 86921800*eps^3)*x^8*y)/
+       (8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(4444207 + 32096329*eps + 65546290*eps^2 + 38223128*eps^3)*x^9*y)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (64*(5 + 27*eps + 24*eps^2)*x^10*y)/(1257474015*
+        (1 + 6*eps + 8*eps^2)) + (649*(135 + 1074*eps + 2523*eps^2 + 
+         1868*eps^3)*y^2)/(3231708218550*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((17358425 + 53616861*eps - 481972614*eps^2 - 827417832*eps^3)*x*y^2)/
+       (517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-756031593 - 5030471373*eps - 6774739194*eps^2 - 1738187800*eps^3)*
+        x^2*y^2)/(517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-256781 - 71919652*eps - 563289104*eps^2 - 497088848*eps^3)*x^3*y^2)/
+       (32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((719601281 + 5342194133*eps + 11379780130*eps^2 + 6937227576*eps^3)*
+        x^4*y^2)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-942155375 - 6766851437*eps - 12576051882*eps^2 - 6431195256*eps^3)*
+        x^5*y^2)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((439462499 + 3193727271*eps + 5921606294*eps^2 + 2909740776*eps^3)*x^6*
+        y^2)/(32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-132062239 - 999188113*eps - 2194731826*eps^2 - 1436649112*eps^3)*x^7*
+        y^2)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(9947387 + 80387635*eps + 203984374*eps^2 + 159730664*eps^3)*x^8*
+        y^2)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(10703827 + 64323682*eps + 83771896*eps^2)*x^9*y^2)/
+       (8079270546375*(1 + 6*eps + 8*eps^2)) + (32*(1 + eps)*x^10*y^2)/
+       (1257474015*(1 + 2*eps)) + (2596*(51 + 402*eps + 831*eps^2 + 
+         524*eps^3)*y^3)/(1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-38322203 - 297747431*eps - 638341862*eps^2 - 443310984*eps^3)*x*y^3)/
+       (64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-48946245 - 305563933*eps - 326753898*eps^2 + 164549576*eps^3)*x^2*
+        y^3)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((217279188 + 1542111049*eps + 2800884810*eps^2 + 1428881448*eps^3)*x^3*
+        y^3)/(32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-434420293 - 3151174041*eps - 5843944922*eps^2 - 3309695704*eps^3)*
+        x^4*y^3)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((174897397 + 1571196979*eps + 4184558598*eps^2 + 3524812936*eps^3)*x^5*
+        y^3)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(8692659 + 90807469*eps + 320449362*eps^2 + 321953400*eps^3)*x^6*
+        y^3)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-32547969 - 216759827*eps - 344480870*eps^2 - 97994184*eps^3)*x^7*
+        y^3)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(17724193 + 130287901*eps + 281457442*eps^2 + 181714744*eps^3)*x^8*
+        y^3)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(1426021 + 8556126*eps + 11202568*eps^2)*x^9*y^3)/
+       (8079270546375*(1 + 6*eps + 8*eps^2)) - 
+      (649*(9 + 82*eps + 481*eps^2 + 588*eps^3)*y^4)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-86433623 - 612494519*eps - 898032510*eps^2 - 280546568*eps^3)*x*y^4)/
+       (258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((31027477 + 205902673*eps + 251834098*eps^2 + 95219576*eps^3)*x^2*y^4)/
+       (51707331496800*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((438710761 + 3279285639*eps + 6979164766*eps^2 + 4128170664*eps^3)*x^3*
+        y^4)/(129268328742000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-252277027 - 1830435855*eps - 3618292334*eps^2 - 2069140744*eps^3)*
+        x^4*y^4)/(32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((380486911 + 2778818973*eps + 5480117290*eps^2 + 3128306936*eps^3)*x^5*
+        y^4)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-146631695 - 1126650443*eps - 2538808798*eps^2 - 1722483784*eps^3)*
+        x^6*y^4)/(32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((32642803 + 256610705*eps + 623512306*eps^2 + 470432856*eps^3)*x^7*
+        y^4)/(16158541092750*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((6307705 + 45892749*eps + 96581954*eps^2 + 59437752*eps^3)*x^8*y^4)/
+       (8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (1298*(29 + 228*eps + 491*eps^2 + 328*eps^3)*y^5)/
+       (538618036425*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((21136711 + 176932769*eps + 478041866*eps^2 + 422280024*eps^3)*x*y^5)/
+       (129268328742000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((60843925 + 422957019*eps + 688417354*eps^2 + 257542952*eps^3)*x^2*
+        y^5)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-266503033 - 1915778875*eps - 3638437206*eps^2 - 2107719816*eps^3)*
+        x^3*y^5)/(129268328742000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((18396557 + 175558945*eps + 508839754*eps^2 + 518787864*eps^3)*x^4*
+        y^5)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((43250683 + 237141469*eps + 156038970*eps^2 - 231711752*eps^3)*x^5*
+        y^5)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-4800465 - 31924627*eps - 52119822*eps^2 - 16079816*eps^3)*x^6*y^5)/
+       (8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((10778189 + 81168979*eps + 180084582*eps^2 + 119457160*eps^3)*x^7*y^5)/
+       (16158541092750*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (649*(-7 - 50*eps - 27*eps^2 + 52*eps^3)*y^6)/
+       (538618036425*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((34484693 + 245417897*eps + 398156978*eps^2 + 178845112*eps^3)*x*y^6)/
+       (258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((4235375 + 35046075*eps + 85762006*eps^2 + 40067112*eps^3)*x^2*y^6)/
+       (51707331496800*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-8153158 - 60025517*eps - 122514882*eps^2 - 71476616*eps^3)*x^3*y^6)/
+       (6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((95387831 + 702322307*eps + 1468742734*eps^2 + 914638088*eps^3)*x^4*
+        y^6)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-38402693 - 293816815*eps - 669964686*eps^2 - 465551656*eps^3)*x^5*
+        y^6)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1117621 + 9048161*eps + 22173178*eps^2 + 16683480*eps^3)*x^6*y^6)/
+       (6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2596*(15 + 118*eps + 271*eps^2 + 196*eps^3)*y^7)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-333895 - 5308583*eps - 29106598*eps^2 - 36943944*eps^3)*x*y^7)/
+       (64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-17430599 - 127017591*eps - 249554734*eps^2 - 143282216*eps^3)*x^2*
+        y^7)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((9555127 + 72776456*eps + 164427160*eps^2 + 117900272*eps^3)*x^3*y^7)/
+       (32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3404345 + 19496477*eps + 13058242*eps^2 - 23203784*eps^3)*x^4*y^7)/
+       (64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1261541 - 7733726*eps - 10544648*eps^2)*x^5*y^7)/
+       (12926832874200*(1 + 6*eps + 8*eps^2)) - 
+      (649*(-3 - 6*eps + 117*eps^2 + 188*eps^3)*y^8)/
+       (3231708218550*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-8901379 - 62992003*eps - 110924086*eps^2 - 59887272*eps^3)*x*y^8)/
+       (517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-13086451 - 96252039*eps - 183702526*eps^2 - 75158344*eps^3)*x^2*y^8)/
+       (517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((32394533 + 243481287*eps + 523937278*eps^2 + 329627112*eps^3)*x^3*
+        y^8)/(258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-10778189 - 82085393*eps - 185274666*eps^2 - 126171672*eps^3)*x^4*
+        y^8)/(129268328742000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (649*(9 + 72*eps + 171*eps^2 + 128*eps^3)*y^9)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-911063 - 6076869*eps - 8947890*eps^2 - 985848*eps^3)*x*y^9)/
+       (258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1935532 + 14932035*eps + 33788984*eps^2 + 23053464*eps^3)*x^2*y^9)/
+       (64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5896505 - 46174791*eps - 108451406*eps^2 - 77936488*eps^3)*x^3*y^9)/
+       (258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (649*(3 + 14*eps + 15*eps^2)*y^10)/(3231708218550*
+        (1 + 3*eps + 2*eps^2)) + ((857501 + 6656721*eps + 15263138*eps^2 + 
+         10658680*eps^3)*x*y^10)/(517073314968000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)) + ((-1169021 - 9356561*eps - 22635778*eps^2 - 
+         16889080*eps^3)*x^2*y^10)/(517073314968000*(1 + 7*eps + 14*eps^2 + 
+         8*eps^3)))/((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*
+      (3 + 4*x^2 + 2*y - y^2)*(-1 + 6*x + 2*x*y + y^2)^2*
+      (-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 12*eps*x^2 - 6*y - 6*eps*y + 
+       12*x*y + 16*eps*x*y + 3*y^2 + 5*eps*y^2)), 
+    ((649*(27 + 214*eps + 478*eps^2 + 301*eps^3))/(538618036425*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-7103223 - 54410105*eps - 119404766*eps^2 - 75559670*eps^3)*x)/
+       (12926832874200*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((43942653 + 328033117*eps + 711960888*eps^2 + 459947950*eps^3)*x^2)/
+       (12926832874200*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-62416441 - 464025779*eps - 1022180234*eps^2 - 699210584*eps^3)*x^3)/
+       (6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((44259127 + 342220511*eps + 813560594*eps^2 + 621240144*eps^3)*x^4)/
+       (3231708218550*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-16827717 - 140729119*eps - 384020338*eps^2 - 336384880*eps^3)*x^5)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(3917609 + 38735825*eps + 128483234*eps^2 + 128064220*eps^3)*x^6)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(-56909 + 3848721*eps + 22980718*eps^2 + 29054696*eps^3)*x^7)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(621483 + 3587395*eps + 5405114*eps^2 + 757568*eps^3)*x^8)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(267551 + 1908629*eps + 4048038*eps^2 + 2237340*eps^3)*x^9)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (64*(3 + 20*eps + 31*eps^2)*x^10)/(179639145*(1 + 6*eps + 8*eps^2)) + 
+      (1298*(81 + 640*eps + 1426*eps^2 + 883*eps^3)*y)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-8037159 - 61032987*eps - 132993982*eps^2 - 82150806*eps^3)*x*y)/
+       (6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((27519105 + 202132102*eps + 431452646*eps^2 + 268297335*eps^3)*x^2*y)/
+       (3231708218550*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-170328915 - 1230173437*eps - 2613411006*eps^2 - 1681375096*eps^3)*
+        x^3*y)/(6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((65777217 + 482721005*eps + 1070213702*eps^2 + 748361548*eps^3)*x^4*y)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-54663961 - 414193623*eps - 997935354*eps^2 - 781113448*eps^3)*x^5*y)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(3635743 + 29197137*eps + 79841274*eps^2 + 70542756*eps^3)*x^6*y)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(2163829 + 21827499*eps + 72541746*eps^2 + 72379624*eps^3)*x^7*y)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(-207535 - 542467*eps + 1462694*eps^2 + 3407092*eps^3)*x^8*y)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(207869 + 1269835*eps + 2307746*eps^2 + 1035040*eps^3)*x^9*y)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (128*(5 + 31*eps + 47*eps^2)*x^10*y)/(1257474015*
+        (1 + 6*eps + 8*eps^2)) - (649*(135 + 1074*eps + 2406*eps^2 + 
+         1577*eps^3)*y^2)/(1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3088841 + 24894043*eps + 56939682*eps^2 + 44514402*eps^3)*x*y^2)/
+       (12926832874200*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((29624271 + 199486683*eps + 380315152*eps^2 + 153756710*eps^3)*x^2*
+        y^2)/(12926832874200*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(12385016 + 83371547*eps + 158261723*eps^2 + 79191301*eps^3)*x^3*
+        y^2)/(1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((53794475 + 368083655*eps + 720539502*eps^2 + 408147960*eps^3)*x^4*
+        y^2)/(1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-54449129 - 377075915*eps - 771587762*eps^2 - 486363496*eps^3)*x^5*
+        y^2)/(1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(16627289 + 114475769*eps + 248886154*eps^2 + 174496308*eps^3)*x^6*
+        y^2)/(1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(2101765 + 14896355*eps + 35133126*eps^2 + 26718708*eps^3)*x^7*y^2)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (32*(118127 + 986593*eps + 2695096*eps^2 + 2291020*eps^3)*x^8*y^2)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(80305 + 495315*eps + 831186*eps^2 + 318516*eps^3)*x^9*y^2)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (64*(1 + 6*eps + 9*eps^2)*x^10*y^2)/(1257474015*
+        (1 + 6*eps + 8*eps^2)) - (5192*(51 + 402*eps + 894*eps^2 + 557*eps^3)*
+        y^3)/(1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3410887 + 25768511*eps + 55874102*eps^2 + 35007176*eps^3)*x*y^3)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-13819377 - 101509167*eps - 217303638*eps^2 - 141463718*eps^3)*x^2*
+        y^3)/(1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(10942197 + 82404234*eps + 187804797*eps^2 + 138307457*eps^3)*x^3*
+        y^3)/(1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-9317587 - 83886023*eps - 252979258*eps^2 - 248391244*eps^3)*x^4*y^3)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-7250093 - 34929603*eps + 7931462*eps^2 + 89901664*eps^3)*x^5*y^3)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (16*(-522561 - 2924875*eps - 3133690*eps^2 + 909428*eps^3)*x^6*y^3)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(922515 + 5596417*eps + 9691018*eps^2 + 4270108*eps^3)*x^7*y^3)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(256855 + 1795467*eps + 3811330*eps^2 + 2428916*eps^3)*x^8*y^3)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (16*(16627 + 72855*eps + 40808*eps^2)*x^9*y^3)/
+       (1615854109275*(1 + 5*eps + 4*eps^2)) + 
+      (1298*(9 + 82*eps + 202*eps^2 + 207*eps^3)*y^4)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((4057897 + 29292591*eps + 60461634*eps^2 + 30753970*eps^3)*x*y^4)/
+       (6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-31937083 - 222186259*eps - 440255664*eps^2 - 237246706*eps^3)*x^2*
+        y^4)/(6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((43219147 + 299635277*eps + 599253954*eps^2 + 351417524*eps^3)*x^3*
+        y^4)/(3231708218550*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(12621499 + 88601729*eps + 185585868*eps^2 + 120677504*eps^3)*x^4*
+        y^4)/(1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((13596961 + 96167315*eps + 215437210*eps^2 + 155737440*eps^3)*x^5*y^4)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(2780141 + 19848485*eps + 47250810*eps^2 + 36489596*eps^3)*x^6*y^4)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(390205 + 3169271*eps + 8181722*eps^2 + 6766672*eps^3)*x^7*y^4)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (8*(124255 + 831183*eps + 1636458*eps^2 + 921664*eps^3)*x^8*y^4)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2596*(29 + 228*eps + 506*eps^2 + 319*eps^3)*y^5)/
+       (538618036425*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-3606749 - 27119089*eps - 58686362*eps^2 - 38034494*eps^3)*x*y^5)/
+       (3231708218550*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((4431688 + 33255891*eps + 74459712*eps^2 + 53334461*eps^3)*x^2*y^5)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-5403523 - 45813905*eps - 128217538*eps^2 - 119030068*eps^3)*x^3*y^5)/
+       (3231708218550*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2942173 - 16724217*eps - 16354718*eps^2 + 9153460*eps^3)*x^4*y^5)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3376933 + 21253867*eps + 35344770*eps^2 + 13406136*eps^3)*x^5*y^5)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (8*(199617 + 1258071*eps + 2289982*eps^2 + 1093372*eps^3)*x^6*y^5)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (4*(252443 + 1725773*eps + 3568934*eps^2 + 2233760*eps^3)*x^7*y^5)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (1298*(7 + 50*eps + 102*eps^2 + 41*eps^3)*y^6)/
+       (538618036425*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2339731 - 16503505*eps - 32909046*eps^2 - 16905678*eps^3)*x*y^6)/
+       (6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((10811443 + 75280823*eps + 149659784*eps^2 + 84869310*eps^3)*x^2*y^6)/
+       (6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(2358113 + 16433260*eps + 33894011*eps^2 + 21323551*eps^3)*x^3*y^6)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((3232061 + 22542833*eps + 48816578*eps^2 + 33340536*eps^3)*x^4*y^6)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-981491 - 7050025*eps - 16037622*eps^2 - 11572872*eps^3)*x^5*y^6)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(32047 + 226847*eps + 504886*eps^2 + 363900*eps^3)*x^6*y^6)/
+       (323170821855*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (5192*(15 + 118*eps + 262*eps^2 + 169*eps^3)*y^7)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((456335 + 3456463*eps + 7617270*eps^2 + 5158172*eps^3)*x*y^7)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-799103 - 5976837*eps - 13842090*eps^2 - 10343926*eps^3)*x^2*y^7)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(137740 + 1128025*eps + 3313401*eps^2 + 3158355*eps^3)*x^3*y^7)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((269423 + 1553235*eps + 2256914*eps^2 + 441164*eps^3)*x^4*y^7)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-24851 - 163677*eps - 309878*eps^2 - 155632*eps^3)*x^5*y^7)/
+       (323170821855*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (649*(-3 - 6*eps + 18*eps^2 + 59*eps^3)*y^8)/(1615854109275*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((532997 + 3612187*eps + 6605338*eps^2 + 2794834*eps^3)*x*y^8)/
+       (12926832874200*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2071447 - 14389671*eps - 28575064*eps^2 - 16461898*eps^3)*x^2*y^8)/
+       (12926832874200*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1281899 + 8637009*eps + 17811638*eps^2 + 11248400*eps^3)*x^3*y^8)/
+       (6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-252443 - 1233685*eps - 1188632*eps^2)*x^4*y^8)/
+       (3231708218550*(1 + 5*eps + 4*eps^2)) + 
+      (1298*(9 + 72*eps + 162*eps^2 + 107*eps^3)*y^9)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-218231 - 1628731*eps - 3598782*eps^2 - 2441598*eps^3)*x*y^9)/
+       (6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((158159 + 1105724*eps + 2430106*eps^2 + 1685831*eps^3)*x^2*y^9)/
+       (3231708218550*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-144815 - 1013497*eps - 2206062*eps^2 - 1537216*eps^3)*x^3*y^9)/
+       (6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (649*(3 + 26*eps + 62*eps^2 + 45*eps^3)*y^10)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((45053 + 325703*eps + 754570*eps^2 + 553850*eps^3)*x*y^10)/
+       (12926832874200*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-29477 - 208857*eps - 466336*eps^2 - 340770*eps^3)*x^2*y^10)/
+       (12926832874200*(1 + 7*eps + 14*eps^2 + 8*eps^3)))/
+     ((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*(3 + 4*x^2 + 2*y - y^2)*
+      (-1 + 6*x + 2*x*y + y^2)^2*(-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 
+       12*eps*x^2 - 6*y - 6*eps*y + 12*x*y + 16*eps*x*y + 3*y^2 + 
+       5*eps*y^2)), ((649*(27 + 130*eps + 213*eps^2 + 102*eps^3))/
+       (1077236072850*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-90167193 - 389227225*eps - 563947506*eps^2 - 185848296*eps^3)*x)/
+       (517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((100394055 - 538848053*eps - 2816317258*eps^2 - 3229065384*eps^3)*x^2)/
+       (517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((694935511 + 6802523317*eps + 18760574874*eps^2 + 16053795448*eps^3)*
+        x^3)/(258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1000418161 - 9190928805*eps - 26796179922*eps^2 - 23834462392*eps^3)*
+        x^4)/(129268328742000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((553387683 + 5155315817*eps + 16047627298*eps^2 + 15012409752*eps^3)*
+        x^5)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-273395963 - 2385764119*eps - 6850449910*eps^2 - 6289065928*eps^3)*
+        x^6)/(32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((33814237 + 353415687*eps + 1099220126*eps^2 + 1259401000*eps^3)*x^7)/
+       (16158541092750*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((51000333 + 363311553*eps + 767476714*eps^2 + 397881560*eps^3)*x^8)/
+       (8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(11948069 + 96060723*eps + 219965686*eps^2 + 138320232*eps^3)*x^9)/
+       (8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(3 + 5*eps)*x^10)/(179639145*(1 + 4*eps)) + 
+      (649*(81 + 376*eps + 609*eps^2 + 306*eps^3)*y)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-108845913 - 479177107*eps - 770515918*eps^2 - 366391512*eps^3)*x*y)/
+       (258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((50302893 - 13669790*eps - 317839914*eps^2 - 414181244*eps^3)*x^2*y)/
+       (64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1654366293 + 15862799107*eps + 39155243558*eps^2 + 30438156872*eps^3)*
+        x^3*y)/(258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-273162891 - 2390411191*eps - 6295122118*eps^2 - 5194928008*eps^3)*
+        x^4*y)/(12926832874200*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1511194735 + 13365288169*eps + 38216678514*eps^2 + 33738584152*eps^3)*
+        x^5*y)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-179082991 - 1495457813*eps - 4127621410*eps^2 - 3595608376*eps^3)*
+        x^6*y)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((231586723 + 1907794933*eps + 5023439754*eps^2 + 4358521080*eps^3)*x^7*
+        y)/(16158541092750*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(20836873 + 122228773*eps + 179308914*eps^2 + 1096920*eps^3)*x^8*y)/
+       (8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(4934887 + 34828721*eps + 72696994*eps^2 + 43461080*eps^3)*x^9*y)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (64*(5 + 13*eps)*x^10*y)/(1257474015*(1 + 4*eps)) - 
+      (649*(135 + 726*eps + 1269*eps^2 + 574*eps^3)*y^2)/
+       (3231708218550*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-24718625 - 198386021*eps - 658025466*eps^2 - 772684488*eps^3)*x*y^2)/
+       (517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((771242673 + 4842039893*eps + 12987371834*eps^2 + 11518193800*eps^3)*
+        x^2*y^2)/(517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((23318741 + 261460372*eps - 331187576*eps^2 - 1019589192*eps^3)*x^3*
+        y^2)/(32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-886596041 - 7185658333*eps - 14692428210*eps^2 - 9056383416*eps^3)*
+        x^4*y^2)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1131067175 + 9519548917*eps + 23548314202*eps^2 + 18003144056*eps^3)*
+        x^5*y^2)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-511265339 - 4109776191*eps - 10554273254*eps^2 - 8287443656*eps^3)*
+        x^6*y^2)/(32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((148254679 + 1114365433*eps + 2611987266*eps^2 + 1907282552*eps^3)*x^7*
+        y^2)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (4*(11092307 + 86712715*eps + 210718214*eps^2 + 165879464*eps^3)*x^8*
+        y^2)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(11848747 + 83658749*eps + 171530218*eps^2 + 100542616*eps^3)*x^9*
+        y^2)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (32*(1 + 3*eps)*x^10*y^2)/(1257474015*(1 + 4*eps)) - 
+      (2596*(51 + 246*eps + 417*eps^2 + 214*eps^3)*y^3)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((35541683 + 145095551*eps + 222502422*eps^2 + 81499624*eps^3)*x*y^3)/
+       (64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((79204845 + 896427013*eps + 2348798058*eps^2 + 1977083144*eps^3)*x^2*
+        y^3)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-257842068 - 2264418209*eps - 6238233170*eps^2 - 5378510608*eps^3)*
+        x^3*y^3)/(32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((492156973 + 4534464001*eps + 14778024522*eps^2 + 14312536824*eps^3)*
+        x^4*y^3)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-177677917 - 1621328939*eps - 6594507478*eps^2 - 7498185416*eps^3)*
+        x^5*y^3)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (2*(8529099 + 63212949*eps + 186655522*eps^2 + 205342360*eps^3)*x^6*
+        y^3)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((37291209 + 264703307*eps + 534436950*eps^2 + 278183784*eps^3)*x^7*
+        y^3)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(19850473 + 146749221*eps + 320488082*eps^2 + 211956504*eps^3)*x^8*
+        y^3)/(8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2*(1589581 + 9743086*eps + 13333448*eps^2)*x^9*y^3)/
+       (8079270546375*(1 + 6*eps + 8*eps^2)) + 
+      (649*(9 + 118*eps + 231*eps^2 + 34*eps^3)*y^4)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((86924303 + 457065999*eps + 1071331070*eps^2 + 885377688*eps^3)*x*y^4)/
+       (258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-22031677 - 60533177*eps - 429803154*eps^2 - 554122184*eps^3)*x^2*
+        y^4)/(51707331496800*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-559908721 - 4748408159*eps - 9991347086*eps^2 - 6441578504*eps^3)*
+        x^3*y^4)/(129268328742000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((299218747 + 2496083335*eps + 6141640734*eps^2 + 4691723304*eps^3)*x^4*
+        y^4)/(32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-441167671 - 3648111653*eps - 9510600730*eps^2 - 7649985976*eps^3)*
+        x^5*y^4)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((165441095 + 1263265283*eps + 3007287598*eps^2 + 2266469864*eps^3)*x^6*
+        y^4)/(32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-36404683 - 279824825*eps - 660556706*eps^2 - 505979416*eps^3)*x^7*
+        y^4)/(16158541092750*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-7125505 - 52343189*eps - 110741394*eps^2 - 68908472*eps^3)*x^8*y^4)/
+       (8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (1298*(29 + 148*eps + 265*eps^2 + 138*eps^3)*y^5)/
+       (538618036425*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-16393471 - 25738729*eps + 41431254*eps^2 + 131444696*eps^3)*x*y^5)/
+       (129268328742000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-74746525 - 678381539*eps - 1895658834*eps^2 - 1658244592*eps^3)*x^2*
+        y^5)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((301341313 + 2629118515*eps + 7861653766*eps^2 + 7181283816*eps^3)*x^3*
+        y^5)/(129268328742000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-14634677 - 188527945*eps - 1152051194*eps^2 - 1519182584*eps^3)*x^4*
+        y^5)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-53554963 - 423479269*eps - 817253290*eps^2 - 311883128*eps^3)*x^5*
+        y^5)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((5618265 + 41763307*eps + 85364702*eps^2 + 44615176*eps^3)*x^6*y^5)/
+       (8079270546375*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-12250229 - 92115019*eps - 202693302*eps^2 - 136367560*eps^3)*x^7*
+        y^5)/(16158541092750*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (649*(7 + 22*eps + 53*eps^2 + 62*eps^3)*y^6)/
+       (538618036425*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-33339773 - 188020497*eps - 541177458*eps^2 - 482569832*eps^3)*x*y^6)/
+       (258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-8651495 - 95340787*eps - 159007638*eps^2 - 66180536*eps^3)*x^2*y^6)/
+       (51707331496800*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((9788758 + 81143781*eps + 192609082*eps^2 + 141052960*eps^3)*x^3*y^6)/
+       (6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-110271791 - 891460667*eps - 2181185214*eps^2 - 1650083848*eps^3)*x^4*
+        y^6)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((43800173 + 345455815*eps + 825913246*eps^2 + 624680616*eps^3)*x^5*
+        y^6)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1281181 - 10096521*eps - 24089258*eps^2 - 18658680*eps^3)*x^6*y^6)/
+       (6463416437100*(1 + 7*eps + 14*eps^2 + 8*eps^3)) - 
+      (2596*(15 + 82*eps + 153*eps^2 + 78*eps^3)*y^7)/
+       (1615854109275*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-483905 - 16732417*eps - 63819722*eps^2 - 67685816*eps^3)*x*y^7)/
+       (64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((20538239 + 179284591*eps + 494186894*eps^2 + 422426296*eps^3)*x^2*
+        y^7)/(64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-10700047 - 88917016*eps - 242790240*eps^2 - 210589672*eps^3)*x^3*
+        y^7)/(32317082185500*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-4222145 - 27932197*eps - 35235442*eps^2 + 12805544*eps^3)*x^4*y^7)/
+       (64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1425101 + 8920686*eps + 12346568*eps^2)*x^5*y^7)/
+       (12926832874200*(1 + 6*eps + 8*eps^2)) - 
+      (649*(3 + 18*eps + 141*eps^2 + 182*eps^3)*y^8)/
+       (3231708218550*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((8737819 + 58473403*eps + 185385846*eps^2 + 172922552*eps^3)*x*y^8)/
+       (517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((18156811 + 166614879*eps + 366753886*eps^2 + 232109304*eps^3)*x^2*
+        y^8)/(517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-37792013 - 297068127*eps - 682945998*eps^2 - 480152872*eps^3)*x^3*
+        y^8)/(258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((12250229 + 92729273*eps + 207098426*eps^2 + 143543192*eps^3)*x^4*y^8)/
+       (129268328742000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (649*(9 + 48*eps + 81*eps^2 + 34*eps^3)*y^9)/(1615854109275*
+        (1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1401743 + 17202029*eps + 52922610*eps^2 + 48246888*eps^3)*x*y^9)/
+       (258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-2262652 - 18476275*eps - 45191804*eps^2 - 34936404*eps^3)*x^2*y^9)/
+       (64634164371000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((6714305 + 51718751*eps + 119433566*eps^2 + 87968168*eps^3)*x^3*y^9)/
+       (258536657484000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      (649*(-3 - 14*eps - 9*eps^2 + 10*eps^3)*y^10)/
+       (3231708218550*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((-1021061 - 8951161*eps - 23720098*eps^2 - 20005480*eps^3)*x*y^10)/
+       (517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)) + 
+      ((1332581 + 10404921*eps + 24654658*eps^2 + 18967080*eps^3)*x^2*y^10)/
+       (517073314968000*(1 + 7*eps + 14*eps^2 + 8*eps^3)))/
+     ((-1 + x)*x*(1 + y)*(-3 + 2*x + y)*(3 + 4*x^2 + 2*y - y^2)*
+      (-1 + 6*x + 2*x*y + y^2)^2*(-9 - 11*eps + 12*x + 24*eps*x + 12*x^2 + 
+       12*eps*x^2 - 6*y - 6*eps*y + 12*x*y + 16*eps*x*y + 3*y^2 + 
+       5*eps*y^2))}}, "QuickCheckPoints" -> 
+  {{eps -> 1/7, x -> 2/13, y -> 3/17}, {eps -> 2/9, x -> 5/19, y -> 7/23}, 
+   {eps -> -3/11, x -> 11/29, y -> 13/31}}, 
+ "QuickChecksZero" -> {{{{True, True, True, True}, {True, True, True, True}, 
+     {True, True, True, True}, {True, True, True, True}}, 
+    {{True, True, True, True}, {True, True, True, True}, 
+     {True, True, True, True}, {True, True, True, True}}}, 
+   {{{True, True, True, True}, {True, True, True, True}, 
+     {True, True, True, True}, {True, True, True, True}}, 
+    {{True, True, True, True}, {True, True, True, True}, 
+     {True, True, True, True}, {True, True, True, True}}}, 
+   {{{True, True, True, True}, {True, True, True, True}, 
+     {True, True, True, True}, {True, True, True, True}}, 
+    {{True, True, True, True}, {True, True, True, True}, 
+     {True, True, True, True}, {True, True, True, True}}}}, 
+ "ParallelCheckSeconds" -> 70.565362, "ResidualSeconds" -> 
+  {{{1.492806, 6.968299, 2.249329, 4.429637}, {1.49387, 3.574896, 2.294649, 
+     2.823791}, {0.833666, 7.206425, 2.95804, 3.013252}, 
+    {0.953297, 7.945823, 4.103322, 7.146431}}, 
+   {{1.958407, 5.75032, 4.755968, 4.988249}, {2.921733, 3.749981, 2.82266, 
+     1.992046}, {0.853615, 2.179245, 1.369656, 1.72457}, 
+    {0.745293, 3.189864, 1.376359, 2.215426}}}, 
+ "ResidualChecks" -> {{{True, True, True, True}, {True, True, True, True}, 
+    {True, True, True, True}, {True, True, True, True}}, 
+   {{True, True, True, True}, {True, True, True, True}, 
+    {True, True, True, True}, {True, True, True, True}}}, 
+ "AllResidualsZero" -> True, "NonzeroResidualNumerators" -> {}|>

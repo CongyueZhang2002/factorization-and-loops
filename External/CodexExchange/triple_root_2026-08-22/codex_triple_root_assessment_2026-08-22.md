@@ -1,0 +1,159 @@
+# Triple-root families: assessment and implementation plan
+
+Date: 2026-08-22  
+Author: Codex  
+Scope: CF259, CF300, CF303
+
+## Bottom line
+
+There is no fundamental obstruction to constructing the epsilon form for the three remaining triple-root families. There is, however, a strong geometric obstruction to the proposed shortcut of finding one rational two-variable chart that rationalizes all three square roots globally.
+
+For each family, the simultaneous degree-eight cover
+
+```text
+Q(v,w)(r1,r2,r3),     ri^2 = Delta_i(v,w)
+```
+
+has a projective model given by a complete intersection of three quadrics in `P^5`. Its only singularities arise from one simple tangency between a pair of branch conics. The tangency lifts to two ordinary double points; the minimal/crepant resolution is a K3 surface. In characteristic zero this rules out a rational, and indeed a unirational, global two-variable parametrization. We should stop spending production time on a global joint-chart search.
+
+The right route is therefore:
+
+1. locate the first *recursive* off-diagonal strip that genuinely depends on all three independent square-root grades;
+2. retain the existing one-root and two-root chart solvers wherever they apply;
+3. solve only genuinely rank-three strips in the multiquadratic algebra, modularly;
+4. certify the reconstructed answer coefficient-by-coefficient in that algebra.
+
+This is the targeted version of the extension-field idea. It avoids multiplying the cost of every strip by eight.
+
+## Geometry check
+
+The three root sets are
+
+```text
+CF259:  lambda1, lambda3, 4 v + w^2
+CF300:  lambda2, lambda3, 1 - 4 v w
+CF303:  lambda2, lambda3, 1 - 4 v w
+```
+
+where
+
+```text
+lambda1 = (1-v-w)^2 - 4 v w
+lambda2 = lambda1(-v,w)
+lambda3 = lambda1(v,-w).
+```
+
+Exact elimination over `Q` gives three independent square classes in both cases, hence generic extension degree eight.
+
+After homogenization, the cover is the `(2,2,2)` complete intersection
+
+```text
+Ri^2 = Delta_i^h(V,W,T),   i=1,2,3,
+```
+
+inside `P^5`. The branch geometry has one simple pairwise tangency and no triple intersection:
+
+- CF259: `lambda1` and `lambda3` are tangent at `[V:W:T] = [1:0:1]`; the third branch polynomial is nonzero there.
+- CF300/CF303: `lambda2` and `lambda3` are tangent at `[1:-1:0]`; the third branch polynomial is nonzero there.
+- all other pairwise intersections are transverse.
+
+The simultaneous cover consequently has two A1 nodes over that tangency. Resolving them preserves the trivial canonical class. Together with `q=0` and `p_g=1`, this identifies the resolution as K3. Thus a global rational chart is not merely absent from the current catalog; it cannot exist over characteristic zero.
+
+Pairwise rationalization remains useful locally. It should continue to be the default for strips whose active square-class rank is at most two.
+
+## Important correction to the present root census
+
+`FamilyAlgebraicRootCensus` currently examines the assembled connection immediately after inserting the diagonal class gauges. That is not the decisive census for the recursive blockwise solve.
+
+The actual equation for an off-diagonal strip changes after every previously solved off-diagonal gauge. A raw block can therefore involve at most two diagonal root sets while the later recursive right-hand side can inherit a third root through intermediate blocks. The relevant object is each dynamically generated `canonicaNextEq` (or its equivalent strip equation), after dependency closure.
+
+Before implementing a general rank-three solver, instrument the sector run to record for every recursive strip:
+
+- the three-bit square-class grade support;
+- the rank of the generated subgroup of `(Z/2)^3`;
+- the dependency chain that introduced each grade;
+- whether the strip is already solvable by a one-root or two-root chart.
+
+This may show that only a small number of strips need the new backend. It is also possible that an entire nominally triple-root family closes through pairwise charts; that should be tested rather than assumed.
+
+## Correct finite-field model
+
+Use the eight-dimensional algebra
+
+```text
+E = Q(v,w,eps)[r1,r2,r3] / (ri^2 - Delta_i)
+```
+
+with basis `e_S = product_{i in S} ri`, indexed by the eight subsets of `{1,2,3}`. Multiplication and differentiation stay over the rational base field:
+
+```text
+e_S e_T = (product_{i in S intersection T} Delta_i) e_{S xor T}
+
+d_x(c_S e_S)
+  = (d_x c_S + c_S/2 * sum_{i in S} d_x log(Delta_i)) e_S.
+```
+
+This representation is exact, branch-independent, and particularly suitable for sparse grade propagation.
+
+A terminology warning matters for implementation: specializing at a split finite-field point does not produce an eight-degree finite field. If all three radicands are nonzero quadratic residues modulo `p`, the specialized algebra is `F_p^8`, corresponding to the eight sign embeddings. If a nonsquare remains, the components live over `F_{p^2}`; there is still no degree-eight finite field generated by three square roots of base-field constants.
+
+For a production modular sampler, prefer split points and evaluate the eight sign orbits. A Walsh-Hadamard transform projects those values onto the eight character/grade channels. Equivalently, assemble one coupled base-field linear system on eight-component coefficients.
+
+Do **not** run eight unrelated solvers. Use one Galois-equivariant system with a normalization that is stable under sign flips. This gives shared pivots, exposes missing grade channels, and makes branch/sign mistakes auditable.
+
+One sign embedding per kinematic point can be unisolvent for the current global ansatz-coefficient sampler, provided enough varied points are used and exact final verification is mandatory. Nevertheless all eight conjugates at selected split points are the safer and usually more efficient production design: they separate the grade channels immediately and prevent accidental sign-specific fits.
+
+## Cost controls
+
+The new backend should be invoked only after the dynamic census proves square-class rank three. Within such a strip:
+
+1. propagate `(Z/2)^3` grades through the equation before constructing any ansatz;
+2. allocate only channels reachable from the source and coefficient grades;
+3. reuse one monomial/support census across conjugates;
+4. project sign-orbit samples with the 8-point Walsh-Hadamard transform;
+5. solve one sparse coupled system over `F_p`;
+6. reconstruct each surviving rational channel independently, but validate them jointly;
+7. fall back to the full eight channels only when the grade closure requires them.
+
+This is materially cheaper than multiplying the existing rational ansatz by an unconditional factor of eight.
+
+CF300 is the best pilot: it has 24 masters and shares its triple-root field with CF303. Once the field backend is reliable on CF300, CF303 should mainly exercise scale and sparsity rather than new algebra. CF259 should follow because its third radicand and tangency geometry differ.
+
+## Certification requirements
+
+A successful modular reconstruction is not yet a proof. The final certificate for a rank-three strip should include:
+
+- independence/rank of the three square classes;
+- the prime and all sampled kinematic points, excluding zeros of radicands and denominators;
+- either all eight sign conjugates at the certification points or an equivalent eight-channel coefficient check;
+- held-out points and at least one unseen good prime;
+- the reconstructed rational functions in each of the eight basis channels;
+- characteristic-zero reduction of the differential equation to eight zero rational coefficients;
+- regulator/normalization checks in the algebra, not at only one chosen branch;
+- physical branch selection as a separate analytic-continuation step.
+
+The A3/support machinery and obstruction certificate also need algebra-aware valuations at ramified branch divisors. Ordinary rational residues cannot simply be reused without recording the local square-root valuation.
+
+## Recommended implementation order
+
+1. Instrument and run CF300 until the first dependency-closed rank-three strip is found.
+2. Save that strip as the minimal reproducible input; do not modify the package yet.
+3. Build and test an external eight-channel arithmetic layer, including multiplication, derivations, sign evaluation, and Walsh-Hadamard projection.
+4. Adapt the existing finite-field ansatz sampler to the surviving grade channels for that strip.
+5. Reconstruct and certify the pilot strip over characteristic zero.
+6. Only then integrate the backend behind `SolveEpsFormStripInFrame`, retaining the existing rational-chart fast paths.
+7. Stress CF300, then CF303, then CF259.
+
+## Independent ChatGPT Pro consultation
+
+ChatGPT Classic Pro was queried through the existing FACET bridge. Its independent conclusion agrees on the essential points: the simultaneous cover resolves to a K3 surface; a global joint rational chart should not be expected; the dynamic dependency-closed strip census must precede implementation; and a sign-orbit/eight-component modular solver is the practical route.
+
+The full response is stored in FACET at:
+
+```text
+/home/maxzhang/FACET/Codex/General/ChatGPT/pro_triple_root_response_2026-08-22.md
+```
+
+## Immediate work item
+
+Begin with a resource-bounded CF300 diagnostic run. Use one Wolfram main kernel and no more than four subkernels, leaving all other kernels and user processes untouched. Let the existing one/two-root machinery advance normally and stop/save the first genuinely rank-three recursive strip. That concrete strip, rather than a synthetic maximal ansatz, should drive the first implementation.

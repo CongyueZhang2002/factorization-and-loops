@@ -11,18 +11,24 @@
    dlog gauge.
 *)
 
+(* Public symbols are Clear'ed, not ClearAll'ed: ClearAll also removes
+   the usage messages FeynFacet.m defines before loading this file
+   (found 2026-08-21). Clear still drops their definitions, so re-Get of
+   this file stays clean. *)
+Clear[SolveResidueRationalGauge, SolveEpsFormStrip];
 ClearAll[
-  SolveResidueRationalGauge,
-  SolveEpsFormStrip,
   epsFormStripCanonicaSymbol,
   epsFormStripLoadCanonica,
   epsFormStripZeroQ,
   epsFormStripShapeQ,
   epsFormStripAlphabet,
   epsFormStripExactDLogQ,
+  epsFormStripExactPotentialGauge,
   epsFormStripBuildResidueCompatibility,
+  epsFormStripRationalLinearEquations,
   epsFormStripMonicPolynomial,
   epsFormStripVariableFactors,
+  epsFormStripRunCanonicaOne,
   epsFormStripRunCanonica,
   epsFormStripSafeTag
 ];
@@ -32,9 +38,11 @@ SolveResidueRationalGauge::shape =
 SolveResidueRationalGauge::canonica =
   "CANONICA functions needed for the residue equations are unavailable.";
 SolveResidueRationalGauge::residue =
-  "The exact residue-compatibility equations are inconsistent.";
+  "The exact residue construction failed at stage `1`.";
 SolveResidueRationalGauge::maple =
   "Maple did not produce a rational gauge satisfying both differential equations exactly.";
+SolveResidueRationalGauge::symbols =
+  "Maple serialization found distinct Mathematica symbols with the same unqualified name: `1`.";
 
 SolveEpsFormStrip::shape =
   "The two-variable strip matrices e, c, and bbar have incompatible dimensions.";
@@ -53,6 +61,9 @@ $epsFormStripMapleLibrary = FileNameJoin[{
   $feynFacetRoot, "Addon", "Other_Addon", "Maple",
   "IntegrableConnections"
 }];
+$epsFormStripCPURunner = FileNameJoin[{
+  $feynFacetRoot, "FeynFacet", "Tools", "RunWithCPUList.sh"
+}];
 
 epsFormStripCanonicaSymbol[name_String] := Module[{public, private},
   public = ToExpression["CANONICA`" <> name];
@@ -64,11 +75,17 @@ epsFormStripCanonicaSymbol[name_String] := Module[{public, private},
   ]
 ];
 
-epsFormStripLoadCanonica[] := Module[{findD},
+epsFormStripLoadCanonica[] := Module[{findD, path},
   findD = epsFormStripCanonicaSymbol["FindD"];
   If[findD === $Failed,
     If[! FileExistsQ[$epsFormStripCanonicaFile], Return[False]];
+    (* restore $ContextPath after the load: leaving CANONICA` on the
+       path makes every later bare Get in the session parse eps/x/y
+       into CANONICA` (the measured 2026-08-20 certification failures);
+       masterTransportLoadLibra uses the same pattern *)
+    path = $ContextPath;
     Quiet[Get[$epsFormStripCanonicaFile]];
+    $ContextPath = path;
     findD = epsFormStripCanonicaSymbol["FindD"]
   ];
   If[findD === $Failed, Return[False]];
@@ -125,29 +142,89 @@ epsFormStripExactDLogQ[
   TrueQ[check[transformed, variables, alphabet]]
 ];
 
+epsFormStripExactPotentialGauge[
+    strip : {e_, c_, bbar_}, variables : {x_, y_},
+    epsilon_Symbol, alphabet_List] := Module[
+  {candidate, remainder, correction, gauge, residuals},
+  If[! epsFormStripZeroQ[e] || ! epsFormStripZeroQ[c], Return[$Failed]];
+  candidate = Quiet[Check[
+    Map[Integrate[#, x] &, bbar[[1]], {2}], $Failed]];
+  If[candidate === $Failed || ! FreeQ[candidate, _Integrate],
+    Return[$Failed]];
+  remainder = Map[Together, bbar[[2]] - D[candidate, y], {2}];
+  If[! FreeQ[remainder, x], Return[$Failed]];
+  correction = Quiet[Check[
+    Map[Integrate[#, y] &, remainder, {2}], $Failed]];
+  If[correction === $Failed || ! FreeQ[correction, _Integrate],
+    Return[$Failed]];
+  gauge = Map[Together, candidate + correction, {2}];
+  residuals = Table[
+    Map[Together, bbar[[mu]] - D[gauge, variables[[mu]]], {2}],
+    {mu, 2}];
+  If[epsFormStripZeroQ[residuals] &&
+      epsFormStripExactDLogQ[
+        gauge, strip, variables, epsilon, alphabet],
+    gauge, $Failed]
+];
+
+(* The residue equations are linear in the constant residue matrices.
+   Keeping that linear structure explicit avoids Together on one large
+   expression containing every unknown.  For each scalar compatibility
+   equation we clear the least common denominator of its rational
+   coefficient functions and then equate the coefficients in the two
+   kinematic variables to zero. *)
+epsFormStripRationalLinearEquations[
+    entry_, residueVariables_List, variables_List] := Module[
+  {normalizedEntry, arrays, constant, linear, positions, weights,
+   functions, fractions,
+   denominators, commonDenominator, numerator},
+  normalizedEntry = Together[entry];
+  If[TrueQ[normalizedEntry === 0], Return[{}]];
+  arrays = Quiet[CoefficientArrays[{normalizedEntry}, residueVariables]];
+  If[! ListQ[arrays] || Length[arrays] < 2, Return[$Failed]];
+  constant = First[Normal[arrays[[1]]]];
+  linear = First[Normal[arrays[[2]]]];
+  positions = Flatten[Position[linear, Except[0], {1}, Heads -> False]];
+  weights = Prepend[residueVariables[[positions]], 1];
+  functions = Together /@ Prepend[linear[[positions]], constant];
+  If[AllTrue[functions, TrueQ[# === 0] &], Return[{}]];
+  fractions = {Numerator[#], Denominator[#]} & /@ functions;
+  denominators = fractions[[All, 2]];
+  commonDenominator = If[Length[denominators] === 1,
+    First[denominators], Apply[PolynomialLCM, denominators]];
+  numerator = Expand[Total[MapThread[
+    #1 #2[[1]] Cancel[commonDenominator/#2[[2]]] &,
+    {weights, fractions}]]];
+  If[! PolynomialQ[numerator, variables], Return[$Failed]];
+  Values[CoefficientRules[numerator, variables]]
+];
+
 epsFormStripBuildResidueCompatibility[
     strip : {e_List, c_List, bbar_List},
     variables : {_, _}, epsilon_Symbol,
     kernelCount_Integer : 1] :=
  Module[
-  {extract, rationalZeroCoefficients, dimensions, alphabet, residueTag,
+  {extract, dimensions, alphabet, residueTag,
    rawResidueMatrices, residueVariables, dlog, forcing, compatibility,
-   rawCompatibility, compatibilityEntries, equationLists,
+   rawCompatibility, equationLists,
    equations, solutions, residueRules, residueMatrices, freeResidues,
    solvedForcing, solvedCompatibility, compatibilitySeconds,
-   equationSeconds, solveSeconds, needed, launched = {}, canonicaFile,
-   rationalZeroCoefficientsName},
+   equationSeconds, solveSeconds, normalizationSeconds, exactCheckSeconds,
+   compatibilityZero, needed,
+   launched = {}, closedDLog, parallelAvailable, forcingDimensions,
+   forcingCount, normalizedEntries},
 
+  $epsFormStripResidueFailureStage = "Shape";
   If[! epsFormStripShapeQ[strip], Return[$Failed]];
+  $epsFormStripResidueFailureStage = "LoadCANONICA";
   If[! epsFormStripLoadCanonica[], Return[$Failed]];
   extract = epsFormStripCanonicaSymbol["ExtractIrreducibles"];
-  rationalZeroCoefficients =
-    epsFormStripCanonicaSymbol["RatFunctionZeroCoeffs"];
-  If[MemberQ[{extract, rationalZeroCoefficients}, $Failed],
-    Return[$Failed]];
+  $epsFormStripResidueFailureStage = "ExtractIrreducibles";
+  If[extract === $Failed, Return[$Failed]];
 
   dimensions = Dimensions[bbar[[1]]];
   alphabet = epsFormStripAlphabet[strip, variables, epsilon];
+  $epsFormStripResidueFailureStage = "Alphabet";
   If[alphabet === $Failed, Return[$Failed]];
 
   residueTag = StringReplace[SymbolName[Unique["r"]], "$" -> "u"];
@@ -161,65 +238,92 @@ epsFormStripBuildResidueCompatibility[
   dlog = Table[
     Together[D[Log[alphabet[[a]]], variables[[mu]]]],
     {a, Length[alphabet]}, {mu, 2}];
+  closedDLog = AllTrue[Range[Length[alphabet]],
+    TrueQ[Together[
+      D[dlog[[#, 2]], variables[[1]]] -
+      D[dlog[[#, 1]], variables[[2]]]] === 0] &];
+  $epsFormStripResidueFailureStage = "ClosedDLogAlphabet";
+  If[! closedDLog, Return[$Failed]];
   forcing = Table[
     bbar[[mu]] - epsilon Sum[
       rawResidueMatrices[[a]] dlog[[a, mu]],
       {a, Length[alphabet]}],
     {mu, 2}];
 
-  rawCompatibility =
-    D[forcing[[2]], variables[[1]]] -
-      epsilon (e[[1]].forcing[[2]] - forcing[[2]].c[[1]]) -
-    D[forcing[[1]], variables[[2]]] +
-      epsilon (e[[2]].forcing[[1]] - forcing[[1]].c[[2]]);
+  {compatibilitySeconds, rawCompatibility} = AbsoluteTiming[
+    D[bbar[[2]], variables[[1]]] -
+      D[bbar[[1]], variables[[2]]] -
+      epsilon (e[[1]].bbar[[2]] - bbar[[2]].c[[1]]) +
+      epsilon (e[[2]].bbar[[1]] - bbar[[1]].c[[2]]) +
+      Total[Table[
+        epsilon^2 (
+          dlog[[a, 2]] (e[[1]].rawResidueMatrices[[a]] -
+            rawResidueMatrices[[a]].c[[1]]) -
+          dlog[[a, 1]] (e[[2]].rawResidueMatrices[[a]] -
+            rawResidueMatrices[[a]].c[[2]])),
+        {a, Length[alphabet]}]]];
   needed = Min[Max[1, kernelCount], Length[Flatten[rawCompatibility]]];
   If[needed > 1 && Length[Kernels[]] < needed,
     launched = Quiet[LaunchKernels[needed - Length[Kernels[]]]]];
-  If[needed > 1 && Length[Kernels[]] >= needed,
-    canonicaFile = $epsFormStripCanonicaFile;
-    With[{file = canonicaFile},
-      ParallelEvaluate[
-        Block[{$Output = {}}, Quiet[Get[file], General::shdw]];
-        CANONICA`$ComputeParallel = False;
-        CANONICA`Private`$ComputeParallel = False;
-        Off[General::shdw]]];
-    rationalZeroCoefficientsName =
-      Context[Evaluate[rationalZeroCoefficients]] <>
-        SymbolName[Evaluate[rationalZeroCoefficients]];
-    {compatibilitySeconds, compatibilityEntries} = AbsoluteTiming[
-      ParallelMap[Together, Flatten[rawCompatibility],
-        Method -> "FinestGrained", DistributedContexts -> Automatic]];
+  parallelAvailable = needed > 1 && Length[Kernels[]] >= needed;
+  If[parallelAvailable,
+    DistributeDefinitions[epsFormStripRationalLinearEquations];
     {equationSeconds, equationLists} = AbsoluteTiming[
-      With[{name = rationalZeroCoefficientsName, vars = variables},
+      With[{residues = residueVariables, vars = variables},
         ParallelMap[
-          Function[entry, ToExpression[name][entry, vars]],
-          compatibilityEntries,
+          Function[entry,
+            epsFormStripRationalLinearEquations[entry, residues, vars]],
+          Flatten[rawCompatibility],
           Method -> "FinestGrained",
-          DistributedContexts -> Automatic]]];
-    ParallelEvaluate[On[General::shdw]];
-    If[launched =!= {}, Quiet[CloseKernels[launched]]],
-    If[launched =!= {}, Quiet[CloseKernels[launched]]];
-    {compatibilitySeconds, compatibilityEntries} = AbsoluteTiming[
-      Together /@ Flatten[rawCompatibility]];
+          DistributedContexts -> Automatic]]],
     {equationSeconds, equationLists} = AbsoluteTiming[
-      rationalZeroCoefficients[#, variables] & /@
-        compatibilityEntries]];
-  compatibility = ArrayReshape[compatibilityEntries, dimensions];
+      epsFormStripRationalLinearEquations[
+        #, residueVariables, variables] & /@ Flatten[rawCompatibility]]];
+  If[MemberQ[equationLists, $Failed],
+    If[launched =!= {}, Quiet[CloseKernels[launched]]];
+    $epsFormStripResidueFailureStage = "LinearEquations";
+    Return[$Failed]];
+  compatibility = rawCompatibility;
   equations = DeleteCases[DeleteDuplicates@Flatten[equationLists], 0];
-  {solveSeconds, solutions} = AbsoluteTiming[
-    Quiet[Solve[Thread[equations == 0], residueVariables]]];
-  If[solutions === {}, Return[$Failed]];
-
-  residueRules = FixedPoint[
-    Function[rules,
-      Thread[First /@ rules -> Together[(Last /@ rules) /. rules]]],
-    First[solutions],
-    50];
+  If[equations === {},
+    solveSeconds = 0.;
+    solutions = {{}};
+    residueRules = {},
+    {solveSeconds, solutions} = AbsoluteTiming[
+      Quiet[Solve[Thread[equations == 0], residueVariables]]];
+    If[solutions === {},
+      If[launched =!= {}, Quiet[CloseKernels[launched]]];
+      $epsFormStripResidueFailureStage = "SolveResidues";
+      Return[$Failed]];
+    residueRules = FixedPoint[
+      Function[rules,
+        Thread[First /@ rules -> Together[(Last /@ rules) /. rules]]],
+      First[solutions],
+      50]
+  ];
   residueMatrices = rawResidueMatrices /. residueRules;
   freeResidues = Select[residueVariables, ! FreeQ[residueMatrices, #] &];
-  solvedForcing = Map[Together, forcing /. residueRules, {3}];
-  solvedCompatibility = Map[Together, compatibility /. residueRules, {2}];
-  If[! epsFormStripZeroQ[solvedCompatibility], Return[$Failed]];
+  forcingDimensions = Dimensions[forcing];
+  forcingCount = Times @@ forcingDimensions;
+  {normalizationSeconds, normalizedEntries} = AbsoluteTiming[
+    If[parallelAvailable,
+      ParallelMap[Together,
+        Join[Flatten[forcing /. residueRules],
+          Flatten[compatibility /. residueRules]],
+        Method -> "FinestGrained", DistributedContexts -> Automatic],
+      Together /@ Join[Flatten[forcing /. residueRules],
+        Flatten[compatibility /. residueRules]]]];
+  solvedForcing = ArrayReshape[
+    Take[normalizedEntries, forcingCount], forcingDimensions];
+  solvedCompatibility = ArrayReshape[
+    Drop[normalizedEntries, forcingCount], dimensions];
+  If[launched =!= {}, Quiet[CloseKernels[launched]]];
+  {exactCheckSeconds, compatibilityZero} = AbsoluteTiming[
+    epsFormStripZeroQ[solvedCompatibility]];
+  $epsFormStripResidueFailureStage = "ExactCompatibility";
+  If[! compatibilityZero, Return[$Failed]];
+
+  $epsFormStripResidueFailureStage = None;
 
   <|
     "Alphabet" -> alphabet,
@@ -233,7 +337,11 @@ epsFormStripBuildResidueCompatibility[
     "CompatibilityZero" -> True,
     "CompatibilitySeconds" -> compatibilitySeconds,
     "EquationSeconds" -> equationSeconds,
-    "SolveSeconds" -> solveSeconds
+    "SolveSeconds" -> solveSeconds,
+    "ResidueSystemSeconds" ->
+      Total[{compatibilitySeconds, equationSeconds, solveSeconds}],
+    "NormalizationSeconds" -> normalizationSeconds,
+    "ExactCheckSeconds" -> exactCheckSeconds
   |>
 ];
 
@@ -260,7 +368,7 @@ Options[SolveResidueRationalGauge] = {
   "Tag" -> "residue_strip",
   "TimeLimit" -> 1800,
   "MethodTimeLimit" -> 120,
-  "ResidueKernels" -> 4,
+  "ResidueKernels" -> Automatic,
   "LetterDenominatorPowers" -> {1, 2, 3},
   "NumeratorDegreeOffsets" -> {0, 1, 2},
   "Verbose" -> False
@@ -277,9 +385,12 @@ SolveResidueRationalGauge[
    freeResidues, forcing, shape, dimension,
    connection, externalIndices, mapleUnknownHead, mapleUnknowns,
    forcingUnknown, source, toMaple, normalizeRegulator,
+   mapleInputSymbols, mapleDuplicateNames, mapleSymbolByName,
+   parseContext, parseSymbolByName, variableNames,
    rationalZeroCoefficients, firstVariableIndex, variableFactors,
-   ansatzDenominator, mapleFile, outputFile,
-   mapleText, process, elapsed, raw, lines, solutionText, residueText,
+   ansatzDenominator, mapleFile, outputFile, diagnosticFile,
+   mapleText, mapleCommand, processCommand, process, elapsed, raw, lines,
+   solutionText, residueText,
    methodText, methodParts, mapleMethod, denominatorPower,
    numeratorOffset,
    indexedConstantIndices, indexedConstantSymbols, indexedConstantRules,
@@ -301,13 +412,14 @@ SolveResidueRationalGauge[
   tag = epsFormStripSafeTag[OptionValue["Tag"]];
   timeLimit = OptionValue["TimeLimit"];
   methodTimeLimit = OptionValue["MethodTimeLimit"];
-  residueKernels = OptionValue["ResidueKernels"];
+  residueKernels = facetKernelCount[OptionValue["ResidueKernels"]];
   denominatorPowers = DeleteDuplicates[
     OptionValue["LetterDenominatorPowers"]];
   numeratorOffsets = DeleteDuplicates[
     OptionValue["NumeratorDegreeOffsets"]];
   verbose = TrueQ[OptionValue["Verbose"]];
   If[! IntegerQ[residueKernels] || residueKernels < 1 ||
+     ! NumericQ[timeLimit] || timeLimit <= 0 ||
      ! NumericQ[methodTimeLimit] || methodTimeLimit <= 0 ||
      denominatorPowers === {} || numeratorOffsets === {} ||
      ! AllTrue[denominatorPowers, IntegerQ[#] && # >= 1 &] ||
@@ -320,7 +432,8 @@ SolveResidueRationalGauge[
   residueData = epsFormStripBuildResidueCompatibility[
     strip, variables, epsilon, residueKernels];
   If[residueData === $Failed,
-    Message[SolveResidueRationalGauge::residue]; Return[$Failed]];
+    Message[SolveResidueRationalGauge::residue,
+      $epsFormStripResidueFailureStage]; Return[$Failed]];
   rationalZeroCoefficients =
     epsFormStripCanonicaSymbol["RatFunctionZeroCoeffs"];
   If[rationalZeroCoefficients === $Failed,
@@ -343,7 +456,23 @@ SolveResidueRationalGauge[
   source = Flatten /@ forcingUnknown;
 
   toMaple[expr_] := StringReplace[ToString[expr, InputForm],
-    {"Global`" -> "", " " -> ""}];
+    {RegularExpression["(?:[A-Za-z$][A-Za-z0-9$]*`)+"] -> "",
+     " " -> ""}];
+  mapleInputSymbols = DeleteDuplicates@Cases[
+    {connection, source, variables, epsilon, mapleUnknowns},
+    symbol_Symbol /; Context[symbol] =!= "System`",
+    {0, Infinity}, Heads -> True];
+  mapleDuplicateNames = Select[
+    GatherBy[mapleInputSymbols, SymbolName], Length[#] > 1 &];
+  If[mapleDuplicateNames =!= {},
+    Message[SolveResidueRationalGauge::symbols,
+      Map[SymbolName, mapleDuplicateNames, {2}]];
+    Return[$Failed]];
+  mapleSymbolByName = AssociationThread[
+    SymbolName /@ mapleInputSymbols -> mapleInputSymbols];
+  parseContext = "FeynFacetMapleParse" <>
+    StringReplace[CreateUUID[], "-" -> ""] <> "`";
+  variableNames = toMaple /@ variables;
   normalizeRegulator[expr_] := Module[{symbols},
     symbols = DeleteDuplicates[Cases[expr,
       symbol_Symbol /; MemberQ[
@@ -362,7 +491,10 @@ SolveResidueRationalGauge[
       tag <> "_first_" <> ToString[firstVariableIndex] <> ".mpl"}];
     outputFile = FileNameJoin[{scratchDirectory,
       tag <> "_first_" <> ToString[firstVariableIndex] <> ".out"}];
+    diagnosticFile = FileNameJoin[{scratchDirectory,
+      tag <> "_first_" <> ToString[firstVariableIndex] <> ".log"}];
     If[FileExistsQ[outputFile], DeleteFile[outputFile]];
+    If[FileExistsQ[diagnosticFile], DeleteFile[diagnosticFile]];
     mapleText = StringJoin[
       "restart:\ninterface(prettyprint=0):\nlibname := \"",
         mapleLibrary, "\", libname:\n",
@@ -377,15 +509,18 @@ SolveResidueRationalGauge[
         StringRiffle[toMaple /@ source[[1]], ","], "]):\n",
       "b2 := vector(", ToString[dimension], ",[",
         StringRiffle[toMaple /@ source[[2]], ","], "]):\n",
+      "C := vector(", ToString[Length[mapleUnknowns]], ",[",
+        StringRiffle[toMaple /@ mapleUnknowns, ","], "]):\n",
+      "errors := []:\nattempts := []:\n",
       "solved := false:\nmethod := \"None\":\n",
       "try\n",
       "  Vtry := timelimit(", ToString[methodTimeLimit],
         ",Mratsolde(A", ToString[firstVariableIndex], ",",
-        ToString[variables[[firstVariableIndex]], InputForm], ",b",
+        variableNames[[firstVariableIndex]], ",b",
         ToString[firstVariableIndex], ")):\n",
       "  if Vtry <> {} then V := Vtry: solved := true: ",
         "method := \"IntegrableConnections\" end if:\n",
-      "catch: end try:\n",
+      "catch: errors := [op(errors),lastexception]: end try:\n",
       "if not solved then\n",
       "  denbase := ", toMaple[ansatzDenominator], ":\n",
       "  for denpower in [",
@@ -393,59 +528,92 @@ SolveResidueRationalGauge[
         "] while not solved do\n",
       "    den := denbase^denpower:\n",
       "    basedegree := degree(den,",
-        ToString[variables[[firstVariableIndex]], InputForm], "):\n",
+        variableNames[[firstVariableIndex]], "):\n",
       "    for degreeoffset in [",
         StringRiffle[ToString /@ numeratorOffsets, ","],
         "] while not solved do\n",
       "      ansatzdegree := basedegree + degreeoffset:\n",
       "      Vtry := vector(", ToString[dimension], ",[seq(add(",
         "aa[i,k]*",
-        ToString[variables[[firstVariableIndex]], InputForm],
+        variableNames[[firstVariableIndex]],
         "^k,k=0..ansatzdegree)/den,i=1..",
         ToString[dimension], ")]):\n",
       "      residual := map(normal,evalm(map(diff,Vtry,",
-        ToString[variables[[firstVariableIndex]], InputForm], ")-A",
+        variableNames[[firstVariableIndex]], ")-A",
         ToString[firstVariableIndex], "&*Vtry-b",
         ToString[firstVariableIndex], ")):\n",
       "      equations := {}:\n",
       "      for i from 1 to ", ToString[dimension], " do\n",
       "        equations := equations union {coeffs(numer(residual[i]),",
-        ToString[variables[[firstVariableIndex]], InputForm], ")}:\n",
+        variableNames[[firstVariableIndex]], ")}:\n",
       "      end do:\n",
-      "      unknowns := {seq(seq(aa[i,k],k=0..ansatzdegree),i=1..",
-        ToString[dimension], ")}:\n",
+      "      ansatzcoeffs := {seq(seq(aa[i,k],k=0..ansatzdegree),",
+        "i=1..", ToString[dimension], ")}:\n",
+      "      unknowns := ansatzcoeffs union ",
+        toMaple[mapleUnknowns], ":\n",
       "      try\n",
       "        ansatzsolution := timelimit(", ToString[methodTimeLimit],
         ",solve(equations,unknowns)):\n",
+      "        attempts := [op(attempts),[",
+        ToString[firstVariableIndex],
+        ",denpower,degreeoffset,nops(equations),nops(unknowns),",
+        "type(ansatzsolution,set)]]:\n",
       "        if type(ansatzsolution,set) then\n",
-      "          Vcandidate := map(normal,eval(Vtry,ansatzsolution)):\n",
+      "          Vraw := map(normal,eval(Vtry,ansatzsolution)):\n",
+      "          Craw := map(normal,eval(C,ansatzsolution)):\n",
+      "          freeaa := indets([op(convert(Vraw,list)),",
+        "op(convert(Craw,list))]) intersect ansatzcoeffs:\n",
+      "          freeaarules := {seq(q=0,q in freeaa)}:\n",
+      "          Vcandidate := map(normal,eval(Vraw,freeaarules)):\n",
+      "          Ccandidate := map(normal,eval(Craw,freeaarules)):\n",
+      "          Crules := {seq(C[i]=Ccandidate[i],",
+        "i=1..", ToString[Length[mapleUnknowns]], ")}:\n",
+      "          bcandidate := map(normal,eval(b",
+        ToString[firstVariableIndex], ",Crules)):\n",
       "          candidatecheck := map(normal,evalm(map(diff,Vcandidate,",
-        ToString[variables[[firstVariableIndex]], InputForm], ")-A",
-        ToString[firstVariableIndex], "&*Vcandidate-b",
-        ToString[firstVariableIndex], ")):\n",
+        variableNames[[firstVariableIndex]], ")-A",
+        ToString[firstVariableIndex], "&*Vcandidate-bcandidate)):\n",
       "          if convert(candidatecheck,set) = {0} then\n",
-      "            V := Vcandidate: solved := true:\n",
+      "            V := Vcandidate: C := Ccandidate: solved := true:\n",
       "            method := cat(\"ExactLetterAnsatz:\",denpower,\":\",",
         "degreeoffset):\n",
       "          end if:\n",
       "        end if:\n",
-      "      catch: end try:\n",
+      "      catch: errors := [op(errors),lastexception]: end try:\n",
       "    end do:\n",
       "  end do:\n",
       "end if:\n",
       "fd := fopen(\"", outputFile, "\", WRITE):\n",
       "if solved then fprintf(fd, \"OK\\n%a\\n%a\\n%s\\n\",",
-        "convert(V,list),", toMaple[mapleUnknowns], ",method) ",
-        "else fprintf(fd, \"FAIL\\n\") end if:\n",
+        "convert(V,list),convert(C,list),method) ",
+        "else fprintf(fd, \"FAIL\\n%a\\n%a\\n\",errors,attempts) ",
+        "end if:\n",
       "fclose(fd):\nquit:\n"];
     Export[mapleFile, mapleText, "Text"];
+    mapleCommand = If[
+      $OperatingSystem === "Unix" &&
+          FileExistsQ[$epsFormStripCPURunner],
+      {$epsFormStripCPURunner, facetCPUList[],
+        mapleExecutable, "-q", mapleFile},
+      {mapleExecutable, "-q", mapleFile}];
+    processCommand = If[
+      $OperatingSystem === "Unix" && FileExistsQ["/usr/bin/timeout"],
+      {"/usr/bin/timeout", "--signal=TERM", "--kill-after=5s",
+        ToString[Ceiling[timeLimit]] <> "s", Sequence @@ mapleCommand},
+      mapleCommand];
     {elapsed, process} = AbsoluteTiming[
       Quiet[TimeConstrained[
-        RunProcess[{mapleExecutable, "-q", mapleFile}],
-        timeLimit, $TimedOut]]];
+        RunProcess[processCommand], timeLimit + 15, $TimedOut]]];
+    If[AssociationQ[process],
+      Export[diagnosticFile, StringRiffle[{
+        "ExitCode: " <> ToString[Lookup[process, "ExitCode", Missing[]]],
+        "StandardOutput:", Lookup[process, "StandardOutput", ""],
+        "StandardError:", Lookup[process, "StandardError", ""]}, "\n"],
+        "Text"]];
     If[process === $TimedOut || ! FileExistsQ[outputFile],
       log["Maple produced no result for first variable ",
-        firstVariableIndex]; Continue[]];
+        firstVariableIndex, "; diagnostics: ", diagnosticFile];
+      Continue[]];
     raw = Import[outputFile, "Text"];
     lines = StringSplit[raw, "\n"];
     If[lines === {} || First[lines] =!= "OK" || Length[lines] < 3,
@@ -474,8 +642,18 @@ SolveResidueRationalGauge[
       "c[" <> ToString[indexedConstantIndices[[i]]] <> "]" ->
         SymbolName[indexedConstantSymbols[[i]]],
       {i, Length[indexedConstantIndices]}];
-    parseMaple[text_] := normalizeRegulator[ToExpression[StringReplace[
-      text, Join[indexedConstantRules, {"[" -> "{", "]" -> "}"}]]]];
+    parseSymbolByName = Join[mapleSymbolByName,
+      AssociationThread[
+        SymbolName /@ indexedConstantSymbols -> indexedConstantSymbols]];
+    parseMaple[text_] := Module[{parsed, rules},
+      parsed = Block[{$Context = parseContext, $ContextPath = {"System`"}},
+        ToExpression[StringReplace[text,
+          Join[indexedConstantRules, {"[" -> "{", "]" -> "}"}]]]];
+      rules = KeyValueMap[
+        Function[{name, symbol}, Symbol[parseContext <> name] -> symbol],
+        parseSymbolByName];
+      normalizeRegulator[parsed /. rules]
+    ];
     gaugeVectorParametric = Map[Together, parseMaple[solutionText]];
     residueValuesParametric = Map[Together, parseMaple[residueText]];
     If[Length[gaugeVectorParametric] =!= dimension ||
@@ -560,7 +738,8 @@ SolveResidueRationalGauge[
           {"CompatibilitySeconds", "EquationSeconds", "SolveSeconds"}]],
         "ResidueKernels" -> residueKernels,
         "ODEEquationZero" -> True,
-        "TransformedDLogZero" -> True
+        "TransformedDLogZero" -> True,
+        "ExactDLog" -> True
       |>;
       Break[]],
     {firstVariableIndex, 1, 2}];
@@ -572,15 +751,72 @@ SolveResidueRationalGauge[
 epsFormStripSafeTag[tag_] := StringReplace[
   ToString[tag], RegularExpression["[^A-Za-z0-9_-]"] -> "_"];
 
+epsFormStripRunCanonicaOne[
+    strip : {_, _, _}, variables : {_, _}, epsilon_Symbol,
+    alphabet_List, denominatorDegree_Integer, timeLimit_, degree_Integer] :=
+ Module[
+  {converted, findD, checkDlog, elapsed, gauge, transformed, exactQ},
+
+  If[! epsFormStripLoadCanonica[],
+    Return[<|"NumeratorDegree" -> degree,
+      "DenominatorDegree" -> denominatorDegree,
+      "Status" -> "CANONICAFunctionMissing", "ExactDLog" -> False|>]];
+  converted = strip /. epsilon -> CANONICA`eps;
+  findD = epsFormStripCanonicaSymbol["FindD"];
+  checkDlog = epsFormStripCanonicaSymbol["CheckDlogForm"];
+  If[MemberQ[{findD, checkDlog}, $Failed],
+    Return[<|"NumeratorDegree" -> degree,
+      "DenominatorDegree" -> denominatorDegree,
+      "Status" -> "CANONICAFunctionMissing", "ExactDLog" -> False|>]];
+  {elapsed, gauge} = AbsoluteTiming[Quiet[TimeConstrained[
+    findD[converted[[1]], converted[[2]], converted[[3]], alphabet,
+      variables, {}, CANONICA`DDeltaNumeratorDegree -> degree,
+      CANONICA`DDeltaDenominatorDegree -> denominatorDegree,
+      CANONICA`VerbosityLevel -> 0],
+    timeLimit, $TimedOut]]];
+  If[gauge === $TimedOut || gauge === False || ! ListQ[gauge],
+    Return[<|"NumeratorDegree" -> degree,
+      "DenominatorDegree" -> denominatorDegree, "Seconds" -> elapsed,
+      "Status" -> Which[gauge === $TimedOut, "TimedOut",
+        gauge === False, "NoGauge", True, "InvalidResult"],
+      "ExactDLog" -> False|>]];
+  transformed = Table[
+    Map[Together,
+      converted[[3, mu]] + CANONICA`eps (
+        converted[[1, mu]].gauge - gauge.converted[[2, mu]]) -
+        D[gauge, variables[[mu]]], {2}],
+    {mu, Length[variables]}];
+  exactQ = TrueQ[checkDlog[transformed, variables, alphabet]];
+  <|"NumeratorDegree" -> degree,
+    "DenominatorDegree" -> denominatorDegree, "Seconds" -> elapsed,
+    "Status" -> If[exactQ, "ExactDLog", "FailedDLogIdentity"],
+    "ExactDLog" -> exactQ,
+    "Gauge" -> If[exactQ, gauge /. CANONICA`eps -> epsilon,
+      Missing["Rejected"]]|>
+];
+
 epsFormStripRunCanonica[
     strip : {_, _, _}, variables : {_, _}, epsilon_Symbol,
     alphabet_List, degrees_List, denominatorDegree_Integer,
     timeLimit_, kernelCount_Integer] :=
  Module[
-  {needed, launched = {}, canonicaFile, converted, rawResults, attempts = {},
-   candidates = {}, raw, exact, summary},
+  {needed, launched = {}, canonicaFile, converted, rawResults = {},
+   evaluations, next, remaining, completedDegrees = {},
+   exactDegrees = {}, bestExactDegree, attempts = {}, candidates = {},
+   raw, exact, summary},
 
-  needed = Min[Length[degrees], Max[1, kernelCount]];
+  If[kernelCount <= 1,
+    (* one kernel of our own: serial ladder, or -- inside a KernelPool
+       mission -- degree 0 locally and the other degrees on the pool's
+       free subkernels (TaskBroker.wl, 2026-08-21) *)
+    rawResults = If[taskBrokerActiveQ[] && Length[degrees] > 1,
+      taskBrokerCanonicaLadder[strip, variables, epsilon, alphabet,
+        degrees, denominatorDegree, timeLimit],
+      (epsFormStripRunCanonicaOne[
+        strip, variables, epsilon, alphabet, denominatorDegree,
+        timeLimit, #] &) /@ degrees],
+
+  needed = Min[Length[degrees], kernelCount];
   If[Length[Kernels[]] < needed,
     launched = Quiet[LaunchKernels[needed - Length[Kernels[]]]]];
   If[Length[Kernels[]] < needed,
@@ -595,44 +831,40 @@ epsFormStripRunCanonica[
   canonicaFile = $epsFormStripCanonicaFile;
   With[{file = canonicaFile},
     ParallelEvaluate[
-      Block[{$Output = {}}, Quiet[Get[file], General::shdw]];
+      If[DownValues[CANONICA`FindD] === {} &&
+          DownValues[CANONICA`Private`FindD] === {},
+        Block[{$Output = {}}, Quiet[Get[file], General::shdw]]];
       CANONICA`$ComputeParallel = False;
       CANONICA`Private`$ComputeParallel = False;
       Off[General::shdw];
     ]];
   converted = strip /. epsilon -> CANONICA`eps;
-  rawResults = With[
+  evaluations = With[
     {ec = converted[[1]], cc = converted[[2]], bc = converted[[3]],
      vars = variables, letters = alphabet, denDegree = denominatorDegree,
      seconds = timeLimit, originalEpsilon = epsilon},
-    ParallelMap[
-      Function[degree,
-        Module[{findD, checkDlog, elapsed, gauge, transformed, exactQ},
+    Function[degree,
+      With[{degreeValue = degree}, ParallelSubmit[
+        Module[{findD, elapsed, gauge},
           findD = Which[
             DownValues[CANONICA`FindD] =!= {}, CANONICA`FindD,
             DownValues[CANONICA`Private`FindD] =!= {},
               CANONICA`Private`FindD,
             True, $Failed];
-          checkDlog = Which[
-            DownValues[CANONICA`CheckDlogForm] =!= {},
-              CANONICA`CheckDlogForm,
-            DownValues[CANONICA`Private`CheckDlogForm] =!= {},
-              CANONICA`Private`CheckDlogForm,
-            True, $Failed];
-          If[MemberQ[{findD, checkDlog}, $Failed],
-            Return[<|"NumeratorDegree" -> degree,
+          If[findD === $Failed,
+            Return[<|"NumeratorDegree" -> degreeValue,
               "DenominatorDegree" -> denDegree,
               "Status" -> "CANONICAFunctionMissing",
               "ExactDLog" -> False|>]];
           {elapsed, gauge} = AbsoluteTiming[Quiet[TimeConstrained[
             findD[ec, cc, bc, letters, vars, {},
-              CANONICA`DDeltaNumeratorDegree -> degree,
+              CANONICA`DDeltaNumeratorDegree -> degreeValue,
               CANONICA`DDeltaDenominatorDegree -> denDegree,
               CANONICA`VerbosityLevel -> 0],
             seconds, $TimedOut]]];
           If[gauge === $TimedOut || gauge === False || ! ListQ[gauge],
             Return[<|
-              "NumeratorDegree" -> degree,
+              "NumeratorDegree" -> degreeValue,
               "DenominatorDegree" -> denDegree,
               "Seconds" -> elapsed,
               "Status" -> Which[
@@ -640,36 +872,57 @@ epsFormStripRunCanonica[
                 gauge === False, "NoGauge",
                 True, "InvalidResult"],
               "ExactDLog" -> False|>]];
-          transformed = Table[
-            Map[Together,
-              bc[[mu]] + CANONICA`eps (
-                ec[[mu]].gauge - gauge.cc[[mu]]) -
-                D[gauge, vars[[mu]]],
-              {2}],
-            {mu, Length[vars]}];
-          exactQ = TrueQ[checkDlog[transformed, vars, letters]];
           <|
-            "NumeratorDegree" -> degree,
+            "NumeratorDegree" -> degreeValue,
             "DenominatorDegree" -> denDegree,
             "Seconds" -> elapsed,
-            "Status" -> If[exactQ, "ExactDLog", "FailedDLogIdentity"],
-            "ExactDLog" -> exactQ,
-            "Gauge" -> If[exactQ,
-              gauge /. CANONICA`eps -> originalEpsilon,
-              Missing["Rejected"]]|>
-        ]],
-      degrees,
-      Method -> "FinestGrained",
-      DistributedContexts -> None]];
+            "Status" -> "CandidateGauge",
+            "ExactDLog" -> Missing["ParentCheckPending"],
+            "Gauge" -> gauge /. CANONICA`eps -> originalEpsilon|>
+        ]]]] /@ degrees];
+  remaining = evaluations;
+  While[remaining =!= {},
+    next = WaitNext[remaining];
+    raw = next[[1]];
+    remaining = next[[3]];
+    If[AssociationQ[raw],
+      AppendTo[completedDegrees,
+        Lookup[raw, "NumeratorDegree", Infinity]];
+      exact = ListQ[Lookup[raw, "Gauge", $Failed]] &&
+        epsFormStripExactDLogQ[
+          raw["Gauge"], strip, variables, epsilon, alphabet];
+      raw = Join[raw, <|
+        "Status" -> If[exact, "ExactDLog", "FailedDLogIdentity"],
+        "ExactDLog" -> exact,
+        "ParentExactDLog" -> exact|>];
+      If[exact,
+        AppendTo[exactDegrees, raw["NumeratorDegree"]];
+        bestExactDegree = Min[exactDegrees];
+        If[AllTrue[Select[degrees, # < bestExactDegree &],
+            MemberQ[completedDegrees, #] &],
+          (* abort only kernels this module launched: under a shared
+             pool an unconditional AbortKernels[] kills sibling
+             evaluations (2026-08-20 review) *)
+          If[remaining =!= {} && launched =!= {},
+            Quiet[AbortKernels[]]];
+          remaining = {}]]];
+    (* inside the While: every completed degree's result is recorded.
+       A misplaced bracket here (found in the 2026-08-20 review) ran
+       this append once, after the loop, so only the last-completed
+       degree survived and an exactly-checked gauge could be silently
+       discarded. *)
+    AppendTo[rawResults, raw]];
   ParallelEvaluate[On[General::shdw]];
-  If[launched =!= {}, Quiet[CloseKernels[launched]]];
+  If[launched =!= {}, Quiet[CloseKernels[launched]]]];
 
   Do[
     If[AssociationQ[raw],
-      exact = TrueQ[Lookup[raw, "ExactDLog", False]] &&
-        ListQ[Lookup[raw, "Gauge", $Failed]] &&
-        epsFormStripExactDLogQ[
-          raw["Gauge"], strip, variables, epsilon, alphabet];
+      exact = Lookup[raw, "ParentExactDLog", Missing["NotChecked"]];
+      If[! MemberQ[{True, False}, exact],
+        exact = TrueQ[Lookup[raw, "ExactDLog", False]] &&
+          ListQ[Lookup[raw, "Gauge", $Failed]] &&
+          epsFormStripExactDLogQ[
+            raw["Gauge"], strip, variables, epsilon, alphabet]];
       summary = Join[
         KeyDrop[raw, "Gauge"],
         <|"ParentExactDLog" -> exact|>];
@@ -693,14 +946,15 @@ Options[SolveEpsFormStrip] = {
   "CANONICANumeratorDegrees" -> {0, 1, 2, 3},
   "CANONICADenominatorDegree" -> 0,
   "CANONICATimeLimit" -> 120,
-  "CANONICAKernels" -> 4,
+  "CANONICAKernels" -> Automatic,
   "MapleExecutable" -> "maple",
   "MapleLibrary" -> Automatic,
   "MapleTimeLimit" -> 1800,
   "MapleMethodTimeLimit" -> 120,
-  "MapleResidueKernels" -> 4,
+  "MapleResidueKernels" -> Automatic,
   "MapleLetterDenominatorPowers" -> {1, 2, 3},
   "MapleNumeratorDegreeOffsets" -> {0, 1, 2},
+  "UseMaple" -> True,
   "ScratchDirectory" -> Automatic,
   "Tag" -> "strip",
   "Verbose" -> False
@@ -717,21 +971,28 @@ SolveEpsFormStrip[
    mapleDenominatorPowers,
    mapleNumeratorOffsets, scratchDirectory,
    tag, verbose, alphabet, converted, irreducibles,
-   check, alreadyDLog, canonica, selected, maple, result},
+   check, alreadyDLog, exactPotential, canonica, selected, maple, result},
 
   If[! epsFormStripShapeQ[strip],
     Message[SolveEpsFormStrip::shape]; Return[$Failed]];
   degrees = DeleteDuplicates[OptionValue["CANONICANumeratorDegrees"]];
-  If[degrees === {} || ! AllTrue[degrees, IntegerQ[#] && # >= 0 &],
+  (* an EMPTY degree list means "dlog recognition only": the strip-method
+     benchmark of 2026-08-22 (20 real strips) showed the finite field
+     3-130x faster than the CANONICA ladder wherever both solve and the
+     ladder burning 480 s on every strip it cannot solve, so the
+     production route runs recognition, then the finite field *)
+  If[! AllTrue[degrees, IntegerQ[#] && # >= 0 &],
     Message[SolveEpsFormStrip::degrees]; Return[$Failed]];
   denominatorDegree = OptionValue["CANONICADenominatorDegree"];
   canonicaTime = OptionValue["CANONICATimeLimit"];
-  canonicaKernels = OptionValue["CANONICAKernels"];
+  canonicaKernels = facetKernelCount[
+    OptionValue["CANONICAKernels"], Length[degrees]];
   mapleExecutable = OptionValue["MapleExecutable"];
   mapleLibrary = OptionValue["MapleLibrary"];
   mapleTime = OptionValue["MapleTimeLimit"];
   mapleMethodTime = OptionValue["MapleMethodTimeLimit"];
-  mapleResidueKernels = OptionValue["MapleResidueKernels"];
+  mapleResidueKernels = facetKernelCount[
+    OptionValue["MapleResidueKernels"]];
   mapleDenominatorPowers = OptionValue[
     "MapleLetterDenominatorPowers"];
   mapleNumeratorOffsets = OptionValue[
@@ -749,6 +1010,17 @@ SolveEpsFormStrip[
 
   alphabet = epsFormStripAlphabet[strip, variables, epsilon];
   If[alphabet === $Failed, Return[$Failed]];
+  exactPotential = epsFormStripExactPotentialGauge[
+    strip, variables, epsilon, alphabet];
+  If[ListQ[exactPotential],
+    Return[<|
+      "Status" -> "Solved",
+      "Method" -> "ExactPotential",
+      "Gauge" -> exactPotential,
+      "Alphabet" -> alphabet,
+      "ExactDLog" -> True,
+      "CANONICAAttempts" -> {}
+    |>]];
   converted = strip /. epsilon -> CANONICA`eps;
   irreducibles = epsFormStripCanonicaSymbol["ExtractIrreducibles"][
     converted, CANONICA`AllowEpsDependence -> True];
@@ -769,9 +1041,10 @@ SolveEpsFormStrip[
   If[verbose,
     Print["CANONICA strip search: numerator degrees ", degrees,
       ", ", canonicaTime, " s each"]];
-  canonica = epsFormStripRunCanonica[
-    strip, variables, epsilon, alphabet, degrees, denominatorDegree,
-    canonicaTime, canonicaKernels];
+  canonica = If[degrees === {}, <|"Attempts" -> {}, "Candidates" -> {}|>,
+    epsFormStripRunCanonica[
+      strip, variables, epsilon, alphabet, degrees, denominatorDegree,
+      canonicaTime, canonicaKernels]];
   If[canonica["Candidates"] =!= {},
     selected = First[canonica["Candidates"]];
     result = <|
@@ -786,6 +1059,12 @@ SolveEpsFormStrip[
     |>;
     Return[result]];
 
+  (* "UseMaple" -> False: dlog recognition + CANONICA ladder only (the
+     strip-method benchmark of 2026-08-21 measures the routes separately) *)
+  If[! TrueQ[OptionValue["UseMaple"]],
+    Return[<|"Status" -> If[degrees === {}, "NotRecognized", "CANONICAFailed"],
+      "Method" -> If[degrees === {}, "Recognition", "CANONICA"],
+      "CANONICAAttempts" -> canonica["Attempts"]|>]];
   If[verbose, Print["CANONICA found no exact dlog gauge; invoking Maple"]];
   maple = SolveResidueRationalGauge[
     strip, variables, epsilon,

@@ -1,0 +1,76 @@
+# The standing watchdog (house rule; standardized 2026-08-22)
+
+**Rule (user directive 2026-08-20, reaffirmed 2026-08-22 after a 10-minute
+loss):** whenever any compute of ours runs in the background — a campaign,
+a benchmark, a test batch, a single long solve — ONE Opus watchdog
+subagent is spawned IN THE SAME TURN as the launch. It checks once
+immediately and then every 5 minutes, is strictly read-only, and reports
+back only on an anomaly or when everything it watches has drained. A
+bash `Monitor` is NOT a substitute: it catches what the coordinator
+thought to grep for; the watchdog reads the logs with judgement (the
+`Set::wrsym` catch of 2026-08-21 and the idle-driver loop of 2026-08-22
+are the two cases a pattern would have missed).
+
+## Registering work
+
+Append one line per watched output to the session watchlist:
+
+    <scratchpad>/watchdog/watchlist.tsv      output_file <TAB> label <TAB> stall_minutes
+
+`Scripts/watchdog_register.sh <output_file> <label> [stall_minutes=30]`
+does it. For KernelPool missions the output file is `<pool>/logs/<name>.log`;
+for a campaign add the driver's `campaign_status.tsv` and the pool's
+`status.txt` as well (stall 15).
+
+## The prompt (copy verbatim, fill the <> fields)
+
+```
+You are the read-only WATCHDOG for background compute in the FeynFacet project
+(repository /home/maxzhang/factorization-and-loops; read CLAUDE.md "Reporting
+language" before writing anything). Watchlist: <WATCHLIST> (tab-separated:
+output_file, label, stall_minutes; re-read it every round -- entries may be
+added while you run). Heartbeat: <HEARTBEAT> (append one line per round per
+entry). State: <STATE> (overwrite with the current verdict).
+
+Rounds: the first check NOW, then every 5 minutes. Do the rounds with a
+background bash loop you write (sleep 300 between rounds) that appends to the
+heartbeat and writes STATUS=ANOMALY/OK/ALL-DRAINED to the state file; then
+block on the state file (Monitor or an until-loop in a background bash) and
+END YOUR TURN with a report the moment it says ANOMALY or ALL-DRAINED. Your
+final report is the only channel to the coordinator: make it one paragraph --
+what you saw, the exact log lines, your assessment of cause -- no routine
+narration.
+
+Per entry, each round, in this order:
+1. Liveness: `fuser <output_file>` (a kernel holds its log open) and, for a
+   KernelPool mission, `<pool>/running/<name>.kernel`; NEVER judge liveness
+   by a process-name pattern.
+2. Fatal signatures in the new lines since last round: `!!`, `::` messages
+   other than the known-benign ones, "not activated", "license", "Failed to
+   open", "$Aborted", "Segmentation", "KERNELLOST", "EXIT", "Throw::nocatch",
+   "Set::wrsym", "Part::partw".
+3. Progress: bytes/lines delta and the last milestone line (sector done,
+   strip solved, prime validated, MISSION end). A run SILENT for longer than
+   stall_minutes is an anomaly only if its kernel is also idle (CPU of the
+   PID from `<pool>/running/<name>.kernel` + pool.log's PID map, or of the
+   process holding the log per fuser) -- finite-field solves print nothing
+   for minutes at 100% CPU.
+4. Sanity of the design, not just the process: if the log shows the run
+   doing something the plan did not intend (every sample discarded, a
+   fallback route engaged on every strip, the same prime repeated, the
+   driver idle while a mission finished long ago, estimates off by
+   multiples), that is an anomaly too.
+5. Completion: a mission log ending in "MISSION end ... status OK" or a
+   family "written family_epsform_<CF>.wl; GateVerdict True" is done; a
+   status other than OK is an anomaly.
+
+Hard rules: never kill, restart, cancel, resubmit, or run Wolfram; never
+`pkill`/`pgrep -f` patterns (they self-match); never edit repository files;
+write only to the heartbeat and state files. Quiet hours 01:00-11:00 do not
+apply to you (you report to the coordinator, not the user). Stop after
+<HOURS> hours even if nothing drained, reporting the state.
+```
+
+Spawn it with `Agent` (subagent_type general-purpose or claude, model opus,
+run_in_background true). When it reports, the coordinator acts and respawns
+(or continues it with SendMessage) while anything is still running.

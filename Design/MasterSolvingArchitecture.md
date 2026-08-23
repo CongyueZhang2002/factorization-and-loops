@@ -22,6 +22,67 @@ and bilinear 1−4vw via direct linear solve). Sqrt objects appear
 only when pulling chart-frame functions back to (v,w); represent as
 inert `sqrtQ[class]` symbols with `sqrtQ[c]^2 -> q_c` reduction rules.
 
+### Two-variable chart convention (classes 97/77, and 79)
+
+Classes 97 (CF258_B9) and 77 (CF230_B1) have **no** rational ε-form in
+(v,w); their form exists only in the chart
+
+    v = x y,  w = (1−x)(1−y),   √λ = x − y,   det ∂(v,w)/∂(x,y) = x − y
+
+(class 79: v = −x y, w = (1−x)(1−y)). A chart record is an Association
+`<|"Kind"->"TwoVariable", "Variables"->{x,y}, "Subst"->{v->f, w->g},
+"Root"->…, "RootSquare"->…|>`; `Subst` must be rational with a
+nondegenerate Jacobian, and `RootSquare` pulled back through `Subst`
+must equal `Root²` exactly (checked, not declared).
+
+Direction adopted 2026-08-16: a family carrying such a block is
+transported **whole, in the chart variables** —
+`TransportFamilyInChart` (`FeynFacet/Private/MasterTransport.wl`,
+tests `Tests/t_chart_transport.wls`) pulls the connection back by the
+chain rule (Aₓ = A_v ∂ₓv + A_w ∂ₓw) with an exact flatness certificate
+and composes **every** block's stored class form with the chart's
+coordinate map, then calls the existing `TransportFamily` in (x,y).
+Three record frames compose:
+
+- rational frame `{v,w}` → substitution;
+- target chart `{x,y}` → its stored `Subst` must match exactly;
+- single-conic chart `{v,t}` → its `Root` is the same algebraic
+  function the chart rationalizes, so it is set equal to the chart's
+  rational `Root` and solved **linearly** for t (no square root is
+  introduced); the solve is a candidate, and what licenses it is the
+  exact identity that the conic `Subst` at that t reproduces the chart
+  `Subst`. Measured for classes 49/95: t = 1 − y.
+
+Class equivalence is a basis permutation **optionally composed with
+v↔w** (that is `ClassifyBlocks`'s definition), so a member's connection
+need not equal the representative's — measured: CF258 rows {5}, {24} and
+CF230 row {7}. In this chart the swap is the involution
+(x,y) → (1−x,1−y), i.e. exchanging the two images of `Subst`; the
+pullback **tries** it and the exact re-derivation decides, so a wrong
+guess cannot pass. Basis permutations are not attempted (none was
+needed: every multi-dimensional block of CF258/CF230 equals its
+representative entry by entry).
+
+Every pulled-back ε-form is **re-derived** from the pulled-back block
+system as T⁻¹AT − T⁻¹dT; a stored `EpsForm` is compared as provenance
+and a mismatch is a rejection. The layer fails closed
+(`ChartPullBackFailed`) if any block's form cannot be pulled back, and
+it makes **no** physics bookkeeping — no chamber, branch or sign; the
+chart and its Jacobian determinant are recorded in `"ChartNotes"` for
+the stage that does.
+
+Path convention: the pulled-back alphabet contains bilinear letters
+(x+y−xy for class 97, x+y−2xy for the pullback of 1−v−w), which are
+**quadratic** in the path parameter on a generic straight segment in
+(x,y) — the word backends admit linear denominators only, and the run
+is refused with `PathDenominatorsNotLinear`. Chart transports therefore
+run on an **axis-aligned** segment (one chart variable held at its
+symbolic target value, base anchor x₀ = 1/2 by default), on which every
+letter is linear in τ again. The per-order check against the original
+DE is then a statement about that direction; the two-directional
+statements (flatness, and each diagonal block equalling its declared
+form in both chart variables) come from the assembly certificate.
+
 ## Canonicalization tiers (per block, cheapest first)
 
 - T1: full-block ε-form in (v,w) — done for the validated set.

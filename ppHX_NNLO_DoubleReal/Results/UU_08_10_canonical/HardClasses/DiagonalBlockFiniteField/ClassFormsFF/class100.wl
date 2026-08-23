@@ -1,0 +1,37 @@
+<|"Format" -> "FeynFacet-CanonicalClassForm", "FormatVersion" -> 1, 
+ "ClassID" -> 100, "ContentAddress" -> None, "RepFamily" -> "CF259", 
+ "RepRows" -> {6, 7}, "RepBasis" -> 
+  {gli["CF259", {1, 1, 1, 1, 1, 0, 1, 0, 1}], 
+   gli["CF259", {1, 1, 1, 1, 1, 0, 1, 0, 2}]}, "Dim" -> 2, 
+ "Transformation" -> {{(-7 - 10*v + 7*w)/(7*v*(-1 + w)*(-1 + v + w)), 
+    (7 - 4*v - 7*w)/(7*v*(-1 + w)*(-1 + v + w))}, 
+   {(-7 - 14*eps - 20*v - 84*eps*v + 10*v^2 + 30*eps*v^2 + 14*w + 28*eps*w + 
+      20*v*w + 84*eps*v*w - 7*w^2 - 14*eps*w^2)/(7*v*(-1 + w)^2*
+      (-1 + v + w)^2), (7 + 14*eps - 8*v - 14*eps*v + 4*v^2 + 12*eps*v^2 - 
+      14*w - 28*eps*w + 8*v*w + 14*eps*v*w + 7*w^2 + 14*eps*w^2)/
+     (7*v*(-1 + w)^2*(-1 + v + w)^2)}}, 
+ "EpsForm" -> {{{eps*(8/(7*v) - 187/(49*(-1 + v + w))), 
+     eps*(-1/7*1/v + 33/(49*(-1 + v + w)))}, 
+    {eps*(22/(7*v) + 51/(49*(-1 + v + w))), 
+     eps*(-15/(7*v) - 9/(49*(-1 + v + w)))}}, 
+   {{eps*(-65/(49*(-1 + w)) + 2/w - 187/(49*(-1 + v + w))), 
+     eps*(-26/(49*(-1 + w)) + 33/(49*(-1 + v + w)))}, 
+    {eps*(-205/(49*(-1 + w)) + 51/(49*(-1 + v + w))), 
+     eps*(-82/(49*(-1 + w)) + 2/w - 9/(49*(-1 + v + w)))}}}, 
+ "Variables" -> {v, w}, "Regulator" -> eps, "Chart" -> None, 
+ "Frame" -> "Slicev", "Method" -> "SliceResiduesFiniteFieldAffine", 
+ "Letters" -> {v, -1 + v + w, w, -1 + w}, 
+ "Residues" -> {{{8/7, -1/7}, {22/7, -15/7}}, {{-187/49, 33/49}, 
+    {51/49, -9/49}}, {{2, 0}, {0, 2}}, {{-65/49, -26/49}, 
+    {-205/49, -82/49}}}, "Certificate" -> <|"Status" -> "Certified", 
+   "GateX" -> True, "GateY" -> True, "ConstantResidues" -> True, 
+   "Flat" -> True, "Invertible" -> True, 
+   "Seconds" -> 0.025958`4.865816221592553|>, 
+ "Attempts" -> {<|"Frame" -> "Slicev", "Stage" -> "Gate", 
+    "Status" -> "Certified", "Seconds" -> 1.370537`6.588435758055128|>}, 
+ "Timing" -> <|"SliceSeconds" -> 0.091824`5.414501200898856, 
+   "SolveSeconds" -> 1.231763`6.542072148001652, 
+   "GateSeconds" -> 0.025958`4.865816221592553, 
+   "TotalSeconds" -> 1.39767`6.596949636939394|>, 
+ "Seconds" -> 1.412538`6.601545133504849, "Status" -> "CANONICALIZED", 
+ "Validated" -> True|>

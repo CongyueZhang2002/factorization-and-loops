@@ -1,0 +1,35 @@
+<|"Format" -> "FeynFacet-CanonicalClassForm", "FormatVersion" -> 1, 
+ "ClassID" -> 147, "ContentAddress" -> None, "RepFamily" -> "CF407", 
+ "RepRows" -> {2, 3}, "RepBasis" -> 
+  {gli["CF407", {1, 1, 0, 1, 1, 0, 1, 1, 1}], 
+   gli["CF407", {1, 1, 0, 1, 1, 0, 1, 1, 2}]}, "Dim" -> 2, 
+ "Transformation" -> {{(-1 + v + w)^(-2), 0}, 
+   {(-7 + 52*eps + 132*eps^2 + 7*v - 52*eps*v - 132*eps^2*v + 7*w - 
+      52*eps*w - 132*eps^2*w - 7*v*w - 35*eps*v*w - 42*eps^2*v*w)/
+     (7*(1 + eps)*(-1 + v + w)^4), (30*(eps + 2*eps^2))/
+     (7*(1 + eps)*(-1 + v + w)^3)}}, 
+ "EpsForm" -> {{{eps*(87/(7*(-1 + v)) - 73/(7*v) - 4/(-1 + v + w)), 
+     eps*(-30/(7*(-1 + v)) + 30/(7*v))}, 
+    {eps*(2523/(70*(-1 + v)) - 584/(21*v) - 247/(30*(-1 + v + w))), 
+     eps*(-87/(7*(-1 + v)) + 80/(7*v) - (-1 + v + w)^(-1))}}, 
+   {{eps*(87/(7*(-1 + w)) - 73/(7*w) - 4/(-1 + v + w)), 
+     eps*(-30/(7*(-1 + w)) + 30/(7*w))}, 
+    {eps*(2523/(70*(-1 + w)) - 584/(21*w) - 247/(30*(-1 + v + w))), 
+     eps*(-87/(7*(-1 + w)) + 80/(7*w) - (-1 + v + w)^(-1))}}}, 
+ "Variables" -> {v, w}, "Regulator" -> eps, "Chart" -> None, 
+ "Frame" -> "Slicev", "Method" -> "SliceResiduesFiniteFieldAffine", 
+ "Letters" -> {v, -1 + v + w, -1 + v, w, -1 + w}, 
+ "Residues" -> {{{-73/7, 30/7}, {-584/21, 80/7}}, {{-4, 0}, {-247/30, -1}}, 
+   {{87/7, -30/7}, {2523/70, -87/7}}, {{-73/7, 30/7}, {-584/21, 80/7}}, 
+   {{87/7, -30/7}, {2523/70, -87/7}}}, "Certificate" -> 
+  <|"Status" -> "Certified", "GateX" -> True, "GateY" -> True, 
+   "ConstantResidues" -> True, "Flat" -> True, "Invertible" -> True, 
+   "Seconds" -> 0.01104`4.4945140668891534|>, 
+ "Attempts" -> {<|"Frame" -> "Slicev", "Stage" -> "Gate", 
+    "Status" -> "Certified", "Seconds" -> 3.305968`6.97084363901371|>}, 
+ "Timing" -> <|"SliceSeconds" -> 0.249549`5.848700827384138, 
+   "SolveSeconds" -> 3.031466`6.933197695179547, 
+   "GateSeconds" -> 0.01104`4.4945140668891534, 
+   "TotalSeconds" -> 3.343797`6.975784897294083|>, 
+ "Seconds" -> 3.362004`6.978143219308791, "Status" -> "CANONICALIZED", 
+ "Validated" -> True|>

@@ -118,7 +118,13 @@ CanonicalBlocksStatus::usage =
   "CanonicalBlocksStatus[formDirectory] prints one greppable line per stored canonical-form file giving class, content address, dimension, ansatz degree and frame, and a closing summary. With \"Classes\" it also lists the classes that have no form yet, and with \"Validate\"->True it re-runs ValidateCanonicalForm on every stored form. It is meant to be called from a second kernel while a campaign runs.";
 
 TransportFamily::usage =
-  "TransportFamily[system] solves a family differential-equation system symbolically with symbolic integration constants. It assembles the system into block-lower-triangular form against certified per-block data and returns the five-part conjugation certificate, builds the path-ordered transport with a mature package (\"TransportBackend\" -> \"Libra\", or \"PolyLogTools\", or a function for testing), regrades that weight-graded transport into epsilon orders, imposes the physical valuation constraints, and checks the result order by order against the ORIGINAL family differential equation in the path frame. \"TransportDepth\" fixes the transport weight and Automatic derives it from the depth-budget arithmetic given \"TransportTargetOrder\"; \"Card\" supplies any of those as declarative configuration, with an explicit option taking precedence over a card key over the built-in. A diagonal block may be provided as a certified class epsilon-form or as a \"ClosedFormSector\" carrying a fundamental matrix Phi, which is re-verified here and never trusted from its stored certificate. Closed-form sectors are classified by an exactness taxonomy that finite checks cannot satisfy: \"Exact\" requires symbolic proofs of dPhi - A Phi = 0 in every variable and of Phi^-1 Phi = 1, obtained either directly or from the exact Gauss-equation certificate for hypergeometric Phi; a Frobenius truncation plus finitely many high-precision numerical points yields \"AnalyticCandidate\", which is evidence and not a proof; a nonzero residual or an uncompletable check yields \"Rejected\". A family made entirely of closed-form sectors returns that verdict as its \"Status\", and a mixed family reports it under \"Exactness\".";
+  "TransportFamily[system] solves a family differential-equation system symbolically with symbolic integration constants. It assembles the system into block-lower-triangular form against certified per-block data and returns the five-part conjugation certificate, builds the path-ordered transport with a mature package (\"TransportBackend\" -> \"Libra\", or \"PolyLogTools\", or a function for testing), regrades that weight-graded transport into epsilon orders, imposes the physical valuation constraints, and checks the result order by order against the ORIGINAL family differential equation in the path frame. \"TransportDepth\" fixes the transport weight and Automatic derives it from the depth-budget arithmetic given \"TransportTargetOrder\"; \"Card\" supplies any of those as declarative configuration, with an explicit option taking precedence over a card key over the built-in. A diagonal block may be provided as a certified class epsilon-form or as a \"ClosedFormSector\" carrying a fundamental matrix Phi, which is re-verified here and never trusted from its stored certificate. Closed-form sectors are classified by an exactness taxonomy that finite checks cannot satisfy: \"Exact\" requires symbolic proofs of dPhi - A Phi = 0 in every variable and of Phi^-1 Phi = 1, obtained either directly or from the exact Gauss-equation certificate for hypergeometric Phi; a Frobenius truncation plus finitely many high-precision numerical points yields \"AnalyticCandidate\", which is evidence and not a proof; a nonzero residual or an uncompletable check yields \"Rejected\". A family made entirely of closed-form sectors returns that verdict as its \"Status\", and a mixed family reports it under \"Exactness\". \"Engine\" selects how the transport itself is built: \"Monolithic\" (default) path-orders the whole conjugated connection and regrades it from weight to epsilon, while \"Blockwise\" constructs the solution recursively on the block DAG, order by order in epsilon, in a sparse Chen-word algebra with rational-function coefficients -- no union alphabet, no weight-to-epsilon regrading, and a certificate that is the recursion dF_{i,n} = sum_j sum_r Ahat_ij^[r] F_{j,n-r} checked exactly per block and per order. Both engines share the assembly, the depth arithmetic, the valuation constraints and the per-order check against the ORIGINAL family differential equation, so their solutions are comparable entry by entry.";
+
+TransportFamilyInChart::usage =
+  "TransportFamilyInChart[system,chart] composes every certified diagonal-block form into one exact two-variable family frame, pulls the differential system back by the chain rule, re-derives each block epsilon form, and verifies invertibility, flatness, and the complete block-diagonal gauge identity. A rational chart uses the rational coefficient field; a frame from BuildAlgebraicTransportFrame retains its declared square roots in an exact multiquadratic field. With \"AssemblyOnly\" -> True it returns the certified whole-family transformed connection without integrating it. Otherwise it calls TransportFamily and records the chart, Jacobian, and path convention. No physical branch sign is selected.";
+
+LibraFamilyEpsForm::usage =
+  "LibraFamilyEpsForm[system,chart] constructs an exact whole-family epsilon-form after the caller supplies a rational two-variable chart. It pulls the system and every certified diagonal-block form into the chart, assembles the block-lower-triangular connection, alternates Libra Fuchsify and FactorOut in the two chart variables, and returns TTotal, the two epsilon-form connection matrices, and exact certificates for dlog form, flatness, invertibility, and the gauge identity against the original connection. chart may be None for a rational source frame. The function contains no process-specific chart lookup, kinematic chamber, or branch choice.";
 
 TransportStatus::usage =
   "TransportStatus[result] prints one greppable line per certificate, per regrading budget and per block of a TransportFamily result, for a watchdog running in a second kernel. It returns the lines and prints them unless \"Print\" -> False.";
@@ -132,11 +138,119 @@ TransportQuadrature::usage =
 TransportConstant::usage =
   "TransportConstant[block,order,index] is a symbolic integration constant of TransportFamily: component index of the constant vector of the given block at the given epsilon order. The valuation constraints are linear equations on these, and the boundary-fixing stage substitutes them.";
 
+TransportChartCatalog::usage =
+  "TransportChartCatalog[] returns the named rationalizing charts of the stage-2 campaign as chart records for TransportFamilyInChart (Kallen1/2/3, Q4a/b, Bilinear115 and the joint charts Kallen12/13/23). Each record carries \"Roots\" (every quadratic it rationalizes with its rational root) and, for joint charts, \"Parents\" (the rational maps from the parent chart's variables). Physics bookkeeping (chamber, branch, sign of the root) is not done here.";
+
+TransportChartVerify::usage =
+  "TransportChartVerify[chart] re-derives the identities that license a chart record: every declared root squared equals its RootSquare pulled back through Subst, the Jacobian determinant is nonzero, and every parent map reproduces Subst exactly. Returns an Association with \"OK\" -> True/False.";
+
+BuildAlgebraicTransportFrame::usage =
+  "BuildAlgebraicTransportFrame[rootSquares,{v,w},{x,y}] constructs an exact identity frame v=x, w=y over the multiquadratic field generated by Sqrt[rootSquares]. It verifies every root-square identity and the Jacobian exactly. This frame lets whole-family epsilon-form assembly retain several independent roots without requiring a nonexistent global rational parametrization; no physical branch sign is selected.";
+
+FamilyAlgebraicRootCensus::usage =
+  "FamilyAlgebraicRootCensus[assembly,frame] examines every nonzero off-diagonal block of an exactly certified family assembly and states which declared square roots occur. It reports the root-count histogram, every block containing three roots, and any radical not generated by the frame. The classification is obtained from the exact symbolic connection, not numerical samples.";
+
+TransportRootSetChart::usage =
+  "TransportRootSetChart[rootSquares] returns the least complicated catalog chart that rationalizes every declared quadratic in rootSquares, None for an empty set, or Missing[\"NoRationalChart\",...] when no catalog chart exists. TransportRootSetChart[rootSquares,{a,b}] first identifies a,b with the catalog variables, so the lookup does not depend on symbol names. Equality of quadratics is checked exactly.";
+
+SolveEpsFormStripInFrame::usage =
+  "SolveEpsFormStripInFrame[{E,C,B},{v,w},eps,frame] identifies the square roots occurring in one off-diagonal strip, chooses the least complicated exact catalog chart containing those roots, solves the rational strip with SolveEpsFormStrip, and pulls the dlog gauge back to the original algebraic frame. It returns a gauge only after exact chart composition, branch-consistent round-trip, and transformed-one-form identities are satisfied. Epsilon factorization remains the subsequent whole-sector step.";
+
+ComposeTransportChartExtension::usage =
+  "ComposeTransportChartExtension[baseChart,rootSquare,extensionRules,newVariables] composes an existing exact two-variable chart with a rational parametrization of one additional square root. extensionRules must map both variables of baseChart and the pulled-back square root to rational functions of newVariables. The result is returned only when all inherited root identities, the new root identity, the parent map, and the Jacobian are verified exactly.";
+
+RationalizeTransportChartExtension::usage =
+  "RationalizeTransportChartExtension[baseChart,rootSquare] asks RationalizeRoots for rational parametrizations of the additional root after pullback through baseChart, composes every candidate with ComposeTransportChartExtension, and returns the least complicated exactly verified chart. Options select the chart name, output variables, RationalizeRoots search breadth, and time limit.";
+
+TransportFamilyChartTable::usage =
+  "TransportFamilyChartTable[] gives the per-family analytic frame inferred from the exact class forms and their v<->w orientation. Root-free families are absent and remain in (v,w), one- and two-root families name a rationalizing chart, and three-root families declare their exact multiquadratic root squares.";
+
+TransportFamilyChart::usage =
+  "TransportFamilyChart[family] returns the exact family frame: a rationalizing chart for one or two roots, an identity multiquadratic frame for three roots, or None for a root-free family.";
+
 SolveResidueRationalGauge::usage =
-  "SolveResidueRationalGauge[{e,c,bbar},{x,y},eps] constructs the exact residue-compatible inhomogeneous system for one off-diagonal differential-equation strip, solves its rational gauge with Maple IntegrableConnections, and returns the gauge only after exact checks in both variables.";
+  "SolveResidueRationalGauge[{e,c,bbar},{x,y},eps] constructs the exact residue-compatible inhomogeneous system for one off-diagonal differential-equation strip. It first uses Maple IntegrableConnections and then, if needed, an exact rational ansatz built from the strip letters; a gauge is returned only after symbolic checks in both variables.";
 
 SolveEpsFormStrip::usage =
-  "SolveEpsFormStrip[{e,c,bbar},{x,y},eps] recognizes an existing dlog strip, otherwise searches CANONICA numerator degrees 0,1,2,3 concurrently with 120 seconds per degree, and invokes SolveResidueRationalGauge only when none gives an exact dlog gauge. Options change the degrees, time limits, denominator degree, scratch directory, and Maple paths.";
+  "SolveEpsFormStrip[{e,c,bbar},{x,y},eps] recognizes an existing dlog strip, otherwise searches CANONICA numerator degrees 0,1,2,3 with 120 seconds per degree and no more than eight kernels, and invokes the exact Maple routes only when none gives a checked dlog gauge. Options change the degrees, time limits, denominator ansatz, scratch directory, and Maple paths.";
+
+NormalizeEpsFormAffineSample::usage =
+  "NormalizeEpsFormAffineSample[sample,columns,p] fixes an affine finite-field solution so that its selected nullspace-coordinate block is the identity and its particular solution vanishes in those coordinates. It returns the normalized particular vector and nullspace basis modulo the prime p.";
+
+ReconstructEpsFormStrip::usage =
+  "ReconstructEpsFormStrip[record,modularData] combines modular epsilon interpolations by Chinese remaindering, performs bounded rational reconstruction, rebuilds the rational gauge and dlog residues, and returns them only when the letters are regulator-free, the residues are free of the kinematic variables, and both exact Pfaffian equations vanish (DLogFormCertified); CanonicalEpsFormCertified additionally reports whether the residues are regulator-free (the sector driver factorizes the regulator afterwards). record contains Strip, Variables, and Regulator.";
+
+VerifyEpsFormStrip::usage =
+  "VerifyEpsFormStrip[record,solution] checks the structural conditions first (LettersEpsFree: the alphabet is regulator-free; ResiduesKinematicsFree: the residue matrices are free of both variables; ResiduesEpsFree: and of the regulator), then substitutes the gauge and residues into both unspecialized Pfaffian equations. ExactPfaffianResidualsZero reports the literal identities; DLogFormCertified (identities, regulator-free letters, kinematics-free residues) is the strip acceptance; CanonicalEpsFormCertified adds regulator-free residues.";
+
+PrepareEpsFormStripSampling::usage =
+  "PrepareEpsFormStripSampling[record] computes once the regulator- and prime-independent setup of one off-diagonal block for finite-field sampling: the letter alphabet, the dlog derivative table, the residue-unknown layout and forcing coefficients, the denominator factor census and the gauge denominator. The result carries a fingerprint of the strip; SampleEpsFormStripAffine accepts it through the \"Preparation\" option and verifies the fingerprint before reuse, recomputing otherwise. SolveEpsFormStripFiniteField prepares once per solve and shares the preparation across the degree probe and every sample of every prime.";
+
+SampleEpsFormStripAffine::usage =
+  "SampleEpsFormStripAffine[record,epsilonValue,prime] constructs the rational-gauge and constant-dlog-residue equations for one two-variable off-diagonal block, samples them at exact finite-field kinematic points, and returns the affine solution space at the chosen regulator value. With \"DiscoverPlan\" -> True the full four-elimination solve also returns an \"EliminationPlan\" (normalization columns, a row basis, the verified square constrained core); with \"EliminationPlan\" -> plan the sample is solved by ONE factorization of the constrained core with nullity+1 right-hand sides, every original row is checked, and a failing sample is returned with a typed Discard status instead of a solution. \"Preparation\" accepts the once-per-block setup from PrepareEpsFormStripSampling.";
+
+InterpolateEpsFormStripAffine::usage =
+  "InterpolateEpsFormStripAffine[samples,prime] fixes one common affine normalization and reconstructs every gauge and residue coordinate as a rational function of the regulator over the prime field, using independent regulator points for exact validation.";
+
+FactorFamilyRegulatorDependence::usage =
+  "FactorFamilyRegulatorDependence[{Ax, Ay}, {x, y}, eps] finds one constant (chart-independent) transformation T(eps) that makes the dlog-form family connection eps-factored, T^-1 A T = eps (eps-free), with Libra FactorDependence on exact rational samples of A/eps; the unsampled symbolic identity is the acceptance test. Returns Status \"OK\" with Transformation, Inverse and the new Connection, \"AlreadyEpsFactored\" (identity), or \"NotFactored\" with the attempts. Replaces the per-sector CANONICA TransformDlogToEpsForm step (2026-08-22). Options: \"TimeLimit\" (900), \"UseFermat\", \"Verbose\".";
+FactorFamilyRegulatorDependenceInFrame::usage =
+  "FactorFamilyRegulatorDependenceInFrame[{Ax, Ay}, {x, y}, eps, frame] is FactorFamilyRegulatorDependence for a connection in a multiquadratic identity frame: the roots present in the connection are classified against the frame's root list, the connection is pulled back to the smallest catalogued rational chart for that root set (TransportRootSetChart), the constant T(eps) is found there and applied in the source frame, where the eps-factorization and the inverse identity are verified exactly. Status \"NoRationalChart\" means the root set has no joint rational chart: the caller must stop (typed) rather than continue with regulator-dependent residues. Rational connections go straight to FactorFamilyRegulatorDependence. (Codex package bug report 2026-08-22, CF300 (8,5).)";
+EpsFormStripObstruction::usage =
+  "EpsFormStripObstruction[record] is the order-by-order (in the regulator) obstruction certificate for the eps-form completion of one off-diagonal block record {e, c, bbar}: at each order the closed rational form w_k = e D_{k-1} - D_{k-1} c + B_k must have constant residues along its polar curves. Returns Status \"NoObstructionToOrder\" (with the gauge series D_k and their numerator degrees; a rational solver's failure is then an ansatz or budget limitation), \"MissingLetters\" (polar curves outside the block alphabet with nonzero constant residue: extend the alphabet with them and re-solve), \"NonConstantResidue\" (proof that no rational gauge exists with the present diagonal eps-forms and letters; the pair needs a basis change such as the blockwise Libra balances), \"PrimitiveNotRational\" or \"NotClosed\". Options: \"MaximumOrder\" (4), \"ExtraLetters\", \"TransverseLines\" (3), \"Verbose\".";
+SolveEpsFormStripFiniteField::usage =
+  "SolveEpsFormStripFiniteField[record] searches a rational-gauge degree ladder, samples and interpolates over successive prime fields, lifts by Chinese remaindering and rational reconstruction, and returns a gauge only after both unspecialized Pfaffian equations vanish exactly. The block setup is prepared once per solve; a pilot sample discovers the constrained elimination plan that every later sample reuses (\"Elimination\" -> \"Constrained\" default, \"Full\" forces the four-elimination path). Since 2026-08-21 three optimizations are default: an a-priori sparse gauge-numerator support from the preparation valuation census (\"Support\", the shell-growth ladder falls back to the full bidegree rectangle), held-out incremental regulator sampling with an unseen-prime residual before the exact check (\"RegulatorSampling\" -> \"HeldOut\", or \"Deterministic\" for the fixed schedule), and an optional FLINT modular-solve backend for the constrained core (\"Backend\" -> Automatic; every FLINT solution is re-verified in Wolfram). Every prime artifact carries per-sample stage timers. Modular data can be retained in an artifact directory and resumed.";
+
+InstallEpsFormStripSolution::usage =
+  "InstallEpsFormStripSolution[checkpoint,record,solution,sector,lowerSector] appends one exactly verified strip gauge to a descending sector checkpoint after checking dimensions and strip order; the regulator-free alphabet and kinematics-free residues are recomputed from the solution, so a lift that is not a dlog form cannot be installed.";
+
+ExactFamilyEpsilonFormQ::usage =
+  "ExactFamilyEpsilonFormQ[record] returns True only when a whole-family epsilon-form record carries explicit exact certificates for epsilon factorization, an invertible transformation, the complete gauge identity, and flatness. It recognizes both sector-CANONICA records and Libra records without changing their analytic content.";
+
+CertifyFamilyEpsilonForm::usage =
+  "CertifyFamilyEpsilonForm[record,system] recomputes the exact whole-family epsilon-form certificate from the differential system and the stored transformation. It verifies the chart identities, source and transformed flatness, both transformation inverses, the complete gauge identity, epsilon factorization, and constant-residue dlog reconstruction. It returns a standardized record and never accepts an older stored verdict in place of these calculations.";
+
+FamilyArtifactRead::usage =
+  "FamilyArtifactRead[file] reads one Wolfram Language artifact with the context path restricted to System` and Global`, so that symbols in the file never resolve into a package context loaded earlier in the session (in particular CANONICA`). Every campaign or worker read of a stored record or differential system must use this function. Returns $Failed when the file is missing or unreadable.";
+
+FamilyArtifactWrite::usage =
+  "FamilyArtifactWrite[value,file] writes one artifact atomically: Put to a temporary name in the target directory followed by RenameFile. Returns the file path.";
+
+DiagonalBlockEpsForm::usage =
+  "DiagonalBlockEpsForm[{Ax,Ay},{x,y},eps] constructs and certifies the epsilon form of one irreducible diagonal block in a rational two-variable chart: one spectator slice is normalized by Lee balances and factored (Libra), which fixes the constant residues of every letter depending on x; the x-equation d_x T = Ax T - T Bx is then a homogeneous linear system for a rational T with letter denominators and is solved by finite-field sampling, regulator interpolation, Chinese remaindering and rational reconstruction; the pure-y residues and the rational scalar gauge are read off exactly from the y-direction; the only acceptance is the exact two-variable gate. Returns an Association with Status \"Certified\", Transformation, Letters, Residues, EpsForm and stage timings.";
+
+DiagonalBlockSliceEpsForm::usage =
+  "DiagonalBlockSliceEpsForm[{Ax,Ay},{x,y},eps] computes the constant residues of the block's epsilon form on a generic rational slice y = y0 by Lee balances and maps every slice locus to a letter of the block. The default engine \"NumericalEps\" specializes the regulator to a fixed rational number (1/101) before the balance chain -- exact arithmetic over Q(x); the residue tuple is then M_a(e)/e, a constant conjugate of the true one, and is brought to a canonical small-height frame. \"Engine\" -> \"Symbolic\" keeps eps symbolic and finishes with Lee's linear factor-out step. Returns SliceLetters with SliceResidues (constant matrices), the balance path and timings.";
+
+SolveDiagonalBlockGaugeFiniteField::usage =
+  "SolveDiagonalBlockGaugeFiniteField[{Ax,Ay},{x,y},eps,sliceData] solves the x-equation d_x T = Ax T - T Bx, Bx = eps Sum_a R_a d_x log phi_a with the slice residues R_a, for a rational T over a letter-denominator ansatz by finite-field sampling (pilot full nullspace, then one constrained LinearSolve per sample with an all-row check), per-prime regulator interpolation, Chinese remaindering and rational reconstruction; the result is accepted only after the exact x-equation holds.";
+
+CompleteDiagonalBlockEpsForm::usage =
+  "CompleteDiagonalBlockEpsForm[{Ax,Ay},{x,y},eps,solve] takes a transformation solving the x-equation and determines exactly, from T^-1 Ay T - T^-1 d_y T, the constant residues of the pure-y letters and the rational scalar gauge with integer exponents that removes the remaining scalar dlog terms.";
+
+CertifyDiagonalBlockEpsForm::usage =
+  "CertifyDiagonalBlockEpsForm[{Ax,Ay},{x,y},eps,T,letters,residues] is the exact gate: the source connection pushed through T equals eps Sum_a R_a dlog phi_a entrywise in both variables, the residues are constant, the letters are regulator-free, the form is flat, and T is invertible.";
+
+DiagonalBlockClassCampaign::usage =
+  "DiagonalBlockClassCampaign[classes,directory] runs DiagonalBlockEpsForm over class representatives (a list of class records or the path of classes.wl) and writes one ledger record per class in the CanonicalizeClasses schema (Transformation, EpsForm, Variables, Chart, Frame, Method, Seconds, Validated). Options: \"Kernels\" (subkernel pool under one main kernel), \"Overwrite\", \"TimeConstraint\" per class, \"Fallback\" -> \"CANONICA\" to try the CANONICA ladder when the finite-field route does not certify, \"CanonicaValidation\" to re-check every record with ValidateCanonicalForm.";
+
+DiagonalBlockLetters::usage =
+  "DiagonalBlockLetters[{Ax,Ay},{x,y},eps] returns the regulator-free irreducible denominator factors of the block (the candidate letters) and the regulator-dependent ones (apparent singularities).";
+
+FamilyEpsilonFormRecord::usage =
+  "FamilyEpsilonFormRecord[record] normalizes one family epsilon-form record to the standard schema: the diagonal-block list is converted to plain index lists (the annotated {indices, classId} layout is accepted), verified to flatten to a basis permutation, and the required analytic fields are checked for presence. Returns the normalized record, or an Association whose \"Status\" names the defect.";
+
+BuildObservableTransportManifest::usage =
+  "BuildObservableTransportManifest[epsilonFormDirectories,differentialSystemDirectory,valuationsFile,manifestFile] discovers every differential-equation family, selects the first exactly certified whole-family epsilon form from the ordered directories, and writes the transport manifest atomically. The returned Association names the selected, missing, rejected, and multiply represented families. Option \"Card\" appends one common transport card to every manifest row; \"ReportFile\" writes the complete inventory as Wolfram Language data.";
+
+BuildObservableTransportDemand::usage =
+  "BuildObservableTransportDemand[familyEpsForm,familySystem,valuations] maps the exact coefficient valuations of the family's canonical masters into the epsilon-order/master-row pairs required from that family. Options specify the hard-function orders, safety orders, master valuation and transport path. The map is derived from familySystem[\"BlockBasis\"] and the permutation stored in familyEpsForm[\"Blocks\"].";
+
+FindObservableTransportPath::usage =
+  "FindObservableTransportPath[familyEpsForm] selects the first deterministic rational base and target sample at which every polynomial dlog letter of an exact family epsilon form is finite and nonzero. It fixes no physical branch; the polynomial dlog map remains the primary analytic record.";
+
+BuildObservableTransport::usage =
+  "BuildObservableTransport[familyEpsForm,demand] constructs only the iterated-integral maps that can contribute to the requested epsilon-order/master-row pairs. familyEpsForm is an exactly certified whole-family epsilon-form record. demand declares PhysicalDemandPairs (or the older Cartesian PhysicalRows and PhysicalOrders form), PhysicalValuation and Path. The routine first imposes the vanishing Laurent coefficients of the physical masters, derives the exact allowed boundary subspace, keeps its constants factored, and then propagates only nonzero projected dlog words. Every returned kernel, residue decomposition and differential invariant is checked symbolically.";
 
 AssembleCutContributions::usage =
   "AssembleCutContributions[{result1, ...}] combines coefficient results of one process on a shared canonical family namespace. Each contribution enters with the exact weight IdenticalParticleSymmetryFactor[setup] times (-1) per outgoing ghost-antighost pair, realizing the Slavnov-Taylor completion of -g gluon polarization sums.";
@@ -186,10 +300,39 @@ SyntaxInformation[ValidateCanonicalForm] =
   {"ArgumentsPattern" -> {_, _., OptionsPattern[]}};
 SyntaxInformation[CanonicalBlocksStatus] =
   {"ArgumentsPattern" -> {_, OptionsPattern[]}};
+SyntaxInformation[TransportChartCatalog] = {"ArgumentsPattern" -> {}};
+SyntaxInformation[TransportChartVerify] = {"ArgumentsPattern" -> {_}};
+SyntaxInformation[TransportFamilyChartTable] = {"ArgumentsPattern" -> {}};
+SyntaxInformation[TransportFamilyChart] = {"ArgumentsPattern" -> {_}};
+SyntaxInformation[LibraFamilyEpsForm] =
+  {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
 SyntaxInformation[SolveResidueRationalGauge] =
   {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
 SyntaxInformation[SolveEpsFormStrip] =
   {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
+SyntaxInformation[NormalizeEpsFormAffineSample] =
+  {"ArgumentsPattern" -> {_, _, _}};
+SyntaxInformation[ReconstructEpsFormStrip] =
+  {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
+SyntaxInformation[VerifyEpsFormStrip] =
+  {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
+SyntaxInformation[SampleEpsFormStripAffine] =
+  {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
+SyntaxInformation[InterpolateEpsFormStripAffine] =
+  {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
+SyntaxInformation[SolveEpsFormStripFiniteField] =
+  {"ArgumentsPattern" -> {_, OptionsPattern[]}};
+SyntaxInformation[InstallEpsFormStripSolution] =
+  {"ArgumentsPattern" -> {_, _, _, _, _}};
+SyntaxInformation[ExactFamilyEpsilonFormQ] = {"ArgumentsPattern" -> {_}};
+SyntaxInformation[CertifyFamilyEpsilonForm] =
+  {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
+SyntaxInformation[BuildObservableTransportManifest] =
+  {"ArgumentsPattern" -> {_, _, _, _, OptionsPattern[]}};
+SyntaxInformation[BuildObservableTransportDemand] =
+  {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
+SyntaxInformation[FindObservableTransportPath] =
+  {"ArgumentsPattern" -> {_, OptionsPattern[]}};
 SyntaxInformation[AssembleCutContributions] = {"ArgumentsPattern" -> {_}};
 SyntaxInformation[IdenticalParticleSymmetryFactor] =
   {"ArgumentsPattern" -> {_}};
@@ -202,6 +345,20 @@ SyntaxInformation[IdentifySafePropagator] = {"ArgumentsPattern" -> {_, _}};
 SyntaxInformation[TopologyEquivalence] = {"ArgumentsPattern" -> {_, _}};
 SyntaxInformation[GenerateDiagram] = {"ArgumentsPattern" -> {_}};
 SyntaxInformation[DimensionalShift] = {"ArgumentsPattern" -> {_, _, _, _.}};
+SyntaxInformation[BuildObservableTransport] =
+  {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
+SyntaxInformation[ComposeTransportChartExtension] =
+  {"ArgumentsPattern" -> {_, _, _, _}};
+SyntaxInformation[BuildAlgebraicTransportFrame] =
+  {"ArgumentsPattern" -> {_, _, _}};
+SyntaxInformation[FamilyAlgebraicRootCensus] =
+  {"ArgumentsPattern" -> {_, _}};
+SyntaxInformation[TransportRootSetChart] =
+  {"ArgumentsPattern" -> {_}};
+SyntaxInformation[SolveEpsFormStripInFrame] =
+  {"ArgumentsPattern" -> {_, _, _, _, OptionsPattern[]}};
+SyntaxInformation[RationalizeTransportChartExtension] =
+  {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
 
 Options[PartialFraction] = {
   FeynCalc`DropScaleless -> False,
@@ -220,7 +377,11 @@ $feynFacetPrivateFiles = FileNameJoin[{$feynFacetPrivateDirectory, #}] & /@ {
     "StreamingKira.wl",
     "MasterIntegralAmFlow.wl", "Simplification.wl", "Assembly.wl",
     "CoefficientStore.wl", "Reconstruction.wl",
-    "CanonicalBlocks.wl", "EpsFormStrip.wl", "MasterTransport.wl"
+    "CanonicalBlocks.wl", "EpsFormStrip.wl", "FiniteFieldEpsForm.wl",
+    "FiniteFieldStripSolve.wl", "EpsFormStripObstruction.wl", "FamilyRegulatorFactor.wl", "FamilyCertificateModular.wl", "ObservableTransport.wl",
+    "MasterTransport.wl", "BlockwiseTransport.wl",
+    "TransportCharts.wl", "LibraEpsForm.wl", "FamilyEpsForm.wl",
+    "DiagonalBlockEpsForm.wl", "TaskBroker.wl"
 };
 $feynFacetSourceFiles = Join[
   {ExpandFileName[$InputFileName], FileNameJoin[{$feynFacetDirectory, "Distributions.wl"}]},

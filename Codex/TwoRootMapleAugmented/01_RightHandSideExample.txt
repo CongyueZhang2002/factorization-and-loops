@@ -1,0 +1,151 @@
+STYLE='Maple Input' PROMPT='> '
+restart:
+
+STYLE='Text' PROMPT=''
+We load our package:
+
+STYLE='Maple Input' PROMPT='> '
+with(IntegrableConnections);
+
+STYLE='2D Output' PROMPT=''
+N1xzSSpFaWdlbnJpbmdHNiJJJkV2YWxtR0YkSSlHX21hdHJpeEdGJEkqR19tYXRyaXgwR0YkSTpIeXBlcmV4cG9uZW50aWFsU29sdXRpb25zR0YkSSNJZEdGJEknTWFwcGx5R0YkSTVNYXRyaXhDb2x1bW5QcmltcGFydEdGJEk4TWF0cml4Q29sdW1uUHJpbXBhcnRSYXRHRiRJKk1leHBzb2xkZUdGJEkqTXBvbHNvbGRlR0YkSSpNcmF0c29sZGVHRiRJK01zeWx2ZXN0ZXJHRiRJK015bGluc29sdmVHRiRJLU5OSWV4cG9uZW50c0dGJEk0UG9seW5vbWlhbFNvbHV0aW9uc0dGJEkyUmF0aW9uYWxTb2x1dGlvbnNHRiRJKlJlZHVjdGlvbkdGJEk8VGVzdEludGVncmFiaWxpdHlDb25kaXRpb25zR0YkSSxUcmlnb25hbGl6ZUdGJEkpYmFja3N1YnNHRiRJK2NhbmRpZGF0ZXNHRiRJKWNvbF9wdmFsR0YkSStjb2xlY2hlbG9uR0YkSSdjb2x2YWxHRiRJK2NvbXBsZW1lbnRHRiRJLWNvbnZlcnRfYmFja0dGJEkrZGVub21hdHJpeEdGJEksZGVub212ZWN0b3JHRiRJLmRpcmVjdF9yYXRzb2xHRiRJM2V2YWxfYmxvY2tfcmVkdWNlZEdGJEknZXZhbGFtR0YkSSpleHBfcGFydHNHRiRJLmZvcm1hbF9yZWR1Y2VHRiRJLmdlbl9zeWx2ZXN0ZXJHRiRJKGdldGFyZ3NHRiRJKmdvb2RfZm9ybUdGJEkoaW50RGlmZkdGJEkvaW50X2RpZmZfc3BsaXRHRiRJLWxfY29sZWNoZWxvbkdGJEkubF9jb2x1bW5fcmFua0dGJEkvbF9tb3Nlcl9yZWR1Y2VHRiRJJ2xfcXRjZEdGJEkobF9zdXBlckdGJEkvbF9zdXBlcl9yZWR1Y2VHRiRJKWxjX2V2YWxhR0YkSSpsY19ldmFsYW1HRiRJKWxvY2FsaXplR0YkSSxsb2dfY29sbGVjdEdGJEkpbG9nX2ZyZWVHRiRJMW1hdF9ibG9ja19yZWR1Y2VHRiRJNG1hdF9jaGFuZ2VfZXhwX3BhcnRHRiRJKm1hdF9jaGVja0dGJEkqbWF0X2NvZWZmR0YkSTFtYXRfY29sdmFsdWF0aW9uR0YkSSxtYXRfY29udmVydEdGJEkpbWF0X2NvcHlHRiRJL21hdF9kaWZmZXJlbmNlR0YkSSltYXRfZXZhbEdGJEksbWF0X2dldF9kaW1HRiRJMW1hdF9nZXRfZXhwX3BhcnRHRiRJLG1hdF9nZXRfZXh0R0YkSTxtYXRfZ2V0X2luZGljaWFsX3BvbHlub21pYWxHRiRJO21hdF9nZXRfaW52X3RyYW5zZm9ybWF0aW9uR0YkSS5tYXRfZ2V0X29yZGVyR0YkSTVtYXRfZ2V0X3JhbWlmaWNhdGlvbkdGJEkubWF0X2dldF90ZXJtc0dGJEk3bWF0X2dldF90cmFuc2Zvcm1hdGlvbkdGJEktbWF0X2dldF90eXBlR0YkSSdtYXRfbGNHRiRJLW1hdF9sZWFkX21vbkdGJEksbWF0X3Byb2R1Y3RHRiRJKW1hdF9wdmFsR0YkSSltYXRfc3Vic0dGJEkobWF0X3N1bUdGJEkpbWF0X3N3YXBHRiRJLm1hdF90b19zaW1wbGVHRiRJKm1hdF90b29sc0dGJEkubWF0X3RyYW5zZm9ybUdGJEkobWF0X3ZhbEdGJEkubWF0X3ZhbHVhdGlvbkdGJEkubWF0cml4X3Nlcmllc0dGJEknbWF0dmFsR0YkSTNtaW5pbWFsSW50ZWdlclJvb3RHRiRJLG15X2xpbnNvbHZlR0YkSShteV9tdWx0R0YkSSlteWRlZ3JlZUdGJEkqbXllcXVhaW5kR0YkSStuZXdfbWF0cml4R0YkSSduZXd0b25HRiRJL25ld3Rvbl9wb2x5Z29uR0YkSShub256ZXJvR0YkSShub3JtYWxtR0YkSTRwZW5jaWxfYmxvY2tfcmVkdWNlR0YkSS1wZW5jaWxfc29sdmVHRiRJLXBnYXVzc1VuaW1vZEdGJEkqcG9seV9wdmFsR0YkSSpwb2x5X3NvbHNHRiRJKXBvbHlfdmFsR0YkSSZwcmFua0dGJEklcHZhbEdGJEklcXRjZEdGJEkucmFtaWZpZWRfY2FzZUdGJEkzcmFtaWZpZWRfcmVkdWN0aW9uR0YkSS1yYW5kb21NYXRyaXhHRiRJK3JhbmRvbVBvbHlHRiRJKnJhbmRvbVJhdEdGJEkpcmF0c3VwZXJHRiRJL3JlZHVjZUNvbFJhbms0R0YkSSlyZWdfc29sc0dGJEkvcmVndWxhcl9zZXJpZXNHRiRJK3Jvd2VjaGVsb25HRiRJKnNlcV9ldmFsYUdGJEkuc2ltX3N5bHZlc3RlckdGJEksc2ltcGxlX2V2YWxHRiRJLHNpbXBsZV9zb2xzR0YkSSxzb3J0Q29sdW1uc0dGJEkrc3VwZXJfZm9ybUdGJEkwc3lzdGVtX2V4cHNvbGRlR0YkSSx0ZW5zb3JfcHJvZEdGJEkqdHJhbnNmb3JtR0YkSSl0cnVuY2F0ZUdGJEkmdXRpbHNHRiRJJHZhbEdGJEkldmFsMUdGJEksdmFsX2xkZWdyZWVHRiRJKnZhbHVhdGlvbkdGJEkrdmVjdGRlZ3JlZUdGJA==
+
+STYLE='Text' PROMPT=''
+The library linalg is also needed.
+
+STYLE='Maple Input' PROMPT='> '
+with(linalg):
+
+STYLE='Text' PROMPT=''
+We load OreModules in order to use the procedure to write a D-finite partial differential system to an integrable connection.
+
+STYLE='Maple Input' PROMPT='> '
+with(OreModules):
+
+STYLE='Text' PROMPT=''
+BrycLetac system in dimension 2 - Gaussian Case
+
+STYLE='Text' PROMPT=''
+We define the OreAlgebra (needed for OreModules):
+
+STYLE='Maple Input' PROMPT='> '
+Alg2:=DefineOreAlgebra(diff=[d1,x1],diff=[d2,x2],polynom=[x1,x2],comm=[d,a]):
+
+STYLE='Text' PROMPT=''
+We give the equations of the system:
+
+STYLE='Maple Input' PROMPT='> '
+R2 := matrix(2,1,[-(1/2)*d*d2+d1^2-x2*d2^2,2*d1*d2+x1*d2^2]);
+
+STYLE='2D Output' PROMPT=''
+PTYiNiQ7IiIiIiIjO0YmRiZFXFtsIzYkRiZGJiwoKiZJImRHRiNGJkkjZDJHRiNGJiMhIiJGJyokSSNkMUdGI0YnRiYqJkkjeDJHRiNGJkYuRidGMDYkRidGJiwmKiZGLkYnSSN4MUdGI0YmRiYqJkYyRiZGLkYmRic=
+
+STYLE='Text' PROMPT=''
+We write the system as an integrable connection:
+
+STYLE='Maple Input' PROMPT='> '
+C2:=OreModules[Connection](R2,Alg2);
+
+STYLE='2D Output' PROMPT=''
+NyQ9NiI2JDsiIiIiIiVGJkVcW2wxNiQiIiRGJyIiITYkRihGK0YsNiRGJ0YnRiw2JCIiI0YwRiw2JEYnRihGLDYkRitGMCwkSSJkR0YkI0YnRjA2JEYoRjBGLDYkRitGKEkjeDJHRiQ2JEYwRidGLDYkRjBGK0YsNiRGMEYoLCRJI3gxR0YkIyEiIkYwNiRGKEYnRiw2JEYnRitGJzYkRitGK0YsNiRGJ0YwRiw2JEYoRigqKCwmRjRGPyEiJEYnRidGPUYnLCYqJEY9RjBGJ0Y4ISIlRj89RiRGJUVcW2wxRipGLEYtRixGLkYsRi9GLEYxRixGMkYsRjZGLEY3RjxGOUYsRjpGLEY7RidGQEYsRkFGLEZCRixGQ0YnRkQqJiwmRjRGMCIiJ0YnRidGSEY/
+
+STYLE='Text' PROMPT=''
+If we want to know the basis of the associated module in which the connection is written, we can use the procedure KBasis of OreModules:
+
+STYLE='Maple Input' PROMPT='> '
+OreModules[KBasis](R2,Alg2);
+
+STYLE='2D Output' PROMPT=''
+NyYmSSdsYW1iZGFHNiI2IyIiIiomSSNkMkdGJUYnRiNGJyomSSNkMUdGJUYnRiNGJyomRikiIiNGI0Yn
+
+STYLE='Text' PROMPT=''
+We define the right-hand sides of the connection.
+
+STYLE='Maple Input' PROMPT='> '
+b1:=vector(4,[0,0,1,0]);
+b2:=vector(4,[0,0,0,0]);
+
+STYLE='2D Output' PROMPT=''
+PTYiNiM7IiIiIiIlRVxbbCVGJiIiISIiI0YpIiIkRiZGJ0Yp
+
+STYLE='2D Output' PROMPT=''
+PTYiNiM7IiIiIiIlRVxbbCVGJiIiISIiI0YpIiIkRilGJ0Yp
+
+STYLE='Text' PROMPT=''
+We use our procedures for computing rational solutions of the integrable connection. The right-hand sides are given as last input.
+
+STYLE='Maple Input' PROMPT='> '
+RationalSolutions(C2,[x1,x2],['param',[d],'rhs',[b1,b2]]);
+
+STYLE='2D Output' PROMPT=''
+NyQ9NiI2JDsiIiIiIiU7RiciIiRFXFtsLTYkRipGJyomSSJkR0YkRidJI3gxR0YkRic2JEYoRioiIiE2JEYnRicsJiomRi8iIiNGLkYnI0YnRjVJI3gyR0YkRjU2JEY1RjVGMTYkRipGNUYnNiRGKEY1RjE2JEY1RidGNTYkRjVGKkYxNiRGKEYnRjE2JEYnRipGJzYkRipGKkYxNiRGJ0Y1Ri89RiQ2JEYmO0YnRidFXFtsJUYsRi9GMiwkKiRGL0Y1RjZGO0YxRj1GMQ==
+
+STYLE='Text' PROMPT=''
+The ouput contains a matrix whose columns form a basis of rational solutions of the homogeneous integrable connection and a vector that is a particular 
+solution of the non-homogeneous integrable connection. A solution is then given by the sum of a linear combination of the columns of the matrix and the vector.
+
+STYLE='Text' PROMPT=''
+BrycLetac system in dimension 3 - Gaussian Case
+
+STYLE='Text' PROMPT=''
+We define the OreAlgebra (needed for OreModules):
+
+STYLE='Maple Input' PROMPT='> '
+Alg3:=DefineOreAlgebra(diff=[d1,x1],diff=[d2,x2],diff=[d3,x3],polynom=[x1,x2,x3],comm=[d]):
+
+STYLE='Text' PROMPT=''
+We give the equations of the system:
+
+STYLE='Maple Input' PROMPT='> '
+R3 := matrix(3,1,[-d*d2+d1^2-x2*d2^2-2*x3*d2*d3,-(1/2)*d*d3+2*d1*d2+x1*d2^2-x3*d3^2,2*d1*d3+d2^2+2*x1*d2*d3+x2*d3^2]);
+
+STYLE='2D Output' PROMPT=''
+PTYiNiQ7IiIiIiIkO0YmRiZFXFtsJDYkRidGJiwqKihJI2QyR0YjRiZJI2QzR0YjRiZJI3gxR0YjRiYiIiMqJkYuRjBJI3gyR0YjRiZGJiomSSNkMUdGI0YmRi5GJkYwKiRGLUYwRiY2JEYmRiYsKiomRi1GMEYyRiYhIiIqKEYtRiZGLkYmSSN4M0dGI0YmISIjKiZJImRHRiNGJkYtRiZGOSokRjRGMEYmNiRGMEYmLCoqJkY+RiZGLkYmI0Y5RjAqJkYtRiZGNEYmRjAqJkYvRiZGLUYwRiYqJkY7RiZGLkYwRjk=
+
+STYLE='Text' PROMPT=''
+We write the system as an integrable connection:
+
+STYLE='Maple Input' PROMPT='> '
+C3:=OreModules[Connection](R3,Alg3):
+
+STYLE='Text' PROMPT=''
+If we want to know the basis of the associated module in which the connection is written, we can use the procedure KBasis of OreModules:
+
+STYLE='Maple Input' PROMPT='> '
+OreModules[KBasis](R3,Alg3);
+
+STYLE='2D Output' PROMPT=''
+NyomSSdsYW1iZGFHNiI2IyIiIiomSSNkM0dGJUYnRiNGJyomRiNGJ0kjZDJHRiVGJyomSSNkMUdGJUYnRiNGJyomRikiIiNGI0YnKihGK0YnRilGJ0YjRicqKEYtRidGKUYnRiNGJyomRikiIiRGI0Yn
+
+STYLE='Text' PROMPT=''
+We define the right-hand sides:
+
+STYLE='Maple Input' PROMPT='> '
+b1:=vector(8,[0$3,1,0$4]);
+b2:=vector(8,[0$8]);
+b3:=eval(b2);
+
+STYLE='2D Output' PROMPT=''
+PTYiNiM7IiIiIiIpRVxbbClGJiIiISIiI0YpIiIkRikiIiVGJiIiJkYpIiInRikiIihGKUYnRik=
+
+STYLE='2D Output' PROMPT=''
+PTYiNiM7IiIiIiIpRVxbbClGJiIiISIiI0YpIiIkRikiIiVGKSIiJkYpIiInRikiIihGKUYnRik=
+
+STYLE='2D Output' PROMPT=''
+PTYiNiM7IiIiIiIpRVxbbClGJiIiISIiI0YpIiIkRikiIiVGKSIiJkYpIiInRikiIihGKUYnRik=
+
+STYLE='Text' PROMPT=''
+We use our procedure for computing rational solutions of the integrable connection:
+
+STYLE='Maple Input' PROMPT='> '
+RationalSolutions(C3,[x1,x2,x3],['rhs',[b1,b2,b3],'param',[d]]);
+
+STYLE='2D Output' PROMPT=''
+NyQ9NiI2JDsiIiIiIik7RiciIiVFXFtsQTYkIiIkRicqJkkiZEdGJEYnSSN4MUdGJEYnNiQiIiYiIiMiIiE2JEYqRi1GJzYkIiInRipGNDYkRidGJywoKiZGL0YzRjBGLSNGJ0Y3KihGMEYnRi9GJ0kjeDJHRiRGJ0YnSSN4M0dGJEYqNiRGM0YzRjQ2JCIiKEYtRjQ2JEYnRipGJzYkRi1GM0YnNiRGQUYqRjQ2JEYoRjNGNDYkRjJGJ0Y0NiRGMkYqRjQ2JEYqRjNGLjYkRihGJ0Y0NiRGLUYqRjQ2JEZBRidGNDYkRjdGLUY0NiRGM0YnRio2JEYzRi1GNDYkRihGKkY0NiRGM0YqRjQ2JEYqRicsJiomRi9GM0YwRjMjRidGMyomRi9GJ0Y9RidGJzYkRidGLUYwNiRGN0YzRjQ2JEZBRjNGNDYkRi1GLUY0NiRGN0YnRjQ2JEYnRjMsJiomRi9GJ0YwRjNGVEY9Ric2JEYqRipGNDYkRihGLUY0NiRGMkYtRjQ9RiQ2JEYmO0YnRidFXFtsKUYsRjRGOCwkKiRGMEYzRlRGRkY0RklGNEZLRjRGTUY0RlFGMEZaRjQ=
+
+STYLE='Text' PROMPT=''
+The ouput contains a matrix whose columns form a basis of rational solutions of the homogeneous integrable connection and a vector that is a particular 
+solution of the non-homogeneous integrable connection. A solution is then given by the sum of a linear combination of the columns of the matrix and the vector.
+
+STYLE='Text' PROMPT=''
+LUklbXJvd0c2Iy9JK21vZHVsZW5hbWVHNiJJLFR5cGVzZXR0aW5nR0koX3N5c2xpYkdGJzYjLUkjbWlHRiQ2I1EhRic=

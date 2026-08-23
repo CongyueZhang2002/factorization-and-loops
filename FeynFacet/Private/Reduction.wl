@@ -988,14 +988,7 @@ ibpImportRuleTable[name_, path_String] := Module[
 ];
 
 ibpImportKernelLimit[count_Integer] := Module[
-  {reductionLimit, importLimit},
-  reductionLimit = If[
-    ValueQ[Global`$FACETKernelLimit] &&
-      IntegerQ[Global`$FACETKernelLimit] &&
-      Global`$FACETKernelLimit > 0,
-    Global`$FACETKernelLimit,
-    $ProcessorCount
-  ];
+  {importLimit},
   importLimit = If[
     ValueQ[Global`$FACETKiraImportKernelLimit] &&
       IntegerQ[Global`$FACETKiraImportKernelLimit] &&
@@ -1003,7 +996,7 @@ ibpImportKernelLimit[count_Integer] := Module[
     Global`$FACETKiraImportKernelLimit,
     4
   ];
-  Min[count, $ProcessorCount, reductionLimit, importLimit]
+  Min[facetKernelCount[Automatic, count], importLimit]
 ];
 
 ibpValidateImportedRuleTable[name_, table_List] := Module[{leftSides},
@@ -1624,17 +1617,7 @@ parallelNormalizeCoefficients[
     ConstantArray[1, count],
     Length[additiveTerms[#]] & /@ expressions
   ];
-  limit = Min[
-    count,
-    $ProcessorCount,
-    If[
-      ValueQ[Global`$FACETKernelLimit] &&
-        IntegerQ[Global`$FACETKernelLimit] &&
-        Global`$FACETKernelLimit > 0,
-      Global`$FACETKernelLimit,
-      $ProcessorCount
-    ]
-  ];
+  limit = facetKernelCount[Automatic, count];
   existingKernels = Kernels[];
   launchedKernels = If[
     Length[existingKernels] < limit,

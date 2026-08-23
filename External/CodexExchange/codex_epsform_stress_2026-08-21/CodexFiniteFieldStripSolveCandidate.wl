@@ -1,0 +1,1749 @@
+(* Automated finite-field reconstruction of an exact two-variable epsilon-form strip. *)
+
+(* Public symbols are Clear'ed, not ClearAll'ed: ClearAll also removes
+   the usage messages FeynFacet.m defines before loading this file
+   (found 2026-08-21). Clear still drops their definitions, so re-Get of
+   this file stays clean. *)
+Clear[PrepareEpsFormStripSampling, SampleEpsFormStripAffine, InterpolateEpsFormStripAffine, SolveEpsFormStripFiniteField, InstallEpsFormStripSolution];
+ClearAll[
+  finiteFieldStripPrepare,
+  finiteFieldStripSupport,
+  finiteFieldStripSupportLadder,
+  finiteFieldStripPrimeForms,
+  $finiteFieldStripPrimeFormCache,
+  finiteFieldStripFingerprint,
+  finiteFieldStripIndependentRows,
+  finiteFieldStripProbeOrder,
+  finiteFieldStripDiscoverPlan,
+  finiteFieldStripRecordQ,
+  finiteFieldStripEntryFactorList,
+  finiteFieldStripIndependentColumns,
+  finiteFieldStripEvaluateCoefficients,
+  finiteFieldStripTrimCoefficients,
+  finiteFieldStripReduceRationalPair,
+  finiteFieldStripInterpolationQ,
+  finiteFieldStripInterpolateCoordinate,
+  finiteFieldStripCanonicalSamples,
+  finiteFieldStripFitSplit,
+  finiteFieldStripFitCandidates,
+  finiteFieldStripHeldOutInterpolate,
+  finiteFieldStripAdaptiveSamplingPlan,
+  finiteFieldStripUnseenPrimeResidualQ,
+  finiteFieldStripReservePrimes,
+  finiteFieldStripFLINTBinary,
+  finiteFieldStripBackendQ,
+  finiteFieldStripFLINTSolve,
+  finiteFieldStripPutAtomic,
+  finiteFieldStripArtifactTag
+];
+
+SampleEpsFormStripAffine::record =
+  "The record must contain a valid two-variable Strip, Variables, and Regulator.";
+SampleEpsFormStripAffine::input =
+  "The finite-field prime, regulator value, point count, or numerator-degree offset is invalid.";
+SampleEpsFormStripAffine::alphabet =
+  "The dlog alphabet could not be constructed from the strip.";
+SampleEpsFormStripAffine::points =
+  "No nonsingular finite-field sampling points could be constructed.";
+SampleEpsFormStripAffine::width =
+  "The prime `1` exceeds the packed-arithmetic width of the point evaluator (primes must be below 2^31).";
+
+InterpolateEpsFormStripAffine::samples =
+  "The samples do not describe one consistent affine system over the requested prime field.";
+InterpolateEpsFormStripAffine::normalization =
+  "The residue coordinates do not span the affine freedom at every sampled regulator value.";
+InterpolateEpsFormStripAffine::count =
+  "There are too few distinct regulator samples for construction and independent validation.";
+
+SolveEpsFormStripFiniteField::failed =
+  "The configured degree ladder and prime sequence did not yield an exactly verified rational gauge.";
+InstallEpsFormStripSolution::state =
+  "The checkpoint, strip record, solution, or sector ordering is inconsistent.";
+
+finiteFieldStripRecordQ[record_] :=
+  AssociationQ[record] &&
+    And @@ (KeyExistsQ[record, #] & /@
+      {"Strip", "Variables", "Regulator"}) &&
+    MatchQ[record["Variables"], {_, _}] &&
+    SymbolQ[record["Regulator"]] &&
+    epsFormStripShapeQ[record["Strip"]];
+
+finiteFieldStripEntryFactorList[entry_] := Module[{denominator},
+  denominator = Denominator[Together[entry]];
+  If[TrueQ[denominator === 1], {},
+    Select[Rest[FactorList[denominator]],
+      ! TrueQ[NumericQ[First[#]]] &]]
+];
+
+(* FLINT modular-solve backend: FeynFacet/Backends/flint (build.sh) *)
+finiteFieldStripFLINTBinary[] := With[{file = FileNameJoin[{$feynFacetDirectory,
+    "Backends", "flint", "bin", "flint_modular_solve"}]},
+  If[FileExistsQ[file], file, None]];
+
+finiteFieldStripBackendQ[requested_, coreSize_Integer] := Which[
+  requested === "Wolfram", False,
+  requested === "FLINT", finiteFieldStripFLINTBinary[] =!= None,
+  True, finiteFieldStripFLINTBinary[] =!= None && coreSize >= 256];
+
+(* solve core . X = rhs modulo prime through the adapter; X (a dense
+   integer matrix) or $Failed.  Format CFFA4V1/CFFA4X1: unsigned 64-bit
+   little-endian words, row-major. *)
+finiteFieldStripFLINTSolve[core_, rhs_, prime_Integer, threads_Integer] := Module[
+  {binary = finiteFieldStripFLINTBinary[], directory, input, output, stream,
+   rows, columns, rhsColumns, process, magic, header, values, solution},
+  If[binary === None || ! (2 <= prime < 2^63), Return[$Failed]];
+  {rows, columns} = Dimensions[core];
+  rhsColumns = Dimensions[rhs][[2]];
+  directory = CreateDirectory[];
+  input = FileNameJoin[{directory, "core.bin"}];
+  output = FileNameJoin[{directory, "solution.bin"}];
+  Catch[
+    stream = OpenWrite[input, BinaryFormat -> True];
+    BinaryWrite[stream, ToCharacterCode["CFFA4V1\000"], "UnsignedInteger8"];
+    BinaryWrite[stream, {rows, columns, rhsColumns, prime}, "UnsignedInteger64", ByteOrdering -> -1];
+    BinaryWrite[stream, Flatten[Normal[core]], "UnsignedInteger64", ByteOrdering -> -1];
+    BinaryWrite[stream, Flatten[Normal[rhs]], "UnsignedInteger64", ByteOrdering -> -1];
+    Close[stream];
+    process = RunProcess[{binary, input, output, ToString[Clip[threads, {1, 4}]]}];
+    If[! AssociationQ[process] || process["ExitCode"] =!= 0, Throw[$Failed, "flint"]];
+    stream = OpenRead[output, BinaryFormat -> True];
+    magic = BinaryReadList[stream, "UnsignedInteger8", 8];
+    header = BinaryReadList[stream, "UnsignedInteger64", 3, ByteOrdering -> -1];
+    values = BinaryReadList[stream, "UnsignedInteger64", header[[1]] header[[2]], ByteOrdering -> -1];
+    Close[stream];
+    If[magic =!= ToCharacterCode["CFFA4X1\000"] || header =!= {columns, rhsColumns, prime} ||
+        Length[values] =!= columns rhsColumns, Throw[$Failed, "flint"]];
+    solution = ArrayReshape[values, {columns, rhsColumns}];
+    DeleteDirectory[directory, DeleteContents -> True];
+    solution,
+    "flint", (DeleteDirectory[directory, DeleteContents -> True]; $Failed) &]
+];
+
+Options[SampleEpsFormStripAffine] = {
+  "Support" -> Automatic,
+  "SupportShell" -> 0,
+  "Backend" -> Automatic,
+  "BackendThreads" -> 2,
+  "PointCount" -> Automatic,
+  "NumeratorDegreeOffset" -> {0, 0},
+  "SolveAffineSystem" -> True,
+  "RandomSeed" -> 2540908,
+  "Preparation" -> Automatic,
+  "ExpectedFingerprint" -> Automatic,
+  "EliminationPlan" -> None,
+  "DiscoverPlan" -> False
+};
+
+(* M1 (Codex A1, standardized 2026-08-20 after exact reproduction of the
+   frozen CF254 (9,7) oracle): a pilot sample solved by the full path
+   discovers a plan -- nullity normalization columns S whose nullspace
+   block is nonsingular and a row basis R of the sampled system -- and
+   every later sample solves the SQUARE constrained core
+   [A[[R]]; E_S] once, with nullity+1 right-hand sides, giving the
+   normalized particular solution and normalized nullspace basis in one
+   factorization. Acceptance per sample: A.p == b on ALL original rows,
+   A.N == 0, normalization block canonical; otherwise the sample is
+   discarded (typed status) and never interpolated. *)
+finiteFieldStripIndependentRows[matrix_, rank_Integer, prime_Integer] :=
+ Module[{candidate, candidateRank, leftNullspace, reduced, pivots, rows},
+  candidate = Range[rank];
+  candidateRank = MatrixRank[matrix[[candidate]], Modulus -> prime];
+  If[candidateRank === rank, Return[candidate]];
+  leftNullspace = NullSpace[Transpose[matrix], Modulus -> prime];
+  reduced = RowReduce[leftNullspace, Modulus -> prime];
+  pivots = DeleteMissing[
+    Function[row, FirstCase[Range[Length[row]],
+      index_ /; row[[index]] =!= 0, Missing["NoPivot"]]] /@ reduced];
+  rows = Complement[Range[Length[matrix]], pivots];
+  If[Length[rows] =!= rank ||
+      MatrixRank[matrix[[rows]], Modulus -> prime] =!= rank,
+    $Failed, rows]
+];
+
+finiteFieldStripDiscoverPlan[matrix_, rank_Integer, nullspace_List,
+    gaugeUnknownCount_Integer, freeResidueCount_Integer,
+    numeratorDegrees_List, denominatorDegrees_List, prime_Integer] :=
+ Module[{unknownCount, nullity, residueColumns, normalizationColumns,
+   rows, selector, core, coreRank},
+  unknownCount = Length[First[matrix]];
+  nullity = Length[nullspace];
+  residueColumns = gaugeUnknownCount + Range[freeResidueCount];
+  normalizationColumns = If[nullity === 0, {},
+    finiteFieldStripIndependentColumns[
+      nullspace[[All, residueColumns]], prime] + gaugeUnknownCount];
+  If[Length[normalizationColumns] =!= nullity,
+    Return[<|"Status" -> "PlanNormalizationDiscoveryFailed"|>]];
+  rows = finiteFieldStripIndependentRows[matrix, rank, prime];
+  If[rows === $Failed, Return[<|"Status" -> "PlanRowSelectionFailed"|>]];
+  core = If[nullity === 0, matrix[[rows]],
+    Join[matrix[[rows]], SparseArray[
+      MapIndexed[{First[#2], #1} -> 1 &, normalizationColumns],
+      {nullity, unknownCount}]]];
+  coreRank = MatrixRank[core, Modulus -> prime];
+  If[coreRank =!= unknownCount,
+    Return[<|"Status" -> "PlanConstrainedCoreSingular",
+      "ConstrainedCoreRank" -> coreRank|>]];
+  <|"Status" -> "OK", "NormalizationColumns" -> normalizationColumns,
+    "IndependentEquationRows" -> rows, "GenericRank" -> rank,
+    "Nullity" -> nullity, "UnknownCount" -> unknownCount,
+    "GaugeUnknownCount" -> gaugeUnknownCount,
+    "FreeResidueCount" -> freeResidueCount,
+    "GaugeNumeratorDegrees" -> numeratorDegrees,
+    "GaugeDenominatorDegrees" -> denominatorDegrees,
+    "PilotPrime" -> prime|>
+];
+
+(* O1 (2026-08-20): the regulator- and prime-independent setup of one
+   off-diagonal block -- alphabet (a CANONICA call), dlog table,
+   residue layout, forcing coefficients, denominator factor census and
+   gauge denominator -- measured at 35% of the CF254 (9,6) solve when
+   rebuilt on every sample. It is computed once here, fingerprinted,
+   and reused by every sample of every prime. The contents are exactly
+   what the per-call code computed before; nothing in the acceptance
+   changes. *)
+finiteFieldStripFingerprint[record_Association] := Hash[{
+  record["Strip"], record["Variables"],
+  SymbolName[record["Regulator"]]}, "SHA256", "HexString"];
+
+finiteFieldStripPrepare[record_Association] := Module[
+  {start = AbsoluteTime[], variables, epsilon, e, c, bbar, dimensions,
+   upperDimension, lowerDimension, alphabet, dlog, residueTriples,
+   freeResidues, forcingConstant, forcingCoefficients, factorPairs,
+   factors, factorPowers, gaugeFactorPowers, gaugeDenominator,
+   denominatorDegrees, symbolicForms, supportCensus},
+  variables = record["Variables"];
+  epsilon = record["Regulator"];
+  {e, c, bbar} = record["Strip"];
+  dimensions = Dimensions[bbar[[1]]];
+  {upperDimension, lowerDimension} = dimensions;
+  alphabet = epsFormStripAlphabet[record["Strip"], variables, epsilon];
+  If[alphabet === $Failed, Return[$Failed]];
+  dlog = Table[
+    Together[D[Log[alphabet[[a]]], variables[[mu]]]],
+    {a, Length[alphabet]}, {mu, 2}];
+  residueTriples = Flatten[
+    Table[{a, i, j}, {a, Length[alphabet]},
+      {i, upperDimension}, {j, lowerDimension}], 2];
+  freeResidues = Array[Unique["rawK"] &, Length[residueTriples]];
+  forcingConstant = bbar;
+  forcingCoefficients = Map[
+    Function[triple,
+      With[{a = triple[[1]], i = triple[[2]], j = triple[[3]]},
+        Table[-epsilon dlog[[a, mu]]*
+          Normal[SparseArray[{{i, j} -> 1}, dimensions]],
+          {mu, 2}]]],
+    residueTriples];
+  factorPairs = Flatten[
+    finiteFieldStripEntryFactorList /@ Flatten[bbar], 1];
+  factors = If[factorPairs === {}, {},
+    DeleteDuplicates[factorPairs[[All, 1]], SameQ]];
+  factorPowers = Table[
+    {factor, Max[Cases[factorPairs,
+      {candidate_, power_} /; SameQ[candidate, factor] :> power]]},
+    {factor, factors}];
+  gaugeFactorPowers = Select[factorPowers,
+    Last[#] > 1 && ! FreeQ[First[#], Alternatives @@ variables] &];
+  gaugeDenominator = Times @@
+    ((First[#]^(Last[#] - 1)) & /@ gaugeFactorPowers);
+  denominatorDegrees = Exponent[gaugeDenominator, #] & /@ variables;
+  (* A3 (Codex round 2, standardized 2026-08-21): a-priori bound on the
+     gauge numerator support from valuations.  At infinity, a first-order
+     Fuchsian equation allows the gauge one more order than the forcing;
+     with the diagonal epsilon forms and every dlog derivative
+     logarithmic at infinity (degree <= -1) and all finite poles simple,
+     the numerator total degree is bounded by the denominator total
+     degree plus max(0, forcing infinity degree + 1).  The closure
+     certificate records which of these hypotheses hold; when one fails
+     the rectangle is used. *)
+  supportCensus = Module[{totalDegree, infinityDegree, finitePoleOrder,
+      forcingInfinity, diagonalInfinity, dlogInfinity, diagonalPoles,
+      dlogPoles, bound},
+    totalDegree[0] = -Infinity;
+    totalDegree[poly_] := With[{rules = CoefficientRules[Expand[poly], variables]},
+      If[rules === {}, -Infinity, Max[Total /@ rules[[All, 1]]]]];
+    infinityDegree[expr_] := With[{q = Cancel[Together[expr]]},
+      If[TrueQ[q === 0], -Infinity,
+        totalDegree[Numerator[q]] - totalDegree[Denominator[q]]]];
+    finitePoleOrder[exprs_] := With[{pairs = Flatten[
+        Rest[FactorList[Denominator[Cancel[Together[#]]]]] & /@ Flatten[exprs], 1]},
+      If[pairs === {}, 0, Max[pairs[[All, 2]]]]];
+    forcingInfinity = Max[infinityDegree /@ Flatten[bbar]];
+    diagonalInfinity = Max[DeleteCases[infinityDegree /@ Flatten[{e, c}], -Infinity]];
+    dlogInfinity = Max[DeleteCases[infinityDegree /@ Flatten[dlog], -Infinity]];
+    diagonalPoles = finitePoleOrder[{e, c}];
+    dlogPoles = finitePoleOrder[dlog];
+    bound = totalDegree[gaugeDenominator] + Max[0, forcingInfinity + 1];
+    <|"ForcingInfinityDegree" -> forcingInfinity,
+      "DenominatorTotalDegree" -> totalDegree[gaugeDenominator],
+      "NumeratorTotalDegreeBound" -> bound,
+      "DiagonalInfinityLogarithmicQ" -> TrueQ[diagonalInfinity <= -1],
+      "DLogInfinityLogarithmicQ" -> TrueQ[dlogInfinity <= -1],
+      "DiagonalFinitePolesAtMostSimpleQ" -> diagonalPoles <= 1,
+      "DLogFinitePolesAtMostSimpleQ" -> dlogPoles <= 1,
+      "CertifiedQ" -> TrueQ[diagonalInfinity <= -1] && TrueQ[dlogInfinity <= -1] &&
+        diagonalPoles <= 1 && dlogPoles <= 1 && forcingInfinity =!= -Infinity|>];
+  (* O2b: every rational entry as numerator/denominator polynomials in
+     {x, y, eps} with exact rational coefficients, computed once per
+     block; reduced once per prime by finiteFieldStripPrimeForms and
+     collapsed in eps per sample -- replacing Together + CoefficientRules
+     at the substituted regulator on every sample *)
+  symbolicForms = With[{vars = Append[variables, epsilon]},
+    Module[{poly3, rational},
+      poly3[polynomial_] := Module[{rules},
+        rules = List @@@ CoefficientRules[polynomial, vars];
+        If[rules === {}, {{}, {}, {}, {}},
+          {rules[[All, 2]], rules[[All, 1, 1]], rules[[All, 1, 2]],
+           rules[[All, 1, 3]]}]];
+      rational[expression_] := Module[{q = Together[expression]},
+        {poly3[Numerator[q]], poly3[Denominator[q]]}];
+      {Map[rational, e, {3}], Map[rational, c, {3}],
+       Map[rational, forcingConstant, {3}],
+       Table[Map[rational, forcingCoefficients[[r]], {3}],
+         {r, Length[residueTriples]}],
+       rational[gaugeDenominator],
+       rational /@ (D[gaugeDenominator, #] & /@ variables)}]];
+  <|"Fingerprint" -> finiteFieldStripFingerprint[record],
+    "SymbolicForms" -> symbolicForms,
+    "Variables" -> variables, "Regulator" -> epsilon,
+    "Dimensions" -> dimensions, "Alphabet" -> alphabet, "DLog" -> dlog,
+    "ResidueTriples" -> residueTriples, "FreeResidues" -> freeResidues,
+    "ForcingConstant" -> forcingConstant,
+    "ForcingCoefficients" -> forcingCoefficients,
+    "GaugeDenominator" -> gaugeDenominator,
+    "DenominatorDegrees" -> denominatorDegrees,
+    "SupportCensus" -> supportCensus,
+    "PrepareSeconds" -> AbsoluteTime[] - start|>
+];
+
+(* the gauge numerator support for given numerator degrees: the
+   bidegree rectangle in row-major order, intersected with the total-
+   degree half-space when requested.  shell >= 0 widens the half-space
+   by that many total degrees; the rectangle itself is the terminal
+   member of the ladder. *)
+finiteFieldStripSupport[preparation_Association, numeratorDegrees_List,
+    kind_, shell_Integer: 0] := Module[{rectangle, census, bound},
+  rectangle = Flatten[Table[{px, py}, {px, 0, numeratorDegrees[[1]]},
+    {py, 0, numeratorDegrees[[2]]}], 1];
+  census = Lookup[preparation, "SupportCensus", <||>];
+  Which[
+    ListQ[kind], kind,
+    kind === "Rectangle" || ! TrueQ[Lookup[census, "CertifiedQ", False]], rectangle,
+    True,
+      bound = census["NumeratorTotalDegreeBound"] + shell;
+      If[bound >= Total[numeratorDegrees], rectangle,
+        Select[rectangle, Total[#] <= bound &]]]
+];
+
+(* probe order for one numerator-degree offset: the smallest support
+   first (the usual success), then the full rectangle -- an inconsistent
+   rectangle rules out every sub-support at this offset, so nothing
+   else is probed -- and only when the rectangle is consistent the
+   intermediate shells in ascending order (the first consistent one is
+   selected, the rectangle being the fallback).  The former order walked
+   every shell before the rectangle and spent seven probes on an offset
+   that no support could satisfy (CF254 (9,7), 2026-08-21). *)
+finiteFieldStripProbeOrder[shells_List] := Which[
+  shells === {"Rectangle"}, {"Rectangle"},
+  Length[shells] === 2, shells,
+  True, Join[{First[shells], "Rectangle"}, shells[[2 ;; -2]]]];
+
+finiteFieldStripSupportLadder[preparation_Association, numeratorDegrees_List] :=
+  Module[{census = Lookup[preparation, "SupportCensus", <||>], bound},
+    If[! TrueQ[Lookup[census, "CertifiedQ", False]], Return[{"Rectangle"}]];
+    bound = census["NumeratorTotalDegreeBound"];
+    If[bound >= Total[numeratorDegrees], {"Rectangle"},
+      Append[Range[0, Total[numeratorDegrees] - bound - 1], "Rectangle"]]
+  ];
+
+(* per-prime reduction of the symbolic forms, memoized by (fingerprint,
+   prime): each polynomial becomes {xExponents, yExponents,
+   coefficientMatrix} where row m holds the mod-p coefficients of
+   eps^0..eps^K for monomial m; a sample collapses it with the powers of
+   its regulator value *)
+$finiteFieldStripPrimeFormCache = <||>;
+finiteFieldStripPrimeForms[preparation_Association, prime_Integer] :=
+ Module[{key, modNumber, reducePoly, reduceRational, forms},
+  key = {preparation["Fingerprint"], prime};
+  If[KeyExistsQ[$finiteFieldStripPrimeFormCache, key],
+    Return[$finiteFieldStripPrimeFormCache[key]]];
+  modNumber[value_] := Mod[Mod[Numerator[value], prime] PowerMod[
+    Mod[Denominator[value], prime], -1, prime], prime];
+  reducePoly[{coefficients_, xs_, ys_, ks_}] := Module[
+    {groups, maxK, ix, iy, matrix},
+    If[coefficients === {}, Return[{{}, {}, {}}]];
+    maxK = Max[ks];
+    groups = GatherBy[Transpose[{xs, ys, ks, modNumber /@ coefficients}],
+      Most[Most[#]] &];
+    ix = groups[[All, 1, 1]]; iy = groups[[All, 1, 2]];
+    matrix = Table[
+      Module[{row = ConstantArray[0, maxK + 1]},
+        Do[row[[term[[3]] + 1]] = Mod[row[[term[[3]] + 1]] + term[[4]],
+          prime], {term, group}];
+        row],
+      {group, groups}];
+    {Developer`ToPackedArray[ix], Developer`ToPackedArray[iy],
+     Developer`ToPackedArray[matrix]}];
+  reduceRational[{numerator_, denominator_}] :=
+    {reducePoly[numerator], reducePoly[denominator]};
+  forms = preparation["SymbolicForms"];
+  forms = {Map[reduceRational, forms[[1]], {3}],
+    Map[reduceRational, forms[[2]], {3}],
+    Map[reduceRational, forms[[3]], {3}],
+    Map[reduceRational, #, {3}] & /@ forms[[4]],
+    reduceRational[forms[[5]]], reduceRational /@ forms[[6]]};
+  If[Length[$finiteFieldStripPrimeFormCache] > 16,
+    $finiteFieldStripPrimeFormCache = <||>];
+  $finiteFieldStripPrimeFormCache[key] = forms;
+  forms
+];
+
+PrepareEpsFormStripSampling[record_Association] :=
+  If[finiteFieldStripRecordQ[record], finiteFieldStripPrepare[record],
+    Message[SampleEpsFormStripAffine::record]; $Failed];
+PrepareEpsFormStripSampling[_] := $Failed;
+
+SampleEpsFormStripAffine[
+    record_Association, epsilonValue_, prime_Integer,
+    OptionsPattern[]] := Module[
+  {variables, epsilon, e, c, bbar, x, y, dimensions,
+   upperDimension, lowerDimension, alphabet, dlog, residueTriples,
+   freeResidues, forcingConstant, forcingCoefficients, factorPairs,
+   factors, factorPowers, gaugeFactorPowers, gaugeDenominator,
+   denominatorDegrees, degreeOffset, numeratorDegrees, equationCount,
+   gaugeUnknownCount, unknownCount, requestedPointCount, solveAffineQ,
+   randomSeed, epsilonMod, modNumber, polynomialRules, rationalForm,
+   evaluatePolynomial, evaluateRational, preprocessedForms,
+   preprocessingSeconds, eForms, cForms, forcingConstantForms,
+   forcingCoefficientForms, gaugeDenominatorForm,
+   gaugeDenominatorDerivativeForms, columnIndex, buildPointRows,
+   pointRows = {}, pointRightHandSides = {}, acceptedPoints = {},
+   attemptCount = 0, maximumAttempts, point, pointResult, matrix,
+   rightHandSide, augmented, rank, augmentedRank, rankSeconds,
+   augmentedRankSeconds, affineData = <||>, linearSolveSeconds,
+   nullspaceSeconds, particularSolution, nullspaceBasis,
+   samplingSeconds, samplingResult, setupStart, setupSeconds,
+   preparation, preparationReused, eliminationPlan, discoverPlanQ,
+   planCompatible, selector, core, rhsMatrix, solutionMatrix,
+   constrainedSeconds, normalizationOK, planResult, discard,
+   maximumExponents, tableExponents, blockLength, collapsePoly,
+   collapseRational, support, supportX, supportY, backendUsed},
+
+  If[! finiteFieldStripRecordQ[record],
+    Message[SampleEpsFormStripAffine::record]; Return[$Failed]];
+  degreeOffset = OptionValue["NumeratorDegreeOffset"];
+  requestedPointCount = OptionValue["PointCount"];
+  solveAffineQ = TrueQ[OptionValue["SolveAffineSystem"]];
+  randomSeed = OptionValue["RandomSeed"];
+  (* O2 width guard (Codex round-2 add-on): the packed monomial
+     evaluator reduces products of two residues modulo the prime and
+     sums them in machine integers, which is exact only for primes
+     below 2^31; a wider prime would overflow silently. *)
+  If[IntegerQ[prime] && prime >= 2^31,
+    Message[SampleEpsFormStripAffine::width, prime]; Return[$Failed]];
+  If[! PrimeQ[prime] || prime <= 3 ||
+      ! MatchQ[epsilonValue, _Integer | _Rational] ||
+      Mod[Denominator[epsilonValue], prime] === 0 ||
+      ! MatchQ[degreeOffset,
+        {a_Integer, b_Integer} /; a >= 0 && b >= 0] ||
+      ! (requestedPointCount === Automatic ||
+        IntegerQ[requestedPointCount] && requestedPointCount > 0) ||
+      ! IntegerQ[randomSeed],
+    Message[SampleEpsFormStripAffine::input]; Return[$Failed]];
+
+  (* M0 instrumentation: the symbolic setup (alphabet, dlog table,
+     residue layout, factor census, ansatz) was untimed -- the
+     2026-08-20 assessment could not see it. *)
+  setupStart = AbsoluteTime[];
+  preparation = OptionValue["Preparation"];
+  (* the strong guard hashes the whole strip (~0.5 s on a 1.5 MB
+     record, measured 2026-08-20); a caller that prepared the record
+     itself passes the fingerprint it computed once instead *)
+  preparationReused = AssociationQ[preparation] &&
+    Lookup[preparation, "Fingerprint", None] ===
+      Replace[OptionValue["ExpectedFingerprint"],
+        Automatic :> finiteFieldStripFingerprint[record]];
+  If[! preparationReused,
+    preparation = finiteFieldStripPrepare[record];
+    If[preparation === $Failed,
+      Message[SampleEpsFormStripAffine::alphabet]; Return[$Failed]]];
+  variables = preparation["Variables"];
+  epsilon = preparation["Regulator"];
+  {x, y} = variables;
+  {e, c, bbar} = record["Strip"];
+  dimensions = preparation["Dimensions"];
+  {upperDimension, lowerDimension} = dimensions;
+  alphabet = preparation["Alphabet"];
+  dlog = preparation["DLog"];
+  residueTriples = preparation["ResidueTriples"];
+  freeResidues = preparation["FreeResidues"];
+  forcingConstant = preparation["ForcingConstant"];
+  forcingCoefficients = preparation["ForcingCoefficients"];
+  gaugeDenominator = preparation["GaugeDenominator"];
+  denominatorDegrees = preparation["DenominatorDegrees"];
+  numeratorDegrees = denominatorDegrees + degreeOffset;
+  equationCount = 2 upperDimension lowerDimension;
+  (* A3: the gauge numerator support (a list of {px, py}) replaces the
+     full bidegree rectangle; Automatic uses the valuation bound when the
+     closure certificate holds *)
+  support = finiteFieldStripSupport[preparation, numeratorDegrees,
+    OptionValue["Support"], OptionValue["SupportShell"]];
+  If[! MatchQ[support, {{_Integer, _Integer} ..}],
+    Message[SampleEpsFormStripAffine::input]; Return[$Failed]];
+  gaugeUnknownCount = upperDimension lowerDimension Length[support];
+  unknownCount = gaugeUnknownCount + Length[freeResidues];
+  requestedPointCount = Replace[requestedPointCount,
+    Automatic :> Max[16,
+      Ceiling[(unknownCount + equationCount)/equationCount]]];
+  maximumAttempts = 20 requestedPointCount;
+  epsilonMod = Mod[
+    Numerator[epsilonValue]*
+      PowerMod[Mod[Denominator[epsilonValue], prime], -1, prime],
+    prime];
+
+  modNumber[value_] := Module[{numeratorValue, denominatorValue},
+    If[! FreeQ[value, _Symbol], Throw[$Failed, "BadCoefficient"]];
+    numeratorValue = Mod[Numerator[value], prime];
+    denominatorValue = Mod[Denominator[value], prime];
+    If[denominatorValue === 0, Throw[$Failed, "BadCoefficient"]];
+    Mod[numeratorValue PowerMod[denominatorValue, -1, prime], prime]
+  ];
+  (* O2 (2026-08-21): a polynomial is stored as three packed vectors
+     {coefficients mod p, x-exponents, y-exponents} and evaluated at a
+     point from monomial power tables with packed machine arithmetic
+     (every intermediate product < 2^62, reduced mod p before summing)
+     instead of one PowerMod per monomial per point. Output values are
+     identical to the former term-by-term evaluation. *)
+  polynomialRules[polynomial_] := Module[{rules, nonzero},
+    rules = List @@@ CoefficientRules[polynomial, variables];
+    nonzero = Select[
+      ({First[#], modNumber[Last[#]]} &) /@ rules, Last[#] =!= 0 &];
+    If[nonzero === {}, {{}, {}, {}},
+      {Developer`ToPackedArray[nonzero[[All, 2]]],
+       Developer`ToPackedArray[nonzero[[All, 1, 1]]],
+       Developer`ToPackedArray[nonzero[[All, 1, 2]]]}]
+  ];
+  rationalForm[expression_] := Module[{q = Together[expression]},
+    {polynomialRules[Numerator[q]], polynomialRules[Denominator[q]]}
+  ];
+  evaluatePolynomial[{coefficients_, xExponents_, yExponents_},
+      xPowers_, yPowers_] :=
+    If[coefficients === {}, 0,
+      Mod[Total[Mod[coefficients *
+        Mod[xPowers[[xExponents + 1]] yPowers[[yExponents + 1]], prime],
+        prime]], prime]];
+  evaluateRational[form_List, xPowers_, yPowers_] := Module[
+    {numeratorValue, denominatorValue},
+    numeratorValue = evaluatePolynomial[form[[1]], xPowers, yPowers];
+    denominatorValue = evaluatePolynomial[form[[2]], xPowers, yPowers];
+    If[denominatorValue === 0, Throw[$Failed, "BadPoint"]];
+    Mod[numeratorValue PowerMod[denominatorValue, -1, prime], prime]
+  ];
+  maximumExponents[forms_] := Module[{polys},
+    polys = Cases[forms, {_List, _List, _List}, {0, Infinity}];
+    polys = Select[polys, First[#] =!= {} &];
+    If[polys === {}, {0, 0},
+      {Max[Max /@ polys[[All, 2]]], Max[Max /@ polys[[All, 3]]]}]
+  ];
+
+  collapsePoly[{ix_, iy_, matrix_}, epsPowers_] := Module[{coefs, keep},
+    If[ix === {}, Return[{{}, {}, {}}]];
+    coefs = Mod[matrix . Take[epsPowers, Length[First[matrix]]], prime];
+    keep = Flatten[Position[coefs, Except[0], {1}, Heads -> False]];
+    If[keep === {}, {{}, {}, {}},
+      {Developer`ToPackedArray[coefs[[keep]]],
+       Developer`ToPackedArray[ix[[keep]]],
+       Developer`ToPackedArray[iy[[keep]]]}]];
+  collapseRational[{numerator_, denominator_}, epsPowers_] :=
+    {collapsePoly[numerator, epsPowers], collapsePoly[denominator, epsPowers]};
+  setupSeconds = AbsoluteTime[] - setupStart;
+  {preprocessingSeconds, preprocessedForms} = AbsoluteTiming[
+   If[KeyExistsQ[preparation, "SymbolicForms"],
+    Module[{primeForms, maxK, epsPowers},
+      primeForms = finiteFieldStripPrimeForms[preparation, prime];
+      maxK = Max[0, Max[Cases[primeForms,
+        {_?VectorQ, _?VectorQ, m_?MatrixQ} :> Length[First[m]] - 1,
+        {0, Infinity}]]];
+      epsPowers = Table[PowerMod[epsilonMod, k, prime], {k, 0, maxK}];
+      {Map[collapseRational[#, epsPowers] &, primeForms[[1]], {3}],
+       Map[collapseRational[#, epsPowers] &, primeForms[[2]], {3}],
+       Map[collapseRational[#, epsPowers] &, primeForms[[3]], {3}],
+       Map[collapseRational[#, epsPowers] &, #, {3}] & /@ primeForms[[4]],
+       collapseRational[primeForms[[5]], epsPowers],
+       collapseRational[#, epsPowers] & /@ primeForms[[6]]}],
+    {
+    Map[rationalForm, e /. epsilon -> epsilonValue, {3}],
+    Map[rationalForm, c /. epsilon -> epsilonValue, {3}],
+    Map[rationalForm, forcingConstant /. epsilon -> epsilonValue, {3}],
+    Table[
+      Map[rationalForm,
+        forcingCoefficients[[residueIndex]] /.
+          epsilon -> epsilonValue, {3}],
+      {residueIndex, Length[freeResidues]}],
+    rationalForm[gaugeDenominator /. epsilon -> epsilonValue],
+    rationalForm[# /. epsilon -> epsilonValue] & /@
+      (D[gaugeDenominator, #] & /@ variables)
+    }]];
+  {eForms, cForms, forcingConstantForms, forcingCoefficientForms,
+    gaugeDenominatorForm, gaugeDenominatorDerivativeForms} =
+      preprocessedForms;
+  tableExponents = MapThread[Max,
+    {maximumExponents[preprocessedForms], numeratorDegrees}];
+  blockLength = Length[support];
+  supportX = Developer`ToPackedArray[support[[All, 1]]];
+  supportY = Developer`ToPackedArray[support[[All, 2]]];
+
+  (* Row assembly is vectorized per gauge block: the (i,j) block of a
+     row is a packed vector of length blockLength, the derivative and
+     coupling contributions are scalar multiples of the flattened
+     monomial tables, and the row is the concatenation of all blocks
+     plus the residue columns -- the same entries the former scalar
+     loop produced, column for column. *)
+  buildPointRows[xValue_Integer, yValue_Integer] := Catch[Module[
+    {xPowers, yPowers, eValue, cValue, forcing0Value, forcingFreeValue,
+     denominatorValue, derivativeDenominatorValues, inverseDenominator,
+     phiFlat, derivativePhiFlat, rows, right, rowIndex = 0,
+     blocks, residuePart, mu, i, j, aIndex, bIndex, residueIndex},
+    xPowers = Table[PowerMod[Mod[xValue, prime], power, prime],
+      {power, 0, tableExponents[[1]]}];
+    yPowers = Table[PowerMod[Mod[yValue, prime], power, prime],
+      {power, 0, tableExponents[[2]]}];
+    eValue = Map[evaluateRational[#, xPowers, yPowers] &, eForms, {3}];
+    cValue = Map[evaluateRational[#, xPowers, yPowers] &, cForms, {3}];
+    forcing0Value = Map[evaluateRational[#, xPowers, yPowers] &,
+      forcingConstantForms, {3}];
+    forcingFreeValue = Table[
+      Map[evaluateRational[#, xPowers, yPowers] &,
+        forcingCoefficientForms[[residueIndex]], {3}],
+      {residueIndex, Length[freeResidues]}];
+    denominatorValue = evaluateRational[
+      gaugeDenominatorForm, xPowers, yPowers];
+    inverseDenominator = PowerMod[denominatorValue, -1, prime];
+    derivativeDenominatorValues =
+      evaluateRational[#, xPowers, yPowers] & /@
+        gaugeDenominatorDerivativeForms;
+    (* monomial tables over the support (row-major rectangle order
+       restricted to the retained monomials) *)
+    phiFlat = Mod[Mod[xPowers[[supportX + 1]] yPowers[[supportY + 1]], prime]
+      inverseDenominator, prime];
+    derivativePhiFlat = Table[
+      Mod[
+        If[mu === 1,
+          Mod[supportX Mod[xPowers[[Max[#, 1] & /@ supportX]] yPowers[[supportY + 1]], prime], prime],
+          Mod[supportY Mod[xPowers[[supportX + 1]] yPowers[[Max[#, 1] & /@ supportY]], prime], prime]]
+          inverseDenominator -
+        Mod[phiFlat derivativeDenominatorValues[[mu]], prime] inverseDenominator,
+        prime],
+      {mu, 2}];
+    rows = ConstantArray[0, {equationCount, unknownCount}];
+    right = ConstantArray[0, equationCount];
+    Do[
+      rowIndex++;
+      blocks = ConstantArray[0, {upperDimension, lowerDimension,
+        blockLength}];
+      blocks[[i, j]] = derivativePhiFlat[[mu]];
+      Do[
+        blocks[[aIndex, j]] = Mod[blocks[[aIndex, j]] -
+          Mod[epsilonMod eValue[[mu, i, aIndex]], prime] phiFlat, prime],
+        {aIndex, upperDimension}];
+      Do[
+        blocks[[i, bIndex]] = Mod[blocks[[i, bIndex]] +
+          Mod[epsilonMod cValue[[mu, bIndex, j]], prime] phiFlat, prime],
+        {bIndex, lowerDimension}];
+      residuePart = Table[
+        Mod[-forcingFreeValue[[residueIndex, mu, i, j]], prime],
+        {residueIndex, Length[freeResidues]}];
+      rows[[rowIndex]] = Join[Flatten[blocks], residuePart];
+      right[[rowIndex]] = forcing0Value[[mu, i, j]],
+      {mu, 2}, {i, upperDimension}, {j, lowerDimension}];
+    {SparseArray[rows], right}
+  ], "BadPoint"];
+
+  SeedRandom[randomSeed];
+  {samplingSeconds, samplingResult} = AbsoluteTiming[
+    While[Length[acceptedPoints] < requestedPointCount &&
+        attemptCount < maximumAttempts,
+      attemptCount++;
+      point = RandomInteger[{2, prime - 2}, 2];
+      pointResult = buildPointRows @@ point;
+      If[pointResult =!= $Failed,
+        AppendTo[acceptedPoints, point];
+        AppendTo[pointRows, pointResult[[1]]];
+        AppendTo[pointRightHandSides, pointResult[[2]]]]]];
+  If[Length[acceptedPoints] < requestedPointCount,
+    Message[SampleEpsFormStripAffine::points]; Return[$Failed]];
+  matrix = Join @@ pointRows;
+  rightHandSide = Join @@ pointRightHandSides;
+  eliminationPlan = OptionValue["EliminationPlan"];
+  discoverPlanQ = TrueQ[OptionValue["DiscoverPlan"]];
+  planCompatible = AssociationQ[eliminationPlan] && solveAffineQ &&
+    Lookup[eliminationPlan, "Status", "OK"] === "OK" &&
+    eliminationPlan["UnknownCount"] === Length[First[matrix]] &&
+    eliminationPlan["GaugeUnknownCount"] === gaugeUnknownCount &&
+    eliminationPlan["FreeResidueCount"] === Length[freeResidues] &&
+    eliminationPlan["GaugeNumeratorDegrees"] === numeratorDegrees &&
+    Lookup[eliminationPlan, "GaugeSupport", support] === support &&
+    Max[eliminationPlan["IndependentEquationRows"]] <= Length[matrix];
+  discard = None;
+  If[planCompatible,
+    (* M1 constrained path: one factorization, nullity+1 right-hand
+       sides, then every original row checked *)
+    rank = eliminationPlan["GenericRank"];
+    augmentedRank = rank;
+    rankSeconds = 0.; augmentedRankSeconds = 0.;
+    If[eliminationPlan["Nullity"] === 0,
+      core = matrix[[eliminationPlan["IndependentEquationRows"]]];
+      rhsMatrix = List /@ rightHandSide[[
+        eliminationPlan["IndependentEquationRows"]]],
+      selector = SparseArray[
+        MapIndexed[{First[#2], #1} -> 1 &,
+          eliminationPlan["NormalizationColumns"]],
+        {eliminationPlan["Nullity"], eliminationPlan["UnknownCount"]}];
+      core = Join[matrix[[eliminationPlan["IndependentEquationRows"]]],
+        selector];
+      rhsMatrix = Join[
+        Join[List /@ rightHandSide[[
+            eliminationPlan["IndependentEquationRows"]]],
+          ConstantArray[0, {rank, eliminationPlan["Nullity"]}], 2],
+        Join[ConstantArray[0, {eliminationPlan["Nullity"], 1}],
+          IdentityMatrix[eliminationPlan["Nullity"]], 2]]];
+    (* A4 (Codex round 2, standardized 2026-08-21): the square core with
+       all right-hand sides goes to FLINT's nmod_mat_solve through a
+       process adapter when the backend is available and the core is
+       large enough to pay for the transfer; the all-row residual checks
+       below verify the imported solution exactly like the Wolfram one,
+       and any adapter failure falls back to LinearSolve *)
+    backendUsed = "Wolfram";
+    {constrainedSeconds, solutionMatrix} = AbsoluteTiming[
+      Module[{flint = $Failed},
+        If[finiteFieldStripBackendQ[OptionValue["Backend"], Length[core]],
+          flint = finiteFieldStripFLINTSolve[core, rhsMatrix, prime,
+            OptionValue["BackendThreads"]];
+          If[MatrixQ[flint, IntegerQ], backendUsed = "FLINT"]];
+        If[MatrixQ[flint, IntegerQ], flint,
+          Quiet[Check[LinearSolve[core, rhsMatrix, Modulus -> prime], $Failed]]]]];
+    If[solutionMatrix === $Failed || ! MatrixQ[solutionMatrix, IntegerQ] ||
+        Dimensions[solutionMatrix] =!=
+          {eliminationPlan["UnknownCount"], eliminationPlan["Nullity"] + 1},
+      discard = "DiscardRankLosingSample",
+      particularSolution = solutionMatrix[[All, 1]];
+      nullspaceBasis = If[eliminationPlan["Nullity"] === 0, {},
+        Transpose[solutionMatrix[[All, 2 ;;]]]];
+      normalizationOK =
+        particularSolution[[eliminationPlan["NormalizationColumns"]]] ===
+          ConstantArray[0, eliminationPlan["Nullity"]] &&
+        (eliminationPlan["Nullity"] === 0 ||
+          nullspaceBasis[[All, eliminationPlan["NormalizationColumns"]]] ===
+            IdentityMatrix[eliminationPlan["Nullity"]]);
+      affineData = <|
+        "LinearSolveSeconds" -> constrainedSeconds,
+        "NullspaceSeconds" -> 0.,
+        "ConstrainedSolveSeconds" -> constrainedSeconds,
+        "ParticularSolution" -> particularSolution,
+        "NullspaceBasis" -> nullspaceBasis,
+        "ParticularCheckZero" ->
+          AllTrue[Mod[matrix.particularSolution - rightHandSide, prime],
+            # === 0 &],
+        "NullspaceCheckZero" -> AllTrue[
+          If[nullspaceBasis === {}, {},
+            Flatten[Mod[matrix.Transpose[nullspaceBasis], prime]]],
+          # === 0 &],
+        "NormalizationCheck" -> normalizationOK,
+        "SolvePath" -> "OneConstrainedMultiRHSFactorization",
+        "Backend" -> backendUsed|>;
+      If[! TrueQ[affineData["ParticularCheckZero"] &&
+          affineData["NullspaceCheckZero"] && normalizationOK],
+        discard = "DiscardFailedResidualCheck"]];
+    If[StringQ[discard],
+      (* a discarded sample carries no solution and never reaches the
+         interpolation (filtered by its non-generic rank fields) *)
+      rank = -1; augmentedRank = -2;
+      affineData = <|"Status" -> discard, "SolvePath" ->
+        "OneConstrainedMultiRHSFactorization",
+        "ConstrainedSolveSeconds" -> constrainedSeconds|>],
+    augmented = Join[
+      matrix, SparseArray[List /@ rightHandSide], 2];
+    {rankSeconds, rank} = AbsoluteTiming[
+      MatrixRank[matrix, Modulus -> prime]];
+    {augmentedRankSeconds, augmentedRank} = AbsoluteTiming[
+      MatrixRank[augmented, Modulus -> prime]]];
+  If[! planCompatible && solveAffineQ && TrueQ[rank === augmentedRank],
+    {linearSolveSeconds, particularSolution} = AbsoluteTiming[
+      LinearSolve[matrix, rightHandSide, Modulus -> prime]];
+    {nullspaceSeconds, nullspaceBasis} = AbsoluteTiming[
+      NullSpace[matrix, Modulus -> prime]];
+    affineData = <|
+      "LinearSolveSeconds" -> linearSolveSeconds,
+      "NullspaceSeconds" -> nullspaceSeconds,
+      "ParticularSolution" -> particularSolution,
+      "NullspaceBasis" -> nullspaceBasis,
+      "ParticularCheckZero" ->
+        AllTrue[Mod[matrix.particularSolution - rightHandSide, prime],
+          # === 0 &],
+      "NullspaceCheckZero" -> AllTrue[
+        If[nullspaceBasis === {}, {},
+          Flatten[Mod[matrix.Transpose[nullspaceBasis], prime]]],
+        # === 0 &],
+      "SolvePath" -> "PilotFourEliminations"
+    |>;
+    If[discoverPlanQ,
+      planResult = finiteFieldStripDiscoverPlan[matrix, rank,
+        nullspaceBasis, gaugeUnknownCount, Length[freeResidues],
+        numeratorDegrees, denominatorDegrees, prime];
+      If[AssociationQ[planResult] && planResult["Status"] === "OK",
+        planResult = Join[planResult, <|"GaugeSupport" -> support|>]];
+      affineData = Join[affineData, <|"EliminationPlan" -> planResult|>]]];
+  Join[<|
+    "EpsilonValue" -> epsilonValue,
+    "Prime" -> prime,
+    "AcceptedPoints" -> acceptedPoints,
+    "AttemptCount" -> attemptCount,
+    "MatrixDimensions" -> Dimensions[matrix],
+    "GaugeDimensions" -> dimensions,
+    "Alphabet" -> alphabet,
+    "GaugeDenominator" -> gaugeDenominator,
+    "GaugeDenominatorDegrees" -> denominatorDegrees,
+    "GaugeNumeratorDegrees" -> numeratorDegrees,
+    "GaugeSupport" -> support,
+    "GaugeSupportCount" -> Length[support],
+    "GaugeUnknownCount" -> gaugeUnknownCount,
+    "FreeResidueCount" -> Length[freeResidues],
+    "NonzeroEntries" -> Length[matrix["NonzeroValues"]],
+    "Rank" -> rank,
+    "AugmentedRank" -> augmentedRank,
+    "Nullity" -> unknownCount - rank,
+    "Consistent" -> TrueQ[rank === augmentedRank],
+    "SetupSeconds" -> setupSeconds,
+    "PreparationReused" -> preparationReused,
+    "PreprocessingSeconds" -> preprocessingSeconds,
+    "SamplingSeconds" -> samplingSeconds,
+    "PeakMemoryBytes" -> MaxMemoryUsed[],
+    "RankSeconds" -> rankSeconds,
+    "AugmentedRankSeconds" -> augmentedRankSeconds
+  |>, affineData]
+];
+
+finiteFieldStripIndependentColumns[matrix_List, modulus_Integer] := Module[
+  {columns = {}, rank = 0, trialRank},
+  Do[
+    trialRank = MatrixRank[matrix[[All, Append[columns, column]]],
+      Modulus -> modulus];
+    If[trialRank > rank,
+      AppendTo[columns, column]; rank = trialRank];
+    If[rank === Length[matrix], Break[]],
+    {column, Length[First[matrix]]}];
+  columns
+];
+
+finiteFieldStripEvaluateCoefficients[coefficients_List, value_Integer,
+    prime_Integer] := Fold[Mod[#1 value + #2, prime] &, 0,
+  Reverse[coefficients]];
+
+finiteFieldStripTrimCoefficients[coefficients_List] := Module[
+  {nonzeroIndices = Select[Range[Length[coefficients]],
+      coefficients[[#]] =!= 0 &]},
+  If[nonzeroIndices === {}, {0}, Take[coefficients, Last[nonzeroIndices]]]
+];
+
+finiteFieldStripReduceRationalPair[numeratorInput_List,
+    denominatorInput_List, prime_Integer] := Module[
+  {z, numerator, denominator, divisor, normalization,
+   numeratorCoefficients, denominatorCoefficients},
+  numerator = FromDigits[Reverse[numeratorInput], z];
+  denominator = FromDigits[Reverse[denominatorInput], z];
+  divisor = PolynomialGCD[numerator, denominator, Modulus -> prime];
+  numerator = PolynomialQuotient[numerator, divisor, z,
+    Modulus -> prime];
+  denominator = PolynomialQuotient[denominator, divisor, z,
+    Modulus -> prime];
+  numeratorCoefficients = finiteFieldStripTrimCoefficients[
+    Mod[CoefficientList[numerator, z], prime]];
+  denominatorCoefficients = finiteFieldStripTrimCoefficients[
+    Mod[CoefficientList[denominator, z], prime]];
+  normalization = PowerMod[Last[denominatorCoefficients], -1, prime];
+  {Mod[normalization numeratorCoefficients, prime],
+    Mod[normalization denominatorCoefficients, prime]}
+];
+
+finiteFieldStripInterpolationQ[pair_List, data_List,
+    prime_Integer] := AllTrue[data, Function[datum,
+  Module[{numerator, denominator},
+    numerator = finiteFieldStripEvaluateCoefficients[
+      pair[[1]], datum[[1]], prime];
+    denominator = finiteFieldStripEvaluateCoefficients[
+      pair[[2]], datum[[1]], prime];
+    denominator =!= 0 &&
+      Mod[numerator - datum[[2]] denominator, prime] === 0]]];
+
+finiteFieldStripInterpolateCoordinate[data_List, prime_Integer,
+    constructionCount_Integer, maximumTotalDegree_Integer] :=
+ Catch[Module[
+  {construction, validation, totalDegree, numeratorDegree,
+   denominatorDegree, matrix, nullspace, vector, pair,
+   candidateDegrees, uniquenessPointRequirement},
+  If[AllTrue[data, Last[#] === 0 &],
+    Throw[<|"Numerator" -> {0}, "Denominator" -> {1},
+      "Degrees" -> {-Infinity, 0}, "ConstructionNullity" -> 1,
+      "ValidatedPointCount" -> Length[data],
+      "UniquenessPointRequirement" -> 1|>, "Found"]];
+  construction = Take[data, constructionCount];
+  validation = Drop[data, constructionCount];
+  Do[
+    denominatorDegree = totalDegree - numeratorDegree;
+    matrix = Table[Join[
+      Table[PowerMod[datum[[1]], power, prime],
+        {power, 0, numeratorDegree}],
+      Table[Mod[-datum[[2]] PowerMod[datum[[1]], power, prime],
+        prime], {power, 0, denominatorDegree}]],
+      {datum, construction}];
+    nullspace = NullSpace[matrix, Modulus -> prime];
+    If[Length[nullspace] === 1,
+      vector = First[nullspace];
+      If[AnyTrue[vector[[numeratorDegree + 2 ;;]], # =!= 0 &],
+        pair = finiteFieldStripReduceRationalPair[
+          vector[[1 ;; numeratorDegree + 1]],
+          vector[[numeratorDegree + 2 ;;]], prime];
+        candidateDegrees = Length[#] - 1 & /@ pair;
+        uniquenessPointRequirement = 2 Total[candidateDegrees] + 1;
+        If[Length[data] >= uniquenessPointRequirement &&
+            finiteFieldStripInterpolationQ[pair, construction, prime] &&
+            finiteFieldStripInterpolationQ[pair, validation, prime],
+          Throw[<|"Numerator" -> pair[[1]],
+            "Denominator" -> pair[[2]],
+            "Degrees" -> candidateDegrees,
+            "ConstructionNullity" -> 1,
+            "ValidatedPointCount" -> Length[data],
+            "UniquenessPointRequirement" ->
+              uniquenessPointRequirement|>, "Found"]]]],
+    {totalDegree, 0, maximumTotalDegree},
+    {numeratorDegree, 0, totalDegree}];
+  $Failed
+], "Found"];
+
+finiteFieldStripAdaptiveSamplingPlan[interpolation_Association,
+    availableSampleCount_Integer, validationMargin_Integer] := Module[
+  {degrees, maximumDegreeSum, constructionCount, sampleCount},
+  degrees = Cases[
+    Lookup[Lookup[interpolation, "Interpolations", {}],
+      "Degrees", Missing["Degrees"]],
+    {numerator_Integer, denominator_Integer} /;
+      numerator >= 0 && denominator >= 0];
+  maximumDegreeSum = If[degrees === {}, 0, Max[Total /@ degrees]];
+  constructionCount = maximumDegreeSum + 1;
+  sampleCount = Min[availableSampleCount, Max[
+    2 maximumDegreeSum + 1,
+    constructionCount + validationMargin]];
+  <|
+    "MaximumTotalDegree" -> maximumDegreeSum,
+    "ConstructionCount" -> constructionCount,
+    "SampleCount" -> sampleCount
+  |>
+];
+
+(* shared by both interpolation modes: validate a sample set, keep the
+   generic-rank samples, fix the normalization columns, and normalize
+   every sample to its canonical particular solution *)
+finiteFieldStripCanonicalSamples[samples_List, prime_Integer,
+    normalizationColumnsInput_] := Module[
+  {normalizationColumns = normalizationColumnsInput, genericRank,
+   genericSamples, referenceSample, referenceNullspace, gaugeUnknownCount,
+   freeResidueCount, residueColumns, epsilonMod, normalized, grouped},
+  If[! PrimeQ[prime] || samples === {} ||
+      ! AllTrue[samples, AssociationQ] ||
+      AnyTrue[samples,
+        Lookup[#, "Prime", Missing[]] =!= prime ||
+          ! TrueQ[Lookup[#, "Consistent", False]] ||
+          ! TrueQ[Lookup[#, "ParticularCheckZero", False]] ||
+          ! TrueQ[Lookup[#, "NullspaceCheckZero", False]] &] ||
+      Length[DeleteDuplicates[Lookup[samples, "GaugeUnknownCount"]]] =!= 1 ||
+      Length[DeleteDuplicates[Lookup[samples, "FreeResidueCount"]]] =!= 1 ||
+      Length[DeleteDuplicates[Lookup[samples, "GaugeNumeratorDegrees"]]] =!= 1 ||
+      Length[DeleteDuplicates[Lookup[samples, "GaugeSupport", Missing["GaugeSupport"]]]] =!= 1,
+    Return[<|"Status" -> "SamplesInvalid"|>]];
+  genericRank = Max[Lookup[samples, "Rank"]];
+  genericSamples = Select[samples,
+    Lookup[#, "Rank", -1] === genericRank &&
+      Lookup[#, "AugmentedRank", -2] === genericRank &];
+  referenceSample = First[genericSamples];
+  referenceNullspace = Normal[referenceSample["NullspaceBasis"]];
+  gaugeUnknownCount = referenceSample["GaugeUnknownCount"];
+  freeResidueCount = referenceSample["FreeResidueCount"];
+  residueColumns = gaugeUnknownCount + Range[freeResidueCount];
+  If[normalizationColumns === Automatic,
+    normalizationColumns = If[referenceNullspace === {}, {},
+      finiteFieldStripIndependentColumns[
+        referenceNullspace[[All, residueColumns]], prime] + gaugeUnknownCount]];
+  If[Length[normalizationColumns] =!= Length[referenceNullspace],
+    Return[<|"Status" -> "NormalizationInvalid"|>]];
+  epsilonMod[value_] := Mod[Numerator[value] PowerMod[
+    Mod[Denominator[value], prime], -1, prime], prime];
+  normalized = Table[
+    With[{sample = sample,
+      canonical = NormalizeEpsFormAffineSample[sample, normalizationColumns, prime]},
+      If[canonical === $Failed, $Failed,
+        <|"EpsilonValue" -> sample["EpsilonValue"],
+          "EpsilonMod" -> epsilonMod[sample["EpsilonValue"]],
+          "Values" -> canonical["ParticularSolution"]|>]],
+    {sample, genericSamples}];
+  If[MemberQ[normalized, $Failed], Return[<|"Status" -> "NormalizationInvalid"|>]];
+  grouped = GatherBy[normalized, #EpsilonMod &];
+  If[AnyTrue[grouped, Length[DeleteDuplicates[Lookup[#, "Values"]]] =!= 1 &],
+    Return[<|"Status" -> "SamplesInvalid"|>]];
+  <|"Status" -> "OK",
+    "CanonicalSamples" -> (First /@ grouped),
+    "NormalizationColumns" -> normalizationColumns,
+    "GenericRank" -> genericRank,
+    "DiscardedSingularEpsilonValues" -> Lookup[
+      Complement[samples, genericSamples, SameTest -> SameQ], "EpsilonValue"],
+    "ReferenceSample" -> KeyTake[referenceSample,
+      {"GaugeUnknownCount", "FreeResidueCount", "GaugeNumeratorDegrees", "GaugeSupport"}]|>
+];
+
+(* A2 (Codex round 2, standardized 2026-08-21): rational interpolation of
+   every coordinate from a small construction prefix, certified by fresh
+   held-out regulator images instead of the deterministic 2(m+n)+1
+   point count.  All minimal-total-degree Pade splits that fit the
+   construction data are retained (four points cannot separate 0/3 from
+   3/0); held-outs reject the wrong ones; a failed held-out is promoted
+   into the construction data and only the failed coordinates are refit;
+   a prime whose degree profile differs from the expected one is
+   rejected.  The result carries "CertificationMode" -> "HeldOut" and the
+   deterministic requirement as metadata; the terminal certificates are
+   the unseen-prime residual and the exact Pfaffian check. *)
+finiteFieldStripFitSplit[data_List, prime_Integer, numeratorDegree_Integer,
+    denominatorDegree_Integer] := Module[{matrix, nullspace, vector, pair},
+  matrix = Table[Join[
+      Table[PowerMod[datum[[1]], power, prime], {power, 0, numeratorDegree}],
+      Table[Mod[-datum[[2]] PowerMod[datum[[1]], power, prime], prime],
+        {power, 0, denominatorDegree}]],
+    {datum, data}];
+  nullspace = NullSpace[matrix, Modulus -> prime];
+  If[Length[nullspace] =!= 1, Return[$Failed]];
+  vector = First[nullspace];
+  If[! AnyTrue[vector[[numeratorDegree + 2 ;;]], # =!= 0 &], Return[$Failed]];
+  pair = finiteFieldStripReduceRationalPair[vector[[1 ;; numeratorDegree + 1]],
+    vector[[numeratorDegree + 2 ;;]], prime];
+  If[! finiteFieldStripInterpolationQ[pair, data, prime], Return[$Failed]];
+  <|"Numerator" -> pair[[1]], "Denominator" -> pair[[2]],
+    "Degrees" -> (Length[#] - 1 & /@ pair), "ConstructionNullity" -> 1|>
+];
+
+finiteFieldStripFitCandidates[data_List, prime_Integer, maximumTotalDegree_Integer] :=
+ Module[{candidates = {}},
+  If[AllTrue[data, Last[#] === 0 &],
+    Return[{<|"Numerator" -> {0}, "Denominator" -> {1}, "Degrees" -> {-Infinity, 0},
+      "ConstructionNullity" -> 1|>}]];
+  Do[
+    candidates = DeleteDuplicatesBy[DeleteCases[
+      Table[finiteFieldStripFitSplit[data, prime, d, total - d], {d, 0, total}], $Failed],
+      Lookup[#, {"Numerator", "Denominator"}] &];
+    If[candidates =!= {}, Break[]],
+    {total, 0, Min[maximumTotalDegree, Length[data] - 1]}];
+  candidates
+];
+
+Options[finiteFieldStripHeldOutInterpolate] = {
+  "InitialConstructionCount" -> 4,
+  "HeldOutCount" -> 3,
+  "MaximumTotalDegree" -> 22,
+  "ExpectedDegrees" -> Automatic
+};
+
+finiteFieldStripHeldOutInterpolate[canonicalSamples_List, prime_Integer,
+    OptionsPattern[]] := Module[
+  {initial, heldOut, maximumTotalDegree, expected, coordinateCount,
+   construction, consumed, candidateSets, active, unresolved, validation,
+   survivors, failures, ambiguous, seconds = 0., fit, data, mismatches,
+   interpolations, exit},
+  initial = OptionValue["InitialConstructionCount"];
+  heldOut = OptionValue["HeldOutCount"];
+  maximumTotalDegree = OptionValue["MaximumTotalDegree"];
+  expected = OptionValue["ExpectedDegrees"];
+  coordinateCount = Length[First[canonicalSamples]["Values"]];
+  If[Length[canonicalSamples] < initial + heldOut,
+    Return[<|"Status" -> "MoreSamplesRequired",
+      "RequiredAdditionalSampleCount" -> initial + heldOut - Length[canonicalSamples]|>]];
+  data[coordinate_, indices_] := Table[
+    {canonicalSamples[[index, "EpsilonMod"]], canonicalSamples[[index, "Values", coordinate]]},
+    {index, indices}];
+  construction = Range[initial]; consumed = initial;
+  candidateSets = ConstantArray[$Failed, coordinateCount];
+  exit = Catch[While[True,
+    (* keep the candidates that still predict all construction data *)
+    Do[If[ListQ[candidateSets[[c]]],
+      candidateSets[[c]] = Select[candidateSets[[c]],
+        finiteFieldStripInterpolationQ[{#Numerator, #Denominator}, data[c, construction], prime] &];
+      If[candidateSets[[c]] === {}, candidateSets[[c]] = $Failed]],
+      {c, coordinateCount}];
+    active = Select[Range[coordinateCount], candidateSets[[#]] === $Failed &];
+    seconds += First[AbsoluteTiming[
+      Do[fit = finiteFieldStripFitCandidates[data[c, construction], prime, maximumTotalDegree];
+        candidateSets[[c]] = If[fit === {}, $Failed, fit], {c, active}]]];
+    unresolved = Select[Range[coordinateCount], candidateSets[[#]] === $Failed &];
+    If[unresolved =!= {},
+      If[consumed >= Length[canonicalSamples],
+        Throw[<|"Status" -> "MoreSamplesRequired", "RequiredAdditionalSampleCount" -> 1,
+          "Reason" -> "GrowRequired"|>, "heldOut"]];
+      consumed++; AppendTo[construction, consumed]; Continue[]];
+    If[consumed + heldOut > Length[canonicalSamples],
+      Throw[<|"Status" -> "MoreSamplesRequired",
+        "RequiredAdditionalSampleCount" -> consumed + heldOut - Length[canonicalSamples],
+        "Reason" -> "HeldOutRound"|>, "heldOut"]];
+    validation = Range[consumed + 1, consumed + heldOut];
+    survivors = Table[Select[candidateSets[[c]],
+      finiteFieldStripInterpolationQ[{#Numerator, #Denominator}, data[c, validation], prime] &],
+      {c, coordinateCount}];
+    failures = Select[Range[coordinateCount], survivors[[#]] === {} &];
+    ambiguous = Select[Range[coordinateCount], Length[survivors[[#]]] > 1 &];
+    consumed += heldOut;
+    candidateSets = survivors;
+    If[failures === {} && ambiguous === {}, Break[]];
+    If[failures === {}, Continue[]];
+    (* grow, never accept: failed held-outs become construction data *)
+    construction = Join[construction, validation];
+    candidateSets[[failures]] = ConstantArray[$Failed, Length[failures]]],
+    "heldOut"];
+  If[AssociationQ[exit], Return[exit]];
+  interpolations = First /@ candidateSets;
+  If[ListQ[expected] && Length[expected] === coordinateCount,
+    mismatches = Select[Range[coordinateCount], interpolations[[#]]["Degrees"] =!= expected[[#]] &];
+    If[mismatches =!= {},
+      Return[<|"Status" -> "RejectPrimeDegreeProfileChanged",
+        "DegreeMismatchCoordinates" -> mismatches|>]]];
+  interpolations = Join[#, <|"ValidatedPointCount" -> consumed,
+    "UniquenessPointRequirement" -> If[#["Degrees"][[1]] === -Infinity, 1, 2 Total[#["Degrees"]] + 1]|>] & /@
+    interpolations;
+  <|"Status" -> "HeldOutValidated",
+    "Prime" -> prime,
+    "SampleCount" -> consumed,
+    "ConstructionCount" -> Length[construction],
+    "ValidationCount" -> heldOut,
+    "MaximumTotalDegree" -> maximumTotalDegree,
+    "InterpolationSeconds" -> seconds,
+    "UnresolvedCoordinates" -> {},
+    "CertificationMode" -> "HeldOut",
+    "DeterministicShortfallCoordinates" -> Select[Range[coordinateCount],
+      consumed < interpolations[[#]]["UniquenessPointRequirement"] &],
+    "DegreeHistogram" -> Counts[Lookup[interpolations, "Degrees"]],
+    "Interpolations" -> interpolations|>
+];
+
+Options[InterpolateEpsFormStripAffine] = {
+  "ConstructionCount" -> 24,
+  "MaximumTotalDegree" -> 22,
+  "NormalizationColumns" -> Automatic
+};
+
+InterpolateEpsFormStripAffine[samples_List, prime_Integer,
+    OptionsPattern[]] := Module[
+  {constructionCount, maximumTotalDegree, normalizationColumns,
+   genericRank, discardedSingularEpsilonValues, genericSamples,
+   referenceSample, referenceNullspace, gaugeUnknownCount,
+   freeResidueCount, gaugeNumeratorDegrees, residueColumns,
+   epsilonMod, normalized, canonicalSamples, grouped,
+   coordinateCount, interpolations, seconds, unresolved},
+  constructionCount = OptionValue["ConstructionCount"];
+  maximumTotalDegree = OptionValue["MaximumTotalDegree"];
+  normalizationColumns = OptionValue["NormalizationColumns"];
+  If[! PrimeQ[prime] || samples === {} ||
+      ! AllTrue[samples, AssociationQ] ||
+      AnyTrue[samples,
+        Lookup[#, "Prime", Missing[]] =!= prime ||
+          ! TrueQ[Lookup[#, "Consistent", False]] ||
+          ! TrueQ[Lookup[#, "ParticularCheckZero", False]] ||
+          ! TrueQ[Lookup[#, "NullspaceCheckZero", False]] &] ||
+      Length[DeleteDuplicates[Lookup[samples,
+        "GaugeUnknownCount"]]] =!= 1 ||
+      Length[DeleteDuplicates[Lookup[samples,
+        "FreeResidueCount"]]] =!= 1 ||
+      Length[DeleteDuplicates[Lookup[samples,
+        "GaugeNumeratorDegrees"]]] =!= 1 ||
+      Length[DeleteDuplicates[Lookup[samples,
+        "GaugeSupport", Missing["GaugeSupport"]]]] =!= 1 ||
+      ! IntegerQ[constructionCount] || constructionCount <= 0 ||
+      ! IntegerQ[maximumTotalDegree] || maximumTotalDegree < 0,
+    Message[InterpolateEpsFormStripAffine::samples]; Return[$Failed]];
+  genericRank = Max[Lookup[samples, "Rank"]];
+  genericSamples = Select[samples,
+    Lookup[#, "Rank", -1] === genericRank &&
+      Lookup[#, "AugmentedRank", -2] === genericRank &];
+  discardedSingularEpsilonValues = Lookup[
+    Complement[samples, genericSamples, SameTest -> SameQ],
+    "EpsilonValue"];
+  If[Length[genericSamples] < constructionCount + 4,
+    Message[InterpolateEpsFormStripAffine::count]; Return[$Failed]];
+  referenceSample = First[genericSamples];
+  referenceNullspace = Normal[referenceSample["NullspaceBasis"]];
+  gaugeUnknownCount = referenceSample["GaugeUnknownCount"];
+  freeResidueCount = referenceSample["FreeResidueCount"];
+  gaugeNumeratorDegrees = referenceSample["GaugeNumeratorDegrees"];
+  residueColumns = gaugeUnknownCount + Range[freeResidueCount];
+  If[normalizationColumns === Automatic,
+    normalizationColumns = If[referenceNullspace === {}, {},
+      finiteFieldStripIndependentColumns[
+        referenceNullspace[[All, residueColumns]], prime] +
+          gaugeUnknownCount]];
+  If[Length[normalizationColumns] =!= Length[referenceNullspace],
+    Message[InterpolateEpsFormStripAffine::normalization];
+    Return[$Failed]];
+  epsilonMod[value_] := Mod[
+    Numerator[value] PowerMod[
+      Mod[Denominator[value], prime], -1, prime], prime];
+  normalized = Table[
+    With[{sample = sample,
+      canonical = NormalizeEpsFormAffineSample[
+        sample, normalizationColumns, prime]},
+      If[canonical === $Failed, $Failed,
+        <|"EpsilonValue" -> sample["EpsilonValue"],
+          "EpsilonMod" -> epsilonMod[sample["EpsilonValue"]],
+          "Values" -> canonical["ParticularSolution"]|>]],
+    {sample, genericSamples}];
+  If[MemberQ[normalized, $Failed],
+    Message[InterpolateEpsFormStripAffine::normalization];
+    Return[$Failed]];
+  grouped = GatherBy[normalized, #EpsilonMod &];
+  If[AnyTrue[grouped,
+      Length[DeleteDuplicates[Lookup[#, "Values"]]] =!= 1 &],
+    Message[InterpolateEpsFormStripAffine::samples]; Return[$Failed]];
+  canonicalSamples = First /@ grouped;
+  If[Length[canonicalSamples] < constructionCount + 4,
+    Message[InterpolateEpsFormStripAffine::count]; Return[$Failed]];
+  coordinateCount = Length[First[canonicalSamples]["Values"]];
+  {seconds, interpolations} = AbsoluteTiming[Table[
+    finiteFieldStripInterpolateCoordinate[
+      ({#EpsilonMod, #Values[[coordinate]]} &) /@ canonicalSamples,
+      prime, constructionCount, maximumTotalDegree],
+    {coordinate, coordinateCount}]];
+  unresolved = Flatten[Position[interpolations, $Failed]];
+  <|
+    "Prime" -> prime,
+    "SampleCount" -> Length[canonicalSamples],
+    "ConstructionCount" -> constructionCount,
+    "ValidationCount" -> Length[canonicalSamples] - constructionCount,
+    "MaximumTotalDegree" -> maximumTotalDegree,
+    "GenericRank" -> genericRank,
+    "DiscardedSingularEpsilonValues" ->
+      discardedSingularEpsilonValues,
+    "NormalizationColumns" -> normalizationColumns,
+    "GaugeUnknownCount" -> gaugeUnknownCount,
+    "FreeResidueCount" -> freeResidueCount,
+    "GaugeNumeratorDegrees" -> gaugeNumeratorDegrees,
+    "GaugeSupport" -> Lookup[referenceSample, "GaugeSupport", Missing["GaugeSupport"]],
+    "InterpolationSeconds" -> seconds,
+    "UnresolvedCoordinates" -> unresolved,
+    "DegreeHistogram" -> Counts[
+      Cases[interpolations, a_Association :> a["Degrees"]]],
+    "Interpolations" -> interpolations
+  |>
+];
+
+finiteFieldStripPutAtomic[expression_, file_String] := Module[
+  {temporary = file <> ".tmp"},
+  Put[expression, temporary];
+  RenameFile[temporary, file, OverwriteTarget -> True]
+];
+
+finiteFieldStripArtifactTag[value_] := StringReplace[
+  ToString[value, InputForm],
+  {"/" -> "_", "-" -> "m", " " -> ""}];
+
+(* A2 certificate: the lifted solution vector (gauge numerator
+   coefficients over the support, then residues), reduced at a regulator
+   value modulo a prime ABSENT from the lift, must equal the normalized
+   particular solution of a fresh constrained sample at that prime. *)
+finiteFieldStripUnseenPrimeResidualQ[record_Association, lifted_Association,
+    preparation_Association, prime_Integer, epsilonValue_, sampleOptions_List] :=
+ Module[{sample, canonical, vector, modNumber, epsilon},
+  epsilon = record["Regulator"];
+  sample = SampleEpsFormStripAffine[record, epsilonValue, prime, Sequence @@ sampleOptions];
+  If[! AssociationQ[sample] || ! TrueQ[sample["Consistent"]], Return[False]];
+  canonical = NormalizeEpsFormAffineSample[sample, lifted["NormalizationColumns"], prime];
+  If[canonical === $Failed, Return[False]];
+  modNumber[value_] := Module[{d = Mod[Denominator[value], prime]},
+    If[d === 0, Throw[False, "unseen"],
+      Mod[Mod[Numerator[value], prime] PowerMod[d, -1, prime], prime]]];
+  Catch[
+    vector = modNumber[Together[# /. epsilon -> epsilonValue]] & /@ lifted["LiftedVector"];
+    Length[vector] === Length[canonical["ParticularSolution"]] &&
+      vector === canonical["ParticularSolution"],
+    "unseen"]
+];
+
+(* Construct primes absent from the lift schedule without a fixed search
+   window.  Since the input schedule is finite, walking downward must
+   eventually find count distinct reserve primes. *)
+finiteFieldStripReservePrimes[primes_List, count_Integer: 3] /; count >= 1 :=
+ Module[{candidate = 2147483399, reserve = {}},
+  While[Length[reserve] < count,
+    If[! MemberQ[primes, candidate], AppendTo[reserve, candidate]];
+    candidate = NextPrime[candidate, -1]];
+  reserve
+];
+
+Options[SolveEpsFormStripFiniteField] = {
+  "Primes" -> {1000003, 2147483423, 2147483477, 2147483489,
+    2147483497, 2147483543, 2147483549, 2147483563,
+    2147483587, 2147483629, 2147483647},
+  "EpsilonSamples" -> ((#/(# + 20)) & /@ Range[32]),
+  "NumeratorDegreeOffsets" ->
+    {{0, 0}, {1, 0}, {0, 1}, {1, 1}, {2, 0}, {0, 2},
+      {2, 1}, {1, 2}, {2, 2}},
+  "PointCount" -> Automatic,
+  "KernelCount" -> Automatic,
+  "ConstructionCount" -> 24,
+  "MaximumTotalDegree" -> 22,
+  "ArtifactDirectory" -> Automatic,
+  "ArtifactPrefix" -> "finite_field_strip",
+  "MinimumPrimeCount" -> 3,
+  "AdaptivePrimeSampling" -> True,
+  "AdaptiveValidationMargin" -> 8,
+  "Elimination" -> "Constrained",
+  "Support" -> Automatic,
+  "RegulatorSampling" -> "HeldOut",
+  "Backend" -> Automatic,
+  "BackendThreads" -> 2,
+  "InitialConstructionCount" -> 4,
+  "HeldOutCount" -> 3,
+  "UnseenPrimeCheck" -> True,
+  "Verbose" -> True
+};
+
+SolveEpsFormStripFiniteField[record_Association,
+    OptionsPattern[]] := Module[
+  {primes, epsilonSamples, degreeOffsets, pointCount, kernelCount,
+   constructionCount, maximumTotalDegree, artifactDirectory,
+   artifactPrefix, minimumPrimeCount, adaptivePrimeSampling,
+   adaptiveValidationMargin, verbose, log, degreeProbe,
+   selectedOffset = Missing["NotFound"], prime, launched = {},
+   sampleOptions, samples, interpolation, modularData = {},
+   currentEpsilonSamples, currentConstructionCount,
+   currentMaximumTotalDegree, adaptivePlan,
+   solution = $Failed, file, seconds, loadFile, recordFingerprint,
+   fullRetry, loopExit, preparation, eliminationPlan, pilotSample,
+   supportKind, shells, selectedShell = "Rectangle", supportOptions,
+   regulatorSampling, initialConstruction, heldOutCount, unseenPrimeCheck,
+   expectedDegrees = Automatic, learnedConstruction, sampleBatch, pool,
+   canonical, heldOutResult, heldOutValidated, epsilonCursor, regulatorValue, need,
+   reservePrimes, lifted, unseen, sampleEpsilon, unseenPrime = None},
+  If[! finiteFieldStripRecordQ[record],
+    Message[SampleEpsFormStripAffine::record]; Return[$Failed]];
+  primes = DeleteDuplicates[OptionValue["Primes"]];
+  epsilonSamples = DeleteDuplicates[OptionValue["EpsilonSamples"]];
+  degreeOffsets = DeleteDuplicates[OptionValue[
+    "NumeratorDegreeOffsets"]];
+  pointCount = OptionValue["PointCount"];
+  kernelCount = facetKernelCount[
+    OptionValue["KernelCount"], Length[epsilonSamples]];
+  constructionCount = OptionValue["ConstructionCount"];
+  maximumTotalDegree = OptionValue["MaximumTotalDegree"];
+  artifactDirectory = OptionValue["ArtifactDirectory"];
+  artifactPrefix = OptionValue["ArtifactPrefix"];
+  recordFingerprint = Hash[record, "SHA256", "HexString"];
+  minimumPrimeCount = OptionValue["MinimumPrimeCount"];
+  adaptivePrimeSampling = TrueQ[OptionValue["AdaptivePrimeSampling"]];
+  adaptiveValidationMargin = OptionValue["AdaptiveValidationMargin"];
+  verbose = TrueQ[OptionValue["Verbose"]];
+  log[arguments___] := If[verbose, Print[arguments]];
+  regulatorSampling = OptionValue["RegulatorSampling"];
+  initialConstruction = OptionValue["InitialConstructionCount"];
+  heldOutCount = OptionValue["HeldOutCount"];
+  unseenPrimeCheck = TrueQ[OptionValue["UnseenPrimeCheck"]];
+  (* regulator values beyond the fixed schedule, for held-out growth *)
+  regulatorValue[k_] := If[k <= Length[epsilonSamples], epsilonSamples[[k]], k/(k + 20)];
+  If[AnyTrue[primes, IntegerQ[#] && # >= 2^31 &],
+    Message[SampleEpsFormStripAffine::width, SelectFirst[primes, # >= 2^31 &]];
+    Return[$Failed]];
+  If[! AllTrue[primes, PrimeQ] || epsilonSamples === {} ||
+      degreeOffsets === {} ||
+      ! AllTrue[degreeOffsets,
+        MatchQ[#, {a_Integer, b_Integer} /; a >= 0 && b >= 0] &] ||
+      ! IntegerQ[minimumPrimeCount] || minimumPrimeCount < 1 ||
+      ! IntegerQ[adaptiveValidationMargin] ||
+        adaptiveValidationMargin < 4,
+    Message[SampleEpsFormStripAffine::input]; Return[$Failed]];
+  reservePrimes = finiteFieldStripReservePrimes[primes];
+  If[StringQ[artifactDirectory] && ! DirectoryQ[artifactDirectory],
+    CreateDirectory[artifactDirectory,
+      CreateIntermediateDirectories -> True]];
+  fullRetry[] := Module[{retryPrefix},
+    If[launched =!= {}, Quiet[CloseKernels[launched]]; launched = {}];
+    retryPrefix = If[StringQ[artifactPrefix], artifactPrefix,
+      "finite_field_strip"] <> "_full";
+    log["Adaptive regulator sampling did not reconstruct exactly; ",
+      "repeating with the full regulator schedule"];
+    SolveEpsFormStripFiniteField[
+      record,
+      "Primes" -> primes,
+      "EpsilonSamples" -> epsilonSamples,
+      "NumeratorDegreeOffsets" -> degreeOffsets,
+      "PointCount" -> pointCount,
+      "KernelCount" -> kernelCount,
+      "ConstructionCount" -> constructionCount,
+      "MaximumTotalDegree" -> maximumTotalDegree,
+      "ArtifactDirectory" -> artifactDirectory,
+      "ArtifactPrefix" -> retryPrefix,
+      "MinimumPrimeCount" -> minimumPrimeCount,
+      "AdaptivePrimeSampling" -> False,
+      "AdaptiveValidationMargin" -> adaptiveValidationMargin,
+      "Elimination" -> OptionValue["Elimination"],
+      "Support" -> OptionValue["Support"],
+      "RegulatorSampling" -> "Deterministic",
+      "Backend" -> OptionValue["Backend"],
+      "BackendThreads" -> OptionValue["BackendThreads"],
+      "UnseenPrimeCheck" -> OptionValue["UnseenPrimeCheck"],
+      "Verbose" -> verbose]
+  ];
+
+  prime = First[primes];
+  preparation = finiteFieldStripPrepare[record];
+  If[preparation === $Failed,
+    Message[SolveEpsFormStripFiniteField::failed]; Return[$Failed]];
+  log["Prepared strip sampling once in ",
+    Round[preparation["PrepareSeconds"], 0.01], " s"];
+  (* A3: inside every bidegree rectangle the support ladder starts at the
+     valuation bound and grows one total-degree shell per inconsistent
+     probe, the rectangle being its last member *)
+  supportKind = OptionValue["Support"];
+  log["Support census: ", KeyTake[Lookup[preparation, "SupportCensus", <||>],
+    {"CertifiedQ", "NumeratorTotalDegreeBound", "ForcingInfinityDegree"}]];
+  Do[
+    shells = If[supportKind === "Rectangle" || ListQ[supportKind], {"Rectangle"},
+      finiteFieldStripSupportLadder[preparation,
+        preparation["DenominatorDegrees"] + offset]];
+    Module[{probeOf, probes = <||>, order, rectangleOK = False, ok},
+      probeOf[shell_] := (probes[shell] = SampleEpsFormStripAffine[
+        record, First[epsilonSamples], prime,
+        "PointCount" -> pointCount,
+        "NumeratorDegreeOffset" -> offset,
+        "Support" -> If[shell === "Rectangle", "Rectangle", supportKind],
+        "SupportShell" -> If[IntegerQ[shell], shell, 0],
+        "SolveAffineSystem" -> False,
+        "Preparation" -> preparation,
+        "ExpectedFingerprint" -> preparation["Fingerprint"]];
+        ok = AssociationQ[probes[shell]] && TrueQ[probes[shell]["Consistent"]];
+        log["Finite-field degree probe ", offset, " support shell ", shell,
+          If[ok, ": consistent", ": inconsistent"]];
+        ok);
+      order = finiteFieldStripProbeOrder[shells];
+      Do[
+        ok = probeOf[shell];
+        Which[
+          ok && shell =!= "Rectangle",
+            selectedOffset = offset; selectedShell = shell; Break[],
+          ok,
+            (* the rectangle is consistent: it is the fallback, and the
+               intermediate shells (if any follow) may still be smaller *)
+            rectangleOK = True;
+            If[shell === Last[order],
+              selectedOffset = offset; selectedShell = "Rectangle"; Break[]],
+          shell === "Rectangle",
+            (* an inconsistent rectangle: no sub-support at this offset *)
+            Break[]],
+        {shell, order}];
+      If[MissingQ[selectedOffset] && rectangleOK,
+        selectedOffset = offset; selectedShell = "Rectangle"];
+      If[! MissingQ[selectedOffset], degreeProbe = probes[selectedShell]]];
+    If[! MissingQ[selectedOffset], Break[]],
+    {offset, degreeOffsets}];
+  If[MissingQ[selectedOffset],
+    Message[SolveEpsFormStripFiniteField::failed]; Return[$Failed]];
+  supportOptions = {
+    "Support" -> If[selectedShell === "Rectangle", "Rectangle", supportKind],
+    "SupportShell" -> If[IntegerQ[selectedShell], selectedShell, 0]};
+  log["Selected numerator-degree offset ", selectedOffset, ", support shell ",
+    selectedShell, " (", degreeProbe["GaugeSupportCount"], " monomials, ",
+    degreeProbe["GaugeUnknownCount"] + degreeProbe["FreeResidueCount"], " unknowns)"];
+
+  (* M1 pilot: one full-path sample discovers the constrained plan that
+     every later sample of every prime reuses; if discovery fails the
+     solve continues on the full path (typed reason logged) *)
+  eliminationPlan = None;
+  If[OptionValue["Elimination"] === "Constrained",
+    pilotSample = SampleEpsFormStripAffine[
+      record, First[epsilonSamples], prime,
+      "PointCount" -> pointCount,
+      "NumeratorDegreeOffset" -> selectedOffset,
+      Sequence @@ supportOptions,
+      "SolveAffineSystem" -> True, "DiscoverPlan" -> True,
+      "Preparation" -> preparation,
+      "ExpectedFingerprint" -> preparation["Fingerprint"]];
+    If[AssociationQ[pilotSample] &&
+        AssociationQ[Lookup[pilotSample, "EliminationPlan", None]] &&
+        pilotSample["EliminationPlan"]["Status"] === "OK",
+      eliminationPlan = pilotSample["EliminationPlan"];
+      log["Constrained elimination plan: rank ",
+        eliminationPlan["GenericRank"], ", nullity ",
+        eliminationPlan["Nullity"], ", normalization columns ",
+        eliminationPlan["NormalizationColumns"]],
+      log["Constrained plan unavailable (",
+        If[AssociationQ[pilotSample],
+          Lookup[Lookup[pilotSample, "EliminationPlan", <||>],
+            "Status", "no pilot solution"], "pilot failed"],
+        "); continuing on the full elimination path"]]];
+
+  If[kernelCount > 1 && Length[Kernels[]] < kernelCount,
+    launched = Quiet[LaunchKernels[kernelCount - Length[Kernels[]]]]];
+  loadFile = FileNameJoin[{$feynFacetRoot, "Addon", "Load",
+    "LoadFACET.wl"}];
+  If[kernelCount > 1,
+    With[{fileName = loadFile},
+      ParallelEvaluate[Quiet[Get[fileName], General::shdw]]]];
+  sampleOptions = {
+    "PointCount" -> pointCount,
+    "NumeratorDegreeOffset" -> selectedOffset,
+    Sequence @@ supportOptions,
+    "Backend" -> OptionValue["Backend"],
+    "BackendThreads" -> OptionValue["BackendThreads"],
+    "SolveAffineSystem" -> True,
+    "Preparation" -> preparation,
+    "ExpectedFingerprint" -> preparation["Fingerprint"],
+    "EliminationPlan" -> eliminationPlan};
+  currentEpsilonSamples = epsilonSamples;
+  currentConstructionCount = constructionCount;
+  currentMaximumTotalDegree = maximumTotalDegree;
+  Do[
+    file = If[StringQ[artifactDirectory],
+      FileNameJoin[{artifactDirectory,
+        artifactPrefix <> "_mod_" <> ToString[prime] <> ".wl"}],
+      None];
+    If[StringQ[file] && FileExistsQ[file],
+      interpolation = FamilyArtifactRead[file];
+      If[! AssociationQ[interpolation] ||
+          Lookup[interpolation, "RecordFingerprint", Missing[]] =!=
+            recordFingerprint ||
+          Lookup[interpolation, "SelectedNumeratorDegreeOffset",
+            Missing[]] =!= selectedOffset ||
+          Lookup[interpolation, "SelectedSupportShell", "Rectangle"] =!= selectedShell,
+        Message[SolveEpsFormStripFiniteField::failed];
+        loopExit = "Failed"; Break[]];
+      log["Loaded modular interpolation ", prime],
+      sampleBatch[values_List] := If[kernelCount > 1,
+        ParallelMap[
+          SampleEpsFormStripAffine[record, #, prime, Sequence @@ sampleOptions] &,
+          values, Method -> "FinestGrained", DistributedContexts -> Automatic],
+        SampleEpsFormStripAffine[record, #, prime, Sequence @@ sampleOptions] & /@ values];
+      If[regulatorSampling === "HeldOut",
+        (* A2: construction prefix, held-out round, grow on failure; the
+           first prime starts from InitialConstructionCount, later primes
+           from the learned degree profile; the deterministic schedule is
+           the cap and the fallback *)
+        learnedConstruction = If[expectedDegrees === Automatic, initialConstruction,
+          Max[Replace[Total /@ expectedDegrees, -Infinity -> 0, {1}]] + 1];
+        need = learnedConstruction + heldOutCount;
+        pool = {}; epsilonCursor = 0; interpolation = $Failed;
+        {seconds, heldOutResult} = AbsoluteTiming[Catch[While[True,
+          samples = sampleBatch[Table[regulatorValue[epsilonCursor + k], {k, need}]];
+          epsilonCursor += need;
+          If[AnyTrue[samples, ! AssociationQ[#] &], Throw["SampleFailed", "a2"]];
+          pool = Join[pool, samples];
+          canonical = finiteFieldStripCanonicalSamples[pool, prime, Which[
+            AssociationQ[eliminationPlan], eliminationPlan["NormalizationColumns"],
+            modularData === {}, Automatic,
+            True, First[modularData]["NormalizationColumns"]]];
+          If[canonical["Status"] =!= "OK", Throw[canonical["Status"], "a2"]];
+          heldOutResult = finiteFieldStripHeldOutInterpolate[
+            canonical["CanonicalSamples"], prime,
+            "InitialConstructionCount" -> learnedConstruction,
+            "HeldOutCount" -> heldOutCount,
+            "MaximumTotalDegree" -> maximumTotalDegree,
+            "ExpectedDegrees" -> expectedDegrees];
+          Switch[heldOutResult["Status"],
+            "HeldOutValidated", heldOutValidated = heldOutResult; Throw["Validated", "a2"],
+            "RejectPrimeDegreeProfileChanged", Throw["RejectPrime", "a2"],
+            "MoreSamplesRequired",
+              need = Max[heldOutResult["RequiredAdditionalSampleCount"], heldOutCount];
+              If[Length[pool] + need > Length[epsilonSamples] + 8, Throw["Cap", "a2"]],
+            _, Throw["Failed", "a2"]]],
+          "a2"]];
+        log["Prime ", prime, ": held-out sampling ", Length[pool], " regulator values -> ",
+          heldOutResult, " (", Round[seconds, 0.1], " s)"];
+        Which[
+          heldOutResult === "RejectPrime",
+            log["  degree profile changed at this prime; skipping it"]; Continue[],
+          heldOutResult === "Validated",
+            interpolation = Join[heldOutValidated,
+              <|"NormalizationColumns" -> canonical["NormalizationColumns"],
+                "GenericRank" -> canonical["GenericRank"],
+                "DiscardedSingularEpsilonValues" -> canonical["DiscardedSingularEpsilonValues"]|>,
+              canonical["ReferenceSample"]];
+            If[expectedDegrees === Automatic,
+              expectedDegrees = Lookup[interpolation["Interpolations"], "Degrees"]];
+            samples = pool,
+          True,
+            (* cap or failure: the deterministic interpolation on everything sampled so far *)
+            log["  held-out mode did not certify (", heldOutResult, "); deterministic interpolation"];
+            samples = pool;
+            interpolation = If[samples === {} || AnyTrue[samples, ! AssociationQ[#] &], $Failed,
+              InterpolateEpsFormStripAffine[samples, prime,
+                "ConstructionCount" -> Min[currentConstructionCount, Max[1, Length[samples] - 4]],
+                "MaximumTotalDegree" -> currentMaximumTotalDegree,
+                "NormalizationColumns" -> Which[
+                  AssociationQ[eliminationPlan], eliminationPlan["NormalizationColumns"],
+                  modularData === {}, Automatic,
+                  True, First[modularData]["NormalizationColumns"]]]]],
+        (* deterministic schedule *)
+        log["Sampling prime ", prime, " with ", kernelCount,
+          " kernel", If[kernelCount === 1, "", "s"], " at ",
+          Length[currentEpsilonSamples], " regulator values"];
+        {seconds, samples} = AbsoluteTiming[sampleBatch[currentEpsilonSamples]];
+        If[AnyTrue[samples, ! AssociationQ[#] &],
+          If[adaptivePrimeSampling, loopExit = "FullRetry"; Break[]];
+          Message[SolveEpsFormStripFiniteField::failed];
+          loopExit = "Failed"; Break[]];
+        interpolation = InterpolateEpsFormStripAffine[
+          samples, prime,
+          "ConstructionCount" -> currentConstructionCount,
+          "MaximumTotalDegree" -> currentMaximumTotalDegree,
+          "NormalizationColumns" -> Which[
+            AssociationQ[eliminationPlan],
+              eliminationPlan["NormalizationColumns"],
+            modularData === {}, Automatic,
+            True, First[modularData]["NormalizationColumns"]]]];
+      If[! AssociationQ[interpolation] ||
+          interpolation["UnresolvedCoordinates"] =!= {},
+        If[adaptivePrimeSampling && regulatorSampling =!= "HeldOut", loopExit = "FullRetry"; Break[]];
+        Message[SolveEpsFormStripFiniteField::failed];
+        loopExit = "Failed"; Break[]];
+      interpolation = Join[interpolation,
+        <|"SamplingSeconds" -> seconds,
+          "SelectedNumeratorDegreeOffset" -> selectedOffset,
+          "SelectedSupportShell" -> selectedShell,
+          "RecordFingerprint" -> recordFingerprint,
+          (* M0 census: per-sample stage timers persisted with the
+             prime artifact, so every production run is self-
+             instrumenting (2026-08-20). *)
+          "SampleTimings" -> (KeyTake[#, {"EpsilonValue",
+            "SetupSeconds", "PreprocessingSeconds", "SamplingSeconds",
+            "RankSeconds", "AugmentedRankSeconds", "LinearSolveSeconds",
+            "NullspaceSeconds", "MatrixDimensions", "NonzeroEntries",
+            "Rank", "Nullity", "AcceptedPoints", "AttemptCount",
+            "PeakMemoryBytes", "PreparationReused", "SolvePath",
+            "ConstrainedSolveSeconds", "Backend", "Status"}] & /@ samples)|>];
+      If[StringQ[file], finiteFieldStripPutAtomic[interpolation, file]]];
+    AppendTo[modularData, interpolation];
+    If[adaptivePrimeSampling && regulatorSampling =!= "HeldOut" && Length[modularData] === 1,
+      adaptivePlan = finiteFieldStripAdaptiveSamplingPlan[
+        interpolation, Length[epsilonSamples],
+        adaptiveValidationMargin];
+      currentEpsilonSamples = Take[
+        epsilonSamples, adaptivePlan["SampleCount"]];
+      currentConstructionCount = adaptivePlan["ConstructionCount"];
+      currentMaximumTotalDegree = adaptivePlan["MaximumTotalDegree"];
+      log["Later-prime regulator plan: ",
+        Length[currentEpsilonSamples], " samples, construction count ",
+        currentConstructionCount, ", maximum total degree ",
+        currentMaximumTotalDegree]];
+    If[Length[modularData] >= minimumPrimeCount,
+      (* lift first; in held-out mode an unseen-prime residual guards the
+         exact check (a lift that is merely consistent with the primes
+         used is rejected by a prime absent from the lift) *)
+      lifted = Quiet[Check[
+        ReconstructEpsFormStrip[record, modularData,
+          "KernelCount" -> kernelCount, "ExactCheck" -> False], $Failed,
+        {ReconstructEpsFormStrip::data, ReconstructEpsFormStrip::modulus,
+         ReconstructEpsFormStrip::check}],
+        {ReconstructEpsFormStrip::data, ReconstructEpsFormStrip::modulus,
+         ReconstructEpsFormStrip::check}];
+      unseen = True;
+      If[AssociationQ[lifted] && unseenPrimeCheck,
+        sampleEpsilon = regulatorValue[Length[epsilonSamples] + 11];
+        unseenPrime = First[reservePrimes];
+        unseen = finiteFieldStripUnseenPrimeResidualQ[record, lifted, preparation,
+          unseenPrime, sampleEpsilon, sampleOptions];
+        log["Unseen-prime residual at ", unseenPrime, ": ",
+          If[TrueQ[unseen], "zero", "NONZERO -- lift rejected, more primes"]]];
+      solution = If[AssociationQ[lifted] && TrueQ[unseen],
+        Quiet[Check[
+          ReconstructEpsFormStrip[record, modularData, "KernelCount" -> kernelCount], $Failed,
+          {ReconstructEpsFormStrip::data, ReconstructEpsFormStrip::modulus,
+           ReconstructEpsFormStrip::check}],
+          {ReconstructEpsFormStrip::data, ReconstructEpsFormStrip::modulus,
+           ReconstructEpsFormStrip::check}],
+        $Failed];
+      If[AssociationQ[solution], Break[]]],
+    {prime, primes}];
+  (* Return inside Do only terminates the loop (2026-08-20 review: a
+     successful fullRetry value was discarded here, and the full solve
+     then ran a second time). The loop records its exit reason. *)
+  If[loopExit === "FullRetry", Return[fullRetry[]]];
+  If[launched =!= {}, Quiet[CloseKernels[launched]]; launched = {}];
+  If[loopExit === "Failed", Return[$Failed]];
+  If[! AssociationQ[solution],
+    If[adaptivePrimeSampling, Return[fullRetry[]]];
+    Message[SolveEpsFormStripFiniteField::failed]; Return[$Failed]];
+  Join[solution, <|
+    "Method" -> "SimultaneousFiniteFieldAffinePDE",
+    "EliminationPlan" -> eliminationPlan,
+    "SelectedNumeratorDegreeOffset" -> selectedOffset,
+    "SelectedSupportShell" -> selectedShell,
+    "ModularPrimeCount" -> Length[modularData],
+    "AdaptivePrimeSampling" -> adaptivePrimeSampling,
+    "RegulatorSampling" -> regulatorSampling,
+    "UnseenPrimeCheck" -> unseenPrimeCheck,
+    "UnseenPrime" -> unseenPrime,
+    "PrimeSampleCounts" -> Lookup[modularData, "SampleCount", {}],
+    "PrimeConstructionCounts" ->
+      Lookup[modularData, "ConstructionCount", {}],
+    "PrimeMaximumTotalDegrees" ->
+      Lookup[modularData, "MaximumTotalDegree", {}],
+    "PrimeSamplingSeconds" ->
+      Lookup[modularData, "SamplingSeconds", {}],
+    "PrimeInterpolationSeconds" ->
+      Lookup[modularData, "InterpolationSeconds", {}],
+    "TotalSamplingSeconds" ->
+      Total[Lookup[modularData, "SamplingSeconds", {}]],
+    "TotalInterpolationSeconds" ->
+      Total[Lookup[modularData, "InterpolationSeconds", {}]]
+  |>]
+];
+
+InstallEpsFormStripSolution[checkpoint_Association,
+    record_Association, solution_Association,
+    sector_Integer, lowerSector_Integer] := Module[
+  {gauge, previousSolvers, previousLowerSectors, expectedDimensions,
+   newSolver, variables, epsilon, lettersEpsilonFree, residuesConstant},
+  If[! finiteFieldStripRecordQ[record] ||
+      ! And @@ (KeyExistsQ[solution, #] & /@
+        {"Gauge", "Alphabet", "ResidueMatrices"}) ||
+      ! TrueQ[Lookup[solution, "ExactPfaffianResidualsZero", False]] ||
+      ! MatrixQ[Lookup[checkpoint, "PrevD", Missing[]]] ||
+      ! ListQ[Lookup[checkpoint, "StripSolvers", Missing[]]] ||
+      Lookup[checkpoint, "Sector", Missing[]] =!= sector,
+    Message[InstallEpsFormStripSolution::state]; Return[$Failed]];
+  (* Recompute the two cheap structural conditions rather than trusting
+     stored booleans.  Keep the existing exact-residual certificate
+     contract, so installation does not repeat the expensive exact
+     Together pass.  Old RawResidues artifacts fail here immediately. *)
+  variables = record["Variables"];
+  epsilon = record["Regulator"];
+  lettersEpsilonFree = FreeQ[solution["Alphabet"], epsilon];
+  residuesConstant = FreeQ[solution["ResidueMatrices"],
+    Alternatives @@ Join[variables, {epsilon}]];
+  If[! lettersEpsilonFree || ! residuesConstant,
+    Message[InstallEpsFormStripSolution::state]; Return[$Failed]];
+  gauge = solution["Gauge"];
+  expectedDimensions = Rest[Dimensions[record["Strip"][[3]]]];
+  previousSolvers = checkpoint["StripSolvers"];
+  previousLowerSectors = Lookup[previousSolvers, "LowerSector", {}];
+  If[Dimensions[gauge] =!= expectedDimensions ||
+      Dimensions[checkpoint["PrevD"]][[1]] =!=
+        First[expectedDimensions] ||
+      MemberQ[previousLowerSectors, lowerSector] ||
+      previousLowerSectors =!= ReverseSort[previousLowerSectors] ||
+      AnyTrue[previousLowerSectors, # <= lowerSector &],
+    Message[InstallEpsFormStripSolution::state]; Return[$Failed]];
+  newSolver = <|
+    "Sector" -> sector,
+    "LowerSector" -> lowerSector,
+    "Method" -> Lookup[solution, "Method",
+      "SimultaneousFiniteFieldAffinePDE"],
+    "NumeratorDegree" -> solution["GaugeNumeratorDegrees"],
+    "DenominatorDegree" -> solution["GaugeDenominatorDegrees"],
+    "ExactDLog" -> True,
+    "TwoVariableResidualZero" -> True,
+    "FiniteFieldPrimes" -> solution["Primes"]
+  |>;
+  Join[checkpoint, <|
+    "PrevD" -> MapThread[Join, {gauge, checkpoint["PrevD"]}],
+    "StripSolvers" -> Append[previousSolvers, newSolver]
+  |>]
+];

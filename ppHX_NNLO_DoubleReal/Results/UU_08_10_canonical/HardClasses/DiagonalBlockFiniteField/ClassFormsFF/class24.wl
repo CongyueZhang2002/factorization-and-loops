@@ -1,0 +1,33 @@
+<|"Format" -> "FeynFacet-CanonicalClassForm", "FormatVersion" -> 1, 
+ "ClassID" -> 24, "ContentAddress" -> None, "RepFamily" -> "CF13", 
+ "RepRows" -> {8, 9}, "RepBasis" -> 
+  {gli["CF13", {1, 1, 1, 1, 0, 1, 1, 1, 0}], 
+   gli["CF13", {1, 1, 1, 1, 0, 1, 1, 2, 0}]}, "Dim" -> 2, 
+ "Transformation" -> {{1/(v*(-1 + v + w)), 0}, 
+   {(7 + 67*eps + 106*eps^2 - 7*w - 35*eps*w - 42*eps^2*w)/
+     (7*(1 + eps)*v*(-1 + v + w)^2), (30*(eps + 2*eps^2))/
+     (7*(1 + eps)*v*(-1 + v + w)^2)}}, 
+ "EpsForm" -> {{{(-2*eps)/(-1 + v + w), 0}, {0, (-2*eps)/(-1 + v + w)}}, 
+   {{eps*(-32/(7*(-1 + w)) + 46/(7*w) - 2/(-1 + v + w)), 
+     eps*(-30/(7*(-1 + w)) + 30/(7*w))}, 
+    {eps*(512/(105*(-1 + w)) - 299/(35*w)), 
+     eps*(32/(7*(-1 + w)) - 39/(7*w) - 2/(-1 + v + w))}}}, 
+ "Variables" -> {v, w}, "Regulator" -> eps, "Chart" -> None, 
+ "Frame" -> "Slicew", "Method" -> "SliceResiduesFiniteFieldAffine", 
+ "Letters" -> {w, -1 + v + w, -1 + w}, 
+ "Residues" -> {{{46/7, 30/7}, {-299/35, -39/7}}, {{-2, 0}, {0, -2}}, 
+   {{-32/7, -30/7}, {512/105, 32/7}}}, "Certificate" -> 
+  <|"Status" -> "Certified", "GateX" -> True, "GateY" -> True, 
+   "ConstantResidues" -> True, "Flat" -> True, "Invertible" -> True, 
+   "Seconds" -> 0.005604`4.200043120109711|>, 
+ "Attempts" -> {<|"Frame" -> "Slicev", "Stage" -> "Solve", 
+    "Status" -> "SolutionSpaceDegenerate", 
+    "Seconds" -> 0.051276`5.161459132360795|>, <|"Frame" -> "Slicew", 
+    "Stage" -> "Gate", "Status" -> "Certified", 
+    "Seconds" -> 0.556761`6.197213799699774|>}, 
+ "Timing" -> <|"SliceSeconds" -> 0.072991`5.3148143071602485, 
+   "SolveSeconds" -> 0.472564`6.126005627430375, 
+   "GateSeconds" -> 0.005604`4.200043120109711, 
+   "TotalSeconds" -> 0.629891`6.250810396609681|>, 
+ "Seconds" -> 0.638711`6.256849389218955, "Status" -> "CANONICALIZED", 
+ "Validated" -> True|>

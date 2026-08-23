@@ -1580,3 +1580,1134 @@ branch checks are presently reported too similarly".
   word-carrying lower solution -- it presented as a hang.  Budgeted with
   fallback to the un-normalised form.  Also stopped proving the same
   Gauss certificate twice per coupled solve.
+
+## 2026-08-16 (day, automated session) — eps-form route opened for the
+   hard classes; slices; handoff
+
+- Recorded in `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/HardClasses/
+  EpsFormRoute/README.md` (commits 62cbba2, 12a0301, 67b923e): the
+  "no eps-form" verdict for 97/77/79 was chart-specific + a Libra usage
+  error; rationalizing charts; class-97 symbolic normalization
+  (`symnorm_c97.wl`) and 12 slice eps-forms; class-77 slice eps-forms at
+  10 points; class 79 stalled on hidden integer offsets.  Claims of this
+  session were re-verified the same afternoon (next entry) before being used.
+
+## 2026-08-16 (afternoon, 15:40-16:45) — classes 97 AND 77 CERTIFIED: two-variable
+   eps-forms by a linear finish + a chart involution; class 79 rechartered
+
+- Independent re-verification of the automated session's class-97 chain
+  from stored artifacts (`Scripts/epsform_verify_c97_chain.wls`): Ttot
+  maps chart -> A_norm SYMBOLICALLY in y (82 s); A_norm Fuchsian and
+  normalized at all six loci incl. infinity (residue eigenvalues in
+  eps*Z); normalized pair flat (92 s); all 12 phase-2 slice files are
+  genuine dlog eps-forms with x-INDEPENDENT T2.  `c97_T2_symbolic.wl` was
+  an identity-matrix placeholder.  Provenance-tagged consult written for
+  Fable Max (`FableMax_consult_2026-08-16_afternoon.md`); replies from
+  Fable Max and GPT Pro saved beside it.
+- KEY INSIGHT (before the replies arrived): once normalized with y
+  symbolic, the finish is Lee's linear factor-out-eps step (Libra
+  `FactorOut`): solve M_i(y,eps) U = eps U N_i.  Class 97: nullspace over
+  Q(eps) on the y=3/7 slice 1-dim (4 s); over Q(y,eps) 1-dim (660 s),
+  det U != 0; U^-1 A_norm U eps-form with constant residues; y-mismatch
+  purely scalar with integer residues -> c(y,eps) = 1/((y-1)^2 y^2
+  (y - eps/(1+4eps)) q1 q2) (the eps-dependent apparent loci, exactly).
+  THE GATE on the ORIGINAL chart system: A_x'' and A_y'' == eps Sum R_a
+  dlog phi_a entrywise, letters {x,y,1-x,1-y,x-y,x+y,x+y-xy}, form flat.
+  Artifact `c97_epsform_two_variable.wl`.  Slice interpolation and the
+  two-variable CANONICA run are superseded.
+- Class 77 via the chart involution sigma:(x,y)->(1-x,1-y) (= v<->w,
+  Fable Max Q3): all 9 well-formed 77 slice eps-forms have the
+  sigma*(97) residue tuple (intertwiner unique, det != 0); every slice
+  gate (Ttot.T2.X vs A_77|y0) True; the gauge equivalence T_eq =
+  T_slice . (sigma*T_97)^-1 is tiny (LeafCount ~250, x-degree <= 2) and
+  interpolates in y with degrees <= 2; det T_eq carries the raw rep's
+  eps-dependent apparent locus.  GATE x/y on the ORIGINAL 77 chart
+  system: True/True.  Artifact `c77_epsform_two_variable.wl`.
+- Class 79 identification (both reviewers asked for it; Fable Max's
+  guess "quadratic = lambda" is FALSE): lambda does not occur in class
+  79; its (v,w) alphabet is {v, w, v+w, 1+v+w, Q, eps-dependent
+  apparent}; the old t-chart turned v+w and 1+v+w into irreducible
+  quadratics in t.  Q(v,w) = lambda(-v,w), so v = -xy, w = (1-x)(1-y)
+  makes every letter linear: x-loci {0,1,y,1-y,2-y,inf} + one
+  eps-dependent apparent linear locus; residue eigenvalues at 0, y, 2-y
+  identical to class 77's raw chart.  No quadratic-locus mechanism
+  needed.  Campaign (Fuchsify, balances, replay, constant U, gate) +
+  ClassForms records for 97/77 + tests delegated to an Opus subagent
+  (running at close of entry).
+- Ledger: 172/173 classes with certified eps-forms (97, 77 new; 79
+  pending).  All evidence under `Results/.../EpsFormRoute/`, scripts as
+  `Scripts/epsform_*.wls`.  Uncommitted at time of writing.
+- Codex is running the eps-graded VECTOR-frame route on class 77 with
+  lower-sector sources; both reviewers recommend stopping the full 4x4
+  second-order frame (keep one column/coefficient as reference) — user
+  to relay.
+
+## 2026-08-16 (evening, 16:26-19:45 PDT) — CLASS 79 CERTIFIED: 173/173;
+   ledger records + test for the three hard classes; two Libra traps
+
+- Class 79 (Opus subagent under my brief, then taken over and
+  independently re-derived): chart v = -xy, w = (1-x)(1-y); slice y=3/7
+  normalized in 10 Lee balances (224 s; the eps-dependent apparent locus
+  regularized by the FIRST balance); symbolic-y replay of the path
+  53 min (LeafCount 1.7e5), Ttot certificate True; constant gauge: the
+  direct nullspace over Q(y,eps) did NOT return in 40 min (system ~2x
+  class 97's), so U(y,eps) was sampled at 18 rational y (8 s each),
+  normalized, rationally interpolated (degrees <= (8,9)) and VERIFIED
+  exactly (M_i U == eps U N_i at every locus incl. infinity, y and eps
+  symbolic); scalar gauge removes the eps-dependent apparent y-loci;
+  GATE x/y on the ORIGINAL chart system True/True, flat.  Coordinator's
+  independent re-derivation from T + letters + residues + the class rep
+  (`Scripts/epsform_independent_gate_c79.wls`): GATE x/y True/True.
+  Letters {x,y,1-x,1-y,x-y,1-x-y,2-x-y}; residue eigenvalue tuple NOT
+  conjugate to 97's (measured).  Deck-covariant.  Artifacts moved into
+  `Results/.../EpsFormRoute/` (c79_epsform_two_variable.wl, symnorm_c79.wl,
+  c79_constant_gauge_symbolic.wl, balanced_c79_y3_7.wl, logs_c79/),
+  scripts as `Scripts/epsform_*_c79.wls`.
+- Ledger: `Scripts/build_hard_class_ledger.wls` (Opus-written; I fixed
+  the class-79 Inverse branch x,y = (1-v-w +- sqrtQ)/2) wrote
+  ClassForms/class{97,77,79}.wl; ValidateCanonicalForm True on all three;
+  `Tests/t_hard_class_epsforms.wls` 24/24 after fixing a context trap in
+  the test (ValidateCanonicalForm loads CANONICA; later Get read bare eps
+  as CANONICA`eps -> 6 false failures; normalize by SymbolName).
+- Audits 97/77 (`Scripts/epsform_audits_c97_c77.wls`): letters eps-free;
+  T's denominators pure letters (balance-created apparent loci cancel
+  inside T); deck intertwiner exists (dim 1, S^2 scalar; same S for 97
+  and 77); det T's only eps-dependent (x,y)-factor for 77 is the raw
+  representative's own apparent locus (none for 97).
+- TRAPS (recorded in CLAUDE.md): Libra `Projector` returns a ZERO matrix
+  on WL 14.2 unless Off[OptionValue::optnf] (Check swallows a benign
+  OInverse message; Quiet does not help) — earlier "Libra found no
+  balance" verdicts on this box are void; Libra Fuchsify is a no-op on an
+  irreducible diagonal block.
+- Codex exchange round 7 written (`External/CodexExchange/round7_hard_classes_epsforms_2026-08-16.md`,
+  to be shuttled by the user): results, both reviewers' recommendation on
+  Codex's class-77 frame, requests (independent gate, AMFlow points,
+  Class-8 certificate).
+- Stage-2 chart-pullback layer for the EXISTING TransportFamily
+  (`TransportFamilyInChart`, Opus subagent) written; kernel tests running
+  at close of entry.  Uncommitted at time of writing.
+
+## 2026-08-16 (late night, 22:00-24:00) — transport depth-vs-cost: reviews,
+   KernelPool, three agents' measured results
+
+- Consult on transport cost written (`EpsFormRoute/FableMax_consult_2026-08-16_night_transport_cost.md`);
+  replies from Fable Max and GPT Pro saved beside it; convergent plan
+  recorded in the route README (block-wise transport on the DAG; per-block
+  demands from the actual coefficient poles; exact recursive certificate;
+  numerics only as validation; no weight-9/10 monoliths).
+- Measured before the replies: rescaling by DAG potentials is a relabeling
+  where couplings have no slack; per-block accounting equals the module
+  rule for the top block; profile of the class-97 block: transport seconds,
+  exact per-order DE check 8/80/330 s per order (dominant); Libra Pexp on
+  the couplings-zeroed 13x13 at weight 5: 1.8 s (block-diagonal is cheap;
+  the family cost lives in the coupling words). CORRECTION by the depth
+  agent: RMin stores only the minimum coupling order — the full Laurent
+  supports show MIXED couplings (orders <= 0 and >= 2) in 30/38 families,
+  so the exact per-chain rule IS sharper (11/38 families, ~1 weight).
+- **KernelPool** (`Scripts/KernelPool.wls` + kpsubmit/kpwait/kpstatus,
+  `Design/KernelPool.md`): persistent 1-main + up to 8-subkernel server
+  with a queue directory; FeynFacet preloaded; TestKit scripts run as
+  missions (Exit trapped; 0.16 s vs ~40 s standalone). Bugs found and fixed
+  the same night: Parallel`Developer` Protected symbols used as variables;
+  completion detection by marker file; unguarded LaunchKernels hung the
+  loop when the license seat was taken (now time-constrained + backoff);
+  SIGINT does not abort a subkernel (cancel = close + guarded relaunch);
+  irreversible drain flag; stdout capture. Read-only watchdog agent
+  (5-min rounds, file report) alerts owners on stalls/errors.
+- Depth agent: exact per-block depth recursion (opt-in), per-master
+  coefficient valuations for all 347 masters (203 at eps^0, 131 at eps^-1,
+  9 deeper, 1 at eps^-4; CF258's masters valuation 0 -> hard family needed
+  through eps^1 only, weight 6), Libra weight-by-weight checkpointing,
+  trap tests; t_master_transport 68/68 restored after a misclassified
+  CF360 abort. Ledger: `Results/UU_08_10_canonical/TransportDepthLedger.*`.
+- Block-wise agent: `BlockwiseTransport.wl` ("Engine" -> "Blockwise"),
+  exact on NLO/CF3 anchors (CF3 7x faster), 31/31 after Codex's soundness
+  fix (tau-dependent coefficients in the dlog step); S1 measured that the
+  couplings are NOT pure dlog (CF230 poles to order 3, CF258 to 5) — the
+  cause is the canonical bases relative to subsectors (eps-deformed
+  letter x+y-2xy in class 49 / CF258 block 10; blocks 8/12 have no det-T
+  factor yet non-pure couplings) -> remedy = off-diagonal
+  eps-factorization (agent in flight on CF230). S4 (CF230 end to end)
+  stopped by criterion at a measured 75 s/order on block 6.
+
+## 2026-08-20 (afternoon) — two-root inventory correction and stopped duplicate run
+
+- The established two-root inventory contains 13 physical families.  Nine
+  complete exact epsilon forms already existed before the latest sector
+  campaign:
+
+      CF226, CF232, CF236, CF240, CF249, CF319, CF321, CF385, CF408.
+
+  The exact Libra/blockwise records for these families are final analytic
+  results.  They do not require regeneration or recertification merely because
+  a later driver writes a different record layout.  In particular,
+  `factor_dependence_CF385_canonicadlog.wl` and
+  `factor_dependence_CF408_canonicadlog.wl` contain the complete transformed
+  connections and exact gauge, flatness, invertibility, block-triangular, and
+  epsilon-factorization checks.
+
+- The standardized sector calculation subsequently completed CF254.  The
+  current physical-family count is therefore **10 of 13 complete**, with only
+  **CF231, CF265, and CF305** left.  CF231 and CF305 share the Kallen-23 hard
+  strip class, while CF265 contains the mapped CF254 subsector plus nine
+  complementary masters; neither fact by itself completes the corresponding
+  full family.
+
+- A campaign-driver inventory error looked only for records produced by the
+  newest standardized-sector directory.  It consequently reran CF319, CF321,
+  CF385, and would have rerun CF408 despite their existing exact records.  The
+  status report based on that directory incorrectly changed the count from
+  9/13 to 6/13 and incorrectly described CF226 and CF249 as needing
+  recertification.  Both statements were false.  The redundant CF385 run was
+  stopped in its final sector at strip (34,22); no result from that incomplete
+  duplicate run replaces the established exact CF385 record.  No calculation
+  kernel remains active from this campaign.
+
+- Reusable calculation improvements completed before the stop:
+  - `FiniteFieldStripSolve.wl` now uses the first prime to determine the actual
+    epsilon interpolation degrees and reduces later-prime sampling accordingly,
+    with an automatic exact fallback to the full schedule.
+  - On the CF321 strip (15,1), the affine solves decrease from 96 to 60
+    (32 + 32 + 32 to 32 + 14 + 14), a 37.5% reduction, while the final
+    two-variable Pfaffian identities remain exact.
+  - `EpsFormStrip.wl` no longer repeats the same exact dlog identity check for
+    parallel CANONICA candidates; one parent-kernel exact check determines
+    acceptance.
+  - `t_finite_field_adaptive_sampling.wls`,
+    `t_finite_field_eps_form.wls`, `t_finite_field_strip_solve.wls`, and
+    `t_canonica_scheduler.wls` all returned their stated exact equalities.
+
+- Restart point: first repair the campaign inventory to recognize every exact
+  family record independent of producer, then calculate only CF231, CF265, and
+  CF305.  Do not rerun any of the ten completed families unless a specific
+  mathematical defect is demonstrated in its exact certificate.
+
+## 2026-08-20 (evening/night, 16:00-24:00) — certified family eps-form inventory; deep-rung benchmark; FF optimization opened
+
+- **The single ground-truth inventory now exists**:
+  `Results/UU_08_10_canonical/FamilyEpsFormsCertified/` (54 records +
+  `certification_report.wl`), every record RECOMPUTED from its differential
+  system by `CertifyFamilyEpsilonForm` — chart identities, both inverses,
+  gauge identity in both variables, source and transformed flatness,
+  eps-factorization, constant-residue dlog reconstruction. Census over all
+  91 families: 8 subkernels, 1628 s, zero unexpected failures. By
+  certificate: 1-root 31/31, 2-root 10/13, 0-root 15/44 (29 transport-only).
+  **Rule: a family listed Exact there is never re-solved.**
+- Two root causes explained every earlier false rejection: (i) CANONICA on
+  `$ContextPath` poisons every later bare `Get` (only the first family of a
+  batch certified) — the context-guarded `FamilyArtifactRead` is now
+  MANDATORY for reading any `.wl` artifact, and both CANONICA loaders
+  restore the path; (ii) sector-route records stored `TTotal` relative to
+  the assembled connection — the worker now composes the absolute
+  `diag(T_class) . S`, and nine existing records were upgraded from
+  checkpoints.
+- New module `FeynFacet/Private/FamilyEpsForm.wl`: artifact I/O
+  (`FamilyArtifactRead`/`Write`), schema normalizer
+  (`FamilyEpsilonFormRecord`; annotated block pairs, legacy chart alias),
+  and the certifier moved out of `ObservableTransport.wl`. Parallel driver
+  `Scripts/certify_family_epsform_parallel.wls` (1 main + <=8 subkernels;
+  concurrent MAIN kernels cause license refusals).
+- **Deep-rung benchmark, equal resources** (1 kernel, <=2 external cores,
+  fresh artifacts): the simultaneous finite-field affine solve completed all
+  three fixtures (CF48 10.7 s, CF254 (9,6) 1365 s, CF254 (9,7) 7254 s),
+  Maple only the small one (CF48 3.8 s; both CF254 blocks failed at ~6300 s).
+  Verdict: **finite field = production deep rung; Maple = small-system fast
+  path and cross-check.** Fixtures and records in `BenchmarkStripBackends/`.
+- Opus review of the four rung modules returned FIX, not rewrite; both
+  blockers repaired (a parallel-search bracket that discarded results, an
+  undefined `SymbolQ` guard) plus six majors.
+- FF optimization ladder opened on the frozen CF254 (9,6) oracle: M0 census
+  1399.5 s -> O1 (setup hoist) 1035.5 s. Milestones M0/M1/M2 and proposals
+  O1/O2/A2/A3/A4 split with Codex in `External/CodexExchange/`.
+- **Process failure, user-flagged**: a 28-family zero-root production batch
+  was launched without an explicit go and against the agreed sequencing
+  (optimize first). Stopped within minutes. Root cause: no plan-consistency
+  check at the probe->production escalation, and consent stitched from an
+  earlier discussion. Rule now in CLAUDE.md and memory: a production launch
+  needs an explicit go, a named plan step, and a stated cost in the launch
+  message.
+
+## 2026-08-21 — stage 1 rebuilt on the finite-field route; off-diagonal round-2 optimizations standardized
+
+Four blocks of work, all measured against frozen oracles. Nothing
+committed (user rule: commit only on request).
+
+### (00:00-01:00) M1 + O2: the off-diagonal solver, 5.6x
+
+CF254 (9,6), 1 kernel, identical exact gauge and residues at every step:
+M0 1399.5 -> O1 1035.5 -> **M1** (one constrained multi-RHS factorization
+from a pilot-discovered plan; 122/122 samples constrained, 0 discards)
+755.9 -> **O2a** (packed monomial tables, vectorized per-block row
+assembly) 443.6 -> **O2b** (symbolic {x,y,eps} forms once per block,
+mod-p reduction memoized per prime, per-sample eps-collapse) **249.7 s**.
+Per sample 10.8 -> 1.3 s. Record: `frozen_M0/{M1,O2}_acceptance_*.md`.
+
+### (02:00-04:20) Diagonal-block eps-forms on the finite-field route
+
+The hard-class stage-1 problem (irreducible 4x4 blocks, classes 97/77/79)
+became a package routine: `FeynFacet/Private/DiagonalBlockEpsForm.wl`.
+
+- The block equation `dT = A T - T (eps Sum R_a dlog phi_a)` is BILINEAR in
+  (T, R_a), so the off-diagonal affine sampler cannot be pointed at it.
+  **One spectator slice linearizes it**: Lee balances + Lee's factor-out
+  (Libra) on `y = y0` fix the constant residues of every x-dependent
+  letter; the x-equation is then a homogeneous LINEAR ODE in x at fixed
+  (y, eps) mod p (16(n_x+1) unknowns, nullity 1), with the y- and
+  eps-dependence recovered by nested rational interpolation, CRT and
+  rational reconstruction; the pure-y residues and the rational scalar
+  gauge are read off exactly from the y-direction. Acceptance is only the
+  exact two-variable gate in the ORIGINAL variables.
+- Denominator multiplicities from the integer parts of the local exponents
+  reproduced the certified denominators of all three classes exactly.
+- Results vs the certified 2026-08-16 forms as oracle (T_new = T_old . C
+  with C constant invertible, same letters, same residue spectra): class 79
+  13 min, class 97 4 min, class 77 41 min — against ~78 min hand-driven for
+  class 79 alone in August.
+- First attempt (bivariate ansatz, 1936 unknowns, 10 min/prime, 7 primes
+  without a lift) superseded and kept as evidence. Lesson: when a linear
+  PDE has a parameter direction, sample it and solve the ODE.
+- **Correction, caught by the watchdog from a `Set::wrsym` line**: probe and
+  test assigned the conjugator to the Protected symbol `C`, so the
+  "T equals T_old up to a constant" line was VACUOUS. Re-run with a plain
+  symbol (`Scripts/diagonal_block_epsform_oracle.wls`): all three
+  conjugators are x,y-free and invertible. Letters, spectra and the gate
+  were never affected. Rule: never assign to `C`, `D`, `E`, `I`, `K`, `N`, `O`.
+
+### (09:00-12:20) Standardization: benchmark first, then automate
+
+- **Engine benchmark, identical inputs** (ledger frame, 4 subkernels, the
+  170 classes other than the hard three): CANONICA 3125 s, 163/170 —
+  refuses the 1x1 classes 16/68/84 and the bilinear 115 in under a second,
+  caps out (3x300 s) on 26/33/118. Finite field 516 s but 149/170 — and
+  every miss was an INSTANT failure, i.e. a blind spot of the driver, not a
+  hard case. `Scripts/benchmark_diagonal_block_engines.wls`.
+- Those 21 misses drove the standardization: reducible slice directions
+  (variable swap, then SHEARED frames `w = s + lambda v` — a generic line
+  keeps the monodromy, and a shear along a root direction linearizes a
+  letter whose quadratic part factors); Lee normalization stalls
+  (regular-point balances for normalization too, plus a stall guard);
+  scalar blocks (direct dlog read-off, coefficient along a curve modulo q);
+  zero blocks; fast failure on half-integer exponents feeding an
+  **automatic chart retry** (the conic in both signs plus the
+  `TransportChartCatalog` charts, ordered by "pulled-back alphabet linear");
+  interpolation-degree reuse.
+- `DiagonalBlockClassCampaign` writes `CanonicalizeClasses`-schema records
+  (subkernel pool, optional CANONICA fallback, `ValidateCanonicalForm`
+  re-check). **173/173 certified from the raw (v,w) representatives with no
+  hints** (172 in 1843 s + class 77 alone 2950 s): 89 scalar, 83
+  finite-field, 1 zero; 24 charts found automatically.
+- Oracle vs the ledger: per-letter spectra identical and constant
+  conjugation on every same-variable class; the three hard classes are
+  identical to the Kallen-chart ledger forms after pulling the conic
+  t-chart back (`Scripts/diagonal_block_cross_chart_oracle.wls`).
+
+### (13:00-15:35) NumericalEps slice engine + canonical residue frame
+
+The Libra slice with eps SYMBOLIC was the last large cost (class 77:
+1547 s of 2950 s). Two observations removed it:
+
+- The slice only has to deliver the residue tuple **up to one constant
+  conjugation** (two normalized Fuchsian forms of the same one-variable
+  system at a fixed generic regulator value differ by a constant gauge).
+  So the whole Lee chain runs at **eps = 1/101 in Q(x)** — exact rational
+  arithmetic, nothing floating point: integer parts by rounding, no
+  factor-out step, Libra only for Poincare-rank-positive points (its
+  rank-positive branch is regulator-free; conventions read from Libra's
+  source). Class 79 slice 62 -> 1.5 s; class 77 1547 -> 1.8 s.
+- The numeric frame leaves powers of 101 in the residues (100-259 digit
+  entries), T inherits them and the solve needed >20 primes.
+  `diagonalBlockCanonicalFrame` conjugates into the frame spanned by
+  eigenvectors of SIMPLE eigenvalues of the residues (canonical up to
+  scale) and fixes the scales by a spanning tree: integer residues with
+  1-2 digit entries, and the solve lifts after 2 primes. (Echelon/Jordan
+  eigenspace bases are NOT frame-covariant and made heights worse.)
+- **Full campaign: 173/173 in 204.5 s wall** (1 main + 4 subkernels; dim 1
+  90 classes < 1 s, dim 2 71 classes 130 s, dim 3 6 classes 43 s, dim 4 6
+  classes 388 s), class 77 alone 189 s. Oracle-identical to the ledger
+  including the cross-chart check. Records `ClassFormsFF_numeric/`.
+
+### (15:30-16:20) A2/A3/A4: Codex's round-2 off-diagonal optimizations standardized
+
+Codex delivered three external prototypes with frozen-fixture evidence
+(`codex_ff_round2_handoff_assessment_2026-08-21.md`); all three are now in
+the package and re-accepted here against the O2b oracle.
+
+- **A3 (a-priori sparse support).** `finiteFieldStripPrepare` emits a
+  `SupportCensus`: from valuations it bounds the gauge-numerator total
+  degree by `denominatorTotalDegree + max(0, forcingInfinityDegree + 1)`
+  with a closure certificate. The sampler builds only the retained
+  `{px,py}` columns; the solver runs a shell-growth ladder with the full
+  rectangle as fallback. **(9,7) 2144 -> 1568 unknowns, (9,6) 728 -> 548**,
+  derived without opening the oracle.
+- **A2 (held-out regulator sampling)**, now the default: construction
+  prefix, all minimal-degree Pade splits retained, fresh held-outs reject
+  the wrong ones, a failed held-out is promoted into construction data, a
+  prime whose degree profile changed is rejected. The lift is taken first
+  WITHOUT the exact check and guarded by an **unseen-prime residual**.
+  **122 -> 70 regulator images.**
+- **A4 (FLINT backend).** Codex's adapter installed unchanged at
+  `FeynFacet/Backends/flint` (`build.sh` -> gitignored `bin/`; MANIFEST
+  records libflint 3.0.1, LGPL-2.1+). The constrained core with all RHS
+  goes to `nmod_mat_solve` when >= 256 wide; every imported solution is
+  re-verified in Wolfram by the existing all-row residual checks; absence
+  of the binary falls back to `LinearSolve`. Per-sample constrained solve
+  **4.9 -> 0.35 s** on (9,7).
+- **Acceptance** (gauge/residues/alphabet SameQ, exact residual zero):
+  CF254 (9,6) 249.7 -> **157.1 s**; CF254 (9,7) 7254 -> **1446 s (5.0x)**.
+  Per Codex's warning the three do not multiply: the remaining (9,7) cost
+  is the point/row BUILD (~14 s per sample, the O2 evaluator), not the
+  solve (0.35 s), interpolation (19 s), lift (2.4 s) or exact check (53 s).
+  **The build is the next lever.** Record `frozen_M0/A2A3A4_acceptance.md`.
+
+### Tests, process, environment
+
+- New: `Tests/t_diagonal_block_epsform.wls` (23 checks — synthetic KZ block
+  with an eps-dependent apparent locus, zero block, scalar block with a
+  bi-quadratic letter, reducible slice direction solved in another frame,
+  NumericalEps vs symbolic engine agreement) and
+  `Tests/t_finite_field_round2.wls` (11 checks — support census, sparse
+  probe, held-out solve exact/fewer images/agrees with deterministic, FLINT
+  matches Wolfram). Existing FF tests green;
+  `t_finite_field_adaptive_sampling` now pins
+  `"RegulatorSampling" -> "Deterministic"` because it asserts the fixed
+  pilot schedule.
+- Wolfram license: **two MAIN kernels in total on this machine**. While
+  Codex holds two, every wolframscript here fails with "product is not
+  activated" — that is a seat refusal, not a broken install.
+- Standing Opus watchdog (5-minute read-only rounds over a file-based
+  watchlist) caught the `Set::wrsym` defect and several process facts; its
+  liveness check is now `fuser` on the log file rather than a process-name
+  pattern.
+- Wolfram traps added to the record: `Return` inside `Do` exits the loop
+  only; `ParallelSubmit` HOLDS its arguments (inject values with `With`);
+  nested pure functions rebind `#1/#2` (use `Function[{a,b},...]`);
+  `CoefficientArrays` drops the linear part when every equation is
+  identically zero.
+- **Found while verifying the handoff (pre-existing, not fixed)**: all 94
+  exported symbols end the package load with NO usage message.
+  `FeynFacet.m` defines the usages before `Begin["`Private`"]`, then each
+  private file's `ClearAll[PublicSymbol, ...]` wipes them (ClearAll removes
+  messages too). `BuildBasis` from the earliest sessions is affected
+  identically, so this is long-standing and purely cosmetic — only
+  `?Symbol` documentation is lost. Fix (fifteen mechanical edits, left for
+  a session that can review and re-test): drop public symbols from the
+  private files' `ClearAll`, or move the usage block after the private-file
+  load. Recorded in `HANDOFF.md`.
+
+## 2026-08-21 (evening) — independent check of the A2/A3/A4 standardization
+
+- User asked for a check of the Opus-assisted standardization. Recomputed
+  from stored artifacts (record: `BenchmarkStripBackends/frozen_M0/
+  verification_2026-08-21/`): on CF254 (9,7) vs the frozen oracle and (9,6)
+  vs O2b AND the original M0 census, gauge/residues/alphabet are SameQ and
+  the exact Pfaffian residuals recomputed by independent code are zero;
+  FLINT was the backend on 70/70 samples, no discards. Held-out mechanics
+  probed directly at degrees up to (3,3)/(5,1): 4 -> 7 -> 10 images, correct
+  degrees, profile-change rejection, grow-on-shortfall, learned profile on a
+  second prime; the unseen-prime residual rejects corrupted lifts.
+  `t_finite_field_round2` 11/11. The reconstruction guard was relaxed the
+  honest way (explicit `CertificationMode -> "HeldOut"` carried into the
+  result), and the lift is support-aware. Open, not fixed: prime-width guard
+  missing in the O2 evaluator; degree-probe ladder wastes ~7 probes per
+  rejected offset; unseen-prime check is a silent no-op when the reserve
+  primes are in the prime list; suite test covers A2 only on a 1x1 block.
+- Family inventory re-read from `FamilyEpsFormsCertified/
+  certification_report.wl` and the root census: 91 families = 44 zero-root +
+  31 single-root + 13 two-root + 3 triple-root (CF259; CF300/CF303 share one
+  root triple). Two-root: 10 done, 3 open (CF231/CF265/CF305). CF385/CF408
+  are solved (exact 2026-08-20 records) but uncertified only for schema
+  reasons. The 37 "incomplete" = 29 zero-root + 3 two-root + 2 schema + 3
+  triple-root.
+- **Four open items fixed** (`FiniteFieldStripSolve.wl`; user request):
+  width guard `SampleEpsFormStripAffine::width` for primes >= 2^31 (sampler
+  and solver); degree-probe order via `finiteFieldStripProbeOrder` (shell 0,
+  rectangle, then intermediate shells — an inconsistent rectangle ends the
+  offset); reserve primes walked down from 2147483399 past the schedule and
+  the one used recorded as `"UnseenPrime"`; `t_finite_field_round2` extended
+  to 23 checks (held-out mechanics at (3,3)/(5,1), unseen-prime accept/reject
+  on the stored A4 artifacts, reserve outside schedule, width guard, probe
+  order). (9,6) acceptance re-run with the new order: 157.1 -> 140.9 s,
+  oracle-identical (`frozen_M0/verification_2026-08-21/probe_order_rerun/`).
+  Regression tests: the five other finite-field tests green. Note added to
+  `Backends/flint/build.sh`: the adapter uses the FLINT 3.0/3.1 `rows[]`
+  layout and will not compile against FLINT >= 3.2 without porting.
+- **Usage messages fixed** (user request). Measured first: the handoff's
+  "all 94 exported symbols lack usage" was wrong — `BuildBasis::usage` was
+  present and `Cut` kept `HoldAll`; exactly the 34 public symbols named in
+  nine private files' `ClearAll` lists lost theirs (DiagonalBlockEpsForm,
+  EpsFormStrip, FamilyEpsForm, FiniteFieldEpsForm, FiniteFieldStripSolve,
+  LibraEpsForm, ObservableTransport, Simplification, TransportCharts).
+  Those files now `Clear` the public symbols (drops definitions so a re-Get
+  stays clean; keeps messages, attributes, options) and `ClearAll` the
+  private ones. After load: 94/94 with usage, attributes/options unchanged.
+  New `Tests/t_usage_messages.wls`; the tests of the nine modules re-run
+  as regression tests (results below).
+  Regression batch after the usage fix (`t_usage_messages`,
+  `t_diagonal_block_epsform`, `t_family_epsform_module`,
+  `t_transport_chart_extension`, `t_observable_transport`,
+  `t_eps_form_strip`, `t_libra_family_eps_form`,
+  `t_physical_variable_coefficients`, `t_finite_field_round2`): 8 green,
+  `t_libra_family_eps_form` RED — verified pre-existing (identical failure
+  with the edit reverted). Root cause: `masterTransportChartBlockSpec`
+  gained a ninth argument (`coefficientField`, multiquadratic frame work,
+  MasterTransport.wl of 2026-08-20) and `TransportFamilyInChart` was
+  updated, but the call in `LibraEpsForm.wl` was not, so the chart route
+  of `LibraFamilyEpsForm` returned an unevaluated expression
+  (`ChartBlockCompositionFailed`) for every chart family. Fixed by passing
+  `Lookup[data, "CoefficientField", "Rational"]` as `TransportFamilyInChart`
+  does; test 4/4. No stored result carries that status (grep over Results,
+  WORKLOG, plan), and the 2026-08-19 two-root Libra runs predate the
+  change, so no verdict was contaminated. Logs:
+  `frozen_M0/verification_2026-08-21/usage_fix/`.
+
+## 2026-08-21 (late evening) — Codex epsilon-form audit: adopted with a scope correction
+
+- Codex (`External/CodexExchange/codex_epsform_stress_2026-08-21/`) found
+  three defects by adversarial examples: the diagonal gate accepted a
+  regulator-dependent letter (`x + eps`); `VerifyEpsFormStrip` accepted any
+  exact Pfaffian identity regardless of letter/residue structure; the
+  unseen-prime reserve was a bounded 65-prime window.
+- **Measured before adopting (text-level census, after a first Wolfram
+  check of mine was invalidated by the `Module`-local `eps = Global`eps`
+  self-assignment trap): EVERY deep-rung result on file — frozen (9,7),
+  M0/O2b/A2-A4 (9,6) and (9,7), CF48, finite-field and Maple — has
+  residues with `c/(a+eps)` factors.** CF254's certified family record
+  was built from exactly such strips (its StripSolvers list the FF route
+  and Codex's raw (9,6) lift): `family_epsform_sector.wls` uses only the
+  strip gauge, then runs CANONICA `TransformDlogToEpsForm` per sector, and
+  the family certifier asserts the epsilon form. So the rung's contract is
+  a DLOG FORM (letters eps-free, residues x,y-free, eps allowed in the
+  residues); Codex's `ConstantResidues` (eps-free) gate would have refused
+  the strips that built CF254. Recorded in CLAUDE.md.
+- Adopted: diagonal gate requires `LettersEpsFree` (checked: no class
+  record has an eps-dependent letter); `VerifyEpsFormStrip` structural
+  gate before the exact pass with `DLogFormCertified` (acceptance) and
+  `CanonicalEpsFormCertified` (eps-free residues, reported); typed
+  `ReconstructEpsFormStrip::dlog`; `InstallEpsFormStripSolution`
+  recomputes the two dlog conditions; `finiteFieldStripReservePrimes`
+  unbounded; solver stops with `::dlog` when a lift passes the unseen-prime
+  residual but is not a dlog form (more primes cannot help). Usage texts
+  updated; NumericalEps aliasing limit (|eigenvalue| >= 51) documented in
+  the module header, no code change (Codex's recommendation).
+- Tests: `t_finite_field_eps_form` rewritten (dlog-form acceptance of the
+  (9,6) lift, refusal of eps-letter / kinematic-residue variants before
+  the exact pass, benchmark lift reproduces the stored gauge; input record
+  copied into `Codex/TwoRootCF254Sector9Lower/` — no test reads `~/FACET`
+  any more); `t_finite_field_strip_solve` (installation positive, two
+  refusals); `t_diagonal_block_epsform` 25/25. Reply to Codex:
+  `External/CodexExchange/fable_epsform_audit_reply_2026-08-21.md`.
+
+## 2026-08-22 (00:00-02:00) — parallel architecture, method benchmark, dim-3 defect, finite-field-first route
+
+- **Two-root campaign (user go 23:00) launched 23:10 as 3 pool missions
+  and STOPPED 23:21 by user order** ("fix the parallel problem, we need it
+  really working; first test our strategy"). Measured: Wolfram forbids
+  parallelism in subkernels (`LaunchKernels::subnopar`) and the licence
+  grants exactly two main kernels (third refused). **Task broker built**
+  (`FeynFacet/Private/TaskBroker.wl`, `Design/KernelPool.md`): a family
+  mission on a pool subkernel submits its finite-field sample batches and
+  CANONICA degrees 1-3 as tasks into the same pool; the main dispatches them
+  to free subkernels; helpers cache record/preparation/CANONICA; failed tasks
+  recomputed locally. Driver `Scripts/family_epsform_pool.sh <out> <pool> <N>
+  <families>` (N subkernels = the option; families <= N-2 in flight;
+  certification per family). Pool loop 3 -> 1 s. Measured CF254 (9,7), 3
+  helpers: 446 -> 357 s, oracle-identical; CANONICA ladder 180 -> 97 s.
+  Corrected numbers: serial (9,7) is 446 s on a quiet machine (the 1446 s
+  acceptance figure was under 4-worker contention, pre probe-order fix).
+- **Off-diagonal block method benchmark** (`BenchmarkStripBackends/
+  StripMethods_2026-08-21/summary.md`): 20 real blocks x {CANONICA ladder,
+  Maple, finite field}, each alone on one kernel, all results independently
+  dlog-certified. Finite field 20/20 in 872 s; CANONICA 15/20 in 2790 s and
+  3-130x slower where both solve; Maple 13/20, never faster, fails on every
+  hard block (cancelled at 1200 s; 08-20: fails after 6300 s). **Route
+  changed** in `family_epsform_sector.wls` (FACET_STRIP_ROUTE, default
+  FiniteFieldFirst): dlog recognition -> finite field -> CANONICA/Maple as
+  the last fallback; `SolveEpsFormStrip` accepts an empty degree list
+  (recognition only). End-to-end on CF34 through the pool driver: solved 6 s,
+  certified 0.4 s.
+- **Defect found by the benchmark and fixed**: `maximumExponents` matched a
+  row of three {numerator, denominator} pairs as a monomial table whenever a
+  block has dimension 3 and read coefficient residues as exponents: power
+  tables of p-1 entries per point (9 s per sample on the 48-unknown CF254
+  (12,11), kernel death by memory at 31-bit primes). Leaf-level pattern now;
+  (12,11): 0.17 s per sample, solve 1.5 s. Regression checks in
+  `t_finite_field_round2` (25/25). CF231/CF254 each carry a dim-3 block.
+- **Driver defect**: the wave loop of `family_epsform_pool.sh` kept running
+  after the last family finished (empty-array expansion under set -u) --
+  10 minutes lost; fixed. User correction recorded: the Opus watchdog is
+  mandatory for any background compute (`Design/Watchdog.md`, CLAUDE.md
+  "Long runs", `Scripts/watchdog_register.sh`); a bash Monitor is not a
+  substitute. Terminology slip corrected: "off-diagonal block (k,j)", never
+  "strip", in prose.
+- **Blockwise Libra route re-read** (Codex `~/FACET/Codex/General/
+  LibraTwoRootBlockwise_20260819`, our `Scripts/libra_saved_blockwise_epsform.wls`
+  + `libra_checkpoint_factor_dependence.wls`): per pair (i,j) with a nonzero
+  coupling, Libra `FuchsifyBlock` on the LOCAL two-block subsystem (balances,
+  no gauge ansatz), embedded into the family; then ONE global Libra
+  `FactorDependence` on the residue matrices; then CANONICA dlog. Solved
+  CF232/236/240/319/321/385/408 in 1-6 min per family (local Fuchsification
+  61-287 s for 17-84 pairs; factorization 3-50 s). Failed on exactly the
+  hard classes: `FuchsifyBlock` TimedOut (1200 s) at the FIRST hard pair
+  (CF231/CF305 (8,7); CF254 (9,8); CF265 (14,13)); nothing after was tried.
+  The finite-field affine solve takes exactly that pair's data (e, c,
+  coupling) as input, and `libra_resume_blockwise_checkpoint.wls` already
+  resumes Libra after an exact off-diagonal gauge -> the hybrid ladder
+  (Libra blockwise with a short budget -> finite field for the pairs that
+  time out -> FactorDependence -> dlog -> family certificate) is the
+  candidate production route for the three open families.
+
+## 2026-08-22 (02:00-03:00) — checks separated from the calculation; assembly and sampler optimizations
+
+User decisions (saved to memory): core limit 4 tonight, no campaign; the
+three open two-root families run in the day; "checks shouldn't be written
+into the calculation -- one test of the final family result; fine-grained
+checks are for development"; a numerical per-block Pfaffian check is fine;
+the C build may use 16 cores.
+
+- **Assembly profiled** (CF254, dim 23, `TransportFamilyInChart` AssemblyOnly,
+  626 s): chart pullback 91 s, class-form pullback 41 s (block 12 = class 77,
+  40 s), conjugation through diag(T) 49 s -- and 446 s of exact identities
+  (source curvature, per-block inverses, diagonal-equals-declared-form, and
+  361 s for the curvature of the conjugated 23x23 connection).
+- **Check level** `FACET_CHECK_LEVEL` (Development default; Production is the
+  pool driver's default): `masterTransportAssemble`/`PullBackSystem` evaluate
+  their guards exactly at random rational points (`masterTransportPointZeroQ`)
+  and take flat(A') from gauge covariance; `VerifyEpsFormStrip` gained
+  "Method" -> "Numerical" (Pfaffian residuals at random rational points, ~1 s);
+  `SolveEpsFormStripFiniteField` "FinalCheck" -> "Numerical" accepts a lift on
+  the unseen-prime residual + numerical residuals + dlog structure and
+  records "Certificate" -> "NumericalResidual" with ExactDLog deferred; the
+  sector script skips its per-sector identities (the former `stageGauge`
+  recomputed the expression defining its own input -- vacuous) and its
+  own family gate, writing "CandidateEpsilonForm" for the certifier; the
+  exact statement is `CertifyFamilyEpsilonForm`, run by the driver.
+  Measured: CF254 assembly 610.5 -> 97.9 s, identical connection and
+  inverses; block solves with the numerical final check, gauge/residues
+  SameQ to the oracles: (9,6) 141 -> 69.5 s, (9,7) 446 -> 368 s (before the
+  sampler change below). Test `Tests/t_check_levels.wls` (10 checks).
+- **Sampler restructured**: the residue columns were built from the tensor
+  of forcing coefficients (alphabet x upper x lower x 2 x upper x lower,
+  zero except one entry per triple: 6656 rational evaluations per point on
+  (9,7)); now the alphabet x 2 dlog forms are evaluated once per point and
+  scattered into the residue columns. Bit-identical systems (rank, nullity,
+  particular and nullspace hashes on (9,6), (9,7), (12,11)); build per
+  50-point sample on (9,7) 20.7 -> 5.9 s on an E-core.
+- Regression batch (21 tests) running on a 3-subkernel pool with the watchdog;
+  end-to-end production run of CF34 through the pool driver to follow.
+- **Results of the night (03:00-04:00)**:
+  - Regression batch on the pool: 18/21 OK; `t_finite_field_preparation`
+    and `t_transport_chart_extension` failed ONLY on reused subkernels and
+    pass standalone (tests assume a clean Global` context) -> KernelPool
+    `fresh_*` missions (subkernel closed and relaunched after the mission)
+    + `Scripts/run_tests_pool.sh`; `t_chart_transport` failed standalone
+    too: its T2c called `masterTransportChartBlockSpec` with eight
+    arguments (the same stale call as LibraEpsForm.wl's, red since
+    2026-08-20); fixed -> 29/29.
+  - End-to-end production run (CF34 through `family_epsform_pool.sh`,
+    `FACET_CHECK_LEVEL=Production`): candidate record in 6 s, certified
+    exact by `CertifyFamilyEpsilonForm` in 0.3 s, driver exit 0.
+  - A/B of the sampler on identical (9,7) samples in one kernel: build
+    15 s -> 2.9 s per sample (5x), solutions identical. Full (9,7) solve
+    in a POOL SUBKERNEL with the numerical final check: **187 s** (per
+    prime 13-16 s, sampling 105 s, interpolation 19.5 s, lift 2.5 s,
+    numerical check 2 s) against 446 s at 23:47 and 1446 s in the frozen
+    acceptance; gauge/residues SameQ to the oracle.
+  - Open measurement: the same builds run ~3x slower in a `wolframscript`
+    MAIN kernel than in a pool subkernel (A/B 2.9 s vs ~1.0 s per sample;
+    not $HistoryLength; cause unknown). Production and all benchmarks run
+    as pool missions; main-kernel timings (incl. the method benchmark
+    table) are valid as ratios only.
+  - C build decision: sampling is now 105 of 187 s on the hardest block;
+    a C row build would give ~1.7x more on such blocks (not 3-5x) -- worth
+    doing later, not tonight; 16 cores authorized for it.
+- **Full suite on the pool (04:00-04:13)**: 47 tests, fresh subkernel per
+  test, 3 subkernels, 13 min 24 s: 44 OK. Non-OK, all explained:
+  `t_canonica_scheduler` launches its own subkernels (impossible inside a
+  pool subkernel; passes standalone), `t_reconstruction_ghost` asserts a
+  FireFly wall-time baseline (25 s vs 18.8 s under load; its exact
+  agreement assertions pass), `t_wolfram_traps` pre-existing (2/10 pin a
+  Libra symptom that no longer reproduces). A first attempt corrupted 7 of
+  34 results through a race in the new fresh_* mechanism (the Parallel
+  scheduler reused a just-freed kernel 1 s before the server closed it);
+  fixed: a fresh mission writes its record to `running/<name>.kernel.result`
+  and blocks its kernel until closed, a persistent claim under
+  `running/claims/` makes re-runs of orphaned evaluations return DUPLICATE,
+  and a mission whose kernel vanishes is requeued once (was filed
+  KERNELLOST). Re-test clean (no KERNELLOST/FILEGONE/rotated logs).
+
+## 2026-08-22 09:56 PDT — day run of the three open two-root families (Fable)
+
+User go ("Now on 8 subkernels, run the 3 unresolved 2 roots; let there be
+watchdog and reasonable time to finish"). Launched
+`Scripts/family_epsform_pool.sh` with one main (the KernelPool) + 8
+subkernels on the P-cores, families CF231/CF305/CF265 in parallel (3 busy,
+5 helpers for the task broker), finite-field-first route, production check
+level, certification into `FamilyEpsFormsCertified/` per family.
+Output: `FamilyEpsFormsSolving/tworoot_2026-08-22/` (driver.log,
+campaign_status.tsv, <CF>/run.log); pool in the session scratchpad
+`dayrun_pool/`. Opus watchdog spawned in the same turn (watchlist
+`scratchpad/watchdog_dayrun/`). `tworoot_status.py` priors re-based to the
+08-22 pipeline (assembly 180 s, small sector 30 s, large 60 s per lower
+sector, finish 300 s); first prior-based ETA 11:03 for all three.
+
+### 10:16 — attempt 1 stopped: task broker never engaged
+
+User observation: CPU ~16 %, only the three family kernels busy. Cause:
+`brokerQ` compared the pilot's seconds PER SAMPLE (about 1 s on these
+blocks after the sampler fix) with `BrokerMinimumSeconds` = 1.5, so every
+prime (32 regulator values, 35-65 s) ran on the family's own subkernel and
+the five helpers idled; CF231 spent 20 min on one block of sector 8.
+Fixes (FeynFacet/Private/FiniteFieldStripSolve.wl, TaskBroker.wl):
+- the broker decision uses one prime's worth of samples on one kernel
+  (pilot seconds × regulator schedule ≥ `BrokerMinimumSeconds`, now 8 s);
+- `taskBrokerRun` split into `taskBrokerSubmit` + `taskBrokerCollect`;
+  `taskBrokerSampleBatch` farms `free` shares and computes the last share
+  on the mission kernel itself (it idled before); with no free helper it
+  computes locally instead of queueing; collect polls every 0.25 s;
+- `taskBrokerFreeKernels` reports 0 when the pool is saturated.
+- `Scripts/tworoot_status.py`: sector-done count tolerates the pool's
+  wrapped Print lines (was a crash).
+Attempt 1 archived as `tworoot_2026-08-22_attempt1_brokeroff` (no family
+record produced; CF231 sector 8/12, CF305 8/19, CF265 14/19 at 22 min).
+Second finding during validation on the (9,7) fixture (pool of 8): the
+pilot's `SamplingSeconds` is the row build only (0.24 s after the sampler
+fix); the modular solve now dominates a sample (~1.5 s), so the decision
+uses the pilot's whole wall time minus plan discovery and nullspace
+(`PlanDiscoverySeconds` added to the sample record). Validation
+(`brokerfix97c`): gauge and residues `SameQ` to the frozen oracle, dlog
+certified; held-out round per prime 14-16 s -> 7-10 s on 5 shares (4 helper
+tasks + the mission kernel), sampling stage 107 -> 70 s.
+
+### 10:35 — attempt 2 launched (same command, pool `dayrun_pool2`)
+First block of CF231: "Broker decision ... -> True", `[broker] ff1000003: 3
+tasks, 3 results, 8.1 s`; helpers busy. Watchdog respawned on the attempt-2
+watchlist (`scratchpad/watchdog_dayrun2/`).
+
+### 10:54 — watchdog anomaly: CF231 and CF305 lose block (8,7) to the fallback
+
+Both families: every prime validated on held-out regulator values, yet
+`SolveEpsFormStripFiniteField::failed` after 11 primes, a wasted full
+regulator-schedule repeat (8 min), then the CANONICA/Maple fallback.
+Offline diagnosis on the saved per-prime records of CF231 (8,7)
+(`scratchpad/lift_diag_cf231_87.wls`; 11 primes, 1568 coordinates, 19532
+coefficients): normalization columns and degree patterns identical across
+primes; lift fails with `ReconstructEpsFormStrip::modulus` (quieted in the
+solver, hence the silent log); 1166 coefficients reconstruct to the same
+19-34-digit rationals at 10 and 11 primes, ~3100 "reconstruct" to 49-50
+digit rationals = the reconstruction bound of 11 × 31-bit primes, and the
+failure count does not fall with the prime count: the coefficients are
+taller than the modulus allows, the ansatz is right.
+Fix (FiniteFieldStripSolve.wl): option `"MaximumPrimeCount"` (40): the
+configured primes are extended with reserve primes (first reserve prime
+stays the unseen one) while the lift is modulus-limited; the lift's
+failure reason is logged ("Lift after k primes: combined modulus too small
+... (bound ~N digits)"); a modulus-limited failure no longer triggers the
+full-schedule retry. Offline validation started 11:02 on the saved 11
+primes + extension (`scratchpad/ext87/run.log`, standalone kernel on
+E-cores, campaign untouched).
+
+### 11:07 — attempt 3 launched (pool `dayrun_pool3`)
+User decisions mid-run: CANONICA/Maple removed from the automatic loop
+(`family_epsform_sector.wls`, finite-field-first route: an unsolved block
+ends the family with exit 2 and the block record; CANONICA/Maple are
+manual tools). Attempt 2 archived as `tworoot_2026-08-22_attempt2_modulus`
+(CF265 had reached sector 14/19; CF231/CF305 were in the fallback on
+(8,7)). The offline extension run (153 s per prime on a standalone kernel
+on E-cores, 6x slower than the pool) was stopped at 12 primes once the
+mechanism was seen working; the campaign does the same sampling at ~25 s
+per prime. Watchdog respawned (`scratchpad/watchdog_dayrun3/`). Expected
+finish 12:30-13:00.
+
+### 12:00-12:50 — results of attempt 3 so far
+- **CF231 certified** (`FamilyEpsFormsCertified/family_epsform_CF231.wl`,
+  exact=True, solve 2703 s, certificate 456 s). Block (8,7) closed at 15
+  primes (bound ~69 digits).
+- **CF305 failed at block (18,15)** (sector 18/19, 62/69 blocks solved,
+  state in `CF305/sector_state_CF305_standard.wl`, block record
+  `CF305_18_15_unsolved.wl`). Not a prime budget: the degree probe is
+  inconsistent at every offset (0 primes spent). Structural cause: the
+  forcing carries 1/(1+4 eps), a regulator resonance from sector 18's
+  diagonal eps-form. Offline tests on the saved block
+  (`scratchpad/cf305_1815/`): denominator widened to all 11 letters
+  (new optional record key `GaugeDenominatorFactor`, fingerprinted) still
+  inconsistent at offsets ≤ (2,2); offsets (4,4)-(8,8) give a consistent
+  probe and a stable lift (7-digit integers, eps/(1+4 eps) dependence,
+  stable 10-40 primes) that FAILS the exact and numerical Pfaffian
+  identities: a fit at the sampled points only (ansatz outran the point
+  budget; the unseen-prime residual rejected it in the run). Conclusion:
+  no rational gauge within the block alphabet with the diagonal blocks
+  fixed; remedy is upstream (sector-18 class basis without the resonance
+  factor, or a new letter) or manual CANONICA/Maple — user decision.
+- CF265 running, sector 15/19 at 12:50 (its hard block (15,11) closed at
+  offset (0,2)); watchdog re-armed.
+- Lost ~12 min of diagnosis to a standalone kernel that survived `kill`
+  (only `kill -9` of the whole wolframscript tree freed the licence).
+
+### 13:00-13:30 — CF305 block (18,15): general solution; solver defect found and fixed
+
+User: "for 305's stuck block, try to find a general solution and update
+our package."  Done as an order-by-order obstruction analysis in the
+regulator, now a package function, which then exposed a solver defect.
+
+**`EpsFormStripObstruction[record]`** (new, `FeynFacet/Private/
+EpsFormStripObstruction.wl`, usage in FeynFacet.m, `Tests/
+t_epsform_obstruction.wls` 7/7): with D = Σ eps^k D_k and the block
+equation dD = eps(eD − Dc) + bbar − eps Σ K_a dlog L_a, the order-k form
+w_k = Σ_m (e_m D_{k−1−m} − D_{k−1−m} c_m) + B_k is closed and rational;
+it is d(rational) + Σ c_L dlog L with constant c_L iff its residue along
+every polar curve is constant (exact one-variable residues on transverse
+rational lines at every root, RootReduce-compared; points where another
+polar curve vanishes are excluded — a line through such a point gave a
+false "non-constant residue" in the first hand calculation, retracted).
+Verdicts: MissingLetters (curve outside the alphabet with nonzero
+constant residue; the sector script now supplies it as "ExtraLetters"
+and repeats the solve once), NonConstantResidue (proof that no rational
+gauge exists with the present diagonal forms — the pair needs the
+blockwise Libra balances), PrimitiveNotRational, NotClosed, or
+NoObstructionToOrder n with the gauge series and its numerator degrees.
+Starts at order 0 (eps^0 forcing allowed, residues must then vanish) and
+accepts eps-dependent e, c.  Option "Alphabet" overrides the letters.
+
+**CF305 (18,15)**: clean to order 10 in 5 s; D_k numerator total degree
+9 for all k, A3 denominator; residues geometric, D_k/D_{k−1} = −4 for
+k ≥ 2, so D = eps D_1/(1+4 eps) and K_L rational with the (1+4 eps) pole
+— an exact rational gauge of exactly the assumed shape, verified with
+VerifyEpsFormStrip "Exact" (Pfaffian residuals zero, dlog certified).
+
+**Solver defect** (`finiteFieldStripSupport`): the certified support was
+the bidegree rectangle (denominator degrees + offset ≤ 2 per variable)
+intersected with the total-degree simplex.  This block's numerator
+(D_1's numerator times the cubic the common A3 denominator adds) has
+x-degree 6 with denominator x-degree 3 — total degree 12 = the valuation
+bound, so allowed — and every rectangle probe up to offset (2,2) was
+"inconsistent".  Fix: certified support = the whole total-degree simplex
+(bound + shell); shell 0 always probed first; power tables sized by the
+support; the unseen-prime residual uses the lift's recorded
+"GaugeSupport".  Result: (18,15) solves in 7.3 s at offset (0,0), shell
+0 (91 monomials), 3 primes, exact dlog certified, eps-free residues.
+Regression: t_finite_field_round2 25/25 (Support124 → Support136 and the
+596-unknown probe count are the intended new values), t_finite_field_
+strip_solve and t_finite_field_eps_form green.  Sector script: on a
+finite-field failure the certificate is computed (900 s cap), logged,
+stored in the `_unsolved.wl` record ("ObstructionCertificate").
+Earlier widened-denominator/big-offset experiments (`scratchpad/
+cf305_1815/`) are superseded: their "consistent" probes were
+underdetermined fits, correctly rejected by the unseen-prime residual.
+
+Run state: CF265 alive, sector 16/19, inside CANONICA
+TransformDlogToEpsForm (1800 s budget) since 12:58 — that per-sector
+CANONICA step (and the 30 s complete-sector attempt) are still in the
+loop; user to decide.  Four helper subkernels released for Codex (kill
+of idle subkernels; pool keeps serving with 4; a second main launches 4).
+CF305 rerun with the fixed solver needs a pool restart (old code in the
+running subkernels) or the second main; resumes from its sector state.
+
+### 14:30-17:00 — CF305 and CF265 solved and certified; the final check rewritten
+
+**Runs.** CF305 resumed at sector 18 (pool, 8 subkernels, CPU list 0-19):
+(18,15) closed at once (support learning 55/91), sectors 18-19 done by
+15:02, family regulator factorization, record written 15:04 (1904 s).
+CF265: the resumed run failed at (18,16) three times before the causes
+were found and fixed (see below), then ran standalone in 782 s (sector
+19 in seconds per block, family factorization 132 s).  Both records
+re-written at 16:50 with the recovered block order (see bug 3) and
+**certified exact at 16:53, 17.8 s each**.  All three open two-root
+families are now in `FamilyEpsFormsCertified/`.
+
+**Bugs found and fixed today after the launch.**
+1. A block accepted as "AlreadyDLog" may carry an eps^0 residue (CF265
+   (17,16)); no rational gauge removes it and it poisons the next row's
+   forcing ((18,16): every probe inconsistent, obstruction certificate
+   "NotClosed").  Fix: `factorTruncated` in the sector script —
+   `FactorFamilyRegulatorDependence` on the truncated connection
+   (rows 1..k) after each completed row and at resume (50 s on 30x30).
+2. Strip checkpoints and per-prime artifacts of a block computed before
+   a transformation were reused: checkpoints now carry a hash of the
+   connection they were built on ("ConnectionHash"), stale per-prime
+   artifacts are ignored and overwritten (they aborted the solve before).
+3. A resumed run wrote the record's "Blocks" in class-assignment order
+   while the cached OriginalA/Ranges are in the assembly's order → the
+   certificate permuted the source wrongly (CF305/CF265 "GaugeIdentity
+   False" with every block nonzero).  The state now caches "Blocks"; an
+   old state recomputes the assembly and verifies it against the cached
+   connection at random points before recovering the order.
+4. Per-sector CANONICA removed from the loop (user decision): the
+   complete-sector attempt and `TransformDlogToEpsForm` (1800 s per
+   sector, zero gain on CF265 sector 16) are gone; the residues'
+   regulator dependence is removed by `FactorFamilyRegulatorDependence`
+   (Libra FactorDependence on exact rational samples, symbolic identity
+   as acceptance; `Tests/t_family_regulator_factor.wls` 7/7).
+
+**Final check rewritten** (`FeynFacet/Private/FamilyCertificateModular.wl`,
+default `"IdentityMethod" -> "Modular"` of CertifyFamilyEpsilonForm;
+"RandomPoints" (exact rationals) and "Symbolic" kept): every matrix entry
+compiled once into integer coefficient/exponent arrays; all identities
+(inverse, gauge, flatness, eps-factorization e2 A(e1) = e1 A(e2), dlog with
+constant residues by one modular solve per prime, source flatness)
+evaluated at 12 random points modulo 3 random 24-bit primes with power
+tables and packed dot products; derivatives on the coefficient data; the
+chart connection by the chain rule at the mapped point (no symbolic
+pull-back); Schwartz-Zippel degree bound, primes, points and the failure
+probability recorded in the certificate (CF231 4.6e-77, CF305 1.7e-65,
+CF265 6.8e-68).  Times: CF231 456 s → 10 s (same verdict as the symbolic
+certificate of 12:00), CF305/CF265 (32x32) >60 min unfinished → 17.8 s.
+`Tests/t_family_certificate_modular.wls` 8/8 (corrupted transformation and
+corrupted eps-form rejected at the right checks); t_certify_family_
+epsilon_form, t_exact_family_epsilon_form_q, t_family_epsform_module green
+with the new default.
+
+**Benchmarks** (`BenchmarkStripBackends/SupportStrategy_2026-08-22/`):
+simplex vs sparse support on 27 blocks (sparse wins only on the (8,7)
+class, 770 vs 1180 s; simplex wins or ties elsewhere and the sparse
+ladder did not finish (15,11) in 26 min); simplex + support learning on
+the 7 hardest: (8,7) 817 s, (15,11) 984 s, (15,14) 252 s — the production
+setting (`SupportStrategy` "SimplexFirst", `SupportLearning` True).
+
+### 18:05-19:00 — final checker hardened after Codex's adversarial review; stress on all cores
+
+Codex's assessment (`External/CodexExchange/codex_final_checker_stress_
+2026-08-22/`): five P0 (empty alphabet accepted; uncombined sums lose
+letters; dlog rank recorded but not gated; residue reconstruction not
+gating and not sticky; degree bound underestimated — no source-flatness
+term), P1 (fitted points reused as validation; duplicate primes;
+bad-characteristic term absent from the bound), P2 (union multiplier,
+e2 = e1, no replay data, no overflow guard).  Why missed: tests were real
+records plus natural corruptions, not adversarial inputs per check; checks
+initialised True; diagnostics not gated; aggregate degree formula; no
+held-out validation.  All fixed (`FamilyCertificateModular.wl` rewritten:
+Together before compile and letter extraction; checks start False; full-
+rank training then fresh validation points; rank-deficient primes
+discarded; CRT residues across primes, reconstructed and verified at every
+prime, adaptive prime count with dlog-only extra trials (CF231's residues
+reach 101 digits: 33 primes); per-identity degree propagation; separate
+error terms `IdentityErrorBoundIdentities`/`...DLog`/`...GoodCharacteristic`,
+`Probabilistic -> True`; characteristic-zero guard point for inverse,
+gauge, flatness, eps-factorization and the dlog identity with the exact
+residues; distinct primes, e2 != e1, seed/points recorded, p^2*terms <
+2^62).  One self-inflicted hang found by Codex's forced-prime fixture (the
+adaptive loop spun when no new prime could be drawn) fixed.
+Stress (two lanes on all cores): Codex adversarial suite — 4 controls OK,
+all 8 EXPOSE exploits closed; real suite — CF265/CF305 certify (42/79 s);
+`t_family_certificate_modular` 15/15; certificate tests green; CF231/CF265/
+CF305 re-certified exact.  Reply note: `External/CodexExchange/
+fable_final_check_2026-08-22/fable_reply_to_checker_assessment_2026-08-22.md`.
+Finding for the physics: CF231's residues are up to 101 digits (basis
+normalization from CANONICA's per-sector constant transformations) —
+flagged as a quality issue before transport.
+
+### 19:01 — zero-root campaign launched
+29 families (CF12 CF16 CF34 CF67 CF71 CF123 CF198 CF199 CF201 CF204 CF207
+CF209 CF211 CF213 CF215 CF217 CF218 CF262 CF263 CF267 CF269 CF301 CF308
+CF311 CF360 CF390 CF393 CF404 CF415; dims 4-23) on a fresh 8-subkernel pool,
+CPU list 0-19, 6 families at once, finite-field-first, production check
+level, modular certificate per family.  Output `FamilyEpsFormsSolving/
+zeroroot_2026-08-22/`, pool `scratchpad/zeroroot_pool/`, watchdog
+`scratchpad/watchdog_zeroroot/`.
+
+### 19:01-19:24 — zero-root campaign: 29/29 certified; three more solver defects found and fixed
+
+Pass 1 (pool, 8 subkernels, all cores): 21 certified in ~3 min (seconds
+per family), 6 `solve-failed`, 2 hung.  Causes, all in the solver, all
+fixed:
+1. CF67: support learning shrank a support valid at the pilot point but
+   inconsistent at other regulator values ("SamplesInvalid") — the
+   learned-support pass now falls back to the full certified support
+   (`$finiteFieldLearningPass`, fallback in SolveEpsFormStripFiniteField).
+2. CF209/211/213/217/311: `PlanNormalizationDiscoveryFailed` →
+   `NormalizationInvalid` — the affine freedom contained pure constant-
+   gauge directions (e and c sharing eigenstructure) that residue columns
+   cannot fix; `finiteFieldStripNormalizationColumns` now takes residue
+   columns first and extends with gauge columns (plan discovery and both
+   interpolation paths).  The obstruction module no longer calls nonzero
+   order-0 residues an obstruction (they are a regulator pole in the
+   residues, absorbed by the sector-level factorization; recorded as
+   `RegulatorPoleResidues`).
+3. CF215/CF360 hung 15 min at full CPU in the "already dlog" recognition
+   step (CANONICA's checker on a 2x2 block) — recognition removed from
+   the finite-field-first route; the finite-field solve finds the trivial
+   gauge in seconds.
+Also found: an earlier global replace had put the solver's output keys
+(ProbeCount, DegreeProbe, SelectedSupportKind) into fullRetry's option
+list and the per-prime artifact record; cleaned.
+Pass 2 (fresh pool): CF209/211/213/215/217/360 certified in seconds;
+CF67 (learning fallback) and CF311 (resumed from its sector-17 checkpoint
+after I stopped the pool too early) certified standalone.
+**Inventory: 86 of 91 families certified.**  Open: CF385/CF408 (solved,
+blockwise schema adapter), CF259/CF300/CF303 (triple-root).
+
+### 19:29-22:10 — CF385/CF408 certified; the 40-master scaling wall found and removed; adversarial solver test
+
+Mistake first: CF385/CF408 had been solved on 08-19/20 (blockwise
+Libra records, final results per the 08-21 note) and I re-solved them
+from scratch — the same redundant run the worklog had already recorded
+once.  The reruns then hit a scaling wall at ~40 masters: CF385 twice
+allocated >30 GB within a minute of finishing a sector, the first time
+taking the WSL VM down (restart 21:11); I also restarted CF385 on the
+second main licence and cores 0-9 while Codex/GPT needed them (user
+correction; resource rule from now: one main + half the CPUs for them,
+pools with 4 subkernels).  Per the user's direction the point was the
+package, not the result, so the wall was traced with a synchronous
+memory trace (`FACET_MEMTRACE`; stdout of wolframscript is block-
+buffered, so log lines cannot date a blowup):
+1. CANONICA's `TransformDE` in the sector completion (dead since the
+   per-sector TransformDlogToEpsForm was removed) — removed.
+2. The sector completion inverted the full n x n gauge symbolically and
+   Together'd n^3 products; CANONICA's `NextEquationD` did the same work
+   per block — replaced by blockwise formulas (T = 1 + D, T^-1 = 1 - D,
+   A' = A + A D - D A - dD; S' = S + S D; block equation bbar = A_kj -
+   Sum_m D_km A_mj): sector 33 of CF385 applied in 7 s, sector 34's 33
+   blocks in 90 s at 0.4 GB.  CANONICA is now out of the loop entirely
+   (kept as a library for letters).
+3. Products with the constant T(eps) of the regulator factorization
+   (`familyRegulatorConjugate`/`familyRegulatorSparseDot`): entry by
+   entry over T's nonzero pattern instead of the dense triple Dot.
+4. **The actual 30 GB consumer**: the per-sector census `badStrips` used
+   `zeroQ` = `masterTransportZeroMatQ`, which falls through to `Simplify`
+   on every nonzero entry (hundreds of ~300 KB rational functions per
+   sector on a 44-master family).  For rational entries `Together === 0`
+   is complete; replaced.  CF385 then finished from its sector-34 state
+   in 6 s, certified exact in 33 s (peak 0.3 GB); CF408 sectors 27-29 in
+   7 min at 0.76 GB (the old code: 18+ min and 22 GB for sector 27
+   alone), certified exact in 31 s.  Also: regulator values at a pole of
+   the forcing are now discarded (CF408 (7,4), CF385 (19,10)).
+**88 of 91 families certified**; open: the triple-root CF259/CF300/
+CF303 (GPT/Codex exploring with their main + 4 subkernels).
+Adversarial solver test `Tests/t_finite_field_adversarial.wls` (13
+checks: tall residues, off-rectangle numerator, eps^0 dlog part, equal
+diagonal blocks, pilot-point support shrink, poles at schedule values,
+resonance residues, an eps-dependent letter that must be rejected, the
+trivial block's speed) 13/13, every constructed block solved in < 1 s.
+`Scripts/adapt_blockwise_record.wls` (composition of the 08-20 blockwise
+records into the standard schema + certificate) written but unused: the
+package now solves these families itself.
+
+## 2026-08-22 (22:30-23:10) — per-sector regulator factorization: need established, cost cut 8x; Libra-vs-finite-field speed test opened
+
+User: keep the per-sector regulator factorization only where needed;
+then a speed test of the blockwise Libra route against the finite-field
+sector route from the existing time records (no finite-field reruns).
+
+- **Need.** The trigger (`factorTruncated`: skip when the truncation is
+  already eps-factored) fires at every sector from the first completed
+  row on (CF385 sectors 19-34, CF408 sectors 7-29), because every new
+  row carries an intrinsic regulator prefactor from the diagonal
+  normalizations (CF408 (29,28): forcing proportional to
+  (1+2eps)(-2+13eps-27eps^2+18eps^3)/eps^3).  It cannot be deferred to
+  the family level: the solver reconstructs the eps-dependence of each
+  block as a rational function with a degree cap (MaximumTotalDegree 22,
+  at most schedule+8 regulator values), block (29,28) is already of
+  eps-degree {3,3}, and unfactored rows enter the forcing of every later
+  row through D_km A_mj, so the eps-degrees would compound past the cap
+  within a few layers.  The per-sector step stays; the current trigger
+  is the needed one.
+- **Cost** (CF408 run, per-sector log timestamps): block solves 960 s
+  for 340 blocks, regulator factorization 562 s (48-91 s per sector at
+  n = 39-41), pre-fix symbolic row gauge 1703 s and pre-fix census tail
+  719 s (both the 08-22 bugs, now 2-40 s per sector).
+- **Profile** (`profile_regfactor.wls`, the certified CF408 41x41
+  connection un-factored by a constant eps-dependent gauge): validity
+  filter 3.6 s; 1-point `FactorDependence` 6.9 s returning a wrong dense
+  T (379 off-identity entries) whose symbolic conjugation check cost
+  92 s; 2-point attempt 3.7 s returning the true T (4 entries), check
+  4.5 s; whole function 125 s.  Every one of today's 37 per-sector calls
+  succeeded at 2 points.
+- **Fix** (`FamilyRegulatorFactor.wl`): `"PointLadder" -> {2, 4, 8, 16}`
+  and a random-point gate (`familyRegulatorPointFactoredQ`, option
+  `"GatePoints" -> 2`, unseen chart points): the connection evaluated at
+  rational chart points is conjugated and tested for eps-factorization
+  before the symbolic acceptance identity is attempted.  Same input: 15 s
+  (2-point attempt only); with the ladder forced to start at 1 point the
+  gate rejects the dense candidate in < 1 s (22.6 s total).  Gauge
+  identity verified at a point; `t_family_regulator_factor.wls` 7/7.
+  Expected effect on CF408: 562 s -> ~100 s of factorization.
+- **Speed test** (running, cores 0-9, one main): the blockwise Libra
+  route (`libra_saved_blockwise_epsform.wls` LocalOnly +
+  `libra_checkpoint_factor_dependence.wls`, budget 300 s/step, inputs
+  `~/FACET/Codex/General/LibraTwoRoot_20260819`) on CF385/CF408, the two
+  families with finite-field-first records; output
+  `Results/UU_08_10_canonical/BenchmarkStripBackends/LibraVsFiniteField_2026-08-22/`.
+  The finite-field side is taken from the 08-22 logs (above), with the
+  pre-fix bug time separated out.
+
+## 2026-08-23 (00:00-00:25) — speed test result; zero-forcing shortcut
+
+- **Blockwise Libra route, fresh runs** (one main, cores 0-9, the 08-19
+  scripts and inputs; `Results/UU_08_10_canonical/BenchmarkStripBackends/
+  LibraVsFiniteField_2026-08-22/README.md`): CF385 Fuchsification 1385 s
+  (175 coupled pairs) + factor/dlog 389 s = 1774 s; CF408 1774 s + 326 s
+  = 2100 s; both EpsForm.  The 08-19/20 figure "1-6 min per family"
+  was the `FuchsifyBlock` step time alone (253/322 s); the per-pair full
+  n x n symbolic conjugation and the two `FuchsianQ` checks were never
+  timed and dominate.  Corrects the 08-20 and 08-22 worklog statements
+  that the blockwise route is 10-30x faster on easy families.
+- **Finite-field side** (08-22 logs, no rerun): CF408 as run 3955 s, of
+  which 2422 s were the two bugs fixed on 08-22 and 562 s the
+  factorization now cut to ~100-150 s; post-fix estimate ~19-21 min
+  single-kernel, with the block solves parallelizable.  Per easy
+  40-master family the routes are within a factor of two (finite field
+  ahead); only the finite-field route finishes the hard families.  The
+  Libra-first hybrid is therefore not a speed route.
+- **Zero-forcing shortcut** (`family_epsform_sector.wls`): a block with
+  identically vanishing forcing has the exact gauge D = 0 and skips the
+  three-prime solve (`"Method" -> "ZeroForcing"`; `FACET_ZERO_FORCING=
+  False` disables it for A/B).  Test: CF204/CF123/CF311 re-solved into
+  the scratchpad and certified exact (6/14/64 of 23/38/138 blocks took
+  the shortcut); A/B on CF123 25 s vs 27 s.  These runs are 5-6 s slower
+  than the 19:01 records because those still used the CANONICA dlog
+  recognition (`AlreadyDLog`, 0.1 s per block) removed at ~19:30 after
+  it hung on CF215/CF360; every block now pays the ~1 s finite-field
+  solve.  Not a regression of tonight's changes.
+- Lost with the 21:11 WSL restart: the zero-root campaign's mission
+  logs (they lived in the scratchpad under /tmp; the run.log symlinks in
+  `zeroroot_2026-08-22/CF*/` dangle).  Certified records are intact.
+
+## 2026-08-23 (00:10-00:50) — Codex package bug report: multiquadratic rows bypassed the regulator factorization (fixed)
+
+Codex (`External/CodexExchange/triple_root_2026-08-22/codex_package_bug_
+multiquadratic_regulator_2026-08-22.md`): in a multiquadratic identity
+frame the sector script's `! algebraicFrameQ` guards skipped the
+per-sector and family-level regulator factorization, so completed rows
+kept eps-dependent residues and the next row's strip problem was
+intrinsically inconsistent -- CF300 (8,5) failed at `SolveResidues`
+and no support/letter enlargement could repair it; after factoring rows
+1-7 in the Kallen2 chart (the truncation uses root {1} only) the block
+solved.  Reproduced and fixed:
+- `FeynFacet/Private/FamilyRegulatorFactor.wl`:
+  `FactorFamilyRegulatorDependenceInFrame[{Ax,Ay},{x,y},eps,frame]`
+  classifies the roots present in the connection
+  (`transportChartRootIndices`), pulls it back to the smallest
+  catalogued rational chart of that root set (`TransportRootSetChart`,
+  `transportChartRekey`, `masterTransportChartData`, root branches),
+  factors there, applies the variable-free T(eps) in the source frame
+  and verifies eps-factorization and both inverse identities exactly
+  there.  Rational connections go straight to the rational path; a root
+  set without a joint chart returns `NoRationalChart`.  On Codex's CF300
+  rows 1-7 state: Kallen2, root {1}, 2 points, source frame
+  eps-factored, 0.7 s, idempotent -- Codex's numbers exactly.
+- `FeynFacet/Private/TransportCharts.wl`: `SolveEpsFormStripInFrame`
+  option `"FiniteFieldFirst"` (no CANONICA/Maple ladder; the finite
+  field solves the strip in the targeted chart) and acceptance of the
+  production numerical certificate from the inner solve ("Certificate"
+  propagated, "ExactDLog" honest).
+- `Scripts/family_epsform_sector.wls`: one `blockwiseRouteQ`
+  (FiniteFieldFirst, any frame) replaces every `! algebraicFrameQ` gate
+  -- pre-row and post-row `factorTruncated`, family-level
+  factorization, `blockEquation`/`applyRowGauge` row composition (the
+  P2 performance defect: the algebraic branch no longer materializes
+  the CANONICA full-truncation transformation), strips in the
+  multiquadratic frame through `SolveEpsFormStripInFrame` with
+  finite-field first; `NoRationalChart` is a typed stop
+  (`state["Stop"]` = NeedsMultiquadraticRegulatorFactorization, exit 2)
+  before the next row.  Blockwise sector certificates are structural
+  (D.D = 0 so T^-1 = 1 - D exactly; Development: exact when every strip
+  was exactly checked).
+- Tests: `Tests/t_family_regulator_factor_in_frame.wls` (12: one-root
+  chart factorization with source-frame gauge identity and inverse,
+  rational path, typed stop for {lambda1, 1-4vw}, idempotence) 12/12;
+  `t_family_regulator_factor` 7/7.
+- End-to-end: CF300 from scratch with the patched route: sectors 2-7 in
+  170 s (each factored in Kallen2), (8,7) 45 s, (8,6) 380 s, **(8,5)
+  82 s** `RationalChart/Kallen2/SimultaneousFiniteFieldAffinePDE`,
+  (8,4)..(8,1) solved; the standalone run was stopped at the user's
+  request (main kernel slower than a subkernel) and resumed as a pool
+  mission (4 subkernels, cores 0-9) from its checkpoint.

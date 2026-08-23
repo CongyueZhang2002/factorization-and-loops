@@ -12,6 +12,43 @@ GlobalBasisGram = {
 globalBasis = Missing["NotSet"];
 internalSetEvanescentZero = Missing["NotSet"];
 
+facetKernelCount[requested_: Automatic, workload_: Infinity] := Module[
+  {environment, ceiling, count},
+  environment = Environment["FACET_KERNEL_COUNT"];
+  ceiling = Which[
+    ValueQ[Global`$FACETKernelLimit] &&
+        IntegerQ[Global`$FACETKernelLimit] &&
+        Global`$FACETKernelLimit > 0,
+      Global`$FACETKernelLimit,
+    StringQ[environment] && StringLength[environment] > 0 &&
+        IntegerQ[Quiet[Check[ToExpression[environment], $Failed]]] &&
+        ToExpression[environment] > 0,
+      ToExpression[environment],
+    True, 8
+  ];
+  ceiling = Min[8, ceiling];
+  count = If[IntegerQ[requested] && requested > 0,
+    Min[requested, ceiling], ceiling];
+  If[IntegerQ[workload] && workload > 0, Min[count, workload], count]
+];
+
+facetCPUList[] := Module[
+  {value = Environment["FACET_CPU_LIST"], parts, cpus},
+  If[! StringQ[value] ||
+      ! StringMatchQ[value,
+        RegularExpression["[0-9]+(?:[-,][0-9]+)*"]],
+    Return[StringRiffle[ToString /@ Range[0, 15], ","]]];
+  parts = StringSplit[value, ","];
+  cpus = Flatten[parts /. part_String :>
+      If[StringContainsQ[part, "-"],
+        With[{bounds = ToExpression /@ StringSplit[part, "-"]},
+          If[bounds[[1]] <= bounds[[2]], Range @@ bounds, {}]],
+        {ToExpression[part]}]];
+  cpus = Take[DeleteDuplicates[cpus], UpTo[16]];
+  If[cpus === {}, StringRiffle[ToString /@ Range[0, 15], ","],
+    StringRiffle[ToString /@ cpus, ","]]
+];
+
 resultHeader[format_, version_Integer] := <|
   "Format" -> format,
   "FormatVersion" -> version,

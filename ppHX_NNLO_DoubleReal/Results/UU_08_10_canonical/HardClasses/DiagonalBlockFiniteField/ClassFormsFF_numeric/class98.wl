@@ -1,0 +1,32 @@
+<|"Format" -> "FeynFacet-CanonicalClassForm", "FormatVersion" -> 1, 
+ "ClassID" -> 98, "ContentAddress" -> None, "RepFamily" -> "CF259", 
+ "RepRows" -> {1, 2}, "RepBasis" -> 
+  {gli["CF259", {1, 1, 1, 0, 1, 0, 1, 0, 1}], 
+   gli["CF259", {1, 1, 1, 0, 1, 0, 1, 0, 2}]}, "Dim" -> 2, 
+ "Transformation" -> {{-(1/((1 + 8*eps)*t*w)), -1/12*1/((1 + 8*eps)*t*w)}, 
+   {(-2*eps*t + w + 8*eps*w)/((1 + 8*eps)*t^3*w), (-4*eps*t + w + 8*eps*w)/
+     (12*(1 + 8*eps)*t^3*w)}}, "EpsForm" -> 
+  {{{eps*(-(t - w)^(-1) + 4/w + 9/(t + w)), eps*(1/(3*w) + (t + w)^(-1))}, 
+    {eps*(-24/w - 72/(t + w)), eps*(-2/w - 8/(t + w))}}, 
+   {{eps*(-16/t + (t - w)^(-1) + 9/(t + w)), eps*(-4/(3*t) + (t + w)^(-1))}, 
+    {eps*(96/t - 72/(t + w)), eps*(8/t - 8/(t + w))}}}, 
+ "Variables" -> {w, t}, "Regulator" -> eps, 
+ "Chart" -> <|"Fixed" -> w, "Subst" -> v -> (t^2 - w^2)/4, "Root" -> t, 
+   "Branch" -> "LinearSolve"|>, "Frame" -> "Chart:Slicet", 
+ "Method" -> "SliceResiduesFiniteFieldAffine", 
+ "Letters" -> {t - w, t + w, t, w}, 
+ "Residues" -> {{{1, 0}, {0, 0}}, {{9, 1}, {-72, -8}}, 
+   {{-16, -4/3}, {96, 8}}, {{4, 1/3}, {-24, -2}}}, 
+ "Certificate" -> <|"Status" -> "Certified", "GateX" -> True, 
+   "GateY" -> True, "ConstantResidues" -> True, "Flat" -> True, 
+   "Invertible" -> True, "Seconds" -> 0.012778`4.558007877292094|>, 
+ "Attempts" -> {<|"Frame" -> "Slicev", "Stage" -> "Slice", 
+    "Status" -> "ExponentsNotInteger", "Seconds" -> 
+     0.003842`4.036102354021648|>, <|"Frame" -> "Slicet", "Stage" -> "Gate", 
+    "Status" -> "Certified", "Seconds" -> 2.867896`6.909108391731253|>}, 
+ "Timing" -> <|"SliceSeconds" -> 0.019334`4.737866707752844, 
+   "SolveSeconds" -> 0.612866`6.238910522138072, 
+   "GateSeconds" -> 0.012778`4.558007877292094, 
+   "TotalSeconds" -> 2.898438`6.9137090083818675|>, 
+ "Seconds" -> 2.937799`6.919567072160207, "Status" -> "CANONICALIZED", 
+ "Validated" -> True|>

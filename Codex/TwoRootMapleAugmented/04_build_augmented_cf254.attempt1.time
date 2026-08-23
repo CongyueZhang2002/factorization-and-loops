@@ -1,0 +1,6 @@
+Command exited with non-zero status 255
+wall_seconds=0.19
+user_seconds=0.06
+system_seconds=0.02
+max_rss_kb=113344
+exit_status=255

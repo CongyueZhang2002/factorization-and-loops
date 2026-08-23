@@ -1,0 +1,159 @@
+{
+  "ChartMapSourceToTarget": {
+    "s305": "(s254+2*y254+3)/(s254+2*y254-1)",
+    "y305": "y254/(y254-1)"
+  },
+  "ChartMapTargetToSource": {
+    "s254": "-(s305*y305+s305-5*y305+3)/(s305*y305-s305-y305+1)",
+    "y254": "y305/(y305-1)"
+  },
+  "CheckedEntryCounts": {
+    "ClosureEntries": 414,
+    "ScalarIdentities": 10,
+    "TransformedConnectionEntries": 1058
+  },
+  "Classification": "The complete 23-master CF254 system embeds in the closed D6=0 subsector of the 32-master CF305 system. The complete powered families are not equivalent for arbitrary CF254 ISP power.",
+  "ClosureCriterion": "S A305_mu Q^T=0 for mu in {v305,w305}",
+  "ComplementaryTargetPositions": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    8,
+    9,
+    14,
+    24
+  ],
+  "CrossedSourceRegion": "v254<0, w254>1",
+  "CutConvention": "OrientedPositiveEnergyDelta",
+  "CutDirections": [
+    1,
+    1,
+    1
+  ],
+  "CutIndexMap": "(2,8,1)->(2,9,1)",
+  "CutMomenta": [
+    "ke",
+    "ka+kb-kc-ke-kf",
+    "kf"
+  ],
+  "DenominatorImage": {
+    "D254[1]": "D305[1]",
+    "D254[2]": "D305[2]",
+    "D254[3]": "D305[5]",
+    "D254[4]": "D305[7]",
+    "D254[5]": "D305[8]",
+    "D254[6]": "D305[3]",
+    "D254[7]": "D305[4]",
+    "D254[8]": "D305[9]"
+  },
+  "DenominatorMomentumSigns": [
+    1,
+    1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    1
+  ],
+  "DifferentialOneFormCriterion": "S Omega305=(dH H^(-1)+H Phi^*(Omega254) H^(-1)) S",
+  "DimensionRule": "D=4-2 eps",
+  "DimensionfulExternalMap": {
+    "ka254": "-kc305",
+    "kb254": "kb305",
+    "kc254": "-ka305"
+  },
+  "DimensionfulPoweredIntegralIdentity": "I254[(a1,a2,a3,a4,a5,a6,a7,a8,0);(-kc,kb,-ka);(ke,kf);D;+i0;delta+]=I305[(a1,a2,a6,a7,a3,0,a4,a5,a8);(ka,kb,kc);(ke,kf);D;+i0;delta+]",
+  "ExactChecks": {
+    "ChartAndRootIdentities": true,
+    "CutConventionIdentity": true,
+    "CutIndexImage": true,
+    "CutMomentumIdentity": true,
+    "CutMomentumSignsPositive": true,
+    "DimensionRuleIdentity": true,
+    "FamilyCoefficientIdentity": true,
+    "Gamma5SchemeIdentity": true,
+    "MasterMapDerivedExactly": true,
+    "MomentumMapWithSigns": true,
+    "OrdinaryCausalTagsAreFeynman": true,
+    "PhaseSpaceMeasureIdentity": true,
+    "QuadraticDenominatorIdentity": true,
+    "SelectedRowsClosed": true,
+    "SourceCutMetadata": true,
+    "SourceISPLinearIdentity": true,
+    "SourcePairFamily": true,
+    "TargetCutMetadata": true,
+    "TargetPairFamily": true,
+    "TransformedConnectionIdentity": true
+  },
+  "FamilyCoefficient": 1,
+  "Format": "FeynFacetExactFamilyTransfer",
+  "FormatVersion": 1,
+  "Gamma5Scheme": "BMHV",
+  "InputFiles": {
+    "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/DifferentialEquations/nnlo_de_CF254.wl": "4d0b99ade235e26eb08b94761de14e574599ce8e8df78ccc1f782dbe8967db00",
+    "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/DifferentialEquations/nnlo_de_CF305.wl": "421ad82ef9620b2d4ccf1cc3a9d2706f2da8afdf21c47a4c7d4ed1c18e3e8c4e",
+    "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/Pairs/F19_C26.wl": "0e0a01eee9628171d9c3d027d2724c134638c6d886bfdcba440d8fd2db9b549e",
+    "/home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/Pairs/F21_C35.wl": "87e63af1269dfd112b1998df54be84a0511d59c0991b92d86ddddbab6f34e3d7"
+  },
+  "KallenRootBranchRules": {
+    "r1_CF254": "-r2_CF305/w305",
+    "r3_CF254": "r3_CF305/w305"
+  },
+  "LoopJacobian": 1,
+  "LoopMeasure": "-d^D ke d^D kf/Pi^D",
+  "LoopMomentumMap": {
+    "ke254": "ke305",
+    "kf254": "kf305"
+  },
+  "NormalizedPhysicalVariableMap": {
+    "v254": "-v305/w305",
+    "w254": "1/w305"
+  },
+  "NormalizedScaleGauge": "H_ii=Exp[(4-2 eps-A_i) CrossedFeynmanLog[-w305]]",
+  "OrdinaryCausalTag": [
+    1,
+    1
+  ],
+  "PoweredCondition": "a9=0",
+  "PoweredIndexMap": "(a1,a2,a3,a4,a5,a6,a7,a8,0)->(a1,a2,a6,a7,a3,0,a4,a5,a8)",
+  "ScaleBranch": "CrossedFeynmanLog is inherited from the dimensionful identity with unchanged +i0 tags and remains unevaluated. The rational DE identity uses only d Log(-w305)=dw305/w305.",
+  "ScaleRatio": "S254/S305=-w305",
+  "SelectedConnectionAv": "Bv=H[-A254_v(Phi)/w305]H^(-1)",
+  "SelectedConnectionAw": "Bw=diag((D-A_i)/w305)+H[(v305/w305^2)A254_v(Phi)-A254_w(Phi)/w305^2]H^(-1)",
+  "SourceChart": "Kallen13",
+  "SourceFamily": "CF254",
+  "SourceISPIdentity": "2 D254[9]=D305[6]-D305[4]+D305[8]-D305[9]",
+  "SourceToTargetPositions": [
+    32,
+    6,
+    10,
+    28,
+    7,
+    11,
+    12,
+    21,
+    22,
+    23,
+    29,
+    30,
+    13,
+    31,
+    15,
+    16,
+    25,
+    17,
+    18,
+    26,
+    19,
+    27,
+    20
+  ],
+  "TargetAdditionalDenominator": 6,
+  "TargetChart": "Kallen23",
+  "TargetFamily": "CF305",
+  "TargetPhysicalRegion": "0<v305, 0<w305, v305+w305<1",
+  "Type": "ExactPoweredIntegralClosedSubsectorEmbedding"
+}

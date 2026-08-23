@@ -1,0 +1,9 @@
+master@1*(b11)
+master@2*(b12)
+dep@1*(-a11)
+dep@2*(-a12)
+
+master@1*(b21)
+master@2*(b22)
+dep@1*(-a21)
+dep@2*(-a22)

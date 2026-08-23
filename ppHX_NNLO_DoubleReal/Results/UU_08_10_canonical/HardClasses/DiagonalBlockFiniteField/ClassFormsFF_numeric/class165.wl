@@ -1,0 +1,40 @@
+<|"Format" -> "FeynFacet-CanonicalClassForm", "FormatVersion" -> 1, 
+ "ClassID" -> 165, "ContentAddress" -> None, "RepFamily" -> "CF50", 
+ "RepRows" -> {1, 2}, "RepBasis" -> 
+  {gli["CF50", {1, 1, 0, 0, 1, 1, 0, 1, 0}], 
+   gli["CF50", {1, 1, 0, 0, 1, 1, 0, 2, 0}]}, "Dim" -> 2, 
+ "Transformation" -> {{(-2*(-1 + t))/(3*eps*(1 - 2*t + t^2 - v)), 0}, 
+   {((-1 + t)*(1 - 2*t + t^2 - v + 2*t*v))/(t*(1 - 2*t + t^2 - v)*v*
+      (-1 + t + v)), (1 - t)/(3*t*v*(-1 + t + v))}}, 
+ "EpsForm" -> {{{eps*(-4/(1 - 2*t + t^2 - v) - 2/v - 2/(-1 + t + v)), 
+     eps*(v^(-1) - (-1 + t + v)^(-1))}, {eps*(-3/v + 3/(-1 + t + v)), 
+     eps*(2/v + 2/(-1 + t + v) - (4*(-1 + 2*t))/(1 - 2*t + t^2 - v + 
+         2*t*v))}}, 
+   {{eps*(-2/(-1 + t) - 2/t + (4*(-2 + 2*t))/(1 - 2*t + t^2 - v) - 
+       2/(-1 + t + v)), eps*(-(-1 + t)^(-1) + t^(-1) - (-1 + t + v)^(-1))}, 
+    {eps*(3/(-1 + t) - 3/t + 3/(-1 + t + v)), 
+     eps*(2/(-1 + t) + 2/t + 2/(-1 + t + v) - (4*(-2 + 2*t + 2*v))/
+        (1 - 2*t + t^2 - v + 2*t*v))}}}, "Variables" -> {v, t}, 
+ "Regulator" -> eps, "Chart" -> <|"Fixed" -> v, 
+   "Subst" -> w -> (-t + t^2 + t*v)/(-1 + t), 
+   "Root" -> 2*t + v + (-2 - 2*w)/2, "Branch" -> "SquareCompletion"|>, 
+ "Frame" -> "Chart:Slicev", "Method" -> "SliceResiduesFiniteFieldAffine", 
+ "Letters" -> {1 - 2*t + t^2 - v, v, -1 + t + v, 1 - 2*t + t^2 - v + 2*t*v, 
+   -1 + t, t}, "Residues" -> {{{4, 0}, {0, 0}}, {{-2, 1}, {-3, 2}}, 
+   {{-2, -1}, {3, 2}}, {{0, 0}, {0, -4}}, {{-2, -1}, {3, 2}}, {{-2, 1}, {-3, 
+   2}}}, "Certificate" -> <|"Status" -> "Certified", "GateX" -> True, 
+   "GateY" -> True, "ConstantResidues" -> True, "Flat" -> True, 
+   "Invertible" -> True, "Seconds" -> 0.015782`4.649707032542047|>, 
+ "Attempts" -> {<|"Frame" -> "SlicevShear1", "Stage" -> "Slice", 
+    "Status" -> "ExponentsNotInteger", "Seconds" -> 
+     0.015328`4.637030485230442|>, <|"Frame" -> "SlicewShear1", 
+    "Stage" -> "Slice", "Status" -> "ExponentsNotInteger", 
+    "Seconds" -> 0.014572`4.615064156065849|>, <|"Frame" -> "Slicev", 
+    "Stage" -> "Gate", "Status" -> "Certified", 
+    "Seconds" -> 3.655651`7.014509721036708|>}, 
+ "Timing" -> <|"SliceSeconds" -> 0.033849`4.981090836357698, 
+   "SolveSeconds" -> 3.581808`7.005647295618876, 
+   "GateSeconds" -> 0.015782`4.649707032542047, 
+   "TotalSeconds" -> 3.667883`7.015960467368329|>, 
+ "Seconds" -> 3.780523`7.029096878069241, "Status" -> "CANONICALIZED", 
+ "Validated" -> True|>

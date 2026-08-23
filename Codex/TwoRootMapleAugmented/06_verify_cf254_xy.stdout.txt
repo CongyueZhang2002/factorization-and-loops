@@ -1,0 +1,5 @@
+BEGIN_VERIFICATION
+orientation=xy
+data_path=/home/maxzhang/factorization-and-loops/Codex/TwoRootMapleAugmented/04_cf254_augmented_data.wl
+result_path=/home/maxzhang/factorization-and-loops/Codex/TwoRootMapleAugmented/05_cf254_augmented_xy.result.txt
+verification_status=MISSING_MAPLE_RESULT

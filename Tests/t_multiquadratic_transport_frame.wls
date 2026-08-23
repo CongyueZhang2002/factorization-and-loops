@@ -1,0 +1,145 @@
+#!/usr/bin/env wolframscript
+
+root = ExpandFileName[FileNameJoin[{DirectoryName[$InputFileName], ".."}]];
+Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
+Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+
+v = Symbol["Global`v"];
+w = Symbol["Global`w"];
+x = Symbol["Global`mqx"];
+y = Symbol["Global`mqy"];
+eps = Symbol["Global`eps"];
+
+lambda1 = (1 - v - w)^2 - 4 v w;
+lambda2 = (1 + v - w)^2 + 4 v w;
+lambda3 = (1 - v + w)^2 + 4 v w;
+
+frame = BuildAlgebraicTransportFrame[
+  {lambda1, lambda2, lambda3}, {v, w}, {x, y}];
+
+FTAssert["the multiquadratic frame is exported",
+  StringQ[BuildAlgebraicTransportFrame::usage]];
+FTAssert["all three root-square identities and the identity Jacobian are exact",
+  AssociationQ[frame] && frame["Status"] === "ExactFrame" &&
+    TrueQ[frame["ChartCertificate"]["OK"]] &&
+    frame["ChartCertificate"]["RootIdentities"] === {True, True, True} &&
+    TrueQ[Together[frame["ChartCertificate"]["JacobianDet"] - 1] === 0]];
+
+familyFrames = TransportFamilyChart /@ {"CF259", "CF300", "CF303"};
+FTAssert["the three-root inventory resolves to exact multiquadratic frames",
+  AllTrue[familyFrames,
+    AssociationQ[#] && #["Status"] === "ExactFrame" &&
+      TrueQ[#["ChartCertificate"]["OK"]] &&
+      Length[#["Roots"]] === 3 &]];
+
+FTAssert["exact root-set lookup selects the known joint Kallen charts",
+  TransportRootSetChart[{lambda1, lambda3}]["Name"] === "Kallen13" &&
+    TransportRootSetChart[{lambda2, lambda3}]["Name"] === "Kallen23" &&
+    MissingQ[TransportRootSetChart[{lambda1, 4 v + w^2}]]];
+
+a = Symbol["Global`arbitraryA"];
+b = Symbol["Global`arbitraryB"];
+FTAssert["root-set lookup is independent of the source variable names",
+  TransportRootSetChart[
+    {lambda1 /. {v -> a, w -> b}, lambda3 /. {v -> a, w -> b}},
+    {a, b}]["Name"] === "Kallen13"];
+
+knownGauge = {{Sqrt[lambda1]}};
+zeroOneForm = {ConstantArray[0, {1, 1}], ConstantArray[0, {1, 1}]};
+algebraicStrip = {zeroOneForm, zeroOneForm,
+  {D[knownGauge, v], D[knownGauge, w]}};
+stripSolution = SolveEpsFormStripInFrame[
+  algebraicStrip, {v, w}, eps, frame,
+  "CANONICANumeratorDegrees" -> {0, 1, 2, 3},
+  "CANONICATimeLimit" -> 30, "CANONICAKernels" -> 1,
+  "MapleTimeLimit" -> 60, "MapleResidueKernels" -> 1,
+  "Verbose" -> False];
+FTAssert["a one-root algebraic strip is solved in its rational chart and pulled back exactly",
+  AssociationQ[stripSolution] && stripSolution["Status"] === "Solved" &&
+    StringStartsQ[stripSolution["Method"], "RationalChart/Kallen1/"] &&
+    TrueQ[stripSolution["ExactDLog"]] &&
+    TrueQ[stripSolution["FrameCertificate"]["CoordinateComposition"]] &&
+    TrueQ[stripSolution["FrameCertificate"]["GaugeRoundTrip"]] &&
+    TrueQ[stripSolution["FrameCertificate"]["TransformedOneFormPullBack"]] &&
+    TrueQ[stripSolution["FrameCertificate"]["SourceDLog"]] &&
+    TrueQ[stripSolution["FrameCertificate"]["Exact"]]];
+
+data = FeynFacet`Private`masterTransportChartData[frame, {v, w}];
+FTAssert["chart data retains the declared multiquadratic coefficient field",
+  data["Status"] === "OK" &&
+    data["CoefficientField"] === "Multiquadratic"];
+
+(* A two-variable Kallen chart must compose with the identity algebraic
+   frame through the declared square root, without inventing another
+   algebraic extension. *)
+kallen = TransportChartCatalog[]["Kallen1"];
+kallenRecord = <|"Variables" -> kallen["Variables"], "Chart" -> kallen|>;
+composition = FeynFacet`Private`masterTransportRecordCoordinateMap[
+  kallenRecord, data, Automatic];
+FTAssert["a rational Kallen chart composes exactly into the multiquadratic frame",
+  AssociationQ[composition] && composition["Status"] === "OK" &&
+    TrueQ[composition["CompositionExact"]]];
+
+(* The old rational-only gate is tested on an exact flat system whose
+   basis transformation contains sqrt(1-4vw).  The multiquadratic call
+   must retain the radical and re-derive the epsilon form; the rational
+   call must refuse the same transformation. *)
+q = 1 - 4 v w;
+t = {{Sqrt[q], 0}, {0, 1}};
+ti = Simplify[Inverse[t]];
+ev = eps {{1, 0}, {0, 2}}/v;
+ew = eps {{3, 0}, {0, 4}}/w;
+av = Map[Together, t . ev . ti + D[t, v] . ti, {2}];
+aw = Map[Together, t . ew . ti + D[t, w] . ti, {2}];
+system = <|"Family" -> "MultiquadraticToy", "Av" -> av, "Aw" -> aw|>;
+pulledSystem = FeynFacet`Private`masterTransportPullBackSystem[
+  system, frame, "SourceVariables" -> {v, w}];
+record = <|"Variables" -> {v, w}, "Transformation" -> t,
+  "EpsForm" -> {ev, ew}|>;
+
+accepted = FeynFacet`Private`masterTransportPullBackClassForm[
+  record, frame, "SourceVariables" -> {v, w}, "Regulator" -> eps,
+  "BlockSystem" -> {pulledSystem["Ax"], pulledSystem["Ay"]},
+  "CoefficientField" -> "Multiquadratic"];
+refused = FeynFacet`Private`masterTransportPullBackClassForm[
+  record, frame, "SourceVariables" -> {v, w}, "Regulator" -> eps,
+  "BlockSystem" -> {pulledSystem["Ax"], pulledSystem["Ay"]},
+  "CoefficientField" -> "Rational"];
+
+FTAssert["an algebraic basis transformation is accepted only in the declared field",
+  accepted["Status"] === "OK" &&
+    accepted["Certificate"]["CoefficientField"] === "Multiquadratic" &&
+    accepted["Certificate"]["TransformationRationalInChart"] === False &&
+    TrueQ[accepted["Certificate"]["TransformationInverseVerified"]] &&
+    TrueQ[accepted["Certificate"]["EpsFormLinear"]] &&
+    TrueQ[accepted["Certificate"]["StoredEpsFormPullbackMatches"]] &&
+    refused["Status"] === "ClassFormTransformationNotRationalInChart"];
+
+assembled = TransportFamilyInChart[system, frame,
+  "SourceVariables" -> {v, w}, "Regulator" -> eps,
+  "AssemblyOnly" -> True,
+  "Blocks" -> {{{1, 2}, <|"Type" -> "EpsForm", "T" -> t,
+    "Ev" -> ev, "Ew" -> ew|>}}, "Verbose" -> False];
+FTAssert["assembly-only returns the exactly certified whole-family connection",
+  AssociationQ[assembled] && assembled["Status"] === "ExactFamilyAssembly" &&
+    assembled["Assembly"]["Status"] === "OK" &&
+    And @@ (TrueQ /@ Values[
+      KeyTake[assembled["Assembly"]["Certificate"],
+        {"BlockLowerTriangular", "FlatnessOriginal",
+          "DiagonalEqualsDeclaredForm", "EpsFormLinear",
+          "TransformationInverseVerified"}]]) &&
+    MemberQ[{"Verified", "ByGaugeCovariance"},
+      assembled["Assembly"]["Certificate"]["FlatnessConjugatedRoute"]]];
+
+censusAssembly = <|"Status" -> "OK", "Family" -> "RootCensusToy",
+  "Blocks" -> {{1}, {2}}, "Ranges" -> {{1}, {2}},
+  "Apv" -> {{0, 0}, {1/frame["Roots"][[1]]["Root"], 0}},
+  "Apw" -> ConstantArray[0, {2, 2}]|>;
+census = FamilyAlgebraicRootCensus[censusAssembly, frame];
+FTAssert["the root census classifies every radical against the declared field",
+  census["Status"] === "ExactRootCensus" &&
+    census["UnclassifiedRadicalBases"] === {} &&
+    census["MaximumRootCount"] === 1 &&
+    census["RootCountHistogram"] === <|1 -> 1|>];
+
+FTReport[];

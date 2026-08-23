@@ -12,7 +12,10 @@ $FACETMathematicaAddonDirectories = <|
   "HPL" -> FileNameJoin[{$FACETMathematicaAddonRoot, "HPL", "HPL-2.0"}],
   "PolyLogTools" -> FileNameJoin[{$FACETMathematicaAddonRoot, "PolyLogTools"}],
   "CANONICA" -> FileNameJoin[{$FACETMathematicaAddonRoot, "CANONICA", "src"}],
-  "AMFlow" -> FileNameJoin[{$FACETMathematicaAddonRoot, "AMFlow"}]
+  "AMFlow" -> FileNameJoin[{$FACETMathematicaAddonRoot, "AMFlow"}],
+  "RationalizeRoots" -> FileNameJoin[{
+    $FACETMathematicaAddonRoot, "RationalizeRoots"
+  }]
 |>;
 
 $FACETMathematicaAddonEntryPoints = <|
@@ -42,6 +45,10 @@ $FACETMathematicaAddonEntryPoints = <|
   }],
   "AMFlow" -> FileNameJoin[{
     $FACETMathematicaAddonDirectories["AMFlow"], "AMFlow.m"
+  }],
+  "RationalizeRoots" -> FileNameJoin[{
+    $FACETMathematicaAddonDirectories["RationalizeRoots"],
+    "RationalizeRoots.m"
   }]
 |>;
 

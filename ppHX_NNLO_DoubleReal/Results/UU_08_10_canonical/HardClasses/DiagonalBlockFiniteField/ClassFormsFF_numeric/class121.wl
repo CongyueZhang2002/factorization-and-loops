@@ -1,0 +1,16 @@
+<|"Format" -> "FeynFacet-CanonicalClassForm", "FormatVersion" -> 1, 
+ "ClassID" -> 121, "ContentAddress" -> None, "RepFamily" -> "CF301", 
+ "RepRows" -> {3}, "RepBasis" -> {gli["CF301", {1, 1, 1, 1, 1, 1, 1, 1, 0}]}, 
+ "Dim" -> 1, "Transformation" -> {{1/(v^2*(-1 + v + w))}}, 
+ "EpsForm" -> {{{eps*((-1 + v)^(-1) - 2/v - 2/(-1 + v + w))}}, 
+   {{eps*(w^(-1) - 2/(-1 + v + w))}}}, "Variables" -> {v, w}, 
+ "Regulator" -> eps, "Chart" -> None, "Frame" -> "Identity", 
+ "Method" -> "ScalarDLog", "Letters" -> {-1 + v, v, -1 + v + w, w}, 
+ "Residues" -> {{{1}}, {{-2}}, {{-2}}, {{1}}}, 
+ "Certificate" -> <|"Status" -> "Certified", "GateX" -> True, 
+   "GateY" -> True, "ConstantResidues" -> True, "Flat" -> True, 
+   "Invertible" -> True, "Seconds" -> 0.001594`3.6540333105560667|>, 
+ "Attempts" -> {}, "Timing" -> 
+  <|"TotalSeconds" -> 0.005017`4.151989094523724|>, 
+ "Seconds" -> 0.011251`4.502736118181672, "Status" -> "CANONICALIZED", 
+ "Validated" -> True|>

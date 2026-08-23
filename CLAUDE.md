@@ -7,6 +7,121 @@ only orientation document: workflow, current frontier, and house rules.
 The legacy tree `~/FACET` is frozen reference material and the parallel
 assistant's workspace — never write there.
 
+## START HERE
+
+**Session transfer note: `HANDOFF.md` (repo root) — volatile state,
+open decisions and next steps, newest first. Read it before this file.**
+
+**State advanced on 2026-08-20 — read the TransportProductionPlan.md
+entries of that date before anything below.** The single ground-truth
+family eps-form inventory is now
+`ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsCertified/`
+(54/91 certified by full recomputation; `certification_report.wl` has
+per-family status and diagnostics). **A family listed Exact there is
+never re-solved.** The family eps-form layer lives in
+`FeynFacet/Private/FamilyEpsForm.wl` (context-guarded `FamilyArtifactRead`
+— MANDATORY for reading any .wl artifact after CANONICA may have loaded —
+atomic `FamilyArtifactWrite`, schema normalizer, and the certifier
+`CertifyFamilyEpsilonForm`). Terminology (user-fixed): "diagonal block" /
+"off-diagonal block (k,j)"; "strip" and "sector" retired from prose.
+**Contract of the off-diagonal rung (clarified 2026-08-21 after a Codex
+audit): `SolveEpsFormStripFiniteField`/`ReconstructEpsFormStrip` deliver a
+DLOG FORM — regulator-free letters, residues free of x and y, the regulator
+still allowed in the residues (`DLogFormCertified`); the sector driver then
+applies CANONICA's `TransformDlogToEpsForm` and only the family certificate
+asserts the epsilon form. Every deep-rung benchmark result has
+regulator-dependent residues; that is normal, not a defect.**
+The off-diagonal deep-rung solver `SolveEpsFormStripFiniteField` carries A2 (held-out regulator sampling, unseen-prime guard), A3 (a-priori sparse gauge support from the valuation census), and A4 (optional FLINT modular-solve backend, re-verified in Wolfram) as of 2026-08-21 — frozen (9,7) 7254 -> 1446 s; the build stage is now the bottleneck (`BenchmarkStripBackends/frozen_M0/A2A3A4_acceptance.md`). Deep-rung benchmark verdict (2026-08-20, equal resources): the
+simultaneous finite-field affine solve is the production deep rung for
+resistant off-diagonal blocks; Maple is the small-residue-system fast
+path and cross-check (`BenchmarkStripBackends/` has fixtures + records).
+Remaining without eps-forms: 29 zero-root (transport-only),
+CF231/CF265/CF305, CF385/CF408 (blockwise schema adapter pending),
+triple-root CF259/CF300/CF303. Hard-class stage 1 (irreducible diagonal blocks) is now a
+push-button route on the finite-field machinery (2026-08-21):
+`FeynFacet/Private/DiagonalBlockEpsForm.wl`, `DiagonalBlockEpsForm[{Ax,Ay},
+{x,y},eps]` = one Libra slice -> finite-field ODE solve of the x-equation
+-> exact y-completion -> exact gate; the engine is fully automatic from the raw
+(v,w) representative (frame ladder with shears, automatic conic/catalog
+charts, scalar and zero blocks) and re-derived ALL 173 classes with no
+hints (173/173, oracle-identical to the ledger; 4 subkernels, 204 s wall
+with the numeric-regulator slice engine and canonical residue frame);
+`DiagonalBlockClassCampaign` writes CanonicalizeClasses-schema records.
+Benchmark vs CANONICA and the record are in
+`Results/UU_08_10_canonical/HardClasses/DiagonalBlockFiniteField/README.md`.
+The section below describes the
+2026-08-17 state and remains valid as background.
+
+### Background (state at 2026-08-17 ~03:00)
+
+**Stage 1 is CLOSED (173/173 certified eps-forms). Stage 2 is the active
+campaign and its PRODUCTION SWEEP IS RUNNING**: one KernelPool mission per
+family, `Scripts/sweep_transport.wls`, outputs
+`ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/Masters/<CF>.wl` (the
+transported masters as words with symbolic constants + recursion
+certificate + assembly certificate + original-DE check where performable
++ cost record) and `<CF>.status`; summary `Scripts/sweep_status.sh <outdir>`;
+launcher `Scripts/sweep_launch.sh <outdir> [maxW] [cap] [ALL|list]`
+(resumable: Transported families are skipped; `PRIORITY=1` puts the sweep
+ahead of other queued missions).
+
+Read these, in order, before acting:
+
+1. `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/TransportProductionPlan.md`
+   -- the campaign and its RUNNING RECORD (every measured fact and
+   decision of 2026-08-17 is appended there with times).
+2. `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/TransportDepthLedger.md`
+   -- required depth per master (203 need eps^0, 131 eps^-1, 9 deeper) and
+   the 2026-08-17 addendum on the coupling assumption.
+3. `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsForms/README.md`
+   -- agent B's family eps-form census (16 gated, 12 GateFailed, one
+   failure mode) and the record schema the sweep's route 2 consumes.
+
+What was built 2026-08-17 (all uncommitted; tests green unless stated):
+- **Algebraic letters** (`FeynFacet/Private/BlockwiseTransport.wl`,
+  `MasterTransport.wl` monic gate + radical zero test): quadratic path
+  denominators with eps-free discriminant are admitted as letters
+  (-b +- k Sqrt[D0])/(2a); `Tests/t_algebraic_letters.wls` 23/23. This is
+  unavoidable (1 - w + v w in the Kallen chart is a genus-1 curve).
+- **Chart catalog** `FeynFacet/Private/TransportCharts.wl`
+  (`TransportChartCatalog`, `TransportChartVerify`, `TransportFamilyChart`):
+  Kallen1/2/3, Q4a/b (degree-2-preserving), Bilinear115, joint Kallen12/13/23;
+  per-family assignment measured; triple-root CF259/CF300/CF303 NOT covered
+  (open: rationality of the triple cover).
+- **(v,w) assembly of class MEMBERS** (agent A): the member's v<->w swap is
+  recovered and applied (252/1028 members; no permutations); one-variable
+  class-115 records refused by name in (v,w) and composed in charts
+  ("frame 4"); `"BasePoint" -> Automatic` (both axis directions);
+  `"DECheck"` option; per-block exact regrade assertion (verify mission
+  `verA` was still running at 02:50).
+- **KernelPool** patched (never-started missions: claim check +
+  resubmission) and restarted 02:27; see Design/KernelPool.md.
+
+PASS 1 RESULT (06:40): 85/91 with status, 40 transported at the ledger
+demand N = -val + 1 (walls 0-965 s; CF12 15 min, CF24 ~1 h), ~40 not:
+TimedOut at 1200 s dominates (chart families with non-pure couplings,
+10^4-10^5-leaf coefficients), 3 ChartNotCovered (triple-root CF259/300/
+303), a few PathDenominatorsNotLinear in Kallen12 (eps-dependent path
+quadratics = uncleaned couplings). Cleanup pass 2a: 2 gated of 10 (CF20,
+CF21), the rest GateFailed (two-variable Moser non-convergence); CF230/
+CF258 cleanups were still running at 06:40. PASS 2b fires AUTOMATICALLY
+when pass 1 drains (watcher `scratchpad/pass2b.sh` of the 26f8c32a
+session): the failed families at the STRICT need N = -val (safety 0),
+cap 2400 s, route 2 where a record gates -- status lines then say
+"safety0". A safety-1 pass and the cleanup algorithm (Moser at infinity;
+CANONICA off-diagonal recursion at higher degree) are the next work.
+
+Next moves for a fresh session: `Scripts/sweep_status.sh .../Masters`;
+re-run TimedOut families with a larger cap or via route 2; regenerate the
+depth ledger .md over all 91 (`Scripts/transport_depth_ledger.wls` +
+`_assemble.py`; the 29 missing per-family records live in the coordinator
+scratchpad `ledger/`); the triple-root tail; then stage 3.
+
+**All kernel work goes through the KernelPool** (`Scripts/kpsubmit.sh`,
+`kpwait.sh`, `kpstatus.sh`; pool dir in the 97c0fce7 scratchpad); if
+`kpstatus.sh` reports nothing, remove `control/stop` AND `control/stopnow`
+and relaunch per Design/KernelPool.md.
+
 ## What the project computes
 
 The NNLO hard function for pp -> h+X, via collinear factorization and
@@ -30,9 +145,10 @@ composed with v<->w, as an exact rational matrix identity), and put each
 class into **eps-form**: dF = eps (sum_a R_a dlog phi_a) F with constant
 residues R_a. Acceptance is always an exact reconstruction check, never
 a structural shape check.
-Status: 170/173 classes have validated eps-forms. The last three
-(97 = CF258_B9, 77 = CF230_B1, 79 = CF231_B1) are the current frontier —
-see `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/HardClasses/`.
+Status: 173/173 classes have validated eps-forms (97 = CF258_B9,
+77 = CF230_B1 and 79 = CF231_B1 certified 2026-08-16 as two-variable eps-forms in
+the charts v = +-xy, w = (1-x)(1-y)); the hard-class stage-1 work is CLOSED — see
+`ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/HardClasses/EpsFormRoute/README.md`.
 
 **Stage 2 — transport** (`FeynFacet/Private/MasterTransport.wl`, tests
 `Tests/t_master_transport.wls`). Given eps-forms, solve family by family:
@@ -77,30 +193,48 @@ subtraction kernels), plus 1 if the scalar->vector reconstruction is
 Laurent-graded. The NLO analogue: LO must be carried to eps (eps^2 for
 NNLO subtraction).
 
-## Current frontier: the last three classes
+## Hard classes 97/77/79: all three certified (2026-08-16); frontier moves to stage 2
 
 Entry point: `Results/UU_08_10_canonical/HardClasses/EpsFormRoute/README.md`
-(method, per-class state, ordered next steps). One-paragraph version:
+(state table, method record, consult records, ordered next steps).
+One-paragraph version:
 
 All three are order-4 irreducible at generic eps (certified), which does
-NOT preclude an eps-form. Their eps=0 operators factor completely, which
+NOT preclude an eps-form (a canonical form is a gauge transformation,
+not a factorization). Their eps=0 operators factor completely, which
 gave a first route (eps-graded recursion, `Scripts/EpsilonGraded.wl`,
-certified solutions through eps^3/eps^2 — now the VERIFICATION track).
-The production route is the eps-form found on 2026-08-16: rationalizing
-chart -> Fuchsify -> two-point Lee balances -> CANONICA. Class 97 is
-normalized symbolically in (x,y) (flat, integrability verified) and its
-normalized family factorizes at 12/12 sampled y values; what remains is
-the eps-factorizing gauge with y symbolic — a two-variable CANONICA run
-was progressing when the session ended and is the first thing to
-restart. Class 77 has slice eps-forms at 10 y-points and follows the
-same template. Class 79 is blocked by integer offsets on an irreducible
-quadratic locus (mechanism question written up, unanswered).
+certified scalar solutions through eps^3/eps^2 — the VERIFICATION
+track). The production route is the eps-form route: rationalizing chart
+-> Fuchsify -> Lee balances with the spectator SYMBOLIC -> Lee's linear
+"factor out eps" step (an x-constant U(y,eps) from a nullspace over
+Q(y,eps); Libra ships it as `FactorOut`) -> rational scalar gauge -> THE
+GATE (original chart system through T equals eps Sum R_a dlog phi_a in
+BOTH variables, constant R_a). Class 97 passed that gate on 2026-08-16
+(`c97_epsform_two_variable.wl`); class 77 the same afternoon via the chart
+involution (x,y) -> (1-x,1-y) (= v <-> w): its residue tuple is
+sigma*(class 97's), and T_77 = T_eq . sigma*T_97 with a tiny T_eq
+(`c77_epsform_two_variable.wl`). Class 79: the old t-chart hid three
+irreducible quadratic loci; in v = -xy, w = (1-x)(1-y) (Q = lambda(-v,w))
+every letter is linear; it went through the same pipeline the same day
+(10 balances on a slice, symbolic replay, constant gauge by sampling +
+rational interpolation verified exactly, gate) — `c79_epsform_two_variable.wl`,
+independently re-derived. Ledger records `ClassForms/class{97,77,79}.wl`,
+`Tests/t_hard_class_epsforms.wls` 24/24. Next: transport of these three
+families in chart variables through the EXISTING `TransportFamily`
+(chart-pullback layer `TransportFamilyInChart`, in review), then boundary
+conditions at x = y by deck invariance and endpoint modes exact in eps.
 
-Do NOT try to lift the gauge by interpolating independent slice
-transforms: the canonical transform is fixed only up to an
-EPS-DEPENDENT constant matrix, so slices are incomparable, and
-normalizing them at a reference point destroys the eps-form. This is
-measured and recorded, with four alternatives, in the route README.
+Lessons that are now method (do not relearn): (i) check the pulled-back
+alphabet of a class in a candidate chart BEFORE any normalization —
+"irreducible quadratic locus" was a chart artifact; (ii) once a system
+is normalized with the spectator symbolic, do NOT interpolate slice
+transforms or run two-variable CANONICA — the finish is one linear
+solve; interpolating raw CANONICA slices fails only because CANONICA
+picks a free constant conjugation per slice; (iii) the eps-dependent
+apparent loci introduced by balances come out of the y-direction as pure
+scalar dlog terms with integer residues (the scalar gauge), and never
+appear in the final letters; (iv) never claim an eps-form from a
+one-variable check — the two-variable gate is the certificate.
 
 ## Two-assistant setup (important)
 
@@ -144,9 +278,11 @@ cross-checked results. Rules:
 
 - `FeynFacet/` — the package (`Private/` holds the stage modules).
 - `Tests/` + `run_tests.sh` — the suite; keep it green.
-- `Scripts/` — campaign drivers (`HardClassToolkit.wl` with
-  `HCTMissionPool` for 1-main+4-subkernel pools; the eps-form pipeline
-  scripts; `EpsilonGraded.wl`).
+- `Scripts/` — campaign drivers (`KernelPool.wls` + `kpsubmit.sh`/
+  `kpwait.sh`/`kpstatus.sh` = the persistent kernel pool every kernel
+  job goes through; `HardClassToolkit.wl` with `HCTMissionPool` for
+  in-script fan-out; the eps-form pipeline scripts `epsform_*.wls`;
+  `EpsilonGraded.wl`).
 - `Design/` — architecture and method records; start with
   `MasterSolvingArchitecture.md`, `HardClassToolkit.md`,
   `Stage3BoundaryToolchain.md`.
@@ -245,11 +381,20 @@ the parallel assistant's workspace. Never write there. Our tree is
 
 ## Compute budget (shared machine, shared Wolfram license)
 
-- Never hold more than **1 main kernel + 4 subkernels** of ours. The
-  license refuses a second main while 4 subkernels are seated, so the
-  pool topology (`HCTMissionPool` in `Scripts/HardClassToolkit.wl`) is
-  strictly better than several serial mains: submit all missions, let
-  `WaitNext` hand each finished subkernel the next one.
+- **All kernel work goes through the persistent KernelPool**
+  (`Scripts/KernelPool.wls`, since 2026-08-16): ONE main kernel of ours
+  holding up to 8 subkernels (measured: the license accepts 8) with
+  FeynFacet preloaded, watching a queue directory. Submit a script with
+  `Scripts/kpsubmit.sh <name> <script.wls> [args]`, wait with
+  `Scripts/kpwait.sh <name>`, read `<pool>/logs/<name>.log`, see
+  `Scripts/kpstatus.sh`; cancel with `touch <pool>/control/<name>.cancel`;
+  stop with `control/stop` (drain) or `control/stopnow`. Scripts ending
+  in `Exit[code]` (TestKit) work — the code is captured. Missions run
+  concurrently; the pool serializes nothing. Never launch a second main
+  of ours while the pool runs; if the pool is down, start it (see
+  `Design/KernelPool.md`). `HCTMissionPool` (static list) remains for
+  in-script fan-out. Subkernels keep state between missions: don't rely
+  on a clean Global` context; Clear large allocations.
 - Total compute across our jobs <= 10 cores (`--parallel=10`,
   `--threads=10`, `taskset -c 0-9` to bring a running job under cap).
 - Ownership is decided by `/proc/<pid>/cwd`, not by command line: ours
@@ -261,7 +406,30 @@ the parallel assistant's workspace. Never write there. Our tree is
   output to files directly, never through `tee` chains that can die
   under the process.
 
+## Production launches (rule of 2026-08-20; a batch was launched on
+## inferred consent and the user had to kill it)
+
+A production campaign — any multi-family batch, overnight run, or
+launch consuming hours of shared compute — starts ONLY on the user's
+explicit instruction given in response to a concrete proposal naming
+the scope and cost. An old conditional approval, an unanswered
+proposal, or the general autonomy mandate is NOT a go. Cheap-scale
+probes and diagnostics within an assigned task remain autonomous.
+Before any such launch, check the launch against the CURRENT written
+plan: if steps ordered before it are still open, do not start it
+without the user explicitly reordering. State, in the launch message:
+the quoted go, the plan step it executes, and the expected cost.
+
 ## Long runs
+
+**Watchdog (standardized 2026-08-22, `Design/Watchdog.md`): whenever
+any compute of ours runs in the background, spawn ONE Opus watchdog
+subagent in the same turn — first check immediately, then every 5
+minutes, read-only, reporting only anomalies and drain. The prompt is
+in `Design/Watchdog.md` (copy it verbatim); register outputs with
+`Scripts/watchdog_register.sh`. A bash `Monitor` is not a substitute
+(2026-08-22: a finished family left the driver idle for 10 minutes; a
+pattern watch saw nothing wrong).**
 
 Every long run emits per-item progress to a log, and its watchdog is
 armed **in the same turn as the launch** (an 8-hour unmonitored
@@ -283,6 +451,17 @@ estimated, explicitly.
 
 ## Verification
 
+- **Check levels (user decision 2026-08-22):** checks are separate from
+  the calculation. Production runs (`FACET_CHECK_LEVEL=Production`, the
+  pool driver's default) keep only cheap guards inside the calculation —
+  exact-rational evaluation at random points, the unseen-prime residual —
+  and make ONE exact statement at the end, the family certificate
+  (`CertifyFamilyEpsilonForm`); intermediate records then say
+  "NumericalResidual"/"CandidateEpsilonForm", never "exact". The exact
+  intermediate identities exist for development and tests
+  (`Development`, the default outside the driver). Measured 2026-08-22:
+  the exact identities were 70% of a family assembly and ~30% of a hard
+  off-diagonal block.
 - A stored transformation or result is "OK" only after an **exact**
   reconstruction check. Structural shape checks are never success
   criteria (CANONICA returns `{False, {partial}}` on failure, which is
@@ -326,7 +505,14 @@ pre-launch backup rather than retaining any FrontEnd-generated rewrite.
 
 Regulator symbols differ per package (`eps`, `ep`, `Epsilon`,
 `CANONICA\`eps`) — normalize by `SymbolName` at every boundary, never by
-symbol identity. `Return` inside `Do` discards results. `Module`
+symbol identity; in particular after `ValidateCanonicalForm` (loads
+CANONICA) a later `Get` reads bare `eps`/`x`/`y` as `CANONICA\`` symbols.
+Libra `Projector` returns a ZERO matrix on Wolfram 14.2 unless
+`Off[OptionValue::optnf]` is set (its internal `Check` treats a benign
+`OInverse` option message as failure; `Quiet` does not help) — a
+"Libra found no balance" verdict without that `Off` is void; Libra
+`Fuchsify` only walks off-diagonal blocks (no-op on an irreducible
+block). `Return` inside `Do` discards results. `Module`
 initializers are not sequentially scoped. Self-assignment `v = Global\`v`
 poisons iteration limits. `Missing[] =!= None` in both directions.
 `Put` is not atomic — write to a temp file and `RenameFile`. `Together`

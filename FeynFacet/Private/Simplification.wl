@@ -1,5 +1,10 @@
 (* Card-driven exact simplification of physical master coefficients. *)
 
+(* Public symbols are Clear'ed, not ClearAll'ed: ClearAll also removes
+   the usage messages FeynFacet.m defines before loading this file
+   (found 2026-08-21). Clear still drops their definitions, so re-Get of
+   this file stays clean. *)
+Clear[BuildSimplificationContext, SimplifyHardCoefficients];
 ClearAll[
   exactCoefficientNormalize,
   momentumFractionSymbols,
@@ -91,9 +96,7 @@ ClearAll[
   finiteFieldNormalizeTraceTarget,
   finiteFieldNormalizeTraceTargetCore,
   finiteFieldNormalizeTraceBatch,
-  finiteFieldCoefficientSimplificationCore,
-  BuildSimplificationContext,
-  SimplifyHardCoefficients
+  finiteFieldCoefficientSimplificationCore
 ];
 
 BuildSimplificationContext::invalid =
@@ -3113,13 +3116,14 @@ finiteFieldNormalizationKernelCount[value_, targetCount_Integer] := Module[
     value === Automatic && ValueQ[Global`$FACETKernelLimit] &&
         IntegerQ[Global`$FACETKernelLimit] &&
         Global`$FACETKernelLimit > 0,
-      Global`$FACETKernelLimit,
+      facetKernelCount[Global`$FACETKernelLimit, targetCount],
     value === Automatic,
-      Min[8, $ProcessorCount],
+      facetKernelCount[Automatic, targetCount],
     True,
       $Failed
   ];
-  If[limit === $Failed, $Failed, Max[1, Min[limit, targetCount]]]
+  If[limit === $Failed, $Failed,
+    facetKernelCount[limit, targetCount]]
 ];
 
 finiteFieldNormalizeTraceTarget[

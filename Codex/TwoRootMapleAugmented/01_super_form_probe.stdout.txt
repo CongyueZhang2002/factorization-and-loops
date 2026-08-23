@@ -1,0 +1,44 @@
+License expires in 14 days
+    |\^/|     Maple 2026 (X86 64 LINUX)
+._|\|   |/|_. Copyright (c) Maplesoft, a division of Waterloo Maple Inc. 2026
+ \  MAPLE  /  All rights reserved. Maple is a trademark of
+ <____ ____>  Waterloo Maple Inc.
+      |       Type ? for help.
+> restart:
+> interface(prettyprint=0):
+> interface(verboseproc=3):
+> packageDirectory := "/home/maxzhang/factorization-and-loops/Addon/Other_Addon/Maple/IntegrableConnections":
+> libname := packageDirectory, libname:
+> with(IntegrableConnections):
+
+> printf("BEGIN_SUPER_FORM\n"):
+BEGIN_SUPER_FORM
+> print(eval(IntegrableConnections:-super_form)):
+proc (A, b, x, S, invS, lambda) local l, B, nu, i, L, t0; nu := 0; l := 
+IntegrableConnections:-ratsuper(A,x,1/x,lambda,S,invS); L := [l[2][1]-1, op(l[2
+][2 .. nops(l[2])])]; if l[4] <> 0 then nu := -IntegrableConnections:-matval(
+invS,x,1/x) end if; if 0 < nu then invS := evalm(x^nu*invS); S := evalm(x^(-nu)
+*S) end if; [evalm(x*l[1]+nu), evalm(invS &* b*x), L, subs(lambda = lambda-nu,l
+[3])] end proc
+> showstat(IntegrableConnections:-super_form):
+
+IntegrableConnections:-super_form := proc(A, b, x, S, invS, lambda)
+local l, B, nu, i, L, t0;
+   1   nu := 0;
+   2   l := IntegrableConnections:-ratsuper(A,x,1/x,lambda,S,invS);
+   3   L := [l[2][1]-1, op(l[2][2 .. nops(l[2])])];
+   4   if l[4] <> 0 then
+   5       nu := -IntegrableConnections:-matval(invS,x,1/x)
+       end if;
+   6   if 0 < nu then
+   7       invS := evalm(x^nu*invS);
+   8       S := evalm(x^(-nu)*S)
+       end if;
+   9   [evalm(x*l[1]+nu), evalm(invS &* b*x), L, subs(lambda = lambda-nu,l[3])]
+end proc
+
+> printf("END_SUPER_FORM\n"):
+END_SUPER_FORM
+
+> quit:
+memory used=2.1MB, alloc=8.3MB, time=0.01

@@ -181,13 +181,24 @@ canonicalBlocksFail[symbol_, message_, args___] := (
    symbols referenced below are created when this file is read and
    acquire their definitions when the add-on loads; that is the normal
    forward-reference behaviour of the context system. *)
-canonicalBlocksLoadCanonica[] := Module[{file},
+canonicalBlocksLoadCanonica[] := Module[{file, path},
   If[TrueQ[$canonicalBlocksCanonicaLoaded], Return[True]];
   file = FileNameJoin[{$feynFacetRoot, "Addon", "Mathematica_Addon",
     "CANONICA", "src", "CANONICA.m"}];
   If[! FileExistsQ[file],
     canonicalBlocksFail[CanonicalizeClasses, "canonica", file]];
+  (* restore $ContextPath: leaving CANONICA` on the path makes every
+     later bare Get in the session parse eps/x/y into CANONICA` -- the
+     measured cause of the 2026-08-20 certification failures. All
+     CANONICA references in this package are fully qualified. *)
+  path = $ContextPath;
   Quiet[Get[file], General::shdw];
+  $ContextPath = path;
+  (* inside a subkernel CANONICA's internal parallelism would launch
+     sub-subkernels on the shared license and escape TimeConstrained
+     (measured 2026-08-18); force serial at every load site *)
+  CANONICA`$ComputeParallel = False;
+  CANONICA`Private`$ComputeParallel = False;
   $canonicalBlocksCanonicaLoaded = True;
   True
 ];

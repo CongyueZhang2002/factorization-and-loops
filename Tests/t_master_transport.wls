@@ -987,4 +987,353 @@ answered",
        Lookup[refused, "Coupling", <||>]["FeedsGraded"] =!= {} &&
        StringQ[Lookup[refused, "Reason", None]]]]];
 
+(* ------------------------------------------------------------------ I *)
+
+(* I. Class MEMBERS in their own basis and orientation.
+
+   Stage 1 certifies ONE epsilon-form per class -- the REPRESENTATIVE's --
+   and defines class equivalence as a basis PERMUTATION optionally
+   composed with the v <-> w SWAP.  A member's transformation is
+   therefore the stored T acted on by that same group element, and
+   applying the stored T to a member without it is the wrong-frame error
+   one level down: measured 2026-08-17, it refused twelve all-rational
+   families (CF67, CF71, CF262, CF263, CF267, CF269, CF308, CF311,
+   CF390, CF393, CF404, CF415) with ClassFormNotEpsForm.
+
+   Acceptance, stated before any of it is run:
+
+     I1  a REAL swap member from the campaign data is refused by the
+         stored T AS WRITTEN -- the non-vacuity control, without which
+         I2 would pass on a member that never needed a map -- and is
+         accepted once the recovered element is applied, with "Swap"
+         True in the returned map;
+     I2  a member differing from the representative by a basis
+         PERMUTATION is likewise refused as written and accepted with
+         Permutation {2,1}.  No member of the stored 1119 needs one
+         (measured 2026-08-17: 252 of the 1028 rational-frame members
+         need the swap -- 213 of dimension 1, 39 of dimension 2 -- and
+         none needs a permutation), so this member is CONSTRUCTED from
+         a real class by relabelling the two basis elements of the
+         class-6 representative, which is exactly what "a member of
+         class 6" means;
+     I3  swap and permutation TOGETHER;
+     I4  the recovery cannot manufacture an acceptance: with the
+         record's stored EpsForm corrupted -- it is the candidate
+         generator the representative's connection is reconstructed
+         from -- the same permuted member is REFUSED, by name;
+     I5  the whole of CF67, six of whose blocks are swap members,
+         assembles in (v,w) with the five-part certificate, and at
+         least one block reports that it went through the member map
+         (so I5 cannot pass without the repair having engaged). *)
+
+classFormBlock = FeynFacet`Private`masterTransportClassFormBlock;
+blockClassAssignment = Get[FileNameJoin[{ftBlockClasses, "block_class_assign.wl"}]];
+storedClasses = normalizeRegulator[Get[FileNameJoin[{ftBlockClasses, "classes.wl"}]]];
+classRecordOf[cid_Integer] := normalizeRegulator[
+  Get[FileNameJoin[{ftClassForms, "class" <> ToString[cid] <> ".wl"}]]];
+
+epsLinearQ[m_] := AllTrue[Flatten[m],
+  (TrueQ[Together[#] === 0] || FreeQ[Together[#/ee], ee]) &];
+
+(* the stored T applied DIRECTLY, which is what the assembly did before
+   the member map existed *)
+directEpsFormQ[t_, av_, aw_] := Module[{ti = Inverse[t]},
+  epsLinearQ[Together[ti . av . t - ti . D[t, vv]]] &&
+  epsLinearQ[Together[ti . aw . t - ti . D[t, ww]]]];
+
+memberForm[record_, cid_, av_, aw_] := classFormBlock[
+  <|"Record" -> record, "ClassID" -> cid|>, Range[Length[av]], av, aw,
+  ee, {vv, ww}];
+
+(* I1 -- a real swap member: CF67 rows {6} *)
+cf67 = normalizeRegulator[Get[FileNameJoin[{ftData, "DifferentialEquations",
+  "nnlo_de_CF67.wl"}]]];
+cf67Assignment = Select[blockClassAssignment, #["Family"] === "CF67" &];
+cf67SwapEntry = SelectFirst[cf67Assignment, #["Rows"] === {6} &, None];
+
+If[! AssociationQ[cf67SwapEntry],
+  log["CF67 rows {6} not in the assignment -- I1 is NOT PERFORMABLE"];
+  FTAssert["I1a the stored T alone REFUSES the real swap member CF67 {6}", False];
+  FTAssert["I1b the recovered map repairs it, with Swap True", False],
+  Module[{cid, record, av, aw, form},
+   cid = cf67SwapEntry["ClassID"];
+   record = classRecordOf[cid];
+   av = cf67["Av"][[{6}, {6}]];
+   aw = cf67["Aw"][[{6}, {6}]];
+   form = memberForm[record, cid, av, aw];
+   log["I1 CF67 {6} class ", cid, " direct ",
+     directEpsFormQ[record["Transformation"], av, aw],
+     "  repaired ", Lookup[form, "Status", "?"], "/",
+     Lookup[form, "Source", "-"], " map ", Lookup[form, "MemberMap", "-"]];
+   FTAssert["I1a the stored T alone REFUSES the real swap member CF67 {6}",
+     ! directEpsFormQ[record["Transformation"], av, aw]];
+   FTAssert["I1b the recovered map repairs it, with Swap True",
+     AssociationQ[form] && form["Status"] === "OK" &&
+       form["Source"] === "class-form-member" &&
+       AssociationQ[form["MemberMap"]] &&
+       TrueQ[form["MemberMap"]["Swap"]] &&
+       form["MemberMap"]["Permutation"] === {1} &&
+       epsLinearQ[form["Ev"]] && epsLinearQ[form["Ew"]]]]];
+
+(* I2/I3/I4 -- constructed members of class 6 (representative CF12 rows
+   {5,6}, dimension 2).  RepAv/RepAw come from the stored classes.wl, so
+   the block system is the one the class was built from. *)
+class6 = SelectFirst[storedClasses, #["ClassID"] === 6 &, None];
+class6Record = classRecordOf[6];
+
+If[! (AssociationQ[class6] && class6["Dim"] === 2 &&
+      Lookup[class6Record, "Chart", None] === None),
+  log["class 6 is not the expected 2x2 rational class -- I2..I4 NOT PERFORMABLE"];
+  FTAssert["I2a the stored T alone REFUSES a permuted member of class 6", False];
+  FTAssert["I2b the recovered map repairs it, with Permutation {2,1}", False];
+  FTAssert["I3 a swapped AND permuted member is repaired with both", False];
+  FTAssert["I4 a corrupted candidate generator can never produce an accepted form",
+    False],
+  Module[{av, aw, pav, paw, sav, saw, spav, spaw, permForm, swapPermForm,
+      corrupted, corruptForm, swapped},
+   av = class6["RepAv"]; aw = class6["RepAw"];
+   pav = av[[{2, 1}, {2, 1}]]; paw = aw[[{2, 1}, {2, 1}]];
+   swapped = FeynFacet`Private`canonicalBlocksSwapPair[{av, aw}, {vv, ww}];
+   {sav, saw} = swapped;
+   spav = sav[[{2, 1}, {2, 1}]]; spaw = saw[[{2, 1}, {2, 1}]];
+   permForm = memberForm[class6Record, 6, pav, paw];
+   swapPermForm = memberForm[class6Record, 6, spav, spaw];
+   (* the generator is the record's stored EpsForm; corrupt it and the
+      reconstructed representative connection is wrong *)
+   corrupted = Join[class6Record,
+     <|"EpsForm" -> {class6Record["EpsForm"][[1]] + ee IdentityMatrix[2],
+        class6Record["EpsForm"][[2]]}|>];
+   corruptForm = memberForm[corrupted, 6, pav, paw];
+   log["I2 class 6 permuted: direct ",
+     directEpsFormQ[class6Record["Transformation"], pav, paw],
+     "  repaired ", Lookup[permForm, "Status", "?"],
+     " map ", Lookup[permForm, "MemberMap", "-"]];
+   log["I3 class 6 swapped+permuted: ", Lookup[swapPermForm, "Status", "?"],
+     " map ", Lookup[swapPermForm, "MemberMap", "-"]];
+   log["I4 corrupted generator: ", Lookup[corruptForm, "Status", "?"],
+     " map ", Lookup[corruptForm, "MemberMap", "-"]];
+
+   FTAssert["I2a the stored T alone REFUSES a permuted member of class 6",
+     ! directEpsFormQ[class6Record["Transformation"], pav, paw]];
+   FTAssert["I2b the recovered map repairs it, with Permutation {2,1}",
+     AssociationQ[permForm] && permForm["Status"] === "OK" &&
+       permForm["Source"] === "class-form-member" &&
+       AssociationQ[permForm["MemberMap"]] &&
+       permForm["MemberMap"]["Swap"] === False &&
+       permForm["MemberMap"]["Permutation"] === {2, 1} &&
+       epsLinearQ[permForm["Ev"]] && epsLinearQ[permForm["Ew"]] &&
+       permForm["T"] === class6Record["Transformation"][[{2, 1}, {2, 1}]]];
+   FTAssert["I3 a swapped AND permuted member is repaired with both",
+     ! directEpsFormQ[class6Record["Transformation"], spav, spaw] &&
+       AssociationQ[swapPermForm] && swapPermForm["Status"] === "OK" &&
+       AssociationQ[swapPermForm["MemberMap"]] &&
+       TrueQ[swapPermForm["MemberMap"]["Swap"]] &&
+       swapPermForm["MemberMap"]["Permutation"] === {2, 1} &&
+       epsLinearQ[swapPermForm["Ev"]] && epsLinearQ[swapPermForm["Ew"]]];
+   FTAssert["I4 a corrupted candidate generator can never produce an accepted form",
+     AssociationQ[corruptForm] && StringQ[corruptForm["Status"]] &&
+       corruptForm["Status"] =!= "OK"]]];
+
+(* I5 -- the family.  MaxWeight 0 stops after the assembly and the depth
+   arithmetic, so the criterion is the ASSEMBLY certificate; the returned
+   status is then DepthExceedsCap and is not the thing under test. *)
+Module[{blocks, result, assembly, memberBlocks},
+  blocks = Table[{a["Rows"], a["ClassID"]}, {a, cf67Assignment}];
+  result = FeynFacet`TransportFamily[
+    <|"Family" -> "CF67", "Basis" -> Lookup[cf67, "BlockBasis", None],
+      "Av" -> cf67["Av"], "Aw" -> cf67["Aw"]|>,
+    "Variables" -> {vv, ww}, "Regulator" -> ee, "Blocks" -> blocks,
+    "FormDirectory" -> ftClassForms, "BasePoint" -> {1/4, 1/4},
+    "PhysicalValuation" -> 0, "Orders" -> {0, 1},
+    "TransportBackend" -> "Libra", "MaxWeight" -> 0];
+  assembly = If[AssociationQ[result], Lookup[result, "Assembly", None], None];
+  memberBlocks = If[AssociationQ[assembly] && ListQ[Lookup[assembly, "Forms", None]],
+    Count[assembly["Forms"],
+      f_ /; AssociationQ[f] && Lookup[f, "Source", None] === "class-form-member"],
+    0];
+  log["I5 CF67 status ", statusOf[result], "  blocks ", Length[blocks],
+    "  member-map blocks ", memberBlocks];
+  FTAssert["I5 CF67 assembles in (v,w) with the five-part certificate, through \
+the member map",
+    AssociationQ[assembly] &&
+      TrueQ[FeynFacet`Private`masterTransportCertificateOK[assembly]] &&
+      memberBlocks >= 1]];
+
+(* ------------------------------------------------------------------ K *)
+
+(* K. The axis-direction choice.
+
+   The transport runs along a straight segment.  A letter that is
+   BILINEAR in (v,w) is linear in the path parameter on an axis-aligned
+   segment and quadratic on a generic one, and which of the TWO axes an
+   individual family admits is a property of its alphabet.  Measured
+   2026-08-17: CF301's letter (1-v)^2 + v w is refused by the monic gate
+   with v moving and accepted with w moving.
+
+   MEASURED 2026-08-17, second reading: under the DEFAULT
+   "AlgebraicLetters" -> Automatic that quadratic denominator is now
+   ADMITTED, as a pair of algebraic letters with an eps-free
+   discriminant, so CF301 passes in BOTH directions and the direction
+   question is invisible there.  K1/K2 therefore run CF301 under the
+   STRICT linear gate, "AlgebraicLetters" -> False, which is the regime
+   in which the asymmetry exists and the one every word backend that
+   cannot carry a radical still lives in.
+
+   Acceptance:
+
+     K1  with "BasePoint" -> Automatic and the strict linear gate CF301
+         records TWO candidates and the first ({1/4, w}, v moving) is
+         NOT accepted, its path denominator being non-linear -- the
+         non-vacuity control, measured in the same run as K2 so the two
+         cannot disagree;
+     K2  the second candidate ({v, 1/4}, w moving) IS accepted, is the
+         base the run used, and the run gets past the monic gate with
+         the five-part assembly certificate;
+     K3  a family that BOTH directions refuse is still refused, by the
+         same name as before, and carries BOTH monic records.  The
+         datum is synthetic and exact: dlog(1 + v^3 + w^3) is a flat
+         1x1 epsilon-form whose single letter is CUBIC in the path
+         parameter on either axis, and degree >= 3 is refused whatever
+         the "AlgebraicLetters" setting is. *)
+
+Module[{cf301, blocks, result, path, trials},
+  cf301 = normalizeRegulator[Get[FileNameJoin[{ftData, "DifferentialEquations",
+    "nnlo_de_CF301.wl"}]]];
+  blocks = Table[{a["Rows"], a["ClassID"]},
+    {a, Select[blockClassAssignment, #["Family"] === "CF301" &]}];
+  result = FeynFacet`TransportFamily[
+    <|"Family" -> "CF301", "Basis" -> Lookup[cf301, "BlockBasis", None],
+      "Av" -> cf301["Av"], "Aw" -> cf301["Aw"]|>,
+    "Variables" -> {vv, ww}, "Regulator" -> ee, "Blocks" -> blocks,
+    "FormDirectory" -> ftClassForms, "BasePoint" -> Automatic,
+    "AlgebraicLetters" -> False,
+    "PhysicalValuation" -> 0, "Orders" -> {0, 1},
+    "TransportBackend" -> "Libra", "MaxWeight" -> 0];
+  path = Lookup[result, "Path", <||>];
+  trials = Lookup[path, "Trials", Lookup[result, "PathTrials", {}]];
+  log["K CF301 status ", statusOf[result], "  chosen ", Lookup[path, "Base", "-"],
+    "  trials ", Length[trials], " ",
+    Table[{t["BasePoint"], t["Accepted"],
+      Lookup[Lookup[t, "Monic", <||>], "Degrees", "-"]}, {t, trials}]];
+
+  FTAssert["K1 CF301 with v moving is REFUSED by the strict linear gate \
+(non-vacuity control for K2)",
+    ListQ[trials] && Length[trials] === 2 &&
+      trials[[1]]["BasePoint"] === {1/4, ww} &&
+      trials[[1]]["Accepted"] === False &&
+      AssociationQ[trials[[1]]["Monic"]] &&
+      ! TrueQ[trials[[1]]["Monic"]["Linear"]]];
+  FTAssert["K2 with w moving it is accepted, that is the base the run used, \
+and the assembly carries the five-part certificate",
+    ListQ[trials] && Length[trials] === 2 &&
+      trials[[2]]["BasePoint"] === {vv, 1/4} &&
+      TrueQ[trials[[2]]["Accepted"]] &&
+      Lookup[path, "Base", None] === {vv, 1/4} &&
+      AssociationQ[Lookup[result, "Assembly", None]] &&
+      TrueQ[FeynFacet`Private`masterTransportCertificateOK[result["Assembly"]]]]];
+
+Module[{letter, system, refused, trials},
+  (* dlog of a letter that is CUBIC along either axis *)
+  letter = 1 + vv^3 + ww^3;
+  system = <|"Family" -> "SYNTHcubic",
+    "Av" -> {{ee D[Log[letter], vv]}}, "Aw" -> {{ee D[Log[letter], ww]}}|>;
+  refused = FeynFacet`TransportFamily[system,
+    "Variables" -> {vv, ww}, "Regulator" -> ee,
+    "Blocks" -> {{{1}, <|"Type" -> "EpsForm", "T" -> {{1}}|>}},
+    "BasePoint" -> Automatic, "PhysicalValuation" -> 0, "Orders" -> {0, 1},
+    "TransportBackend" -> "Libra", "MaxWeight" -> 4];
+  trials = Lookup[refused, "PathTrials", {}];
+  log["K3 cubic-letter system status ", statusOf[refused], "  trials ",
+    Length[trials], " ",
+    Table[{t["BasePoint"], t["Accepted"],
+      Lookup[Lookup[t, "Monic", <||>], "Degrees", "-"]}, {t, trials}]];
+  FTAssert["K3 a family BOTH axis directions refuse is still refused by the \
+same name, and the refusal carries BOTH monic records",
+    resultQ[refused] && statusOf[refused] === "PathDenominatorsNotLinear" &&
+      ListQ[trials] && Length[trials] === 2 &&
+      AllTrue[trials, #["Accepted"] === False &] &&
+      AllTrue[trials, AssociationQ[#["Monic"]] && #["Monic"]["Degrees"] === {3} &] &&
+      Lookup[refused, "BasePointCandidates", None] ===
+        {{1/4, ww}, {vv, 1/4}}]];
+
+(* ------------------------------------------------------------------ L *)
+
+(* L. The "DECheck" option, and the trap it exists to avoid.
+
+   The per-order check against the ORIGINAL family differential equation
+   is the substantive verification of this stage.  Making it
+   configurable is a cost decision, and the danger is that a SKIPPED
+   check reads as a PASSED one: AllTrue[{}, ...] is True, so a setting
+   that merely empties the DECheck list would report status "OK" on a
+   run that verified nothing.
+
+   The datum is a synthetic 1x1 epsilon-form, dlog(1 - v - w), with
+   "PhysicalValuation" -> -1 and "Orders" -> {0, 1}: the checkable
+   window is then {-1, 0, 1} while the DEMANDED window is {0, 1}, which
+   is what makes "Demanded" a strictly smaller set than All and the
+   test non-vacuous.
+
+     L1  positive control: with All the check runs at every checkable
+         order, {-1, 0, 1}, and every one is an exact symbolic zero, so
+         L2 and L3 are statements about a transport that is known good;
+     L2  "Demanded" checks exactly {0, 1}, all zero, and REPORTS {-1}
+         as not checked;
+     L3  None returns Missing["Skipped"], never {}, and the status is
+         "SolvedDECheckSkipped" -- specifically NOT "OK";
+     L4  an unknown value is refused by name, fail-closed;
+     L5  the depth progress line raises no Lookup::invrl when the exact
+         recursion was not computed (the Missing["NotComputed"] used to
+         be handed to Lookup, measured in payoff2.log). *)
+
+deCheckSystem = Module[{letter = 1 - vv - ww},
+  <|"Family" -> "SYNTHdlog",
+    "Av" -> {{ee D[Log[letter], vv]}}, "Aw" -> {{ee D[Log[letter], ww]}}|>];
+deCheckBlocks = {{{1}, <|"Type" -> "EpsForm", "T" -> {{1}}|>}};
+deCheckRun[rule_, more___] := FeynFacet`TransportFamily[deCheckSystem,
+  "Variables" -> {vv, ww}, "Regulator" -> ee, "Blocks" -> deCheckBlocks,
+  "BasePoint" -> {1/4, 1/4}, "PhysicalValuation" -> -1, "Orders" -> {0, 1},
+  "TransportBackend" -> "Libra", "MaxWeight" -> 6, "DECheck" -> rule, more];
+
+Module[{all, demanded, none, bad, noisy},
+  all = deCheckRun[All];
+  demanded = deCheckRun["Demanded"];
+  none = deCheckRun[None];
+  bad = deCheckRun["Some"];
+  log["L1 All      -> ", statusOf[all], " orders ",
+    Lookup[all, "DECheck", "-"] /. d_Association :> {d["Order"], d["Zero"]}];
+  log["L2 Demanded -> ", statusOf[demanded], " checked ",
+    Lookup[Lookup[demanded, "Checkable", <||>], "Checked", "-"],
+    " notChecked ", Lookup[Lookup[demanded, "Checkable", <||>], "NotChecked", "-"]];
+  log["L3 None     -> ", statusOf[none], " DECheck ", Lookup[none, "DECheck", "-"]];
+
+  FTAssert["L1 positive control: with All the check runs at every checkable \
+order {-1,0,1} and every one is an exact symbolic zero",
+    resultQ[all] && statusOf[all] === "OK" && ListQ[all["DECheck"]] &&
+      all["DECheck"][[All, "Order"]] === {-1, 0, 1} &&
+      AllTrue[all["DECheck"], zeroOrder]];
+  FTAssert["L2 \"Demanded\" checks exactly the demanded orders {0,1}, all \
+zero, and REPORTS {-1} as not checked",
+    resultQ[demanded] && statusOf[demanded] === "OK" &&
+      ListQ[demanded["DECheck"]] &&
+      demanded["DECheck"][[All, "Order"]] === {0, 1} &&
+      AllTrue[demanded["DECheck"], zeroOrder] &&
+      Lookup[demanded["Checkable"], "Checked", None] === {0, 1} &&
+      Lookup[demanded["Checkable"], "NotChecked", None] === {-1}];
+  FTAssert["L3 None returns Missing[\"Skipped\"], NOT {}, and the status is \
+\"SolvedDECheckSkipped\" and specifically not \"OK\" (AllTrue[{},...] is True)",
+    resultQ[none] && MissingQ[Lookup[none, "DECheck", None]] &&
+      Lookup[none, "DECheck", None] =!= {} &&
+      statusOf[none] === "SolvedDECheckSkipped" &&
+      statusOf[none] =!= "OK"];
+  FTAssert["L4 an unknown \"DECheck\" value is refused by name, fail-closed",
+    bad === $Failed];
+
+  (* L5: the message, caught rather than eyeballed in a log *)
+  noisy = Check[deCheckRun[All, "Verbose" -> True]; "quiet", "invrl",
+    {Lookup::invrl}];
+  log["L5 depth progress line: ", noisy];
+  FTAssert["L5 the depth progress line raises no Lookup::invrl when the exact \
+recursion was not computed",
+    noisy === "quiet"]];
+
 FTReport[];
