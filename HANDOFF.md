@@ -290,14 +290,18 @@ wolframscript -file Scripts/diagonal_block_class_campaign.wls /tmp/classff 4 ALL
 ## Update 2026-08-23 01:15 (Fable) — stopped and pushed (commit f96e234)
 - Codex's package bug (multiquadratic rows bypassed the regulator
   factorization) is fixed in the package and script; tests 12/12 + 7/7;
-  CF300 solved through sector 8 incl. the former blocker (8,5).  The
-  standalone and pool runs were stopped at the user's request; the CF300
-  state through sector 8's strips is in the session scratchpad only
-  (/tmp; will not survive a restart) -- a rerun from scratch costs ~12 min
-  to that point.
-- Open: the sector-8 row gauge (applyRowGauge) on algebraic entries ran
-  > 17 min (Together on square-root expressions; 9-12 s for sectors 6-7);
-  it needs the evaluate-and-reconstruct treatment before CF300 can go on.
-  Then the first rank-3 block needs Codex's 8-channel multiquadratic
-  sampler (no global rational chart exists: K3 cover).
+  CF300 solved through sector 9 (state "Sector" -> 9) with sector 10's
+  strips checkpointed, incl. the former blocker (8,5); strips resolved in
+  Kallen2/Kallen3 and the two-root joint chart Kallen23.  The pool run was
+  stopped at the user's request (01:13).  Checkpoint copied to
+  `Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-23/
+  CF300/` (state + strip checkpoints; both run logs beside it): resume
+  with the pool driver pointing at that directory.
+- Open: sector 8 cost 21 min in total, almost all in the row gauge
+  (applyRowGauge: Together on square-root entries; sectors 9-10 then
+  2 min each), so the algebraic row gauge wants the evaluate-and-
+  reconstruct treatment before the 4-row sectors 11-12.  The first
+  genuinely rank-3 block (if any appears dynamically) needs Codex's
+  8-channel multiquadratic sampler (no global rational chart: K3 cover);
+  the typed stop NeedsMultiquadraticRegulatorFactorization marks it.
 - Resource rule unchanged; nothing running; pool stopped.
