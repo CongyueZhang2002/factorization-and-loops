@@ -2757,3 +2757,38 @@ tests), Opus subagents for ordinary missions under my oversight.
   contract for the OneForms gap; synthetic rank-0..3 tests).
 - Full test battery of the integrated tree in flight (Opus subagent,
   standalone after the licence contention, watchdog attached).
+
+## 2026-08-23 (16:30-17:30) — CFFR1 backend and multiquadratic promotion landed
+
+- **CFFR1 plan-discovery backend** (5077d5b): Wolfram-side writer/runner/
+  parser/verifier for the native affine-RREF adapter per
+  Design/CFFR1Backend.md -- nonce echoed and required, typed failures
+  naming the divergent field, all-row re-verification, plans sealed with
+  adapter source/binary hashes + protocol + nonce + request/response
+  hashes inside the plan fingerprint; explicit request never falls back;
+  Automatic stays invalid.  t_finite_field_affine_rref_backend 31/31;
+  six finite-field regression suites green; adversarial + new suite
+  re-run independently by me before commit.
+- **Multiquadratic promotion** (b80daef): MultiquadraticAlgebra.wl (one
+  neutral (Z/2)^r ABI, context-free fingerprint, modular entries fail
+  closed on non-integer data) and MultiquadraticStripSolve.wl (direct
+  root-channel sampler, no BranchFlipMask in production, explicit
+  artifact context, typed failures, ModularConsistent-never-Solved) --
+  both registered.  Tests 75/75, 48/48 (deletion gate), 80/80 (synthetic
+  known-gauge blocks ranks 0-3 with exact CRT-lift equality and
+  all-sign-branch certificates).
+- **Package bug found by the port and fixed** (b80daef):
+  `transportChartRootIndices` matched root squares at all levels and
+  flattened position specs into indices -- Sqrt[x] against {x, y, 1+x+y}
+  classified as rank 3.  Level-1, Heads->False now; in-frame and
+  transport-frame suites re-run green.  The same defect remains in
+  Codex's External TRClassifyStripRecord (evidence files; not edited).
+- Port-agent defect list recorded in its report (Codex sources: rational
+  Mod not F_p reduction, Return-in-Table, per-point FileHash,
+  context-sensitive InputForm keys, no square-class independence screen;
+  package: FamilyRowGaugeFiniteField stable key never reaches FullForm,
+  FamilyArtifactRead Quiet[Check] + hardcoded Global).  Follow-up agent
+  in flight: FamilyRowGaugeFiniteField rebased onto the neutral module
+  (grade-mask relabeling admissible, file unregistered) and
+  FamilyArtifactRead hardened (CheckAbort + explicit context, caller
+  semantics unchanged).
