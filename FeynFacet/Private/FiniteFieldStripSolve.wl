@@ -32,6 +32,20 @@ ClearAll[
   finiteFieldStripAdaptiveSamplingPlan,
   finiteFieldStripUnseenPrimeResidualQ,
   finiteFieldStripFLINTBinary,
+  finiteFieldStripCFFRBinary,
+  finiteFieldStripCFFRSource,
+  $finiteFieldStripCFFRAdapterHashCache,
+  finiteFieldStripCFFRAdapterHashes,
+  finiteFieldStripCFFRFailure,
+  finiteFieldStripCFFRNonce,
+  finiteFieldStripCFFRRequest,
+  finiteFieldStripCFFRWriteRequest,
+  finiteFieldStripCFFRResponse,
+  finiteFieldStripCFFRVerify,
+  finiteFieldStripCFFRDirectory,
+  finiteFieldStripCFFRRun,
+  finiteFieldStripCFFRDiscoverPlan,
+  finiteFieldStripCFFRPlanBindingValidQ,
   finiteFieldStripBackendQ,
   finiteFieldStripBackendDecision,
   finiteFieldStripBackendConfiguration,
@@ -89,6 +103,52 @@ finiteFieldStripFLINTBinary[] := With[{file = FileNameJoin[{$feynFacetDirectory,
     "Backends", "flint", "bin", "flint_modular_solve"}]},
   If[FileExistsQ[file], file, None]];
 
+(* CFFR1 rectangular affine-RREF adapter: FeynFacet/Backends/flint
+   (build.sh, PROTOCOL_CFFR1.md), the plan-discovery backend of
+   Design/CFFR1Backend.md.  A sibling of the CFFA4 locator above and
+   nothing more: the two adapters share no writer, no parser and no
+   fallback semantics -- CFFR1 binds a nonce and the adapter's immutable
+   hashes, and an explicit request never falls back. *)
+finiteFieldStripCFFRBinary[] := With[{file = FileNameJoin[{$feynFacetDirectory,
+    "Backends", "flint", "bin", "flint_affine_rref"}]},
+  If[FileExistsQ[file], file, None]];
+
+finiteFieldStripCFFRSource[] := With[{file = FileNameJoin[{$feynFacetDirectory,
+    "Backends", "flint", "flint_affine_rref.c"}]},
+  If[FileExistsQ[file], file, None]];
+
+finiteFieldStripCFFRFailure[status_String, data_Association: <||>] :=
+  Join[<|"Status" -> status, "Protocol" -> "CFFR1"|>, data];
+
+$finiteFieldStripCFFRAdapterHashCache = <||>;
+
+(* item 5 of the design note: the adapter source and binary hashes are
+   the plan's immutable binding.  They are computed once per session and
+   cached under the binary's path, and re-checked on every discovery: a
+   binary replaced mid-session is a typed failure, never a plan that
+   silently belongs to another executable. *)
+finiteFieldStripCFFRAdapterHashes[] := Module[{binary, source, current},
+  binary = finiteFieldStripCFFRBinary[];
+  source = finiteFieldStripCFFRSource[];
+  If[! StringQ[binary] || ! FileExistsQ[binary],
+    Return[finiteFieldStripCFFRFailure["CFFRAdapterBinaryUnavailable",
+      <|"AdapterBinary" -> If[StringQ[binary], binary, None]|>]]];
+  If[! StringQ[source] || ! FileExistsQ[source],
+    Return[finiteFieldStripCFFRFailure["CFFRAdapterSourceUnavailable",
+      <|"AdapterSource" -> If[StringQ[source], source, None]|>]]];
+  current = <|"AdapterBinary" -> binary, "AdapterSource" -> source,
+    "AdapterBinarySHA256" -> FileHash[binary, "SHA256", "HexString"],
+    "AdapterSourceSHA256" -> FileHash[source, "SHA256", "HexString"]|>;
+  If[KeyExistsQ[$finiteFieldStripCFFRAdapterHashCache, binary],
+    If[$finiteFieldStripCFFRAdapterHashCache[binary] =!= current,
+      Return[finiteFieldStripCFFRFailure["CFFRAdapterHashChanged",
+        <|"CachedAdapterHashes" ->
+            $finiteFieldStripCFFRAdapterHashCache[binary],
+          "CurrentAdapterHashes" -> current|>]]],
+    $finiteFieldStripCFFRAdapterHashCache[binary] = current];
+  Join[<|"Status" -> "OK"|>, current]
+];
+
 (* Backend controls only the fixed constrained core.  Plan discovery is a
    separate contract below; an explicit fixed-core request never changes
    the MatrixRank/NullSpace implementation that created the plan. *)
@@ -139,17 +199,24 @@ finiteFieldStripBackendQ[requested_, coreSize_Integer] := TrueQ[
   Lookup[finiteFieldStripBackendDecision[requested, 1, coreSize],
     "UseBackend", None] === "FLINT"];
 
-(* This merge records the existing Wolfram discovery path honestly.  The
-   native affine-RREF/CFFR protocol must enter through the distinct
-   FLINTAffineRREF value in a later patch; it is not the CFFA4 core solver. *)
+(* The plan-discovery contract, distinct from the CFFA4 fixed core above.
+   "Wolfram" is the historical path.  "FLINTAffineRREF" is the native
+   CFFR1 adapter (Design/CFFR1Backend.md); an explicit request with no
+   adapter present is a typed failure here, which the callers propagate
+   -- there is no fallback to the Wolfram discoverer.  Automatic is not
+   an accepted value in this pass, so Automatic can never select the
+   native path. *)
 finiteFieldStripPlanDiscoveryBackendDecision[requested_] := Which[
   requested === "Wolfram",
     <|"Status" -> "OK", "PlanDiscoveryBackendRequested" -> requested,
       "PlanDiscoveryBackendUsed" -> "Wolfram"|>,
-  requested === "FLINTAffineRREF",
+  requested === "FLINTAffineRREF" && finiteFieldStripCFFRBinary[] === None,
     <|"Status" -> "PlanDiscoveryBackendUnavailable",
       "PlanDiscoveryBackendRequested" -> requested,
       "PlanDiscoveryBackendUsed" -> None|>,
+  requested === "FLINTAffineRREF",
+    <|"Status" -> "OK", "PlanDiscoveryBackendRequested" -> requested,
+      "PlanDiscoveryBackendUsed" -> "FLINTAffineRREF"|>,
   True,
     <|"Status" -> "InvalidPlanDiscoveryBackendOption",
       "PlanDiscoveryBackendRequested" -> If[StringQ[requested],
@@ -208,27 +275,84 @@ $finiteFieldStripEliminationPlanRequiredKeys = {
   "GaugeNumeratorDegrees", "GaugeDenominatorDegrees", "GaugeSupport",
   "PilotPrime"};
 
+(* Design/CFFR1Backend.md item 5: a plan discovered by the native adapter
+   carries, inside the fingerprinted payload, the adapter identity and
+   the exact wire objects it was read from.  These keys are required for
+   "FLINTAffineRREF" and forbidden for "Wolfram". *)
+$finiteFieldStripEliminationPlanCFFRSolverProvenance = <|
+  "Discoverer" -> "FLINTAffineRREFAdapterCFFR1",
+  "IndependentRows" -> "FLINTRREFRowPermutation",
+  "PlanDiscoveryBackend" -> "FLINTAffineRREF",
+  "Implementation" -> "FiniteFieldStripSolve",
+  "ImplementationVersion" -> 1|>;
+$finiteFieldStripCFFRPlanBindingKeys = {
+  "AdapterSourceSHA256", "AdapterBinarySHA256", "Protocol", "Nonce",
+  "RequestSHA256", "ResponseSHA256", "Threads"};
+$finiteFieldStripEliminationPlanCFFRRequiredKeys = Join[
+  $finiteFieldStripEliminationPlanRequiredKeys,
+  $finiteFieldStripCFFRPlanBindingKeys];
+
 finiteFieldStripEliminationPlanFingerprint[plan_Association] := Hash[
   KeySort[KeyDrop[plan, "PlanFingerprint"]], "SHA256", "HexString"];
 
 finiteFieldStripSealEliminationPlan[plan_Association,
     preparationFingerprint_String,
-    planDiscoveryBackend_: "Wolfram"] := Module[{payload, decision},
+    planDiscoveryBackend_: "Wolfram",
+    binding_Association: <||>] := Module[
+  {payload, decision, used, provenance, expectedBindingKeys},
   decision = finiteFieldStripPlanDiscoveryBackendDecision[
     planDiscoveryBackend];
   If[Lookup[decision, "Status", None] =!= "OK", Return[decision]];
+  used = decision["PlanDiscoveryBackendUsed"];
+  provenance = If[used === "FLINTAffineRREF",
+    $finiteFieldStripEliminationPlanCFFRSolverProvenance,
+    $finiteFieldStripEliminationPlanSolverProvenance];
+  expectedBindingKeys = If[used === "FLINTAffineRREF",
+    Sort[$finiteFieldStripCFFRPlanBindingKeys], {}];
+  If[Sort[Keys[binding]] =!= expectedBindingKeys,
+    Return[<|"Status" -> "PlanAdapterBindingInvalid",
+      "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
+      "PlanDiscoveryBackendUsed" -> used,
+      "BindingKeys" -> Sort[Keys[binding]],
+      "ExpectedBindingKeys" -> expectedBindingKeys|>]];
   payload = Join[plan, <|
     "PlanSchema" -> $finiteFieldStripEliminationPlanSchema,
     "PlanSchemaVersion" -> $finiteFieldStripEliminationPlanSchemaVersion,
     "PreparationFingerprint" -> preparationFingerprint,
-    "SolverProvenance" ->
-      $finiteFieldStripEliminationPlanSolverProvenance,
+    "SolverProvenance" -> provenance,
     "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
-    "PlanDiscoveryBackendUsed" -> decision[
-      "PlanDiscoveryBackendUsed"]|>];
+    "PlanDiscoveryBackendUsed" -> used|>, binding];
   Join[payload, <|"PlanFingerprint" ->
     finiteFieldStripEliminationPlanFingerprint[payload]|>]
 ];
+
+(* the shape of the sealed adapter binding, plus the session identity
+   check: a plan sealed against a different adapter binary than the one
+   this session hashed is refused rather than reused *)
+finiteFieldStripCFFRPlanBindingValidQ[plan_Association] := Module[
+  {cached, hexQ, nonce, threads},
+  hexQ[value_] := StringQ[value] && StringLength[value] === 64 &&
+    StringMatchQ[value, RegularExpression["[0-9a-f]{64}"]];
+  nonce = Lookup[plan, "Nonce", None];
+  threads = Lookup[plan, "Threads", None];
+  cached = Lookup[$finiteFieldStripCFFRAdapterHashCache,
+    Replace[finiteFieldStripCFFRBinary[], None -> Missing["NoAdapter"]],
+    <||>];
+  TrueQ[
+    Lookup[plan, "Protocol", None] === "CFFR1" &&
+    hexQ[Lookup[plan, "AdapterSourceSHA256", None]] &&
+    hexQ[Lookup[plan, "AdapterBinarySHA256", None]] &&
+    hexQ[Lookup[plan, "RequestSHA256", None]] &&
+    hexQ[Lookup[plan, "ResponseSHA256", None]] &&
+    IntegerQ[nonce] && Between[nonce, {1, 2^128 - 1}] &&
+    IntegerQ[threads] && Between[threads, {1, 8}] &&
+    (cached === <||> ||
+      (Lookup[cached, "AdapterSourceSHA256", None] ===
+         plan["AdapterSourceSHA256"] &&
+       Lookup[cached, "AdapterBinarySHA256", None] ===
+         plan["AdapterBinarySHA256"]))]
+];
+finiteFieldStripCFFRPlanBindingValidQ[___] := False;
 
 finiteFieldStripValidateEliminationPlan[plan_,
     matrixDimensions : {equationCount_Integer?NonNegative,
@@ -236,14 +360,26 @@ finiteFieldStripValidateEliminationPlan[plan_,
     freeResidueCount_Integer, numeratorDegrees_List,
     denominatorDegrees_List, support_List,
     preparationFingerprint_String] := Module[
-  {fail, strictIncreasingQ, rows, columns, rank, nullity, pilotPrime},
+  {fail, strictIncreasingQ, rows, columns, rank, nullity, pilotPrime,
+   backend, requiredKeys, provenance},
   fail[status_String] := <|"Status" -> status|>;
   strictIncreasingQ[values_] := VectorQ[values, IntegerQ] &&
     values === Sort[DeleteDuplicates[values]];
   If[plan === None, Return[fail["NoEliminationPlan"]]];
   If[! AssociationQ[plan], Return[fail["PlanNotAssociation"]]];
-  If[Sort[Keys[plan]] =!=
-      Sort[$finiteFieldStripEliminationPlanRequiredKeys],
+  (* the sealed key set and provenance depend on the discovery backend:
+     the native plan carries the adapter binding of item 5 in addition to
+     the historical keys, and nothing else may differ *)
+  backend = Lookup[plan, "PlanDiscoveryBackendUsed", None];
+  {requiredKeys, provenance} = Switch[backend,
+    "Wolfram", {$finiteFieldStripEliminationPlanRequiredKeys,
+      $finiteFieldStripEliminationPlanSolverProvenance},
+    "FLINTAffineRREF", {$finiteFieldStripEliminationPlanCFFRRequiredKeys,
+      $finiteFieldStripEliminationPlanCFFRSolverProvenance},
+    _, {None, None}];
+  If[requiredKeys === None,
+    Return[fail["PlanSolverProvenanceMismatch"]]];
+  If[Sort[Keys[plan]] =!= Sort[requiredKeys],
     Return[fail["PlanSchemaKeysMismatch"]]];
   If[Lookup[plan, "Status", None] =!= "OK" ||
       Lookup[plan, "PlanSchema", None] =!=
@@ -251,12 +387,12 @@ finiteFieldStripValidateEliminationPlan[plan_,
       Lookup[plan, "PlanSchemaVersion", None] =!=
         $finiteFieldStripEliminationPlanSchemaVersion,
     Return[fail["PlanSchemaVersionMismatch"]]];
-  If[! SameQ[Lookup[plan, "SolverProvenance", None],
-      $finiteFieldStripEliminationPlanSolverProvenance] ||
-      Lookup[plan, "PlanDiscoveryBackendRequested", None] =!=
-        "Wolfram" ||
-      Lookup[plan, "PlanDiscoveryBackendUsed", None] =!= "Wolfram",
+  If[! SameQ[Lookup[plan, "SolverProvenance", None], provenance] ||
+      Lookup[plan, "PlanDiscoveryBackendRequested", None] =!= backend,
     Return[fail["PlanSolverProvenanceMismatch"]]];
+  If[backend === "FLINTAffineRREF" &&
+      ! finiteFieldStripCFFRPlanBindingValidQ[plan],
+    Return[fail["PlanAdapterBindingMismatch"]]];
   If[Lookup[plan, "PreparationFingerprint", None] =!=
       preparationFingerprint,
     Return[fail["PlanPreparationFingerprintMismatch"]]];
@@ -346,6 +482,398 @@ finiteFieldStripFLINTSolve[core_, rhs_, prime_Integer, threads_Integer] := Modul
     "flint", (DeleteDirectory[directory, DeleteContents -> True]; $Failed) &]
 ];
 
+(* ---------------------------------------------------------------------
+   CFFR1 plan-discovery backend (Design/CFFR1Backend.md,
+   FeynFacet/Backends/flint/PROTOCOL_CFFR1.md).  Every failure below is a
+   typed Association carrying the adapter exit code and the first
+   divergent field; nothing here falls back to the Wolfram discoverer.
+   --------------------------------------------------------------------- *)
+
+(* A 128-bit nonce binds one response to one request: a stale or replayed
+   response file cannot be mistaken for this call's answer.  Wolfram
+   14.2.1 exposes no cryptographic Method for RandomInteger (checked
+   2026-08-23), so the bytes come from the operating system's CSPRNG;
+   the hashed RandomInteger path is used only when that device cannot be
+   read.  A zero nonce is invalid on the wire. *)
+finiteFieldStripCFFRNonce[] := Module[{bytes, value},
+  bytes = Quiet[Check[BinaryReadList["/dev/urandom", "Byte", 16], $Failed]];
+  value = If[ListQ[bytes] && Length[bytes] === 16 &&
+      VectorQ[bytes, IntegerQ],
+    FromDigits[Mod[bytes, 256], 256],
+    Hash[{RandomInteger[{0, 2^128 - 1}], CreateUUID[], AbsoluteTime[],
+      $ProcessID, $SessionID}, "SHA256"]];
+  value = Mod[value, 2^128];
+  If[value === 0, 1, value]
+];
+
+(* CFFR1V1 request: 8 magic bytes, 9 header words, then A row-major, b,
+   and the normalization preference -- unsigned 64-bit little-endian
+   words throughout, zero-based indices on the wire, canonical residues
+   in [0,p).  `preference` is the residue-first normalization column
+   order the plan already computes (finiteFieldStripNormalizationColumns
+   uses exactly this order for its greedy), given here one-based. *)
+finiteFieldStripCFFRRequest[matrix_, rightHandSide_, prime_Integer,
+    preference_List, nonce_Integer] := Module[
+  {dense, dimensions, rows, columns, right},
+  dense = Normal[matrix];
+  dimensions = Dimensions[dense];
+  If[Length[dimensions] =!= 2 || ! MatrixQ[dense, IntegerQ],
+    Return[finiteFieldStripCFFRFailure["CFFRRequestMatrixInvalid"]]];
+  {rows, columns} = dimensions;
+  right = Normal[rightHandSide];
+  If[rows < 1 || columns < 1 || ! PrimeQ[prime] || ! (2 < prime < 2^63) ||
+      ! VectorQ[right, IntegerQ] || Length[right] =!= rows ||
+      Sort[preference] =!= Range[columns] ||
+      ! Between[nonce, {1, 2^128 - 1}],
+    Return[finiteFieldStripCFFRFailure["CFFRRequestInvalid",
+      <|"Rows" -> rows, "Columns" -> columns, "Modulus" -> prime|>]]];
+  <|"Status" -> "OK", "Protocol" -> "CFFR1", "Magic" -> "CFFR1V1",
+    "Rows" -> rows, "Columns" -> columns, "RightHandSideColumns" -> 1,
+    "Modulus" -> prime, "PreferenceCount" -> columns, "Flags" -> 0,
+    "Nonce" -> nonce, "NonceHigh" -> Quotient[nonce, 2^64],
+    "NonceLow" -> Mod[nonce, 2^64],
+    "PayloadWordCount" -> rows columns + rows + columns,
+    "Matrix" -> Mod[dense, prime],
+    "RightHandSide" -> Mod[right, prime],
+    "Preference" -> preference|>
+];
+finiteFieldStripCFFRRequest[___] :=
+  finiteFieldStripCFFRFailure["CFFRRequestArgumentsInvalid"];
+
+finiteFieldStripCFFRWriteRequest[request_Association, file_String] := Module[
+  {stream = None, rows, columns, expected, written},
+  If[Lookup[request, "Status", None] =!= "OK",
+    Return[finiteFieldStripCFFRFailure["CFFRRequestInvalid"]]];
+  {rows, columns} = Lookup[request, {"Rows", "Columns"}];
+  expected = 8 + 8 (9 + request["PayloadWordCount"]);
+  written = Quiet[Check[
+    stream = OpenWrite[file, BinaryFormat -> True];
+    BinaryWrite[stream, ToCharacterCode["CFFR1V1\000"], "UnsignedInteger8"];
+    BinaryWrite[stream, {rows, columns, 1, request["Modulus"], columns, 0,
+        request["NonceHigh"], request["NonceLow"],
+        request["PayloadWordCount"]},
+      "UnsignedInteger64", ByteOrdering -> -1];
+    BinaryWrite[stream, Flatten[request["Matrix"]], "UnsignedInteger64",
+      ByteOrdering -> -1];
+    BinaryWrite[stream, request["RightHandSide"], "UnsignedInteger64",
+      ByteOrdering -> -1];
+    BinaryWrite[stream, request["Preference"] - 1, "UnsignedInteger64",
+      ByteOrdering -> -1];
+    Close[stream]; stream = None;
+    FileByteCount[file] === expected, $Failed]];
+  If[stream =!= None, Quiet[Close[stream]]];
+  If[TrueQ[written],
+    <|"Status" -> "OK", "RequestFile" -> file, "ByteCount" -> expected,
+      "RequestSHA256" -> FileHash[file, "SHA256", "HexString"]|>,
+    finiteFieldStripCFFRFailure["CFFRRequestWriteFailed",
+      <|"RequestFile" -> file|>]]
+];
+finiteFieldStripCFFRWriteRequest[___] :=
+  finiteFieldStripCFFRFailure["CFFRRequestWriterArgumentsInvalid"];
+
+(* CFFR1X1 response parse.  The wire bytes are read from the file the
+   adapter committed (BinaryReadList, "UnsignedInteger64",
+   ByteOrdering -> -1); the exact byte count, the echoed nonce, every
+   echoed header field, the payload length and the index structure are
+   REQUIRED, and the first field that diverges names the failure. *)
+finiteFieldStripCFFRResponse[file_String, request_Association] := Module[
+  {fail, exitCode, stream, magic, header, words, byteCount, rows, columns,
+   rhsColumns, modulus, rank, nullity, preferenceCount, flags, nonceHigh,
+   nonceLow, payloadWords, expectedWords, expectedBytes, cursor, next,
+   sortedRangeQ, pivotColumns, freeColumns, independentRows,
+   normalizationColumns, particular, nullspace, rowMinorInverse,
+   normalizationMinorInverse},
+  exitCode = Lookup[request, "AdapterExitCode", 0];
+  fail[status_String, field_String, data_Association: <||>] :=
+    finiteFieldStripCFFRFailure[status,
+      Join[<|"DivergentField" -> field, "AdapterExitCode" -> exitCode,
+        "ResponseFile" -> file|>, data]];
+  If[Lookup[request, "Status", None] =!= "OK",
+    Return[fail["CFFRRequestInvalid", "Request"]]];
+  If[! FileExistsQ[file], Return[fail["CFFRResponseMissing", "File"]]];
+  byteCount = FileByteCount[file];
+  If[! IntegerQ[byteCount] || byteCount < 8 + 8*11,
+    Return[fail["CFFRResponseTruncated", "Header",
+      <|"ByteCount" -> byteCount|>]]];
+  stream = Quiet[Check[OpenRead[file, BinaryFormat -> True], $Failed]];
+  If[stream === $Failed, Return[fail["CFFRResponseUnreadable", "File"]]];
+  magic = Quiet[Check[
+    BinaryReadList[stream, "UnsignedInteger8", 8], $Failed]];
+  header = Quiet[Check[
+    BinaryReadList[stream, "UnsignedInteger64", 11, ByteOrdering -> -1],
+    $Failed]];
+  words = Quiet[Check[
+    BinaryReadList[stream, "UnsignedInteger64", ByteOrdering -> -1],
+    $Failed]];
+  Quiet[Close[stream]];
+  If[! ListQ[magic] || magic =!= ToCharacterCode["CFFR1X1\000"],
+    Return[fail["CFFRResponseMagicMismatch", "Magic"]]];
+  If[! ListQ[header] || Length[header] =!= 11,
+    Return[fail["CFFRResponseTruncated", "Header"]]];
+  {rows, columns, rhsColumns, modulus, rank, nullity, preferenceCount,
+    flags, nonceHigh, nonceLow, payloadWords} = header;
+  (* the echoed nonce first: without it nothing else in the file means
+     anything for THIS request *)
+  If[{nonceHigh, nonceLow} =!=
+      {request["NonceHigh"], request["NonceLow"]},
+    Return[fail["CFFRResponseNonceMismatch", "Nonce"]]];
+  (* every other echoed header field, in wire order; the first that
+     diverges names the failure *)
+  If[rows =!= request["Rows"],
+    Return[fail["CFFRResponseHeaderMismatch", "Rows"]]];
+  If[columns =!= request["Columns"],
+    Return[fail["CFFRResponseHeaderMismatch", "Columns"]]];
+  If[rhsColumns =!= 1,
+    Return[fail["CFFRResponseHeaderMismatch", "RightHandSideColumns"]]];
+  If[modulus =!= request["Modulus"],
+    Return[fail["CFFRResponseHeaderMismatch", "Modulus"]]];
+  If[preferenceCount =!= request["Columns"],
+    Return[fail["CFFRResponseHeaderMismatch", "PreferenceCount"]]];
+  If[flags =!= 0,
+    Return[fail["CFFRResponseHeaderMismatch", "Flags"]]];
+  If[! (IntegerQ[rank] && IntegerQ[nullity] && rank >= 0 && nullity >= 0 &&
+      rank <= Min[rows, columns] && rank + nullity === columns),
+    Return[fail["CFFRResponseRankNullityInvalid", "Rank"]]];
+  expectedWords = 3 columns + nullity columns + rank^2 + nullity^2;
+  If[payloadWords =!= expectedWords,
+    Return[fail["CFFRResponsePayloadLengthMismatch", "PayloadWords",
+      <|"PayloadWordCount" -> payloadWords,
+        "ExpectedPayloadWordCount" -> expectedWords|>]]];
+  expectedBytes = 8 + 8 (11 + expectedWords);
+  If[byteCount =!= expectedBytes || ! ListQ[words] ||
+      Length[words] =!= expectedWords,
+    Return[fail["CFFRResponseTruncated", "Payload",
+      <|"ByteCount" -> byteCount, "ExpectedByteCount" -> expectedBytes|>]]];
+  cursor = 0;
+  next[count_] := (cursor += count; words[[cursor - count + 1 ;; cursor]]);
+  pivotColumns = next[rank];
+  freeColumns = next[nullity];
+  independentRows = next[rank];
+  normalizationColumns = next[nullity];
+  particular = next[columns];
+  nullspace = If[nullity === 0, {},
+    ArrayReshape[next[nullity columns], {nullity, columns}]];
+  rowMinorInverse = If[rank === 0, {},
+    ArrayReshape[next[rank^2], {rank, rank}]];
+  normalizationMinorInverse = If[nullity === 0, {},
+    ArrayReshape[next[nullity^2], {nullity, nullity}]];
+  sortedRangeQ[values_, count_, bound_] := VectorQ[values, IntegerQ] &&
+    Length[values] === count && DuplicateFreeQ[values] &&
+    values === Sort[values] && AllTrue[values, 0 <= # < bound &];
+  If[! sortedRangeQ[pivotColumns, rank, columns],
+    Return[fail["CFFRResponseIndexInvalid", "PivotColumns"]]];
+  If[! sortedRangeQ[freeColumns, nullity, columns],
+    Return[fail["CFFRResponseIndexInvalid", "FreeColumns"]]];
+  If[Sort[Join[pivotColumns, freeColumns]] =!= Range[0, columns - 1],
+    Return[fail["CFFRResponseIndexInvalid", "PivotFreePartition"]]];
+  If[! sortedRangeQ[independentRows, rank, rows],
+    Return[fail["CFFRResponseIndexInvalid", "IndependentRows"]]];
+  If[! sortedRangeQ[normalizationColumns, nullity, columns],
+    Return[fail["CFFRResponseIndexInvalid", "NormalizationColumns"]]];
+  If[! AllTrue[Join[particular, Flatten[nullspace],
+      Flatten[rowMinorInverse], Flatten[normalizationMinorInverse]],
+      IntegerQ[#] && 0 <= # < modulus &],
+    Return[fail["CFFRResponseNoncanonicalWord", "Payload"]]];
+  <|"Status" -> "OK", "Protocol" -> "CFFR1", "Magic" -> "CFFR1X1",
+    "Rows" -> rows, "Columns" -> columns, "Modulus" -> modulus,
+    "Rank" -> rank, "Nullity" -> nullity, "Nonce" -> request["Nonce"],
+    "PayloadWordCount" -> payloadWords,
+    "PivotColumns" -> pivotColumns + 1,
+    "FreeColumns" -> freeColumns + 1,
+    "IndependentEquationRows" -> independentRows + 1,
+    "NormalizationColumns" -> normalizationColumns + 1,
+    "ParticularSolution" -> particular, "NullspaceBasis" -> nullspace,
+    "RowMinorInverse" -> rowMinorInverse,
+    "NormalizationMinorInverse" -> normalizationMinorInverse,
+    "ResponseFile" -> file,
+    "ResponseSHA256" -> FileHash[file, "SHA256", "HexString"]|>
+];
+finiteFieldStripCFFRResponse[___] :=
+  finiteFieldStripCFFRFailure["CFFRResponseParserArgumentsInvalid"];
+
+(* Item 4: the adapter's internal witnesses are not the acceptance.  This
+   is the check the CFFA4 path applies to an imported solution -- the
+   residual on ALL original rows, the nullspace residual, and the
+   canonical structure on the free columns -- at O(m n (k+1)) mod-p dots.
+   The k x k normalization minor is re-multiplied as well, because a
+   nonsingular nullspace block on the normalization columns is exactly
+   the precondition the constrained core needs; the r x r row minor is
+   NOT re-multiplied (an O(r^3) product is outside item 4's stated cost,
+   and a wrong row basis is caught by the all-row residual of every
+   follower sample). *)
+finiteFieldStripCFFRVerify[matrix_, rightHandSide_, prime_Integer,
+    response_Association, expectedRank_] := Module[
+  {fail, rows, rank, nullity, free, normalization, particular, nullspace,
+   normalizationInverse, identity},
+  fail[field_String] := finiteFieldStripCFFRFailure[
+    "CFFRVerificationFailed", <|"DivergentField" -> field|>];
+  rows = response["Rows"];
+  rank = response["Rank"];
+  nullity = response["Nullity"];
+  free = response["FreeColumns"];
+  normalization = response["NormalizationColumns"];
+  particular = response["ParticularSolution"];
+  nullspace = response["NullspaceBasis"];
+  normalizationInverse = response["NormalizationMinorInverse"];
+  identity = Normal[IdentityMatrix[Max[nullity, 1]]];
+  If[IntegerQ[expectedRank] && expectedRank =!= rank,
+    Return[fail["Rank"]]];
+  If[Normal[Mod[matrix . particular - rightHandSide, prime]] =!=
+      ConstantArray[0, rows],
+    Return[fail["ParticularResidual"]]];
+  If[nullity > 0 && Normal[Mod[matrix . Transpose[nullspace], prime]] =!=
+      ConstantArray[0, {rows, nullity}],
+    Return[fail["NullspaceResidual"]]];
+  If[nullity > 0 && Normal[nullspace[[All, free]]] =!= identity,
+    Return[fail["FreeColumnIdentity"]]];
+  If[nullity > 0 && particular[[free]] =!= ConstantArray[0, nullity],
+    Return[fail["ParticularFreeCoordinates"]]];
+  If[nullity > 0 && (
+      Normal[Mod[nullspace[[All, normalization]] . normalizationInverse,
+        prime]] =!= identity ||
+      Normal[Mod[normalizationInverse . nullspace[[All, normalization]],
+        prime]] =!= identity),
+    Return[fail["NormalizationMinorInverse"]]];
+  <|"Status" -> "OK", "GenericRank" -> rank, "Nullity" -> nullity|>
+];
+finiteFieldStripCFFRVerify[___] :=
+  finiteFieldStripCFFRFailure["CFFRVerificationArgumentsInvalid"];
+
+(* the request and response files live in the caller's artifact
+   directory; with no artifact directory a private temporary one is
+   created and removed again with them *)
+finiteFieldStripCFFRDirectory[directory_] := Which[
+  StringQ[directory] && DirectoryQ[directory], {directory, False},
+  StringQ[directory],
+    With[{created = Quiet[Check[CreateDirectory[directory,
+        CreateIntermediateDirectories -> True], $Failed]]},
+      If[StringQ[created], {created, False}, {$Failed, False}]],
+  True,
+    With[{created = Quiet[Check[CreateDirectory[], $Failed]]},
+      If[StringQ[created], {created, True}, {$Failed, False}]]];
+
+(* One adapter call.  Unique request/response file names, both deleted on
+   success and KEPT on failure (the failure record names them), thread
+   argument capped at the licence box's 8 P-cores.  Exit 5 is a verdict
+   on the image, not a defect, and is typed as such. *)
+finiteFieldStripCFFRRun[matrix_, rightHandSide_, prime_Integer,
+    preference_List, threads_Integer, directory_] := Module[
+  {hashes, resolved, owned, tag, requestFile, responseFile, request,
+   written, process, exitCode, parsed, threadArgument, result, cleanup},
+  hashes = finiteFieldStripCFFRAdapterHashes[];
+  If[Lookup[hashes, "Status", None] =!= "OK", Return[hashes]];
+  {resolved, owned} = finiteFieldStripCFFRDirectory[directory];
+  If[! StringQ[resolved],
+    Return[finiteFieldStripCFFRFailure["CFFRArtifactDirectoryUnavailable",
+      <|"ArtifactDirectory" -> directory|>]]];
+  request = finiteFieldStripCFFRRequest[matrix, rightHandSide, prime,
+    preference, finiteFieldStripCFFRNonce[]];
+  If[Lookup[request, "Status", None] =!= "OK",
+    If[owned, Quiet[DeleteDirectory[resolved]]];
+    Return[request]];
+  tag = "cffr1_" <> ToString[$ProcessID] <> "_" <>
+    StringReplace[CreateUUID[], "-" -> ""];
+  requestFile = FileNameJoin[{resolved, tag <> "_request.bin"}];
+  responseFile = FileNameJoin[{resolved, tag <> "_response.bin"}];
+  cleanup[] := (
+    Quiet[DeleteFile[Select[{requestFile, responseFile}, FileExistsQ]]];
+    If[owned && DirectoryQ[resolved] && FileNames["*", resolved] === {},
+      Quiet[DeleteDirectory[resolved]]]);
+  written = finiteFieldStripCFFRWriteRequest[request, requestFile];
+  If[Lookup[written, "Status", None] =!= "OK",
+    Return[Join[written, <|"RequestFile" -> requestFile,
+      "ResponseFile" -> responseFile|>]]];
+  threadArgument = Max[1, Min[threads, 8]];
+  process = Quiet[Check[RunProcess[{hashes["AdapterBinary"], requestFile,
+    responseFile, ToString[threadArgument]}], $Failed]];
+  exitCode = If[AssociationQ[process], Lookup[process, "ExitCode", -1], -1];
+  If[exitCode =!= 0,
+    Return[finiteFieldStripCFFRFailure[
+      If[exitCode === 5, "InconsistentModularSystem",
+        "CFFRAdapterExitNonzero"],
+      <|"AdapterExitCode" -> exitCode,
+        "AdapterStandardError" -> If[AssociationQ[process],
+          Lookup[process, "StandardError", ""], ""],
+        "RequestFile" -> requestFile, "ResponseFile" -> responseFile,
+        "RequestSHA256" -> written["RequestSHA256"],
+        "Nonce" -> request["Nonce"], "Threads" -> threadArgument|>]]];
+  parsed = finiteFieldStripCFFRResponse[responseFile,
+    Append[request, "AdapterExitCode" -> exitCode]];
+  If[Lookup[parsed, "Status", None] =!= "OK",
+    Return[Join[parsed, <|"RequestFile" -> requestFile,
+      "RequestSHA256" -> written["RequestSHA256"],
+      "Nonce" -> request["Nonce"], "Threads" -> threadArgument|>]]];
+  result = <|"Status" -> "OK", "Protocol" -> "CFFR1",
+    "Request" -> KeyDrop[request, {"Matrix", "RightHandSide"}],
+    "Response" -> KeyDrop[parsed, "ResponseFile"],
+    "AdapterExitCode" -> exitCode,
+    "AdapterBinary" -> hashes["AdapterBinary"],
+    "AdapterBinarySHA256" -> hashes["AdapterBinarySHA256"],
+    "AdapterSourceSHA256" -> hashes["AdapterSourceSHA256"],
+    "Nonce" -> request["Nonce"],
+    "RequestSHA256" -> written["RequestSHA256"],
+    "ResponseSHA256" -> parsed["ResponseSHA256"],
+    "Threads" -> threadArgument|>;
+  cleanup[];
+  result
+];
+finiteFieldStripCFFRRun[___] :=
+  finiteFieldStripCFFRFailure["CFFRRunArgumentsInvalid"];
+
+(* Plan discovery through the adapter: one call returns rank/nullity, the
+   pivot/free partition, an independent row basis and the normalization
+   columns.  The plan it returns is the same object
+   finiteFieldStripDiscoverPlan produces, plus the "Binding" the caller
+   seals with (item 5).  `expectedRank` is the discovery-side rank the
+   caller already knows (Automatic to skip that cross-check). *)
+finiteFieldStripCFFRDiscoverPlan[matrix_, rightHandSide_,
+    gaugeUnknownCount_Integer, freeResidueCount_Integer,
+    numeratorDegrees_List, denominatorDegrees_List, prime_Integer,
+    threads_Integer, directory_, expectedRank_] := Module[
+  {equationCount, unknownCount, preference, run, response, verification},
+  {equationCount, unknownCount} = Dimensions[matrix];
+  If[unknownCount =!= gaugeUnknownCount + freeResidueCount,
+    Return[finiteFieldStripCFFRFailure["CFFRUnknownLayoutMismatch",
+      <|"UnknownCount" -> unknownCount,
+        "GaugeUnknownCount" -> gaugeUnknownCount,
+        "FreeResidueCount" -> freeResidueCount|>]]];
+  (* the wire preference is the residue-first order that
+     finiteFieldStripNormalizationColumns greedily walks *)
+  preference = Join[gaugeUnknownCount + Range[freeResidueCount],
+    Range[gaugeUnknownCount]];
+  run = finiteFieldStripCFFRRun[matrix, rightHandSide, prime, preference,
+    threads, directory];
+  If[Lookup[run, "Status", None] =!= "OK", Return[run]];
+  response = run["Response"];
+  verification = finiteFieldStripCFFRVerify[matrix, rightHandSide, prime,
+    response, expectedRank];
+  If[Lookup[verification, "Status", None] =!= "OK",
+    Return[Join[verification, <|"Nonce" -> run["Nonce"],
+      "RequestSHA256" -> run["RequestSHA256"],
+      "ResponseSHA256" -> run["ResponseSHA256"]|>]]];
+  <|"Status" -> "OK",
+    "NormalizationColumns" -> response["NormalizationColumns"],
+    "IndependentEquationRows" -> response["IndependentEquationRows"],
+    "GenericRank" -> response["Rank"], "Nullity" -> response["Nullity"],
+    "UnknownCount" -> unknownCount,
+    "GaugeUnknownCount" -> gaugeUnknownCount,
+    "FreeResidueCount" -> freeResidueCount,
+    "GaugeNumeratorDegrees" -> numeratorDegrees,
+    "GaugeDenominatorDegrees" -> denominatorDegrees,
+    "PilotPrime" -> prime,
+    "PivotColumns" -> response["PivotColumns"],
+    "FreeColumns" -> response["FreeColumns"],
+    "Binding" -> <|
+      "AdapterSourceSHA256" -> run["AdapterSourceSHA256"],
+      "AdapterBinarySHA256" -> run["AdapterBinarySHA256"],
+      "Protocol" -> "CFFR1", "Nonce" -> run["Nonce"],
+      "RequestSHA256" -> run["RequestSHA256"],
+      "ResponseSHA256" -> run["ResponseSHA256"],
+      "Threads" -> run["Threads"]|>|>
+];
+finiteFieldStripCFFRDiscoverPlan[___] :=
+  finiteFieldStripCFFRFailure["CFFRDiscoveryArgumentsInvalid"];
+
 $finiteFieldLearningPass = False;
 $finiteFieldLastUnseenSample = <||>;
 
@@ -362,7 +890,10 @@ Options[SampleEpsFormStripAffine] = {
   "Preparation" -> Automatic,
   "ExpectedFingerprint" -> Automatic,
   "EliminationPlan" -> None,
-  "DiscoverPlan" -> False
+  "DiscoverPlan" -> False,
+  (* where the CFFR1 plan-discovery adapter stages its request and
+     response files (Automatic: a private temporary directory) *)
+  "ArtifactDirectory" -> Automatic
 };
 
 (* M1 (Codex A1, standardized 2026-08-20 after exact reproduction of the
@@ -1123,16 +1654,35 @@ SampleEpsFormStripAffine[
       "PlanDiscoveryBackendUsed" -> "Wolfram"
     |>;
     If[discoverPlanQ,
-      planDiscoveryBackendUsed = "Wolfram";
-      {planSeconds, planResult} = AbsoluteTiming[finiteFieldStripDiscoverPlan[matrix, rank,
-        nullspaceBasis, gaugeUnknownCount, Length[freeResidues],
-        numeratorDegrees, denominatorDegrees, prime]];
-      If[AssociationQ[planResult] && planResult["Status"] === "OK",
-        planResult = finiteFieldStripSealEliminationPlan[
-          Join[planResult, <|"GaugeSupport" -> support|>],
-          preparation["Fingerprint"], planDiscoveryBackend]];
+      (* the plan-discovery backend replaces exactly this step and
+         nothing downstream; the Wolfram rank computed just above is
+         handed to the native path as a free cross-check of the adapter's
+         rank (Design/CFFR1Backend.md) *)
+      If[planDiscoveryBackend === "FLINTAffineRREF",
+        planDiscoveryBackendUsed = "FLINTAffineRREF";
+        {planSeconds, planResult} = AbsoluteTiming[
+          finiteFieldStripCFFRDiscoverPlan[matrix, rightHandSide,
+            gaugeUnknownCount, Length[freeResidues], numeratorDegrees,
+            denominatorDegrees, prime, backendThreads,
+            OptionValue["ArtifactDirectory"], rank]];
+        If[AssociationQ[planResult] && planResult["Status"] === "OK",
+          planResult = finiteFieldStripSealEliminationPlan[
+            Join[KeyDrop[planResult,
+                {"Binding", "PivotColumns", "FreeColumns"}],
+              <|"GaugeSupport" -> support|>],
+            preparation["Fingerprint"], planDiscoveryBackend,
+            planResult["Binding"]]],
+        planDiscoveryBackendUsed = "Wolfram";
+        {planSeconds, planResult} = AbsoluteTiming[finiteFieldStripDiscoverPlan[matrix, rank,
+          nullspaceBasis, gaugeUnknownCount, Length[freeResidues],
+          numeratorDegrees, denominatorDegrees, prime]];
+        If[AssociationQ[planResult] && planResult["Status"] === "OK",
+          planResult = finiteFieldStripSealEliminationPlan[
+            Join[planResult, <|"GaugeSupport" -> support|>],
+            preparation["Fingerprint"], planDiscoveryBackend]]];
       affineData = Join[affineData, <|"EliminationPlan" -> planResult,
-        "PlanDiscoverySeconds" -> planSeconds|>]]];
+        "PlanDiscoverySeconds" -> planSeconds,
+        "PlanDiscoveryBackendUsed" -> planDiscoveryBackendUsed|>]]];
   Join[<|
     "EpsilonValue" -> epsilonValue,
     "Prime" -> prime,
@@ -1920,6 +2470,7 @@ SolveEpsFormStripFiniteField[record_Association,
       "BackendThreads" -> OptionValue["BackendThreads"],
       "PlanDiscoveryBackend" -> planDiscoveryBackend,
       "SolveAffineSystem" -> True, "DiscoverPlan" -> True,
+      "ArtifactDirectory" -> artifactDirectory,
       "Preparation" -> preparation,
       "ExpectedFingerprint" -> preparation["Fingerprint"]]];
     If[AssociationQ[pilotSample] &&
@@ -1934,7 +2485,19 @@ SolveEpsFormStripFiniteField[record_Association,
         If[AssociationQ[pilotSample],
           Lookup[Lookup[pilotSample, "EliminationPlan", <||>],
             "Status", "no pilot solution"], "pilot failed"],
-        "); continuing on the full elimination path"]]];
+        "); continuing on the full elimination path"]];
+    (* Design/CFFR1Backend.md item 6: an explicit "FLINTAffineRREF"
+       request NEVER falls back.  A missing plan there is the block's
+       typed result, not a silent return to the Wolfram discoverer. *)
+    If[planDiscoveryBackend === "FLINTAffineRREF" &&
+        ! AssociationQ[eliminationPlan],
+      Return[<|"Status" -> "PlanDiscoveryBackendFailed",
+        "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
+        "PlanDiscoveryBackendUsed" -> "FLINTAffineRREF",
+        "PlanDiscoveryFailure" -> If[AssociationQ[pilotSample],
+          Lookup[pilotSample, "EliminationPlan",
+            <|"Status" -> "NoPilotSolution"|>],
+          <|"Status" -> "PilotSampleFailed"|>]|>]]];
 
   (* support learning (see the option) *)
   If[TrueQ[OptionValue["SupportLearning"]] && AssociationQ[pilotSample] &&
@@ -1963,6 +2526,7 @@ SolveEpsFormStripFiniteField[record_Association,
           "BackendThreads" -> OptionValue["BackendThreads"],
           "PlanDiscoveryBackend" -> planDiscoveryBackend,
           "SolveAffineSystem" -> True, "DiscoverPlan" -> True,
+          "ArtifactDirectory" -> artifactDirectory,
           "Preparation" -> preparation, "ExpectedFingerprint" -> preparation["Fingerprint"]];
         learnedPlan = If[AssociationQ[learnedPilot], Lookup[learnedPilot, "EliminationPlan", None], None];
         If[AssociationQ[learnedPilot] && TrueQ[learnedPilot["Consistent"]] &&
