@@ -102,6 +102,8 @@ ClearAll[
   multiquadraticStripModRational,
   multiquadraticFieldInverse, multiquadraticFieldDecompose,
   multiquadraticFieldCompose, multiquadraticLiftLocalChannels,
+  multiquadraticFieldPathStatistics, multiquadraticFieldResetPathStatistics,
+  multiquadraticFieldPathStatisticsDelta,
   multiquadraticClosedOneFormQ, multiquadraticOneFormKey,
   multiquadraticDeduplicateOneForms, multiquadraticScalarOneForms,
   multiquadraticDiagonalOneFormBasis, multiquadraticCandidateOneFormBasis,
@@ -143,13 +145,38 @@ ClearAll[
   $multiquadraticStripMaximumRootCount, $multiquadraticStripMaximumEpsilonDegree,
   $multiquadraticStripSourceFile, $multiquadraticStripSourceSHA256,
   $multiquadraticStripPrimeCache, $multiquadraticStripEpsilonCache,
-  $multiquadraticStripDefaultPrimes, $multiquadraticStripDefaultRegulatorValues
+  $multiquadraticStripDefaultPrimes, $multiquadraticStripDefaultRegulatorValues,
+  $multiquadraticFieldRootFreeFastPathCount, $multiquadraticFieldAlgebraicPathCount,
+  $multiquadraticFieldComposeCheckCount
 ];
 
 $multiquadraticStripMaximumRootCount = 3;
 $multiquadraticStripMaximumEpsilonDegree = 256;
 $multiquadraticStripPrimeCache = <||>;
 $multiquadraticStripEpsilonCache = <||>;
+
+(* Channel-decomposition telemetry (2026-08-23).  These are cumulative
+   process counters; every record that reports them reports the DELTA
+   over its own work, taken from multiquadraticFieldPathStatistics[]
+   before and after. *)
+$multiquadraticFieldRootFreeFastPathCount = 0;
+$multiquadraticFieldAlgebraicPathCount = 0;
+$multiquadraticFieldComposeCheckCount = 0;
+
+multiquadraticFieldPathStatistics[] := <|
+  "RootFreeFastPathCount" -> $multiquadraticFieldRootFreeFastPathCount,
+  "AlgebraicPathCount" -> $multiquadraticFieldAlgebraicPathCount,
+  "ComposeCheckCount" -> $multiquadraticFieldComposeCheckCount|>;
+
+multiquadraticFieldResetPathStatistics[] := (
+  $multiquadraticFieldRootFreeFastPathCount = 0;
+  $multiquadraticFieldAlgebraicPathCount = 0;
+  $multiquadraticFieldComposeCheckCount = 0;
+  multiquadraticFieldPathStatistics[]);
+
+(* The difference of two statistics snapshots, for a record field. *)
+multiquadraticFieldPathStatisticsDelta[before_Association, after_Association] :=
+  Association[KeyValueMap[#1 -> #2 - Lookup[before, #1, 0] &, after]];
 
 (* The source identity is bound once, at load: DRCA re-hashed its own
    file after every point assembly, which is one file read per modular
@@ -245,20 +272,45 @@ multiquadraticFieldInverse[___] := $Failed;
 multiquadraticFieldDecompose[expression_, roots_List] := Module[
   {rank = Length[roots], rootOne, rootTwo, rootThree, deltas, symbols,
    replaced, rational, numerator, denominator, numeratorChannels,
-   denominatorChannels, denominatorInverse, result},
+   denominatorChannels, denominatorInverse, result, channels, reconstructed},
   If[rank > $multiquadraticStripMaximumRootCount, Return[$Failed]];
-  If[rank === 0,
-    rational = Together[expression];
-    If[! FreeQ[rational, Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
-      Return[$Failed]];
-    Return[{rational}]];
-  deltas = Together /@ Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]];
+  deltas = If[rank === 0, {},
+    Together /@ Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]]];
   If[! FreeQ[deltas, $Failed], Return[$Failed]];
   symbols = Take[{rootOne, rootTwo, rootThree}, rank];
-  replaced = transportChartApplyRootBranches[expression, roots, symbols];
-  If[! FreeQ[replaced, Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
+  replaced = If[rank === 0, expression,
+    transportChartApplyRootBranches[expression, roots, symbols]];
+  If[replaced === $Failed, Return[$Failed]];
+  (* rank 0 decides on the normal form, as it always has: Together may
+     rationalize a numeric radical away, and that expression is a
+     rational scalar *)
+  If[rank > 0 &&
+      ! FreeQ[replaced, Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
     Return[$Failed]];
   rational = Together[replaced];
+  If[! FreeQ[rational, Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
+    Return[$Failed]];
+  (* Scalar-local root-free fast path (2026-08-23, ported from
+     External/CodexExchange/finite_field_scalar_rootfree_squeeze_
+     2026-08-23_xh/0001-scalar-local-root-free-fast-path.patch).  A
+     rank-r bundle contains many entries that use no declared root at
+     all; such a scalar is already its own grade-zero channel, so
+     polynomial field reduction and the recursive norm inversion below
+     compute a known answer.  The full 2^r grade ABI is preserved by
+     padding, and the result is accepted ONLY after the same exact
+     compose check the algebraic path is held to.  Alternatives[] (rank
+     0) matches nothing, so a rank-0 call takes this path and is now
+     compose-checked as well. *)
+  If[FreeQ[rational, Alternatives @@ symbols],
+    channels = PadRight[{rational}, 2^rank, 0];
+    reconstructed = multiquadraticFieldCompose[channels, roots];
+    If[reconstructed === $Failed ||
+        ! TrueQ[Together[reconstructed - expression] === 0],
+      Return[$Failed]];
+    $multiquadraticFieldRootFreeFastPathCount++;
+    $multiquadraticFieldComposeCheckCount++;
+    Return[channels]];
+  $multiquadraticFieldAlgebraicPathCount++;
   numerator = Numerator[rational];
   denominator = Denominator[rational];
   If[! PolynomialQ[numerator, symbols] || ! PolynomialQ[denominator, symbols],
@@ -581,15 +633,21 @@ multiquadraticStripABIPayload[record_Association, roots_List,
   equationCanonical = ToString[InputForm[Map[
     multiquadraticStripCanonicalText[#1, rules] &, strip, {4}]]];
   payload = <|
-    "Schema" -> "MultiquadraticStripPreparationV1",
+    (* V2 (2026-08-23, generality audit P2): "RootSourceIndices" left the
+       hashed payload.  The DECLARATION order of a basis of square
+       classes is not mathematical data -- reversing {s,t,1-s-t} in the
+       frame leaves the canonical roots, equations, support and field
+       unchanged -- but it changed this fingerprint, so two equivalent
+       caller declarations produced ABI-incompatible artifacts and no
+       cache hit.  Nothing consumed the field; it survives as non-hashed
+       provenance in the preparation record.  The grade ordering is
+       protected by "RootCanonicalSquares" and "RootOrderingFingerprint",
+       which are computed from the canonical (sorted) order. *)
+    "Schema" -> "MultiquadraticStripPreparationV2",
     "EquationCanonical" -> equationCanonical,
     "EquationFingerprint" -> Hash[equationCanonical, "SHA256", "HexString"],
     "RootCanonicalSquares" -> canonicalSquares,
     "RootCanonicalExpressions" -> canonicalRoots,
-    (* Lookup on an EMPTY list of associations returns the default, so
-       the rank-0 payload must not use $Failed as its default here *)
-    "RootSourceIndices" -> If[roots === {}, {},
-      Lookup[roots, "SourceIndex", $Failed]],
     "RootFingerprints" -> Hash[#1, "SHA256", "HexString"] & /@ canonicalSquares,
     "RootOrderingFingerprint" -> Hash[canonicalSquares, "SHA256", "HexString"],
     "Dimensions" -> dimensions,
@@ -620,7 +678,8 @@ multiquadraticStripPrepare[record_Association, frame_Association,
    order, roots, channelForcing, oneFormData, oneForms, gaugeDenominator,
    denominatorDegrees, degreeOffset, numeratorDegrees, support, dimensions,
    gradeCount, gaugeUnknownCount, residueUnknownCount, unknownCount,
-   equationsPerPoint, normalizations, payload, fingerprint},
+   equationsPerPoint, normalizations, payload, fingerprint,
+   pathStatisticsBefore = multiquadraticFieldPathStatistics[], pathStatistics},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripPrepare]]]];
   If[AssociationQ[gate], Return[gate]];
@@ -701,13 +760,18 @@ multiquadraticStripPrepare[record_Association, frame_Association,
   If[payload === $Failed,
     Return[multiquadraticStripFailure["ContextSensitiveStripABI"]]];
   fingerprint = multiquadraticStripFingerprint[payload];
+  pathStatistics = multiquadraticFieldPathStatisticsDelta[pathStatisticsBefore,
+    multiquadraticFieldPathStatistics[]];
   <|"Status" -> "PreparedMultiquadraticStripV1",
+    "PreparationSchema" -> payload["Schema"],
     "Record" -> record, "Frame" -> frame,
     "Variables" -> variables, "Regulator" -> epsilon,
     "Roots" -> roots, "RootCount" -> Length[roots],
     "RootIndices" -> rootIndices,
     "RootCensus" -> KeyTake[classification, {"RootIndices", "RadicalBases",
       "FrameCensusRootIndices", "FrameCensusUnclassified"}],
+    (* provenance only: which declaration slot each canonical root came
+       from.  Deliberately NOT part of the hashed ABI payload (V2). *)
     "RootSourceIndices" -> order["SourceIndices"],
     "RootFingerprints" -> order["RootFingerprints"],
     "RootOrderingFingerprint" -> order["OrderingFingerprint"],
@@ -726,6 +790,11 @@ multiquadraticStripPrepare[record_Association, frame_Association,
       support, Length[oneForms]],
     "RowOrder" -> multiquadraticStripRowOrder[dimensions, gradeCount],
     "AlgebraABIFingerprint" -> multiquadraticAlgebraABIFingerprint[],
+    (* channel-decomposition telemetry of THIS preparation, not of the
+       process: the scalar-local root-free fast path count and the
+       algebraic (field reduction + inversion) count *)
+    "RootFreeFastPathCount" -> pathStatistics["RootFreeFastPathCount"],
+    "ChannelPathStatistics" -> pathStatistics,
     "ABIPayload" -> payload, "ABIFingerprint" -> fingerprint|>
 ];
 multiquadraticStripPrepare[___] :=
@@ -2212,7 +2281,8 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
    signatures = {}, lifts = <||>, exactChecks = <||>, heldOutSample,
    heldOutSolution, heldOutResidual, branchCertificate, branchMask,
    transformedSample, differential, liftedVector, unpacked, prime,
-   regulatorValue, samplerOptions},
+   regulatorValue, samplerOptions,
+   pathStatisticsBefore = multiquadraticFieldPathStatistics[]},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[solveEpsFormStripMultiquadratic]]]];
   If[AssociationQ[gate], Return[gate]];
@@ -2356,6 +2426,8 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
     "EquationsPerPoint" -> preparation["EquationsPerPoint"],
     "ABIFingerprint" -> preparation["ABIFingerprint"],
     "AlgebraABIFingerprint" -> preparation["AlgebraABIFingerprint"],
+    "PreparationSchema" -> Lookup[preparation, "PreparationSchema",
+      Missing["PreparationSchema"]],
     "AssemblyFingerprint" -> assembly["AssemblyFingerprint"],
     "Rank" -> signature[[1]], "Nullity" -> signature[[2]],
     "PivotSignature" -> signature[[3]],
@@ -2382,6 +2454,11 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
     "BranchCertificate" -> branchCertificate,
     "DifferentialCheck" -> KeyTake[differential,
       {"Status", "Passed", "Point", "BranchFlipMask"}],
+    "RootFreeFastPathCount" -> multiquadraticFieldPathStatisticsDelta[
+      pathStatisticsBefore,
+      multiquadraticFieldPathStatistics[]]["RootFreeFastPathCount"],
+    "ChannelPathStatistics" -> multiquadraticFieldPathStatisticsDelta[
+      pathStatisticsBefore, multiquadraticFieldPathStatistics[]],
     "Seconds" -> AbsoluteTime[] - startTime|>
 ];
 solveEpsFormStripMultiquadratic[___] :=

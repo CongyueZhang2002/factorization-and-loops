@@ -617,7 +617,8 @@ Do[
       stripSolvers = {}, transformation, stripCheckpoint,
       checkpointValid, stripInputFile, extraLetters, obstruction,
       resumeHydration, resumeReset, zeroForcingQ,
-      requestedSolverConfiguration, solverConfiguration},
+      requestedSolverConfiguration, solverConfiguration,
+      modularBranches, modularArtifact, modularSummary},
       stripCheckpointFile = FileNameJoin[{scratch,
         family <> "_" <> ToString[k] <> "_strip_state.wl"}];
       stripCheckpoint = If[FileExistsQ[stripCheckpointFile],
@@ -849,6 +850,74 @@ Do[
           log["    exact CANONICA/Maple routes found no gauge; " <>
             "starting finite-field reconstruction"];
           solution = finiteFieldSolve[]];
+        (* F2 (Design/GeneralityFixes2.md, 2026-08-23): SolveEpsFormStrip
+           InFrame now dispatches a chartless multiquadratic strip to the
+           direct engine, whose terminal success status is
+           "ModularConsistent".  That is a RECORDED candidate, never an
+           installed epsilon form: the engine returns closed one-forms,
+           not a certified dlog potential, so solvedQ is false for it by
+           construction (Design/MultiquadraticPromotion.md section 3).
+           The run stops typed here -- it must neither continue with an
+           uninstalled strip nor claim the family. *)
+        If[AssociationQ[solution] &&
+            Lookup[solution, "Status", None] === "ModularConsistent",
+          modularBranches = Lookup[solution, "BranchCertificate", {}];
+          modularArtifact = FileNameJoin[{scratch,
+            family <> "_" <> ToString[k] <> "_" <> ToString[nlow] <>
+              "_modular.wl"}];
+          modularSummary = Join[
+            <|"Sector" -> k, "LowerSector" -> nlow,
+              "Method" -> "MultiquadraticModularCandidate",
+              "Status" -> "ModularConsistent",
+              "SolutionContract" -> Lookup[solution, "SolutionContract",
+                "OneFormsNotCertified"],
+              "Installed" -> False,
+              "RootCount" -> Lookup[solution, "RootCount", None],
+              "GradeCount" -> Lookup[solution, "GradeCount", None],
+              "ModularRank" -> Lookup[solution, "Rank", None],
+              "Nullity" -> Lookup[solution, "Nullity", None],
+              "BranchCount" -> Length[modularBranches],
+              "BranchResidualZero" -> (TrueQ[Lookup[#, "ResidualZero", False]] & /@
+                modularBranches),
+              "AllBranchesResidualZero" -> (modularBranches =!= {} &&
+                AllTrue[modularBranches,
+                  TrueQ[Lookup[#, "ResidualZero", False]] &]),
+              "Artifact" -> modularArtifact|>,
+            KeyTake[solution, {"RootIndices", "RootSquares", "Dimensions",
+              "UnknownCount", "EquationsPerPoint", "PreparationSchema",
+              "ABIFingerprint", "AlgebraABIFingerprint",
+              "AssemblyFingerprint", "SamplePrimes", "RegulatorValues",
+              "HeldOutPrime", "HeldOutRegulatorValue", "ExactLift",
+              "ExactChannelResidual", "RootFreeFastPathCount", "Seconds"}]];
+          putAtomic[
+            <|"Family" -> family, "Sector" -> k, "LowerSector" -> nlow,
+              "Variables" -> invariants, "Regulator" -> ee,
+              "Strip" -> {e, c, bbar},
+              "StripInput" -> <|"ChartFingerprint" -> chartFingerprint,
+                "AlgebraicFrame" -> algebraicFrameQ,
+                "Truncation" -> nk, "SubSize" -> subSize,
+                "Dimensions" -> Dimensions[First[bbar]],
+                "ConnectionHash" -> Hash[aP, "SHA256", "HexString"],
+                "StripCheckpointFile" -> stripCheckpointFile|>,
+              "SolverConfiguration" -> If[blockwiseRouteQ,
+                requestedSolverConfiguration,
+                Missing["LegacySolverRouteNotBound"]],
+              "Summary" -> modularSummary,
+              "Result" -> solution|>,
+            modularArtifact];
+          AppendTo[stripSolvers, modularSummary];
+          state["StripSolvers"] = Join[state["StripSolvers"], {modularSummary}];
+          log["  !! strip ", {k, nlow}, " is a MODULAR CANDIDATE only: ",
+            "multiquadratic engine, root rank ",
+            Lookup[solution, "RootCount", None], ", ",
+            Length[modularBranches], " sign branches (all residual zero: ",
+            modularSummary["AllBranchesResidualZero"], "), contract ",
+            modularSummary["SolutionContract"]];
+          log["     recorded in ", modularArtifact,
+            " and NOT installed: no certified dlog potential exists for it"];
+          state["Stop"] = <|"Status" -> "ModularCandidateNotInstallable",
+            "Strip" -> {k, nlow}|>;
+          putAtomic[state, stateFile]; Exit[2]];
         If[! solvedQ[solution],
           log["  !! no exact gauge for strip ", {k, nlow}];
           putAtomic[

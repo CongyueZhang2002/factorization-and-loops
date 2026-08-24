@@ -1,3 +1,9 @@
+(* VALIDATION PROTOTYPE (decision F3, Design/GeneralityFixes2.md,
+   2026-08-24): NOT in $feynFacetPrivateFiles, not loaded by the package,
+   no production caller.  Consumed by tests via explicit Get as the
+   row-level finite-field oracle; its algebra delegates to
+   MultiquadraticAlgebra.wl.  Revisit when a recapture driver needs a
+   production row oracle. *)
 (* Finite-field oracle for one completed off-diagonal block row.
 
    This prototype deliberately is not loaded by FeynFacet.m.  It is the

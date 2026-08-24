@@ -384,9 +384,25 @@ Options[SolveEpsFormStripInFrame] = Join[
   Options[SolveEpsFormStrip], {
     "FiniteFieldFallback" -> True,
     "FiniteFieldFirst" -> False,
-    "FiniteFieldOptions" -> {}
+    "FiniteFieldOptions" -> {},
+    "MultiquadraticDispatch" -> True,
+    "MultiquadraticOptions" -> {}
   }
 ];
+
+(* A root set with no joint rational chart is dispatched to the direct
+   multiquadratic engine (Design/GeneralityFixes2.md F2, 2026-08-23).
+   These statuses mean the ENGINE declined the input as outside its own
+   scope, not that it ran and failed; only they keep the historical
+   "NoRationalStripChart" answer, with the engine's typed refusal
+   attached so the caller can tell the two apart.  Every other engine
+   status -- "ModularConsistent" and every typed failure -- is returned
+   verbatim. *)
+$transportChartMultiquadraticScopeRefusals = {
+  "UnsupportedRootRank", "InvalidStripRecord",
+  "StripContainsUndeclaredRadicals", "ContextSensitiveStripABI",
+  "AlgebraicFrameNotWellFormed", "ForcingChannelDecompositionFailed",
+  "GaugeDenominatorNotRational"};
 
 SolveEpsFormStripInFrame[
     strip : {e_List, c_List, bbar_List},
@@ -400,7 +416,8 @@ SolveEpsFormStripInFrame[
    sourceTransformed, chartTransformed, pulledTransformed,
    sourceAlphabet, zeroMatrixQ, pullPair, optionRules,
    finiteFieldQ, finiteFieldFirstQ, finiteFieldOptions, canonicalKernelCount,
-   scratchDirectory, stripTag, verbose, solveRationalStrip, innerSolvedQ},
+   scratchDirectory, stripTag, verbose, solveRationalStrip, innerSolvedQ,
+   multiquadraticOptions, multiquadraticResult, multiquadraticStatus},
 
   allRoots = transportChartCurrentRoots[frame, variables];
   If[allRoots === $Failed,
@@ -486,8 +503,45 @@ SolveEpsFormStripInFrame[
 
   chart = TransportRootSetChart[rootSquares, variables];
   If[MissingQ[chart],
-    Return[<|"Status" -> "NoRationalStripChart",
-      "RootIndices" -> rootIndices, "RootSquares" -> rootSquares|>]];
+    (* F2 (Design/GeneralityFixes2.md, 2026-08-23): no joint rational
+       chart is not the end of the road.  The direct multiquadratic
+       engine solves such a strip in the grade basis of the declared
+       root set; its terminal success status is "ModularConsistent" and
+       NEVER "Solved" -- it returns closed one-forms, not certified dlog
+       potentials, so the caller RECORDS the result and never installs
+       it (Design/MultiquadraticPromotion.md section 3).  The result is
+       returned exactly as the engine typed it. *)
+    If[! TrueQ[OptionValue["MultiquadraticDispatch"]],
+      Return[<|"Status" -> "NoRationalStripChart",
+        "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+        "MultiquadraticDispatch" -> "Disabled"|>]];
+    multiquadraticOptions = OptionValue["MultiquadraticOptions"];
+    If[! MatchQ[multiquadraticOptions, {___Rule}],
+      Return[<|"Status" -> "InvalidMultiquadraticOptions",
+        "RootIndices" -> rootIndices, "RootSquares" -> rootSquares|>]];
+    If[verbose, Print["[strip-in-frame] no rational chart for root squares ",
+      rootSquares, "; dispatching to the multiquadratic engine"]];
+    multiquadraticResult = solveEpsFormStripMultiquadratic[
+      <|"Variables" -> variables, "Regulator" -> epsilon, "Strip" -> strip|>,
+      frame,
+      Sequence @@ DeleteDuplicatesBy[
+        Join[multiquadraticOptions, {"Verbose" -> TrueQ[verbose]}], First]];
+    If[! AssociationQ[multiquadraticResult],
+      Return[<|"Status" -> "MultiquadraticDispatchNotTyped",
+        "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+        "Result" -> multiquadraticResult|>]];
+    multiquadraticStatus = Lookup[multiquadraticResult, "Status", None];
+    If[MemberQ[$transportChartMultiquadraticScopeRefusals, multiquadraticStatus],
+      Return[<|"Status" -> "NoRationalStripChart",
+        "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+        "MultiquadraticDispatch" -> "OutOfScope",
+        "MultiquadraticRefusal" -> multiquadraticResult|>]];
+    (* verbatim, with the frame's own root census added where the engine
+       does not carry it (the typed failures do not) *)
+    Return[Join[
+      <|"RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+        "MultiquadraticDispatch" -> "Engine"|>,
+      multiquadraticResult]]];
 
   chartVariables = {
     Symbol["FeynFacet`Private`stripChartX"],

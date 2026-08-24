@@ -2867,3 +2867,73 @@ pinning measured at the pilot prime; implementation next.
 - Watchdog notes: one transient subkernel-relaunch licence refusal
   (self-healed in 20 s), one broker re-dispatch race (FILEGONE, no
   effect), 812 broker sub-missions OK, zero failures.
+
+## 2026-08-24 (00:20-01:10) — generality round 2: the real fixes landed
+
+Design/GeneralityFixes2.md executed for the user-selected real set
+F1 + F2 + F6.1 + F5's typed-refusal half (agent for the first three,
+coordinator for F5 and integration):
+- F1: RootSourceIndices out of the hashed preparation payload (schema
+  V2, provenance kept unhashed); forward/reverse root declaration now
+  bit-identical ABI.
+- F2: SolveEpsFormStripInFrame dispatches chartless root sets to the
+  multiquadratic engine; results verbatim (ModularConsistent never
+  Solved), a 7-status scope list keeps NoRationalStripChart only for
+  genuine out-of-scope, "MultiquadraticDispatch" -> Engine/OutOfScope/
+  Disabled disambiguates; the sector driver records a
+  <family>_<k>_<j>_modular.wl candidate artifact + StripSolvers summary
+  and stops typed (ModularCandidateNotInstallable).
+- F6.1: scalar-local root-free fast path in
+  multiquadraticFieldDecompose, every fast-path result verified by the
+  exact compose check; telemetry (RootFreeFastPathCount, path
+  statistics as per-record deltas).  240-scalar benchmark: 0.348 s ->
+  0.049 s median (~7x), SameQ on all vectors, fast-path count = the
+  full root-free population; rank 0 gains the compose check it lacked.
+- F5 half (06cab95): verified {v,w} convention default + typed
+  ClassVariablesUndeclared / RegulatorAmbiguous refusals; RegulatorFree
+  flag; no legacy mode needed (the 4 undeclared ClassForms are
+  chart-route artifacts without representative matrices).
+- F3: FamilyRowGaugeFiniteField.wl header-labelled VALIDATION PROTOTYPE
+  (decision, not loaded).
+Codex's red-team test: 12/7 -> 14/5; the 5 remaining FAILs are the 5
+documented decisions (prototype not loaded; CF prefix and Codex
+workspace-segment configurability declined as polish; bare no-expression
+resolver keeps the historical default -- order of arbitrary pairs is
+undecidable, every expression-bearing consumer is verified; regulator-
+free classes keep a flagged placeholder name).  Suites: new
+t_multiquadratic_dispatch 35/35 and t_undeclared_metadata 11/11; all
+multiquadratic/in-frame/generality suites green; dispatch not yet
+exercised on a physical triple-root family (CF259/300/303 are the
+cases; next campaign).
+
+## 2026-08-24 (00:20-01:10) — generality round 2: the real fixes landed
+
+Design/GeneralityFixes2.md executed for the user-selected real set
+F1 + F2 + F6.1 + F5's typed-refusal half (agent for the first three,
+coordinator for F5, F3, and integration):
+- F1: RootSourceIndices out of the hashed preparation payload (schema
+  V2, provenance kept unhashed); forward/reverse root declaration now
+  bit-identical ABI.
+- F2: SolveEpsFormStripInFrame dispatches chartless root sets to the
+  multiquadratic engine; results verbatim (ModularConsistent never
+  Solved), a 7-status scope list keeps NoRationalStripChart only for
+  genuine out-of-scope, MultiquadraticDispatch key disambiguates
+  Engine/OutOfScope/Disabled; the sector driver records a
+  modular-candidate artifact + StripSolvers summary and stops typed
+  (ModularCandidateNotInstallable).
+- F6.1: scalar-local root-free fast path in the channel decomposition,
+  every fast-path result verified by the exact compose check; telemetry
+  as per-record deltas.  240-scalar benchmark: 0.348 s -> 0.049 s
+  median (~7x), SameQ on all vectors, fast-path count = the full
+  root-free population; rank 0 gains the compose check it lacked.
+- F3: FamilyRowGaugeFiniteField.wl header-labelled VALIDATION PROTOTYPE.
+Codex's red-team test: 12 PASS/7 FAIL -> 14 PASS/5 FAIL; the remaining
+five are the five documented decisions (prototype not loaded; CF prefix
+and Codex workspace-segment configurability declined as polish; the
+bare no-expression resolver keeps the historical default because the
+order of arbitrary pairs is undecidable and every expression-bearing
+consumer is verified; regulator-free classes keep a flagged placeholder
+name).  New suites: t_multiquadratic_dispatch 35/35,
+t_undeclared_metadata 11/11; all multiquadratic/in-frame/generality
+suites green.  The dispatch is not yet exercised on a physical
+triple-root family (CF259/300/303; next campaign).
