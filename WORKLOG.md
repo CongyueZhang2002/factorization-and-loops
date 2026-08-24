@@ -2841,3 +2841,29 @@ identical).  The gauge representative is degree-unstable; the flip
 entered with the 08-22 afternoon solver changes (bundled commit,
 unbisectable further).  Fix designed: degree-aware normalization-column
 pinning measured at the pilot prime; implementation next.
+
+## 2026-08-23 (20:45-22:35) — representative-fix validation and 9-family benchmark
+
+- The two documented test reds are green (da4a6c5): t_wolfram_traps now
+  arms its traps deliberately (both diseases are cured -- the 08-20
+  loader fix and the current Wolfram/Libra build -- and cured must not
+  read as failed); t_canonica_scheduler degrades to the serial path
+  inside a pool subkernel.  The battery has no red at all.
+- Gauge representative fix (52ce634): trailing gauge columns pinned
+  first, residues as fallback (details in the commit and
+  BenchmarkStripBackends/RepresentativeFamilies_2026-08-23/README.md).
+  Diagnosis chain: byte-level strip-input archaeology -> the (5,4)
+  artifact with identical input but different normalization columns
+  ({85..88} residues pinned vs {81..84} gauge tail) -> residue pinning
+  forces block content out of the constant dlog residues into the
+  rational gauge, degrees compound row by row.
+- 9 families certified exact in one evening pool (8 in flight at once,
+  fresh kernel per mission): table in the benchmark README.  Highlights:
+  CF385 8.9 min end to end (66 min on 08-22), CF258 8.8 min (was 66),
+  CF264 6.2 min (was 38), CF231 37 min while sharing the pool (was ~45
+  alone), CF265 46 min from scratch at 4 subkernels (67.6 min this
+  morning; the "13 min" of 08-22 was a resumed segment, not comparable).
+  The CF265 killer strip's per-prime work fell ~50x.
+- Watchdog notes: one transient subkernel-relaunch licence refusal
+  (self-healed in 20 s), one broker re-dispatch race (FILEGONE, no
+  effect), 812 broker sub-missions OK, zero failures.

@@ -1,0 +1,36 @@
+FeynFacet standardization/generality adversarial audit
+Date: 2026-08-23
+HEAD: 52ce634
+Kernel policy: one main kernel, zero subkernels
+
+PASS  exact rank-three frame in generic Mandelstam names after u elimination
+PASS  generic s,t rank-three strip prepares without a family catalog
+PASS  generic s,t rank-three preparation compiles
+PASS  generic s,t rank-three strip reaches ModularConsistent
+PASS  family/campaign metadata do not alter the strip ABI
+PASS  family/sector metadata may be omitted
+PASS  s,t,eta -> a,b,ep preserves the exact ABI fingerprint
+PASS  three unrelated polynomial root triples prepare and compile
+FAIL  root declaration order changes the canonical strip ABI
+      only differing payload field: RootSourceIndices
+PASS  an unsampled independent u cannot enter the modular ABI
+PASS  a three-variable frame call is not silently truncated
+PASS  strip preparation rejects three variables by type
+PASS  family certificate does not certify two slices of a three-variable call
+FAIL  public in-frame solver does not dispatch chartless triple roots to the promoted engine
+FAIL  FamilyRowGaugeFiniteField is not loaded by the package
+FAIL  generated canonical family names are fixed to CF<n>
+FAIL  missing variable metadata selects Global v,w
+FAIL  missing regulator metadata on a zero class selects Global eps
+FAIL  generated workspaces contain an agent-specific Codex path component
+
+TOTAL: 12 PASS, 7 FAIL; exit code 7
+
+Committed suite cross-check: 10 suites, 369 assertions, all PASS.
+
+Rank-three root-free scalar microbenchmark (240 distinct rational scalars,
+three trials, exact eight-channel SameQ + independent recomposition):
+  current full decomposition median: 0.402831 s
+  grade-zero candidate median:        0.038896 s
+  speedup:                            10.3566x
+  exactSameQ:                         True
