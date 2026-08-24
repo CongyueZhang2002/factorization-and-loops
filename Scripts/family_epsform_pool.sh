@@ -43,6 +43,9 @@ cpus="${FACET_CPU_LIST:-0,1,6,7,8,9,18,19}"
 # enough subkernels; with 1-2 subkernels families run one at a time and the
 # broker simply finds no free helper (it then computes locally)
 maxfam=$(( nk > 2 ? nk - 2 : 1 ))
+# FACET_MAX_FAMILIES overrides (user campaigns that want every family in
+# flight at once accept broker helpers computing locally)
+[[ -n "${FACET_MAX_FAMILIES:-}" ]] && maxfam="$FACET_MAX_FAMILIES"
 mkdir -p "$out" "$pool"
 status="$out/campaign_status.tsv"
 [[ -f "$status" ]] || printf 'family\tphase\tstarted\tfinished\tseconds\tresult\n' > "$status"

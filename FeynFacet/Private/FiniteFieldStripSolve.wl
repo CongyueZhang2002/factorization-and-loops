@@ -838,9 +838,10 @@ finiteFieldStripCFFRDiscoverPlan[matrix_, rightHandSide_,
         "GaugeUnknownCount" -> gaugeUnknownCount,
         "FreeResidueCount" -> freeResidueCount|>]]];
   (* the wire preference is the residue-first order that
-     finiteFieldStripNormalizationColumns greedily walks *)
-  preference = Join[gaugeUnknownCount + Range[freeResidueCount],
-    Range[gaugeUnknownCount]];
+     finiteFieldStripNormalizationColumns greedily walks -- gauge tail
+     first, residues as fallback (2026-08-23) *)
+  preference = Join[Reverse[Range[gaugeUnknownCount]],
+    gaugeUnknownCount + Range[freeResidueCount]];
   run = finiteFieldStripCFFRRun[matrix, rightHandSide, prime, preference,
     threads, directory];
   If[Lookup[run, "Status", None] =!= "OK", Return[run]];
@@ -930,7 +931,19 @@ finiteFieldStripIndependentRows[matrix_, rank_Integer, prime_Integer] :=
 finiteFieldStripNormalizationColumns[nullspace_List, gaugeUnknownCount_Integer,
     freeResidueCount_Integer, prime_Integer] := Module[{order, chosen},
   If[nullspace === {}, Return[{}]];
-  order = Join[gaugeUnknownCount + Range[freeResidueCount], Range[gaugeUnknownCount]];
+  (* trailing GAUGE columns are offered first, residue columns only as
+     the fallback: pinning residues to zero forces the block's content
+     out of the constant dlog residues K into the rational gauge D, and
+     that representative's degrees compound row by row (CF265 (5,4):
+     residue-first pinned {85..88} and the family ran 67 min with a
+     certified degree bound of 30; gauge-tail pinning reproduces the
+     08-22-morning representative, normalization columns {81..84}, max
+     degree 2, and the 13-minute family).  Within the gauge columns the
+     DESCENDING order pins the highest-degree support coefficients, the
+     low-degree representative.  The residue fallback keeps the
+     CF209/211/213/217 case solvable (nullspace directions that change
+     no gauge column). *)
+  order = Join[Reverse[Range[gaugeUnknownCount]], gaugeUnknownCount + Range[freeResidueCount]];
   chosen = finiteFieldStripIndependentColumns[nullspace[[All, order]], prime];
   Sort[order[[chosen]]]];
 

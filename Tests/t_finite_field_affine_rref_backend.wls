@@ -99,9 +99,21 @@ check["(a) one adapter call verified in Wolfram",
 check["(a) rank and nullity agree with the Wolfram plan",
   nativePlan["GenericRank"] === wolframPlan["GenericRank"] === rank &&
     nativePlan["Nullity"] === wolframPlan["Nullity"] === 2];
+(* the convention pins gauge columns in DESCENDING index order (the
+   low-degree representative, 2026-08-23), so the expected set is
+   computed from the convention rather than hardcoded; the load-bearing
+   claims are native === wolfram, admissibility, and that the residue
+   columns (zero in this fixture's nullspace) were not chosen *)
 check["(a) normalization columns agree (residue-first, gauge fallback)",
-  nativePlan["NormalizationColumns"] ===
-      wolframPlan["NormalizationColumns"] === {1, 3}];
+  nativePlan["NormalizationColumns"] === wolframPlan["NormalizationColumns"] &&
+    Length[nativePlan["NormalizationColumns"]] === 2 &&
+    nativePlan["NormalizationColumns"] ===
+      FeynFacet`Private`finiteFieldStripNormalizationColumns[
+        nullspace, gaugeCount, residueCount, prime] &&
+    MatrixRank[nullspace[[All, nativePlan["NormalizationColumns"]]],
+      Modulus -> prime] === 2 &&
+    ! IntersectingQ[nativePlan["NormalizationColumns"],
+      gaugeCount + Range[residueCount]]];
 check["(a) pivot and free columns agree with the Wolfram RREF",
   nativePlan["PivotColumns"] === wolframPivots &&
     nativePlan["FreeColumns"] === {2, 4}];
