@@ -10,6 +10,7 @@
 \newcommand{\dd}{\mathrm{d}}
 \newcommand{\Q}{\mathbb{Q}}
 \newcommand{\Z}{\mathbb{Z}}
+\newcommand{\Fp}{\mathbb{F}_p}
 
 \title{Differential Equations for Master Integrals\\[0.4ex]
 \large A concise overview}
@@ -20,51 +21,109 @@
 
 \noindent
 These notes summarize a longer treatment.  The setting is the
-double-real channel of $pp \to h + X$ at NNLO: reverse unitarity
-turns its phase-space integrals into cut two-loop integrals, and
-integration-by-parts reduction leaves $347$ master integrals
-depending on the Mandelstam ratios $v = -t/s$ and $w = -u/s$, whose
-physical region is the triangle $0<v$, $0<w$, $v+w<1$, in
-$d = 4-2\eps$ dimensions.  The Born configuration sits on
-$v + w = 1$, so $1-v-w \to 0$ is the soft limit and $v \to 0$,
-$w \to 0$ the collinear ones.  The problem is the analytic
-evaluation of the masters: each as a Laurent series in $\eps$ whose
-coefficients are explicit transcendental functions with exact
-constants.
+double-real channel of $pp \to h + X$ at NNLO, in $d = 4-2\eps$
+dimensions.  Reverse unitarity replaces each on-shell delta function
+by the discontinuity of a propagator, on positive-energy
+configurations,
+\begin{equation}
+  \delta^{(+)}(p^2) \;=\; \frac{1}{2\pi i}
+  \left[\frac{1}{p^2-i0} - \frac{1}{p^2+i0}\right] ,
+\end{equation}
+so that the phase-space integrals become cut two-loop integrals: they
+obey the ordinary integration-by-parts identities, a cut line raised
+to power $a_i$ standing for
+$\big[(-1)^{a_i-1}/(a_i-1)!\big]\,\delta^{(a_i-1)}$ and an integral
+with a cancelled cut line vanishing.  Reduction leaves $347$ master
+integrals.  A master carries the overall scale by its mass dimension,
+$I_m = (-s)^{Ld/2-a_m}\hat I_m$ with $L$ loops and propagator powers
+summing to $a_m$, and the equations below govern the dimensionless
+$\hat I_m$.  For the partonic process
+$p_1 + p_2 \to p_3 + k_1 + k_2$ with all partons massless, and
+$s = (p_1+p_2)^2$, $t = (p_1-p_3)^2$, $u = (p_2-p_3)^2$, these depend
+on the two ratios $v = -t/s$ and $w = -u/s$ alone.  Since
+$s+t+u = (p_1+p_2-p_3)^2 = M^2$ is the squared invariant mass of the
+unobserved pair, $1-v-w = M^2/s \ge 0$, while $v, w > 0$: the
+physical region is the triangle $0<v$, $0<w$, $v+w<1$.  In the
+partonic centre-of-mass frame
+$v = (E_3/\sqrt s)(1-\cos\theta)$ and
+$w = (E_3/\sqrt s)(1+\cos\theta)$, so $v \to 0$ and $w \to 0$ are the
+collinear limits and $v+w \to 1$ the Born configuration
+$E_3 = \sqrt s/2$, $M^2 = 0$, at which the radiation is unresolved:
+the soft edge.  The problem is the analytic evaluation of the
+masters: each as a Laurent series in $\eps$ whose coefficients are
+explicit transcendental functions with exact constants.
 
 \section{Differential equations}
-A derivative of a master with respect to $v$ or $w$ is again an
-integral of the same family, and integration by parts brings it
-back to the masters of the family and its subsectors.  Each family
-therefore satisfies a closed first-order system
+A master depends on the external momenta only through their
+invariants $s_{kl}$, so the chain rule
+$p_j^\mu\,\partial_{p_i^\mu} I = \sum_{k\le l}
+\big(p_j^\mu\,\partial s_{kl}/\partial p_i^\mu\big)\,
+\partial I/\partial s_{kl}$ is a linear system for the
+$\partial I/\partial s_{kl}$, invertible wherever the Gram
+determinant of the external momenta is non-zero; inverting it
+expresses $\partial_v$ and $\partial_w$ through the operators
+$p_j^\mu\,\partial/\partial p_i^\mu$.  Taken under the integral sign
+these raise propagator powers and produce numerators which, the
+family being complete, are linear combinations of its inverse
+propagators and of invariants; a derivative of a master is therefore
+again a combination of integrals of the same family, and
+integration by parts brings it back to the masters of the family and
+its subsectors.  Each family therefore satisfies a closed first-order
+system in both variables at once,
 \begin{equation}
   \dd \vec I = A(v,w;\eps)\,\vec I,
   \qquad A = A_v\,\dd v + A_w\,\dd w ,
 \end{equation}
-with rational matrices, subject to the integrability (flatness)
-condition $\dd A = A\wedge A$, verified exactly.  The families
-themselves are already fixed by the reduction: propagator sets are
-identified modulo redefinitions of the loop momenta that map cut
-lines to cut lines, the identification being found through a normal
-ordering of the Symanzik polynomials and then proved by the explicit
-momentum shift.  Because differentiation never leaves a family, the
-$347$ masters split into $91$ independent systems, of dimensions
-between $2$ and $47$ (the dimensions sum to more than $347$ because
-each system carries the subsector masters it couples to, counted
-once in the family that owns them).  Ordered by sectors ---
+with rational matrices --- a \emph{Pfaffian system}, in the
+terminology of the literature --- subject to the integrability
+(flatness) condition $\dd A = A\wedge A$, verified exactly.  The
+families themselves are already fixed by the reduction: propagator
+sets are identified modulo \emph{affine} redefinitions of the loop
+momenta, a linear map composed with a shift,
+$k_\ell \mapsto \sum_m M_{\ell m} k_m + \sum_r c_{\ell r} p_r$ with
+$M \in \mathrm{GL}(L,\Z)$, hence $\lvert\det M\rvert = 1$ and the
+measure invariant, that map cut lines to cut lines.  The Symanzik
+polynomials $(U,F)$ depend only on the graph and on the assignment of
+the external momenta to its vertices, not on the routing of the loop
+momenta, so equivalent families share them up to a permutation of the
+Feynman parameters; a coincidence of their normal orderings (Pak's
+algorithm) nominates a candidate, and the explicit momentum shift,
+constructed from the linear conditions
+$\widetilde D_i(Mk + c\cdot p) = D_{\sigma(i)}(k)$ and applied,
+proves it.  Because differentiation never leaves a family, the $347$
+masters split into $91$ separate Pfaffian systems, of dimensions
+between $2$
+and $47$ (the dimensions sum to more than $347$ because each system
+carries the subsector masters it couples to, counted once in the
+family that owns them).  The systems are separate but not
+independent: a subsector master shared by two of them is one and the
+same function, and they are solved in an order compatible with the
+subsector relation.  Ordered by sectors ---
 a sector is the set of propagators actually present --- each
 connection is block lower triangular: diagonal blocks couple the
 masters of one sector group, and the entries below the diagonal
 feed subsector solutions upward.
 
 \section{Equivalence of blocks}
-A \emph{block} is a strongly connected group of masters, a diagonal
-block of the triangular structure; the $91$ systems contain $1119$
-of them.  Two blocks are \emph{equivalent} when their connections
-coincide after a basis permutation, optionally composed with the
-crossing involution $v \leftrightarrow w$ --- an exact matrix
-identity, never an analogy.  Only $173$ equivalence classes occur,
-because the same subtopologies recur inside many parent families.
+Form the directed graph on the masters of a system with an edge
+$i \to j$ whenever $I_i$ occurs in the derivative of $I_j$.  A
+\emph{block} is a strongly connected component of that graph,
+equivalently a diagonal block of the triangular structure.  The $91$
+systems contain $1119$ blocks.  Two blocks with connections
+$b^{(1)}$, $b^{(2)}$ are
+\emph{equivalent} when there is a constant permutation matrix $P$
+with
+\begin{equation}
+  b^{(2)}(v,w) = P^{-1}\, b^{(1)}(v,w)\, P
+  \qquad\text{or}\qquad
+  b^{(2)}(v,w) = P^{-1}\, b^{(1)}(w,v)\, P ,
+\end{equation}
+the second option being the exchange $p_1 \leftrightarrow p_2$ of the
+incoming partons --- an exact matrix identity, never an analogy.
+Since $P$ is constant it carries no derivative term, so the
+equivalence is decided entry by entry.  Only $173$ equivalence
+classes occur, because the same subtopologies recur inside many
+parent families.
 The analysis is therefore done once for each class; a family is
 recovered afterwards from the classes it contains, and the
 identification is checked again at that point.
@@ -72,160 +131,366 @@ identification is checked again at that point.
 \section{The canonical form}
 A system is in \emph{canonical form} when
 \begin{equation}
-  \dd \vec F = \eps \sum_a R_a\, \dd\log \varphi_a(v,w)\;\vec F ,
+  \dd \vec F = \eps \sum_a R_a\, \dd\log \varphi_a\;\vec F ,
 \end{equation}
 with constant residue matrices $R_a$ and $\eps$-free \emph{letters}
-$\varphi_a$ (the \emph{alphabet}).  The Laurent expansion then
-decouples order by order,
+$\varphi_a$ (the \emph{alphabet}).  For two blocks in this form the
+equivalence of the preceding section reduces to a statement about the
+residues alone, $R^{(2)}_a = P^{-1}R^{(1)}_{\sigma(a)}P$, with
+$\sigma$ the relabeling of the letters induced by the exchange.  The
+Laurent expansion decouples order by order,
 $\dd\vec F^{(k)} = \big(\sum_a R_a\,\dd\log\varphi_a\big)\vec
 F^{(k-1)}$: each order is a quadrature of the previous one, and the
 solution is a path-ordered exponential whose order-$\eps^k$ term is
-a sum of $k$-fold iterated integrals over the alphabet ---
-generalized polylogarithms of uniform weight $k$.  Take the
-alphabet $\{w, 1-w\}$ with a nilpotent coupling between the two
-components: the first order in $\eps$ produces $\log(1-w)$ and the
-second $\operatorname{Li}_2(w)$ --- the dilogarithm appears as the
-twofold integral of the word $(w,\,1{-}w)$, and nothing more
-elaborate is involved.  All singular behaviour is manifest: the
-connection has simple poles exactly at the letters' zeros, and the
-residue matrix there prescribes the local solutions
-$w^{\,n+a\eps}(\log w)^j$ --- exponents from $\eps$ times its
-eigenvalues, logarithms from its Jordan structure --- known before
-any integration.
+a $\Q$-linear combination of $k$-fold iterated integrals over the
+alphabet, contracted with the boundary vector --- of uniform
+transcendental weight $k$, and, on segments where every letter is
+linear in the path parameter, generalized polylogarithms.  Take the
+alphabet
+$\{w, 1-w\}$ with
+\begin{equation}
+  R_w = \begin{pmatrix} 0 & 0\\ 0 & -1\end{pmatrix},
+  \qquad
+  R_{1-w} = \begin{pmatrix} 0 & 0\\ 1 & 0\end{pmatrix},
+  \qquad
+  \vec F \to (1,0)^{\mathsf T} \ \text{ at } \ w \to 0 .
+\end{equation}
+The first component stays constant, and the recursion gives
+$F_2^{(1)} = \int_0^w \dd\log(1-w') = \log(1-w)$ and then
+$F_2^{(2)} = -\int_0^w \dd\log w'\,\log(1-w')
+= \operatorname{Li}_2(w)$: the dilogarithm as the twofold iterated
+integral of the word $(w,\,1{-}w)$, and nothing more elaborate is
+involved.  All singular behaviour is manifest: in the finite plane
+the connection has simple poles exactly at the letters' zeros, and
+the residue matrix $R$ there prescribes the local solutions
+$H(w)\,w^{\eps R}\vec c$ with $H$ analytic and $H(0)=1$, that is
+modes $w^{\,n+a\eps}(\log w)^j$ --- exponents from $\eps$ times the
+eigenvalues of $R$, logarithms at fixed $\eps$ from its Jordan
+structure --- known before any integration.  Two provisos: the normal
+form requires that no two exponents differ by a nonzero integer,
+automatic for generic $\eps$; and after expansion in $\eps$
+logarithms appear at every order in any case, since
+$w^{\eps R} = \sum_m (\eps\log w)^m R^m/m!$, whether or not $R$ is
+diagonalizable.
 
 \section{Construction of the transformation}
-Under a change of basis $\vec I = T\vec F$ the connection
-transforms as $A \mapsto T^{-1}AT - T^{-1}\dd T$, and the
-triangular structure decides the order of the work.  A diagonal
-block never feels what lies below it, so each block is brought to
-canonical form on its own --- once per class, by rational-ansatz
-methods or by Fuchsian reduction with balance transformations, a
-candidate counting as the canonical form only when the transformed
-block equals $\eps\sum_a R_a\,\dd\log\varphi_a$ identically.  With
+Under a change of basis $\vec I = T\vec F$ the connection transforms
+as $A \mapsto T^{-1}AT - T^{-1}\dd T$, and the triangular structure
+decides the order in which the blocks are treated.  A diagonal block
+never feels what lies below it, so each block is brought to canonical
+form on its own, once per class.  Either one posits a rational $T$ of
+bounded degree, over the alphabet supplied by the irreducible factors
+of the denominators of $A$ and of the discriminants in its residue
+eigenvalues, and matches coefficients in
+$\dd T = A\,T - \eps\,T\sum_a R_a\,\dd\log\varphi_a$ --- a system
+bilinear in $T$ and the residues, so one fixes candidate residues and
+solves linearly for $T$ in each case; or one reduces higher poles by
+Moser's algorithm, which decides by a rank condition whether a
+rational transformation lowers the pole, and normalizes the residue
+eigenvalues by balances
+\begin{equation}
+  T = \bar P + \frac{v-v_1}{v-v_2}\,P ,
+  \qquad \bar P = 1-P ,
+  \qquad P = \frac{u\,\eta^{\mathsf T}}{\eta^{\mathsf T}u} ,
+\end{equation}
+with $\eta$ a left eigenvector of the residue at $v_1$, eigenvalue
+$\lambda$, and $u$ a right eigenvector of the residue at $v_2$,
+eigenvalue $\mu$, and $\eta^{\mathsf T}u \ne 0$.  Both conditions are
+needed: $PA_{(1)}\bar P = 0$ keeps the transformed connection free of
+a double pole at $v_1$ and $\bar P A_{(2)}P = 0$ does the same at
+$v_2$, and a spectral projector of one residue satisfies only the
+first.  The balance sends $\lambda\mapsto\lambda-1$ and
+$\mu\mapsto\mu+1$ and leaves the exponents at every other point
+unchanged, the residue at $v_k$ being conjugated by the constant
+$T(v_k)$ and the one at infinity untouched since $T(\infty)=1$; it
+must act at two points, since the sum of all residues including the
+one at infinity, $-\sum_k A_k$, vanishes identically, so no
+transformation changes an exponent at a single point.  Repeated
+balances remove the integer parts $n$ from all eigenvalues
+$n + a\eps$ --- each admissible step decreases the non-negative
+integer $\sum|n|$ by two, so the sequence cannot continue
+indefinitely; what can fail is the existence of an admissible pair with
+$\eta^{\mathsf T}u \neq 0$ at some step.  A constant transformation
+then factors $\eps$ out of the residues.  With two variables the whole
+construction is carried out in $v$ with $w$ a symbol, over
+$\Q(w,\eps)$ --- the singular points of that sliced equation are the
+$v$-roots of the letters, algebraic functions of $w$; the freedom left
+is a $v$-independent $U(w;\eps)$,
+which must both keep the conjugated residues $U^{-1}R_aU$ constant
+and satisfy the linear equation
+$\partial_w U = A_w'U - \eps\,U\sum_a R_a''\,\partial_w\log\varphi_a$
+--- a nullspace computation over $\Q(w,\eps)$ whose solvability is
+decided by the solve itself and not by flatness, which is necessary
+and not sufficient.  A candidate counts
+as the canonical form only when the transformed block equals
+$\eps\sum_a R_a\,\dd\log\varphi_a$ identically in \emph{both}
+variables.  With
 the diagonal canonical, the entries below it yield to unipotent
 transformations $T = 1 + D$ (so $D^2 = 0$): writing $\eps e_k$ and
 $\eps c_j$ for the canonical diagonal blocks of row $k$ and column
 $j$, and $\bar b_{kj}$ for the coupling to be removed (including
 the feed-through of previously completed entries of the same row),
-the unknown block $D_{kj}$ and the constant residues $K_a$ of the
-completed entry satisfy the \emph{linear} equation
+the unknown block $D_{kj}$ and the residues $K_a$ of the completed
+entry --- constant in the kinematics --- satisfy the
+\emph{affine-linear} equation
 \begin{equation}
   \dd D_{kj} = \eps( e_k D_{kj} - D_{kj} c_j ) + \bar b_{kj}
   - \eps \textstyle\sum_a K_a\, \dd\log\varphi_a .
 \end{equation}
-Being linear, it is solved by an ansatz over the letters with
+A linear operator applied to the unknowns plus the fixed source
+$\bar b_{kj}$: its solution set is accordingly an affine subspace, one
+particular solution plus the null space of the linear part, the same
+structure the constraint system of the boundary analysis has below.
+It is solved by an ansatz over the letters with
 undetermined polynomial numerators, evaluated at many rational
 kinematic and regulator values modulo large primes; the exact
 rational solution --- a rational function of $\eps$ as well --- is
 reassembled by the Chinese remainder theorem and rational
-reconstruction, and proved by exact substitution.  Where the
-solution is not unique, the representative with vanishing
-top-degree numerator coefficients is chosen: all representatives
-are correct, but a low-degree one keeps the degrees of the later
-rows from compounding.  What survives is a dependence on $\eps$
-that is constant in the kinematics --- a residue of the
-$\eps$-dependent normalization of the basis --- and it is removed
-last, by a conjugation $T(\eps)$ found from the connection at a few
-rational points and proved exactly.
+reconstruction, and proved by exact substitution.  Where the solution
+is not unique, the representative with vanishing top-degree numerator
+coefficients is chosen: all are correct, their canonical forms
+differing by a constant transformation that preserves the diagonal
+blocks, and a low-degree one keeps the degrees of the later rows from
+compounding.  What survives is a dependence on $\eps$ that
+is constant in the kinematics --- a residue of the $\eps$-dependent
+normalization of the basis --- and it is removed last by a
+conjugation $T(\eps)$, determined by the conditions
+$\tilde R_a(\eps)\,T(\eps) = \eps\,T(\eps)\,R_a$, linear in $T$, at a
+few rational kinematic points, and proved exactly on the full
+connection.
 
 \section{Square roots and their rationalization}
-Degenerate configurations of the three-particle final state lie on
-the vanishing of the K\"all\'en polynomial
-$\lambda_1 = (1-v-w)^2 - 4vw$, whose zero locus
-$\sqrt v + \sqrt w = 1$ is a pseudo-threshold \emph{inside} the
-physical triangle; alphabets of many blocks contain
-$\sqrt{\lambda_1}$-type letters.  Six radicands occur in all; the
-involution $v \leftrightarrow w$ exchanges two pairs of them and
-fixes the other two.  The \emph{root content} of a family is the
-number of independent square roots in its alphabet, counted so that
-$\sqrt{q_1}$, $\sqrt{q_2}$, $\sqrt{q_1 q_2}$ are two roots, not
-three: most families have none, a third have one, a dozen have two,
-and three families have three.  A single root is removed by a
-\emph{rationalizing substitution} --- for example $v = xy$,
-$w = (1-x)(1-y)$ gives $\lambda_1 = (x-y)^2$, so
-$\sqrt{\lambda_1} = x - y$ and the alphabet becomes polynomial in
-$(x,y)$; such substitutions come from the classical parametrization
-of a conic by lines through a rational point.  Two roots are removed
-by iterating the construction inside the first substitution.  For
-three roots no rationalizing substitution exists --- the joint
-covering surface resolves to a K3 surface, which is not unirational
---- and one computes instead in the extension
-$\Q(v,w,\eps)[r_1,r_2,r_3]/(r_i^2 - q_i)$, whose Galois group
-$(\Z/2)^3$ acts by sign changes: linear problems are posed on the
-eight graded components (ordinary rational functions), and the
-eight sign embeddings must and do recombine consistently.
+Eliminating the direction of an unobserved momentum at fixed
+invariants requires solving quadratic equations, whose real solutions
+end where a Gram determinant vanishes; for three momenta
+$P_1, P_2, P_3 = -P_1-P_2$ that determinant is a K\"all\'en
+polynomial,
+\begin{equation}
+  \det\begin{pmatrix}
+    2P_1^2 & 2P_1\!\cdot\!P_2\\ 2P_1\!\cdot\!P_2 & 2P_2^2
+  \end{pmatrix}
+  = 4P_1^2P_2^2 - \big(P_3^2-P_1^2-P_2^2\big)^2
+  = -\lambda\big(P_1^2,P_2^2,P_3^2\big) ,
+\end{equation}
+with $\lambda(a,b,c) = (c-a-b)^2-4ab$ the triangle function.
+With the virtualities $s$, $-t$, $-u$ and $\lambda$ homogeneous of
+degree two, this is, in units of $s^2$, the K\"all\'en polynomial
+\begin{equation}
+  \lambda_1 = \lambda(1,v,w) = (1-v-w)^2 - 4vw
+  = \Big(1-\big(\sqrt v + \sqrt w\big)^2\Big)
+    \Big(1-\big(\sqrt v - \sqrt w\big)^2\Big) ,
+\end{equation}
+whose second factor is positive on the whole triangle: the zero locus
+is $\sqrt v + \sqrt w = 1$, a pseudo-threshold \emph{inside} the
+physical region, through $v = w = \tfrac14$.  Alphabets of many
+blocks therefore contain $\sqrt{\lambda_1}$-type letters.  Six
+radicands occur in all; the involution $v \leftrightarrow w$
+exchanges two pairs of them and fixes the other two.  The
+\emph{root content} of a system is the number of independent square
+roots in its alphabet, counted so that $\sqrt{q_1}$, $\sqrt{q_2}$,
+$\sqrt{q_1 q_2}$ are two roots and not three --- formally, the rank
+of the subgroup of $\Q(v,w)^\times/(\Q(v,w)^\times)^2$ that the
+radicands generate, computed as the rank over $\mathbb{F}_2$ of the
+matrix of exponent parities of the irreducible factors.  Reading the
+radicands off the derived connection, from the discriminants of the
+irreducible quadratic factors of its singular loci and of its residue
+eigenvalues, gives an upper bound on that rank and not its value,
+since an apparent singularity contributes a discriminant but no root.
+In this channel about half the families have no root, a third have
+one, a dozen have two, and three have three.  A single root is
+removed by a \emph{rationalizing substitution}, a rational change of
+variables whose Jacobian determinant is not identically zero and
+under which the radicand becomes a perfect square: for instance
+$v = xy$, $w = (1-x)(1-y)$ gives $\lambda_1 = (x-y)^2$, so
+$\sqrt{\lambda_1} = x-y$ and the alphabet becomes rational in
+$(x,y)$.  Such substitutions are the classical parametrization of a
+conic by the pencil of lines through a rational point on it, here the
+point at infinity: writing $q = \alpha^2 w^2 + b\,w + c$ as a
+quadratic with square leading coefficient and setting
+$\sqrt q = \alpha w + \tau$, the squares cancel and leave the linear
+equation
+\begin{equation}
+  w = \frac{c - \tau^2}{2\alpha\tau - b} ,
+  \qquad \sqrt q = \alpha\,w + \tau ,
+\end{equation}
+so that $(v,\tau)$ is a rationalizing chart.  Two roots are removed
+by applying the same step to the second radicand \emph{in the
+variables produced by the first}, which requires that it still be of
+degree two there --- the pullback of a conic under a degree-two map
+is in general a quartic --- and that its leading coefficient be a
+square; for the K\"all\'en pairs both hold.
+
+For three roots no rationalizing substitution exists.  Such a
+substitution would be a dominant rational map from the plane onto the
+$(\Z/2)^3$ cover of the plane branched over the three conics, a
+complete intersection of three quadrics
+$r_i^2 = Q_i(v,w,h) = h^2q_i(v/h,w/h)$ in $\mathbb{P}^5$, of degree
+eight like the cover.  Its pairwise branch intersections are
+transverse except for finitely many simple tangencies, each lifting to
+two ordinary double points (nodes, locally $xy = z^2$); how many is
+immaterial, since nodes are rational double points whose resolution is
+crepant --- the canonical class pulls back without correction --- and
+adjunction leaves it trivial, $\mathcal{O}(6-6)$, with vanishing
+irregularity $h^1(\widetilde X, \mathcal{O}_{\widetilde X}) = 0$ and
+geometric genus $p_g=1$: a K3 surface.  A unirational
+surface, one dominated by a rational map from the plane, is rational
+in characteristic zero by Castelnuovo's theorem, and a rational
+surface has $p_g = 0$.  So one computes
+instead in the extension $\Q(v,w,\eps)[r_1,r_2,r_3]/(r_i^2-q_i)$,
+whose Galois group $(\Z/2)^3$ acts by sign changes.  Already for one
+root the mechanism is complete: multiplication by $c_0 + c_1 r$ is
+the matrix $\left(\begin{smallmatrix} c_0 & c_1q\\ c_1 & c_0
+\end{smallmatrix}\right)$, differentiation obeys
+$\dd r = \tfrac12 r\,\dd\log q$, and a one-form equation in the
+algebra splits into two coupled equations with rational coefficients
+for the even and odd components.  For three roots there are eight
+graded components; the eight sign embeddings must and do recombine
+consistently.
 
 \section{Paths and polylogarithms}
 With the canonical form established, evaluation means choosing a
 base point in the physical triangle and a path composed of segments
-on which every letter is linear in the path parameter; along such
-segments the iterated integrals are the generalized polylogarithms
-$G(a_1,\dots,a_k;t)$.  A letter quadratic on a segment stays
-quadratic on every sub-segment, so one either chooses the segments
-differently --- in practice parallel to the axes, where the
-bilinear letters of the rationalizing substitutions become linear
-again --- or admits the quadratic's linear factors as letters with
-algebraic constants.  Flatness makes the result depend only on the
-endpoint and the homotopy class of the path; letters' zeros are
-crossed only as deliberate analytic continuation.  The order in
-$\eps$ carried for each master is fixed in advance by where it
-enters the cross section: most masters are needed only to their
-finite order, a large minority one order deeper, and a handful
-deeper still.
+on which every letter is linear in the path parameter.  The criterion
+is what the generalized polylogarithms
+\begin{equation}
+  G(a_1,\dots,a_k;t) = \int_0^t \frac{\dd t'}{t'-a_1}\,
+  G(a_2,\dots,a_k;t') , \qquad G(;t) = 1 ,
+\end{equation}
+integrated along a path from $0$ to $t$ avoiding the $a_i$ with a
+fixed branch of each logarithm, and completed for the words in which
+every $a_i$ vanishes --- the only ones the recursion cannot reach ---
+by $G(\vec 0_k;t) = \log^k t/k!$, require: if
+$\varphi_a(\gamma(t)) = \kappa_a\,(t-\alpha_a)$ then
+$\dd\log\varphi_a = \dd t/(t-\alpha_a)$, the constant dropping out,
+and every iterated integral along the segment is a $G$ with indices
+the roots $\alpha_a$.  (Thus $G(1;t) = \log(1-t)$ and
+$G(0,1;t) = -\operatorname{Li}_2(t)$, the two functions of the
+example above.)  A letter quadratic on a segment stays quadratic on
+every sub-segment, so one either chooses the segments differently ---
+in practice parallel to the axes, where the bilinear letters of the
+rationalizing substitutions become linear again --- or admits the
+quadratic's linear factors as letters with algebraic constants.
+Flatness makes the result depend only on the endpoint and the
+homotopy class of the path; letters' zeros are crossed only as
+deliberate analytic continuation.  The order in $\eps$ carried for
+each master is fixed in advance: if the assembled cross section is
+$\sigma = \sum_m c_m(\eps) I_m$, with $c_m$ carrying a pole of order
+$p_m$, and $\sigma$ is wanted through $\eps^{\,n}$, then $I_m$ is
+wanted through $\eps^{\,n+p_m}$.  Of the $347$ masters, $203$ are
+needed only to their finite order and $131$ one order deeper, $9$
+deeper still, and $4$ less deeply.
 
 \section{Boundary conditions}
 The general solution leaves one constant vector per family per
 order, and almost all of it is fixed without evaluating any new
 integral.  The most productive condition is the exclusion of local
-behaviour: at $v \to 0$, $w \to 0$ and $1-v-w \to 0$ the integral
-representation admits only exponents $n + a\eps$ with $a$ from a
-short list fixed by the analysis of momentum regions (hard, soft,
-collinear), while the equation offers exponents from the residue
-eigenvalues --- and every offered-but-forbidden mode annihilates
-one constant.  The rest follows from elementary normalizations (the
-phase-space volume is a closed ratio of $\Gamma$-functions and
+behaviour.  Near $w = 0$ the equation offers
+\begin{equation}
+  \vec F(v,w) = \sum_\lambda w^{\lambda}\,
+  \vec f_\lambda(v,\log w) ,
+  \qquad
+  \lambda \in \eps\operatorname{spec}R_0 + \Z_{\ge0} ,
+\end{equation}
+each $\vec f_\lambda$ linear in the boundary constants, while the
+integral representation admits only exponents $n + a\eps$ produced by
+its momentum regions.  The two lists must be compared in one basis:
+the regions constrain the master $\vec I = T\vec F$, and its exponents
+are those of the canonical $\vec F$ shifted by the order of $T$ at the
+edge --- which is also where the negative integer parts used in the
+next section come from.  The regulator enters a region only through the
+measure, $\dd^dk \sim w^{4-2\eps}$ for a soft momentum $k \sim w$ and
+$\dd^dk \sim w^{2-\eps}$ for a collinear one, so
+$a = -2j_{\text{soft}} - j_{\text{coll}}$ counts the momenta a region
+scales.  With two loop momenta,
+$j_{\text{soft}} + j_{\text{coll}} \le 2$ and hence
+$a \in \{0,-1,-2,-3,-4\}$: five values, which is the whole spectrum
+observed on the soft edge.  Every offered but forbidden mode gives
+$\vec f_\lambda \equiv 0$: one exact linear condition per mode ---
+and the argument is the comparison of exponent lists, not an appeal
+to finiteness, since $w^{-\eps}$ is itself bounded as $w\to0$ for
+$\operatorname{Re}\eps<0$.  The rest follows from elementary
+normalizations
+(the phase-space volume is a closed ratio of $\Gamma$-functions and
 fixes the lowest sector wherever it appears), from inheritance
 (families are treated in subsector order, and every already-known
-subsector master imposes its expansion wherever it recurs), and
-from finiteness at letters' zeros interior to the region of
-convergence.  The number of genuinely undetermined constants of a
-block is the kernel dimension of its constraint system, known
-before any evaluation; after identification across blocks, the few
-surviving \emph{boundary periods} are values of cut phase-space
-integrals at ordered limits --- $\zeta$-values and kin ---
-established by exact derivations, with numerics as corroboration
-only.
+subsector master imposes its expansion wherever it recurs), and from
+regularity at letters' zeros interior to the region of convergence.
+All conditions assemble into one linear system $C\vec C^{(k)} =
+\vec d^{\,(k)}$ per order, so the number of genuinely undetermined
+constants is $\dim\ker C$, known before any evaluation.  After
+identification across blocks --- the same subsector being the same
+integral --- at most thirty-three candidate \emph{boundary periods}
+remain for the whole channel, values of cut phase-space integrals at
+ordered limits, $\zeta$-values and kin, established by exact
+derivations with numerics as corroboration only.  Their character is
+already visible in the beta integral
+$\int_0^1\dd x\,x^{-1+a\eps}(1-x)^{-1+b\eps} =
+\Gamma(a\eps)\Gamma(b\eps)/\Gamma((a+b)\eps)$, whose expansion is
+$\frac{a+b}{ab\,\eps}\big[1 - ab\,\zeta_2\eps^2 + O(\eps^3)\big]$: a
+$\zeta$-value out of $\Gamma$-functions alone.  Where the parametric
+integrals do not factor, the Mellin--Barnes splitting
+$(X+Y)^{-\lambda} = \frac{1}{\Gamma(\lambda)}\frac{1}{2\pi i}\int \dd
+z\,\Gamma(\lambda+z)\Gamma(-z)X^z Y^{-\lambda-z}$ separates them
+again.
 
 \section{Edges of phase space}
-Near a letter's zero the local solutions are
-$u^{\,n+a\eps}(\log u)^j$, with all data read from the residue
-matrix.  At the endpoints the cross section requires the
-distributional identity
+Let $u$ be the distance to an edge of the triangle, rescaled to
+$u\in[0,1]$: $u = 1-v-w$ on the soft edge, $u = v$ or $u = w$ on the
+collinear ones.  The local solutions there are $u^{\,n+a\eps}(\log
+u)^j$, with all data read from the residue matrix; a mode coefficient
+is extracted from the global solution as
+$\lim_{u\to0}\Pi_\lambda u^{-\eps R_u}\vec F$, the projection onto
+the generalized eigenspace of exponent $\lambda$, and on the soft
+edge it is a function of the variable surviving along that edge, not
+a number.  The cross section then requires the distributional
+identity
 \begin{equation}
-  (1-w)^{-1+a\eps} = \frac{1}{a\eps}\,\delta(1-w)
+  u^{\,-1+a\eps} = \frac{1}{a\eps}\,\delta(u)
   + \sum_{k\ge0}\frac{(a\eps)^k}{k!}
-  \Big[\frac{\log^k(1-w)}{1-w}\Big]_+ ,
+  \Big[\frac{\log^k u}{u}\Big]_+ ,
+  \qquad
+  \int_0^1\!\dd u\,[g]_+f = \int_0^1\!\dd u\;g\,[f(u)-f(0)] .
 \end{equation}
-where $[\,\cdot\,]_+$ subtracts the value of the test function at
-the endpoint; the identity exists only for the unexpanded power,
-since expanding the master in $\eps$ first produces non-integrable
-logarithms and destroys the $\delta$-content.  The masters
-therefore carry their exact local mode data alongside the
+It is proved in one line: integrating against $f$ and adding and
+subtracting $f(0)$ gives the term
+$f(0)\int_0^1 u^{-1+a\eps}\,\dd u$, equal to $f(0)/(a\eps)$, plus a
+remainder in
+which $f(u)-f(0)$ vanishes at the endpoint, so that the expansion in
+$\eps$ may be carried out term by term.  Modes $u^{\,n+a\eps}$ with
+$n\le-2$ are treated by subtracting further Taylor terms and produce
+derivatives of $\delta(u)$; for $n=-2$ the subtraction is
+$f(u)-f(0)-u f'(0)$.  As written the identity is exact on the
+collinear edges, where $u$ runs over $(0,1)$; on the soft edge the
+rescaling is by $1-v$, so the $\delta$ coefficient carries
+$(1-v)^{a\eps}$.  The identity exists only for the unexpanded
+power: expanding the master in $\eps$ first leaves $u^{-1}\log^k u$,
+non-integrable at the endpoint, and destroys the $\delta$-content.
+The masters therefore carry their exact local mode data alongside the
 polylogarithmic expansion, and the identity is applied before the
 final expansion in $\eps$.
 
 \section{Search and proof}
-Nothing depends on how a transformation was found: an ansatz, a
-fit, arithmetic modulo a prime produce candidates, and what makes a
+Nothing depends on how a transformation was found: an ansatz, a fit,
+arithmetic modulo a prime produce candidates, and what makes a
 candidate a theorem is an exact identity --- flatness for a
-connection, reconstruction from constant residues for a canonical
-form, the transformation identity for an assembled family, a
-numerics-free derivation for a boundary period.  At the time of
-writing all but the three three-root families carry canonical forms
-established in this way; the three-root families await the
-Galois-algebraic treatment, and the higher boundary periods and the
-endpoint analysis of the full inventory are open campaigns.  The
-method is complete; the calculation, like every large calculation,
-is a living object.
+connection, a numerics-free derivation for a boundary period, and
+for a canonical form
+\begin{equation}
+  T^{-1}A\,T - T^{-1}\dd T
+  \;=\; \eps \sum_a R_a\,\dd\log\varphi_a ,
+\end{equation}
+verified as an identity of rational (or algebraic) matrices.  Where a
+verification is done modulo a prime at random points, the bound is
+stated: a nonzero polynomial of total degree $D$ vanishes at a
+uniform point of $\Fp^{\,n}$ with probability at most $D/p$, so a
+false identity survives $r$ independent evaluations with probability
+at most $(D/p)^r$ --- below $10^{-29}$ already at $r = 2$ for
+$D \le 10^4$ and a sixty-three--bit prime.  At the time of writing
+$88$ of the $91$ families carry canonical forms established in this
+way; the three three-root families await the Galois-algebraic
+treatment, and the higher boundary periods and the local mode
+analysis of every master at every edge remain open.  The method is
+settled: each step is defined and each of its claims is decided by an
+exact identity.  What remains is its execution on what is still open.
 
 \end{document}
