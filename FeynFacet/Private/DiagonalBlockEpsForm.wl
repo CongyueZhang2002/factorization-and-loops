@@ -1738,14 +1738,22 @@ DiagonalBlockClassCampaign::input =
 diagonalBlockClassRecord[class_Association, regulatorOption_, timeConstraint_,
     fallback_, canonicaValidation_, variablesOption_ : Automatic] := Module[
   {v, w, eps, matrices, start = AbsoluteTime[],
-   result, record, validated, variables, chart},
+   result, record, validated, variables, chart, regulatorFree},
   (* class record first, option override, front-end default last; the
      regulator is detected from the representative matrices when neither
      names it, and falls back to the declared default for a class whose
      representative is regulator-free (7 of this project's 173 are) *)
   variables = canonicalBlocksResolveVariables[
     If[variablesOption === Automatic,
-      Lookup[class, "Variables", Automatic], variablesOption]];
+      Lookup[class, "Variables", Automatic], variablesOption],
+    {Lookup[class, "RepAv", {}], Lookup[class, "RepAw", {}]}];
+  If[AssociationQ[variables],
+    (* verified-default refusal: undeclared class whose matrices are not
+       in the documented {v, w} convention (generality audit F5) *)
+    Return[<|"ClassID" -> Lookup[class, "ClassID", None],
+      "Status" -> "ClassVariablesUndeclared",
+      "Detail" -> variables,
+      "Seconds" -> AbsoluteTime[] - start|>]];
   If[! MatchQ[variables, {_Symbol, _Symbol}],
     Return[<|"ClassID" -> Lookup[class, "ClassID", None],
       "Status" -> "ClassVariablesNotTwoSymbols",
@@ -1756,10 +1764,21 @@ diagonalBlockClassRecord[class_Association, regulatorOption_, timeConstraint_,
     If[regulatorOption === Automatic,
       Lookup[class, "Regulator", Automatic], regulatorOption],
     {Lookup[class, "RepAv", {}], Lookup[class, "RepAw", {}]}, variables];
-  (* $Failed is itself a Symbol, so the detection failure must be named
-     before the pattern test *)
-  If[eps === $Failed || ! MatchQ[eps, _Symbol],
-    eps = Symbol["Global`eps"]];
+  (* None = regulator-free representative (7 of this project's 173
+     classes): any symbol is mathematically equivalent since nothing
+     contains it; the record is FLAGGED rather than silently stamped.
+     $Failed = more than one regulator-name candidate, a real ambiguity:
+     typed refusal, never a silent pick (generality audit F5). *)
+  regulatorFree = False;
+  If[eps === None, regulatorFree = True; eps = Symbol["Global`eps"]];
+  If[eps === $Failed,
+    Return[<|"ClassID" -> Lookup[class, "ClassID", None],
+      "Status" -> "RegulatorAmbiguous",
+      "Seconds" -> AbsoluteTime[] - start|>]];
+  If[! MatchQ[eps, _Symbol],
+    Return[<|"ClassID" -> Lookup[class, "ClassID", None],
+      "Status" -> "RegulatorInvalid", "Detail" -> <|"Regulator" -> eps|>,
+      "Seconds" -> AbsoluteTime[] - start|>]];
   matrices = diagonalBlockTogether /@ {class["RepAv"], class["RepAw"]};
   result = TimeConstrained[DiagonalBlockEpsForm[matrices, {v, w}, eps],
     timeConstraint, <|"Status" -> "TimedOut"|>];
@@ -1802,6 +1821,7 @@ diagonalBlockClassRecord[class_Association, regulatorOption_, timeConstraint_,
     "EpsForm" -> result["EpsForm"],
     "Variables" -> variables,
     "Regulator" -> eps,
+    "RegulatorFree" -> regulatorFree,
     "Chart" -> chart,
     "Frame" -> Lookup[result, "Frame", "vw"],
     "Method" -> Lookup[result, "Method", "SliceResiduesFiniteFieldAffine"],

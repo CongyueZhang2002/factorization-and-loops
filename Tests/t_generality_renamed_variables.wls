@@ -273,7 +273,10 @@ Module[{envCount = Environment["FACET_KERNEL_COUNT"], expected},
   (* FACET_KERNEL_COUNT (set by the pool driver for missions) caps the
      count below the machine ceiling; the assertion must hold in both
      environments (in-pool failure 2026-08-23) *)
-  expected = If[StringQ[envCount] && envCount =!= "", Min[8, ToExpression[envCount]], 8];
+  (* the ceiling is also capped by the kernel's own visible processor
+     count (taskset affinity), so the expectation must be too *)
+  expected = Min[8, $ProcessorCount,
+    If[StringQ[envCount] && envCount =!= "", ToExpression[envCount], Infinity]];
   check["(D4) the kernel ceiling on this machine is unchanged (8, or the FACET_KERNEL_COUNT cap)",
     FeynFacet`Private`facetKernelCount[] === expected &&
       FeynFacet`Private`facetKernelCount[3] === Min[3, expected] &&

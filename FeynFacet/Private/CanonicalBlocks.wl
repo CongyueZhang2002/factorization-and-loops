@@ -139,6 +139,7 @@ CanonicalizeClasses::canonica =
   "CANONICA was not found at `1`; canonicalization needs it.";
 
 CanonicalizeClasses::option = "Invalid `1` option: `2`.";
+CanonicalizeClasses::variables = "Class `1` declares no variables and its representative matrices contain the symbols `2`, which are not the documented {v, w} convention; declare \"Variables\" in the class record or pass the option.";
 
 CanonicalizeClasses::chartparameter =
   "The chart parameter `1` is one of the class variables `2`; the conic \
@@ -232,6 +233,10 @@ canonicalBlocksPutAtomic[expr_, file_String] := Module[{temp},
 canonicalBlocksDefaultVariables[] :=
   {Symbol["Global`v"], Symbol["Global`w"]};
 
+(* None = no regulator-named symbol occurs (a regulator-free input is
+   valid; the caller decides); $Failed = MORE than one candidate, a real
+   ambiguity that must be a typed refusal, never a silent pick
+   (generality audit F5, 2026-08-23) *)
 canonicalBlocksDetectRegulator[expr_, variables_List] := Module[{symbols},
   symbols = DeleteDuplicates @ Cases[
     expr,
@@ -240,11 +245,32 @@ canonicalBlocksDetectRegulator[expr_, variables_List] := Module[{symbols},
     Heads -> True
   ];
   symbols = DeleteCases[symbols, Alternatives @@ variables];
-  If[Length[symbols] === 1, First[symbols], $Failed]
+  Which[symbols === {}, None,
+    Length[symbols] === 1, First[symbols],
+    True, $Failed]
 ];
 
-canonicalBlocksResolveVariables[value_] := Switch[value,
-  Automatic, canonicalBlocksDefaultVariables[],
+(* Automatic with an expression is a VERIFIED convention default: the
+   {v, w} pair is used only when the expression's symbols (minus
+   regulator-named ones) are a subset of {v, w}; any other symbol set is
+   a typed refusal, because a silent {v, w} on foreign input is a
+   wrong-but-plausible run, and detection of arbitrary pairs cannot fix
+   the ORDER of the two variables (generality audit F5, 2026-08-23).
+   Automatic without an expression keeps the historical blind default
+   for internal fixed-frame callers. *)
+canonicalBlocksResolveVariables[value_] :=
+  canonicalBlocksResolveVariables[value, None];
+canonicalBlocksResolveVariables[value_, expr_] := Switch[value,
+  Automatic, If[expr === None, canonicalBlocksDefaultVariables[],
+    Module[{found},
+      found = DeleteDuplicates @ Cases[expr,
+        s_Symbol /; Context[s] === "Global`" &&
+          ! MemberQ[$canonicalBlocksRegulatorNames, SymbolName[s]],
+        {0, Infinity}, Heads -> True];
+      If[SubsetQ[canonicalBlocksDefaultVariables[], found],
+        canonicalBlocksDefaultVariables[],
+        <|"Status" -> "ClassVariablesUndeclared",
+          "FoundSymbols" -> found|>]]],
   {_Symbol, __Symbol}, value,
   _, $Failed
 ];
@@ -1217,8 +1243,13 @@ CanonicalizeClasses[input_, OptionsPattern[]] := Catch[
 
         variables = canonicalBlocksResolveVariables[
           If[OptionValue["Variables"] === Automatic,
-            Lookup[class, "Variables", Automatic], OptionValue["Variables"]]];
-        If[variables === $Failed, variables = canonicalBlocksDefaultVariables[]];
+            Lookup[class, "Variables", Automatic], OptionValue["Variables"]],
+          {Lookup[class, "RepAv", {}], Lookup[class, "RepAw", {}]}];
+        If[variables === $Failed,
+          variables = canonicalBlocksDefaultVariables[]];
+        If[AssociationQ[variables],
+          canonicalBlocksFail[CanonicalizeClasses, "variables",
+            Lookup[class, "ClassID", None], variables["FoundSymbols"]]];
         regulator = canonicalBlocksResolveRegulator[
           If[OptionValue["Regulator"] === Automatic,
             Lookup[class, "Regulator", Automatic], OptionValue["Regulator"]],
