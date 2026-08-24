@@ -756,8 +756,24 @@ BuildSimplificationContext[config_Association] := Catch[
       sourceVariables, sourceKinematicAssumptions,
       mappedSourceKinematics, sourceNonempty, coordinateNonempty,
       forwardChamberCheck, backwardChamberCheck,
-      dimensionlessAssumptions
+      dimensionlessAssumptions, distributionHeads
     },
+    (* "DistributionHeads": the collinear-distribution heads of THIS
+       channel.  The default is the quark twist-2 set the front end
+       declares (Distributions.wl); a card that brings its own
+       correlators names their heads here and the coefficient layer
+       recognises them as distributions instead of forbidden objects. *)
+    distributionHeads = Lookup[config, "DistributionHeads",
+      $twist2DistributionHeads];
+    If[! (ListQ[distributionHeads] && distributionHeads =!= {} &&
+        AllTrue[distributionHeads, MatchQ[#, _Symbol] &]),
+      Message[
+        BuildSimplificationContext::invalid,
+        "DistributionHeads",
+        "expected a nonempty list of symbols"
+      ];
+      Return[$Failed]
+    ];
     hadronic = cardHadronicVariables[config];
     kinematics = coefficientKinematicsFromCard[config];
     If[kinematics === $Failed, Return[$Failed]];
@@ -929,6 +945,7 @@ BuildSimplificationContext[config_Association] := Catch[
       "SourceInvariants" -> Lookup[kinematics, "SourceInvariants", {}],
       "ForbiddenVariables" -> forbidden,
       "BranchGrammar" -> kinematics["BranchGrammar"],
+      "DistributionHeads" -> distributionHeads,
       "KinematicMassDimensions" ->
         Lookup[config, "KinematicMassDimensions", <||>]
     |>
@@ -941,14 +958,34 @@ BuildSimplificationContext[config_] := (
   $Failed
 );
 
+(* Which heads count as collinear distributions is a property of the
+   CHANNEL, not of the package: $twist2DistributionHeads is the quark
+   twist-2 set this front end declares, and a card that brings its own
+   correlators (gluon distributions, fragmentation of another species)
+   sets "DistributionHeads" in its Setup.  The head list therefore
+   travels with the simplification context; the argumentless form keeps
+   the declared default for the few call sites that have no context in
+   hand (generality pass 2026-08-23). *)
 coefficientDistributionObjectQ[object_] := MemberQ[
   $twist2DistributionHeads,
   Head[Unevaluated[object]]
 ];
 
+coefficientDistributionObjectQ[object_, heads_List] := MemberQ[
+  heads,
+  Head[Unevaluated[object]]
+];
+
+coefficientContextDistributionHeads[context_] := With[
+  {declared = Lookup[context, "DistributionHeads", Automatic]},
+  If[ListQ[declared] && declared =!= {} && AllTrue[declared, MatchQ[#, _Symbol] &],
+    declared, $twist2DistributionHeads]
+];
+
 coefficientCommonDistributionFactor[
     expressions_List,
-    timeLimit_: 60
+    timeLimit_: 60,
+    heads_List : $twist2DistributionHeads
   ] := Module[
   {
     objects, atoms, forward, backward, frozen, nonzero,
@@ -957,7 +994,7 @@ coefficientCommonDistributionFactor[
   },
   objects = DeleteDuplicates @ Cases[
     HoldComplete[expressions],
-    object_ /; coefficientDistributionObjectQ[Unevaluated[object]] :>
+    object_ /; coefficientDistributionObjectQ[Unevaluated[object], heads] :>
       object,
     Infinity
   ];
@@ -1021,7 +1058,8 @@ coefficientNormalizeDistributionGroups[
     groups_List,
     expected_,
     assumptions_,
-    timeLimit_: 60
+    timeLimit_: 60,
+    heads_List : $twist2DistributionHeads
   ] := Module[
   {
     objects, atoms, forward, backward, frozenGroups, assembled,
@@ -1033,7 +1071,7 @@ coefficientNormalizeDistributionGroups[
       groups,
       If[expected === Automatic, Nothing, expected]
     ],
-    object_ /; coefficientDistributionObjectQ[Unevaluated[object]] :>
+    object_ /; coefficientDistributionObjectQ[Unevaluated[object], heads] :>
       object,
     Infinity
   ];
@@ -1048,7 +1086,8 @@ coefficientNormalizeDistributionGroups[
     If[MemberQ[assembled, $Failed | $TimedOut], Return[$Failed]];
     automaticData = coefficientCommonDistributionFactor[
       assembled /. backward,
-      timeLimit
+      timeLimit,
+      heads
     ];
     If[automaticData === $Failed, Return[$Failed]];
     factor = automaticData["Factor"];
@@ -1186,7 +1225,8 @@ coefficientCertifiedPositiveQ[
 
 coefficientForbiddenFractionObjectQ[
     expression_,
-    fractions_List
+    fractions_List,
+    heads_List : $twist2DistributionHeads
   ] := Module[{fractionPattern, badObjects, badPowers},
   If[fractions === {}, Return[False]];
   fractionPattern = Alternatives @@ fractions;
@@ -1197,7 +1237,7 @@ coefficientForbiddenFractionObjectQ[
       ! AtomQ[Unevaluated[object]] &&
       ! FreeQ[Unevaluated[object], fractionPattern] &&
       ! MemberQ[{Plus, Times, Power}, Head[Unevaluated[object]]] &&
-      ! coefficientDistributionObjectQ[Unevaluated[object]]
+      ! coefficientDistributionObjectQ[Unevaluated[object], heads]
     ) :>
         HoldComplete[object],
     Infinity
@@ -1222,7 +1262,8 @@ validateCoefficientBranchGrammar[
   fractions = context["FractionVariables"];
   assumptions = context["PhysicalAssumptions"];
   If[
-    coefficientForbiddenFractionObjectQ[expression, fractions],
+    coefficientForbiddenFractionObjectQ[expression, fractions,
+      coefficientContextDistributionHeads[context]],
     Return[False]
   ];
   If[fractions === {}, Return[True]];
@@ -1987,7 +2028,8 @@ simplifyHardCoefficientContributionGroups[
     groups,
     context["ExpectedDistributionFactor"],
     context["PhysicalAssumptions"],
-    timeLimit
+    timeLimit,
+    coefficientContextDistributionHeads[context]
   ];
   If[distribution === $Failed, Return[$Failed]];
   strippedGroups = distribution["Groups"];
@@ -2266,7 +2308,7 @@ finiteFieldResolveExecutable[value_] := Module[{environment, candidates},
       ],
       If[StringQ[environment] && environment =!= "", environment, Nothing],
       FileNameJoin[{
-        $feynFacetRoot, "Addon", "Other_Addon", "Ratracer", "bin",
+        $feynFacetAddonRoot, "Addon", "Other_Addon", "Ratracer", "bin",
         "ratracer"
       }],
       Quiet @ Check[FindExecutable["ratracer"], Nothing]
@@ -2344,11 +2386,12 @@ finiteFieldCancel[expression_, timeLimit_] := Module[{result},
 ];
 
 finiteFieldForbiddenQ[expression_, context_Association] := Module[
-  {forbidden, distributionObjects},
+  {forbidden, heads, distributionObjects},
   forbidden = context["ForbiddenVariables"];
+  heads = coefficientContextDistributionHeads[context];
   distributionObjects = Cases[
     HoldComplete[expression],
-    object_ /; coefficientDistributionObjectQ[Unevaluated[object]] :>
+    object_ /; coefficientDistributionObjectQ[Unevaluated[object], heads] :>
       HoldComplete[object],
     Infinity
   ];
@@ -3017,7 +3060,8 @@ finiteFieldNormalizeTarget[
   If[
     ! FreeQ[
       distributionFree,
-      object_ /; coefficientDistributionObjectQ[Unevaluated[object]]
+      object_ /; coefficientDistributionObjectQ[Unevaluated[object],
+        coefficientContextDistributionHeads[context]]
     ],
     Return[$Failed]
   ];
@@ -3582,9 +3626,7 @@ finiteFieldTraceInputs[
       If[Kernels[] === {},
         workerCount = 1,
         workerCount = Length[Kernels[]];
-        loadFile = FileNameJoin[{
-          $feynFacetRoot, "Addon", "Load", "LoadFACET.wl"
-        }];
+        loadFile = $feynFacetLoader;
         initialized = With[{file = loadFile, data = workerData},
           And @@ ParallelEvaluate[
             Block[{$Output = {}, $Messages = {}},
@@ -3950,6 +3992,9 @@ finiteFieldBuildTrace[
   If[
     FileExistsQ[traceFile] && FileExistsQ[inputsFile] &&
       FileExistsQ[outputsFile] &&
+      (* a zero-byte trace is a kill-during-write artifact, never a
+         completed trace (0-byte reuse EXIT5, 2026-08-23) *)
+      FileByteCount[traceFile] > 0 &&
       Length[
         Select[StringSplit[Import[outputsFile, "Text"], "\n"], # =!= "" &]
       ] === Length[traceData["OutputFiles"]],
@@ -4394,7 +4439,7 @@ finiteFieldCoefficientSimplificationCore[
     ];
     If[
       data["CardName"] =!= metadata["CardName"] ||
-        data["ResultDirectory"] =!= metadata["ResultDirectory"] ||
+        ! coefficientSameInputsQ[data, metadata] ||
         sortedPairs[data["Pairs"]] =!= sortedPairs[metadata["Pairs"]],
       finiteFieldFail[
         "input validation",

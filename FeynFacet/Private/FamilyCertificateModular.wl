@@ -191,8 +191,17 @@ Options[familyCertificateModular] = {"Points" -> 12, "Primes" -> 3, "ValidationP
                           CF231's residues reach 101 digits (2026-08-22), i.e. ~30 primes of 24 bits *)
   "CharacteristicZeroGuard" -> True, "Seed" -> Automatic, "Verbose" -> False};
 
-familyCertificateModular[{b1_, b2_}, s_, si_, variables_List, regulator_Symbol,
-    {av_, aw_}, sourceVariables_List, chart_, OptionsPattern[]] := Module[
+(* The certificate is written for a TWO-variable family: it samples
+   {variables[[1]], variables[[2]], regulator} as one triple, differentiates
+   in both variables and reads one flatness identity.  The signature says
+   so.  A three-variable list used to match variables_List and was then
+   sampled as a pair, i.e. certified the wrong system; with this pattern
+   the call does not evaluate and the caller reports
+   "ModularCertificateFailed" (generality pass 2026-08-23). *)
+familyCertificateModular[{b1_, b2_}, s_, si_,
+    variables : {_Symbol, _Symbol}, regulator_Symbol,
+    {av_, aw_}, sourceVariables : {_Symbol, _Symbol}, chart_,
+    OptionsPattern[]] := Module[
   {symbols = Append[variables, regulator], srcSymbols = Append[sourceVariables, regulator],
    cS, cSi, cB1, cB2, cAv, cAw, cF, cG, letters, cL, n = Length[s], verbose, log, t0 = AbsoluteTime[],
    degS, degSi, degB, degA, degL, bounds, maxima, srcMaxima, primes = {}, trials = {},

@@ -23,7 +23,11 @@ coefficientAnalyticContextQ[context_] := Module[{required},
   AssociationQ[context] &&
     ContainsAll[Keys[context], required] &&
     context["Gamma5Scheme"] === "BMHV" &&
-    context["DimensionRule"] === $dimensionRule &&
+    (* same shape validation as analyticContextQ (Core.wl): the rule must
+       be D -> a - 2 regulator with integer a, not identity with the
+       front end's own $dimensionRule *)
+    analyticDimensionRuleQ[context["DimensionRule"],
+      analyticContextRegulator[context]] &&
     StringQ[context["FeynFacetSourceHash"]] &&
     context["Fingerprint"] ===
       reductionFingerprint[KeyDrop[context, "Fingerprint"]] &&
@@ -33,6 +37,29 @@ coefficientAnalyticContextQ[context_] := Module[{required},
 coefficientKiraReductionQ[kira_] := Block[
   {analyticContextQ = coefficientAnalyticContextQ},
   kiraReductionQ[kira]
+];
+
+(* Do a freshly read input set and a stored artifact describe the same
+   diagram set?  This used to be answered by comparing the two stored
+   ABSOLUTE result directories, so moving or renaming a result tree
+   turned every stored artifact into "another diagram set".  The
+   analytic-context fingerprint is the content identity of the inputs
+   (scheme, basis, kinematics, dimension rule, source hash) and is what
+   is compared now; an artifact that carries no fingerprint on either
+   side falls back to the stored paths, exactly as before (generality
+   pass 2026-08-23). *)
+coefficientContextFingerprint[data_] := Lookup[
+  Lookup[data, "AnalyticContext", <||>], "Fingerprint",
+  Missing["NoFingerprint"]
+];
+
+coefficientSameInputsQ[data_, stored_] := Module[{left, right, a, b},
+  left = coefficientContextFingerprint[data];
+  right = coefficientContextFingerprint[stored];
+  If[StringQ[left] && StringQ[right], Return[left === right]];
+  a = Lookup[data, "ResultDirectory", Missing[]];
+  b = Lookup[stored, "ResultDirectory", Missing[]];
+  StringQ[a] && StringQ[b] && ExpandFileName[a] === ExpandFileName[b]
 ];
 
 coefficientShardIndex[key_, count_Integer] :=
@@ -97,13 +124,26 @@ coefficientReadRecord[file_String] := Module[{values = {}, count},
   If[count === $Failed || count =!= 1, $Failed, First[values]]
 ];
 
-coefficientCodexRoot[] := FileNameJoin[{$feynFacetRoot, "Codex"}];
+(* The scratch workspace this module writes into.  It is
+   <workspace root>/Codex/<process>/CoefficientSimplification/<run>; only
+   the ROOT used to be a literal ($feynFacetRoot), which tied the store
+   to the package's parent directory.  It now comes from
+   $feynFacetWorkspaceRoot (Core.wl, default $feynFacetRoot, override
+   Global`$FACETWorkspaceRoot), so the default path is unchanged and an
+   installation may put its scratch space elsewhere.  The delete guard
+   below is checked against exactly this root. *)
+coefficientCodexRoot[] :=
+  FileNameJoin[{$feynFacetWorkspaceRoot, "Codex"}];
 
-coefficientSafeWorkPathQ[path_String] := Module[{root, normalized},
-  root = ExpandFileName[coefficientCodexRoot[]] <> $PathnameSeparator;
-  normalized = ExpandFileName[path] <> $PathnameSeparator;
-  StringStartsQ[normalized, root] && normalized =!= root
-];
+coefficientSafeWorkPathQ[path_String] :=
+  coefficientSafeWorkPathQ[path, coefficientCodexRoot[]];
+
+coefficientSafeWorkPathQ[path_String, workspaceRoot_String] :=
+  Module[{root, normalized},
+    root = ExpandFileName[workspaceRoot] <> $PathnameSeparator;
+    normalized = ExpandFileName[path] <> $PathnameSeparator;
+    StringStartsQ[normalized, root] && normalized =!= root
+  ];
 
 coefficientResetDirectory[path_String] := Module[{},
   If[! coefficientSafeWorkPathQ[path], Return[$Failed]];
@@ -112,12 +152,19 @@ coefficientResetDirectory[path_String] := Module[{},
   path
 ];
 
+(* The name of the results folder in the <process>/<results>/<run>
+   layout this front end uses.  It only NAMES the scratch workspace: a
+   tree that does not follow the convention falls back to "Reduction"
+   and keeps working, so this is a label, never a gate. *)
+$coefficientResultsFolderName = "Results";
+
 coefficientProcessName[kiraFile_String] := Module[
   {resultDirectory, resultsDirectory, processDirectory},
   resultDirectory = DirectoryName[ExpandFileName[kiraFile]];
   resultsDirectory = DirectoryName[resultDirectory];
   processDirectory = DirectoryName[resultsDirectory];
-  If[FileNameTake[resultsDirectory] =!= "Results", Return["Reduction"]];
+  If[FileNameTake[resultsDirectory] =!= $coefficientResultsFolderName,
+    Return["Reduction"]];
   FileNameTake[processDirectory]
 ];
 

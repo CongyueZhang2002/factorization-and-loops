@@ -50,8 +50,11 @@ family = "CF34";
 blocks = Table[{a["Rows"], a["ClassID"]}, {a, Select[assignments, #["Family"] === family &]}];
 de = FeynFacet`FamilyArtifactRead[FileNameJoin[{R, "DifferentialEquations", "nnlo_de_" <> family <> ".wl"}]];
 system = <|"Family" -> family, "Basis" -> de["BlockBasis"], "Av" -> de["Av"], "Aw" -> de["Aw"]|>;
+(* the per-family chart inventory is project data since 2026-08-23: register
+   it exactly as the sector driver does *)
+FeynFacet`TransportFamilyChartLoad[FileNameJoin[{R, "TransportFamilyCharts.wl"}]];
 chart = FeynFacet`TransportFamilyChart[family];
-If[chart === None,   (* root-free family: the identity chart, as the sector script does *)
+If[chart === None || MissingQ[chart],   (* root-free or unregistered family: the identity chart, as the sector script does *)
   chart = <|"Name" -> "RationalIdentity", "Kind" -> "TwoVariable", "CoefficientField" -> "Rational",
     "Variables" -> {Global`x, Global`y}, "Subst" -> {Global`v -> Global`x, Global`w -> Global`y},
     "Root" -> None, "RootSquare" -> None, "Roots" -> {}, "Notes" -> "identity chart"|>];

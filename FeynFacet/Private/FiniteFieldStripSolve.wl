@@ -2572,8 +2572,9 @@ SolveEpsFormStripFiniteField[record_Association,
       "PlanDiscoveryBackendUsed" -> "Wolfram"|>]];
   If[kernelCount > 1 && Length[Kernels[]] < kernelCount,
     launched = Quiet[LaunchKernels[kernelCount - Length[Kernels[]]]]];
-  loadFile = FileNameJoin[{$feynFacetRoot, "Addon", "Load",
-    "LoadFACET.wl"}];
+  (* the subkernel bootstrap goes through the installation loader
+     (B3, generality pass 2026-08-23; default unchanged) *)
+  loadFile = $feynFacetLoader;
   If[kernelCount > 1,
     With[{fileName = loadFile},
       ParallelEvaluate[Quiet[Get[fileName], General::shdw]]]];

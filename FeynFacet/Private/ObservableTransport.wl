@@ -86,11 +86,14 @@ observableTransportBlockLowerQ[matrices : {_, _}, ranges_List] := Module[
 (* CertifyFamilyEpsilonForm and ExactFamilyEpsilonFormQ moved to
    FamilyEpsForm.wl on 2026-08-20. *)
 
-observableTransportFamilyFromFile[file_String] := Module[{name, match},
-  name = FileBaseName[file];
-  match = StringCases[name,
-    StartOfString ~~ "family_epsform_" ~~
-      family : ("CF" ~~ DigitCharacter ..) ~~ EndOfString :> family];
+(* Default family-name extractor (generality pass 2026-08-23): the family
+   is the one canonical-family token in the file's base name, whatever
+   prefix a campaign gives its artifacts.  A campaign whose file names do
+   not carry the token supplies its own function through
+   "FamilyFromFileName". *)
+observableTransportFamilyFromFile[file_String] := Module[{match},
+  match = DeleteDuplicates[StringCases[FileBaseName[file],
+    $canonicalFamilyPrefix ~~ DigitCharacter ..]];
   If[Length[match] === 1, First[match], Missing["NoFamily"]]
 ];
 
@@ -107,45 +110,63 @@ observableTransportWriteAtomic[value_, file_String, format_: Automatic] :=
   file
 ];
 
+(* Generality pass 2026-08-23 (A2): the artifact NAMING of a campaign is
+   the campaign's, not the package's.  The file patterns, the file-name ->
+   family map and the family sort order are options; their defaults name
+   no campaign prefix (only the canonical-family token) and the driver
+   script passes the project's own patterns explicitly. *)
 Options[BuildObservableTransportManifest] = {
   "Card" -> None,
-  "ReportFile" -> Automatic
+  "ReportFile" -> Automatic,
+  "DifferentialFilePattern" -> "*.wl",
+  "EpsFormFilePattern" -> "*.wl",
+  "FamilyFromFileName" -> Automatic,
+  "FamilySortKey" -> Identity
 };
 
 BuildObservableTransportManifest[
     epsilonFormDirectories : {__String},
     differentialSystemDirectory_String, valuationsFile_String,
     manifestFile_String, OptionsPattern[]] := Module[
-  {directories, differentialFiles, familyFromDifferential, candidates,
+  {directories, differentialFiles, familyFromFile, candidates,
    candidateRows, grouped, selected = <||>, rejected = <||>,
    duplicates = <||>, missing, family, records, exactRecords,
-   card, reportFile, rows, report},
+   card, reportFile, rows, report, differentialPattern, epsFormPattern,
+   familySortKey},
   directories = ExpandFileName /@ epsilonFormDirectories;
   If[! AllTrue[directories, DirectoryQ] ||
       ! DirectoryQ[differentialSystemDirectory] ||
       ! FileExistsQ[valuationsFile],
     Return[<|"Status" -> "InputPathMissing"|>]];
+  differentialPattern = OptionValue["DifferentialFilePattern"];
+  epsFormPattern = OptionValue["EpsFormFilePattern"];
+  If[! StringQ[differentialPattern] || ! StringQ[epsFormPattern],
+    Return[<|"Status" -> "InvalidFilePatternOption"|>]];
+  familyFromFile = Replace[OptionValue["FamilyFromFileName"],
+    Automatic -> observableTransportFamilyFromFile];
+  familySortKey = Replace[OptionValue["FamilySortKey"],
+    Automatic -> Identity];
   differentialFiles = SortBy[
-    FileNames["nnlo_de_CF*.wl", differentialSystemDirectory],
+    FileNames[differentialPattern, differentialSystemDirectory],
     FileBaseName];
-  familyFromDifferential[file_] := Module[{match},
-    match = StringCases[FileBaseName[file],
-      StartOfString ~~ "nnlo_de_" ~~
-        value : ("CF" ~~ DigitCharacter ..) ~~ EndOfString :> value];
-    If[Length[match] === 1, First[match], Missing["NoFamily"]]
-  ];
   differentialFiles = Association @ Cases[differentialFiles,
-    file_ :> With[{name = familyFromDifferential[file]},
-      If[MissingQ[name], Nothing, name -> ExpandFileName[file]]]];
+    file_ :> With[{name = familyFromFile[file]},
+      If[! StringQ[name], Nothing, name -> ExpandFileName[file]]]];
+  If[differentialFiles === <||>,
+    Return[<|"Status" -> "NoDifferentialFamiliesFound",
+      "DifferentialSystemDirectory" ->
+        ExpandFileName[differentialSystemDirectory],
+      "DifferentialFilePattern" -> differentialPattern,
+      "DifferentialFamilyCount" -> 0|>]];
   candidates = Flatten[Table[
     Thread[{priority,
-      FileNames["family_epsform_CF*.wl", directories[[priority]],
+      FileNames[epsFormPattern, directories[[priority]],
         Infinity]}],
     {priority, Length[directories]}], 1];
   candidateRows = Cases[candidates, {priority_Integer, file_String} :>
     Module[{name, record},
-      name = observableTransportFamilyFromFile[file];
-      If[MissingQ[name] || ! KeyExistsQ[differentialFiles, name],
+      name = familyFromFile[file];
+      If[! StringQ[name] || ! KeyExistsQ[differentialFiles, name],
         Nothing,
         record = Quiet[Check[Get[file], $Failed]];
         <|"Family" -> name, "Priority" -> priority,
@@ -171,8 +192,7 @@ BuildObservableTransportManifest[
     Table[{family, selected[family]["File"],
       differentialFiles[family], ExpandFileName[valuationsFile],
       If[card === None, "", ExpandFileName[card]]},
-      {family, SortBy[Keys[selected],
-        ToExpression[StringDrop[#, 2]] &]}],
+      {family, SortBy[Keys[selected], familySortKey]}],
     {"family", "epsilon_form", "differential_system", "valuations",
       "card"}];
   observableTransportWriteAtomic[rows, manifestFile, "TSV"];
@@ -181,8 +201,7 @@ BuildObservableTransportManifest[
       "IncompleteExactInventory"],
     "DifferentialFamilyCount" -> Length[differentialFiles],
     "ExactFamilyCount" -> Length[selected],
-    "MissingFamilies" -> SortBy[missing,
-      ToExpression[StringDrop[#, 2]] &],
+    "MissingFamilies" -> SortBy[missing, familySortKey],
     "Selected" -> selected,
     "RejectedCandidates" -> rejected,
     "AdditionalExactCandidates" -> duplicates,

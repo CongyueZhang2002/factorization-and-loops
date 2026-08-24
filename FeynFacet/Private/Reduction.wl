@@ -446,7 +446,7 @@ ibpRuntime[] := Module[{kira, fermat, supportFile},
     ValueQ[Global`$FACETKiraExecutable],
     Global`$FACETKiraExecutable,
     FileNameJoin[{
-      $feynFacetRoot, "Addon", "Other_Addon", "Kira", "bin", "kira"
+      $feynFacetAddonRoot, "Addon", "Other_Addon", "Kira", "bin", "kira"
     }]
   ];
   fermat = If[
@@ -471,6 +471,30 @@ ibpRuntime[] := Module[{kira, fermat, supportFile},
     "SupportFileHash" -> FileHash[supportFile, "SHA256"]
   |>
 ];
+
+(* What the reduction input is FINGERPRINTED on.  The runtime record
+   keeps the absolute Kira/Fermat paths -- a reader needs to know which
+   executable ran -- but the identity of a reduction input is the
+   CONTENT of that runtime, i.e. the executable hashes, not where the
+   installation happens to sit.  Fingerprinting the paths made a solved
+   workspace unusable after the add-on tree moved, with the diagnosis
+   "does not match the current topologies, targets, dimensions, or Kira
+   runtime" (generality pass 2026-08-23).  Workspaces written before
+   this change carry the paths inside the payload; both hashes are
+   accepted on import, so every existing workspace stays readable. *)
+$ibpRuntimePathKeys = {
+  "KiraExecutable", "FermatExecutable", "SupportFile"
+};
+
+ibpFingerprintPayload[payload_Association] := If[
+  AssociationQ[Lookup[payload, "Runtime", None]],
+  Append[payload,
+    "Runtime" -> KeyDrop[payload["Runtime"], $ibpRuntimePathKeys]],
+  payload
+];
+
+ibpPayloadFingerprint[payload_Association] :=
+  reductionFingerprint[ibpFingerprintPayload[payload]];
 
 reductionInputPayload[
     records_List,
@@ -502,16 +526,41 @@ sourceInputPayload[records_List, targets_List, context_Association] := <|
 ibpNormalizedPath[path_String] :=
   FileNameJoin @ FileNameSplit @ ExpandFileName[path];
 
-ibpProjectLocation[resultDirectory_String] := Module[
-  {rootParts, resultParts, relativeParts, process, run, projectRoot},
-  rootParts = FileNameSplit[ExpandFileName[$feynFacetRoot]];
+(* The temporary Kira workspace of a run:
+   <workspace root>/Codex/<process>/Kira/<run>.
+
+   Both the workspace root and the process/run names used to be tied to
+   the package's parent directory: a result directory that was not
+   INSIDE $feynFacetRoot was refused ("outside FACET"), which is a
+   containment accident, not a safety property -- the safety property is
+   that the directory the run may delete lies under the workspace root
+   it was given, and that is checked where the deletion happens
+   (ibpResetProject, ibpRemoveKiraWorkspace).  The workspace root is now
+   an explicit argument defaulting to $feynFacetWorkspaceRoot (Core.wl,
+   default $feynFacetRoot), so every path this repository already uses
+   is unchanged, and a result tree outside the workspace root names its
+   process and run by the tail of its own path instead of being refused
+   (generality pass 2026-08-23). *)
+ibpProjectLocation[resultDirectory_String] :=
+  ibpProjectLocation[resultDirectory, $feynFacetWorkspaceRoot];
+
+ibpProjectLocation[resultDirectory_String, workspaceRoot_String] := Module[
+  {rootParts, resultParts, contained, relativeParts, process, run,
+    projectRoot},
+  rootParts = FileNameSplit[ExpandFileName[workspaceRoot]];
   resultParts = FileNameSplit[ExpandFileName[resultDirectory]];
-  If[
-    Length[resultParts] <= Length[rootParts] ||
-      Take[resultParts, Length[rootParts]] =!= rootParts,
-    ibpFail["project setup", "the result directory is outside FACET"]
+  contained = Length[resultParts] > Length[rootParts] &&
+    Take[resultParts, Length[rootParts]] === rootParts;
+  relativeParts = If[contained,
+    Drop[resultParts, Length[rootParts]],
+    (* <process>/<results>/<run> is the layout this front end writes; the
+       last three components carry the same information for a tree that
+       lives outside the workspace root *)
+    Take[resultParts, -Min[Length[resultParts], 3]]
   ];
-  relativeParts = Drop[resultParts, Length[rootParts]];
+  If[relativeParts === {},
+    ibpFail["project setup", "the result directory has no name"]
+  ];
   process = If[
     First[relativeParts] === "Codex" && Length[relativeParts] > 1,
     relativeParts[[2]],
@@ -519,12 +568,13 @@ ibpProjectLocation[resultDirectory_String] := Module[
   ];
   run = Last[relativeParts];
   projectRoot = FileNameJoin[{
-    $feynFacetRoot, "Codex", process, "Kira"
+    workspaceRoot, "Codex", process, "Kira"
   }];
   If[! DirectoryQ[projectRoot],
     CreateDirectory[projectRoot, CreateIntermediateDirectories -> True]
   ];
   <|
+    "WorkspaceRoot" -> ExpandFileName[workspaceRoot],
     "Root" -> projectRoot,
     "Directory" -> FileNameJoin[{projectRoot, run}]
   |>
@@ -553,7 +603,7 @@ ibpResetProject[
   ];
   payloadPath = FileNameJoin[{project, "reduction_input.wxf"}];
   fingerprintPath = FileNameJoin[{project, "reduction_input.sha256"}];
-  fingerprint = reductionFingerprint[payload];
+  fingerprint = ibpPayloadFingerprint[payload];
   If[DirectoryQ[project],
     DeleteDirectory[project, DeleteContents -> True]
   ];
@@ -601,7 +651,11 @@ ibpOpenSolvedProject[
   ];
   If[
     ! AssociationQ[storedPayload] || storedFingerprint === "" ||
-      reductionFingerprint[storedPayload] =!= storedFingerprint,
+      (* the path-free fingerprint of the current writer, or the
+         payload-as-stored fingerprint of a workspace written before the
+         executable paths left the fingerprint *)
+      (ibpPayloadFingerprint[storedPayload] =!= storedFingerprint &&
+        reductionFingerprint[storedPayload] =!= storedFingerprint),
     ibpFail[
       "solved-project import",
       "the stored reduction payload is invalid"
@@ -609,8 +663,8 @@ ibpOpenSolvedProject[
   ];
   If[
     ! SameQ[
-      KeyDrop[storedPayload, "FeynFacetSourceHash"],
-      KeyDrop[expectedPayload, "FeynFacetSourceHash"]
+      KeyDrop[ibpFingerprintPayload[storedPayload], "FeynFacetSourceHash"],
+      KeyDrop[ibpFingerprintPayload[expectedPayload], "FeynFacetSourceHash"]
     ],
     ibpFail[
       "solved-project import",
@@ -1051,9 +1105,7 @@ ibpImportRules[project_Association, records_List] := Module[
     launchedKernels = LaunchKernels[workerCount - Length[existingKernels]]
   ];
   If[workerCount > 1,
-    loadFile = FileNameJoin[{
-      $feynFacetRoot, "Addon", "Load", "LoadFACET.wl"
-    }];
+    loadFile = $feynFacetLoader;
     initialized = With[{file = loadFile},
       And @@ ParallelEvaluate[
         Block[{$Output = {}},
@@ -1846,7 +1898,7 @@ ibpKiraReductionCore[
       "KiraExportClosure" -> <|"Status" -> "NotApplicable"|>,
       "DimensionRule" -> $dimensionRule,
       "ReductionInputPayload" -> payload,
-      "ReductionInputFingerprint" -> reductionFingerprint[payload],
+      "ReductionInputFingerprint" -> ibpPayloadFingerprint[payload],
       "SourceInputFingerprint" -> sourceFingerprint
       |>
     ]]
@@ -2052,9 +2104,22 @@ ibpValidateSavedKiraReduction[
 ];
 
 ibpRemoveKiraWorkspace[location_Association] := Module[
-  {root, project},
+  {workspace, root, project},
+  (* the delete guard is containment in the WORKSPACE ROOT the location
+     was built with, and in the project root under it; nothing outside
+     the workspace this run created is ever removed *)
+  workspace = ibpNormalizedPath[
+    Lookup[location, "WorkspaceRoot", $feynFacetWorkspaceRoot]];
   root = ibpNormalizedPath[location["Root"]];
   project = ibpNormalizedPath[location["Directory"]];
+  If[
+    root === workspace ||
+      ! StringStartsQ[
+        root <> $PathnameSeparator,
+        workspace <> $PathnameSeparator
+      ],
+    ibpFail["temporary Kira cleanup", "unsafe workspace path"]
+  ];
   If[
     project === root ||
       ! StringStartsQ[

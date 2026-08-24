@@ -47,13 +47,15 @@
    the usage messages FeynFacet.m defines before loading this file
    (found 2026-08-21). Clear still drops their definitions, so re-Get of
    this file stays clean. *)
-Clear[TransportChartCatalog, TransportChartVerify, ComposeTransportChartExtension, RationalizeTransportChartExtension, TransportFamilyChartTable, TransportFamilyChart];
+Clear[TransportChartCatalog, TransportChartVerify, ComposeTransportChartExtension, RationalizeTransportChartExtension, TransportFamilyChartRegister, TransportFamilyChartLoad, TransportFamilyChart];
 ClearAll[
   masterTransportChartByName,
   masterTransportComposeTwoVariableRecord,
   transportChartRationalExpressionQ,
   transportChartLoadRationalizeRoots,
-  transportChartExtensionCandidates
+  transportChartExtensionCandidates,
+  transportFamilyChartEntryKind,
+  transportFamilyChartAlias
 ];
 
 
@@ -82,12 +84,12 @@ TransportChartCatalog[] := With[
     "Subst" -> {v -> x y, w -> (1 - x) (1 - y)},
     "Root" -> x - y, "RootSquare" -> transportChartLambda1[v, w],
     "Roots" -> {<|"Root" -> x - y, "RootSquare" -> transportChartLambda1[v, w]|>},
-    "Notes" -> "the class-97/77 chart; sqrt(lambda1) = x - y; Jacobian det x - y"|>;
+    "Notes" -> "sqrt(lambda1) = x - y, lambda1 = (1-v-w)^2 - 4 v w; Jacobian det x - y"|>;
   k2 = <|"Name" -> "Kallen2", "Kind" -> "TwoVariable", "Variables" -> {x, y},
     "Subst" -> {v -> -x y, w -> (1 - x) (1 - y)},
     "Root" -> x - y, "RootSquare" -> transportChartLambda2[v, w],
     "Roots" -> {<|"Root" -> x - y, "RootSquare" -> transportChartLambda2[v, w]|>},
-    "Notes" -> "the class-79 chart; lambda2(v,w) = lambda1(-v,w) = (x-y)^2"|>;
+    "Notes" -> "lambda2(v,w) = lambda1(-v,w) = (x-y)^2"|>;
   k3 = <|"Name" -> "Kallen3", "Kind" -> "TwoVariable", "Variables" -> {x, y},
     "Subst" -> {v -> x y, w -> -(1 - x) (1 - y)},
     "Root" -> x - y, "RootSquare" -> transportChartLambda3[v, w],
@@ -106,17 +108,17 @@ TransportChartCatalog[] := With[
     "Subst" -> {v -> p, w -> (p - s^2)/s},
     "Root" -> (p + s^2)/s, "RootSquare" -> 4 v + w^2,
     "Roots" -> {<|"Root" -> (p + s^2)/s, "RootSquare" -> 4 v + w^2|>},
-    "Notes" -> "class 98 (Fixed w, v = (t^2 - w^2)/4, Root t): t = (p + s^2)/s; Jacobian det -(p + s^2)/s^2"|>;
+    "Notes" -> "4 v + w^2 = t^2 with the first kinematic variable kept, v = p: t = (p + s^2)/s; Jacobian det -(p + s^2)/s^2"|>;
   q4b = <|"Name" -> "Q4b", "Kind" -> "TwoVariable", "Variables" -> {p, s},
     "Subst" -> {v -> (p - s^2)/s, w -> p},
     "Root" -> (p + s^2)/s, "RootSquare" -> v^2 + 4 w,
     "Roots" -> {<|"Root" -> (p + s^2)/s, "RootSquare" -> v^2 + 4 w|>},
-    "Notes" -> "class 98 for its v<->w members (CF48, CF52); Jacobian det (p + s^2)/s^2"|>;
+    "Notes" -> "the v<->w image, v^2 + 4 w = t^2 with w = p kept; Jacobian det (p + s^2)/s^2"|>;
   b115 = <|"Name" -> "Bilinear115", "Kind" -> "TwoVariable", "Variables" -> {p, u},
     "Subst" -> {v -> p, w -> (1 - u^2)/(4 p)},
     "Root" -> u, "RootSquare" -> 1 - 4 v w,
     "Roots" -> {<|"Root" -> u, "RootSquare" -> 1 - 4 v w|>},
-    "Notes" -> "class 115 (one-variable in u, u^2 = 1 - 4 v w); Jacobian det -u/(2p)"|>;
+    "Notes" -> "one-variable in u, u^2 = 1 - 4 v w; Jacobian det -u/(2p)"|>;
   (* ---- joint charts (derived 2026-08-17 by a rational point on the
           second conic in the base Kallen chart, verified exactly) ------ *)
   x12 = -2 (-3 y + s y + 2 y^2)/(-1 + s^2 + 4 y - 4 y^2);
@@ -156,18 +158,26 @@ point (x, z) = (1, 1+y) of z^2 = lambda3|_{Kallen2}"|>;
 
 masterTransportChartByName[name_String] := Lookup[TransportChartCatalog[], name, None];
 
-(* exact re-derivation of what a chart record claims *)
-TransportChartVerify[chart_Association] := With[
-  {v = $transportChartV, w = $transportChartW},
-  Module[{vars, subst, f, g, jac, det, roots, rootChecks, parents,
+(* exact re-derivation of what a chart record claims.
+   The SOURCE variables are read from the record's own substitution, not
+   from the package's Global v/w (generality pass 2026-08-23): a frame
+   built by BuildAlgebraicTransportFrame in a caller's symbols declares
+   its root squares in THOSE symbols, and verifying it against v/w
+   compared two different expressions and refused a correct frame.  For
+   every catalog chart the substitution keys ARE v and w, so this is the
+   same computation as before. *)
+TransportChartVerify[chart_Association] := Module[
+  {vars, subst, sourceVariables, f, g, jac, det, roots, rootChecks, parents,
     parentCharts, parentChecks, ok},
     vars = chart["Variables"]; subst = chart["Subst"];
+    sourceVariables = First /@ subst;
     {f, g} = Together /@ (Last /@ subst);
     jac = {{D[f, vars[[1]]], D[f, vars[[2]]]}, {D[g, vars[[1]]], D[g, vars[[2]]]}};
     det = Together[Det[jac]];
     roots = Lookup[chart, "Roots", {<|"Root" -> chart["Root"], "RootSquare" -> chart["RootSquare"]|>}];
     rootChecks = Table[
-      TrueQ[Together[r["Root"]^2 - (r["RootSquare"] /. {v -> f, w -> g})] === 0],
+      TrueQ[Together[r["Root"]^2 -
+        (r["RootSquare"] /. Thread[sourceVariables -> {f, g}])] === 0],
       {r, roots}];
     parents = Lookup[chart, "Parents", <||>];
     parentCharts = Lookup[chart, "ParentCharts", <||>];
@@ -183,7 +193,7 @@ TransportChartVerify[chart_Association] := With[
     ok = AllTrue[rootChecks, TrueQ] && ! TrueQ[det === 0] &&
       AllTrue[Values[parentChecks], TrueQ];
     <|"OK" -> ok, "Name" -> Lookup[chart, "Name", "?"], "RootIdentities" -> rootChecks,
-      "JacobianDet" -> Factor[det], "ParentMaps" -> parentChecks|>]];
+      "JacobianDet" -> Factor[det], "ParentMaps" -> parentChecks|>];
 
 BuildAlgebraicTransportFrame[rootSquares_List,
     sourceVariables : {_Symbol, _Symbol},
@@ -671,7 +681,7 @@ ComposeTransportChartExtension[___] :=
 transportChartLoadRationalizeRoots[] := Module[{file, function},
   function = ToExpression["RationalizeRoots`RationalizeRoot"];
   If[DownValues[Evaluate[function]] =!= {}, Return[True]];
-  file = FileNameJoin[{$feynFacetRoot, "Addon", "Mathematica_Addon",
+  file = FileNameJoin[{$feynFacetAddonRoot, "Addon", "Mathematica_Addon",
     "RationalizeRoots", "RationalizeRoots.m"}];
   If[! FileExistsQ[file], Return[False]];
   Quiet[Check[Get[file], Return[False]]];
@@ -708,11 +718,23 @@ RationalizeTransportChartExtension[baseChart_Association, rootSquare_,
     Return[<|"Status" -> "BaseChartNotWellFormed"|>]
   ];
   pullBack = Together[rootSquare /. baseSubst];
+  (* C4 (generality pass 2026-08-23): the default output variables were
+     Global`r and Global`t, which collide with any caller working in those
+     symbols (and with packages that dump short names into Global`).  The
+     default is now a fresh package-private pair, and an explicit choice
+     that meets the base chart's own variables is refused rather than
+     silently identified with them. *)
   outputVariables = Replace[OptionValue["OutputVariables"],
-    Automatic -> {Symbol["Global`r"], Symbol["Global`t"]}];
+    Automatic :> {Unique["FeynFacet`Private`chartExtensionU"],
+      Unique["FeynFacet`Private`chartExtensionV"]}];
   If[! MatchQ[outputVariables, {_Symbol, _Symbol}] ||
       ! DuplicateFreeQ[outputVariables],
     Return[<|"Status" -> "InvalidOutputVariables"|>]
+  ];
+  If[Intersection[outputVariables, baseVariables] =!= {},
+    Return[<|"Status" -> "OutputVariablesCollideWithBaseChart",
+      "OutputVariables" -> outputVariables,
+      "BaseVariables" -> baseVariables|>]
   ];
   allCharts = TrueQ[OptionValue["AllCharts"]];
   allPoints = TrueQ[OptionValue["AllPoints"]];
@@ -753,59 +775,155 @@ RationalizeTransportChartExtension[baseChart_Association, rootSquare_,
     "ExactCandidateCount" -> Length[exactCharts]|>]
 ];
 
-(* The per-family chart assignment.  MEASURED 2026-08-17 from the class
-   assignment (BlockClasses/block_class_assign.wl), the class-form
-   charts, and each family's raw alphabet (which decides the v<->w
-   orientation of a member's quadratic).  Root-free families are absent
-   and transport in (v,w).  The three triple-root families are listed
-   with Missing so that a caller cannot silently pick a wrong chart. *)
-TransportFamilyChartTable[] := <|
-  (* lambda1 only *)
-  "CF13" -> "Kallen1", "CF20" -> "Kallen1", "CF24" -> "Kallen1", "CF26" -> "Kallen1",
-  "CF230" -> "Kallen1", "CF258" -> "Kallen1", "CF264" -> "Kallen1", "CF88" -> "Kallen1",
-  "CF98" -> "Kallen1", "CF384" -> "Kallen1", "CF388" -> "Kallen1", "CF407" -> "Kallen1",
-  "CF50" -> "Kallen1", "CF56" -> "Kallen1",
-  (* lambda2 only (incl. v<->w members of lambda3 classes) *)
-  "CF18" -> "Kallen2", "CF21" -> "Kallen2", "CF23" -> "Kallen2", "CF33" -> "Kallen2",
-  "CF53" -> "Kallen2", "CF57" -> "Kallen2", "CF91" -> "Kallen2", "CF97" -> "Kallen2",
-  "CF413" -> "Kallen2", "CF416" -> "Kallen2", "CF420" -> "Kallen2",
-  (* lambda3 only *)
-  "CF248" -> "Kallen3", "CF253" -> "Kallen3",
-  (* 4 v + w^2 and its v<->w image *)
-  "CF260" -> "Q4a", "CF48" -> "Q4b", "CF52" -> "Q4b",
-  (* 1 - 4 v w *)
-  "CF299" -> "Bilinear115",
-  (* two roots *)
-  "CF232" -> "Kallen12", "CF236" -> "Kallen12", "CF240" -> "Kallen12", "CF319" -> "Kallen12",
-  "CF321" -> "Kallen12", "CF385" -> "Kallen12", "CF408" -> "Kallen12",
-  "CF249" -> "Kallen13", "CF254" -> "Kallen13", "CF265" -> "Kallen13",
-  "CF226" -> "Kallen23", "CF231" -> "Kallen23", "CF305" -> "Kallen23",
-  (* three roots: retain the exact multiquadratic field in an identity
-     frame; no global rational parametrization is assumed *)
-  "CF259" -> <|"RootSquares" -> {
-    transportChartLambda1[$transportChartV, $transportChartW],
-    transportChartLambda3[$transportChartV, $transportChartW],
-    4 $transportChartV + $transportChartW^2}|>,
-  "CF300" -> <|"RootSquares" -> {
-    transportChartLambda2[$transportChartV, $transportChartW],
-    transportChartLambda3[$transportChartV, $transportChartW],
-    1 - 4 $transportChartV $transportChartW}|>,
-  "CF303" -> <|"RootSquares" -> {
-    transportChartLambda2[$transportChartV, $transportChartW],
-    transportChartLambda3[$transportChartV, $transportChartW],
-    1 - 4 $transportChartV $transportChartW}|>
-|>;
+(* ------------------------------------------------------------------ *)
+(*  The per-family chart REGISTRY                                       *)
+(* ------------------------------------------------------------------ *)
+(* Generality pass 2026-08-23 (user directive: the package is general,
+   the inventory is project data).  The literal per-family table that
+   lived here until then -- 47 entries of the ppHX NNLO double-real
+   inventory, measured 2026-08-17 from the class assignment, the class
+   forms and each family's raw alphabet -- was moved verbatim to
+   ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/TransportFamilyCharts.wl
+   after an entry-by-entry round trip (44 catalog-chart names identical
+   and present in TransportChartCatalog[], 3 root-square lists
+   Together-zero against the package table).  The package now ships an
+   EMPTY registry; a campaign registers its own inventory.
 
-TransportFamilyChart[family_String] := Module[{entry},
-  entry = Lookup[TransportFamilyChartTable[], family, None];
+   A registered value is one of
+     "ChartName"    a key of TransportChartCatalog[];
+     "RootSquares"  <|"RootSquares" -> {polynomials in the source
+                    variables}|>, the exact multiquadratic identity frame
+                    for a root set with no global rational chart;
+     "ChartAlias"   <|"ChartAlias" -> catalog name|>, a legacy record
+                    string (a descriptive substitution) that stands for a
+                    catalog chart -- the table this replaces lived in
+                    FamilyEpsForm.wl until 2026-08-23 (A3).
+   An UNREGISTERED family is Missing["FamilyChartNotRegistered", family],
+   never None: None means "root-free, transport in the source variables"
+   and would silently mistransport a rooted family whose registration is
+   merely absent. *)
+$transportFamilyChartRegistry = <||>;
+
+transportFamilyChartEntryKind[value_] := Module[{squares, alias},
   Which[
-    entry === None, None,
-    MissingQ[entry], entry,
-    AssociationQ[entry] && ListQ[Lookup[entry, "RootSquares", None]],
-      BuildAlgebraicTransportFrame[entry["RootSquares"],
-        {$transportChartV, $transportChartW},
-        {$transportChartX, $transportChartY}],
-    True, masterTransportChartByName[entry]]];
+    StringQ[value],
+      If[KeyExistsQ[TransportChartCatalog[], value], "ChartName",
+        <|"Status" -> "ChartNameNotInCatalog", "Value" -> value|>],
+    ! AssociationQ[value],
+      <|"Status" -> "EntryNotStringOrAssociation",
+        "Head" -> ToString[Head[value], InputForm]|>,
+    KeyExistsQ[value, "RootSquares"],
+      If[Keys[value] =!= {"RootSquares"},
+        Return[<|"Status" -> "RootSquareEntryHasExtraKeys",
+          "Keys" -> Keys[value]|>]];
+      squares = value["RootSquares"];
+      Which[
+        ! ListQ[squares] || squares === {},
+          <|"Status" -> "RootSquaresNotANonemptyList"|>,
+        ! AllTrue[squares, FreeQ[#, _Root | Power[_, _Rational]] &],
+          <|"Status" -> "RootSquareContainsRadicals"|>,
+        ! AllTrue[squares, PolynomialQ[#, Variables[#]] &],
+          <|"Status" -> "RootSquareNotPolynomial"|>,
+        ! AllTrue[squares, Variables[#] =!= {} &],
+          <|"Status" -> "RootSquareHasNoVariables"|>,
+        True, "RootSquares"],
+    KeyExistsQ[value, "ChartAlias"],
+      alias = value["ChartAlias"];
+      If[Keys[value] =!= {"ChartAlias"},
+        Return[<|"Status" -> "ChartAliasEntryHasExtraKeys",
+          "Keys" -> Keys[value]|>]];
+      If[StringQ[alias] && KeyExistsQ[TransportChartCatalog[], alias],
+        "ChartAlias",
+        <|"Status" -> "ChartAliasNotInCatalog", "Value" -> alias|>],
+    True,
+      <|"Status" -> "EntryKeysNotRecognized", "Keys" -> Keys[value]|>]
+];
+
+(* All or nothing: a rejected entry registers nothing, so a partly
+   mistyped project table cannot leave the session half configured. *)
+TransportFamilyChartRegister[entries_Association] := Module[
+  {kinds, invalid},
+  If[! AllTrue[Keys[entries], StringQ],
+    Return[<|"Status" -> "FamilyChartKeysNotStrings",
+      "Keys" -> Select[Keys[entries], ! StringQ[#] &]|>]];
+  kinds = Association @ KeyValueMap[
+    #1 -> transportFamilyChartEntryKind[#2] &, entries];
+  invalid = Select[kinds, ! StringQ[#] &];
+  If[invalid =!= <||>,
+    Return[<|"Status" -> "InvalidFamilyChartEntries",
+      "Invalid" -> invalid|>]];
+  $transportFamilyChartRegistry = Join[
+    $transportFamilyChartRegistry, entries];
+  <|"Status" -> "FamilyChartsRegistered",
+    "Registered" -> Length[entries],
+    "Families" -> Sort[Keys[entries]],
+    "Kinds" -> Counts[Values[kinds]],
+    "RegistrySize" -> Length[$transportFamilyChartRegistry]|>
+];
+TransportFamilyChartRegister[___] :=
+  <|"Status" -> "InvalidFamilyChartRegistration"|>;
+
+TransportFamilyChartLoad[file_String] := Module[{value},
+  If[! FileExistsQ[file],
+    Return[<|"Status" -> "FamilyChartFileMissing", "File" -> file|>]];
+  value = FamilyArtifactRead[file];
+  If[! AssociationQ[value],
+    Return[<|"Status" -> "FamilyChartFileNotAnAssociation",
+      "File" -> file|>]];
+  Join[TransportFamilyChartRegister[value], <|"File" -> file|>]
+];
+TransportFamilyChartLoad[___] :=
+  <|"Status" -> "InvalidFamilyChartRegistration"|>;
+
+(* the catalog name a legacy record string stands for, or Missing *)
+transportFamilyChartAlias[value_String] := Module[
+  {entry = Lookup[$transportFamilyChartRegistry, value, Missing[]]},
+  If[AssociationQ[entry] && StringQ[Lookup[entry, "ChartAlias", None]] &&
+      KeyExistsQ[TransportChartCatalog[], entry["ChartAlias"]],
+    entry["ChartAlias"], Missing["ChartAliasNotRegistered", value]]];
+transportFamilyChartAlias[___] := Missing["ChartAliasNotRegistered"];
+
+TransportFamilyChart[family_String] := TransportFamilyChart[family,
+  {$transportChartV, $transportChartW}, Automatic];
+
+TransportFamilyChart[family_String,
+    sourceVariables : {_Symbol, _Symbol}] :=
+  TransportFamilyChart[family, sourceVariables, Automatic];
+
+TransportFamilyChart[family_String,
+    sourceVariables : {_Symbol, _Symbol},
+    chartVariables : ({_Symbol, _Symbol} | Automatic)] := Module[
+  {entry, kind, record, targetVariables},
+  entry = Lookup[$transportFamilyChartRegistry, family,
+    Missing["FamilyChartNotRegistered", family]];
+  If[MissingQ[entry], Return[Missing["FamilyChartNotRegistered", family]]];
+  kind = transportFamilyChartEntryKind[entry];
+  If[! StringQ[kind],
+    Return[Join[<|"Status" -> "RegisteredFamilyChartInvalid",
+      "Family" -> family|>, kind]]];
+  Switch[kind,
+    "RootSquares",
+      targetVariables = Replace[chartVariables,
+        Automatic -> {$transportChartX, $transportChartY}];
+      BuildAlgebraicTransportFrame[
+        entry["RootSquares"] /. Thread[
+          {$transportChartV, $transportChartW} -> sourceVariables],
+        sourceVariables, targetVariables],
+    "ChartName" | "ChartAlias",
+      record = masterTransportChartByName[
+        If[kind === "ChartAlias", entry["ChartAlias"], entry]];
+      (* the catalog record is written in the package's own source and
+         chart variables; only a caller asking for other symbols pays the
+         rekey (which drops "Parents"/"Notes" by construction) *)
+      If[chartVariables === Automatic &&
+          sourceVariables === {$transportChartV, $transportChartW},
+        record,
+        transportChartRekey[record, sourceVariables,
+          Replace[chartVariables,
+            Automatic -> Lookup[record, "Variables",
+              {$transportChartX, $transportChartY}]]]],
+    _, Missing["FamilyChartNotRegistered", family]]
+];
 
 (* Compose a class record written in ITS OWN two-variable chart with a
    TARGET two-variable chart that rationalizes the record's root:

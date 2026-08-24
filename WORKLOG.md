@@ -2792,3 +2792,52 @@ tests), Opus subagents for ordinary missions under my oversight.
   (grade-mask relabeling admissible, file unregistered) and
   FamilyArtifactRead hardened (CheckAbort + explicit context, caller
   semantics unchanged).
+
+## 2026-08-23 (18:40-20:50) — generality pass: project data out of the package
+
+User directive after finding CFxxx tables in Private/: the package must
+be general (accepted scope: two variables (v,w)/(s,t,u)); project data
+lives in the project.  My pass + three independent Opus audits
+(project-data, hidden-assumptions, paths/defaults) -> Design/
+GeneralityFixes.md; two Opus agents implemented disjoint halves; I
+integrated (usage strings, battery, three test-environment fixes).
+
+Package changes (one commit): the 47-entry family->chart table moved to
+`Results/UU_08_10_canonical/TransportFamilyCharts.wl` (round-trip
+verified entry by entry before deletion); package registry
+TransportFamilyChartRegister/Load, unknown family ->
+Missing["FamilyChartNotRegistered"] (was None = silently root-free);
+legacy chart aliases registered from the project file.
+ObservableTransport file patterns/extractors are options (zero files ->
+NoDifferentialFamiliesFound, was a false CompleteExactInventory).  Both
+/home/... literals gone (Automatic -> installation root, typed refusal);
+$feynFacetAddonRoot/$feynFacetLoader/$feynFacetWorkspaceRoot with
+Global`$FACET* overrides; Addon and subkernel-loader sites routed
+through them.  Resume provenance hashes only package files; the driver
+passes its own hash (DriverProvenance, schema 3; v2 checkpoints
+recompute).  Reduction fingerprints and artifact identity are
+path-free (legacy hashes still accepted).  Symbol generality:
+DiagonalBlockClassCampaign Variables/Regulator options; chart-parameter
+collision refused typed; the catalog retry no longer requires variables
+NAMED v/w (positional match/rekey; TransportChartVerify read Global v/w
+-- found by the new test, fixed); chart-extension output variables
+fresh + disjointness; Maple unknown heads Unique-tagged;
+familyCertificateModular arity pinned; DistributionHeads card key;
+analyticContextQ validates the dimension rule by shape.  Machine size
+from $ProcessorCount with the old numbers as documented caps.
+
+Tests: new t_package_generality (30) and t_generality_renamed_variables
+(53) adversarial suites; full battery 57 suites OK (only the two
+documented pre-existing reds).  Three defects found while integrating:
+the renamed-variables ceiling check was FACET_KERNEL_COUNT-sensitive
+(test fixed); the legacy-alias test asserted resolution without
+registration (now checks both sides); Simplification's shared-trace
+reuse accepted a zero-byte trace (guard added).
+
+CF265 slowdown (user directive): bisected -- NOT Codex's overnight code
+(pre-overnight worktree reproduces today's inflated strip inputs
+byte-for-byte at sector 9) and not the simplex support (SparseFirst run
+identical).  The gauge representative is degree-unstable; the flip
+entered with the 08-22 afternoon solver changes (bundled commit,
+unbisectable further).  Fix designed: degree-aware normalization-column
+pinning measured at the pilot prime; implementation next.

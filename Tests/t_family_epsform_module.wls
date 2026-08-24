@@ -45,8 +45,18 @@ normalized = FeynFacet`FamilyEpsilonFormRecord[annotated];
 
 typedFailure = FeynFacet`FamilyEpsilonFormRecord[
   <|"TTotal" -> {{1}}|>]["Status"] === "RecordKeysMissing";
-legacyChartAlias = FeynFacet`FamilyEpsilonFormRecord[
-  Join[rec3, <|"Chart" -> "v = x y, w = (1-x)(1-y)"|>]]["Chart"] ===
+(* legacy chart aliases live in the PROJECT chart table since the
+   generality pass (2026-08-23): unregistered, the alias must not
+   silently resolve; after TransportFamilyChartLoad it resolves as
+   before *)
+legacyChartAliasUnregistered = FeynFacet`FamilyEpsilonFormRecord[
+  Join[rec3, <|"Chart" -> "v = x y, w = (1-x)(1-y)"|>]]["Chart"] =!=
+  "Kallen1";
+FeynFacet`TransportFamilyChartLoad[
+  FileNameJoin[{base, "TransportFamilyCharts.wl"}]];
+legacyChartAlias = legacyChartAliasUnregistered &&
+  FeynFacet`FamilyEpsilonFormRecord[
+    Join[rec3, <|"Chart" -> "v = x y, w = (1-x)(1-y)"|>]]["Chart"] ===
   "Kallen1";
 badPermutation = FeynFacet`FamilyEpsilonFormRecord[
   Join[rec3, <|"Blocks" -> {{1}, {1}, {2}}|>]]["Status"] ===

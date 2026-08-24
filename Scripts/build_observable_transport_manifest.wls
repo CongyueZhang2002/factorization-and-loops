@@ -26,9 +26,26 @@ If[Length[arguments] < 5, Exit[64]];
   Take[arguments, 4];
 epsilonDirectories = Drop[arguments, 4];
 
+(* The artifact naming of this campaign (generality pass 2026-08-23, A2):
+   the package defaults name no campaign prefix, so the driver states the
+   project's own patterns and the numeric family order the manifest has
+   always had (CF1, CF2, ..., CF12, not the lexicographic order). *)
+familyPrefix = FeynFacet`Private`$canonicalFamilyPrefix;
+familySortKey = Function[name,
+  ToExpression[StringDrop[name, StringLength[familyPrefix]]]];
+
 result = BuildObservableTransportManifest[
   epsilonDirectories, differentialDirectory, valuationsFile, manifestFile,
-  "Card" -> card, "ReportFile" -> reportFile];
+  "Card" -> card, "ReportFile" -> reportFile,
+  "DifferentialFilePattern" -> "nnlo_de_" <> familyPrefix <> "*.wl",
+  "EpsFormFilePattern" -> "family_epsform_" <> familyPrefix <> "*.wl",
+  "FamilySortKey" -> familySortKey];
+
+If[Lookup[result, "Status", None] === "NoDifferentialFamiliesFound",
+  Print["No differential-equation family matched ",
+    Lookup[result, "DifferentialFilePattern", ""], " in ",
+    Lookup[result, "DifferentialSystemDirectory", differentialDirectory]];
+  Exit[1]];
 
 Print["Exact epsilon forms: ", Lookup[result, "ExactFamilyCount", 0],
   "/", Lookup[result, "DifferentialFamilyCount", 0]];

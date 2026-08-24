@@ -1204,7 +1204,7 @@ reconstructionInputs[traceDirectory_String, options_Association] := Catch[
     ];
     If[
       data["CardName"] =!= metadata["CardName"] ||
-        data["ResultDirectory"] =!= metadata["ResultDirectory"],
+        ! coefficientSameInputsQ[data, metadata],
       Message[ReconstructCoefficients::trace, traceDirectory,
         "the Kira artifact belongs to another diagram set"];
       Throw[$Failed, $reconstructionFailure]

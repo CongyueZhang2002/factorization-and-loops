@@ -314,6 +314,11 @@ MasterTransport::shift =
 epsilon order `2`, so a weight-truncated transport can never determine a \
 complete epsilon order.";
 
+MasterTransport::root =
+  "The installation root the transport backends are loaded from could not be \
+resolved from `1`. Give \"Root\" -> <directory> explicitly, or set \
+Global`$FACETAddonRoot before the package is loaded.";
+
 $masterTransportRegulatorNames = {"eps", "Eps", "epsilon", "Epsilon", "ep"};
 
 (* Every symbolic zero test gets a budget.  Simplify on a 2F1 residual
@@ -336,6 +341,21 @@ masterTransportFail[head_, tag_, args___] := (
   Message[MessageName[MasterTransport, tag], args];
   Throw[$Failed, $masterTransportFailure]
 );
+
+(* The installation root the backend packages (Libra, PolyLogTools,
+   Fermatica) are loaded from.  Automatic is the add-on root of THIS
+   installation; there is no built-in absolute path (generality pass
+   2026-08-23, B1).  Returns $Failed when nothing resolves, so every
+   caller can refuse typed instead of reading a nonexistent tree. *)
+masterTransportResolveInstallationRoot[value_] := Which[
+  StringQ[value] && DirectoryQ[value], value,
+  StringQ[value], $Failed,
+  value === Automatic && ValueQ[$feynFacetAddonRoot] &&
+    StringQ[$feynFacetAddonRoot], $feynFacetAddonRoot,
+  value === Automatic && ValueQ[$feynFacetRoot] && StringQ[$feynFacetRoot],
+    $feynFacetRoot,
+  True, $Failed
+];
 
 (* Every progress line carries the wall clock and the seconds since this
    file was loaded, so a RATE can be read off a log without instrumenting
@@ -4304,10 +4324,9 @@ TransportFamily[input_, opts : OptionsPattern[]] := Catch[
       masterTransportFail[TransportFamily, "option", "Card", OptionValue["Card"],
         TransportFamily]];
 
-    root = OptionValue["Root"];
-    If[root === Automatic,
-      root = If[ValueQ[$feynFacetRoot], $feynFacetRoot,
-        "/home/maxzhang/factorization-and-loops"]];
+    root = masterTransportResolveInstallationRoot[OptionValue["Root"]];
+    If[root === $Failed,
+      masterTransportFail[TransportFamily, "root", OptionValue["Root"]]];
 
     variables = masterTransportResolveVariables[OptionValue["Variables"]];
     If[variables === $Failed,
@@ -4511,6 +4530,25 @@ needs nested quadrature"],
     base = pathChoice["BasePoint"];
     ahat = pathChoice["Ahat"];
     monic = pathChoice["Monic"];
+    (* D4 (generality pass 2026-08-23): the transport STARTS at the base
+       point, so a letter of the assembled connection that vanishes
+       there puts tau = 0 on a singular locus and every word built on
+       the path diverges.  The path denominators are exactly the
+       assembled letters restricted to the path, so the test is whether
+       one of them vanishes at tau = 0.  The default base {1/4, 1/4} is
+       off every letter of this project's families, which is why this
+       was never a wrong answer here; a caller supplying its own base
+       now gets a typed refusal instead of divergent words. *)
+    With[{vanishing = Select[
+        If[AssociationQ[monic], Lookup[monic, "Denominators", {}], {}],
+        TrueQ[Together[# /. tau -> 0] === 0] &]},
+      If[vanishing =!= {},
+        Return[<|"Status" -> "BasePointOnLetterZero",
+          "BasePoint" -> base, "VanishingLetters" -> vanishing,
+          "PathTrials" -> pathTrials,
+          "BasePointCandidates" -> basePointCandidates,
+          "Assembly" -> assembly, "Family" -> assembly["Family"]|>,
+          Module]]];
     rational = True;
     If[Length[basePointCandidates] > 1,
       masterTransportLog[verbose, "  path direction: ", base,

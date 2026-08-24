@@ -24,7 +24,14 @@
           [sectorBudget=1800] [tag] [directSectorBudget=30] [chartFile]
           [familyDataDirectory] [classFormDirectory] *)
 $HistoryLength = 0;
-root = ParentDirectory[DirectoryName[ExpandFileName[$InputFileName]]];
+(* This driver's own identity.  The package hashes only its own Private
+   sources; a driver that participates in a strip solve declares itself
+   through the solver configuration's "DriverProvenance" (generality pass
+   2026-08-23, B2).  $InputFileName is captured NOW: inside a later
+   function body it is no longer the script. *)
+driverFile = ExpandFileName[$InputFileName];
+driverProvenance = <|FileNameTake[driverFile] -> driverFile|>;
+root = ParentDirectory[DirectoryName[driverFile]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 (* pool subkernels keep state: clear the Global` symbols CANONICA and earlier
    missions leave behind (they broke TransportFamilyInChart on a reused
@@ -160,6 +167,22 @@ ftData = If[Length[args] >= 7 && StringLength[args[[7]]] > 0,
   discoverFamilyDataDirectory[family]];
 classFormDirectory = If[Length[args] >= 8 && StringLength[args[[8]]] > 0,
   ExpandFileName[args[[8]]], FileNameJoin[{ftData, "ClassForms"}]];
+(* The per-family transport-chart inventory is PROJECT data (generality
+   pass 2026-08-23, A1): the package ships an empty registry and the
+   campaign's own table travels with its family data.  A family that is
+   absent from the file (or a project with no file at all) is
+   Missing["FamilyChartNotRegistered", ...] and is admitted below only
+   after the assembled connection is verified radical-free. *)
+familyChartFile = FileNameJoin[{ftData, "TransportFamilyCharts.wl"}];
+If[FileExistsQ[familyChartFile],
+  familyChartRegistration = FeynFacet`TransportFamilyChartLoad[familyChartFile];
+  If[Lookup[familyChartRegistration, "Status", None] =!= "FamilyChartsRegistered",
+    log["!! family chart registration refused: ", familyChartRegistration];
+    Exit[2]];
+  log["registered ", familyChartRegistration["Registered"],
+    " family charts from ", familyChartFile],
+  log["no family chart file at ", familyChartFile,
+    "; the chart registry stays empty"]];
 mapleLib = FileNameJoin[{root, "Addon", "Other_Addon", "Maple", "IntegrableConnections"}];
 scratch = FileNameJoin[{outdir, "sector_" <> family <> tag}]; If[! DirectoryQ[scratch], CreateDirectory[scratch]];
 stateFile = FileNameJoin[{outdir, "sector_state_" <> family <> tag <> ".wl"}];
@@ -174,7 +197,16 @@ chart = If[StringQ[chartFile],
     log["!! chart file does not exist: ", chartFile]; Exit[2]];
   readArtifact[chartFile],
   FeynFacet`TransportFamilyChart[family]];
-If[chart === None,
+(* None  = registered as root-free (transport in the source variables).
+   Missing["FamilyChartNotRegistered", family] = no declaration at all:
+   the identity frame is used PROVISIONALLY and the assembled connection
+   is checked for radicals below (a rooted family with no registration
+   must stop, not transport in a frame that cannot hold its roots). *)
+chartNotRegisteredQ = MatchQ[chart, Missing["FamilyChartNotRegistered", _]];
+If[chartNotRegisteredQ,
+  log["no transport chart registered for ", family,
+    "; trying the identity frame -- the assembled connection must be radical-free"]];
+If[chart === None || chartNotRegisteredQ,
   chart = <|
     "Name" -> "RationalIdentity",
     "Kind" -> "TwoVariable",
@@ -271,6 +303,22 @@ If[AssociationQ[cachedState] &&
   A0 = {assembly["Apv"] /. toXY, assembly["Apw"] /. toXY};
   ranges = assembly["Ranges"]
 ];
+(* The identity frame was taken WITHOUT a declaration (A1): it is licensed
+   only if the assembled connection contains no radical at all.  A single
+   half-integer power means the family needs a frame nobody declared, and
+   continuing would build every later row in a frame that cannot represent
+   its own coefficients. *)
+If[chartNotRegisteredQ,
+  unregisteredRadicals = DeleteDuplicates[Cases[A0,
+    Power[base_, _Rational] :> base, {0, Infinity}, Heads -> True]];
+  If[unregisteredRadicals =!= {} || ! FreeQ[A0, _Root],
+    log["!! no transport chart is registered for ", family,
+      " and the assembled connection is not radical-free: ",
+      Take[unregisteredRadicals, UpTo[3]],
+      If[FreeQ[A0, _Root], "", " (and algebraic Root objects)"]];
+    Exit[2]];
+  log["no registered chart: the assembled connection is radical-free, ",
+    "the identity frame is exact for ", family]];
 (* Diagonal-block composition: the record must store the ABSOLUTE
    transformation TTotal = diag(T_class) . S against the chart-pulled-
    back source connection, not the sector gauge S alone (records
@@ -399,7 +447,8 @@ stripSolverConfiguration[route_String] :=
       If[productionQ, "Numerical", "Exact"]],
     If[route === "ZeroForcing", None, finiteFieldBackend],
     If[route === "ZeroForcing", None, finiteFieldBackendThreads],
-    If[route === "ZeroForcing", None, planDiscoveryBackend]];
+    If[route === "ZeroForcing", None, planDiscoveryBackend],
+    "DriverProvenance" -> driverProvenance];
 
 (* Regulator factorization of the completed rows 1..m (FiniteFieldFirst
    route, 2026-08-22): a completed block may be a dlog form whose residue
@@ -632,6 +681,7 @@ Do[
             "FiniteFieldBackend" -> finiteFieldBackend,
             "FiniteFieldBackendThreads" -> finiteFieldBackendThreads,
             "PlanDiscoveryBackend" -> planDiscoveryBackend,
+            "DriverProvenance" -> driverProvenance,
             "Verbose" -> True];
           If[AssociationQ[resumeHydration] &&
               MemberQ[{"Hydrated", "HydratedPartial", "Verified",

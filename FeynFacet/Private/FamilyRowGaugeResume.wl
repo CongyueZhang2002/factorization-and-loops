@@ -14,6 +14,7 @@ ClearAll[
   familyRowGaugeSolverConfiguration,
   familyRowGaugeSolverConfigurationValidQ,
   familyRowGaugeSolverImplementationProvenance,
+  familyRowGaugeProvenanceDriverPaths,
   familyRowGaugeResumeSolverConfigurationCheck,
   familyRowGaugeSolverFailureSummary,
   familyRowGaugeHydrateResume
@@ -21,7 +22,17 @@ ClearAll[
 
 $familyRowGaugeSolverConfigurationSchema =
   "FeynFacetStripSolverConfiguration";
-$familyRowGaugeSolverConfigurationSchemaVersion = 2;
+(* Version 3 (generality pass 2026-08-23, B2): the implementation
+   provenance hashes ONLY the package's own Private sources; a driver
+   passes its own identity through the "DriverProvenance" option, which is
+   carried in the sealed configuration and re-verified on resume.  A
+   version-2 checkpoint carries the field "SolverConfiguration" and is
+   therefore refused by familyRowGaugeSolverConfigurationValidQ (version
+   mismatch) and reported as ResumeSolverConfigurationMismatch, i.e.
+   recomputed rather than trusted -- the legacy branch of
+   familyRowGaugeResumeSolverConfigurationCheck is reached only by
+   checkpoints that have no configuration field at all. *)
+$familyRowGaugeSolverConfigurationSchemaVersion = 3;
 $familyRowGaugeSolverConfigurationRequiredKeys = {
   "Status", "Schema", "SchemaVersion", "Route", "CoefficientField",
   "FinalCheck", "FiniteFieldBackend", "FiniteFieldBackendThreads",
@@ -29,15 +40,35 @@ $familyRowGaugeSolverConfigurationRequiredKeys = {
   "ImplementationProvenance", "BackendImplementationProvenance",
   "Fingerprint"};
 
-familyRowGaugeSolverImplementationProvenance[route_String] := Module[
-  {common, files, hashes, base},
+Options[familyRowGaugeSolverImplementationProvenance] = {
+  (* <|name -> absolute path|> of the files that make up the CALLING
+     driver.  The package hashes only its own sources; a campaign script
+     that participates in the solve declares itself here, so the package
+     carries no knowledge of any driver's location (generality pass
+     2026-08-23, B2). *)
+  "DriverProvenance" -> <||>
+};
+
+familyRowGaugeSolverImplementationProvenance[route_String,
+    OptionsPattern[]] := Module[
+  {common, files, hashes, base, driver, driverHashes},
+  driver = OptionValue["DriverProvenance"];
+  If[! AssociationQ[driver] ||
+      ! AllTrue[Keys[driver], StringQ] ||
+      ! AllTrue[Values[driver], StringQ],
+    Return[$Failed]];
+  If[! AllTrue[Values[driver], FileExistsQ], Return[$Failed]];
+  driverHashes = Association @ KeyValueMap[
+    #1 -> <|"Path" -> #2,
+      "SHA256" -> FileHash[#2, "SHA256", "HexString"]|> &, driver];
+  If[! AllTrue[Values[driverHashes],
+      StringQ[#["SHA256"]] && StringLength[#["SHA256"]] === 64 &],
+    Return[$Failed]];
   common = <|
     "FamilyRowGaugeResume.wl" -> FileNameJoin[
       {$feynFacetPrivateDirectory, "FamilyRowGaugeResume.wl"}],
     "FamilyRowGauge.wl" -> FileNameJoin[
-      {$feynFacetPrivateDirectory, "FamilyRowGauge.wl"}],
-    "family_epsform_sector.wls" -> FileNameJoin[
-      {$feynFacetRoot, "Scripts", "family_epsform_sector.wls"}]|>;
+      {$feynFacetPrivateDirectory, "FamilyRowGauge.wl"}]|>;
   files = Switch[route,
     "ZeroForcing", common,
     "DirectRationalFiniteField", Join[common, <|
@@ -70,13 +101,30 @@ familyRowGaugeSolverImplementationProvenance[route_String] := Module[
       "EliminationPlanSchemaVersion" -> 1,
       "PlanDiscoveryBackendProtocol" -> "WolframV1",
       "FixedCoreBackendProtocol" -> "CFFA4V1OrWolfram"|>];
-  Join[base, <|"SourceSHA256" -> hashes|>]
+  Join[base, <|"SourceSHA256" -> hashes,
+    "DriverProvenance" -> driverHashes|>]
 ];
 familyRowGaugeSolverImplementationProvenance[___] := $Failed;
 
+(* the driver files a sealed provenance record names, as name -> path, so
+   a resume can re-hash exactly the same set *)
+familyRowGaugeProvenanceDriverPaths[provenance_] := Module[{driver},
+  If[! AssociationQ[provenance], Return[$Failed]];
+  driver = Lookup[provenance, "DriverProvenance", Missing[]];
+  If[! AssociationQ[driver], Return[$Failed]];
+  If[driver === <||>, Return[<||>]];
+  If[! AllTrue[Values[driver],
+      AssociationQ[#] && StringQ[Lookup[#, "Path", None]] &],
+    Return[$Failed]];
+  Association @ KeyValueMap[#1 -> #2["Path"] &, driver]
+];
+
+Options[familyRowGaugeSolverConfiguration] =
+  Options[familyRowGaugeSolverImplementationProvenance];
+
 familyRowGaugeSolverConfiguration[route_String,
     coefficientField_String, frame_Association, finalCheck_, backend_,
-    backendThreads_, planDiscoveryBackend_] := Module[
+    backendThreads_, planDiscoveryBackend_, OptionsPattern[]] := Module[
   {frameFingerprint, provenance, backendProvenance, payload},
   If[! MemberQ[{"ZeroForcing", "DirectRationalFiniteField",
         "RationalChartFiniteField"}, route] ||
@@ -105,7 +153,8 @@ familyRowGaugeSolverConfiguration[route_String,
     Hash[KeySort[KeyTake[frame,
       {"Name", "CoefficientField", "Variables", "Subst", "Roots",
         "Parents"}]], "SHA256", "HexString"], None];
-  provenance = familyRowGaugeSolverImplementationProvenance[route];
+  provenance = familyRowGaugeSolverImplementationProvenance[route,
+    "DriverProvenance" -> OptionValue["DriverProvenance"]];
   If[provenance === $Failed,
     Return[<|"Status" ->
       "SolverImplementationProvenanceUnavailable"|>]];
@@ -134,7 +183,7 @@ familyRowGaugeSolverConfiguration[___] :=
 
 familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
   {route, field, expectedProvenance, expectedBackendProvenance,
-   expectedPlanDiscoveryBackend, fingerprint},
+   expectedPlanDiscoveryBackend, fingerprint, driverPaths},
   If[! AssociationQ[configuration] ||
       Sort[Keys[configuration]] =!=
         Sort[$familyRowGaugeSolverConfigurationRequiredKeys] ||
@@ -146,8 +195,16 @@ familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
     Return[False]];
   {route, field} = Lookup[configuration,
     {"Route", "CoefficientField"}, None];
+  (* the driver files the record names are re-hashed from their recorded
+     paths: a changed (or vanished) driver source makes the expected
+     provenance differ from the sealed one, and the checkpoint is
+     recomputed rather than trusted *)
+  driverPaths = familyRowGaugeProvenanceDriverPaths[
+    Lookup[configuration, "ImplementationProvenance", None]];
+  If[driverPaths === $Failed, Return[False]];
   expectedProvenance =
-    familyRowGaugeSolverImplementationProvenance[route];
+    familyRowGaugeSolverImplementationProvenance[route,
+      "DriverProvenance" -> driverPaths];
   If[expectedProvenance === $Failed, Return[False]];
   expectedBackendProvenance = If[route === "ZeroForcing", None,
     finiteFieldStripBackendConfiguration[
@@ -325,6 +382,9 @@ Options[familyRowGaugeHydrateResume] = {
   "FiniteFieldBackendThreads" -> 2,
   "PlanDiscoveryBackend" -> "Wolfram",
   "MinimumCachedPrimeCount" -> 3,
+  (* the calling driver's own identity, threaded into the sealed solver
+     configuration (generality pass 2026-08-23, B2) *)
+  "DriverProvenance" -> <||>,
   "Verbose" -> False
 };
 
@@ -343,6 +403,7 @@ familyRowGaugeHydrateResume[
    finiteFieldBackend = OptionValue["FiniteFieldBackend"],
    finiteFieldBackendThreads = OptionValue["FiniteFieldBackendThreads"],
    planDiscoveryBackend = OptionValue["PlanDiscoveryBackend"],
+   driverProvenance = OptionValue["DriverProvenance"],
    minimumCached = OptionValue["MinimumCachedPrimeCount"],
    verbose = TrueQ[OptionValue["Verbose"]], diskCheckpoint,
    expectedConnectionHash, currentTruncation, currentConnectionHash,
@@ -515,7 +576,8 @@ familyRowGaugeHydrateResume[
         If[solverRoute === "ZeroForcing", None,
           finiteFieldBackendThreads],
         If[solverRoute === "ZeroForcing", None,
-          planDiscoveryBackend]];
+          planDiscoveryBackend],
+        "DriverProvenance" -> driverProvenance];
       solverConfigurationCheck =
         familyRowGaugeResumeSolverConfigurationCheck[
           summary, expectedSolverConfiguration];

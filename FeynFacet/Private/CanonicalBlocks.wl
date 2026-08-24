@@ -83,6 +83,7 @@ ClearAll[
   canonicalBlocksTriangularityCertificate,
   canonicalBlocksTotalDegree,
   canonicalBlocksQuadraticFactors,
+  canonicalBlocksChartParameter,
   canonicalBlocksBuildChart,
   canonicalBlocksApplyChart,
   canonicalBlocksSolve,
@@ -139,6 +140,10 @@ CanonicalizeClasses::canonica =
 
 CanonicalizeClasses::option = "Invalid `1` option: `2`.";
 
+CanonicalizeClasses::chartparameter =
+  "The chart parameter `1` is one of the class variables `2`; the conic \
+chart needs a new coordinate.";
+
 ValidateCanonicalForm::form =
   "`1` is not a canonical-form record, file or {matrices, variables} pair.";
 
@@ -183,7 +188,7 @@ canonicalBlocksFail[symbol_, message_, args___] := (
    forward-reference behaviour of the context system. *)
 canonicalBlocksLoadCanonica[] := Module[{file, path},
   If[TrueQ[$canonicalBlocksCanonicaLoaded], Return[True]];
-  file = FileNameJoin[{$feynFacetRoot, "Addon", "Mathematica_Addon",
+  file = FileNameJoin[{$feynFacetAddonRoot, "Addon", "Mathematica_Addon",
     "CANONICA", "src", "CANONICA.m"}];
   If[! FileExistsQ[file],
     canonicalBlocksFail[CanonicalizeClasses, "canonica", file]];
@@ -924,6 +929,21 @@ canonicalBlocksQuadraticFactors[matrices_, variables_List] :=
         canonicalBlocksTotalDegree[#, variables] >= 2 &]
   ];
 
+(* The conic parameter.  Automatic keeps this project's Global`t -- the
+   class records that carry a conic chart name it, and their variables
+   are (v, w) -- unless t is a variable of the class, its regulator, or a
+   symbol occurring in its matrices, in which case a fresh private
+   symbol is used.  An explicitly given parameter is taken as given and
+   canonicalBlocksBuildChart refuses it if it collides (generality pass
+   2026-08-23). *)
+canonicalBlocksChartParameter[Automatic, matrices_, variables_List,
+    regulator_] := Module[{t = Symbol["Global`t"]},
+  If[MemberQ[variables, t] || t === regulator || ! FreeQ[matrices, t],
+    Unique["FeynFacet`Private`chartParameter"], t]];
+
+canonicalBlocksChartParameter[parameter_Symbol, matrices_, variables_List,
+    regulator_] := parameter;
+
 (* Rational parametrization of a single conic.  Two branches, both
    verified symbolically before the chart is used:
      (a) q linear in one variable: solve q == t^2 for it directly;
@@ -934,6 +954,16 @@ canonicalBlocksQuadraticFactors[matrices_, variables_List] :=
 canonicalBlocksBuildChart[q_, variables : {v_Symbol, w_Symbol},
     parameter_Symbol] :=
   Module[{pairs = {{v, w}, {w, v}}},
+    (* The chart parameter is a NEW coordinate.  If it is one of the
+       source variables, Solve[q - parameter^2 == 0, x2] solves an
+       equation in which the two sides mean the same symbol and returns
+       a "chart" that silently identifies a kinematic variable with the
+       conic parameter -- a wrong answer with no diagnosis.  Refused by
+       type (generality pass 2026-08-23); the caller distinguishes a
+       refusal from a chart by the "Status" key, which no chart has. *)
+    If[MemberQ[variables, parameter],
+      Return[<|"Status" -> "ChartParameterCollides",
+        "Parameter" -> parameter, "Variables" -> variables|>]];
     Catch[
       Do[
         Module[{x1 = pair[[1]], x2 = pair[[2]], solution, substitution},
@@ -1095,8 +1125,16 @@ CanonicalizeClasses[input_, OptionsPattern[]] := Catch[
       canonicalBlocksFail[CanonicalizeClasses, "classes", input]];
 
     directory = OptionValue["OutputDirectory"];
+    (* Automatic writes into the SESSION's scratch space, not into
+       whatever Directory[] happens to be: a campaign started from a
+       user's home or from the repository root used to create
+       CanonicalClassForms/ there and, worse, to resume from a directory
+       of the same name that belonged to another run (generality pass
+       2026-08-23).  Every caller in this repository passes the output
+       directory explicitly, so nothing here changes. *)
     If[directory === Automatic,
-      directory = FileNameJoin[{Directory[], "CanonicalClassForms"}]];
+      directory = FileNameJoin[{$TemporaryDirectory, "FeynFacet",
+        "CanonicalClassForms"}]];
     If[! StringQ[directory],
       canonicalBlocksFail[CanonicalizeClasses, "option", "OutputDirectory",
         directory]];
@@ -1135,8 +1173,9 @@ CanonicalizeClasses[input_, OptionsPattern[]] := Catch[
     memoryConstraint = cardSetting[OptionValue["MemoryConstraint"],
       "CanonicalizationMemoryConstraint", 6 1024^3];
     chartEnabled = TrueQ[OptionValue["Chart"]];
+    (* Automatic is resolved per class, once the class's own variables
+       and regulator are known (generality pass 2026-08-23) *)
     parameter = OptionValue["ChartParameter"];
-    If[parameter === Automatic, parameter = Symbol["Global`t"]];
     If[! MatchQ[parameter, _Symbol],
       canonicalBlocksFail[CanonicalizeClasses, "option", "ChartParameter",
         parameter]];
@@ -1163,7 +1202,7 @@ CanonicalizeClasses[input_, OptionsPattern[]] := Catch[
       Module[{class = classes[[k]], file, dimension, variables, regulator,
           matrices, converted, attempt = None, chart = None,
           frame = "direct", frameVariables, start = AbsoluteTime[], record,
-          quadratics, chartSystem},
+          quadratics, chartSystem, chartParameter},
         file = canonicalBlocksFormFile[directory, class];
         dimension = Lookup[class, "Dim", Length[class["RepAv"]]];
 
@@ -1201,15 +1240,20 @@ CanonicalizeClasses[input_, OptionsPattern[]] := Catch[
         If[attempt === None && chartEnabled && Length[variables] === 2,
           quadratics = canonicalBlocksQuadraticFactors[matrices, variables];
           If[Length[quadratics] === 1,
+            chartParameter = canonicalBlocksChartParameter[parameter,
+              matrices, variables, regulator];
             chart = canonicalBlocksBuildChart[First[quadratics], variables,
-              parameter];
+              chartParameter];
+            If[AssociationQ[chart] && KeyExistsQ[chart, "Status"],
+              canonicalBlocksFail[CanonicalizeClasses, "chartparameter",
+                chartParameter, variables]];
             If[verbose,
               Print["[CanonicalizeClasses]   chart=",
                 If[chart === None, "NONE",
                   ToString[InputForm[chart["Subst"]]]]]];
             If[chart =!= None,
               {chartSystem, frameVariables} = canonicalBlocksApplyChart[
-                converted, chart, variables, parameter];
+                converted, chart, variables, chartParameter];
               frame = "chart";
               attempt = canonicalBlocksAttempt[chartSystem, dimension,
                 frameVariables, degrees, timeConstraint, memoryConstraint,

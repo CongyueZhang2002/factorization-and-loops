@@ -911,7 +911,10 @@ Options[masterTransportBlockwiseSolve] = {
      numbers are derived here from the module's rmin table, which is the
      same statement one notch coarser. *)
   "ExactDepth" -> None,
-  "Root" -> "/home/maxzhang/factorization-and-loops"
+  (* the installation root the backend packages are loaded from; Automatic
+     is the package's own root (generality pass 2026-08-23, B1: the
+     default was one machine's absolute path) *)
+  "Root" -> Automatic
 };
 
 (* assembly   the record masterTransportAssemble returned
@@ -931,7 +934,9 @@ masterTransportBlockwiseSolve[assembly_, ahat_, budget_, kminPerBlock_List,
 
   start = AbsoluteTime[];
   verbose = TrueQ[OptionValue["Verbose"]];
-  root = OptionValue["Root"];
+  root = masterTransportResolveInstallationRoot[OptionValue["Root"]];
+  If[root === $Failed, Return[<|"Status" -> "InstallationRootUnavailable",
+    "Root" -> OptionValue["Root"]|>]];
   certify = TrueQ[OptionValue["Certify"]];
   phiOption = OptionValue["PhiCrossCheck"];
   phiMaxWeight = OptionValue["PhiCrossCheckMaxWeight"];

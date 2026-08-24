@@ -95,6 +95,9 @@ ClearAll[
   diagonalBlockScalarEpsForm,
   diagonalBlockCurveCoefficient,
   diagonalBlockFrames,
+  diagonalBlockChartParameter,
+  diagonalBlockChartVariables,
+  diagonalBlockCatalogCandidate,
   diagonalBlockChartRetry
 ];
 
@@ -621,7 +624,7 @@ DiagonalBlockSliceEpsForm[{ax_, ay_}, {x_, y_}, eps_, OptionsPattern[]] :=
   If[! (SquareMatrixQ[ax] && SquareMatrixQ[ay] && Length[ax] === Length[ay]),
     Message[DiagonalBlockSliceEpsForm::system]; Return[<|"Status" -> "SystemInvalid"|>]];
   n = Length[ax];
-  If[masterTransportLoadLibra[$feynFacetRoot] =!= True,
+  If[masterTransportLoadLibra[$feynFacetAddonRoot] =!= True,
     Return[<|"Status" -> "LibraNotLoaded"|>]];
   Off[OptionValue::optnf];
   letterData = DiagonalBlockLetters[{ax, ay}, {x, y}, eps];
@@ -1473,25 +1476,91 @@ diagonalBlockScalarEpsForm[{ax_, ay_}, {x_, y_}, eps_] := Catch[Module[
 Options[DiagonalBlockEpsForm] = Join[
   Options[DiagonalBlockSliceEpsForm],
   FilterRules[Options[SolveDiagonalBlockGaugeFiniteField], Except["Verbose"]],
-  {"Shears" -> {1, -1, 2, -2, 3}, "ChartRetry" -> True}];
+  {"Shears" -> {1, -1, 2, -2, 3}, "ChartRetry" -> True,
+   "ChartParameter" -> Automatic}];
+
+(* The chart parameter of the conic retry.  Automatic keeps this
+   project's Global`t -- every stored class record with a conic chart
+   names it, and its variables are (v, w) -- but only where t is
+   admissible: it must be neither a variable of the block nor the
+   regulator nor a symbol occurring in the block, or the chart would be
+   built on one of the system's own coordinates.  A block written in
+   variables {t, u} gets a fresh private symbol instead (generality pass
+   2026-08-23). *)
+diagonalBlockChartParameter[Automatic, {ax_, ay_}, {x_, y_}, eps_] :=
+  Module[{t = Symbol["Global`t"]},
+    If[MemberQ[{x, y, eps}, t] || ! FreeQ[{ax, ay}, t],
+      Unique["FeynFacet`Private`chartParameter"], t]];
+
+diagonalBlockChartParameter[parameter_Symbol, {ax_, ay_}, {x_, y_}, eps_] :=
+  parameter;
+
+(* Chart variables for a catalog chart pulled back onto a block whose
+   own variables are {x, y}: the catalog's own pair unless it collides
+   with the block's variables by name (the catalog is written in
+   {v, w} -> {x, y}, {p, s}, {p, u}, so a block in x and y would
+   otherwise be handed a chart in x and y). *)
+diagonalBlockChartVariables[chart_Association, {x_, y_}] := Module[{cv},
+  cv = Lookup[chart, "Variables", {}];
+  If[MatchQ[cv, {_Symbol, _Symbol}] &&
+      Length[DeleteDuplicates[SymbolName /@ Join[{x, y}, cv]]] === 4,
+    cv,
+    {Unique["FeynFacet`Private`chartVariable"],
+     Unique["FeynFacet`Private`chartVariable"]}]];
+
+(* The catalog candidate for one quadratic, in the block's OWN
+   variables.  TransportRootSetChart identifies {x, y} with the catalog
+   source variables positionally, so the match no longer depends on the
+   block's variables being named v and w (the old gate was
+   SymbolName[x] === "v" && SymbolName[y] === "w", which skipped the
+   catalog entirely for a renamed system), and transportChartRekey
+   writes the chart back in {x, y} and in chart variables that cannot
+   collide with them. *)
+diagonalBlockCatalogCandidate[{ax_, ay_}, {x_, y_}, eps_, quadratic_] :=
+  Module[{chart, chartVariables, rekeyed, sub, sv, sw, sys, lets},
+    chart = TransportRootSetChart[{quadratic}, {x, y}];
+    If[! AssociationQ[chart], Return[None]];
+    chartVariables = diagonalBlockChartVariables[chart, {x, y}];
+    rekeyed = transportChartRekey[chart, {x, y}, chartVariables];
+    If[! AssociationQ[rekeyed] || ! MatchQ[Lookup[rekeyed, "Subst", None],
+        {_Rule, _Rule}], Return[None]];
+    sub = rekeyed["Subst"];
+    sv = x /. sub; sw = y /. sub;
+    sys = diagonalBlockTogether /@ {
+      (ax /. sub) D[sv, chartVariables[[1]]] +
+        (ay /. sub) D[sw, chartVariables[[1]]],
+      (ax /. sub) D[sv, chartVariables[[2]]] +
+        (ay /. sub) D[sw, chartVariables[[2]]]};
+    lets = DiagonalBlockLetters[sys, chartVariables, eps]["Letters"];
+    <|"Chart" -> rekeyed, "System" -> sys, "Variables" -> chartVariables,
+      "Linear" -> AnyTrue[chartVariables,
+        Function[u, AllTrue[lets, Exponent[#, u] <= 1 &]]]|>
+  ];
 
 (* conic chart retry (the CanonicalBlocks rule): exactly one irreducible
    factor of total degree two among the poles means one conic, hence a
    rational parametrization; the block is then solved in the chart
    variables and the record carries the chart, as the class ledger does. *)
-diagonalBlockChartRetry[{ax_, ay_}, {x_, y_}, eps_, opts_List] := Module[
+diagonalBlockChartRetry[{ax_, ay_}, {x_, y_}, eps_, opts_List] := Catch[Module[
   {quadratics, parameter, chart, candidates, variables, result},
   quadratics = Select[canonicalBlocksQuadraticFactors[{ax, ay}, {x, y}], FreeQ[#, eps] &];
   If[Length[quadratics] =!= 1, Return[<|"Status" -> "ChartNotSingleQuadratic",
     "Quadratics" -> quadratics|>]];
-  parameter = Symbol["Global`t"];
+  parameter = diagonalBlockChartParameter[
+    OptionValue[DiagonalBlockEpsForm, opts, "ChartParameter"],
+    {ax, ay}, {x, y}, eps];
   (* both signs of the conic (q = t^2 and -q = t^2) are genuine charts;
      the one whose pulled-back alphabet is linear in a variable is the
      usable one -- the hard-class lesson "check the pulled-back alphabet
      before anything else" (class 79, 2026-08-16) *)
   candidates = DeleteCases[Table[
     Module[{c = canonicalBlocksBuildChart[sign First[quadratics], {x, y}, parameter], sys, vars, lets},
-      If[c === None, None,
+      Which[
+        (* a parameter that is one of the block's own variables is a
+           typed refusal, not a chart (C2) *)
+        AssociationQ[c] && KeyExistsQ[c, "Status"], Throw[c, "chartretry"],
+        c === None, None,
+        True,
         {sys, vars} = canonicalBlocksApplyChart[{ax, ay}, c, {x, y}, parameter];
         sys = diagonalBlockTogether /@ sys;
         lets = DiagonalBlockLetters[sys, vars, eps]["Letters"];
@@ -1502,19 +1571,9 @@ diagonalBlockChartRetry[{ax_, ay_}, {x_, y_}, eps_, opts_List] := Module[
      quadratic: the Kallen and Q4 parametrizations, whose pulled-back
      alphabets are known to be linear where the conic t-chart's is not
      (class 79, 2026-08-16) *)
-  If[SymbolName[x] === "v" && SymbolName[y] === "w",
-    Do[
-      If[Lookup[entry, "Kind", None] === "TwoVariable" && Length[Lookup[entry, "Roots", {}]] === 1 &&
-          diagonalBlockSameLetterQ[entry["RootSquare"], First[quadratics]],
-        Module[{sub = entry["Subst"], cv = entry["Variables"], sv, sw, sys, lets},
-          sv = x /. sub; sw = y /. sub;
-          sys = diagonalBlockTogether /@ {
-            (ax /. sub) D[sv, cv[[1]]] + (ay /. sub) D[sw, cv[[1]]],
-            (ax /. sub) D[sv, cv[[2]]] + (ay /. sub) D[sw, cv[[2]]]};
-          lets = DiagonalBlockLetters[sys, cv, eps]["Letters"];
-          AppendTo[candidates, <|"Chart" -> entry, "System" -> sys, "Variables" -> cv,
-            "Linear" -> AnyTrue[cv, Function[u, AllTrue[lets, Exponent[#, u] <= 1 &]]]|>]]],
-      {entry, Values[TransportChartCatalog[]]}]];
+  Module[{catalog = diagonalBlockCatalogCandidate[{ax, ay}, {x, y}, eps,
+      First[quadratics]]},
+    If[AssociationQ[catalog], AppendTo[candidates, catalog]]];
   If[candidates === {}, Return[<|"Status" -> "ChartNotBuilt", "Quadratic" -> First[quadratics]|>]];
   candidates = SortBy[candidates, If[#["Linear"], 0, 1] &];
   result = <|"Status" -> "ChartAttemptsFailed"|>;
@@ -1526,7 +1585,7 @@ diagonalBlockChartRetry[{ax_, ay_}, {x_, y_}, eps_, opts_List] := Module[
     {candidate, candidates}];
   Join[result, <|"Chart" -> chart, "ChartVariables" -> variables,
     "SourceVariables" -> {x, y}|>]
-];
+ ], "chartretry"];
 
 (* candidate frames: slice in x, slice in y, then sheared frames (x, s)
    with y = s + lambda x (a generic line through the spectator
@@ -1654,6 +1713,14 @@ DiagonalBlockEpsForm[{ax_, ay_}, {x_, y_}, eps_, opts : OptionsPattern[]] :=
 Options[DiagonalBlockClassCampaign] = {
   "Kernels" -> 0,
   "Overwrite" -> False,
+  (* The variables and the regulator of the class records.  Automatic
+     takes the record's own "Variables"/"Regulator" when it declares
+     them, then the detected regulator, then the front end's (v, w) and
+     eps -- which is what every class record of this project uses, so
+     the resolved values here are unchanged (generality pass
+     2026-08-23).  An explicit option overrides the record. *)
+  "Variables" -> Automatic,
+  "Regulator" -> Automatic,
   (* the dim-4 hard classes need up to ~3000 s in a 4-subkernel pool
      (class 77: 2950 s, measured 2026-08-21) *)
   "TimeConstraint" -> 3600,
@@ -1668,10 +1735,31 @@ DiagonalBlockClassCampaign::input =
 (* one class -> one ledger record (schema of CanonicalBlocks.wl's
    CanonicalizeClasses: Transformation, EpsForm, Variables, Chart, Frame,
    Method, Seconds, Validated), or a failure record *)
-diagonalBlockClassRecord[class_Association, eps_, timeConstraint_, fallback_,
-    canonicaValidation_] := Module[
-  {v = Symbol["Global`v"], w = Symbol["Global`w"], matrices, start = AbsoluteTime[],
+diagonalBlockClassRecord[class_Association, regulatorOption_, timeConstraint_,
+    fallback_, canonicaValidation_, variablesOption_ : Automatic] := Module[
+  {v, w, eps, matrices, start = AbsoluteTime[],
    result, record, validated, variables, chart},
+  (* class record first, option override, front-end default last; the
+     regulator is detected from the representative matrices when neither
+     names it, and falls back to the declared default for a class whose
+     representative is regulator-free (7 of this project's 173 are) *)
+  variables = canonicalBlocksResolveVariables[
+    If[variablesOption === Automatic,
+      Lookup[class, "Variables", Automatic], variablesOption]];
+  If[! MatchQ[variables, {_Symbol, _Symbol}],
+    Return[<|"ClassID" -> Lookup[class, "ClassID", None],
+      "Status" -> "ClassVariablesNotTwoSymbols",
+      "Detail" -> <|"Variables" -> variables|>,
+      "Seconds" -> AbsoluteTime[] - start|>]];
+  {v, w} = variables;
+  eps = canonicalBlocksResolveRegulator[
+    If[regulatorOption === Automatic,
+      Lookup[class, "Regulator", Automatic], regulatorOption],
+    {Lookup[class, "RepAv", {}], Lookup[class, "RepAw", {}]}, variables];
+  (* $Failed is itself a Symbol, so the detection failure must be named
+     before the pattern test *)
+  If[eps === $Failed || ! MatchQ[eps, _Symbol],
+    eps = Symbol["Global`eps"]];
   matrices = diagonalBlockTogether /@ {class["RepAv"], class["RepAw"]};
   result = TimeConstrained[DiagonalBlockEpsForm[matrices, {v, w}, eps],
     timeConstraint, <|"Status" -> "TimedOut"|>];
@@ -1729,7 +1817,7 @@ diagonalBlockClassRecord[class_Association, eps_, timeConstraint_, fallback_,
 ];
 
 DiagonalBlockClassCampaign[input_, directory_String, OptionsPattern[]] := Module[
-  {classes, eps = Symbol["Global`eps"], kernels, overwrite, timeConstraint, fallback,
+  {classes, regulatorOption, variablesOption, kernels, overwrite, timeConstraint, fallback,
    canonicaValidation, verbose, log, todo, results = {}, file, launched, queue, running,
    result, finished, record, report},
   classes = Which[
@@ -1741,6 +1829,10 @@ DiagonalBlockClassCampaign[input_, directory_String, OptionsPattern[]] := Module
     Message[DiagonalBlockClassCampaign::input]; Return[$Failed]];
   kernels = OptionValue["Kernels"]; overwrite = TrueQ[OptionValue["Overwrite"]];
   timeConstraint = OptionValue["TimeConstraint"]; fallback = OptionValue["Fallback"];
+  (* resolved per class, in diagonalBlockClassRecord: a campaign may mix
+     records that declare their own variables with records that do not *)
+  variablesOption = OptionValue["Variables"];
+  regulatorOption = OptionValue["Regulator"];
   canonicaValidation = OptionValue["CanonicaValidation"];
   verbose = TrueQ[OptionValue["Verbose"]];
   log[args___] := If[verbose, Print["[dblock-campaign] ", args]];
@@ -1756,17 +1848,18 @@ DiagonalBlockClassCampaign[input_, directory_String, OptionsPattern[]] := Module
       Round[rec["Seconds"], 0.1], " s", If[rec["Status"] =!= "CANONICALIZED", " " <> ToString[Lookup[rec, "Detail", ""]], ""]]);
   If[kernels > 0,
     launched = LaunchKernels[kernels];
-    With[{loader = FileNameJoin[{$feynFacetRoot, "Addon", "Load", "LoadFACET.wl"}]},
+    With[{loader = $feynFacetLoader},
       ParallelEvaluate[Block[{$Output = {}}, Get[loader]]; $KernelID]];
     queue = todo; running = {};
     While[queue =!= {} || running =!= {},
       While[queue =!= {} && Length[running] < kernels,
         (* ParallelSubmit holds its argument: inject the option VALUES,
            not the main kernel's Module variables *)
-        With[{class = First[queue], tc = timeConstraint, fb = fallback, cv = canonicaValidation},
+        With[{class = First[queue], tc = timeConstraint, fb = fallback, cv = canonicaValidation,
+            ro = regulatorOption, vo = variablesOption},
           AppendTo[running, ParallelSubmit[
-            {class, FeynFacet`Private`diagonalBlockClassRecord[class, Symbol["Global`eps"],
-              tc, fb, cv]}]]];
+            {class, FeynFacet`Private`diagonalBlockClassRecord[class, ro,
+              tc, fb, cv, vo]}]]];
         queue = Rest[queue]];
       If[running =!= {},
         {result, finished, running} = WaitNext[running];
@@ -1774,7 +1867,8 @@ DiagonalBlockClassCampaign[input_, directory_String, OptionsPattern[]] := Module
           report[result[[1]], result[[2]]],
           log["evaluation failed: ", Short[result]]]]];
     CloseKernels[launched],
-    Do[report[class, diagonalBlockClassRecord[class, eps, timeConstraint, fallback, canonicaValidation]],
+    Do[report[class, diagonalBlockClassRecord[class, regulatorOption, timeConstraint,
+        fallback, canonicaValidation, variablesOption]],
       {class, todo}]];
   <|"Directory" -> directory, "Classes" -> Length[classes], "Attempted" -> Length[todo],
     "Canonicalized" -> Count[results, r_ /; r["Status"] === "CANONICALIZED"],

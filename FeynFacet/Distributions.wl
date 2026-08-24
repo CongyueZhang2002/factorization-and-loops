@@ -30,6 +30,12 @@ ClearAll[iSigmaSlash];
 ClearAll[twist2Correlator];
 Clear[\[CapitalPhi], \[CapitalDelta], \[CapitalPhi]b, \[CapitalDelta]b];
 
+(* The collinear-distribution heads this front end declares (quark
+   twist-2).  It is the DEFAULT of the coefficient layer, not its
+   definition: a card whose channel carries other correlators lists
+   their heads under the "DistributionHeads" key of its Setup and
+   BuildSimplificationContext carries them from there (generality pass
+   2026-08-23). *)
 $twist2DistributionHeads = {f1, g1L, h1, D1, G1L, H1};
 
 iSigmaSlash[a_, b_] := I (I/2) (

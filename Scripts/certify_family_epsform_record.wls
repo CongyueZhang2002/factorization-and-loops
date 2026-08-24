@@ -7,6 +7,20 @@ root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 {recordFile, systemFile, outputFile} = Rest[$ScriptCommandLine];
+(* The per-family chart inventory -- including the legacy chart-alias
+   strings that early records carry instead of a catalog name -- is
+   project data since 2026-08-23 (generality pass A1/A3); the package
+   registry starts empty, so this driver registers the table that travels
+   with the differential system it was given. *)
+familyChartFile = FileNameJoin[{
+  ParentDirectory[DirectoryName[ExpandFileName[systemFile]]],
+  "TransportFamilyCharts.wl"}];
+If[FileExistsQ[familyChartFile],
+  familyChartRegistration = FeynFacet`TransportFamilyChartLoad[familyChartFile];
+  If[Lookup[familyChartRegistration, "Status", None] =!= "FamilyChartsRegistered",
+    Print["CERTIFY family chart registration refused: ",
+      InputForm[familyChartRegistration]];
+    Exit[2]]];
 record = FeynFacet`FamilyArtifactRead[recordFile];
 system = FeynFacet`FamilyArtifactRead[systemFile];
 If[! AssociationQ[record] || ! AssociationQ[system],

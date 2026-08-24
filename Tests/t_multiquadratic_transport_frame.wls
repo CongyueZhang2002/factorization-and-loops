@@ -25,6 +25,15 @@ FTAssert["all three root-square identities and the identity Jacobian are exact",
     frame["ChartCertificate"]["RootIdentities"] === {True, True, True} &&
     TrueQ[Together[frame["ChartCertificate"]["JacobianDet"] - 1] === 0]];
 
+(* The per-family chart inventory is PROJECT data since 2026-08-23: the
+   package ships an empty registry, so this test registers the project's
+   own table before asking for its three-root families. *)
+projectChartFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+  "UU_08_10_canonical", "TransportFamilyCharts.wl"}];
+projectChartRegistration = FeynFacet`TransportFamilyChartLoad[projectChartFile];
+FTAssert["the project's family chart table registers",
+  Lookup[projectChartRegistration, "Status", None] === "FamilyChartsRegistered"];
+
 familyFrames = TransportFamilyChart /@ {"CF259", "CF300", "CF303"};
 FTAssert["the three-root inventory resolves to exact multiquadratic frames",
   AllTrue[familyFrames,

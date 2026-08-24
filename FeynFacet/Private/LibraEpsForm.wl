@@ -174,9 +174,9 @@ libraEpsFormPrepareAssembly[
 
 libraEpsFormLoadBackend[requested_] := Module[
   {useFermat, fermaticaFile, fermatExecutable, libraLoaded, testVariable},
-  fermaticaFile = FileNameJoin[{$feynFacetRoot, "Addon",
+  fermaticaFile = FileNameJoin[{$feynFacetAddonRoot, "Addon",
     "Mathematica_Addon", "Fermatica", "source", "Fermatica.wl"}];
-  fermatExecutable = FileNameJoin[{$feynFacetRoot, "Addon",
+  fermatExecutable = FileNameJoin[{$feynFacetAddonRoot, "Addon",
     "Other_Addon", "Fermat", "fer64"}];
   useFermat = Replace[requested,
     Automatic -> (FileExistsQ[fermaticaFile] && FileExistsQ[fermatExecutable])];
@@ -194,7 +194,7 @@ libraEpsFormLoadBackend[requested_] := Module[
         Fermatica`FTogether[(testVariable^2 - 1)/(testVariable - 1)] -
           (1 + testVariable)] === 0],
       Return[<|"Status" -> "FermatArithmeticFailed"|>]]];
-  libraLoaded = masterTransportLoadLibra[$feynFacetRoot];
+  libraLoaded = masterTransportLoadLibra[$feynFacetAddonRoot];
   If[libraLoaded =!= True,
     Return[<|"Status" -> "LibraNotLoaded"|>]];
   If[useFermat,

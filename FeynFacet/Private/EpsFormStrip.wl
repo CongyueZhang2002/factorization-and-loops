@@ -30,6 +30,7 @@ ClearAll[
   epsFormStripVariableFactors,
   epsFormStripRunCanonicaOne,
   epsFormStripRunCanonica,
+  epsFormStripUnknownNameCollisions,
   epsFormStripSafeTag
 ];
 
@@ -43,6 +44,9 @@ SolveResidueRationalGauge::maple =
   "Maple did not produce a rational gauge satisfying both differential equations exactly.";
 SolveResidueRationalGauge::symbols =
   "Maple serialization found distinct Mathematica symbols with the same unqualified name: `1`.";
+SolveResidueRationalGauge::unknownname =
+  "The generated Maple unknowns collide with the caller's symbols `1`; \
+rename the variables or the regulator.";
 
 SolveEpsFormStrip::shape =
   "The two-variable strip matrices e, c, and bbar have incompatible dimensions.";
@@ -53,16 +57,21 @@ SolveEpsFormStrip::degrees =
 SolveEpsFormStrip::failed =
   "Neither the configured CANONICA searches nor the exact Maple construction found a gauge.";
 
+(* Add-on and tool locations: the add-on tree through
+   $feynFacetAddonRoot and the package's own tool through
+   $feynFacetDirectory, so an installation whose add-ons or package
+   directory do not sit under one parent still resolves them
+   (generality pass 2026-08-23; defaults unchanged). *)
 $epsFormStripCanonicaFile = FileNameJoin[{
-  $feynFacetRoot, "Addon", "Mathematica_Addon", "CANONICA", "src",
+  $feynFacetAddonRoot, "Addon", "Mathematica_Addon", "CANONICA", "src",
   "CANONICA.m"
 }];
 $epsFormStripMapleLibrary = FileNameJoin[{
-  $feynFacetRoot, "Addon", "Other_Addon", "Maple",
+  $feynFacetAddonRoot, "Addon", "Other_Addon", "Maple",
   "IntegrableConnections"
 }];
 $epsFormStripCPURunner = FileNameJoin[{
-  $feynFacetRoot, "FeynFacet", "Tools", "RunWithCPUList.sh"
+  $feynFacetDirectory, "Tools", "RunWithCPUList.sh"
 }];
 
 epsFormStripCanonicaSymbol[name_String] := Module[{public, private},
@@ -361,6 +370,19 @@ epsFormStripVariableFactors[
       Select[alphabet,
         PolynomialQ[#, variables] && ! FreeQ[#, variable] &]];
 
+(* Which of the caller's symbols would be swallowed by the generated
+   Maple unknowns: the unknown head's own name, and any name of the form
+   <free-constant prefix><digits>.  With Unique-tagged names this is
+   empty by construction; it is checked, not assumed, because the whole
+   failure mode (Global`c against a variable named c) was silent
+   (generality pass 2026-08-23). *)
+epsFormStripUnknownNameCollisions[symbols_List, unknownName_String,
+    freeConstantPrefix_String] :=
+  Select[Cases[symbols, _Symbol],
+    SymbolName[#] === unknownName ||
+      StringMatchQ[SymbolName[#],
+        freeConstantPrefix ~~ DigitCharacter ..] &];
+
 Options[SolveResidueRationalGauge] = {
   "MapleExecutable" -> "maple",
   "MapleLibrary" -> Automatic,
@@ -393,7 +415,8 @@ SolveResidueRationalGauge[
    solutionText, residueText,
    methodText, methodParts, mapleMethod, denominatorPower,
    numeratorOffset,
-   indexedConstantIndices, indexedConstantSymbols, indexedConstantRules,
+   mapleUnknownName, mapleFreeConstantPrefix, mapleNameCollisions,
+   indexedConstantTokens, indexedConstantSymbols, indexedConstantRules,
    parseMaple, gaugeVectorParametric, residueValuesParametric,
    gaugeParametric, residueRulesParametric, forcingParametric,
    odeResidualParametric, parameterVariables, parameterEquations,
@@ -450,7 +473,24 @@ SolveResidueRationalGauge[
         Transpose[c[[mu]]]]),
     {mu, 2}];
   externalIndices = Range[1001, 1000 + Length[freeResidues]];
-  mapleUnknownHead = Symbol["Global`c"];
+  (* The names Maple sees.  toMaple strips contexts, so what reaches the
+     Maple file is the SymbolName alone: the old Global`c head and the
+     Global`cc<n> free constants below claimed two of the likeliest
+     names in a caller's own alphabet, and a system written in variables
+     c and cc1 had its unknowns identified with its kinematics with no
+     diagnosis at all.  Both are now Unique-tagged -- letters and digits
+     only, which is what a Maple identifier admits -- and a residual
+     collision with a variable or the regulator is refused by name
+     (generality pass 2026-08-23). *)
+  mapleUnknownHead = Unique["mapleUnknownC"];
+  mapleUnknownName = SymbolName[mapleUnknownHead];
+  mapleFreeConstantPrefix = SymbolName[Unique["mapleFreeC"]] <> "x";
+  mapleNameCollisions = epsFormStripUnknownNameCollisions[
+    Join[variables, {epsilon}], mapleUnknownName, mapleFreeConstantPrefix];
+  If[mapleNameCollisions =!= {},
+    Message[SolveResidueRationalGauge::unknownname,
+      SymbolName /@ mapleNameCollisions];
+    Return[$Failed]];
   mapleUnknowns = mapleUnknownHead /@ externalIndices;
   forcingUnknown = forcing /. Thread[freeResidues -> mapleUnknowns];
   source = Flatten /@ forcingUnknown;
@@ -632,16 +672,27 @@ SolveResidueRationalGauge[
     numeratorOffset = If[Length[methodParts] >= 3,
       ToExpression[methodParts[[3]]], Missing["NotApplicable"]];
 
-    indexedConstantIndices = Union[StringCases[
+    (* The free constants Maple left in the answer are of TWO families
+       and both must be read back: the unknowns we passed in, which print
+       under the generated head, and Maple's OWN integration constants,
+       which print as c[1], c[2], ... -- a Maple convention, not a name
+       of ours, and the reason our external indices start at 1001.  The
+       old code scanned a single "c[" pattern and so caught both by
+       accident; naming ours privately (C5) makes the two patterns
+       explicit.  Dropping Maple's constants here leaves them in the
+       gauge and returns a different, non-minimal member of the
+       solution family (measured 2026-08-23: 1/x*(x*c[1]+1) instead of
+       1/x on the t_eps_form_strip fixture). *)
+    indexedConstantTokens = Union[StringCases[
       solutionText <> residueText,
-      "c[" ~~ digits : DigitCharacter .. ~~ "]" :>
-        ToExpression[digits]]];
-    indexedConstantSymbols =
-      Symbol["Global`cc" <> ToString[#]] & /@ indexedConstantIndices;
+      (mapleUnknownName | "c") ~~ "[" ~~ DigitCharacter .. ~~ "]"]];
+    indexedConstantSymbols = Table[
+      Symbol[mapleFreeConstantPrefix <> ToString[i]],
+      {i, Length[indexedConstantTokens]}];
     indexedConstantRules = Table[
-      "c[" <> ToString[indexedConstantIndices[[i]]] <> "]" ->
+      indexedConstantTokens[[i]] ->
         SymbolName[indexedConstantSymbols[[i]]],
-      {i, Length[indexedConstantIndices]}];
+      {i, Length[indexedConstantTokens]}];
     parseSymbolByName = Join[mapleSymbolByName,
       AssociationThread[
         SymbolName /@ indexedConstantSymbols -> indexedConstantSymbols]];

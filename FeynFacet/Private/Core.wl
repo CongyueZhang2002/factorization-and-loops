@@ -2,6 +2,42 @@
 
 NA = Missing["NotApplicable"];
 
+(* --- installation geometry ---------------------------------------- *)
+
+(* The directory under which the package creates its OWN scratch
+   workspaces (Kira projects, coefficient stores).  That is a property
+   of the installation, not of the package's parent directory: a user
+   whose result tree lives on one filesystem and whose scratch space
+   lives on another sets Global`$FACETWorkspaceRoot before loading.  The
+   default is the repository root, which is where every workspace this
+   repository already contains was created (generality pass
+   2026-08-23). *)
+$feynFacetWorkspaceRoot = If[StringQ[Global`$FACETWorkspaceRoot],
+  Global`$FACETWorkspaceRoot,
+  $feynFacetRoot
+];
+
+(* Machine size.  The kernel ceiling 8 and the CPU-list width 16 used to
+   be literals; they are MEASURED caps of this installation (the shared
+   licence accepts 8 subkernels; the CPU list was written for a 16-core
+   budget) and stay as caps, but the machine size behind them is now
+   read from the system.  The two counts differ and both are needed:
+   $ProcessorCount is what the Wolfram kernel will parallelize over (8
+   on this box), while a taskset CPU list must name OPERATING-SYSTEM
+   cpus (20 on this box), so the OS count is read where the kernel can
+   see it and $ProcessorCount is the floor. *)
+$facetKernelCeiling = 8;
+$facetCPUCap = 16;
+
+facetProcessorCount[] := facetProcessorCount[] = Module[{count = 0, text},
+  If[FileExistsQ["/proc/cpuinfo"],
+    text = Quiet @ Check[Import["/proc/cpuinfo", "Text"], $Failed];
+    If[StringQ[text],
+      count = Length @ StringCases[text,
+        StartOfLine ~~ "processor" ~~ WhitespaceCharacter ... ~~ ":"]]];
+  Max[count, $ProcessorCount, 1]
+];
+
 GlobalBasisGram = {
   {0, 1, 0, 0},
   {1, 0, 0, 0},
@@ -24,29 +60,30 @@ facetKernelCount[requested_: Automatic, workload_: Infinity] := Module[
         IntegerQ[Quiet[Check[ToExpression[environment], $Failed]]] &&
         ToExpression[environment] > 0,
       ToExpression[environment],
-    True, 8
+    True, $facetKernelCeiling
   ];
-  ceiling = Min[8, ceiling];
+  ceiling = Min[$facetKernelCeiling, Max[1, $ProcessorCount], ceiling];
   count = If[IntegerQ[requested] && requested > 0,
     Min[requested, ceiling], ceiling];
   If[IntegerQ[workload] && workload > 0, Min[count, workload], count]
 ];
 
 facetCPUList[] := Module[
-  {value = Environment["FACET_CPU_LIST"], parts, cpus},
+  {value = Environment["FACET_CPU_LIST"], width, fallback, parts, cpus},
+  width = Min[$facetCPUCap, facetProcessorCount[]];
+  fallback = StringRiffle[ToString /@ Range[0, width - 1], ","];
   If[! StringQ[value] ||
       ! StringMatchQ[value,
         RegularExpression["[0-9]+(?:[-,][0-9]+)*"]],
-    Return[StringRiffle[ToString /@ Range[0, 15], ","]]];
+    Return[fallback]];
   parts = StringSplit[value, ","];
   cpus = Flatten[parts /. part_String :>
       If[StringContainsQ[part, "-"],
         With[{bounds = ToExpression /@ StringSplit[part, "-"]},
           If[bounds[[1]] <= bounds[[2]], Range @@ bounds, {}]],
         {ToExpression[part]}]];
-  cpus = Take[DeleteDuplicates[cpus], UpTo[16]];
-  If[cpus === {}, StringRiffle[ToString /@ Range[0, 15], ","],
-    StringRiffle[ToString /@ cpus, ","]]
+  cpus = Take[DeleteDuplicates[cpus], UpTo[width]];
+  If[cpus === {}, fallback, StringRiffle[ToString /@ cpus, ","]]
 ];
 
 resultHeader[format_, version_Integer] := <|
@@ -67,6 +104,35 @@ artifactHeaderQ[data_, format_String, version_Integer] :=
     Lookup[data, "Format", None] === format &&
     Lookup[data, "FormatVersion", None] === version;
 
+(* The regulator a context is written in: its own "Regulator" entry when
+   it carries one, the package symbol otherwise.  A context that names no
+   regulator is read in the package's own, which is what every context
+   this repository has stored does (generality pass 2026-08-23). *)
+analyticContextRegulator[context_] := With[
+  {declared = Lookup[context, "Regulator", Automatic]},
+  If[MatchQ[declared, _Symbol] && declared =!= Automatic,
+    declared, $feynFacetEpsilon]
+];
+
+(* The dimension rule is validated by SHAPE, not by identity with the
+   package global.  What the package actually requires of a dimension
+   rule is D -> a - 2 regulator with an INTEGER a and a SYMBOL
+   regulator: that is the form every dimensional shift, expansion and
+   pole-counting rule here is written for.  Testing identity with
+   $dimensionRule additionally demanded a = 4 and the one global symbol
+   Global`Epsilon, which is a property of this front end and not of the
+   algebra; D -> 6 - 2 ep is an equally valid analytic context and used
+   to be refused with no diagnosis. *)
+analyticDimensionRuleQ[rule_, regulator_] := Module[{right},
+  If[! MatchQ[rule, Rule[System`D, _]] || ! MatchQ[regulator, _Symbol],
+    Return[False]];
+  right = Last[rule];
+  TrueQ[PolynomialQ[right, regulator]] &&
+    TrueQ[Exponent[right, regulator] === 1] &&
+    TrueQ[Coefficient[right, regulator, 1] === -2] &&
+    IntegerQ[Coefficient[right, regulator, 0]]
+];
+
 analyticContextQ[context_] := Module[{required},
   required = {
     "Gamma5Scheme", "GlobalBasis", "GlobalBasisGram",
@@ -78,8 +144,11 @@ analyticContextQ[context_] := Module[{required},
   };
   AssociationQ[context] &&
     ContainsAll[Keys[context], required] &&
+    (* the front end declares BMHV and nothing else: the evanescent
+       bookkeeping downstream is written for that scheme *)
     context["Gamma5Scheme"] === "BMHV" &&
-    context["DimensionRule"] === $dimensionRule &&
+    analyticDimensionRuleQ[context["DimensionRule"],
+      analyticContextRegulator[context]] &&
     StringQ[context["FeynFacetSourceHash"]] &&
     context["Fingerprint"] ===
       reductionFingerprint[KeyDrop[context, "Fingerprint"]] &&

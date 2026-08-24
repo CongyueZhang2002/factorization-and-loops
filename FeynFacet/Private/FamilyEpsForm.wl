@@ -22,7 +22,7 @@ ClearAll[
   familyEpsFormDiagonalBlocks,
   familyEpsFormLegacyChart,
   familyEpsFormDegreeData, familyEpsFormEvaluate, familyEpsFormIdentitiesAtPoints,
-  $familyEpsFormChartAliases, $familyArtifactReadMessages
+  $familyArtifactReadMessages
 ];
 
 (* Context-guarded artifact reader. After CANONICA is on the context
@@ -105,18 +105,18 @@ familyEpsFormDiagonalBlocks[blocks_, dimension_Integer] := Module[{plain},
 ];
 
 (* Legacy chart aliases: early census records store a descriptive
-   substitution string instead of the catalog name. The map is exact --
-   each alias was itself generated from the catalog substitution it
-   names. *)
-$familyEpsFormChartAliases = <|
-  "v = x y, w = (1-x)(1-y)" -> "Kallen1"
-|>;
-
+   substitution string instead of the catalog name.  The alias map was a
+   literal project table here until 2026-08-23 (generality pass, A3); it
+   now lives in the campaign's own chart file and is registered through
+   TransportFamilyChartRegister as <|"ChartAlias" -> catalogName|>
+   entries, so the package ships no inventory of its own.  An alias that
+   is not registered leaves the record untouched, and the caller's chart
+   resolution then fails typed on the unrecognized string. *)
 familyEpsFormLegacyChart[record_Association] := Module[
-  {chart = Lookup[record, "Chart", None]},
-  If[StringQ[chart] && KeyExistsQ[$familyEpsFormChartAliases, chart],
-    Join[record, <|"Chart" -> $familyEpsFormChartAliases[chart]|>],
-    record]
+  {chart = Lookup[record, "Chart", None], alias},
+  If[! StringQ[chart], Return[record]];
+  alias = transportFamilyChartAlias[chart];
+  If[StringQ[alias], Join[record, <|"Chart" -> alias|>], record]
 ];
 
 (* Schema normalization for one family epsilon-form record: canonical
