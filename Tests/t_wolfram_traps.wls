@@ -133,10 +133,17 @@ log["C2 ValidateCanonicalForm[", FileNameTake[smallForm], "] -> ", validated,
   ";  CANONICA on $ContextPath: ", MemberQ[$ContextPath, "CANONICA`"],
   ";  CANONICA`eps exists: ", NameQ["CANONICA`eps"]];
 
-FTAssert["C2 ValidateCanonicalForm runs and CANONICA is on $ContextPath \
-afterwards -- otherwise the rest of this section would prove nothing",
-  TrueQ[validated] && MemberQ[$ContextPath, "CANONICA`"]];
-
+FTAssert["C2 ValidateCanonicalForm runs and CANONICA is loaded",
+  TrueQ[validated] && NameQ["CANONICA`eps"]];
+(* The package loaders RESTORE $ContextPath since 2026-08-20, so the
+   trap no longer arms itself -- that fix is itself pinned here.  The
+   bare-Get misread below is a Wolfram behaviour, not a loader behaviour,
+   so the trap is armed DELIBERATELY for the measurement and disarmed
+   right after (2026-08-23; previously this section asserted the leak
+   still existed and went red when the loader fix worked). *)
+FTAssert["C2' the loaders no longer leak CANONICA onto $ContextPath",
+  ! MemberQ[$ContextPath, "CANONICA`"]];
+PrependTo[$ContextPath, "CANONICA`"];
 afterRead = Get[fixture];
 afterSymbols = symbolContexts[afterRead];
 log["C3 MEASURED contexts after CANONICA is loaded, bare Get: ",
@@ -157,10 +164,11 @@ FTAssert["C4' the normalizer changes only the CONTEXT: the normalized \
 read is identical to the context-blocked reference read",
   TrueQ[normalizedRead === controlRead]];
 
-FTAssert["C3' the trap is REAL in this kernel: the bare Get after \
-CANONICA is loaded does NOT give the reference expression",
+FTAssert["C3' with CANONICA` deliberately on $ContextPath, the bare Get \
+misreads: it does NOT give the reference expression",
   ! TrueQ[afterRead === controlRead] &&
     MemberQ[afterSymbols, {"eps", "CANONICA`"}]];
+$ContextPath = DeleteCases[$ContextPath, "CANONICA`"];
 
 (* MEASURED, not asserted: the one-inline-rule spelling of the same
    normalization, which several scripts in this tree use.  If it leaves

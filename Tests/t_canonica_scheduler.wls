@@ -14,9 +14,15 @@ strip = {
 };
 alphabet = FeynFacet`Private`epsFormStripAlphabet[
   strip, {testX, testY}, testEpsilon];
+(* a KernelPool subkernel cannot launch its own subkernels
+   (LaunchKernels::subnopar); the scheduler's serial path is the same
+   code with kernel count 1, so the test degrades instead of failing
+   when it runs inside a pool (was a documented standalone-only red,
+   2026-08-23) *)
+schedulerKernels = If[$KernelID =!= 0, 1, 2];
 result = FeynFacet`Private`epsFormStripRunCanonica[
   strip, {testX, testY}, testEpsilon, alphabet,
-  {0, 1}, 1, 20, 2];
+  {0, 1}, 1, 20, schedulerKernels];
 
 checks = <|
   "Association" -> AssociationQ[result],
