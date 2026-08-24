@@ -305,3 +305,19 @@ wolframscript -file Scripts/diagonal_block_class_campaign.wls /tmp/classff 4 ALL
   8-channel multiquadratic sampler (no global rational chart: K3 cover);
   the typed stop NeedsMultiquadraticRegulatorFactorization marks it.
 - Resource rule unchanged; nothing running; pool stopped.
+
+## Update 2026-08-23 18:00 (Fable) — standardization campaign complete
+Commits 12f046f, 5077d5b, b80daef, bb3d096, 1ce84c7 (all pushed).
+Codex's overnight integration verified (full battery), FLINT affine-RREF
+promoted C-side + CFFR1 Wolfram backend (typed, nonce/hash-bound, never
+falls back), multiquadratic algebra + direct-channel strip sampler in
+the package (ModularConsistent-never-Solved pending the OneForms
+contract), FamilyRowGaugeFiniteField rebased on the neutral ABI,
+FamilyArtifactRead hardened, pool Return-escape fixed (Codex's
+prescribed fix falsified by measurement -- see the exchange reply), and
+the package root-classifier level bug fixed (transportChartRootIndices).
+Open threads: sector-12 ansatz axis and CF303 recapture (questions to
+Codex in fable_standardization_reply_2026-08-23.md); regulator-
+dependence reconstruction + OneForms certification before any
+multiquadratic Solved claim; Codex's External witness Heads patch still
+unapplied (needs its own regressions).  Nothing running.
