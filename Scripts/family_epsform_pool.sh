@@ -12,6 +12,12 @@
 #     two helpers are always free;
 #   - each solved family is certified (CertifyFamilyEpsilonForm) into
 #     FamilyEpsFormsCertified/ by a pool mission.
+# Missions are submitted with the fresh_ prefix (2026-08-23, user decision):
+# the subkernel that ran a family's solve or certificate is closed and
+# replaced afterwards, so no campaign state (Global symbols, package
+# contexts, basis pollution -- BuildBasis::length on cert_CF385) survives
+# into the next family.  Cost: one FACET preload per mission (~seconds)
+# against multi-minute solves.
 # Usage: family_epsform_pool.sh <output-root> <pooldir> <nkernels> <family> [family ...]
 # Env:   FACET_CPU_LIST (default 0,1,6,7,8,9,18,19 = the P-cores),
 #        FACET_RATIONAL_MAPLE_BUDGET (default 300), FACET_SECTOR_BUDGET (1800)
@@ -52,22 +58,22 @@ echo "pool: $(grep -o 'running [0-9]* (license' "$pool/pool.log" | tail -1); fam
 run_family() {   # submit, wait, certify -- one family, sequential
   local family="$1" t0; t0=$(date +%s)
   mkdir -p "$out/$family"
-  ln -sfn "$pool/logs/sol_$family.log" "$out/$family/run.log"
-  "$root/Scripts/kpsubmit.sh" "sol_$family" "$root/Scripts/family_epsform_sector.wls" \
+  ln -sfn "$pool/logs/fresh_sol_$family.log" "$out/$family/run.log"
+  "$root/Scripts/kpsubmit.sh" "fresh_sol_$family" "$root/Scripts/family_epsform_sector.wls" \
     "$family" "$out/$family" "$sector_budget" standard 30 > /dev/null
-  printf '%s\tsolving\t%s\t-\t-\tmission sol_%s\n' "$family" "$(date --iso-8601=seconds)" "$family" >> "$status"
-  "$root/Scripts/kpwait.sh" "sol_$family" 259200 > "$out/${family}_solve.status" 2>&1
+  printf '%s\tsolving\t%s\t-\t-\tmission fresh_sol_%s\n' "$family" "$(date --iso-8601=seconds)" "$family" >> "$status"
+  "$root/Scripts/kpwait.sh" "fresh_sol_$family" 259200 > "$out/${family}_solve.status" 2>&1
   local record="$out/$family/family_epsform_$family.wl"
   if ! grep -q '"Status" -> "OK"' "$out/${family}_solve.status" || [[ ! -f "$record" ]]; then
     printf '%s\tsolve-failed\t-\t%s\t%d\t%s\n' "$family" "$(date --iso-8601=seconds)" "$(( $(date +%s) - t0 ))" \
       "$(grep -o '"Status" -> "[A-Z0-9]*"' "$out/${family}_solve.status" | head -1)" >> "$status"; return
   fi
-  printf '%s\tcertifying\t-\t-\t%d\tmission cert_%s\n' "$family" "$(( $(date +%s) - t0 ))" "$family" >> "$status"
-  "$root/Scripts/kpsubmit.sh" "cert_$family" "$root/Scripts/certify_family_epsform_record.wls" \
+  printf '%s\tcertifying\t-\t-\t%d\tmission fresh_cert_%s\n' "$family" "$(( $(date +%s) - t0 ))" "$family" >> "$status"
+  "$root/Scripts/kpsubmit.sh" "fresh_cert_$family" "$root/Scripts/certify_family_epsform_record.wls" \
     "$record" "$R/DifferentialEquations/nnlo_de_$family.wl" "$certified/family_epsform_$family.wl" > /dev/null
-  "$root/Scripts/kpwait.sh" "cert_$family" 86400 > "$out/${family}_certify.status" 2>&1
-  ln -sfn "$pool/logs/cert_$family.log" "$out/${family}_certify.log"
-  local verdict; verdict="$(grep -o 'CERTIFY.*' "$pool/logs/cert_$family.log" | tail -1 | cut -c1-120)"
+  "$root/Scripts/kpwait.sh" "fresh_cert_$family" 86400 > "$out/${family}_certify.status" 2>&1
+  ln -sfn "$pool/logs/fresh_cert_$family.log" "$out/${family}_certify.log"
+  local verdict; verdict="$(grep -o 'CERTIFY.*' "$pool/logs/fresh_cert_$family.log" | tail -1 | cut -c1-120)"
   printf '%s\t%s\t-\t%s\t%d\t%s\n' "$family" \
     "$(grep -q 'exact=True' <<<"$verdict" && echo certified || echo certify-failed)" \
     "$(date --iso-8601=seconds)" "$(( $(date +%s) - t0 ))" "$verdict" >> "$status"

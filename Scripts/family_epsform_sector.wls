@@ -3,7 +3,7 @@
    Existing families remain on the ordinary CANONICA route.  Only a sector
    that ordinary CANONICA cannot transform is completed strip by strip.
 
-   Per sector k = 2..nb, on the truncated connection A[1..nk,1..nk] whose
+   Per sector k = 2..nSectors, on the truncated connection A[1..nk,1..nk] whose
    diagonal blocks are certified eps-forms:
      A. Try CANONICA`TransformOffDiagonalBlock on the complete sector.
      B. If A does not finish, construct CANONICA's exact NextEquationD for
@@ -324,10 +324,10 @@ If[AssociationQ[cachedState] &&
     cachedState = Missing["LegacyCheckpointIncomplete"]]
 ];
 loadCanonica[]; resolveCanonica[];
-nb = Length[ranges]; n = Length[A0[[1]]];
-bounds = Table[{First[ranges[[i]]], Last[ranges[[i]]]}, {i, nb}];
+nSectors = Length[ranges]; nMasters = Length[A0[[1]]];
+bounds = Table[{First[ranges[[i]]], Last[ranges[[i]]]}, {i, nSectors}];
 invariants = {xx, yy};
-log["assembled ", n, "x", n, ", ", nb, " sectors, chart ", chart["Name"], " ", {c1, c2}, " -> ", {xx, yy}];
+log["assembled ", nMasters, "x", nMasters, ", ", nSectors, " sectors, chart ", chart["Name"], " ", {c1, c2}, " -> ", {xx, yy}];
 (* rational entries: Together is a canonical form, so Together === 0 is a
    complete zero test.  masterTransportZeroMatQ fell through to Simplify
    on every nonzero entry; on CF385 (44 masters) the per-sector block
@@ -341,7 +341,7 @@ monic[f_] := Module[{variables = Variables[f], variable, leading},
   variable = First[variables];
   leading = Coefficient[f, variable, Exponent[f, variable]];
   If[NumericQ[leading], Expand[f/leading], f]];
-log["initial: ", Length[badStrips[A0, nb]], " non-eps-factored strips"];
+log["initial: ", Length[badStrips[A0, nSectors]], " non-eps-factored strips"];
 
 (* ---- state (resume) ---- *)
 If[algebraicFrameQ && AssociationQ[cachedState] &&
@@ -355,7 +355,7 @@ state = If[AssociationQ[cachedState], (log["resuming"]; cachedState),
   <|"Sector" -> 1, "OriginalA" -> A0, "Ranges" -> ranges,
     "Blocks" -> assembly["Blocks"],
     "ChartFingerprint" -> chartFingerprint,
-    "S" -> IdentityMatrix[n], "SInverse" -> IdentityMatrix[n],
+    "S" -> IdentityMatrix[nMasters], "SInverse" -> IdentityMatrix[nMasters],
     "A" -> A0, "StripSolvers" -> {}, "SectorCertificates" -> {}|>];
 If[! KeyExistsQ[state, "TDiagonal"] && ListQ[freshDiagonal],
   state["TDiagonal"] = freshDiagonal[[1]];
@@ -451,8 +451,8 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
     state["Stop"] = <|"Status" -> "RegulatorPropagationRejected",
       "Rows" -> m, "Detail" -> propagation|>;
     putAtomic[state, stateFile]; Exit[2]];
-  tFull = IdentityMatrix[n]; tFull[[1 ;; nm, 1 ;; nm]] = factor["Transformation"];
-  tInv = IdentityMatrix[n]; tInv[[1 ;; nm, 1 ;; nm]] = factor["Inverse"];
+  tFull = IdentityMatrix[nMasters]; tFull[[1 ;; nm, 1 ;; nm]] = factor["Transformation"];
+  tInv = IdentityMatrix[nMasters]; tInv[[1 ;; nm, 1 ;; nm]] = factor["Inverse"];
   (* products with the constant T entry by entry over its nonzero pattern
      (the plain Dot + Together of the full 44x44 triple product took 30 GB
      on CF385 sector 32, 2026-08-22) *)
@@ -489,8 +489,8 @@ memtrace[tag_] := If[StringQ[Environment["FACET_MEMTRACE"]],
    block (k, j) with the blocks D_{km}, j < m < k, already installed is
      dD_{kj} = eps (e D_{kj} - D_{kj} c) + bbar,
      bbar = A_{kj} - Sum_{j<m<k} D_{km} A_{mj},  e = A_kk/eps,  c = A_jj/eps.
-   The former code inverted the full n x n gauge symbolically and
-   Together'd n^3 products: 30 GB on CF385 sector 31 (44 masters). *)
+   The former code inverted the full nMasters x nMasters gauge symbolically and
+   Together'd nMasters^3 products: 30 GB on CF385 sector 31 (44 masters). *)
 blockRows[m_] := ranges[[m]];
 (* the equation of block (k, j) from the current connection and the
    solved blocks of this row (an association j -> D_{kj}) *)
@@ -927,7 +927,7 @@ Do[
     {secs, res2} = AbsoluteTiming[Quiet[TimeConstrained[CANONICA`TransformDlogToEpsForm[invariants, bounds[[1 ;; k]], IdentityMatrix[nk], res[[2]], CANONICA`VerbosityLevel -> 0], sectorBudget, {False, "TimedOut"}]]];
     log["  TransformDlogToEpsForm: ", Round[secs, 0.1], " s", If[res2[[1]] === False, " -> returned False (dlog step kept)", ""]];
     dk2 = If[res2[[1]] === False, IdentityMatrix[nk], fromC[res2[[1]]]]];
-  sfull = IdentityMatrix[n]; sfull[[1 ;; nk, 1 ;; nk]] = Together[dk . dk2];
+  sfull = IdentityMatrix[nMasters]; sfull[[1 ;; nk, 1 ;; nk]] = Together[dk . dk2];
   sfullInverse = Together[Inverse[sfull]];
   aPrevious = state["A"];
   aNew = Table[Map[Together,
@@ -935,7 +935,7 @@ Do[
       sfullInverse . D[sfull, {xx, yy}[[mu]]], {2}], {mu, 2}];
   (* Development only: the inverse identity of the sector gauge.  (The
      former stageGauge recomputed the expression that defines aNew and
-     subtracted it -- vacuous by construction, two n x n Together passes
+     subtracted it -- vacuous by construction, two nMasters x nMasters Together passes
      per sector; removed 2026-08-22.) *)
   stageInverse = If[productionQ, Missing["NotRunProduction"],
     zeroQ[
@@ -975,11 +975,11 @@ Do[
     memtrace["sector " <> ToString[k] <> " full badStrips census deferred"];
     log["  sector ", k, " done; full non-eps-factored strip census " <>
       "deferred in Production; exact acceptance remains the family certificate"],
-    remaining = Length[badStrips[state["A"], nb]];
+    remaining = Length[badStrips[state["A"], nSectors]];
     memtrace["sector " <> ToString[k] <> " after badStrips"];
     log["  sector ", k,
       " done; non-eps-factored strips remaining (all sectors): ", remaining]]],
- {k, Max[2, state["Sector"] + 1], nb}];
+ {k, Max[2, state["Sector"] + 1], nSectors}];
 
 (* ---- family-level regulator factorization (FiniteFieldFirst route) ---- *)
 If[blockwiseRouteQ &&
@@ -1010,7 +1010,7 @@ Ap = {state["A"][[1]] /. fromXY, state["A"][[2]] /. fromXY};
 Aorig = {assembly["Apv"], assembly["Apw"]};
 allEps = epsFormQ[Ap[[1]]] && epsFormQ[Ap[[2]]];
 sectorCertificatesExact =
-  Length[state["SectorCertificates"]] === Max[0, nb - 1] &&
+  Length[state["SectorCertificates"]] === Max[0, nSectors - 1] &&
   AllTrue[state["SectorCertificates"],
     TrueQ[Lookup[#, "TransformationInverse", False]] &&
       TrueQ[Lookup[#, "GaugeIdentity", False]] &];
@@ -1030,8 +1030,8 @@ If[productionQ,
     TrueQ[assembly["Certificate"]["FlatnessOriginal"]];
   gaugeRoute = "CompositionOfExactSectorGaugeIdentities";
   flatnessRoute = "GaugeCovarianceFromExactSourceFlatness",
-  finalInverse = zeroQ[S . Sinv - IdentityMatrix[n]] &&
-    zeroQ[Sinv . S - IdentityMatrix[n]];
+  finalInverse = zeroQ[S . Sinv - IdentityMatrix[nMasters]] &&
+    zeroQ[Sinv . S - IdentityMatrix[nMasters]];
   gauge = zeroQ[Map[Together,
       Sinv . Aorig[[1]] . S - Sinv . D[S, c1] - Ap[[1]], {2}]] &&
     zeroQ[Map[Together,
