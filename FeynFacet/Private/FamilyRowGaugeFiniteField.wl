@@ -14,92 +14,147 @@
 
    No Together is used by the modular evaluator.  In particular, dD is
    differentiated exactly once during preparation and then evaluated as
-   an ordinary tagged term at every modular point. *)
+   an ordinary tagged term at every modular point.
+
+   THE MULTIQUADRATIC ALGEBRA IS NOT IMPLEMENTED HERE (2026-08-23).
+   Every grade, character-table, root-product, conjugate-projection,
+   square-class and root-ordering operation is one call into the neutral
+   ABI -- MultiquadraticAlgebra.wl and the canonical-text / square-class
+   helpers of MultiquadraticStripSolve.wl, both registered in
+   FeynFacet.m.  This file owns only the ROW ORACLE: sparse support, the
+   tagged term records, the recursive modular evaluator, the
+   fingerprints, and the typed failures.  The duplicated copies that
+   lived here until 2026-08-23 are deleted and are explicitly ClearAll'ed
+   below, so that a re-Get in a session which loaded the old file cannot
+   leave a second implementation behind.
+
+   Three consequences of that deletion, all measured by
+   Tests/t_multiquadratic_algebra_differential.wls (which was the
+   agreement gate before the deletion and is the delegation gate after
+   it):
+
+     - ROOT ORDER.  The order is now the neutral one: the canonical
+       InputForm text of the root square with the chart variables mapped
+       to formal System` symbols.  The deleted key was the printed text
+       of the root square in the CALLER's symbols, and it never reached
+       FullForm at all -- ToString[FullForm[Unevaluated[expr]], InputForm]
+       returns the text "FullForm[Unevaluated[<expr as the reader prints
+       it>]]", so the key changed with $Context/$ContextPath (pool defect
+       3).  Grade masks therefore relabel: {x, y, x + y} used to order as
+       {x, x + y, y} and now orders as {x + y, x, y}.  Admissible only
+       because this file is unregistered and no shipped artifact is keyed
+       to its order.  The fingerprint payloads are the canonical texts
+       for the same reason, and their version tags are bumped to V2.
+
+     - SIGN REPRESENTATIVE.  multiquadraticSquareRoots returns the raw
+       PowerMod value; this oracle's sign ABI is the SMALLER of the two
+       roots, so the normalization Min[r, p - r] is applied here, once,
+       at the consumer boundary in familyRowGaugeFFSquareRoot.
+
+     - The neutral ABI declares a modular square root only for
+       p == 3 (mod 4).  familyRowGaugeFFTonelliShanks stays in this
+       layer for p == 1 (mod 4); it is the one algebra primitive still
+       implemented here, and it is not a duplicate of anything.
+
+   The split-point test is deliberately NOT delegated to
+   multiquadraticSplitPointQ: that predicate substitutes into the raw
+   radicands and reduces with Mod, which is the rational remainder rather
+   than the field image on rational coefficients, and it returns one
+   boolean where this layer must distinguish a ramified point from a
+   non-split one.  The radicands are evaluated here through the same
+   modular evaluator as every other term. *)
+
+Begin["FeynFacet`Private`"];
 
 ClearAll[
   familyRowGaugeFiniteFieldPrepare,
   familyRowGaugeFiniteFieldEvaluate,
   familyRowGaugeFiniteFieldOracle,
   familyRowGaugeFFSupport,
-  familyRowGaugeFFStableKey,
   familyRowGaugeFFSymbolKey,
+  familyRowGaugeFFZeroQ,
+  familyRowGaugeFFCanonicalRules,
+  familyRowGaugeFFCanonicalKey,
+  familyRowGaugeFFCanonicalizeRoots,
+  familyRowGaugeFFReplaceRoots,
+  familyRowGaugeFFRoot,
+  familyRowGaugeFFFieldFingerprint,
+  familyRowGaugeFFPreparationFingerprint,
+  familyRowGaugeFFCoefficientDenominators,
+  familyRowGaugeFFModEvaluate,
+  familyRowGaugeFFTonelliShanks,
+  familyRowGaugeFFSquareRoot
+];
+
+(* Retired duplicates of the neutral ABI (deleted 2026-08-23).  Cleared,
+   not merely removed, so that re-reading this file in a kernel that
+   loaded the pre-deletion version leaves no second implementation:
+
+     familyRowGaugeFFStableKey            -> multiquadraticStripCanonicalText
+                                             (and familyRowGaugeFFSymbolKey
+                                             for symbol sort keys)
+     familyRowGaugeFFEquivalentQ          -> multiquadraticStripZeroQ
+     familyRowGaugeFFRadicalBases         -> transportChartRadicalBases
+     familyRowGaugeFFUniqueEquivalent     -> DeleteDuplicates + the above
+     familyRowGaugeFFRationalSquareConstantQ
+                                          -> multiquadraticStripRationalSquareQ
+     familyRowGaugeFFRationalFunctionSquareQ
+                                          -> multiquadraticStripSquareClassSquareQ
+     familyRowGaugeFFHadamard             -> multiquadraticHadamardMatrix
+     familyRowGaugeFFRootProducts         -> multiquadraticMaskFactor
+     familyRowGaugeFFProjectConjugates    -> multiquadraticProjectConjugates
+                                             + multiquadraticEvaluateConjugates
+     familyRowGaugeFFUnresolvedRoot       -> a leftover fractional power,
+                                             detected structurally *)
+ClearAll[
+  familyRowGaugeFFStableKey,
   familyRowGaugeFFEquivalentQ,
   familyRowGaugeFFRadicalBases,
   familyRowGaugeFFUniqueEquivalent,
   familyRowGaugeFFRationalSquareConstantQ,
   familyRowGaugeFFRationalFunctionSquareQ,
-  familyRowGaugeFFCanonicalizeRoots,
-  familyRowGaugeFFReplaceRoots,
-  familyRowGaugeFFRoot,
-  familyRowGaugeFFUnresolvedRoot,
-  familyRowGaugeFFFieldFingerprint,
-  familyRowGaugeFFPreparationFingerprint,
-  familyRowGaugeFFCoefficientDenominators,
-  familyRowGaugeFFModEvaluate,
-  familyRowGaugeFFSquareRoot,
   familyRowGaugeFFHadamard,
   familyRowGaugeFFRootProducts,
-  familyRowGaugeFFProjectConjugates
+  familyRowGaugeFFProjectConjugates,
+  familyRowGaugeFFUnresolvedRoot
 ];
 
 familyRowGaugeFFSupport[entries_List] :=
   Flatten[Position[entries, Except[0], {1}, Heads -> False]];
 
-familyRowGaugeFFStableKey[expression_] :=
-  ToString[FullForm[Unevaluated[expression]], InputForm];
-
+(* A symbol sort key that carries its context explicitly: unlike printed
+   text it does not change with the reader's $ContextPath. *)
 familyRowGaugeFFSymbolKey[symbol_Symbol] :=
   {Context[symbol], SymbolName[symbol]};
 
-familyRowGaugeFFEquivalentQ[left_, right_] :=
-  SameQ[left, right] || TrueQ[Quiet[Check[
-    Together[left - right] === 0, False]]];
+familyRowGaugeFFZeroQ[value_] := TrueQ[Quiet[multiquadraticStripZeroQ[value]]];
 
-familyRowGaugeFFRadicalBases[expression_] := Cases[
-  Unevaluated[expression],
-  Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
-    base, {0, Infinity}, Heads -> True];
+(* The canonical text of a root square, in formal System` symbols, is the
+   root sort key and the fingerprint payload.  The regulator slot of
+   multiquadraticStripCanonicalRules is filled with the formal regulator
+   itself: root squares are regulator-free here (a root square carrying
+   any non-chart symbol is refused as NonKinematicRootSquare), so the
+   rule is inert, and using the neutral rule builder keeps the variable
+   images -- and therefore the order -- identical to
+   multiquadraticStripRootOrder's. *)
+familyRowGaugeFFCanonicalRules[variables : {_Symbol, _Symbol}] :=
+  multiquadraticStripCanonicalRules[variables, \[FormalE]];
 
-familyRowGaugeFFUniqueEquivalent[items_List] := Fold[
-  Function[{current, item},
-    If[AnyTrue[current, Function[existing,
-        familyRowGaugeFFEquivalentQ[existing, item]]], current,
-      Append[current, item]]], {}, items];
-
-familyRowGaugeFFRationalSquareConstantQ[
-    value : (_Integer | _Rational)] := value >= 0 &&
-  IntegerQ[Sqrt[Numerator[value]]] &&
-  IntegerQ[Sqrt[Denominator[value]]];
-
-(* A Hadamard rank r requires 2^r independent sign automorphisms.  Distinct
-   radicands are not sufficient: {x,y,x y}, for example, has square-class
-   rank two.  Factorization over Q detects exactly the rational-function
-   square relations admitted by this evaluator. *)
-familyRowGaugeFFRationalFunctionSquareQ[expression_] := Module[
-  {q, numeratorFactors, denominatorFactors, constant},
-  q = Quiet[Check[Together[expression], $Failed]];
-  If[q === $Failed || ! FreeQ[q,
-      Power[_, exponent_Rational] /; Denominator[exponent] =!= 1],
-    Return[False]];
-  numeratorFactors = Quiet[Check[FactorList[Numerator[q]], $Failed]];
-  denominatorFactors = Quiet[Check[FactorList[Denominator[q]], $Failed]];
-  If[numeratorFactors === $Failed || denominatorFactors === $Failed ||
-      numeratorFactors === {} || denominatorFactors === {},
-    Return[False]];
-  constant = First[First[numeratorFactors]] /
-    First[First[denominatorFactors]];
-  familyRowGaugeFFRationalSquareConstantQ[constant] &&
-    AllTrue[Rest[numeratorFactors], EvenQ[Last[#]] &] &&
-    AllTrue[Rest[denominatorFactors], EvenQ[Last[#]] &]
-];
+familyRowGaugeFFCanonicalKey[expression_, rules_List] :=
+  multiquadraticStripCanonicalText[expression, rules];
 
 (* The root order is an ABI: mask bit i always denotes canonical root i.
-   Normalize the squares before sorting, and reject duplicate extensions
-   rather than assigning two sign bits to the same quadratic generator. *)
+   Normalize the squares before sorting, and reject duplicate or
+   square-class dependent extensions rather than assigning two sign bits
+   to the same quadratic generator.  Both screens are the neutral ones;
+   the declared (pre-sort) indices are reported, as before. *)
 familyRowGaugeFFCanonicalizeRoots[declaredRoots_, variables_List] := Module[
-  {standardized, root, square, radicals, fractional, squareSymbols,
-   extraSymbols, duplicate, dependent,
+  {rules, standardized, root, square, radicals, fractional, squareSymbols,
+   extraSymbols, canonical, duplicate, dependent,
    failureTag = Unique["familyRowGaugeFFRootValidation"]},
+  If[! MatchQ[variables, {_Symbol, _Symbol}] ||
+      SameQ[variables[[1]], variables[[2]]],
+    Return[<|"Status" -> "InvalidVariables"|>]];
   If[! ListQ[declaredRoots],
     Return[<|"Status" -> "InvalidRootDeclarations"|>]];
   If[Length[declaredRoots] > 3,
@@ -108,6 +163,7 @@ familyRowGaugeFFCanonicalizeRoots[declaredRoots_, variables_List] := Module[
   If[! AllTrue[declaredRoots, AssociationQ[#] &&
       KeyExistsQ[#, "Root"] && KeyExistsQ[#, "RootSquare"] &],
     Return[<|"Status" -> "InvalidRootDeclarations"|>]];
+  rules = familyRowGaugeFFCanonicalRules[variables];
   standardized = Catch[Table[
     root = declaredRoots[[index, "Root"]];
     square = Quiet[Check[Together[
@@ -130,57 +186,62 @@ familyRowGaugeFFCanonicalizeRoots[declaredRoots_, variables_List] := Module[
       Throw[<|"Status" -> "NonKinematicRootSquare",
         "RootIndex" -> index, "Symbols" -> extraSymbols|>,
         failureTag]];
-    radicals = familyRowGaugeFFUniqueEquivalent[
-      familyRowGaugeFFRadicalBases[root]];
+    radicals = DeleteDuplicates[transportChartRadicalBases[root],
+      familyRowGaugeFFZeroQ[#1 - #2] &];
     If[Length[radicals] =!= 1 ||
-        ! familyRowGaugeFFEquivalentQ[First[radicals], square] ||
-        ! TrueQ[Quiet[Check[Together[root^2 - square] === 0, False]]],
+        ! familyRowGaugeFFZeroQ[First[radicals] - square] ||
+        ! familyRowGaugeFFZeroQ[root^2 - square],
       Throw[<|"Status" -> "InconsistentRootDeclaration",
         "RootIndex" -> index|>, failureTag]];
-    <|"Root" -> root, "RootSquare" -> square|>,
+    canonical = familyRowGaugeFFCanonicalKey[square, rules];
+    If[! StringQ[canonical],
+      Throw[<|"Status" -> "NonCanonicalRootSquare",
+        "RootIndex" -> index|>, failureTag]];
+    <|"Root" -> root, "RootSquare" -> square,
+      "CanonicalRootSquare" -> canonical,
+      "RootFingerprint" -> Hash[canonical, "SHA256", "HexString"]|>,
     {index, Length[declaredRoots]}], failureTag, #1 &];
   If[AssociationQ[standardized], Return[standardized]];
   duplicate = FirstCase[
     Subsets[Range[Length[standardized]], {2}],
-    {left_, right_} /; familyRowGaugeFFEquivalentQ[
-      standardized[[left, "RootSquare"]],
-      standardized[[right, "RootSquare"]]] :> {left, right}, None];
+    {left_, right_} /; familyRowGaugeFFZeroQ[
+      standardized[[left, "RootSquare"]] -
+        standardized[[right, "RootSquare"]]] :> {left, right}, None];
   If[duplicate =!= None,
     Return[<|"Status" -> "DuplicateRootSquare",
       "RootIndices" -> duplicate|>]];
+  (* 2^r independent sign automorphisms need r independent square
+     classes; distinct radicands are not enough ({x, y, x y} has rank
+     two).  The neutral screen decides. *)
   dependent = FirstCase[Rest[Subsets[Range[Length[standardized]]]],
-    indices_ /; familyRowGaugeFFRationalFunctionSquareQ[
-      Times @@ standardized[[indices, "RootSquare"]]] :> indices, None];
+    indices_ /; TrueQ[multiquadraticStripSquareClassSquareQ[
+      Times @@ standardized[[indices, "RootSquare"]]]] :> indices, None];
   If[dependent =!= None,
     Return[<|"Status" -> "DependentRootSquares",
       "RootIndices" -> dependent|>]];
   standardized = SortBy[standardized,
-    {familyRowGaugeFFStableKey[#1["RootSquare"]],
-       familyRowGaugeFFStableKey[#1["Root"]]} &];
+    {#1["CanonicalRootSquare"], #1["RootFingerprint"]} &];
   <|"Status" -> "OK", "Roots" -> standardized|>
 ];
 
-familyRowGaugeFFReplaceRoots[expression_, rootSquares_List] := Replace[
-  expression,
-  Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
-    With[{index = FirstCase[Range[Length[rootSquares]],
-        candidate_ /; familyRowGaugeFFEquivalentQ[
-          base, rootSquares[[candidate]]], Missing["UnknownRoot"]]},
-      If[MissingQ[index],
-        familyRowGaugeFFUnresolvedRoot[base, exponent],
-        familyRowGaugeFFRoot[index]^(2 exponent)]],
-  {0, Infinity}];
+(* Declared half-powers become root placeholders through the package's
+   own root substitution.  An UNDECLARED radical is left as a fractional
+   power by transportChartApplyRootBranches and is detected structurally
+   after compilation. *)
+familyRowGaugeFFReplaceRoots[expression_, roots_List] :=
+  transportChartApplyRootBranches[expression, roots,
+    Table[familyRowGaugeFFRoot[index], {index, Length[roots]}]];
 
 familyRowGaugeFFFieldFingerprint[variables_List, roots_List] := Hash[
-  {"FamilyRowGaugeFiniteFieldV1", familyRowGaugeFFSymbolKey /@ variables,
-    Lookup[roots, "RootSquare", {}]}, "SHA256", "HexString"];
+  {"FamilyRowGaugeFiniteFieldV2", familyRowGaugeFFSymbolKey /@ variables,
+    Lookup[roots, "CanonicalRootSquare", {}]}, "SHA256", "HexString"];
 
 familyRowGaugeFFPreparationFingerprint[variables_List, roots_List,
     parameters_List, rowIndices_List, dimensions_List,
     records_Association] := Hash[
-  {"FamilyRowGaugeFiniteFieldPreparationV1",
+  {"FamilyRowGaugeFiniteFieldPreparationV2",
     familyRowGaugeFFSymbolKey /@ variables,
-    Lookup[roots, "RootSquare", {}],
+    Lookup[roots, "CanonicalRootSquare", {}],
     familyRowGaugeFFSymbolKey /@ parameters,
     rowIndices, dimensions,
     Table[{kind,
@@ -191,7 +252,7 @@ familyRowGaugeFFPreparationFingerprint[variables_List, roots_List,
   "SHA256", "HexString"];
 
 familyRowGaugeFFCoefficientDenominators[expression_] :=
-  DeleteDuplicates[Cases[Unevaluated[expression],
+  DeleteDuplicates[Cases[expression,
     Rational[_, denominator_Integer] :> denominator,
     {0, Infinity}, Heads -> True]];
 
@@ -200,7 +261,7 @@ familyRowGaugeFiniteFieldPrepare[
     variables_, declaredRoots_] := Module[
   {started = AbsoluteTime[], validSquare, n, start, stop,
    lowerColumns, futureRows, rowSize, lowerSize, rootResult, roots,
-   rootSquares, rawExpressions, radicals, unknownRadicals,
+   rootSquares, rawExpressions, classification, unknownRadicals,
    unsupportedPowers, parameters, parameterExpressions,
    gaugeRowSupport, gaugeColumnSupport, derivatives,
    aProducts = 0, sProducts = 0, siProducts = 0,
@@ -263,11 +324,10 @@ familyRowGaugeFiniteFieldPrepare[
   If[unsupportedPowers =!= {},
     Return[<|"Status" -> "UnsupportedAlgebraicPower",
       "Count" -> Length[unsupportedPowers]|>]];
-  radicals = familyRowGaugeFFUniqueEquivalent[
-    familyRowGaugeFFRadicalBases[rawExpressions]];
-  unknownRadicals = Select[radicals, Function[radical,
-    ! AnyTrue[rootSquares, Function[square,
-      familyRowGaugeFFEquivalentQ[radical, square]]]]];
+  (* the package classifier, level 1 and Heads -> False since 2026-08-23 *)
+  classification = transportChartRootIndices[rawExpressions, roots];
+  unknownRadicals = DeleteDuplicates[
+    Lookup[classification, "UnclassifiedRadicalBases", {}]];
   If[unknownRadicals =!= {},
     Return[<|"Status" -> "UnknownRadicals",
       "RadicalBases" -> unknownRadicals|>]];
@@ -364,13 +424,14 @@ familyRowGaugeFiniteFieldPrepare[
     "Terms" -> Map[
       <|"Kind" -> #1["Kind"],
         "Expression" -> familyRowGaugeFFReplaceRoots[
-          #1["Expression"], rootSquares]|> &,
+          #1["Expression"], roots]|> &,
       record["Terms"]]|>;
   records = <|
     "Connection" -> (compileRecord /@ aRecords),
     "Transformation" -> (compileRecord /@ sRecords),
     "Inverse" -> (compileRecord /@ siRecords)|>;
-  If[! FreeQ[records, _familyRowGaugeFFUnresolvedRoot],
+  If[! FreeQ[records,
+      Power[_, exponent_Rational /; Denominator[exponent] =!= 1]],
     Return[<|"Status" -> "UnknownRadicalsAfterCompilation"|>]];
 
   parameterExpressions = {rootSquares,
@@ -379,10 +440,9 @@ familyRowGaugeFiniteFieldPrepare[
   parameters = DeleteDuplicates[Cases[parameterExpressions,
     symbol_Symbol /; Context[symbol] =!= "System`" &&
       ! MemberQ[variables, symbol] &&
-      symbol =!= familyRowGaugeFFRoot &&
-      symbol =!= familyRowGaugeFFUnresolvedRoot :> symbol,
+      symbol =!= familyRowGaugeFFRoot :> symbol,
     {0, Infinity}, Heads -> True]];
-  parameters = SortBy[parameters, familyRowGaugeFFStableKey];
+  parameters = SortBy[parameters, familyRowGaugeFFSymbolKey];
   dimensions = {n, rowSize, lowerSize};
   fieldFingerprint = familyRowGaugeFFFieldFingerprint[variables, roots];
   fingerprint = familyRowGaugeFFPreparationFingerprint[
@@ -464,15 +524,14 @@ familyRowGaugeFFModEvaluate[expression_, scalarValues_Association,
     <|"Status" -> "OK", "Value" -> Mod[result, prime]|>]
 ];
 
-(* Deterministic Tonelli--Shanks, including the p == 3 (mod 4) fast
-   path.  The smaller of the two roots fixes the sign ABI at a point. *)
-familyRowGaugeFFSquareRoot[value_Integer, prime_Integer] := Module[
+(* Deterministic Tonelli--Shanks for p == 1 (mod 4).  The neutral ABI
+   declares a modular square root only for p == 3 (mod 4)
+   (multiquadraticSquareRoots), so this is the one algebra primitive this
+   file still implements; it duplicates nothing. *)
+familyRowGaugeFFTonelliShanks[value_Integer, prime_Integer] := Module[
   {a = Mod[value, prime], q, s = 0, z = 2, c, x, t, m, i, probe, b},
   If[a === 0, Return[0]];
   If[JacobiSymbol[a, prime] =!= 1, Return[$Failed]];
-  If[Mod[prime, 4] === 3,
-    x = PowerMod[a, Quotient[prime + 1, 4], prime];
-    Return[Min[x, prime - x]]];
   q = prime - 1;
   While[EvenQ[q], q = Quotient[q, 2]; s++];
   While[JacobiSymbol[z, prime] =!= -1, z++];
@@ -490,37 +549,22 @@ familyRowGaugeFFSquareRoot[value_Integer, prime_Integer] := Module[
     t = Mod[t b b, prime];
     c = Mod[b b, prime];
     m = i];
-  Min[x, prime - x]
+  x
 ];
 
-familyRowGaugeFFHadamard[rank_Integer?NonNegative] := Table[
-  If[EvenQ[DigitCount[BitAnd[row, column], 2, 1]], 1, -1],
-  {row, 0, 2^rank - 1}, {column, 0, 2^rank - 1}];
-
-familyRowGaugeFFRootProducts[rootValues_List, prime_Integer] := Table[
-  Mod[Product[If[BitGet[mask, index - 1] === 1,
-      rootValues[[index]], 1], {index, Length[rootValues]}], prime],
-  {mask, 0, 2^Length[rootValues] - 1}];
-
-familyRowGaugeFFProjectConjugates[values_List, rootValues_List,
-    prime_Integer] := Module[
-  {rank = Length[rootValues], branchCount, hadamard, rootProducts,
-   weighted, channels, recomposed},
-  branchCount = 2^rank;
-  If[Length[values] =!= branchCount || MemberQ[rootValues, 0],
-    Return[<|"Status" -> "InvalidConjugates"|>]];
-  hadamard = familyRowGaugeFFHadamard[rank];
-  rootProducts = familyRowGaugeFFRootProducts[rootValues, prime];
-  weighted = Mod[PowerMod[branchCount, -1, prime]
-    hadamard.values, prime];
-  channels = Mod[MapThread[#1 PowerMod[#2, -1, prime] &,
-    {weighted, rootProducts}], prime];
-  recomposed = Mod[hadamard.(channels rootProducts), prime];
-  <|"Status" -> If[recomposed === Mod[values, prime], "OK",
-      "HadamardRoundTripFailed"],
-    "Channels" -> channels,
-    "RecomposedConjugates" -> recomposed,
-    "CanonicalValue" -> First[recomposed]|>
+(* The sign ABI at a point is the SMALLER of the two roots.  The neutral
+   module returns the raw PowerMod representative, so the normalization
+   Min[r, p - r] is applied HERE, at the consumer boundary -- that is the
+   second pinned divergence of the deletion gate. *)
+familyRowGaugeFFSquareRoot[value_Integer, prime_Integer] := Module[
+  {a = Mod[value, prime], raw},
+  If[a === 0, Return[0]];
+  If[JacobiSymbol[a, prime] =!= 1, Return[$Failed]];
+  raw = If[Mod[prime, 4] === 3,
+    With[{neutral = multiquadraticSquareRoots[{a}, prime]},
+      If[MatchQ[neutral, {_Integer}], First[neutral], $Failed]],
+    familyRowGaugeFFTonelliShanks[a, prime]];
+  If[raw === $Failed, $Failed, Min[raw, prime - raw]]
 ];
 
 familyRowGaugeFiniteFieldEvaluate[preparation_Association, point_,
@@ -612,8 +656,10 @@ familyRowGaugeFiniteFieldEvaluate[preparation_Association, point_,
     {branch, 0, branchCount - 1}];
 
   tag = Unique["familyRowGaugeFFRecord"];
+  (* One conjugate vector per record, then ONE neutral projection and
+     ONE neutral conjugate evaluation as the round-trip certificate. *)
   evaluateRecord[kind_, record_Association] := Module[
-    {values, termResults, projection},
+    {values, termResults, channels, recomposed},
     values = Table[
       termResults = familyRowGaugeFFModEvaluate[
           #1["Expression"], scalarValues,
@@ -625,15 +671,24 @@ familyRowGaugeFiniteFieldEvaluate[preparation_Association, point_,
             "BranchMask" -> branch - 1, "Point" -> pointMod|>], tag]];
       Mod[Total[Lookup[termResults, "Value", {}]], prime],
       {branch, branchCount}];
-    projection = familyRowGaugeFFProjectConjugates[
-      values, rootValues, prime];
-    If[projection["Status"] =!= "OK",
-      Throw[Join[projection, <|"RecordType" -> kind,
-        "Target" -> record["Target"]|>], tag]];
+    If[Length[values] =!= branchCount || MemberQ[rootValues, 0],
+      Throw[<|"Status" -> "InvalidConjugates", "RecordType" -> kind,
+        "Target" -> record["Target"]|>, tag]];
+    channels = multiquadraticProjectConjugates[values, rootValues, prime];
+    If[! VectorQ[channels, IntegerQ] ||
+        Length[channels] =!= branchCount,
+      Throw[<|"Status" -> "InvalidConjugates", "RecordType" -> kind,
+        "Target" -> record["Target"]|>, tag]];
+    recomposed = multiquadraticEvaluateConjugates[
+      channels, rootValues, prime];
+    If[! VectorQ[recomposed, IntegerQ] ||
+        recomposed =!= Mod[values, prime],
+      Throw[<|"Status" -> "HadamardRoundTripFailed",
+        "RecordType" -> kind, "Target" -> record["Target"]|>, tag]];
     <|"Target" -> record["Target"], "Conjugates" -> values,
-      "Channels" -> projection["Channels"],
-      "RecomposedConjugates" -> projection["RecomposedConjugates"],
-      "CanonicalValue" -> projection["CanonicalValue"]|>];
+      "Channels" -> channels,
+      "RecomposedConjugates" -> recomposed,
+      "CanonicalValue" -> First[recomposed]|>];
   evaluatedRecords = Catch[
     AssociationMap[
       Function[kind,
@@ -651,7 +706,7 @@ familyRowGaugeFiniteFieldEvaluate[preparation_Association, point_,
     Flatten[Values[records]]];
   sampleFingerprint = Hash[
     {preparation["Fingerprint"], prime, pointMod,
-      SortBy[parameterRules, familyRowGaugeFFStableKey[First[#]] &],
+      SortBy[parameterRules, familyRowGaugeFFSymbolKey[First[#]] &],
       rootValues}, "SHA256", "HexString"];
   <|"Status" -> "OK", "Prime" -> prime, "Point" -> pointMod,
     "ParameterRules" -> parameterRules,
@@ -685,3 +740,5 @@ familyRowGaugeFiniteFieldOracle[connection_, transformation_, inverse_,
     familyRowGaugeFiniteFieldEvaluate[
       preparation, point, prime, parameterRules]]
 ];
+
+End[];

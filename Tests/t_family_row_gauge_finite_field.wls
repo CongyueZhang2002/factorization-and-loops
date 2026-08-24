@@ -104,7 +104,10 @@ expectedExpression[kind_, target_] := Switch[kind,
   "Transformation", Extract[expectedTransformation, target],
   "Inverse", Extract[expectedInverse, target]];
 
-canonicalSquares = Lookup[prep["CanonicalRoots"], "RootSquare", {}];
+(* familyRowGaugeFFReplaceRoots delegates to the package's
+   transportChartApplyRootBranches since 2026-08-23, so it keys on the
+   canonical ROOT RECORDS ("Root"/"RootSquare"), not on bare squares. *)
+canonicalRoots = prep["CanonicalRoots"];
 directBranchOracleQ[modularSample_Association, samplePoint_List,
     samplePrime_Integer, epsilonValue_Integer] := If[
   Lookup[modularSample, "Status", None] =!= "OK", False,
@@ -115,7 +118,7 @@ directBranchOracleQ[modularSample_Association, samplePoint_List,
         Module[{expression, template, signedRoots, value},
           expression = expectedExpression[kind, entry["Target"]];
           template = FeynFacet`Private`familyRowGaugeFFReplaceRoots[
-            expression, canonicalSquares];
+            expression, canonicalRoots];
           And @@ Table[
             signedRoots = MapIndexed[
               If[BitGet[branch, First[#2] - 1] === 1,
