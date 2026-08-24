@@ -1,0 +1,222 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1.05in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black]{hyperref}
+\usepackage{enumitem}
+\setlist{topsep=2pt,itemsep=1pt}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\Z}{\mathbb{Z}}
+
+\title{From Master Integrals to Functions: the Short Version}
+\author{prepared for Max Zhang}
+\date{August 24, 2026}
+
+\begin{document}
+\maketitle
+
+\noindent
+This is the compressed companion to the full lecture notes.  Setting:
+the NNLO double-real channel of $pp \to h+X$; after reverse unitarity
+and IBP reduction there are \textbf{347 master integrals} depending on
+two Mandelstam ratios $(v,w)$, $0<v,w$, $v+w<1$, in $d=4-2\eps$.  The
+goal: every master as an explicit $\eps$-expansion in iterated
+integrals, with exact constants.
+
+\section{Masters obey differential equations}
+Differentiating a master with respect to $v$ or $w$ produces integrals
+of the \emph{same family} (same propagator set), which IBP reduces
+back to the masters of that family and its subsectors.  Hence per
+family a closed first-order system
+\begin{equation}
+  \dd \vec I = A(v,w;\eps)\, \vec I,
+  \qquad A = A_v \dd v + A_w \dd w,
+\end{equation}
+with rational $A$ and the integrability (\emph{flatness}) condition
+$\dd A = A \wedge A$, certified exactly.  Families were fixed at
+reduction time: \emph{canonical families} \texttt{CF}$n$ are
+equivalence classes of propagator sets under loop-momentum shifts
+($GL(2,\Z)$, cut lines to cut lines), detected via Pak's canonical
+Symanzik form and verified by the explicit shift.  Differentiation is
+family-local, so the 347 masters split into \textbf{91 independent
+systems} (dimension 2--47).  Ordered by sectors each system is
+\emph{block lower triangular}: diagonal blocks couple one sector
+group's masters; off-diagonal blocks feed subsectors upward.
+
+\section{Blocks and the 173 classes}
+A \emph{block} is a strongly connected group of masters (a diagonal
+block); the 91 systems contain 1119 of them.  A \emph{class} is an
+equivalence class of blocks under basis permutation, optionally
+composed with the crossing involution $v \leftrightarrow w$, as an
+exact matrix identity --- there are only \textbf{173 classes}, because
+the same subtopologies recur inside many parent families.  All hard
+analytic work is done once per class, and a registry maps each class
+solution back into every family that realizes it.
+
+\section{The $\eps$-form and why it solves everything}
+A system is in \emph{canonical ($\eps$-)form} if
+\begin{equation}
+  \dd \vec F = \eps \sum_a R_a\, \dd\log \varphi_a(v,w)\, \vec F,
+  \qquad R_a\ \text{constant matrices},\quad
+  \varphi_a\ \text{$\eps$-free \emph{letters}}.
+\end{equation}
+Expanding $\vec F = \sum_k \eps^k \vec F^{(k)}$ decouples the orders:
+$\dd\vec F^{(k)} = \big(\sum_a R_a \dd\log\varphi_a\big)\vec
+F^{(k-1)}$ --- each order is a quadrature of the previous one.  The
+solution is the path-ordered exponential, i.e.\ order $\eps^k$ is a
+sum of $k$-fold \emph{iterated integrals} (generalized
+polylogarithms, GPLs) over the alphabet, of uniform weight $k$.
+Example: letters $\{w, 1-w\}$ with nilpotent couplings generate
+$\log(1-w)$ at order $\eps$ and $\mathrm{Li}_2(w)$ at order $\eps^2$.
+The $\eps$-form thus converts coupled $\eps$-entangled PDEs into
+explicit integrals; what remains is bookkeeping (paths, words) and
+boundary constants.  Singularities are manifest: the connection's
+poles are exactly the letters' zeros, and the residue matrix $R_a$
+encodes the complete local behaviour there (exponents $=\eps\times$
+eigenvalues, logs from Jordan blocks).
+
+\section{Reaching the $\eps$-form}
+Write the unknown basis change $T$: the connection transforms as
+$A' = T^{-1}AT - T^{-1}\dd T$.  Three stages:
+\begin{enumerate}
+\item \textbf{Diagonal blocks (per class).}  Rational-ansatz solvers
+  and Fuchsification/balance reductions (\`a la Lee) produce a
+  candidate $T$; acceptance is only the exact reconstruction of the
+  stored form from constant residues.  Status: 173/173 classes done.
+\item \textbf{Off-diagonal completion (per family).}  With canonical
+  diagonal blocks $\eps e_k$, complete one block row at a time by a
+  unipotent gauge $T = 1+D$ ($D^2=0$), which requires solving the
+  \emph{linear} strip equation
+  \begin{equation}
+    \dd D_{kj} = \eps( e_k D_{kj} - D_{kj} c_j ) + \bar b_{kj}
+    - \eps \textstyle\sum_a K_a \dd\log\varphi_a
+  \end{equation}
+  for a rational $D_{kj}$ and constant residues $K_a$.  Production
+  method: ansatz over the letters with bounded numerator support,
+  solved by finite-field sampling (exact linear algebra mod 31-bit
+  primes), Chinese remaindering, rational reconstruction, held-out
+  validation --- and always a final \emph{exact} identity as the
+  certificate.  The solution's gauge freedom is fixed toward the
+  low-degree representative (pinning top numerator coefficients), which
+  controls degree growth down the rows.
+\item \textbf{Constant $T(\eps)$.}  Leftover $\eps$-dependence in the
+  residues stems from $\eps$-dependent basis normalizations and is
+  removed by a kinematics-independent $T(\eps)$ found from sampled
+  residue matrices and verified symbolically.
+\end{enumerate}
+
+\section{Roots, charts, Galois}
+Phase-space geometry injects square roots: the 3-particle boundary is
+the K\"all\'en polynomial $\lambda_1 = (1-v-w)^2 - 4vw$, and alphabets
+of many blocks contain $\sqrt{\lambda_1}$-type letters.  The
+\emph{number of roots} of a family = independent square classes among
+its radicands (44 families root-free, 31 one-root, 13 two-root, 3
+three-root).  A \emph{chart} is a rational substitution making a root
+rational: e.g.\ $v = xy$, $w=(1-x)(1-y)$ gives $\lambda_1 = (x-y)^2$
+(chart \textsf{Kallen1}); catalog charts \textsf{Kallen1/2/3},
+\textsf{Q4a/b}, \textsf{Bilinear115} cover the single roots, and
+iterated conic parametrization gives joint charts
+\textsf{Kallen12/13/23} for the two-root families, whose $\eps$-forms
+live in chart variables.  For three roots no chart exists (the joint
+cover is a K3 surface); instead one computes in the multiquadratic
+\emph{Galois algebra} $\Q(v,w,\eps)[r_1,r_2,r_3]/(r_i^2-q_i)$, whose
+$(\Z/2)^3$ sign group grades all functions into eight channels ---
+linear algebra runs on the rational channel components, and the eight
+sign branches recombine as a certificate.  This is the current
+frontier (\texttt{CF259/300/303}).
+
+\section{Transport}
+Solving in practice = choosing a base point and paths in the physical
+triangle, restricting letters to each segment (kept linear in the path
+parameter), and accumulating GPL words order by order.  Flatness makes
+the result path-independent.  The $\eps$-depth per master is budgeted
+in advance from where it enters the assembled cross section (203
+masters need the finite part only, 131 one pole deeper, 9 more);
+chart families transport in their chart variables.
+
+\section{Boundary constants}
+The general solution leaves one constant vector per family per
+$\eps$-order.  Almost none are new numbers; constraints are applied in
+order:
+(1) \emph{volume rows} --- the phase-space volume master is a closed-form
+$\Gamma$-ratio, seeding the lattice;
+(2) \emph{inherited rows} --- subsector masters already solved elsewhere
+constrain each family (families processed in dependency order);
+(3) \emph{forbidden modes} --- near $w\to0$, $v\to0$, and the soft
+surface $1-v-w\to0$ the integral \emph{representation} allows only
+certain exponents $n + a\eps$ (a power-counting statement per
+stratum, computed per chart), while the DE offers modes with $a$ from
+residue eigenvalues; every representation-forbidden mode kills one
+constant;
+(4) \emph{regularity} at letter zeros interior to an integral's
+physical region.
+The number of genuinely new constants per block is the \emph{nullity}
+$\dim\ker C$ of the assembled constraint matrix, computed before
+evaluating anything; inventory-wide the surviving \emph{boundary
+periods} are a short list of cut phase-space integrals at ordered
+limits, each established by an exact, numerics-free proof chain (with
+independent numerics as a guide only).
+
+\section{Endpoint behaviour: don't expand it away}
+Near an endpoint the solution is a sum of modes $u^{\,n+a\eps}(\log
+u)^j$ with data read exactly off the residue matrices (this is ``the
+singularity is in the matrix'').  For the cross section one needs
+the distributional expansion
+\begin{equation}
+  (1-w)^{-1+a\eps} = \frac{1}{a\eps}\,\delta(1-w)
+  + \sum_{k\ge0}\frac{(a\eps)^k}{k!}
+  \Big[\frac{\log^k(1-w)}{1-w}\Big]_+ ,
+\end{equation}
+which exists only for the \emph{unexpanded} power --- expanding the
+master in $\eps$ first destroys the $\delta$ content.  Masters
+therefore ship with exact indicial data alongside their GPL
+expansions, and endpoint extraction consumes the modes.
+
+\section{Certification}
+Every stage pairs a free-form search (ansatz, modular, numeric) with
+an exact certificate independent of the search: flatness identities,
+exact reconstruction of class forms, the exact family gauge identity
+(symbolically or by modular evaluation with held-out primes), and
+numerics-free proof chains for periods.  The final artifact --- 347
+masters as certified $\eps$-forms plus boundary data --- verifies
+itself.
+
+\section*{Pipeline map}
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Stage & Output & Count \\
+\midrule
+IBP + canonical families & masters, family systems & 347 masters, 91 systems \\
+Blocking + classification & classes to solve once & 1119 blocks $\to$ 173 classes \\
+Class $\eps$-forms & canonical diagonal blocks & 173/173 \\
+Completion (strips + $T(\eps)$) & family $\eps$-forms & certified per family \\
+Charts / Galois algebra & rational variables for roots & 0/1/2 roots: charts; 3: algebra \\
+Transport & GPL words, budgeted depth & per master \\
+Boundary program & nullity $\to$ periods & few genuinely new periods \\
+Endpoint modes & $\delta$ + plus distributions & from indicial data \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Vocabulary in one breath.}  \emph{Family}: propagator set
+mod momentum shifts (\texttt{CF}$n$).  \emph{Sector}: propagator
+subset.  \emph{Block}: strongly connected master group = diagonal
+block.  \emph{Class}: block mod permutation $\circ$
+($v\leftrightarrow w$).  \emph{Connection}: $A$ in $\dd\vec I=A\vec
+I$.  \emph{$\eps$-form}: $A=\eps\sum R_a\dd\log\varphi_a$, constant
+$R_a$.  \emph{Letter/alphabet}: the $\varphi_a$/their set.
+\emph{Strip}: an off-diagonal block row being completed.
+\emph{Root}: independent square class $\sqrt{q}$ in an alphabet.
+\emph{Chart}: rational substitution rationalizing roots.
+\emph{Transport}: building the path-ordered solution.
+\emph{Period}: genuinely new boundary constant.  \emph{Nullity}:
+$\dim\ker(\text{constraints})$ = number of new periods.
+\emph{Indicial data}: exponents/log powers at singular loci from
+residue matrices.
+
+\end{document}
