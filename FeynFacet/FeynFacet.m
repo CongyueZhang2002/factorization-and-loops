@@ -370,6 +370,14 @@ Begin["`Private`"];
 
 $feynFacetDirectory = DirectoryName[ExpandFileName[$InputFileName]];
 $feynFacetRoot = DirectoryName[$feynFacetDirectory];
+(* Installation roots (generality pass 2026-08-23): the ADD-ON tree and
+   the subkernel loader are properties of the installation, not of the
+   package's parent directory.  Both may be overridden by setting the
+   Global variables BEFORE the package loads; the defaults preserve the
+   repository layout. *)
+$feynFacetAddonRoot = If[StringQ[Global`$FACETAddonRoot], Global`$FACETAddonRoot, $feynFacetRoot];
+$feynFacetLoader = If[StringQ[Global`$FACETLoader], Global`$FACETLoader,
+  FileNameJoin[{$feynFacetAddonRoot, "Addon", "Load", "LoadFACET.wl"}]];
 $feynFacetPrivateDirectory = FileNameJoin[{$feynFacetDirectory, "Private"}];
 $feynFacetPrivateFiles = FileNameJoin[{$feynFacetPrivateDirectory, #}] & /@ {
     "Core.wl", "Process.wl", "Topologies.wl", "CanonicalFamilies.wl",
