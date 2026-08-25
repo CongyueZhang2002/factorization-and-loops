@@ -124,6 +124,10 @@ ClearAll[
   multiquadraticStripIntegrabilityScreen,
   multiquadraticStripGaugeAnsatz, multiquadraticStripGaugeScreen,
   multiquadraticStripGaugeScreenImages,
+  multiquadraticStripGaugeScreenLadder,
+  multiquadraticStripDegreeOffsetLadder,
+  multiquadraticStripDegreeOffsetLadderParse,
+  $multiquadraticStripDefaultDegreeOffsetLadder,
   multiquadraticStripCurveParameterization,
   multiquadraticStripRationalFunctionSquareRoot,
   multiquadraticStripGradeSquare, multiquadraticStripGradeNorm,
@@ -1819,6 +1823,181 @@ multiquadraticStripGaugeScreenImages[___] :=
   multiquadraticStripFailure["InvalidGaugeScreenArguments"];
 
 (* ------------------------------------------------------------------ *)
+(* Screen-validated DEGREE-OFFSET LADDER (2026-08-25)                   *)
+(* ------------------------------------------------------------------ *)
+
+(* CF300 (12,9) needs a gauge NUMERATOR three degrees above its
+   denominator ("DegreeOffset" -> {3,3}); at the default {0,0} the screen
+   above correctly refuses the ansatz, and no caller can be expected to
+   know that number per block in an unattended campaign.  So the offset
+   is MEASURED: when the screen at the configured offset reports a
+   CONFIRMED defect, the SCREEN ONLY -- never the compile -- is re-run at
+   escalating offsets, and the first one that is consistent at TWO images
+   is adopted for the real solve.  A rung costs one screen per image
+   (measured 50-90 s on that block) against a compile measured at
+   ~7900 s, so the whole ladder is cheap by construction.
+
+   The escalation is a search over ANSATZ SIZE, not over the alphabet: a
+   rung that reaches defect 0 says the missing direction was a gauge pole
+   at infinity, and a ladder that exhausts leaves the alphabet verdict of
+   the base screen standing untouched. *)
+
+$multiquadraticStripDefaultDegreeOffsetLadder = {{1, 1}, {2, 2}, {3, 3},
+  {4, 4}};
+
+(* FACET_MQ_DEGREE_LADDER = "1,1;2,2;3,3", parsed defensively in the style
+   of FACET_BROKER_MINIMUM_SECONDS: anything that is not a nonempty list
+   of pairs of nonnegative integers falls back to the default rather than
+   erroring or half-parsing.  An environment typo must never silently
+   change the ansatz an overnight campaign compiles. *)
+multiquadraticStripDegreeOffsetLadderParse[text_, fallback_] := Module[
+  {trimmed, rungs},
+  trimmed = If[StringQ[text], StringTrim[text], ""];
+  If[trimmed === "", Return[fallback]];
+  If[! StringMatchQ[trimmed, RegularExpression[
+      "[0-9]+ *, *[0-9]+( *; *[0-9]+ *, *[0-9]+)*"]],
+    Return[fallback]];
+  rungs = Quiet[Check[
+    Map[ToExpression[StringTrim[#1]] &,
+      StringSplit[StringSplit[trimmed, ";"], ","], {2}], $Failed]];
+  If[MatchQ[rungs, {{_Integer, _Integer} ..}] &&
+      AllTrue[Flatten[rungs], IntegerQ[#1] && #1 >= 0 &],
+    rungs, fallback]];
+
+multiquadraticStripDegreeOffsetLadder[] :=
+  multiquadraticStripDegreeOffsetLadderParse[
+    Environment["FACET_MQ_DEGREE_LADDER"],
+    $multiquadraticStripDefaultDegreeOffsetLadder];
+
+(* The source may be a full preparation record or the cheap ansatz
+   descriptor: the ladder reads only the four fields it needs to rebuild
+   an ansatz at another offset, and both carry them. *)
+Options[multiquadraticStripGaugeScreenLadder] = Join[
+  DeleteCases[Options[multiquadraticStripGaugeScreenImages],
+    HoldPattern["ConfirmConsistency" -> _]], {
+  "DegreeOffsetLadder" -> Automatic,
+  "BaseDegreeOffset" -> {0, 0},
+  "Deadline" -> Infinity,
+  "Verbose" -> False
+}];
+
+multiquadraticStripGaugeScreenLadder[source_Association,
+    opts : OptionsPattern[]] := Module[
+  {gate, record, roots, oneForms, gaugeDenominator, ladder, baseOffset,
+   deadline, verbose, log, screenOptions, rungs = {}, skipped = {},
+   ansatz, result, imageResults, adopted = None,
+   startTime = AbsoluteTime[]},
+  gate = multiquadraticStripProductionOptionGate[{opts},
+    Keys[Association[Options[multiquadraticStripGaugeScreenLadder]]]];
+  If[AssociationQ[gate], Return[gate]];
+  deadline = OptionValue["Deadline"];
+  If[! multiquadraticStripDeadlineQ[deadline],
+    Return[multiquadraticStripFailure["InvalidDeadline",
+      <|"Deadline" -> deadline,
+        "Expected" -> "an absolute AbsoluteTime[] value, or Infinity"|>]]];
+  record = Lookup[source, "Record", $Failed];
+  roots = Lookup[source, "Roots", $Failed];
+  oneForms = Lookup[source, "OneForms", $Failed];
+  gaugeDenominator = Lookup[source, "GaugeDenominator", $Failed];
+  If[! AssociationQ[record] || ! ListQ[roots] ||
+      ! MatchQ[oneForms, {} | {{_, _} ..}] || gaugeDenominator === $Failed,
+    Return[multiquadraticStripFailure["InvalidGaugeAnsatz",
+      <|"MissingKeys" -> Select[{"Record", "Roots", "OneForms",
+          "GaugeDenominator"}, ! KeyExistsQ[source, #1] &]|>]]];
+  baseOffset = OptionValue["BaseDegreeOffset"];
+  If[! MatchQ[baseOffset, {a_Integer, b_Integer} /; a >= 0 && b >= 0],
+    Return[multiquadraticStripFailure["InvalidDegreeOffset",
+      <|"BaseDegreeOffset" -> baseOffset|>]]];
+  ladder = Replace[OptionValue["DegreeOffsetLadder"],
+    Automatic :> multiquadraticStripDegreeOffsetLadder[]];
+  If[! MatchQ[ladder, {} | {{_Integer, _Integer} ..}] ||
+      ! AllTrue[Flatten[ladder], IntegerQ[#1] && #1 >= 0 &],
+    Return[multiquadraticStripFailure["InvalidDegreeOffsetLadder",
+      <|"DegreeOffsetLadder" -> ladder|>]]];
+  verbose = TrueQ[OptionValue["Verbose"]];
+  log[items___] := If[verbose, Print["[multiquadratic] ", items]];
+  (* every rung is a DISCOVERY measurement, so defect 0 is accepted only
+     at two images: "ConfirmConsistency" is the ladder's, not the
+     caller's *)
+  screenOptions = FilterRules[
+    DeleteCases[Flatten[{opts}],
+      HoldPattern["DegreeOffsetLadder" -> _] |
+      HoldPattern["DegreeOffsetLadder" :> _] |
+      HoldPattern["BaseDegreeOffset" -> _] |
+      HoldPattern["BaseDegreeOffset" :> _] |
+      HoldPattern["Deadline" -> _] | HoldPattern["Deadline" :> _] |
+      HoldPattern["Verbose" -> _] | HoldPattern["Verbose" :> _]],
+    Options[multiquadraticStripGaugeScreenImages]];
+  Do[
+    (* a rung no larger than the offset that already failed cannot repair
+       anything: it is recorded as skipped, not measured *)
+    If[offset[[1]] <= baseOffset[[1]] && offset[[2]] <= baseOffset[[2]],
+      AppendTo[skipped, offset]; Continue[]];
+    (* the deadline is read at every rung boundary: a rung is this
+       ladder's unit of work *)
+    If[multiquadraticStripDeadlineExpiredQ[deadline],
+      Return[multiquadraticStripBudgetExhausted["GaugeScreenLadder",
+        AbsoluteTime[] - startTime, deadline,
+        <|"Method" -> "ScreenValidatedDegreeOffsetLadder",
+          "BaseDegreeOffset" -> baseOffset,
+          "DegreeOffsetLadder" -> ladder,
+          "NextDegreeOffset" -> offset,
+          "SkippedDegreeOffsets" -> skipped,
+          "LadderRungs" -> rungs,
+          "LadderDefects" -> ({#1["DegreeOffset"], #1["Defects"]} & /@
+            rungs)|>], Module]];
+    ansatz = multiquadraticStripGaugeAnsatz[record, roots, oneForms,
+      gaugeDenominator, "DegreeOffset" -> offset];
+    If[Lookup[ansatz, "Status", None] =!= "MultiquadraticGaugeAnsatzV1",
+      Return[ansatz, Module]];
+    result = multiquadraticStripGaugeScreenImages[ansatz,
+      "ConfirmConsistency" -> True, Sequence @@ screenOptions];
+    imageResults = Lookup[result, "ImageResults", {}];
+    AppendTo[rungs, <|"DegreeOffset" -> offset,
+      "SupportCount" -> Length[ansatz["GaugeSupport"]],
+      "UnknownCount" -> ansatz["UnknownCount"],
+      "Status" -> Lookup[result, "Status", None],
+      "ImageCount" -> Lookup[result, "ImageCount", 0],
+      "Images" -> Lookup[result, "Images", {}],
+      "Defects" -> Lookup[result, "Defects", Missing["NoDefect"]],
+      "Ranks" -> Lookup[imageResults, "Rank", {}],
+      "AugmentedRanks" -> Lookup[imageResults, "AugmentedRank", {}],
+      "Nullities" -> Lookup[imageResults, "Nullity", {}],
+      "MatrixDimensions" -> Lookup[imageResults, "MatrixDimensions", {}],
+      "Seconds" -> Lookup[result, "Seconds", 0]|>];
+    log["gauge screen ladder: DegreeOffset ", offset, ", support ",
+      Length[ansatz["GaugeSupport"]], ", ", ansatz["UnknownCount"],
+      " unknowns -> ", Lookup[result, "Status", None], ", defects ",
+      Lookup[result, "Defects", None], ", ",
+      Round[Lookup[result, "Seconds", 0], 0.1], " s"];
+    If[! MemberQ[{"GaugeImageObstruction", "GaugeImageConsistent",
+        "GaugeImageObstructionUnconfirmed",
+        "GaugeImageConsistentUnconfirmed"}, Lookup[result, "Status", None]],
+      Return[multiquadraticStripFailure["GaugeScreenLadderNotApplicable",
+        <|"DegreeOffset" -> offset,
+          "ScreenStatus" -> Lookup[result, "Status", None],
+          "LadderRungs" -> rungs, "ScreenResult" -> result|>], Module]];
+    If[Lookup[result, "Status", None] === "GaugeImageConsistent",
+      adopted = offset; Break[]],
+    {offset, ladder}];
+  <|"Status" -> If[adopted === None, "GaugeScreenLadderExhausted",
+      "GaugeScreenLadderAdopted"],
+    "Module" -> "MultiquadraticStripSolve",
+    "Method" -> "ScreenValidatedDegreeOffsetLadder",
+    "AdoptedDegreeOffset" -> If[adopted === None,
+      Missing["GaugeScreenLadderExhausted"], adopted],
+    "BaseDegreeOffset" -> baseOffset,
+    "DegreeOffsetLadder" -> ladder,
+    "SkippedDegreeOffsets" -> skipped,
+    "RungCount" -> Length[rungs],
+    "LadderDefects" -> ({#1["DegreeOffset"], #1["Defects"]} & /@ rungs),
+    "LadderRungs" -> rungs,
+    "Seconds" -> AbsoluteTime[] - startTime|>
+];
+multiquadraticStripGaugeScreenLadder[___] :=
+  multiquadraticStripFailure["InvalidGaugeScreenLadderArguments"];
+
+(* ------------------------------------------------------------------ *)
 (* Witness-guided MIXED-GRADE letter discovery (2026-08-25, Codex Q3)   *)
 (* ------------------------------------------------------------------ *)
 
@@ -2405,6 +2584,14 @@ Options[multiquadraticStripPrepare] = {
   "GaugeDenominatorFactor" -> Automatic,
   "DegreeOffset" -> {0, 0},
   "Support" -> Automatic,
+  (* exists for ONE caller: solveEpsFormStripMultiquadratic re-preparing
+     at an ADOPTED degree offset in the same call.  The channel
+     decomposition depends on the strip and the roots only -- never on the
+     support -- so the channels of the first preparation are bit for bit
+     the ones this one would recompute, at a measured 807 s on CF300
+     (12,9).  A supplied set is shape-checked, and Automatic (the
+     default) decomposes as before, so every other caller is unchanged. *)
+  "ForcingChannels" -> Automatic,
   "NormalizationEquations" -> {},
   "RootIndices" -> Automatic,
   (* candidate letter construction; used only when "OneForms" is
@@ -2423,7 +2610,8 @@ Options[multiquadraticStripPrepare] = {
 multiquadraticStripPrepare[record_Association, frame_Association,
     opts : OptionsPattern[]] := Module[
   {gate, variables, epsilon, strip, allRoots, classification, rootIndices,
-   order, roots, channelForcing, oneFormData, oneForms, gaugeDenominator,
+   order, roots, channelForcing, suppliedChannels, oneFormData, oneForms,
+   gaugeDenominator,
    letterRecords, gaugeDenominatorFactor,
    denominatorDegrees, degreeOffset, numeratorDegrees, support, dimensions,
    gradeCount, gaugeUnknownCount, residueUnknownCount, unknownCount,
@@ -2463,8 +2651,12 @@ multiquadraticStripPrepare[record_Association, frame_Association,
      reuse this result inside the same call instead of decomposing the
      forcing a second time (post-mortem item 5: the second decomposition
      was 807 s of the 4872 s compile of CF300 (12,9)) *)
-  channelForcing = Map[multiquadraticStripDecomposeScalar[#1, roots] &,
-    strip[[3]], {3}];
+  suppliedChannels = OptionValue["ForcingChannels"];
+  channelForcing = If[ArrayQ[suppliedChannels, 4] &&
+      Dimensions[suppliedChannels] === Append[Dimensions[strip[[3]]],
+        2^Length[roots]] && FreeQ[suppliedChannels, $Failed],
+    suppliedChannels,
+    Map[multiquadraticStripDecomposeScalar[#1, roots] &, strip[[3]], {3}]];
   If[! FreeQ[channelForcing, $Failed],
     Return[multiquadraticStripFailure["ForcingChannelDecompositionFailed"]]];
   letterRecords = OptionValue["LetterRecords"];
@@ -4106,6 +4298,12 @@ Options[solveEpsFormStripMultiquadratic] = Join[
   "GaugeScreen" -> True,
   "GaugeScreenPointCount" -> Automatic,
   "GaugeScreenImages" -> Automatic,
+  (* the screen-validated escalation ladder, run ONLY when the screen at
+     the configured "DegreeOffset" reports a CONFIRMED defect.  Automatic
+     = FACET_MQ_DEGREE_LADDER or the built-in ladder; None = no
+     escalation (the pre-2026-08-25 behaviour: return the typed
+     obstruction at once). *)
+  "DegreeOffsetLadder" -> Automatic,
   (* absolute AbsoluteTime[] value; Infinity = unbounded (the default,
      so every existing caller is unchanged) *)
   "Deadline" -> Infinity,
@@ -4129,7 +4327,8 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
    regulatorValue, samplerOptions, deadline, budgetProgress,
    budgetExhausted, enrich, variables, epsilon, strip, allRoots, classification,
    rootIndices, order, screenRoots, letterRecords, letterData, screen,
-   screenRegulatorValue, prepareOptions, gaugeScreen,
+   screenRegulatorValue, prepareOptions, gaugeScreen, gaugeLadder,
+   adoptedDegreeOffset,
    pathStatisticsBefore = multiquadraticFieldPathStatistics[]},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[solveEpsFormStripMultiquadratic]]]];
@@ -4190,7 +4389,12 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
          "LetterCount", "FlatDiagonalConnections"}],
       "GaugeScreen" -> If[AssociationQ[gaugeScreen],
         KeyTake[gaugeScreen, {"Status", "ImageCount", "Defects"}],
-        <|"Status" -> "GaugeScreenSkipped"|>]|>,
+        <|"Status" -> "GaugeScreenSkipped"|>],
+      "GaugeScreenLadder" -> If[AssociationQ[gaugeLadder],
+        KeyTake[gaugeLadder, {"Status", "AdoptedDegreeOffset",
+          "LadderDefects"}],
+        <|"Status" -> "GaugeScreenLadderNotRun"|>],
+      "AdoptedDegreeOffset" -> adoptedDegreeOffset|>,
       failure]];
   backendGate = multiquadraticStripBackendGate[OptionValue["PlanDiscoveryBackend"]];
   If[AssociationQ[backendGate], Return[backendGate]];
@@ -4296,6 +4500,8 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
   (* evaluations of the PREPARED ansatz -- measured 43 s at 1816        *)
   (* unknowns and 98 s at 3128 -- against a compile measured at ~7900 s.*)
   (* ---------------------------------------------------------------- *)
+  adoptedDegreeOffset = OptionValue["DegreeOffset"];
+  gaugeLadder = <|"Status" -> "GaugeScreenLadderNotRun"|>;
   If[TrueQ[OptionValue["GaugeScreen"]],
     gaugeScreen = multiquadraticStripGaugeScreenImages[preparation,
       "Images" -> OptionValue["GaugeScreenImages"],
@@ -4306,21 +4512,85 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
       Round[Lookup[gaugeScreen, "Seconds", 0], 0.1], " s"];
     If[MemberQ[{"GaugeImageObstruction", "GaugeImageObstructionUnconfirmed"},
         Lookup[gaugeScreen, "Status", None]],
-      Return[enrich[Join[
-        KeyDrop[First[gaugeScreen["ImageResults"]], {"Module"}],
-        <|"Status" -> "GaugeImageObstruction",
-          "Module" -> "MultiquadraticStripSolve",
-          "Confirmed" -> (Lookup[gaugeScreen, "Status", None] ===
-            "GaugeImageObstruction"),
-          "ImageCount" -> gaugeScreen["ImageCount"],
-          "Defects" -> gaugeScreen["Defects"],
-          "Images" -> gaugeScreen["Images"],
-          "ImageResults" -> (KeyDrop[#1, {"Witness"}] & /@
-            gaugeScreen["ImageResults"]),
-          "SolutionContract" -> "NoGaugeExistsWithThisAnsatz",
-          "ContractNote" -> "the complete affine gauge system is inconsistent at these images; the compile it screens would reproduce exactly this defect -- the ansatz is missing a letter or a support direction, and the witness names which residue demand is unmet",
-          "GaugeScreenSeconds" -> gaugeScreen["Seconds"],
-          "Seconds" -> AbsoluteTime[] - startTime|>]]]]];
+      (* THE ESCALATION LADDER, screens only.  A CONFIRMED defect at the
+         configured offset is not yet a verdict on the block: the gauge
+         may simply need a numerator degree above the denominator (a pole
+         at infinity), which is a property of the ansatz and not of the
+         alphabet.  An UNCONFIRMED obstruction is not escalated -- the
+         two-image confirmation is what makes a defect a fact. *)
+      If[OptionValue["Support"] =!= Automatic,
+        (* an explicit support PINS the ansatz: a degree offset would not
+           reach the compile (prepare's "Support" wins over its
+           "DegreeOffset"), so escalating would screen an ansatz the
+           solve never builds *)
+        gaugeLadder = <|"Status" -> "GaugeScreenLadderNotApplicable",
+          "Reason" -> "an explicit Support pins the ansatz; DegreeOffset has no effect on it"|>];
+      If[OptionValue["DegreeOffsetLadder"] =!= None &&
+          OptionValue["Support"] === Automatic &&
+          Lookup[gaugeScreen, "Status", None] === "GaugeImageObstruction",
+        gaugeLadder = multiquadraticStripGaugeScreenLadder[preparation,
+          "DegreeOffsetLadder" -> OptionValue["DegreeOffsetLadder"],
+          "BaseDegreeOffset" -> OptionValue["DegreeOffset"],
+          "Deadline" -> deadline, "Verbose" -> verbose,
+          "Images" -> OptionValue["GaugeScreenImages"],
+          "PointCount" -> OptionValue["GaugeScreenPointCount"],
+          (* no witness is wanted on a ladder rung: the base screen above
+             already produced one, and the left null space is the
+             expensive half of a screen *)
+          "LeftNullSpace" -> False]];
+      (* the budget stop of the ladder is the driver's budget stop *)
+      If[Lookup[gaugeLadder, "Status", None] === "BudgetExhausted",
+        Return[enrich[Join[budgetExhausted["GaugeScreenLadder"],
+          <|"GaugeScreenLadder" -> KeyTake[gaugeLadder,
+            {"BaseDegreeOffset", "DegreeOffsetLadder", "NextDegreeOffset",
+             "SkippedDegreeOffsets", "LadderDefects", "LadderRungs"}]|>]]]];
+      If[Lookup[gaugeLadder, "Status", None] === "GaugeScreenLadderAdopted",
+        adoptedDegreeOffset = gaugeLadder["AdoptedDegreeOffset"];
+        log["gauge screen: defect 0 at DegreeOffset ", adoptedDegreeOffset,
+          "; adopting"];
+        (* the adopted offset enters the REAL ansatz exactly as a caller's
+           would: the preparation is rebuilt through the same entry point
+           with the same options, reusing only the forcing channels, which
+           the offset cannot change *)
+        preparation = multiquadraticStripPrepare[record, frame,
+          "DegreeOffset" -> adoptedDegreeOffset,
+          "ForcingChannels" -> Lookup[preparation, "ForcingChannels",
+            Automatic],
+          Sequence @@ DeleteCases[prepareOptions,
+            HoldPattern["DegreeOffset" -> _] |
+            HoldPattern["DegreeOffset" :> _]]];
+        If[Lookup[preparation, "Status", None] =!=
+            "PreparedMultiquadraticStripV1",
+          Return[preparation]];
+        log["re-prepared at DegreeOffset ", adoptedDegreeOffset, ": ",
+          preparation["UnknownCount"], " unknowns, support ",
+          Length[preparation["GaugeSupport"]]],
+        (* no rung reached defect 0 (or the ladder was disabled): the
+           typed obstruction, now carrying the whole ladder *)
+        Return[enrich[Join[
+          KeyDrop[First[gaugeScreen["ImageResults"]], {"Module"}],
+          <|"Status" -> "GaugeImageObstruction",
+            "Module" -> "MultiquadraticStripSolve",
+            "Confirmed" -> (Lookup[gaugeScreen, "Status", None] ===
+              "GaugeImageObstruction"),
+            "ImageCount" -> gaugeScreen["ImageCount"],
+            "Defects" -> gaugeScreen["Defects"],
+            "Images" -> gaugeScreen["Images"],
+            "ImageResults" -> (KeyDrop[#1, {"Witness"}] & /@
+              gaugeScreen["ImageResults"]),
+            "DegreeOffset" -> OptionValue["DegreeOffset"],
+            "GaugeScreenLadder" -> gaugeLadder,
+            "LadderDefects" -> Lookup[gaugeLadder, "LadderDefects",
+              Missing["GaugeScreenLadderNotRun"]],
+            "SolutionContract" -> "NoGaugeExistsWithThisAnsatz",
+            "ContractNote" -> If[Lookup[gaugeLadder, "Status", None] ===
+                "GaugeScreenLadderExhausted",
+              "the complete affine gauge system is inconsistent at these images AND at every escalated numerator degree of the ladder; the compile it screens would reproduce exactly this defect -- the ansatz is missing a letter or a support direction no degree offset supplies, and the witness names which residue demand is unmet",
+              "the complete affine gauge system is inconsistent at these images; the compile it screens would reproduce exactly this defect -- the ansatz is missing a letter or a support direction, and the witness names which residue demand is unmet"],
+            "GaugeScreenSeconds" -> gaugeScreen["Seconds"],
+            "GaugeScreenLadderSeconds" -> Lookup[gaugeLadder, "Seconds",
+              Missing["GaugeScreenLadderNotRun"]],
+            "Seconds" -> AbsoluteTime[] - startTime|>]]]]]];
   If[multiquadraticStripDeadlineExpiredQ[deadline],
     Return[budgetExhausted["GaugeScreen"]]];
   (* the preparation object was built in THIS call: its ABI payload is
@@ -4491,6 +4761,15 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
     "GaugeScreen" -> If[AssociationQ[gaugeScreen],
       KeyTake[gaugeScreen, {"Status", "ImageCount", "Defects", "Images"}],
       <|"Status" -> "GaugeScreenSkipped"|>],
+    (* the offset the REAL ansatz was built at: the caller's, unless the
+       ladder measured a larger one and adopted it.  Timing-free, like
+       every other field of this record. *)
+    "AdoptedDegreeOffset" -> adoptedDegreeOffset,
+    "GaugeScreenLadder" -> If[AssociationQ[gaugeLadder],
+      KeyTake[gaugeLadder, {"Status", "AdoptedDegreeOffset",
+        "BaseDegreeOffset", "DegreeOffsetLadder", "SkippedDegreeOffsets",
+        "RungCount", "LadderDefects"}],
+      <|"Status" -> "GaugeScreenLadderNotRun"|>],
     "UnknownCount" -> preparation["UnknownCount"],
     "EquationsPerPoint" -> preparation["EquationsPerPoint"],
     "ABIFingerprint" -> preparation["ABIFingerprint"],
