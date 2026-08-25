@@ -108,6 +108,21 @@ ClearAll[
   multiquadraticDeduplicateOneForms, multiquadraticScalarOneForms,
   multiquadraticDiagonalOneFormBasis, multiquadraticCandidateOneFormBasis,
   multiquadraticRationalGaugeDenominator,
+  multiquadraticStripCanonicalFactor, multiquadraticStripRationalPolarCurves,
+  multiquadraticStripNormInAlphabetQ, multiquadraticStripPolynomialSquareRoot,
+  multiquadraticStripSquareCompletionConstants, multiquadraticStripNormMonomials,
+  multiquadraticStripAlgebraicLetters, multiquadraticStripRegulatorSampleValues,
+  multiquadraticStripFieldMemberQ, multiquadraticStripFormTextKey,
+  multiquadraticStripLetterOneForm, multiquadraticStripRowAlphabetLetters,
+  multiquadraticStripCandidateLetters, multiquadraticStripNormDenominatorFactor,
+  multiquadraticStripMergeGaugeDenominator,
+  multiquadraticStripScreenCompilePolynomial,
+  multiquadraticStripScreenCompileScalar,
+  multiquadraticStripScreenEvaluatePolynomial,
+  multiquadraticStripScreenEvaluateRational,
+  multiquadraticStripScreenPowerTables,
+  multiquadraticStripIntegrabilityScreen,
+  $multiquadraticStripRegulatorSamplePool,
   multiquadraticStripRootOrder, multiquadraticStripRootCensus,
   multiquadraticStripRationalSquareQ, multiquadraticStripSquareClassSquareQ,
   multiquadraticStripCompileNormalizations,
@@ -450,6 +465,843 @@ multiquadraticRationalGaugeDenominator[channelForcing_, variables_List] := Modul
 ];
 
 (* ------------------------------------------------------------------ *)
+(* Alphabet construction: polar curves, norms, algebraic letters        *)
+(* ------------------------------------------------------------------ *)
+
+(* 2026-08-24, CF300 (12,9) post-mortem.  Three measured facts drive
+   this section.
+   (i) The engine's regulator sample list {0, 1, -1, 2} lands on poles of
+   that block's forcing (its channel denominators carry eps^3 and 1+eps),
+   so 14 of 32 candidate dlogs were lost before the solve ever ran.  The
+   sample values are now CHOSEN: a generic pool is tested entry by entry
+   and a value that makes any entry singular is re-sampled.
+   (ii) The block's integrability condition is inconsistent with any
+   alphabet of rational letters, and is repaired by four ALGEBRAIC
+   letters A +- Sqrt[delta] whose norms A^2 - delta factor completely
+   into the strip's rational alphabet.  Such letters are generated here,
+   not guessed: for each root square delta and each small product M of
+   polar curves the rational constant c with delta + c M a perfect square
+   is solved for, and A is that square root.  The norm filter below is
+   the certificate that keeps the family small -- a letter whose norm
+   carries an irreducible factor outside the alphabet is refused.
+   (iii) The letters of the row's already installed blocks are not in the
+   candidate basis at all, though the flatness identity of the row
+   couples them to this block; they are adjoined when the caller supplies
+   them (the sector state's StripSolvers "Alphabet" entries).           *)
+
+(* A canonical representative of a polynomial up to RATIONAL NUMBER
+   scale: the numeric part of the lexicographically leading coefficient
+   is divided out.  Used for deduplication, for the exact division filter
+   and for the gauge-denominator merge, where a numeric scale is
+   irrelevant.  The leading coefficient itself need not be numeric: a
+   polar factor of a strip carries the regulator in its coefficients
+   (CF300 (12,9) has -1-2eps-x-2eps x-y-2eps y+xy+eps xy), and an
+   earlier version of this function refused such a factor, which silently
+   dropped an ADMISSIBLE POLE from the merged gauge denominator. *)
+multiquadraticStripCanonicalFactor[polynomial_, variables_List] := Module[
+  {expanded, rules, leading, scale, leadingRules},
+  expanded = Expand[Together[polynomial]];
+  If[! PolynomialQ[expanded, variables], Return[$Failed]];
+  rules = CoefficientRules[expanded, variables];
+  If[rules === {}, Return[0]];
+  leading = Last[First[rules]];
+  scale = If[IntegerQ[leading] || Head[leading] === Rational, leading,
+    leadingRules = Quiet[CoefficientRules[Expand[leading],
+      Variables[Expand[leading]]]];
+    If[! ListQ[leadingRules] || leadingRules === {}, $Failed,
+      Last[First[leadingRules]]]];
+  If[! (IntegerQ[scale] || Head[scale] === Rational) || scale === 0,
+    Return[$Failed]];
+  Expand[expanded/scale]
+];
+
+(* The strip's rational polar curves: the x/y-dependent irreducible
+   factors of the DENOMINATORS of the given expressions, plus the given
+   root squares.  Numerators are deliberately not factored -- a forcing
+   numerator is a large dense polynomial whose factorization costs more
+   than the whole screen and whose irreducible parts are not poles. *)
+multiquadraticStripRationalPolarCurves[expressions_, extra_List,
+    variables_List] := Module[{entries, collected = {}, rational, list},
+  entries = Select[Flatten[{expressions}], ! TrueQ[Quiet[Together[#1]] === 0] &];
+  Do[
+    rational = Quiet[Together[entry]];
+    If[! FreeQ[rational, Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
+      Continue[]];
+    list = Quiet[Rest[FactorList[Denominator[rational]]]];
+    If[! ListQ[list], Continue[]];
+    collected = Join[collected,
+      Select[First /@ list, ! FreeQ[#1, Alternatives @@ variables] &]],
+    {entry, entries}];
+  Do[
+    list = Quiet[Rest[FactorList[Expand[Together[candidate]]]]];
+    If[! ListQ[list], Continue[]];
+    collected = Join[collected,
+      Select[First /@ list, ! FreeQ[#1, Alternatives @@ variables] &]],
+    {candidate, extra}];
+  collected = DeleteCases[
+    multiquadraticStripCanonicalFactor[#1, variables] & /@ collected,
+    $Failed | 0];
+  (* the alphabet is a set of KINEMATIC polar curves: a factor whose
+     coefficients still carry the regulator is a pole of the connection
+     in eps, not a letter, and it must not enter the norm filter (where
+     it could divide a norm in Q(eps)[x,y]).  Such factors do enter the
+     gauge denominator, through the merge, which reads the forcing rule's
+     own denominator and not this alphabet. *)
+  collected = Select[collected, Function[candidate,
+    AllTrue[Last /@ CoefficientRules[candidate, variables], NumericQ]]];
+  SortBy[DeleteDuplicates[collected, TrueQ[Together[#1 - #2] === 0] &],
+    {LeafCount[#1], ToString[InputForm[#1]]} &]
+];
+
+(* THE NORM FILTER.  A candidate algebraic letter A +- Sqrt[delta] is
+   admissible only if its norm A^2 - delta factors completely into the
+   strip's rational alphabet: every alphabet letter is divided out
+   exactly, as many times as it divides, and what remains must be a
+   non-zero rational CONSTANT.  An irreducible factor outside the
+   alphabet leaves a variable behind and the letter is refused.  This is
+   the whole of the "every letter certifiable" requirement -- the
+   quadratic extension generated by the letter is then unramified
+   outside the alphabet. *)
+multiquadraticStripNormInAlphabetQ[norm_, alphabet_List, variables_List] :=
+  Module[{remainder, quotient, changed, guard = 0},
+  remainder = Quiet[Expand[Together[norm]]];
+  If[! PolynomialQ[remainder, variables] || TrueQ[remainder === 0],
+    Return[False]];
+  changed = True;
+  While[changed && ! FreeQ[remainder, Alternatives @@ variables] &&
+      guard < 64,
+    guard++; changed = False;
+    Do[
+      If[FreeQ[letter, Alternatives @@ variables], Continue[]];
+      quotient = Quiet[Cancel[Together[remainder/letter]]];
+      If[PolynomialQ[quotient, variables],
+        remainder = Expand[quotient]; changed = True],
+      {letter, alphabet}]];
+  TrueQ[FreeQ[remainder, Alternatives @@ variables] &&
+    ! TrueQ[Together[remainder] === 0]]
+];
+
+(* An exact polynomial square root, or $Failed.  Factor first so that
+   PowerExpand has a squared form to open; the answer is then VERIFIED by
+   expansion, so the sign convention PowerExpand picks is irrelevant. *)
+multiquadraticStripPolynomialSquareRoot[polynomial_, variables_List] := Module[
+  {expanded, candidate},
+  expanded = Quiet[Expand[Together[polynomial]]];
+  If[! PolynomialQ[expanded, variables] || TrueQ[expanded === 0],
+    Return[$Failed]];
+  candidate = Quiet[PowerExpand[Sqrt[Factor[expanded]]]];
+  If[PolynomialQ[candidate, variables] &&
+      TrueQ[Expand[candidate^2 - expanded] === 0], Expand[candidate], $Failed]
+];
+
+(* The rational constants c for which delta + c M can be a perfect
+   square.  One variable is specialized to a small integer, which turns
+   the square condition into the vanishing of a discriminant -- a
+   polynomial equation in c alone.  The candidates are only candidates:
+   every one is verified EXACTLY by taking the polynomial square root of
+   delta + c M in both variables. *)
+multiquadraticStripSquareCompletionConstants[delta_, monomial_,
+    variables_List, constantSymbol_Symbol] := Module[
+  {candidates = {}, other, specialized, discriminant, solutions, degree},
+  Do[
+    other = variables[[3 - k]];
+    Do[
+      specialized = Quiet[Expand[
+        (delta + constantSymbol monomial) /. other -> value]];
+      If[! PolynomialQ[specialized, {variables[[k]], constantSymbol}],
+        Continue[]];
+      degree = Exponent[specialized, variables[[k]]];
+      If[! IntegerQ[degree] || degree < 2, Continue[]];
+      discriminant = Quiet[Discriminant[specialized, variables[[k]]]];
+      If[! PolynomialQ[discriminant, constantSymbol] ||
+          TrueQ[Expand[discriminant] === 0] ||
+          FreeQ[discriminant, constantSymbol], Continue[]];
+      solutions = Quiet[Solve[discriminant == 0, constantSymbol]];
+      If[ListQ[solutions],
+        candidates = Join[candidates,
+          Cases[constantSymbol /. solutions, _Integer | _Rational]]],
+      {value, {3, 5, 7}}],
+    {k, 2}];
+  DeleteDuplicates[DeleteCases[candidates, 0]]
+];
+
+(* Small products of polar curves: at most maximumFactors distinct
+   letters, each to at most maximumExponent. *)
+multiquadraticStripNormMonomials[alphabet_List, maximumFactors_Integer,
+    maximumExponent_Integer] := Module[{subsets},
+  subsets = Subsets[Range[Length[alphabet]],
+    {0, Min[maximumFactors, Length[alphabet]]}];
+  DeleteDuplicates[Flatten[Table[
+    Times @@ (alphabet[[subset]]^exponents),
+    {subset, subsets},
+    {exponents, Tuples[Range[maximumExponent], Length[subset]]}], 2]]
+];
+
+Options[multiquadraticStripAlgebraicLetters] = {
+  "MaximumNormFactors" -> 2,
+  "MaximumNormExponent" -> 2
+};
+
+(* The algebraic letter family of a multiquadratic strip.  For every
+   declared root and every small product M of polar curves, solve for the
+   rational constant c with delta + c M a perfect square A^2; the letters
+   are A + Sqrt[delta] and A - Sqrt[delta], with norm A^2 - delta = c M.
+   The norm filter is applied to every emitted letter even though the
+   construction satisfies it by design: it is the certificate the record
+   carries, and it is the same predicate applied to letters that arrive
+   from anywhere else (row alphabets, caller-supplied lists). *)
+multiquadraticStripAlgebraicLetters[roots_List, alphabet_List,
+    variables_List, opts : OptionsPattern[]] := Module[
+  {constantSymbol, monomials, records = {}, delta, rootExpression, constants,
+   square, a, norm, key, seen = {}, canonical},
+  monomials = multiquadraticStripNormMonomials[alphabet,
+    OptionValue["MaximumNormFactors"], OptionValue["MaximumNormExponent"]];
+  Module[{c},
+    constantSymbol = c;
+    Do[
+      delta = Together[Lookup[root, "RootSquare", $Failed]];
+      rootExpression = Lookup[root, "Root", $Failed];
+      If[delta === $Failed || rootExpression === $Failed, Continue[]];
+      (* A = 0: the root itself, admissible when delta factors into the
+         alphabet (it always does when delta is a declared polar curve) *)
+      If[multiquadraticStripNormInAlphabetQ[-delta, alphabet, variables],
+        AppendTo[records, <|"Kind" -> "Algebraic", "Letter" -> rootExpression,
+          "A" -> 0, "RootSquare" -> delta, "Norm" -> Expand[-delta],
+          "NormInAlphabet" -> True|>]];
+      Do[
+        constants = multiquadraticStripSquareCompletionConstants[delta,
+          monomial, variables, constantSymbol];
+        Do[
+          square = Expand[delta + constant monomial];
+          a = multiquadraticStripPolynomialSquareRoot[square, variables];
+          If[a === $Failed, Continue[]];
+          norm = Expand[a^2 - delta];
+          If[TrueQ[norm === 0], Continue[]];
+          If[! multiquadraticStripNormInAlphabetQ[norm, alphabet, variables],
+            Continue[]];
+          canonical = multiquadraticStripCanonicalFactor[a, variables];
+          If[canonical === $Failed, Continue[]];
+          key = {ToString[InputForm[Together[delta]]],
+            ToString[InputForm[canonical]]};
+          If[MemberQ[seen, key], Continue[]];
+          AppendTo[seen, key];
+          AppendTo[records, <|"Kind" -> "Algebraic",
+            "Letter" -> Together[a + rootExpression], "A" -> a,
+            "RootSquare" -> delta, "Norm" -> norm, "NormInAlphabet" -> True|>];
+          AppendTo[records, <|"Kind" -> "Algebraic",
+            "Letter" -> Together[a - rootExpression], "A" -> a,
+            "RootSquare" -> delta, "Norm" -> norm, "NormInAlphabet" -> True|>],
+          {constant, constants}],
+        {monomial, monomials}],
+      {root, roots}]];
+  records
+];
+
+(* ------------------------------------------------------------------ *)
+(* Regulator samples away from the forcing's poles                      *)
+(* ------------------------------------------------------------------ *)
+
+$multiquadraticStripRegulatorSamplePool = {1, 2, 3, 5, 7, 11, 13, 4, 6, 8,
+  9, 10, 12, 5/3, 7/3, 11/5, 13/7, 7/5, 17, 19};
+
+(* A sample value is ACCEPTED only after every forcing entry has been
+   substituted and survived: a value at which any entry is singular, or
+   at which no entry retains any kinematic dependence, is rejected and
+   the next pool value is tried.  The substituted entries are returned,
+   because the caller needs exactly them for the candidate dlogs. *)
+multiquadraticStripRegulatorSampleValues[forcing_, variables_List,
+    epsilon_Symbol, count_Integer, pool_List] := Module[
+  {entries, accepted = {}, rejected = {}, values, usable},
+  entries = Flatten[{forcing}];
+  Do[
+    If[Length[accepted] >= count, Break[]];
+    values = Quiet[Check[
+      Together[#1 /. epsilon -> candidate], $Failed,
+      {Power::infy, Infinity::indet, Power::indet}] & /@ entries];
+    usable = FreeQ[values, $Failed] &&
+      FreeQ[values, DirectedInfinity | Indeterminate | ComplexInfinity] &&
+      AnyTrue[values, ! TrueQ[Together[#1] === 0] &&
+        ! FreeQ[#1, Alternatives @@ variables] &];
+    If[TrueQ[usable],
+      AppendTo[accepted, <|"Value" -> candidate, "Entries" -> values|>],
+      AppendTo[rejected, candidate]],
+    {candidate, pool}];
+  <|"Status" -> If[Length[accepted] >= count, "RegulatorSamplesChosen",
+      "InsufficientRegulatorSamples"],
+    "Values" -> Lookup[accepted, "Value", {}],
+    "SubstitutedEntries" -> Lookup[accepted, "Entries", {}],
+    "RejectedValues" -> rejected, "Pool" -> pool, "Requested" -> count|>
+];
+
+(* ------------------------------------------------------------------ *)
+(* Field membership, one-form keys, the candidate letter set            *)
+(* ------------------------------------------------------------------ *)
+
+(* Cheap membership test for the strip's multiquadratic field: replace
+   the declared roots by symbols and require no fractional power to
+   survive.  This is the early half of multiquadraticFieldDecompose and
+   costs no field inversion, which is what makes an adjoined alphabet
+   affordable. *)
+multiquadraticStripFieldMemberQ[expression_, roots_List] := Module[
+  {rootOne, rootTwo, rootThree, symbols, replaced},
+  If[roots === {},
+    Return[TrueQ[FreeQ[expression,
+      Power[_, exponent_Rational /; ! IntegerQ[exponent]]]]]];
+  symbols = Take[{rootOne, rootTwo, rootThree}, Length[roots]];
+  replaced = Quiet[transportChartApplyRootBranches[expression, roots, symbols]];
+  If[replaced === $Failed, Return[False]];
+  TrueQ[FreeQ[replaced, Power[_, exponent_Rational /; ! IntegerQ[exponent]]] &&
+    FreeQ[Quiet[Together[replaced]],
+      Power[_, exponent_Rational /; ! IntegerQ[exponent]]]]
+];
+
+(* Deduplication key.  The Codex-derived basis keyed one-forms on their
+   exact channel decomposition, which is a field inversion per component
+   and measured 1539 s of the 2429 s preparation of CF300 (12,9).  Two
+   forms that are equal have the same Together normal form in canonical
+   symbols, so the text of that normal form is the key; a collision would
+   only merge two equal columns. *)
+multiquadraticStripFormTextKey[form : {_, _}, variables_List,
+    epsilon_Symbol] := Module[{rules, canonical},
+  rules = multiquadraticStripCanonicalRules[variables, epsilon];
+  canonical = Quiet[Together /@ (form /. rules)];
+  Hash[ToString[InputForm[canonical]], "SHA256", "HexString"]
+];
+
+multiquadraticStripLetterOneForm[letter_, variables : {x_, y_}] := Module[
+  {value = Quiet[Together[letter]], derivative},
+  If[TrueQ[value === 0] || ! FreeQ[value, DirectedInfinity | Indeterminate],
+    Return[$Failed]];
+  derivative = Quiet[{Together[D[letter, x]/letter],
+    Together[D[letter, y]/letter]}];
+  If[! FreeQ[derivative, DirectedInfinity | Indeterminate | $Failed],
+    Return[$Failed]];
+  derivative
+];
+
+(* The row's already-installed alphabets.  A driver hands over the
+   sector state's StripSolvers records; the blocks that share this
+   block's ROW (same upper sector) or its COLUMN (same lower sector) are
+   the ones the row flatness identity couples to it. *)
+multiquadraticStripRowAlphabetLetters[stripSolvers_List, sector_,
+    lowerSector_] := Module[{selected, letters},
+  selected = Select[stripSolvers,
+    AssociationQ[#1] && (Lookup[#1, "Sector", None] === sector ||
+      Lookup[#1, "LowerSector", None] === lowerSector) &];
+  letters = Flatten[Lookup[selected, "Alphabet", {}] /. Missing[___] :> {}];
+  DeleteDuplicates[Select[letters, ! TrueQ[Quiet[Together[#1]] === 0] &]]
+];
+
+Options[multiquadraticStripCandidateLetters] = {
+  "RegulatorSampleCount" -> 4,
+  "RegulatorSamplePool" -> Automatic,
+  "RowAlphabet" -> Automatic,
+  "AdditionalLetters" -> {},
+  "AlgebraicLetters" -> Automatic,
+  "MaximumNormFactors" -> 2,
+  "MaximumNormExponent" -> 2
+};
+
+(* The candidate one-form basis, rebuilt.  Five sources, each tagged:
+     Diagonal      the scalar entries of e and c (closed forms, not dlogs)
+     ForcingDLog   dlogs of the forcing entries at the CHOSEN samples
+     RationalFactor dlogs of the strip's rational polar curves
+     Algebraic     A +- Sqrt[delta], norm-filtered
+     RowAlphabet   the installed alphabets of the row and column
+     Supplied      whatever the caller adds
+   Everything is filtered for membership in the strip's field, for
+   regulator freedom, and (for the diagonal forms, which are not dlogs by
+   construction) for closedness. *)
+multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
+    roots_List, variables : {x_, y_}, epsilon_Symbol, record_Association,
+    opts : OptionsPattern[]] := Module[
+  {samples, pool, sampleCount, alphabet, algebraic, rowLetters, additional,
+   records = {}, keys = <||>, form, rootSquares, entries, diagonal,
+   rowSource, add, counts, algebraicRecord},
+  pool = Replace[OptionValue["RegulatorSamplePool"],
+    Automatic :> $multiquadraticStripRegulatorSamplePool];
+  sampleCount = OptionValue["RegulatorSampleCount"];
+  If[! IntegerQ[sampleCount] || sampleCount < 1 || ! ListQ[pool] || pool === {},
+    Return[multiquadraticStripFailure["InvalidRegulatorSampleRequest",
+      <|"RegulatorSampleCount" -> sampleCount|>]]];
+  samples = multiquadraticStripRegulatorSampleValues[bbar, variables, epsilon,
+    sampleCount, pool];
+  rootSquares = Lookup[roots, "RootSquare", {}];
+  entries = Flatten[samples["SubstitutedEntries"]];
+  alphabet = multiquadraticStripRationalPolarCurves[
+    Join[entries, Flatten[e], Flatten[c]], rootSquares, variables];
+  algebraic = Replace[OptionValue["AlgebraicLetters"],
+    Automatic :> multiquadraticStripAlgebraicLetters[roots, alphabet, variables,
+      "MaximumNormFactors" -> OptionValue["MaximumNormFactors"],
+      "MaximumNormExponent" -> OptionValue["MaximumNormExponent"]]];
+  If[! MatchQ[algebraic, {___Association}],
+    algebraic = <|"Kind" -> "Algebraic", "Letter" -> #1,
+      "Norm" -> Missing["NotDerived"]|> & /@ Flatten[{algebraic}]];
+  rowSource = Replace[OptionValue["RowAlphabet"],
+    Automatic :> multiquadraticStripRowAlphabetLetters[
+      Replace[Lookup[record, "StripSolvers", {}], Except[_List] :> {}],
+      Lookup[record, "Sector", None], Lookup[record, "LowerSector", None]]];
+  rowLetters = Flatten[{rowSource}];
+  additional = Flatten[{OptionValue["AdditionalLetters"]}];
+  (* accumulate, in a fixed order, with a text key per one-form *)
+  add[kind_String, letter_, oneForm_, extra_Association] := Module[{fkey},
+    If[oneForm === $Failed || ! MatchQ[oneForm, {_, _}], Return[Null]];
+    If[multiquadraticStripZeroQ[oneForm], Return[Null]];
+    If[! FreeQ[oneForm, _Symbol?(StringStartsQ[SymbolName[#1], "eps"] &)],
+      Return[Null]];
+    If[! multiquadraticStripFieldMemberQ[oneForm[[1]], roots] ||
+        ! multiquadraticStripFieldMemberQ[oneForm[[2]], roots], Return[Null]];
+    fkey = multiquadraticStripFormTextKey[oneForm, variables, epsilon];
+    If[KeyExistsQ[keys, fkey], Return[Null]];
+    AssociateTo[keys, fkey -> True];
+    AppendTo[records, Join[<|"Kind" -> kind, "Letter" -> letter,
+      "OneForm" -> oneForm, "FormKey" -> fkey|>, extra]]];
+  diagonal = multiquadraticScalarOneForms /@ {e, c};
+  Do[
+    If[! multiquadraticClosedOneFormQ[form, variables], Continue[]];
+    add["Diagonal", Missing["NotADLog"], form, <||>],
+    {form, Flatten[diagonal, 1]}];
+  Do[
+    If[TrueQ[Together[entry] === 0] ||
+        FreeQ[entry, Alternatives @@ variables], Continue[]];
+    add["ForcingDLog", entry,
+      multiquadraticStripLetterOneForm[entry, variables], <||>],
+    {entry, entries}];
+  Do[add["RationalFactor", letter,
+      multiquadraticStripLetterOneForm[letter, variables], <||>],
+    {letter, alphabet}];
+  Do[add["Algebraic", algebraicRecord["Letter"],
+      multiquadraticStripLetterOneForm[algebraicRecord["Letter"], variables],
+      KeyTake[algebraicRecord, {"A", "Norm", "RootSquare", "NormInAlphabet"}]],
+    {algebraicRecord, algebraic}];
+  Do[add["RowAlphabet", letter,
+      multiquadraticStripLetterOneForm[letter, variables], <||>],
+    {letter, rowLetters}];
+  Do[add["Supplied", letter,
+      multiquadraticStripLetterOneForm[letter, variables], <||>],
+    {letter, additional}];
+  counts = Association[Table[kind -> Count[records, item_ /;
+      Lookup[item, "Kind", None] === kind],
+    {kind, {"Diagonal", "ForcingDLog", "RationalFactor", "Algebraic",
+      "RowAlphabet", "Supplied"}}]];
+  <|"Status" -> "MultiquadraticCandidateLettersV1",
+    "OneForms" -> Lookup[records, "OneForm", {}],
+    "Letters" -> Lookup[records, "Letter", {}],
+    "LetterRecords" -> records,
+    "Alphabet" -> alphabet,
+    "AlgebraicLetterRecords" -> Select[records,
+      Lookup[#1, "Kind", None] === "Algebraic" &],
+    "RegulatorValues" -> samples["Values"],
+    "RejectedRegulatorValues" -> samples["RejectedValues"],
+    "RegulatorSampleStatus" -> samples["Status"],
+    "RowAlphabetLetterCount" -> Length[rowLetters],
+    "Counts" -> counts,
+    "DeduplicatedCount" -> Length[records]|>
+];
+multiquadraticStripCandidateLetters[___] :=
+  multiquadraticStripFailure["InvalidCandidateLetterArguments"];
+
+(* The gauge denominator factor contributed by algebraic letters.  A
+   multiquadratic gauge written over a rational denominator acquires the
+   NORMS of its algebraic letters, A^2 - B^2 delta, which
+   multiquadraticRationalGaugeDenominator (a Max[0, p-1] rule on the
+   forcing channels, dropping simple poles) can never produce.  Each
+   distinct irreducible factor of the norms enters once, to the highest
+   power it reaches in any single norm. *)
+multiquadraticStripNormDenominatorFactor[letterRecords_List,
+    variables_List] := Module[{norms, factorPairs, canonicalPairs, factors},
+  norms = DeleteCases[Lookup[#1, "Norm", Missing["NoNorm"]] & /@
+    Select[letterRecords, AssociationQ], _Missing];
+  norms = Select[norms, ! TrueQ[Quiet[Together[#1]] === 0] &];
+  If[norms === {}, Return[1]];
+  factorPairs = Flatten[Map[Function[norm, Module[{list},
+    list = Quiet[Rest[FactorList[Expand[Together[norm]]]]];
+    If[! ListQ[list], {},
+      Select[list, ! FreeQ[First[#1], Alternatives @@ variables] &]]]],
+    norms], 1];
+  If[factorPairs === {}, Return[1]];
+  canonicalPairs = DeleteCases[
+    {multiquadraticStripCanonicalFactor[First[#1], variables], Last[#1]} & /@
+      factorPairs, {$Failed | 0, _}];
+  If[canonicalPairs === {}, Return[1]];
+  factors = DeleteDuplicates[canonicalPairs[[All, 1]],
+    TrueQ[Together[#1 - #2] === 0] &];
+  Times @@ Table[
+    factor^Max[Cases[canonicalPairs,
+      {candidate_, power_} /; TrueQ[Together[candidate - factor] === 0] :>
+        power]],
+    {factor, factors}]
+];
+
+(* The gauge denominator is a set of ADMITTED POLES with orders, not a
+   product of two independent denominators: a factor that both the
+   forcing rule and a norm ask for is admitted once, at the larger of the
+   two orders.  Multiplying the two would double every shared factor --
+   on CF300 (12,9) that is degree (11,12) instead of (9,9), an ansatz 56%
+   wider for no pole the gauge can reach. *)
+multiquadraticStripMergeGaugeDenominator[base_, extra_, variables_List] :=
+  Module[{pairs, canonicalPairs, factors, constant, list},
+  list[expression_] := Module[{factorList},
+    factorList = Quiet[FactorList[Together[expression]]];
+    If[! ListQ[factorList], {}, factorList]];
+  pairs = Join[list[base], list[extra]];
+  constant = Times @@ Cases[pairs,
+    {value_ /; FreeQ[value, Alternatives @@ variables], power_} :>
+      value^power];
+  pairs = Select[pairs, ! FreeQ[First[#1], Alternatives @@ variables] &];
+  If[pairs === {}, Return[Together[base]]];
+  canonicalPairs = DeleteCases[
+    {multiquadraticStripCanonicalFactor[First[#1], variables], Last[#1]} & /@
+      pairs, {$Failed | 0, _}];
+  If[canonicalPairs === {}, Return[Together[base]]];
+  factors = DeleteDuplicates[canonicalPairs[[All, 1]],
+    TrueQ[Together[#1 - #2] === 0] &];
+  Times @@ Table[
+    factor^Max[Cases[canonicalPairs,
+      {candidate_, power_} /; TrueQ[Together[candidate - factor] === 0] :>
+        power]],
+    {factor, factors}]
+];
+
+(* ------------------------------------------------------------------ *)
+(* The residue-only integrability screen                                *)
+(* ------------------------------------------------------------------ *)
+
+(* Cross-differentiating the strip equation
+     d_mu G = eps (e_mu G - G c_mu) + bbar_mu - eps Sum_a R_a w_{a,mu}
+   and using dw_a = 0 gives, exactly,
+     eps F_e G - eps G F_c + Cbbar
+       = eps^2 Sum_a [ (w_{a,y} e_x - w_{a,x} e_y) R_a
+                     + R_a (w_{a,x} c_y - w_{a,y} c_x) ] ,
+     Cbbar = (d_y bbar_x - d_x bbar_y)
+             + eps (e_x bbar_y - e_y bbar_x + bbar_x c_y - bbar_y c_x),
+     F_e   = d_y e_x - d_x e_y + eps [e_x, e_y]   (F_c likewise).
+   When the diagonal connections are flat -- F_e = F_c = 0, MEASURED at
+   every sampled point, never assumed -- the gauge G drops out entirely
+   and what is left is a LINEAR system in the constant residues alone.
+   Its consistency is a necessary condition on the alphabet and it costs
+   only point evaluations of e, c, bbar and their first derivatives: no
+   channel decomposition, no compilation, no gauge ansatz.  If the
+   measurement says a diagonal connection is not flat the screen does not
+   apply and the caller falls back to the full condition, i.e. to the
+   gauge system, which carries the G-dependent terms.
+
+   Derivatives are taken by the chain rule on the COMPILED form, never
+   symbolically: each scalar becomes exponent/coefficient tables over
+   (x, y, r_1..r_r) modulo one prime, and
+     d/dx = partial_x + Sum_a partial_{r_a} (delta_a)_x / (2 r_a).      *)
+
+multiquadraticStripScreenCompilePolynomial[polynomial_, allVariables_List,
+    prime_Integer] := Module[{expanded, rules, coefficients, exponents},
+  expanded = Quiet[Expand[polynomial]];
+  If[! PolynomialQ[expanded, allVariables], Return[$Failed]];
+  rules = CoefficientRules[expanded, allVariables];
+  If[rules === {},
+    Return[<|"Exponents" -> {}, "Coefficients" -> {},
+      "MaximumExponents" -> ConstantArray[0, Length[allVariables]]|>]];
+  coefficients = multiquadraticStripModRational[#1, prime] & /@ (Last /@ rules);
+  If[MemberQ[coefficients, $Failed], Return[$Failed]];
+  exponents = First /@ rules;
+  <|"Exponents" -> Developer`ToPackedArray[exponents],
+    "Coefficients" -> Developer`ToPackedArray[coefficients],
+    "MaximumExponents" -> Max /@ Transpose[exponents]|>
+];
+
+multiquadraticStripScreenCompileScalar[expression_, roots_List,
+    rootSymbols_List, variables_List, prime_Integer] := Module[
+  {replaced, rational, numerator, denominator, allVariables},
+  If[expression === $Failed, Return[$Failed]];
+  allVariables = Join[variables, rootSymbols];
+  replaced = If[roots === {}, expression,
+    Quiet[transportChartApplyRootBranches[expression, roots, rootSymbols]]];
+  If[replaced === $Failed, Return[$Failed]];
+  If[! FreeQ[replaced, Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
+    Return[$Failed]];
+  rational = Quiet[Together[replaced]];
+  If[! FreeQ[rational, Power[_, exponent_Rational /; ! IntegerQ[exponent]]] ||
+      ! FreeQ[rational, DirectedInfinity | Indeterminate], Return[$Failed]];
+  numerator = multiquadraticStripScreenCompilePolynomial[Numerator[rational],
+    allVariables, prime];
+  denominator = multiquadraticStripScreenCompilePolynomial[
+    Denominator[rational], allVariables, prime];
+  If[numerator === $Failed || denominator === $Failed ||
+      denominator["Coefficients"] === {}, Return[$Failed]];
+  <|"Numerator" -> numerator, "Denominator" -> denominator,
+    "MaximumExponents" -> MapThread[Max,
+      {numerator["MaximumExponents"], denominator["MaximumExponents"]}]|>
+];
+
+(* value and the partial derivative with respect to EVERY compiled
+   variable, at one point; every variable value is invertible there,
+   which the point acceptance guarantees *)
+multiquadraticStripScreenEvaluatePolynomial[compiled_Association,
+    powerTables_List, inverses_List, prime_Integer] := Module[
+  {exponents = compiled["Exponents"], coefficients = compiled["Coefficients"],
+   count = Length[inverses], monomials},
+  If[coefficients === {}, Return[{0, ConstantArray[0, count]}]];
+  monomials = Fold[
+    Function[{accumulated, index},
+      Mod[accumulated powerTables[[index]][[exponents[[All, index]] + 1]],
+        prime]],
+    ConstantArray[1, Length[coefficients]], Range[count]];
+  {Mod[coefficients . monomials, prime],
+   Table[Mod[inverses[[index]] (
+     (coefficients exponents[[All, index]]) . monomials), prime],
+    {index, count}]}
+];
+
+multiquadraticStripScreenEvaluateRational[compiled_Association,
+    powerTables_List, inverses_List, prime_Integer] := Module[
+  {numeratorPair, denominatorPair, inverse, value},
+  numeratorPair = multiquadraticStripScreenEvaluatePolynomial[
+    compiled["Numerator"], powerTables, inverses, prime];
+  denominatorPair = multiquadraticStripScreenEvaluatePolynomial[
+    compiled["Denominator"], powerTables, inverses, prime];
+  If[First[denominatorPair] === 0, Return[$Failed]];
+  inverse = PowerMod[First[denominatorPair], -1, prime];
+  value = Mod[First[numeratorPair] inverse, prime];
+  {value, Mod[(Last[numeratorPair] - value Last[denominatorPair]) inverse,
+    prime]}
+];
+
+multiquadraticStripScreenPowerTables[values_List, maximumExponents_List,
+    prime_Integer] := Table[
+  FoldList[Mod[#1 values[[index]], prime] &, 1,
+    Range[Max[1, maximumExponents[[index]]]]],
+  {index, Length[values]}];
+
+Options[multiquadraticStripIntegrabilityScreen] = {
+  "Prime" -> Automatic,
+  "RegulatorValue" -> Automatic,
+  "PointCount" -> 20,
+  "MaximumAttempts" -> Automatic,
+  "RandomSeed" -> 2026082401,
+  "ScoreLetters" -> True
+};
+
+multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
+    letterRecords_List, opts : OptionsPattern[]] := Module[
+  {gate, variables, epsilon, strip, e, c, bbar, upper, lower, rank, prime,
+   regulatorValue, epsilonMod, pointCount, maximumAttempts, randomSeed,
+   rootOne, rootTwo, rootThree, rootSymbols, compileScalar, deltaCompiled,
+   eCompiled, cCompiled, bCompiled, letterCompiled, maximumExponents,
+   letterCount, unknownCount, rows = {}, right = {}, accepted = {},
+   rejected = <||>, attempts = 0, point, probeTables, probeInverses,
+   deltaValues, rootValues, pointRows, pointRight, pointOK, notFlat = False,
+   values, inverses, powerTables, rootDerivatives, evaluate, matrixValue,
+   matrixDerivative, ex, ey, cx, cy, bx, by, dyex, dxey, dycx, dxcy, dybx,
+   dxby, curvatureE, curvatureC, forcingCurl, oneFormValues, matrix,
+   rightVector, rankA, rankAugmented, defect, witness, nullVectors, scored,
+   keptColumns, screenStatus, rationalLeaves},
+  gate = multiquadraticStripProductionOptionGate[{opts},
+    Keys[Association[Options[multiquadraticStripIntegrabilityScreen]]]];
+  If[AssociationQ[gate], Return[gate]];
+  variables = Lookup[record, "Variables", $Failed];
+  epsilon = Lookup[record, "Regulator", $Failed];
+  strip = Lookup[record, "Strip", $Failed];
+  If[! MatchQ[variables, {_Symbol, _Symbol}] || ! MatchQ[epsilon, _Symbol] ||
+      ! MatchQ[strip, {_List, _List, _List}],
+    Return[multiquadraticStripFailure["InvalidStripRecord"]]];
+  {e, c, bbar} = strip;
+  If[! MatchQ[Dimensions[bbar], {2, _Integer, _Integer}],
+    Return[multiquadraticStripFailure["InvalidForcingDimensions"]]];
+  {upper, lower} = Dimensions[bbar[[1]]];
+  rank = Length[roots];
+  If[rank > $multiquadraticStripMaximumRootCount,
+    Return[multiquadraticStripFailure["UnsupportedRootRank"]]];
+  prime = Replace[OptionValue["Prime"],
+    Automatic :> First[$multiquadraticStripDefaultPrimes]];
+  regulatorValue = Replace[OptionValue["RegulatorValue"],
+    Automatic :> First[$multiquadraticStripDefaultRegulatorValues]];
+  pointCount = OptionValue["PointCount"];
+  maximumAttempts = Replace[OptionValue["MaximumAttempts"],
+    Automatic :> 40 pointCount + 40];
+  randomSeed = OptionValue["RandomSeed"];
+  If[! PrimeQ[prime] || ! (3 < prime < 2^31) || Mod[prime, 4] =!= 3 ||
+      ! MatchQ[regulatorValue, _Integer | _Rational] ||
+      ! IntegerQ[pointCount] || pointCount < 1 || ! IntegerQ[randomSeed] ||
+      ! IntegerQ[maximumAttempts] || maximumAttempts < pointCount,
+    Return[multiquadraticStripFailure["InvalidIntegrabilityScreenInput",
+      <|"Prime" -> prime, "RegulatorValue" -> regulatorValue,
+        "PointCount" -> pointCount|>]]];
+  epsilonMod = multiquadraticStripModRational[regulatorValue, prime];
+  If[epsilonMod === $Failed || epsilonMod === 0,
+    Return[multiquadraticStripFailure["InvalidRegulatorImage",
+      <|"Prime" -> prime, "RegulatorValue" -> regulatorValue|>]]];
+  letterCount = Length[letterRecords];
+  If[letterCount < 1, Return[multiquadraticStripFailure["EmptyAlphabet"]]];
+  rootSymbols = Take[{rootOne, rootTwo, rootThree}, rank];
+  compileScalar[expression_] := multiquadraticStripScreenCompileScalar[
+    Quiet[Check[Together[expression /. epsilon -> regulatorValue], $Failed,
+      {Power::infy, Infinity::indet, Power::indet}]],
+    roots, rootSymbols, variables, prime];
+  deltaCompiled = multiquadraticStripScreenCompileScalar[#1, {}, rootSymbols,
+      variables, prime] & /@ Lookup[roots, "RootSquare", {}];
+  eCompiled = Map[compileScalar, e, {3}];
+  cCompiled = Map[compileScalar, c, {3}];
+  bCompiled = Map[compileScalar, bbar, {3}];
+  letterCompiled = Map[compileScalar, Lookup[letterRecords, "OneForm", {}], {2}];
+  If[! FreeQ[{deltaCompiled, eCompiled, cCompiled, bCompiled, letterCompiled},
+      $Failed],
+    Return[<|"Status" -> "IntegrabilityScreenNotApplicable",
+      "Module" -> "MultiquadraticStripSolve",
+      "Reason" -> "ScreenCompilationFailed", "Prime" -> prime,
+      "RegulatorValue" -> regulatorValue|>]];
+  rationalLeaves = Cases[{deltaCompiled, eCompiled, cCompiled, bCompiled,
+      letterCompiled}, association_Association /;
+      KeyExistsQ[association, "Numerator"] :> association, {0, Infinity}];
+  maximumExponents = Max /@ Transpose[
+    Lookup[rationalLeaves, "MaximumExponents"]];
+  BlockRandom[
+    SeedRandom[randomSeed, Method -> "MersenneTwister"];
+    While[Length[accepted] < pointCount && attempts < maximumAttempts &&
+        ! notFlat,
+      attempts++;
+      point = RandomInteger[{2, prime - 2}, 2];
+      (* the root squares first: the point must split every declared root *)
+      probeTables = multiquadraticStripScreenPowerTables[
+        Join[point, ConstantArray[1, rank]], maximumExponents, prime];
+      probeInverses = Join[PowerMod[point, -1, prime], ConstantArray[1, rank]];
+      deltaValues = Table[
+        Module[{pair = multiquadraticStripScreenEvaluateRational[
+           deltaCompiled[[a]], probeTables, probeInverses, prime]},
+         If[pair === $Failed, $Failed, First[pair]]], {a, rank}];
+      If[MemberQ[deltaValues, $Failed] || MemberQ[deltaValues, 0] ||
+          ! AllTrue[deltaValues, JacobiSymbol[#1, prime] === 1 &],
+        rejected["NotSplitOverPrime"] =
+          Lookup[rejected, "NotSplitOverPrime", 0] + 1;
+        Continue[]];
+      rootValues = PowerMod[deltaValues, (prime + 1)/4, prime];
+      If[! AllTrue[Range[rank],
+          Mod[rootValues[[#1]]^2 - deltaValues[[#1]], prime] === 0 &],
+        rejected["RootImageNotARoot"] =
+          Lookup[rejected, "RootImageNotARoot", 0] + 1;
+        Continue[]];
+      pointRows = {}; pointRight = {}; pointOK = True;
+      Do[
+        values = Join[point, Table[
+          Mod[If[BitGet[mask, a - 1] === 1, -1, 1] rootValues[[a]], prime],
+          {a, rank}]];
+        If[MemberQ[values, 0], pointOK = False; Break[]];
+        inverses = PowerMod[values, -1, prime];
+        powerTables = multiquadraticStripScreenPowerTables[values,
+          maximumExponents, prime];
+        rootDerivatives = Table[
+          Module[{pair = multiquadraticStripScreenEvaluateRational[
+             deltaCompiled[[a]], powerTables, inverses, prime], half},
+           If[pair === $Failed, ConstantArray[0, 2],
+             half = PowerMod[Mod[2 values[[2 + a]], prime], -1, prime];
+             Mod[half Last[pair][[1 ;; 2]], prime]]],
+          {a, rank}];
+        evaluate[compiled_] := Module[{pair},
+          pair = multiquadraticStripScreenEvaluateRational[compiled,
+            powerTables, inverses, prime];
+          If[pair === $Failed, Throw[$Failed, "MultiquadraticScreenPoint"]];
+          {First[pair], Table[Mod[Last[pair][[mu]] +
+             Sum[Last[pair][[2 + a]] rootDerivatives[[a, mu]], {a, rank}],
+             prime], {mu, 2}]}];
+        matrixValue[block_] := Map[First[evaluate[#1]] &, block, {2}];
+        matrixDerivative[block_, mu_] :=
+          Map[Last[evaluate[#1]][[mu]] &, block, {2}];
+        If[Catch[
+            ex = matrixValue[eCompiled[[1]]]; ey = matrixValue[eCompiled[[2]]];
+            cx = matrixValue[cCompiled[[1]]]; cy = matrixValue[cCompiled[[2]]];
+            bx = matrixValue[bCompiled[[1]]]; by = matrixValue[bCompiled[[2]]];
+            dyex = matrixDerivative[eCompiled[[1]], 2];
+            dxey = matrixDerivative[eCompiled[[2]], 1];
+            dycx = matrixDerivative[cCompiled[[1]], 2];
+            dxcy = matrixDerivative[cCompiled[[2]], 1];
+            dybx = matrixDerivative[bCompiled[[1]], 2];
+            dxby = matrixDerivative[bCompiled[[2]], 1];
+            oneFormValues = Table[
+              {First[evaluate[letterCompiled[[k, 1]]]],
+               First[evaluate[letterCompiled[[k, 2]]]]}, {k, letterCount}];
+            True, "MultiquadraticScreenPoint"] =!= True,
+          pointOK = False; Break[]];
+        curvatureE = Mod[dyex - dxey + epsilonMod (ex . ey - ey . ex), prime];
+        curvatureC = Mod[dycx - dxcy + epsilonMod (cx . cy - cy . cx), prime];
+        If[! (AllTrue[Flatten[curvatureE], #1 === 0 &] &&
+            AllTrue[Flatten[curvatureC], #1 === 0 &]),
+          notFlat = True; pointOK = False; Break[]];
+        forcingCurl = Mod[dybx - dxby +
+          epsilonMod (ex . by - ey . bx + bx . cy - by . cx), prime];
+        Do[
+          AppendTo[pointRight, forcingCurl[[i, j]]];
+          AppendTo[pointRows, Developer`ToPackedArray[Flatten[Table[
+            Mod[Mod[epsilonMod^2, prime] Mod[
+              If[vv === j, Mod[oneFormValues[[k, 2]] ex[[i, uu]] -
+                oneFormValues[[k, 1]] ey[[i, uu]], prime], 0] +
+              If[uu === i, Mod[oneFormValues[[k, 1]] cy[[vv, j]] -
+                oneFormValues[[k, 2]] cx[[vv, j]], prime], 0], prime], prime],
+            {k, letterCount}, {uu, upper}, {vv, lower}]]]],
+          {i, upper}, {j, lower}],
+        {mask, 0, 2^rank - 1}];
+      If[TrueQ[pointOK],
+        AppendTo[accepted, point];
+        rows = Join[rows, pointRows]; right = Join[right, pointRight],
+        rejected["Unusable"] = Lookup[rejected, "Unusable", 0] + 1]]];
+  If[TrueQ[notFlat],
+    Return[<|"Status" -> "IntegrabilityScreenNotApplicable",
+      "Module" -> "MultiquadraticStripSolve",
+      "Reason" -> "DiagonalConnectionsNotFlat",
+      "FlatDiagonalConnections" -> False, "Prime" -> prime,
+      "RegulatorValue" -> regulatorValue, "AttemptCount" -> attempts|>]];
+  If[Length[accepted] < 1 || rows === {},
+    Return[<|"Status" -> "IntegrabilityScreenNotApplicable",
+      "Module" -> "MultiquadraticStripSolve",
+      "Reason" -> "NoAdmissiblePoints", "AttemptCount" -> attempts,
+      "RejectedPoints" -> rejected, "Prime" -> prime,
+      "RegulatorValue" -> regulatorValue|>]];
+  unknownCount = letterCount upper lower;
+  matrix = Developer`ToPackedArray[rows];
+  rightVector = Developer`ToPackedArray[right];
+  rankA = MatrixRank[matrix, Modulus -> prime];
+  rankAugmented = MatrixRank[MapThread[Append, {matrix, rightVector}],
+    Modulus -> prime];
+  defect = rankAugmented - rankA;
+  witness = Missing["Consistent"];
+  If[defect > 0,
+    nullVectors = NullSpace[Transpose[matrix], Modulus -> prime];
+    witness = SelectFirst[nullVectors, Mod[#1 . rightVector, prime] =!= 0 &,
+      Missing["NoWitnessFound"]];
+    If[! MissingQ[witness],
+      witness = <|"Prime" -> prime, "Vector" -> witness,
+        "TransposeResidualZero" ->
+          AllTrue[Mod[witness . matrix, prime], #1 === 0 &],
+        "RightHandSidePairing" -> Mod[witness . rightVector, prime],
+        "Support" -> Count[witness, _?(#1 =!= 0 &)]|>]];
+  scored = If[TrueQ[OptionValue["ScoreLetters"]] && letterCount > 1,
+    Table[
+      keptColumns = Complement[Range[unknownCount],
+        Range[(k - 1) upper lower + 1, k upper lower]];
+      <|"Index" -> k, "Kind" -> Lookup[letterRecords[[k]], "Kind", None],
+        "Letter" -> Lookup[letterRecords[[k]], "Letter", Missing["NoLetter"]],
+        "RankContribution" ->
+          rankA - MatrixRank[matrix[[All, keptColumns]], Modulus -> prime]|>,
+      {k, letterCount}], {}];
+  screenStatus = If[defect > 0, "AlphabetIntegrabilityObstruction",
+    "AlphabetIntegrabilityConsistent"];
+  <|"Status" -> screenStatus, "Module" -> "MultiquadraticStripSolve",
+    "Method" -> "ResidueOnlyIntegrability",
+    "Family" -> Lookup[record, "Family", None],
+    "Sector" -> Lookup[record, "Sector", None],
+    "LowerSector" -> Lookup[record, "LowerSector", None],
+    "Defect" -> defect, "Rank" -> rankA, "AugmentedRank" -> rankAugmented,
+    "Nullity" -> unknownCount - rankA,
+    "MatrixDimensions" -> Dimensions[matrix],
+    "UnknownCount" -> unknownCount, "LetterCount" -> letterCount,
+    "Prime" -> prime, "RegulatorValue" -> regulatorValue,
+    "PointCount" -> Length[accepted], "AcceptedPoints" -> accepted,
+    "AttemptCount" -> attempts, "RejectedPoints" -> rejected,
+    "FlatDiagonalConnections" -> True, "Witness" -> witness,
+    "ScoredLetters" -> scored,
+    "Alphabet" -> Lookup[letterRecords, "Letter", {}],
+    "LetterKinds" -> Lookup[letterRecords, "Kind", {}]|>
+];
+multiquadraticStripIntegrabilityScreen[___] :=
+  multiquadraticStripFailure["InvalidIntegrabilityScreenArguments"];
+
+(* ------------------------------------------------------------------ *)
 (* Preparation: root order, index ABI, support, normalizations          *)
 (* ------------------------------------------------------------------ *)
 
@@ -687,16 +1539,37 @@ multiquadraticStripABIPayload[record_Association, roots_List,
 Options[multiquadraticStripPrepare] = {
   "OneForms" -> Automatic,
   "GaugeDenominator" -> Automatic,
+  (* 2026-08-24: an extra polynomial factor of the gauge denominator, in
+     the style of the rational engine's denominator options.  Automatic
+     means "the norms of the algebraic letters of the alphabet actually
+     used": a multiquadratic gauge acquires exactly those, and the
+     Max[0, p-1] rule of multiquadraticRationalGaugeDenominator (which
+     drops simple poles and never sees a norm at all) cannot produce
+     them.  With no algebraic letter the factor is 1 and every existing
+     caller is unchanged. *)
+  "GaugeDenominatorFactor" -> Automatic,
   "DegreeOffset" -> {0, 0},
   "Support" -> Automatic,
   "NormalizationEquations" -> {},
-  "RootIndices" -> Automatic
+  "RootIndices" -> Automatic,
+  (* candidate letter construction; used only when "OneForms" is
+     Automatic (or when "LetterRecords" carries a set built by the
+     caller in the same call) *)
+  "LetterRecords" -> Automatic,
+  "RegulatorSampleCount" -> 4,
+  "RegulatorSamplePool" -> Automatic,
+  "RowAlphabet" -> Automatic,
+  "AdditionalLetters" -> {},
+  "AlgebraicLetters" -> Automatic,
+  "MaximumNormFactors" -> 2,
+  "MaximumNormExponent" -> 2
 };
 
 multiquadraticStripPrepare[record_Association, frame_Association,
     opts : OptionsPattern[]] := Module[
   {gate, variables, epsilon, strip, allRoots, classification, rootIndices,
    order, roots, channelForcing, oneFormData, oneForms, gaugeDenominator,
+   letterRecords, gaugeDenominatorFactor,
    denominatorDegrees, degreeOffset, numeratorDegrees, support, dimensions,
    gradeCount, gaugeUnknownCount, residueUnknownCount, unknownCount,
    equationsPerPoint, normalizations, payload, fingerprint,
@@ -731,18 +1604,51 @@ multiquadraticStripPrepare[record_Association, frame_Association,
   order = multiquadraticStripRootOrder[frame, variables, rootIndices, epsilon];
   If[Lookup[order, "Status", None] =!= "StableRootOrder", Return[order]];
   roots = order["Roots"];
-  channelForcing = Map[multiquadraticFieldDecompose[#1, roots] &, strip[[3]], {3}];
+  (* the exact decomposition WITH the recompose check, so the compiler can
+     reuse this result inside the same call instead of decomposing the
+     forcing a second time (post-mortem item 5: the second decomposition
+     was 807 s of the 4872 s compile of CF300 (12,9)) *)
+  channelForcing = Map[multiquadraticStripDecomposeScalar[#1, roots] &,
+    strip[[3]], {3}];
   If[! FreeQ[channelForcing, $Failed],
     Return[multiquadraticStripFailure["ForcingChannelDecompositionFailed"]]];
+  letterRecords = OptionValue["LetterRecords"];
   oneFormData = OptionValue["OneForms"];
   If[oneFormData === Automatic,
-    oneFormData = multiquadraticCandidateOneFormBasis[strip, roots, variables, epsilon]];
+    If[! MatchQ[letterRecords, {___Association}],
+      letterRecords = multiquadraticStripCandidateLetters[strip, roots,
+        variables, epsilon, record,
+        "RegulatorSampleCount" -> OptionValue["RegulatorSampleCount"],
+        "RegulatorSamplePool" -> OptionValue["RegulatorSamplePool"],
+        "RowAlphabet" -> OptionValue["RowAlphabet"],
+        "AdditionalLetters" -> OptionValue["AdditionalLetters"],
+        "AlgebraicLetters" -> OptionValue["AlgebraicLetters"],
+        "MaximumNormFactors" -> OptionValue["MaximumNormFactors"],
+        "MaximumNormExponent" -> OptionValue["MaximumNormExponent"]];
+      If[Lookup[letterRecords, "Status", None] =!=
+          "MultiquadraticCandidateLettersV1",
+        Return[If[AssociationQ[letterRecords], letterRecords,
+          multiquadraticStripFailure["OneFormBasisFailed"]]]];
+      oneFormData = letterRecords;
+      letterRecords = oneFormData["LetterRecords"],
+      oneFormData = <|"OneForms" -> Lookup[letterRecords, "OneForm", {}],
+        "DeduplicatedCount" -> Length[letterRecords]|>]];
   oneForms = If[AssociationQ[oneFormData],
     Lookup[oneFormData, "OneForms", $Failed], oneFormData];
   If[! MatchQ[oneForms, {} | {{_, _} ..}],
     Return[multiquadraticStripFailure["OneFormBasisFailed"]]];
+  gaugeDenominatorFactor = Replace[OptionValue["GaugeDenominatorFactor"],
+    Automatic :> If[MatchQ[letterRecords, {___Association}],
+      multiquadraticStripNormDenominatorFactor[letterRecords, variables], 1]];
+  If[TrueQ[Together[gaugeDenominatorFactor] === 0] ||
+      ! FreeQ[gaugeDenominatorFactor,
+        Power[_, exponent_Rational /; Denominator[exponent] === 2]],
+    Return[multiquadraticStripFailure["GaugeDenominatorFactorNotRational",
+      <|"GaugeDenominatorFactor" -> gaugeDenominatorFactor|>]]];
   gaugeDenominator = Replace[OptionValue["GaugeDenominator"],
-    Automatic :> multiquadraticRationalGaugeDenominator[channelForcing, variables]];
+    Automatic :> multiquadraticStripMergeGaugeDenominator[
+      multiquadraticRationalGaugeDenominator[channelForcing, variables],
+      gaugeDenominatorFactor, variables]];
   If[TrueQ[Together[gaugeDenominator] === 0] ||
       ! FreeQ[gaugeDenominator,
         Power[_, exponent_Rational /; Denominator[exponent] === 2]],
@@ -798,6 +1704,16 @@ multiquadraticStripPrepare[record_Association, frame_Association,
     "RootOrderingFingerprint" -> order["OrderingFingerprint"],
     "RootSquares" -> Lookup[roots, "RootSquare", {}],
     "OneForms" -> oneForms, "OneFormMetadata" -> oneFormData,
+    (* the letter provenance and the exact forcing channels of THIS call;
+       neither is part of the hashed ABI payload, and the compiler reuses
+       the channels rather than decomposing the forcing again *)
+    "LetterRecords" -> If[MatchQ[letterRecords, {___Association}],
+      letterRecords, Missing["LettersSuppliedAsOneForms"]],
+    "AlgebraicLetterCount" -> If[MatchQ[letterRecords, {___Association}],
+      Count[letterRecords, item_ /; Lookup[item, "Kind", None] === "Algebraic"],
+      Missing["LettersSuppliedAsOneForms"]],
+    "GaugeDenominatorFactor" -> Together[gaugeDenominatorFactor],
+    "ForcingChannels" -> channelForcing,
     "GaugeDenominator" -> Together[gaugeDenominator],
     "GaugeDenominatorDegrees" -> denominatorDegrees,
     "GaugeSupport" -> support, "Dimensions" -> dimensions,
@@ -944,12 +1860,30 @@ multiquadraticStripSemanticPayload[assembly_Association] := KeyTake[assembly, {
   "ExactChannelFormsFingerprint", "CompiledFormsFingerprint",
   "CompiledFormsShapeFingerprint", "SourceSHA256"}];
 
-multiquadraticStripCompile[preparation_Association] := Module[
-  {variables, epsilon, record, strip, e, c, bbar, roots, rules, dimensions,
-   eData, cData, bData, oneData, rootSquares, rootSquareData, rootLogData,
-   denominatorData, denominatorLogData, exactForms, compiledForms,
-   canonicalExact, result, payload},
-  If[! multiquadraticStripPreparationValidQ[preparation],
+(* "PreparationValidated" and "ForcingChannels" exist for ONE caller:
+   solveEpsFormStripMultiquadratic, which has just built this preparation
+   object itself in the same call.  Re-deriving the ABI payload and
+   decomposing the forcing a second time then costs (measured on CF300
+   (12,9)) 25 s and 807 s and can only reproduce what the preparation
+   already carries.  Both default to the conservative behaviour, so a
+   preparation that arrived from an artifact, a cache or another process
+   is still validated and still decomposed here. *)
+Options[multiquadraticStripCompile] = {
+  "PreparationValidated" -> False,
+  "ForcingChannels" -> Automatic
+};
+
+multiquadraticStripCompile[preparation_Association,
+    opts : OptionsPattern[]] := Module[
+  {gate, variables, epsilon, record, strip, e, c, bbar, roots, rules,
+   dimensions, eData, cData, bData, oneData, rootSquares, rootSquareData,
+   rootLogData, reusedChannels, denominatorData, denominatorLogData,
+   exactForms, compiledForms, canonicalExact, result, payload},
+  gate = multiquadraticStripProductionOptionGate[{opts},
+    Keys[Association[Options[multiquadraticStripCompile]]]];
+  If[AssociationQ[gate], Return[gate]];
+  If[! TrueQ[OptionValue["PreparationValidated"]] &&
+      ! multiquadraticStripPreparationValidQ[preparation],
     Return[multiquadraticStripFailure["InvalidPreparationABI"]]];
   variables = preparation["Variables"];
   epsilon = preparation["Regulator"];
@@ -961,7 +1895,17 @@ multiquadraticStripCompile[preparation_Association] := Module[
   rules = multiquadraticStripCanonicalRules[variables, epsilon];
   eData = multiquadraticStripCompileTensor[e, 3, roots, variables, epsilon];
   cData = multiquadraticStripCompileTensor[c, 3, roots, variables, epsilon];
-  bData = multiquadraticStripCompileTensor[bbar, 3, roots, variables, epsilon];
+  reusedChannels = Replace[OptionValue["ForcingChannels"],
+    Automatic :> Missing["NotSupplied"]];
+  bData = If[ArrayQ[reusedChannels, 4] &&
+      Dimensions[reusedChannels] === Append[Dimensions[bbar],
+        preparation["GradeCount"]] && FreeQ[reusedChannels, $Failed],
+    Module[{compiled = Map[
+        multiquadraticStripCompileRational[#1, variables, epsilon] &,
+        reusedChannels, {4}]},
+      If[! FreeQ[compiled, $Failed], $Failed,
+        <|"Channels" -> reusedChannels, "Compiled" -> compiled|>]],
+    multiquadraticStripCompileTensor[bbar, 3, roots, variables, epsilon]];
   oneData = multiquadraticStripCompileTensor[preparation["OneForms"], 2, roots,
     variables, epsilon];
   If[MemberQ[{eData, cData, bData, oneData}, $Failed],
@@ -1999,9 +2943,18 @@ multiquadraticStripAffineSolve[matrix_?MatrixQ, right_List, prime_Integer] :=
     multiquadraticStripZeroQ[Mod[coefficientPart[[#1]], prime]] &&
       Mod[reduced[[#1, -1]], prime] =!= 0 &];
   If[inconsistentRows =!= {},
+    (* the rank of the coefficient part and the affine defect belong to
+       the typed failure: without them a recorded inconsistency says only
+       that the system had no solution, and the driver's failure summary
+       cannot tell a missing letter from too small an ansatz
+       (2026-08-24) *)
     Return[multiquadraticStripFailure["InconsistentModularSystem",
       <|"Prime" -> prime, "MatrixDimensions" -> dimensions,
-        "InconsistentRows" -> inconsistentRows|>]]];
+        "InconsistentRows" -> inconsistentRows,
+        "Rank" -> Length[pivotColumns],
+        "AugmentedRank" -> Length[pivotColumns] + Length[inconsistentRows],
+        "Defect" -> Length[inconsistentRows],
+        "Nullity" -> unknownCount - Length[pivotColumns]|>]]];
   freeColumns = Complement[Range[unknownCount], pivotColumns];
   particular = ConstantArray[0, unknownCount];
   Do[particular[[pivotColumns[[k]]]] = Mod[reduced[[pivotRows[[k]], -1]], prime],
@@ -2285,6 +3238,12 @@ Options[solveEpsFormStripMultiquadratic] = Join[
   "RandomSeed" -> 2026082307,
   "PlanDiscoveryBackend" -> Automatic,
   "DifferentialCheck" -> True,
+  (* the residue-only integrability screen runs BEFORE prepare/compile;
+     False skips it entirely *)
+  "IntegrabilityScreen" -> True,
+  "IntegrabilityScreenPointCount" -> 20,
+  "IntegrabilityScreenPrime" -> Automatic,
+  "IntegrabilityScreenRegulatorValue" -> Automatic,
   (* absolute AbsoluteTime[] value; Infinity = unbounded (the default,
      so every existing caller is unchanged) *)
   "Deadline" -> Infinity,
@@ -2306,7 +3265,9 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
    heldOutSolution, heldOutResidual, branchCertificate, branchMask,
    transformedSample, differential, liftedVector, unpacked, prime,
    regulatorValue, samplerOptions, deadline, budgetProgress,
-   budgetExhausted,
+   budgetExhausted, enrich, variables, epsilon, strip, allRoots, classification,
+   rootIndices, order, screenRoots, letterRecords, letterData, screen,
+   screenRegulatorValue, prepareOptions,
    pathStatisticsBefore = multiquadraticFieldPathStatistics[]},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[solveEpsFormStripMultiquadratic]]]];
@@ -2337,6 +3298,35 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
       Missing["NotPrepared"]]|>;
   budgetExhausted[stage_String] := multiquadraticStripBudgetExhausted[
     stage, AbsoluteTime[] - startTime, deadline, budgetProgress[]];
+  (* the ansatz a failure happened in.  A typed failure from the sampler
+     or the modular solve names the prime, the matrix and the
+     inconsistent rows but not the ansatz that produced them, and the
+     driver's failure summary then records a defect with no way to tell a
+     missing letter from too small a support (2026-08-24). *)
+  enrich[failure_] := If[! AssociationQ[failure], failure,
+    Join[<|
+      "Family" -> Lookup[record, "Family", None],
+      "Sector" -> Lookup[record, "Sector", None],
+      "LowerSector" -> Lookup[record, "LowerSector", None],
+      "Method" -> "DirectRootChannel",
+      "UnknownCount" -> If[AssociationQ[preparation],
+        Lookup[preparation, "UnknownCount", Missing["NotPrepared"]],
+        Missing["NotPrepared"]],
+      "GaugeDenominator" -> If[AssociationQ[preparation],
+        Lookup[preparation, "GaugeDenominator", Missing["NotPrepared"]],
+        Missing["NotPrepared"]],
+      "GaugeSupport" -> If[AssociationQ[preparation],
+        Lookup[preparation, "GaugeSupport", Missing["NotPrepared"]],
+        Missing["NotPrepared"]],
+      "OneFormCount" -> If[AssociationQ[preparation],
+        Length[Lookup[preparation, "OneForms", {}]], Missing["NotPrepared"]],
+      "RootIndices" -> If[AssociationQ[preparation],
+        Lookup[preparation, "RootIndices", Missing["NotPrepared"]],
+        Missing["NotPrepared"]],
+      "IntegrabilityScreen" -> KeyTake[screen,
+        {"Status", "Reason", "Defect", "Rank", "AugmentedRank",
+         "LetterCount", "FlatDiagonalConnections"}]|>,
+      failure]];
   backendGate = multiquadraticStripBackendGate[OptionValue["PlanDiscoveryBackend"]];
   If[AssociationQ[backendGate], Return[backendGate]];
   (* after the option gates (a malformed request is a caller error and
@@ -2345,14 +3335,101 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
     Return[budgetExhausted["Entry"]]];
   verbose = TrueQ[OptionValue["Verbose"]];
   log[items___] := If[verbose, Print["[multiquadratic] ", items]];
+  (* ---------------------------------------------------------------- *)
+  (* Alphabet construction and the residue-only integrability screen.   *)
+  (* Both run BEFORE the forcing channel decomposition and the compile, *)
+  (* which are 99.9% of this engine's cost: an alphabet that cannot     *)
+  (* satisfy the integrability condition can never satisfy the gauge    *)
+  (* system it is a projection of, and there is no reason to spend      *)
+  (* hours discovering that.                                            *)
+  (* ---------------------------------------------------------------- *)
+  variables = Lookup[record, "Variables", $Failed];
+  epsilon = Lookup[record, "Regulator", $Failed];
+  strip = Lookup[record, "Strip", $Failed];
+  screenRoots = Missing["RootsNotResolved"];
+  letterRecords = Missing["NotBuilt"];
+  screen = <|"Status" -> "IntegrabilityScreenSkipped"|>;
+  If[MatchQ[variables, {_Symbol, _Symbol}] && MatchQ[epsilon, _Symbol] &&
+      MatchQ[strip, {_List, _List, _List}],
+    allRoots = transportChartCurrentRoots[frame, variables];
+    If[ListQ[allRoots],
+      classification = multiquadraticStripRootCensus[strip, allRoots];
+      rootIndices = Replace[OptionValue["RootIndices"],
+        Automatic :> classification["RootIndices"]];
+      If[VectorQ[rootIndices, IntegerQ] &&
+          Length[rootIndices] <= $multiquadraticStripMaximumRootCount,
+        order = multiquadraticStripRootOrder[frame, variables, rootIndices,
+          epsilon];
+        If[Lookup[order, "Status", None] === "StableRootOrder",
+          screenRoots = order["Roots"]]]]];
+  If[ListQ[screenRoots] && OptionValue["OneForms"] === Automatic &&
+      ! MatchQ[OptionValue["LetterRecords"], {___Association}],
+    letterData = multiquadraticStripCandidateLetters[strip, screenRoots,
+      variables, epsilon, record,
+      "RegulatorSampleCount" -> OptionValue["RegulatorSampleCount"],
+      "RegulatorSamplePool" -> OptionValue["RegulatorSamplePool"],
+      "RowAlphabet" -> OptionValue["RowAlphabet"],
+      "AdditionalLetters" -> OptionValue["AdditionalLetters"],
+      "AlgebraicLetters" -> OptionValue["AlgebraicLetters"],
+      "MaximumNormFactors" -> OptionValue["MaximumNormFactors"],
+      "MaximumNormExponent" -> OptionValue["MaximumNormExponent"]];
+    If[Lookup[letterData, "Status", None] =!= "MultiquadraticCandidateLettersV1",
+      Return[If[AssociationQ[letterData], letterData,
+        multiquadraticStripFailure["OneFormBasisFailed"]]]];
+    letterRecords = letterData["LetterRecords"];
+    log["alphabet: ", Length[letterRecords], " letters ",
+      letterData["Counts"], ", regulator samples ",
+      letterData["RegulatorValues"], " (rejected ",
+      letterData["RejectedRegulatorValues"], ")"]];
+  If[! MatchQ[letterRecords, {___Association}],
+    letterRecords = If[MatchQ[OptionValue["LetterRecords"], {___Association}],
+      OptionValue["LetterRecords"],
+      If[MatchQ[OptionValue["OneForms"], {{_, _} ..}],
+        <|"Kind" -> "Supplied", "Letter" -> Missing["OneFormSuppliedDirectly"],
+          "OneForm" -> #1|> & /@ OptionValue["OneForms"],
+        Missing["NotBuilt"]]]];
+  If[TrueQ[OptionValue["IntegrabilityScreen"]] && ListQ[screenRoots] &&
+      MatchQ[letterRecords, {__Association}],
+    screenRegulatorValue = Replace[
+      OptionValue["IntegrabilityScreenRegulatorValue"],
+      Automatic :> If[AssociationQ[letterData] &&
+          MatchQ[Lookup[letterData, "RegulatorValues", {}], {__}],
+        First[letterData["RegulatorValues"]], Automatic]];
+    screen = multiquadraticStripIntegrabilityScreen[record, screenRoots,
+      letterRecords, "Prime" -> OptionValue["IntegrabilityScreenPrime"],
+      "RegulatorValue" -> screenRegulatorValue,
+      "PointCount" -> OptionValue["IntegrabilityScreenPointCount"]];
+    log["integrability screen: ", Lookup[screen, "Status", None],
+      ", defect ", Lookup[screen, "Defect", None], ", rank ",
+      Lookup[screen, "Rank", None], "/", Lookup[screen, "AugmentedRank", None],
+      " of ", Lookup[screen, "MatrixDimensions", None]];
+    If[Lookup[screen, "Status", None] === "AlphabetIntegrabilityObstruction",
+      Return[Join[screen, <|"SolutionContract" -> "NoGaugeExistsWithThisAlphabet",
+        "ContractNote" -> "the residue-only integrability system is inconsistent at this image; no gauge of any shape, denominator or support can repair it -- the alphabet is missing letters",
+        "Seconds" -> AbsoluteTime[] - startTime|>]]]];
+  If[multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["Preparation"]]];
+  prepareOptions = Join[
+    If[MatchQ[letterRecords, {___Association}] &&
+        OptionValue["OneForms"] === Automatic,
+      {"LetterRecords" -> letterRecords}, {}],
+    FilterRules[DeleteCases[Flatten[{opts}],
+      HoldPattern["LetterRecords" -> _] | HoldPattern["LetterRecords" :> _]],
+      Options[multiquadraticStripPrepare]]];
   preparation = multiquadraticStripPrepare[record, frame,
-    Sequence @@ FilterRules[{opts}, Options[multiquadraticStripPrepare]]];
+    Sequence @@ prepareOptions];
   If[Lookup[preparation, "Status", None] =!= "PreparedMultiquadraticStripV1",
     Return[preparation]];
   log["prepared: rank ", preparation["RootCount"], ", ",
     preparation["UnknownCount"], " unknowns, ",
     preparation["EquationsPerPoint"], " equations per point"];
-  assembly = multiquadraticStripCompile[preparation];
+  (* the preparation object was built in THIS call: its ABI payload is
+     the one just computed and its forcing channels are exact, so the
+     compiler neither re-derives the payload nor decomposes the forcing
+     a second time (post-mortem item 5) *)
+  assembly = multiquadraticStripCompile[preparation,
+    "PreparationValidated" -> True,
+    "ForcingChannels" -> Lookup[preparation, "ForcingChannels", Automatic]];
   If[Lookup[assembly, "Status", None] =!= "CompiledMultiquadraticStripV1",
     Return[assembly]];
   (* between preparation and the modular schedule *)
@@ -2388,11 +3465,11 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
     sample = multiquadraticStripAssembleSample[assembly, regulatorValue, prime,
       Sequence @@ samplerOptions];
     If[Lookup[sample, "Status", None] =!= "AssembledMultiquadraticSampleV1",
-      Return[sample, Module]];
+      Return[enrich[sample], Module]];
     solution = multiquadraticStripAffineSolve[sample["Matrix"],
       sample["RightHandSide"], prime];
     If[Lookup[solution, "Status", None] =!= "MultiquadraticAffineSolution",
-      Return[solution, Module]];
+      Return[enrich[solution], Module]];
     samples[{prime, regulatorValue}] = sample;
     solutions[{prime, regulatorValue}] = solution;
     AppendTo[signatures, {solution["Rank"], solution["Nullity"],
@@ -2401,8 +3478,8 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
       solution["Rank"], ", nullity ", solution["Nullity"]],
     {regulatorValue, regulatorValues}, {prime, primes}];
   If[Length[DeleteDuplicates[signatures]] =!= 1,
-    Return[multiquadraticStripFailure["ModularStructureUnstable",
-      <|"Signatures" -> DeleteDuplicates[signatures]|>]]];
+    Return[enrich[multiquadraticStripFailure["ModularStructureUnstable",
+      <|"Signatures" -> DeleteDuplicates[signatures]|>]]]];
   signature = First[signatures];
   (* held-out prime AND held-out regulator value: the guard against a
      structure that only exists at the sampled images.  Split points
@@ -2415,11 +3492,11 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
     heldOutRegulatorValue, heldOutPrime, Sequence @@ samplerOptions,
     "SplitPointsOnly" -> True];
   If[Lookup[heldOutSample, "Status", None] =!= "AssembledMultiquadraticSampleV1",
-    Return[heldOutSample]];
+    Return[enrich[heldOutSample]]];
   heldOutSolution = multiquadraticStripAffineSolve[heldOutSample["Matrix"],
     heldOutSample["RightHandSide"], heldOutPrime];
   If[Lookup[heldOutSolution, "Status", None] =!= "MultiquadraticAffineSolution",
-    Return[heldOutSolution]];
+    Return[enrich[heldOutSolution]]];
   If[{heldOutSolution["Rank"], heldOutSolution["Nullity"],
       heldOutSolution["PivotSignature"]} =!= signature,
     Return[multiquadraticStripFailure["HeldOutStructureMismatch",
@@ -2492,7 +3569,22 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
     "Dimensions" -> preparation["Dimensions"],
     "GaugeSupport" -> preparation["GaugeSupport"],
     "GaugeDenominator" -> preparation["GaugeDenominator"],
+    "GaugeDenominatorFactor" -> Lookup[preparation, "GaugeDenominatorFactor",
+      Missing["NotRecorded"]],
     "OneForms" -> preparation["OneForms"],
+    "OneFormCount" -> Length[preparation["OneForms"]],
+    "CandidateAlphabet" -> If[MatchQ[letterRecords, {___Association}],
+      Lookup[letterRecords, "Letter", {}], Missing["LettersSuppliedAsOneForms"]],
+    "LetterKinds" -> If[MatchQ[letterRecords, {___Association}],
+      Lookup[letterRecords, "Kind", {}], Missing["LettersSuppliedAsOneForms"]],
+    "AlgebraicLetterCount" -> Lookup[preparation, "AlgebraicLetterCount",
+      Missing["NotRecorded"]],
+    "RegulatorSampleValues" -> If[AssociationQ[letterData],
+      Lookup[letterData, "RegulatorValues", {}], Missing["NotBuilt"]],
+    "IntegrabilityScreen" -> KeyTake[screen,
+      {"Status", "Reason", "Defect", "Rank", "AugmentedRank",
+       "MatrixDimensions", "UnknownCount", "LetterCount", "Prime",
+       "RegulatorValue", "PointCount", "FlatDiagonalConnections"}],
     "UnknownCount" -> preparation["UnknownCount"],
     "EquationsPerPoint" -> preparation["EquationsPerPoint"],
     "ABIFingerprint" -> preparation["ABIFingerprint"],

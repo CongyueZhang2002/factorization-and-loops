@@ -292,7 +292,14 @@ familyRowGaugeSolverFailureSummary[candidate_] := Module[
     "BackendRequested", "BackendUsed", "BackendFallbackReason",
     "BackendFailure", "PlanValidationStatus",
     "PlanDiscoveryBackendRequested", "PlanDiscoveryBackendUsed",
-    "StructuralFailureReasons", "Certificate"};
+    "StructuralFailureReasons", "Certificate",
+    (* 2026-08-24: the ansatz a defect was measured in.  Without these a
+       recorded failure says only that the system was inconsistent, and a
+       missing letter is indistinguishable from too small a support or a
+       gauge denominator that cannot carry the pole; each value is
+       ByteCount-bounded by the same rule as every other field. *)
+    "Prime", "MatrixDimensions", "InconsistentRows", "Rank", "Nullity",
+    "UnknownCount", "GaugeDenominator", "GaugeSupport", "OneFormCount"};
   bounded[value_] := If[ByteCount[value] <= 4096, value,
     <|"Elided" -> True, "ByteCount" -> ByteCount[value],
       "SHA256" -> Hash[value, "SHA256", "HexString"]|>];
