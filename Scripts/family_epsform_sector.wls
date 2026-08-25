@@ -520,13 +520,21 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
     FeynFacet`FactorFamilyRegulatorDependence[aT, {xx, yy}, ee, "TimeLimit" -> Min[sectorBudget, 600], "Verbose" -> False]];
   If[AssociationQ[factor] && factor["Status"] === "NoRationalChart",
     (* typed stop: the roots of the completed truncation have no joint
-       rational chart; continuing would construct the next row from
+       rational chart AND the graded-algebra route
+       (FactorFamilyRegulatorDependenceMultiquadratic, 2026-08-25) refused
+       as well; continuing would construct the next row from
        regulator-dependent residues (an intrinsically inconsistent strip
-       problem, CF300 (8,5)) *)
+       problem, CF300 (8,5)).  The refusal is the honest terminal, and it
+       carries the graded route's own diagnostics. *)
     log["  !! rows 1..", m, " need a multiquadratic regulator factorization (roots ", factor["RootIndices"],
-      " have no joint rational chart); stopping before the next row"];
+      " have no joint rational chart); the graded-algebra route refused with ",
+      Lookup[Lookup[factor, "MultiquadraticFactorization", <||>], "Status",
+        Missing["NotAttempted"]],
+      "; stopping before the next row"];
     state["Stop"] = <|"Status" -> "NeedsMultiquadraticRegulatorFactorization", "Rows" -> m,
-      "RootIndices" -> factor["RootIndices"], "RootSquares" -> factor["RootSquares"]|>;
+      "RootIndices" -> factor["RootIndices"], "RootSquares" -> factor["RootSquares"],
+      "MultiquadraticFactorization" ->
+        Lookup[factor, "MultiquadraticFactorization", Missing["NotAttempted"]]|>;
     putAtomic[state, stateFile]; Exit[2]];
   If[! (AssociationQ[factor] && factor["Status"] === "OK"),
     log["  !! regulator factorization of rows 1..", m, " failed: ", If[AssociationQ[factor], factor["Status"], factor]];
@@ -563,9 +571,22 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
       <|"Rows" -> m, "Method" -> factor["Method"], "Points" -> factor["Points"], "Seconds" -> factor["Seconds"],
         "Chart" -> Lookup[factor, "Chart", None],
         "RootIndices" -> Lookup[factor, "RootIndices", {}],
+        (* graded-algebra route only (2026-08-25): the evidence the
+           recorded eps-factorization rests on *)
+        "GradedRank" -> Lookup[factor, "Rank", Missing["NotGraded"]],
+        "ActiveGrades" -> Lookup[factor, "ActiveGrades", Missing["NotGraded"]],
+        "ExactEpsFactorization" -> Lookup[factor, "ExactEpsFactorization", Missing["NotGraded"]],
+        "CompositionSpotCheck" -> Lookup[factor, "CompositionSpotCheck", Missing["NotGraded"]],
+        "ModularCorroboration" -> Lookup[factor, "ModularCorroboration", Missing["NotGraded"]],
         "PropagationStatistics" -> propagation["Statistics"]|>]|>];
   log["  regulator factorization of rows 1..", m, ": ", factor["Method"], ", ", factor["Points"], " points, ",
-    Round[factor["Seconds"], 0.1], " s; future A mode ", futureAMode,
+    Round[factor["Seconds"], 0.1], " s",
+    If[KeyExistsQ[factor, "ModularCorroboration"],
+      ", graded rank " <> ToString[Lookup[factor, "Rank", "?"]] <>
+        ", sign-sheet corroboration " <>
+        ToString[Lookup[Lookup[factor, "ModularCorroboration", <||>], "Status", "?"]],
+      ""],
+    "; future A mode ", futureAMode,
     " -> eps-factored ", epsFormQ[state["A"][[1, 1 ;; nm, 1 ;; nm]]] && epsFormQ[state["A"][[2, 1 ;; nm, 1 ;; nm]]]];
   True];
 

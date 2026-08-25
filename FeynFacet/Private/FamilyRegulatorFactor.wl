@@ -265,6 +265,506 @@ using the Wolfram backend"];
     "UseFermat" -> backend["UseFermat"], "Seconds" -> AbsoluteTime[] - start|>
 ];
 
+(* ------------------------------------------------------------------ *)
+(*  Multiquadratic regulator factorization (2026-08-25, CF259)          *)
+(* ------------------------------------------------------------------ *)
+(* WHY.  CF259 stopped typed at rows 1..23 (2026-08-25 07:50): the three
+   declared roots of the completed 41x41 truncation have NO joint
+   rational chart (TransportRootSetChart is Missing["NoRationalChart"];
+   the triple cover is a K3 surface, not a rational one), so the chart
+   route of FactorFamilyRegulatorDependenceInFrame has nothing to pull
+   back to.  The constant T(eps) must therefore be found in the graded
+   algebra R = F(x,y)[r_1,...,r_k]/(r_i^2 - q_i) itself.
+
+   THE OBSERVATION THAT MAKES IT LINEAR AND EXACT.  T is an element of
+   GL(n, Q(eps)): it is constant in (x, y) AND it lies in GRADE 0 of the
+   algebra.  Multiplication by a grade-0 element preserves the grading,
+   so conjugation acts grade by grade:
+
+     (T^-1 A_mu T)^(g) = T^-1 A_mu^(g) T   for every grade mask g.
+
+   Decomposing the connection into its 2^k grade components -- each a
+   matrix of ordinary RATIONAL functions of (x, y) with eps-dependent
+   coefficients -- therefore turns the problem into exactly the rational
+   route's problem, on 2 * 2^k matrices instead of 2.  No rational chart,
+   no split-point search over the K3 (the "all three q_i simultaneously
+   rational squares" locus), and no Together on an expression carrying a
+   radical -- the trap this repository has paid for -- is needed
+   anywhere: every object the acceptance test sees is a rational
+   function.  Sampling the grade components at exact rational (x, y)
+   points and running Libra`FactorDependence is the same
+   "ExactRationalSamples" strategy as the rational route, per grade
+   component.
+
+   ACCEPTANCE is exact and is made in the graded algebra: every grade of
+   T^-1 A_mu T is eps-factored identically in (x, y) (Together on a
+   rational function is canonical), T T^-1 = 1 exactly, and the composed
+   algebraic connection is spot-checked against the direct triple product
+   with transportChartAlgebraicZeroQ (the r-symbol reduction of commit
+   5a8cf88).  A modular corroboration at fresh primes evaluates the SAME
+   conjugated object on all 2^k sign sheets of a split point and checks
+   that each sheet is eps-independent; it is recorded as corroboration,
+   never as the proof. *)
+
+Clear[FactorFamilyRegulatorDependenceMultiquadratic];
+ClearAll[familyRegulatorNonSquareRationalQ, familyRegulatorGradedRoots,
+  familyRegulatorGradedDecompose, familyRegulatorGradedMatrices,
+  familyRegulatorGradedPointFactoredQ, familyRegulatorModularImage,
+  familyRegulatorGradedCorroborate, familyRegulatorGradedSpotCheck,
+  familyRegulatorGradedSampleMatrix, $familyRegulatorMaximumGradedRank];
+
+(* rank 3 declared roots + the square classes of the numeric constants a
+   denesting can introduce (CF259 carries Sqrt[2]); the neutral algebra
+   is rank-agnostic, the strip module's own ceiling of 3 is an ABI of the
+   strip solver and is deliberately not touched here *)
+$familyRegulatorMaximumGradedRank = 5;
+
+familyRegulatorNonSquareRationalQ[value_] :=
+  MatchQ[value, _Integer | _Rational] && value =!= 0 &&
+    ! MatchQ[Sqrt[value], _Integer | _Rational];
+
+(* A numeric square class (Sqrt[2] and the like) is a constant of the
+   coefficient field, not a function of the chart variables, so the chart
+   route may ignore it.  The graded route may NOT: 1/(1 + Sqrt[2]) and
+   Sqrt[2] - 1 are the same element and Together does not know it, so the
+   eps-factorization test would be decided on a non-canonical form.
+   Carrying the class as one more graded generator makes every channel an
+   honest rational function over Q and the test canonical. *)
+familyRegulatorGradedRoots[usedRoots_List, numericClasses_List] := Module[
+  {classes},
+  classes = Select[DeleteDuplicates[Together /@ numericClasses],
+    familyRegulatorNonSquareRationalQ];
+  Join[usedRoots, Map[<|"Root" -> Sqrt[#], "RootSquare" -> #|> &, classes]]
+];
+
+(* multiquadraticFieldDecompose with the strip module's rank-3 ABI
+   ceiling lifted (see above) and the exact compose check kept.  Root
+   symbols are Module locals: nothing is interned, nothing survives the
+   call (pool defect 8). *)
+familyRegulatorGradedDecompose[expression_, roots_List] := Module[
+  {rank = Length[roots], rootA, rootB, rootC, rootD, rootE, symbols, deltas,
+   replaced, rational, numerator, denominator, numeratorChannels,
+   denominatorChannels, denominatorInverse, channels, reconstructed,
+   difference},
+  If[rank > $familyRegulatorMaximumGradedRank, Return[$Failed]];
+  deltas = Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]];
+  If[Length[deltas] =!= rank || ! FreeQ[deltas, $Failed], Return[$Failed]];
+  deltas = Together /@ deltas;
+  symbols = Take[{rootA, rootB, rootC, rootD, rootE}, rank];
+  replaced = If[rank === 0, expression,
+    transportChartApplyRootBranches[expression, roots, symbols]];
+  If[replaced === $Failed, Return[$Failed]];
+  (* a radical the declared roots do not account for is not decomposable
+     in this field: fail closed, never report a wrong grade-0 channel *)
+  If[! FreeQ[replaced, Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
+    Return[$Failed]];
+  rational = Together[replaced];
+  If[! FreeQ[rational, Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
+    Return[$Failed]];
+  If[rank === 0 || FreeQ[rational, Alternatives @@ symbols],
+    channels = PadRight[{rational}, 2^rank, 0],
+    numerator = Numerator[rational]; denominator = Denominator[rational];
+    If[! PolynomialQ[numerator, symbols] || ! PolynomialQ[denominator, symbols],
+      Return[$Failed]];
+    numeratorChannels = multiquadraticFromPolynomial[numerator, symbols, deltas];
+    denominatorChannels = multiquadraticFromPolynomial[denominator, symbols, deltas];
+    If[numeratorChannels === $Failed || denominatorChannels === $Failed,
+      Return[$Failed]];
+    denominatorInverse = multiquadraticFieldInverse[denominatorChannels, deltas];
+    If[denominatorInverse === $Failed, Return[$Failed]];
+    channels = Together /@ multiquadraticMultiply[numeratorChannels,
+      denominatorInverse, deltas]];
+  If[Length[channels] =!= 2^rank, Return[$Failed]];
+  reconstructed = multiquadraticToExpression[channels, Lookup[roots, "Root", {}]];
+  difference = reconstructed - expression;
+  If[! (TrueQ[Together[difference] === 0] ||
+        TrueQ[transportChartAlgebraicZeroQ[difference, roots] === True]),
+    Return[$Failed]];
+  channels
+];
+
+(* {Ax, Ay} -> the 2 * 2^k grade-component matrices.  A zero entry keeps
+   its zero channels without a decomposition call; a failure is reported
+   with the offending positions, never absorbed. *)
+familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List] := Module[
+  {rank = Length[roots], gradeCount, n = Length[connection[[1]]], channels,
+   failures = {}, decomposed, entry, active},
+  gradeCount = 2^rank;
+  channels = Table[
+    entry = connection[[mu, i, j]];
+    If[TrueQ[entry === 0], ConstantArray[0, gradeCount],
+      decomposed = familyRegulatorGradedDecompose[entry, roots];
+      If[ListQ[decomposed] && Length[decomposed] === gradeCount, decomposed,
+        If[Length[failures] < 4, AppendTo[failures, {mu, i, j}]];
+        ConstantArray[0, gradeCount]]],
+    {mu, 2}, {i, n}, {j, n}];
+  If[failures =!= {},
+    Return[<|"Status" -> "GradeDecompositionFailed", "Positions" -> failures,
+      "Rank" -> rank|>]];
+  active = Flatten[Table[
+    If[AllTrue[Flatten[channels[[mu, All, All, g]]], TrueQ[# === 0] &],
+      Nothing, {mu, g}], {mu, 2}, {g, gradeCount}], 1];
+  <|"Status" -> "OK", "Channels" -> channels, "Rank" -> rank,
+    "GradeCount" -> gradeCount, "ActiveGrades" -> active,
+    "Grades" -> Table[channels[[mu, All, All, g]], {mu, 2}, {g, gradeCount}]|>
+];
+
+(* Sampling a grade component at a rational chart point.  The channels
+   come out of the decomposition already Together-normalized, so a zero
+   entry needs no work at all -- and a grade component of a real
+   connection is very sparse (CF259 rows 1..23: 336 nonzero entries of
+   1681, spread over 16 grades).  Skipping the zeros is what keeps the
+   ladder affordable at 2 * 2^k matrices per point instead of 2. *)
+familyRegulatorGradedSampleMatrix[matrix_List, rule_List, epsilon_Symbol] :=
+  Map[Function[entry,
+    If[TrueQ[entry === 0], 0, Together[(entry /. rule)/epsilon]]], matrix, {2}];
+
+(* the rational route's cheap point gate, per grade component *)
+familyRegulatorGradedPointFactoredQ[inverse_List, gradeMatrices_List,
+    candidate_List, rules_List, epsilon_Symbol] :=
+  AllTrue[rules, Function[r,
+    AllTrue[gradeMatrices, Function[matrix, Module[{sampled},
+      sampled = Map[Function[entry,
+        If[TrueQ[entry === 0], 0, Together[entry /. r]]], matrix, {2}];
+      If[! FreeQ[sampled, Indeterminate | ComplexInfinity | DirectedInfinity[_]],
+        True,
+        familyRegulatorFactoredQ[
+          familyRegulatorConjugate[inverse, sampled, candidate], epsilon]]]]]]];
+
+familyRegulatorModularImage[expression_, rules_List, prime_Integer] := Module[
+  {value = Quiet[expression /. rules]},
+  If[! (IntegerQ[value] || Head[value] === Rational),
+    value = Quiet[Together[value]]];
+  If[! (IntegerQ[value] || Head[value] === Rational), Return[$Failed]];
+  multiquadraticStripModRational[value, prime]
+];
+
+(* Sign-sheet corroboration at FRESH primes.  At a split point every
+   declared square is a nonzero quadratic residue, so each of the 2^k
+   embeddings r_i -> +-sqrt(q_i) sends the graded connection to an
+   ordinary matrix over F_p.  Conjugating that matrix by T at two
+   regulator values and comparing is a necessary condition for the
+   eps-factorization, on every sheet at once; it corroborates the exact
+   grade-wise statement and independently exercises the algebra ABI
+   (decompose/compose, the Hadamard character table).  It is never the
+   proof: the exact statement is the grade-wise Together identity. *)
+familyRegulatorGradedCorroborate[gradeMatrices_List, roots_List,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol, candidate_List,
+    inverse_List, primeCount_Integer] := Module[
+  {rank = Length[roots], gradeCount, n = Length[candidate], deltas, primes,
+   records = {}, hadamard, masks, prime, point, deltaValues, rootValues,
+   rootProducts, epsilonValues, conjugatedByValue, sheetVerdicts,
+   gradeVerdicts, ok = True, seed = 0, tries, x0, y0, matrices, tMatrix,
+   tInverse, image, identityOK, sheets},
+  deltas = Together /@ Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]];
+  If[! FreeQ[deltas, $Failed], Return[<|"Status" -> "CorroborationRootsInvalid"|>]];
+  gradeCount = 2^rank;
+  masks = multiquadraticBasisMasks[rank];
+  hadamard = multiquadraticHadamardMatrix[rank];
+  (* fresh primes: p = 3 (mod 4) so that multiquadraticSquareRoots
+     applies, taken from a window the strip solver's own schedules do not
+     use, and DISTINCT -- NextPrime over a coarse grid returns the same
+     prime twice and two identical primes are one corroboration, not two *)
+  (* the local must NOT be named after a pattern variable of this
+     definition: the pattern is substituted into the body BEFORE Module
+     scopes anything, and the loop then never runs (measured 2026-08-25:
+     "Primes" came back as an unevaluated Module and the corroboration
+     reported "Corroborated" on an EMPTY record list) *)
+  primes = Module[{probe = 7 10^8, found = {}},
+    While[Length[found] < primeCount && probe < 7 10^8 + 10^6,
+      probe = NextPrime[probe];
+      If[Mod[probe, 4] === 3, AppendTo[found, probe]]];
+    found];
+  If[! VectorQ[primes, PrimeQ] ||
+      Length[DeleteDuplicates[primes]] < primeCount,
+    Return[<|"Status" -> "CorroborationPrimesUnavailable",
+      "Primes" -> primes|>]];
+  BlockRandom[SeedRandom[20260825];
+  Do[
+    point = None;
+    Do[
+      x0 = RandomInteger[{2, prime - 2}]; y0 = RandomInteger[{2, prime - 2}];
+      deltaValues = Quiet[Mod[deltas /. Thread[variables -> {x0, y0}], prime]];
+      If[VectorQ[deltaValues, IntegerQ] &&
+          AllTrue[deltaValues, #1 =!= 0 && JacobiSymbol[#1, prime] === 1 &],
+        point = {x0, y0}; Break[]],
+      {tries, 400}];
+    If[point === None,
+      AppendTo[records, <|"Prime" -> prime, "Status" -> "NoSplitPointFound"|>];
+      ok = False; Continue[]];
+    rootValues = multiquadraticSquareRoots[deltaValues, prime];
+    If[! VectorQ[rootValues, IntegerQ],
+      AppendTo[records, <|"Prime" -> prime, "Status" -> "SquareRootFailed"|>];
+      ok = False; Continue[]];
+    rootProducts = Mod[multiquadraticMaskFactor[#1, rootValues] & /@ masks, prime];
+    epsilonValues = {RandomInteger[{2, prime - 2}], RandomInteger[{2, prime - 2}]};
+    If[SameQ @@ epsilonValues,
+      epsilonValues[[2]] = If[epsilonValues[[2]] === prime - 2,
+        epsilonValues[[2]] - 1, epsilonValues[[2]] + 1]];
+    conjugatedByValue = Table[
+      Module[{rules = Thread[Append[variables, epsilon] ->
+          Append[point, epsilonValue]], t, ti, gradeImages},
+        t = Map[familyRegulatorModularImage[#1, rules, prime] &, candidate, {2}];
+        ti = Map[familyRegulatorModularImage[#1, rules, prime] &, inverse, {2}];
+        If[! (MatrixQ[t, IntegerQ] && MatrixQ[ti, IntegerQ]),
+          Return[$Failed, Module]];
+        identityOK = Mod[t . ti, prime] === IdentityMatrix[n];
+        If[! identityOK, Return[$Failed, Module]];
+        gradeImages = Table[
+          image = Map[familyRegulatorModularImage[#1, rules, prime] &,
+            gradeMatrices[[mu, g]], {2}];
+          If[! MatrixQ[image, IntegerQ], Return[$Failed, Module]];
+          (* the sampled object is A/eps, exactly as the linear solve saw it *)
+          Mod[ti . Mod[image PowerMod[epsilonValue, -1, prime], prime] . t, prime],
+          {mu, 2}, {g, gradeCount}];
+        gradeImages],
+      {epsilonValue, epsilonValues}];
+    If[! FreeQ[conjugatedByValue, $Failed] ||
+        ! ArrayQ[conjugatedByValue, 5, IntegerQ],
+      AppendTo[records, <|"Prime" -> prime, "Point" -> point,
+        "Status" -> "ModularEvaluationFailed"|>];
+      ok = False; Continue[]];
+    gradeVerdicts = Table[
+      conjugatedByValue[[1, mu, g]] === conjugatedByValue[[2, mu, g]],
+      {mu, 2}, {g, gradeCount}];
+    sheets = Table[
+      Mod[Sum[hadamard[[sheet + 1, g]] rootProducts[[g]]
+          conjugatedByValue[[value, mu, g]], {g, gradeCount}], prime],
+      {value, 2}, {mu, 2}, {sheet, 0, gradeCount - 1}];
+    sheetVerdicts = Table[sheets[[1, mu, sheet]] === sheets[[2, mu, sheet]],
+      {mu, 2}, {sheet, gradeCount}];
+    ok = ok && And @@ Flatten[gradeVerdicts] && And @@ Flatten[sheetVerdicts];
+    AppendTo[records, <|"Prime" -> prime, "Point" -> point,
+      "RootValues" -> rootValues, "RegulatorValues" -> epsilonValues,
+      "Status" -> "OK", "InverseIdentity" -> True,
+      "GradeEpsilonIndependent" -> And @@ Flatten[gradeVerdicts],
+      "SheetCount" -> gradeCount,
+      "SheetsEpsilonIndependent" -> Flatten[sheetVerdicts],
+      "AllSheetsAgree" -> And @@ Flatten[sheetVerdicts]|>],
+    {prime, primes}]];
+  (* an EMPTY record list is not a corroboration: AllTrue[{}, ...] is
+     True and would report a vacuous verdict as evidence *)
+  ok = TrueQ[ok] && Length[records] === Length[primes] &&
+    AllTrue[records, Lookup[#1, "Status", None] === "OK" &];
+  <|"Status" -> If[ok, "Corroborated", "NotCorroborated"],
+    "Corroborated" -> ok, "Primes" -> primes,
+    "RecordCount" -> Length[records], "Records" -> records|>
+];
+
+(* The composed algebraic connection must be the direct triple product.
+   The full n x n product on entries that carry radicals is the cost the
+   grade route exists to avoid, so a bounded number of entries is checked
+   -- exactly, with the r-symbol reduction, not with Together. *)
+familyRegulatorGradedSpotCheck[inverse_List, sourceMatrices : {_List, _List},
+    transformation_List, composed : {_List, _List}, roots_List,
+    count_Integer, timeLimit_: 120] := Module[
+  {n = Length[transformation], candidates, positions, verdicts, decided,
+   direct, mu, i, j},
+  If[count <= 0,
+    Return[<|"Checked" -> 0, "Total" -> 2 n^2, "Verdicts" -> {},
+      "Undecided" -> 0, "Zero" -> True|>]];
+  candidates = BlockRandom[SeedRandom[20260825];
+    DeleteDuplicates[Table[
+      {RandomInteger[{1, 2}], RandomInteger[{1, n}], RandomInteger[{1, n}]},
+      {8 count}]]];
+  (* an entry that is zero on both sides carries no information *)
+  positions = Take[DeleteDuplicates[Join[
+    Select[candidates, ! TrueQ[composed[[#1[[1]], #1[[2]], #1[[3]]]] === 0] &],
+    candidates]], UpTo[count]];
+  verdicts = Table[
+    {mu, i, j} = position;
+    TimeConstrained[
+      direct = Sum[
+        inverse[[i, a]] sourceMatrices[[mu, a, b]] transformation[[b, j]],
+        {a, n}, {b, n}];
+      transportChartAlgebraicZeroQ[direct - composed[[mu, i, j]], roots] === True,
+      timeLimit, Missing["SpotCheckTimedOut"]],
+    {position, positions}];
+  decided = DeleteCases[verdicts, _Missing];
+  (* An undecided entry is reported, never counted as evidence; a DECIDED
+     nonzero difference is a refusal.  "Zero" is the evidence, "Refuted"
+     is the refusal criterion -- they are not each other's negation when
+     nothing could be decided. *)
+  <|"Checked" -> Length[decided], "Total" -> 2 n^2,
+    "Positions" -> positions, "Verdicts" -> verdicts,
+    "Undecided" -> Count[verdicts, _Missing],
+    "Refuted" -> MemberQ[decided, False],
+    "Zero" -> (decided =!= {} && And @@ decided)|>
+];
+
+FactorFamilyRegulatorDependenceMultiquadratic::input =
+  "The connection must be a pair of equally sized square matrices.";
+
+Options[FactorFamilyRegulatorDependenceMultiquadratic] = {
+  "TimeLimit" -> 900,
+  "UseFermat" -> Automatic,
+  "PointLadder" -> {1, 2, 4, 8},
+  "GatePoints" -> 2,
+  "ExactCheckTimeLimit" -> Automatic,
+  "CorroborationPrimes" -> 2,
+  "RoundTripSpotChecks" -> 3,
+  "Verbose" -> False
+};
+
+FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
+    variables : {_Symbol, _Symbol}, epsilon_Symbol, roots_List,
+    OptionsPattern[]] := Module[
+  {n, start = AbsoluteTime[], verbose, log, rank, gradeCount, decomposition,
+   grades, activeGrades, activeMatrices, rules, valid, denominators, backend,
+   reference, fermatRequested, transformation = $Failed, inverse, attempts = {},
+   pointsUsed = 0, exactLimit, conjugated, factoredQ, inverseQ, newAx, newAy,
+   spot, corroboration, exactSeconds, gradeFailure = None},
+  If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
+      Length[ax] === Length[First[ax]]),
+    Message[FactorFamilyRegulatorDependenceMultiquadratic::input];
+    Return[$Failed]];
+  n = Length[ax];
+  rank = Length[roots];
+  verbose = TrueQ[OptionValue["Verbose"]];
+  log[args___] := If[verbose, Print["[multiquadratic-regulator-factor] ", args]];
+  If[rank > $familyRegulatorMaximumGradedRank,
+    Return[<|"Status" -> "GradedRankTooLarge", "Rank" -> rank,
+      "MaximumRank" -> $familyRegulatorMaximumGradedRank,
+      "Seconds" -> AbsoluteTime[] - start|>]];
+  gradeCount = 2^rank;
+  log["grade decomposition of a ", n, "x", n, " connection at rank ", rank,
+    " (", gradeCount, " grades)"];
+  decomposition = familyRegulatorGradedMatrices[{ax, ay}, roots];
+  If[Lookup[decomposition, "Status", None] =!= "OK",
+    Return[Join[decomposition, <|"Seconds" -> AbsoluteTime[] - start|>]]];
+  grades = decomposition["Grades"];
+  activeGrades = decomposition["ActiveGrades"];
+  activeMatrices = grades[[#1[[1]], #1[[2]]]] & /@ activeGrades;
+  log[Length[activeGrades], " active grade components of ", 2 gradeCount];
+  If[activeMatrices === {} ||
+      AllTrue[activeMatrices, familyRegulatorFactoredQ[#1, epsilon] &],
+    log["every grade component is already eps-factored"];
+    Return[<|"Status" -> "AlreadyEpsFactored", "Method" -> "MultiquadraticGrades",
+      "Transformation" -> IdentityMatrix[n], "Inverse" -> IdentityMatrix[n],
+      "Connection" -> {ax, ay}, "Rank" -> rank, "GradeCount" -> gradeCount,
+      "ActiveGrades" -> activeGrades, "Seconds" -> AbsoluteTime[] - start|>]];
+  (* every grade component is an ORDINARY rational function: the sampled
+     matrices are rational in the regulator and Fermat is admissible even
+     though the source connection carries radicals *)
+  rules = Table[{variables[[1]] -> Prime[k + 3]/Prime[k + 11],
+    variables[[2]] -> Prime[2 k + 5]/Prime[2 k + 15]}, {k, 1, 24}];
+  (* a point is admissible iff no channel denominator vanishes there; the
+     channels are Together-normalized, so the DISTINCT denominators (a
+     handful) decide, not every one of the 2 * 2^k * n^2 entries *)
+  denominators = DeleteDuplicates[Denominator /@
+    DeleteCases[Flatten[activeMatrices], entry_ /; TrueQ[entry === 0]]];
+  valid = Select[rules, Function[r, AllTrue[denominators,
+    Module[{value = Together[#1 /. r]},
+      ! TrueQ[value === 0] &&
+        FreeQ[value, Indeterminate | ComplexInfinity | DirectedInfinity[_]]] &]]];
+  log[Length[valid], " admissible rational sample points (",
+    Length[denominators], " distinct channel denominators)"];
+  If[valid === {},
+    Return[<|"Status" -> "NoAdmissibleSamplePoint", "Rank" -> rank,
+      "Seconds" -> AbsoluteTime[] - start|>]];
+  fermatRequested = OptionValue["UseFermat"];
+  backend = libraEpsFormLoadBackend[fermatRequested];
+  If[backend["Status"] =!= "OK",
+    Return[<|"Status" -> backend["Status"], "Rank" -> rank|>]];
+  reference = Unique["regulatorReference"];
+  Do[
+    If[count > Length[valid], Break[]];
+    Module[{matrices, result, candidate, ok = False, gate = False, seconds},
+      matrices = DeleteCases[
+        Flatten[Table[familyRegulatorGradedSampleMatrix[activeMatrices[[a]],
+          valid[[k]], epsilon], {k, count}, {a, Length[activeMatrices]}], 1],
+        matrix_ /; AllTrue[Flatten[matrix], TrueQ[#1 === 0] &]];
+      log["FactorDependence on ", Length[matrices], " sampled grade matrices (",
+        count, " points)"];
+      {seconds, result} = AbsoluteTiming[Quiet[TimeConstrained[
+        Libra`FactorDependence[matrices, epsilon, reference,
+          DependentRowIndices -> Automatic, Sort -> True],
+        OptionValue["TimeLimit"], "TimedOut"]]];
+      candidate = If[MatrixQ[result],
+        familyRegulatorSpecialize[result, reference, n], $Failed];
+      If[MatrixQ[candidate],
+        inverse = Map[Together, Inverse[candidate], {2}];
+        gate = familyRegulatorGradedPointFactoredQ[inverse, activeMatrices,
+          candidate, Take[Reverse[valid], UpTo[OptionValue["GatePoints"]]], epsilon];
+        If[gate, transformation = candidate; pointsUsed = count; ok = True]];
+      AppendTo[attempts, <|"Points" -> count, "Seconds" -> seconds,
+        "SampledMatrices" -> Length[matrices], "PointGate" -> gate,
+        "Result" -> If[result === "TimedOut", "TimedOut",
+          If[MatrixQ[result], "Matrix", Head[result]]]|>];
+      log[count, " points: ", Round[seconds, 0.1], " s, point gate ", gate]];
+    If[MatrixQ[transformation], Break[]],
+    {count, OptionValue["PointLadder"]}];
+  If[! MatrixQ[transformation],
+    Return[<|"Status" -> "NotFactored", "Method" -> "MultiquadraticGradedSamples",
+      "Rank" -> rank, "GradeCount" -> gradeCount,
+      "ActiveGrades" -> activeGrades, "Attempts" -> attempts,
+      "Seconds" -> AbsoluteTime[] - start|>]];
+  If[! FreeQ[{transformation, inverse}, Alternatives @@ variables],
+    Return[<|"Status" -> "TransformationNotConstant", "Rank" -> rank,
+      "Attempts" -> attempts, "Seconds" -> AbsoluteTime[] - start|>]];
+  (* ---- exact acceptance, grade by grade, in the graded algebra ---- *)
+  exactLimit = Replace[OptionValue["ExactCheckTimeLimit"],
+    Automatic :> OptionValue["TimeLimit"]];
+  conjugated = Table[ConstantArray[0, {n, n}], {mu, 2}, {g, gradeCount}];
+  exactSeconds = First[AbsoluteTiming[
+    factoredQ = TimeConstrained[
+      Catch[Do[
+        Module[{mu = activeGrades[[a, 1]], g = activeGrades[[a, 2]], image},
+          image = familyRegulatorConjugate[inverse, activeMatrices[[a]], transformation];
+          conjugated[[mu, g]] = image;
+          If[! familyRegulatorFactoredQ[image, epsilon],
+            gradeFailure = {mu, g - 1};
+            Throw[False, "FeynFacetGradedEpsFactor"]]],
+        {a, Length[activeGrades]}]; True, "FeynFacetGradedEpsFactor"],
+      exactLimit, "TimedOut"]]];
+  If[factoredQ === "TimedOut",
+    Return[<|"Status" -> "ExactGradeCheckTimedOut", "Rank" -> rank,
+      "GradeCount" -> gradeCount, "ActiveGrades" -> activeGrades,
+      "ExactCheckTimeLimit" -> exactLimit, "Attempts" -> attempts,
+      "Seconds" -> AbsoluteTime[] - start|>]];
+  If[! TrueQ[factoredQ],
+    Return[<|"Status" -> "GradeNotEpsFactored", "Rank" -> rank,
+      "FailingGrade" -> gradeFailure, "ActiveGrades" -> activeGrades,
+      "Attempts" -> attempts, "Seconds" -> AbsoluteTime[] - start|>]];
+  inverseQ = AllTrue[Flatten[Map[Together,
+      {transformation . inverse - IdentityMatrix[n],
+       inverse . transformation - IdentityMatrix[n]}, {3}]], TrueQ[#1 === 0] &];
+  If[! inverseQ,
+    Return[<|"Status" -> "TransformationInverseInvalid", "Rank" -> rank,
+      "Attempts" -> attempts, "Seconds" -> AbsoluteTime[] - start|>]];
+  newAx = Table[multiquadraticFieldCompose[
+    Table[conjugated[[1, g, i, j]], {g, gradeCount}], roots], {i, n}, {j, n}];
+  newAy = Table[multiquadraticFieldCompose[
+    Table[conjugated[[2, g, i, j]], {g, gradeCount}], roots], {i, n}, {j, n}];
+  If[! FreeQ[{newAx, newAy}, $Failed],
+    Return[<|"Status" -> "GradeCompositionFailed", "Rank" -> rank,
+      "Seconds" -> AbsoluteTime[] - start|>]];
+  spot = familyRegulatorGradedSpotCheck[inverse, {ax, ay}, transformation,
+    {newAx, newAy}, roots, OptionValue["RoundTripSpotChecks"]];
+  If[TrueQ[spot["Refuted"]],
+    Return[<|"Status" -> "CompositionRoundTripFailed", "Rank" -> rank,
+      "SpotCheck" -> spot, "Seconds" -> AbsoluteTime[] - start|>]];
+  corroboration = familyRegulatorGradedCorroborate[grades, roots, variables,
+    epsilon, transformation, inverse, OptionValue["CorroborationPrimes"]];
+  log["exact grade-wise eps-factorization verified in ", Round[exactSeconds, 0.1],
+    " s; modular corroboration ", Lookup[corroboration, "Status", corroboration]];
+  <|"Status" -> "OK", "Method" -> "MultiquadraticGradedSamples",
+    "Points" -> pointsUsed, "Rank" -> rank, "GradeCount" -> gradeCount,
+    "ActiveGrades" -> activeGrades,
+    "Transformation" -> transformation, "Inverse" -> inverse,
+    "Connection" -> {newAx, newAy}, "Attempts" -> attempts,
+    "ExactEpsFactorization" -> True, "ExactInverse" -> True,
+    "ExactCheckSeconds" -> exactSeconds,
+    "CompositionSpotCheck" -> spot,
+    "ModularCorroboration" -> corroboration,
+    "UseFermat" -> backend["UseFermat"],
+    "PropagationSeal" -> familyRegulatorPropagationSeal[
+      {ax, ay}, {newAx, newAy}, inverse, transformation],
+    "Seconds" -> AbsoluteTime[] - start|>
+];
+FactorFamilyRegulatorDependenceMultiquadratic[___] :=
+  <|"Status" -> "InvalidArguments"|>;
+
 (* Frame-aware dispatcher (Codex package bug report 2026-08-22, CF300
    (8,5)): for a family whose global coefficient frame is multiquadratic
    the completed truncation 1..m may still be rational in a catalogued
@@ -275,16 +775,24 @@ using the Wolfram backend"];
      "AlreadyEpsFactored"  nothing to do (identity);
      "OK"                  factored; "Chart", "RootIndices" recorded;
      "NoRationalChart"     the roots of the truncation have no joint
-                           rational chart -- the caller must stop
-                           (typed), never continue with
-                           regulator-dependent residues;
+                           rational chart AND the multiquadratic graded
+                           route below also refused -- the caller must
+                           stop (typed), never continue with
+                           regulator-dependent residues; the graded
+                           route's own diagnostics travel in
+                           "MultiquadraticFactorization";
      other                 failures of the inner factorization or of
-                           the frame round trip. *)
+                           the frame round trip.
+   Since 2026-08-25 a root set without a joint rational chart is no
+   longer an immediate stop: FactorFamilyRegulatorDependenceMultiquadratic
+   is attempted first and the typed stop is what remains when IT
+   refuses. *)
 Clear[FactorFamilyRegulatorDependenceInFrame];
 FactorFamilyRegulatorDependenceInFrame::input =
   "The connection must be a pair of equally sized square matrices.";
 
-Options[FactorFamilyRegulatorDependenceInFrame] = Options[FactorFamilyRegulatorDependence];
+Options[FactorFamilyRegulatorDependenceInFrame] =
+  Options[FactorFamilyRegulatorDependenceMultiquadratic];
 
 FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     variables : {_Symbol, _Symbol}, epsilon_Symbol, frame_Association,
@@ -293,7 +801,7 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
    rootSquares, chart, chartVariables, rekeyed, data, components, chartConnection,
    chartRoots, rootImages, chartBranchRoots, inner, transformation, inverse,
    newAx, newAy, factoredQ, inverseQ, canonicalization, numericClasses,
-   canonicalAx, canonicalAy, canonicalRecord},
+   canonicalAx, canonicalAy, canonicalRecord, gradedRoots, multiquadratic},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependenceInFrame::input]; Return[$Failed]];
@@ -339,7 +847,8 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     "NumericRadicalClasses" -> numericClasses|>;
   If[rootIndices === {},
     inner = FactorFamilyRegulatorDependence[{canonicalAx, canonicalAy},
-      variables, epsilon, opts];
+      variables, epsilon,
+      FilterRules[{opts}, Options[FactorFamilyRegulatorDependence]]];
     Return[If[AssociationQ[inner],
       Join[inner, <|"RootIndices" -> {}, "Chart" -> None,
         "RadicalCanonicalization" -> canonicalRecord,
@@ -348,8 +857,44 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
   rootSquares = Lookup[usedRoots, "RootSquare", {}];
   chart = TransportRootSetChart[rootSquares, variables];
   If[! AssociationQ[chart],
+    (* No joint rational chart (CF259 rows 1..23, 2026-08-25: the triple
+       cover of {q1, q2, q3} is a K3 surface).  The constant T(eps) is
+       sought in the graded algebra itself; the typed stop is what
+       remains if THAT route refuses, and it then carries the graded
+       route's diagnostics. *)
+    gradedRoots = familyRegulatorGradedRoots[usedRoots, numericClasses];
+    multiquadratic = FactorFamilyRegulatorDependenceMultiquadratic[
+      {canonicalAx, canonicalAy}, variables, epsilon, gradedRoots,
+      FilterRules[{opts},
+        Options[FactorFamilyRegulatorDependenceMultiquadratic]]];
+    If[AssociationQ[multiquadratic] &&
+        MemberQ[{"OK", "AlreadyEpsFactored"}, multiquadratic["Status"]],
+      Return[Join[multiquadratic, <|
+        "Method" -> "MultiquadraticGradedAlgebra/" <>
+          Lookup[multiquadratic, "Method", "Unknown"],
+        "Chart" -> None, "RootIndices" -> rootIndices,
+        "RootSquares" -> rootSquares,
+        "GradedRootSquares" -> Lookup[gradedRoots, "RootSquare", {}],
+        "RadicalCanonicalization" -> canonicalRecord,
+        "NumericRadicalClasses" -> numericClasses,
+        "SourceFrameEpsFactored" -> True, "InverseExact" -> True,
+        (* the seal is taken on the caller's own input prefix, exactly as
+           on the chart route: the propagation helper recomputes it from
+           the connection it is given *)
+        "PropagationSeal" -> familyRegulatorPropagationSeal[
+          {ax, ay}, multiquadratic["Connection"],
+          multiquadratic["Inverse"], multiquadratic["Transformation"]],
+        "Seconds" -> AbsoluteTime[] - start|>]]];
     Return[<|"Status" -> "NoRationalChart", "RootIndices" -> rootIndices,
-      "RootSquares" -> rootSquares, "Seconds" -> AbsoluteTime[] - start|>]];
+      "RootSquares" -> rootSquares,
+      "GradedRootSquares" -> Lookup[gradedRoots, "RootSquare", {}],
+      "RadicalCanonicalization" -> canonicalRecord,
+      "NumericRadicalClasses" -> numericClasses,
+      "MultiquadraticFactorization" -> If[AssociationQ[multiquadratic],
+        KeyDrop[multiquadratic, {"Transformation", "Inverse", "Connection",
+          "Channels", "Grades"}],
+        <|"Status" -> "MultiquadraticRouteFailed", "Result" -> multiquadratic|>],
+      "Seconds" -> AbsoluteTime[] - start|>]];
   chartVariables = {Symbol["FeynFacet`Private`regulatorChartX"],
     Symbol["FeynFacet`Private`regulatorChartY"]};
   rekeyed = transportChartRekey[chart, variables, chartVariables];
@@ -391,7 +936,8 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
         Power[base_ /; ! NumericQ[base],
           exponent_Rational /; Denominator[exponent] === 2] :> Together[base],
         {0, Infinity}, Heads -> True]]|>]];
-  inner = FactorFamilyRegulatorDependence[chartConnection, chartVariables, epsilon, opts];
+  inner = FactorFamilyRegulatorDependence[chartConnection, chartVariables, epsilon,
+    FilterRules[{opts}, Options[FactorFamilyRegulatorDependence]]];
   If[! (AssociationQ[inner] && inner["Status"] === "OK"),
     Return[Join[If[AssociationQ[inner], inner, <|"Status" -> "InnerFactorizationFailed"|>],
       <|"RootIndices" -> rootIndices, "Chart" -> chart["Name"],

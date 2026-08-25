@@ -49,13 +49,28 @@ canonical0 = Table[eps Sum[{k1, k2, k3}[[a]] dl[letters0[[a]]][[mu]], {a, 3}], {
 connection0 = Table[Map[Together, t . canonical0[[mu]] . tInv, {2}], {mu, 2}];
 f0 = FeynFacet`FactorFamilyRegulatorDependenceInFrame[connection0, {x, y}, eps, frame];
 check["rational: status OK via the rational path", AssociationQ[f0] && f0["Status"] === "OK" && f0["RootIndices"] === {} && f0["Method"] === "ExactRationalSamples"];
-(* two roots without a joint chart: typed stop *)
+(* Two roots without a joint chart.  BEHAVIOR CHANGE 2026-08-25: this
+   used to be the typed stop "NoRationalChart".  Since
+   FactorFamilyRegulatorDependenceMultiquadratic exists, a root set with
+   no joint rational chart is ATTEMPTED in the graded algebra first and
+   the typed stop is what remains when THAT route refuses (the refusal
+   case is covered by Tests/t_multiquadratic_regulator_factor.wls).  Here
+   the connection is a planted constant conjugation of a clean eps-form,
+   so the graded route factors it. *)
 check["catalog has no joint chart for {lambda1, 1 - 4 v w}", MissingQ[FeynFacet`TransportRootSetChart[{lambda1[v, w], 1 - 4 v w}, {v, w}]]];
 letters2 = {x, y, 1 - x - y, (1 - x - y + r1)/(1 - x - y - r1), (1 + r2)/(1 - r2)};
 canonical2 = Table[eps Sum[{k1, k2, k3, k4, k1}[[a]] dl[letters2[[a]]][[mu]], {a, 5}], {mu, 2}];
 connection2 = Table[Map[Together, t . canonical2[[mu]] . tInv, {2}], {mu, 2}];
 f2 = FeynFacet`FactorFamilyRegulatorDependenceInFrame[connection2, {x, y}, eps, frame];
-Print["two roots: ", If[AssociationQ[f2], KeyTake[f2, {"Status", "RootIndices"}], f2]];
-check["two roots without a joint chart: NoRationalChart", AssociationQ[f2] && f2["Status"] === "NoRationalChart" && Sort[f2["RootIndices"]] === {1, 2}];
+Print["two roots: ", If[AssociationQ[f2], KeyTake[f2, {"Status", "Method", "Chart", "RootIndices", "Rank"}], f2]];
+check["two roots without a joint chart: factored in the graded algebra",
+  AssociationQ[f2] && f2["Status"] === "OK" && Sort[f2["RootIndices"]] === {1, 2} &&
+    f2["Chart"] === None && StringQ[f2["Method"]] &&
+    StringMatchQ[f2["Method"], "MultiquadraticGradedAlgebra/*"] && f2["Rank"] === 2];
+If[AssociationQ[f2] && f2["Status"] === "OK",
+  check["two roots: the exact grade-wise statement is made",
+    TrueQ[f2["ExactEpsFactorization"]] && TrueQ[f2["ExactInverse"]]];
+  check["two roots: T is constant in the variables",
+    FreeQ[f2["Transformation"], x | y] && ! FreeQ[f2["Transformation"], eps]]];
 Print["t_family_regulator_factor_in_frame: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];
