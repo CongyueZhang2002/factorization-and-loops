@@ -497,49 +497,21 @@ familyRowGaugeFiniteFieldPrepare[___] :=
 
 (* Recursive arithmetic in F_p.  Expressions have already had every
    declared half-power replaced by familyRowGaugeFFRoot[i], so only
-   rational field operations remain. *)
+   rational field operations remain.
+
+   DELEGATED 2026-08-25 to the registered production evaluator
+   blockEquationDeferredModEvaluate (BlockEquationDeferred.wl), which is
+   the same recursion with the root-placeholder head as a parameter.
+   This file's own copy is deleted rather than kept in parallel, exactly
+   as the multiquadratic algebra was on 2026-08-23: one implementation,
+   one set of typed rejection statuses (BadPrime, InvalidRootPlaceholder,
+   UnassignedSymbol, SingularPoint, UnsupportedExpression), no second
+   evaluator that can drift.  The contract of this symbol -- arguments,
+   return association, statuses -- is unchanged. *)
 familyRowGaugeFFModEvaluate[expression_, scalarValues_Association,
-    rootValues_List, prime_Integer] := Module[
-  {evaluate, tag = Unique["familyRowGaugeFFEvaluate"], result},
-  result = Catch[
-    evaluate[node_] := Which[
-      IntegerQ[node], Mod[node, prime],
-      Head[node] === Rational,
-        Module[{denominator = Mod[Denominator[node], prime]},
-          If[denominator === 0,
-            Throw[<|"Status" -> "BadPrime",
-              "Denominator" -> Denominator[node]|>, tag]];
-          Mod[Numerator[node] PowerMod[denominator, -1, prime], prime]],
-      MatchQ[node, familyRowGaugeFFRoot[_Integer]],
-        With[{index = First[node]},
-          If[1 <= index <= Length[rootValues], rootValues[[index]],
-            Throw[<|"Status" -> "InvalidRootPlaceholder",
-              "RootIndex" -> index|>, tag]]],
-      SymbolQ[node],
-        If[KeyExistsQ[scalarValues, node],
-          evaluate[scalarValues[node]],
-          Throw[<|"Status" -> "UnassignedSymbol",
-            "Symbol" -> HoldForm[node]|>, tag]],
-      Head[node] === Plus,
-        Fold[Mod[#1 + evaluate[#2], prime] &, 0, List @@ node],
-      Head[node] === Times,
-        Fold[Mod[#1 evaluate[#2], prime] &, 1, List @@ node],
-      MatchQ[node, Power[_, _Integer]],
-        Module[{baseValue = evaluate[First[node]],
-          exponent = Last[node], value},
-          If[baseValue === 0 && exponent < 0,
-            Throw[<|"Status" -> "SingularPoint"|>, tag]];
-          value = Quiet[Check[
-            PowerMod[baseValue, exponent, prime], $Failed]];
-          If[value === $Failed,
-            Throw[<|"Status" -> "SingularPoint"|>, tag], value]],
-      True,
-        Throw[<|"Status" -> "UnsupportedExpression",
-          "Expression" -> HoldForm[node]|>, tag]];
-    evaluate[expression], tag, #1 &];
-  If[AssociationQ[result], result,
-    <|"Status" -> "OK", "Value" -> Mod[result, prime]|>]
-];
+    rootValues_List, prime_Integer] :=
+  blockEquationDeferredModEvaluate[expression, scalarValues, rootValues,
+    prime, familyRowGaugeFFRoot];
 
 (* Deterministic Tonelli--Shanks for p == 1 (mod 4).  The neutral ABI
    declares a modular square root only for p == 3 (mod 4)

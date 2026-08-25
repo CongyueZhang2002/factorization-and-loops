@@ -589,13 +589,59 @@ memtrace[tag_] := If[StringQ[Environment["FACET_MEMTRACE"]],
    The former code inverted the full nMasters x nMasters gauge symbolically and
    Together'd nMasters^3 products: 30 GB on CF385 sector 31 (44 masters). *)
 blockRows[m_] := ranges[[m]];
-(* the equation of block (k, j) from the current connection and the
-   solved blocks of this row (an association j -> D_{kj}) *)
-blockEquation[k_, j_, solved_Association] := Module[{rk = blockRows[k], rj = blockRows[j], A = state["A"], e, c, bbar},
+(* THE SOURCE of block (k, j).  Two routes, selected by
+   FACET_CONSTRUCTION_ROUTE (default Deferred; Symbolic reverts):
+
+   - blockEquationSymbolicForcing is the route production ran until
+     2026-08-24.  It is one dense Dot per feeder and then Map[Together,
+     ., {2}] over the whole block, i.e. one polynomial gcd per pair of
+     terms per entry.  MEASURED: 536 s of silent wall time on the single
+     block CF259 (21,18), and 2+ h between blocks of the 28x28 / 37x37
+     truncations (two watchdog confirmations).
+
+   - the DEFERRED route (FeynFacet/Private/BlockEquationDeferred.wl,
+     Codex Q5 points 1-4, 6 and 8) keeps a sparse tagged term DAG whose
+     terms reference the source entries, never forms
+     Together[Total[terms]], proves entries nonzero by a modular census,
+     and materializes each touched entry over the per-factor maximum of
+     already-factored operand denominators -- no gcd is computed to find
+     the common denominator.
+
+   A typed refusal from the deferred route (a broken block precondition,
+   a mismatched ABI) falls back to the symbolic route and says so; it
+   never silently continues.  $blockConstructionRecord carries the
+   census, the timings and the route actually used into this block's
+   certificate. *)
+$blockConstructionRecord = <||>;
+blockEquationSymbolicForcing[k_, j_, solved_Association] := Module[
+  {rk = blockRows[k], rj = blockRows[j], A = state["A"]},
+  Table[Map[Together, A[[mu, rk, rj]] -
+    Sum[solved[m] . A[[mu, blockRows[m], rj]],
+      {m, Select[Keys[solved], j < # < k &]}], {2}], {mu, 2}]];
+blockEquation[k_, j_, solved_Association] := Module[
+  {rk = blockRows[k], rj = blockRows[j], A = state["A"], e, c, bbar,
+   deferred, route},
   e = Table[Map[Together[#/ee] &, A[[mu, rk, rk]], {2}], {mu, 2}];
   c = Table[Map[Together[#/ee] &, A[[mu, rj, rj]], {2}], {mu, 2}];
-  bbar = Table[Map[Together, A[[mu, rk, rj]] -
-    Sum[solved[m] . A[[mu, blockRows[m], rj]], {m, Select[Keys[solved], j < # < k &]}], {2}], {mu, 2}];
+  route = FeynFacet`Private`blockEquationDeferredRoute[];
+  $blockConstructionRecord = <|"Route" -> route|>;
+  If[route === "Deferred",
+    deferred = FeynFacet`Private`blockEquationDeferredForcing[
+      A, ranges, k, j, solved, invariants, ee];
+    If[AssociationQ[deferred] && Lookup[deferred, "Status", None] === "OK",
+      $blockConstructionRecord = Join[$blockConstructionRecord,
+        KeyDrop[deferred, {"Forcing", "Status"}]];
+      Return[{e, c, deferred["Forcing"]}]];
+    log["  !! deferred construction refused (",
+      If[AssociationQ[deferred],
+        KeyTake[deferred, {"Status", "Reason", "BlockPair", "Feeders"}],
+        deferred], "); using the symbolic construction"];
+    $blockConstructionRecord = Join[$blockConstructionRecord,
+      <|"Route" -> "SymbolicFallback",
+        "Refusal" -> If[AssociationQ[deferred],
+          KeyTake[deferred, {"Status", "Reason", "BlockPair"}],
+          deferred]|>]];
+  bbar = blockEquationSymbolicForcing[k, j, solved];
   {e, c, bbar}];
 (* apply the completed row gauge of sector k to the state *)
 applyRowGauge[k_, solved_Association, installedRow_: Automatic] := Module[
@@ -833,6 +879,22 @@ Do[
           putAtomic[state, stateFile];
           Exit[75]
         ];
+        (* the construction route and what it cost, per block: the 536 s
+           this stage spent on CF259 (21,18) was invisible in the log *)
+        log["  construction ", Lookup[$blockConstructionRecord, "Route", "Symbolic"],
+          ": ", Round[Total[Values[KeyTake[constructionTimings,
+            {"BlockEquation", "NextEquationD", "StripInputWrite"}]]], 0.1],
+          " s", If[KeyExistsQ[$blockConstructionRecord, "Census"],
+            StringJoin[", census ",
+              ToString[Lookup[$blockConstructionRecord["Census"],
+                "Status", None]], " (",
+              ToString[Lookup[$blockConstructionRecord["Census"],
+                "AcceptedSamples", 0]], " accepted), zero-forcing candidate ",
+              ToString[Lookup[$blockConstructionRecord,
+                "ZeroForcingCandidateQ", True]], ", ",
+              ToString[Lookup[Lookup[$blockConstructionRecord,
+                "Materialization", <||>], "AlgebraicEntries", 0]],
+              " algebraic entries"], ""]];
         log["  strip ", {k, nlow}, ": ", Which[
           blockwiseRouteQ && algebraicFrameQ, "finite field in the rational chart of the strip's roots",
           blockwiseRouteQ, "finite field",
@@ -875,8 +937,18 @@ Do[
              gauge D = 0 (dD = eps(eD - Dc) + bbar - eps K dlog with
              bbar = 0): no sampling (CF408: ~250 of 340 blocks, ~0.7 s
              each through the three-prime machinery, 2026-08-22) *)
+          (* The deferred route's modular census has already PROVED
+             whether some entry of this forcing is nonzero -- a single
+             nonzero image over F_p is an exact proof of non-vanishing --
+             so the Together pass over every entry is paid only when no
+             image separated the forcing from zero, and on that branch
+             the deferred materializer has already reduced the vanishing
+             entries to literal 0.  The symbolic route keeps the
+             unconditional exact probe. *)
           {constructionSeconds, zeroForcingQ} = AbsoluteTiming[
-            Environment["FACET_ZERO_FORCING"] =!= "False" && zeroQ[bbar]];
+            Environment["FACET_ZERO_FORCING"] =!= "False" &&
+              TrueQ[Lookup[$blockConstructionRecord,
+                "ZeroForcingCandidateQ", True]] && zeroQ[bbar]];
           constructionTimings["ZeroForcingProbe"] = constructionSeconds;
           requestedSolverConfiguration = stripSolverConfiguration[
             If[zeroForcingQ, "ZeroForcing", If[algebraicFrameQ,
