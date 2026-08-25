@@ -59,7 +59,12 @@ multiquadraticPrepare = mq["multiquadraticStripPrepare"];
 finiteFieldStages = {"Entry", "SupportLearningCycle", "SupportCensus",
   "EliminationPilot", "SupportLearning", "PrimeLoop", "SampleBatch",
   "UnseenPrimeResidual"};
-multiquadraticStages = {"Entry", "Preparation", "ModularSampling",
+(* the three screen stages joined the vocabulary on 2026-08-25 (Codex
+   04:30 P1): the default-on screens now carry the cooperative deadline
+   themselves, so an expired budget stops at the screen it was running
+   instead of surviving until "Preparation" *)
+multiquadraticStages = {"Entry", "IntegrabilityScreen", "Preparation",
+  "GaugeScreen", "GaugeScreenLadder", "ModularSampling",
   "HeldOutGuard", "BranchCertificate", "ExactLift"};
 
 budgetExhaustedQ[r_] := AssociationQ[r] &&
@@ -171,21 +176,38 @@ report["finite field expiry", KeyTake[finiteFieldExpired,
    "SupportSize", "ProbeCount", "SupportLearningPass"}]];
 report["finite field expiry wall seconds", Round[expirySeconds, 0.01]];
 
-(* A deadline that expires MID-SOLVE, not at the entry gate: the fixture
-   needs about 5 s (measured above), so a 1.5 s budget is certainly
-   inside the solve and certainly not at its entry.  This is the test
-   that a check in a LOOP BODY fires -- the entry gate alone would not
-   bound a running solve. *)
+(* A deadline that expires MID-SOLVE, not at the entry gate.  This is the
+   test that a check in a LOOP BODY fires -- the entry gate alone would
+   not bound a running solve.
+
+   RECALIBRATED 2026-08-25 (Codex's recurring 25/27 finding).  The budget
+   used to be a hard-coded 1.5 s against a fixture "measured at about
+   5 s".  That constant is only valid at the load the measurement was
+   taken under: on a busy box -- repeated "No valid password found" and
+   no-parallel-kernel messages while the production pool holds the
+   licence -- the same fixture takes several times longer, its first loop
+   boundary arrives after 1.5 s of setup, and the two assertions below
+   went red for a purely environmental reason.  The budget is now taken
+   from the fixture's OWN measured baseline in this same kernel, so it
+   scales with whatever the machine is doing: half the measured solve is
+   past the entry gate and short of completion by construction, with a
+   floor for an implausibly fast measurement and a ceiling so the suite
+   cannot be stretched without bound. *)
+midBudget = Max[0.75, Min[0.5 baselineSeconds, 30.]];
+report["finite field mid-solve budget from the measured baseline",
+  Round[{baselineSeconds, midBudget}, 0.01]];
 {midSeconds, finiteFieldMid} = AbsoluteTiming[
   FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
     Sequence @@ finiteFieldOptions,
-    "Deadline" -> AbsoluteTime[] + 1.5]];
+    "Deadline" -> AbsoluteTime[] + midBudget]];
 check["finite field: a mid-solve deadline stops at a loop boundary, not at the entry gate",
   budgetExhaustedQ[finiteFieldMid] &&
     MemberQ[finiteFieldStages, finiteFieldMid["Stage"]] &&
     finiteFieldMid["Stage"] =!= "Entry"];
+(* the promptness bound is the budget plus the same 30 s slack the
+   entry-gate case is given, not an absolute wall time *)
 check["finite field: the mid-solve stop returns promptly after its deadline",
-  midSeconds < 30];
+  midSeconds < midBudget + 30];
 check["finite field: the mid-solve stop carries the partial-progress identifiers",
   progressComplete[finiteFieldMid, finiteFieldProgressKeys]];
 report["finite field mid-solve expiry", KeyTake[finiteFieldMid,

@@ -44,9 +44,10 @@
        nested and numeric radicands produces the identical RootIndices,
        RadicalBases and (empty) UnclassifiedRadicalBases, with an empty
        DenestedRadicalBases.
-   (d) REAL DATA, on a FROZEN fixture.  On the 27x27 truncation of the
-       frozen CF303 family state (FrozenTestFixtures_2026-08-25/, see the
-       README there) the classifier reports ZERO unclassified radical
+   (d) REAL DATA, on a FROZEN and TRACKED fixture.  On the 27x27 leading
+       truncation of the frozen CF303 family state (the tracked reduction
+       FrozenTestFixtures_2026-08-25/cf303_frozen_rows27.wl, verified
+       against that directory's SHA-256 manifest) the classifier reports ZERO unclassified radical
        bases and RootIndices {1, 2}, and the used root pair selects the
        catalogued chart Kallen23.  Those 27 rows are the sectors the
        producing run had completed, so the connection is the one the
@@ -247,11 +248,24 @@ FTAssert["(c) the strip solver stops, typed, on a denested radical",
    in that directory's README) and the statements below are properties of
    that FIXED matrix. *)
 results = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical"}];
-stateFile = FileNameJoin[{results, "FamilyEpsFormsSolving",
-  "FrozenTestFixtures_2026-08-25", "sector_state_CF303_standard.wl"}];
-FTAssert["(d) the frozen CF303 fixture is in the repository",
-  FileExistsQ[stateFile] &&
+fixtureDirectory = FileNameJoin[{results, "FamilyEpsFormsSolving",
+  "FrozenTestFixtures_2026-08-25"}];
+stateFile = FileNameJoin[{fixtureDirectory, "cf303_frozen_rows27.wl"}];
+manifestFile = FileNameJoin[{fixtureDirectory, "SHA256SUMS"}];
+(* TRACKED, not project-local (Codex 2026-08-25).  The full 45x45 sector
+   state is 61 MiB of run data and stays out of git; what this block reads
+   is its 27x27 LEADING TRUNCATION, a few hundred KiB, tracked together
+   with a SHA-256 manifest.  A fresh clone therefore runs this block. *)
+FTAssert["(d) the reduced frozen CF303 fixture and its manifest are TRACKED \
+repository files",
+  FileExistsQ[stateFile] && FileExistsQ[manifestFile] &&
     FileExistsQ[FileNameJoin[{results, "TransportFamilyCharts.wl"}]]];
+FTAssert["(d) the fixture matches its SHA-256 provenance manifest",
+  Module[{lines, entry},
+    lines = Select[StringTrim /@ StringSplit[Import[manifestFile, "Text"], "\n"],
+      StringContainsQ[#, "cf303_frozen_rows27.wl"] &];
+    entry = If[lines === {}, None, First[StringSplit[First[lines]]]];
+    StringQ[entry] && entry === FileHash[stateFile, "SHA256", "HexString"]]];
 registration = TransportFamilyChartLoad[
   FileNameJoin[{results, "TransportFamilyCharts.wl"}]];
 FTAssert["(d) the project family-chart inventory registers",
@@ -261,11 +275,20 @@ FTAssert["(d) CF303 is registered on a rank-3 multiquadratic frame",
   AssociationQ[cf303Frame] && cf303Frame["Status"] === "ExactFrame" &&
     cf303Frame["Name"] === "Multiquadratic3"];
 state = FamilyArtifactRead[stateFile];
-FTAssert["(d) the frozen CF303 fixture reads back with the schema this \
-block consumes: a 45x45 two-variable connection in 25 sector ranges",
+FTAssert["(d) the reduced fixture reads back with the schema this block \
+consumes: the 27x27 two-variable leading truncation in 16 sector ranges",
   AssociationQ[state] &&
-    Dimensions[Lookup[state, "A", {}]] === {2, 45, 45} &&
-    Length[Lookup[state, "Ranges", {}]] === 25];
+    Dimensions[Lookup[state, "A", {}]] === {2, 27, 27} &&
+    Length[Lookup[state, "Ranges", {}]] === 16];
+FTAssert["(d) the reduction carries its own provenance: the source state \
+was 2x45x45 in 25 ranges",
+  Lookup[state, "Schema", None] === "FeynFacetFrozenTestFixture" &&
+    Lookup[state, "Family", None] === "CF303" &&
+    Lookup[state, "ReducedRows", None] === 27 &&
+    Lookup[state, "SourceDimensions", None] === {2, 45, 45} &&
+    Lookup[state, "SourceRangeCount", None] === 25 &&
+    StringQ[Lookup[state, "SourceSHA256", None]] &&
+    StringLength[state["SourceSHA256"]] === 64];
 truncation = {state["A"][[1, 1 ;; 27, 1 ;; 27]], state["A"][[2, 1 ;; 27, 1 ;; 27]]};
 cf303Roots = currentRoots[cf303Frame, {x, y}];
 cf303Class = rootIndices[truncation, cf303Roots];

@@ -387,14 +387,21 @@ FTAssert["S7 KallenQ4a's pulled-back squares are carried at 16 and 4",
   branchScale[carriedBases[[2]], pulledSquares[[2]]] === 2];
 
 (* ---- T. end to end on CF259 ---------------------------------------- *)
-stateFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+(* TRACKED, not project-local (Codex 2026-08-25): the full 47x47 sector
+   state is 76 MiB of run data and stays out of git; this block reads its
+   24x24 LEADING TRUNCATION, a tracked few hundred KiB with a SHA-256
+   provenance manifest, so a fresh clone runs it. *)
+fixtureDirectory = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
   "UU_08_10_canonical", "FamilyEpsFormsSolving",
-  "FrozenTestFixtures_2026-08-25", "sector_state_CF259_standard.wl"}];
+  "FrozenTestFixtures_2026-08-25"}];
+stateFile = FileNameJoin[{fixtureDirectory, "cf259_frozen_rows24.wl"}];
+manifestFile = FileNameJoin[{fixtureDirectory, "SHA256SUMS"}];
 familyChartFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
   "UU_08_10_canonical", "TransportFamilyCharts.wl"}];
-If[! (FileExistsQ[stateFile] && FileExistsQ[familyChartFile]),
-  Print["SKIP  T (CF259 end to end): campaign artifact absent -- ",
-    Select[{stateFile, familyChartFile}, ! FileExistsQ[#] &]],
+If[! (FileExistsQ[stateFile] && FileExistsQ[familyChartFile] &&
+    FileExistsQ[manifestFile]),
+  Print["SKIP  T (CF259 end to end): tracked fixture absent -- ",
+    Select[{stateFile, familyChartFile, manifestFile}, ! FileExistsQ[#] &]],
   Module[{registration, frame, state, rowBound, truncation, allRoots,
       classification, rootSquares, chart, factor, seconds, status},
     registration = FeynFacet`TransportFamilyChartLoad[familyChartFile];
@@ -409,13 +416,27 @@ multiquadratic identity frame",
     (* MEASURED on the frozen fixture, 2026-08-25.  A statement about the
        SHAPE of the fixed artifact, which no campaign run can move -- not
        about the sector a run had reached when the file was written. *)
-    FTAssert["T3 the frozen CF259 fixture reads back with the schema this \
-block consumes: a 47x47 two-variable connection in 27 sector ranges",
+    FTAssert["T3 the reduced CF259 fixture reads back with the schema this \
+block consumes: the 24x24 two-variable leading truncation in 16 sector ranges",
       AssociationQ[state] &&
-      Dimensions[Lookup[state, "A", {}]] === {2, 47, 47} &&
-      Dimensions[Lookup[state, "OriginalA", {}]] === {2, 47, 47} &&
-      Length[Lookup[state, "Ranges", {}]] === 27 &&
+      Dimensions[Lookup[state, "A", {}]] === {2, 24, 24} &&
+      Dimensions[Lookup[state, "OriginalA", {}]] === {2, 24, 24} &&
+      Length[Lookup[state, "Ranges", {}]] === 16 &&
       StringQ[Lookup[state, "ChartFingerprint", None]]];
+    FTAssert["T3b the reduction carries its own provenance and matches the \
+directory's SHA-256 manifest",
+      Lookup[state, "Schema", None] === "FeynFacetFrozenTestFixture" &&
+      Lookup[state, "Family", None] === "CF259" &&
+      Lookup[state, "ReducedRows", None] === 24 &&
+      Lookup[state, "SourceDimensions", None] === {2, 47, 47} &&
+      Lookup[state, "SourceRangeCount", None] === 27 &&
+      StringQ[Lookup[state, "SourceSHA256", None]] &&
+      Module[{lines, entry},
+        lines = Select[StringTrim /@ StringSplit[
+            Import[manifestFile, "Text"], "\n"],
+          StringContainsQ[#, "cf259_frozen_rows24.wl"] &];
+        entry = If[lines === {}, None, First[StringSplit[First[lines]]]];
+        StringQ[entry] && entry === FileHash[stateFile, "SHA256", "HexString"]]];
     FTAssert["T4 the state was produced in the frame under test \
 (chart fingerprint)",
       Hash[KeyTake[frame, {"Name", "Variables", "Subst", "Roots", "Parents"}],

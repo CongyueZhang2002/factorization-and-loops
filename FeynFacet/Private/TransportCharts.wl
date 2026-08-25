@@ -68,8 +68,34 @@ ClearAll[
   transportChartCanonicalizeFrameImages,
   transportChartDeadlineQ,
   transportChartDeadlineExpiredQ,
-  transportChartBudgetExhausted
+  transportChartBudgetExhausted,
+  transportChartLogSuccessTimings
 ];
+
+(* Success-path stage visibility (Codex 08:30, performance addition 3).
+   The two most expensive exact stages of the in-frame strip solve
+   already MEASURE themselves -- timings["GaugePullBack"] and
+   timings["SourceFrameIdentity"] -- but the numbers were only ever
+   emitted on a budget STOP, so a successful strip left the whole
+   interval unattributed (CF303 {17,12}: ~1558 s from strip start to
+   exact acceptance, of which the cheap finite-field pilot and held-out
+   checks are a small part and the rest was invisible).  The success
+   PAYLOAD stays byte-identical -- it is pinned by hash in
+   t_construction_budget and fingerprinted by other records -- so this is
+   one rate-limited log line and nothing else. *)
+$transportChartSuccessLogInterval = 60.;
+$transportChartLastSuccessLogTime = -Infinity;
+transportChartLogSuccessTimings[timings_Association, chartName_,
+    verboseQ_] := If[
+  TrueQ[verboseQ] || AbsoluteTime[] - $transportChartLastSuccessLogTime >=
+    $transportChartSuccessLogInterval,
+  $transportChartLastSuccessLogTime = AbsoluteTime[];
+  Print["[strip-in-frame] accepted in chart ", chartName,
+    ": gauge pull-back ", Round[Lookup[timings, "GaugePullBack", 0.], 0.1],
+    " s, source-frame identity ",
+    Round[Lookup[timings, "SourceFrameIdentity", 0.], 0.1], " s"];
+  True,
+  False];
 
 
 
@@ -1500,6 +1526,8 @@ SolveEpsFormStripInFrame[
       <|"Status" -> "StripGaugeSourceFrameUndeclaredRadicals",
         "RadicalBases" -> DeleteDuplicates[Flatten[comparatorRefusals]]|>]]];
   timings["SourceFrameIdentity"] = AbsoluteTime[] - stageSeconds;
+  (* one rate-limited success diagnostic: the payload below is unchanged *)
+  transportChartLogSuccessTimings[timings, chart["Name"], verbose];
 
   (* the success payload is byte-identical to the pre-deadline result:
      the substage timings are diagnostics of a STOP and are deliberately

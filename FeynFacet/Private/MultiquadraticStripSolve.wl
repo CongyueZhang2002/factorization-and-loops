@@ -97,6 +97,10 @@ Begin["FeynFacet`Private`"];
 
 ClearAll[
   multiquadraticStripFailure, multiquadraticStripFingerprint,
+  $multiquadraticStripForcingChannelSchema,
+  multiquadraticStripForcingChannelFingerprint,
+  multiquadraticStripForcingChannelRecord,
+  multiquadraticStripForcingChannelsAccept,
   multiquadraticStripCanonicalRules, multiquadraticStripCanonicalExpression,
   multiquadraticStripContextFreeQ, multiquadraticStripZeroQ,
   multiquadraticStripModRational,
@@ -121,7 +125,18 @@ ClearAll[
   multiquadraticStripScreenEvaluatePolynomial,
   multiquadraticStripScreenEvaluateRational,
   multiquadraticStripScreenPowerTables,
+  multiquadraticStripScreenSizeEstimate,
+  multiquadraticStripScreenAdmissionRefusal,
+  multiquadraticStripScreenCompileCached,
+  multiquadraticStripScreenCompileCacheClear,
+  $multiquadraticStripScreenCompileCache,
+  $multiquadraticStripScreenCompileCacheBytes,
+  $multiquadraticStripScreenCompileCacheLimit,
+  $multiquadraticStripScreenCompileStatistics,
+  $multiquadraticStripScreenMaximumUnknowns,
+  $multiquadraticStripScreenMaximumBytes,
   multiquadraticStripIntegrabilityScreen,
+  multiquadraticStripIntegrabilityScreenImages,
   multiquadraticStripGaugeAnsatz, multiquadraticStripGaugeScreen,
   multiquadraticStripGaugeScreenImages,
   multiquadraticStripGaugeScreenLadder,
@@ -245,6 +260,84 @@ multiquadraticStripBudgetExhausted[stage_String, elapsed_, deadline_,
 
 multiquadraticStripFingerprint[value_] :=
   Hash[ToString[InputForm[value]], "SHA256", "HexString"];
+
+(* ---- provenance for a reused forcing-channel decomposition ---------
+   (Codex 04:30 P2: "reused forcing channels need provenance, not only
+   shape")
+
+   Decomposing the forcing into grade channels a second time inside the
+   same call is a measured 807 s of the CF300 (12,9) compile, so the
+   preparation hands its own decomposition on.  The reuse used to be
+   accepted on ARRAY SHAPE and a $Failed scan alone: safe for the one
+   caller that supplies the array it has just built, and unsafe as a
+   general cache or artifact boundary, where a shape-compatible array
+   from a DIFFERENT strip would be installed silently and the whole
+   solve would be built on someone else's forcing.
+   A supplied decomposition therefore travels as a SEALED RECORD whose
+   fingerprint covers the forcing it decomposes, the declared root
+   order, the variables and the regulator; the consumer recomputes that
+   fingerprint from its own inputs and FAILS CLOSED on any mismatch. A
+   bare array carries no provenance and can only be shape-checked, so it
+   is refused typed rather than trusted. *)
+$multiquadraticStripForcingChannelSchema =
+  "MultiquadraticForcingChannelsV1";
+
+(* A STRUCTURAL hash, not an algebraic one: the forcing of a real block
+   carries 10^4-10^5 leaves and the point of the reuse is to avoid
+   touching it again, so canonicalizing it here would cost more than the
+   decomposition it protects.  The chart variables and the regulator are
+   mapped to the module's formal symbols first (a cheap replacement), so
+   the seal does not depend on which context they arrived in; anything
+   else that differs -- a different strip, a different root order, a
+   different forcing -- changes the hash and the reuse is refused. *)
+multiquadraticStripForcingChannelFingerprint[forcing_, roots_List,
+    variables_List, epsilon_] := Module[
+  {rules = multiquadraticStripCanonicalRules[variables, epsilon]},
+  multiquadraticStripFingerprint[{
+    $multiquadraticStripForcingChannelSchema,
+    Hash[forcing /. rules, "SHA256"],
+    Hash[Lookup[roots, "RootSquare", {}] /. rules, "SHA256"],
+    Length[roots], Dimensions[forcing]}]];
+
+multiquadraticStripForcingChannelRecord[channels_, forcing_, roots_List,
+    variables_List, epsilon_] := <|
+  "Schema" -> $multiquadraticStripForcingChannelSchema,
+  "SchemaVersion" -> 1,
+  "Fingerprint" -> multiquadraticStripForcingChannelFingerprint[forcing,
+    roots, variables, epsilon],
+  "GradeCount" -> 2^Length[roots],
+  "Dimensions" -> Dimensions[forcing],
+  "Channels" -> channels|>;
+
+(* {status, channels}: "NotSupplied" (decompose), "Accepted" (reuse), or
+   a typed refusal that the caller turns into a failure record *)
+multiquadraticStripForcingChannelsAccept[supplied_, forcing_, roots_List,
+    variables_List, epsilon_] := Module[{expected, gradeCount, channels},
+  If[supplied === Automatic || MissingQ[supplied] || supplied === None,
+    Return[<|"Status" -> "NotSupplied"|>]];
+  If[! AssociationQ[supplied] ||
+      Lookup[supplied, "Schema", None] =!=
+        $multiquadraticStripForcingChannelSchema,
+    Return[<|"Status" -> "ForcingChannelsUnsealed",
+      "Reason" -> "a forcing-channel decomposition must arrive as a sealed \
+record; a bare array carries no provenance and is refused"|>]];
+  gradeCount = 2^Length[roots];
+  channels = Lookup[supplied, "Channels", $Failed];
+  If[! ArrayQ[channels, 4] ||
+      Dimensions[channels] =!= Append[Dimensions[forcing], gradeCount] ||
+      ! FreeQ[channels, $Failed],
+    Return[<|"Status" -> "ForcingChannelShapeMismatch",
+      "Expected" -> Append[Dimensions[forcing], gradeCount],
+      "Actual" -> Dimensions[channels]|>]];
+  expected = multiquadraticStripForcingChannelFingerprint[forcing, roots,
+    variables, epsilon];
+  If[Lookup[supplied, "Fingerprint", None] =!= expected,
+    Return[<|"Status" -> "ForcingChannelProvenanceMismatch",
+      "ExpectedFingerprint" -> expected,
+      "SuppliedFingerprint" -> Lookup[supplied, "Fingerprint",
+        Missing["NoFingerprint"]]|>]];
+  <|"Status" -> "Accepted", "Channels" -> channels|>
+];
 
 multiquadraticStripZeroQ[value_] :=
   AllTrue[Flatten[{value}], TrueQ[Together[#1] === 0] &];
@@ -1080,13 +1173,104 @@ multiquadraticStripScreenPowerTables[values_List, maximumExponents_List,
     Range[Max[1, maximumExponents[[index]]]]],
   {index, Length[values]}];
 
+(* ------------------------------------------------------------------ *)
+(* Screen admission, phase telemetry and compiled-form reuse           *)
+(* (Codex 04:30 P1: "the default-on dense screen needs a size/byte gate *)
+(* and its own deadline")                                              *)
+(* ------------------------------------------------------------------ *)
+
+(* Both screens size a nearly square dense system and hand it to modular
+   MatrixRank / NullSpace.  Measured scaling on CF300 (12,9): 43-47 s at
+   1816 unknowns, 86-98 s at 2920-3128, 149 s at 3816.  A wider block or
+   a larger support turns a default-on "cheap gate" into a dense-memory
+   cliff, so the size is ESTIMATED BEFORE ANY ALLOCATION and compared
+   against configurable ceilings; over the ceiling the screen returns a
+   typed not-applicable result and the established route continues
+   unscreened, which is exactly what a gate must do when it cannot
+   afford to run. *)
+$multiquadraticStripScreenMaximumUnknowns = 20000;
+$multiquadraticStripScreenMaximumBytes = 4. 10^9;
+
+multiquadraticStripScreenSizeEstimate[rowCount_, columnCount_,
+    candidateColumnCount_ : 0] := Module[{total = columnCount + candidateColumnCount},
+  <|"Rows" -> rowCount, "Columns" -> columnCount,
+    "CandidateColumns" -> candidateColumnCount,
+    "TotalColumns" -> total,
+    (* one machine integer per entry of the packed matrix, plus the
+       augmented column and one transposed copy for the left null space *)
+    "PackedBytes" -> 8. rowCount (total + 1) 2|>];
+
+multiquadraticStripScreenAdmissionRefusal[estimate_Association,
+    maximumUnknowns_, maximumBytes_, status_String] := Which[
+  IntegerQ[maximumUnknowns] && estimate["TotalColumns"] > maximumUnknowns,
+    <|"Status" -> status, "Module" -> "MultiquadraticStripSolve",
+      "Reason" -> "UnknownCountCeilingExceeded", "SizeEstimate" -> estimate,
+      "MaximumUnknowns" -> maximumUnknowns, "MaximumBytes" -> maximumBytes|>,
+  NumericQ[maximumBytes] && estimate["PackedBytes"] > maximumBytes,
+    <|"Status" -> status, "Module" -> "MultiquadraticStripSolve",
+      "Reason" -> "ByteCeilingExceeded", "SizeEstimate" -> estimate,
+      "MaximumUnknowns" -> maximumUnknowns, "MaximumBytes" -> maximumBytes|>,
+  True, None];
+
+(* Compiled scalar forms are reused across the images of a confirmation
+   pair and across the rungs of the degree-offset ladder (Codex 04:30 P1,
+   point 4).  A rung changes only the gauge support and denominator: the
+   compiled e, c, bbar and root squares are identical, and before this
+   cache every rung recompiled all of them for every image.  The key is
+   the exact (expression, roots, variables, prime) the compile depends on;
+   the cache is byte-bounded and reports hits/misses, so it can never
+   become the memory problem the screen ceilings exist to prevent. *)
+$multiquadraticStripScreenCompileCache = <||>;
+$multiquadraticStripScreenCompileCacheBytes = 0;
+$multiquadraticStripScreenCompileCacheLimit = 2. 10^8;
+$multiquadraticStripScreenCompileStatistics =
+  <|"Hits" -> 0, "Misses" -> 0, "Evictions" -> 0, "Bytes" -> 0|>;
+
+multiquadraticStripScreenCompileCacheClear[] := (
+  $multiquadraticStripScreenCompileCache = <||>;
+  $multiquadraticStripScreenCompileCacheBytes = 0;
+  $multiquadraticStripScreenCompileStatistics =
+    <|"Hits" -> 0, "Misses" -> 0, "Evictions" -> 0, "Bytes" -> 0|>);
+
+multiquadraticStripScreenCompileCached[expression_, roots_List,
+    rootSymbols_List, variables_List, prime_Integer] := Module[
+  {key, value, bytes},
+  key = {Hash[{expression, Lookup[roots, "RootSquare", {}], rootSymbols,
+    variables, prime}, "SHA256"]};
+  If[KeyExistsQ[$multiquadraticStripScreenCompileCache, key],
+    $multiquadraticStripScreenCompileStatistics["Hits"] =
+      $multiquadraticStripScreenCompileStatistics["Hits"] + 1;
+    Return[$multiquadraticStripScreenCompileCache[key]]];
+  value = multiquadraticStripScreenCompileScalar[expression, roots,
+    rootSymbols, variables, prime];
+  $multiquadraticStripScreenCompileStatistics["Misses"] =
+    $multiquadraticStripScreenCompileStatistics["Misses"] + 1;
+  bytes = ByteCount[value];
+  If[$multiquadraticStripScreenCompileCacheBytes + bytes >
+      $multiquadraticStripScreenCompileCacheLimit,
+    $multiquadraticStripScreenCompileStatistics["Evictions"] =
+      $multiquadraticStripScreenCompileStatistics["Evictions"] +
+        Length[$multiquadraticStripScreenCompileCache];
+    $multiquadraticStripScreenCompileCache = <||>;
+    $multiquadraticStripScreenCompileCacheBytes = 0];
+  $multiquadraticStripScreenCompileCache[key] = value;
+  $multiquadraticStripScreenCompileCacheBytes =
+    $multiquadraticStripScreenCompileCacheBytes + bytes;
+  $multiquadraticStripScreenCompileStatistics["Bytes"] =
+    $multiquadraticStripScreenCompileCacheBytes;
+  value
+];
+
 Options[multiquadraticStripIntegrabilityScreen] = {
   "Prime" -> Automatic,
   "RegulatorValue" -> Automatic,
   "PointCount" -> 20,
   "MaximumAttempts" -> Automatic,
   "RandomSeed" -> 2026082401,
-  "ScoreLetters" -> True
+  "ScoreLetters" -> True,
+  "Deadline" -> Infinity,
+  "MaximumUnknowns" -> Automatic,
+  "MaximumBytes" -> Automatic
 };
 
 multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
@@ -1102,10 +1286,22 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
    matrixDerivative, ex, ey, cx, cy, bx, by, dyex, dxey, dycx, dxcy, dybx,
    dxby, curvatureE, curvatureC, forcingCurl, oneFormValues, matrix,
    rightVector, rankA, rankAugmented, defect, witness, nullVectors, scored,
-   keptColumns, screenStatus, rationalLeaves},
+   keptColumns, screenStatus, rationalLeaves,
+   deadline, maximumUnknowns, maximumBytes, sizeEstimate, refusal,
+   startTime = AbsoluteTime[], phaseTimings = <||>, compileSeconds,
+   assemblySeconds, rankSeconds, leftNullSeconds = 0., expired = False,
+   compileStatisticsBefore},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripIntegrabilityScreen]]]];
   If[AssociationQ[gate], Return[gate]];
+  deadline = OptionValue["Deadline"];
+  If[! multiquadraticStripDeadlineQ[deadline],
+    Return[multiquadraticStripFailure["InvalidDeadline",
+      <|"Deadline" -> deadline|>]]];
+  maximumUnknowns = Replace[OptionValue["MaximumUnknowns"],
+    Automatic :> $multiquadraticStripScreenMaximumUnknowns];
+  maximumBytes = Replace[OptionValue["MaximumBytes"],
+    Automatic :> $multiquadraticStripScreenMaximumBytes];
   variables = Lookup[record, "Variables", $Failed];
   epsilon = Lookup[record, "Regulator", $Failed];
   strip = Lookup[record, "Strip", $Failed];
@@ -1140,32 +1336,61 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
       <|"Prime" -> prime, "RegulatorValue" -> regulatorValue|>]]];
   letterCount = Length[letterRecords];
   If[letterCount < 1, Return[multiquadraticStripFailure["EmptyAlphabet"]]];
+  (* the admission gate, BEFORE any allocation or compile: rows are
+     2^rank equations per accepted point times the two one-form
+     components times the block entries, columns are the residue
+     unknowns *)
+  sizeEstimate = multiquadraticStripScreenSizeEstimate[
+    pointCount 2^rank upper lower, letterCount upper lower];
+  refusal = multiquadraticStripScreenAdmissionRefusal[sizeEstimate,
+    maximumUnknowns, maximumBytes, "IntegrabilityScreenNotApplicable"];
+  If[AssociationQ[refusal],
+    Return[Join[refusal, <|"Prime" -> prime,
+      "RegulatorValue" -> regulatorValue, "LetterCount" -> letterCount,
+      "Seconds" -> AbsoluteTime[] - startTime|>]]];
+  If[multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[multiquadraticStripBudgetExhausted["IntegrabilityScreen:Compile",
+      AbsoluteTime[] - startTime, deadline,
+      <|"SizeEstimate" -> sizeEstimate|>]]];
   rootSymbols = Take[{rootOne, rootTwo, rootThree}, rank];
-  compileScalar[expression_] := multiquadraticStripScreenCompileScalar[
+  compileScalar[expression_] := multiquadraticStripScreenCompileCached[
     Quiet[Check[Together[expression /. epsilon -> regulatorValue], $Failed,
       {Power::infy, Infinity::indet, Power::indet}]],
     roots, rootSymbols, variables, prime];
-  deltaCompiled = multiquadraticStripScreenCompileScalar[#1, {}, rootSymbols,
-      variables, prime] & /@ Lookup[roots, "RootSquare", {}];
-  eCompiled = Map[compileScalar, e, {3}];
-  cCompiled = Map[compileScalar, c, {3}];
-  bCompiled = Map[compileScalar, bbar, {3}];
-  letterCompiled = Map[compileScalar, Lookup[letterRecords, "OneForm", {}], {2}];
+  compileStatisticsBefore = $multiquadraticStripScreenCompileStatistics;
+  compileSeconds = First[AbsoluteTiming[
+    deltaCompiled = multiquadraticStripScreenCompileCached[#1, {}, rootSymbols,
+        variables, prime] & /@ Lookup[roots, "RootSquare", {}];
+    eCompiled = Map[compileScalar, e, {3}];
+    cCompiled = Map[compileScalar, c, {3}];
+    bCompiled = Map[compileScalar, bbar, {3}];
+    letterCompiled = Map[compileScalar,
+      Lookup[letterRecords, "OneForm", {}], {2}];]];
   If[! FreeQ[{deltaCompiled, eCompiled, cCompiled, bCompiled, letterCompiled},
       $Failed],
     Return[<|"Status" -> "IntegrabilityScreenNotApplicable",
       "Module" -> "MultiquadraticStripSolve",
       "Reason" -> "ScreenCompilationFailed", "Prime" -> prime,
       "RegulatorValue" -> regulatorValue|>]];
+  If[multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[multiquadraticStripBudgetExhausted[
+      "IntegrabilityScreen:PointAssembly", AbsoluteTime[] - startTime,
+      deadline, <|"SizeEstimate" -> sizeEstimate,
+        "PhaseTimings" -> <|"Compile" -> compileSeconds|>|>]]];
   rationalLeaves = Cases[{deltaCompiled, eCompiled, cCompiled, bCompiled,
       letterCompiled}, association_Association /;
       KeyExistsQ[association, "Numerator"] :> association, {0, Infinity}];
   maximumExponents = Max /@ Transpose[
     Lookup[rationalLeaves, "MaximumExponents"]];
+  assemblySeconds = First[AbsoluteTiming[
   BlockRandom[
     SeedRandom[randomSeed, Method -> "MersenneTwister"];
     While[Length[accepted] < pointCount && attempts < maximumAttempts &&
-        ! notFlat,
+        ! notFlat && ! expired,
+      (* cooperative stop during point acquisition: every accepted point
+         is one 2^rank-branch evaluation of the whole block *)
+      If[multiquadraticStripDeadlineExpiredQ[deadline],
+        expired = True; Break[]];
       attempts++;
       point = RandomInteger[{2, prime - 2}, 2];
       (* the root squares first: the point must split every declared root *)
@@ -1249,7 +1474,14 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
       If[TrueQ[pointOK],
         AppendTo[accepted, point];
         rows = Join[rows, pointRows]; right = Join[right, pointRight],
-        rejected["Unusable"] = Lookup[rejected, "Unusable", 0] + 1]]];
+        rejected["Unusable"] = Lookup[rejected, "Unusable", 0] + 1]]]]];
+  If[TrueQ[expired],
+    Return[multiquadraticStripBudgetExhausted[
+      "IntegrabilityScreen:PointAssembly", AbsoluteTime[] - startTime,
+      deadline, <|"SizeEstimate" -> sizeEstimate,
+        "PointCount" -> Length[accepted], "AttemptCount" -> attempts,
+        "PhaseTimings" -> <|"Compile" -> compileSeconds,
+          "PointAssembly" -> assemblySeconds|>|>]]];
   If[TrueQ[notFlat],
     Return[<|"Status" -> "IntegrabilityScreenNotApplicable",
       "Module" -> "MultiquadraticStripSolve",
@@ -1265,13 +1497,22 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
   unknownCount = letterCount upper lower;
   matrix = Developer`ToPackedArray[rows];
   rightVector = Developer`ToPackedArray[right];
-  rankA = MatrixRank[matrix, Modulus -> prime];
-  rankAugmented = MatrixRank[MapThread[Append, {matrix, rightVector}],
-    Modulus -> prime];
+  If[multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[multiquadraticStripBudgetExhausted["IntegrabilityScreen:Rank",
+      AbsoluteTime[] - startTime, deadline,
+      <|"SizeEstimate" -> sizeEstimate,
+        "MatrixDimensions" -> Dimensions[matrix],
+        "PhaseTimings" -> <|"Compile" -> compileSeconds,
+          "PointAssembly" -> assemblySeconds|>|>]]];
+  rankSeconds = First[AbsoluteTiming[
+    rankA = MatrixRank[matrix, Modulus -> prime];
+    rankAugmented = MatrixRank[MapThread[Append, {matrix, rightVector}],
+      Modulus -> prime];]];
   defect = rankAugmented - rankA;
   witness = Missing["Consistent"];
   If[defect > 0,
-    nullVectors = NullSpace[Transpose[matrix], Modulus -> prime];
+    leftNullSeconds = First[AbsoluteTiming[
+      nullVectors = NullSpace[Transpose[matrix], Modulus -> prime];]];
     witness = SelectFirst[nullVectors, Mod[#1 . rightVector, prime] =!= 0 &,
       Missing["NoWitnessFound"]];
     If[! MissingQ[witness],
@@ -1289,10 +1530,23 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
         "RankContribution" ->
           rankA - MatrixRank[matrix[[All, keptColumns]], Modulus -> prime]|>,
       {k, letterCount}], {}];
+  (* ONE IMAGE.  These statuses are the per-image verdict and keep their
+     names; a CONFIRMED verdict over two independent (prime, regulator)
+     images is what multiquadraticStripIntegrabilityScreenImages returns
+     and what the top level is allowed to act on (Codex 04:30 P1). *)
   screenStatus = If[defect > 0, "AlphabetIntegrabilityObstruction",
     "AlphabetIntegrabilityConsistent"];
+  phaseTimings = <|"Compile" -> compileSeconds,
+    "PointAssembly" -> assemblySeconds, "Rank" -> rankSeconds,
+    "LeftNullSpace" -> leftNullSeconds|>;
   <|"Status" -> screenStatus, "Module" -> "MultiquadraticStripSolve",
     "Method" -> "ResidueOnlyIntegrability",
+    "SizeEstimate" -> sizeEstimate, "PhaseTimings" -> phaseTimings,
+    "CompileCache" -> Join[
+      AssociationMap[($multiquadraticStripScreenCompileStatistics[#1] -
+        compileStatisticsBefore[#1]) &, {"Hits", "Misses", "Evictions"}],
+      <|"Bytes" -> $multiquadraticStripScreenCompileCacheBytes|>],
+    "Seconds" -> AbsoluteTime[] - startTime,
     "Family" -> Lookup[record, "Family", None],
     "Sector" -> Lookup[record, "Sector", None],
     "LowerSector" -> Lookup[record, "LowerSector", None],
@@ -1309,6 +1563,114 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
     "LetterKinds" -> Lookup[letterRecords, "Kind", {}]|>
 ];
 multiquadraticStripIntegrabilityScreen[___] :=
+  multiquadraticStripFailure["InvalidIntegrabilityScreenArguments"];
+
+(* ------------------------------------------------------------------ *)
+(* TWO INDEPENDENT IMAGES ON THE REJECTION PATH ONLY                    *)
+(* (Codex 04:30 P1: "a single regulator image is not an exact generic  *)
+(*  Q(eps) obstruction")                                                *)
+(* ------------------------------------------------------------------ *)
+
+(* A rank defect of the specialized finite-field system is EXACT for that
+   system, and it is NOT a theorem about the generic system over Q(eps):
+   a generically solvable system such as (eps - a) z = 1 is inconsistent
+   at eps = a, and more (x, y) points AT THE SAME REGULATOR VALUE cannot
+   remove that exceptional-regulator mode.  Nor is a solution denominator
+   known in advance from the input-pole census.
+   So: the fast single-image CONSISTENCY path is kept exactly as it was
+   -- a consistent image gates nothing and is not made more consistent by
+   a second one -- and only a REJECTION is confirmed at a second
+   independent (prime, regulator) image, precisely as the full-gauge
+   screen already does.  Two agreeing images make the verdict a
+   HIGH-CONFIDENCE MODULAR OBSTRUCTION, which is what the caller may act
+   on; it is still not an unconditional theorem over Q(eps), and the
+   status language and the solution contract say so. *)
+Options[multiquadraticStripIntegrabilityScreenImages] = Join[
+  Options[multiquadraticStripIntegrabilityScreen], {
+  "Images" -> Automatic,
+  "ConfirmObstruction" -> True
+}];
+
+multiquadraticStripIntegrabilityScreenImages[record_Association, roots_List,
+    letterRecords_List, opts : OptionsPattern[]] := Module[
+  {gate, images, firstPrime, firstRegulator, results = {}, screenOptions,
+   result, defects, status, startTime = AbsoluteTime[]},
+  gate = multiquadraticStripProductionOptionGate[{opts},
+    Keys[Association[Options[multiquadraticStripIntegrabilityScreenImages]]]];
+  If[AssociationQ[gate], Return[gate]];
+  images = Replace[OptionValue["Images"], Automatic :>
+    Transpose[{$multiquadraticStripDefaultPrimes,
+      $multiquadraticStripDefaultRegulatorValues}]];
+  If[! MatchQ[images, {{_Integer, _Integer | _Rational} ..}],
+    Return[multiquadraticStripFailure["InvalidIntegrabilityScreenImages",
+      <|"Images" -> images|>]]];
+  (* an explicitly requested prime / regulator value IS the first image:
+     the caller's choice (the alphabet's own first regulator sample) must
+     stay the one that decides the fast path *)
+  firstPrime = OptionValue["Prime"];
+  firstRegulator = OptionValue["RegulatorValue"];
+  images = ReplacePart[images, 1 -> {
+    Replace[firstPrime, Automatic :> images[[1, 1]]],
+    Replace[firstRegulator, Automatic :> images[[1, 2]]]}];
+  (* two identical images are one image, not two confirmations *)
+  images = DeleteDuplicates[images];
+  screenOptions = FilterRules[
+    DeleteCases[Flatten[{opts}],
+      HoldPattern["Prime" -> _] | HoldPattern["RegulatorValue" -> _] |
+      HoldPattern["RandomSeed" -> _]],
+    Options[multiquadraticStripIntegrabilityScreen]];
+  Do[
+    result = multiquadraticStripIntegrabilityScreen[record, roots,
+      letterRecords, "Prime" -> images[[k, 1]],
+      "RegulatorValue" -> images[[k, 2]],
+      "RandomSeed" -> OptionValue["RandomSeed"] + 7919 k,
+      Sequence @@ screenOptions];
+    AppendTo[results, result];
+    If[! MemberQ[{"AlphabetIntegrabilityObstruction",
+        "AlphabetIntegrabilityConsistent"}, Lookup[result, "Status", None]],
+      Break[]];
+    (* the fast path: a consistent image ends the screen *)
+    If[Lookup[result, "Defect", 1] === 0, Break[]];
+    If[! TrueQ[OptionValue["ConfirmObstruction"]], Break[]],
+    {k, Length[images]}];
+  defects = Lookup[results, "Defect", Missing["NoDefect"]];
+  status = Which[
+    ! AllTrue[results, MemberQ[{"AlphabetIntegrabilityObstruction",
+      "AlphabetIntegrabilityConsistent"}, Lookup[#1, "Status", None]] &],
+      (* a not-applicable / budget-exhausted image is not a verdict *)
+      Lookup[Last[results], "Status", "IntegrabilityScreenNotApplicable"],
+    (* ANY consistent image settles it: that image exhibits a solution of
+       the specialized system, so the generic system is solvable and a
+       defect at another image was an exceptional regulator value, not an
+       obstruction.  The exceptional images are recorded, never acted
+       on. *)
+    AnyTrue[defects, IntegerQ[#1] && #1 === 0 &],
+      "AlphabetIntegrabilityConsistent",
+    Length[results] >= 2 && AllTrue[defects, IntegerQ[#1] && #1 > 0 &],
+      "AlphabetIntegrabilityObstruction",
+    True, "AlphabetIntegrabilityObstructionUnconfirmed"];
+  Join[
+    (* the deciding image's own payload travels on, so witnesses,
+       scored letters and phase timings are not lost by the wrapper *)
+    KeyDrop[Last[results], {"Status", "Seconds"}],
+    <|"Status" -> status, "Module" -> "MultiquadraticStripSolve",
+      "Method" -> "ResidueOnlyIntegrability",
+      "Confirmed" -> (status === "AlphabetIntegrabilityObstruction"),
+      (* the images whose defect was NOT reproduced: an exceptional
+         regulator value of an otherwise solvable system, kept as
+         evidence and never acted on *)
+      "ExceptionalRegulatorImages" ->
+        If[status === "AlphabetIntegrabilityConsistent",
+          Pick[Take[images, UpTo[Length[results]]],
+            Map[IntegerQ[#1] && #1 > 0 &, defects]], {}],
+      "ImageCount" -> Length[results], "Defects" -> defects,
+      "Images" -> Take[images, UpTo[Length[results]]],
+      "ImageResults" -> results,
+      "PhaseTimings" -> Merge[
+        Lookup[results, "PhaseTimings", <||>], Total],
+      "Seconds" -> AbsoluteTime[] - startTime|>]
+];
+multiquadraticStripIntegrabilityScreenImages[___] :=
   multiquadraticStripFailure["InvalidIntegrabilityScreenArguments"];
 
 (* ------------------------------------------------------------------ *)
@@ -1417,7 +1779,10 @@ Options[multiquadraticStripGaugeScreen] = {
   "ExtraRowPoints" -> 1,
   "CandidateOneForms" -> {},
   "CandidateSubsets" -> Automatic,
-  "LeftNullSpace" -> Automatic
+  "LeftNullSpace" -> Automatic,
+  "Deadline" -> Infinity,
+  "MaximumUnknowns" -> Automatic,
+  "MaximumBytes" -> Automatic
 };
 
 multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
@@ -1439,10 +1804,21 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
    basisDerivatives, xInverse, yInverse, rowVector, matrix, candidateMatrix,
    rightVector, rankA, rankAugmented, defect, leftNull, witness, wanted,
    pairing, subsets, subsetResults, candidateScores, screenStatus, seconds,
-   startTime = AbsoluteTime[], subsetDefect},
+   startTime = AbsoluteTime[], subsetDefect,
+   deadline, maximumUnknowns, maximumBytes, sizeEstimate, refusal,
+   phaseTimings = <||>, compileSeconds, assemblySeconds, rankSeconds,
+   leftNullSeconds = 0., expired = False, compileStatisticsBefore},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripGaugeScreen]]]];
   If[AssociationQ[gate], Return[gate]];
+  deadline = OptionValue["Deadline"];
+  If[! multiquadraticStripDeadlineQ[deadline],
+    Return[multiquadraticStripFailure["InvalidDeadline",
+      <|"Deadline" -> deadline|>]]];
+  maximumUnknowns = Replace[OptionValue["MaximumUnknowns"],
+    Automatic :> $multiquadraticStripScreenMaximumUnknowns];
+  maximumBytes = Replace[OptionValue["MaximumBytes"],
+    Automatic :> $multiquadraticStripScreenMaximumBytes];
   record = Lookup[ansatz, "Record", <||>];
   If[! AssociationQ[record], record = <||>];
   variables = Lookup[ansatz, "Variables", Lookup[record, "Variables", $Failed]];
@@ -1502,19 +1878,42 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
   If[epsilonMod === $Failed || epsilonMod === 0,
     Return[multiquadraticStripFailure["InvalidRegulatorImage",
       <|"Prime" -> prime, "RegulatorValue" -> regulatorValue|>]]];
+  (* the admission gate, BEFORE any allocation (Codex 04:30 P1).  The
+     screen is DEFAULT ON, so its cost must be bounded by a declared
+     ceiling rather than by the block that happens to arrive. *)
+  sizeEstimate = multiquadraticStripScreenSizeEstimate[
+    pointCount equationsPerPoint, unknownCount,
+    candidateCount candidateWidth];
+  refusal = multiquadraticStripScreenAdmissionRefusal[sizeEstimate,
+    maximumUnknowns, maximumBytes, "GaugeScreenNotApplicable"];
+  If[AssociationQ[refusal],
+    Return[Join[refusal, <|"Prime" -> prime,
+      "RegulatorValue" -> regulatorValue,
+      "UnknownCount" -> unknownCount,
+      "GaugeUnknownCount" -> gaugeUnknownCount,
+      "ResidueUnknownCount" -> residueUnknownCount,
+      "EquationsPerPoint" -> equationsPerPoint,
+      "RequestedPointCount" -> pointCount,
+      "Seconds" -> AbsoluteTime[] - startTime|>]]];
+  If[multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[multiquadraticStripBudgetExhausted["GaugeScreen:Compile",
+      AbsoluteTime[] - startTime, deadline,
+      <|"SizeEstimate" -> sizeEstimate|>]]];
   rootSymbols = Take[{rootOne, rootTwo, rootThree}, rank];
-  compileScalar[expression_] := multiquadraticStripScreenCompileScalar[
+  compileScalar[expression_] := multiquadraticStripScreenCompileCached[
     Quiet[Check[Together[expression /. epsilon -> regulatorValue], $Failed,
       {Power::infy, Infinity::indet, Power::indet}]],
     roots, rootSymbols, variables, prime];
-  deltaCompiled = multiquadraticStripScreenCompileScalar[#1, {}, rootSymbols,
+  compileStatisticsBefore = $multiquadraticStripScreenCompileStatistics;
+  compileSeconds = First[AbsoluteTiming[
+  deltaCompiled = multiquadraticStripScreenCompileCached[#1, {}, rootSymbols,
       variables, prime] & /@ Lookup[roots, "RootSquare", {}];
   eCompiled = Map[compileScalar, e, {3}];
   cCompiled = Map[compileScalar, c, {3}];
   bCompiled = Map[compileScalar, bbar, {3}];
   formCompiled = Map[compileScalar, oneForms, {2}];
   candidateCompiled = Map[compileScalar, candidateForms, {2}];
-  denominatorCompiled = compileScalar[gaugeDenominator];
+  denominatorCompiled = compileScalar[gaugeDenominator];]];
   If[! FreeQ[{deltaCompiled, eCompiled, cCompiled, bCompiled, formCompiled,
       candidateCompiled, denominatorCompiled}, $Failed],
     Return[<|"Status" -> "GaugeScreenNotApplicable",
@@ -1529,9 +1928,17 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
     Lookup[rationalLeaves, "MaximumExponents"]];
   maximumExponents[[1]] = Max[maximumExponents[[1]], Max[support[[All, 1]]]];
   maximumExponents[[2]] = Max[maximumExponents[[2]], Max[support[[All, 2]]]];
+  If[multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[multiquadraticStripBudgetExhausted["GaugeScreen:PointAssembly",
+      AbsoluteTime[] - startTime, deadline,
+      <|"SizeEstimate" -> sizeEstimate,
+        "PhaseTimings" -> <|"Compile" -> compileSeconds|>|>]]];
+  assemblySeconds = First[AbsoluteTiming[
   BlockRandom[
     SeedRandom[randomSeed, Method -> "MersenneTwister"];
-    While[accepted < pointCount && attempts < maximumAttempts,
+    While[accepted < pointCount && attempts < maximumAttempts && ! expired,
+      If[multiquadraticStripDeadlineExpiredQ[deadline],
+        expired = True; Break[]];
       attempts++;
       point = RandomInteger[{2, prime - 2}, 2];
       probeTables = multiquadraticStripScreenPowerTables[
@@ -1644,7 +2051,14 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
         accepted++;
         rows = Join[rows, pointRows]; right = Join[right, pointRight];
         If[candidateCount > 0, candidateRows = Join[candidateRows, pointCandidate]],
-        rejected["Unusable"] = Lookup[rejected, "Unusable", 0] + 1]]];
+        rejected["Unusable"] = Lookup[rejected, "Unusable", 0] + 1]]]]];
+  If[TrueQ[expired],
+    Return[multiquadraticStripBudgetExhausted["GaugeScreen:PointAssembly",
+      AbsoluteTime[] - startTime, deadline,
+      <|"SizeEstimate" -> sizeEstimate, "PointCount" -> accepted,
+        "RequestedPointCount" -> pointCount, "AttemptCount" -> attempts,
+        "PhaseTimings" -> <|"Compile" -> compileSeconds,
+          "PointAssembly" -> assemblySeconds|>|>]]];
   If[accepted < pointCount,
     Return[<|"Status" -> "GaugeScreenNotApplicable",
       "Module" -> "MultiquadraticStripSolve",
@@ -1656,14 +2070,33 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
   rightVector = Developer`ToPackedArray[Mod[right, prime]];
   candidateMatrix = If[candidateCount > 0,
     Developer`ToPackedArray[Mod[candidateRows, prime]], {}];
-  rankA = MatrixRank[matrix, Modulus -> prime];
-  rankAugmented = MatrixRank[MapThread[Append, {matrix, rightVector}],
-    Modulus -> prime];
+  (* the two opaque calls below cannot be interrupted cooperatively, so
+     the deadline is checked immediately before each of them *)
+  If[multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[multiquadraticStripBudgetExhausted["GaugeScreen:Rank",
+      AbsoluteTime[] - startTime, deadline,
+      <|"SizeEstimate" -> sizeEstimate,
+        "MatrixDimensions" -> Dimensions[matrix],
+        "PhaseTimings" -> <|"Compile" -> compileSeconds,
+          "PointAssembly" -> assemblySeconds|>|>]]];
+  rankSeconds = First[AbsoluteTiming[
+    rankA = MatrixRank[matrix, Modulus -> prime];
+    rankAugmented = MatrixRank[MapThread[Append, {matrix, rightVector}],
+      Modulus -> prime];]];
   defect = rankAugmented - rankA;
   wanted = Replace[OptionValue["LeftNullSpace"],
     Automatic :> (defect > 0 || candidateCount > 0)];
-  leftNull = If[TrueQ[wanted],
-    NullSpace[Transpose[matrix], Modulus -> prime], {}];
+  If[TrueQ[wanted] && multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[multiquadraticStripBudgetExhausted["GaugeScreen:LeftNullSpace",
+      AbsoluteTime[] - startTime, deadline,
+      <|"SizeEstimate" -> sizeEstimate,
+        "MatrixDimensions" -> Dimensions[matrix],
+        "Defect" -> defect, "Rank" -> rankA,
+        "PhaseTimings" -> <|"Compile" -> compileSeconds,
+          "PointAssembly" -> assemblySeconds, "Rank" -> rankSeconds|>|>]]];
+  leftNullSeconds = First[AbsoluteTiming[
+    leftNull = If[TrueQ[wanted],
+      NullSpace[Transpose[matrix], Modulus -> prime], {}];]];
   witness = Missing["Consistent"];
   If[defect > 0,
     witness = If[ListQ[leftNull] && leftNull =!= {},
@@ -1721,8 +2154,16 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
       {subset, subsets}]];
   screenStatus = If[defect > 0, "GaugeImageObstruction", "GaugeImageConsistent"];
   seconds = AbsoluteTime[] - startTime;
+  phaseTimings = <|"Compile" -> compileSeconds,
+    "PointAssembly" -> assemblySeconds, "Rank" -> rankSeconds,
+    "LeftNullSpace" -> leftNullSeconds|>;
   <|"Status" -> screenStatus, "Module" -> "MultiquadraticStripSolve",
     "Method" -> "PointEvaluatedAffineGaugeSystem",
+    "SizeEstimate" -> sizeEstimate, "PhaseTimings" -> phaseTimings,
+    "CompileCache" -> Join[
+      AssociationMap[($multiquadraticStripScreenCompileStatistics[#1] -
+        compileStatisticsBefore[#1]) &, {"Hits", "Misses", "Evictions"}],
+      <|"Bytes" -> $multiquadraticStripScreenCompileCacheBytes|>],
     "Family" -> Lookup[record, "Family", None],
     "Sector" -> Lookup[record, "Sector", None],
     "LowerSector" -> Lookup[record, "LowerSector", None],
@@ -1803,7 +2244,10 @@ multiquadraticStripGaugeScreenImages[ansatz_Association,
   <|"Status" -> Which[
       ! AllTrue[results, MemberQ[{"GaugeImageObstruction",
         "GaugeImageConsistent"}, Lookup[#1, "Status", None]] &],
-        "GaugeScreenNotApplicable",
+        (* a budget stop is a RESUMABLE stop, not "the screen does not
+           apply to this block": the two must not be conflated *)
+        If[AnyTrue[results, Lookup[#1, "Status", None] === "BudgetExhausted" &],
+          "BudgetExhausted", "GaugeScreenNotApplicable"],
       AllTrue[defects, IntegerQ[#1] && #1 === 0 &] &&
         (Length[results] >= 2 || ! TrueQ[OptionValue["ConfirmConsistency"]]),
         "GaugeImageConsistent",
@@ -1817,6 +2261,12 @@ multiquadraticStripGaugeScreenImages[ansatz_Association,
     "ImageCount" -> Length[results], "Defects" -> defects,
     "Images" -> Take[images, UpTo[Length[results]]],
     "ImageResults" -> results,
+    "SizeEstimate" -> Lookup[Last[results], "SizeEstimate",
+      Missing["NoSizeEstimate"]],
+    "PhaseTimings" -> Merge[Lookup[results, "PhaseTimings", <||>], Total],
+    "Stage" -> Lookup[Last[results], "Stage", Missing["NoStage"]],
+    "MatrixDimensions" -> Lookup[Last[results], "MatrixDimensions",
+      Missing["NoMatrix"]],
     "Seconds" -> Total[Lookup[results, "Seconds", 0]]|>
 ];
 multiquadraticStripGaugeScreenImages[___] :=
@@ -1950,8 +2400,24 @@ multiquadraticStripGaugeScreenLadder[source_Association,
       gaugeDenominator, "DegreeOffset" -> offset];
     If[Lookup[ansatz, "Status", None] =!= "MultiquadraticGaugeAnsatzV1",
       Return[ansatz, Module]];
+    (* the rung's own screen is bounded by the same deadline: checking
+       only BETWEEN rungs left one dense rank/nullspace call able to
+       overrun the whole budget on its own (Codex 04:30 P1) *)
     result = multiquadraticStripGaugeScreenImages[ansatz,
-      "ConfirmConsistency" -> True, Sequence @@ screenOptions];
+      "ConfirmConsistency" -> True, "Deadline" -> deadline,
+      Sequence @@ screenOptions];
+    If[Lookup[result, "Status", None] === "BudgetExhausted",
+      (* the LADDER is the unit a caller resumes, so the stop keeps the
+         ladder's stage name; the screen phase that actually ran out of
+         time is carried beside it as diagnostics *)
+      Return[Join[result, <|"Method" -> "ScreenValidatedDegreeOffsetLadder",
+        "Stage" -> "GaugeScreenLadder",
+        "ScreenStage" -> Lookup[result, "Stage", Missing["NoScreenStage"]],
+        "BaseDegreeOffset" -> baseOffset, "DegreeOffsetLadder" -> ladder,
+        "NextDegreeOffset" -> offset, "SkippedDegreeOffsets" -> skipped,
+        "LadderRungs" -> rungs,
+        "LadderDefects" -> ({#1["DegreeOffset"], #1["Defects"]} & /@
+          rungs)|>], Module]];
     imageResults = Lookup[result, "ImageResults", {}];
     AppendTo[rungs, <|"DegreeOffset" -> offset,
       "SupportCount" -> Length[ansatz["GaugeSupport"]],
@@ -2651,11 +3117,14 @@ multiquadraticStripPrepare[record_Association, frame_Association,
      reuse this result inside the same call instead of decomposing the
      forcing a second time (post-mortem item 5: the second decomposition
      was 807 s of the 4872 s compile of CF300 (12,9)) *)
-  suppliedChannels = OptionValue["ForcingChannels"];
-  channelForcing = If[ArrayQ[suppliedChannels, 4] &&
-      Dimensions[suppliedChannels] === Append[Dimensions[strip[[3]]],
-        2^Length[roots]] && FreeQ[suppliedChannels, $Failed],
-    suppliedChannels,
+  suppliedChannels = multiquadraticStripForcingChannelsAccept[
+    OptionValue["ForcingChannels"], strip[[3]], roots, variables, epsilon];
+  If[! MemberQ[{"NotSupplied", "Accepted"},
+      Lookup[suppliedChannels, "Status", None]],
+    Return[multiquadraticStripFailure[suppliedChannels["Status"],
+      KeyDrop[suppliedChannels, "Status"]]]];
+  channelForcing = If[suppliedChannels["Status"] === "Accepted",
+    suppliedChannels["Channels"],
     Map[multiquadraticStripDecomposeScalar[#1, roots] &, strip[[3]], {3}]];
   If[! FreeQ[channelForcing, $Failed],
     Return[multiquadraticStripFailure["ForcingChannelDecompositionFailed"]]];
@@ -2760,7 +3229,12 @@ multiquadraticStripPrepare[record_Association, frame_Association,
       Count[letterRecords, item_ /; Lookup[item, "Kind", None] === "Algebraic"],
       Missing["LettersSuppliedAsOneForms"]],
     "GaugeDenominatorFactor" -> Together[gaugeDenominatorFactor],
-    "ForcingChannels" -> channelForcing,
+    (* sealed, not bare (Codex 04:30 P2): the record carries the
+       fingerprint of the forcing / root order / variables / regulator it
+       decomposes, so a consumer can fail closed instead of trusting a
+       shape *)
+    "ForcingChannels" -> multiquadraticStripForcingChannelRecord[
+      channelForcing, strip[[3]], roots, variables, epsilon],
     "GaugeDenominator" -> Together[gaugeDenominator],
     "GaugeDenominatorDegrees" -> denominatorDegrees,
     "GaugeSupport" -> support, "Dimensions" -> dimensions,
@@ -2942,16 +3416,21 @@ multiquadraticStripCompile[preparation_Association,
   rules = multiquadraticStripCanonicalRules[variables, epsilon];
   eData = multiquadraticStripCompileTensor[e, 3, roots, variables, epsilon];
   cData = multiquadraticStripCompileTensor[c, 3, roots, variables, epsilon];
-  reusedChannels = Replace[OptionValue["ForcingChannels"],
-    Automatic :> Missing["NotSupplied"]];
-  bData = If[ArrayQ[reusedChannels, 4] &&
-      Dimensions[reusedChannels] === Append[Dimensions[bbar],
-        preparation["GradeCount"]] && FreeQ[reusedChannels, $Failed],
+  (* a supplied decomposition is accepted only against its own seal
+     (Codex 04:30 P2); an unsealed or mismatched one is refused typed,
+     never re-derived silently and never installed *)
+  reusedChannels = multiquadraticStripForcingChannelsAccept[
+    OptionValue["ForcingChannels"], bbar, roots, variables, epsilon];
+  If[! MemberQ[{"NotSupplied", "Accepted"},
+      Lookup[reusedChannels, "Status", None]],
+    Return[multiquadraticStripFailure[reusedChannels["Status"],
+      KeyDrop[reusedChannels, "Status"]]]];
+  bData = If[reusedChannels["Status"] === "Accepted",
     Module[{compiled = Map[
         multiquadraticStripCompileRational[#1, variables, epsilon] &,
-        reusedChannels, {4}]},
+        reusedChannels["Channels"], {4}]},
       If[! FreeQ[compiled, $Failed], $Failed,
-        <|"Channels" -> reusedChannels, "Compiled" -> compiled|>]],
+        <|"Channels" -> reusedChannels["Channels"], "Compiled" -> compiled|>]],
     multiquadraticStripCompileTensor[bbar, 3, roots, variables, epsilon]];
   oneData = multiquadraticStripCompileTensor[preparation["OneForms"], 2, roots,
     variables, epsilon];
@@ -4464,18 +4943,35 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
       Automatic :> If[AssociationQ[letterData] &&
           MatchQ[Lookup[letterData, "RegulatorValues", {}], {__}],
         First[letterData["RegulatorValues"]], Automatic]];
-    screen = multiquadraticStripIntegrabilityScreen[record, screenRoots,
+    screen = multiquadraticStripIntegrabilityScreenImages[record, screenRoots,
       letterRecords, "Prime" -> OptionValue["IntegrabilityScreenPrime"],
       "RegulatorValue" -> screenRegulatorValue,
-      "PointCount" -> OptionValue["IntegrabilityScreenPointCount"]];
+      "PointCount" -> OptionValue["IntegrabilityScreenPointCount"],
+      "Deadline" -> deadline];
     log["integrability screen: ", Lookup[screen, "Status", None],
-      ", defect ", Lookup[screen, "Defect", None], ", rank ",
+      ", defects ", Lookup[screen, "Defects", None], " over ",
+      Lookup[screen, "ImageCount", None], " image(s), rank ",
       Lookup[screen, "Rank", None], "/", Lookup[screen, "AugmentedRank", None],
       " of ", Lookup[screen, "MatrixDimensions", None]];
+    (* Only a CONFIRMED obstruction -- a defect at two independent
+       (prime, regulator) images -- ends the block.  One image cannot
+       distinguish a generic obstruction from an exceptional regulator
+       value at which a generically solvable system degenerates, so an
+       unconfirmed defect is recorded and the established route runs. *)
     If[Lookup[screen, "Status", None] === "AlphabetIntegrabilityObstruction",
       Return[Join[screen, <|"SolutionContract" -> "NoGaugeExistsWithThisAlphabet",
-        "ContractNote" -> "the residue-only integrability system is inconsistent at this image; no gauge of any shape, denominator or support can repair it -- the alphabet is missing letters",
-        "Seconds" -> AbsoluteTime[] - startTime|>]]]];
+        "ContractNote" -> "the residue-only integrability system carries a rank defect at TWO independent (prime, regulator) images: a high-confidence modular obstruction, i.e. no gauge of any shape, denominator or support repairs this alphabet at either image and the alphabet is missing letters. It is not an unconditional theorem over Q(eps): the statement is exact for each specialized finite-field system, and its generic validity rests on the two images being independent, not on a proved epsilon-degree bound.",
+        "ContractStrength" -> "HighConfidenceModularObstruction",
+        "Seconds" -> AbsoluteTime[] - startTime|>]]];
+    If[Lookup[screen, "Status", None] ===
+        "AlphabetIntegrabilityObstructionUnconfirmed",
+      log["integrability screen: the defect did NOT reproduce at the ",
+        "confirmation image; not treated as an obstruction"]];
+    If[Lookup[screen, "Status", None] === "BudgetExhausted",
+      Return[enrich[Join[budgetExhausted["IntegrabilityScreen"],
+        <|"IntegrabilityScreen" -> KeyTake[screen,
+          {"Stage", "SizeEstimate", "PhaseTimings",
+           "MatrixDimensions"}]|>]]]]];
   If[multiquadraticStripDeadlineExpiredQ[deadline],
     Return[budgetExhausted["Preparation"]]];
   prepareOptions = Join[
@@ -4505,11 +5001,17 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
   If[TrueQ[OptionValue["GaugeScreen"]],
     gaugeScreen = multiquadraticStripGaugeScreenImages[preparation,
       "Images" -> OptionValue["GaugeScreenImages"],
-      "PointCount" -> OptionValue["GaugeScreenPointCount"]];
+      "PointCount" -> OptionValue["GaugeScreenPointCount"],
+      "Deadline" -> deadline];
     log["gauge screen: ", Lookup[gaugeScreen, "Status", None], ", defects ",
       Lookup[gaugeScreen, "Defects", None], " over ",
       Lookup[gaugeScreen, "ImageCount", None], " image(s), ",
-      Round[Lookup[gaugeScreen, "Seconds", 0], 0.1], " s"];
+      Round[Lookup[gaugeScreen, "Seconds", 0], 0.1], " s, phases ",
+      Round[#1, 0.1] & /@ Lookup[gaugeScreen, "PhaseTimings", <||>]];
+    If[Lookup[gaugeScreen, "Status", None] === "BudgetExhausted",
+      Return[enrich[Join[budgetExhausted["GaugeScreen"],
+        <|"GaugeScreen" -> KeyTake[gaugeScreen,
+          {"Stage", "SizeEstimate", "PhaseTimings", "MatrixDimensions"}]|>]]]];
     If[MemberQ[{"GaugeImageObstruction", "GaugeImageObstructionUnconfirmed"},
         Lookup[gaugeScreen, "Status", None]],
       (* THE ESCALATION LADDER, screens only.  A CONFIRMED defect at the

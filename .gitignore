@@ -25,6 +25,23 @@ ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/*
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/BlockClasses/
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/BoundaryPeriods/
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/HardClasses/
+# The per-family transport-chart table is PROJECT data that the package
+# deliberately does not ship (generality pass 2026-08-23), but it is 3 KiB
+# and two acceptance tests read it, so it travels with the repository.
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/TransportFamilyCharts.wl
+# The frozen test fixtures (Codex 2026-08-25): the two full sector states
+# are 132 MiB of run data and stay ignored; the REDUCED leading
+# truncations the tests actually read are a few hundred KiB and are
+# tracked, with their SHA-256 provenance manifest, so a fresh clone runs
+# t_radical_denesting and t_kallen_q4_chart green.
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/
+ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/*
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/
+ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/*
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/README.md
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/SHA256SUMS
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/cf259_frozen_rows24.wl
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/cf303_frozen_rows27.wl
 
 # --- Third-party software (own licenses; installed locally, not redistributed) ---
 Addon/Mathematica_Addon/*

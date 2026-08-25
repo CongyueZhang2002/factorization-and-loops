@@ -439,5 +439,308 @@ If[FileExistsQ[stripFile] && FileExistsQ[channelFile] &&
      ToString[Length[realCensus]] <> " census factors"]],
  check["G11 the CF300 (12,9) screen ran", False]];
 
+(* ------------------------------------------------------------------ *)
+(* S1-S4: THE EXCEPTIONAL-REGULATOR FALSE OBSTRUCTION                   *)
+(* (Codex 04:30 P1: a single regulator image is not an exact generic    *)
+(*  Q(eps) obstruction)                                                 *)
+(* ------------------------------------------------------------------ *)
+(* An adversarial 1x1 rank-0 strip whose residue-only integrability
+   system is GENERICALLY SOLVABLE and INCONSISTENT AT ONE regulator
+   value -- Codex's (eps - a) z = 1 in the shape the screen actually
+   sees.  Construction (all of it exact and derived, none of it fitted):
+
+     e = {1, eps},  c = 0,  so chi := e - c has chi_x = 1, chi_y = eps;
+     letters as one-forms  w1 = {-y, x},  w2 = {-x, y}.
+
+   The screen's row for letter k on a 1x1 block is
+     eps^2 (w_{k,y} chi_x - w_{k,x} chi_y),
+   hence the two columns are eps^2 (x + eps y) and eps^2 (y + eps x).
+   As functions of the sampled point they are independent unless
+   eps^2 = 1, so the system matrix DROPS RANK exactly at eps = +-1.
+   The forcing is chosen so that the true residues are R1 = -R2 =
+   1/(eps^2 - 1): the right-hand side is then eps^2 (y - x)/(1 + eps),
+   finite and in the column span for every other eps, and at eps = 1 the
+   span collapses to {x + y} while the right-hand side is (y - x)/2,
+   which is not in it.  bbar = {0, (eps (y - x) - 1)/(1 + eps)} realizes
+   exactly that forcing curl, and both diagonal connections are closed,
+   so the screen's flatness measurement passes. *)
+
+Clear[ax, ay, ae];
+exceptionalBeta = (ae (ay - ax) - 1)/(1 + ae);
+exceptionalRecord = <|"Family" -> "SyntheticExceptionalRegulator",
+  "Sector" -> 2, "LowerSector" -> 1,
+  "Variables" -> {ax, ay}, "Regulator" -> ae,
+  "Strip" -> {{{{1}}, {{ae}}}, {{{0}}, {{0}}},
+    {{{0}}, {{exceptionalBeta}}}}|>;
+exceptionalLetters = {
+  <|"Kind" -> "Synthetic", "Letter" -> "w1", "OneForm" -> {-ay, ax}|>,
+  <|"Kind" -> "Synthetic", "Letter" -> "w2", "OneForm" -> {-ax, ay}|>};
+integrabilityScreen = mq["multiquadraticStripIntegrabilityScreen"];
+integrabilityScreenImages = mq["multiquadraticStripIntegrabilityScreenImages"];
+
+(* S1: at the exceptional regulator value ONE image says "obstruction" *)
+exceptionalOne = integrabilityScreen[exceptionalRecord, {}, exceptionalLetters,
+  "Prime" -> 2147483423, "RegulatorValue" -> 1, "PointCount" -> 12];
+report["S1 single image at eps = 1", KeyTake[exceptionalOne,
+  {"Status", "Defect", "Rank", "AugmentedRank", "MatrixDimensions"}]];
+check["S1 the single-image screen calls the exceptional regulator an obstruction",
+  Lookup[exceptionalOne, "Status", None] === "AlphabetIntegrabilityObstruction" &&
+    Lookup[exceptionalOne, "Defect", 0] === 1 &&
+    TrueQ[Lookup[exceptionalOne, "FlatDiagonalConnections", False]]];
+
+(* S2: a generic regulator value is consistent -- the system really is
+   solvable over Q(eps), so S1 is a FALSE obstruction *)
+exceptionalGeneric = integrabilityScreen[exceptionalRecord, {},
+  exceptionalLetters, "Prime" -> 2147483399, "RegulatorValue" -> 3/17,
+  "PointCount" -> 12];
+report["S2 single image at eps = 3/17", KeyTake[exceptionalGeneric,
+  {"Status", "Defect", "Rank", "AugmentedRank"}]];
+check["S2 the same system is consistent at a generic regulator value",
+  Lookup[exceptionalGeneric, "Status", None] ===
+      "AlphabetIntegrabilityConsistent" &&
+    Lookup[exceptionalGeneric, "Defect", 1] === 0];
+
+(* S3: the two-image confirmation refuses to call it an obstruction *)
+exceptionalConfirmed = integrabilityScreenImages[exceptionalRecord, {},
+  exceptionalLetters, "Prime" -> 2147483423, "RegulatorValue" -> 1,
+  "PointCount" -> 12];
+report["S3 two-image verdict", KeyTake[exceptionalConfirmed,
+  {"Status", "Confirmed", "Defects", "ImageCount", "Images",
+   "ExceptionalRegulatorImages"}]];
+(* the confirmation image is CONSISTENT, and a consistent image exhibits
+   a solution of its own specialized system -- so the generic system is
+   solvable and the first image's defect was an exceptional regulator
+   value.  The verdict is therefore "consistent", NOT "obstruction", and
+   certainly not the confirmed obstruction the single image claimed. *)
+check["S3 the confirmation image is run and the FALSE obstruction is not \
+propagated: the verdict is consistent, unconfirmed as an obstruction",
+  Lookup[exceptionalConfirmed, "Status", None] ===
+      "AlphabetIntegrabilityConsistent" &&
+    Lookup[exceptionalConfirmed, "Confirmed", True] === False &&
+    Lookup[exceptionalConfirmed, "ImageCount", 0] === 2 &&
+    Lookup[exceptionalConfirmed, "Defects", {}] === {1, 0}];
+check["S3b the exceptional regulator image is RECORDED as evidence",
+  Lookup[exceptionalConfirmed, "ExceptionalRegulatorImages", {}] ===
+    {{2147483423, 1}}];
+
+(* S4: a GENUINE alphabet obstruction still confirms at both images.
+   Dropping w2 leaves the single column eps^2 (x + eps y), and the
+   right-hand side eps^2 (y - x)/(1 + eps) is proportional to it only at
+   eps = -1, so both default images carry a defect. *)
+genuine = integrabilityScreenImages[exceptionalRecord, {},
+  Take[exceptionalLetters, 1], "PointCount" -> 12];
+report["S4 genuine obstruction", KeyTake[genuine,
+  {"Status", "Confirmed", "Defects", "ImageCount"}]];
+check["S4 a genuine obstruction is confirmed at two independent images",
+  Lookup[genuine, "Status", None] === "AlphabetIntegrabilityObstruction" &&
+    TrueQ[Lookup[genuine, "Confirmed", False]] &&
+    Lookup[genuine, "ImageCount", 0] === 2 &&
+    AllTrue[Lookup[genuine, "Defects", {0}], IntegerQ[#1] && #1 > 0 &]];
+check["S4 the deciding image's witness travels with the confirmed verdict",
+  AssociationQ[Lookup[genuine, "Witness", None]] &&
+    TrueQ[genuine["Witness"]["TransposeResidualZero"]] &&
+    genuine["Witness"]["RightHandSidePairing"] =!= 0];
+
+(* S5: a consistent first image is still ONE image -- the fast path is
+   unchanged and a consistent screen gates nothing *)
+exceptionalFastPath = integrabilityScreenImages[exceptionalRecord, {},
+  exceptionalLetters, "Prime" -> 2147483399, "RegulatorValue" -> 3/17,
+  "PointCount" -> 12];
+check["S5 a consistent first image ends the screen (fast path preserved)",
+  Lookup[exceptionalFastPath, "Status", None] ===
+      "AlphabetIntegrabilityConsistent" &&
+    Lookup[exceptionalFastPath, "ImageCount", 0] === 1];
+
+(* S6: the contract language of the top level says what a confirmed
+   defect is and what it is not *)
+solveSource = Import[FileNameJoin[{root, "FeynFacet", "Private",
+  "MultiquadraticStripSolve.wl"}], "Text"];
+check["S6 the solution contract calls a confirmed defect a high-confidence \
+modular obstruction, not a Q(eps) theorem",
+  StringContainsQ[solveSource,
+    "\"ContractStrength\" -> \"HighConfidenceModularObstruction\""] &&
+    StringContainsQ[solveSource,
+      "rank defect at TWO independent (prime, regulator) images"] &&
+    StringContainsQ[solveSource,
+      "It is not an unconditional theorem over Q(eps)"]];
+check["S6 the top level acts only on the CONFIRMED status",
+  StringContainsQ[solveSource,
+    "screen = multiquadraticStripIntegrabilityScreenImages["]];
+
+(* ------------------------------------------------------------------ *)
+(* S7-S12: screen admission ceilings, deadline and phase telemetry      *)
+(* (Codex 04:30 P1: the default-on dense screen needs a size/byte gate  *)
+(*  and its own deadline)                                               *)
+(* ------------------------------------------------------------------ *)
+sizeEstimate = mq["multiquadraticStripScreenSizeEstimate"];
+compileCacheClear = mq["multiquadraticStripScreenCompileCacheClear"];
+
+check["S7 the size estimate counts rows, columns and packed bytes",
+  Module[{estimate = sizeEstimate[1856, 1816, 12]},
+    estimate["Rows"] === 1856 && estimate["Columns"] === 1816 &&
+      estimate["CandidateColumns"] === 12 &&
+      estimate["TotalColumns"] === 1828 &&
+      estimate["PackedBytes"] === 8. 1856 (1828 + 1) 2]];
+
+(* the unknown-count ceiling, on the residue-only screen *)
+overUnknowns = integrabilityScreen[exceptionalRecord, {}, exceptionalLetters,
+  "PointCount" -> 12, "MaximumUnknowns" -> 1];
+check["S8 an over-ceiling unknown count is a typed not-applicable, \
+BEFORE any allocation",
+  Lookup[overUnknowns, "Status", None] === "IntegrabilityScreenNotApplicable" &&
+    Lookup[overUnknowns, "Reason", None] === "UnknownCountCeilingExceeded" &&
+    AssociationQ[Lookup[overUnknowns, "SizeEstimate", None]] &&
+    overUnknowns["MaximumUnknowns"] === 1];
+overBytes = integrabilityScreen[exceptionalRecord, {}, exceptionalLetters,
+  "PointCount" -> 12, "MaximumBytes" -> 1];
+check["S8 an over-ceiling byte estimate is a typed not-applicable",
+  Lookup[overBytes, "Status", None] === "IntegrabilityScreenNotApplicable" &&
+    Lookup[overBytes, "Reason", None] === "ByteCeilingExceeded"];
+(* the gauge screen carries the same gate, and returns ITS typed status *)
+overGauge = gaugeScreen[fullAnsatz, "MaximumUnknowns" -> 1];
+check["S8 the gauge screen's ceiling returns GaugeScreenNotApplicable",
+  Lookup[overGauge, "Status", None] === "GaugeScreenNotApplicable" &&
+    Lookup[overGauge, "Reason", None] === "UnknownCountCeilingExceeded" &&
+    AssociationQ[Lookup[overGauge, "SizeEstimate", None]]];
+check["S8 the default ceilings admit the MEASURED CF300 (12,9) screen size",
+  Module[{estimate = sizeEstimate[1856, 1816, 0]},
+    estimate["TotalColumns"] <=
+        Symbol["FeynFacet`Private`$multiquadraticStripScreenMaximumUnknowns"] &&
+      estimate["PackedBytes"] <=
+        Symbol["FeynFacet`Private`$multiquadraticStripScreenMaximumBytes"]]];
+
+(* the deadline *)
+expiredIntegrability = integrabilityScreen[exceptionalRecord, {},
+  exceptionalLetters, "PointCount" -> 12,
+  "Deadline" -> AbsoluteTime[] - 1];
+check["S9 an expired deadline stops the residue screen, typed and resumable",
+  Lookup[expiredIntegrability, "Status", None] === "BudgetExhausted" &&
+    StringQ[Lookup[expiredIntegrability, "Stage", None]] &&
+    StringStartsQ[expiredIntegrability["Stage"], "IntegrabilityScreen:"] &&
+    TrueQ[expiredIntegrability["Resumable"]]];
+expiredGauge = gaugeScreen[fullAnsatz, "Deadline" -> AbsoluteTime[] - 1];
+check["S9 an expired deadline stops the gauge screen, typed and resumable",
+  Lookup[expiredGauge, "Status", None] === "BudgetExhausted" &&
+    StringQ[Lookup[expiredGauge, "Stage", None]] &&
+    StringStartsQ[expiredGauge["Stage"], "GaugeScreen:"] &&
+    TrueQ[expiredGauge["Resumable"]]];
+check["S9 a budget stop is NOT reported as GaugeScreenNotApplicable \
+by the two-image driver",
+  Lookup[gaugeScreenImages[fullAnsatz,
+    "Deadline" -> AbsoluteTime[] - 1], "Status", None] === "BudgetExhausted"];
+check["S9 an unbounded deadline is the default and changes nothing",
+  Lookup[Association[Options[integrabilityScreen]], "Deadline"] === Infinity &&
+    Lookup[Association[Options[gaugeScreen]], "Deadline"] === Infinity];
+
+(* phase telemetry *)
+timedScreen = gaugeScreen[fullAnsatz, "LeftNullSpace" -> True];
+report["S10 gauge-screen phase timings",
+  Lookup[timedScreen, "PhaseTimings", None]];
+check["S10 the gauge screen reports Compile / PointAssembly / Rank / \
+LeftNullSpace seconds",
+  AssociationQ[Lookup[timedScreen, "PhaseTimings", None]] &&
+    Sort[Keys[timedScreen["PhaseTimings"]]] ===
+      Sort[{"Compile", "PointAssembly", "Rank", "LeftNullSpace"}] &&
+    AllTrue[Values[timedScreen["PhaseTimings"]], NumericQ] &&
+    AssociationQ[Lookup[timedScreen, "SizeEstimate", None]]];
+timedIntegrability = integrabilityScreen[exceptionalRecord, {},
+  exceptionalLetters, "PointCount" -> 12];
+check["S10 the residue screen reports the same four phases",
+  AssociationQ[Lookup[timedIntegrability, "PhaseTimings", None]] &&
+    Sort[Keys[timedIntegrability["PhaseTimings"]]] ===
+      Sort[{"Compile", "PointAssembly", "Rank", "LeftNullSpace"}] &&
+    AllTrue[Values[timedIntegrability["PhaseTimings"]], NumericQ]];
+
+(* compiled-form reuse between images and ladder rungs *)
+compileCacheClear[];
+firstCompile = gaugeScreen[fullAnsatz, "Prime" -> 2147483423,
+  "RegulatorValue" -> 1/13];
+secondCompile = gaugeScreen[fullAnsatz, "Prime" -> 2147483423,
+  "RegulatorValue" -> 1/13];
+report["S11 compile cache, first then second call",
+  {Lookup[firstCompile, "CompileCache", None],
+   Lookup[secondCompile, "CompileCache", None]}];
+check["S11 the first screen of an image compiles and the second reuses \
+every compiled scalar form",
+  AssociationQ[Lookup[firstCompile, "CompileCache", None]] &&
+    firstCompile["CompileCache"]["Misses"] > 0 &&
+    secondCompile["CompileCache"]["Misses"] === 0 &&
+    secondCompile["CompileCache"]["Hits"] ===
+      firstCompile["CompileCache"]["Misses"] +
+        firstCompile["CompileCache"]["Hits"]];
+check["S11 the reuse does not change the measurement",
+  Lookup[firstCompile, "Status", None] ===
+      Lookup[secondCompile, "Status", 1] &&
+    Lookup[firstCompile, "Defect", None] === Lookup[secondCompile, "Defect", 1] &&
+    Lookup[firstCompile, "Rank", None] === Lookup[secondCompile, "Rank", 1]];
+check["S11 the cache is byte-bounded and reports its own size",
+  NumericQ[Symbol["FeynFacet`Private`$multiquadraticStripScreenCompileCacheLimit"]] &&
+    NumericQ[secondCompile["CompileCache"]["Bytes"]]];
+
+(* ------------------------------------------------------------------ *)
+(* S12: PROVENANCE for a reused forcing-channel decomposition           *)
+(* (Codex 04:30 P2: reused forcing channels need provenance, not only   *)
+(*  shape)                                                              *)
+(* ------------------------------------------------------------------ *)
+(* The same-call reuse saves a measured 807 s of the CF300 (12,9)
+   compile, and it used to be accepted on ARRAY SHAPE alone: safe for the
+   one caller that supplies the array it has just built, unsafe as a
+   general cache or artifact boundary.  A shape-compatible array from a
+   DIFFERENT strip would have been installed silently and the whole solve
+   built on someone else's forcing.  The decomposition now travels as a
+   sealed record and every consumer fails closed. *)
+channelRecord = mq["multiquadraticStripForcingChannelRecord"];
+channelAccept = mq["multiquadraticStripForcingChannelsAccept"];
+Clear[fx, fy, fe];
+forcingA = {{{fx/(1 - fy)}}, {{fe fy}}};
+forcingB = {{{fx/(1 + fy)}}, {{fe fy}}};
+sealRoots = {};
+sealedA = channelRecord[{{{{fx/(1 - fy)}}}, {{{fe fy}}}}, forcingA,
+  sealRoots, {fx, fy}, fe];
+check["S12 the seal is a schema-tagged record with a 64-hex fingerprint",
+  AssociationQ[sealedA] &&
+    sealedA["Schema"] === "MultiquadraticForcingChannelsV1" &&
+    StringQ[sealedA["Fingerprint"]] &&
+    StringLength[sealedA["Fingerprint"]] === 64 &&
+    sealedA["GradeCount"] === 1];
+check["S12 no supplied decomposition is the unchanged default",
+  Lookup[channelAccept[Automatic, forcingA, sealRoots, {fx, fy}, fe],
+    "Status", None] === "NotSupplied"];
+check["S12 its own forcing accepts it",
+  Lookup[channelAccept[sealedA, forcingA, sealRoots, {fx, fy}, fe],
+    "Status", None] === "Accepted"];
+check["S12 a DIFFERENT but shape-compatible forcing is refused on \
+provenance, not accepted on shape",
+  Module[{verdict = channelAccept[sealedA, forcingB, sealRoots, {fx, fy}, fe]},
+    Lookup[verdict, "Status", None] === "ForcingChannelProvenanceMismatch" &&
+      StringQ[verdict["ExpectedFingerprint"]] &&
+      verdict["ExpectedFingerprint"] =!= verdict["SuppliedFingerprint"]]];
+check["S12 a BARE shape-compatible array carries no provenance and is \
+refused typed",
+  Lookup[channelAccept[{{{{fx/(1 - fy)}}}, {{{fe fy}}}}, forcingA, sealRoots,
+    {fx, fy}, fe], "Status", None] === "ForcingChannelsUnsealed"];
+check["S12 a sealed record whose channels have the wrong shape is refused",
+  Lookup[channelAccept[Join[sealedA, <|"Channels" -> {{{{1, 2}}}, {{{3, 4}}}}|>],
+    forcingA, sealRoots, {fx, fy}, fe], "Status", None] ===
+    "ForcingChannelShapeMismatch"];
+check["S12 the seal does not depend on the CONTEXT the variables arrived in",
+  channelRecord[{{{{Symbol["Global`sealX"]}}}, {{{0}}}},
+      {{{Symbol["Global`sealX"]}}, {{0}}}, {},
+      {Symbol["Global`sealX"], Symbol["Global`sealY"]},
+      Symbol["Global`sealE"]]["Fingerprint"] ===
+    channelRecord[{{{{Symbol["FeynFacet`Private`sealX"]}}}, {{{0}}}},
+      {{{Symbol["FeynFacet`Private`sealX"]}}, {{0}}}, {},
+      {Symbol["FeynFacet`Private`sealX"],
+       Symbol["FeynFacet`Private`sealY"]},
+      Symbol["FeynFacet`Private`sealE"]]["Fingerprint"]];
+(* both consumers must route through the acceptance helper: a second,
+   shape-only path would reopen exactly the hole this closes *)
+check["S12 prepare and compile both route their ForcingChannels option \
+through the sealed acceptance helper, and no shape-only path is left",
+  StringCount[solveSource,
+    "multiquadraticStripForcingChannelsAccept[\n    OptionValue[\"ForcingChannels\"]"] === 2 &&
+    StringFreeQ[solveSource,
+      "Dimensions[suppliedChannels] === Append[Dimensions[strip[[3]]]"]];
+
 Print["t_multiquadratic_gauge_screen: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];

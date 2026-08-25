@@ -17,7 +17,40 @@ Clear[FactorFamilyRegulatorDependence];
 ClearAll[familyRegulatorFactoredQ, familyRegulatorSpecialize,
   familyRegulatorConjugate, familyRegulatorSparseDot,
   familyRegulatorPropagationSeal,
-  familyRegulatorPropagateTruncation, familyRegulatorPointFactoredQ];
+  familyRegulatorPropagateTruncation, familyRegulatorPointFactoredQ,
+  familyRegulatorDeadlineActiveQ, familyRegulatorRemainingSeconds,
+  familyRegulatorDeadlineExpiredQ, familyRegulatorBoundedLimit,
+  familyRegulatorDeadlineStop];
+
+(* ---- the cooperative absolute deadline (Codex 0830 P2) --------------
+   "TimeLimit" bounds ONE subcall; the regulator stage makes many of them
+   (grade decomposition, a point ladder, an exact check, spot checks, a
+   modular corroboration), so "TimeLimit" -> 600 was never a 600 s stage
+   budget and the stage did not cooperate with the driver's sector
+   deadline.  "Deadline" is an ABSOLUTE AbsoluteTime[]; Infinity (the
+   default) reproduces the former unbounded behaviour exactly.  Every
+   bounded subcall is capped by the remaining time and every stage
+   boundary is a checkpoint that returns a typed, resumable stop. *)
+familyRegulatorDeadlineActiveQ[deadline_] :=
+  NumericQ[deadline] && TrueQ[deadline < Infinity];
+familyRegulatorRemainingSeconds[deadline_] :=
+  If[familyRegulatorDeadlineActiveQ[deadline],
+    deadline - AbsoluteTime[], Infinity];
+familyRegulatorDeadlineExpiredQ[deadline_] :=
+  familyRegulatorDeadlineActiveQ[deadline] && AbsoluteTime[] >= deadline;
+(* the bounded subcall's own limit, never above the time that is left *)
+familyRegulatorBoundedLimit[limit_, deadline_] := Module[
+  {remaining = familyRegulatorRemainingSeconds[deadline]},
+  Which[
+    remaining === Infinity, limit,
+    NumericQ[limit], Min[limit, Max[remaining, 0]],
+    True, Max[remaining, 0]]];
+familyRegulatorDeadlineStop[stage_String, deadline_, start_,
+    extra_Association : <||>] := Join[
+  <|"Status" -> "RegulatorFactorizationDeadlineExpired",
+    "Module" -> "FamilyRegulatorFactor", "Stage" -> stage,
+    "Deadline" -> deadline, "Resumable" -> True,
+    "Seconds" -> AbsoluteTime[] - start|>, extra];
 
 (* products with a constant (variable-free) matrix, entry by entry over
    its nonzero pattern, Together applied as each entry is formed: the
@@ -157,6 +190,7 @@ FactorFamilyRegulatorDependence::input =
 
 Options[FactorFamilyRegulatorDependence] = {
   "TimeLimit" -> 900,
+  "Deadline" -> Infinity,
   "UseFermat" -> Automatic,
   "PointLadder" -> {2, 4, 8, 16},
   "GatePoints" -> 2,
@@ -199,13 +233,16 @@ FactorFamilyRegulatorDependence[{ax_List, ay_List}, {x_Symbol, y_Symbol}, epsilo
     OptionsPattern[]] := Module[
   {n, start = AbsoluteTime[], verbose, log, backend, reference, rules, valid,
    transformation = $Failed, inverse, raw, attempts = {}, newAx, newAy,
-   pointsUsed = 0, fermatRequested},
+   pointsUsed = 0, fermatRequested, deadline, expired = False, ladderLimit},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependence::input]; Return[$Failed]];
   n = Length[ax];
   verbose = TrueQ[OptionValue["Verbose"]];
   log[args___] := If[verbose, Print["[regulator-factor] ", args]];
+  deadline = OptionValue["Deadline"];
+  If[familyRegulatorDeadlineExpiredQ[deadline],
+    Return[familyRegulatorDeadlineStop["Entry", deadline, start]]];
   If[familyRegulatorFactoredQ[ax, epsilon] && familyRegulatorFactoredQ[ay, epsilon],
     log["the connection is already eps-factored"];
     Return[<|"Status" -> "AlreadyEpsFactored", "Transformation" -> IdentityMatrix[n],
@@ -229,8 +266,17 @@ using the Wolfram backend"];
   valid = Select[rules, Function[r, Module[{s = Map[Together, {ax, ay} /. r, {3}]},
     FreeQ[s, Indeterminate | ComplexInfinity | DirectedInfinity[_]] &&
       AllTrue[Flatten[s], Denominator[#] =!= 0 &]]]];
+  If[familyRegulatorDeadlineExpiredQ[deadline],
+    Return[familyRegulatorDeadlineStop["SamplePoints", deadline, start]]];
   Do[
     If[count > Length[valid], Break[]];
+    (* the deadline is checked at EVERY ladder rung: without it each rung
+       received a fresh full "TimeLimit" and the stage budget was the
+       limit times the ladder length *)
+    ladderLimit = familyRegulatorBoundedLimit[OptionValue["TimeLimit"], deadline];
+    If[familyRegulatorDeadlineExpiredQ[deadline] ||
+        (NumericQ[ladderLimit] && ladderLimit <= 0),
+      expired = True; Break[]];
     Module[{matrices, result, candidate, ok = False, gate = False, seconds},
       matrices = Flatten[Table[{Map[Together, (ax/epsilon) /. valid[[k]], {2}],
         Map[Together, (ay/epsilon) /. valid[[k]], {2}]}, {k, count}], 1];
@@ -238,7 +284,7 @@ using the Wolfram backend"];
       {seconds, result} = AbsoluteTiming[Quiet[TimeConstrained[
         Libra`FactorDependence[matrices, epsilon, reference,
           DependentRowIndices -> Automatic, Sort -> True],
-        OptionValue["TimeLimit"], "TimedOut"]]];
+        ladderLimit, "TimedOut"]]];
       candidate = If[MatrixQ[result], familyRegulatorSpecialize[result, reference, n], $Failed];
       If[MatrixQ[candidate],
         inverse = Map[Together, Inverse[candidate], {2}];
@@ -255,6 +301,9 @@ using the Wolfram backend"];
     If[MatrixQ[transformation], Break[]],
     {count, OptionValue["PointLadder"]}];
   If[! MatrixQ[transformation],
+    If[TrueQ[expired],
+      Return[familyRegulatorDeadlineStop["PointLadder", deadline, start,
+        <|"Attempts" -> attempts|>]]];
     Return[<|"Status" -> "NotFactored", "Attempts" -> attempts,
       "Seconds" -> AbsoluteTime[] - start|>]];
   <|"Status" -> "OK", "Method" -> "ExactRationalSamples", "Points" -> pointsUsed,
@@ -484,7 +533,17 @@ familyRegulatorGradedCorroborate[gradeMatrices_List, roots_List,
     point = None;
     Do[
       x0 = RandomInteger[{2, prime - 2}]; y0 = RandomInteger[{2, prime - 2}];
-      deltaValues = Quiet[Mod[deltas /. Thread[variables -> {x0, y0}], prime]];
+      (* Codex 0830 P2: a root SQUARE need not be a polynomial.  Raw Mod
+         leaves a rational value a Rational, so VectorQ[..., IntegerQ]
+         rejected every otherwise valid split point of a strip whose
+         q_i is e.g. (1 + x)/(1 - y).  The modular-rational image
+         utility is the same one the rest of the module uses: it turns
+         numerator/denominator into numerator times the inverse
+         denominator over F_p and fails closed (as $Failed) when the
+         denominator vanishes mod p, which the split-point loop then
+         retries at another point. *)
+      deltaValues = Quiet[familyRegulatorModularImage[#1,
+        Thread[variables -> {x0, y0}], prime] & /@ deltas];
       If[VectorQ[deltaValues, IntegerQ] &&
           AllTrue[deltaValues, #1 =!= 0 && JacobiSymbol[#1, prime] === 1 &],
         point = {x0, y0}; Break[]],
@@ -597,12 +656,14 @@ FactorFamilyRegulatorDependenceMultiquadratic::input =
 
 Options[FactorFamilyRegulatorDependenceMultiquadratic] = {
   "TimeLimit" -> 900,
+  "Deadline" -> Infinity,
   "UseFermat" -> Automatic,
   "PointLadder" -> {1, 2, 4, 8},
   "GatePoints" -> 2,
   "ExactCheckTimeLimit" -> Automatic,
   "CorroborationPrimes" -> 2,
   "RoundTripSpotChecks" -> 3,
+  "SpotCheckTimeLimit" -> 120,
   "Verbose" -> False
 };
 
@@ -613,7 +674,9 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
    grades, activeGrades, activeMatrices, rules, valid, denominators, backend,
    reference, fermatRequested, transformation = $Failed, inverse, attempts = {},
    pointsUsed = 0, exactLimit, conjugated, factoredQ, inverseQ, newAx, newAy,
-   spot, corroboration, exactSeconds, gradeFailure = None},
+   spot, corroboration, exactSeconds, gradeFailure = None,
+   deadline, expired = False, ladderLimit, decompositionSeconds,
+   numericGradeCount = 0, skippedStages = {}},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependenceMultiquadratic::input];
@@ -622,16 +685,37 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
   rank = Length[roots];
   verbose = TrueQ[OptionValue["Verbose"]];
   log[args___] := If[verbose, Print["[multiquadratic-regulator-factor] ", args]];
+  deadline = OptionValue["Deadline"];
+  (* the numeric square classes of the graded generator list.  A root
+     whose square is a plain non-square rational is a CONSTANT of the
+     coefficient field: the completeness caveat of Codex 0830 P2 is
+     about exactly these, and a refusal has to say so. *)
+  numericGradeCount = Count[Lookup[roots, "RootSquare", {}],
+    value_ /; familyRegulatorNonSquareRationalQ[value]];
   If[rank > $familyRegulatorMaximumGradedRank,
     Return[<|"Status" -> "GradedRankTooLarge", "Rank" -> rank,
       "MaximumRank" -> $familyRegulatorMaximumGradedRank,
       "Seconds" -> AbsoluteTime[] - start|>]];
+  If[familyRegulatorDeadlineExpiredQ[deadline],
+    Return[familyRegulatorDeadlineStop["Entry", deadline, start,
+      <|"Rank" -> rank|>]]];
   gradeCount = 2^rank;
   log["grade decomposition of a ", n, "x", n, " connection at rank ", rank,
     " (", gradeCount, " grades)"];
-  decomposition = familyRegulatorGradedMatrices[{ax, ay}, roots];
+  (* the decomposition is the measured 87% of this stage (CF259 rows
+     1..23: 134.1 s of 153.9 s), so it is the one subcall that MUST be
+     capped by the remaining time rather than run to completion *)
+  {decompositionSeconds, decomposition} = AbsoluteTiming[
+    TimeConstrained[familyRegulatorGradedMatrices[{ax, ay}, roots],
+      familyRegulatorBoundedLimit[Infinity, deadline], "TimedOut"]];
+  If[decomposition === "TimedOut" || familyRegulatorDeadlineExpiredQ[deadline],
+    Return[familyRegulatorDeadlineStop["GradeDecomposition", deadline, start,
+      <|"Rank" -> rank, "GradeCount" -> gradeCount,
+        "GradeDecompositionSeconds" -> decompositionSeconds|>]]];
   If[Lookup[decomposition, "Status", None] =!= "OK",
-    Return[Join[decomposition, <|"Seconds" -> AbsoluteTime[] - start|>]]];
+    Return[Join[decomposition,
+      <|"GradeDecompositionSeconds" -> decompositionSeconds,
+        "Seconds" -> AbsoluteTime[] - start|>]]];
   grades = decomposition["Grades"];
   activeGrades = decomposition["ActiveGrades"];
   activeMatrices = grades[[#1[[1]], #1[[2]]]] & /@ activeGrades;
@@ -667,8 +751,16 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
   If[backend["Status"] =!= "OK",
     Return[<|"Status" -> backend["Status"], "Rank" -> rank|>]];
   reference = Unique["regulatorReference"];
+  If[familyRegulatorDeadlineExpiredQ[deadline],
+    Return[familyRegulatorDeadlineStop["SamplePoints", deadline, start,
+      <|"Rank" -> rank,
+        "GradeDecompositionSeconds" -> decompositionSeconds|>]]];
   Do[
     If[count > Length[valid], Break[]];
+    ladderLimit = familyRegulatorBoundedLimit[OptionValue["TimeLimit"], deadline];
+    If[familyRegulatorDeadlineExpiredQ[deadline] ||
+        (NumericQ[ladderLimit] && ladderLimit <= 0),
+      expired = True; Break[]];
     Module[{matrices, result, candidate, ok = False, gate = False, seconds},
       matrices = DeleteCases[
         Flatten[Table[familyRegulatorGradedSampleMatrix[activeMatrices[[a]],
@@ -679,7 +771,7 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
       {seconds, result} = AbsoluteTiming[Quiet[TimeConstrained[
         Libra`FactorDependence[matrices, epsilon, reference,
           DependentRowIndices -> Automatic, Sort -> True],
-        OptionValue["TimeLimit"], "TimedOut"]]];
+        ladderLimit, "TimedOut"]]];
       candidate = If[MatrixQ[result],
         familyRegulatorSpecialize[result, reference, n], $Failed];
       If[MatrixQ[candidate],
@@ -695,16 +787,60 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
     If[MatrixQ[transformation], Break[]],
     {count, OptionValue["PointLadder"]}];
   If[! MatrixQ[transformation],
+    If[TrueQ[expired],
+      Return[familyRegulatorDeadlineStop["PointLadder", deadline, start,
+        <|"Rank" -> rank, "GradeCount" -> gradeCount,
+          "ActiveGrades" -> activeGrades, "Attempts" -> attempts,
+          "GradeDecompositionSeconds" -> decompositionSeconds|>]]];
+    (* Codex 0830 P2 -- THE COMPLETENESS CAVEAT, made typed.
+       This solve feeds ORDINARY RATIONAL grade matrices to Libra and
+       therefore admits only a T with entries in Q(eps): the grade-zero
+       argument ("a constant T lies in grade zero") is sound for the
+       non-isotrivial roots, whose squares depend on the chart variables,
+       but NOT for the numeric square classes the same routine adds as
+       graded generators.  A perfectly valid constant transformation may
+       carry Sqrt[2] eps off-diagonally: it is constant in {x, y} and yet
+       has nonzero numeric-root grade, so this route can miss it.  When
+       numeric classes are present the refusal is therefore narrowed --
+       "no RATIONAL-grade-zero T was found over the declared constant
+       field", not "no constant T exists" -- and says which generators
+       carry the restriction.  A completeness fix is to split
+       variable-dependent root grades from constant number-field grades
+       (preserve the former under conjugation, let T live in the latter),
+       or to run FactorDependence over a rational regular representation
+       of the constant number field. *)
+    If[numericGradeCount > 0,
+      Return[<|"Status" -> "ConstantFieldRestriction",
+        "Module" -> "FamilyRegulatorFactor",
+        "Method" -> "MultiquadraticGradedSamples",
+        "Reason" -> "no rational grade-zero transformation was found; \
+this solver admits T over Q(eps) only, while the declared constant field \
+carries numeric square classes in which a valid constant T may live",
+        "NumericGradeGenerators" -> Select[Lookup[roots, "RootSquare", {}],
+          familyRegulatorNonSquareRationalQ],
+        "NumericGradeGeneratorCount" -> numericGradeCount,
+        "Complete" -> False, "Rank" -> rank, "GradeCount" -> gradeCount,
+        "ActiveGrades" -> activeGrades, "Attempts" -> attempts,
+        "GradeDecompositionSeconds" -> decompositionSeconds,
+        "Seconds" -> AbsoluteTime[] - start|>]];
     Return[<|"Status" -> "NotFactored", "Method" -> "MultiquadraticGradedSamples",
       "Rank" -> rank, "GradeCount" -> gradeCount,
       "ActiveGrades" -> activeGrades, "Attempts" -> attempts,
+      "GradeDecompositionSeconds" -> decompositionSeconds,
       "Seconds" -> AbsoluteTime[] - start|>]];
   If[! FreeQ[{transformation, inverse}, Alternatives @@ variables],
     Return[<|"Status" -> "TransformationNotConstant", "Rank" -> rank,
       "Attempts" -> attempts, "Seconds" -> AbsoluteTime[] - start|>]];
   (* ---- exact acceptance, grade by grade, in the graded algebra ---- *)
-  exactLimit = Replace[OptionValue["ExactCheckTimeLimit"],
-    Automatic :> OptionValue["TimeLimit"]];
+  exactLimit = familyRegulatorBoundedLimit[
+    Replace[OptionValue["ExactCheckTimeLimit"],
+      Automatic :> OptionValue["TimeLimit"]], deadline];
+  If[familyRegulatorDeadlineExpiredQ[deadline] ||
+      (NumericQ[exactLimit] && exactLimit <= 0),
+    Return[familyRegulatorDeadlineStop["ExactGradeCheck", deadline, start,
+      <|"Rank" -> rank, "GradeCount" -> gradeCount,
+        "ActiveGrades" -> activeGrades, "Attempts" -> attempts,
+        "GradeDecompositionSeconds" -> decompositionSeconds|>]]];
   conjugated = Table[ConstantArray[0, {n, n}], {mu, 2}, {g, gradeCount}];
   exactSeconds = First[AbsoluteTiming[
     factoredQ = TimeConstrained[
@@ -732,6 +868,13 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
   If[! inverseQ,
     Return[<|"Status" -> "TransformationInverseInvalid", "Rank" -> rank,
       "Attempts" -> attempts, "Seconds" -> AbsoluteTime[] - start|>]];
+  If[familyRegulatorDeadlineExpiredQ[deadline],
+    Return[familyRegulatorDeadlineStop["GradeComposition", deadline, start,
+      <|"Rank" -> rank, "GradeCount" -> gradeCount,
+        "ActiveGrades" -> activeGrades, "Attempts" -> attempts,
+        "ExactEpsFactorization" -> True,
+        "GradeDecompositionSeconds" -> decompositionSeconds,
+        "ExactCheckSeconds" -> exactSeconds|>]]];
   newAx = Table[multiquadraticFieldCompose[
     Table[conjugated[[1, g, i, j]], {g, gradeCount}], roots], {i, n}, {j, n}];
   newAy = Table[multiquadraticFieldCompose[
@@ -739,16 +882,34 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
   If[! FreeQ[{newAx, newAy}, $Failed],
     Return[<|"Status" -> "GradeCompositionFailed", "Rank" -> rank,
       "Seconds" -> AbsoluteTime[] - start|>]];
-  spot = familyRegulatorGradedSpotCheck[inverse, {ax, ay}, transformation,
-    {newAx, newAy}, roots, OptionValue["RoundTripSpotChecks"]];
+  (* The exact statement has been made by this point: the remaining two
+     stages are EVIDENCE (a bounded round-trip spot check and a modular
+     corroboration).  An expired deadline therefore skips them and says
+     so, instead of discarding an accepted exact factorization. *)
+  spot = If[familyRegulatorDeadlineExpiredQ[deadline],
+    AppendTo[skippedStages, "CompositionSpotCheck"];
+    <|"Checked" -> 0, "Total" -> 2 n^2, "Verdicts" -> {}, "Undecided" -> 0,
+      "Refuted" -> False, "Zero" -> Missing["SpotCheckSkippedDeadline"],
+      "Skipped" -> "Deadline"|>,
+    familyRegulatorGradedSpotCheck[inverse, {ax, ay}, transformation,
+      {newAx, newAy}, roots, OptionValue["RoundTripSpotChecks"],
+      familyRegulatorBoundedLimit[OptionValue["SpotCheckTimeLimit"],
+        deadline]]];
   If[TrueQ[spot["Refuted"]],
     Return[<|"Status" -> "CompositionRoundTripFailed", "Rank" -> rank,
       "SpotCheck" -> spot, "Seconds" -> AbsoluteTime[] - start|>]];
-  corroboration = familyRegulatorGradedCorroborate[grades, roots, variables,
-    epsilon, transformation, inverse, OptionValue["CorroborationPrimes"]];
+  corroboration = If[familyRegulatorDeadlineExpiredQ[deadline],
+    AppendTo[skippedStages, "ModularCorroboration"];
+    <|"Status" -> "CorroborationSkippedDeadline", "Corroborated" -> False,
+      "Primes" -> {}, "RecordCount" -> 0, "Records" -> {},
+      "Skipped" -> "Deadline"|>,
+    familyRegulatorGradedCorroborate[grades, roots, variables,
+      epsilon, transformation, inverse, OptionValue["CorroborationPrimes"]]];
   log["exact grade-wise eps-factorization verified in ", Round[exactSeconds, 0.1],
     " s; modular corroboration ", Lookup[corroboration, "Status", corroboration]];
   <|"Status" -> "OK", "Method" -> "MultiquadraticGradedSamples",
+    "DeadlineSkippedStages" -> skippedStages,
+    "GradeDecompositionSeconds" -> decompositionSeconds,
     "Points" -> pointsUsed, "Rank" -> rank, "GradeCount" -> gradeCount,
     "ActiveGrades" -> activeGrades,
     "Transformation" -> transformation, "Inverse" -> inverse,
@@ -801,11 +962,15 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
    rootSquares, chart, chartVariables, rekeyed, data, components, chartConnection,
    chartRoots, rootImages, chartBranchRoots, inner, transformation, inverse,
    newAx, newAy, factoredQ, inverseQ, canonicalization, numericClasses,
-   canonicalAx, canonicalAy, canonicalRecord, gradedRoots, multiquadratic},
+   canonicalAx, canonicalAy, canonicalRecord, gradedRoots, multiquadratic,
+   deadline},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependenceInFrame::input]; Return[$Failed]];
   n = Length[ax];
+  deadline = OptionValue["Deadline"];
+  If[familyRegulatorDeadlineExpiredQ[deadline],
+    Return[familyRegulatorDeadlineStop["FrameEntry", deadline, start]]];
   If[familyRegulatorFactoredQ[ax, epsilon] && familyRegulatorFactoredQ[ay, epsilon],
     Return[<|"Status" -> "AlreadyEpsFactored", "Transformation" -> IdentityMatrix[n],
       "Inverse" -> IdentityMatrix[n], "Connection" -> {ax, ay}, "RootIndices" -> {},
@@ -832,6 +997,9 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
      region where every declared square is positive.  Numeric radicals
      are constants of the coefficient field and are left as they are;
      they commute with everything and the chart never has to see them. *)
+  If[familyRegulatorDeadlineExpiredQ[deadline],
+    Return[familyRegulatorDeadlineStop["RadicalCanonicalization", deadline,
+      start, <|"RootIndices" -> rootIndices|>]]];
   canonicalization = transportChartCanonicalizeDenestedRadicals[
     {ax, ay}, allRoots, variables,
     Lookup[classification, "DenestedRadicalBases", <||>]];
@@ -885,6 +1053,16 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
           {ax, ay}, multiquadratic["Connection"],
           multiquadratic["Inverse"], multiquadratic["Transformation"]],
         "Seconds" -> AbsoluteTime[] - start|>]]];
+    (* a deadline expiry inside the graded route is NOT the typed
+       terminal: "NoRationalChart" says the block is unsolvable by both
+       routes and the driver stops the family on it.  A stage that simply
+       ran out of budget is resumable and must propagate as such. *)
+    If[AssociationQ[multiquadratic] &&
+        multiquadratic["Status"] === "RegulatorFactorizationDeadlineExpired",
+      Return[Join[multiquadratic,
+        <|"RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+          "Chart" -> None,
+          "GradedRootSquares" -> Lookup[gradedRoots, "RootSquare", {}]|>]]];
     Return[<|"Status" -> "NoRationalChart", "RootIndices" -> rootIndices,
       "RootSquares" -> rootSquares,
       "GradedRootSquares" -> Lookup[gradedRoots, "RootSquare", {}],
@@ -916,6 +1094,9 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
      The branch substitution matches on the Together-difference against
      the substituted declared square, so it does not need a normalized
      entry to fire. *)
+  If[familyRegulatorDeadlineExpiredQ[deadline],
+    Return[familyRegulatorDeadlineStop["ChartPullBack", deadline, start,
+      <|"RootIndices" -> rootIndices, "Chart" -> chart["Name"]|>]]];
   components = Map[
     Function[matrix, Map[Together, transportChartApplyRootBranches[
       matrix /. data["Subst"], chartBranchRoots, rootImages], {2}]],

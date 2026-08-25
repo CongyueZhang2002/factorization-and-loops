@@ -16,6 +16,7 @@ ClearAll[
   familyRowGaugeSolverImplementationProvenance,
   familyRowGaugeProvenanceDriverPaths,
   familyRowGaugeResumeSolverConfigurationCheck,
+  familyRowGaugeSolverConfigurationDifference,
   familyRowGaugeSolverFailureSummary,
   familyRowGaugeHydrateResume
 ];
@@ -251,6 +252,46 @@ familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
 ];
 familyRowGaugeSolverConfigurationValidQ[___] := False;
 
+(* WHY a resume was refused (Codex 06:30).  The refusal itself is
+   correct and must never be relaxed; what was missing is the evidence
+   to tell an ABI invalidation (the implementation provenance changed,
+   so every stored gauge is stale) from an overly broad fingerprint (a
+   diagnostic key drifted and forced a needless full-row replay).  Both
+   configurations are already sealed Associations, so the difference is
+   a key comparison: bounded to 16 keys, and each value is shown only if
+   it is small -- a configuration carries a "DriverProvenance" map and a
+   frame fingerprint that have no place in a refusal record. *)
+$familyRowGaugeDifferenceValueByteCeiling = 512;
+$familyRowGaugeDifferenceKeyCeiling = 16;
+familyRowGaugeSolverConfigurationDifference[saved_, expected_] := Module[
+  {keys, differing, boundedValue},
+  If[! AssociationQ[saved] || ! AssociationQ[expected],
+    Return[<|"DifferingKeys" -> Missing["ConfigurationNotAnAssociation"],
+      "SavedFingerprint" -> Missing["NotAnAssociation"],
+      "ExpectedFingerprint" -> Missing["NotAnAssociation"]|>]];
+  keys = DeleteCases[DeleteDuplicates[Join[Keys[saved], Keys[expected]]],
+    "Fingerprint"];
+  differing = Select[keys, ! SameQ[Lookup[saved, #1, Missing["Absent"]],
+    Lookup[expected, #1, Missing["Absent"]]] &];
+  boundedValue[value_] := If[ByteCount[value] >
+    $familyRowGaugeDifferenceValueByteCeiling,
+    Missing["ValueTooLargeForDiagnostic"], value];
+  <|"DifferingKeys" ->
+      Take[differing, UpTo[$familyRowGaugeDifferenceKeyCeiling]],
+    "DifferingKeyCount" -> Length[differing],
+    "DifferingValues" -> Association[
+      (#1 -> <|"Saved" -> boundedValue[Lookup[saved, #1, Missing["Absent"]]],
+        "Expected" -> boundedValue[Lookup[expected, #1, Missing["Absent"]]]|>) & /@
+        Take[differing, UpTo[$familyRowGaugeDifferenceKeyCeiling]]],
+    "SavedFingerprint" -> Lookup[saved, "Fingerprint", Missing["NoFingerprint"]],
+    "ExpectedFingerprint" ->
+      Lookup[expected, "Fingerprint", Missing["NoFingerprint"]],
+    "SavedConfigurationValid" ->
+      familyRowGaugeSolverConfigurationValidQ[saved]|>
+];
+familyRowGaugeSolverConfigurationDifference[___] :=
+  <|"DifferingKeys" -> Missing["InvalidArguments"]|>;
+
 (* Missing configurations are accepted only for computations that cannot
    select another solver (zero forcing) or for the historical in-frame
    rational-chart route.  A legacy direct-rational checkpoint is recomputed. *)
@@ -268,7 +309,14 @@ familyRowGaugeResumeSolverConfigurationCheck[summary_Association,
     Return[If[familyRowGaugeSolverConfigurationValidQ[saved] &&
         SameQ[saved, expected],
       <|"Status" -> "OK", "Mode" -> "Exact"|>,
-      <|"Status" -> "ResumeSolverConfigurationMismatch"|>]]];
+      (* Codex 06:30, operational finding: the refusal is correct and
+         fails closed, but it used to expose nothing about WHY.  A
+         bounded DifferingKeys list plus the two configuration
+         fingerprints shows whether a full-row replay was a required ABI
+         invalidation or an overly broad fingerprint -- without ever
+         accepting an incompatible checkpoint. *)
+      Join[<|"Status" -> "ResumeSolverConfigurationMismatch"|>,
+        familyRowGaugeSolverConfigurationDifference[saved, expected]]]]];
   method = Lookup[summary, "Method", None];
   route = expected["Route"];
   Which[

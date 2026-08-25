@@ -509,15 +509,47 @@ stripSolverConfiguration[route_String] :=
    truncated connection; block-triangularity is preserved, the unsampled
    symbolic identity is the acceptance test) does, before the next row is
    constructed. *)
+(* the stale strip checkpoint of the sector this factorization runs in
+   front of: it was built against the connection BEFORE the constant
+   T(eps), so it must not survive a successful transformation (CF265
+   sector 18, 2026-08-22).  Deleting it BEFORE the state write is the
+   safe order -- a crash in between then loses the factorization and
+   recomputes it, never resumes a new connection with an old strip. *)
+staleStripCheckpointFile[m_] :=
+  FileNameJoin[{scratch, family <> "_" <> ToString[m + 1] <> "_strip_state.wl"}];
+(* the typed stops this routine itself sets for rows m; a successful
+   factorization AT THE SAME ROWS resolves exactly these and nothing
+   else (Codex 0830 P1: status AND rows must match) *)
+$regulatorResolvableStops = {"NeedsMultiquadraticRegulatorFactorization",
+  "RegulatorPropagationRejected"};
+staleRegulatorStop[m_] := Module[{stop = Lookup[state, "Stop", Missing["NoStop"]]},
+  If[AssociationQ[stop] &&
+      MemberQ[$regulatorResolvableStops, Lookup[stop, "Status", None]] &&
+      Lookup[stop, "Rows", None] === m,
+    stop, Missing["NoMatchingStop"]]];
 factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
-  tInv, rowCertificate, futureAMode, propagation},
+  tInv, rowCertificate, futureAMode, propagation, staleStop, resolution,
+  checkpointFile},
   aT = {state["A"][[1, 1 ;; nm, 1 ;; nm]], state["A"][[2, 1 ;; nm, 1 ;; nm]]};
   If[epsFormQ[aT[[1]]] && epsFormQ[aT[[2]]], Return[False]];   (* nothing applied *)
   log["  rows 1..", m, " carry regulator-dependent residues; FactorFamilyRegulatorDependence",
     If[algebraicFrameQ, "InFrame", ""], " on the ", nm, "x", nm, " truncation"];
   factor = If[algebraicFrameQ,
-    FeynFacet`FactorFamilyRegulatorDependenceInFrame[aT, {xx, yy}, ee, chart, "TimeLimit" -> Min[sectorBudget, 600], "Verbose" -> False],
-    FeynFacet`FactorFamilyRegulatorDependence[aT, {xx, yy}, ee, "TimeLimit" -> Min[sectorBudget, 600], "Verbose" -> False]];
+    FeynFacet`FactorFamilyRegulatorDependenceInFrame[aT, {xx, yy}, ee, chart, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "Verbose" -> False],
+    FeynFacet`FactorFamilyRegulatorDependence[aT, {xx, yy}, ee, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "Verbose" -> False]];
+  If[AssociationQ[factor] &&
+      factor["Status"] === "RegulatorFactorizationDeadlineExpired",
+    (* a budget stop, not a mathematical verdict: resumable, and the
+       connection was NOT transformed, so no checkpoint is stale *)
+    log["  !! regulator factorization of rows 1..", m,
+      " ran out of the sector budget at stage ",
+      Lookup[factor, "Stage", None]];
+    state["Stop"] = <|"Status" -> "RegulatorFactorizationBudgetExhausted",
+      "Rows" -> m, "Stage" -> Lookup[factor, "Stage", None],
+      "SectorBudget" -> sectorBudget, "Resumable" -> True,
+      "Detail" -> KeyDrop[factor,
+        {"Transformation", "Inverse", "Connection"}]|>;
+    putAtomic[state, stateFile]; Exit[2]];
   If[AssociationQ[factor] && factor["Status"] === "NoRationalChart",
     (* typed stop: the roots of the completed truncation have no joint
        rational chart AND the graded-algebra route
@@ -561,6 +593,20 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
   (* products with the constant T entry by entry over its nonzero pattern
      (the plain Dot + Together of the full 44x44 triple product took 30 GB
      on CF385 sector 32, 2026-08-22) *)
+  (* Codex 0830 P1.  The typed stop that made this factorization
+     necessary is RESOLVED the moment the propagation is accepted: it is
+     cleared here (only when its status AND its rows match), the
+     resolution is recorded in the factorization certificate, and the
+     state is persisted BEFORE the next strip begins.  Before 2026-08-25
+     the next persisted state still advertised the solved terminal, and
+     an interruption anywhere between here and the post-sector write at
+     the end of the sector loop lost the accepted factorization and
+     repeated the whole grade decomposition on resume. *)
+  staleStop = staleRegulatorStop[m];
+  resolution = If[MissingQ[staleStop], Missing["NoStaleStop"],
+    <|"ClearedStatus" -> staleStop["Status"], "Rows" -> m,
+      "ResolvedBy" -> factor["Method"],
+      "ResolvedAt" -> DateString[{"ISODateTime"}]|>];
   state = Join[state, <|
     "A" -> propagation["Connection"],
     "S" -> FeynFacet`Private`familyRegulatorSparseDot[
@@ -571,6 +617,7 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
       <|"Rows" -> m, "Method" -> factor["Method"], "Points" -> factor["Points"], "Seconds" -> factor["Seconds"],
         "Chart" -> Lookup[factor, "Chart", None],
         "RootIndices" -> Lookup[factor, "RootIndices", {}],
+        "ResolvedStop" -> resolution,
         (* graded-algebra route only (2026-08-25): the evidence the
            recorded eps-factorization rests on *)
         "GradedRank" -> Lookup[factor, "Rank", Missing["NotGraded"]],
@@ -579,6 +626,15 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
         "CompositionSpotCheck" -> Lookup[factor, "CompositionSpotCheck", Missing["NotGraded"]],
         "ModularCorroboration" -> Lookup[factor, "ModularCorroboration", Missing["NotGraded"]],
         "PropagationStatistics" -> propagation["Statistics"]|>]|>];
+  If[! MissingQ[staleStop], state = KeyDrop[state, "Stop"]];
+  checkpointFile = staleStripCheckpointFile[m];
+  If[FileExistsQ[checkpointFile], DeleteFile[checkpointFile];
+    log["  strip checkpoint of sector ", m + 1,
+      " discarded (connection transformed)"]];
+  putAtomic[state, stateFile];
+  If[! MissingQ[staleStop],
+    log["  stale ", staleStop["Status"], " stop for rows ", m,
+      " cleared and the resolution recorded"]];
   log["  regulator factorization of rows 1..", m, ": ", factor["Method"], ", ", factor["Points"], " points, ",
     Round[factor["Seconds"], 0.1], " s",
     If[KeyExistsQ[factor, "ModularCorroboration"],
@@ -696,11 +752,11 @@ Do[
   log["  strip budget ", sectorBudget, " s (deadline ",
     DateString[sectorDeadline, {"Hour", ":", "Minute", ":", "Second"}], ")"];
   memtrace["sector " <> ToString[k] <> " start"];
-  If[blockwiseRouteQ && k > 1 && TrueQ[factorTruncated[k - 1]],
-    (* the connection changed: a strip checkpoint of this sector computed
-       before the transformation is stale (CF265 sector 18, 2026-08-22) *)
-    Module[{cp = FileNameJoin[{scratch, family <> "_" <> ToString[k] <> "_strip_state.wl"}]},
-      If[FileExistsQ[cp], DeleteFile[cp]; log["  strip checkpoint of sector ", k, " discarded (connection transformed)"]]]];
+  (* factorTruncated itself now discards the stale strip checkpoint of
+     sector m+1 and persists the transformed state before returning, so
+     the resolved terminal never survives into the next strip (Codex
+     0830 P1) *)
+  If[blockwiseRouteQ && k > 1, factorTruncated[k - 1]];
   memtrace["sector " <> ToString[k] <> " after factorTruncated check"];
   aTrunc = toC[{state["A"][[1, 1 ;; nk, 1 ;; nk]],
     state["A"][[2, 1 ;; nk, 1 ;; nk]]}];
@@ -1421,13 +1477,17 @@ Do[
 (* ---- family-level regulator factorization (FiniteFieldFirst route) ---- *)
 If[blockwiseRouteQ &&
     ! (epsFormQ[state["A"][[1]]] && epsFormQ[state["A"][[2]]]),
-  Module[{factor, tFull, tInv},
+  Module[{factor, tFull, tInv, familyDeadline = AbsoluteTime[] + sectorBudget},
     log["family connection has regulator-dependent residues; FactorFamilyRegulatorDependence", If[algebraicFrameQ, "InFrame", ""]];
+    (* the same absolute budget the in-sector stage gets: "TimeLimit"
+       bounds one subcall, "Deadline" bounds the stage (Codex 0830 P2) *)
+    log["  family regulator budget ", sectorBudget, " s (deadline ",
+      DateString[familyDeadline, {"Hour", ":", "Minute", ":", "Second"}], ")"];
     factor = If[algebraicFrameQ,
       FeynFacet`FactorFamilyRegulatorDependenceInFrame[state["A"], {xx, yy}, ee, chart,
-        "TimeLimit" -> sectorBudget, "Verbose" -> True],
+        "TimeLimit" -> sectorBudget, "Deadline" -> familyDeadline, "Verbose" -> True],
       FeynFacet`FactorFamilyRegulatorDependence[state["A"], {xx, yy}, ee,
-        "TimeLimit" -> sectorBudget, "Verbose" -> True]];
+        "TimeLimit" -> sectorBudget, "Deadline" -> familyDeadline, "Verbose" -> True]];
     If[AssociationQ[factor] && factor["Status"] === "OK",
       tFull = factor["Transformation"]; tInv = factor["Inverse"];
       state = Join[state, <|"A" -> factor["Connection"],

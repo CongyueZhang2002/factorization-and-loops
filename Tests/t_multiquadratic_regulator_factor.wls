@@ -72,8 +72,11 @@ check["the conjugated input is not eps-factored",
   ! (FeynFacet`Private`familyRegulatorFactoredQ[connection[[1]], eps] &&
      FeynFacet`Private`familyRegulatorFactoredQ[connection[[2]], eps])];
 
+(* a generous ABSOLUTE deadline must not change the accepted result:
+   the plumbing of Codex 0830 P2 is a cooperative stop, not a new gate *)
 {sec, f} = AbsoluteTiming[FeynFacet`FactorFamilyRegulatorDependenceInFrame[
-  connection, {x, y}, eps, frame, "Verbose" -> False]];
+  connection, {x, y}, eps, frame, "Deadline" -> AbsoluteTime[] + 3600,
+  "Verbose" -> False]];
 Print["planted T: ", If[AssociationQ[f],
   KeyTake[f, {"Status", "Method", "Chart", "RootIndices", "Rank", "GradeCount",
     "Points", "ExactEpsFactorization", "ExactInverse"}], f],
@@ -151,6 +154,9 @@ If[AssociationQ[f] && f["Status"] === "OK",
   check["planted T: a propagation seal is attached",
     AssociationQ[Lookup[f, "PropagationSeal", None]] &&
       f["PropagationSeal"]["Schema"] === "FeynFacetRegulatorPropagationSeal"];
+  check["planted T: a generous deadline skipped no evidence stage",
+    Lookup[f, "DeadlineSkippedStages", $Failed] === {} &&
+      NumericQ[Lookup[f, "GradeDecompositionSeconds", $Failed]]];
   g = FeynFacet`FactorFamilyRegulatorDependenceInFrame[
     f["Connection"], {x, y}, eps, frame];
   check["planted T: idempotent (AlreadyEpsFactored on the output)",
@@ -232,6 +238,173 @@ check["graded decompose: Sqrt[2] is carried as a generator, 16 channels",
   ListQ[ch4] && Length[ch4] === 16 && FreeQ[ch4, Power[_, _Rational]]];
 check["graded roots: a rational square is not made a generator",
   Length[FeynFacet`Private`familyRegulatorGradedRoots[gr, {4, 1}]] === 3];
+
+(* ------------------------------------------------------------------ *)
+(* Codex 0830 P2 -- the grade-zero completeness caveat, made typed      *)
+(* ------------------------------------------------------------------ *)
+(* The theorem "a constant T lies in grade zero" is exact for the
+   non-isotrivial roots: their squares depend on (x, y), so a
+   transformation containing them is not constant.  It is NOT correct
+   for the NUMERIC square classes the same implementation adds as graded
+   generators -- Sqrt[2] eps is constant in {x, y} and has nonzero
+   numeric-root grade.  The solve feeds ordinary rational grade matrices
+   to Libra and admits only a rational grade-zero candidate, so such a
+   valid factorization is missed.  The adversarial fixture below plants
+   exactly that T and requires the NARROWED typed refusal, not a silent
+   "NotFactored" and not a false success. *)
+tAlgebraic = {{1, Sqrt[2] eps, 0}, {0, 1, 0}, {0, 0, 1}};
+tAlgebraicInverse = Map[Together, Inverse[tAlgebraic], {2}];
+connectionAlgebraic = Table[
+  Map[Together, tAlgebraic . canonical[[mu]] . tAlgebraicInverse, {2}], {mu, 2}];
+classificationAlgebraic = FeynFacet`Private`transportChartRootIndices[
+  connectionAlgebraic, gr];
+check["adversarial Sqrt[2] T: the numeric square class 2 is classified",
+  MemberQ[Together /@ Lookup[classificationAlgebraic, "NumericRadicalClasses", {}], 2] &&
+    classificationAlgebraic["UnclassifiedRadicalBases"] === {}];
+grAdversarial = FeynFacet`Private`familyRegulatorGradedRoots[gr,
+  Lookup[classificationAlgebraic, "NumericRadicalClasses", {}]];
+check["adversarial Sqrt[2] T: the graded generator list is rank 4",
+  Length[grAdversarial] === 4];
+{secAdv, fAdv} = AbsoluteTiming[
+  FeynFacet`FactorFamilyRegulatorDependenceMultiquadratic[
+    connectionAlgebraic, {x, y}, eps, grAdversarial,
+    "PointLadder" -> {1, 2}, "TimeLimit" -> 120]];
+Print["adversarial Sqrt[2] T: ", If[AssociationQ[fAdv],
+  KeyTake[fAdv, {"Status", "Rank", "GradeCount", "Complete",
+    "NumericGradeGeneratorCount", "NumericGradeGenerators"}], fAdv],
+  " (", Round[secAdv, 0.1], " s)"];
+check["adversarial Sqrt[2] T: the refusal is the NARROWED ConstantFieldRestriction, \
+not an unqualified NotFactored",
+  AssociationQ[fAdv] && fAdv["Status"] === "ConstantFieldRestriction"];
+check["adversarial Sqrt[2] T: the refusal says the claim is not complete \
+and names the generators responsible",
+  AssociationQ[fAdv] && fAdv["Complete"] === False &&
+    fAdv["NumericGradeGeneratorCount"] === 1 &&
+    (Together /@ fAdv["NumericGradeGenerators"]) === {2} &&
+    StringQ[fAdv["Reason"]]];
+check["adversarial Sqrt[2] T: no transformation is returned",
+  AssociationQ[fAdv] && ! KeyExistsQ[fAdv, "Transformation"]];
+fAdvFrame = FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+  connectionAlgebraic, {x, y}, eps, frame, "PointLadder" -> {1, 2},
+  "TimeLimit" -> 120];
+check["adversarial Sqrt[2] T: the in-frame route carries the narrowed \
+diagnostic to the caller",
+  AssociationQ[fAdvFrame] && fAdvFrame["Status"] === "NoRationalChart" &&
+    Lookup[Lookup[fAdvFrame, "MultiquadraticFactorization", <||>], "Status",
+      None] === "ConstantFieldRestriction"];
+(* without a numeric class present the refusal stays unqualified: the
+   grade-zero argument IS complete over a purely variable-root field *)
+check["no numeric class: the refusal is the unqualified NotFactored",
+  AssociationQ[fBad] &&
+    Lookup[fBad["MultiquadraticFactorization"], "Status", None] =!=
+      "ConstantFieldRestriction"];
+
+(* ------------------------------------------------------------------ *)
+(* Codex 0830 P2 -- modular corroboration with RATIONAL root squares    *)
+(* ------------------------------------------------------------------ *)
+(* The split-point search used raw Mod on the root squares.  Wolfram's
+   Mod leaves a rational value a Rational, so the following
+   VectorQ[..., IntegerQ] rejected every point of a strip whose q_i is a
+   genuine rational function -- e.g. (1 + x)/(1 - y) -- and the
+   corroboration could never find a split point.  CF259's squares happen
+   to be polynomials, which is why its two corroborations were
+   unaffected. *)
+check["raw Mod leaves a rational root square a Rational (the defect)",
+  ! IntegerQ[Mod[(1 + x)/(1 - y) /. {x -> 3, y -> 7}, 101]]];
+check["the modular-rational image maps it into the prime field",
+  IntegerQ[FeynFacet`Private`familyRegulatorModularImage[
+    (1 + x)/(1 - y), {x -> 3, y -> 7}, 101]] &&
+    Mod[FeynFacet`Private`familyRegulatorModularImage[
+      (1 + x)/(1 - y), {x -> 3, y -> 7}, 101] (1 - 7) - (1 + 3), 101] === 0];
+check["the modular-rational image fails closed on a vanishing denominator",
+  FeynFacet`Private`familyRegulatorModularImage[
+    1/(x - y), {x -> 3, y -> 3}, 101] === $Failed];
+rationalRoots = {
+  <|"Root" -> Sqrt[(1 + x)/(1 - y)], "RootSquare" -> (1 + x)/(1 - y)|>,
+  <|"Root" -> Sqrt[(2 + y)/(1 + x y)], "RootSquare" -> (2 + y)/(1 + x y)|>};
+constantGrades = {{{1, 2}, {0, -1}}, {{0, 1}, {3, 0}}, {{2, 0}, {0, 2}},
+  {{0, 0}, {1, 1}}};
+(* an eps-factored graded connection: every grade is eps times a constant
+   matrix, so every sheet at every regulator value must agree *)
+rationalGradeMatrices = Table[eps constantGrades[[g]], {mu, 2}, {g, 4}];
+corrRational = FeynFacet`Private`familyRegulatorGradedCorroborate[
+  rationalGradeMatrices, rationalRoots, {x, y}, eps,
+  IdentityMatrix[2], IdentityMatrix[2], 2];
+Print["rational root squares: corroboration ",
+  KeyTake[corrRational, {"Status", "Primes", "RecordCount"}]];
+check["rational root squares: a split point IS found at both fresh primes",
+  AssociationQ[corrRational] && corrRational["Status"] === "Corroborated" &&
+    corrRational["RecordCount"] === 2 &&
+    AllTrue[corrRational["Records"], Lookup[#, "Status", None] === "OK" &] &&
+    AllTrue[corrRational["Records"],
+      VectorQ[Lookup[#, "Point", None], IntegerQ] &]];
+check["rational root squares: all 4 sign sheets agree at both primes",
+  AssociationQ[corrRational] && AllTrue[corrRational["Records"],
+    Lookup[#, "SheetCount", 0] === 4 && TrueQ[Lookup[#, "AllSheetsAgree", False]] &]];
+(* the root images really are square roots of the rational squares in F_p *)
+check["rational root squares: each recorded root image squares to the \
+modular image of its root square",
+  AssociationQ[corrRational] && AllTrue[corrRational["Records"],
+    Function[recordEntry, Module[{p = recordEntry["Prime"],
+        pt = recordEntry["Point"], rv = recordEntry["RootValues"]},
+      AllTrue[Range[2], Mod[rv[[#]]^2 -
+        FeynFacet`Private`familyRegulatorModularImage[
+          rationalRoots[[#]]["RootSquare"], Thread[{x, y} -> pt], p], p] === 0 &]]]]];
+
+(* ------------------------------------------------------------------ *)
+(* Codex 0830 P2 -- the cooperative absolute deadline                   *)
+(* ------------------------------------------------------------------ *)
+check["\"Deadline\" is a declared option of all three entry points",
+  AllTrue[{FeynFacet`FactorFamilyRegulatorDependence,
+      FeynFacet`FactorFamilyRegulatorDependenceInFrame,
+      FeynFacet`FactorFamilyRegulatorDependenceMultiquadratic},
+    KeyExistsQ[Association[Options[#]], "Deadline"] &]];
+check["the default deadline is unbounded (the former behaviour)",
+  AllTrue[{FeynFacet`FactorFamilyRegulatorDependence,
+      FeynFacet`FactorFamilyRegulatorDependenceInFrame,
+      FeynFacet`FactorFamilyRegulatorDependenceMultiquadratic},
+    Lookup[Association[Options[#]], "Deadline"] === Infinity &]];
+deadlineStages = {"Entry", "FrameEntry", "SamplePoints", "GradeDecomposition",
+  "PointLadder", "ExactGradeCheck", "GradeComposition",
+  "RadicalCanonicalization", "ChartPullBack"};
+typedStopQ[result_] := AssociationQ[result] &&
+  result["Status"] === "RegulatorFactorizationDeadlineExpired" &&
+  TrueQ[result["Resumable"]] && MemberQ[deadlineStages, result["Stage"]] &&
+  NumericQ[result["Seconds"]];
+expiredRational = FeynFacet`FactorFamilyRegulatorDependence[
+  connection0, {x, y}, eps, "Deadline" -> AbsoluteTime[] - 1];
+check["an expired deadline stops the rational route, typed and resumable",
+  typedStopQ[expiredRational] && expiredRational["Stage"] === "Entry"];
+expiredGraded = FeynFacet`FactorFamilyRegulatorDependenceMultiquadratic[
+  connection, {x, y}, eps, gr, "Deadline" -> AbsoluteTime[] - 1];
+check["an expired deadline stops the graded route, typed and resumable",
+  typedStopQ[expiredGraded] && expiredGraded["Stage"] === "Entry"];
+expiredFrame = FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+  connection, {x, y}, eps, frame, "Deadline" -> AbsoluteTime[] - 1];
+check["an expired deadline stops the in-frame dispatcher before any work",
+  typedStopQ[expiredFrame] && expiredFrame["Stage"] === "FrameEntry"];
+(* a deadline that falls DURING the stage: the entry check passes and a
+   later boundary (or the capped decomposition subcall) catches it.  The
+   test does not pin WHICH boundary -- that is a timing accident -- only
+   that a boundary catches it and the stop is typed and resumable, and
+   that no transformation is handed back from an unfinished stage. *)
+midStage = FeynFacet`FactorFamilyRegulatorDependenceMultiquadratic[
+  connection, {x, y}, eps, gr, "Deadline" -> AbsoluteTime[] + 0.02,
+  "PointLadder" -> {1, 2}, "TimeLimit" -> 120];
+Print["mid-stage deadline: ", If[AssociationQ[midStage],
+  KeyTake[midStage, {"Status", "Stage", "Resumable"}], midStage]];
+check["a deadline falling mid-stage is caught at a stage boundary",
+  typedStopQ[midStage] && midStage["Stage"] =!= "Entry"];
+check["a mid-stage deadline stop hands back no transformation",
+  AssociationQ[midStage] && ! KeyExistsQ[midStage, "Transformation"]];
+(* a deadline expiry inside the graded route is NOT the family's typed
+   terminal: "NoRationalChart" stops the family, a budget expiry resumes *)
+midFrame = FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+  connection, {x, y}, eps, frame, "Deadline" -> AbsoluteTime[] + 0.02,
+  "PointLadder" -> {1, 2}, "TimeLimit" -> 120];
+check["a budget expiry never masquerades as the NoRationalChart terminal",
+  AssociationQ[midFrame] && midFrame["Status"] =!= "NoRationalChart" &&
+    typedStopQ[midFrame]];
 
 Print["t_multiquadratic_regulator_factor: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];
