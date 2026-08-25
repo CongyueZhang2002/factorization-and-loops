@@ -198,7 +198,8 @@ familyRegulatorSpecialize[transformation_, reference_, n_Integer] := Module[
 FactorFamilyRegulatorDependence[{ax_List, ay_List}, {x_Symbol, y_Symbol}, epsilon_Symbol,
     OptionsPattern[]] := Module[
   {n, start = AbsoluteTime[], verbose, log, backend, reference, rules, valid,
-   transformation = $Failed, inverse, raw, attempts = {}, newAx, newAy, pointsUsed = 0},
+   transformation = $Failed, inverse, raw, attempts = {}, newAx, newAy,
+   pointsUsed = 0, fermatRequested},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependence::input]; Return[$Failed]];
@@ -209,7 +210,19 @@ FactorFamilyRegulatorDependence[{ax_List, ay_List}, {x_Symbol, y_Symbol}, epsilo
     log["the connection is already eps-factored"];
     Return[<|"Status" -> "AlreadyEpsFactored", "Transformation" -> IdentityMatrix[n],
       "Inverse" -> IdentityMatrix[n], "Connection" -> {ax, ay}, "Seconds" -> 0.|>]];
-  backend = libraEpsFormLoadBackend[OptionValue["UseFermat"]];
+  (* Fermat's algebra engine is a RATIONAL function engine.  Since
+     2026-08-24 the connection may legitimately carry numeric radical
+     constants (Sqrt[2] and the like: the square-class constants of the
+     denesting layer, chart independent by construction), and those are
+     not Fermat input.  The existing compatibility predicate decides;
+     an explicit "UseFermat" -> True is a request, not a licence to feed
+     Fermat an algebraic number. *)
+  fermatRequested = OptionValue["UseFermat"];
+  If[! libraEpsFormFermatCompatibleQ[{ax, ay}],
+    log["the connection is not Fermat compatible (algebraic constants); \
+using the Wolfram backend"];
+    fermatRequested = False];
+  backend = libraEpsFormLoadBackend[fermatRequested];
   If[backend["Status"] =!= "OK", Return[<|"Status" -> backend["Status"]|>]];
   reference = Unique["regulatorReference"];
   rules = Table[{x -> Prime[k + 3]/Prime[k + 11], y -> Prime[2 k + 5]/Prime[2 k + 15]}, {k, 1, 24}];
@@ -279,7 +292,8 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
   {n, start = AbsoluteTime[], allRoots, classification, rootIndices, usedRoots,
    rootSquares, chart, chartVariables, rekeyed, data, components, chartConnection,
    chartRoots, rootImages, chartBranchRoots, inner, transformation, inverse,
-   newAx, newAy, factoredQ, inverseQ},
+   newAx, newAy, factoredQ, inverseQ, canonicalization, numericClasses,
+   canonicalAx, canonicalAy, canonicalRecord},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependenceInFrame::input]; Return[$Failed]];
@@ -295,9 +309,41 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     Return[<|"Status" -> "ConnectionContainsUndeclaredRadicals",
       "RadicalBases" -> classification["UnclassifiedRadicalBases"]|>]];
   rootIndices = classification["RootIndices"];
+  numericClasses = Lookup[classification, "NumericRadicalClasses", {}];
+  (* Radical canonicalization (2026-08-24, CF303).  A radicand that is
+     not itself a declared square -- a nested one such as
+     q2 (u + v Sqrt[q1]), or a bare numeric one -- is now classified by
+     exact denesting instead of refused, and the chart pullback below
+     rationalizes only radicals whose radicand IS a declared square.  So
+     every denested radical is first rewritten in terms of the declared
+     radicals and numeric class constants:
+        Sqrt[base] -> sigma Factor (alpha + beta Sqrt[q]) Sqrt[c] Prod Sqrt[q_i],
+     with the identity rewrite^2 == base checked exactly (sign
+     independent) inside transportChartDenestRadicalBase and the global
+     sign sigma fixed by numeric evaluation at two rational points of the
+     region where every declared square is positive.  Numeric radicals
+     are constants of the coefficient field and are left as they are;
+     they commute with everything and the chart never has to see them. *)
+  canonicalization = transportChartCanonicalizeDenestedRadicals[
+    {ax, ay}, allRoots, variables,
+    Lookup[classification, "DenestedRadicalBases", <||>]];
+  If[Lookup[canonicalization, "Status", None] =!= "OK",
+    Return[Join[canonicalization,
+      <|"RootIndices" -> rootIndices, "Seconds" -> AbsoluteTime[] - start|>]]];
+  {canonicalAx, canonicalAy} = canonicalization["Expression"];
+  canonicalRecord = <|
+    "Rewritten" -> canonicalization["Rewritten"],
+    "Bases" -> Keys[canonicalization["Rewrites"]],
+    "Signs" -> Lookup[Values[canonicalization["Rewrites"]], "Sign", {}],
+    "Witnesses" -> Lookup[Values[canonicalization["Rewrites"]], "Witness", {}],
+    "NumericRadicalClasses" -> numericClasses|>;
   If[rootIndices === {},
-    inner = FactorFamilyRegulatorDependence[{ax, ay}, variables, epsilon, opts];
-    Return[If[AssociationQ[inner], Join[inner, <|"RootIndices" -> {}, "Chart" -> None|>], inner]]];
+    inner = FactorFamilyRegulatorDependence[{canonicalAx, canonicalAy},
+      variables, epsilon, opts];
+    Return[If[AssociationQ[inner],
+      Join[inner, <|"RootIndices" -> {}, "Chart" -> None,
+        "RadicalCanonicalization" -> canonicalRecord,
+        "NumericRadicalClasses" -> numericClasses|>], inner]]];
   usedRoots = allRoots[[rootIndices]];
   rootSquares = Lookup[usedRoots, "RootSquare", {}];
   chart = TransportRootSetChart[rootSquares, variables];
@@ -309,9 +355,6 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
   rekeyed = transportChartRekey[chart, variables, chartVariables];
   data = masterTransportChartData[rekeyed, variables];
   If[Lookup[data, "Status", None] =!= "OK", Return[data]];
-  components = Map[Map[Together, # /. data["Subst"], {2}] &, {ax, ay}];
-  chartConnection = masterTransportPullBackOneForm[
-    components[[1]], components[[2]], data["Jacobian"]];
   chartRoots = Lookup[rekeyed, "Roots", {}];
   rootImages = Table[Module[{matching = SelectFirst[chartRoots,
       TrueQ[Together[#["RootSquare"] - usedRoots[[i]]["RootSquare"]] === 0] &,
@@ -319,22 +362,51 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     If[MissingQ[matching], matching, matching["Root"]]], {i, Length[usedRoots]}];
   If[AnyTrue[rootImages, MissingQ], Return[<|"Status" -> "ChartRootMapMissing"|>]];
   chartBranchRoots = Map[<|"RootSquare" -> Together[#["RootSquare"] /. data["Subst"]]|> &, usedRoots];
-  chartConnection = Map[Together,
-    transportChartApplyRootBranches[chartConnection, chartBranchRoots, rootImages], {3}];
-  If[! FreeQ[chartConnection, Power[_, exponent_Rational /; Denominator[exponent] === 2]],
+  (* Order matters (measured 2026-08-24 on the 27x27 CF303 truncation:
+     the old order did not finish this pullback in 50 minutes).  Together
+     applied while the entries still carry radicals RATIONALIZES radical
+     denominators by conjugation -- the trap this repository has paid for
+     -- and multiplies every entry out.  Substituting the chart's own
+     RATIONAL root images first leaves Together a purely rational job.
+     The branch substitution matches on the Together-difference against
+     the substituted declared square, so it does not need a normalized
+     entry to fire. *)
+  components = Map[
+    Function[matrix, Map[Together, transportChartApplyRootBranches[
+      matrix /. data["Subst"], chartBranchRoots, rootImages], {2}]],
+    {canonicalAx, canonicalAy}];
+  chartConnection = masterTransportPullBackOneForm[
+    components[[1]], components[[2]], data["Jacobian"]];
+  (* Numeric radicals survive the chart by construction: they are
+     constants, not functions of the chart variables, and a chart cannot
+     and need not rationalize them.  Only a SYMBOLIC radical left in the
+     chart means the pullback did not rationalize the connection. *)
+  If[! FreeQ[chartConnection,
+      Power[base_ /; ! NumericQ[base],
+        exponent_Rational /; Denominator[exponent] === 2]],
     Return[<|"Status" -> "ChartStillAlgebraic", "RootIndices" -> rootIndices,
-      "Chart" -> chart["Name"]|>]];
+      "Chart" -> chart["Name"],
+      "RadicalCanonicalization" -> canonicalRecord,
+      "ResidualRadicalBases" -> DeleteDuplicates[Cases[chartConnection,
+        Power[base_ /; ! NumericQ[base],
+          exponent_Rational /; Denominator[exponent] === 2] :> Together[base],
+        {0, Infinity}, Heads -> True]]|>]];
   inner = FactorFamilyRegulatorDependence[chartConnection, chartVariables, epsilon, opts];
   If[! (AssociationQ[inner] && inner["Status"] === "OK"),
     Return[Join[If[AssociationQ[inner], inner, <|"Status" -> "InnerFactorizationFailed"|>],
-      <|"RootIndices" -> rootIndices, "Chart" -> chart["Name"]|>]]];
+      <|"RootIndices" -> rootIndices, "Chart" -> chart["Name"],
+        "RadicalCanonicalization" -> canonicalRecord|>]]];
   transformation = inner["Transformation"]; inverse = inner["Inverse"];
   If[! FreeQ[{transformation, inverse}, Alternatives @@ Join[variables, chartVariables]],
     Return[<|"Status" -> "TransformationNotConstant", "RootIndices" -> rootIndices,
       "Chart" -> chart["Name"]|>]];
-  (* the statement is made in the source (identity) frame *)
-  newAx = familyRegulatorConjugate[inverse, ax, transformation];
-  newAy = familyRegulatorConjugate[inverse, ay, transformation];
+  (* the statement is made in the source (identity) frame, on the
+     canonicalized connection: it is the same connection written in the
+     declared radicals (each rewrite certified by rewrite^2 == base plus
+     the numeric sign), and only in that form can the eps-factorization
+     be decided by Together *)
+  newAx = familyRegulatorConjugate[inverse, canonicalAx, transformation];
+  newAy = familyRegulatorConjugate[inverse, canonicalAy, transformation];
   factoredQ = familyRegulatorFactoredQ[newAx, epsilon] && familyRegulatorFactoredQ[newAy, epsilon];
   inverseQ = AllTrue[Flatten[Map[Together, transformation . inverse - IdentityMatrix[n], {2}]], TrueQ[# === 0] &] &&
     AllTrue[Flatten[Map[Together, inverse . transformation - IdentityMatrix[n], {2}]], TrueQ[# === 0] &];
@@ -346,8 +418,12 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     "Chart" -> chart["Name"], "RootIndices" -> rootIndices, "Points" -> inner["Points"],
     "Transformation" -> transformation, "Inverse" -> inverse,
     "Connection" -> {newAx, newAy}, "Attempts" -> inner["Attempts"],
+    (* the seal is taken on the caller's own input prefix: the
+       propagation helper recomputes it from the connection it is given *)
     "PropagationSeal" -> familyRegulatorPropagationSeal[
       {ax, ay}, {newAx, newAy}, inverse, transformation],
+    "RadicalCanonicalization" -> canonicalRecord,
+    "NumericRadicalClasses" -> numericClasses,
     "SourceFrameEpsFactored" -> True, "InverseExact" -> True,
     "Seconds" -> AbsoluteTime[] - start|>
 ];

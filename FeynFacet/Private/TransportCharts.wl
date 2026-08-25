@@ -55,7 +55,14 @@ ClearAll[
   transportChartLoadRationalizeRoots,
   transportChartExtensionCandidates,
   transportFamilyChartEntryKind,
-  transportFamilyChartAlias
+  transportFamilyChartAlias,
+  transportChartNumericSquareClass,
+  transportChartSquareSplit,
+  transportChartExactSquareRoot,
+  transportChartSquareClassData,
+  transportChartDenestRadicalBase,
+  transportChartDenestSign,
+  transportChartCanonicalizeDenestedRadicals
 ];
 
 
@@ -233,8 +240,372 @@ transportChartRadicalBases[expr_] := DeleteDuplicates[Cases[
   Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
     Together[base], {0, Infinity}, Heads -> True]];
 
+(* ------------------------------------------------------------------ *)
+(*  Square classes and the denesting of nested radical bases            *)
+(* ------------------------------------------------------------------ *)
+(* WHY (2026-08-24, CF303).  The syntactic matcher below classifies a
+   radical only when its radicand IS a declared root square.  The CF303
+   family connection carries radicands that are declared squares times a
+   NESTED radical, e.g.
+
+     q2 (u + v Sqrt[q1]),  u = 1+2x+x^2+2xy+y^2, v = 1+x+y,
+
+   and bare numeric radicands (Sqrt[2]).  Both live in the declared
+   multiquadratic field: with w^2 = u^2 - v^2 q1 = (2y)^2 exactly,
+   u + w = (1+x+y)^2, hence 2 (u + v Sqrt[q1]) = ((1+x+y) + Sqrt[q1])^2
+   and the radicand's square class is 2 q2 -- declared root 2 times the
+   numeric class 2, no new field extension.  Refusing such a connection
+   as "undeclared radicals" was a matcher limitation, not a mathematical
+   obstruction.  The classification is exact throughout (Fermat
+   denesting); only the global SIGN of a rewrite is fixed numerically,
+   in transportChartDenestSign, and the identity rewrite^2 == base is
+   checked exactly and is sign-independent. *)
+
+(* Sqrt[p/q] = Sqrt[p q]/q, so the square class of a rational number is
+   the squarefree part of numerator*denominator.  The sign is kept: a
+   negative class means the radical is imaginary, which is data, not an
+   error. *)
+transportChartNumericSquareClass[value_] := Module[{r, sign, n, d},
+  r = Together[value];
+  If[! MatchQ[r, _Integer | _Rational], Return[$Failed]];
+  If[r === 0, Return[0]];
+  sign = Sign[r]; r = Abs[r];
+  n = Numerator[r]; d = Denominator[r];
+  sign Times @@ (First[#]^Mod[Last[#], 2] & /@ FactorInteger[n d])];
+
+(* g = class h^2 with class squarefree: the squarefree rational content
+   times every irreducible factor of odd multiplicity, once. *)
+transportChartSquareSplit[g_] := Module[
+  {expression, list, numeric, polynomials, sign, n, d, k, m, class, h},
+  expression = Together[g];
+  If[TrueQ[expression === 0], Return[{0, 0}]];
+  list = FactorList[expression];
+  numeric = Times @@ (First[#]^Last[#] & /@ Select[list, NumericQ[First[#]] &]);
+  If[! MatchQ[numeric, _Integer | _Rational], Return[$Failed]];
+  polynomials = Select[list, ! NumericQ[First[#]] &];
+  sign = Sign[numeric];
+  n = Numerator[Abs[numeric]]; d = Denominator[Abs[numeric]];
+  k = transportChartNumericSquareClass[Abs[numeric]];
+  m = Sqrt[(n d)/k];
+  If[! IntegerQ[m], Return[$Failed]];
+  class = sign k Times @@ (First[#]^Mod[Last[#], 2] & /@ polynomials);
+  h = (m/d) Times @@
+    (First[#]^Quotient[Last[#] - Mod[Last[#], 2], 2] & /@ polynomials);
+  {Together[class], Together[h]}];
+
+(* the exact square root of a rational function, or $Failed *)
+transportChartExactSquareRoot[g_] := Module[{split},
+  split = transportChartSquareSplit[g];
+  If[split === $Failed, Return[$Failed]];
+  If[TrueQ[Together[First[split] - 1] === 0] &&
+      TrueQ[Together[Last[split]^2 - g] === 0],
+    Together[Last[split]], $Failed]];
+
+(* expr == NumericClass Product[declared squares] Factor^2, verified
+   exactly, or a typed refusal naming the factors that match no declared
+   square.  Matching is sign- and numeric-multiple-insensitive: a factor
+   equal to a rational multiple of a declared square contributes that
+   root index and moves the multiple into the numeric class. *)
+transportChartSquareClassData[expr_, rootBases_List] := Module[
+  {class, h, split, list, numeric = 1, indices = {}, unmatched = {}, whole,
+   numericClass, mu, factor},
+  split = transportChartSquareSplit[expr];
+  If[split === $Failed,
+    Return[<|"Status" -> "NonRationalSquareClassContent"|>]];
+  {class, h} = split;
+  If[class === 0, Return[<|"Status" -> "ZeroSquareClass"|>]];
+  (* the whole class first: a declared square may be reducible *)
+  whole = SelectFirst[Range[Length[rootBases]],
+    Module[{ratio = Together[class/rootBases[[#]]]},
+      MatchQ[ratio, _Integer | _Rational] && ratio =!= 0] &, 0];
+  If[whole > 0,
+    indices = {whole}; numeric = Together[class/rootBases[[whole]]],
+    list = FactorList[class];
+    Do[Module[{f = First[entry], e = Last[entry], match},
+      Which[
+        NumericQ[f], numeric *= f^e,
+        EvenQ[e], Null,
+        True,
+          match = SelectFirst[Range[Length[rootBases]],
+            Module[{ratio = Together[f/rootBases[[#]]]},
+              MatchQ[ratio, _Integer | _Rational] && ratio =!= 0] &, 0];
+          If[match > 0,
+            AppendTo[indices, match];
+            numeric *= Together[f/rootBases[[match]]]^e,
+            AppendTo[unmatched, f^e]]]],
+      {entry, list}]];
+  If[unmatched =!= {},
+    Return[<|"Status" -> "UnmatchedSquareClassFactors",
+      "Unmatched" -> unmatched|>]];
+  numericClass = transportChartNumericSquareClass[numeric];
+  If[numericClass === $Failed,
+    Return[<|"Status" -> "NonRationalSquareClassContent"|>]];
+  mu = Sqrt[Together[numeric/numericClass]];
+  If[! MatchQ[mu, _Integer | _Rational],
+    Return[<|"Status" -> "NonRationalSquareClassContent"|>]];
+  factor = Together[mu h];
+  indices = Sort[DeleteDuplicates[indices]];
+  If[! TrueQ[Together[
+      numericClass Times @@ rootBases[[indices]] factor^2 - expr] === 0],
+    Return[<|"Status" -> "SquareClassIdentityFailed"|>]];
+  <|"Status" -> "OK", "RootIndices" -> indices,
+    "NumericClass" -> numericClass, "Factor" -> factor|>];
+
+(* Denest ONE radical base against the declared root set.  Returns
+     <|"Status" -> "Denested", "RootIndices" -> {...} (the square class),
+       "NumericClass" -> c, "Residual" -> 1, "InnerRootIndices" -> {...}
+       (declared roots that survive INSIDE the rewrite),
+       "Rewrite" -> expression in declared radicals, up to a global sign,
+       "SquareIdentity" -> True, "Witness" -> <|"u","v","w","Square"|>|>
+   or one of the typed refusals "NotDenestable" (with a "Reason") and
+   "NestedMultiRootRadical".  The variables are the chart variables of
+   the frame; the algorithm itself is variable-agnostic and treats any
+   other symbol (the regulator, say) as a parameter of the coefficient
+   field. *)
+transportChartDenestRadicalBase[base_, roots_List, variables_List] := Module[
+  {rootBases, symbols, substitute, reduceRules, reduce, toRatio, zeroQ,
+   ratio, num, den, normal, list, numeric, sign, n, d, k, m, hPoly, rFree,
+   fRaw, fPart, present, index, u, v, discriminant, w, branch, g, c, h, split,
+   alpha, beta, verified, solved, classExpr, classData, rootImages, rewrite,
+   witness, check},
+  If[! MatchQ[variables, {___Symbol}],
+    Return[<|"Status" -> "NotDenestable", "Reason" -> "InvalidVariables"|>]];
+  rootBases = Together /@ (#["Root"]^2 & /@ roots);
+
+  (* (i) a purely numeric radicand is chart independent *)
+  If[NumericQ[base] && FreeQ[base, _Complex],
+    k = transportChartNumericSquareClass[base];
+    If[k === $Failed, Return[<|"Status" -> "NotDenestable",
+      "Reason" -> "NonRationalNumericRadicand"|>]];
+    Return[<|"Status" -> "Denested", "RootIndices" -> {},
+      "NumericClass" -> k, "Residual" -> 1, "InnerRootIndices" -> {},
+      "Rewrite" -> Sqrt[Together[base/k]] Sqrt[k], "SquareIdentity" -> True,
+      "Witness" -> <|"Kind" -> "Numeric", "u" -> base, "v" -> 0, "w" -> 0,
+        "Square" -> Together[base/k]|>|>]];
+
+  (* (ii) declared radicals become polynomial generators r_i, r_i^2 = q_i *)
+  symbols = Table[Unique["FeynFacet`Private`denestRoot"], {Length[rootBases]}];
+  substitute[expression_] := expression /.
+    Power[b_, e_Rational /; Denominator[e] === 2] :>
+      Module[{position = FirstPosition[rootBases,
+          q_ /; TrueQ[Together[b - q] === 0], Missing["NoRoot"], {1},
+          Heads -> False]},
+        If[MissingQ[position], Power[b, e], symbols[[First[position]]]^(2 e)]];
+  reduceRules = Table[With[{s = symbols[[i]], q = rootBases[[i]]},
+      s^e_Integer /; e >= 2 :> q^Quotient[e, 2] s^Mod[e, 2]],
+    {i, Length[symbols]}];
+  reduce[p_] := FixedPoint[Expand[# /. reduceRules] &, Expand[p]];
+  (* {numerator, denominator} with the generators cleared from the
+     denominator by conjugation and every generator power reduced.
+     Numeric radicals (the class constants our own rewrite introduces)
+     ride along as exact constants; an undeclared SYMBOLIC radical is
+     refused before this is reached. *)
+  toRatio[expression_] := Module[{c0, nu, de, i},
+    c0 = Together[substitute[expression]];
+    nu = reduce[Numerator[c0]]; de = reduce[Denominator[c0]];
+    Do[If[! FreeQ[de, symbols[[i]]],
+        Module[{conjugate = reduce[de /. symbols[[i]] -> -symbols[[i]]]},
+          nu = reduce[nu conjugate]; de = reduce[de conjugate]]],
+      {i, Length[symbols]}];
+    If[! FreeQ[de, Alternatives @@ symbols], $Failed, {nu, de}]];
+  zeroQ[e1_, e2_] := Module[{a = toRatio[e1], b = toRatio[e2]},
+    a =!= $Failed && b =!= $Failed &&
+      TrueQ[Together[reduce[a[[1]] b[[2]] - b[[1]] a[[2]]]] === 0]];
+
+  If[! FreeQ[substitute[base], Power[_, e_Rational /; Denominator[e] =!= 1]],
+    Return[<|"Status" -> "NotDenestable",
+      "Reason" -> "UndeclaredInnerRadical"|>]];
+  ratio = toRatio[base];
+  If[ratio === $Failed,
+    Return[<|"Status" -> "NotDenestable",
+      "Reason" -> "RootDenominatorNotCleared"|>]];
+  {num, den} = ratio;
+  (* Sqrt[num/den] = Sqrt[num den]/den *)
+  normal = reduce[num den];
+  If[TrueQ[normal === 0],
+    Return[<|"Status" -> "NotDenestable", "Reason" -> "ZeroRadicand"|>]];
+
+  (* (iii) split off the generator-free factors *)
+  list = FactorList[normal];
+  numeric = Times @@ (First[#]^Last[#] & /@ Select[list, NumericQ[First[#]] &]);
+  If[! MatchQ[numeric, _Integer | _Rational],
+    Return[<|"Status" -> "NotDenestable", "Reason" -> "NonRationalContent"|>]];
+  sign = Sign[numeric]; n = Numerator[Abs[numeric]]; d = Denominator[Abs[numeric]];
+  k = transportChartNumericSquareClass[Abs[numeric]];
+  m = Sqrt[(n d)/k]/d;
+  hPoly = m Times @@ (First[#]^Quotient[Last[#], 2] & /@
+    Select[list, ! NumericQ[First[#]] &]);
+  rFree = Times @@ (First[#]^Mod[Last[#], 2] & /@ Select[list,
+    ! NumericQ[First[#]] && FreeQ[First[#], Alternatives @@ symbols] &]);
+  fRaw = Times @@ (First[#]^Mod[Last[#], 2] & /@ Select[list,
+    ! NumericQ[First[#]] && ! FreeQ[First[#], Alternatives @@ symbols] &]);
+  fPart = reduce[fRaw];
+  If[FreeQ[fPart, Alternatives @@ symbols],
+    rFree = Together[rFree fPart]; fPart = 1];
+
+  If[TrueQ[fPart === 1],
+    (* (iv) no residual radical: a plain square class *)
+    classExpr = Together[sign k rFree];
+    classData = transportChartSquareClassData[classExpr, rootBases];
+    If[Lookup[classData, "Status", None] =!= "OK",
+      Return[<|"Status" -> "NotDenestable",
+        "Reason" -> "UnclassifiedSquareClass", "Detail" -> classData|>]];
+    rootImages = Sqrt /@ rootBases[[classData["RootIndices"]]];
+    rewrite = Together[hPoly classData["Factor"]/den] *
+      Sqrt[classData["NumericClass"]] Times @@ rootImages;
+    witness = <|"Kind" -> "SquareClass", "u" -> classExpr, "v" -> 0, "w" -> 0,
+      "Square" -> Together[hPoly^2]|>;
+    index = 0,
+    (* (v) a residual radical: Fermat denesting of u + v r *)
+    present = Select[Range[Length[symbols]], ! FreeQ[fPart, symbols[[#]]] &];
+    If[Length[present] =!= 1,
+      Return[<|"Status" -> "NestedMultiRootRadical",
+        "InnerRootIndices" -> present|>]];
+    index = First[present];
+    If[Exponent[fPart, symbols[[index]]] =!= 1,
+      Return[<|"Status" -> "NotDenestable", "Reason" -> "ResidualNotLinear"|>]];
+    u = Together[Coefficient[fPart, symbols[[index]], 0]];
+    v = Together[Coefficient[fPart, symbols[[index]], 1]];
+    discriminant = Together[u^2 - v^2 rootBases[[index]]];
+    w = transportChartExactSquareRoot[discriminant];
+    If[w === $Failed,
+      Return[<|"Status" -> "NotDenestable",
+        "Reason" -> "DiscriminantNotASquare"|>]];
+    (* Both Fermat branches can denest; their c differ by a declared
+       square, which IS a square of Q(x,y)[r]/(r^2 - q), so the square
+       class is defined only modulo that square and both rewrites are
+       exact.  The branch whose class uses the FEWEST declared roots is
+       taken: it keeps the chart demand minimal. *)
+    verified = {}; solved = {};
+    Do[
+      g = Together[branch/2];
+      If[TrueQ[g === 0], Continue[]];
+      split = transportChartSquareSplit[g];
+      If[split === $Failed, Continue[]];
+      {c, h} = split;
+      alpha = Together[c h];
+      If[TrueQ[alpha === 0], Continue[]];
+      beta = Together[c v/(2 alpha)];
+      If[TrueQ[Together[alpha^2 + beta^2 rootBases[[index]] - c u] === 0] &&
+          TrueQ[Together[2 alpha beta - c v] === 0],
+        Module[{candidateClass = Together[sign k rFree c], candidateData},
+          candidateData = transportChartSquareClassData[candidateClass, rootBases];
+          AppendTo[verified, <|"Class" -> candidateClass, "Data" -> candidateData,
+            "Coefficient" -> c, "Alpha" -> alpha, "Beta" -> beta|>];
+          If[Lookup[candidateData, "Status", None] === "OK",
+            AppendTo[solved, Last[verified]]]]],
+      {branch, {Together[u + w], Together[u - w]}}];
+    If[verified === {},
+      Return[<|"Status" -> "NotDenestable", "Reason" -> "NoDenestingBranch"|>]];
+    If[solved === {},
+      Return[<|"Status" -> "NotDenestable",
+        "Reason" -> "UnclassifiedSquareClass",
+        "Detail" -> First[verified]["Data"]|>]];
+    solved = First[SortBy[solved,
+      {Length[#["Data"]["RootIndices"]] &, LeafCount[#["Class"]] &}]];
+    c = solved["Coefficient"]; alpha = solved["Alpha"]; beta = solved["Beta"];
+    classExpr = solved["Class"]; classData = solved["Data"];
+    rootImages = Sqrt /@ rootBases[[classData["RootIndices"]]];
+    rewrite = Together[hPoly classData["Factor"] *
+        (alpha + beta Sqrt[rootBases[[index]]])/(c den)] *
+      Sqrt[classData["NumericClass"]] Times @@ rootImages;
+    witness = <|"Kind" -> "Fermat", "u" -> u, "v" -> v, "w" -> w,
+      "Square" -> Together[c fPart /.
+        symbols[[index]] -> Sqrt[rootBases[[index]]]],
+      "Alpha" -> alpha, "Beta" -> beta, "Coefficient" -> c,
+      "InnerRootIndex" -> index|>];
+
+  rewrite = rewrite /. Thread[symbols -> (Sqrt /@ rootBases)];
+  (* the decisive exact identity, independent of the global sign *)
+  check = zeroQ[rewrite^2, base];
+  If[! TrueQ[check],
+    Return[<|"Status" -> "NotDenestable", "Reason" -> "RewriteIdentityFailed",
+      "Rewrite" -> rewrite|>]];
+
+  <|"Status" -> "Denested", "RootIndices" -> classData["RootIndices"],
+    "NumericClass" -> classData["NumericClass"], "Residual" -> 1,
+    "InnerRootIndices" -> If[index === 0, {}, {index}],
+    "Rewrite" -> rewrite, "SquareIdentity" -> check, "Witness" -> witness|>];
+
+(* The exact identity rewrite^2 == base fixes a rewrite up to a global
+   sign; the sign is fixed by numeric evaluation at rational points of
+   the chart region where EVERY declared square is positive.  The points
+   must agree, otherwise the answer is the typed "DenestSignAmbiguous".
+   This is the only numeric step of the denesting layer. *)
+transportChartDenestSign[base_, rewrite_, roots_List,
+    variables : {__Symbol}, pointCount_Integer: 2] := Module[
+  {rootBases, candidates, signs = {}, used = {}, tolerance = 10^-20,
+   precision = 30},
+  rootBases = Together /@ (#["Root"]^2 & /@ roots);
+  candidates = Table[Thread[variables ->
+      PadRight[{Prime[k + 2]/Prime[k + 12], Prime[2 k + 3]/Prime[2 k + 17]},
+        Length[variables], 1/(k + 3)]], {k, 1, 60}];
+  Do[
+    Module[{squares, value, lhs, rhs},
+      squares = Quiet[N[rootBases /. point, precision]];
+      If[! AllTrue[squares, MatchQ[#, _Real] && # > 0 &], Continue[]];
+      value = Quiet[N[base /. point, precision]];
+      rhs = Quiet[N[rewrite /. point, precision]];
+      If[! FreeQ[{value, rhs}, Indeterminate | _DirectedInfinity], Continue[]];
+      If[! (NumericQ[value] && NumericQ[rhs]), Continue[]];
+      If[Abs[value] < 10^-10, Continue[]];
+      lhs = Sqrt[value];
+      Which[
+        Abs[lhs - rhs] <= tolerance Max[1, Abs[lhs]],
+          AppendTo[signs, 1]; AppendTo[used, point],
+        Abs[lhs + rhs] <= tolerance Max[1, Abs[lhs]],
+          AppendTo[signs, -1]; AppendTo[used, point],
+        True, AppendTo[signs, 0]; AppendTo[used, point]]];
+    If[Length[signs] >= pointCount, Break[]],
+    {point, candidates}];
+  If[Length[signs] < pointCount || MemberQ[signs, 0] ||
+      Length[DeleteDuplicates[signs]] =!= 1,
+    Return[<|"Status" -> "DenestSignAmbiguous", "Signs" -> signs,
+      "Points" -> used|>]];
+  <|"Status" -> "OK", "Sign" -> First[signs], "Points" -> used,
+    "Precision" -> precision, "Tolerance" -> tolerance|>];
+
+(* Rewrite every denested SYMBOLIC radical of an expression in terms of
+   the declared radicals (numeric radicands are already constants of the
+   coefficient field and are left alone).  The classification is exact;
+   each rewrite carries its numerically fixed global sign. *)
+transportChartCanonicalizeDenestedRadicals[expr_, roots_List,
+    variables : {__Symbol}, denested_Association] := Module[
+  {records, rewrites, failures = {}, lookup, canonical, count = 0},
+  records = KeySelect[denested, ! NumericQ[#] &];
+  If[records === <||>,
+    Return[<|"Status" -> "OK", "Expression" -> expr, "Rewrites" -> <||>,
+      "Rewritten" -> 0|>]];
+  rewrites = Association @ KeyValueMap[Function[{base, record},
+    Module[{signData},
+      If[! TrueQ[Lookup[record, "SquareIdentity", False]],
+        AppendTo[failures, <|"Base" -> base,
+          "Reason" -> "DenestIdentityNotVerified"|>]; Nothing,
+        signData = transportChartDenestSign[base,
+          Lookup[record, "Rewrite", 0], roots, variables];
+        If[Lookup[signData, "Status", None] =!= "OK",
+          AppendTo[failures, <|"Base" -> base,
+            "Reason" -> "DenestSignAmbiguous", "Detail" -> signData|>]; Nothing,
+          base -> <|"Rewrite" -> Together[signData["Sign"] record["Rewrite"]],
+            "Sign" -> signData["Sign"], "SignPoints" -> signData["Points"],
+            "RootIndices" -> Lookup[record, "RootIndices", {}],
+            "NumericClass" -> Lookup[record, "NumericClass", 1],
+            "Witness" -> Lookup[record, "Witness", <||>]|>]]]],
+    records];
+  If[failures =!= {},
+    Return[<|"Status" -> "DenestSignAmbiguous", "Failures" -> failures|>]];
+  lookup[b_] := lookup[b] = SelectFirst[Keys[rewrites],
+    TrueQ[Together[b - #] === 0] &, None];
+  canonical = expr /.
+    Power[b_ /; ! NumericQ[b], e_Rational /; Denominator[e] === 2] :>
+      With[{match = lookup[b]},
+        If[match === None, Power[b, e], count++; rewrites[match]["Rewrite"]^(2 e)]];
+  <|"Status" -> "OK", "Expression" -> canonical, "Rewrites" -> rewrites,
+    "Rewritten" -> count|>];
+
 transportChartRootIndices[expr_, roots_List] := Module[
-  {rootBases, radicals, matches, indices, unknown},
+  {rootBases, radicals, matches, indices, unknown, denested, denestedBases,
+   numericClasses, variables},
   rootBases = Together /@ (#["Root"]^2 & /@ roots);
   radicals = transportChartRadicalBases[expr];
   (* level 1 only, no heads: an all-level Position tests SUBexpressions of
@@ -249,8 +620,30 @@ transportChartRootIndices[expr_, roots_List] := Module[
      declared frame order so channel 2^i always names the same root. *)
   indices = Sort[DeleteDuplicates[Flatten[matches /@ radicals]]];
   unknown = Select[radicals, matches[#] === {} &];
+  (* 2026-08-24: a radicand that is not itself a declared square may
+     still lie in the declared field (nested or numeric).  Such a base is
+     denested exactly, contributes the declared roots of its square class
+     AND the declared roots surviving inside its rewrite, and leaves the
+     unclassified list.  Discovery order is untouched and the declared
+     frame order still fixes the grade mask, so recorded masks stay
+     valid; the index set can only GAIN correctly classified entries. *)
+  variables = DeleteDuplicates[Flatten[Variables /@ rootBases]];
+  variables = Select[variables, MatchQ[#, _Symbol] &];
+  denested = Association @ Map[
+    Function[base, base -> transportChartDenestRadicalBase[base, roots, variables]],
+    unknown];
+  denestedBases = Select[denested,
+    Lookup[#, "Status", None] === "Denested" &];
+  indices = Sort[DeleteDuplicates[Join[indices,
+    Flatten[Lookup[Values[denestedBases], "RootIndices", {}]],
+    Flatten[Lookup[Values[denestedBases], "InnerRootIndices", {}]]]]];
+  numericClasses = DeleteDuplicates[DeleteCases[
+    Flatten[Lookup[Values[denestedBases], "NumericClass", {}]], 1]];
+  unknown = Select[unknown, ! KeyExistsQ[denestedBases, #] &];
   <|"RootIndices" -> indices, "RadicalBases" -> radicals,
-    "UnclassifiedRadicalBases" -> unknown|>
+    "UnclassifiedRadicalBases" -> unknown,
+    "NumericRadicalClasses" -> numericClasses,
+    "DenestedRadicalBases" -> denestedBases|>
 ];
 
 FamilyAlgebraicRootCensus[assembly_Association, frame_Association] := Module[
@@ -279,7 +672,11 @@ FamilyAlgebraicRootCensus[assembly_Association, frame_Association] := Module[
             "RootCount" -> Length[classification["RootIndices"]],
             "RadicalBases" -> classification["RadicalBases"],
             "UnclassifiedRadicalBases" ->
-              classification["UnclassifiedRadicalBases"]|>]],
+              classification["UnclassifiedRadicalBases"],
+            "DenestedRadicalBases" ->
+              Keys[Lookup[classification, "DenestedRadicalBases", <||>]],
+            "NumericRadicalClasses" ->
+              Lookup[classification, "NumericRadicalClasses", {}]|>]],
       Nothing],
     {i, Length[blocks]}, {j, Length[blocks]}], 1];
   unmatched = DeleteDuplicates[Flatten[
@@ -293,6 +690,12 @@ FamilyAlgebraicRootCensus[assembly_Association, frame_Association] := Module[
     "MaximumRootCount" -> Max[Append[Lookup[records, "RootCount", {}], 0]],
     "ThreeRootBlocks" -> Select[records, #["RootCount"] >= 3 &],
     "UnclassifiedRadicalBases" -> unmatched,
+    (* radicands accepted by exact denesting rather than by a direct
+       match (2026-08-24): classified, but not literally declared *)
+    "DenestedRadicalBases" -> DeleteDuplicates[Flatten[
+      Lookup[records, "DenestedRadicalBases", {}]]],
+    "NumericRadicalClasses" -> DeleteDuplicates[Flatten[
+      Lookup[records, "NumericRadicalClasses", {}]]],
     "Blocks" -> records|>
 ];
 
@@ -426,6 +829,18 @@ SolveEpsFormStripInFrame[
   If[classification["UnclassifiedRadicalBases"] =!= {},
     Return[<|"Status" -> "StripContainsUndeclaredRadicals",
       "RadicalBases" -> classification["UnclassifiedRadicalBases"]|>]];
+  (* 2026-08-24: the classifier now also accepts nested and numeric
+     radicands by exact denesting.  Everything downstream of this solver
+     -- CANONICA/Libra, the finite-field sampler, the multiquadratic
+     grade engine -- works over a RATIONAL chart, and neither a numeric
+     radical constant nor a rewritten nested radical has been carried
+     through it.  The strip therefore still STOPS here, now with the
+     denesting recorded, instead of proceeding on an untested path. *)
+  If[Lookup[classification, "DenestedRadicalBases", <||>] =!= <||>,
+    Return[<|"Status" -> "StripContainsDenestedRadicals",
+      "RadicalBases" -> Keys[classification["DenestedRadicalBases"]],
+      "NumericRadicalClasses" ->
+        Lookup[classification, "NumericRadicalClasses", {}]|>]];
   rootIndices = classification["RootIndices"];
   usedRoots = allRoots[[rootIndices]];
   rootSquares = Lookup[usedRoots, "RootSquare", {}];

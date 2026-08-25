@@ -337,6 +337,17 @@ familyRowGaugeFiniteFieldPrepare[
   If[unknownRadicals =!= {},
     Return[<|"Status" -> "UnknownRadicals",
       "RadicalBases" -> unknownRadicals|>]];
+  (* 2026-08-24: the classifier now accepts nested and numeric radicands
+     by exact denesting (transportChartDenestRadicalBase).  This solver
+     samples the declared roots channel by channel over a rational
+     coefficient field; a rewritten nested radical or a numeric radical
+     constant has never been carried through it, so such an input is
+     refused here instead of being sampled on an untested path. *)
+  If[Lookup[classification, "DenestedRadicalBases", <||>] =!= <||>,
+    Return[<|"Status" -> "DenestedRadicalsNotSupported",
+      "RadicalBases" -> Keys[classification["DenestedRadicalBases"]],
+      "NumericRadicalClasses" ->
+        Lookup[classification, "NumericRadicalClasses", {}]|>]];
 
   gaugeRowSupport = familyRowGaugeFFSupport /@ gauge;
   gaugeColumnSupport = familyRowGaugeFFSupport /@ Transpose[gauge];

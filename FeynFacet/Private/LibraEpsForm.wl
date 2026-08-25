@@ -197,10 +197,15 @@ libraEpsFormLoadBackend[requested_] := Module[
   libraLoaded = masterTransportLoadLibra[$feynFacetAddonRoot];
   If[libraLoaded =!= True,
     Return[<|"Status" -> "LibraNotLoaded"|>]];
+  (* the flag is GLOBAL in Libra: a backend requested WITHOUT Fermat must
+     also switch it off, otherwise an earlier Fermat-enabled call leaves
+     it on and the caller's declined choice is silently overridden
+     (2026-08-24) *)
   If[useFermat,
     Libra`$LibraUseFermat = True;
     If[! TrueQ[Libra`$LibraUseFermat],
-      Return[<|"Status" -> "LibraFermatNotEnabled"|>]]];
+      Return[<|"Status" -> "LibraFermatNotEnabled"|>]],
+    Libra`$LibraUseFermat = False];
   <|"Status" -> "OK", "UseFermat" -> useFermat,
     "Options" -> If[useFermat, {Fermatica`UseFermat -> True}, {}]|>
 ];
