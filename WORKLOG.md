@@ -2987,9 +2987,14 @@ states; one KernelPool main + 4 subkernels pinned to cores 10-17):
   summed exact algebra was 2713.8 s of expand/cancel/canonicalize inside
   a 703.4 s batch window, a measured concurrency of 3.86). Production's
   serial route on the same block on the same day measured **1868.4 s**
-  (campaign log 2026-08-25 08:31): **2.63x**. Every target's value is
-  SameQ to the serial route's and equals the strip input production
-  wrote.
+  (campaign log 2026-08-25 08:31): **2.63x**, and that is the figure to
+  quote. The same-session serial route measured 3308.4 s (expand 2891.8,
+  cancel 390.7, canonicalize 18.3, intern 6.8) for a ratio of 4.66x, but
+  it ran while another agent's kernels held 250-750% CPU on the same
+  eight cores and is an upper bound, not the result. Every target's value
+  is SameQ between the two routes and equals the strip input production
+  wrote; the batch plan is a deterministic partition covering every job
+  in target order.
 - CF259 (21,18), 8 algebraic targets, 37 interned operands. Serial
   196.3 s, parallel with 3 helpers 139.2 s (**1.41x**); the second phase
   alone went 39.6 s -> 14.2 s (2.8x on 4 workers) while the shared
