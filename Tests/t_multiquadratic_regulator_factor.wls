@@ -233,5 +233,90 @@ check["graded decompose: Sqrt[2] is carried as a generator, 16 channels",
 check["graded roots: a rational square is not made a generator",
   Length[FeynFacet`Private`familyRegulatorGradedRoots[gr, {4, 1}]] === 3];
 
+(* ---- grade decomposition: interning, brokering, sampling cache ----
+   Codex's 08:30 performance item 1: the decomposition was 134.1 of the
+   153.9 s the CF259 rows-1..23 factorization took.  Structurally
+   identical entries are interned and each unique expression decomposed
+   once; the unique expressions are immutable independent jobs, so a
+   bounded brokered map over them is admissible.  The acceptance is SameQ
+   on the grade components, never a looser equality: a grade component is
+   a Together-normalized rational function and the routes must produce
+   the same expression.  No helper kernel is asked for here -- the batch
+   dispatcher is injected. *)
+gradedMatrices = FeynFacet`Private`familyRegulatorGradedMatrices;
+repeatEntry = (1 + r1)/(2 - x r2);
+otherEntry = (y + r3)/(1 + r1 r2);
+repeatConnection = {
+  {{repeatEntry, otherEntry, 0}, {0, repeatEntry, otherEntry},
+   {repeatEntry, 0, 0}},
+  {{0, repeatEntry, 0}, {otherEntry, 0, repeatEntry},
+   {0, 0, otherEntry}}};
+oldGrade = gradedMatrices[repeatConnection, gr, "Intern" -> False];
+newGrade = gradedMatrices[repeatConnection, gr, "Intern" -> True,
+  "Parallel" -> False];
+check["grade interning: the interned route is SameQ to the per-entry route",
+  Lookup[newGrade, "Status", None] === "OK" &&
+    newGrade["Grades"] === oldGrade["Grades"] &&
+    newGrade["ActiveGrades"] === oldGrade["ActiveGrades"] &&
+    newGrade["Channels"] === oldGrade["Channels"]];
+check["grade interning: each unique expression is decomposed once",
+  Lookup[newGrade["Statistics"], "NonzeroEntries", -1] === 9 &&
+    Lookup[newGrade["Statistics"], "UniqueEntries", -1] === 2];
+(* "Parallel" -> False only: whether the Automatic route engages depends
+   on whether a KernelPool is serving this kernel, which is an
+   environment fact and not this test's subject *)
+check["grade interning: interning is the default",
+  Module[{d = gradedMatrices[repeatConnection, gr, "Parallel" -> False]},
+   d["Grades"] === oldGrade["Grades"] &&
+     Lookup[d["Statistics"], "Interned", False] === True &&
+     Lookup[d["Statistics"], "UniqueEntries", -1] === 2 &&
+     Lookup[d["Statistics"], "Route", None] === "Serial"]];
+gradeDispatcher[data_Association, batchList_List] := Map[
+  Function[batch, Map[Function[expression,
+      Quiet[Check[FeynFacet`Private`familyRegulatorGradedDecompose[
+        expression, data["Roots"]], $Failed]]],
+    data["Expressions"][[batch]]]], batchList];
+deadGradeDispatcher[data_Association, batchList_List] :=
+  ConstantArray[$Failed, Length[batchList]];
+parGrade = gradedMatrices[repeatConnection, gr, "Intern" -> True,
+  "Parallel" -> True, "Helpers" -> 1, "BatchDispatcher" -> gradeDispatcher];
+check["grade interning: the brokered map returns the same decomposition",
+  Lookup[parGrade, "Status", None] === "OK" &&
+    parGrade["Grades"] === oldGrade["Grades"] &&
+    Lookup[parGrade["Statistics"], "Route", None] === "Parallel" &&
+    Lookup[parGrade["Statistics"], "Batches", 0] === 2];
+deadGrade = gradedMatrices[repeatConnection, gr, "Intern" -> True,
+  "Parallel" -> True, "Helpers" -> 1,
+  "BatchDispatcher" -> deadGradeDispatcher];
+check["grade interning: a helper that returns nothing costs time, never a grade",
+  Lookup[deadGrade, "Status", None] === "OK" &&
+    deadGrade["Grades"] === oldGrade["Grades"]];
+check["grade interning: a byte cap splits the unique expressions, not the entries",
+  Module[{d = gradedMatrices[repeatConnection, gr, "Intern" -> True,
+      "Parallel" -> True, "Helpers" -> 1, "BatchByteCap" -> 1,
+      "BatchDispatcher" -> gradeDispatcher]},
+   d["Grades"] === oldGrade["Grades"] &&
+     Lookup[d["Statistics"], "Batches", 0] === 2]];
+(* the sampled grade matrices are cached per (component, point) so the
+   {1, 2, 4, 8} point ladder reuses its prefixes *)
+FeynFacet`Private`$familyRegulatorGradedSampleCache = <||>;
+sampleMatrix = FeynFacet`Private`familyRegulatorGradedSampleMatrix;
+gradeComponent = newGrade["Grades"][[1, 1]];
+samplePoint = {x -> 3/5, y -> 7/11};
+sampledOnce = sampleMatrix[gradeComponent, samplePoint, eps];
+cacheAfterFirst = Length[FeynFacet`Private`$familyRegulatorGradedSampleCache];
+sampledTwice = sampleMatrix[gradeComponent, samplePoint, eps];
+cacheAfterSecond = Length[FeynFacet`Private`$familyRegulatorGradedSampleCache];
+check["grade sampling: a repeated (component, point) is served from the cache",
+  sampledOnce === sampledTwice && cacheAfterFirst === 1 &&
+    cacheAfterSecond === 1];
+sampleMatrix[gradeComponent, {x -> 4/5, y -> 7/11}, eps];
+check["grade sampling: a new point adds one cache entry",
+  Length[FeynFacet`Private`$familyRegulatorGradedSampleCache] === 2];
+check["grade sampling: the cached value is the uncached value",
+  sampledOnce === Map[Function[entry,
+    If[TrueQ[entry === 0], 0, Together[(entry /. samplePoint)/eps]]],
+    gradeComponent, {2}]];
+
 Print["t_multiquadratic_regulator_factor: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];

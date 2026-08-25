@@ -2937,3 +2937,98 @@ name).  New suites: t_multiquadratic_dispatch 35/35,
 t_undeclared_metadata 11/11; all multiquadratic/in-frame/generality
 suites green.  The dispatch is not yet exercised on a physical
 triple-root family (CF259/300/303; next campaign).
+
+## 2026-08-25 (09:25-11:00) — deferred materializer: phase telemetry and an immutable parallel second phase; grade decomposition interned and brokered
+
+Branch `materializer-performance` (worktree). Codex's 06:30 items A and B
+and his 08:30 performance item 1, all three backed by his own production
+measurements.
+
+**Phase telemetry** (`FeynFacet/Private/BlockEquationDeferred.wl`). The
+materializer returned its substage totals only at the end, so the 1868 s
+CF303 {17,12} construction was one silent interval and a watchdog could
+not tell an expensive entry from a deadlock. It now emits a start record
+and rate-limited progress records — one per interned record in the shared
+phase, one per assembled target in the independent phase — each carrying
+the running counts, the interned-operand count and the accumulated
+intern/expand/cancel/canonicalize seconds. The limit is wall-clock, 60 s
+by default; `FACET_MATERIALIZE_PROGRESS_SECONDS` moves it and
+`"Progress" -> False` silences it. Measuring the real CF259 (21,18) block
+is what showed the shared phase needs records of its own: 156 of its
+196 s are spent there, before a single target is assembled.
+
+**Parallel second phase**, to Codex's design and no further. Phase 1
+stays serial on the main kernel: records walked in deterministic target
+order, every operand canonicalized and factorized exactly once through
+the intern pool, each record replaced by the immutable job
+`{coefficient, {operand id, ...}}`. Phase 2 — numerator expansion,
+per-factor cancellation, the final one-quotient algebraic `Together` —
+reads only the immutable operand table, so bounded batches of consecutive
+jobs go to at most the currently free pool helpers through the task
+broker while this kernel keeps the last batch and never idles. Batch size
+obeys an estimated-byte cap, not an entry count. Reassembly is in target
+order on the main kernel, the typed `Together` fallback stays there, and
+a batch a helper does not return is recomputed locally.
+`FACET_MATERIALIZE_PARALLEL=Off` reverts.
+
+**Grade decomposition** (`FeynFacet/Private/FamilyRegulatorFactor.wl`,
+grade-decomposition region only). `familyRegulatorGradedMatrices` interns
+structurally identical nonzero entries and decomposes each unique
+expression once in first-encounter order, with an optional brokered map
+over the unique expressions under the same byte gate and the same
+local-recomputation guarantee. Sampled grade matrices are memoized per
+(component, point) so the `{1,2,4,8}` point ladder reuses prefixes.
+
+**Measured** (fixtures extracted read-only from the saved campaign
+states; one KernelPool main + 4 subkernels pinned to cores 10-17):
+
+- CF303 {17,12}, 8 algebraic targets, 62 interned operands. Parallel
+  route with 3 free helpers: **710.5 s** (intern 6.8 s; the four workers'
+  summed exact algebra was 2713.8 s of expand/cancel/canonicalize inside
+  a 703.4 s batch window, a measured concurrency of 3.86). Production's
+  serial route on the same block on the same day measured **1868.4 s**
+  (campaign log 2026-08-25 08:31): **2.63x**. Every target's value is
+  SameQ to the serial route's and equals the strip input production
+  wrote.
+- CF259 (21,18), 8 algebraic targets, 37 interned operands. Serial
+  196.3 s, parallel with 3 helpers 139.2 s (**1.41x**); the second phase
+  alone went 39.6 s -> 14.2 s (2.8x on 4 workers) while the shared
+  interning phase — 80% of this block — is unchanged by construction.
+  SameQ on every target; both equal production's strip input.
+- CF259 rows 1..23 (41x41, graded rank 4, 16 grades): grade decomposition
+  **146.3 s** without interning, **142.7 s** interned serially, **71.1 s**
+  interned and brokered to 2 free helpers (**2.06x**); `Grades` and
+  `ActiveGrades` SameQ to the per-entry route in both cases. The whole
+  `FactorFamilyRegulatorDependenceInFrame` stage: **153.9 s** recorded at
+  08:31, **102.1 s** in this run, with `Transformation`, `Inverse`,
+  `Rank`, `ActiveGrades` and `Method` SameQ to the saved production
+  record.
+
+**Finding that corrects the premise of the interning item.** On the real
+CF259 rows-1..23 connection 667 entries are nonzero and 597 of them are
+structurally distinct: only 10.5% are duplicates, so interning alone buys
+2.5%. The win in that stage is the brokered map over the unique
+expressions, which interning is the enabling step for (it defines the
+immutable job list). Reported to Codex as a correction, not as a
+confirmation.
+
+**Contention caveat, stated as measured.** Another agent's kernels held
+250-750% CPU on the same eight cores for most of this window. The two
+CF303 measurements are both affected; the CF259 grade comparison is
+internally consistent (its three routes ran back to back in one window).
+
+**Tests** (fresh KernelPool subkernel per suite): `t_construction_dag`
+78/78 (was 55; new sections (i) phase telemetry and (j) serial ==
+parallel exactly, with an injected batch dispatcher so no helper kernel
+is ever asked for), `t_multiquadratic_regulator_factor` 39/39 (was 30),
+`t_family_regulator_factor` 7/7, `t_family_regulator_factor_in_frame`
+14/14, `t_multiquadratic_dispatch` 35/35, `t_construction_budget` 36/36,
+`t_broker_adaptive` 38/38, `t_check_levels` OK.
+
+**Worktree hygiene, not a code finding.** `t_broker_adaptive` (5 failures)
+and `t_check_levels` (3) are RED in a bare worktree or clone for the same
+reason `t_radical_denesting` is: they read gitignored artifacts — the
+FLINT binaries under `FeynFacet/Backends/flint/bin/` and the
+`BenchmarkStripBackends` results tree. Symlinking those from the main
+tree turned both green with no source change. This is the clone-red debt
+Codex flagged at 08:30, and it is wider than the one file he named.

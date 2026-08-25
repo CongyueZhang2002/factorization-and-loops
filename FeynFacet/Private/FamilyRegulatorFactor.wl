@@ -309,9 +309,11 @@ using the Wolfram backend"];
 Clear[FactorFamilyRegulatorDependenceMultiquadratic];
 ClearAll[familyRegulatorNonSquareRationalQ, familyRegulatorGradedRoots,
   familyRegulatorGradedDecompose, familyRegulatorGradedMatrices,
+  familyRegulatorGradedDecomposeTask,
   familyRegulatorGradedPointFactoredQ, familyRegulatorModularImage,
   familyRegulatorGradedCorroborate, familyRegulatorGradedSpotCheck,
-  familyRegulatorGradedSampleMatrix, $familyRegulatorMaximumGradedRank];
+  familyRegulatorGradedSampleMatrix, $familyRegulatorMaximumGradedRank,
+  $familyRegulatorGradedSampleCache, $familyRegulatorGradedSampleCacheLimit];
 
 (* rank 3 declared roots + the square classes of the numeric constants a
    denesting can introduce (CF259 carries Sqrt[2]); the neutral algebra
@@ -383,21 +385,142 @@ familyRegulatorGradedDecompose[expression_, roots_List] := Module[
   channels
 ];
 
+(* helper side of the optional brokered decomposition: one task = one
+   contiguous slice of the UNIQUE entry expressions.  Roots and
+   expressions are written once per call and read once per helper kernel
+   (taskBrokerRead memoizes by path and modification time). *)
+familyRegulatorGradedDecomposeTask[dataFile_String, indices_List] :=
+  Module[{data = taskBrokerRead[dataFile]},
+    If[! AssociationQ[data], Return[$Failed]];
+    Function[expression,
+      Quiet[Check[familyRegulatorGradedDecompose[expression, data["Roots"]],
+        $Failed]]] /@ data["Expressions"][[indices]]];
+
 (* {Ax, Ay} -> the 2 * 2^k grade-component matrices.  A zero entry keeps
    its zero channels without a decomposition call; a failure is reported
-   with the offending positions, never absorbed. *)
-familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List] := Module[
+   with the offending positions, never absorbed.
+
+   INTERNING (2026-08-25, Codex's 08:30 performance item 1; the stage was
+   measured at 134.1 of the 153.9 s the whole CF259 rows-1..23
+   factorization took, against 3.1 s for Libra and 0.9 s for the exact
+   grade check).  Structurally identical nonzero entries are interned in
+   an Association keyed by the expression -- a hash map with SameQ
+   collision semantics -- and each UNIQUE expression is decomposed once,
+   in first-encounter order.  A connection's entries repeat: the same
+   coefficient appears in several rows, and the truncation's zero blocks
+   and shared residues make the repetition systematic.
+
+   The unique expressions are immutable independent jobs, so a bounded
+   brokered map over them is safe (his explicit condition).  It is taken
+   only when the pool has a free helper, the estimated payload clears a
+   byte gate, and there is more than one unique expression to give away;
+   results come back in the deterministic order of the unique list, a
+   task that fails or times out is recomputed locally, and with no free
+   helper the loop is exactly the serial one.  Nothing about the
+   decomposition itself changes. *)
+Options[familyRegulatorGradedMatrices] = {
+  "Intern" -> True, "Parallel" -> Automatic, "Helpers" -> Automatic,
+  "BatchByteCap" -> Automatic, "BatchDispatcher" -> Automatic,
+  "BatchTimeout" -> 3600};
+
+familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
+    OptionsPattern[]] := Module[
   {rank = Length[roots], gradeCount, n = Length[connection[[1]]], channels,
-   failures = {}, decomposed, entry, active},
+   failures = {}, decomposed, entry, active, started = AbsoluteTime[],
+   internQ, unique = {}, uniqueIndex = <||>, entryIds,
+   nonzeroCount = 0, values, helpers = 0, byteCap, dispatcher, parallel,
+   batches = {}, bytes, dataFile, codes, handle, farmed, localBatch,
+   missing, decomposeLocal, route = "Serial", batchSeconds = 0.},
   gradeCount = 2^rank;
-  channels = Table[
-    entry = connection[[mu, i, j]];
-    If[TrueQ[entry === 0], ConstantArray[0, gradeCount],
-      decomposed = familyRegulatorGradedDecompose[entry, roots];
-      If[ListQ[decomposed] && Length[decomposed] === gradeCount, decomposed,
-        If[Length[failures] < 4, AppendTo[failures, {mu, i, j}]];
-        ConstantArray[0, gradeCount]]],
-    {mu, 2}, {i, n}, {j, n}];
+  internQ = TrueQ[OptionValue["Intern"]];
+
+  If[! internQ,
+    channels = Table[
+      entry = connection[[mu, i, j]];
+      If[TrueQ[entry === 0], ConstantArray[0, gradeCount],
+        nonzeroCount++;
+        decomposed = familyRegulatorGradedDecompose[entry, roots];
+        If[ListQ[decomposed] && Length[decomposed] === gradeCount, decomposed,
+          If[Length[failures] < 4, AppendTo[failures, {mu, i, j}]];
+          ConstantArray[0, gradeCount]]],
+      {mu, 2}, {i, n}, {j, n}],
+
+    (* pass 1: intern the nonzero entries in deterministic position order *)
+    entryIds = Table[
+      entry = connection[[mu, i, j]];
+      If[TrueQ[entry === 0], 0,
+        nonzeroCount++;
+        If[KeyExistsQ[uniqueIndex, entry], uniqueIndex[entry],
+          AppendTo[unique, entry];
+          uniqueIndex[entry] = Length[unique]]],
+      {mu, 2}, {i, n}, {j, n}];
+
+    (* pass 2: decompose each unique expression once.  The call is NOT
+       wrapped in Check here: the per-entry route was not, and a benign
+       message must not be read as a failed decomposition.  The helper
+       task does wrap it, so a message on a HELPER only sends that
+       expression back to this kernel to be decomposed unwrapped. *)
+    decomposeLocal[indices_List] := Map[
+      Function[index, familyRegulatorGradedDecompose[unique[[index]], roots]],
+      indices];
+    bytes = ByteCount /@ unique;
+    byteCap = Replace[OptionValue["BatchByteCap"], Automatic :> 2^28];
+    dispatcher = OptionValue["BatchDispatcher"];
+    helpers = OptionValue["Helpers"];
+    If[helpers === Automatic,
+      helpers = If[dispatcher === Automatic,
+        If[taskBrokerActiveQ[], taskBrokerFreeKernels[], 0], 1]];
+    If[! IntegerQ[helpers] || helpers < 0, helpers = 0];
+    helpers = Min[helpers, Max[0, Length[unique] - 1]];
+    parallel = With[{requestedParallel = OptionValue["Parallel"]},
+      Which[
+        requestedParallel === Automatic,
+          helpers >= 1 && blockEquationDeferredParallelRouteQ[],
+        TrueQ[requestedParallel], helpers >= 1,
+        True, False]];
+    batches = If[unique === {}, {},
+      blockEquationDeferredBatchPlan[bytes, helpers + 1, byteCap]];
+    values = ConstantArray[$Failed, Length[unique]];
+    If[! parallel || Length[batches] <= 1,
+      Do[values[[batches[[b]]]] = decomposeLocal[batches[[b]]],
+        {b, Length[batches]}],
+      route = "Parallel";
+      batchSeconds = First[AbsoluteTiming[
+        If[dispatcher === Automatic,
+          dataFile = taskBrokerDataFile[
+            "frfgrade_" <> Hash[{unique, roots}, "SHA256", "HexString"],
+            <|"Expressions" -> unique, "Roots" -> roots|>];
+          codes = StringJoin[
+            "FeynFacet`Private`familyRegulatorGradedDecomposeTask[\"",
+            dataFile, "\", ", ToString[#, InputForm], "]"] & /@ Most[batches];
+          handle = taskBrokerSubmit[codes, "Label" -> "frfgrade",
+            "Timeout" -> OptionValue["BatchTimeout"]];
+          localBatch = decomposeLocal[Last[batches]];
+          farmed = taskBrokerCollect[handle],
+          farmed = dispatcher[<|"Expressions" -> unique, "Roots" -> roots|>,
+            Most[batches]];
+          localBatch = decomposeLocal[Last[batches]]]]];
+      values[[Last[batches]]] = localBatch;
+      Do[
+        If[ListQ[farmed] && b <= Length[farmed] && ListQ[farmed[[b]]] &&
+            Length[farmed[[b]]] === Length[batches[[b]]],
+          values[[batches[[b]]]] = farmed[[b]]],
+        {b, Length[batches] - 1}];
+      missing = Select[Range[Length[unique]],
+        ! (ListQ[values[[#]]] && Length[values[[#]]] === gradeCount) &];
+      If[missing =!= {}, values[[missing]] = decomposeLocal[missing]]];
+
+    (* pass 3: place the decompositions back, position by position *)
+    channels = Table[
+      Module[{id = entryIds[[mu, i, j]]},
+        If[id === 0, ConstantArray[0, gradeCount],
+          decomposed = values[[id]];
+          If[ListQ[decomposed] && Length[decomposed] === gradeCount,
+            decomposed,
+            If[Length[failures] < 4, AppendTo[failures, {mu, i, j}]];
+            ConstantArray[0, gradeCount]]]],
+      {mu, 2}, {i, n}, {j, n}]];
+
   If[failures =!= {},
     Return[<|"Status" -> "GradeDecompositionFailed", "Positions" -> failures,
       "Rank" -> rank|>]];
@@ -406,7 +529,12 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List] := Module
       Nothing, {mu, g}], {mu, 2}, {g, gradeCount}], 1];
   <|"Status" -> "OK", "Channels" -> channels, "Rank" -> rank,
     "GradeCount" -> gradeCount, "ActiveGrades" -> active,
-    "Grades" -> Table[channels[[mu, All, All, g]], {mu, 2}, {g, gradeCount}]|>
+    "Grades" -> Table[channels[[mu, All, All, g]], {mu, 2}, {g, gradeCount}],
+    "Statistics" -> <|"NonzeroEntries" -> nonzeroCount,
+      "UniqueEntries" -> If[internQ, Length[unique], nonzeroCount],
+      "Interned" -> internQ, "Route" -> route, "Helpers" -> helpers,
+      "Batches" -> Length[batches], "BatchSeconds" -> batchSeconds,
+      "DecomposeSeconds" -> N[AbsoluteTime[] - started]|>|>
 ];
 
 (* Sampling a grade component at a rational chart point.  The channels
@@ -414,10 +542,38 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List] := Module
    entry needs no work at all -- and a grade component of a real
    connection is very sparse (CF259 rows 1..23: 336 nonzero entries of
    1681, spread over 16 grades).  Skipping the zeros is what keeps the
-   ladder affordable at 2 * 2^k matrices per point instead of 2. *)
+   ladder affordable at 2 * 2^k matrices per point instead of 2.
+
+   MEMOIZED per (grade component, point) since 2026-08-25 (Codex 08:30
+   performance item 1, second half).  The point ladder {1, 2, 4, 8}
+   rebuilds every prefix: at 8 points it samples 1 + 2 + 4 + 8 = 15
+   point-sets where 8 distinct ones exist.  The key is a SHA-256
+   fingerprint of the component, the point and the regulator symbol with
+   its context -- the same fingerprint discipline the artifact ABIs of
+   this repository use -- and the cache stores only the SAMPLED matrix,
+   which is a matrix of rational functions of the regulator alone and far
+   smaller than the two-variable component; keeping the component itself
+   would pin the whole grade decomposition of every family a persistent
+   pool subkernel has served.  The pool is bounded for the same reason. *)
+$familyRegulatorGradedSampleCache = <||>;
+$familyRegulatorGradedSampleCacheLimit = 128;
+
 familyRegulatorGradedSampleMatrix[matrix_List, rule_List, epsilon_Symbol] :=
-  Map[Function[entry,
-    If[TrueQ[entry === 0], 0, Together[(entry /. rule)/epsilon]]], matrix, {2}];
+  Module[{key, hit, sampled},
+    key = Hash[{matrix, rule, Context[epsilon], SymbolName[epsilon]},
+      "SHA256", "HexString"];
+    hit = Lookup[$familyRegulatorGradedSampleCache, Key[key], None];
+    If[hit =!= None, Return[hit]];
+    sampled = Map[Function[entry,
+      If[TrueQ[entry === 0], 0, Together[(entry /. rule)/epsilon]]],
+      matrix, {2}];
+    If[Length[$familyRegulatorGradedSampleCache] >=
+        $familyRegulatorGradedSampleCacheLimit,
+      $familyRegulatorGradedSampleCache = Take[
+        $familyRegulatorGradedSampleCache,
+        -Quotient[$familyRegulatorGradedSampleCacheLimit, 2]]];
+    $familyRegulatorGradedSampleCache[key] = sampled;
+    sampled];
 
 (* the rational route's cheap point gate, per grade component *)
 familyRegulatorGradedPointFactoredQ[inverse_List, gradeMatrices_List,

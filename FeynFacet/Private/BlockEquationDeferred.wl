@@ -95,7 +95,23 @@
    ROUTE.  blockEquationDeferredRouteQ[] reads FACET_CONSTRUCTION_ROUTE.
    The deferred route is the DEFAULT; FACET_CONSTRUCTION_ROUTE=Symbolic
    reverts every caller to the previous symbolic construction, so the
-   risk of this change is contained to one environment variable. *)
+   risk of this change is contained to one environment variable.
+
+   PHASE TELEMETRY AND THE PARALLEL SECOND PHASE (2026-08-25, Codex's
+   06:30 items A and B, confirmed by his 08:30 measurement of the CF303
+   {17,12} construction: 1868.4 s of which 1604.1 s numerator expansion,
+   248.5 s cancellation, 6.5 s the shared interning).  The materializer
+   now emits a start record and a RATE-LIMITED progress record, so a
+   1868 s construction is no longer one silent interval to a watchdog;
+   and its second phase -- per-target numerator expansion, per-factor
+   cancellation and the final one-quotient algebraic Together -- is
+   farmed to the currently free pool helpers as bounded batches of
+   IMMUTABLE jobs over an interned operand table, while the mutable
+   interning/factorization phase stays serial on the main kernel in
+   deterministic order.  FACET_MATERIALIZE_PARALLEL=Off reverts the
+   second phase to serial; FACET_MATERIALIZE_PROGRESS_SECONDS moves the
+   telemetry interval.  See the phase note above
+   blockEquationDeferredMaterialize. *)
 
 Begin["FeynFacet`Private`"];
 
@@ -117,6 +133,12 @@ ClearAll[
   blockEquationDeferredMaterialize,
   blockEquationDeferredSourceExpression,
   blockEquationDeferredForcing,
+  blockEquationDeferredProgressRecord,
+  blockEquationDeferredProgressIntervalDefault,
+  blockEquationDeferredParallelRouteQ,
+  blockEquationDeferredAssembleJob,
+  blockEquationDeferredBatchPlan,
+  blockEquationDeferredMaterializeTask,
   $blockEquationDeferredABIVersion
 ];
 
@@ -537,6 +559,187 @@ blockEquationDeferredCanonicalOperand[expression_, pool_Symbol] :=
       factors};
     pool[expression]];
 
+(* ---- phase telemetry (Codex 2026-08-25 06:30, item A) --------------- *)
+
+(* MEASURED MOTIVATION.  The materializer returned its substage totals
+   only at the END, so a 1868 s construction (CF303 {17,12}, production
+   2026-08-25 08:31) was a single silent interval: the campaign watchdog
+   could not tell one expensive entry from a deadlock, and twice escalated
+   an interval that was in fact healthy.  A start record and a
+   RATE-LIMITED progress record make the distinction without touching the
+   exact operation or weakening the cooperative deadline.  The records are
+   PRINTED and are never returned in place of a value; the count is
+   carried in the statistics so a test can assert the rate limit. *)
+blockEquationDeferredProgressIntervalDefault[] :=
+  Module[{value = Environment["FACET_MATERIALIZE_PROGRESS_SECONDS"]},
+    (* N[...] deliberately: Max[0., 5] returns the INTEGER 5, and a
+       caller comparing the interval against a machine number would then
+       see a type it did not expect *)
+    If[StringQ[value] && StringMatchQ[value, NumberString],
+      N[Max[0, ToExpression[value]]], 60.]];
+
+blockEquationDeferredProgressRecord[tag_String, data_Association] :=
+  Print["[deferred-materialize] ", tag, ": ",
+    StringRiffle[KeyValueMap[
+      Function[{key, value},
+        key <> " " <> ToString[If[Head[value] === Real, Round[value, 0.1], value],
+          InputForm]], data], ", "]];
+
+(* ---- the immutable second phase (Codex 2026-08-25 06:30, item B) ---- *)
+
+(* FACET_MATERIALIZE_PARALLEL=Off reverts every caller to the serial
+   assembly, exactly as FACET_CONSTRUCTION_ROUTE=Symbolic reverts the
+   whole deferred route: the risk of the parallel phase is contained to
+   one environment variable. *)
+blockEquationDeferredParallelRouteQ[] := Module[
+  {value = Environment["FACET_MATERIALIZE_PARALLEL"]},
+  ! (StringQ[value] && StringMatchQ[value, "Off" | "False" | "0",
+      IgnoreCase -> True])];
+
+(* ONE TARGET, ON IMMUTABLE DATA.  `operands` is the interned operand
+   table -- entry id -> {numerator, factor -> exponent} -- and `job` is
+   one target's terms as {coefficient, {operand id, ...}}.  Nothing here
+   reads or writes the intern pool, so a batch of these is a set of
+   INDEPENDENT jobs a helper kernel can run (Codex's step 3); the mutable
+   interning/factorization phase stays on the main kernel, in
+   deterministic order, and is never parallelized (his explicit
+   prohibition).  The arithmetic below is the arithmetic the serial route
+   ran before this split, unchanged, so the two routes agree by
+   construction and are asserted to agree on fixtures. *)
+blockEquationDeferredAssembleJob[operands_List, job_List, cancelQ_,
+    polynomialSymbols_List] := Module[
+  {operandData, termNumerators, termFactors, common, numerator,
+   denominator, cancelled, exponent, quotient, radicals,
+   polynomialVariables, entryValue, timing,
+   expandSeconds = 0., cancelSeconds = 0., algebraicSeconds = 0.},
+  operandData = Map[
+    Function[term, {First[term], operands[[#]] & /@ Last[term]}], job];
+  termNumerators = (First[#] * (Times @@ (First /@ Last[#])) & /@
+    operandData);
+  termFactors = (Merge[Last /@ Last[#], Total] & /@ operandData);
+  common = If[termFactors === {}, <||>, Merge[termFactors, Max]];
+  (* the common denominator is a per-factor maximum of already-factored
+     denominators: no polynomial gcd is computed here *)
+  timing = AbsoluteTiming[
+    numerator = Expand[Total[Table[
+      termNumerators[[index]] * (Times @@ KeyValueMap[
+        Function[{factor, power},
+          factor^(power - Lookup[termFactors[[index]], factor, 0])],
+        common]),
+      {index, Length[job]}]]]];
+  expandSeconds = First[timing];
+  denominator = common;
+  If[TrueQ[numerator === 0],
+    Return[<|"Value" -> 0, "Zero" -> True, "Algebraic" -> False,
+      "ExpandSeconds" -> expandSeconds, "CancelSeconds" -> 0.,
+      "AlgebraicSeconds" -> 0.|>]];
+  If[TrueQ[cancelQ] && denominator =!= <||>,
+    timing = AbsoluteTiming[
+      (* The divisibility test is "the quotient is a polynomial".  On
+         an ALGEBRAIC frame the quotient is a polynomial in the chart
+         variables AND the declared radicals, and PolynomialQ over the
+         bare symbols alone answers False for every such quotient -- so
+         no algebraic factor ever cancelled.  MEASURED on CF259
+         (21,18), 2026-08-25: that left one extra power of
+         (-1 - x + y + Sqrt[...]) in the forcing's denominator, which
+         the downstream gauge denominator inherits (exponent 5 against
+         the symbolic route's 4) and which would enlarge the solver's
+         ansatz.  The radicals of the common denominator are therefore
+         adjoined to the polynomial variables; a radical the quotient
+         carries but the denominator does not still answers False,
+         which leaves the entry exact and merely uncancelled. *)
+      radicals = DeleteDuplicates[Cases[Keys[denominator],
+        Power[_, _Rational], {0, Infinity}, Heads -> True]];
+      polynomialVariables = Join[polynomialSymbols, radicals];
+      cancelled = <||>;
+      KeyValueMap[
+        Function[{factor, power},
+          exponent = power;
+          While[exponent > 0,
+            quotient = Quiet[Check[Cancel[numerator/factor], $Failed]];
+            If[quotient === $Failed ||
+                ! PolynomialQ[quotient, polynomialVariables],
+              Break[]];
+            numerator = quotient; exponent--];
+          If[exponent > 0, cancelled[factor] = exponent]],
+        denominator];
+      denominator = cancelled];
+    cancelSeconds = First[timing]];
+  If[denominator === <||>,
+    Return[<|"Value" -> numerator, "Zero" -> False, "Algebraic" -> False,
+      "ExpandSeconds" -> expandSeconds, "CancelSeconds" -> cancelSeconds,
+      "AlgebraicSeconds" -> 0.|>]];
+  entryValue = numerator / (Times @@ KeyValueMap[#1^#2 &, denominator]);
+  (* A radical still left in the common denominator means the factored
+     cancellation could not finish: dividing out (a + Sqrt[D]) needs the
+     relation Sqrt[D]^2 = D, which Cancel does not use when Sqrt[D] is
+     an opaque polynomial variable.  MEASURED on CF259 (21,18): without
+     this step the assembled forcing keeps one extra power of
+     (-1 - x + y + Sqrt[...]) and the solver's gauge denominator comes
+     out at exponent 5 against the symbolic route's 4 -- a larger
+     ansatz, which would give back at the solve what the construction
+     saved.  One Together on the ASSEMBLED RATIO restores exactly the
+     canonical form the symbolic route produced; it is not the
+     expensive object, because the term sum has already been collapsed
+     to a single quotient. *)
+  (* WHAT IS DELIBERATELY NOT DONE HERE.  The obvious completion is to
+     rationalize each algebraic denominator factor A + B r by its norm
+     A^2 - B^2 D (Codex Q2's "correct first family").  MEASURED
+     2026-08-25 on the algebraic fixture of Tests/t_construction_dag:
+     it is exact, cheap (0.38 s) and yields the SMALLEST entries of all
+     three routes -- and it is wrong for this pipeline, because it
+     removes the algebraic letters from the forcing's denominators
+     altogether: the gauge denominator came out as x^3 (3 + x) (1 + y),
+     purely rational, with the letter (1 + x - y + Sqrt[...]) gone,
+     since its norm is 4 x.  epsFormStripAlphabet reads the ALPHABET
+     off those denominators, so rationalizing would silently delete
+     letters the gauge needs -- the Together-destroys-algebraic-words
+     trap this repository already records.  The algebraic factor is
+     therefore kept, at the price named below. *)
+  If[! FreeQ[Keys[denominator], Power[_, _Rational]],
+    timing = AbsoluteTiming[entryValue = Together[entryValue]];
+    algebraicSeconds = First[timing];
+    Return[<|"Value" -> entryValue, "Zero" -> False, "Algebraic" -> True,
+      "ExpandSeconds" -> expandSeconds, "CancelSeconds" -> cancelSeconds,
+      "AlgebraicSeconds" -> algebraicSeconds|>]];
+  <|"Value" -> entryValue, "Zero" -> False, "Algebraic" -> False,
+    "ExpandSeconds" -> expandSeconds, "CancelSeconds" -> cancelSeconds,
+    "AlgebraicSeconds" -> 0.|>];
+
+(* Batches of CONSECUTIVE jobs in target order: at most one group per
+   worker (the free helpers plus this kernel), and any group whose
+   ESTIMATED BYTES exceed the cap split further into consecutive chunks.
+   Codex's step 3 requires the size to obey a byte cap rather than an
+   entry count -- four simultaneous exact assemblies of a multi-GB entry
+   would trade a construction wall for a memory wall.  The plan is a
+   pure function of (bytes, workers, cap), so it is deterministic and is
+   asserted to be in the suite. *)
+blockEquationDeferredBatchPlan[bytes_List, workers_Integer, byteCap_] :=
+  Module[{n = Length[bytes], share, batches = {}, current, load},
+    If[n === 0, Return[{}]];
+    share = Max[1, Ceiling[n/Max[1, workers]]];
+    Do[
+      current = {}; load = 0;
+      Do[
+        If[current =!= {} && load + bytes[[index]] > byteCap,
+          AppendTo[batches, current]; current = {}; load = 0];
+        AppendTo[current, index]; load += bytes[[index]],
+        {index, group}];
+      If[current =!= {}, AppendTo[batches, current]],
+      {group, Partition[Range[n], UpTo[share]]}];
+    batches];
+
+(* helper side: one task = one batch of independent target jobs.  The
+   operand table and the job list are written ONCE per materialization
+   and read once per helper kernel (taskBrokerRead memoizes by path and
+   modification time), exactly as the finite-field sampler does. *)
+blockEquationDeferredMaterializeTask[dataFile_String, indices_List] :=
+  Module[{data = taskBrokerRead[dataFile]},
+    If[! AssociationQ[data], Return[$Failed]];
+    Function[job, Quiet[Check[blockEquationDeferredAssembleJob[
+        data["Operands"], job, data["Cancel"], data["PolynomialSymbols"]],
+      $Failed]]] /@ data["Jobs"][[indices]]];
+
 (* Exact value of the requested targets.  "Cancel" -> False keeps the
    uncancelled common denominator (still exact, but a larger alphabet for
    the downstream solver); the default cancels factor by factor.
@@ -553,21 +756,57 @@ blockEquationDeferredCanonicalOperand[expression_, pool_Symbol] :=
    denominators as letters even when the reduced entry has one.  On that
    path the untouched entry costs exactly what it cost before this file
    existed, and the saving is taken only where it was measured. *)
+(* PHASES.  The materialization is one shared phase and one independent
+   phase, and only the second is ever farmed out (Codex 2026-08-25 06:30,
+   item B, confirmed 08:30 by the CF303 {17,12} split: 1604.1 s of 1868.4
+   is numerator expansion, 248.5 s cancellation, and only 6.5 s the
+   shared interning):
+
+     1. SHARED, SERIAL, MAIN KERNEL.  Walk the records in deterministic
+        target order and canonicalize every operand exactly once through
+        blockEquationDeferredCanonicalOperand, which mutates the intern
+        pool.  Each distinct operand receives an integer ID in
+        first-encounter order, and each target's record is replaced by
+        the IMMUTABLE job {coefficient, {operand id, ...}}.  This phase
+        is never parallelized: naive parallelism would duplicate every
+        Together/FactorList and lose the interning benefit outright.
+
+     2. INDEPENDENT, PER TARGET.  Numerator expansion, per-factor
+        cancellation and the final one-quotient algebraic Together read
+        only the immutable operand table.  Bounded batches of consecutive
+        jobs go to AT MOST the currently free pool helpers (the pool may
+        be busy: with no free helper every job is computed locally, which
+        is the serial route); this kernel always keeps the last batch, so
+        it never idles waiting.  Batch size obeys an estimated-byte cap,
+        not an entry count.
+
+   Results are reassembled in target order on the main kernel, the typed
+   Together fallback runs there, and a batch that fails or times out is
+   recomputed locally through the same pure function -- so the returned
+   values are what the serial route would have produced, whatever the
+   pool did. *)
 Options[blockEquationDeferredMaterialize] = {
   "Cancel" -> True, "Targets" -> All, "Fallback" -> True,
-  "CanonicalizeUntouched" -> False};
+  "CanonicalizeUntouched" -> False,
+  "Parallel" -> Automatic, "Helpers" -> Automatic,
+  "BatchByteCap" -> Automatic, "BatchDispatcher" -> Automatic,
+  "BatchTimeout" -> 7200, "Progress" -> True,
+  "ProgressInterval" -> Automatic, "Label" -> "block"};
 
 blockEquationDeferredMaterialize[preparation_Association,
     OptionsPattern[]] := Module[
   {started = AbsoluteTime[], records, dimensions, pool = <||>,
-   requested, terms, operandData, termNumerators, termFactors,
-   common, numerator, denominator, cancelled, exponent, quotient,
-   radicals, polynomialVariables, entryValue, algebraicSeconds = 0.,
-   algebraicEntries = 0,
-   variables, regulator, parameters, symbols, values = <||>,
+   requested, variables, regulator, parameters, symbols, values = <||>,
+   algebraicSeconds = 0., algebraicEntries = 0,
    expandSeconds = 0., cancelSeconds = 0., internSeconds = 0.,
-   fallbacks = 0, zeroEntries = 0, untouchedEntries = 0, timing, entry,
-   assemble},
+   fallbacks = 0, failedEntries = 0, zeroEntries = 0, untouchedEntries = 0,
+   timing, entry,
+   operandIndex = <||>, operandTable = {}, jobs = {}, jobTargets = {},
+   jobRecords = {}, jobBytes = {}, cancelQ, total, results, progressQ,
+   progressInterval, progressCount = 0, lastProgress, emit, absorb,
+   helpers, byteCap, dispatcher, parallel, batches, dataFile, codes,
+   handle, farmed, localBatch, assembleBatch, done = 0, missing, route,
+   batchSeconds = 0., dispatchedBatches = 0, planned = 0},
   If[Lookup[preparation, "Status", None] =!= "Prepared" ||
       Lookup[preparation, "ABIVersion", None] =!=
         $blockEquationDeferredABIVersion,
@@ -582,99 +821,39 @@ blockEquationDeferredMaterialize[preparation_Association,
   records = Lookup[preparation, "Records", {}];
   dimensions = preparation["Dimensions"];
   requested = OptionValue["Targets"];
+  cancelQ = TrueQ[OptionValue["Cancel"]];
+  progressQ = TrueQ[OptionValue["Progress"]];
+  progressInterval = Replace[OptionValue["ProgressInterval"],
+    Automatic :> blockEquationDeferredProgressIntervalDefault[]];
+  lastProgress = started;
 
-  assemble[record_Association] := Module[{},
-    terms = record["Terms"];
-    timing = AbsoluteTiming[
-      operandData = Map[
-        Function[term,
-          {Lookup[term, "Coefficient", 1],
-            blockEquationDeferredCanonicalOperand[#, pool] & /@
-              Lookup[term, "Operands", {}]}],
-        terms]];
-    internSeconds += First[timing];
-    termNumerators = (First[#] * (Times @@ (First /@ Last[#])) & /@
-      operandData);
-    termFactors = (Merge[Last /@ Last[#], Total] & /@ operandData);
-    common = If[termFactors === {}, <||>, Merge[termFactors, Max]];
-    (* the common denominator is a per-factor maximum of already-factored
-       denominators: no polynomial gcd is computed here *)
-    timing = AbsoluteTiming[
-      numerator = Expand[Total[Table[
-        termNumerators[[index]] * (Times @@ KeyValueMap[
-          Function[{factor, power},
-            factor^(power - Lookup[termFactors[[index]], factor, 0])],
-          common]),
-        {index, Length[terms]}]]]];
-    expandSeconds += First[timing];
-    denominator = common;
-    If[TrueQ[numerator === 0], zeroEntries++; Return[0]];
-    If[TrueQ[OptionValue["Cancel"]] && denominator =!= <||>,
-      timing = AbsoluteTiming[
-        (* The divisibility test is "the quotient is a polynomial".  On
-           an ALGEBRAIC frame the quotient is a polynomial in the chart
-           variables AND the declared radicals, and PolynomialQ over the
-           bare symbols alone answers False for every such quotient -- so
-           no algebraic factor ever cancelled.  MEASURED on CF259
-           (21,18), 2026-08-25: that left one extra power of
-           (-1 - x + y + Sqrt[...]) in the forcing's denominator, which
-           the downstream gauge denominator inherits (exponent 5 against
-           the symbolic route's 4) and which would enlarge the solver's
-           ansatz.  The radicals of the common denominator are therefore
-           adjoined to the polynomial variables; a radical the quotient
-           carries but the denominator does not still answers False,
-           which leaves the entry exact and merely uncancelled. *)
-        radicals = DeleteDuplicates[Cases[Keys[denominator],
-          Power[_, _Rational], {0, Infinity}, Heads -> True]];
-        polynomialVariables = Join[symbols, radicals];
-        cancelled = <||>;
-        KeyValueMap[
-          Function[{factor, power},
-            exponent = power;
-            While[exponent > 0,
-              quotient = Quiet[Check[Cancel[numerator/factor], $Failed]];
-              If[quotient === $Failed ||
-                  ! PolynomialQ[quotient, polynomialVariables],
-                Break[]];
-              numerator = quotient; exponent--];
-            If[exponent > 0, cancelled[factor] = exponent]],
-          denominator];
-        denominator = cancelled];
-      cancelSeconds += First[timing]];
-    If[denominator === <||>, Return[numerator]];
-    entryValue = numerator / (Times @@ KeyValueMap[#1^#2 &, denominator]);
-    (* A radical still left in the common denominator means the factored
-       cancellation could not finish: dividing out (a + Sqrt[D]) needs the
-       relation Sqrt[D]^2 = D, which Cancel does not use when Sqrt[D] is
-       an opaque polynomial variable.  MEASURED on CF259 (21,18): without
-       this step the assembled forcing keeps one extra power of
-       (-1 - x + y + Sqrt[...]) and the solver's gauge denominator comes
-       out at exponent 5 against the symbolic route's 4 -- a larger
-       ansatz, which would give back at the solve what the construction
-       saved.  One Together on the ASSEMBLED RATIO restores exactly the
-       canonical form the symbolic route produced; it is not the
-       expensive object, because the 46-term sum has already been
-       collapsed to a single quotient. *)
-    (* WHAT IS DELIBERATELY NOT DONE HERE.  The obvious completion is to
-       rationalize each algebraic denominator factor A + B r by its norm
-       A^2 - B^2 D (Codex Q2's "correct first family").  MEASURED
-       2026-08-25 on the algebraic fixture of Tests/t_construction_dag:
-       it is exact, cheap (0.38 s) and yields the SMALLEST entries of all
-       three routes -- and it is wrong for this pipeline, because it
-       removes the algebraic letters from the forcing's denominators
-       altogether: the gauge denominator came out as x^3 (3 + x) (1 + y),
-       purely rational, with the letter (1 + x - y + Sqrt[...]) gone,
-       since its norm is 4 x.  epsFormStripAlphabet reads the ALPHABET
-       off those denominators, so rationalizing would silently delete
-       letters the gauge needs -- the Together-destroys-algebraic-words
-       trap this repository already records.  The algebraic factor is
-       therefore kept, at the price named below. *)
-    If[! FreeQ[Keys[denominator], Power[_, _Rational]],
-      timing = AbsoluteTiming[entryValue = Together[entryValue]];
-      algebraicSeconds += First[timing];
-      algebraicEntries++];
-    entryValue];
+  (* the rate limit is wall-clock: `force` emits the start, the dispatch
+     and the final record unconditionally, everything else only after the
+     interval has elapsed since the last record *)
+  emit[tag_String, data_Association, force_: False] :=
+    If[progressQ && (TrueQ[force] ||
+        AbsoluteTime[] - lastProgress >= progressInterval),
+      lastProgress = AbsoluteTime[]; progressCount++;
+      blockEquationDeferredProgressRecord[tag, data]];
 
+  absorb[record_] := (
+    If[AssociationQ[record],
+      expandSeconds += Lookup[record, "ExpandSeconds", 0.];
+      cancelSeconds += Lookup[record, "CancelSeconds", 0.];
+      algebraicSeconds += Lookup[record, "AlgebraicSeconds", 0.]];
+    record);
+
+  (* ---- phase 1: shared operand interning, serial, main kernel ------- *)
+  (* MEASURED 2026-08-25 on the real CF259 (21,18) block: this phase is
+     156 of its 196 s, so it needs its own progress records -- a start
+     record alone would still leave a watchdog with a silent interval
+     longer than the one that prompted the request. *)
+  planned = Count[records, candidate_ /;
+    (requested === All || MemberQ[requested, candidate["Target"]])];
+  emit["start", <|"block" -> {Lookup[preparation, "Sector", None],
+      Lookup[preparation, "LowerSector", None]},
+    "records" -> planned,
+    "terms" -> Total[Length[Lookup[#, "Terms", {}]] & /@ records]|>, True];
   Do[
     If[requested =!= All && ! MemberQ[requested, record["Target"]],
       Continue[]];
@@ -685,27 +864,184 @@ blockEquationDeferredMaterialize[preparation_Association,
         Together[blockEquationDeferredRecordBase[record]],
         blockEquationDeferredRecordBase[record]];
       Continue[]];
-    entry = If[TrueQ[OptionValue["Fallback"]],
-      Quiet[Check[assemble[record], $Failed]], assemble[record]];
-    If[entry === $Failed,
-      fallbacks++;
-      entry = Together[Total[
-        blockEquationDeferredTermExpression /@ record["Terms"]]]];
-    values[record["Target"]] = entry,
+    timing = AbsoluteTiming[
+      AppendTo[jobs, Map[
+        Function[term,
+          {Lookup[term, "Coefficient", 1],
+           Map[Function[operand,
+             If[KeyExistsQ[operandIndex, operand], operandIndex[operand],
+               AppendTo[operandTable,
+                 blockEquationDeferredCanonicalOperand[operand, pool]];
+               operandIndex[operand] = Length[operandTable]]],
+             Lookup[term, "Operands", {}]]}],
+        record["Terms"]]]];
+    internSeconds += First[timing];
+    AppendTo[jobTargets, record["Target"]];
+    AppendTo[jobRecords, record];
+    emit["intern", <|"records interned" -> Length[jobs], "of" -> planned,
+      "target" -> record["Target"],
+      "interned operands" -> Length[operandTable],
+      "intern seconds" -> internSeconds|>],
     {record, records}];
+  total = Length[jobs];
+
+  (* ---- phase 2: independent per-target assembly -------------------- *)
+  (* an estimate, not a measurement: the interned operand data a job
+     references plus its own coefficients.  It bounds the payload a
+     helper must read and the working set the assembly starts from. *)
+  jobBytes = Map[Function[job,
+    Total[ByteCount /@ operandTable[[
+        DeleteDuplicates[Flatten[job[[All, 2]]]]]]] +
+      ByteCount[job[[All, 1]]]], jobs];
+  byteCap = Replace[OptionValue["BatchByteCap"], Automatic :> 2^28];
+  dispatcher = OptionValue["BatchDispatcher"];
+  helpers = OptionValue["Helpers"];
+  If[helpers === Automatic,
+    helpers = If[dispatcher === Automatic,
+      If[taskBrokerActiveQ[], taskBrokerFreeKernels[], 0], 1]];
+  If[! IntegerQ[helpers] || helpers < 0, helpers = 0];
+  (* at most the currently free helpers, and never more than there are
+     independent jobs to give away while this kernel keeps one batch *)
+  helpers = Min[helpers, Max[0, total - 1]];
+  parallel = With[{requestedParallel = OptionValue["Parallel"]},
+    Which[
+      requestedParallel === Automatic,
+        helpers >= 1 && blockEquationDeferredParallelRouteQ[],
+      TrueQ[requestedParallel], helpers >= 1,
+      True, False]];
+  route = If[parallel, "Parallel", "Serial"];
+
+  (* the local assembly of one batch: used by the serial route, by this
+     kernel's own share of the parallel route, and as the recomputation
+     of any batch a helper failed to return *)
+  assembleBatch[indices_List] := Map[
+    Function[index,
+      entry = absorb[If[TrueQ[OptionValue["Fallback"]],
+        Quiet[Check[blockEquationDeferredAssembleJob[operandTable,
+          jobs[[index]], cancelQ, symbols], $Failed]],
+        blockEquationDeferredAssembleJob[operandTable, jobs[[index]],
+          cancelQ, symbols]]];
+      done++;
+      emit["progress", <|"targets done" -> done, "of" -> total,
+        "interned operands" -> Length[operandTable],
+        "intern seconds" -> internSeconds,
+        "expand seconds" -> expandSeconds,
+        "cancel seconds" -> cancelSeconds,
+        "canonicalize seconds" -> algebraicSeconds,
+        "route" -> route|>];
+      entry],
+    indices];
+
+  batches = If[total === 0, {},
+    blockEquationDeferredBatchPlan[jobBytes, helpers + 1, byteCap]];
+  results = ConstantArray[$Failed, total];
+
+  If[! parallel || Length[batches] <= 1,
+    route = "Serial";
+    Do[results[[batches[[b]]]] = assembleBatch[batches[[b]]],
+      {b, Length[batches]}],
+    (* the helpers take the leading batches, this kernel the last one --
+       the mission kernel never idles waiting for the pool *)
+    dispatchedBatches = Length[batches] - 1;
+    emit["dispatch", <|"batches" -> Length[batches],
+      "to helpers" -> dispatchedBatches, "helpers free" -> helpers,
+      "byte cap" -> byteCap, "batch sizes" -> Length /@ batches|>, True];
+    timing = AbsoluteTiming[
+      If[dispatcher === Automatic,
+        dataFile = taskBrokerDataFile[
+          "bedmat_" <> Hash[{operandTable, jobs, cancelQ, symbols},
+            "SHA256", "HexString"],
+          <|"Operands" -> operandTable, "Jobs" -> jobs,
+            "Cancel" -> cancelQ, "PolynomialSymbols" -> symbols|>];
+        codes = StringJoin[
+          "FeynFacet`Private`blockEquationDeferredMaterializeTask[\"",
+          dataFile, "\", ", ToString[#, InputForm], "]"] & /@ Most[batches];
+        handle = taskBrokerSubmit[codes,
+          "Label" -> "bedmat" <> ToString[OptionValue["Label"]],
+          "Timeout" -> OptionValue["BatchTimeout"]];
+        localBatch = assembleBatch[Last[batches]];
+        farmed = taskBrokerCollect[handle],
+        (* an injected dispatcher: the seam the suite uses to exercise
+           batching, reassembly and the recomputation path without ever
+           asking for a helper kernel *)
+        farmed = dispatcher[<|"Operands" -> operandTable, "Jobs" -> jobs,
+            "Cancel" -> cancelQ, "PolynomialSymbols" -> symbols|>,
+          Most[batches]];
+        localBatch = assembleBatch[Last[batches]]]];
+    batchSeconds = First[timing];
+    results[[Last[batches]]] = localBatch;
+    Do[
+      If[ListQ[farmed] && b <= Length[farmed] && ListQ[farmed[[b]]] &&
+          Length[farmed[[b]]] === Length[batches[[b]]],
+        results[[batches[[b]]]] = absorb /@ farmed[[b]];
+        done += Length[batches[[b]]]],
+      {b, Length[batches] - 1}];
+    emit["collected", <|"targets done" -> done, "of" -> total,
+      "expand seconds" -> expandSeconds,
+      "cancel seconds" -> cancelSeconds,
+      "canonicalize seconds" -> algebraicSeconds,
+      "batch seconds" -> batchSeconds|>, True];
+    (* a helper that failed, timed out or returned the wrong shape costs
+       time, never a value: its batch is recomputed here, in order.  This
+       kernel's own batch is excluded -- an entry the local assembly
+       already refused would only be refused again, and the typed
+       Together fallback below is its route. *)
+    missing = Select[Complement[Range[total], Last[batches]],
+      ! AssociationQ[results[[#]]] &];
+    If[missing =!= {},
+      emit["recompute", <|"targets" -> Length[missing],
+        "reason" -> "no usable helper result"|>, True];
+      results[[missing]] = assembleBatch[missing]]];
+
+  (* ---- reassembly in target order, typed fallback on this kernel ---- *)
+  Do[
+    entry = results[[index]];
+    (* the typed fallback is this kernel's, never a helper's, and it is
+       taken only when the caller asked for one: with "Fallback" -> False
+       an entry the factored assembly could not complete stays $Failed
+       rather than being silently Together'd *)
+    If[! AssociationQ[entry],
+      If[TrueQ[OptionValue["Fallback"]],
+        fallbacks++;
+        entry = <|"Value" -> Together[Total[
+            blockEquationDeferredTermExpression /@ jobRecords[[index]]["Terms"]]],
+          "Zero" -> False, "Algebraic" -> False|>,
+        failedEntries++;
+        entry = <|"Value" -> $Failed, "Zero" -> False,
+          "Algebraic" -> False|>]];
+    If[TrueQ[Lookup[entry, "Zero", False]], zeroEntries++];
+    If[TrueQ[Lookup[entry, "Algebraic", False]], algebraicEntries++];
+    values[jobTargets[[index]]] = entry["Value"],
+    {index, total}];
+
+  emit["done", <|"targets done" -> total, "of" -> total,
+    "interned operands" -> Length[operandTable],
+    "intern seconds" -> internSeconds,
+    "expand seconds" -> expandSeconds,
+    "cancel seconds" -> cancelSeconds,
+    "canonicalize seconds" -> algebraicSeconds,
+    "route" -> route, "fallbacks" -> fallbacks,
+    "seconds" -> N[AbsoluteTime[] - started]|>, True];
 
   <|"Status" -> "OK", "Values" -> values,
     "ZeroEntries" -> zeroEntries, "UntouchedEntries" -> untouchedEntries,
-    "Fallbacks" -> fallbacks,
+    "Fallbacks" -> fallbacks, "FailedEntries" -> failedEntries,
     "AlgebraicEntries" -> algebraicEntries,
     "Statistics" -> <|"InternedOperands" -> Length[pool],
       "InternSeconds" -> internSeconds,
       "ExpandSeconds" -> expandSeconds,
       "CancelSeconds" -> cancelSeconds,
       "AlgebraicCanonicalizeSeconds" -> algebraicSeconds,
+      "Route" -> route, "Helpers" -> helpers,
+      "Batches" -> Length[batches],
+      "DispatchedBatches" -> dispatchedBatches,
+      "BatchSizes" -> Length /@ batches,
+      "BatchByteCap" -> byteCap,
+      "EstimatedBytes" -> Total[jobBytes],
+      "BatchSeconds" -> batchSeconds,
+      "ProgressRecords" -> progressCount,
       "MaterializeSeconds" -> N[AbsoluteTime[] - started]|>|>
 ];
-
 blockEquationDeferredMaterialize[___] := <|"Status" -> "InvalidInput"|>;
 
 (* ---- driver entry point --------------------------------------------- *)
@@ -718,7 +1054,11 @@ blockEquationDeferredMaterialize[___] := <|"Status" -> "InvalidInput"|>;
    second Together pass over every entry. *)
 Options[blockEquationDeferredForcing] = {
   "CensusTriples" -> Automatic, "Cancel" -> True, "Fallback" -> True,
-  "CanonicalizeUntouched" -> True};
+  "CanonicalizeUntouched" -> True,
+  "Parallel" -> Automatic, "Helpers" -> Automatic,
+  "BatchByteCap" -> Automatic, "BatchDispatcher" -> Automatic,
+  "BatchTimeout" -> 7200, "Progress" -> True,
+  "ProgressInterval" -> Automatic};
 
 blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
     solved_Association, variables_, regulator_, OptionsPattern[]] :=
@@ -737,7 +1077,15 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
    materialized = blockEquationDeferredMaterialize[preparation,
      "Cancel" -> OptionValue["Cancel"],
      "Fallback" -> OptionValue["Fallback"],
-     "CanonicalizeUntouched" -> OptionValue["CanonicalizeUntouched"]];
+     "CanonicalizeUntouched" -> OptionValue["CanonicalizeUntouched"],
+     "Parallel" -> OptionValue["Parallel"],
+     "Helpers" -> OptionValue["Helpers"],
+     "BatchByteCap" -> OptionValue["BatchByteCap"],
+     "BatchDispatcher" -> OptionValue["BatchDispatcher"],
+     "BatchTimeout" -> OptionValue["BatchTimeout"],
+     "Progress" -> OptionValue["Progress"],
+     "ProgressInterval" -> OptionValue["ProgressInterval"],
+     "Label" -> ToString[k] <> "_" <> ToString[j]];
    If[Lookup[materialized, "Status", None] =!= "OK",
      Return[materialized]];
    dimensions = preparation["Dimensions"];
