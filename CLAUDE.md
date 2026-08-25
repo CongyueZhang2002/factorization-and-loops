@@ -519,3 +519,12 @@ poisons iteration limits. `Missing[] =!= None` in both directions.
 rationalizes square-root denominators and destroys algebraic-letter
 words. Packages dump symbols into `Global\`` (asy ~200 of them, plus a
 bare `x`; SubTropica exports `line`; PolyLogTools 1699 symbols).
+
+## Shell trap (found 2026-08-24 by the campaign watchdog)
+
+Libra's Fermat banner writes a raw 0xA9 byte into solve logs. The
+Claude Code shell's `grep` is a function dispatching to ugrep with
+`-I`, which silently SKIPS such binary-classified streams — zero
+matches, exit 1, indistinguishable from a genuinely empty result. Any
+manual grep of Wolfram solve logs must use `command grep -a` (or
+python); watchdog loops must install `grep(){ command grep -a "$@"; }`.
