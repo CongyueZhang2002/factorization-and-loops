@@ -12,7 +12,12 @@
    The diagram grid is the card's own DiagramIndices declaration. Pair
    files are written to <processDirectory>/Results/<resultName>/Pairs;
    already-existing valid pair files are skipped, so an interrupted run
-   resumes. *)
+   resumes.
+
+   [kernels] = N is the number of subkernels. All pairs go through ONE
+   global dynamic queue: each worker takes the next pending pair the
+   moment it frees up, so a slow pair costs one worker and never holds
+   the others (the retired 4N-pair batches did). *)
 
 root = ExpandFileName[FileNameJoin[{DirectoryName[$InputFileName], ".."}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
@@ -91,6 +96,28 @@ processPair[{forward_Integer, conjugate_Integer}] := Module[
   {forward, conjugate, "OK"}
 ];
 
+(* processPair returns a status tuple for every failure it can see. The
+   guard adds the two exits it cannot see -- an uncaught Throw and an
+   Abort inside the pipeline -- so a worker always answers with a status
+   for its own pair and one bad pair never drains the queue. *)
+(* PAIRQUEUE-GUARD-BEGIN: Tests/t_pair_queue_schedule.wls evaluates the
+   source text between these markers against a synthetic worker; keep
+   the markers when editing. *)
+processPairGuarded[{forward_Integer, conjugate_Integer}] := Module[
+  {outcome},
+  outcome = CheckAbort[
+    Catch[Catch[processPair[{forward, conjugate}], _, "QueueThrew" &]],
+    "QueueAborted"
+  ];
+  Which[
+    MatchQ[outcome, {_Integer, _Integer, _String}], outcome,
+    outcome === "QueueThrew", {forward, conjugate, "PairThrew"},
+    outcome === "QueueAborted", {forward, conjugate, "PairAborted"},
+    True, {forward, conjugate, "PairError"}
+  ]
+];
+(* PAIRQUEUE-GUARD-END *)
+
 pairs = Tuples[{forwardIndices, conjugateIndices}];
 Print["GRID: ", Length[forwardIndices], " x ", Length[conjugateIndices],
   " = ", Length[pairs], " pairs -> ", resultDirectory];
@@ -100,26 +127,61 @@ With[{loadFile = FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]},
   ParallelEvaluate[Block[{$Output = {}}, Quiet[Get[loadFile], General::shdw]]]
 ];
 DistributeDefinitions[
-  pairSetup, processPair, pairFile, card, cardName, scriptPath,
-  resultDirectory, pairDirectory
+  pairSetup, processPair, processPairGuarded, pairFile, card, cardName,
+  scriptPath, resultDirectory, pairDirectory
 ];
 
-completed = 0;
-summaries = {};
-Do[
-  Module[{batchResults},
-    batchResults = ParallelMap[
-      processPair, batch, Method -> "FinestGrained"
-    ];
-    summaries = Join[summaries, batchResults];
-    completed += Length[batch];
-    Print["PROGRESS: ", completed, " / ", Length[pairs],
-      "  failures: ",
-      Count[summaries, {_, _, status_} /;
-        ! MemberQ[{"OK", "Skipped"}, status]]]
-  ],
-  {batch, Partition[pairs, UpTo[4 kernelCount]]}
+(* ONE global dynamic queue over the whole grid. Every pair is submitted
+   to the shared parallel queue up front, so a subkernel that finishes a
+   pair immediately takes the next pending one and the kernels stay busy
+   until the queue drains. The retired schedule partitioned the grid into
+   batches of 4 kernelCount and ran ParallelMap per batch, which made
+   every batch boundary a barrier: the slowest pair of a batch held all
+   other kernels idle until it returned (Codex review 2026-08-24).
+
+   Resumability is unchanged: the already-done test is the FileExistsQ +
+   validPreIBPResultQ check inside processPair, so it stays on the
+   workers (it costs a Get of the stored artifact) and a skipped pair
+   still reports "Skipped". Completions are collected in whatever order
+   they arrive and written back into grid order, so nothing downstream
+   depends on the order in which pairs finish. *)
+(* PAIRQUEUE-DRIVER-BEGIN: Tests/t_pair_queue_schedule.wls evaluates the
+   source text between these markers against a synthetic worker; keep
+   the markers when editing. *)
+pairTasks = Table[
+  With[{pair = pairs[[i]]}, ParallelSubmit[processPairGuarded[pair]]],
+  {i, Length[pairs]}
 ];
+pairTaskIndex = AssociationThread[pairTasks -> Range[Length[pairTasks]]];
+pairResults = ConstantArray[Missing["NotCompleted"], Length[pairs]];
+completed = 0;
+failedSoFar = 0;
+pending = pairTasks;
+While[pending =!= {},
+  Module[{value, object, position, entry},
+    {value, object, pending} = WaitNext[pending];
+    position = Lookup[pairTaskIndex, Key[object], Missing["NotFound"]];
+    If[MissingQ[position],
+      Print["QUEUEWARNING: unmatched completion ", object, " -> ", value],
+      entry = If[MatchQ[value, {_Integer, _Integer, _String}],
+        value,
+        Append[pairs[[position]], "PairError"]
+      ];
+      pairResults[[position]] = entry;
+      completed++;
+      If[! MemberQ[{"OK", "Skipped"}, entry[[3]]], failedSoFar++];
+      Print["PROGRESS: ", completed, " / ", Length[pairs],
+        "  failures: ", failedSoFar,
+        "  F", entry[[1]], "_C", entry[[2]], " ", entry[[3]]]
+    ]
+  ]
+];
+summaries = MapIndexed[
+  If[MatchQ[#1, {_Integer, _Integer, _String}], #1,
+    Append[pairs[[First[#2]]], "QueueLost"]] &,
+  pairResults
+];
+(* PAIRQUEUE-DRIVER-END *)
 
 failures = Select[summaries, ! MemberQ[{"OK", "Skipped"}, #[[3]]] &];
 Print["REGENERATED: ", Count[summaries, {_, _, "OK"}]];
