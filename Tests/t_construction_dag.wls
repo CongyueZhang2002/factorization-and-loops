@@ -57,7 +57,33 @@
        constructionCheck["EquationConstructed"] boundary, so the
        cooperative deadline still brackets the construction on both
        routes.  (Tests/t_construction_budget.wls remains the behavioural
-       test of those boundaries and is run unchanged.) *)
+       test of those boundaries and is run unchanged.)
+
+   (i) PHASE TELEMETRY, RATE LIMITED (Codex 2026-08-25 06:30, item A).
+       The materializer emits a start record and a progress record
+       carrying targets done/total, the interned-operand count and the
+       accumulated intern/expand/cancel/canonicalize seconds.  The
+       progress record is RATE LIMITED by wall clock: on a fixture that
+       finishes inside the interval exactly two records are emitted (the
+       forced start and the forced final one), and at interval 0 exactly
+       one per target in addition.  FACET_MATERIALIZE_PROGRESS_SECONDS
+       moves the default and a malformed value is ignored.
+
+   (j) SERIAL == PARALLEL, EXACTLY (Codex 2026-08-25 06:30, item B).
+       The second phase -- per-target numerator expansion, per-factor
+       cancellation and the final algebraic Together -- runs on immutable
+       operand IDs, so it may be batched to helpers.  The acceptance is
+       SameQ, not equality as a rational function: every target's value
+       from the parallel route is the SAME EXPRESSION as the serial
+       route's, on the rational and on the algebraic fixture alike.  The
+       batch plan is a deterministic partition of the targets in target
+       order; batch size obeys the estimated-byte cap rather than an
+       entry count; a helper that returns nothing costs time and never a
+       value (its jobs are recomputed locally, not through the Together
+       fallback); with no free helper the route IS the serial route; and
+       FACET_MATERIALIZE_PARALLEL=Off reverts it.  No helper kernel is
+       ever asked for here: the batch dispatcher is injected, exactly as
+       t_broker_adaptive pins its helper ceiling to zero. *)
 
 root = DirectoryName[DirectoryName[$InputFileName]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
@@ -445,5 +471,192 @@ FTAssert["(h) the block-equation dispatch sits inside the budget boundaries",
 FTAssert["(h) the zero-forcing probe still follows its own boundary",
   probeBoundary > constructedBoundary &&
     StringContainsQ[driverSource, "ZeroForcingCandidateQ"]];
+
+(* ==== (i) phase telemetry ============================================ *)
+assembleJob = FeynFacet`Private`blockEquationDeferredAssembleJob;
+batchPlan = FeynFacet`Private`blockEquationDeferredBatchPlan;
+progressDefault = FeynFacet`Private`blockEquationDeferredProgressIntervalDefault;
+parallelRouteQ = FeynFacet`Private`blockEquationDeferredParallelRouteQ;
+
+(* The materializer prints its telemetry; capture $Output rather than
+   redefining the protected Print.  Two environment defences, both
+   measured 2026-08-25 on a KernelPool subkernel: PageWidth -> Infinity,
+   because a wrapped record puts its later fields on continuation lines
+   and every assertion below reads ONE line; and the quote strip, because
+   a pool subkernel formats Print's string arguments in InputForm, so the
+   same record arrives as "[deferred-materialize] ""start"": ..." there
+   and unquoted in a standalone kernel.  The assertions are then about
+   the record's CONTENT in either environment. *)
+captureRecords[preparation_, opts___] := Module[
+  {file, stream, result, text},
+  file = FileNameJoin[{$TemporaryDirectory,
+    "t_construction_dag_" <> ToString[$ProcessID] <> "_" <>
+      ToString[RandomInteger[10^9]] <> ".txt"}];
+  stream = OpenWrite[file, PageWidth -> Infinity,
+    FormatType -> OutputForm];
+  result = Block[{$Output = {stream}}, materialize[preparation, opts]];
+  Close[stream];
+  text = Import[file, "Text"];
+  Quiet[DeleteFile[file]];
+  {result, Select[
+    StringTrim /@ StringSplit[
+      StringReplace[If[StringQ[text], text, ""], "\"" -> ""], "\n"],
+    StringStartsQ[#, "[deferred-materialize]"] &]}];
+
+{matDefaultProgress, linesDefault} = captureRecords[prep, "Parallel" -> False];
+FTAssert["(i) a start record and a final record are emitted",
+  Length[linesDefault] === 2 &&
+    StringContainsQ[First[linesDefault], "start:"] &&
+    StringContainsQ[Last[linesDefault], "done:"]];
+FTAssert["(i) the start record names the block and the record count",
+  StringContainsQ[First[linesDefault], "block {4, 1}"] &&
+    StringContainsQ[First[linesDefault], "records 8"] &&
+    StringContainsQ[First[linesDefault], "terms"]];
+FTAssert["(i) the final record carries targets done/total and every substage",
+  StringContainsQ[Last[linesDefault], "targets done 8"] &&
+    StringContainsQ[Last[linesDefault], "of 8"] &&
+    AllTrue[{"interned operands", "intern seconds", "expand seconds",
+       "cancel seconds", "canonicalize seconds"},
+      StringContainsQ[Last[linesDefault], #] &]];
+FTAssert["(i) the progress record is rate limited by the wall clock",
+  Lookup[matDefaultProgress["Statistics"], "ProgressRecords", -1] === 2];
+{matEveryTarget, linesEvery} =
+  captureRecords[prep, "Parallel" -> False, "ProgressInterval" -> 0.];
+(* the SHARED interning phase is 156 of the 196 s of the real CF259
+   (21,18) block, so it must report progress of its own; at interval 0
+   there is one record per interned record and one per assembled target *)
+FTAssert["(i) at interval 0 both phases report one record per entry",
+  Length[linesEvery] === 18 &&
+    Lookup[matEveryTarget["Statistics"], "ProgressRecords", -1] === 18 &&
+    Count[linesEvery, line_ /; StringContainsQ[line, "intern:"]] === 8 &&
+    Count[linesEvery, line_ /; StringContainsQ[line, "progress:"]] === 8];
+FTAssert["(i) the interning record reports the running record count and pool size",
+  StringContainsQ[linesEvery[[2]], "records interned 1"] &&
+    StringContainsQ[linesEvery[[9]], "records interned 8"] &&
+    StringContainsQ[linesEvery[[2]], "interned operands"] &&
+    StringContainsQ[linesEvery[[2]], "target {"]];
+FTAssert["(i) a progress record reports the running target count",
+  StringContainsQ[linesEvery[[10]], "targets done 1"] &&
+    StringContainsQ[linesEvery[[17]], "targets done 8"]];
+{matSilent, linesSilent} =
+  captureRecords[prep, "Parallel" -> False, "Progress" -> False];
+FTAssert["(i) Progress -> False emits no record at all",
+  linesSilent === {} &&
+    Lookup[matSilent["Statistics"], "ProgressRecords", -1] === 0];
+FTAssert["(i) telemetry never changes a value",
+  AllTrue[Flatten[Table[
+      SameQ[matDefaultProgress["Values"][{a, b, c}],
+        matSilent["Values"][{a, b, c}]] &&
+      SameQ[matEveryTarget["Values"][{a, b, c}],
+        matSilent["Values"][{a, b, c}]],
+      {a, dims[[1]]}, {b, dims[[2]]}, {c, dims[[3]]}]], TrueQ]];
+previousProgressSeconds = Environment["FACET_MATERIALIZE_PROGRESS_SECONDS"];
+SetEnvironment["FACET_MATERIALIZE_PROGRESS_SECONDS" -> "5"];
+FTAssert["(i) FACET_MATERIALIZE_PROGRESS_SECONDS moves the default interval",
+  progressDefault[] === 5.];
+SetEnvironment["FACET_MATERIALIZE_PROGRESS_SECONDS" -> "not a number"];
+FTAssert["(i) a malformed interval is ignored in favour of 60 s",
+  progressDefault[] === 60.];
+SetEnvironment["FACET_MATERIALIZE_PROGRESS_SECONDS" ->
+  If[StringQ[previousProgressSeconds], previousProgressSeconds, None]];
+
+(* ==== (j) serial == parallel, exactly ================================ *)
+(* the injected dispatcher runs the SAME pure batch function the pool
+   helper runs (blockEquationDeferredMaterializeTask calls it), in this
+   kernel: batching, reassembly and the recomputation path are exercised
+   and no helper kernel is ever asked for *)
+localDispatcher[data_Association, batchList_List] := Map[
+  Function[batch,
+    Map[Function[job, Quiet[Check[assembleJob[data["Operands"], job,
+        data["Cancel"], data["PolynomialSymbols"]], $Failed]]],
+      data["Jobs"][[batch]]]],
+  batchList];
+deadDispatcher[data_Association, batchList_List] :=
+  ConstantArray[$Failed, Length[batchList]];
+
+matSerial = materialize[prep, "Parallel" -> False, "Progress" -> False];
+matParallel = materialize[prep, "Parallel" -> True, "Helpers" -> 3,
+  "BatchDispatcher" -> localDispatcher, "Progress" -> False];
+sameValuesQ[a_, b_] := AllTrue[Flatten[Table[
+    SameQ[a["Values"][{mu, i, jj}], b["Values"][{mu, i, jj}]],
+    {mu, dims[[1]]}, {i, dims[[2]]}, {jj, dims[[3]]}]], TrueQ];
+FTAssert["(j) the parallel route returns the SAME EXPRESSION as the serial route",
+  sameValuesQ[matSerial, matParallel]];
+FTAssert["(j) the parallel route really batched to the helpers",
+  Lookup[matParallel["Statistics"], "Route", None] === "Parallel" &&
+    Lookup[matParallel["Statistics"], "Batches", 0] === 4 &&
+    Lookup[matParallel["Statistics"], "DispatchedBatches", 0] === 3 &&
+    Total[Lookup[matParallel["Statistics"], "BatchSizes", {}]] === 8];
+FTAssert["(j) the parallel route reports the same counters as the serial one",
+  Lookup[matParallel, "ZeroEntries", -1] === Lookup[matSerial, "ZeroEntries", -2] &&
+    Lookup[matParallel, "AlgebraicEntries", -1] ===
+      Lookup[matSerial, "AlgebraicEntries", -2] &&
+    Lookup[matParallel, "Fallbacks", -1] === 0];
+FTAssert["(j) the batch plan is a deterministic partition in target order",
+  Module[{bytes = {7, 3, 11, 2, 5, 13, 1, 9}},
+   batchPlan[bytes, 4, 10^9] === batchPlan[bytes, 4, 10^9] &&
+     Flatten[batchPlan[bytes, 4, 10^9]] === Range[8] &&
+     Length[batchPlan[bytes, 4, 10^9]] === 4]];
+FTAssert["(j) the batch plan splits on the byte cap, never on an entry count",
+  Module[{bytes = ConstantArray[10, 8]},
+   batchPlan[bytes, 4, 1] === List /@ Range[8] &&
+     batchPlan[bytes, 1, 10^9] === {Range[8]} &&
+     Flatten[batchPlan[bytes, 4, 25]] === Range[8]]];
+matTinyCap = materialize[prep, "Parallel" -> True, "Helpers" -> 3,
+  "BatchByteCap" -> 1, "BatchDispatcher" -> localDispatcher,
+  "Progress" -> False];
+FTAssert["(j) a byte cap below one entry gives singleton batches and the same values",
+  Lookup[matTinyCap["Statistics"], "Batches", 0] === 8 &&
+    Lookup[matTinyCap["Statistics"], "BatchSizes", {}] === ConstantArray[1, 8] &&
+    sameValuesQ[matSerial, matTinyCap]];
+matDeadHelpers = materialize[prep, "Parallel" -> True, "Helpers" -> 3,
+  "BatchDispatcher" -> deadDispatcher, "Progress" -> False];
+FTAssert["(j) a helper that returns nothing costs time, never a value",
+  sameValuesQ[matSerial, matDeadHelpers] &&
+    Lookup[matDeadHelpers, "Fallbacks", -1] === 0 &&
+    Lookup[matDeadHelpers["Statistics"], "Route", None] === "Parallel"];
+matNoHelper = materialize[prep, "Parallel" -> True, "Helpers" -> 0,
+  "BatchDispatcher" -> localDispatcher, "Progress" -> False];
+FTAssert["(j) with no free helper the route IS the serial route",
+  Lookup[matNoHelper["Statistics"], "Route", None] === "Serial" &&
+    Lookup[matNoHelper["Statistics"], "DispatchedBatches", -1] === 0 &&
+    sameValuesQ[matSerial, matNoHelper]];
+(* the algebraic frame exercises the final one-quotient Together inside
+   the batched job, which is where an expression could drift in FORM *)
+matAlgebraicSerial = materialize[prepAlgebraic, "Parallel" -> False,
+  "Progress" -> False];
+matAlgebraicParallel = materialize[prepAlgebraic, "Parallel" -> True,
+  "Helpers" -> 3, "BatchDispatcher" -> localDispatcher, "Progress" -> False];
+FTAssert["(j) on an algebraic frame the two routes agree as expressions too",
+  AllTrue[Flatten[Table[
+      SameQ[matAlgebraicSerial["Values"][{mu, i, jj}],
+        matAlgebraicParallel["Values"][{mu, i, jj}]],
+      {mu, dims[[1]]}, {i, dims[[2]]}, {jj, dims[[3]]}]], TrueQ] &&
+    Lookup[matAlgebraicParallel, "AlgebraicEntries", 0] > 0];
+previousParallel = Environment["FACET_MATERIALIZE_PARALLEL"];
+SetEnvironment["FACET_MATERIALIZE_PARALLEL" -> "Off"];
+FTAssert["(j) FACET_MATERIALIZE_PARALLEL=Off reverts the second phase",
+  parallelRouteQ[] === False &&
+    Lookup[materialize[prep, "Helpers" -> 3,
+       "BatchDispatcher" -> localDispatcher, "Progress" -> False][
+      "Statistics"], "Route", None] === "Serial"];
+SetEnvironment["FACET_MATERIALIZE_PARALLEL" -> None];
+FTAssert["(j) the parallel second phase is the default when unset",
+  parallelRouteQ[] === True &&
+    Lookup[materialize[prep, "Helpers" -> 3,
+       "BatchDispatcher" -> localDispatcher, "Progress" -> False][
+      "Statistics"], "Route", None] === "Parallel"];
+SetEnvironment["FACET_MATERIALIZE_PARALLEL" ->
+  If[StringQ[previousParallel], previousParallel, None]];
+FTAssert["(j) the driver entry point passes the second-phase options through",
+  Module[{f = forcing[connection, ranges, k, j, solved, {x, y}, eps,
+      "Parallel" -> True, "Helpers" -> 3,
+      "BatchDispatcher" -> localDispatcher, "Progress" -> False]},
+   Lookup[f, "Status", None] === "OK" &&
+     Lookup[Lookup[f["Materialization"], "Statistics", <||>], "Route",
+       None] === "Parallel" &&
+     And @@ Flatten[Table[
+        SameQ[f["Forcing"][[a, b, c]], matSerial["Values"][{a, b, c}]],
+        {a, dims[[1]]}, {b, dims[[2]]}, {c, dims[[3]]}]]]];
 
 FTReport[];
