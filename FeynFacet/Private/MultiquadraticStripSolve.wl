@@ -122,6 +122,12 @@ ClearAll[
   multiquadraticStripScreenEvaluateRational,
   multiquadraticStripScreenPowerTables,
   multiquadraticStripIntegrabilityScreen,
+  multiquadraticStripGaugeAnsatz, multiquadraticStripGaugeScreen,
+  multiquadraticStripGaugeScreenImages,
+  multiquadraticStripCurveParameterization,
+  multiquadraticStripRationalFunctionSquareRoot,
+  multiquadraticStripGradeSquare, multiquadraticStripGradeNorm,
+  multiquadraticStripMixedGradeLetters,
   $multiquadraticStripRegulatorSamplePool,
   multiquadraticStripRootOrder, multiquadraticStripRootCensus,
   multiquadraticStripRationalSquareQ, multiquadraticStripSquareClassSquareQ,
@@ -1300,6 +1306,855 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
 ];
 multiquadraticStripIntegrabilityScreen[___] :=
   multiquadraticStripFailure["InvalidIntegrabilityScreenArguments"];
+
+(* ------------------------------------------------------------------ *)
+(* The FULL-GAUGE per-image screen (2026-08-25)                         *)
+(* ------------------------------------------------------------------ *)
+
+(* The integrability screen above projects the gauge OUT: it certifies
+   only that the alphabet can carry the residues.  Its consistency is
+   necessary, not sufficient -- CF300 (12,9) is consistent there and
+   still carries a defect in the full system.  This screen assembles the
+   COMPLETE affine gauge system (gauge coefficients AND residues) at one
+   (prime, eps) image by point evaluation, with no symbolic compile and
+   no channel decomposition, and measures rank / augmented rank / defect
+   / nullity plus a verified left witness.  Measured on CF300 (12,9):
+   43 s at 1816 unknowns, 98 s at 3128.  The compile it screens is
+   ~7900 s, so it is the cheap gate in front of it.
+
+   Row (mu, i, j) at a split point, in the engine's own column order
+   (multiquadraticStripColumnOrder: gauge {i,j,grade,monomial}, then
+   residues {letter,i,j}):
+     Sum_{i'j' grade mon} g[i',j',grade,mon] K + eps Sum_a R[a,i,j] w_a,mu
+       = bbar_mu[i,j],
+     K = [i'=i,j'=j] dB_mu - eps [j'=j] e_mu[i,i'] B
+                            + eps [i'=i] c_mu[j',j] B,
+     B = x^p y^q r_grade / Q.
+   The rows are taken in the SIGN basis (2^r sign branches per split
+   point), which is the invertible Hadamard image of the engine's grade
+   rows; rank, defect and nullity are basis-independent, and the witness
+   is reported in that same sign-row basis.
+
+   CANDIDATE COLUMNS.  "CandidateOneForms" appends extra residue columns
+   that are NOT part of the base system.  The base rank/defect/witness
+   are measured on the base columns alone; each candidate is then scored
+   against the witness (y . C != 0 is Codex's necessary condition) and
+   the defect of an arbitrary SUBSET of candidates is read off the small
+   pairing matrix L . [C | b], where L is a basis of the left null space
+   of the base matrix.  One assembly therefore answers every subset
+   question, which is what makes witness-guided letter discovery
+   affordable. *)
+
+Options[multiquadraticStripGaugeAnsatz] = {
+  "DegreeOffset" -> {0, 0},
+  "Support" -> Automatic
+};
+
+(* A minimal ansatz descriptor for the screen.  A full preparation
+   record already satisfies the screen's contract; this builder exists so
+   the screen can be run BEFORE (or without) a preparation, which is the
+   whole point of a cheap gate: preparation decomposes the forcing into
+   channels and costs ~10^3 s on the blocks this screen is for. *)
+multiquadraticStripGaugeAnsatz[record_Association, roots_List,
+    oneForms_List, gaugeDenominator_, opts : OptionsPattern[]] := Module[
+  {gate, variables, strip, dimensions, degrees, degreeOffset, support},
+  gate = multiquadraticStripProductionOptionGate[{opts},
+    Keys[Association[Options[multiquadraticStripGaugeAnsatz]]]];
+  If[AssociationQ[gate], Return[gate]];
+  variables = Lookup[record, "Variables", $Failed];
+  strip = Lookup[record, "Strip", $Failed];
+  If[! MatchQ[variables, {_Symbol, _Symbol}] ||
+      ! MatchQ[strip, {_List, _List, _List}],
+    Return[multiquadraticStripFailure["InvalidStripRecord"]]];
+  If[! MatchQ[oneForms, {} | {{_, _} ..}],
+    Return[multiquadraticStripFailure["OneFormBasisFailed"]]];
+  If[TrueQ[Together[gaugeDenominator] === 0] ||
+      ! FreeQ[gaugeDenominator,
+        Power[_, exponent_Rational /; Denominator[exponent] === 2]],
+    Return[multiquadraticStripFailure["GaugeDenominatorNotRational"]]];
+  dimensions = Dimensions[strip[[3, 1]]];
+  If[! MatchQ[dimensions, {_Integer, _Integer}] || Min[dimensions] < 1,
+    Return[multiquadraticStripFailure["InvalidForcingDimensions"]]];
+  degrees = Exponent[Together[gaugeDenominator], #1] & /@ variables;
+  degreeOffset = OptionValue["DegreeOffset"];
+  If[! MatchQ[degreeOffset, {a_Integer, b_Integer} /; a >= 0 && b >= 0],
+    Return[multiquadraticStripFailure["InvalidDegreeOffset"]]];
+  support = Replace[OptionValue["Support"], Automatic :>
+    Flatten[Table[{i, j}, {i, 0, degrees[[1]] + degreeOffset[[1]]},
+      {j, 0, degrees[[2]] + degreeOffset[[2]]}], 1]];
+  If[! ListQ[support] || support === {} ||
+      ! AllTrue[support, MatchQ[#1, {a_Integer, b_Integer} /; a >= 0 && b >= 0] &],
+    Return[multiquadraticStripFailure["InvalidSupport"]]];
+  support = Sort[DeleteDuplicates[support]];
+  <|"Status" -> "MultiquadraticGaugeAnsatzV1",
+    "Record" -> record, "Variables" -> variables,
+    "Regulator" -> Lookup[record, "Regulator", $Failed],
+    "Strip" -> strip, "Roots" -> roots, "RootCount" -> Length[roots],
+    "OneForms" -> oneForms,
+    "GaugeDenominator" -> Together[gaugeDenominator],
+    "GaugeDenominatorDegrees" -> degrees,
+    "GaugeSupport" -> support, "Dimensions" -> dimensions,
+    "GradeCount" -> 2^Length[roots],
+    "GaugeUnknownCount" ->
+      (Times @@ dimensions) 2^Length[roots] Length[support],
+    "ResidueUnknownCount" -> Length[oneForms] (Times @@ dimensions),
+    "UnknownCount" -> (Times @@ dimensions) 2^Length[roots] Length[support] +
+      Length[oneForms] (Times @@ dimensions)|>
+];
+multiquadraticStripGaugeAnsatz[___] :=
+  multiquadraticStripFailure["InvalidGaugeAnsatzArguments"];
+
+Options[multiquadraticStripGaugeScreen] = {
+  "Prime" -> Automatic,
+  "RegulatorValue" -> Automatic,
+  "PointCount" -> Automatic,
+  "MaximumAttempts" -> Automatic,
+  "RandomSeed" -> 2026082501,
+  "ExtraRowPoints" -> 1,
+  "CandidateOneForms" -> {},
+  "CandidateSubsets" -> Automatic,
+  "LeftNullSpace" -> Automatic
+};
+
+multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
+  Module[
+  {gate, record, variables, epsilon, strip, e, c, bbar, roots, oneForms,
+   gaugeDenominator, support, dimensions, upper, lower, rank, gradeCount,
+   supportCount, letterCount, gaugeUnknownCount, residueUnknownCount,
+   unknownCount, candidateForms, candidateCount, candidateWidth, prime,
+   regulatorValue, epsilonMod, pointCount, maximumAttempts, randomSeed,
+   equationsPerPoint, rootOne, rootTwo, rootThree, rootSymbols, compileScalar,
+   deltaCompiled, eCompiled, cCompiled, bCompiled, formCompiled,
+   candidateCompiled, denominatorCompiled, rationalLeaves, maximumExponents,
+   rows = {}, right = {}, candidateRows = {}, accepted = 0, attempts = 0,
+   rejected = <||>, point, probeTables, probeInverses, deltaValues, rootValues,
+   pointOK, pointRows, pointRight, pointCandidate, values, inverses,
+   powerTables, rootDerivatives, evaluate, denominatorPair, denominatorValue,
+   denominatorInverse, denominatorLog, ex, ey, cx, cy, bx, by, formValues,
+   candidateValues, monomialValues, gradeValues, gradeLog, basisValues,
+   basisDerivatives, xInverse, yInverse, rowVector, matrix, candidateMatrix,
+   rightVector, rankA, rankAugmented, defect, leftNull, witness, wanted,
+   pairing, subsets, subsetResults, candidateScores, screenStatus, seconds,
+   startTime = AbsoluteTime[], subsetDefect},
+  gate = multiquadraticStripProductionOptionGate[{opts},
+    Keys[Association[Options[multiquadraticStripGaugeScreen]]]];
+  If[AssociationQ[gate], Return[gate]];
+  record = Lookup[ansatz, "Record", <||>];
+  If[! AssociationQ[record], record = <||>];
+  variables = Lookup[ansatz, "Variables", Lookup[record, "Variables", $Failed]];
+  epsilon = Lookup[ansatz, "Regulator", Lookup[record, "Regulator", $Failed]];
+  strip = Lookup[ansatz, "Strip", Lookup[record, "Strip", $Failed]];
+  roots = Lookup[ansatz, "Roots", $Failed];
+  oneForms = Lookup[ansatz, "OneForms", $Failed];
+  gaugeDenominator = Lookup[ansatz, "GaugeDenominator", $Failed];
+  support = Lookup[ansatz, "GaugeSupport", $Failed];
+  If[! MatchQ[variables, {_Symbol, _Symbol}] || ! MatchQ[epsilon, _Symbol] ||
+      ! MatchQ[strip, {_List, _List, _List}] || ! ListQ[roots] ||
+      ! MatchQ[oneForms, {} | {{_, _} ..}] ||
+      ! MatchQ[support, {{_Integer, _Integer} ..}] ||
+      gaugeDenominator === $Failed,
+    Return[multiquadraticStripFailure["InvalidGaugeAnsatz",
+      <|"MissingKeys" -> Select[{"Variables", "Regulator", "Strip", "Roots",
+          "OneForms", "GaugeDenominator", "GaugeSupport"},
+        ! KeyExistsQ[ansatz, #1] &]|>]]];
+  {e, c, bbar} = strip;
+  If[! MatchQ[Dimensions[bbar], {2, _Integer, _Integer}],
+    Return[multiquadraticStripFailure["InvalidForcingDimensions"]]];
+  {upper, lower} = Dimensions[bbar[[1]]];
+  rank = Length[roots];
+  If[rank > $multiquadraticStripMaximumRootCount,
+    Return[multiquadraticStripFailure["UnsupportedRootRank"]]];
+  gradeCount = 2^rank;
+  supportCount = Length[support];
+  letterCount = Length[oneForms];
+  candidateForms = Replace[OptionValue["CandidateOneForms"], Automatic :> {}];
+  If[! MatchQ[candidateForms, {} | {{_, _} ..}],
+    Return[multiquadraticStripFailure["InvalidCandidateOneForms"]]];
+  candidateCount = Length[candidateForms];
+  candidateWidth = upper lower;
+  gaugeUnknownCount = upper lower gradeCount supportCount;
+  residueUnknownCount = letterCount upper lower;
+  unknownCount = gaugeUnknownCount + residueUnknownCount;
+  equationsPerPoint = 2 upper lower gradeCount;
+  prime = Replace[OptionValue["Prime"],
+    Automatic :> First[$multiquadraticStripDefaultPrimes]];
+  regulatorValue = Replace[OptionValue["RegulatorValue"],
+    Automatic :> First[$multiquadraticStripDefaultRegulatorValues]];
+  pointCount = Replace[OptionValue["PointCount"], Automatic :>
+    Ceiling[(unknownCount +
+      Max[1, OptionValue["ExtraRowPoints"]] equationsPerPoint)/
+      equationsPerPoint]];
+  maximumAttempts = Replace[OptionValue["MaximumAttempts"],
+    Automatic :> 60 pointCount + 60];
+  randomSeed = OptionValue["RandomSeed"];
+  If[! PrimeQ[prime] || ! (3 < prime < 2^31) || Mod[prime, 4] =!= 3 ||
+      ! MatchQ[regulatorValue, _Integer | _Rational] ||
+      ! IntegerQ[pointCount] || pointCount < 1 || ! IntegerQ[randomSeed] ||
+      ! IntegerQ[maximumAttempts] || maximumAttempts < pointCount,
+    Return[multiquadraticStripFailure["InvalidGaugeScreenInput",
+      <|"Prime" -> prime, "RegulatorValue" -> regulatorValue,
+        "PointCount" -> pointCount|>]]];
+  epsilonMod = multiquadraticStripModRational[regulatorValue, prime];
+  If[epsilonMod === $Failed || epsilonMod === 0,
+    Return[multiquadraticStripFailure["InvalidRegulatorImage",
+      <|"Prime" -> prime, "RegulatorValue" -> regulatorValue|>]]];
+  rootSymbols = Take[{rootOne, rootTwo, rootThree}, rank];
+  compileScalar[expression_] := multiquadraticStripScreenCompileScalar[
+    Quiet[Check[Together[expression /. epsilon -> regulatorValue], $Failed,
+      {Power::infy, Infinity::indet, Power::indet}]],
+    roots, rootSymbols, variables, prime];
+  deltaCompiled = multiquadraticStripScreenCompileScalar[#1, {}, rootSymbols,
+      variables, prime] & /@ Lookup[roots, "RootSquare", {}];
+  eCompiled = Map[compileScalar, e, {3}];
+  cCompiled = Map[compileScalar, c, {3}];
+  bCompiled = Map[compileScalar, bbar, {3}];
+  formCompiled = Map[compileScalar, oneForms, {2}];
+  candidateCompiled = Map[compileScalar, candidateForms, {2}];
+  denominatorCompiled = compileScalar[gaugeDenominator];
+  If[! FreeQ[{deltaCompiled, eCompiled, cCompiled, bCompiled, formCompiled,
+      candidateCompiled, denominatorCompiled}, $Failed],
+    Return[<|"Status" -> "GaugeScreenNotApplicable",
+      "Module" -> "MultiquadraticStripSolve",
+      "Reason" -> "ScreenCompilationFailed", "Prime" -> prime,
+      "RegulatorValue" -> regulatorValue|>]];
+  rationalLeaves = Cases[{deltaCompiled, eCompiled, cCompiled, bCompiled,
+      formCompiled, candidateCompiled, denominatorCompiled},
+    association_Association /; KeyExistsQ[association, "Numerator"] :>
+      association, {0, Infinity}];
+  maximumExponents = Max /@ Transpose[
+    Lookup[rationalLeaves, "MaximumExponents"]];
+  maximumExponents[[1]] = Max[maximumExponents[[1]], Max[support[[All, 1]]]];
+  maximumExponents[[2]] = Max[maximumExponents[[2]], Max[support[[All, 2]]]];
+  BlockRandom[
+    SeedRandom[randomSeed, Method -> "MersenneTwister"];
+    While[accepted < pointCount && attempts < maximumAttempts,
+      attempts++;
+      point = RandomInteger[{2, prime - 2}, 2];
+      probeTables = multiquadraticStripScreenPowerTables[
+        Join[point, ConstantArray[1, rank]], maximumExponents, prime];
+      probeInverses = Join[PowerMod[point, -1, prime], ConstantArray[1, rank]];
+      deltaValues = Table[
+        Module[{pair = multiquadraticStripScreenEvaluateRational[
+           deltaCompiled[[a]], probeTables, probeInverses, prime]},
+         If[pair === $Failed, $Failed, First[pair]]], {a, rank}];
+      If[MemberQ[deltaValues, $Failed] || MemberQ[deltaValues, 0] ||
+          ! AllTrue[deltaValues, JacobiSymbol[#1, prime] === 1 &],
+        rejected["NotSplitOverPrime"] =
+          Lookup[rejected, "NotSplitOverPrime", 0] + 1;
+        Continue[]];
+      rootValues = PowerMod[deltaValues, (prime + 1)/4, prime];
+      If[! AllTrue[Range[rank],
+          Mod[rootValues[[#1]]^2 - deltaValues[[#1]], prime] === 0 &],
+        rejected["RootImageNotARoot"] =
+          Lookup[rejected, "RootImageNotARoot", 0] + 1;
+        Continue[]];
+      pointOK = True; pointRows = {}; pointRight = {}; pointCandidate = {};
+      (* the 2^r sign branches of this point are the invertible image of
+         the grade rows: all of them, or none *)
+      Do[
+        values = Join[point, Table[
+          Mod[If[BitGet[signMask, a - 1] === 1, -1, 1] rootValues[[a]], prime],
+          {a, rank}]];
+        If[MemberQ[values, 0], pointOK = False; Break[]];
+        inverses = PowerMod[values, -1, prime];
+        powerTables = multiquadraticStripScreenPowerTables[values,
+          maximumExponents, prime];
+        rootDerivatives = Table[
+          Module[{pair = multiquadraticStripScreenEvaluateRational[
+             deltaCompiled[[a]], powerTables, inverses, prime], half},
+           If[pair === $Failed, ConstantArray[0, 2],
+             half = PowerMod[Mod[2 values[[2 + a]], prime], -1, prime];
+             Mod[half Last[pair][[1 ;; 2]], prime]]],
+          {a, rank}];
+        evaluate[compiled_] := Module[{pair},
+          pair = multiquadraticStripScreenEvaluateRational[compiled,
+            powerTables, inverses, prime];
+          If[pair === $Failed, Throw[$Failed, "MultiquadraticGaugeScreenPoint"]];
+          {First[pair], Table[Mod[Last[pair][[mu]] +
+             Sum[Last[pair][[2 + a]] rootDerivatives[[a, mu]], {a, rank}],
+             prime], {mu, 2}]}];
+        If[Catch[
+            denominatorPair = evaluate[denominatorCompiled];
+            ex = Map[First[evaluate[#1]] &, eCompiled[[1]], {2}];
+            ey = Map[First[evaluate[#1]] &, eCompiled[[2]], {2}];
+            cx = Map[First[evaluate[#1]] &, cCompiled[[1]], {2}];
+            cy = Map[First[evaluate[#1]] &, cCompiled[[2]], {2}];
+            bx = Map[First[evaluate[#1]] &, bCompiled[[1]], {2}];
+            by = Map[First[evaluate[#1]] &, bCompiled[[2]], {2}];
+            formValues = Map[First[evaluate[#1]] &, formCompiled, {2}];
+            candidateValues = Map[First[evaluate[#1]] &, candidateCompiled, {2}];
+            True, "MultiquadraticGaugeScreenPoint"] =!= True,
+          pointOK = False; Break[]];
+        denominatorValue = First[denominatorPair];
+        If[denominatorValue === 0, pointOK = False; Break[]];
+        denominatorInverse = PowerMod[denominatorValue, -1, prime];
+        denominatorLog = Mod[Last[denominatorPair] denominatorInverse, prime];
+        xInverse = inverses[[1]]; yInverse = inverses[[2]];
+        monomialValues = Table[
+          Mod[powerTables[[1]][[support[[k, 1]] + 1]]
+            powerTables[[2]][[support[[k, 2]] + 1]], prime], {k, supportCount}];
+        gradeValues = Table[
+          Mod[Product[If[BitGet[grade, a - 1] === 1, values[[2 + a]], 1],
+            {a, rank}], prime], {grade, 0, gradeCount - 1}];
+        (* dlog r_grade = Sum_{a in grade} (dr_a/dmu)/r_a, and
+           rootDerivatives[[a]] is dr_a/dmu because r_a^2 = delta_a *)
+        gradeLog = Table[
+          Mod[Sum[If[BitGet[grade, a - 1] === 1,
+            Mod[rootDerivatives[[a, mu]] inverses[[2 + a]], prime], 0],
+            {a, rank}], prime],
+          {grade, 0, gradeCount - 1}, {mu, 2}];
+        basisValues = Flatten[Table[
+          Mod[gradeValues[[grade + 1]] monomialValues[[k]] denominatorInverse,
+            prime], {grade, 0, gradeCount - 1}, {k, supportCount}]];
+        basisDerivatives = Table[Flatten[Table[
+          Mod[Mod[gradeValues[[grade + 1]] monomialValues[[k]]
+              denominatorInverse, prime]
+            Mod[If[mu === 1, support[[k, 1]] xInverse,
+                support[[k, 2]] yInverse] +
+              gradeLog[[grade + 1, mu]] - denominatorLog[[mu]], prime], prime],
+          {grade, 0, gradeCount - 1}, {k, supportCount}]], {mu, 2}];
+        Do[
+          rowVector = Join[
+            Flatten[Table[
+              Mod[If[i2 === i && j2 === j, basisDerivatives[[mu]], 0] +
+                Mod[If[j2 === j, -epsilonMod If[mu === 1, ex[[i, i2]],
+                      ey[[i, i2]]], 0] +
+                  If[i2 === i, epsilonMod If[mu === 1, cx[[j2, j]],
+                      cy[[j2, j]]], 0], prime] basisValues, prime],
+              {i2, upper}, {j2, lower}]],
+            Flatten[Table[If[i2 === i && j2 === j,
+              Mod[epsilonMod formValues[[k, mu]], prime], 0],
+              {k, letterCount}, {i2, upper}, {j2, lower}]]];
+          If[Length[rowVector] =!= unknownCount,
+            Throw[$Failed, "MultiquadraticGaugeScreenWidth"]];
+          AppendTo[pointRows, Developer`ToPackedArray[rowVector]];
+          AppendTo[pointRight, If[mu === 1, bx[[i, j]], by[[i, j]]]];
+          If[candidateCount > 0,
+            AppendTo[pointCandidate, Developer`ToPackedArray[Flatten[Table[
+              If[i2 === i && j2 === j,
+                Mod[epsilonMod candidateValues[[k, mu]], prime], 0],
+              {k, candidateCount}, {i2, upper}, {j2, lower}]]]]],
+          {mu, 2}, {i, upper}, {j, lower}],
+        {signMask, 0, gradeCount - 1}];
+      If[TrueQ[pointOK],
+        accepted++;
+        rows = Join[rows, pointRows]; right = Join[right, pointRight];
+        If[candidateCount > 0, candidateRows = Join[candidateRows, pointCandidate]],
+        rejected["Unusable"] = Lookup[rejected, "Unusable", 0] + 1]]];
+  If[accepted < pointCount,
+    Return[<|"Status" -> "GaugeScreenNotApplicable",
+      "Module" -> "MultiquadraticStripSolve",
+      "Reason" -> "InsufficientAdmissiblePoints",
+      "PointCount" -> accepted, "RequestedPointCount" -> pointCount,
+      "AttemptCount" -> attempts, "RejectedPoints" -> rejected,
+      "Prime" -> prime, "RegulatorValue" -> regulatorValue|>]];
+  matrix = Developer`ToPackedArray[Mod[rows, prime]];
+  rightVector = Developer`ToPackedArray[Mod[right, prime]];
+  candidateMatrix = If[candidateCount > 0,
+    Developer`ToPackedArray[Mod[candidateRows, prime]], {}];
+  rankA = MatrixRank[matrix, Modulus -> prime];
+  rankAugmented = MatrixRank[MapThread[Append, {matrix, rightVector}],
+    Modulus -> prime];
+  defect = rankAugmented - rankA;
+  wanted = Replace[OptionValue["LeftNullSpace"],
+    Automatic :> (defect > 0 || candidateCount > 0)];
+  leftNull = If[TrueQ[wanted],
+    NullSpace[Transpose[matrix], Modulus -> prime], {}];
+  witness = Missing["Consistent"];
+  If[defect > 0,
+    witness = If[ListQ[leftNull] && leftNull =!= {},
+      SelectFirst[leftNull, Mod[#1 . rightVector, prime] =!= 0 &,
+        Missing["NoWitnessFound"]], Missing["LeftNullSpaceNotComputed"]];
+    If[! MissingQ[witness],
+      witness = <|"Prime" -> prime, "Vector" -> witness,
+        "RowBasis" -> "SignBranch",
+        "TransposeResidualZero" ->
+          AllTrue[Mod[witness . matrix, prime], #1 === 0 &],
+        "RightHandSidePairing" -> Mod[witness . rightVector, prime],
+        "Support" -> Count[witness, _?(#1 =!= 0 &)]|>]];
+  (* subset defects from the small pairing matrix L . [C | b]:
+     b is in the column span of [A | C_S] exactly when its pairing
+     column lies in the span of the C_S pairing columns *)
+  candidateScores = {}; subsetResults = {};
+  If[candidateCount > 0 && ListQ[leftNull],
+    pairing = If[leftNull === {}, {},
+      Mod[leftNull . MapThread[Append, {candidateMatrix, rightVector}], prime]];
+    subsetDefect[indices_List] := Module[{columns},
+      If[pairing === {}, Return[0]];
+      columns = Flatten[
+        ((#1 - 1) candidateWidth + Range[candidateWidth]) & /@ indices];
+      MatrixRank[pairing[[All, Append[columns, candidateCount candidateWidth + 1]]],
+        Modulus -> prime] -
+        If[columns === {}, 0,
+          MatrixRank[pairing[[All, columns]], Modulus -> prime]]];
+    candidateScores = Table[
+      Module[{block = (k - 1) candidateWidth + Range[candidateWidth]},
+      <|"Index" -> k,
+        "WitnessPairing" -> If[AssociationQ[witness],
+          Mod[witness["Vector"] . candidateMatrix[[All, block]], prime],
+          Missing["NoWitness"]],
+        "PiercesWitness" -> If[AssociationQ[witness],
+          AnyTrue[Mod[witness["Vector"] . candidateMatrix[[All, block]], prime],
+            #1 =!= 0 &], Missing["NoWitness"]],
+        (* rank([A | C_k]) - rank(A), read off the pairing matrix.  0
+           means the candidate's residue columns lie in the span of the
+           system's existing columns: its dlog is a linear combination of
+           one-forms the alphabet already has, so it is not a new letter
+           at all -- a distinction the witness pairing alone cannot make,
+           and the one that separates "no new direction was produced"
+           from "new directions were produced and none touches the
+           obstruction". *)
+        "RankContribution" -> If[pairing === {}, 0,
+          MatrixRank[pairing[[All, block]], Modulus -> prime]],
+        "Defect" -> subsetDefect[{k}]|>],
+      {k, candidateCount}];
+    subsets = Replace[OptionValue["CandidateSubsets"], Automatic :>
+      If[candidateCount > 1, {Range[candidateCount]}, {}]];
+    If[! MatchQ[subsets, {{___Integer} ...}],
+      subsets = If[candidateCount > 1, {Range[candidateCount]}, {}]];
+    subsetResults = Table[
+      <|"Indices" -> subset, "Defect" -> subsetDefect[subset]|>,
+      {subset, subsets}]];
+  screenStatus = If[defect > 0, "GaugeImageObstruction", "GaugeImageConsistent"];
+  seconds = AbsoluteTime[] - startTime;
+  <|"Status" -> screenStatus, "Module" -> "MultiquadraticStripSolve",
+    "Method" -> "PointEvaluatedAffineGaugeSystem",
+    "Family" -> Lookup[record, "Family", None],
+    "Sector" -> Lookup[record, "Sector", None],
+    "LowerSector" -> Lookup[record, "LowerSector", None],
+    "Defect" -> defect, "Rank" -> rankA, "AugmentedRank" -> rankAugmented,
+    "Nullity" -> unknownCount - rankA,
+    "LeftNullity" -> Length[matrix] - rankA,
+    "MatrixDimensions" -> Dimensions[matrix],
+    "UnknownCount" -> unknownCount,
+    "GaugeUnknownCount" -> gaugeUnknownCount,
+    "ResidueUnknownCount" -> residueUnknownCount,
+    "LetterCount" -> letterCount, "Prime" -> prime,
+    "RegulatorValue" -> regulatorValue, "PointCount" -> accepted,
+    "AttemptCount" -> attempts, "RejectedPoints" -> rejected,
+    "EquationsPerPoint" -> equationsPerPoint,
+    "Witness" -> witness,
+    "CandidateCount" -> candidateCount,
+    "CandidateScores" -> candidateScores,
+    "CandidateSubsetResults" -> subsetResults,
+    (* the ansatz a defect belongs to: a defect with no ansatz descriptor
+       cannot distinguish a missing letter from too small a support *)
+    "Ansatz" -> <|"GaugeDenominator" -> Together[gaugeDenominator],
+      "GaugeDenominatorDegrees" ->
+        (Exponent[Together[gaugeDenominator], #1] & /@ variables),
+      "SupportCount" -> supportCount, "GradeCount" -> gradeCount,
+      "Dimensions" -> {upper, lower}, "RootCount" -> rank,
+      "RootSquares" -> Lookup[roots, "RootSquare", {}],
+      "ABIFingerprint" -> Lookup[ansatz, "ABIFingerprint",
+        Missing["NoPreparation"]]|>,
+    "Seconds" -> seconds|>
+];
+multiquadraticStripGaugeScreen[___] :=
+  multiquadraticStripFailure["InvalidGaugeScreenArguments"];
+
+(* Two independent images.  As a PRODUCTION GATE the second image is run
+   only when the first reports a defect -- a defect at one image can be a
+   bad image, and a consistent image does not gate anything, so it is not
+   made more consistent by a second one.  As a DISCOVERY instrument the
+   opposite is wanted: "the defect drops to 0" is only accepted at TWO
+   images, so "ConfirmConsistency" -> True runs every image regardless.
+   The verdict is an obstruction only when both images carry a defect. *)
+Options[multiquadraticStripGaugeScreenImages] = Join[
+  Options[multiquadraticStripGaugeScreen], {
+  "Images" -> Automatic,
+  "ConfirmObstruction" -> True,
+  "ConfirmConsistency" -> False
+}];
+
+multiquadraticStripGaugeScreenImages[ansatz_Association,
+    opts : OptionsPattern[]] := Module[
+  {gate, images, results = {}, screenOptions, result, defects},
+  gate = multiquadraticStripProductionOptionGate[{opts},
+    Keys[Association[Options[multiquadraticStripGaugeScreenImages]]]];
+  If[AssociationQ[gate], Return[gate]];
+  images = Replace[OptionValue["Images"], Automatic :>
+    Transpose[{$multiquadraticStripDefaultPrimes,
+      $multiquadraticStripDefaultRegulatorValues}]];
+  If[! MatchQ[images, {{_Integer, _Integer | _Rational} ..}],
+    Return[multiquadraticStripFailure["InvalidGaugeScreenImages",
+      <|"Images" -> images|>]]];
+  screenOptions = FilterRules[
+    DeleteCases[Flatten[{opts}],
+      HoldPattern["Prime" -> _] | HoldPattern["RegulatorValue" -> _] |
+      HoldPattern["RandomSeed" -> _]],
+    Options[multiquadraticStripGaugeScreen]];
+  Do[
+    result = multiquadraticStripGaugeScreen[ansatz,
+      "Prime" -> images[[k, 1]], "RegulatorValue" -> images[[k, 2]],
+      "RandomSeed" -> OptionValue["RandomSeed"] + 7919 k,
+      Sequence @@ screenOptions];
+    AppendTo[results, result];
+    If[! MemberQ[{"GaugeImageObstruction", "GaugeImageConsistent"},
+        Lookup[result, "Status", None]], Break[]];
+    If[Lookup[result, "Defect", 1] === 0,
+      If[! TrueQ[OptionValue["ConfirmConsistency"]], Break[]],
+      If[! TrueQ[OptionValue["ConfirmObstruction"]], Break[]]],
+    {k, Length[images]}];
+  defects = Lookup[results, "Defect", Missing["NoDefect"]];
+  <|"Status" -> Which[
+      ! AllTrue[results, MemberQ[{"GaugeImageObstruction",
+        "GaugeImageConsistent"}, Lookup[#1, "Status", None]] &],
+        "GaugeScreenNotApplicable",
+      AllTrue[defects, IntegerQ[#1] && #1 === 0 &] &&
+        (Length[results] >= 2 || ! TrueQ[OptionValue["ConfirmConsistency"]]),
+        "GaugeImageConsistent",
+      AllTrue[defects, IntegerQ[#1] && #1 === 0 &],
+        "GaugeImageConsistentUnconfirmed",
+      AllTrue[defects, IntegerQ[#1] && #1 > 0 &] && Length[results] >= 2,
+        "GaugeImageObstruction",
+      True, "GaugeImageObstructionUnconfirmed"],
+    "Module" -> "MultiquadraticStripSolve",
+    "Method" -> "PointEvaluatedAffineGaugeSystem",
+    "ImageCount" -> Length[results], "Defects" -> defects,
+    "Images" -> Take[images, UpTo[Length[results]]],
+    "ImageResults" -> results,
+    "Seconds" -> Total[Lookup[results, "Seconds", 0]]|>
+];
+multiquadraticStripGaugeScreenImages[___] :=
+  multiquadraticStripFailure["InvalidGaugeScreenArguments"];
+
+(* ------------------------------------------------------------------ *)
+(* Witness-guided MIXED-GRADE letter discovery (2026-08-25, Codex Q3)   *)
+(* ------------------------------------------------------------------ *)
+
+(* The norm-factor generator above finds SINGLE-ROOT principal letters
+   A +- Sqrt[delta] only.  Codex's Q3: the object that can be missing is
+   a mixed-grade potential
+     P = P0 + P1 r1 + P2 r2 + P12 r1 r2,
+   whose FULL Galois norm is supported on the polar divisor D, and whose
+   dlog is then the missing letter.  Enumerating such P by templates is
+   hopeless; the problem is solved EXACTLY and LINEARLY as follows.
+
+   A letter exists at a polar factor f exactly when the prime divisor f
+   SPLITS in the multiquadratic cover -- and then the function whose
+   divisor is the split part is the letter.  So:
+
+   (1) parameterize the curve f = 0 (f must be linear in one variable,
+       which every rational polar factor of these strips is; anything
+       else is reported, not guessed at);
+   (2) on that curve, decide for EVERY grade g whether delta_g is a
+       square in the residue field.  Those grades form a subgroup S of
+       the grade group -- the decomposition data of f;
+   (3) the condition "P vanishes on one prime above f" is then LINEAR in
+       the coefficients of the P_g: substitute the square roots for the
+       split roots, keep the others symbolic, reduce r_a^2 -> delta_a,
+       and demand every remaining coefficient vanish identically along
+       the curve.  That is a rational-linear system; its null space is
+       the space of mixed-grade potentials with a zero at that prime;
+   (4) the full Galois norm of each solution is computed exactly and
+       filtered by the SAME norm-in-alphabet certificate the single-root
+       letters carry, now against the polar CENSUS factor set rather
+       than the current alphabet.
+
+   The degree bound is raised one step at a time, so the first solutions
+   found are the minimal-degree generators, not generic members of a
+   large space.  A measured empty result at a stated bound is a real
+   negative: no mixed-grade letter of that degree has its divisor over
+   these factors. *)
+
+(* The curve f = 0 as var -> rational function of the other variable.
+   Only a factor that is LINEAR in one of the two variables is
+   parameterized this way; anything else is reported as unparameterized
+   rather than approximated. *)
+(* Catch/Throw, NOT Return inside Do: this package has paid for that trap
+   (Return inside Do discards the result and the Module falls through). *)
+multiquadraticStripCurveParameterization[factor_, variables : {x_, y_}] :=
+  Catch[Module[{expanded, other, coefficients},
+  expanded = Quiet[Expand[Together[factor]]];
+  If[! PolynomialQ[expanded, variables],
+    Throw[$Failed, "MultiquadraticCurveParameterization"]];
+  Do[
+    other = variables[[3 - k]];
+    If[Exponent[expanded, variables[[k]]] =!= 1, Continue[]];
+    coefficients = CoefficientList[expanded, variables[[k]]];
+    If[Length[coefficients] =!= 2 || TrueQ[Together[coefficients[[2]]] === 0],
+      Continue[]];
+    Throw[<|"Variable" -> other,
+      "Rule" -> variables[[k]] -> Together[-coefficients[[1]]/coefficients[[2]]],
+      "Eliminated" -> variables[[k]], "Factor" -> expanded|>,
+      "MultiquadraticCurveParameterization"],
+    {k, 2}];
+  $Failed], "MultiquadraticCurveParameterization"];
+
+(* An exact square root of a rational function of ONE variable, or
+   $Failed.  q = n/d is a square exactly when n d is a square polynomial;
+   then Sqrt[q] = Sqrt[n d]/d. *)
+multiquadraticStripRationalFunctionSquareRoot[value_, variable_Symbol] :=
+  Module[{rational, numerator, denominator, product, squareRoot, constant},
+  rational = Quiet[Together[value]];
+  If[! FreeQ[rational, DirectedInfinity | Indeterminate], Return[$Failed]];
+  If[TrueQ[rational === 0], Return[0]];
+  numerator = Numerator[rational]; denominator = Denominator[rational];
+  If[FreeQ[rational, variable],
+    Return[If[multiquadraticStripRationalSquareQ[rational], Sqrt[rational],
+      $Failed]]];
+  product = Quiet[Expand[numerator denominator]];
+  If[! PolynomialQ[product, variable], Return[$Failed]];
+  constant = Quiet[Cancel[product/Expand[product/Coefficient[product,
+    variable, Exponent[product, variable]]]]];
+  squareRoot = multiquadraticStripPolynomialSquareRoot[product, {variable}];
+  If[squareRoot === $Failed, Return[$Failed]];
+  Together[squareRoot/denominator]
+];
+
+(* grade bitmask -> the product of its root squares *)
+multiquadraticStripGradeSquare[roots_List, grade_Integer] :=
+  Expand[Together[Product[
+    If[BitGet[grade, a - 1] === 1, Lookup[roots[[a]], "RootSquare", 1], 1],
+    {a, Length[roots]}]]];
+
+(* The Galois norm of P = Sum_g c_g r_g: the product over its DISTINCT
+   conjugates, reduced by r_a^2 = delta_a.  Distinct, not all 2^r sign
+   branches: a P that happens to lie in a proper subfield has repeated
+   branches, and multiplying them all would return the true norm raised
+   to the index -- which doubles every exponent in the polar divisor and
+   in any gauge denominator built from it.  For a P with full grade
+   support the two definitions agree.  Exact and rational either way. *)
+multiquadraticStripGradeNorm[coefficients_List, roots_List] := Module[
+  {rank = Length[roots], gradeCount, branch, branches = {}, product,
+   rootOne, rootTwo, rootThree, symbols, squares, reduce},
+  gradeCount = 2^rank;
+  If[Length[coefficients] =!= gradeCount, Return[$Failed]];
+  symbols = Take[{rootOne, rootTwo, rootThree}, rank];
+  squares = Table[Together[Lookup[roots[[a]], "RootSquare", 1]], {a, rank}];
+  (* the reduction r_a^2 -> delta_a, applied to exhaustion; the norm is
+     Galois invariant, so nothing symbolic may survive *)
+  reduce[value_] := Module[{current = Expand[value], guardCount = 0},
+    While[guardCount < 32 && ! FreeQ[current,
+        Power[Alternatives @@ symbols, p_Integer /; p >= 2]],
+      guardCount++;
+      current = Expand[current /.
+        Power[symbol_ /; MemberQ[symbols, symbol], p_Integer /; p >= 2] :>
+          symbol^Mod[p, 2] squares[[First[FirstPosition[symbols, symbol]]]]^
+            Quotient[p, 2]]];
+    current];
+  Do[
+    branch = Expand[Sum[
+      coefficients[[grade + 1]] Product[
+        If[BitGet[grade, a - 1] === 1,
+          If[BitGet[signMask, a - 1] === 1, -1, 1] symbols[[a]], 1],
+        {a, rank}],
+      {grade, 0, gradeCount - 1}]];
+    AppendTo[branches, branch],
+    {signMask, 0, gradeCount - 1}];
+  branches = DeleteDuplicates[branches,
+    TrueQ[Expand[Together[#1 - #2]] === 0] &];
+  product = 1;
+  Do[product = reduce[Expand[product branch]], {branch, branches}];
+  If[! FreeQ[product, Alternatives @@ symbols], Return[$Failed]];
+  Quiet[Expand[Together[product]]]
+];
+
+Options[multiquadraticStripMixedGradeLetters] = {
+  "MaximumDegree" -> 2,
+  "Factors" -> Automatic,
+  "Alphabet" -> {},
+  "MaximumSolutionsPerPrime" -> 6,
+  (* 0 = the solution basis only; 2 = also every +-1 combination of a
+     PAIR of basis vectors.  Part of the stated bound of a negative. *)
+  "CombinationOrder" -> 2,
+  "CombinationBasisLimit" -> 24,
+  (* a letter of grade support {0, g} lies in a quadratic subfield and is
+     already produced by multiquadraticStripAlgebraicLetters; one of
+     support {g, h} is r_g times such a letter, so its dlog is spanned by
+     the alphabet plus dlog r_g.  True emits only supports of size >= 3,
+     which is where the genuinely mixed-grade content is. *)
+  "MinimumGradeSupport" -> 1
+};
+
+multiquadraticStripMixedGradeLetters[roots_List, censusFactors_List,
+    variables : {x_, y_}, opts : OptionsPattern[]] := Module[
+  {gate, rank, gradeCount, alphabet, factors, maximumDegree, maximumSolutions,
+   records = {}, diagnostics = {}, parameterization, freeVariable, rule,
+   gradeSquares, curveSquares, splitGrades, squareRoots, rootSymbols,
+   rootOne, rootTwo, rootThree, degree, monomials, unknowns, coefficients,
+   substituted, reduced, conditions, equations, solutions, basis, candidate,
+   norm, letter, canonical, seen = {}, key, symbolValues, remaining,
+   numerators, gradeSquareOnCurve, solutionCount, expression,
+   ramifiedGrades, trivialCount = 0, combinationOrder, combinationLimit,
+   minimumSupport, combinationCount = 0, gradeSupport},
+  gate = multiquadraticStripProductionOptionGate[{opts},
+    Keys[Association[Options[multiquadraticStripMixedGradeLetters]]]];
+  If[AssociationQ[gate], Return[gate]];
+  rank = Length[roots];
+  If[rank < 1 || rank > $multiquadraticStripMaximumRootCount,
+    Return[multiquadraticStripFailure["UnsupportedRootRank",
+      <|"ActualRank" -> rank|>]]];
+  gradeCount = 2^rank;
+  alphabet = Replace[OptionValue["Alphabet"], Automatic :> censusFactors];
+  factors = Replace[OptionValue["Factors"], Automatic :> censusFactors];
+  maximumDegree = OptionValue["MaximumDegree"];
+  maximumSolutions = OptionValue["MaximumSolutionsPerPrime"];
+  combinationOrder = OptionValue["CombinationOrder"];
+  combinationLimit = OptionValue["CombinationBasisLimit"];
+  minimumSupport = OptionValue["MinimumGradeSupport"];
+  If[! IntegerQ[maximumDegree] || maximumDegree < 0 ||
+      ! IntegerQ[maximumSolutions] || maximumSolutions < 1 ||
+      ! IntegerQ[combinationOrder] || combinationOrder < 0 ||
+      ! IntegerQ[combinationLimit] || combinationLimit < 1 ||
+      ! IntegerQ[minimumSupport] || minimumSupport < 1,
+    Return[multiquadraticStripFailure["InvalidMixedGradeRequest",
+      <|"MaximumDegree" -> maximumDegree,
+        "CombinationOrder" -> combinationOrder,
+        "MinimumGradeSupport" -> minimumSupport|>]]];
+  rootSymbols = Take[{rootOne, rootTwo, rootThree}, rank];
+  gradeSquares = Table[multiquadraticStripGradeSquare[roots, grade],
+    {grade, 0, gradeCount - 1}];
+  Do[
+    parameterization = multiquadraticStripCurveParameterization[factor,
+      variables];
+    If[parameterization === $Failed,
+      AppendTo[diagnostics, <|"Factor" -> factor,
+        "Status" -> "NotRationallyParameterized"|>];
+      Continue[]];
+    freeVariable = parameterization["Variable"];
+    rule = parameterization["Rule"];
+    (* (2) the decomposition data: which grades are squares on the curve *)
+    curveSquares = Quiet[Together[gradeSquares /. rule]];
+    squareRoots = Table[
+      multiquadraticStripRationalFunctionSquareRoot[curveSquares[[grade + 1]],
+        freeVariable], {grade, 0, gradeCount - 1}];
+    splitGrades = Select[Range[0, gradeCount - 1],
+      squareRoots[[#1 + 1]] =!= $Failed &];
+    ramifiedGrades = Select[Range[0, gradeCount - 1],
+      TrueQ[Together[curveSquares[[#1 + 1]]] === 0] &];
+    If[Length[splitGrades] <= 1,
+      AppendTo[diagnostics, <|"Factor" -> factor, "Status" -> "Inert",
+        "SplitGrades" -> splitGrades|>];
+      Continue[]];
+    AppendTo[diagnostics, <|"Factor" -> factor, "Status" -> "Split",
+      "SplitGrades" -> splitGrades, "RamifiedGrades" -> ramifiedGrades,
+      "FullSplit" -> (Length[splitGrades] === gradeCount &&
+        ramifiedGrades === {})|>];
+    (* (3) the LINEAR vanishing condition at one prime above the factor.
+       Split roots take their square-root value on the curve; the others
+       stay symbolic and are reduced by r_a^2 = delta_a, and every
+       surviving coefficient must vanish identically along the curve. *)
+    symbolValues = Table[
+      If[MemberQ[splitGrades, 2^(a - 1)], squareRoots[[2^(a - 1) + 1]],
+        rootSymbols[[a]]], {a, rank}];
+    gradeSquareOnCurve = curveSquares;
+    solutionCount = 0;
+    Do[
+      If[solutionCount >= maximumSolutions, Break[]];
+      monomials = Flatten[Table[x^i y^j, {i, 0, degree}, {j, 0, degree}]];
+      unknowns = Table[Unique["mg"], {gradeCount Length[monomials]}];
+      coefficients = Table[
+        Sum[unknowns[[(grade) Length[monomials] + m]] monomials[[m]],
+          {m, Length[monomials]}], {grade, 0, gradeCount - 1}];
+      expression = Sum[
+        coefficients[[grade + 1]] Product[
+          If[BitGet[grade, a - 1] === 1, symbolValues[[a]], 1], {a, rank}],
+        {grade, 0, gradeCount - 1}];
+      substituted = Quiet[Expand[expression /. rule]];
+      (* reduce r_a^2 -> delta_a on the curve *)
+      reduced = substituted;
+      Do[
+        reduced = Quiet[Expand[reduced /.
+          Power[rootSymbols[[a]], p_Integer /; p >= 2] :>
+            rootSymbols[[a]]^Mod[p, 2] gradeSquareOnCurve[[2^(a - 1) + 1]]^
+              Quotient[p, 2]]],
+        {a, rank}];
+      reduced = Quiet[Together[reduced]];
+      remaining = Select[rootSymbols, ! FreeQ[reduced, #1] &];
+      conditions = If[remaining === {}, {Numerator[reduced]},
+        Numerator[#1] & /@ Flatten[CoefficientList[Numerator[reduced],
+          remaining]]];
+      numerators = Select[Quiet[Expand[conditions]],
+        ! TrueQ[Together[#1] === 0] &];
+      equations = DeleteCases[Flatten[
+        CoefficientList[#1, freeVariable] & /@ numerators], 0];
+      If[equations === {}, Continue[]];
+      solutions = Quiet[Solve[Thread[equations == 0], unknowns]];
+      If[! MatchQ[solutions, {_List}], Continue[]];
+      basis = Table[
+        (coefficients /. First[solutions] /. unknown -> 1) /.
+          (# -> 0 & /@ unknowns),
+        {unknown, unknowns}];
+      basis = DeleteDuplicates[
+        Select[basis, ! AllTrue[Flatten[{#1}], TrueQ[Together[#1] === 0] &] &]];
+      (* A solution that the factor divides outright, or a single-grade
+         solution whose coefficient factors into the alphabet, is not a
+         NEW letter: its dlog is already spanned by the rational letters
+         and the root dlogs (dlog r_a = dlog delta_a / 2, and delta_a is
+         itself a census factor).  Such solutions are counted and
+         reported, never emitted, and the genuinely mixed-grade ones are
+         tried first. *)
+      basis = SortBy[basis, Function[entry,
+        {-Count[entry, item_ /; ! TrueQ[Together[item] === 0]],
+         LeafCount[entry]}]];
+      (* A LETTER is a particular point of the solution space, not a
+         basis vector of it: the space contains every multiple of the
+         factor and every product of smaller letters, and the letter is
+         the point whose norm is supported on the census.  The basis is
+         therefore extended by the deterministic +-1 combinations of
+         PAIRS of basis vectors before the norm certificate selects; the
+         combination order is an option, and it is part of the stated
+         bound of any negative result. *)
+      If[combinationOrder >= 2 && Length[basis] >= 2 &&
+          Length[basis] <= combinationLimit,
+        basis = Join[basis, Flatten[Table[
+          {basis[[i]] + basis[[j]], basis[[i]] - basis[[j]]},
+          {i, Length[basis] - 1}, {j, i + 1, Length[basis]}], 2]]];
+      combinationCount += Length[basis];
+      Do[
+        If[solutionCount >= maximumSolutions, Break[]];
+        If[AllTrue[candidate, Function[item,
+            TrueQ[Together[item] === 0] ||
+              PolynomialQ[Quiet[Cancel[Together[item/factor]]], variables]]],
+          trivialCount++; Continue[]];
+        gradeSupport = Select[Range[0, gradeCount - 1],
+          ! TrueQ[Together[candidate[[#1 + 1]]] === 0] &];
+        If[Length[gradeSupport] < minimumSupport, trivialCount++; Continue[]];
+        If[Length[gradeSupport] === 1 &&
+            multiquadraticStripNormInAlphabetQ[
+              First[Select[candidate, ! TrueQ[Together[#1] === 0] &]],
+              alphabet, variables],
+          trivialCount++; Continue[]];
+        norm = multiquadraticStripGradeNorm[candidate, roots];
+        If[norm === $Failed || TrueQ[Together[norm] === 0], Continue[]];
+        If[! multiquadraticStripNormInAlphabetQ[norm, alphabet, variables],
+          Continue[]];
+        letter = Together[Sum[
+          candidate[[grade + 1]] Product[
+            If[BitGet[grade, a - 1] === 1,
+              Sqrt[Lookup[roots[[a]], "RootSquare", 1]], 1], {a, rank}],
+          {grade, 0, gradeCount - 1}]];
+        If[TrueQ[Together[letter] === 0], Continue[]];
+        canonical = ToString[InputForm[Together[
+          letter/First[Select[candidate, ! TrueQ[Together[#1] === 0] &]]]]];
+        key = {ToString[InputForm[Together[factor]]], canonical};
+        If[MemberQ[seen, key], Continue[]];
+        AppendTo[seen, key];
+        solutionCount++;
+        AppendTo[records, <|"Kind" -> "MixedGrade", "Letter" -> letter,
+          "GradeCoefficients" -> candidate,
+          "GradeSupport" -> gradeSupport,
+          "Norm" -> norm, "NormInAlphabet" -> True,
+          "Divisor" -> factor, "Degree" -> degree,
+          "SplitGrades" -> splitGrades|>],
+        {candidate, basis}],
+      {degree, 0, maximumDegree}],
+    {factor, factors}];
+  <|"Status" -> "MultiquadraticMixedGradeLettersV1",
+    "LetterRecords" -> records, "Letters" -> Lookup[records, "Letter", {}],
+    "Count" -> Length[records], "TrivialSolutionCount" -> trivialCount,
+    "CandidatesTested" -> combinationCount,
+    "MaximumDegree" -> maximumDegree,
+    "CombinationOrder" -> combinationOrder,
+    "MinimumGradeSupport" -> minimumSupport,
+    "Factors" -> factors, "Diagnostics" -> diagnostics,
+    "SplitFactors" -> Select[diagnostics, Lookup[#1, "Status", None] === "Split" &],
+    "UnparameterizedFactors" -> Select[diagnostics,
+      Lookup[#1, "Status", None] === "NotRationallyParameterized" &]|>
+];
+multiquadraticStripMixedGradeLetters[___] :=
+  multiquadraticStripFailure["InvalidMixedGradeArguments"];
 
 (* ------------------------------------------------------------------ *)
 (* Preparation: root order, index ABI, support, normalizations          *)
@@ -3244,6 +4099,13 @@ Options[solveEpsFormStripMultiquadratic] = Join[
   "IntegrabilityScreenPointCount" -> 20,
   "IntegrabilityScreenPrime" -> Automatic,
   "IntegrabilityScreenRegulatorValue" -> Automatic,
+  (* the full-gauge per-image screen runs AFTER prepare and BEFORE
+     compile: it needs the prepared denominator and support, and it
+     screens the compile, which is 99% of the remaining cost.  False
+     skips it entirely. *)
+  "GaugeScreen" -> True,
+  "GaugeScreenPointCount" -> Automatic,
+  "GaugeScreenImages" -> Automatic,
   (* absolute AbsoluteTime[] value; Infinity = unbounded (the default,
      so every existing caller is unchanged) *)
   "Deadline" -> Infinity,
@@ -3267,7 +4129,7 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
    regulatorValue, samplerOptions, deadline, budgetProgress,
    budgetExhausted, enrich, variables, epsilon, strip, allRoots, classification,
    rootIndices, order, screenRoots, letterRecords, letterData, screen,
-   screenRegulatorValue, prepareOptions,
+   screenRegulatorValue, prepareOptions, gaugeScreen,
    pathStatisticsBefore = multiquadraticFieldPathStatistics[]},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[solveEpsFormStripMultiquadratic]]]];
@@ -3325,7 +4187,10 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
         Missing["NotPrepared"]],
       "IntegrabilityScreen" -> KeyTake[screen,
         {"Status", "Reason", "Defect", "Rank", "AugmentedRank",
-         "LetterCount", "FlatDiagonalConnections"}]|>,
+         "LetterCount", "FlatDiagonalConnections"}],
+      "GaugeScreen" -> If[AssociationQ[gaugeScreen],
+        KeyTake[gaugeScreen, {"Status", "ImageCount", "Defects"}],
+        <|"Status" -> "GaugeScreenSkipped"|>]|>,
       failure]];
   backendGate = multiquadraticStripBackendGate[OptionValue["PlanDiscoveryBackend"]];
   If[AssociationQ[backendGate], Return[backendGate]];
@@ -3423,6 +4288,41 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
   log["prepared: rank ", preparation["RootCount"], ", ",
     preparation["UnknownCount"], " unknowns, ",
     preparation["EquationsPerPoint"], " equations per point"];
+  (* ---------------------------------------------------------------- *)
+  (* The FULL-GAUGE per-image screen, in front of the compile.          *)
+  (* The integrability screen above is necessary but not sufficient:    *)
+  (* CF300 (12,9) passes it and the full system still carries a defect. *)
+  (* This one assembles the complete affine system from point           *)
+  (* evaluations of the PREPARED ansatz -- measured 43 s at 1816        *)
+  (* unknowns and 98 s at 3128 -- against a compile measured at ~7900 s.*)
+  (* ---------------------------------------------------------------- *)
+  If[TrueQ[OptionValue["GaugeScreen"]],
+    gaugeScreen = multiquadraticStripGaugeScreenImages[preparation,
+      "Images" -> OptionValue["GaugeScreenImages"],
+      "PointCount" -> OptionValue["GaugeScreenPointCount"]];
+    log["gauge screen: ", Lookup[gaugeScreen, "Status", None], ", defects ",
+      Lookup[gaugeScreen, "Defects", None], " over ",
+      Lookup[gaugeScreen, "ImageCount", None], " image(s), ",
+      Round[Lookup[gaugeScreen, "Seconds", 0], 0.1], " s"];
+    If[MemberQ[{"GaugeImageObstruction", "GaugeImageObstructionUnconfirmed"},
+        Lookup[gaugeScreen, "Status", None]],
+      Return[enrich[Join[
+        KeyDrop[First[gaugeScreen["ImageResults"]], {"Module"}],
+        <|"Status" -> "GaugeImageObstruction",
+          "Module" -> "MultiquadraticStripSolve",
+          "Confirmed" -> (Lookup[gaugeScreen, "Status", None] ===
+            "GaugeImageObstruction"),
+          "ImageCount" -> gaugeScreen["ImageCount"],
+          "Defects" -> gaugeScreen["Defects"],
+          "Images" -> gaugeScreen["Images"],
+          "ImageResults" -> (KeyDrop[#1, {"Witness"}] & /@
+            gaugeScreen["ImageResults"]),
+          "SolutionContract" -> "NoGaugeExistsWithThisAnsatz",
+          "ContractNote" -> "the complete affine gauge system is inconsistent at these images; the compile it screens would reproduce exactly this defect -- the ansatz is missing a letter or a support direction, and the witness names which residue demand is unmet",
+          "GaugeScreenSeconds" -> gaugeScreen["Seconds"],
+          "Seconds" -> AbsoluteTime[] - startTime|>]]]]];
+  If[multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["GaugeScreen"]]];
   (* the preparation object was built in THIS call: its ABI payload is
      the one just computed and its forcing channels are exact, so the
      compiler neither re-derives the payload nor decomposes the forcing
@@ -3585,6 +4485,12 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
       {"Status", "Reason", "Defect", "Rank", "AugmentedRank",
        "MatrixDimensions", "UnknownCount", "LetterCount", "Prime",
        "RegulatorValue", "PointCount", "FlatDiagonalConnections"}],
+    (* the mathematical payload only: a timing field here would make two
+       otherwise identical solve records differ (t_solver_budget compares
+       them key by key), and the screen's cost is already logged *)
+    "GaugeScreen" -> If[AssociationQ[gaugeScreen],
+      KeyTake[gaugeScreen, {"Status", "ImageCount", "Defects", "Images"}],
+      <|"Status" -> "GaugeScreenSkipped"|>],
     "UnknownCount" -> preparation["UnknownCount"],
     "EquationsPerPoint" -> preparation["EquationsPerPoint"],
     "ABIFingerprint" -> preparation["ABIFingerprint"],
