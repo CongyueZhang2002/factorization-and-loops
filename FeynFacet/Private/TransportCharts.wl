@@ -807,11 +807,25 @@ transportChartRekey[chart_Association, sourceVariables : {_Symbol, _Symbol},
     "Roots" -> roots|>
 ];
 
+(* Order matters (measured 2026-08-24 on the 27x27 CF303 truncation; the
+   same trap and the same cure as in FactorFamilyRegulatorDependenceInFrame).
+   Together applied while the entries STILL CARRY RADICALS rationalizes
+   radical denominators by conjugation -- the documented Wolfram trap of
+   this repository -- and multiplies every entry out.  Substituting the
+   chart's own RATIONAL root images first (branchRoots are the declared
+   squares pulled back into the chart, images their rational roots there)
+   leaves Together a purely rational job; the canonical Together then
+   happens twice, once here on the rational chart entries and once inside
+   masterTransportPullBackOneForm after the Jacobian contraction.  The
+   branch substitution matches on the Together-difference against the
+   substituted declared square, so it does not need a normalized entry to
+   fire. *)
 transportChartPullBackStrip[strip : {e_List, c_List, bbar_List},
-    data_Association] := Module[{pull},
+    data_Association, branchRoots_List, images_List] := Module[{pull},
   pull[pair_] := Module[{components},
     components = Map[
-      Map[Together, # /. data["Subst"], {2}] &, pair];
+      Map[Together, transportChartApplyRootBranches[
+        # /. data["Subst"], branchRoots, images], {2}] &, pair];
     masterTransportPullBackOneForm[
       components[[1]], components[[2]], data["Jacobian"]]
   ];
@@ -1055,7 +1069,6 @@ SolveEpsFormStripInFrame[
   rekeyed = transportChartRekey[chart, variables, chartVariables];
   data = masterTransportChartData[rekeyed, variables];
   If[Lookup[data, "Status", None] =!= "OK", Return[data]];
-  chartStrip = transportChartPullBackStrip[strip, data];
   chartRoots = Lookup[rekeyed, "Roots", {}];
   rootImages = Table[Module[{matching = SelectFirst[chartRoots,
       TrueQ[Together[#["RootSquare"] -
@@ -1068,9 +1081,12 @@ SolveEpsFormStripInFrame[
   chartBranchRoots = Map[
     <|"RootSquare" -> Together[#["RootSquare"] /. data["Subst"]]|> &,
     usedRoots];
-  chartStrip = Map[Together,
-    transportChartApplyRootBranches[
-      chartStrip, chartBranchRoots, rootImages], {4}];
+  (* the root images and the pulled-back declared squares are needed
+     BEFORE the pullback, not after it: transportChartPullBackStrip
+     substitutes them into the chart entries and only then normalizes
+     (see the note at its definition) *)
+  chartStrip = transportChartPullBackStrip[strip, data,
+    chartBranchRoots, rootImages];
   inner = solveRationalStrip[chartStrip, chartVariables];
   If[! innerSolvedQ[inner], Return[inner]];
   chartGauge = inner["Gauge"];
@@ -1105,9 +1121,15 @@ SolveEpsFormStripInFrame[
     Return[<|"Status" -> "StripGaugeRoundTripFailed"|>]];
   branchImages = MapThread[Times, {First[acceptedSigns], rootImages}];
 
-  sourceTransformed = Table[Map[Together,
+  (* Same ordering rule as the pullback above: the source-frame
+     transformed one-form carries the declared radicals in every entry,
+     so it is NOT normalized here.  The branch images are substituted
+     first and the canonical Together is taken inside pullPair, on
+     entries that are rational in the chart variables.  The chart-frame
+     side is rational from the start and is normalized as before. *)
+  sourceTransformed = Table[
     bbar[[mu]] + epsilon (e[[mu]] . sourceGauge -
-      sourceGauge . c[[mu]]) - D[sourceGauge, variables[[mu]]], {2}],
+      sourceGauge . c[[mu]]) - D[sourceGauge, variables[[mu]]],
     {mu, 2}];
   chartTransformed = Table[Map[Together,
     chartStrip[[3, mu]] + epsilon (chartStrip[[1, mu]] . chartGauge -
