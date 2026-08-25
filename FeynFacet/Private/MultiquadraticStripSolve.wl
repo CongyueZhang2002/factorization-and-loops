@@ -142,6 +142,8 @@ ClearAll[
   multiquadraticStripReadPreparedArtifact, multiquadraticStripOptionNames,
   multiquadraticStripProductionOptionGate, multiquadraticStripBackendGate,
   multiquadraticStripClearCaches, solveEpsFormStripMultiquadratic,
+  multiquadraticStripDeadlineQ, multiquadraticStripDeadlineExpiredQ,
+  multiquadraticStripBudgetExhausted,
   $multiquadraticStripMaximumRootCount, $multiquadraticStripMaximumEpsilonDegree,
   $multiquadraticStripSourceFile, $multiquadraticStripSourceSHA256,
   $multiquadraticStripPrimeCache, $multiquadraticStripEpsilonCache,
@@ -196,6 +198,25 @@ $multiquadraticStripDefaultRegulatorValues = {1/13, 3/17};
 
 multiquadraticStripFailure[status_String, data_: <||>] := Join[
   <|"Status" -> status, "Module" -> "MultiquadraticStripSolve"|>, data];
+
+(* Cooperative deadline (2026-08-24).  "Deadline" is an absolute
+   AbsoluteTime[] value, Infinity by default.  It is read at natural unit
+   boundaries only -- between primes, between regulator values, between
+   sign branches, between exact lifts -- never inside the modular
+   arithmetic, and it is NOT TimeConstrained: TimeConstrained does not
+   bound task-broker helpers and has escaped in pool subkernels before
+   (CLAUDE.md).  Expiry is a typed result, like every other outcome of
+   this module: no $Aborted, no exception, no bare $Failed. *)
+multiquadraticStripDeadlineQ[deadline_] :=
+  deadline === Infinity || (NumericQ[deadline] && Positive[deadline]);
+
+multiquadraticStripDeadlineExpiredQ[deadline_] :=
+  NumericQ[deadline] && AbsoluteTime[] >= deadline;
+
+multiquadraticStripBudgetExhausted[stage_String, elapsed_, deadline_,
+    progress_Association] := multiquadraticStripFailure["BudgetExhausted",
+  Join[<|"Stage" -> stage, "Elapsed" -> elapsed, "Deadline" -> deadline,
+    "Method" -> "DirectRootChannel", "Resumable" -> True|>, progress]];
 
 multiquadraticStripFingerprint[value_] :=
   Hash[ToString[InputForm[value]], "SHA256", "HexString"];
@@ -2264,6 +2285,9 @@ Options[solveEpsFormStripMultiquadratic] = Join[
   "RandomSeed" -> 2026082307,
   "PlanDiscoveryBackend" -> Automatic,
   "DifferentialCheck" -> True,
+  (* absolute AbsoluteTime[] value; Infinity = unbounded (the default,
+     so every existing caller is unchanged) *)
+  "Deadline" -> Infinity,
   "Verbose" -> False
 }];
 
@@ -2281,13 +2305,44 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
    signatures = {}, lifts = <||>, exactChecks = <||>, heldOutSample,
    heldOutSolution, heldOutResidual, branchCertificate, branchMask,
    transformedSample, differential, liftedVector, unpacked, prime,
-   regulatorValue, samplerOptions,
+   regulatorValue, samplerOptions, deadline, budgetProgress,
+   budgetExhausted,
    pathStatisticsBefore = multiquadraticFieldPathStatistics[]},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[solveEpsFormStripMultiquadratic]]]];
   If[AssociationQ[gate], Return[gate]];
+  deadline = OptionValue["Deadline"];
+  If[! multiquadraticStripDeadlineQ[deadline],
+    Return[multiquadraticStripFailure["InvalidDeadline",
+      <|"Deadline" -> deadline,
+        "Expected" -> "an absolute AbsoluteTime[] value, or Infinity"|>]]];
+  (* the partial progress this engine already tracks *)
+  budgetProgress[] := <|
+    "Family" -> Lookup[record, "Family", None],
+    "Sector" -> Lookup[record, "Sector", None],
+    "LowerSector" -> Lookup[record, "LowerSector", None],
+    "Prime" -> If[IntegerQ[prime], prime, None],
+    "RegulatorValue" -> If[NumericQ[regulatorValue], regulatorValue, None],
+    "SamplesDone" -> Length[samples],
+    "SampleKeys" -> Keys[samples],
+    "PrimesDone" -> DeleteDuplicates[Cases[Keys[samples], {p_, _} :> p]],
+    "SupportSize" -> If[AssociationQ[preparation],
+      Length[Lookup[preparation, "GaugeSupport", {}]],
+      Missing["NotPrepared"]],
+    "UnknownCount" -> If[AssociationQ[preparation],
+      Lookup[preparation, "UnknownCount", Missing["NotPrepared"]],
+      Missing["NotPrepared"]],
+    "RootCount" -> If[AssociationQ[preparation],
+      Lookup[preparation, "RootCount", Missing["NotPrepared"]],
+      Missing["NotPrepared"]]|>;
+  budgetExhausted[stage_String] := multiquadraticStripBudgetExhausted[
+    stage, AbsoluteTime[] - startTime, deadline, budgetProgress[]];
   backendGate = multiquadraticStripBackendGate[OptionValue["PlanDiscoveryBackend"]];
   If[AssociationQ[backendGate], Return[backendGate]];
+  (* after the option gates (a malformed request is a caller error and
+     outranks a budget stop) *)
+  If[multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["Entry"]]];
   verbose = TrueQ[OptionValue["Verbose"]];
   log[items___] := If[verbose, Print["[multiquadratic] ", items]];
   preparation = multiquadraticStripPrepare[record, frame,
@@ -2300,6 +2355,9 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
   assembly = multiquadraticStripCompile[preparation];
   If[Lookup[assembly, "Status", None] =!= "CompiledMultiquadraticStripV1",
     Return[assembly]];
+  (* between preparation and the modular schedule *)
+  If[multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["Preparation"]]];
   primes = Replace[OptionValue["SamplePrimes"],
     Automatic :> $multiquadraticStripDefaultPrimes];
   regulatorValues = Replace[OptionValue["RegulatorValues"],
@@ -2323,6 +2381,10 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
     "MaximumAttempts" -> OptionValue["MaximumAttempts"],
     "RandomSeed" -> OptionValue["RandomSeed"]};
   Do[
+    (* between primes and between regulator values: one modular sample
+       plus its affine solve is the unit of this loop *)
+    If[multiquadraticStripDeadlineExpiredQ[deadline],
+      Return[budgetExhausted["ModularSampling"], Module]];
     sample = multiquadraticStripAssembleSample[assembly, regulatorValue, prime,
       Sequence @@ samplerOptions];
     If[Lookup[sample, "Status", None] =!= "AssembledMultiquadraticSampleV1",
@@ -2346,6 +2408,9 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
      structure that only exists at the sampled images.  Split points
      are required here and only here, so that the same held-out
      solution also carries the sign-branch certificate. *)
+  (* between the sampled schedule and the held-out guard *)
+  If[multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["HeldOutGuard"]]];
   heldOutSample = multiquadraticStripAssembleSample[assembly,
     heldOutRegulatorValue, heldOutPrime, Sequence @@ samplerOptions,
     "SplitPointsOnly" -> True];
@@ -2364,6 +2429,9 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
   (* every sign branch: the transformed system is the same statement,
      so the grade solution must satisfy all 2^r of them *)
   branchCertificate = Table[
+    (* between sign branches *)
+    If[multiquadraticStripDeadlineExpiredQ[deadline],
+      Return[budgetExhausted["BranchCertificate"], Module]];
     transformedSample = multiquadraticStripTransformSampleToSigns[assembly,
       heldOutSample, heldOutPrime, branchMask];
     If[Lookup[transformedSample, "Status", None] =!=
@@ -2390,6 +2458,9 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
      sampled primes and rational reconstruction of the canonical
      particular solution, then the exact channel identity at that value *)
   Do[
+    (* between exact lifts, one regulator value each *)
+    If[multiquadraticStripDeadlineExpiredQ[deadline],
+      Return[budgetExhausted["ExactLift"], Module]];
     liftedVector = multiquadraticStripLiftVector[
       Table[solutions[{prime, regulatorValue}]["ParticularSolution"],
         {prime, primes}], primes];

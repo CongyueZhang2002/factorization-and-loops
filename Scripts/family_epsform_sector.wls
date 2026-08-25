@@ -240,6 +240,23 @@ algebraicFrameQ = Lookup[chart, "CoefficientField", "Rational"] ===
 blockwiseRouteQ = stripRoute === "FiniteFieldFirst";
 stripMapleBudget = If[algebraicFrameQ, sectorBudget,
   Min[sectorBudget, rationalMapleBudget]];
+(* Cooperative strip budget (2026-08-24).  Until today sectorBudget bound
+   only the Maple/CANONICA routes (stripMapleBudget above); the
+   finite-field and multiquadratic engines ran unbounded -- CF300 (12,9)
+   and CF303 sector 17 each ran past two hours on the multiquadratic
+   engine with no cutoff.  The engines now take an absolute "Deadline"
+   and stop COOPERATIVELY at their own unit boundaries (never
+   TimeConstrained: it does not bound task-broker helpers and has escaped
+   in pool subkernels before).  The deadline is recomputed at the start of
+   every sector as (this sector's start) + sectorBudget, so each sector
+   gets the same wall allowance, and it is passed to every finite-field
+   and multiquadratic strip solve of that sector.  On expiry the solver
+   returns Status "BudgetExhausted" and the driver stops typed with
+   exit 2; the per-prime artifacts already written stay valid for a
+   resume, exactly as an interrupted mission's checkpoints do. *)
+sectorDeadline = Infinity;
+stripBudgetExhaustedQ[s_] := AssociationQ[s] &&
+  Lookup[s, "Status", None] === "BudgetExhausted";
 chartFingerprint = Hash[
   KeyTake[chart, {"Name", "Variables", "Subst", "Roots", "Parents"}],
   "SHA256", "HexString"];
@@ -575,6 +592,11 @@ Do[
    rowGaugeStatistics, installedRow = Automatic,
    stripCheckpointFile = None},
   log["==== sector ", k, " (rows ", bounds[[k]], ", truncation ", nk, "x", nk, ")"];
+  (* recomputed at each sector start: this sector's strip solves must
+     finish within sectorBudget seconds of the sector's own start *)
+  sectorDeadline = AbsoluteTime[] + sectorBudget;
+  log["  strip budget ", sectorBudget, " s (deadline ",
+    DateString[sectorDeadline, {"Hour", ":", "Minute", ":", "Second"}], ")"];
   memtrace["sector " <> ToString[k] <> " start"];
   If[blockwiseRouteQ && k > 1 && TrueQ[factorTruncated[k - 1]],
     (* the connection changed: a strip checkpoint of this sector computed
@@ -759,6 +781,7 @@ Do[
           "BackendThreads" -> finiteFieldBackendThreads,
           "PlanDiscoveryBackend" -> planDiscoveryBackend,
           "FinalCheck" -> If[productionQ, "Numerical", "Exact"],
+          "Deadline" -> sectorDeadline,
           "Verbose" -> True];
         solvedQ[s_] := AssociationQ[s] && Lookup[s, "Status", None] === "Solved" &&
           (TrueQ[Lookup[s, "ExactDLog", False]] ||
@@ -795,15 +818,24 @@ Do[
                   "Backend" -> finiteFieldBackend,
                   "BackendThreads" -> finiteFieldBackendThreads,
                   "PlanDiscoveryBackend" -> planDiscoveryBackend,
+                  "Deadline" -> sectorDeadline,
                   "Verbose" -> True},
+                (* the chartless dispatch to the direct multiquadratic
+                   engine carries the same deadline *)
+                "MultiquadraticOptions" -> {"Deadline" -> sectorDeadline},
                 "ScratchDirectory" -> scratch,
                 "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
                 "Verbose" -> True],
             True, finiteFieldSolve[]];
-          If[! solvedQ[solution] && algebraicFrameQ,
+          If[! solvedQ[solution] && ! stripBudgetExhaustedQ[solution] &&
+              algebraicFrameQ,
             log["    finite field found no gauge in frame: ",
               If[AssociationQ[solution], KeyTake[solution, {"Status", "RootIndices", "RootSquares", "Method"}], solution]]];
-          If[! solvedQ[solution] && ! algebraicFrameQ,
+          (* a budget stop is NOT "no gauge exists": the obstruction
+             certificate (up to 900 s) and the repeat with extra letters
+             would spend more time than the budget just refused *)
+          If[! solvedQ[solution] && ! stripBudgetExhaustedQ[solution] &&
+              ! algebraicFrameQ,
             (* typed failure reason (EpsFormStripObstruction, 2026-08-22):
                a missing letter is supplied and the solve repeated once;
                a non-constant residue proves that no rational gauge
@@ -831,6 +863,7 @@ Do[
             "MapleLibrary" -> mapleLib,
             "MapleTimeLimit" -> stripMapleBudget,
             "MapleResidueKernels" -> kernelCount,
+            "MultiquadraticOptions" -> {"Deadline" -> sectorDeadline},
             "ScratchDirectory" -> scratch,
             "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
             "Verbose" -> False],
@@ -846,7 +879,8 @@ Do[
             "ScratchDirectory" -> scratch,
             "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
             "Verbose" -> False]]];
-        If[! solvedQ[solution] && ! algebraicFrameQ && stripRoute === "Legacy",
+        If[! solvedQ[solution] && ! stripBudgetExhaustedQ[solution] &&
+            ! algebraicFrameQ && stripRoute === "Legacy",
           log["    exact CANONICA/Maple routes found no gauge; " <>
             "starting finite-field reconstruction"];
           solution = finiteFieldSolve[]];
@@ -859,6 +893,36 @@ Do[
            construction (Design/MultiquadraticPromotion.md section 3).
            The run stops typed here -- it must neither continue with an
            uninstalled strip nor claim the family. *)
+        (* Cooperative strip budget (2026-08-24): the finite-field and
+           multiquadratic engines stop themselves at a unit boundary when
+           the sector deadline passes and return this typed result.  The
+           run stops here exactly as the NeedsMultiquadraticRegulator
+           Factorization stop above does: typed log line, atomic state
+           write, exit 2.  Everything the solver completed before the
+           stop -- per-prime modular artifacts, the strip checkpoint of
+           the blocks already installed -- is on disk and is picked up by
+           the next run of this sector. *)
+        If[stripBudgetExhaustedQ[solution],
+          log["  !! strip ", {k, nlow}, " budget exhausted at stage ",
+            Lookup[solution, "Stage", "Unknown"], " after ",
+            Round[Lookup[solution, "Elapsed", 0.], 0.1], " s",
+            " (sector budget ", sectorBudget, " s); partial progress ",
+            KeyTake[solution, {"Prime", "PrimesCompleted", "SamplesDone",
+              "SupportSize", "RegulatorValue", "UnknownCount"}]];
+          state["Stop"] = <|"Status" -> "StripBudgetExhausted",
+            "Strip" -> {k, nlow},
+            "Stage" -> Lookup[solution, "Stage", "Unknown"],
+            "Elapsed" -> Lookup[solution, "Elapsed", Missing["NotReported"]],
+            "SectorBudget" -> sectorBudget,
+            "Method" -> Lookup[solution, "Method", None],
+            "Resumable" -> TrueQ[Lookup[solution, "Resumable", False]],
+            "Progress" -> KeyTake[solution,
+              {"Prime", "PrimesCompleted", "PrimesUsed", "PrimesDone",
+               "SamplesDone", "SupportSize", "SelectedNumeratorDegreeOffset",
+               "SelectedSupportShell", "ProbeCount", "RegulatorValue",
+               "UnknownCount", "RootCount", "BrokerActive"}],
+            "StripCheckpointFile" -> stripCheckpointFile|>;
+          putAtomic[state, stateFile]; Exit[2]];
         If[AssociationQ[solution] &&
             Lookup[solution, "Status", None] === "ModularConsistent",
           modularBranches = Lookup[solution, "BranchCertificate", {}];

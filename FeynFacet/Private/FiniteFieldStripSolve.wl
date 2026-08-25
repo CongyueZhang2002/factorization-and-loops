@@ -57,7 +57,10 @@ ClearAll[
   finiteFieldStripModularArtifactValidQ,
   finiteFieldStripFLINTSolve,
   finiteFieldStripPutAtomic,
-  finiteFieldStripArtifactTag
+  finiteFieldStripArtifactTag,
+  finiteFieldStripDeadlineQ,
+  finiteFieldStripDeadlineExpiredQ,
+  finiteFieldStripBudgetExhausted
 ];
 
 SampleEpsFormStripAffine::record =
@@ -2201,6 +2204,46 @@ finiteFieldStripReservePrimes[primes_List, count_Integer: 3] /; count >= 1 :=
 SolveEpsFormStripFiniteField::dlog =
   "The lift passed the unseen-prime residual but is not a dlog form (`1`); more primes cannot change that.";
 
+(* ---------------------------------------------------------------------
+   Cooperative deadline (2026-08-24).
+
+   The driver's per-sector budget did not bound this solver at all: a
+   strip could run for hours inside the prime loop while
+   FACET_SECTOR_BUDGET only limited the Maple/CANONICA routes.  The fix
+   is COOPERATIVE, never TimeConstrained: TimeConstrained does not bound
+   the task-broker helpers (they are separate pool missions, not
+   evaluations of this kernel) and has escaped in pool subkernels before
+   (CLAUDE.md: a 300 s-constrained step ran 33 min).
+
+   "Deadline" is an absolute AbsoluteTime[] value.  It is read at natural
+   unit boundaries only -- between support-census candidates, between
+   sample batches, between primes, between regulator values, between
+   support-learning cycles -- never inside the modular arithmetic.  On
+   expiry the solver returns a TYPED association (never $Aborted, never
+   an exception, never a bare $Failed), and every per-prime artifact
+   already written stays valid: the next run reloads it exactly as an
+   interrupted mission's checkpoints are reloaded today.
+
+   Checking before a batch is submitted (rather than after) is also what
+   makes the broker interaction correct: no new task is queued after the
+   deadline, and the batch already in flight is awaited normally, since
+   the helper tasks are short and must never be killed. *)
+finiteFieldStripDeadlineQ[deadline_] :=
+  deadline === Infinity || (NumericQ[deadline] && Positive[deadline]);
+
+finiteFieldStripDeadlineExpiredQ[deadline_] :=
+  NumericQ[deadline] && AbsoluteTime[] >= deadline;
+
+finiteFieldStripBudgetExhausted[stage_String, elapsed_, deadline_,
+    progress_Association] := Join[
+  <|"Status" -> "BudgetExhausted",
+    "Stage" -> stage,
+    "Elapsed" -> elapsed,
+    "Deadline" -> deadline,
+    "Method" -> "SimultaneousFiniteFieldAffinePDE",
+    "Resumable" -> True|>,
+  progress];
+
 Options[SolveEpsFormStripFiniteField] = {
   "Primes" -> {1000003, 2147483423, 2147483477, 2147483489,
     2147483497, 2147483543, 2147483549, 2147483563,
@@ -2260,6 +2303,9 @@ Options[SolveEpsFormStripFiniteField] = {
      ("Certificate" -> "NumericalResidual", "ExactDLog" deferred) and the
      exact statement is made once, by the family certificate. *)
   "FinalCheck" -> "Exact",
+  (* absolute AbsoluteTime[] value; Infinity = unbounded (the default,
+     so every existing caller is unchanged).  See the note above. *)
+  "Deadline" -> Infinity,
   "Verbose" -> True
 };
 
@@ -2283,9 +2329,35 @@ SolveEpsFormStripFiniteField[record_Association,
    brokerQ = False, pilotSeconds = 0, maximumPrimeCount, loopPrimes,
    liftReason = "OK", backendDecision, backendConfiguration,
    planDiscoveryBackend, planDiscoveryDecision,
-   eliminationPlanFingerprint = None},
+   eliminationPlanFingerprint = None,
+   solveStart = AbsoluteTime[], deadline, budgetStop = None,
+   budgetProgress, budgetExhausted},
   If[! finiteFieldStripRecordQ[record],
     Message[SampleEpsFormStripAffine::record]; Return[$Failed]];
+  deadline = OptionValue["Deadline"];
+  If[! finiteFieldStripDeadlineQ[deadline],
+    Return[<|"Status" -> "InvalidDeadline", "Deadline" -> deadline,
+      "Expected" -> "an absolute AbsoluteTime[] value, or Infinity"|>]];
+  (* the partial progress this solver already tracks; every key is
+     defined whether or not the stage it belongs to was reached *)
+  budgetProgress[] := <|
+    "Prime" -> If[IntegerQ[prime], prime, None],
+    "PrimesCompleted" -> Length[modularData],
+    "PrimesUsed" -> Cases[Lookup[modularData, "Prime", {}], _Integer],
+    "SamplesDone" -> Which[
+      ListQ[pool] && pool =!= {}, Length[pool],
+      ListQ[samples], Length[samples],
+      True, 0],
+    "SupportSize" -> If[AssociationQ[degreeProbe],
+      Lookup[degreeProbe, "GaugeSupportCount", Missing["NotProbed"]],
+      Missing["NotProbed"]],
+    "SelectedNumeratorDegreeOffset" -> selectedOffset,
+    "SelectedSupportShell" -> selectedShell,
+    "ProbeCount" -> probeCount,
+    "SupportLearningPass" -> TrueQ[$finiteFieldLearningPass],
+    "BrokerActive" -> TrueQ[brokerQ]|>;
+  budgetExhausted[stage_String] := finiteFieldStripBudgetExhausted[
+    stage, AbsoluteTime[] - solveStart, deadline, budgetProgress[]];
   backendDecision = finiteFieldStripBackendDecision[
     OptionValue["Backend"], OptionValue["BackendThreads"], 0];
   If[Lookup[backendDecision, "Status", None] =!= "OK",
@@ -2300,6 +2372,12 @@ SolveEpsFormStripFiniteField[record_Association,
     planDiscoveryBackend];
   If[Lookup[planDiscoveryDecision, "Status", None] =!= "OK",
     Return[planDiscoveryDecision]];
+  (* after the option gates (a malformed request is a caller error and
+     outranks a budget stop): an already-expired deadline never starts
+     the expensive preparation, which also makes the internal re-entries
+     -- the support-learning repeat and fullRetry -- cheap *)
+  If[finiteFieldStripDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["Entry"]]];
   (* support learning is an optimization, never a reason to fail: a
      learned support valid at the pilot point may be inconsistent at
      other regulator values (CF67 (9,1), 2026-08-22: "SamplesInvalid"
@@ -2308,7 +2386,13 @@ SolveEpsFormStripFiniteField[record_Association,
     Module[{learned},
       learned = Block[{$finiteFieldLearningPass = True},
         SolveEpsFormStripFiniteField[record, opts]];
+      (* a typed BudgetExhausted from the learning pass is a result, and
+         is returned by this branch unchanged *)
       If[AssociationQ[learned], Return[learned]];
+      (* between support-learning cycles: the full-support repeat is a
+         second complete solve, so it never starts past the deadline *)
+      If[finiteFieldStripDeadlineExpiredQ[deadline],
+        Return[budgetExhausted["SupportLearningCycle"]]];
       If[TrueQ[OptionValue["Verbose"]],
         Print["Support-learning pass did not solve the block; repeating on the full support"]];
       Return[SolveEpsFormStripFiniteField[record, "SupportLearning" -> False, opts]]]];
@@ -2379,6 +2463,9 @@ SolveEpsFormStripFiniteField[record_Association,
       "BackendThreads" -> OptionValue["BackendThreads"],
       "PlanDiscoveryBackend" -> planDiscoveryBackend,
       "UnseenPrimeCheck" -> OptionValue["UnseenPrimeCheck"],
+      (* the retry inherits the SAME absolute deadline: a full retry
+         must not double the budget *)
+      "Deadline" -> deadline,
       "Verbose" -> verbose]
   ];
 
@@ -2408,6 +2495,9 @@ SolveEpsFormStripFiniteField[record_Association,
     {"CertifiedQ", "NumeratorTotalDegreeBound", "ForcingInfinityDegree"}],
     "; support strategy ", supportStrategy];
   Do[
+    (* between support-census candidates *)
+    If[finiteFieldStripDeadlineExpiredQ[deadline],
+      budgetStop = budgetExhausted["SupportCensus"]; Break[]];
     shells = If[supportKind === "Rectangle" || ListQ[supportKind], {"Rectangle"},
       finiteFieldStripSupportLadder[preparation,
         preparation["DenominatorDegrees"] + offset, supportKind]];
@@ -2427,6 +2517,9 @@ SolveEpsFormStripFiniteField[record_Association,
         ok);
       order = finiteFieldStripProbeOrder[shells];
       Do[
+        (* one check per probe: a probe is a full modular sample *)
+        If[finiteFieldStripDeadlineExpiredQ[deadline],
+          budgetStop = budgetExhausted["SupportCensus"]; Break[]];
         ok = probeOf[shell];
         Which[
           ok && shell =!= "Rectangle",
@@ -2444,9 +2537,15 @@ SolveEpsFormStripFiniteField[record_Association,
       If[MissingQ[selectedOffset] && rectangleOK,
         selectedOffset = offset; selectedShell = "Rectangle"];
       If[! MissingQ[selectedOffset], degreeProbe = probes[selectedShell]]];
+    If[budgetStop =!= None, Break[]];
     If[! MissingQ[selectedOffset], Break[]],
     {offset, degreeOffsets}];
+  (* Return inside Do only terminates the loop (Wolfram trap, CLAUDE.md):
+     the census loops record the typed stop and return it here *)
+  If[budgetStop =!= None, Return[budgetStop]];
   (* SparseFirst: the certified simplex once, as the terminal probe *)
+  If[MissingQ[selectedOffset] && finiteFieldStripDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["SupportCensus"]]];
   If[MissingQ[selectedOffset] && supportKind === "Sparse" &&
       TrueQ[Lookup[Lookup[preparation, "SupportCensus", <||>], "CertifiedQ", False]],
     supportKind = Automatic;
@@ -2473,6 +2572,9 @@ SolveEpsFormStripFiniteField[record_Association,
      every later sample of every prime reuses; if discovery fails the
      solve continues on the full path (typed reason logged) *)
   eliminationPlan = None;
+  (* between the census and the pilot: the pilot is one full-path sample *)
+  If[finiteFieldStripDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["EliminationPilot"]]];
   If[OptionValue["Elimination"] === "Constrained",
     {pilotSeconds, pilotSample} = AbsoluteTiming[SampleEpsFormStripAffine[
       record, First[epsilonSamples], prime,
@@ -2513,6 +2615,8 @@ SolveEpsFormStripFiniteField[record_Association,
           <|"Status" -> "PilotSampleFailed"|>]|>]]];
 
   (* support learning (see the option) *)
+  If[finiteFieldStripDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["SupportLearning"]]];
   If[TrueQ[OptionValue["SupportLearning"]] && AssociationQ[pilotSample] &&
       AssociationQ[eliminationPlan] && eliminationPlan["Status"] === "OK" &&
       MatchQ[Lookup[pilotSample, "GaugeSupport", None], {{_Integer, _Integer} ..}] &&
@@ -2608,6 +2712,11 @@ SolveEpsFormStripFiniteField[record_Association,
   currentConstructionCount = constructionCount;
   currentMaximumTotalDegree = maximumTotalDegree;
   Do[
+    (* between primes.  Every prime already reconstructed has its own
+       artifact on disk and stays valid for a later resume: this loop is
+       left before the next prime's sampling begins, never inside it *)
+    If[finiteFieldStripDeadlineExpiredQ[deadline],
+      budgetStop = budgetExhausted["PrimeLoop"]; Break[]];
     file = If[StringQ[artifactDirectory],
       FileNameJoin[{artifactDirectory,
         artifactPrefix <> "_mod_" <> ToString[prime] <> ".wl"}],
@@ -2645,6 +2754,9 @@ SolveEpsFormStripFiniteField[record_Association,
         need = learnedConstruction + heldOutCount;
         pool = {}; epsilonCursor = 0; interpolation = $Failed;
         {seconds, heldOutResult} = AbsoluteTiming[Catch[While[True,
+          (* between held-out construction cycles *)
+          If[finiteFieldStripDeadlineExpiredQ[deadline],
+            Throw["BudgetExhausted", "a2"]];
           (* a regulator value at which a denominator of the block vanishes
              identically (a pole of the forcing in eps, e.g. 1 - 3 eps at
              the schedule value 1/3: CF408 (7,4), 2026-08-22) yields no
@@ -2653,6 +2765,13 @@ SolveEpsFormStripFiniteField[record_Association,
           samples = {};
           Module[{attempts = 0, batch, want},
             While[Length[samples] < need && attempts < 4 need,
+              (* between sample batches, BEFORE the batch is submitted:
+                 with the task broker active this is what stops new
+                 batches from being queued; a batch already in flight is
+                 collected normally (helper tasks are short and are never
+                 killed from here) *)
+              If[finiteFieldStripDeadlineExpiredQ[deadline],
+                Throw["BudgetExhausted", "a2"]];
               want = need - Length[samples];
               batch = sampleBatch[Table[regulatorValue[epsilonCursor + k], {k, want}]];
               epsilonCursor += want; attempts += want;
@@ -2684,6 +2803,8 @@ SolveEpsFormStripFiniteField[record_Association,
         log["Prime ", prime, ": held-out sampling ", Length[pool], " regulator values -> ",
           heldOutResult, " (", Round[seconds, 0.1], " s)"];
         Which[
+          heldOutResult === "BudgetExhausted",
+            budgetStop = budgetExhausted["SampleBatch"]; Break[],
           heldOutResult === "RejectPrime",
             log["  degree profile changed at this prime; skipping it"]; Continue[],
           heldOutResult === "Validated",
@@ -2717,12 +2838,21 @@ SolveEpsFormStripFiniteField[record_Association,
              values beyond the schedule (2026-08-22) *)
           Module[{missing = Count[samples, Except[_Association]], extra, cursor = Length[epsilonSamples] + 20},
             samples = Select[samples, AssociationQ];
-            While[missing > 0 && cursor < Length[epsilonSamples] + 200,
+            While[missing > 0 && cursor < Length[epsilonSamples] + 200 &&
+                ! finiteFieldStripDeadlineExpiredQ[deadline],
+              (* between replacement regulator values: no batch is
+                 submitted past the deadline *)
               extra = sampleBatch[Table[regulatorValue[cursor + k], {k, missing}]];
               cursor += missing;
               samples = Join[samples, Select[extra, AssociationQ]];
               missing = Count[extra, Except[_Association]]];
             log["Regulator values at a pole of the forcing replaced; ", Length[samples], " samples"]]];
+        (* an incomplete deterministic batch because the deadline passed
+           is a budget stop, never a sampling failure: it must not turn
+           into a full retry (a second complete solve) *)
+        If[Length[samples] < Length[currentEpsilonSamples] &&
+            finiteFieldStripDeadlineExpiredQ[deadline],
+          budgetStop = budgetExhausted["SampleBatch"]; Break[]];
         If[Length[samples] < Length[currentEpsilonSamples],
           If[adaptivePrimeSampling, loopExit = "FullRetry"; Break[]];
           Message[SolveEpsFormStripFiniteField::failed];
@@ -2809,11 +2939,16 @@ SolveEpsFormStripFiniteField[record_Association,
         unseenPrime = First[reservePrimes];
         (* the unseen regulator value must not sit at a pole of the forcing *)
         unseen = False;
-        Do[sampleEpsilon = regulatorValue[Length[epsilonSamples] + 11 + 7 j];
+        Do[
+          (* between unseen-prime regulator values *)
+          If[finiteFieldStripDeadlineExpiredQ[deadline],
+            budgetStop = budgetExhausted["UnseenPrimeResidual"]; Break[]];
+          sampleEpsilon = regulatorValue[Length[epsilonSamples] + 11 + 7 j];
           unseen = finiteFieldStripUnseenPrimeResidualQ[record, lifted, preparation,
             unseenPrime, sampleEpsilon, sampleOptions];
           If[TrueQ[unseen] || ! TrueQ[Lookup[$finiteFieldLastUnseenSample, "PointFailure", False]], Break[]],
           {j, 0, 5}];
+        If[budgetStop =!= None, Break[]];
         log["Unseen-prime residual at ", unseenPrime, ": ",
           If[TrueQ[unseen], "zero", "NONZERO -- lift rejected, more primes"]]];
       (* a lift that passes the unseen-prime residual is the rational
@@ -2860,6 +2995,12 @@ SolveEpsFormStripFiniteField[record_Association,
      then ran a second time). The loop records its exit reason. *)
   If[loopExit === "FullRetry", Return[fullRetry[]]];
   If[launched =!= {}, Quiet[CloseKernels[launched]]; launched = {}];
+  (* the cooperative budget stop: a typed result, never $Aborted and
+     never $Failed.  The per-prime artifacts written before it stay on
+     disk and are reloaded by the next run of this block. *)
+  (* the progress captured AT the stop, not re-read here: Do localizes
+     its iterator, so `prime` no longer holds the prime the loop was on *)
+  If[budgetStop =!= None && ! AssociationQ[solution], Return[budgetStop]];
   If[loopExit === "Failed" || loopExit === "NotDLogForm", Return[$Failed]];
   If[! AssociationQ[solution],
     (* a modulus-limited lift is not a sampling problem: the full
