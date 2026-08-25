@@ -894,7 +894,33 @@ Do[
                 "ZeroForcingCandidateQ", True]], ", ",
               ToString[Lookup[Lookup[$blockConstructionRecord,
                 "Materialization", <||>], "AlgebraicEntries", 0]],
-              " algebraic entries"], ""]];
+              " algebraic entries"], ""],
+          (* WHERE the materialization time goes (2026-08-25): the
+             deferred route already measures its own substages, and they
+             were the one number the morning cost analysis of the
+             algebraic strips did not have.  Measured that night: the
+             construction cost on ALGEBRAIC entries spans 2.4 s to
+             2919 s and is predicted by neither the entry count (4
+             entries cost 2.4 s and 846.9 s on different strips) nor the
+             materialized size (1.7 MB cost 2919 s, 7.4 MB cost 1916 s),
+             so the substage split is the only usable predictor. *)
+          Module[{statistics = Lookup[Lookup[$blockConstructionRecord,
+              "Materialization", <||>], "Statistics", <||>]},
+            If[statistics === <||>, "",
+              StringJoin[", materialization ",
+                ToString[Lookup[statistics, "InternedOperands", 0]],
+                " interned operands, intern ",
+                ToString[Round[Lookup[statistics, "InternSeconds", 0.], 0.1]],
+                " s, expand ",
+                ToString[Round[Lookup[statistics, "ExpandSeconds", 0.], 0.1]],
+                " s, cancel ",
+                ToString[Round[Lookup[statistics, "CancelSeconds", 0.], 0.1]],
+                " s, algebraic canonicalize ",
+                ToString[Round[Lookup[statistics,
+                  "AlgebraicCanonicalizeSeconds", 0.], 0.1]],
+                " s, total ",
+                ToString[Round[Lookup[statistics,
+                  "MaterializeSeconds", 0.], 0.1]], " s"]]]];
         log["  strip ", {k, nlow}, ": ", Which[
           blockwiseRouteQ && algebraicFrameQ, "finite field in the rational chart of the strip's roots",
           blockwiseRouteQ, "finite field",

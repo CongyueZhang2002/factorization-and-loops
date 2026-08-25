@@ -63,6 +63,9 @@ ClearAll[
   transportChartDenestRadicalBase,
   transportChartDenestSign,
   transportChartCanonicalizeDenestedRadicals,
+  transportChartDeclaredRadicalGenerators,
+  transportChartAlgebraicZeroQ,
+  transportChartCanonicalizeFrameImages,
   transportChartDeadlineQ,
   transportChartDeadlineExpiredQ,
   transportChartBudgetExhausted
@@ -891,6 +894,141 @@ transportChartApplyRootBranches[expr_, roots_List, images_List] := Module[
           (factor images[[index]])^(2 exponent)]]],
     expr, Range[Length[roots]]]];
 
+(* ------------------------------------------------------------------ *)
+(*  Canonical comparison over the declared multiquadratic field        *)
+(* ------------------------------------------------------------------ *)
+(* WHY (2026-08-25, CF303 off-diagonal block {17,12}).  Every acceptance
+   test of the in-frame strip construction below reduced to
+   Together[lhs - rhs] === 0.  Together is canonical on RATIONAL entries
+   only; on entries that still carry a radical it compares two
+   non-canonical forms, so an exactly equal pair is reported UNEQUAL --
+   the documented trap of this repository.  MEASURED that night: the
+   {17,12} gauge round trip rejected all four branch choices although the
+   objects were exactly equal, because one coordinate-map image carried a
+   NESTED radical the branch substitution above cannot match (it matches
+   only rational-square multiples of a declared root square), so radicals
+   survived into the comparison.  A generic rational 1x1 gauge reproduced
+   the rejection, which is what proves the defect is in the comparison
+   layer and not in any solved object.
+
+   The test below is exact: every radical is matched against the declared
+   root set (same square-class rule the branch substitution uses) and
+   against the numeric square classes, each match becomes a generator
+   r with r^2 = q, the generators are cleared from the denominator by
+   conjugation and the numerator is reduced as a polynomial.  This is the
+   same reduction transportChartDenestRadicalBase uses internally.
+
+   It is STRICTER than the Together test, never weaker: a genuinely
+   unequal pair has a nonzero reduced numerator (the declared squares are
+   independent generators of the frame -- a dependency among them could
+   only make the test reject more, never accept more), and a radical that
+   is NOT in the declared field returns $Failed so the caller refuses
+   with a TYPED status instead of reading a false negative as failure. *)
+
+transportChartDeclaredRadicalGenerators[expr_, roots_List] := Module[
+  {rootBases, radicals, records, unmatched = {}},
+  rootBases = Together /@ Lookup[roots, "RootSquare", {}];
+  radicals = transportChartRadicalBases[expr];
+  records = Map[Function[base, Module[{index = 0, scale = None, split},
+      Do[scale = transportChartRootBranchScale[base, rootBases[[i]]];
+         If[scale =!= None, index = i; Break[]], {i, Length[rootBases]}];
+      Which[
+        index > 0,
+          (* base == scale^2 q, so Sqrt[base] == scale r: the same rule
+             transportChartApplyRootBranches substitutes with *)
+          base -> <|"Kind" -> "Declared", "Index" -> index,
+            "Class" -> rootBases[[index]], "Factor" -> scale|>,
+        MatchQ[Together[base], _Integer | _Rational],
+          split = transportChartSquareSplit[base];
+          If[split === $Failed || First[split] === 0,
+            AppendTo[unmatched, base]; Nothing,
+            base -> <|"Kind" -> "Numeric", "Index" -> 0,
+              "Class" -> First[split], "Factor" -> Last[split]|>],
+        True, AppendTo[unmatched, base]; Nothing]]],
+    radicals];
+  If[unmatched =!= {},
+    Return[<|"Status" -> "UndeclaredRadicalBases", "Unmatched" -> unmatched|>]];
+  (* one generator per square CLASS, compared exactly: a syntactic
+     DeleteDuplicates would give the same class two generators and the
+     reduction would then not be canonical *)
+  <|"Status" -> "OK", "Records" -> Association[records],
+    "Classes" -> Fold[
+      Function[{accumulated, class},
+        If[AnyTrue[accumulated, TrueQ[Together[class - #] === 0] &],
+          accumulated, Append[accumulated, class]]],
+      {}, #["Class"] & /@ Values[Association[records]]]|>];
+
+(* True / False / $Failed.  $Failed means "not decidable in the declared
+   field" and is NEVER a synonym for False. *)
+transportChartAlgebraicZeroQ[expr_, roots_List] := Module[
+  {together, generatorData, records, classes, symbols, classIndex,
+   substitute, reduceRules, reduce, converted, nu, de, i},
+  together = Together[expr];
+  If[FreeQ[together, Power[_, _Rational]],
+    Return[TrueQ[together === 0]]];
+  generatorData = transportChartDeclaredRadicalGenerators[together, roots];
+  If[Lookup[generatorData, "Status", None] =!= "OK", Return[$Failed]];
+  records = generatorData["Records"];
+  classes = generatorData["Classes"];
+  If[classes === {}, Return[TrueQ[together === 0]]];
+  symbols = Table[Unique["FeynFacet`Private`fieldRoot"], {Length[classes]}];
+  classIndex[class_] := classIndex[class] = SelectFirst[
+    Range[Length[classes]], TrueQ[Together[classes[[#]] - class] === 0] &, 0];
+  substitute[expression_] := expression /.
+    Power[b_, e_Rational /; Denominator[e] === 2] :>
+      Module[{record = SelectFirst[Keys[records],
+          TrueQ[Together[b - #] === 0] &, None], k},
+        If[record === None, Power[b, e],
+          k = classIndex[records[record]["Class"]];
+          If[k === 0, Power[b, e],
+            (records[record]["Factor"] symbols[[k]])^(2 e)]]];
+  reduceRules = Table[With[{s = symbols[[i]], q = classes[[i]]},
+      s^e_Integer /; e >= 2 :> q^Quotient[e, 2] s^Mod[e, 2]],
+    {i, Length[symbols]}];
+  reduce[p_] := FixedPoint[Expand[# /. reduceRules] &, Expand[p]];
+  converted = Together[substitute[together]];
+  If[! FreeQ[converted, Power[_, _Rational]], Return[$Failed]];
+  nu = reduce[Numerator[converted]]; de = reduce[Denominator[converted]];
+  (* clear the generators from the denominator by conjugation *)
+  Do[If[! FreeQ[de, symbols[[i]]],
+      Module[{conjugate = reduce[de /. symbols[[i]] -> -symbols[[i]]]},
+        nu = reduce[nu conjugate]; de = reduce[de conjugate]]],
+    {i, Length[symbols]}];
+  If[! FreeQ[de, Alternatives @@ symbols], Return[$Failed]];
+  If[TrueQ[Together[de] === 0], Return[$Failed]];
+  TrueQ[Together[reduce[nu]] === 0]];
+
+(* Rewrite the images of a chart/frame map so that every radical they
+   carry is a DECLARED one: the nested and numeric radicands Solve emits
+   when it inverts a joint chart are denested exactly against the frame's
+   root set (transportChartDenestRadicalBase; its global sign is fixed
+   numerically and its square identity exactly).  Typed refusal
+   otherwise: an image outside the declared field must stop the
+   construction, not travel into a solved gauge. *)
+transportChartCanonicalizeFrameImages[images_List, roots_List,
+    variables : {__Symbol}] := Module[
+  {classification, denested, canonical},
+  classification = transportChartRootIndices[images, roots];
+  If[classification["UnclassifiedRadicalBases"] =!= {},
+    Return[<|"Status" -> "ImagesCarryUndeclaredRadicals",
+      "RadicalBases" -> classification["UnclassifiedRadicalBases"]|>]];
+  denested = Lookup[classification, "DenestedRadicalBases", <||>];
+  If[KeySelect[denested, ! NumericQ[#] &] === <||>,
+    Return[<|"Status" -> "OK", "Images" -> images, "Rewritten" -> 0,
+      "RewrittenBases" -> {},
+      "NumericRadicalClasses" ->
+        Lookup[classification, "NumericRadicalClasses", {}]|>]];
+  canonical = transportChartCanonicalizeDenestedRadicals[
+    images, roots, variables, denested];
+  If[Lookup[canonical, "Status", None] =!= "OK",
+    Return[<|"Status" -> "ImageDenestingFailed", "Detail" -> canonical|>]];
+  <|"Status" -> "OK",
+    "Images" -> Together /@ canonical["Expression"],
+    "Rewritten" -> canonical["Rewritten"],
+    "RewrittenBases" -> Keys[canonical["Rewrites"]],
+    "NumericRadicalClasses" ->
+      Lookup[classification, "NumericRadicalClasses", {}]|>];
+
 (* ---------------------------------------------------------------------
    Cooperative deadline in the STRIP-CONSTRUCTION stage (2026-08-24).
 
@@ -976,7 +1114,7 @@ SolveEpsFormStripInFrame[
   {allRoots, classification, rootIndices, usedRoots, rootSquares, chart,
    chartVariables, rekeyed, data, chartStrip, inner, chartGauge,
    identityData, coordinateMap, sourceGauge, chartRoots, rootImages,
-   chartBranchRoots,
+   chartBranchRoots, mapCanonicalization, comparatorRefusals,
    signChoices, acceptedSigns, branchImages, branchedGauge,
    sourceTransformed, chartTransformed, pulledTransformed,
    sourceAlphabet, zeroMatrixQ, pullPair, optionRules,
@@ -1256,20 +1394,69 @@ SolveEpsFormStripInFrame[
   If[Lookup[coordinateMap, "Status", None] =!= "OK",
     Return[<|"Status" -> "StripGaugePullBackFailed",
       "CoordinateMap" -> coordinateMap|>]];
+  (* The INVERSE of a joint chart is obtained by solving, and Solve emits
+     the second chart variable with a NESTED radicand -- for CF303
+     {17,12} in Kallen23 the image carried
+     Sqrt[2] Sqrt[q2 (u + v Sqrt[q1])] -- which lies in the declared field
+     (2 (u + v Sqrt[q1]) == ((1+x+y) + Sqrt[q1])^2 there) but is not a
+     rational-square multiple of any declared square, so neither the
+     branch substitution nor any comparison below can handle it.  It is
+     rewritten in the declared radicals ONCE, here, before it reaches the
+     gauge: the pulled-back gauge that this function RETURNS is then an
+     element of the frame's own multiquadratic field, which is what every
+     consumer of the record assumes.  A frame image that cannot be
+     rewritten stops the construction typed. *)
+  mapCanonicalization = transportChartCanonicalizeFrameImages[
+    Last /@ coordinateMap["Map"], allRoots, variables];
+  If[Lookup[mapCanonicalization, "Status", None] =!= "OK",
+    Return[<|"Status" -> "StripGaugeMapNotInDeclaredField",
+      "CoordinateMap" -> KeyDrop[coordinateMap, "Images"],
+      "Canonicalization" -> mapCanonicalization|>]];
+  If[verbose && mapCanonicalization["Rewritten"] > 0,
+    Print["[strip-in-frame] ", mapCanonicalization["Rewritten"],
+      " coordinate-map radical(s) rewritten in the declared field: ",
+      mapCanonicalization["RewrittenBases"]]];
+  coordinateMap = Join[coordinateMap, <|
+    "Map" -> MapThread[Rule, {First /@ coordinateMap["Map"],
+      mapCanonicalization["Images"]}],
+    "Images" -> mapCanonicalization["Images"],
+    "DeclaredFieldRewrites" -> KeyTake[mapCanonicalization,
+      {"Rewritten", "RewrittenBases", "NumericRadicalClasses"}]|>];
   sourceGauge = Map[Together, chartGauge /. coordinateMap["Map"], {2}];
   sourceAlphabet = DeleteDuplicates[Together /@
     (Lookup[inner, "Alphabet", {}] /. coordinateMap["Map"])];
 
   signChoices = Tuples[{1, -1}, Length[usedRoots]];
-  zeroMatrixQ[matrix_] := AllTrue[Flatten[Map[Together, matrix, {2}]],
-    TrueQ[# === 0] &];
+  (* Together is canonical on rational entries only.  When the branch
+     substitution has left a radical standing, a Together comparison is a
+     FALSE NEGATIVE machine (2026-08-25): the exact test over the
+     declared field decides those entries, and an entry that is not in
+     the declared field is recorded and refused typed -- never silently
+     counted as "not zero". *)
+  comparatorRefusals = {};
+  zeroMatrixQ[matrix_] := Module[{entries},
+    entries = Flatten[Map[Together, matrix, {2}]];
+    AllTrue[entries, Function[entry,
+      If[FreeQ[entry, Power[_, _Rational]], TrueQ[entry === 0],
+        (* the FRAME's declared roots, not just the strip's: a rewrite may
+           legitimately name a declared root the strip itself never used *)
+        Module[{verdict = transportChartAlgebraicZeroQ[entry, allRoots]},
+          If[verdict === $Failed,
+            AppendTo[comparatorRefusals, transportChartRadicalBases[entry]];
+            False,
+            TrueQ[verdict]]]]]]];
   acceptedSigns = Select[signChoices, Function[signs,
     branchImages = MapThread[Times, {signs, rootImages}];
     branchedGauge = transportChartApplyRootBranches[
       sourceGauge, usedRoots, branchImages];
     zeroMatrixQ[(branchedGauge /. data["Subst"]) - chartGauge]]];
   If[acceptedSigns === {},
-    Return[<|"Status" -> "StripGaugeRoundTripFailed"|>]];
+    Return[If[comparatorRefusals === {},
+      <|"Status" -> "StripGaugeRoundTripFailed"|>,
+      <|"Status" -> "StripGaugeRoundTripUndeclaredRadicals",
+        "RadicalBases" -> DeleteDuplicates[Flatten[comparatorRefusals]],
+        "CoordinateMapRewrites" ->
+          Lookup[coordinateMap, "DeclaredFieldRewrites", <||>]|>]]];
   branchImages = MapThread[Times, {First[acceptedSigns], rootImages}];
   timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
 
@@ -1305,9 +1492,13 @@ SolveEpsFormStripInFrame[
       components[[1]], components[[2]], data["Jacobian"]]
   ];
   pulledTransformed = pullPair[branchedGauge];
+  comparatorRefusals = {};
   If[! zeroMatrixQ[pulledTransformed[[1]] - chartTransformed[[1]]] ||
       ! zeroMatrixQ[pulledTransformed[[2]] - chartTransformed[[2]]],
-    Return[<|"Status" -> "StripGaugeSourceFrameIdentityFailed"|>]];
+    Return[If[comparatorRefusals === {},
+      <|"Status" -> "StripGaugeSourceFrameIdentityFailed"|>,
+      <|"Status" -> "StripGaugeSourceFrameUndeclaredRadicals",
+        "RadicalBases" -> DeleteDuplicates[Flatten[comparatorRefusals]]|>]]];
   timings["SourceFrameIdentity"] = AbsoluteTime[] - stageSeconds;
 
   (* the success payload is byte-identical to the pre-deadline result:
@@ -1321,6 +1512,10 @@ SolveEpsFormStripInFrame[
     "InnerSolution" -> KeyDrop[inner, "Gauge"],
     "ExactDLog" -> TrueQ[Lookup[inner, "ExactDLog", False]],
     "Certificate" -> Lookup[inner, "Certificate", "ExactDLog"],
+    (* the success payload is byte-identical to the pre-2026-08-25 record:
+       the coordinate-map canonicalization is EVIDENCE OF A STOP and of
+       the verbose log, never a new key -- t_construction_budget pins this
+       payload by hash and other records fingerprint it *)
     "FrameCertificate" -> <|
       "CoordinateComposition" -> coordinateMap["CompositionExact"],
       "BranchSigns" -> First[acceptedSigns],
