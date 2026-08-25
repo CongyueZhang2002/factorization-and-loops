@@ -62,7 +62,10 @@ ClearAll[
   transportChartSquareClassData,
   transportChartDenestRadicalBase,
   transportChartDenestSign,
-  transportChartCanonicalizeDenestedRadicals
+  transportChartCanonicalizeDenestedRadicals,
+  transportChartDeadlineQ,
+  transportChartDeadlineExpiredQ,
+  transportChartBudgetExhausted
 ];
 
 
@@ -888,13 +891,67 @@ transportChartApplyRootBranches[expr_, roots_List, images_List] := Module[
           (factor images[[index]])^(2 exponent)]]],
     expr, Range[Length[roots]]]];
 
+(* ---------------------------------------------------------------------
+   Cooperative deadline in the STRIP-CONSTRUCTION stage (2026-08-24).
+
+   The cooperative "Deadline" added to the solvers on 2026-08-24 bounded
+   only the solvers.  MEASURED the same night on both campaign missions:
+   a strip sat more than two hours between the driver's "strip {i,j}"
+   announcement and the first solver call -- root classification, chart
+   selection, the chart pullback, the gauge pullback and the source-frame
+   identity check all run here -- so the 7200 s sector budget passed
+   silently on both families with no stop and no record of where the time
+   went.  This stage now checks the SAME absolute deadline at its own
+   stage boundaries and stops with the SAME typed shape the solvers use.
+
+   The stop is COOPERATIVE, never TimeConstrained: TimeConstrained does
+   not bound the task-broker helpers and has escaped in pool subkernels
+   before (CLAUDE.md).  A boundary check is placed before and after each
+   opaque call -- transportChartPullBackStrip is one Together-heavy pass
+   over the whole strip and cannot be checked internally -- and the
+   measured wall time of every substage is carried in the stop, so a
+   future log shows which substage consumed the budget instead of only
+   that the budget passed.
+
+   "Deadline" is an absolute AbsoluteTime[] value; Infinity (the default)
+   makes every check below a no-op, so every existing caller and every
+   recorded result is unchanged.  Nothing here is resumable state of its
+   own: the construction is a pure function of the strip and the frame,
+   and the driver's strip input file plus the solvers' per-prime
+   artifacts already on disk are what the next run picks up, so the stop
+   declares itself resumable in exactly that sense. *)
+transportChartDeadlineQ[deadline_] :=
+  deadline === Infinity || (NumericQ[deadline] && Positive[deadline]);
+
+transportChartDeadlineExpiredQ[deadline_] :=
+  NumericQ[deadline] && AbsoluteTime[] >= deadline;
+
+transportChartBudgetExhausted[substage_String, elapsed_, deadline_,
+    progress_Association] := Join[
+  <|"Status" -> "BudgetExhausted",
+    "Stage" -> "StripConstruction:" <> substage,
+    "Substage" -> substage,
+    "Elapsed" -> elapsed,
+    "Deadline" -> deadline,
+    "Method" -> "StripConstructionInFrame",
+    "Resumable" -> True|>,
+  progress];
+
 Options[SolveEpsFormStripInFrame] = Join[
   Options[SolveEpsFormStrip], {
     "FiniteFieldFallback" -> True,
     "FiniteFieldFirst" -> False,
     "FiniteFieldOptions" -> {},
     "MultiquadraticDispatch" -> True,
-    "MultiquadraticOptions" -> {}
+    "MultiquadraticOptions" -> {},
+    (* absolute AbsoluteTime[] value; Infinity = unbounded (the default,
+       so every existing caller is unchanged).  It bounds the
+       construction stage of this function AND is handed to whichever
+       solver this function dispatches to, unless the caller already put
+       an explicit "Deadline" in "FiniteFieldOptions" /
+       "MultiquadraticOptions" -- the explicit inner option always wins,
+       so the driver's existing plumbing keeps its meaning. *)
+    "Deadline" -> Infinity
   }
 ];
 
@@ -925,12 +982,50 @@ SolveEpsFormStripInFrame[
    sourceAlphabet, zeroMatrixQ, pullPair, optionRules,
    finiteFieldQ, finiteFieldFirstQ, finiteFieldOptions, canonicalKernelCount,
    scratchDirectory, stripTag, verbose, solveRationalStrip, innerSolvedQ,
-   multiquadraticOptions, multiquadraticResult, multiquadraticStatus},
+   multiquadraticOptions, multiquadraticResult, multiquadraticStatus,
+   constructionStart = AbsoluteTime[], deadline, timings = <||>,
+   stageSeconds, stripDimensions, budgetProgress, budgetExhausted},
 
+  (* precomputed, NOT read inside budgetProgress: a pattern variable in
+     the body of a delayed definition is substituted when the outer rule
+     fires, which would embed the whole strip in that definition *)
+  stripDimensions = Dimensions[bbar[[1]]];
+  deadline = OptionValue["Deadline"];
+  If[! transportChartDeadlineQ[deadline],
+    Return[<|"Status" -> "InvalidDeadline", "Deadline" -> deadline,
+      "Expected" -> "an absolute AbsoluteTime[] value, or Infinity"|>]];
+  (* what a construction stop reports: the substage wall times measured
+     so far (this is the record that was missing tonight -- the budget
+     passed with no evidence of which substage consumed it) and the
+     identifiers of the strip being constructed.  Every key is defined
+     whether or not the substage it belongs to was reached. *)
+  budgetProgress[] := <|
+    "ConstructionTimings" -> timings,
+    "RootIndices" -> If[ListQ[rootIndices], rootIndices,
+      Missing["NotClassified"]],
+    "RootSquares" -> If[ListQ[rootSquares], rootSquares,
+      Missing["NotClassified"]],
+    "Chart" -> If[AssociationQ[chart], Lookup[chart, "Name", None], None],
+    "StripDimensions" -> stripDimensions,
+    "InnerStatus" -> If[AssociationQ[inner],
+      Lookup[inner, "Status", None], Missing["NotSolved"]]|>;
+  budgetExhausted[substage_String] := transportChartBudgetExhausted[
+    substage, AbsoluteTime[] - constructionStart, deadline,
+    budgetProgress[]];
+
+  (* the frame gate is pure input validation and outranks a budget stop,
+     exactly as the solvers' option gates do *)
   allRoots = transportChartCurrentRoots[frame, variables];
   If[allRoots === $Failed,
     Return[<|"Status" -> "AlgebraicFrameNotWellFormed"|>]];
-  classification = transportChartRootIndices[strip, allRoots];
+  (* BOUNDARY 1 (entry): an already-expired deadline never starts the
+     root classifier, which denests and square-class-matches every
+     radical occurring in the strip *)
+  If[transportChartDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["Entry"]]];
+  {stageSeconds, classification} = AbsoluteTiming[
+    transportChartRootIndices[strip, allRoots]];
+  timings["RootClassification"] = stageSeconds;
   If[classification["UnclassifiedRadicalBases"] =!= {},
     Return[<|"Status" -> "StripContainsUndeclaredRadicals",
       "RadicalBases" -> classification["UnclassifiedRadicalBases"]|>]];
@@ -1000,6 +1095,11 @@ SolveEpsFormStripInFrame[
           "KernelCount" -> canonicalKernelCount,
           "ArtifactDirectory" -> directory,
           "ArtifactPrefix" -> stripTag,
+          (* the solver inherits THIS call's absolute deadline, so the
+             construction stage and the solve share one wall allowance;
+             an explicit "Deadline" in "FiniteFieldOptions" comes first
+             in the Join below and still wins *)
+          "Deadline" -> deadline,
           "Verbose" -> verbose
         };
         finiteOptions = DeleteDuplicatesBy[
@@ -1014,6 +1114,10 @@ SolveEpsFormStripInFrame[
   ];
 
   If[rootIndices === {},
+    (* BOUNDARY (solver dispatch, rational frame): no solver is entered
+       past the deadline *)
+    If[transportChartDeadlineExpiredQ[deadline],
+      Return[budgetExhausted["SolverDispatch"]]];
     inner = solveRationalStrip[strip, variables];
     If[! innerSolvedQ[inner], Return[inner]];
     Return[Join[inner, <|"Method" -> "RationalFrame/" <> inner["Method"],
@@ -1021,7 +1125,13 @@ SolveEpsFormStripInFrame[
         "Chart" -> None, "GaugeRoundTrip" -> True,
         "TransformedOneFormPullBack" -> True, "Exact" -> True|>|>]]];
 
-  chart = TransportRootSetChart[rootSquares, variables];
+  (* BOUNDARY 2 (chart selection): the catalog walk re-verifies each
+     candidate chart's exact root identities *)
+  If[transportChartDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["ChartSelection"]]];
+  {stageSeconds, chart} = AbsoluteTiming[
+    TransportRootSetChart[rootSquares, variables]];
+  timings["ChartSelection"] = stageSeconds;
   If[MissingQ[chart],
     (* F2 (Design/GeneralityFixes2.md, 2026-08-23): no joint rational
        chart is not the end of the road.  The direct multiquadratic
@@ -1041,11 +1151,18 @@ SolveEpsFormStripInFrame[
         "RootIndices" -> rootIndices, "RootSquares" -> rootSquares|>]];
     If[verbose, Print["[strip-in-frame] no rational chart for root squares ",
       rootSquares, "; dispatching to the multiquadratic engine"]];
+    (* BOUNDARY (solver dispatch, multiquadratic): no engine is entered
+       past the deadline, and the engine that IS entered inherits the
+       same absolute deadline (an explicit "Deadline" in
+       "MultiquadraticOptions" comes first in the Join and still wins) *)
+    If[transportChartDeadlineExpiredQ[deadline],
+      Return[budgetExhausted["MultiquadraticDispatch"]]];
     multiquadraticResult = solveEpsFormStripMultiquadratic[
       <|"Variables" -> variables, "Regulator" -> epsilon, "Strip" -> strip|>,
       frame,
       Sequence @@ DeleteDuplicatesBy[
-        Join[multiquadraticOptions, {"Verbose" -> TrueQ[verbose]}], First]];
+        Join[multiquadraticOptions,
+          {"Deadline" -> deadline, "Verbose" -> TrueQ[verbose]}], First]];
     If[! AssociationQ[multiquadraticResult],
       Return[<|"Status" -> "MultiquadraticDispatchNotTyped",
         "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
@@ -1063,6 +1180,12 @@ SolveEpsFormStripInFrame[
         "MultiquadraticDispatch" -> "Engine"|>,
       multiquadraticResult]]];
 
+  (* BOUNDARY 3 (chart/identity preparation): rekeying, the chart data
+     record, the root images and the pulled-back declared squares are one
+     Together pass each over the chart's entries *)
+  If[transportChartDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["ChartPreparation"]]];
+  stageSeconds = AbsoluteTime[];
   chartVariables = {
     Symbol["FeynFacet`Private`stripChartX"],
     Symbol["FeynFacet`Private`stripChartY"]};
@@ -1081,15 +1204,43 @@ SolveEpsFormStripInFrame[
   chartBranchRoots = Map[
     <|"RootSquare" -> Together[#["RootSquare"] /. data["Subst"]]|> &,
     usedRoots];
+  timings["ChartPreparation"] = AbsoluteTime[] - stageSeconds;
+  (* BOUNDARY 4 (before the chart pullback): transportChartPullBackStrip
+     is a SINGLE opaque pass -- substitution of the root images into
+     every entry of the strip, then one Together over the result -- with
+     no interior unit boundary to check.  It is therefore bracketed: the
+     deadline is checked before it and again after it, and its measured
+     wall time is recorded so a future log shows this substage's cost.
+     It is deliberately NOT TimeConstrained (documented trap: a
+     TimeConstrained step has escaped its bound in pool subkernels). *)
+  If[transportChartDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["ChartPullBack"]]];
   (* the root images and the pulled-back declared squares are needed
      BEFORE the pullback, not after it: transportChartPullBackStrip
      substitutes them into the chart entries and only then normalizes
      (see the note at its definition) *)
-  chartStrip = transportChartPullBackStrip[strip, data,
-    chartBranchRoots, rootImages];
-  inner = solveRationalStrip[chartStrip, chartVariables];
+  {stageSeconds, chartStrip} = AbsoluteTiming[
+    transportChartPullBackStrip[strip, data, chartBranchRoots, rootImages]];
+  timings["ChartPullBack"] = stageSeconds;
+  (* BOUNDARY 5 (after the pullback; also the last boundary before a
+     solver runs on the chart route) *)
+  If[transportChartDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["ChartPullBackComplete"]]];
+  {stageSeconds, inner} = AbsoluteTiming[
+    solveRationalStrip[chartStrip, chartVariables]];
+  timings["InnerSolve"] = stageSeconds;
   If[! innerSolvedQ[inner], Return[inner]];
   chartGauge = inner["Gauge"];
+
+  (* BOUNDARY 6 (gauge pullback): the coordinate-map composition is
+     re-verified exactly and the branch search evaluates 2^r sign
+     choices, each a full Together of the gauge.  A stop here discards no
+     solved work: the inner solver's per-prime artifacts are on disk and
+     the construction is a pure function of the strip and the frame, so
+     the next run replays it. *)
+  If[transportChartDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["GaugePullBack"]]];
+  stageSeconds = AbsoluteTime[];
 
   identityData = <|"Status" -> "OK", "Kind" -> "TwoVariable",
     "CoefficientField" -> "Multiquadratic",
@@ -1120,6 +1271,16 @@ SolveEpsFormStripInFrame[
   If[acceptedSigns === {},
     Return[<|"Status" -> "StripGaugeRoundTripFailed"|>]];
   branchImages = MapThread[Times, {First[acceptedSigns], rootImages}];
+  timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
+
+  (* BOUNDARY 7 (before the source-frame identity check): the check
+     re-derives the transformed one-form in the ALGEBRAIC frame, applies
+     the branch images and pulls the pair back through the Jacobian --
+     the most expensive exact step of the construction on a large
+     strip. *)
+  If[transportChartDeadlineExpiredQ[deadline],
+    Return[budgetExhausted["SourceFrameIdentity"]]];
+  stageSeconds = AbsoluteTime[];
 
   (* Same ordering rule as the pullback above: the source-frame
      transformed one-form carries the declared radicals in every entry,
@@ -1147,7 +1308,11 @@ SolveEpsFormStripInFrame[
   If[! zeroMatrixQ[pulledTransformed[[1]] - chartTransformed[[1]]] ||
       ! zeroMatrixQ[pulledTransformed[[2]] - chartTransformed[[2]]],
     Return[<|"Status" -> "StripGaugeSourceFrameIdentityFailed"|>]];
+  timings["SourceFrameIdentity"] = AbsoluteTime[] - stageSeconds;
 
+  (* the success payload is byte-identical to the pre-deadline result:
+     the substage timings are diagnostics of a STOP and are deliberately
+     not added here (2026-08-24) *)
   <|"Status" -> "Solved",
     "Method" -> "RationalChart/" <> chart["Name"] <> "/" <> inner["Method"],
     "Gauge" -> sourceGauge, "RootIndices" -> rootIndices,

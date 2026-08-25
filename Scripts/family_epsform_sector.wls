@@ -257,6 +257,37 @@ stripMapleBudget = If[algebraicFrameQ, sectorBudget,
 sectorDeadline = Infinity;
 stripBudgetExhaustedQ[s_] := AssociationQ[s] &&
   Lookup[s, "Status", None] === "BudgetExhausted";
+(* STRIP CONSTRUCTION (2026-08-24, the same night, second gap).  The
+   deadline above landed only INSIDE the solvers.  MEASURED in
+   production: both campaign missions sat more than two hours in the
+   work between the "strip {i,j}" announcement and the first solver call
+   -- CANONICA NextEquationD (or the blockwise block equation), the
+   strip-input write, the zero-forcing probe, the solver-configuration
+   seal, and then the chart pullback and identity preparation inside
+   SolveEpsFormStripInFrame -- where no deadline was ever checked, so
+   the 7200 s sector budget passed silently on both families.
+   The construction stage now checks the SAME sectorDeadline at each
+   substage boundary and produces the SAME typed shape a solver stop
+   has, so the StripBudgetExhausted handling below is reused verbatim
+   and there is no second stop path.  The substage wall times are
+   carried in the stop so a future log shows WHERE the budget went.
+   Never TimeConstrained: NextEquationD is a CANONICA call and a
+   TimeConstrained step has escaped its bound in pool subkernels
+   (CLAUDE.md); the opaque calls are BRACKETED (check before, check
+   after, wall time recorded) instead. *)
+stripDeadlineExpiredQ[d_] := NumericQ[d] && AbsoluteTime[] >= d;
+(* the driver-side construction stop, in the shape the solvers use *)
+stripConstructionStop[substage_String, start_, strip_List,
+    stageTimings_Association] := <|
+  "Status" -> "BudgetExhausted",
+  "Stage" -> "StripConstruction:" <> substage,
+  "Substage" -> substage,
+  "Elapsed" -> AbsoluteTime[] - start,
+  "Deadline" -> sectorDeadline,
+  "Method" -> "StripConstructionDriver",
+  "Resumable" -> True,
+  "Strip" -> strip,
+  "ConstructionTimings" -> stageTimings|>;
 chartFingerprint = Hash[
   KeyTake[chart, {"Name", "Variables", "Subst", "Roots", "Parents"}],
   "SHA256", "HexString"];
@@ -640,7 +671,9 @@ Do[
       checkpointValid, stripInputFile, extraLetters, obstruction,
       resumeHydration, resumeReset, zeroForcingQ,
       requestedSolverConfiguration, solverConfiguration,
-      modularBranches, modularArtifact, modularSummary},
+      modularBranches, modularArtifact, modularSummary,
+      constructionStart, constructionTimings, constructionSeconds,
+      constructionCheck},
       stripCheckpointFile = FileNameJoin[{scratch,
         family <> "_" <> ToString[k] <> "_strip_state.wl"}];
       stripCheckpoint = If[FileExistsQ[stripCheckpointFile],
@@ -736,28 +769,65 @@ Do[
                   {"Status", "LowerSector", "DiskSameQ",
                    "CurrentConnectionHashSameQ"}], resumeHydration],
               "; invalidating the recovered row and resolving every strip"]]]];
+      (* one cooperative deadline check of the strip-CONSTRUCTION stage;
+         it reads the CURRENT constructionStart / nlow /
+         constructionTimings of the strip being built, and leaves the
+         construction by Throw (Return inside a loop only terminates the
+         loop -- documented Wolfram trap) *)
+      constructionCheck[substage_String] :=
+        If[stripDeadlineExpiredQ[sectorDeadline],
+          Throw[stripConstructionStop[substage, constructionStart,
+            {k, nlow}, constructionTimings], "StripConstructionBudget"]];
       While[Length[prevD[[1]]] + subSize =!= nk,
+        (* ---- strip CONSTRUCTION stage, deadline-checked ---- *)
+        solution = Catch[
+        constructionStart = AbsoluteTime[];
+        constructionTimings = <||>;
+        (* hoisted out of the route branch below so the entry stop can
+           name the strip it refused to start; the CANONICA route learns
+           its lower sector only from NextEquationD *)
+        nlow = If[blockwiseRouteQ, k - 1 - Length[solvedBlocks],
+          Missing["NotConstructed"]];
+        (* BOUNDARY: immediately before this strip's construction begins *)
+        constructionCheck["Entry"];
         If[blockwiseRouteQ,
-          nlow = k - 1 - Length[solvedBlocks];
           memtrace["block " <> ToString[{k, nlow}] <> " before equation"];
-          {e, c, bbar} = blockEquation[k, nlow, solvedBlocks];
+          (* the blockwise block equation is one Together pass over the
+             connection blocks and the installed row products; bracketed
+             like the CANONICA call below *)
+          {constructionSeconds, {e, c, bbar}} = AbsoluteTiming[
+            blockEquation[k, nlow, solvedBlocks]];
+          constructionTimings["BlockEquation"] = constructionSeconds;
           memtrace["block " <> ToString[{k, nlow}] <> " after equation"];
           nextEq = True,
-          nextEq = canonicaNextEq[aP, invariants, sb, prevD];
+          (* CANONICA's NextEquationD is a SINGLE opaque call with no
+             interior unit boundary, and must NOT be TimeConstrained (a
+             TimeConstrained step has escaped its bound in pool
+             subkernels -- CLAUDE.md).  It is BRACKETED instead: the
+             deadline is checked before it (above) and again after it,
+             and its measured wall time is recorded in the typed stop so
+             a future log shows this substage's cost. *)
+          {constructionSeconds, nextEq} = AbsoluteTiming[
+            canonicaNextEq[aP, invariants, sb, prevD]];
+          constructionTimings["NextEquationD"] = constructionSeconds;
           If[! ListQ[nextEq] || First[nextEq] === False,
             log["  !! NextEquationD could not construct the next strip"];
             putAtomic[state, stateFile]; Exit[2]];
           {e, c, bbar, nlow} = {
             fromC[nextEq[[1]]], fromC[nextEq[[2]]],
             fromC[nextEq[[3]]], nextEq[[5]]}];
+        (* BOUNDARY: after the block equation / NextEquationD *)
+        constructionCheck["EquationConstructed"];
         stripInputFile = FileNameJoin[{scratch,
           family <> "_" <> ToString[k] <> "_" <> ToString[nlow] <>
             "_input.wl"}];
-        putAtomic[
+        (* putAtomic returns the renamed path, so only the timing is taken *)
+        constructionSeconds = First[AbsoluteTiming[putAtomic[
           <|"Family" -> family, "Sector" -> k,
             "LowerSector" -> nlow, "Variables" -> invariants,
             "Regulator" -> ee, "Strip" -> {e, c, bbar}|>,
-          stripInputFile];
+          stripInputFile]]];
+        constructionTimings["StripInputWrite"] = constructionSeconds;
         If[Environment["FACET_RECORD_STRIP_ONLY"] === "True",
           log["  recorded strip ", {k, nlow}, " at ", stripInputFile];
           putAtomic[state, stateFile];
@@ -767,6 +837,11 @@ Do[
           blockwiseRouteQ && algebraicFrameQ, "finite field in the rational chart of the strip's roots",
           blockwiseRouteQ, "finite field",
           True, "degrees 0,1,2,3; Maple only if all fail"]];
+        (* BOUNDARY: after the strip input is on disk (a resume of this
+           sector reloads it) *)
+        constructionCheck["StripInputWritten"];
+        None,
+        "StripConstructionBudget"];
         extraLetters = {};
         finiteFieldSolve[] := FeynFacet`SolveEpsFormStripFiniteField[
           <|"Family" -> family, "Sector" -> k,
@@ -786,7 +861,13 @@ Do[
         solvedQ[s_] := AssociationQ[s] && Lookup[s, "Status", None] === "Solved" &&
           (TrueQ[Lookup[s, "ExactDLog", False]] ||
             (productionQ && Lookup[s, "Certificate", None] === "NumericalResidual"));
-        If[blockwiseRouteQ,
+        (* a construction stop short-circuits both solve routes: it is
+           handled by the StripBudgetExhausted block below, unchanged *)
+        If[blockwiseRouteQ && ! stripBudgetExhaustedQ[solution],
+          solution = Catch[
+          (* BOUNDARY: the zero-forcing probe is one Together over every
+             entry of the forcing -- on a wide block that is not cheap *)
+          constructionCheck["ZeroForcingProbe"];
           (* no dlog recognition through CANONICA's checker: it hung for
              15 min at full CPU on 2x2 blocks of CF360/CF215 (2026-08-22);
              the finite-field solve finds the trivial gauge in seconds.
@@ -794,8 +875,9 @@ Do[
              gauge D = 0 (dD = eps(eD - Dc) + bbar - eps K dlog with
              bbar = 0): no sampling (CF408: ~250 of 340 blocks, ~0.7 s
              each through the three-prime machinery, 2026-08-22) *)
-          zeroForcingQ =
-            Environment["FACET_ZERO_FORCING"] =!= "False" && zeroQ[bbar];
+          {constructionSeconds, zeroForcingQ} = AbsoluteTiming[
+            Environment["FACET_ZERO_FORCING"] =!= "False" && zeroQ[bbar]];
+          constructionTimings["ZeroForcingProbe"] = constructionSeconds;
           requestedSolverConfiguration = stripSolverConfiguration[
             If[zeroForcingQ, "ZeroForcing", If[algebraicFrameQ,
               "RationalChartFiniteField", "DirectRationalFiniteField"]]];
@@ -804,7 +886,12 @@ Do[
             log["  !! solver configuration could not be sealed before strip ",
               {k, nlow}, ": ", requestedSolverConfiguration];
             putAtomic[state, stateFile]; Exit[2]];
-          solution = Which[
+          (* BOUNDARY: the last driver-side check before any solver runs.
+             Past it the deadline is enforced inside the solver, and
+             inside SolveEpsFormStripInFrame's own construction stage,
+             through the option plumbing below. *)
+          constructionCheck["SolverDispatch"];
+          Which[
             zeroForcingQ,
               <|"Status" -> "Solved", "Method" -> "ZeroForcing",
                 "Gauge" -> ConstantArray[0, Dimensions[First[bbar]]], "ExactDLog" -> True|>,
@@ -823,14 +910,41 @@ Do[
                 (* the chartless dispatch to the direct multiquadratic
                    engine carries the same deadline *)
                 "MultiquadraticOptions" -> {"Deadline" -> sectorDeadline},
+                (* and so does the STRIP-CONSTRUCTION stage inside this
+                   call -- the chart pullback, the gauge pullback and the
+                   source-frame identity check (2026-08-24) *)
+                "Deadline" -> sectorDeadline,
                 "ScratchDirectory" -> scratch,
                 "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
                 "Verbose" -> True],
-            True, finiteFieldSolve[]];
+            True, finiteFieldSolve[]],
+          "StripConstructionBudget"];
           If[! solvedQ[solution] && ! stripBudgetExhaustedQ[solution] &&
               algebraicFrameQ,
             log["    finite field found no gauge in frame: ",
               If[AssociationQ[solution], KeyTake[solution, {"Status", "RootIndices", "RootSquares", "Method"}], solution]]];
+          (* An ALGEBRAIC frame has no rational-gauge obstruction series
+             to compute -- EpsFormStripObstruction expands a rational
+             ansatz -- so the guard below has always skipped it, and a
+             failed algebraic strip was recorded with no certificate at
+             all.  The multiquadratic engine now stops BEFORE prepare and
+             compile with a typed AlphabetIntegrabilityObstruction: the
+             residue-only integrability system is inconsistent with the
+             alphabet it was given, which is a statement about the
+             ALPHABET and not about the gauge ansatz.  That typed result
+             is the certificate for this frame and is recorded through
+             the existing ObstructionCertificate field (2026-08-24). *)
+          If[! solvedQ[solution] && algebraicFrameQ && AssociationQ[solution] &&
+              Lookup[solution, "Status", None] ===
+                "AlphabetIntegrabilityObstruction",
+            obstruction = KeyDrop[solution, {"Witness", "AcceptedPoints"}];
+            log["    alphabet integrability obstruction: defect ",
+              Lookup[solution, "Defect", None], " with ",
+              Lookup[solution, "LetterCount", None], " letters, rank ",
+              Lookup[solution, "Rank", None], "/",
+              Lookup[solution, "AugmentedRank", None], " of ",
+              Lookup[solution, "MatrixDimensions", None],
+              "; no gauge exists with this alphabet"]];
           (* a budget stop is NOT "no gauge exists": the obstruction
              certificate (up to 900 s) and the repeat with extra letters
              would spend more time than the budget just refused *)
@@ -852,8 +966,12 @@ Do[
               extraLetters = obstruction["MissingLetters"];
               log["    repeating the finite-field solve with the missing letters ", extraLetters];
               solution = finiteFieldSolve[]]]];
-        If[! blockwiseRouteQ,
-        solution = If[algebraicFrameQ,
+        If[! blockwiseRouteQ && ! stripBudgetExhaustedQ[solution],
+        solution = Catch[
+        (* BOUNDARY: the last driver-side check before the legacy route's
+           solver runs *)
+        constructionCheck["SolverDispatch"];
+        If[algebraicFrameQ,
           FeynFacet`SolveEpsFormStripInFrame[
             {e, c, bbar}, invariants, ee, chart,
             "CANONICANumeratorDegrees" -> {0, 1, 2, 3},
@@ -864,6 +982,8 @@ Do[
             "MapleTimeLimit" -> stripMapleBudget,
             "MapleResidueKernels" -> kernelCount,
             "MultiquadraticOptions" -> {"Deadline" -> sectorDeadline},
+            (* and the strip-construction stage inside this call *)
+            "Deadline" -> sectorDeadline,
             "ScratchDirectory" -> scratch,
             "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
             "Verbose" -> False],
@@ -878,7 +998,8 @@ Do[
             "MapleResidueKernels" -> kernelCount,
             "ScratchDirectory" -> scratch,
             "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
-            "Verbose" -> False]]];
+            "Verbose" -> False]],
+        "StripConstructionBudget"]];
         If[! solvedQ[solution] && ! stripBudgetExhaustedQ[solution] &&
             ! algebraicFrameQ && stripRoute === "Legacy",
           log["    exact CANONICA/Maple routes found no gauge; " <>
@@ -901,14 +1022,24 @@ Do[
            write, exit 2.  Everything the solver completed before the
            stop -- per-prime modular artifacts, the strip checkpoint of
            the blocks already installed -- is on disk and is picked up by
-           the next run of this sector. *)
+           the next run of this sector.
+           SINCE 2026-08-24 (second gap) the STRIP-CONSTRUCTION stage --
+           this driver's block equation / NextEquationD / strip-input
+           write / zero-forcing probe, and SolveEpsFormStripInFrame's
+           chart pullback, gauge pullback and source-frame identity
+           check -- produces the SAME typed stop, and is handled here,
+           unchanged, by the same branch: there is no second stop path.
+           Its "Stage" reads "StripConstruction:<substage>" and its
+           "ConstructionTimings" name the wall seconds of each substage
+           reached, which is what the silent 7200 s overruns lacked. *)
         If[stripBudgetExhaustedQ[solution],
           log["  !! strip ", {k, nlow}, " budget exhausted at stage ",
             Lookup[solution, "Stage", "Unknown"], " after ",
             Round[Lookup[solution, "Elapsed", 0.], 0.1], " s",
             " (sector budget ", sectorBudget, " s); partial progress ",
             KeyTake[solution, {"Prime", "PrimesCompleted", "SamplesDone",
-              "SupportSize", "RegulatorValue", "UnknownCount"}]];
+              "SupportSize", "RegulatorValue", "UnknownCount",
+              "ConstructionTimings"}]];
           state["Stop"] = <|"Status" -> "StripBudgetExhausted",
             "Strip" -> {k, nlow},
             "Stage" -> Lookup[solution, "Stage", "Unknown"],
@@ -916,11 +1047,15 @@ Do[
             "SectorBudget" -> sectorBudget,
             "Method" -> Lookup[solution, "Method", None],
             "Resumable" -> TrueQ[Lookup[solution, "Resumable", False]],
+            (* KeyTake omits absent keys, so a solver stop is recorded
+               exactly as before and a construction stop adds its own *)
             "Progress" -> KeyTake[solution,
               {"Prime", "PrimesCompleted", "PrimesUsed", "PrimesDone",
                "SamplesDone", "SupportSize", "SelectedNumeratorDegreeOffset",
                "SelectedSupportShell", "ProbeCount", "RegulatorValue",
-               "UnknownCount", "RootCount", "BrokerActive"}],
+               "UnknownCount", "RootCount", "BrokerActive",
+               "Substage", "ConstructionTimings", "RootIndices",
+               "RootSquares", "Chart", "StripDimensions", "InnerStatus"}],
             "StripCheckpointFile" -> stripCheckpointFile|>;
           putAtomic[state, stateFile]; Exit[2]];
         If[AssociationQ[solution] &&
