@@ -2890,6 +2890,556 @@ multiquadraticStripCompileTensor[tensor_, scalarLevel_Integer, roots_List,
     <|"Channels" -> channels, "Compiled" -> compiled|>]
 ];
 
+(* ------------------------------------------------------------------ *)
+(* The compile architecture (2026-08-25)                                *)
+(* ------------------------------------------------------------------ *)
+
+(* Source: Codex's Q1 answer,
+   External/CodexExchange/triple_root_cf300_129_2026-08-24/
+   codex_response_to_fable_cf300_129_2026-08-24.md, on a compile
+   measured at 4872 s against a 0.7 s affine solve on CF300 (12,9).
+   Five changes, in Codex's order:
+
+     1 an immutable compiled equation CORE (E, C, BBar, root squares and
+       their log derivatives) keyed on the equation, the roots and the
+       chart symbols only, plus a separately keyed gauge-denominator
+       record.  Neither depends on the ansatz, so a support or
+       DegreeOffset change compiles NOTHING and an exact-prefix alphabet
+       extension compiles only the suffix (Codex's measured rebind
+       evidence: 12 s against 691 s for a fresh compile);
+
+     2 interned exact scalars and channel values: a hash bucket with a
+       SameQ collision check, so each unique value is decomposed and
+       compiled once.  The zero channel of a 2^r grade vector, and the
+       zero entries of a sparse E/C/BBar, are the common case;
+
+     3 compact letter channels.  For a letter L = A + B r_m the one-form
+       dlog L is built from the LETTER's own grade channels, its
+       derivative in the grade basis and the norm A^2 - B^2 delta_m; the
+       expanded D[L]/L tree is never decomposed.  That tree is the
+       measured expensive object (the forcing-dlog letters carry 10^4 to
+       10^5 leaves).  A general multigrade letter takes the same route
+       through the existing field multiplication/inversion ABI;
+
+     4 the canonical rational pair returned by the field decomposition
+       feeds CoefficientRules directly; the second Together (a
+       multivariate GCD of two large polynomials, for nothing) is gone;
+
+     5 the remaining unique one-form suffix may be brokered into 2 to 4
+       IMMUTABLE compile shards.  Naive parallelism duplicates work and
+       peak memory, so this is opt-in and last.
+
+   Nothing here changes what is compiled: every acceptance the old
+   compiler made (exact decomposition with a recompose check, exact
+   inverse product check, polynomial shape checks) is made here, and the
+   compact letter path is admitted only when the letter record PROVES
+   the stored one-form is the dlog of the record's letter. *)
+
+ClearAll[
+  multiquadraticStripInternReset, multiquadraticStripIntern,
+  multiquadraticStripInternProbe, multiquadraticStripInternStatistics,
+  multiquadraticStripCompileCacheClear,
+  multiquadraticStripCompileRationalFromPair,
+  multiquadraticStripCompileRationalCanonical,
+  multiquadraticStripDecomposeScalarInterned,
+  multiquadraticStripCompileRationalInterned,
+  multiquadraticStripCompileTensorInterned,
+  multiquadraticStripCompactInverse, multiquadraticStripLetterChannelPair,
+  multiquadraticStripCompileOneFormEntry, multiquadraticStripCompileOneForms,
+  multiquadraticStripCompileShardTask,
+  multiquadraticStripCompileCoreKey, multiquadraticStripCompileCoreRecord,
+  multiquadraticStripCompileDenominatorRecord,
+  multiquadraticStripCompileLegacyCore,
+  multiquadraticStripCompileLegacyDenominator,
+  $multiquadraticStripInternPools, $multiquadraticStripInternCounters,
+  $multiquadraticStripInternCounterNames,
+  $multiquadraticStripPoolEntryLimit, $multiquadraticStripCompileShardMinimum
+];
+
+$multiquadraticStripInternPools = <||>;
+$multiquadraticStripInternCounters = <||>;
+
+(* "Scalar" and "Rational" are VALUE pools, reset at both ends of a
+   compile call: they exist to make one call compile each unique value
+   once, and holding them would grow a long-lived pool kernel without
+   bound.  "Core", "GaugeDenominator" and "OneForm" are the persistent
+   pools -- they ARE the core/ansatz split -- and are bounded by entry
+   count; a pool at its cap starts again rather than growing. *)
+$multiquadraticStripPoolEntryLimit = <|
+  "Core" -> 2, "GaugeDenominator" -> 16, "OneForm" -> 512|>;
+
+(* below this many uncached one-forms a shard cannot pay for its own
+   serialization and kernel round trip *)
+$multiquadraticStripCompileShardMinimum = 8;
+
+(* Both pools are FLAT Associations keyed by {pool, hash} and {pool,
+   counter}: a one-level Part assignment on a symbol holding an
+   Association is the only update form with a guaranteed constant-time
+   semantics, and the compile does thousands of these per call. *)
+$multiquadraticStripInternCounterNames = {"Hits", "Misses", "Collisions",
+  "Entries", "Resets"};
+
+multiquadraticStripInternReset[pool_String] := (
+  $multiquadraticStripInternPools = KeySelect[$multiquadraticStripInternPools,
+    First[#1] =!= pool &];
+  Scan[($multiquadraticStripInternCounters[[Key[{pool, #1}]]] = 0) &,
+    $multiquadraticStripInternCounterNames];);
+
+multiquadraticStripInternStatistics[] := Module[{pools},
+  pools = DeleteDuplicates[First /@ Keys[$multiquadraticStripInternCounters]];
+  Association[Table[pool -> Association[Table[
+      name -> Lookup[$multiquadraticStripInternCounters, Key[{pool, name}], 0],
+      {name, $multiquadraticStripInternCounterNames}]],
+    {pool, pools}]]
+];
+
+multiquadraticStripCompileCacheClear[] := (
+  $multiquadraticStripInternPools = <||>;
+  $multiquadraticStripInternCounters = <||>;
+  <|"Status" -> "MultiquadraticStripCompileCachesCleared"|>);
+
+(* Present without computing: the shard planner needs to know which
+   one-forms the pool already holds before it decides what to farm. *)
+multiquadraticStripInternProbe[pool_String, key_] := Module[{bucket, hit},
+  bucket = Lookup[$multiquadraticStripInternPools, Key[{pool, Hash[key]}], {}];
+  hit = SelectFirst[bucket, SameQ[First[#1], key] &, None];
+  If[hit === None, Missing["NotInterned"], Last[hit]]
+];
+
+(* Hash bucket plus SameQ collision check (Codex item 2).  The hash is
+   the expression hash, never a canonical text: this pool is session
+   local, it is never serialized and it is never fingerprinted, so its
+   context sensitivity is not an ABI question.  SameQ decides, so a hash
+   collision merges nothing; two mathematically equal but structurally
+   different values simply miss, which costs time and never correctness. *)
+multiquadraticStripIntern[pool_String, key_, compute_] := Module[
+  {hash, bucket, hit, value, limit, hits, misses, resets},
+  hash = Hash[key];
+  bucket = Lookup[$multiquadraticStripInternPools, Key[{pool, hash}], {}];
+  hit = SelectFirst[bucket, SameQ[First[#1], key] &, None];
+  If[hit =!= None,
+    $multiquadraticStripInternCounters[[Key[{pool, "Hits"}]]] =
+      Lookup[$multiquadraticStripInternCounters, Key[{pool, "Hits"}], 0] + 1;
+    Return[Last[hit]]];
+  value = compute[];
+  limit = Lookup[$multiquadraticStripPoolEntryLimit, pool, Infinity];
+  If[Lookup[$multiquadraticStripInternCounters, Key[{pool, "Entries"}], 0] >=
+      limit,
+    (* bounded: a pool at its cap starts again rather than growing
+       without bound in a long-lived pool kernel *)
+    hits = Lookup[$multiquadraticStripInternCounters, Key[{pool, "Hits"}], 0];
+    misses = Lookup[$multiquadraticStripInternCounters, Key[{pool, "Misses"}], 0];
+    resets = Lookup[$multiquadraticStripInternCounters, Key[{pool, "Resets"}], 0];
+    multiquadraticStripInternReset[pool];
+    $multiquadraticStripInternCounters[[Key[{pool, "Hits"}]]] = hits;
+    $multiquadraticStripInternCounters[[Key[{pool, "Misses"}]]] = misses;
+    $multiquadraticStripInternCounters[[Key[{pool, "Resets"}]]] = resets + 1;
+    bucket = {}];
+  $multiquadraticStripInternCounters[[Key[{pool, "Misses"}]]] =
+    Lookup[$multiquadraticStripInternCounters, Key[{pool, "Misses"}], 0] + 1;
+  If[bucket =!= {},
+    $multiquadraticStripInternCounters[[Key[{pool, "Collisions"}]]] =
+      Lookup[$multiquadraticStripInternCounters, Key[{pool, "Collisions"}], 0] + 1];
+  $multiquadraticStripInternPools[[Key[{pool, hash}]]] = Append[bucket, {key, value}];
+  $multiquadraticStripInternCounters[[Key[{pool, "Entries"}]]] =
+    Lookup[$multiquadraticStripInternCounters, Key[{pool, "Entries"}], 0] + 1;
+  value
+];
+
+(* Codex item 4.  multiquadraticFieldDecompose ends in Together /@, so
+   every channel it returns IS a canonical rational pair and
+   Numerator/Denominator are exactly the pair CoefficientRules needs.
+   The split is accepted only when both halves are genuine polynomials
+   in {x, y, eps}; anything else falls back to the conservative Together
+   path, so a caller that hands in a non-canonical expression cannot be
+   given a wrong pair. *)
+multiquadraticStripCompileRationalFromPair[expression_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
+  {compiledNumerator, compiledDenominator},
+  If[! FreeQ[expression, Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
+    Return[$Failed]];
+  compiledNumerator = multiquadraticStripCompilePolynomial[
+    Numerator[expression], variables, epsilon];
+  If[compiledNumerator === $Failed, Return[$Failed]];
+  compiledDenominator = multiquadraticStripCompilePolynomial[
+    Denominator[expression], variables, epsilon];
+  If[compiledDenominator === $Failed ||
+      compiledDenominator["EpsilonCoefficientRows"] === {}, Return[$Failed]];
+  <|"Type" -> "MultiquadraticRationalExactV1",
+    "Numerator" -> compiledNumerator, "Denominator" -> compiledDenominator|>
+];
+
+multiquadraticStripCompileRationalCanonical[expression_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[{fast},
+  fast = multiquadraticStripCompileRationalFromPair[expression, variables,
+    epsilon];
+  If[fast =!= $Failed, fast,
+    multiquadraticStripCompileRational[expression, variables, epsilon]]
+];
+
+(* The ROOTS are part of the key, not context.  The same scalar is
+   decomposed at two different ranks inside ONE compile: the root
+   squares and the root/gauge log derivatives are decomposed over the
+   EMPTY root set (they are rational by construction), while E, C, BBar
+   and the one-forms are decomposed over the declared roots.  Keying on
+   the expression alone let 1/x -- the log derivative of the root square
+   delta = x, and equally the x-component of dlog x -- return a rank-0
+   channel vector of width 1 where the grade ABI demands width 2^r.
+   Found 2026-08-25 by t_multiquadratic_strip_solve. *)
+multiquadraticStripDecomposeScalarInterned[expression_, roots_List] :=
+  multiquadraticStripIntern["Scalar", {roots, expression},
+    Function[multiquadraticStripDecomposeScalar[expression, roots]]];
+
+multiquadraticStripCompileRationalInterned[expression_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
+  multiquadraticStripIntern["Rational", expression,
+    Function[multiquadraticStripCompileRationalCanonical[expression,
+      variables, epsilon]]];
+
+multiquadraticStripCompileTensorInterned[tensor_, scalarLevel_Integer,
+    roots_List, variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
+  {channels, compiled},
+  channels = Map[multiquadraticStripDecomposeScalarInterned[#1, roots] &,
+    tensor, {scalarLevel}];
+  If[! FreeQ[channels, $Failed], Return[$Failed]];
+  compiled = Map[
+    multiquadraticStripCompileRationalInterned[#1, variables, epsilon] &,
+    channels, {scalarLevel + 1}];
+  If[! FreeQ[compiled, $Failed], $Failed,
+    <|"Channels" -> channels, "Compiled" -> compiled|>]
+];
+
+(* Codex item 3, the inverse.  A element with grade support {0, m} has
+   the two-term inverse (A - B r_m)/(A^2 - B^2 delta_m) -- its NORM, not
+   a 2^r x 2^r rational solve; a pure single-grade element inverts in
+   one division.  Any other support falls through to the general field
+   inversion ABI.  Every branch is accepted only after the exact product
+   check against the grade identity, which is the same acceptance
+   multiquadraticFieldInverse makes. *)
+multiquadraticStripCompactInverse[a_List, deltas_List] := Module[
+  {dimension = Length[a], nonzero, mask, factor, norm, inverse, check,
+   general = False},
+  If[dimension =!= 2^Length[deltas], Return[$Failed]];
+  (* the channels arrive from the field ABI, which ends in Together, so a
+     zero channel IS the integer 0: re-Togethering every channel of a
+     full-support letter merely to test it for zero was measured as the
+     dominant cost of this routine on the rank-3 fixture (2026-08-25) *)
+  nonzero = Flatten[Position[SameQ[#1, 0] & /@ a, False, {1},
+    Heads -> False]];
+  inverse = Which[
+    nonzero === {}, $Failed,
+    nonzero === {1},
+      ReplacePart[ConstantArray[0, dimension], 1 -> Together[1/a[[1]]]],
+    Length[nonzero] === 1,
+      mask = First[nonzero] - 1;
+      factor = Together[multiquadraticMaskFactor[mask, deltas]];
+      If[TrueQ[factor === 0], $Failed,
+        ReplacePart[ConstantArray[0, dimension],
+          (mask + 1) -> Together[1/(a[[mask + 1]] factor)]]],
+    Length[nonzero] === 2 && First[nonzero] === 1,
+      mask = Last[nonzero] - 1;
+      factor = Together[multiquadraticMaskFactor[mask, deltas]];
+      norm = Together[a[[1]]^2 - a[[mask + 1]]^2 factor];
+      If[TrueQ[norm === 0], $Failed,
+        ReplacePart[ConstantArray[0, dimension],
+          {1 -> Together[a[[1]]/norm],
+           (mask + 1) -> Together[-a[[mask + 1]]/norm]}]],
+    True, general = True; multiquadraticFieldInverse[a, deltas]];
+  If[inverse === $Failed || ! ListQ[inverse] || Length[inverse] =!= dimension,
+    Return[$Failed]];
+  (* multiquadraticFieldInverse already made this exact product check;
+     repeating it costs a second 2^r x 2^r symbolic multiply *)
+  If[TrueQ[general], Return[inverse]];
+  check = multiquadraticMultiply[a, inverse, deltas];
+  If[! ListQ[check] ||
+      ! multiquadraticStripZeroQ[check - UnitVector[dimension, 1]],
+    $Failed, inverse]
+];
+
+(* Codex item 3, the one-form.  dlog L = (dL) L^-1 entirely inside the
+   grade algebra: decompose the LETTER (the small object), check that it
+   recomposes exactly, invert by the norm, differentiate in the grade
+   basis (multiquadraticDerivative carries the dlog delta term, so the
+   derivative never leaves its grade) and multiply.  The expanded
+   D[L]/L tree is never formed and never decomposed.
+
+   Exactness: the recompose check certifies the channels of L; the
+   product check inside multiquadraticStripCompactInverse certifies the
+   inverse; derivative and product are exact identities of the ABI.  So
+   the returned channels are the exact channels of dlog L without any
+   check on the materialized tree. *)
+multiquadraticStripLetterChannelPair[letter_, roots_List,
+    variables : {_Symbol, _Symbol}] := Module[
+  {rank = Length[roots], deltas, channels, composed, inverse, result},
+  deltas = If[rank === 0, {},
+    Together /@ Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]]];
+  If[! FreeQ[deltas, $Failed], Return[$Failed]];
+  channels = Quiet[multiquadraticFieldDecompose[letter, roots]];
+  If[! ListQ[channels] || Length[channels] =!= 2^rank ||
+      ! FreeQ[channels, $Failed], Return[$Failed]];
+  composed = multiquadraticFieldCompose[channels, roots];
+  If[composed === $Failed ||
+      ! TrueQ[Together[composed - letter] === 0], Return[$Failed]];
+  inverse = multiquadraticStripCompactInverse[channels, deltas];
+  If[inverse === $Failed, Return[$Failed]];
+  result = Table[
+    Module[{derivative = multiquadraticDerivative[channels, deltas,
+        variables[[mu]]]},
+      If[! ListQ[derivative] || ! FreeQ[derivative, $Failed], $Failed,
+        multiquadraticMultiply[derivative, inverse, deltas]]],
+    {mu, 2}];
+  If[! MatchQ[result, {_List, _List}] || ! FreeQ[result, $Failed], $Failed,
+    result]
+];
+
+(* One compiled one-form.  The compact path is admissible ONLY when the
+   letter record proves the stored one-form is the dlog of the record's
+   letter: multiquadraticStripCandidateLetters sets
+   "OneForm" -> multiquadraticStripLetterOneForm["Letter"], so SameQ on
+   that entry is the provenance certificate.  A caller-assembled record
+   whose two halves disagree, a diagonal form (which is closed but not a
+   dlog), and any letter the field algebra refuses all fall back to the
+   old decomposition of the materialized form. *)
+multiquadraticStripCompileOneFormEntry[form : {_, _}, letterRecord_,
+    roots_List, variables : {_Symbol, _Symbol}, epsilon_Symbol,
+    compactQ_] := Module[{channels = $Failed, letter, path, compiled},
+  If[TrueQ[compactQ] && AssociationQ[letterRecord],
+    letter = Lookup[letterRecord, "Letter", Missing["NoLetter"]];
+    If[! MissingQ[letter] &&
+        SameQ[Lookup[letterRecord, "OneForm", Missing["NoOneForm"]], form],
+      channels = multiquadraticStripLetterChannelPair[letter, roots,
+        variables]]];
+  path = If[MatchQ[channels, {_List, _List}], "CompactLetterChannels",
+    channels = multiquadraticStripDecomposeScalarInterned[#1, roots] & /@ form;
+    "DecomposedForm"];
+  If[! ListQ[channels] || ! FreeQ[channels, $Failed], Return[$Failed]];
+  compiled = Map[
+    multiquadraticStripCompileRationalInterned[#1, variables, epsilon] &,
+    channels, {2}];
+  If[! FreeQ[compiled, $Failed], Return[$Failed]];
+  <|"Channels" -> channels, "Compiled" -> compiled, "Path" -> path|>
+];
+
+(* Helper side of Codex item 5.  The shard receives an IMMUTABLE payload
+   file written in formal System` symbols, so nothing it reads depends
+   on the helper kernel's $Context (the CANONICA rebinding trap), and it
+   acquires no nested kernel of its own. *)
+multiquadraticStripCompileShardTask[dataFile_String, indices_List] := Module[
+  {payload, forms, records, roots, entries},
+  payload = Quiet[CheckAbort[Get[dataFile], $Failed]];
+  If[! AssociationQ[payload], Return[$Failed]];
+  forms = Lookup[payload, "OneForms", $Failed];
+  records = Lookup[payload, "LetterRecords", None];
+  roots = Lookup[payload, "Roots", $Failed];
+  If[! ListQ[forms] || ! ListQ[roots] ||
+      ! VectorQ[indices, IntegerQ], Return[$Failed]];
+  entries = Table[
+    multiquadraticStripCompileOneFormEntry[forms[[index]],
+      If[MatchQ[records, {___Association}] && Length[records] === Length[forms],
+        records[[index]], None],
+      roots, {\[FormalX], \[FormalY]}, \[FormalE],
+      TrueQ[Lookup[payload, "Compact", False]]],
+    {index, indices}];
+  If[! FreeQ[entries, $Failed], $Failed,
+    <|"Indices" -> indices, "Entries" -> entries|>]
+];
+
+(* The ansatz half of the split: one interned entry per one-form, keyed
+   on the chart symbols, the canonical roots and the form itself.  An
+   exact-prefix alphabet extension therefore hits the pool on every old
+   letter and compiles only the suffix. *)
+multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
+    roots_List, variables : {_Symbol, _Symbol}, epsilon_Symbol,
+    compactQ_, shards_] := Module[
+  {records, aligned, prefix, keys, pending, entries, planned, groups,
+   payload, dataFile, results, shardCount, rules, inverseRules, canonical},
+  aligned = MatchQ[letterRecords, {___Association}] &&
+    Length[letterRecords] === Length[oneForms];
+  records = If[aligned, letterRecords,
+    ConstantArray[None, Length[oneForms]]];
+  prefix = {$multiquadraticStripSourceSHA256, variables, epsilon,
+    Lookup[roots, "Root", {}], Lookup[roots, "RootSquare", {}]};
+  keys = Table[{prefix, form}, {form, oneForms}];
+  (* shard plan: only the one-forms the pool does NOT already hold, and
+     only when a live broker and enough uncached work justify it *)
+  shardCount = If[IntegerQ[shards] && shards >= 2 && shards <= 8, shards, 0];
+  If[shardCount >= 2 && TrueQ[Quiet[taskBrokerActiveQ[]]],
+    pending = Select[Range[Length[oneForms]],
+      MissingQ[multiquadraticStripInternProbe["OneForm", keys[[#1]]]] &];
+    pending = DeleteDuplicatesBy[pending, keys[[#1]] &];
+    If[Length[pending] >= $multiquadraticStripCompileShardMinimum,
+      rules = multiquadraticStripCanonicalRules[variables, epsilon];
+      inverseRules = Reverse /@ rules;
+      payload = <|"OneForms" -> (oneForms /. rules),
+        "LetterRecords" -> If[aligned, letterRecords /. rules, None],
+        "Roots" -> (roots /. rules), "Compact" -> TrueQ[compactQ]|>;
+      dataFile = taskBrokerDataFile[
+        "mqcompile_" <> Hash[{prefix, oneForms}, "SHA256", "HexString"],
+        payload];
+      If[StringQ[dataFile],
+        groups = Partition[pending, UpTo[Ceiling[Length[pending]/shardCount]]];
+        results = taskBrokerRun[
+          Table["FeynFacet`Private`multiquadraticStripCompileShardTask[\"" <>
+            dataFile <> "\", " <> ToString[group, InputForm] <> "]",
+            {group, groups}], "Label" -> "mqcompile", "Timeout" -> 7200];
+        Do[
+          If[AssociationQ[results[[k]]] &&
+              Lookup[results[[k]], "Indices", None] === groups[[k]],
+            MapThread[Function[{index, entry},
+              canonical = If[AssociationQ[entry],
+                Append[entry, "Channels" ->
+                  (Lookup[entry, "Channels", $Failed] /. inverseRules)],
+                entry];
+              If[AssociationQ[canonical],
+                multiquadraticStripIntern["OneForm", keys[[index]],
+                  Function[canonical]]]],
+              {groups[[k]], Lookup[results[[k]], "Entries", {}]}]],
+          {k, Length[groups]}]]]];
+  planned = Table[
+    With[{form = oneForms[[index]], record = records[[index]],
+        key = keys[[index]]},
+      multiquadraticStripIntern["OneForm", key,
+        Function[multiquadraticStripCompileOneFormEntry[form, record, roots,
+          variables, epsilon, compactQ]]]],
+    {index, Length[oneForms]}];
+  If[! FreeQ[planned, $Failed] || ! MatchQ[planned, {___Association}],
+    Return[$Failed]];
+  entries = planned;
+  <|"Channels" -> Lookup[entries, "Channels", {}],
+    "Compiled" -> Lookup[entries, "Compiled", {}],
+    "Paths" -> Lookup[entries, "Path", {}]|>
+];
+
+(* The core key.  Deliberately NOT the ABI fingerprint: that one carries
+   the support, the one-forms and the gauge denominator, all of which are
+   ansatz.  This one carries exactly what the core depends on -- the
+   equation, the canonical roots, the grade ABI, this source file, and
+   the chart symbols themselves, because two preparations that differ
+   only in symbol names share an EquationFingerprint (it is computed
+   from the canonical text) and must NOT share compiled channels. *)
+multiquadraticStripCompileCoreKey[preparation_Association,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
+  {payload = Lookup[preparation, "ABIPayload", $Failed]},
+  If[! AssociationQ[payload], Return[$Failed]];
+  If[AnyTrue[{"EquationFingerprint", "RootOrderingFingerprint",
+      "RootCanonicalSquares", "Dimensions"},
+      ! KeyExistsQ[payload, #1] &], Return[$Failed]];
+  {$multiquadraticStripSourceSHA256,
+   Lookup[preparation, "AlgebraABIFingerprint", $Failed],
+   payload["EquationFingerprint"], payload["RootOrderingFingerprint"],
+   payload["RootCanonicalSquares"], payload["Dimensions"],
+   variables, epsilon}
+];
+
+multiquadraticStripCompileCoreRecord[preparation_Association, roots_List,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol, reusedChannels_,
+    coreKey_, useCacheQ_] := Module[{build},
+  build[] := Module[
+    {strip = Lookup[preparation, "Record", <||>]["Strip"], e, c, bbar,
+     eData, cData, bData, rootSquares, rootSquareData, rootLogData},
+    If[! MatchQ[strip, {_List, _List, _List}], Return[$Failed]];
+    {e, c, bbar} = strip;
+    eData = multiquadraticStripCompileTensorInterned[e, 3, roots, variables,
+      epsilon];
+    cData = multiquadraticStripCompileTensorInterned[c, 3, roots, variables,
+      epsilon];
+    bData = If[ArrayQ[reusedChannels, 4] &&
+        Dimensions[reusedChannels] === Append[Dimensions[bbar],
+          2^Length[roots]] && FreeQ[reusedChannels, $Failed],
+      Module[{compiled = Map[
+          multiquadraticStripCompileRationalInterned[#1, variables, epsilon] &,
+          reusedChannels, {4}]},
+        If[! FreeQ[compiled, $Failed], $Failed,
+          <|"Channels" -> reusedChannels, "Compiled" -> compiled|>]],
+      multiquadraticStripCompileTensorInterned[bbar, 3, roots, variables,
+        epsilon]];
+    rootSquares = Lookup[roots, "RootSquare", {}];
+    rootSquareData = multiquadraticStripCompileTensorInterned[rootSquares, 1,
+      {}, variables, epsilon];
+    rootLogData = multiquadraticStripCompileTensorInterned[
+      Table[D[rootSquares[[a]], variables[[mu]]]/rootSquares[[a]],
+        {a, Length[rootSquares]}, {mu, 2}], 2, {}, variables, epsilon];
+    If[MemberQ[{eData, cData, bData, rootSquareData, rootLogData}, $Failed],
+      $Failed,
+      <|"E" -> eData, "C" -> cData, "BBar" -> bData,
+        "RootSquares" -> rootSquareData, "RootLogDerivatives" -> rootLogData|>]];
+  If[TrueQ[useCacheQ] && coreKey =!= $Failed,
+    multiquadraticStripIntern["Core", coreKey, Function[build[]]],
+    build[]]
+];
+
+(* The gauge denominator is neither core nor ansatz: an alphabet change
+   moves it (the norms of the algebraic letters enter it), a support
+   change does not.  It is two rational scalars and their two log
+   derivatives, so it gets its own small keyed pool. *)
+multiquadraticStripCompileDenominatorRecord[denominator_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol, useCacheQ_] := Module[
+  {build},
+  build[] := Module[{denominatorData, denominatorLogData},
+    denominatorData = multiquadraticStripCompileTensorInterned[{denominator},
+      1, {}, variables, epsilon];
+    denominatorLogData = multiquadraticStripCompileTensorInterned[
+      {D[denominator, variables[[1]]]/denominator,
+       D[denominator, variables[[2]]]/denominator}, 1, {}, variables, epsilon];
+    If[MemberQ[{denominatorData, denominatorLogData}, $Failed], $Failed,
+      <|"GaugeDenominator" -> denominatorData,
+        "GaugeLogDerivatives" -> denominatorLogData|>]];
+  If[TrueQ[useCacheQ],
+    multiquadraticStripIntern["GaugeDenominator",
+      {$multiquadraticStripSourceSHA256, variables, epsilon, denominator},
+      Function[build[]]],
+    build[]]
+];
+
+(* The pre-2026-08-25 compiler, kept callable.  "LegacyCompiler" -> True
+   routes every part through multiquadraticStripCompileTensor exactly as
+   before: no interning, no core cache, no compact letter channels, and
+   the second Together that fed CoefficientRules.  It is the reference
+   the equivalence test holds the new architecture to (compiled-assembly
+   modular images at (prime, eps, point) triples), and a bisect handle;
+   it is not a production route. *)
+multiquadraticStripCompileLegacyCore[preparation_Association, roots_List,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol, reusedChannels_] := Module[
+  {strip = Lookup[preparation, "Record", <||>]["Strip"], e, c, bbar, eData,
+   cData, bData, rootSquares, rootSquareData, rootLogData},
+  If[! MatchQ[strip, {_List, _List, _List}], Return[$Failed]];
+  {e, c, bbar} = strip;
+  eData = multiquadraticStripCompileTensor[e, 3, roots, variables, epsilon];
+  cData = multiquadraticStripCompileTensor[c, 3, roots, variables, epsilon];
+  bData = If[ArrayQ[reusedChannels, 4] &&
+      Dimensions[reusedChannels] === Append[Dimensions[bbar],
+        2^Length[roots]] && FreeQ[reusedChannels, $Failed],
+    Module[{compiled = Map[
+        multiquadraticStripCompileRational[#1, variables, epsilon] &,
+        reusedChannels, {4}]},
+      If[! FreeQ[compiled, $Failed], $Failed,
+        <|"Channels" -> reusedChannels, "Compiled" -> compiled|>]],
+    multiquadraticStripCompileTensor[bbar, 3, roots, variables, epsilon]];
+  rootSquares = Lookup[roots, "RootSquare", {}];
+  rootSquareData = multiquadraticStripCompileTensor[rootSquares, 1, {},
+    variables, epsilon];
+  rootLogData = multiquadraticStripCompileTensor[
+    Table[D[rootSquares[[a]], variables[[mu]]]/rootSquares[[a]],
+      {a, Length[rootSquares]}, {mu, 2}], 2, {}, variables, epsilon];
+  If[MemberQ[{eData, cData, bData, rootSquareData, rootLogData}, $Failed],
+    $Failed,
+    <|"E" -> eData, "C" -> cData, "BBar" -> bData,
+      "RootSquares" -> rootSquareData, "RootLogDerivatives" -> rootLogData|>]
+];
+
+multiquadraticStripCompileLegacyDenominator[denominator_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
+  {denominatorData, denominatorLogData},
+  denominatorData = multiquadraticStripCompileTensor[{denominator}, 1, {},
+    variables, epsilon];
+  denominatorLogData = multiquadraticStripCompileTensor[
+    {D[denominator, variables[[1]]]/denominator,
+     D[denominator, variables[[2]]]/denominator}, 1, {}, variables, epsilon];
+  If[MemberQ[{denominatorData, denominatorLogData}, $Failed], $Failed,
+    <|"GaugeDenominator" -> denominatorData,
+      "GaugeLogDerivatives" -> denominatorLogData|>]
+];
+
 multiquadraticStripFormShape[expression_] := Which[
   AssociationQ[expression] && MemberQ[{"MultiquadraticRationalExactV1",
       "MultiquadraticRationalPrimeV1", "MultiquadraticRationalImageV1"},
@@ -2915,17 +3465,34 @@ multiquadraticStripSemanticPayload[assembly_Association] := KeyTake[assembly, {
    already carries.  Both default to the conservative behaviour, so a
    preparation that arrived from an artifact, a cache or another process
    is still validated and still decomposed here. *)
+(* "PreparationValidated" and "ForcingChannels" exist for ONE caller:
+   solveEpsFormStripMultiquadratic (see the note above).
+
+   "CompileCore", "LetterChannels" and "CompileShards" are the 2026-08-25
+   compile architecture.  All three default to Automatic and all three
+   are then ON except sharding, which needs a live task broker AND an
+   explicit shard count: naive parallelism duplicates work and peak
+   memory, so it is last and opt-in.  "CompileCore" -> False and
+   "LetterChannels" -> False restore the pre-2026-08-25 compiler exactly,
+   which is what the equivalence test uses as its reference. *)
 Options[multiquadraticStripCompile] = {
   "PreparationValidated" -> False,
-  "ForcingChannels" -> Automatic
+  "ForcingChannels" -> Automatic,
+  "CompileCore" -> Automatic,
+  "LetterChannels" -> Automatic,
+  "CompileShards" -> Automatic,
+  "LegacyCompiler" -> False
 };
 
 multiquadraticStripCompile[preparation_Association,
     opts : OptionsPattern[]] := Module[
-  {gate, variables, epsilon, record, strip, e, c, bbar, roots, rules,
-   dimensions, eData, cData, bData, oneData, rootSquares, rootSquareData,
-   rootLogData, reusedChannels, denominatorData, denominatorLogData,
-   exactForms, compiledForms, canonicalExact, result, payload},
+  {gate, variables, epsilon, record, roots, rules, dimensions,
+   coreKey, core, eData, cData, bData, oneData, rootSquareData,
+   rootLogData, reusedChannels, denominatorRecord, denominatorData,
+   denominatorLogData, exactForms, compiledForms, canonicalExact, result,
+   payload, coreEnabled, compactQ, shards, legacyQ, coreSeconds,
+   oneFormSeconds, denominatorSeconds, statistics,
+   startTime = AbsoluteTime[]},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripCompile]]]];
   If[AssociationQ[gate], Return[gate]];
@@ -2936,43 +3503,76 @@ multiquadraticStripCompile[preparation_Association,
   epsilon = preparation["Regulator"];
   record = preparation["Record"];
   roots = preparation["Roots"];
-  strip = record["Strip"];
   dimensions = preparation["Dimensions"];
-  {e, c, bbar} = strip;
   rules = multiquadraticStripCanonicalRules[variables, epsilon];
-  eData = multiquadraticStripCompileTensor[e, 3, roots, variables, epsilon];
-  cData = multiquadraticStripCompileTensor[c, 3, roots, variables, epsilon];
+  legacyQ = TrueQ[OptionValue["LegacyCompiler"]];
+  coreEnabled = Replace[OptionValue["CompileCore"], Automatic -> ! legacyQ];
+  compactQ = Replace[OptionValue["LetterChannels"], Automatic -> ! legacyQ];
+  shards = Replace[OptionValue["CompileShards"], Automatic -> 0];
+  If[! MemberQ[{True, False}, coreEnabled] ||
+      ! MemberQ[{True, False}, compactQ] ||
+      ! (IntegerQ[shards] && 0 <= shards <= 8),
+    Return[multiquadraticStripFailure["InvalidCompileArchitectureOption",
+      <|"CompileCore" -> coreEnabled, "LetterChannels" -> compactQ,
+        "CompileShards" -> shards|>]]];
+  If[legacyQ && (coreEnabled || compactQ || shards =!= 0),
+    Return[multiquadraticStripFailure["LegacyCompilerOptionConflict",
+      <|"CompileCore" -> coreEnabled, "LetterChannels" -> compactQ,
+        "CompileShards" -> shards|>]]];
+  (* the VALUE pools are per call at both ends: they make one call
+     compile each unique value once and are never carried *)
+  multiquadraticStripInternReset["Scalar"];
+  multiquadraticStripInternReset["Rational"];
   reusedChannels = Replace[OptionValue["ForcingChannels"],
     Automatic :> Missing["NotSupplied"]];
-  bData = If[ArrayQ[reusedChannels, 4] &&
-      Dimensions[reusedChannels] === Append[Dimensions[bbar],
-        preparation["GradeCount"]] && FreeQ[reusedChannels, $Failed],
-    Module[{compiled = Map[
-        multiquadraticStripCompileRational[#1, variables, epsilon] &,
-        reusedChannels, {4}]},
-      If[! FreeQ[compiled, $Failed], $Failed,
-        <|"Channels" -> reusedChannels, "Compiled" -> compiled|>]],
-    multiquadraticStripCompileTensor[bbar, 3, roots, variables, epsilon]];
-  oneData = multiquadraticStripCompileTensor[preparation["OneForms"], 2, roots,
-    variables, epsilon];
-  If[MemberQ[{eData, cData, bData, oneData}, $Failed],
+  coreKey = If[TrueQ[coreEnabled],
+    multiquadraticStripCompileCoreKey[preparation, variables, epsilon],
+    $Failed];
+  {coreSeconds, core} = AbsoluteTiming[
+    If[legacyQ,
+      multiquadraticStripCompileLegacyCore[preparation, roots, variables,
+        epsilon, reusedChannels],
+      multiquadraticStripCompileCoreRecord[preparation, roots, variables,
+        epsilon, reusedChannels, coreKey, coreEnabled]]];
+  If[! AssociationQ[core],
+    multiquadraticStripInternReset["Scalar"];
+    multiquadraticStripInternReset["Rational"];
     Return[multiquadraticStripFailure["ExactChannelDecompositionFailed"]]];
-  rootSquares = Lookup[roots, "RootSquare", {}];
-  rootSquareData = multiquadraticStripCompileTensor[rootSquares, 1, {},
-    variables, epsilon];
-  rootLogData = multiquadraticStripCompileTensor[
-    Table[D[rootSquares[[a]], variables[[mu]]]/rootSquares[[a]],
-      {a, Length[rootSquares]}, {mu, 2}], 2, {}, variables, epsilon];
-  denominatorData = multiquadraticStripCompileTensor[
-    {preparation["GaugeDenominator"]}, 1, {}, variables, epsilon];
-  denominatorLogData = multiquadraticStripCompileTensor[
-    {D[preparation["GaugeDenominator"], variables[[1]]]/
-       preparation["GaugeDenominator"],
-     D[preparation["GaugeDenominator"], variables[[2]]]/
-       preparation["GaugeDenominator"]}, 1, {}, variables, epsilon];
-  If[MemberQ[{rootSquareData, rootLogData, denominatorData, denominatorLogData},
-      $Failed],
+  {eData, cData, bData, rootSquareData, rootLogData} =
+    Lookup[core, {"E", "C", "BBar", "RootSquares", "RootLogDerivatives"}];
+  {oneFormSeconds, oneData} = AbsoluteTiming[
+    If[legacyQ,
+      multiquadraticStripCompileTensor[preparation["OneForms"], 2, roots,
+        variables, epsilon],
+      multiquadraticStripCompileOneForms[preparation["OneForms"],
+        Lookup[preparation, "LetterRecords", None], roots, variables, epsilon,
+        compactQ, shards]]];
+  If[! AssociationQ[oneData],
+    multiquadraticStripInternReset["Scalar"];
+    multiquadraticStripInternReset["Rational"];
+    Return[multiquadraticStripFailure["ExactChannelDecompositionFailed"]]];
+  {denominatorSeconds, denominatorRecord} = AbsoluteTiming[
+    If[legacyQ,
+      multiquadraticStripCompileLegacyDenominator[
+        preparation["GaugeDenominator"], variables, epsilon],
+      multiquadraticStripCompileDenominatorRecord[
+        preparation["GaugeDenominator"], variables, epsilon, coreEnabled]]];
+  If[! AssociationQ[denominatorRecord],
+    multiquadraticStripInternReset["Scalar"];
+    multiquadraticStripInternReset["Rational"];
     Return[multiquadraticStripFailure["RationalAssemblyFormCompilationFailed"]]];
+  denominatorData = denominatorRecord["GaugeDenominator"];
+  denominatorLogData = denominatorRecord["GaugeLogDerivatives"];
+  statistics = <|
+    "Architecture" -> If[legacyQ, "Legacy", "CoreAnsatzSplitV1"],
+    "CoreSeconds" -> coreSeconds, "OneFormSeconds" -> oneFormSeconds,
+    "GaugeDenominatorSeconds" -> denominatorSeconds,
+    "CompileCore" -> coreEnabled, "LetterChannels" -> compactQ,
+    "CompileShards" -> shards,
+    "OneFormPaths" -> Counts[Lookup[oneData, "Paths", {}]],
+    "Pools" -> multiquadraticStripInternStatistics[]|>;
+  multiquadraticStripInternReset["Scalar"];
+  multiquadraticStripInternReset["Rational"];
   exactForms = <|"E" -> eData["Channels"], "C" -> cData["Channels"],
     "BBar" -> bData["Channels"], "OneForms" -> oneData["Channels"],
     "RootSquares" -> (First /@ rootSquareData["Channels"]),
@@ -3024,6 +3624,11 @@ multiquadraticStripCompile[preparation_Association,
     "CompiledFormsShapeFingerprint" -> multiquadraticStripFingerprint[
       multiquadraticStripFormShape[compiledForms]]|>;
   payload = multiquadraticStripSemanticPayload[result];
+  (* telemetry only.  multiquadraticStripSemanticPayload is a KeyTake of
+     a fixed list, so nothing here enters AssemblyFingerprint and no
+     artifact comparison sees a wall clock. *)
+  result = Append[result, "CompileStatistics" -> Append[statistics,
+    "Seconds" -> AbsoluteTime[] - startTime]];
   Append[result, "AssemblyFingerprint" -> multiquadraticStripFingerprint[payload]]
 ];
 multiquadraticStripCompile[___] :=
@@ -4268,6 +4873,9 @@ multiquadraticStripBackendGate[backend_] := Which[
 multiquadraticStripClearCaches[] := (
   $multiquadraticStripPrimeCache = <||>;
   $multiquadraticStripEpsilonCache = <||>;
+  (* the compile pools of the 2026-08-25 core/ansatz split are caches
+     too: a caller that clears state expects them gone *)
+  multiquadraticStripCompileCacheClear[];
   <|"Status" -> "MultiquadraticStripCachesCleared"|>);
 
 (* ------------------------------------------------------------------ *)
