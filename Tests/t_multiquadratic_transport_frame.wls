@@ -71,10 +71,16 @@ FTAssert["zero forcing bypasses a missing joint root chart",
     TrueQ[zeroNoChartSolution["FrameCertificate", "Exact"]] &&
     zeroNoChartSolution["FrameCertificate", "SamplingEntered"] === False];
 
-FTAssert["exact root-set lookup selects the known joint Kallen charts",
+(* {lambda1, 4 v + w^2} was the negative control here until 2026-08-24,
+   when the iterated-pencil chart KallenQ4a was derived for exactly that
+   pair (Tests/t_kallen_q4_chart.wls); the negative control moved to a
+   pair that still has no joint chart. *)
+FTAssert["exact root-set lookup selects the known joint charts",
   TransportRootSetChart[{lambda1, lambda3}]["Name"] === "Kallen13" &&
     TransportRootSetChart[{lambda2, lambda3}]["Name"] === "Kallen23" &&
-    MissingQ[TransportRootSetChart[{lambda1, 4 v + w^2}]]];
+    TransportRootSetChart[{lambda1, 4 v + w^2}]["Name"] === "KallenQ4a" &&
+    TransportRootSetChart[{lambda1, v^2 + 4 w}]["Name"] === "KallenQ4b" &&
+    MissingQ[TransportRootSetChart[{lambda1, 1 - 4 v w}]]];
 
 a = Symbol["Global`arbitraryA"];
 b = Symbol["Global`arbitraryB"];
