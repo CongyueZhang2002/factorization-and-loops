@@ -60,7 +60,11 @@ ClearAll[
   finiteFieldStripArtifactTag,
   finiteFieldStripDeadlineQ,
   finiteFieldStripDeadlineExpiredQ,
-  finiteFieldStripBudgetExhausted
+  finiteFieldStripBudgetExhausted,
+  finiteFieldStripBrokerMinimumSecondsParse,
+  finiteFieldStripBrokerMinimumSeconds,
+  $finiteFieldStripBrokerMinimumSecondsDefault,
+  $finiteFieldStripBrokerMinimumSecondsCache
 ];
 
 SampleEpsFormStripAffine::record =
@@ -2234,6 +2238,41 @@ finiteFieldStripDeadlineQ[deadline_] :=
 finiteFieldStripDeadlineExpiredQ[deadline_] :=
   NumericQ[deadline] && AbsoluteTime[] >= deadline;
 
+(* ---------------------------------------------------------------------
+   Broker minimum (option "BrokerMinimumSeconds", environment override
+   FACET_BROKER_MINIMUM_SECONDS).
+
+   The environment variable moves the OPTION DEFAULT only: a caller that
+   passes "BrokerMinimumSeconds" explicitly always wins.  It is read ONCE
+   per kernel session -- the value cached below is what the option
+   default binds when this file loads -- and parsed as a nonnegative
+   decimal number; anything else (an empty value, a symbol, an
+   expression, a negative number) is ignored and the built-in default
+   stands.  The text is pattern-matched BEFORE ToExpression, so a
+   malformed value is never evaluated as code. *)
+$finiteFieldStripBrokerMinimumSecondsDefault = 8.0;
+$finiteFieldStripBrokerMinimumSecondsCache = None;
+
+finiteFieldStripBrokerMinimumSecondsParse[text_, fallback_] := Module[
+  {trimmed, parsed},
+  trimmed = If[StringQ[text], StringTrim[text], ""];
+  If[! StringMatchQ[trimmed,
+      RegularExpression["([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][-+]?[0-9]+)?"]],
+    Return[fallback]];
+  (* "1e-3" is C notation, not Wolfram notation (it reads as e - 3): the
+     matched exponent is rewritten before the number is read *)
+  parsed = Quiet[Check[
+    ToExpression[StringReplace[trimmed, {"e" -> "*^", "E" -> "*^"}]], $Failed]];
+  If[NumericQ[parsed] && TrueQ[parsed >= 0], N[parsed], fallback]];
+
+finiteFieldStripBrokerMinimumSeconds[] := (
+  If[$finiteFieldStripBrokerMinimumSecondsCache === None,
+    $finiteFieldStripBrokerMinimumSecondsCache =
+      finiteFieldStripBrokerMinimumSecondsParse[
+        Environment["FACET_BROKER_MINIMUM_SECONDS"],
+        $finiteFieldStripBrokerMinimumSecondsDefault]];
+  $finiteFieldStripBrokerMinimumSecondsCache);
+
 finiteFieldStripBudgetExhausted[stage_String, elapsed_, deadline_,
     progress_Association] := Join[
   <|"Status" -> "BudgetExhausted",
@@ -2289,11 +2328,14 @@ Options[SolveEpsFormStripFiniteField] = {
      reconstruct them; nothing else was wrong with the ansatz) *)
   "MaximumPrimeCount" -> 40,
   (* inside a KernelPool mission, farm the sample batches to the pool's
-     free subkernels when the pilot measured at least this many seconds
-     of build per sample (measured 2026-08-22 on CF254: (9,7) at 2.6 s per
+     free subkernels when one prime is worth at least this many seconds
+     on one kernel (measured 2026-08-22 on CF254: (9,7) at 2.6 s per
      sample gains 1.5x on sampling with three helpers; (9,6) at 1.3 s
-     breaks even) *)
-  "BrokerMinimumSeconds" -> 8.0,   (* seconds per prime (full regulator schedule) on one kernel *)
+     breaks even).  The quantity is ESTIMATED from the pilot before the
+     first prime and MEASURED after it (see the re-decision below); the
+     default may be moved once per session by
+     FACET_BROKER_MINIMUM_SECONDS. *)
+  "BrokerMinimumSeconds" -> finiteFieldStripBrokerMinimumSeconds[],   (* seconds per prime (full regulator schedule) on one kernel *)
   (* "Exact": the lift is accepted only after the exact both-variable
      Pfaffian identities (development and tests).  "Numerical" (production,
      user decision 2026-08-22: checks stay separate from the calculation):
@@ -2327,6 +2369,9 @@ SolveEpsFormStripFiniteField[record_Association,
    canonical, heldOutResult, heldOutValidated, epsilonCursor, regulatorValue, need,
    reservePrimes, lifted, unseen, sampleEpsilon, unseenPrime = None,
    brokerQ = False, pilotSeconds = 0, maximumPrimeCount, loopPrimes,
+   brokerMinimumSeconds, brokerEstimatedPrimeSeconds = 0,
+   brokerReDecision = None, primeStart, primeComputed = False,
+   primeSeconds, primeWallSeconds = {},
    liftReason = "OK", backendDecision, backendConfiguration,
    planDiscoveryBackend, planDiscoveryDecision,
    eliminationPlanFingerprint = None,
@@ -2338,6 +2383,10 @@ SolveEpsFormStripFiniteField[record_Association,
   If[! finiteFieldStripDeadlineQ[deadline],
     Return[<|"Status" -> "InvalidDeadline", "Deadline" -> deadline,
       "Expected" -> "an absolute AbsoluteTime[] value, or Infinity"|>]];
+  (* read once, before any stop can report it (the option default already
+     carries the environment override).  A non-numeric value keeps the
+     broker off, exactly as the comparison did before it was named. *)
+  brokerMinimumSeconds = OptionValue["BrokerMinimumSeconds"];
   (* the partial progress this solver already tracks; every key is
      defined whether or not the stage it belongs to was reached *)
   budgetProgress[] := <|
@@ -2355,7 +2404,9 @@ SolveEpsFormStripFiniteField[record_Association,
     "SelectedSupportShell" -> selectedShell,
     "ProbeCount" -> probeCount,
     "SupportLearningPass" -> TrueQ[$finiteFieldLearningPass],
-    "BrokerActive" -> TrueQ[brokerQ]|>;
+    "BrokerActive" -> TrueQ[brokerQ],
+    "BrokerMinimumSeconds" -> brokerMinimumSeconds,
+    "BrokerReDecision" -> brokerReDecision|>;
   budgetExhausted[stage_String] := finiteFieldStripBudgetExhausted[
     stage, AbsoluteTime[] - solveStart, deadline, budgetProgress[]];
   backendDecision = finiteFieldStripBackendDecision[
@@ -2673,13 +2724,14 @@ SolveEpsFormStripFiniteField[record_Association,
     Max[0, pilotSeconds - Lookup[pilotSample, "PlanDiscoverySeconds", 0] -
       Lookup[pilotSample, "NullspaceSeconds", 0]],
     Lookup[degreeProbe, "SamplingSeconds", 0]];
+  brokerEstimatedPrimeSeconds = pilotSeconds * Max[1, Length[epsilonSamples]];
   brokerQ = kernelCount <= 1 && taskBrokerActiveQ[] &&
-    TrueQ[pilotSeconds * Max[1, Length[epsilonSamples]] >= OptionValue["BrokerMinimumSeconds"]];
+    TrueQ[brokerEstimatedPrimeSeconds >= brokerMinimumSeconds];
   log["Broker decision: pool active ", taskBrokerActiveQ[], ", pilot ",
     Round[pilotSeconds, 0.01], " s per sample, schedule ", Length[epsilonSamples], ", minimum ",
-    OptionValue["BrokerMinimumSeconds"], " s per prime -> ", brokerQ];
+    brokerMinimumSeconds, " s per prime -> ", brokerQ];
   If[brokerQ, log["Sample batches go to the KernelPool helpers (",
-    Round[pilotSeconds * Max[1, Length[epsilonSamples]], 0.1], " s per prime on one kernel, ",
+    Round[brokerEstimatedPrimeSeconds, 0.1], " s per prime on one kernel, ",
     taskBrokerFreeKernels[], " free)"]];
   If[OptionValue["Backend"] === "FLINT" &&
       ! AssociationQ[eliminationPlan],
@@ -2717,6 +2769,15 @@ SolveEpsFormStripFiniteField[record_Association,
        left before the next prime's sampling begins, never inside it *)
     If[finiteFieldStripDeadlineExpiredQ[deadline],
       budgetStop = budgetExhausted["PrimeLoop"]; Break[]];
+    (* the per-prime wall clock the adaptive broker re-decision reads.
+       It starts here, AFTER the between-primes budget check, and is
+       read once the prime's modular record is complete: it therefore
+       covers exactly this prime's own work -- sampling (build plus
+       modular elimination), the canonicalization, the held-out
+       interpolation and its validation, and the artifact write -- and
+       excludes the cross-prime lift, the unseen-prime residual and the
+       final exact check, none of which a helper can take. *)
+    primeStart = AbsoluteTime[]; primeComputed = False;
     file = If[StringQ[artifactDirectory],
       FileNameJoin[{artifactDirectory,
         artifactPrefix <> "_mod_" <> ToString[prime] <> ".wl"}],
@@ -2736,6 +2797,9 @@ SolveEpsFormStripFiniteField[record_Association,
         Quiet[DeleteFile[file]]]];
     If[StringQ[file] && FileExistsQ[file],
       log["Loaded modular interpolation ", prime],
+      (* this prime is computed here, not reloaded: its wall time is a
+         measurement of the block's real per-prime cost *)
+      primeComputed = True;
       sampleBatch[values_List] := Which[
         brokerQ, taskBrokerSampleBatch[record, values, prime, sampleOptions],
         kernelCount > 1,
@@ -2894,6 +2958,45 @@ SolveEpsFormStripFiniteField[record_Association,
             "PlanDiscoveryBackendUsed", "Status"}] & /@ samples)|>];
       If[StringQ[file], finiteFieldStripPutAtomic[interpolation, file]]];
     AppendTo[modularData, interpolation];
+    (* ADAPTIVE BROKER RE-DECISION (2026-08-24).
+
+       The pilot measures one sample's BUILD; a prime's real cost is the
+       whole regulator schedule through sampling, elimination and
+       held-out validation, which on tall rational coefficients is three
+       orders of magnitude larger.  Measured in production on CF303
+       {17, 13}: the estimate said 0.6 s per prime, so farming was
+       declined, while a prime actually cost about ten minutes -- one
+       kernel ground for an hour with six helpers idle.
+
+       So the pilot estimate is only the FIRST decision.  The first prime
+       this kernel computes MEASURES the quantity the option names, and
+       farming is engaged for the remaining primes when the measurement
+       clears the same minimum.  No new farming mechanics: sampleBatch
+       reads brokerQ at every call, so flipping it here routes the next
+       prime's batches through taskBrokerSampleBatch exactly as a pilot
+       decision would have.  Farming already on, no pool, or real
+       subkernels of our own: nothing changes.
+
+       The budget still outranks the broker -- the re-decision is skipped
+       once the deadline has passed, and the next prime's between-primes
+       check fires before any farmed batch is queued. *)
+    If[TrueQ[primeComputed],
+      primeSeconds = AbsoluteTime[] - primeStart;
+      AppendTo[primeWallSeconds, primeSeconds];
+      If[! TrueQ[brokerQ] && brokerReDecision === None && kernelCount <= 1 &&
+          ! finiteFieldStripDeadlineExpiredQ[deadline] &&
+          TrueQ[primeSeconds >= brokerMinimumSeconds] && taskBrokerActiveQ[],
+        brokerQ = True;
+        brokerReDecision = <|
+          "Prime" -> prime,
+          "MeasuredSeconds" -> primeSeconds,
+          "EstimatedSeconds" -> brokerEstimatedPrimeSeconds,
+          "MinimumSeconds" -> brokerMinimumSeconds,
+          "PrimesCompleted" -> Length[modularData],
+          "FreeKernels" -> taskBrokerFreeKernels[],
+          "Engaged" -> True|>;
+        log["Broker re-decision after prime ", prime, ": measured ",
+          Round[primeSeconds, 0.01], " s per prime -> engaging helpers"]]];
     If[adaptivePrimeSampling && regulatorSampling =!= "HeldOut" && Length[modularData] === 1,
       adaptivePlan = finiteFieldStripAdaptiveSamplingPlan[
         interpolation, Length[epsilonSamples],
@@ -3039,6 +3142,14 @@ SolveEpsFormStripFiniteField[record_Association,
       Lookup[modularData, "ConstructionCount", {}],
     "PrimeMaximumTotalDegrees" ->
       Lookup[modularData, "MaximumTotalDegree", {}],
+    (* the broker record: what was estimated before the first prime, what
+       was measured on it, and whether the measurement moved the decision *)
+    "BrokerActive" -> TrueQ[brokerQ],
+    "BrokerMinimumSeconds" -> brokerMinimumSeconds,
+    "BrokerPilotSeconds" -> pilotSeconds,
+    "BrokerEstimatedPrimeSeconds" -> brokerEstimatedPrimeSeconds,
+    "BrokerReDecision" -> brokerReDecision,
+    "PrimeWallSeconds" -> primeWallSeconds,
     "PrimeSamplingSeconds" ->
       Lookup[modularData, "SamplingSeconds", {}],
     "PrimeInterpolationSeconds" ->
