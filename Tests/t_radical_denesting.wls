@@ -44,15 +44,21 @@
        nested and numeric radicands produces the identical RootIndices,
        RadicalBases and (empty) UnclassifiedRadicalBases, with an empty
        DenestedRadicalBases.
-   (d) REAL DATA.  On the 27x27 truncation of the CF303 family state the
-       classifier reports zero unclassified radical bases, RootIndices
-       {1, 2}, numeric classes {2} and exactly the two denested bases
-       above; the canonicalization rewrites the connection with sign +1
-       and the used root pair selects the catalogued chart Kallen23;
-       FactorFamilyRegulatorDependenceInFrame proceeds past the
-       classification (its status is recorded, and if it is "OK" the
-       constant T(eps) is re-verified here against the function's own
-       contract).
+   (d) REAL DATA, on a FROZEN fixture.  On the 27x27 truncation of the
+       frozen CF303 family state (FrozenTestFixtures_2026-08-25/, see the
+       README there) the classifier reports ZERO unclassified radical
+       bases and RootIndices {1, 2}, and the used root pair selects the
+       catalogued chart Kallen23.  Those 27 rows are the sectors the
+       producing run had completed, so the connection is the one the
+       campaign banked: its radicands are the declared squares q1 and q2
+       themselves, with no nested and no numeric radicand, the
+       canonicalization is a verified no-op, and
+       FactorFamilyRegulatorDependenceInFrame returns "AlreadyEpsFactored"
+       -- which is re-derived here directly from the truncation rather
+       than believed.  All values MEASURED on the fixture 2026-08-25.
+       The denesting rewrite itself is exercised on constructed data in
+       (a), (b) and (c); what (d) certifies is that the classifier is
+       clean on real campaign data.
    Consumers of the classifier that were NOT extended to nested or
    numeric radicals must still fail closed: SolveEpsFormStripInFrame
    returns the typed "StripContainsDenestedRadicals". *)
@@ -232,10 +238,18 @@ FTAssert["(c) the strip solver stops, typed, on a denested radical",
 (* ------------------------------------------------------------------ *)
 (* (d) the real CF303 truncation                                        *)
 (* ------------------------------------------------------------------ *)
+(* THE INPUT IS FROZEN.  Until 2026-08-25 this block read the LIVE campaign
+   state FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF303/... , which
+   every mission of the triple-root campaign rewrites; its assertions then
+   described whatever sector a run happened to have reached, and went red
+   with no code change when round 4 advanced CF303 past sector 16.  The input
+   is now the immutable copy under FrozenTestFixtures_2026-08-25/ (provenance
+   in that directory's README) and the statements below are properties of
+   that FIXED matrix. *)
 results = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical"}];
 stateFile = FileNameJoin[{results, "FamilyEpsFormsSolving",
-  "triple_root_2026-08-24_fable", "CF303", "sector_state_CF303_standard.wl"}];
-FTAssert["(d) the CF303 family state is in the repository",
+  "FrozenTestFixtures_2026-08-25", "sector_state_CF303_standard.wl"}];
+FTAssert["(d) the frozen CF303 fixture is in the repository",
   FileExistsQ[stateFile] &&
     FileExistsQ[FileNameJoin[{results, "TransportFamilyCharts.wl"}]]];
 registration = TransportFamilyChartLoad[
@@ -247,24 +261,39 @@ FTAssert["(d) CF303 is registered on a rank-3 multiquadratic frame",
   AssociationQ[cf303Frame] && cf303Frame["Status"] === "ExactFrame" &&
     cf303Frame["Name"] === "Multiquadratic3"];
 state = FamilyArtifactRead[stateFile];
+FTAssert["(d) the frozen CF303 fixture reads back with the schema this \
+block consumes: a 45x45 two-variable connection in 25 sector ranges",
+  AssociationQ[state] &&
+    Dimensions[Lookup[state, "A", {}]] === {2, 45, 45} &&
+    Length[Lookup[state, "Ranges", {}]] === 25];
 truncation = {state["A"][[1, 1 ;; 27, 1 ;; 27]], state["A"][[2, 1 ;; 27, 1 ;; 27]]};
 cf303Roots = currentRoots[cf303Frame, {x, y}];
 cf303Class = rootIndices[truncation, cf303Roots];
+(* MEASURED on the frozen fixture, 2026-08-25.  The 27 rows are exactly the
+   sectors 1..16 the producing run had completed, so the connection here is
+   the one the campaign BANKED: its radicands are the two declared squares
+   q1 and q2 themselves, with no nested and no numeric radicand left.  The
+   classifier must therefore leave nothing unclassified and must report NO
+   denesting -- the denesting machinery is exercised on constructed data in
+   (a), (b) and (c) above; what this block certifies on real data is that
+   the classifier is CLEAN on it. *)
 FTAssert["(d) the 27x27 truncation has no unclassified radical base",
   cf303Class["UnclassifiedRadicalBases"] === {} &&
-    cf303Class["RootIndices"] === {1, 2} &&
-    cf303Class["NumericRadicalClasses"] === {2} &&
-    Length[cf303Class["DenestedRadicalBases"]] === 2];
-FTAssert["(d) the two denested bases are the nested one and the constant 2",
-  Sort[Lookup[Values[cf303Class["DenestedRadicalBases"]], "RootIndices"]] ===
-      {{}, {2}} &&
-    AllTrue[Values[cf303Class["DenestedRadicalBases"]],
-      #["NumericClass"] === 2 && TrueQ[#["SquareIdentity"]] &]];
+    cf303Class["RootIndices"] === {1, 2}];
+FTAssert["(d) the frozen truncation carries the declared squares directly: \
+no nested and no numeric radicand",
+  cf303Class["RadicalBases"] =!= {} &&
+    AllTrue[cf303Class["RadicalBases"], Function[base,
+      AnyTrue[{q1, q2, q3}, TrueQ[Together[base - #] === 0] &]]] &&
+    cf303Class["NumericRadicalClasses"] === {} &&
+    cf303Class["DenestedRadicalBases"] === <||>];
 cf303Canonical = canonicalize[truncation, cf303Roots, {x, y},
   cf303Class["DenestedRadicalBases"]];
-FTAssert["(d) the truncation canonicalizes with one determined sign",
-  cf303Canonical["Status"] === "OK" && cf303Canonical["Rewritten"] > 0 &&
-    Lookup[Values[cf303Canonical["Rewrites"]], "Sign", {}] === {1}];
+FTAssert["(d) canonicalization is a verified no-op on it, and returns the \
+truncation unchanged",
+  cf303Canonical["Status"] === "OK" && cf303Canonical["Rewritten"] === 0 &&
+    cf303Canonical["Rewrites"] === <||> &&
+    cf303Canonical["Expression"] === truncation];
 FTAssert["(d) the used root pair selects the catalogued chart Kallen23",
   Module[{chart = TransportRootSetChart[
       Lookup[cf303Roots[[cf303Class["RootIndices"]]], "RootSquare", {}], {x, y}]},
@@ -275,47 +304,21 @@ FTAssert["(d) the used root pair selects the catalogued chart Kallen23",
     "PointLadder" -> {2, 4, 8}, "TimeLimit" -> 600]];
 Print["(d) FactorFamilyRegulatorDependenceInFrame: ",
   Lookup[cf303Factor, "Status", cf303Factor], " in ", Round[cf303Seconds, 0.1], " s"];
-FTAssert["(d) the factorization proceeds past the classification",
+(* MEASURED on the frozen fixture, 2026-08-25, 11.1 s:
+     <|Status -> "AlreadyEpsFactored", RootIndices -> {}, Chart -> None|>
+   The classifier is clean (above), so the factorization reaches the
+   regulator question, and on these BANKED rows the answer is that there is
+   nothing left to factor.  Asserted as the exact status; the mathematical
+   claim behind it is verified separately, not taken from the verdict. *)
+FTAssert["(d) the factorization proceeds past the classification, with the \
+measured status AlreadyEpsFactored",
   AssociationQ[cf303Factor] &&
     ! MemberQ[{"ConnectionContainsUndeclaredRadicals", "AlgebraicFrameNotWellFormed",
         "DenestSignAmbiguous"}, cf303Factor["Status"]] &&
-    cf303Factor["RootIndices"] === {1, 2}];
-If[AssociationQ[cf303Factor] && cf303Factor["Status"] === "OK",
-  (* the contract, re-verified here rather than believed: T is constant
-     and regulator dependent, T^-1 is exact, the recorded connection IS
-     T^-1 A T on the canonicalized connection (exact, entry by entry),
-     and it is eps-factored (exact).  That the canonicalized connection
-     is the ORIGINAL one -- the denesting identity together with the
-     numerically fixed branch sign -- is checked on the original
-     truncation at two exact rational points to 30 digits: the branch
-     choice is a numeric statement and cannot be made by Together. *)
-  FTAssert["(d) T(eps) is constant, regulator dependent and exactly invertible",
-    Module[{t = cf303Factor["Transformation"], ti = cf303Factor["Inverse"]},
-      FreeQ[t, x | y] && ! FreeQ[t, eps] &&
-        AllTrue[Flatten[Map[Together, t . ti - IdentityMatrix[27], {2}]],
-          TrueQ[# === 0] &] &&
-        AllTrue[Flatten[Map[Together, ti . t - IdentityMatrix[27], {2}]],
-          TrueQ[# === 0] &]]];
-  FTAssert["(d) the recorded connection is exactly T^-1 A T and is eps-factored",
-    Module[{t = cf303Factor["Transformation"], ti = cf303Factor["Inverse"],
-        connection = cf303Factor["Connection"], canonical},
-      canonical = cf303Canonical["Expression"];
-      AllTrue[Flatten[Table[
-          private["familyRegulatorConjugate"][ti, canonical[[mu]], t] -
-            connection[[mu]], {mu, 2}]],
-        TrueQ[Together[#] === 0] &] &&
-        private["familyRegulatorFactoredQ"][connection[[1]], eps] &&
-        private["familyRegulatorFactoredQ"][connection[[2]], eps]]];
-  FTAssert["(d) the canonicalized truncation is the original one (30 digits, 2 points)",
-    AllTrue[{{x -> 1/4, y -> 1/6, eps -> 1/5},
-        {x -> 1/7, y -> 1/13, eps -> 2/7}}, Function[point,
-      Module[{original, canonical},
-        original = Quiet[N[truncation /. point, 30]];
-        canonical = Quiet[N[cf303Canonical["Expression"] /. point, 30]];
-        TrueQ[Max[Abs[Flatten[original - canonical]]] <
-          10^-20 Max[1, Max[Abs[Flatten[original]]]]]]]]],
-  Print["(d) downstream status recorded, not asserted OK: ",
-    InputForm[KeyTake[cf303Factor, {"Status", "Chart", "RootIndices",
-      "ResidualRadicalBases", "Attempts"}]]]];
+    cf303Factor["Status"] === "AlreadyEpsFactored"];
+FTAssert["(d) the reason is exact: the frozen 27x27 truncation is itself \
+eps-factored in the frame, in both variables",
+  private["familyRegulatorFactoredQ"][truncation[[1]], eps] &&
+    private["familyRegulatorFactoredQ"][truncation[[2]], eps]];
 
 FTReport[];

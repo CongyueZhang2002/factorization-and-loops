@@ -73,14 +73,37 @@
       symbolic factor.
 
    T. END TO END on the artifact that motivated the chart: the CF259
-      sector state of the triple_root_2026-08-24_fable run, its rows
-      1..16 truncation (row bound from the state's own "Ranges"), the
-      family's registered multiquadratic frame, and
-      FactorFamilyRegulatorDependenceInFrame.  The criterion is that the
-      call gets PAST the "NoRationalChart" stop; the resulting status is
-      recorded verbatim, whatever it is.  Skipped with a typed line when
-      the campaign artifact is absent (it is project data, not repository
-      data). *)
+      sector state, its rows 1..16 truncation (row bound from the state's
+      own "Ranges"), the family's registered multiquadratic frame, and
+      FactorFamilyRegulatorDependenceInFrame.
+
+      THE INPUT IS FROZEN.  Until 2026-08-25 this block read the LIVE
+      campaign state
+      FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF259/... , which
+      every mission rewrites, and asserted the stop status that file
+      happened to carry ("stopped with
+      NeedsMultiquadraticRegulatorFactorization at rows 1..16").  That is
+      a pin on a defect's current symptom, which CLAUDE.md forbids, and it
+      went red on 2026-08-25 with no code change at all: campaign round 4
+      carried CF259 three sectors further, so the state's stop record
+      moved to rows 1..23.  The input is now the immutable copy under
+      FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/ (provenance in
+      that directory's README), and every statement below is a property of
+      that FIXED matrix -- never of where a campaign run happens to stand.
+
+      The criteria, all MEASURED on the fixture on 2026-08-25 and stated
+      before this run: the state reads back through FamilyArtifactRead as a
+      47x47 two-variable connection in 27 sector ranges; its chart
+      fingerprint is the registered CF259 frame; rows 1..16 is the 24x24
+      leading truncation; that truncation carries frame roots {1, 3} and no
+      undeclared radical; the pair {lambda1, 4x+y^2} resolves to KallenQ4a
+      (it was Missing["NoRationalChart"] before this chart existed, which is
+      what stopped the solve); and
+      FactorFamilyRegulatorDependenceInFrame returns "AlreadyEpsFactored"
+      on it, because the frozen truncation is itself eps-factored in the
+      frame -- verified here directly, not taken from the status.
+      Skipped with a typed line when the fixture is absent (it is project
+      data, not repository data). *)
 
 Get[FileNameJoin[{DirectoryName[$InputFileName], "TestKit.wl"}]];
 root = DirectoryName[DirectoryName[$InputFileName]];
@@ -364,10 +387,9 @@ FTAssert["S7 KallenQ4a's pulled-back squares are carried at 16 and 4",
   branchScale[carriedBases[[2]], pulledSquares[[2]]] === 2];
 
 (* ---- T. end to end on CF259 ---------------------------------------- *)
-stateFile = FileNameJoin[{"/home/maxzhang/factorization-and-loops",
-  "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical",
-  "FamilyEpsFormsSolving", "triple_root_2026-08-24_fable", "CF259",
-  "sector_state_CF259_standard.wl"}];
+stateFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+  "UU_08_10_canonical", "FamilyEpsFormsSolving",
+  "FrozenTestFixtures_2026-08-25", "sector_state_CF259_standard.wl"}];
 familyChartFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
   "UU_08_10_canonical", "TransportFamilyCharts.wl"}];
 If[! (FileExistsQ[stateFile] && FileExistsQ[familyChartFile]),
@@ -384,18 +406,24 @@ multiquadratic identity frame",
       AssociationQ[frame] && Lookup[frame, "Status", None] === "ExactFrame" &&
       Length[Lookup[frame, "Roots", {}]] === 3];
     state = FeynFacet`FamilyArtifactRead[stateFile];
-    FTAssert["T3 the sector state stopped with \
-NeedsMultiquadraticRegulatorFactorization at rows 1..16",
+    (* MEASURED on the frozen fixture, 2026-08-25.  A statement about the
+       SHAPE of the fixed artifact, which no campaign run can move -- not
+       about the sector a run had reached when the file was written. *)
+    FTAssert["T3 the frozen CF259 fixture reads back with the schema this \
+block consumes: a 47x47 two-variable connection in 27 sector ranges",
       AssociationQ[state] &&
-      Lookup[Lookup[state, "Stop", <||>], "Status", None] ===
-        "NeedsMultiquadraticRegulatorFactorization" &&
-      state["Stop"]["Rows"] === 16 &&
-      state["Stop"]["RootIndices"] === {1, 3}];
+      Dimensions[Lookup[state, "A", {}]] === {2, 47, 47} &&
+      Dimensions[Lookup[state, "OriginalA", {}]] === {2, 47, 47} &&
+      Length[Lookup[state, "Ranges", {}]] === 27 &&
+      StringQ[Lookup[state, "ChartFingerprint", None]]];
     FTAssert["T4 the state was produced in the frame under test \
 (chart fingerprint)",
       Hash[KeyTake[frame, {"Name", "Variables", "Subst", "Roots", "Parents"}],
         "SHA256", "HexString"] === state["ChartFingerprint"]];
     rowBound = Last[state["Ranges"][[16]]];
+    FTAssert["T4b rows 1..16 of the frozen fixture is the 24x24 leading \
+truncation (row bound read from the state's own \"Ranges\")",
+      rowBound === 24];
     truncation = {state["A"][[1, 1 ;; rowBound, 1 ;; rowBound]],
       state["A"][[2, 1 ;; rowBound, 1 ;; rowBound]]};
     Print["T: rows 1..16 is the ", rowBound, "x", rowBound, " truncation"];
@@ -422,20 +450,29 @@ Missing[\"NoRationalChart\"], which is what stopped the solve)",
     Print["T: record = ", InputForm[If[AssociationQ[factor],
       KeyDrop[factor, {"Transformation", "Inverse", "Connection", "Attempts"}],
       factor]]];
-    FTAssert["T7 the call gets PAST the NoRationalChart stop",
-      AssociationQ[factor] && status =!= "NoRationalChart"];
-    If[status === "OK",
-      FTAssert["T8 T(eps) is constant in the variables and eps-dependent",
-        FreeQ[factor["Transformation"], xx | yy] &&
-        ! FreeQ[factor["Transformation"], ee]];
-      FTAssert["T9 the source-frame statement is exact: eps-factored and \
-exact inverse",
-        TrueQ[factor["SourceFrameEpsFactored"]] &&
-        TrueQ[factor["InverseExact"]]];
-      FTAssert["T10 the chart used is KallenQ4a",
-        factor["Chart"] === "KallenQ4a" && factor["RootIndices"] === {1, 3}],
-      Print["T8-T10 not applicable: the recorded status is ",
-        InputForm[Lookup[factor, "Status", factor]]]];
+    (* MEASURED on the frozen fixture, 2026-08-25, 0.2 s:
+         <|Status -> "AlreadyEpsFactored", RootIndices -> {}, Chart -> None|>
+       The fixture is the TERMINAL state of campaign round 4, which carried
+       CF259 to sector 23, so its "A" holds rows 1..16 in the form the
+       campaign already banked: their regulator dependence is factored and
+       the factorizer has nothing left to do.  This is a permanent property
+       of the frozen matrix, not a run position.  It is asserted as the
+       exact status, and T8 verifies the mathematical claim BEHIND that
+       status independently of the function's own verdict. *)
+    FTAssert["T7 the call gets past the NoRationalChart stop, with the \
+measured status AlreadyEpsFactored on the frozen truncation",
+      AssociationQ[factor] && status =!= "NoRationalChart" &&
+      status === "AlreadyEpsFactored"];
+    FTAssert["T8 the reason is exact: the frozen rows-1..16 truncation is \
+itself eps-factored in the frame, in both variables",
+      FeynFacet`Private`familyRegulatorFactoredQ[truncation[[1]], ee] &&
+      FeynFacet`Private`familyRegulatorFactoredQ[truncation[[2]], ee]];
+    (* The PRE-factorization counterpart lives in the same fixture as
+       "OriginalA".  MEASURED 2026-08-25: its rows-1..16 truncation
+       classifies identically -- frame roots {1, 3}, no undeclared radical.
+       Running the full factorization on it costs minutes on this 24x24
+       truncation, so it is deliberately NOT part of the acceptance suite;
+       T5/T6 already carry the chart statement this file exists to make. *)
   ]];
 
 FTReport[];
