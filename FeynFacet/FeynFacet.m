@@ -139,7 +139,7 @@ TransportConstant::usage =
   "TransportConstant[block,order,index] is a symbolic integration constant of TransportFamily: component index of the constant vector of the given block at the given epsilon order. The valuation constraints are linear equations on these, and the boundary-fixing stage substitutes them.";
 
 TransportChartCatalog::usage =
-  "TransportChartCatalog[] returns the named rationalizing charts of the stage-2 campaign as chart records for TransportFamilyInChart (Kallen1/2/3, Q4a/b, Bilinear115 and the joint charts Kallen12/13/23). Each record carries \"Roots\" (every quadratic it rationalizes with its rational root) and, for joint charts, \"Parents\" (the rational maps from the parent chart's variables). Physics bookkeeping (chamber, branch, sign of the root) is not done here.";
+  "TransportChartCatalog[] returns the named rationalizing charts of the stage-2 campaign as chart records for TransportFamilyInChart (Kallen1/2/3, Q4a/b, Bilinear115 and the joint charts Kallen12/13/23, KallenQ4a/b). Each record carries \"Roots\" (every quadratic it rationalizes with its rational root) and, for joint charts, \"Parents\" (the rational maps from the parent chart's variables). Physics bookkeeping (chamber, branch, sign of the root) is not done here.";
 
 TransportChartVerify::usage =
   "TransportChartVerify[chart] re-derives the identities that license a chart record: every declared root squared equals its RootSquare pulled back through Subst, the Jacobian determinant is nonzero, and every parent map reproduces Subst exactly. Returns an Association with \"OK\" -> True/False.";

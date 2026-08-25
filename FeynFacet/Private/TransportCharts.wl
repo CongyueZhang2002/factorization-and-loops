@@ -76,6 +76,9 @@ $transportChartY = Symbol["Global`y"];
 $transportChartS = Symbol["Global`s"];
 $transportChartU = Symbol["Global`u"];
 $transportChartP = Symbol["Global`p"];
+(* the second parameter of the iterated pencil (KallenQ4a/b); "tau" in
+   the derivation note, kept short to match the rest of the catalog *)
+$transportChartT = Symbol["Global`t"];
 
 transportChartLambda1[v_, w_] := (1 - v - w)^2 - 4 v w;
 transportChartLambda2[v_, w_] := transportChartLambda1[-v, w];
@@ -84,8 +87,9 @@ transportChartLambda3[v_, w_] := transportChartLambda1[v, -w];
 TransportChartCatalog[] := With[
   {v = $transportChartV, w = $transportChartW, x = $transportChartX,
    y = $transportChartY, s = $transportChartS, u = $transportChartU,
-   p = $transportChartP},
-  Module[{k1, k2, k3, q4a, q4b, b115, k12, k13, k23, x12, x13, x23},
+   p = $transportChartP, t = $transportChartT},
+  Module[{k1, k2, k3, q4a, q4b, b115, k12, k13, k23, x12, x13, x23,
+    kq4av, kq4a, kq4b},
   (* ---- single-root charts ------------------------------------------ *)
   k1 = <|"Name" -> "Kallen1", "Kind" -> "TwoVariable", "Variables" -> {x, y},
     "Subst" -> {v -> x y, w -> (1 - x) (1 - y)},
@@ -159,8 +163,63 @@ point (x, z) = (1, 1-y) of z^2 = lambda3|_{Kallen1}"|>;
     "Parents" -> <|"Kallen2" -> {x -> x23, y -> y}|>,
     "Notes" -> "Kallen2 base; the line z = (1+y) + s (x-1) through the rational \
 point (x, z) = (1, 1+y) of z^2 = lambda3|_{Kallen2}"|>;
+  (* ---- joint charts for {lambda1, 4 v + w^2} and its v<->w image,
+          derived 2026-08-24 by the ITERATED PENCIL and verified exactly
+          (CF259 rows 1..16 carry exactly this pair; the pair has no
+          entry above, which is what stopped the family solve with
+          NeedsMultiquadraticRegulatorFactorization).
+
+     Step 1.  4 v + w^2 is quadratic in w with leading coefficient 1, so
+       the pencil sqrt(4 v + w^2) = w + t is rational:
+         w = (4 v - t^2)/(2 t),   sqrt(4 v + w^2) = (4 v + t^2)/(2 t).
+     Step 2.  lambda1 pulled back through step 1 is N(v,t)/(4 t^2) with
+         N = 4 (t-2)^2 v^2 + 4 t (t^2 - 4 t - 4) v + t^2 (2 + t)^2,
+       a quadratic in v whose leading coefficient 4 (t-2)^2 is a PERFECT
+       SQUARE, so the pencil applies a second time: sqrt(N) =
+       2 (t-2) v + s is LINEAR in v and solves for v rationally,
+         v = (t^2 (2+t)^2 - s^2)/(4 (t-2) s - 4 t (t^2 - 4 t - 4)),
+         sqrt(lambda1) = (2 (t-2) v + s)/(2 t).
+     The chart is therefore an extension of Q4a along its own kept
+     variable: Q4a at {p -> v(s,t), s -> t/2} reproduces Subst exactly
+     (recorded as "Parents" and re-derived by TransportChartVerify).
+
+     KallenQ4b is the v<->w image.  lambda1 is v<->w symmetric and
+     v^2 + 4 w = (4 v + w^2)|_{v<->w}, so the same two pencils run with
+     the roles of v and w exchanged (sqrt(v^2 + 4 w) = v + t first) and
+     produce v_b = w_a, w_b = v_a with both root images unchanged. *)
+  kq4av = (t^2 (2 + t)^2 - s^2)/(4 (t - 2) s - 4 t (t^2 - 4 t - 4));
+  kq4a = <|"Name" -> "KallenQ4a", "Kind" -> "TwoVariable", "Variables" -> {s, t},
+    "Subst" -> {v -> Together[kq4av], w -> Together[(4 kq4av - t^2)/(2 t)]},
+    "Root" -> Together[(2 (t - 2) kq4av + s)/(2 t)],
+    "RootSquare" -> transportChartLambda1[v, w],
+    "Roots" -> {
+      <|"Root" -> Together[(2 (t - 2) kq4av + s)/(2 t)],
+        "RootSquare" -> transportChartLambda1[v, w]|>,
+      <|"Root" -> Together[(4 kq4av + t^2)/(2 t)],
+        "RootSquare" -> 4 v + w^2|>},
+    "Parents" -> <|"Q4a" -> {p -> Together[kq4av], s -> t/2}|>,
+    "Notes" -> "iterated pencil: sqrt(4 v + w^2) = w + t gives \
+w = (4 v - t^2)/(2 t); lambda1 pulls back to N(v,t)/(4 t^2) with a square \
+leading coefficient, and sqrt(N) = 2 (t-2) v + s solves for v linearly; \
+sqrt(lambda1) = (2 (t-2) v + s)/(2 t), sqrt(4 v + w^2) = (4 v + t^2)/(2 t)"|>;
+  kq4b = <|"Name" -> "KallenQ4b", "Kind" -> "TwoVariable", "Variables" -> {s, t},
+    "Subst" -> {v -> Together[(4 kq4av - t^2)/(2 t)], w -> Together[kq4av]},
+    "Root" -> Together[(2 (t - 2) kq4av + s)/(2 t)],
+    "RootSquare" -> transportChartLambda1[v, w],
+    "Roots" -> {
+      <|"Root" -> Together[(2 (t - 2) kq4av + s)/(2 t)],
+        "RootSquare" -> transportChartLambda1[v, w]|>,
+      <|"Root" -> Together[(4 kq4av + t^2)/(2 t)],
+        "RootSquare" -> v^2 + 4 w|>},
+    "Parents" -> <|"Q4b" -> {p -> Together[kq4av], s -> t/2}|>,
+    "Notes" -> "the v<->w image of KallenQ4a: sqrt(v^2 + 4 w) = v + t \
+gives v = (4 w - t^2)/(2 t), the pulled-back lambda1 is the SAME N with v \
+replaced by w (lambda1 is v<->w symmetric), and sqrt(N) = 2 (t-2) w + s \
+solves for w linearly; sqrt(lambda1) = (2 (t-2) w + s)/(2 t), \
+sqrt(v^2 + 4 w) = (4 w + t^2)/(2 t)"|>;
   <|"Kallen1" -> k1, "Kallen2" -> k2, "Kallen3" -> k3, "Q4a" -> q4a, "Q4b" -> q4b,
-    "Bilinear115" -> b115, "Kallen12" -> k12, "Kallen13" -> k13, "Kallen23" -> k23|>
+    "Bilinear115" -> b115, "Kallen12" -> k12, "Kallen13" -> k13, "Kallen23" -> k23,
+    "KallenQ4a" -> kq4a, "KallenQ4b" -> kq4b|>
 ]];
 
 masterTransportChartByName[name_String] := Lookup[TransportChartCatalog[], name, None];
@@ -774,14 +833,46 @@ transportChartCurrentRoots[frame_Association,
     Lookup[frame, "Roots", {}]]
 ];
 
-transportChartApplyRootBranches[expr_, roots_List, images_List] :=
+(* The radicand carried by an expression need not be the declared root
+   square itself: the kernel AUTOMATICALLY pulls a rational square factor
+   out of a radical (Sqrt[N/4] evaluates to Sqrt[N]/2, Sqrt[4 N] to
+   2 Sqrt[N]), so after a chart pullback the surviving base is c^2 times
+   the pulled-back root square for some positive rational c.  MEASURED
+   2026-08-24 on the CF259 rows 1..16 truncation in KallenQ4a: the two
+   bases were exactly 4 and 16 times the declared squares (the chart's
+   own root images carry denominators 2 t and 4 t), the branch rule
+   matched neither, and FactorFamilyRegulatorDependenceInFrame refused a
+   correct chart with "ChartStillAlgebraic".  Matching up to the square
+   class of a positive RATIONAL NUMBER is exact -- base == c^2 Q gives
+   (c image)^2 == c^2 Q == base -- and is a strict generalization: c is 1
+   for every chart whose pullback needs no such factor, which is what the
+   catalog's older charts produce.  Symbolic square factors are NOT
+   admitted: the kernel never extracts one (the sign of a symbol is
+   unknown), so a symbolic ratio means the base is a different quadratic
+   and must stay untouched. *)
+transportChartRootBranchScale[base_, rootSquare_] := Module[{ratio, scale},
+  If[TrueQ[Together[base - rootSquare] === 0], Return[1]];
+  If[TrueQ[Together[rootSquare] === 0], Return[None]];
+  ratio = Together[base/rootSquare];
+  If[! MatchQ[ratio, _Integer | _Rational] || ! TrueQ[ratio > 0],
+    Return[None]];
+  scale = Sqrt[ratio];
+  If[MatchQ[scale, _Integer | _Rational], scale, None]
+];
+
+transportChartApplyRootBranches[expr_, roots_List, images_List] := Module[
+  {scale},
+  (* one Together per distinct (radicand, root) pair, not one per
+     occurrence: the same radical appears in most entries of a connection *)
+  scale[base_, index_] := scale[base, index] =
+    transportChartRootBranchScale[base, roots[[index]]["RootSquare"]];
   Fold[Function[{current, index},
     current /. Power[base_, exponent_Rational] :>
-      If[Denominator[exponent] === 2 &&
-          TrueQ[Together[
-            base - roots[[index]]["RootSquare"]] === 0],
-        images[[index]]^(2 exponent), Power[base, exponent]]],
-    expr, Range[Length[roots]]];
+      Module[{factor = If[Denominator[exponent] === 2,
+          scale[base, index], None]},
+        If[factor === None, Power[base, exponent],
+          (factor images[[index]])^(2 exponent)]]],
+    expr, Range[Length[roots]]]];
 
 Options[SolveEpsFormStripInFrame] = Join[
   Options[SolveEpsFormStrip], {
