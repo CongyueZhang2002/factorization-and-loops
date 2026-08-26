@@ -53,10 +53,9 @@ DONE, in the tree, each with red-before-green evidence:
   A3 commit).
 
 PENDING VERIFICATION (was in flight at cutoff):
-- t_multiquadratic_gauge_screen re-run with S4/S6 STRENGTHENED to
-  configured+fresh evidence (2 + $multiquadraticStripDefaultFreshImageCount
-  images; ContractNote wording now measured counts). Pre-update run was
-  62/3 with exactly those three assertions red.
+- t_multiquadratic_gauge_screen re-run with the STRENGTHENED S4/S6
+  (configured+fresh evidence): completed GREEN, exit 0, at 12:5x —
+  verified in-session before cutoff. No longer pending.
 - Consumer batch: t_multiquadratic_letters (A2 changed the candidate
   builder!), _potentials, _dispatch, _regulator_reconstruction,
   _obstruction_images.
