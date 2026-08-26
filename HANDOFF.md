@@ -1,3 +1,76 @@
+# Session transfer note — updated 2026-08-25 17:30 PDT (Fable)
+
+## PAUSED HERE by the user for a context compact. Resume point below.
+
+## Standing gates (user directives, 2026-08-25)
+- NO family production runs until a mutual Fable+Codex sign-off that
+  neither side has anything left to improve. Tests/benchmarks allowed.
+- Review protocol: Fable SENDS on-demand review-request notes to Codex
+  in External/CodexExchange (changes + test evidence + questions);
+  Codex's bihourly cadence is retired (protocol note committed).
+- Exchange scans: NEVER filter filenames (Codex's notes contain
+  "fable"); scan by mtime, classify by content.
+- Any brief with a >10-min stage must name a cheap predictive gate.
+
+## State (17:30)
+- HEAD pushed through the protocol/disposition commits; working tree
+  carries the UNCOMMITTED serial-phase wave (MultiquadraticStripSolve,
+  TransportCharts, FamilyRowGaugeResume, Scripts/family_epsform_sector,
+  new Tests/t_multiquadratic_prepare_core.wls): stage announcements
+  (Verbose-gated), prepare Deadline (Preparation:<substage> stops),
+  per-entry acceptance zero test with typed budget Throw, seal-at-write
+  strip inputs + authenticated resume verdict (modular gate designed,
+  NOT built), $Failed-interning fix with fault injection + negative
+  control, option forwarding (CompileCore/LetterChannels/Legacy),
+  prepare-consumes-core implemented but DEFAULT OFF (measured: does
+  not pay; compile core stage 0.156 s; numbers at the option).
+  16 suites green, 0 FAIL. Verify then commit as the next action.
+- Measured on real CF300 (12,9): prepare 2710.9 s cold is THE
+  remaining cost (compile 91 s). Attribution script ready:
+  scratchpad/opt/cf300_attribute.wls. CF303 resume-cost script ready:
+  scratchpad/opt/cf303_resume.wls.
+- Evidence in scratchpad/opt/ (cf300_prepare_result.wl, suite/,
+  suite2/) MUST move under Results/ before numbers are recorded.
+- No Wolfram kernels running. No pools. Campaign checkpoints intact.
+
+## Family ledger (checkpointed progress, all preserved)
+- CF300: 24 masters, 12 sectors; 1-11 done; sector 12: (12,11),(12,10)
+  done, (12,9) OPEN (integrability screen defect 0 at 68 letters;
+  gauge screen-admitted at DegreeOffset {3,3}; full solve never
+  completed - round-6 prepare was cut at cancel). <=8 couplings after.
+- CF259: 47 masters, 27 sectors; 1-23 done; rank-3 graded factorization
+  INSTALLED+persisted (ResolvedStop record in state, corroborated);
+  sector 24: 4 of ~20 done ({24,16} solved incl. modular records).
+- CF303: 45 masters, 25 sectors; 1-16 done; sector 17: 5 of ~15 done;
+  {17,12} solved in round 5 via Kallen23 after the coordinate-map fix.
+
+## Next steps, in order (after user resumes)
+1. Verify + commit the serial-phase wave (working tree).
+2. Move scratchpad/opt evidence into Results/.
+3. Launch the HARDENING agent with Codex's full blocker list:
+   root-expression/sign in the core key + adversarial sign mutant;
+   ChannelsSHA256 content sealing (V2 seal) + mutation mutant;
+   compact-dlog certification or exact dlog check + mutant;
+   compile cooperative Deadline (prepare done); byte-bounded caches
+   with oversize bypass; shard result schema/helper hygiene/absolute
+   deadlines (or demote to private); OneForm key mode/provenance;
+   behavioral S12 (replace source-string assertion); rank-3 recursive
+   tower inversion + compact-route grade-support gate; stale-stop
+   migration branch for pre-fix states; whole-family deadline
+   persistence; screen post-rank/per-letter boundaries; top-level
+   ceiling options; prepare INTERMEDIATE PERSISTENCE (round-6 loss);
+   remaining clone-green fixtures (gauge_screen reads ~34MB ignored);
+   prepare-cost attribution (cf300_attribute.wls) and act on it;
+   CF303 modular resume gate (build steps 2-4 of the designed gate).
+   Merge blockers: the two adversarial cache mutants + fault injection.
+4. Full regression; commit; push.
+5. FIRST ON-DEMAND REVIEW REQUEST note to Codex; iterate fix rounds
+   until a round returns empty from both sides.
+6. Only then, with the user's word: relaunch the three families
+   (fresh pool, 8 subkernels, watchdog per Design/Watchdog.md with
+   round-6 lessons: event-driven log watch, command grep -a, stage
+   deadlines now real).
+
 # Session transfer note — updated 2026-08-22 22:15 PDT (Fable)
 
 ## State (22:15)
