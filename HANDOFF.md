@@ -1,4 +1,43 @@
-# Session transfer note — updated 2026-08-25 23:15 PDT (Fable)
+# Session transfer note — updated 2026-08-26 07:20 PDT (Fable)
+
+## State (07:20): ROUND-2 WAVE LANDED (335e42f); review request #2 sent
+
+Review round 1 (Codex merged + ChatGPT Pro, committed b58161c,
+disposition c8744a7) found the release blockers MATHEMATICAL: the
+multiquadratic route solved ε fiberwise and published the first fiber
+(no coherent rational-in-ε solution), potentials were uncertified, the
+exact verifier left the gauge unspecialized in ε, denesting was
+inconsistent between transport and solver, obstruction wording was
+theorem-level from two fixed primes, and the 1400.5 s global
+decomposition was unnecessary (direct branch evaluation reproduces all
+32 channel values — Codex benchmark on our frozen fixture).
+
+Round-2 wave (overnight, committed 335e42f, gate 94 suites GREEN 93 /
+DIAGNOSTIC 1 / RED 0 / SUITE GATE PASS): all six §1 correctness items
+landed with adversarial red-on-prefix tests; rational-in-ε
+reconstruction (canonical affine section, every-coordinate rational
+interpolation, held-out ε + unseen-prime validation, K_a
+kinematics-free, generic object verified in the DE); certified
+potentials (ω = dlog L once per unique pair, cached); DeferredDAG
+preserved + divisor metadata; direct providers (split-branch
+Walsh–Hadamard + quotient-grade tower) behind ONE row assembler with
+per-entry active-root reduction and per-entry fallback; ghost code to
+Prototypes/. MEASURED on frozen CF300 (12,9): split-branch 1.32 s for
+the whole block vs 1400.5 s decomposition; dominant entries 0.26–0.28 s
+vs 8.7–9.8 s symbolic (evidence Round2Providers_2026-08-26/). Solved
+status remains withheld unconditionally (an over-promotion on a
+chartless fixture was caught by the unmodified dispatch suite DURING
+the wave). Round-3 scope declared: providers as default sampler (needs
+real-block validation), compiled modular IR (quotient-grade speed),
+support census, elimination backend/FLINT/parallelism, file split.
+
+REVIEW REQUEST #2: External/CodexExchange/
+fable_review_request_2_2026-08-26.md (item-by-item closure map, 4
+questions incl. round-3 priority order). NEXT: read the replies (scan
+by mtime, never filter filenames), disposition, round-3 wave; families
+only after a mutual empty round AND the user's word.
+
+# Superseded below — updated 2026-08-25 23:15 PDT (Fable)
 
 ## State (23:15): hardening wave LANDED; awaiting Codex review round 1
 
