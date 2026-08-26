@@ -11,6 +11,18 @@ ClearAll[
   familyRowGaugeResumeFrameCertificateQ,
   familyRowGaugeResumeBlockEquation,
   familyRowGaugeResumeInvalidatedState,
+  familyRowGaugeStripInputSeal,
+  familyRowGaugeStripInputSealFingerprint,
+  familyRowGaugeStripInputSealVerdict,
+  familyRowGaugeResumeModularImageValue,
+  familyRowGaugeResumeModularGate,
+  familyRowGaugeFamilyDeadlineDecision,
+  familyRowGaugeStaleStopMigration,
+  $familyRowGaugeResolvableStops,
+  $familyRowGaugeStripInputSealSchema,
+  $familyRowGaugeStripInputSealSchemaV1,
+  $familyRowGaugeStripInputSealKeys,
+  $familyRowGaugeResumeGateImages,
   familyRowGaugeSolverConfiguration,
   familyRowGaugeSolverConfigurationValidQ,
   familyRowGaugeSolverImplementationProvenance,
@@ -421,6 +433,343 @@ familyRowGaugeResumeBlockEquation[connection_List, sector_Integer,
   }
 ];
 
+(* ---- THE STRIP-INPUT SEAL AND THE MODULAR RESUME GATE --------------
+   (2026-08-25; Codex 14:30 integrity layer, steps 2-4 of 4)
+
+   Step 1 -- the sector driver writes a sidecar seal beside every strip
+   input, recording the connection, the position, the solved-block
+   prefix and the exact strip -- landed on 2026-08-25 and was RECORDED
+   ONLY: the resume still re-derived the whole symbolic block equation
+   for every banked strip to prove the same thing, which is what left
+   CF303 sector 17 silent for more than 40 minutes.
+
+   What lands here:
+
+     step 2  the seal carries its own FINGERPRINT over every digest it
+             asserts, and a resume RECOMPUTES that fingerprint from the
+             hydrated record instead of comparing the digests one by
+             one.  A seal whose fields were edited without re-deriving
+             the fingerprint is refused; a V1 seal (no fingerprint at
+             all) is refused-typed and never upgraded, exactly like the
+             V1 forcing-channel seal in the strip module;
+
+     step 3  the resumed gauge candidate is evaluated at TWO fresh
+             finite-field images against the forcing recomputed from the
+             current connection.  The relation checked is the same one
+             the exact reconstruction checks -- the strip input on disk
+             IS the block equation the current connection and the banked
+             prefix imply -- but every operation is a modular evaluation
+             at a point, so no symbolic normalization of a 60 MB
+             connection happens at all.  The images are independent
+             (different primes AND different regulator values), and an
+             image at which any denominator vanishes is INADMISSIBLE and
+             replaced rather than counted;
+
+     step 4  a mismatch at an admissible image is a typed
+             "ResumeRejected" naming that image; it is never repaired
+             and never retried into acceptance.
+
+   The exact reconstruction stays available and is the DEFAULT
+   companion, not a replacement: "ResumeGate" -> "ModularThenExact"
+   (the default) runs the gate for its evidence and still re-derives;
+   "Modular" is the mode that skips re-derivation once a seal
+   authenticates AND both images agree; "Exact" is the pre-2026-08-25
+   behaviour.  Choosing "Modular" for a campaign is a measured decision,
+   which is why it is not the default. *)
+$familyRowGaugeStripInputSealSchemaV1 = "FamilyStripInputSealV1";
+$familyRowGaugeStripInputSealSchema = "FamilyStripInputSealV2";
+
+(* the digests a seal asserts, in a fixed order; the fingerprint is over
+   exactly these and over nothing else, so a reader can recompute it *)
+$familyRowGaugeStripInputSealKeys = {"Schema", "SchemaVersion", "Family",
+  "Sector", "LowerSector", "Truncation", "ConnectionHash",
+  "SolvedBlockPrefixHash", "SolvedBlockKeys", "StripHash", "VariablesHash",
+  "WriterSourceSHA256"};
+
+familyRowGaugeStripInputSealFingerprint[seal_Association] :=
+  Hash[Lookup[seal, $familyRowGaugeStripInputSealKeys,
+    Missing["AbsentSealField"]], "SHA256", "HexString"];
+familyRowGaugeStripInputSealFingerprint[___] := $Failed;
+
+familyRowGaugeStripInputSeal[family_String, sector_Integer,
+    lowerSector_Integer, truncation_Integer, connectionHash_String,
+    solvedBlocks_Association, stripHash_String, variablesHash_String,
+    writerSourceSHA256_] := Module[{payload},
+  payload = <|"Schema" -> $familyRowGaugeStripInputSealSchema,
+    "SchemaVersion" -> 2,
+    "Family" -> family, "Sector" -> sector, "LowerSector" -> lowerSector,
+    "Truncation" -> truncation,
+    "ConnectionHash" -> connectionHash,
+    "SolvedBlockPrefixHash" -> Hash[KeySort[solvedBlocks], "SHA256",
+      "HexString"],
+    "SolvedBlockKeys" -> Sort[Keys[solvedBlocks]],
+    "StripHash" -> stripHash,
+    "VariablesHash" -> variablesHash,
+    "WriterSourceSHA256" -> writerSourceSHA256|>;
+  Join[payload,
+    <|"Fingerprint" -> familyRowGaugeStripInputSealFingerprint[payload],
+      "WrittenAt" -> DateString[]|>]
+];
+familyRowGaugeStripInputSeal[___] := $Failed;
+
+(* step 2.  A single typed verdict string; the caller records it. *)
+familyRowGaugeStripInputSealVerdict[seal_, family_, sector_Integer,
+    lowerSector_Integer, truncation_Integer, connectionHash_,
+    solvedBlocks_Association, stripHash_] := Which[
+  ! AssociationQ[seal], "Unsealed",
+  Lookup[seal, "Schema", None] === $familyRowGaugeStripInputSealSchemaV1,
+    "SealSchemaSuperseded",
+  Lookup[seal, "Schema", None] =!= $familyRowGaugeStripInputSealSchema,
+    "SealSchemaUnknown",
+  (* the fingerprint FIRST: it is one hash and it decides whether the
+     fields below are the writer's or somebody's edit of them *)
+  Lookup[seal, "Fingerprint", None] =!=
+      familyRowGaugeStripInputSealFingerprint[seal], "SealFingerprintMismatch",
+  Lookup[seal, "Family", None] =!= family, "SealFamilyMismatch",
+  Lookup[seal, "ConnectionHash", None] =!= connectionHash,
+    "SealConnectionMismatch",
+  Lookup[seal, "Sector", None] =!= sector ||
+    Lookup[seal, "LowerSector", None] =!= lowerSector ||
+    Lookup[seal, "Truncation", None] =!= truncation, "SealPositionMismatch",
+  Lookup[seal, "SolvedBlockPrefixHash", None] =!=
+      Hash[KeySort[KeyTake[solvedBlocks,
+        Lookup[seal, "SolvedBlockKeys", {}]]], "SHA256", "HexString"],
+    "SealPrefixMismatch",
+  Lookup[seal, "StripHash", None] =!= stripHash, "SealStripMismatch",
+  True, "SealAuthenticated"];
+familyRowGaugeStripInputSealVerdict[___] := "SealVerdictInvalidArguments";
+
+(* step 3.  Independent images: different primes AND different regulator
+   values, so a coincidence has to hold twice for unrelated reasons. *)
+$familyRowGaugeResumeGateImages = {
+  {2147483423, 1/13}, {2147483399, 3/17}, {2147483353, 5/19},
+  {2147483323, 7/23}};
+
+(* one modular value, or $Failed when the point is not admissible for
+   this expression (a vanishing denominator, an indeterminate power) *)
+familyRowGaugeResumeModularImageValue[expression_, rules_List,
+    prime_Integer] := Module[{value, numerator, denominator},
+  value = Quiet[Check[expression /. rules, $Failed,
+    {Power::infy, Infinity::indet, Power::indet}]];
+  If[value === $Failed || ! NumericQ[value] ||
+      ! FreeQ[value, DirectedInfinity | Indeterminate |
+        Complex], Return[$Failed]];
+  If[! (IntegerQ[value] || Head[value] === Rational), Return[$Failed]];
+  numerator = Numerator[value];
+  denominator = Mod[Denominator[value], prime];
+  If[denominator === 0, Return[$Failed]];
+  Mod[numerator PowerMod[denominator, -1, prime], prime]
+];
+
+(* The relation: the strip input on disk equals the block equation the
+   CURRENT connection and the banked solved-block prefix imply.  It is
+   the identical statement familyRowGaugeResumeBlockEquation makes
+   symbolically; here every operation is arithmetic in F_p at one
+   point, so the connection is never normalized. *)
+familyRowGaugeResumeModularGate[storedStrip_, connection_List,
+    sector_Integer, lowerSector_Integer, solvedBlocks_Association,
+    ranges_List, variables : {_Symbol, _Symbol}, epsilon_Symbol,
+    images_List, requiredImages_Integer] := Module[
+  {rk, rj, higher, accepted = {}, inadmissible = {}, failing = None,
+   attempts = 0, started = AbsoluteTime[]},
+  If[! MatchQ[storedStrip, {_List, _List, _List}],
+    Return[<|"Status" -> "ResumeModularGateNotApplicable",
+      "Reason" -> "StoredStripMalformed"|>]];
+  rk = ranges[[sector]];
+  rj = ranges[[lowerSector]];
+  higher = Select[Keys[solvedBlocks], lowerSector < #1 < sector &];
+  Do[
+    If[Length[accepted] >= requiredImages, Break[]];
+    attempts++;
+    Module[{prime = image[[1]], regulator = image[[2]], point, rules,
+        evaluate, storedValues, impliedValues, epsilonValue, ok = True},
+      point = BlockRandom[
+        SeedRandom[Hash[{prime, regulator, sector, lowerSector}, "SHA256"],
+          Method -> "MersenneTwister"];
+        RandomInteger[{2, prime - 2}, 2]];
+      rules = {variables[[1]] -> point[[1]], variables[[2]] -> point[[2]],
+        epsilon -> regulator};
+      epsilonValue = familyRowGaugeResumeModularImageValue[regulator, {},
+        prime];
+      If[epsilonValue === $Failed || epsilonValue === 0,
+        AppendTo[inadmissible, <|"Prime" -> prime,
+          "RegulatorValue" -> regulator, "Reason" -> "RegulatorImage"|>];
+        Continue[]];
+      evaluate[expr_] := familyRowGaugeResumeModularImageValue[expr, rules,
+        prime];
+      (* the three parts, in the order and with the arithmetic
+         familyRowGaugeResumeBlockEquation uses *)
+      impliedValues = Quiet[Check[{
+        Table[Map[Mod[evaluate[#1] PowerMod[epsilonValue, -1, prime],
+            prime] &, connection[[mu, rk, rk]], {2}], {mu, 2}],
+        Table[Map[Mod[evaluate[#1] PowerMod[epsilonValue, -1, prime],
+            prime] &, connection[[mu, rj, rj]], {2}], {mu, 2}],
+        Table[Mod[Map[evaluate, connection[[mu, rk, rj]], {2}] -
+            Sum[Map[evaluate, solvedBlocks[m], {2}] .
+              Map[evaluate, connection[[mu, ranges[[m]], rj]], {2}],
+              {m, higher}], prime], {mu, 2}]}, $Failed]];
+      storedValues = Quiet[Check[
+        Map[evaluate, storedStrip, {4}], $Failed]];
+      If[impliedValues === $Failed || storedValues === $Failed ||
+          ! FreeQ[impliedValues, $Failed] || ! FreeQ[storedValues, $Failed],
+        AppendTo[inadmissible, <|"Prime" -> prime,
+          "RegulatorValue" -> regulator, "Point" -> point,
+          "Reason" -> "PointNotAdmissible"|>];
+        Continue[]];
+      ok = SameQ[Mod[storedValues, prime], Mod[impliedValues, prime]];
+      If[ok,
+        AppendTo[accepted, <|"Prime" -> prime,
+          "RegulatorValue" -> regulator, "Point" -> point|>],
+        (* step 4: a mismatch at an ADMISSIBLE image is a fact *)
+        failing = <|"Prime" -> prime, "RegulatorValue" -> regulator,
+          "Point" -> point,
+          "MismatchingParts" -> Flatten[Position[
+            MapThread[SameQ, {Mod[storedValues, prime],
+              Mod[impliedValues, prime]}], False, {1}, Heads -> False]]|>;
+        Break[]]],
+    {image, images}];
+  Which[
+    AssociationQ[failing],
+      <|"Status" -> "ResumeRejected", "Reason" -> "ModularRelationMismatch",
+        "FailingImage" -> failing, "AcceptedImages" -> accepted,
+        "InadmissibleImages" -> inadmissible,
+        "Seconds" -> N[AbsoluteTime[] - started]|>,
+    Length[accepted] >= requiredImages,
+      <|"Status" -> "ResumeModularGateAccepted",
+        "AcceptedImages" -> accepted, "ImageCount" -> Length[accepted],
+        "InadmissibleImages" -> inadmissible,
+        "Seconds" -> N[AbsoluteTime[] - started]|>,
+    True,
+      <|"Status" -> "ResumeModularGateInconclusive",
+        "Reason" -> "TooFewAdmissibleImages",
+        "AcceptedImages" -> accepted, "ImageCount" -> Length[accepted],
+        "RequiredImageCount" -> requiredImages,
+        "InadmissibleImages" -> inadmissible, "AttemptCount" -> attempts,
+        "Seconds" -> N[AbsoluteTime[] - started]|>]
+];
+familyRowGaugeResumeModularGate[___] :=
+  <|"Status" -> "ResumeModularGateInvalidArguments"|>;
+
+(* ---- WHOLE-FAMILY DEADLINE PERSISTENCE (2026-08-25) ----------------
+   (Codex 14:30 "whole-family deadline persistence")
+
+   The sector driver's budget is PER SECTOR and is recomputed at every
+   sector start, so a restarted family silently got a fresh allowance
+   for every sector it re-entered.  A whole-family budget must survive
+   the driver: its DEADLINE EPOCH belongs in the sector state file, and
+   a resumed run must inherit the REMAINING budget, never a new one.
+
+   The decision is a pure function of (state, declared budget, now) so
+   that the driver contains no policy and the policy is testable without
+   running a family:
+
+     no budget declared, none stamped  -> "None"       (Infinity)
+     no budget declared, one stamped   -> "Inherited"  (the stamped epoch)
+     budget declared = stamped budget  -> "Inherited"  (the stamped epoch)
+     budget declared, none stamped     -> "Stamped"    (now + budget)
+     budget declared /= stamped budget -> "Restamped"  (now + budget)
+
+   "Inherited" is the case that matters: a resume of a state stamped an
+   hour ago with a 2-hour budget gets ONE hour, and a resume after the
+   epoch gets a typed stop before it touches a sector.  "Restamped" is
+   an operator deliberately re-budgeting the family; it is recorded, not
+   silent. *)
+familyRowGaugeFamilyDeadlineDecision[state_Association, familyBudget_,
+    now_?NumericQ] := Module[
+  {stamped = Lookup[state, "FamilyDeadline", Missing["NoFamilyDeadline"]],
+   stampedBudget = Lookup[state, "FamilyBudgetSeconds",
+     Missing["NoFamilyBudget"]]},
+  Which[
+    familyBudget === Infinity && ! NumericQ[stamped],
+      <|"Action" -> "None", "Deadline" -> Infinity,
+        "BudgetSeconds" -> Infinity, "State" -> state,
+        "Persist" -> False|>,
+    familyBudget === Infinity,
+      <|"Action" -> "Inherited", "Deadline" -> stamped,
+        "BudgetSeconds" -> stampedBudget, "State" -> state,
+        "Persist" -> False|>,
+    NumericQ[stamped] && stampedBudget === familyBudget,
+      <|"Action" -> "Inherited", "Deadline" -> stamped,
+        "BudgetSeconds" -> stampedBudget, "State" -> state,
+        "Persist" -> False|>,
+    True,
+      Module[{deadline = now + familyBudget},
+        <|"Action" -> If[NumericQ[stamped], "Restamped", "Stamped"],
+          "Deadline" -> deadline, "BudgetSeconds" -> familyBudget,
+          "PreviousDeadline" -> stamped,
+          "PreviousBudgetSeconds" -> stampedBudget,
+          "State" -> Join[state, <|"FamilyDeadline" -> deadline,
+            "FamilyBudgetSeconds" -> familyBudget|>],
+          "Persist" -> True|>]]
+];
+familyRowGaugeFamilyDeadlineDecision[___] :=
+  <|"Action" -> "InvalidFamilyDeadlineArguments"|>;
+
+(* ---- STALE-STOP MIGRATION (2026-08-25) -----------------------------
+   (Codex 14:30 "stale-stop migration branch")
+
+   Before 2026-08-25 a successful regulator factorization did NOT clear
+   the typed stop that had demanded it; the fix records a "ResolvedStop"
+   resolution inside the factorization record and drops the "Stop" key.
+   A state file written BEFORE the fix can therefore carry a resolvable
+   Stop whose factorization is ALREADY in "RegulatorFactorizations" --
+   an advertised terminal for work that is finished.  Resuming such a
+   state is safe only if that is recognized.
+
+   Three conditions, all necessary:
+     - the Stop's status is one this driver itself resolves;
+     - a factorization record for the SAME rows exists;
+     - that record carries NO "ResolvedStop" field, i.e. it predates the
+       fix.  A record that already resolved something is never migrated
+       a second time.
+
+   Anything else is left exactly as found.  A Stop with no matching
+   factorization is a REAL terminal and is never cleared here. *)
+$familyRowGaugeResolvableStops = {
+  "NeedsMultiquadraticRegulatorFactorization",
+  "RegulatorPropagationRejected"};
+
+familyRowGaugeStaleStopMigration[state_Association] := Module[
+  {stop = Lookup[state, "Stop", Missing["NoStop"]], rows, factorizations,
+   matching, resolved, migration},
+  If[! AssociationQ[stop] ||
+      ! MemberQ[$familyRowGaugeResolvableStops, Lookup[stop, "Status", None]],
+    Return[<|"Status" -> "NoMigration", "Reason" -> "NoResolvableStop",
+      "State" -> state|>]];
+  rows = Lookup[stop, "Rows", None];
+  factorizations = Lookup[state, "RegulatorFactorizations", {}];
+  If[! IntegerQ[rows] || ! ListQ[factorizations],
+    Return[<|"Status" -> "NoMigration", "Reason" -> "StopHasNoRows",
+      "State" -> state|>]];
+  matching = Select[factorizations,
+    AssociationQ[#1] && Lookup[#1, "Rows", None] === rows &];
+  If[matching === {},
+    Return[<|"Status" -> "NoMigration",
+      "Reason" -> "NoFactorizationForTheseRows", "State" -> state|>]];
+  (* a record that already carries a resolution belongs to the post-fix
+     world; its Stop was cleared when it was written, and a Stop
+     standing beside it is a NEW one *)
+  resolved = Select[matching, ! KeyExistsQ[#1, "ResolvedStop"] &];
+  If[resolved === {},
+    Return[<|"Status" -> "NoMigration",
+      "Reason" -> "FactorizationAlreadyCarriesResolution",
+      "State" -> state|>]];
+  migration = <|"ClearedStatus" -> stop["Status"], "Rows" -> rows,
+    "ResolvedBy" -> Lookup[Last[resolved], "Method", "Unknown"],
+    "ResolvedAt" -> Missing["PreResolvedStopCheckpoint"],
+    "MigratedAt" -> DateString[{"ISODateTime"}],
+    "Migration" -> "StaleStopPreResolvedStopRecord"|>;
+  <|"Status" -> "Migrated", "Migration" -> migration,
+    "State" -> Join[KeyDrop[state, "Stop"], <|
+      "RegulatorFactorizations" -> Append[
+        DeleteCases[factorizations, Last[resolved]],
+        Append[Last[resolved], "ResolvedStop" -> migration]],
+      "StateMigrations" -> Append[Lookup[state, "StateMigrations", {}],
+        migration]|>]|>
+];
+familyRowGaugeStaleStopMigration[___] :=
+  <|"Status" -> "InvalidStaleStopMigrationArguments"|>;
+
 (* One typed replay failure invalidates the complete recovered suffix.  Keep
    this reset payload in the package so the sector driver and focused tests use
    exactly the same fail-closed state transition. *)
@@ -440,6 +789,33 @@ Options[familyRowGaugeHydrateResume] = {
   (* the calling driver's own identity, threaded into the sealed solver
      configuration (generality pass 2026-08-23, B2) *)
   "DriverProvenance" -> <||>,
+  (* ---- the resume acceptance gate (2026-08-25, steps 2-4) ----------
+     "ModularThenExact" (Automatic, the default) authenticates the seal,
+     runs the two-image modular gate for its evidence, and STILL
+     re-derives the block equation exactly -- today's guarantee plus a
+     second independent check.  "Modular" skips the exact re-derivation
+     when the seal authenticates AND the gate accepts, which is the mode
+     that removes CF303's 40 silent minutes; it is opt-in because
+     turning it on is a measured decision, not a default.  "Exact" is
+     the pre-2026-08-25 behaviour.  A modular MISMATCH is a typed
+     ResumeRejected in every mode: it is never repaired. *)
+  "ResumeGate" -> Automatic,
+  "ResumeGateImages" -> Automatic,
+  "ResumeGateImageCount" -> 2,
+  (* an audit run re-derives exactly no matter what the gate says *)
+  "AdversarialAudit" -> False,
+  (* ---- cooperative deadline (2026-08-25) ---------------------------
+     Absolute AbsoluteTime[] value; Infinity (the default) leaves every
+     existing caller unchanged.  The boundary is the STRIP: one strip is
+     one whole-matrix block-equation reconstruction plus one replay, and
+     that reconstruction is a single symbolic normalization with no
+     finer boundary that does not change what is computed -- the same
+     statement TransportCharts.wl makes about its own entry
+     normalizations.  What removes the cost rather than bounding it is
+     "ResumeGate" -> "Modular", which skips the reconstruction
+     altogether once the seal authenticates and both images agree.
+     NEVER TimeConstrained (CLAUDE.md). *)
+  "Deadline" -> Infinity,
   "Verbose" -> False
 };
 
@@ -460,6 +836,13 @@ familyRowGaugeHydrateResume[
    planDiscoveryBackend = OptionValue["PlanDiscoveryBackend"],
    driverProvenance = OptionValue["DriverProvenance"],
    minimumCached = OptionValue["MinimumCachedPrimeCount"],
+   resumeGate = Replace[OptionValue["ResumeGate"],
+     Automatic -> "ModularThenExact"],
+   resumeGateImages = Replace[OptionValue["ResumeGateImages"],
+     Automatic :> $familyRowGaugeResumeGateImages],
+   resumeGateImageCount = OptionValue["ResumeGateImageCount"],
+   adversarialAudit = TrueQ[OptionValue["AdversarialAudit"]],
+   resumeDeadline = OptionValue["Deadline"],
    verbose = TrueQ[OptionValue["Verbose"]], diskCheckpoint,
    expectedConnectionHash, currentTruncation, currentConnectionHash,
    checkpointForms, lowerBlockSizes, reconstructedPrevD,
@@ -497,7 +880,14 @@ familyRowGaugeHydrateResume[
       ! MatchQ[Dimensions[currentConnection], {2, _Integer, _Integer}] ||
       Dimensions[currentConnection][[2]] =!=
         Dimensions[currentConnection][[3]] ||
-      sector > Length[ranges],
+      sector > Length[ranges] ||
+      ! MemberQ[{"ModularThenExact", "Modular", "Exact"}, resumeGate] ||
+      ! MatchQ[resumeGateImages,
+        {{_Integer, _Integer | _Rational} ..}] ||
+      ! IntegerQ[resumeGateImageCount] || resumeGateImageCount < 1 ||
+      resumeGateImageCount > Length[resumeGateImages] ||
+      ! (resumeDeadline === Infinity ||
+        (NumericQ[resumeDeadline] && Positive[resumeDeadline])),
     Return[<|"Status" -> "InvalidResumeHydrationArguments",
       "ActivateInstalledRow" -> False|>]];
   coefficientField = Lookup[frame, "CoefficientField", "Rational"];
@@ -593,7 +983,7 @@ familyRowGaugeHydrateResume[
     Do[Module[{stripTag, sourceInput, copiedInput, sourceArtifacts,
         copiedArtifacts, input, expectedStrip, expectedGauge, dimensions,
         summary, summaryMethod, zeroQ, solverRoute, artifactCount,
-        beforeHashes, afterHashes,
+        beforeHashes, afterHashes, gateVerdict, exactRecheckQ,
         seconds, solution, gauge, frameQ, solvedForm, existingForm,
         replayAction, extraLetters, directRecord, replayRoute,
         sealFile, seal, sealVerdict,
@@ -604,6 +994,18 @@ familyRowGaugeHydrateResume[
          against the current connection, and at HEAD the first line of
          this loop body was printed only once that had already run *)
       stripCounter++;
+      (* BOUNDARY: between strips, before this strip costs anything *)
+      If[NumericQ[resumeDeadline] && AbsoluteTime[] >= resumeDeadline,
+        Throw[<|"Status" -> "ResumeHydrationBudgetExhausted",
+          "Stage" -> "ResumeHydration:StripReplay",
+          "Elapsed" -> N[AbsoluteTime[] - started],
+          "Deadline" -> resumeDeadline,
+          "Method" -> "RowGaugeResumeHydration",
+          "Resumable" -> True,
+          "StripsDone" -> stripCounter - 1,
+          "StripCount" -> Length[keys],
+          "LowerSector" -> lowerSector,
+          "ReplayRecords" -> replayRecords|>, tag]];
       stripPhase[name_String, data_ : <||>] := (
         stripPhases[name] = AbsoluteTime[] - stripClock;
         If[verbose,
@@ -664,37 +1066,56 @@ familyRowGaugeHydrateResume[
       seal = If[FileExistsQ[sealFile],
         Quiet[CheckAbort[FeynFacet`FamilyArtifactRead[sealFile], $Failed]],
         Missing["NoSeal"]];
-      sealVerdict = Which[
-        ! AssociationQ[seal], "Unsealed",
-        Lookup[seal, "Schema", None] =!= "FamilyStripInputSealV1",
-          "SealSchemaUnknown",
-        Lookup[seal, "ConnectionHash", None] =!= currentConnectionHash,
-          "SealConnectionMismatch",
-        Lookup[seal, "Sector", None] =!= sector ||
-          Lookup[seal, "LowerSector", None] =!= lowerSector ||
-          Lookup[seal, "Truncation", None] =!= nk, "SealPositionMismatch",
-        Lookup[seal, "SolvedBlockPrefixHash", None] =!=
-          Hash[KeySort[KeyTake[solvedBlocks,
-            Lookup[seal, "SolvedBlockKeys", {}]]], "SHA256", "HexString"],
-          "SealPrefixMismatch",
-        Lookup[seal, "StripHash", None] =!=
-          Hash[input["Strip"], "SHA256", "HexString"], "SealStripMismatch",
-        True, "SealAuthenticated"];
+      (* STEP 2: the seal's own fingerprint, recomputed from the hydrated
+         record, decides before any field of it is believed *)
+      sealVerdict = familyRowGaugeStripInputSealVerdict[seal, family, sector,
+        lowerSector, nk, currentConnectionHash, solvedBlocks,
+        Hash[input["Strip"], "SHA256", "HexString"]];
       stripPhase["SealCheck", <|"Verdict" -> sealVerdict|>];
-      (* the whole-matrix symbolic work of the re-check.  Its measured
-         seconds and leaf count are what a later decision about a modular
-         spot-verification in front of it has to be made on; nothing is
-         front-run here, and the SameQ below decides exactly as at HEAD *)
-      expectedStrip = familyRowGaugeResumeBlockEquation[
-        currentConnection, sector, lowerSector, solvedBlocks, ranges,
-        epsilon];
-      stripPhase["BlockEquation",
-        <|"LeafCount" -> If[verbose, LeafCount[expectedStrip],
-          Missing["NotMeasured"]]|>];
-      If[! SameQ[input["Strip"], expectedStrip],
-        Throw[<|"Status" -> "ResumeHydrationInputConnectionMismatch",
-          "LowerSector" -> lowerSector|>, tag]];
-      stripPhase["StripIdentity"];
+      (* STEP 3: two independent held-out modular images of the SAME
+         relation the exact reconstruction below checks.  Cheap: every
+         operation is arithmetic in F_p at one point and the connection
+         is never normalized. *)
+      gateVerdict = If[resumeGate === "Exact",
+        <|"Status" -> "ResumeModularGateNotRun"|>,
+        familyRowGaugeResumeModularGate[input["Strip"], currentConnection,
+          sector, lowerSector, solvedBlocks, ranges, variables, epsilon,
+          resumeGateImages, resumeGateImageCount]];
+      stripPhase["ModularGate",
+        <|"Verdict" -> Lookup[gateVerdict, "Status", None],
+          "Images" -> Lookup[gateVerdict, "ImageCount", 0]|>];
+      (* STEP 4: a mismatch at an ADMISSIBLE image is a fact about this
+         checkpoint, in every mode.  It is refused typed and named. *)
+      If[Lookup[gateVerdict, "Status", None] === "ResumeRejected",
+        Throw[<|"Status" -> "ResumeRejected",
+          "Reason" -> Lookup[gateVerdict, "Reason", None],
+          "LowerSector" -> lowerSector,
+          "SealVerdict" -> sealVerdict,
+          "FailingImage" -> Lookup[gateVerdict, "FailingImage", None],
+          "AcceptedImages" -> Lookup[gateVerdict, "AcceptedImages", {}]|>,
+          tag]];
+      (* The exact re-derivation.  It is skipped ONLY in "Modular" mode,
+         only when the seal authenticated AND both images agreed, and
+         never in an adversarial audit.  In every other case the
+         whole-matrix symbolic identity runs exactly as it did before,
+         and the SameQ below decides exactly as at HEAD. *)
+      exactRecheckQ = adversarialAudit || resumeGate =!= "Modular" ||
+        sealVerdict =!= "SealAuthenticated" ||
+        Lookup[gateVerdict, "Status", None] =!= "ResumeModularGateAccepted";
+      If[exactRecheckQ,
+        expectedStrip = familyRowGaugeResumeBlockEquation[
+          currentConnection, sector, lowerSector, solvedBlocks, ranges,
+          epsilon];
+        stripPhase["BlockEquation",
+          <|"LeafCount" -> If[verbose, LeafCount[expectedStrip],
+            Missing["NotMeasured"]]|>];
+        If[! SameQ[input["Strip"], expectedStrip],
+          Throw[<|"Status" -> "ResumeHydrationInputConnectionMismatch",
+            "LowerSector" -> lowerSector,
+            "SealVerdict" -> sealVerdict,
+            "ModularGate" -> Lookup[gateVerdict, "Status", None]|>, tag]];
+        stripPhase["StripIdentity"],
+        stripPhase["StripIdentity", <|"Mode" -> "ModularGateOnly"|>]];
       expectedGauge = Lookup[solvedBlocks, lowerSector,
         Missing["MissingCheckpointGauge"]];
       dimensions = Dimensions[expectedGauge];
@@ -832,8 +1253,10 @@ familyRowGaugeHydrateResume[
         "InputSHA256" -> FileHash[copiedInput, "SHA256", "HexString"],
         "CheckpointStripSameQ" -> True,
         "ZeroForcing" -> zeroQ, "CachedPrimeCount" -> artifactCount,
-        (* recorded, not acted on: see the seal note above *)
         "InputSeal" -> sealVerdict,
+        "ResumeGate" -> resumeGate,
+        "ModularGate" -> KeyDrop[gateVerdict, "InadmissibleImages"],
+        "ExactBlockEquationRecheck" -> exactRecheckQ,
         "Seconds" -> seconds, "Method" -> solution["Method"],
         "SolverConfigurationMode" -> solverConfigurationCheck["Mode"],
         "SolverConfigurationFingerprint" ->

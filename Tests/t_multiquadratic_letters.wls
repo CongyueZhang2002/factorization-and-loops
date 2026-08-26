@@ -5,8 +5,9 @@
    The fixture is the real off-diagonal block CF300 (12,9), read from the
    repository by a repository-relative path
    (Results/UU_08_10_canonical/FamilyEpsFormsSolving/
-    triple_root_2026-08-24_fable/CF300/sector_CF300_standard/
-    CF300_12_9_input.wl), plus two small synthetic blocks built from a
+    FrozenTestFixtures_2026-08-25/cf300_frozen_strip_12_9_input.wl -- an
+   immutable copy of a live campaign input, provenance in that
+   directory's README), plus two small synthetic blocks built from a
    known gauge and known residues.
 
    ACCEPTANCE CRITERIA, stated before the run.
@@ -97,11 +98,14 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 FeynFacet`TransportFamilyChartLoad[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
    "Results", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
 chart = FeynFacet`TransportFamilyChart["CF300"];
+(* FROZEN INPUT (2026-08-25): the live campaign directory rewrites this
+   strip input under a running suite (it was rewritten at 13:41 by
+   round 6), so the test reads an immutable copy with recorded
+   provenance.  See the README of FrozenTestFixtures_2026-08-25/. *)
 stripFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
    "UU_08_10_canonical", "FamilyEpsFormsSolving",
-   "triple_root_2026-08-24_fable", "CF300", "sector_CF300_standard",
-   "CF300_12_9_input.wl"}];
-check["the CF300 (12,9) fixture exists in the repository",
+   "FrozenTestFixtures_2026-08-25", "cf300_frozen_strip_12_9_input.wl"}];
+check["the CF300 (12,9) fixture is frozen in the repository",
   FileExistsQ[stripFile] && AssociationQ[chart]];
 record = FeynFacet`FamilyArtifactRead[stripFile, "Global`"];
 check["the fixture record carries a strip and its chart variables",

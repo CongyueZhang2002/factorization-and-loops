@@ -75,11 +75,23 @@ multiquadraticStages = {"Entry", "IntegrabilityScreen", "Preparation",
    entry gate still uses. *)
 multiquadraticPrepareSubstages = {"Entry", "RootOrder", "ForcingChannels",
   "CandidateLetters", "GaugeDenominator", "ABIPayload", "CompileTensor"};
+(* multiquadraticStripCompile became cooperatively deadline-aware on
+   2026-08-25 (Codex 14:30: the public path checked the budget only
+   AFTER compile returned, so a multi-minute symbolic compile could not
+   be stopped).  Its boundaries name themselves "Compilation:<substage>"
+   and the finer position inside a stage travels in the stop's own
+   "Substage" key rather than in the stage name, which is what keeps
+   this vocabulary closed. *)
+multiquadraticCompileSubstages = {"Entry", "Core", "OneForms",
+  "GaugeDenominator"};
 multiquadraticStageQ[stage_] := StringQ[stage] &&
   (MemberQ[multiquadraticStages, stage] ||
     (StringStartsQ[stage, "Preparation:"] &&
       MemberQ[multiquadraticPrepareSubstages,
-        StringDrop[stage, StringLength["Preparation:"]]]));
+        StringDrop[stage, StringLength["Preparation:"]]]) ||
+    (StringStartsQ[stage, "Compilation:"] &&
+      MemberQ[multiquadraticCompileSubstages,
+        StringDrop[stage, StringLength["Compilation:"]]]));
 
 budgetExhaustedQ[r_] := AssociationQ[r] &&
   Lookup[r, "Status", None] === "BudgetExhausted";
@@ -382,6 +394,40 @@ check["multiquadratic prepare: a malformed deadline is a typed refusal",
 report["multiquadratic prepare expiry", KeyTake[mqPrepareExpired,
   {"Stage", "Elapsed", "Family", "Sector", "LowerSector", "RootCount",
    "ForcingChannelsDone", "LetterCount", "SupportSize"}]];
+
+(* the COMPILE stage, cooperatively deadline-aware since 2026-08-25: its
+   typed stop must be shape-compatible with every other stop of this
+   engine for the same reason prepare's is *)
+mqPreparation = multiquadraticPrepare[mqRecord, frame];
+mqCompileExpired = If[Lookup[mqPreparation, "Status", None] ===
+    "PreparedMultiquadraticStripV1",
+  FeynFacet`Private`multiquadraticStripCompile[mqPreparation,
+    "PreparationValidated" -> True, "Deadline" -> AbsoluteTime[] - 1],
+  <|"Status" -> "PreparationFailed"|>];
+check["multiquadratic compile: an expired deadline is a typed \
+BudgetExhausted naming a Compilation substage",
+  budgetExhaustedQ[mqCompileExpired] &&
+    multiquadraticStageQ[Lookup[mqCompileExpired, "Stage", None]] &&
+    StringStartsQ[Lookup[mqCompileExpired, "Stage", ""], "Compilation:"]];
+check["multiquadratic compile: the stop carries the engine's common \
+partial-progress identifiers",
+  progressComplete[mqCompileExpired, multiquadraticProgressKeys]];
+check["multiquadratic compile: Deadline -> Infinity is byte-identical to \
+passing no option",
+  Module[{withOption, without},
+    withOption = FeynFacet`Private`multiquadraticStripCompile[mqPreparation,
+      "PreparationValidated" -> True, "Deadline" -> Infinity];
+    without = FeynFacet`Private`multiquadraticStripCompile[mqPreparation,
+      "PreparationValidated" -> True];
+    SameQ[KeyDrop[withOption, "CompileStatistics"],
+      KeyDrop[without, "CompileStatistics"]]]];
+check["multiquadratic compile: a malformed deadline is a typed refusal",
+  Lookup[FeynFacet`Private`multiquadraticStripCompile[mqPreparation,
+    "PreparationValidated" -> True, "Deadline" -> "soon"], "Status", None] ===
+    "InvalidDeadline"];
+report["multiquadratic compile expiry", KeyTake[mqCompileExpired,
+  {"Stage", "Elapsed", "Family", "Sector", "LowerSector", "RootCount",
+   "OneFormCount", "UnknownCount", "Architecture"}]];
 
 Print["t_solver_budget: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];

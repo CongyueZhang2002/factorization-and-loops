@@ -91,6 +91,25 @@ rationalMapleBudget = Module[
     Quiet[Check[ToExpression[value], $Failed]], $Failed];
   If[IntegerQ[parsed] && parsed > 0, parsed, 300]
 ];
+(* ---- WHOLE-FAMILY BUDGET (2026-08-25, Codex 14:30) -----------------
+   sectorBudget is a PER-SECTOR wall allowance, recomputed at the start
+   of every sector.  A family that is restarted therefore gets a fresh
+   allowance for every sector it re-enters, and a whole-family bound
+   simply did not exist: an eight-hour family could be resumed into
+   another eight hours without anything noticing.
+   FACET_FAMILY_BUDGET declares the family's own wall allowance in
+   seconds.  Its DEADLINE EPOCH is persisted in the sector state file at
+   the first sector that runs under it, so a resumed driver inherits the
+   REMAINING budget rather than a new one; a resume after the epoch has
+   passed stops typed before it touches a sector.  Unset (the default)
+   is Infinity and every existing caller is unchanged. *)
+familyBudget = Module[
+  {value = Environment["FACET_FAMILY_BUDGET"], parsed},
+  parsed = If[StringQ[value] && StringLength[value] > 0,
+    Quiet[Check[ToExpression[value], $Failed]], $Failed];
+  If[IntegerQ[parsed] && parsed > 0, parsed, Infinity]
+];
+familyDeadline = Infinity;
 chartFile = If[Length[args] >= 6 && StringLength[args[[6]]] > 0,
   ExpandFileName[args[[6]]], None];
 (* Per-strip route (FACET_STRIP_ROUTE): "FiniteFieldFirst" (default since
@@ -473,6 +492,66 @@ If[! KeyExistsQ[state, "SInverse"],
 If[! KeyExistsQ[state, "SectorCertificates"],
   state["SectorCertificates"] = {}];
 
+(* ---- WHOLE-FAMILY DEADLINE: persisted, inherited, never refreshed --
+   (2026-08-25, Codex 14:30 "whole-family deadline persistence")
+   The epoch lives in the state file.  A first run under a declared
+   family budget stamps it; every later run of the same state INHERITS
+   it, so the remaining budget is what is left of the original
+   allowance.  A declared budget that DIFFERS from the stamped one is a
+   deliberate re-budget by the operator and restamps, which is recorded;
+   a resume with no budget declared keeps the stamped epoch. *)
+(* the POLICY is the package's (familyRowGaugeFamilyDeadlineDecision):
+   this driver only applies it and persists what it says to persist *)
+familyDeadlineDecision = FeynFacet`Private`familyRowGaugeFamilyDeadlineDecision[
+  state, familyBudget, AbsoluteTime[]];
+state = familyDeadlineDecision["State"];
+familyDeadline = familyDeadlineDecision["Deadline"];
+If[TrueQ[familyDeadlineDecision["Persist"]], putAtomic[state, stateFile]];
+If[familyDeadline =!= Infinity,
+  log["family budget ", familyDeadlineDecision["BudgetSeconds"],
+    " s; family deadline ",
+    DateString[familyDeadline, {"Hour", ":", "Minute", ":", "Second"}],
+    " (", familyDeadlineDecision["Action"], ", ",
+    Round[familyDeadline - AbsoluteTime[]], " s remaining)"]];
+(* a resume that has already spent the family budget stops BEFORE it
+   touches a sector: the state is already consistent on disk *)
+If[familyDeadline =!= Infinity && AbsoluteTime[] >= familyDeadline,
+  log["!! the family budget was already spent before this run started"];
+  state["Stop"] = <|"Status" -> "FamilyBudgetExhausted",
+    "Stage" -> "FamilyEntry", "Sector" -> Lookup[state, "Sector", 1],
+    "FamilyDeadline" -> familyDeadline,
+    "FamilyBudgetSeconds" -> Lookup[state, "FamilyBudgetSeconds", familyBudget],
+    "Resumable" -> True|>;
+  putAtomic[state, stateFile]; Exit[2]];
+
+(* ---- STALE-STOP MIGRATION (2026-08-25, Codex 14:30) ---------------
+   Before 2026-08-25 a successful regulator factorization did NOT clear
+   the typed stop that had demanded it: the fix (Codex 0830 P1) records
+   a "ResolvedStop" resolution inside the factorization record and drops
+   the "Stop" key.  State files written BEFORE that fix can therefore
+   carry a resolvable Stop whose factorization is already in
+   "RegulatorFactorizations" -- an advertised terminal for work that is
+   done.  Resuming such a state is safe only if the stale Stop is
+   recognized as resolved, which is what this migration does, ONCE, at
+   load:
+
+     - the Stop's status must be one this driver itself resolves;
+     - a factorization record for the SAME rows must exist;
+     - that record must carry NO "ResolvedStop" field, i.e. it predates
+       the fix (a record that already resolved something is not
+       migrated a second time).
+
+   Anything else is left exactly as found: a Stop with no matching
+   factorization is a REAL terminal and is never cleared here. *)
+staleStopMigration = FeynFacet`Private`familyRowGaugeStaleStopMigration[state];
+If[Lookup[staleStopMigration, "Status", None] === "Migrated",
+  state = staleStopMigration["State"];
+  putAtomic[state, stateFile];
+  log["migrated a pre-ResolvedStop state: the stale ",
+    staleStopMigration["Migration"]["ClearedStatus"], " stop for rows ",
+    staleStopMigration["Migration"]["Rows"],
+    " is resolved by the factorization already recorded there"]];
+
 stripSolverSummary[solution_Association, sector_Integer,
     lowerSector_Integer, extraLetters_List : {},
     solverConfiguration_Association : <||>] := Join[
@@ -752,10 +831,26 @@ Do[
    stripCheckpointFile = None},
   log["==== sector ", k, " (rows ", bounds[[k]], ", truncation ", nk, "x", nk, ")"];
   (* recomputed at each sector start: this sector's strip solves must
-     finish within sectorBudget seconds of the sector's own start *)
-  sectorDeadline = AbsoluteTime[] + sectorBudget;
+     finish within sectorBudget seconds of the sector's own start AND
+     within what is left of the whole-family budget (2026-08-25).  The
+     family deadline is an absolute epoch persisted in the state file,
+     so it does not restart with the driver. *)
+  If[familyDeadline =!= Infinity && AbsoluteTime[] >= familyDeadline,
+    log["  !! the whole-family budget is spent; stopping before sector ", k];
+    state["Stop"] = <|"Status" -> "FamilyBudgetExhausted",
+      "Stage" -> "SectorEntry", "Sector" -> k,
+      "FamilyDeadline" -> familyDeadline,
+      "FamilyBudgetSeconds" -> Lookup[state, "FamilyBudgetSeconds",
+        familyBudget],
+      "Resumable" -> True|>;
+    putAtomic[state, stateFile]; Exit[2]];
+  sectorDeadline = Min[AbsoluteTime[] + sectorBudget, familyDeadline];
   log["  strip budget ", sectorBudget, " s (deadline ",
-    DateString[sectorDeadline, {"Hour", ":", "Minute", ":", "Second"}], ")"];
+    DateString[sectorDeadline, {"Hour", ":", "Minute", ":", "Second"}],
+    If[familyDeadline =!= Infinity,
+      ", family deadline " <> DateString[familyDeadline,
+        {"Hour", ":", "Minute", ":", "Second"}] <> ", " <>
+        ToString[Round[familyDeadline - AbsoluteTime[]]] <> " s of family budget left", ""], ")"];
   memtrace["sector " <> ToString[k] <> " start"];
   (* factorTruncated itself now discards the stale strip checkpoint of
      sector m+1 and persists the transformed state before returning, so
@@ -993,24 +1088,27 @@ Do[
            for every strip already on disk.  An absent sidecar therefore
            means "written before this seal existed" and costs nothing.
 
-           Steps 2-4 of Codex's design -- authenticate on resume, two
-           independent held-out modular relation evaluations, exact
-           reconstruction only on mismatch or in adversarial mode -- are
-           NOT implemented.  The exact reconstruction below remains
-           mandatory and unconditional; this seal is currently recorded
-           and reported, never trusted in place of it. *)
+           Steps 2-4 landed on 2026-08-25 in FamilyRowGaugeResume.wl:
+           the seal carries its own FINGERPRINT (schema V2) and a resume
+           recomputes it from the hydrated record; two independent
+           held-out modular images of the block-equation relation are
+           evaluated; a mismatch at an admissible image is a typed
+           ResumeRejected naming that image.  The exact reconstruction
+           remains the DEFAULT companion ("ResumeGate" ->
+           "ModularThenExact"); "Modular" is the opt-in mode that skips
+           it once the seal authenticates and both images agree.
+
+           The record is built by the package
+           (familyRowGaugeStripInputSeal), not assembled here, so the
+           writer and the reader cannot drift apart in the field order
+           the fingerprint is taken over. *)
         First[AbsoluteTiming[putAtomic[
-          <|"Schema" -> "FamilyStripInputSealV1",
-            "Family" -> family, "Sector" -> k, "LowerSector" -> nlow,
-            "Truncation" -> nk,
-            "ConnectionHash" -> Hash[aP, "SHA256", "HexString"],
-            "SolvedBlockPrefixHash" -> Hash[KeySort[solvedBlocks], "SHA256",
-              "HexString"],
-            "SolvedBlockKeys" -> Sort[Keys[solvedBlocks]],
-            "StripHash" -> Hash[{e, c, bbar}, "SHA256", "HexString"],
-            "VariablesHash" -> Hash[{invariants, ee}, "SHA256", "HexString"],
-            "WriterSourceSHA256" -> $sectorDriverSourceSHA256,
-            "WrittenAt" -> DateString[]|>,
+          FeynFacet`Private`familyRowGaugeStripInputSeal[
+            family, k, nlow, nk,
+            Hash[aP, "SHA256", "HexString"], solvedBlocks,
+            Hash[{e, c, bbar}, "SHA256", "HexString"],
+            Hash[{invariants, ee}, "SHA256", "HexString"],
+            $sectorDriverSourceSHA256],
           StringReplace[stripInputFile,
             "_input.wl" -> "_input_seal.wl"]]]];
         constructionTimings["StripInputWrite"] = constructionSeconds;

@@ -252,12 +252,26 @@ FTTest`FTAssert["connection identity failure is typed and nonactivating",
    The strip-input SEAL is step 1 of Codex's integrity design (14:30):
    the sector driver seals each strip input to the connection, the
    solved-block prefix, its position and the exact strip when it writes
-   it, and the resume authenticates those digests cheaply.  Steps 2-4 --
-   trusting that authentication, two independent held-out modular
-   relation evaluations, exact reconstruction only on mismatch -- are
-   NOT built: the assertions below therefore require that the seal
-   verdict is RECORDED and that acceptance is unchanged by it, and
-   explicitly that an ABSENT seal still hydrates. *)
+   it, and the resume authenticates those digests cheaply.
+
+   Steps 2-4 landed on 2026-08-25 (hardening wave):
+
+     step 2  the seal is schema V2 and carries its OWN fingerprint over
+             every digest it asserts; the resume recomputes that
+             fingerprint from the hydrated record.  A V1 seal is
+             refused-typed and never upgraded, and a seal whose fields
+             were edited without re-deriving the fingerprint is refused;
+     step 3  the resumed gauge candidate is evaluated at two fresh
+             finite-field images against the forcing recomputed from the
+             current connection, with no symbolic normalization;
+     step 4  a mismatch at an ADMISSIBLE image is a typed
+             "ResumeRejected" naming that image.
+
+   The exact reconstruction remains the DEFAULT companion
+   ("ResumeGate" -> "ModularThenExact"), so acceptance is still decided
+   by it; "Modular" is the opt-in mode that skips it once the seal
+   authenticates and both images agree.  The assertions below require
+   all of that, and explicitly that an ABSENT seal still hydrates. *)
 
 FTTest`FTAssert["the resume record carries whole-state identity phase timings",
   AssociationQ[Lookup[full, "PhaseTimings", None]] &&
@@ -278,26 +292,31 @@ FTTest`FTAssert["an UNSEALED strip input still hydrates, and says so",
     Lookup[full["ReplayRecords"], "InputSeal"] ===
       ConstantArray["Unsealed", Length[full["ReplayRecords"]]]];
 
-(* now seal the two inputs the way the sector driver seals them, and
-   re-run the identical hydration *)
-sealFor[lowerSector_, stripHash_] := <|
-  "Schema" -> "FamilyStripInputSealV1", "Family" -> "CFTEST",
-  "Sector" -> 3, "LowerSector" -> lowerSector, "Truncation" -> 3,
-  "ConnectionHash" -> Hash[connection /. eps -> CANONICA`eps,
-    "SHA256", "HexString"],
-  "SolvedBlockPrefixHash" -> Hash[KeySort[KeyTake[fullBlocks,
-    Select[Keys[fullBlocks], # > lowerSector &]]], "SHA256", "HexString"],
-  "SolvedBlockKeys" -> Sort[Select[Keys[fullBlocks], # > lowerSector &]],
-  "StripHash" -> stripHash,
-  "VariablesHash" -> Hash[{variables, eps}, "SHA256", "HexString"],
-  "WriterSourceSHA256" -> "test", "WrittenAt" -> DateString[]|>;
+(* now seal the two inputs the way the sector driver seals them -- THROUGH
+   THE PACKAGE BUILDER, so the writer and the reader cannot drift apart
+   in the field order the fingerprint is taken over -- and re-run the
+   identical hydration *)
+sealFor[lowerSector_, stripHash_] :=
+  FeynFacet`Private`familyRowGaugeStripInputSeal["CFTEST", 3, lowerSector, 3,
+    Hash[connection /. eps -> CANONICA`eps, "SHA256", "HexString"],
+    KeyTake[fullBlocks, Select[Keys[fullBlocks], # > lowerSector &]],
+    stripHash,
+    Hash[{variables, eps}, "SHA256", "HexString"], "test"];
+writeSeal[lowerSector_, seal_] := FeynFacet`FamilyArtifactWrite[seal,
+  FileNameJoin[{temporary,
+    "CFTEST_3_" <> ToString[lowerSector] <> "_input_seal.wl"}]];
 Scan[Function[lowerSector,
-  FeynFacet`FamilyArtifactWrite[
-    sealFor[lowerSector,
-      Hash[ConstantArray[0, {3, 2, 1, 1}], "SHA256", "HexString"]],
-    FileNameJoin[{temporary,
-      "CFTEST_3_" <> ToString[lowerSector] <> "_input_seal.wl"}]]],
+  writeSeal[lowerSector, sealFor[lowerSector,
+    Hash[ConstantArray[0, {3, 2, 1, 1}], "SHA256", "HexString"]]]],
   {1, 2}];
+FTTest`FTAssert["the seal is schema V2 and carries its own fingerprint \
+over every digest it asserts",
+  Module[{seal = sealFor[1, "deadbeef"]},
+    AssociationQ[seal] && seal["Schema"] === "FamilyStripInputSealV2" &&
+      seal["SchemaVersion"] === 2 && StringQ[seal["Fingerprint"]] &&
+      StringLength[seal["Fingerprint"]] === 64 &&
+      seal["Fingerprint"] ===
+        FeynFacet`Private`familyRowGaugeStripInputSealFingerprint[seal]]];
 sealed = FeynFacet`Private`familyRowGaugeHydrateResume[
   fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
   variables, eps, frame, ranges, temporary, connection,
@@ -309,6 +328,115 @@ FTTest`FTAssert["a SEALED input authenticates and the record says so",
       ConstantArray["SealAuthenticated",
         Length[Lookup[sealed, "ReplayRecords", {}]]]];
 
+(* step 3: the modular gate runs by default and accepts, and the exact
+   re-derivation still runs beside it *)
+FTTest`FTAssert["step 3: the two-image modular gate runs by default and \
+accepts, at two INDEPENDENT images",
+  MatchQ[Lookup[sealed, "ReplayRecords", None], {__Association}] &&
+    AllTrue[sealed["ReplayRecords"], Function[rec,
+      Lookup[rec, "ResumeGate", None] === "ModularThenExact" &&
+        Lookup[Lookup[rec, "ModularGate", <||>], "Status", None] ===
+          "ResumeModularGateAccepted" &&
+        Lookup[Lookup[rec, "ModularGate", <||>], "ImageCount", 0] === 2 &&
+        Length[DeleteDuplicates[Lookup[Lookup[Lookup[rec, "ModularGate", <||>],
+          "AcceptedImages", {}], "Prime"]]] === 2]]];
+FTTest`FTAssert["the default mode still re-derives the block equation \
+exactly: the gate ADDS evidence, it does not replace the guarantee",
+  AllTrue[sealed["ReplayRecords"],
+    TrueQ[Lookup[#, "ExactBlockEquationRecheck", False]] &] &&
+    AllTrue[sealed["ReplayRecords"],
+      KeyExistsQ[#["PhaseTimings"], "BlockEquation"] &]];
+FTTest`FTAssert["ResumeGate -> Modular skips the exact re-derivation once \
+the seal authenticates AND both images agree",
+  Module[{modular = FeynFacet`Private`familyRowGaugeHydrateResume[
+      fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
+      variables, eps, frame, ranges, temporary, connection,
+      "FinalCheck" -> "Exact", "ResumeGate" -> "Modular"]},
+    Lookup[modular, "Status", None] === Lookup[full, "Status", None] &&
+      SameQ[Lookup[modular, "SolvedForms", <||>],
+        Lookup[full, "SolvedForms", <||>]] &&
+      AllTrue[modular["ReplayRecords"],
+        Lookup[#, "ExactBlockEquationRecheck", True] === False &]]];
+FTTest`FTAssert["an AdversarialAudit re-derives exactly no matter what \
+the gate says",
+  Module[{audit = FeynFacet`Private`familyRowGaugeHydrateResume[
+      fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
+      variables, eps, frame, ranges, temporary, connection,
+      "FinalCheck" -> "Exact", "ResumeGate" -> "Modular",
+      "AdversarialAudit" -> True]},
+    Lookup[audit, "Status", None] === Lookup[full, "Status", None] &&
+      AllTrue[audit["ReplayRecords"],
+        TrueQ[Lookup[#, "ExactBlockEquationRecheck", False]] &]]];
+
+(* step 2: a V1 seal is refused-typed, never upgraded, and a seal whose
+   fields were edited without re-deriving its fingerprint is refused *)
+FTTest`FTAssert["step 2: a V1 seal is refused-typed and never upgraded",
+  Module[{legacy = Join[KeyDrop[sealFor[1,
+        Hash[ConstantArray[0, {3, 2, 1, 1}], "SHA256", "HexString"]],
+      "Fingerprint"],
+      <|"Schema" -> "FamilyStripInputSealV1", "SchemaVersion" -> 1|>],
+      result},
+    writeSeal[1, legacy];
+    result = FeynFacet`Private`familyRowGaugeHydrateResume[
+      fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
+      variables, eps, frame, ranges, temporary, connection,
+      "FinalCheck" -> "Exact"];
+    Lookup[result, "Status", None] === Lookup[full, "Status", None] &&
+      MemberQ[Lookup[result["ReplayRecords"], "InputSeal"],
+        "SealSchemaSuperseded"]]];
+FTTest`FTAssert["step 2: a seal whose fields were edited without \
+re-deriving its fingerprint is refused",
+  Module[{tampered = Append[sealFor[1,
+        Hash[ConstantArray[0, {3, 2, 1, 1}], "SHA256", "HexString"]],
+      "Truncation" -> 99], result},
+    writeSeal[1, tampered];
+    result = FeynFacet`Private`familyRowGaugeHydrateResume[
+      fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
+      variables, eps, frame, ranges, temporary, connection,
+      "FinalCheck" -> "Exact"];
+    Lookup[result, "Status", None] === Lookup[full, "Status", None] &&
+      MemberQ[Lookup[result["ReplayRecords"], "InputSeal"],
+        "SealFingerprintMismatch"]]];
+(* restore the good seal for the assertions below *)
+writeSeal[1, sealFor[1,
+  Hash[ConstantArray[0, {3, 2, 1, 1}], "SHA256", "HexString"]]];
+
+(* step 4: A POISONED RESUME.  The strip input on disk no longer equals
+   the block equation the current connection and the banked prefix
+   imply.  The modular gate must catch it at an ADMISSIBLE image and
+   refuse typed, naming that image -- before the exact reconstruction
+   is even reached. *)
+poisonedFile = FileNameJoin[{temporary, "CFTEST_3_1_input.wl"}];
+poisonedOriginal = FeynFacet`FamilyArtifactRead[poisonedFile];
+FeynFacet`FamilyArtifactWrite[
+  Append[poisonedOriginal, "Strip" ->
+    ReplacePart[poisonedOriginal["Strip"], {3, 1, 1, 1} -> 7]],
+  poisonedFile];
+poisoned = FeynFacet`Private`familyRowGaugeHydrateResume[
+  fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
+  variables, eps, frame, ranges, temporary, connection,
+  "FinalCheck" -> "Exact"];
+FTTest`FTAssert["step 4: a POISONED strip input is refused typed as \
+ResumeRejected, naming the failing image",
+  Lookup[poisoned, "Status", None] === "ResumeRejected" &&
+    Lookup[poisoned, "Reason", None] === "ModularRelationMismatch" &&
+    AssociationQ[Lookup[poisoned, "FailingImage", None]] &&
+    IntegerQ[poisoned["FailingImage"]["Prime"]] &&
+    MatchQ[poisoned["FailingImage"]["Point"], {_Integer, _Integer}] &&
+    ! TrueQ[Lookup[poisoned, "ActivateInstalledRow", True]]];
+FTTest`FTAssert["step 4: the poisoned resume is refused in EXACT mode too \
+(the exact reconstruction remains a complete check on its own)",
+  Module[{exactOnly = FeynFacet`Private`familyRowGaugeHydrateResume[
+      fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
+      variables, eps, frame, ranges, temporary, connection,
+      "FinalCheck" -> "Exact", "ResumeGate" -> "Exact"]},
+    Lookup[exactOnly, "Status", None] ===
+        "ResumeHydrationInputConnectionMismatch" &&
+      ! TrueQ[Lookup[exactOnly, "ActivateInstalledRow", True]]]];
+FeynFacet`FamilyArtifactWrite[poisonedOriginal, poisonedFile];
+writeSeal[1, sealFor[1,
+  Hash[ConstantArray[0, {3, 2, 1, 1}], "SHA256", "HexString"]]];
+
 FTTest`FTAssert["the seal changes NOTHING about what is accepted: the \
 sealed and unsealed hydrations agree on every solved form",
   SameQ[Lookup[sealed, "SolvedForms", <||>],
@@ -318,10 +446,17 @@ sealed and unsealed hydrations agree on every solved form",
     Lookup[sealed, "Status", None] === Lookup[full, "Status", None]];
 
 (* a seal that does NOT authenticate must not change acceptance either:
-   the exact reconstruction is still what decides *)
+   the exact reconstruction is still what decides.  The seal is built
+   THROUGH the builder with a different connection hash, so it is
+   internally consistent -- its fingerprint matches its own digests --
+   and the refusal is about the CONNECTION, not about a broken record.
+   (Editing a field of a built seal is a different mutant, and it is
+   asserted separately above as SealFingerprintMismatch.) *)
 FeynFacet`FamilyArtifactWrite[
-  Append[sealFor[1, Hash["a different strip", "SHA256", "HexString"]],
-    "ConnectionHash" -> "0000"],
+  FeynFacet`Private`familyRowGaugeStripInputSeal["CFTEST", 3, 1, 3,
+    "0000", KeyTake[fullBlocks, Select[Keys[fullBlocks], # > 1 &]],
+    Hash["a different strip", "SHA256", "HexString"],
+    Hash[{variables, eps}, "SHA256", "HexString"], "test"],
   FileNameJoin[{temporary, "CFTEST_3_1_input_seal.wl"}]];
 mismatchedSeal = FeynFacet`Private`familyRowGaugeHydrateResume[
   fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
@@ -335,13 +470,43 @@ strengthen acceptance (the exact reconstruction still decides)",
     MemberQ[Lookup[Lookup[mismatchedSeal, "ReplayRecords", {}], "InputSeal"],
       "SealConnectionMismatch"]];
 
-FTTest`FTAssert["the sector driver seals every strip input it writes",
+FTTest`FTAssert["the sector driver seals every strip input it writes, \
+through the package builder",
   Module[{driver = Import[FileNameJoin[{root, "Scripts",
       "family_epsform_sector.wls"}], "Text"]},
-    StringContainsQ[driver, "\"Schema\" -> \"FamilyStripInputSealV1\""] &&
-      StringContainsQ[driver, "_input.wl\" -> \"_input_seal.wl\""] &&
-      StringContainsQ[driver,
-        "\"SolvedBlockPrefixHash\" -> Hash[KeySort[solvedBlocks]"]]];
+    StringContainsQ[driver, "familyRowGaugeStripInputSeal["] &&
+      StringContainsQ[driver, "_input.wl\" -> \"_input_seal.wl\""]]];
+
+(* the cooperative deadline of the hydration itself (2026-08-25): its
+   boundary is the STRIP, and an expired budget is a typed resumable
+   stop that names how far it got, never an exception *)
+FTTest`FTAssert["an expired hydration deadline is a typed resumable stop \
+naming the strips it completed",
+  Module[{stopped = FeynFacet`Private`familyRowGaugeHydrateResume[
+      fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
+      variables, eps, frame, ranges, temporary, connection,
+      "FinalCheck" -> "Exact", "Deadline" -> AbsoluteTime[] - 1]},
+    Lookup[stopped, "Status", None] === "ResumeHydrationBudgetExhausted" &&
+      Lookup[stopped, "Stage", None] === "ResumeHydration:StripReplay" &&
+      TrueQ[Lookup[stopped, "Resumable", False]] &&
+      Lookup[stopped, "StripsDone", -1] === 0 &&
+      Lookup[stopped, "StripCount", -1] === 2 &&
+      NumericQ[Lookup[stopped, "Elapsed", None]] &&
+      ! TrueQ[Lookup[stopped, "ActivateInstalledRow", True]]]];
+FTTest`FTAssert["Deadline -> Infinity is the unchanged default",
+  Module[{withOption = FeynFacet`Private`familyRowGaugeHydrateResume[
+      fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
+      variables, eps, frame, ranges, temporary, connection,
+      "FinalCheck" -> "Exact", "Deadline" -> Infinity]},
+    Lookup[withOption, "Status", None] === Lookup[full, "Status", None] &&
+      SameQ[Lookup[withOption, "SolvedForms", <||>],
+        Lookup[full, "SolvedForms", <||>]]]];
+FTTest`FTAssert["a malformed hydration deadline is a typed refusal",
+  Lookup[FeynFacet`Private`familyRowGaugeHydrateResume[
+    fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
+    variables, eps, frame, ranges, temporary, connection,
+    "FinalCheck" -> "Exact", "Deadline" -> "soon"], "Status", None] ===
+    "InvalidResumeHydrationArguments"];
 
 fallback = FeynFacet`Private`familyRowGaugeApply[
   connection, IdentityMatrix[3], IdentityMatrix[3], {3},

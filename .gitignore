@@ -42,6 +42,15 @@ ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTest
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/SHA256SUMS
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/cf259_frozen_rows24.wl
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/cf303_frozen_rows27.wl
+# CF300 (12,9): the strip input, the measured channel decomposition of its
+# forcing and the StripSolvers projection of the sector state.  Frozen
+# 2026-08-25 because Tests/t_multiquadratic_{letters,gauge_screen,
+# gauge_ladder}.wls read them, and the live campaign directory rewrites
+# the first and the third under a running suite.
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/cf300_frozen_strip_12_9_input.wl
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/cf300_frozen_channel_forcing.wl
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/cf300_frozen_stripsolvers.wl
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/freeze_cf300.wls
 
 # --- Third-party software (own licenses; installed locally, not redistributed) ---
 Addon/Mathematica_Addon/*

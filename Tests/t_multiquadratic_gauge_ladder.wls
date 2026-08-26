@@ -51,7 +51,8 @@
    Tests/t_solver_budget.wls (a block built from a known gauge), and the
    real CF300 (12,9) descriptor read by repository-relative paths under
    Results/UU_08_10_canonical/FamilyEpsFormsSolving/
-   triple_root_2026-08-24_fable/CF300/. *)
+   FrozenTestFixtures_2026-08-25/ (immutable copies of live campaign
+   inputs; provenance in that directory's README). *)
 
 root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
@@ -316,15 +317,17 @@ report["L6 default-path seconds", Round[driverGoodSeconds, 0.01]];
 FeynFacet`TransportFamilyChartLoad[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
    "Results", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
 chart = FeynFacet`TransportFamilyChart["CF300"];
+(* FROZEN INPUTS (2026-08-25): the live campaign directory rewrites the
+   strip input and the sector state under a running suite, so this test
+   reads immutable copies with recorded provenance instead.  See the
+   README of FrozenTestFixtures_2026-08-25/. *)
 base = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
    "UU_08_10_canonical", "FamilyEpsFormsSolving",
-   "triple_root_2026-08-24_fable", "CF300"}];
-stripFile = FileNameJoin[{base, "sector_CF300_standard",
-   "CF300_12_9_input.wl"}];
-stateFile = FileNameJoin[{base, "sector_state_CF300_standard.wl"}];
-channelFile = FileNameJoin[{base, "gauge_screen_2026-08-25",
-   "channelForcing.wl"}];
-check["the CF300 (12,9) fixture is in the repository",
+   "FrozenTestFixtures_2026-08-25"}];
+stripFile = FileNameJoin[{base, "cf300_frozen_strip_12_9_input.wl"}];
+stateFile = FileNameJoin[{base, "cf300_frozen_stripsolvers.wl"}];
+channelFile = FileNameJoin[{base, "cf300_frozen_channel_forcing.wl"}];
+check["the CF300 (12,9) fixture is frozen in the repository",
   FileExistsQ[stripFile] && FileExistsQ[stateFile] &&
     FileExistsQ[channelFile] && AssociationQ[chart]];
 

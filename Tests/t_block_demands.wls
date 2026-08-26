@@ -20,6 +20,15 @@
 
 root = ExpandFileName[FileNameJoin[{DirectoryName[$InputFileName], ".."}]];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
+(* 2026-08-25: this was the ONLY suite of 86 that loaded FeynFacet.m
+   without loading the repository loader first.  LoadFACET.wl is what
+   puts the bundled add-ons on the path, so without it FeynFacet.m's
+   Needs["FeynCalc`"] cannot resolve and the package aborts by design
+   ("the FeynCalcLegacy add-on is required but could not be loaded").
+   The suite therefore aborted at this line and reached NONE of its
+   assertions -- while still exiting 0, which is why it read as green
+   for as long as it did. *)
+Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Get[FileNameJoin[{root, "FeynFacet", "FeynFacet.m"}]];
 
 vv = Symbol["Global`v"];

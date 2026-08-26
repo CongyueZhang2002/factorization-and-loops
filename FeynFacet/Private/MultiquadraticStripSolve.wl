@@ -103,13 +103,40 @@ ClearAll[
   $multiquadraticStripProgressLastTime, $multiquadraticStripStageLog,
   multiquadraticStripFailure, multiquadraticStripFingerprint,
   $multiquadraticStripForcingChannelSchema,
+  $multiquadraticStripForcingChannelSchemaV1,
   multiquadraticStripForcingChannelFingerprint,
+  multiquadraticStripForcingChannelContentHash,
   multiquadraticStripForcingChannelRecord,
   multiquadraticStripForcingChannelsAccept,
+  $multiquadraticStripPrepareCheckpointSchema,
+  $multiquadraticStripPrepareCheckpointSubstages,
+  multiquadraticStripPrepareCheckpointFile,
+  multiquadraticStripPrepareCheckpointRecord,
+  multiquadraticStripPrepareCheckpointAccept,
+  multiquadraticStripLetterDLogCertificate,
+  multiquadraticStripLetterDLogCertificateWithKey,
+  multiquadraticStripLetterDLogCertificateValidQ,
+  $multiquadraticStripLetterDLogSchema,
+  multiquadraticStripCompactDLogAdmission,
+  multiquadraticStripChannelGradeSupport,
+  multiquadraticStripChannelVectorGradeSupport,
+  multiquadraticStripCompileCoreKeyFromParts,
+  multiquadraticStripCompileCoreKey,
+  multiquadraticStripCompileOneFormKey,
+  multiquadraticStripLetterProvenanceHash,
+  multiquadraticStripIntern, multiquadraticStripInternProbe,
+  multiquadraticStripInternValidQ, multiquadraticStripInternReset,
+  multiquadraticStripInternStatistics, multiquadraticStripInternValueBytes,
+  multiquadraticStripCompileCacheClear,
+  $multiquadraticStripInternPools, $multiquadraticStripInternCounters,
+  $multiquadraticStripPoolEntryLimit, $multiquadraticStripPoolByteLimit,
+  $multiquadraticStripPoolOversizeBytes,
   multiquadraticStripCanonicalRules, multiquadraticStripCanonicalExpression,
   multiquadraticStripContextFreeQ, multiquadraticStripZeroQ,
   multiquadraticStripModRational,
-  multiquadraticFieldInverse, multiquadraticFieldDecompose,
+  multiquadraticFieldInverse, multiquadraticFieldInverseTower,
+  multiquadraticFieldInverseLinearSolve, $multiquadraticFieldInverseMethod,
+  multiquadraticFieldDecompose,
   multiquadraticFieldCompose, multiquadraticLiftLocalChannels,
   multiquadraticFieldPathStatistics, multiquadraticFieldResetPathStatistics,
   multiquadraticFieldPathStatisticsDelta,
@@ -415,9 +442,30 @@ multiquadraticStripFingerprint[value_] :=
    order, the variables and the regulator; the consumer recomputes that
    fingerprint from its own inputs and FAILS CLOSED on any mismatch. A
    bare array carries no provenance and can only be shape-checked, so it
-   is refused typed rather than trusted. *)
-$multiquadraticStripForcingChannelSchema =
+   is refused typed rather than trusted.
+
+   ---- V2 (2026-08-25, Codex 14:30 P1: forcing-channel CONTENT) -------
+
+   V1 fingerprinted the forcing, the root squares, the rank and the
+   dimensions -- everything the channels are DERIVED FROM, and not the
+   channels themselves.  A same-shape mutation of the "Channels" field
+   under an otherwise valid V1 seal was therefore accepted, and the whole
+   solve was then built on BBar data that decomposes a different object.
+   The seal is a content seal now: "ChannelsSHA256" is a field of the
+   record AND an ingredient of the fingerprint, so a mutated channel
+   fails both the content test and the provenance test, and the two
+   failures are reported separately (a content mismatch names the
+   channels; a provenance mismatch names the strip).
+
+   V1 records are REFUSED, never upgraded: a V1 record proves nothing
+   about its channels, and silently re-sealing it here would mint exactly
+   the provenance it lacks.  The refusal is typed and its caller
+   decomposes the forcing itself, which is what a missing seal has always
+   meant. *)
+$multiquadraticStripForcingChannelSchemaV1 =
   "MultiquadraticForcingChannelsV1";
+$multiquadraticStripForcingChannelSchema =
+  "MultiquadraticForcingChannelsV2";
 
 (* A STRUCTURAL hash, not an algebraic one: the forcing of a real block
    carries 10^4-10^5 leaves and the point of the reuse is to avoid
@@ -427,34 +475,55 @@ $multiquadraticStripForcingChannelSchema =
    the seal does not depend on which context they arrived in; anything
    else that differs -- a different strip, a different root order, a
    different forcing -- changes the hash and the reuse is refused. *)
+multiquadraticStripForcingChannelContentHash[channels_, variables_List,
+    epsilon_] := Hash[
+  channels /. multiquadraticStripCanonicalRules[variables, epsilon],
+  "SHA256", "HexString"];
+
 multiquadraticStripForcingChannelFingerprint[forcing_, roots_List,
-    variables_List, epsilon_] := Module[
+    variables_List, epsilon_, contentHash_] := Module[
   {rules = multiquadraticStripCanonicalRules[variables, epsilon]},
   multiquadraticStripFingerprint[{
     $multiquadraticStripForcingChannelSchema,
     Hash[forcing /. rules, "SHA256"],
     Hash[Lookup[roots, "RootSquare", {}] /. rules, "SHA256"],
-    Length[roots], Dimensions[forcing]}]];
+    Length[roots], Dimensions[forcing], contentHash}]];
 
 multiquadraticStripForcingChannelRecord[channels_, forcing_, roots_List,
-    variables_List, epsilon_] := <|
-  "Schema" -> $multiquadraticStripForcingChannelSchema,
-  "SchemaVersion" -> 1,
-  "Fingerprint" -> multiquadraticStripForcingChannelFingerprint[forcing,
-    roots, variables, epsilon],
-  "GradeCount" -> 2^Length[roots],
-  "Dimensions" -> Dimensions[forcing],
-  "Channels" -> channels|>;
+    variables_List, epsilon_] := Module[
+  {contentHash = multiquadraticStripForcingChannelContentHash[channels,
+    variables, epsilon]},
+  <|"Schema" -> $multiquadraticStripForcingChannelSchema,
+    "SchemaVersion" -> 2,
+    "ChannelsSHA256" -> contentHash,
+    "Fingerprint" -> multiquadraticStripForcingChannelFingerprint[forcing,
+      roots, variables, epsilon, contentHash],
+    "GradeCount" -> 2^Length[roots],
+    "Dimensions" -> Dimensions[forcing],
+    "Channels" -> channels|>
+];
 
-(* {status, channels}: "NotSupplied" (decompose), "Accepted" (reuse), or
-   a typed refusal that the caller turns into a failure record *)
+(* "NotSupplied" (decompose), "Accepted" (reuse), or a typed refusal that
+   the caller turns into a failure record *)
 multiquadraticStripForcingChannelsAccept[supplied_, forcing_, roots_List,
-    variables_List, epsilon_] := Module[{expected, gradeCount, channels},
+    variables_List, epsilon_] := Module[
+  {expected, gradeCount, channels, schema, contentHash},
   If[supplied === Automatic || MissingQ[supplied] || supplied === None,
     Return[<|"Status" -> "NotSupplied"|>]];
-  If[! AssociationQ[supplied] ||
-      Lookup[supplied, "Schema", None] =!=
-        $multiquadraticStripForcingChannelSchema,
+  If[! AssociationQ[supplied],
+    Return[<|"Status" -> "ForcingChannelsUnsealed",
+      "Reason" -> "a forcing-channel decomposition must arrive as a sealed \
+record; a bare array carries no provenance and is refused"|>]];
+  schema = Lookup[supplied, "Schema", None];
+  (* refused-typed, NOT upgraded: a V1 seal authenticates the forcing it
+     decomposes and says nothing at all about the channels it carries *)
+  If[schema === $multiquadraticStripForcingChannelSchemaV1,
+    Return[<|"Status" -> "ForcingChannelSealSuperseded",
+      "SuppliedSchema" -> schema,
+      "ExpectedSchema" -> $multiquadraticStripForcingChannelSchema,
+      "Reason" -> "the V1 seal does not authenticate the channel content; \
+a V1 record is recomputed, never accepted"|>]];
+  If[schema =!= $multiquadraticStripForcingChannelSchema,
     Return[<|"Status" -> "ForcingChannelsUnsealed",
       "Reason" -> "a forcing-channel decomposition must arrive as a sealed \
 record; a bare array carries no provenance and is refused"|>]];
@@ -466,8 +535,18 @@ record; a bare array carries no provenance and is refused"|>]];
     Return[<|"Status" -> "ForcingChannelShapeMismatch",
       "Expected" -> Append[Dimensions[forcing], gradeCount],
       "Actual" -> Dimensions[channels]|>]];
-  expected = multiquadraticStripForcingChannelFingerprint[forcing, roots,
+  (* the CONTENT test first: it names the field that was mutated, while
+     the fingerprint test below cannot distinguish a channel mutation
+     from a different strip *)
+  contentHash = multiquadraticStripForcingChannelContentHash[channels,
     variables, epsilon];
+  If[Lookup[supplied, "ChannelsSHA256", None] =!= contentHash,
+    Return[<|"Status" -> "ForcingChannelContentMismatch",
+      "ExpectedChannelsSHA256" -> contentHash,
+      "SuppliedChannelsSHA256" -> Lookup[supplied, "ChannelsSHA256",
+        Missing["NoChannelsSHA256"]]|>]];
+  expected = multiquadraticStripForcingChannelFingerprint[forcing, roots,
+    variables, epsilon, contentHash];
   If[Lookup[supplied, "Fingerprint", None] =!= expected,
     Return[<|"Status" -> "ForcingChannelProvenanceMismatch",
       "ExpectedFingerprint" -> expected,
@@ -475,6 +554,116 @@ record; a bare array carries no provenance and is refused"|>]];
         Missing["NoFingerprint"]]|>]];
   <|"Status" -> "Accepted", "Channels" -> channels|>
 ];
+
+(* ---- PREPARE INTERMEDIATE PERSISTENCE (2026-08-25) ------------------
+
+   multiquadraticStripPrepare measured 2710.9 s cold on the real CF300
+   (12,9) descriptor and checkpointed NOTHING: a cancelled or budget
+   stopped run threw away every completed substage and the next attempt
+   started from zero.  That is what the round-6 cancellation cost.
+
+   Each expensive substage boundary now writes ONE self-describing
+   record, and a resumed preparation may read it back instead of
+   recomputing.  The three boundaries are exactly the three the
+   cooperative deadline already names -- "ForcingChannels",
+   "CandidateLetters", "GaugeDenominator" -- so a stop and a checkpoint
+   speak the same vocabulary.
+
+   PROVENANCE.  A checkpoint is NOT a cache keyed by a file name.  Every
+   record carries: this source file's SHA-256, the grade-algebra ABI
+   fingerprint, an INPUT fingerprint over exactly the inputs its
+   substage consumed, a PAYLOAD content hash, and a seal fingerprint
+   over all of those.  A reader recomputes all of them from its own
+   inputs and refuses typed on any mismatch -- it never repairs, never
+   upgrades and never trusts a file because it has the expected name.
+   The forcing checkpoint's payload is additionally the V2 sealed
+   forcing-channel record itself, so its channels are content
+   authenticated by exactly the code path the in-memory reuse uses.
+
+   CONTEXT.  Payloads are written in the formal System` symbols and
+   mapped back on read, so a checkpoint written under Global` and read
+   after CANONICA has taken over eps/x/y is the same object. *)
+$multiquadraticStripPrepareCheckpointSchema =
+  "MultiquadraticPrepareCheckpointV1";
+
+$multiquadraticStripPrepareCheckpointSubstages = {
+  "ForcingChannels", "CandidateLetters", "GaugeDenominator"};
+
+multiquadraticStripPrepareCheckpointFile[directory_, tag_String,
+    substage_String] :=
+  FileNameJoin[{directory, tag <> "_prepare_" <>
+    ToLowerCase[substage] <> ".wl"}];
+
+multiquadraticStripPrepareCheckpointRecord[substage_String,
+    inputFingerprint_, payload_, variables : {_Symbol, _Symbol},
+    epsilon_Symbol] := Module[
+  {canonical, contentHash},
+  canonical = payload /. multiquadraticStripCanonicalRules[variables, epsilon];
+  If[! multiquadraticStripContextFreeQ[canonical], Return[$Failed]];
+  contentHash = Hash[canonical, "SHA256", "HexString"];
+  Module[{header = <|
+      "Schema" -> $multiquadraticStripPrepareCheckpointSchema,
+      "SchemaVersion" -> 1,
+      "Substage" -> substage,
+      "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+      "AlgebraABIFingerprint" -> multiquadraticAlgebraABIFingerprint[],
+      "InputFingerprint" -> inputFingerprint,
+      "PayloadSHA256" -> contentHash|>},
+    Join[header,
+      <|"Fingerprint" -> multiquadraticStripFingerprint[header],
+        "Payload" -> canonical|>]]
+];
+multiquadraticStripPrepareCheckpointRecord[___] := $Failed;
+
+(* "Accepted" with the payload in the caller's symbols, or a typed
+   refusal.  Nothing here recomputes and nothing here repairs. *)
+multiquadraticStripPrepareCheckpointAccept[record_, substage_String,
+    inputFingerprint_, variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
+  Module[{header, contentHash},
+  If[! AssociationQ[record] ||
+      Lookup[record, "Schema", None] =!=
+        $multiquadraticStripPrepareCheckpointSchema,
+    Return[<|"Status" -> "PrepareCheckpointSchemaUnknown",
+      "Substage" -> substage,
+      "SuppliedSchema" -> If[AssociationQ[record],
+        Lookup[record, "Schema", None], Missing["NotAnAssociation"]]|>]];
+  If[Lookup[record, "Substage", None] =!= substage,
+    Return[<|"Status" -> "PrepareCheckpointSubstageMismatch",
+      "Substage" -> substage,
+      "SuppliedSubstage" -> Lookup[record, "Substage", None]|>]];
+  If[Lookup[record, "SourceSHA256", None] =!=
+        $multiquadraticStripSourceSHA256 ||
+      Lookup[record, "AlgebraABIFingerprint", None] =!=
+        multiquadraticAlgebraABIFingerprint[],
+    Return[<|"Status" -> "PrepareCheckpointImplementationMismatch",
+      "Substage" -> substage|>]];
+  If[Lookup[record, "InputFingerprint", None] =!= inputFingerprint,
+    Return[<|"Status" -> "PrepareCheckpointInputMismatch",
+      "Substage" -> substage,
+      "ExpectedInputFingerprint" -> inputFingerprint,
+      "SuppliedInputFingerprint" -> Lookup[record, "InputFingerprint",
+        Missing["NoInputFingerprint"]]|>]];
+  contentHash = Hash[Lookup[record, "Payload", $Failed],
+    "SHA256", "HexString"];
+  If[Lookup[record, "PayloadSHA256", None] =!= contentHash,
+    Return[<|"Status" -> "PrepareCheckpointContentMismatch",
+      "Substage" -> substage,
+      "ExpectedPayloadSHA256" -> contentHash,
+      "SuppliedPayloadSHA256" -> Lookup[record, "PayloadSHA256",
+        Missing["NoPayloadSHA256"]]|>]];
+  header = KeyTake[record, {"Schema", "SchemaVersion", "Substage",
+    "SourceSHA256", "AlgebraABIFingerprint", "InputFingerprint",
+    "PayloadSHA256"}];
+  If[Lookup[record, "Fingerprint", None] =!=
+      multiquadraticStripFingerprint[header],
+    Return[<|"Status" -> "PrepareCheckpointSealMismatch",
+      "Substage" -> substage|>]];
+  <|"Status" -> "Accepted", "Substage" -> substage,
+    "Payload" -> (record["Payload"] /.
+      (Reverse /@ multiquadraticStripCanonicalRules[variables, epsilon]))|>
+];
+multiquadraticStripPrepareCheckpointAccept[___] :=
+  <|"Status" -> "PrepareCheckpointInvalidArguments"|>;
 
 multiquadraticStripZeroQ[value_] :=
   AllTrue[Flatten[{value}], TrueQ[Together[#1] === 0] &];
@@ -520,10 +709,61 @@ multiquadraticStripCanonicalText[expression_, rules_List] := Module[
 (* Field arithmetic in the grade basis                                  *)
 (* ------------------------------------------------------------------ *)
 
-(* Inversion is a 2^r x 2^r rational linear solve followed by the exact
-   product check; the check, not LinearSolve's message channel, decides
-   (Check would reject a valid inverse after any suppressed message). *)
-multiquadraticFieldInverse[a_List, deltas_List] /;
+(* ---- RECURSIVE QUADRATIC-TOWER INVERSION (2026-08-25, Codex 14:30
+   "rank-3 inversion strategy") ----------------------------------------
+
+   The historical route below builds the 2^r x 2^r multiplication matrix
+   of the element and solves it symbolically.  At rank 3 that is an 8x8
+   rational linear solve whose entries are the strip's own rational
+   functions, and it was the measured cost of every rank-3 channel
+   decomposition.
+
+   The tower does it with r divisions of DEGREE TWO instead.  Write
+   A_k = A_{k-1}[r_k]/(r_k^2 - delta_k) and split the channel vector on
+   the top bit, a = u + v r_k with u, v in A_{k-1} (the low and high
+   halves of the vector, in exactly the mask order the ABI uses).  Then
+
+       a^-1 = (u - v r_k) N^-1,    N = u^2 - delta_k v^2  in A_{k-1},
+
+   so one rank-k inversion is two squarings and two products in
+   A_{k-1} plus ONE rank-(k-1) inversion, and the recursion bottoms out
+   at a single rational division.  The result is the same element of the
+   same field; it is accepted by the SAME exact product check as before,
+   which is the acceptance that decides, not the route.
+
+   The LinearSolve route is kept callable as the reference the
+   equivalence test holds the tower to, and as the fallback if the tower
+   cannot divide (a zero norm at some level of the tower means the
+   element is a zero divisor, and both routes then refuse). *)
+multiquadraticFieldInverseTower[a_List, deltas_List] := Module[
+  {rank = Length[deltas], half, u, v, subDeltas, uSquare, vSquare, norm,
+   normInverse},
+  If[Length[a] =!= 2^rank, Return[$Failed]];
+  If[rank === 0,
+    Return[If[TrueQ[Together[First[a]] === 0], $Failed,
+      {Together[1/First[a]]}]]];
+  half = 2^(rank - 1);
+  u = Take[a, half];
+  v = Drop[a, half];
+  subDeltas = Most[deltas];
+  (* a purely low element is an element of A_{k-1}: no norm is needed *)
+  If[multiquadraticStripZeroQ[v],
+    Return[Module[{inner = multiquadraticFieldInverseTower[u, subDeltas]},
+      If[inner === $Failed, $Failed,
+        Join[inner, ConstantArray[0, half]]]]]];
+  uSquare = multiquadraticMultiply[u, u, subDeltas];
+  vSquare = multiquadraticMultiply[v, v, subDeltas];
+  norm = Together /@ (uSquare - Last[deltas] vSquare);
+  normInverse = multiquadraticFieldInverseTower[norm, subDeltas];
+  If[normInverse === $Failed, Return[$Failed]];
+  Join[
+    Together /@ multiquadraticMultiply[u, normInverse, subDeltas],
+    Together /@ (- multiquadraticMultiply[v, normInverse, subDeltas])]
+];
+multiquadraticFieldInverseTower[___] := $Failed;
+
+(* the pre-2026-08-25 route, kept as the equivalence reference *)
+multiquadraticFieldInverseLinearSolve[a_List, deltas_List] /;
     Length[a] === 2^Length[deltas] := Module[
   {dimension = Length[a], columns, matrix, inverse, check},
   If[multiquadraticStripZeroQ[Rest[a]],
@@ -538,6 +778,37 @@ multiquadraticFieldInverse[a_List, deltas_List] /;
   inverse = Together /@ inverse;
   check = multiquadraticMultiply[a, inverse, deltas];
   If[! multiquadraticStripZeroQ[check - UnitVector[dimension, 1]], $Failed, inverse]
+];
+multiquadraticFieldInverseLinearSolve[___] := $Failed;
+
+(* "RecursiveTower" (the default) or "LinearSolve" (the reference).  The
+   acceptance is the same exact product check on both routes, so the
+   method is a cost decision and never a correctness one. *)
+$multiquadraticFieldInverseMethod = "RecursiveTower";
+
+multiquadraticFieldInverse[a_List, deltas_List] /;
+    Length[a] === 2^Length[deltas] := Module[
+  {dimension = Length[a], inverse, check},
+  (* the grade-zero fast path, ahead of both routes: a rational scalar
+     inverts in one division and needs no tower and no matrix *)
+  If[multiquadraticStripZeroQ[Rest[a]],
+    If[TrueQ[Together[First[a]] === 0], Return[$Failed]];
+    Return[Prepend[ConstantArray[0, dimension - 1], Together[1/First[a]]]]];
+  inverse = If[$multiquadraticFieldInverseMethod === "LinearSolve",
+    multiquadraticFieldInverseLinearSolve[a, deltas],
+    multiquadraticFieldInverseTower[a, deltas]];
+  (* a tower that cannot divide has met a zero norm at some level; the
+     matrix route is asked once before the element is called singular,
+     so no element that the historical route inverted is refused now *)
+  If[(! ListQ[inverse] || Length[inverse] =!= dimension) &&
+      $multiquadraticFieldInverseMethod =!= "LinearSolve",
+    inverse = multiquadraticFieldInverseLinearSolve[a, deltas]];
+  If[! ListQ[inverse] || Length[inverse] =!= dimension, Return[$Failed]];
+  (* THE acceptance, unchanged and route independent *)
+  check = multiquadraticMultiply[a, inverse, deltas];
+  If[! ListQ[check] ||
+      ! multiquadraticStripZeroQ[check - UnitVector[dimension, 1]],
+    $Failed, inverse]
 ];
 multiquadraticFieldInverse[___] := $Failed;
 
@@ -1019,6 +1290,71 @@ multiquadraticStripLetterOneForm[letter_, variables : {x_, y_}] := Module[
   derivative
 ];
 
+(* ---- the compact-route dlog certificate (2026-08-25, Codex 14:30 P1)
+
+   multiquadraticStripCompileOneFormEntry may compile a one-form by
+   decomposing its LETTER and differentiating inside the grade algebra --
+   which computes the channels of dlog(Letter), not the channels of the
+   form it was asked to compile.  Those two agree exactly when the record
+   is one this module built.  The old admission test was
+   SameQ[record["OneForm"], form]: it proves the caller passed the form
+   it stored, and NOTHING about whether that form is the letter's dlog.
+   A caller-assembled record naming a correct letter and a wrong one-form
+   passed it, and the compiler then silently installed dlog(Letter) in
+   place of the requested form.
+
+   The certificate is minted HERE, at the only site that pairs a letter
+   with the one-form it computed from it, and it binds the SHA-256 of
+   BOTH canonical texts.  Admission re-derives both hashes from the
+   letter and the form actually presented at the call, so a mutation of
+   either field breaks the binding.  It is provenance, not a proof of
+   correctness of this function; what it proves is that these two
+   objects were produced together by this code path from this source. *)
+$multiquadraticStripLetterDLogSchema = "MultiquadraticLetterDLogV1";
+
+(* The two hashes use exactly the normalization
+   multiquadraticStripFormTextKey already applies to every candidate
+   one-form -- ONE Together per component and the InputForm text of the
+   result.  Deliberately NOT multiquadraticStripCanonicalText, which
+   additionally Expands the numerator and the denominator: on a real
+   block's algebraic one-form that Expand is unbounded, and it would
+   make minting a provenance tag cost more than the algebra the tag
+   exists to avoid.  Together alone is canonical enough for a hash --
+   it is deterministic, and the mint and the check run it on the same
+   objects. *)
+multiquadraticStripLetterDLogCertificate[letter_, form_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
+  multiquadraticStripLetterDLogCertificateWithKey[letter,
+    If[MatchQ[form, {_, _}],
+      multiquadraticStripFormTextKey[form, variables, epsilon],
+      $Failed], variables, epsilon];
+
+(* the form key is what multiquadraticStripCandidateLetters computes for
+   every record anyway, so the mint costs ONE Together on the letter *)
+multiquadraticStripLetterDLogCertificateWithKey[letter_, formKey_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
+  {rules, letterText},
+  If[! StringQ[formKey] || MissingQ[letter], Return[Missing["NoLetter"]]];
+  rules = multiquadraticStripCanonicalRules[variables, epsilon];
+  letterText = Quiet[ToString[InputForm[Together[letter /. rules]]]];
+  If[! StringQ[letterText], Return[Missing["LetterNotNormalizable"]]];
+  <|"Schema" -> $multiquadraticStripLetterDLogSchema,
+    "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+    "LetterSHA256" -> Hash[letterText, "SHA256", "HexString"],
+    "OneFormSHA256" -> formKey|>
+];
+
+multiquadraticStripLetterDLogCertificateValidQ[certificate_, letter_, form_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[{expected},
+  If[! AssociationQ[certificate], Return[False]];
+  If[Lookup[certificate, "Schema", None] =!=
+      $multiquadraticStripLetterDLogSchema, Return[False]];
+  expected = multiquadraticStripLetterDLogCertificate[letter, form,
+    variables, epsilon];
+  AssociationQ[expected] && SameQ[
+    KeyTake[certificate, Keys[expected]], expected]
+];
+
 (* The row's already-installed alphabets.  A driver hands over the
    sector state's StripSolvers records; the blocks that share this
    block's ROW (same upper sector) or its COLUMN (same lower sector) are
@@ -1094,8 +1430,16 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
     fkey = multiquadraticStripFormTextKey[oneForm, variables, epsilon];
     If[KeyExistsQ[keys, fkey], Return[Null]];
     AssociateTo[keys, fkey -> True];
+    (* THE dlog CERTIFICATE, minted at the one site that pairs a letter
+       with the one-form computed from it.  A "Diagonal" record carries
+       Missing["NotADLog"] as its letter and therefore no certificate: it
+       is a closed form, not a dlog, and the compact route must refuse it
+       -- which is exactly what an absent certificate makes it do. *)
     AppendTo[records, Join[<|"Kind" -> kind, "Letter" -> letter,
-      "OneForm" -> oneForm, "FormKey" -> fkey|>, extra]]];
+      "OneForm" -> oneForm, "FormKey" -> fkey,
+      "DLogCertificate" -> If[MissingQ[letter], Missing["NotADLog"],
+        multiquadraticStripLetterDLogCertificateWithKey[letter, fkey,
+          variables, epsilon]]|>, extra]]];
   diagonal = multiquadraticScalarOneForms /@ {e, c};
   Do[
     If[! multiquadraticClosedOneFormQ[form, variables], Continue[]];
@@ -1407,7 +1751,11 @@ Options[multiquadraticStripIntegrabilityScreen] = {
   "ScoreLetters" -> True,
   "Deadline" -> Infinity,
   "MaximumUnknowns" -> Automatic,
-  "MaximumBytes" -> Automatic
+  "MaximumBytes" -> Automatic,
+  (* the byte ceiling of the shared compiled-scalar cache, as an OPTION
+     rather than a dynamic global: a per-call ceiling belongs to the
+     call (2026-08-25).  Automatic is the module constant. *)
+  "CompileCacheBytes" -> Automatic
 };
 
 multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
@@ -1425,6 +1773,7 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
    rightVector, rankA, rankAugmented, defect, witness, nullVectors, scored,
    keptColumns, screenStatus, rationalLeaves,
    deadline, maximumUnknowns, maximumBytes, sizeEstimate, refusal,
+   lettersCompiled = 0, letterIndex, compileCacheBytes,
    startTime = AbsoluteTime[], phaseTimings = <||>, compileSeconds,
    assemblySeconds, rankSeconds, leftNullSeconds = 0., expired = False,
    compileStatisticsBefore},
@@ -1439,6 +1788,11 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
     Automatic :> $multiquadraticStripScreenMaximumUnknowns];
   maximumBytes = Replace[OptionValue["MaximumBytes"],
     Automatic :> $multiquadraticStripScreenMaximumBytes];
+  compileCacheBytes = Replace[OptionValue["CompileCacheBytes"],
+    Automatic :> $multiquadraticStripScreenCompileCacheLimit];
+  If[! (NumericQ[compileCacheBytes] && compileCacheBytes > 0),
+    Return[multiquadraticStripFailure["InvalidScreenCompileCacheBytes",
+      <|"CompileCacheBytes" -> compileCacheBytes|>]]];
   variables = Lookup[record, "Variables", $Failed];
   epsilon = Lookup[record, "Regulator", $Failed];
   strip = Lookup[record, "Strip", $Failed];
@@ -1495,14 +1849,33 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
       {Power::infy, Infinity::indet, Power::indet}]],
     roots, rootSymbols, variables, prime];
   compileStatisticsBefore = $multiquadraticStripScreenCompileStatistics;
+  (* INTERIOR BOUNDARIES of the compile phase (2026-08-25): the letter,
+     and the three diagonal/forcing tensors.  See the identical note in
+     multiquadraticStripGaugeScreen. *)
+  lettersCompiled = 0;
   compileSeconds = First[AbsoluteTiming[
+   Block[{$multiquadraticStripScreenCompileCacheLimit = compileCacheBytes},
     deltaCompiled = multiquadraticStripScreenCompileCached[#1, {}, rootSymbols,
         variables, prime] & /@ Lookup[roots, "RootSquare", {}];
-    eCompiled = Map[compileScalar, e, {3}];
-    cCompiled = Map[compileScalar, c, {3}];
-    bCompiled = Map[compileScalar, bbar, {3}];
-    letterCompiled = Map[compileScalar,
-      Lookup[letterRecords, "OneForm", {}], {2}];]];
+    If[multiquadraticStripDeadlineExpiredQ[deadline], expired = True];
+    eCompiled = If[expired, {}, Map[compileScalar, e, {3}]];
+    If[multiquadraticStripDeadlineExpiredQ[deadline], expired = True];
+    cCompiled = If[expired, {}, Map[compileScalar, c, {3}]];
+    If[multiquadraticStripDeadlineExpiredQ[deadline], expired = True];
+    bCompiled = If[expired, {}, Map[compileScalar, bbar, {3}]];
+    letterCompiled = With[
+      {forms = Lookup[letterRecords, "OneForm", {}]},
+      Table[
+        If[expired || multiquadraticStripDeadlineExpiredQ[deadline],
+          expired = True; {},
+          lettersCompiled++; compileScalar /@ forms[[letterIndex]]],
+        {letterIndex, Length[forms]}]];]]];
+  If[TrueQ[expired],
+    Return[multiquadraticStripBudgetExhausted[
+      "IntegrabilityScreen:LetterCompile", AbsoluteTime[] - startTime,
+      deadline, <|"SizeEstimate" -> sizeEstimate,
+        "LettersCompiled" -> lettersCompiled, "LetterCount" -> letterCount,
+        "PhaseTimings" -> <|"Compile" -> compileSeconds|>|>]]];
   If[! FreeQ[{deltaCompiled, eCompiled, cCompiled, bCompiled, letterCompiled},
       $Failed],
     Return[<|"Status" -> "IntegrabilityScreenNotApplicable",
@@ -1646,6 +2019,19 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
     rankAugmented = MatrixRank[MapThread[Append, {matrix, rightVector}],
       Modulus -> prime];]];
   defect = rankAugmented - rankA;
+  (* POST-RANK BOUNDARY (2026-08-25): the verdict is paid for, and the
+     left null space plus one MatrixRank per letter below is a second
+     expensive block.  The stop carries the rank pair it measured. *)
+  If[(defect > 0 || (TrueQ[OptionValue["ScoreLetters"]] && letterCount > 1)) &&
+      multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[multiquadraticStripBudgetExhausted["IntegrabilityScreen:PostRank",
+      AbsoluteTime[] - startTime, deadline,
+      <|"SizeEstimate" -> sizeEstimate,
+        "MatrixDimensions" -> Dimensions[matrix],
+        "Defect" -> defect, "Rank" -> rankA,
+        "AugmentedRank" -> rankAugmented, "LetterCount" -> letterCount,
+        "PhaseTimings" -> <|"Compile" -> compileSeconds,
+          "PointAssembly" -> assemblySeconds, "Rank" -> rankSeconds|>|>]]];
   witness = Missing["Consistent"];
   If[defect > 0,
     leftNullSeconds = First[AbsoluteTiming[
@@ -1919,7 +2305,9 @@ Options[multiquadraticStripGaugeScreen] = {
   "LeftNullSpace" -> Automatic,
   "Deadline" -> Infinity,
   "MaximumUnknowns" -> Automatic,
-  "MaximumBytes" -> Automatic
+  "MaximumBytes" -> Automatic,
+  (* see the note at multiquadraticStripIntegrabilityScreen *)
+  "CompileCacheBytes" -> Automatic
 };
 
 multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
@@ -1944,7 +2332,8 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
    startTime = AbsoluteTime[], subsetDefect,
    deadline, maximumUnknowns, maximumBytes, sizeEstimate, refusal,
    phaseTimings = <||>, compileSeconds, assemblySeconds, rankSeconds,
-   leftNullSeconds = 0., expired = False, compileStatisticsBefore},
+   leftNullSeconds = 0., expired = False, compileStatisticsBefore,
+   lettersCompiled = 0, letterIndex, candidateIndex, compileCacheBytes},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripGaugeScreen]]]];
   If[AssociationQ[gate], Return[gate]];
@@ -1956,6 +2345,11 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
     Automatic :> $multiquadraticStripScreenMaximumUnknowns];
   maximumBytes = Replace[OptionValue["MaximumBytes"],
     Automatic :> $multiquadraticStripScreenMaximumBytes];
+  compileCacheBytes = Replace[OptionValue["CompileCacheBytes"],
+    Automatic :> $multiquadraticStripScreenCompileCacheLimit];
+  If[! (NumericQ[compileCacheBytes] && compileCacheBytes > 0),
+    Return[multiquadraticStripFailure["InvalidScreenCompileCacheBytes",
+      <|"CompileCacheBytes" -> compileCacheBytes|>]]];
   record = Lookup[ansatz, "Record", <||>];
   If[! AssociationQ[record], record = <||>];
   variables = Lookup[ansatz, "Variables", Lookup[record, "Variables", $Failed]];
@@ -2051,15 +2445,44 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
       {Power::infy, Infinity::indet, Power::indet}]],
     roots, rootSymbols, variables, prime];
   compileStatisticsBefore = $multiquadraticStripScreenCompileStatistics;
+  (* INTERIOR BOUNDARIES of the compile phase (2026-08-25, Codex 14:30
+     "screen interior boundaries").  Until today the screen read the
+     deadline only BEFORE this phase and again after it: a 52-letter
+     alphabet on a wide block spends minutes here and an expired budget
+     could not stop between two letters.  The boundary is the LETTER
+     (and the diagonal/forcing tensor), which is the finest one that
+     exists without changing what is compiled -- one letter is one
+     Together plus one modular polynomial compile and is not
+     interruptible inside. *)
+  lettersCompiled = 0;
   compileSeconds = First[AbsoluteTiming[
+  Block[{$multiquadraticStripScreenCompileCacheLimit = compileCacheBytes},
   deltaCompiled = multiquadraticStripScreenCompileCached[#1, {}, rootSymbols,
       variables, prime] & /@ Lookup[roots, "RootSquare", {}];
-  eCompiled = Map[compileScalar, e, {3}];
-  cCompiled = Map[compileScalar, c, {3}];
-  bCompiled = Map[compileScalar, bbar, {3}];
-  formCompiled = Map[compileScalar, oneForms, {2}];
-  candidateCompiled = Map[compileScalar, candidateForms, {2}];
-  denominatorCompiled = compileScalar[gaugeDenominator];]];
+  If[multiquadraticStripDeadlineExpiredQ[deadline], expired = True];
+  eCompiled = If[expired, {}, Map[compileScalar, e, {3}]];
+  If[multiquadraticStripDeadlineExpiredQ[deadline], expired = True];
+  cCompiled = If[expired, {}, Map[compileScalar, c, {3}]];
+  If[multiquadraticStripDeadlineExpiredQ[deadline], expired = True];
+  bCompiled = If[expired, {}, Map[compileScalar, bbar, {3}]];
+  formCompiled = Table[
+    If[expired || multiquadraticStripDeadlineExpiredQ[deadline],
+      expired = True; {},
+      lettersCompiled++; compileScalar /@ oneForms[[letterIndex]]],
+    {letterIndex, letterCount}];
+  candidateCompiled = Table[
+    If[expired || multiquadraticStripDeadlineExpiredQ[deadline],
+      expired = True; {},
+      compileScalar /@ candidateForms[[candidateIndex]]],
+    {candidateIndex, candidateCount}];
+  denominatorCompiled = If[expired, $Failed,
+    compileScalar[gaugeDenominator]];]]];
+  If[TrueQ[expired],
+    Return[multiquadraticStripBudgetExhausted["GaugeScreen:LetterCompile",
+      AbsoluteTime[] - startTime, deadline,
+      <|"SizeEstimate" -> sizeEstimate,
+        "LettersCompiled" -> lettersCompiled, "LetterCount" -> letterCount,
+        "PhaseTimings" -> <|"Compile" -> compileSeconds|>|>]]];
   If[! FreeQ[{deltaCompiled, eCompiled, cCompiled, bCompiled, formCompiled,
       candidateCompiled, denominatorCompiled}, $Failed],
     Return[<|"Status" -> "GaugeScreenNotApplicable",
@@ -2232,12 +2655,23 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
   defect = rankAugmented - rankA;
   wanted = Replace[OptionValue["LeftNullSpace"],
     Automatic :> (defect > 0 || candidateCount > 0)];
-  If[TrueQ[wanted] && multiquadraticStripDeadlineExpiredQ[deadline],
-    Return[multiquadraticStripBudgetExhausted["GaugeScreen:LeftNullSpace",
+  (* POST-RANK BOUNDARY (2026-08-25).  The rank pair is the screen's
+     verdict and it is now paid for; what remains -- the left null space
+     of the transpose and one MatrixRank per candidate letter -- is a
+     second expensive block.  The stop therefore carries the rank and the
+     defect it already measured, so a resumed run knows the verdict even
+     though the witness was never built.  It fires only when that second
+     block would actually run. *)
+  If[(TrueQ[wanted] || candidateCount > 0) &&
+      multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[multiquadraticStripBudgetExhausted["GaugeScreen:PostRank",
       AbsoluteTime[] - startTime, deadline,
       <|"SizeEstimate" -> sizeEstimate,
         "MatrixDimensions" -> Dimensions[matrix],
         "Defect" -> defect, "Rank" -> rankA,
+        "AugmentedRank" -> rankAugmented,
+        "LeftNullSpaceWanted" -> TrueQ[wanted],
+        "CandidateCount" -> candidateCount,
         "PhaseTimings" -> <|"Compile" -> compileSeconds,
           "PointAssembly" -> assemblySeconds, "Rank" -> rankSeconds|>|>]]];
   leftNullSeconds = First[AbsoluteTiming[
@@ -3284,7 +3718,19 @@ Options[multiquadraticStripPrepare] = {
      every existing caller is unchanged.  See the note at
      multiquadraticStripDeadlineCheckpoint: until 2026-08-25 this was the
      last stage of the engine outside the sector budget. *)
-  "Deadline" -> Infinity
+  "Deadline" -> Infinity,
+  (* ---- intermediate persistence (2026-08-25).  None (the default)
+     writes and reads nothing, so every existing caller is unchanged.
+     A directory turns on BOTH: each expensive substage writes its
+     sealed record and a later preparation of the SAME inputs reads it
+     back instead of recomputing.  "Write" and "Read" split that for a
+     driver that wants one direction only. *)
+  "CheckpointDirectory" -> None,
+  "CheckpointMode" -> Automatic,
+  (* Automatic derives the tag from the record's Family / Sector /
+     LowerSector, which is what the sector driver already names its
+     strip artifacts by *)
+  "CheckpointTag" -> Automatic
 };
 
 multiquadraticStripPrepare[record_Association, frame_Association,
@@ -3297,6 +3743,11 @@ multiquadraticStripPrepare[record_Association, frame_Association,
    gradeCount, gaugeUnknownCount, residueUnknownCount, unknownCount,
    equationsPerPoint, normalizations, payload, fingerprint,
    coreEnabled, coreCanonical, coreDimensions, coreKey, coreConsumed = False,
+   checkpointDirectory, checkpointMode, checkpointTag, checkpointRecords = {},
+   checkpointRead, checkpointWrite, checkpointInputFingerprint,
+   forcingCheckpointFingerprint, checkpointChannels,
+   letterCheckpointFingerprint, checkpointLetters,
+   denominatorCheckpointFingerprint, checkpointDenominator,
    deadline, prepareProgress, prepareBudget, prepareStop, prepareGuard,
    familyName, sectorId, lowerSectorId, startTime = AbsoluteTime[],
    pathStatisticsBefore = multiquadraticFieldPathStatistics[], pathStatistics},
@@ -3409,20 +3860,129 @@ multiquadraticStripPrepare[record_Association, frame_Association,
   coreCanonical = multiquadraticStripCoreCanonicalData[record, roots,
     variables, epsilon];
   coreDimensions = Quiet[Check[Dimensions[strip[[3, 1]]], $Failed]];
+  (* ---- the intermediate-persistence layer of THIS preparation ------
+     Resolved once, here, so that every substage below is one
+     checkpointRead / checkpointWrite pair and nothing about the file
+     layout leaks into the substages themselves. *)
+  checkpointDirectory = OptionValue["CheckpointDirectory"];
+  checkpointMode = Replace[OptionValue["CheckpointMode"],
+    Automatic -> "ReadWrite"];
+  If[! (checkpointDirectory === None || StringQ[checkpointDirectory]) ||
+      ! MemberQ[{"ReadWrite", "Read", "Write", "None"}, checkpointMode],
+    Return[multiquadraticStripFailure["InvalidPrepareCheckpointOption",
+      <|"CheckpointDirectory" -> checkpointDirectory,
+        "CheckpointMode" -> checkpointMode|>]]];
+  checkpointTag = Replace[OptionValue["CheckpointTag"], Automatic :>
+    StringJoin[Riffle[ToString /@ {Lookup[record, "Family", "family"],
+      Lookup[record, "Sector", 0], Lookup[record, "LowerSector", 0]}, "_"]]];
+  If[! StringQ[checkpointTag] || StringLength[checkpointTag] === 0 ||
+      ! StringFreeQ[checkpointTag, {"/", "\\", ".."}],
+    Return[multiquadraticStripFailure["InvalidPrepareCheckpointTag",
+      <|"CheckpointTag" -> checkpointTag|>]]];
+  (* the inputs EVERY substage of this preparation shares: this strip's
+     canonical equation text, and the canonical root order.  A substage
+     appends whatever else it consumed. *)
+  checkpointInputFingerprint[substage_String, extra_] :=
+    multiquadraticStripFingerprint[{substage,
+      If[AssociationQ[coreCanonical],
+        Lookup[coreCanonical, {"EquationCanonical", "RootCanonicalSquares",
+          "RootCanonicalExpressions"}], $Failed],
+      coreDimensions, extra}];
+  (* read: Missing if persistence is off, this substage has no file, or
+     the file exists and does not authenticate -- and in the last case
+     the refusal is RECORDED, so a poisoned checkpoint is visible in the
+     preparation rather than silently ignored *)
+  checkpointRead[substage_String, fingerprint_] := Module[
+    {file, raw, verdict},
+    If[checkpointDirectory === None ||
+        ! MemberQ[{"ReadWrite", "Read"}, checkpointMode],
+      Return[Missing["CheckpointsDisabled"]]];
+    file = multiquadraticStripPrepareCheckpointFile[checkpointDirectory,
+      checkpointTag, substage];
+    If[! FileExistsQ[file],
+      AppendTo[checkpointRecords, <|"Substage" -> substage,
+        "Action" -> "Read", "Status" -> "PrepareCheckpointAbsent",
+        "File" -> file|>];
+      Return[Missing["CheckpointAbsent"]]];
+    raw = multiquadraticStripArtifactLoadRaw[file,
+      "FeynFacet`MultiquadraticArtifact`"];
+    If[Lookup[raw, "Status", None] =!= "RawMultiquadraticArtifact",
+      AppendTo[checkpointRecords, <|"Substage" -> substage,
+        "Action" -> "Read", "Status" -> Lookup[raw, "Status", "ReadFailed"],
+        "File" -> file|>];
+      Return[Missing["CheckpointUnreadable"]]];
+    verdict = multiquadraticStripPrepareCheckpointAccept[raw["Value"],
+      substage, fingerprint, variables, epsilon];
+    AppendTo[checkpointRecords, <|"Substage" -> substage,
+      "Action" -> "Read", "Status" -> Lookup[verdict, "Status", None],
+      "File" -> file, "FileSHA256" -> raw["SHA256"],
+      "Refusal" -> KeyDrop[verdict, {"Status", "Payload"}]|>];
+    If[Lookup[verdict, "Status", None] =!= "Accepted",
+      Return[Missing["CheckpointRefused"]]];
+    verdict["Payload"]];
+  checkpointWrite[substage_String, fingerprint_, payload_] := Module[
+    {file, checkpoint, written},
+    If[checkpointDirectory === None ||
+        ! MemberQ[{"ReadWrite", "Write"}, checkpointMode], Return[Null]];
+    checkpoint = multiquadraticStripPrepareCheckpointRecord[substage,
+      fingerprint, payload, variables, epsilon];
+    If[checkpoint === $Failed,
+      AppendTo[checkpointRecords, <|"Substage" -> substage,
+        "Action" -> "Write", "Status" -> "PrepareCheckpointNotContextFree"|>];
+      Return[Null]];
+    file = multiquadraticStripPrepareCheckpointFile[checkpointDirectory,
+      checkpointTag, substage];
+    written = Quiet[Check[multiquadraticStripArtifactWrite[checkpoint, file],
+      $Failed]];
+    AppendTo[checkpointRecords, <|"Substage" -> substage,
+      "Action" -> "Write",
+      "Status" -> If[AssociationQ[written],
+        Lookup[written, "Status", "WriteFailed"], "PrepareCheckpointWriteFailed"],
+      "File" -> file,
+      "FileSHA256" -> If[AssociationQ[written],
+        Lookup[written, "SHA256", Missing["NoHash"]], Missing["NoHash"]]|>];
+    Null];
   coreKey = If[AssociationQ[coreCanonical] &&
-      MatchQ[coreDimensions, {_Integer, _Integer}],
+      MatchQ[coreDimensions, {_Integer, _Integer}] &&
+      FreeQ[coreCanonical, $Failed],
     multiquadraticStripCompileCoreKeyFromParts[
       multiquadraticAlgebraABIFingerprint[],
       Hash[coreCanonical["EquationCanonical"], "SHA256", "HexString"],
       Hash[coreCanonical["RootCanonicalSquares"], "SHA256", "HexString"],
-      coreCanonical["RootCanonicalSquares"], coreDimensions,
+      coreCanonical["RootCanonicalSquares"],
+      coreCanonical["RootCanonicalExpressions"], coreDimensions,
       variables, epsilon],
     $Failed];
   (* before the forcing decomposition -- the stage that made this
      coverage necessary *)
   If[prepareGuard["ForcingChannels"], Return[prepareStop]];
-  channelForcing = If[suppliedChannels["Status"] === "Accepted",
-    suppliedChannels["Channels"],
+  (* CHECKPOINT (2026-08-25).  The payload of the forcing checkpoint IS
+     the V2 sealed forcing-channel record, so a checkpoint read is
+     authenticated by exactly the code path an in-memory reuse is: the
+     envelope proves the file belongs to this strip and this source, and
+     the seal inside it proves the channels are the decomposition of
+     THIS forcing.  A mutated channel fails the inner seal even if the
+     envelope is rebuilt around it. *)
+  forcingCheckpointFingerprint =
+    checkpointInputFingerprint["ForcingChannels", {}];
+  checkpointChannels = If[suppliedChannels["Status"] === "Accepted",
+    Missing["ChannelsSupplied"],
+    Module[{stored = checkpointRead["ForcingChannels",
+        forcingCheckpointFingerprint], accept},
+      If[MissingQ[stored], Missing["NoCheckpoint"],
+        accept = multiquadraticStripForcingChannelsAccept[stored, strip[[3]],
+          roots, variables, epsilon];
+        AppendTo[checkpointRecords, <|"Substage" -> "ForcingChannels",
+          "Action" -> "Seal", "Status" -> Lookup[accept, "Status", None]|>];
+        If[Lookup[accept, "Status", None] === "Accepted", accept["Channels"],
+          Missing["CheckpointSealRefused"]]]]];
+  channelForcing = Which[
+    suppliedChannels["Status"] === "Accepted", suppliedChannels["Channels"],
+    ! MissingQ[checkpointChannels],
+      multiquadraticStripStageMark["prepare: forcing channel decomposition",
+        <|"source" -> "Checkpoint", "forcing" -> coreDimensions|>];
+      checkpointChannels,
+    True,
     Module[{stage = "prepare: forcing channel decomposition", seconds = 0.,
         built = $Failed},
       multiquadraticStripStageStart[stage,
@@ -3472,33 +4032,74 @@ multiquadraticStripPrepare[record_Association, frame_Association,
   If[AssociationQ[prepareStop], Return[prepareStop]];
   If[! FreeQ[channelForcing, $Failed],
     Return[multiquadraticStripFailure["ForcingChannelDecompositionFailed"]]];
+  (* written only when this call actually decomposed: a checkpoint that
+     was just read back is not rewritten, and a supplied decomposition
+     belongs to its caller, not to this strip's persistence *)
+  If[suppliedChannels["Status"] =!= "Accepted" && MissingQ[checkpointChannels],
+    checkpointWrite["ForcingChannels", forcingCheckpointFingerprint,
+      multiquadraticStripForcingChannelRecord[channelForcing, strip[[3]],
+        roots, variables, epsilon]]];
   letterRecords = OptionValue["LetterRecords"];
   oneFormData = OptionValue["OneForms"];
   (* before the candidate-letter construction, a single opaque call *)
   If[prepareGuard["CandidateLetters"], Return[prepareStop]];
   If[oneFormData === Automatic,
     If[! MatchQ[letterRecords, {___Association}],
-      multiquadraticStripStageStart["prepare: candidate letters",
-        <|"family" -> Lookup[record, "Family", None],
-          "sector" -> Lookup[record, "Sector", None],
-          "lower" -> Lookup[record, "LowerSector", None],
-          "rank" -> Length[roots], "forcing" -> coreDimensions|>];
-      letterRecords = multiquadraticStripCandidateLetters[strip, roots,
-        variables, epsilon, record,
-        "RegulatorSampleCount" -> OptionValue["RegulatorSampleCount"],
-        "RegulatorSamplePool" -> OptionValue["RegulatorSamplePool"],
-        "RowAlphabet" -> OptionValue["RowAlphabet"],
-        "AdditionalLetters" -> OptionValue["AdditionalLetters"],
-        "AlgebraicLetters" -> OptionValue["AlgebraicLetters"],
-        "MaximumNormFactors" -> OptionValue["MaximumNormFactors"],
-        "MaximumNormExponent" -> OptionValue["MaximumNormExponent"]];
-      multiquadraticStripStageDone["prepare: candidate letters",
-        <|"status" -> Lookup[letterRecords, "Status", None],
-          "letters" -> Length[Lookup[letterRecords, "LetterRecords", {}]]|>];
+      (* CHECKPOINT: the whole candidate-letter record, keyed on the
+         strip, the root order, the letter-construction options and the
+         row alphabet the record supplies -- the complete input of
+         multiquadraticStripCandidateLetters. *)
+      letterCheckpointFingerprint = checkpointInputFingerprint[
+        "CandidateLetters",
+        {OptionValue["RegulatorSampleCount"],
+         OptionValue["RegulatorSamplePool"],
+         multiquadraticStripFingerprint[OptionValue["RowAlphabet"] /.
+           multiquadraticStripCanonicalRules[variables, epsilon]],
+         multiquadraticStripFingerprint[OptionValue["AdditionalLetters"] /.
+           multiquadraticStripCanonicalRules[variables, epsilon]],
+         multiquadraticStripFingerprint[OptionValue["AlgebraicLetters"] /.
+           multiquadraticStripCanonicalRules[variables, epsilon]],
+         OptionValue["MaximumNormFactors"],
+         OptionValue["MaximumNormExponent"],
+         Lookup[record, {"Sector", "LowerSector"}, None],
+         multiquadraticStripFingerprint[
+           Replace[Lookup[record, "StripSolvers", {}], Except[_List] :> {}] /.
+             multiquadraticStripCanonicalRules[variables, epsilon]]}];
+      checkpointLetters = checkpointRead["CandidateLetters",
+        letterCheckpointFingerprint];
+      If[! MissingQ[checkpointLetters] &&
+          Lookup[checkpointLetters, "Status", None] ===
+            "MultiquadraticCandidateLettersV1",
+        multiquadraticStripStageMark["prepare: candidate letters",
+          <|"source" -> "Checkpoint",
+            "letters" -> Length[Lookup[checkpointLetters, "LetterRecords",
+              {}]]|>];
+        letterRecords = checkpointLetters,
+        checkpointLetters = Missing["NoCheckpoint"];
+        multiquadraticStripStageStart["prepare: candidate letters",
+          <|"family" -> Lookup[record, "Family", None],
+            "sector" -> Lookup[record, "Sector", None],
+            "lower" -> Lookup[record, "LowerSector", None],
+            "rank" -> Length[roots], "forcing" -> coreDimensions|>];
+        letterRecords = multiquadraticStripCandidateLetters[strip, roots,
+          variables, epsilon, record,
+          "RegulatorSampleCount" -> OptionValue["RegulatorSampleCount"],
+          "RegulatorSamplePool" -> OptionValue["RegulatorSamplePool"],
+          "RowAlphabet" -> OptionValue["RowAlphabet"],
+          "AdditionalLetters" -> OptionValue["AdditionalLetters"],
+          "AlgebraicLetters" -> OptionValue["AlgebraicLetters"],
+          "MaximumNormFactors" -> OptionValue["MaximumNormFactors"],
+          "MaximumNormExponent" -> OptionValue["MaximumNormExponent"]];
+        multiquadraticStripStageDone["prepare: candidate letters",
+          <|"status" -> Lookup[letterRecords, "Status", None],
+            "letters" -> Length[Lookup[letterRecords, "LetterRecords", {}]]|>]];
       If[Lookup[letterRecords, "Status", None] =!=
           "MultiquadraticCandidateLettersV1",
         Return[If[AssociationQ[letterRecords], letterRecords,
           multiquadraticStripFailure["OneFormBasisFailed"]]]];
+      If[MissingQ[checkpointLetters],
+        checkpointWrite["CandidateLetters", letterCheckpointFingerprint,
+          letterRecords]];
       oneFormData = letterRecords;
       letterRecords = oneFormData["LetterRecords"],
       oneFormData = <|"OneForms" -> Lookup[letterRecords, "OneForm", {}],
@@ -3510,18 +4111,40 @@ multiquadraticStripPrepare[record_Association, frame_Association,
   (* after the alphabet is fixed and before the gauge denominator, which
      factors the norms of every algebraic letter actually used *)
   If[prepareGuard["GaugeDenominator"], Return[prepareStop]];
-  gaugeDenominatorFactor = Replace[OptionValue["GaugeDenominatorFactor"],
-    Automatic :> If[MatchQ[letterRecords, {___Association}],
-      multiquadraticStripNormDenominatorFactor[letterRecords, variables], 1]];
+  (* CHECKPOINT: the norm factorization of every algebraic letter plus
+     the merge with the rational denominator.  Its inputs are the
+     alphabet actually used and the two denominator options. *)
+  denominatorCheckpointFingerprint = checkpointInputFingerprint[
+    "GaugeDenominator",
+    {multiquadraticStripFingerprint[
+       If[MatchQ[letterRecords, {___Association}], letterRecords, {}] /.
+         multiquadraticStripCanonicalRules[variables, epsilon]],
+     multiquadraticStripFingerprint[OptionValue["GaugeDenominatorFactor"] /.
+       multiquadraticStripCanonicalRules[variables, epsilon]],
+     multiquadraticStripFingerprint[OptionValue["GaugeDenominator"] /.
+       multiquadraticStripCanonicalRules[variables, epsilon]]}];
+  checkpointDenominator = checkpointRead["GaugeDenominator",
+    denominatorCheckpointFingerprint];
+  If[MatchQ[checkpointDenominator, {_, _}],
+    multiquadraticStripStageMark["prepare: gauge denominator",
+      <|"source" -> "Checkpoint"|>];
+    {gaugeDenominatorFactor, gaugeDenominator} = checkpointDenominator,
+    checkpointDenominator = Missing["NoCheckpoint"];
+    gaugeDenominatorFactor = Replace[OptionValue["GaugeDenominatorFactor"],
+      Automatic :> If[MatchQ[letterRecords, {___Association}],
+        multiquadraticStripNormDenominatorFactor[letterRecords, variables], 1]];
+    gaugeDenominator = Replace[OptionValue["GaugeDenominator"],
+      Automatic :> multiquadraticStripMergeGaugeDenominator[
+        multiquadraticRationalGaugeDenominator[channelForcing, variables],
+        gaugeDenominatorFactor, variables]]];
   If[TrueQ[Together[gaugeDenominatorFactor] === 0] ||
       ! FreeQ[gaugeDenominatorFactor,
         Power[_, exponent_Rational /; Denominator[exponent] === 2]],
     Return[multiquadraticStripFailure["GaugeDenominatorFactorNotRational",
       <|"GaugeDenominatorFactor" -> gaugeDenominatorFactor|>]]];
-  gaugeDenominator = Replace[OptionValue["GaugeDenominator"],
-    Automatic :> multiquadraticStripMergeGaugeDenominator[
-      multiquadraticRationalGaugeDenominator[channelForcing, variables],
-      gaugeDenominatorFactor, variables]];
+  If[MissingQ[checkpointDenominator],
+    checkpointWrite["GaugeDenominator", denominatorCheckpointFingerprint,
+      {gaugeDenominatorFactor, gaugeDenominator}]];
   If[TrueQ[Together[gaugeDenominator] === 0] ||
       ! FreeQ[gaugeDenominator,
         Power[_, exponent_Rational /; Denominator[exponent] === 2]],
@@ -3616,6 +4239,12 @@ multiquadraticStripPrepare[record_Association, frame_Association,
        algebraic (field reduction + inversion) count *)
     "RootFreeFastPathCount" -> pathStatistics["RootFreeFastPathCount"],
     "ChannelPathStatistics" -> pathStatistics,
+    (* what this preparation persisted and what it read back, with the
+       typed verdict of every authentication.  Telemetry: NOT part of
+       the hashed ABI payload and not part of the preparation
+       fingerprint, so a checkpointed preparation is byte-identical to
+       an uncheckpointed one everywhere the ABI is compared. *)
+    "PrepareCheckpoints" -> checkpointRecords,
     "ABIPayload" -> payload, "ABIFingerprint" -> fingerprint|>
 ];
 multiquadraticStripPrepare[___] :=
@@ -3803,9 +4432,34 @@ $multiquadraticStripInternCounters = <||>;
    once, and holding them would grow a long-lived pool kernel without
    bound.  "Core", "GaugeDenominator" and "OneForm" are the persistent
    pools -- they ARE the core/ansatz split -- and are bounded by entry
-   count; a pool at its cap starts again rather than growing. *)
+   count; a pool at its cap starts again rather than growing.
+
+   BYTE BOUNDS (2026-08-25, Codex 14:30 "persistent cache memory bound").
+   An entry count is not a memory bound: one CF300-sized compile core is
+   hundreds of megabytes and two of them are the whole ceiling, while
+   512 small one-forms are nothing.  Each pool therefore also declares a
+   MEASURED ByteCount ceiling, and an OVERSIZE value -- one that alone
+   exceeds the pool's own oversize allowance -- BYPASSES the cache
+   instead of evicting it: returning it to the caller uncached costs one
+   recomputation, while admitting it would flush every entry the pool
+   holds to store something that cannot be held anyway.  ByteCount is
+   measured once per admitted value; it is a traversal, and it is taken
+   only on a MISS, never on a hit. *)
 $multiquadraticStripPoolEntryLimit = <|
   "Core" -> 2, "GaugeDenominator" -> 16, "OneForm" -> 512|>;
+
+(* the pool's total measured ByteCount ceiling *)
+$multiquadraticStripPoolByteLimit = <|
+  "Core" -> 2. 10^9, "GaugeDenominator" -> 2. 10^8, "OneForm" -> 1. 10^9|>;
+
+(* a single value above this is never admitted: it bypasses the pool and
+   the pool keeps what it already holds.  Automatic = the pool's own byte
+   ceiling, i.e. "no single value may fill the pool by itself". *)
+$multiquadraticStripPoolOversizeBytes = <|
+  "Core" -> Automatic, "GaugeDenominator" -> Automatic,
+  "OneForm" -> Automatic|>;
+
+multiquadraticStripInternValueBytes[value_] := N[ByteCount[value]];
 
 (* below this many uncached one-forms a shard cannot pay for its own
    serialization and kernel round trip *)
@@ -3816,7 +4470,7 @@ $multiquadraticStripCompileShardMinimum = 8;
    Association is the only update form with a guaranteed constant-time
    semantics, and the compile does thousands of these per call. *)
 $multiquadraticStripInternCounterNames = {"Hits", "Misses", "Collisions",
-  "Entries", "Resets", "Rejected"};
+  "Entries", "Resets", "Rejected", "Bytes", "Oversize"};
 
 multiquadraticStripInternReset[pool_String] := (
   $multiquadraticStripInternPools = KeySelect[$multiquadraticStripInternPools,
@@ -3873,48 +4527,76 @@ multiquadraticStripInternValidQ["GaugeDenominator", value_] :=
   AssociationQ[value] && FreeQ[value, $Failed] &&
     AllTrue[{"GaugeDenominator", "GaugeLogDerivatives"},
       AssociationQ[Lookup[value, #1, $Failed]] &];
+(* the OneForm pool holds compiled entries only.  A typed REFUSAL (an
+   Association carrying "Status") is a negative result and is never
+   interned -- the same rule the Core pool's $Failed refusal follows. *)
 multiquadraticStripInternValidQ["OneForm", value_] :=
-  value =!= $Failed && FreeQ[value, $Failed];
+  AssociationQ[value] && ! KeyExistsQ[value, "Status"] &&
+    FreeQ[value, $Failed] &&
+    AllTrue[{"Channels", "Compiled", "Path"}, KeyExistsQ[value, #1] &];
 multiquadraticStripInternValidQ[_String, value_] :=
   value =!= $Failed && FreeQ[value, $Failed];
 
 multiquadraticStripIntern[pool_String, key_, compute_] := Module[
-  {hash, bucket, hit, value, limit, hits, misses, resets},
+  {hash, bucket, hit, value, limit, byteLimit, oversizeLimit, bytes,
+   poolBytes, hits, misses, resets, oversize, counter},
+  counter[name_String] :=
+    Lookup[$multiquadraticStripInternCounters, Key[{pool, name}], 0];
   hash = Hash[key];
   bucket = Lookup[$multiquadraticStripInternPools, Key[{pool, hash}], {}];
   hit = SelectFirst[bucket, SameQ[First[#1], key] &, None];
   If[hit =!= None,
     $multiquadraticStripInternCounters[[Key[{pool, "Hits"}]]] =
-      Lookup[$multiquadraticStripInternCounters, Key[{pool, "Hits"}], 0] + 1;
+      counter["Hits"] + 1;
     Return[Last[hit]]];
   value = compute[];
   (* refused BEFORE any counter or bucket is touched: a rejected value
      leaves the pool exactly as it found it *)
   If[! multiquadraticStripInternValidQ[pool, value],
     $multiquadraticStripInternCounters[[Key[{pool, "Rejected"}]]] =
-      Lookup[$multiquadraticStripInternCounters, Key[{pool, "Rejected"}], 0] + 1;
+      counter["Rejected"] + 1;
     Return[value]];
   limit = Lookup[$multiquadraticStripPoolEntryLimit, pool, Infinity];
-  If[Lookup[$multiquadraticStripInternCounters, Key[{pool, "Entries"}], 0] >=
-      limit,
-    (* bounded: a pool at its cap starts again rather than growing
-       without bound in a long-lived pool kernel *)
-    hits = Lookup[$multiquadraticStripInternCounters, Key[{pool, "Hits"}], 0];
-    misses = Lookup[$multiquadraticStripInternCounters, Key[{pool, "Misses"}], 0];
-    resets = Lookup[$multiquadraticStripInternCounters, Key[{pool, "Resets"}], 0];
+  byteLimit = Lookup[$multiquadraticStripPoolByteLimit, pool, Infinity];
+  oversizeLimit = Replace[
+    Lookup[$multiquadraticStripPoolOversizeBytes, pool, Automatic],
+    Automatic :> byteLimit];
+  (* the measurement is taken ONCE, on a miss, on the value that is about
+     to be admitted -- never on a hit, and never on the pool as a whole *)
+  bytes = multiquadraticStripInternValueBytes[value];
+  (* OVERSIZE BYPASS.  A value that alone exceeds the pool's allowance is
+     returned uncached: it is one recomputation against flushing every
+     entry the pool holds for something the pool cannot hold. *)
+  If[NumericQ[oversizeLimit] && bytes > oversizeLimit,
+    $multiquadraticStripInternCounters[[Key[{pool, "Misses"}]]] =
+      counter["Misses"] + 1;
+    $multiquadraticStripInternCounters[[Key[{pool, "Oversize"}]]] =
+      counter["Oversize"] + 1;
+    Return[value]];
+  poolBytes = counter["Bytes"];
+  If[counter["Entries"] >= limit ||
+      (NumericQ[byteLimit] && poolBytes + bytes > byteLimit),
+    (* bounded on BOTH axes: a pool at either cap starts again rather
+       than growing without bound in a long-lived pool kernel *)
+    hits = counter["Hits"]; misses = counter["Misses"];
+    resets = counter["Resets"]; oversize = counter["Oversize"];
     multiquadraticStripInternReset[pool];
     $multiquadraticStripInternCounters[[Key[{pool, "Hits"}]]] = hits;
     $multiquadraticStripInternCounters[[Key[{pool, "Misses"}]]] = misses;
+    $multiquadraticStripInternCounters[[Key[{pool, "Oversize"}]]] = oversize;
     $multiquadraticStripInternCounters[[Key[{pool, "Resets"}]]] = resets + 1;
+    poolBytes = 0;
     bucket = {}];
   $multiquadraticStripInternCounters[[Key[{pool, "Misses"}]]] =
-    Lookup[$multiquadraticStripInternCounters, Key[{pool, "Misses"}], 0] + 1;
+    counter["Misses"] + 1;
   If[bucket =!= {},
     $multiquadraticStripInternCounters[[Key[{pool, "Collisions"}]]] =
-      Lookup[$multiquadraticStripInternCounters, Key[{pool, "Collisions"}], 0] + 1];
+      counter["Collisions"] + 1];
   $multiquadraticStripInternPools[[Key[{pool, hash}]]] = Append[bucket, {key, value}];
   $multiquadraticStripInternCounters[[Key[{pool, "Entries"}]]] =
-    Lookup[$multiquadraticStripInternCounters, Key[{pool, "Entries"}], 0] + 1;
+    counter["Entries"] + 1;
+  $multiquadraticStripInternCounters[[Key[{pool, "Bytes"}]]] =
+    poolBytes + bytes;
   value
 ];
 
@@ -4122,23 +4804,117 @@ multiquadraticStripLetterChannelPair[letter_, roots_List,
     result]
 ];
 
-(* One compiled one-form.  The compact path is admissible ONLY when the
-   letter record proves the stored one-form is the dlog of the record's
-   letter: multiquadraticStripCandidateLetters sets
-   "OneForm" -> multiquadraticStripLetterOneForm["Letter"], so SameQ on
-   that entry is the provenance certificate.  A caller-assembled record
-   whose two halves disagree, a diagonal form (which is closed but not a
-   dlog), and any letter the field algebra refuses all fall back to the
-   old decomposition of the materialized form. *)
+(* ---- COMPACT-DLOG ADMISSION (2026-08-25, Codex 14:30 P1) -----------
+
+   The compact path computes the channels of dlog(Letter) and installs
+   them as the channels of "form".  That substitution is sound only if
+   form IS dlog(Letter).  The pre-2026-08-25 gate tested
+   SameQ[record["OneForm"], form] -- i.e. that the caller passed the form
+   it had itself stored -- which is true of any self-consistent wrong
+   record and proves nothing about the dlog relation.
+
+   Two admissions are accepted, in this order:
+
+     "CertifiedTag"    the record carries the package-produced
+                       certificate minted at the site that computed the
+                       one-form from the letter, and BOTH its hashes
+                       re-derive from the letter and the form presented
+                       here.  Costs two canonical texts, no algebra.
+     "ExactDLogCheck"  dlog(Letter) is recomputed and compared to form
+                       entry by entry.  This is the exact relation, not
+                       a sample of it; it costs one Together per
+                       component and is the fallback for records this
+                       module did not build.
+
+   Anything else is REFUSED for the compact path -- a diagonal form
+   (closed, not a dlog), a record whose halves disagree, a bare form
+   with no record -- and the entry is compiled by decomposing the form
+   that was actually asked for, which is always correct.  The refusal
+   reason travels with the entry so a caller can see how many letters
+   took which route and why. *)
+multiquadraticStripCompactDLogAdmission[letterRecord_, form_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol, mode_] := Module[
+  {letter, certificate, derived},
+  If[! AssociationQ[letterRecord],
+    Return[<|"Admitted" -> False, "Reason" -> "NoLetterRecord"|>]];
+  letter = Lookup[letterRecord, "Letter", Missing["NoLetter"]];
+  If[MissingQ[letter],
+    Return[<|"Admitted" -> False, "Reason" -> "NotADLog"|>]];
+  If[! SameQ[Lookup[letterRecord, "OneForm", Missing["NoOneForm"]], form],
+    Return[<|"Admitted" -> False,
+      "Reason" -> "OneFormIsNotTheRecordOneForm"|>]];
+  certificate = Lookup[letterRecord, "DLogCertificate",
+    Missing["NoCertificate"]];
+  If[mode =!= "Exact" &&
+      multiquadraticStripLetterDLogCertificateValidQ[certificate, letter,
+        form, variables, epsilon],
+    Return[<|"Admitted" -> True, "Method" -> "CertifiedTag",
+      "Letter" -> letter|>]];
+  If[mode === "Certified",
+    Return[<|"Admitted" -> False,
+      "Reason" -> If[AssociationQ[certificate],
+        "DLogCertificateMismatch", "DLogCertificateMissing"]|>]];
+  derived = multiquadraticStripLetterOneForm[letter, variables];
+  If[! MatchQ[derived, {_, _}],
+    Return[<|"Admitted" -> False, "Reason" -> "LetterHasNoDLog"|>]];
+  If[! (TrueQ[Together[derived[[1]] - form[[1]]] === 0] &&
+        TrueQ[Together[derived[[2]] - form[[2]]] === 0]),
+    Return[<|"Admitted" -> False,
+      "Reason" -> "OneFormIsNotTheLetterDLog"|>]];
+  <|"Admitted" -> True, "Method" -> "ExactDLogCheck", "Letter" -> letter|>
+];
+
+(* the grade masks one channel VECTOR occupies.  The channels arrive from
+   the field ABI, which ends in Together, so a zero channel is the
+   integer 0 and no normalization is needed here. *)
+multiquadraticStripChannelVectorGradeSupport[vector_List] :=
+  Flatten[Position[vector, entry_ /; ! TrueQ[entry === 0], {1},
+    Heads -> False]] - 1;
+
+(* the union over a list of channel vectors (a one-form is two of them) *)
+multiquadraticStripChannelGradeSupport[vectors : {__List}] :=
+  Sort[DeleteDuplicates[Flatten[
+    multiquadraticStripChannelVectorGradeSupport /@ vectors]]];
+multiquadraticStripChannelGradeSupport[vector_List] :=
+  Sort[multiquadraticStripChannelVectorGradeSupport[vector]];
+
+(* One compiled one-form. *)
 multiquadraticStripCompileOneFormEntry[form : {_, _}, letterRecord_,
     roots_List, variables : {_Symbol, _Symbol}, epsilon_Symbol,
-    compactQ_] := Module[{channels = $Failed, letter, path, compiled},
-  If[TrueQ[compactQ] && AssociationQ[letterRecord],
-    letter = Lookup[letterRecord, "Letter", Missing["NoLetter"]];
-    If[! MissingQ[letter] &&
-        SameQ[Lookup[letterRecord, "OneForm", Missing["NoOneForm"]], form],
-      channels = multiquadraticStripLetterChannelPair[letter, roots,
-        variables]]];
+    compactQ_] := multiquadraticStripCompileOneFormEntry[form, letterRecord,
+  roots, variables, epsilon, compactQ, Automatic, Automatic];
+
+multiquadraticStripCompileOneFormEntry[form : {_, _}, letterRecord_,
+    roots_List, variables : {_Symbol, _Symbol}, epsilon_Symbol,
+    compactQ_, gradeSupport_, admissionMode_] := Module[
+  {channels = $Failed, admission = <|"Admitted" -> False,
+     "Reason" -> "CompactRouteDisabled"|>, path, compiled, support,
+   admissible},
+  If[TrueQ[compactQ],
+    admission = multiquadraticStripCompactDLogAdmission[letterRecord, form,
+      variables, epsilon, admissionMode];
+    If[TrueQ[admission["Admitted"]],
+      channels = multiquadraticStripLetterChannelPair[admission["Letter"],
+        roots, variables];
+      If[! MatchQ[channels, {_List, _List}],
+        admission = <|"Admitted" -> False,
+          "Reason" -> "LetterChannelsUnavailable"|>]]];
+  If[MatchQ[channels, {_List, _List}],
+    (* THE GRADE GATE (2026-08-25).  "GradeSupport" declares the grade
+       masks the compiled system carries.  A letter whose dlog occupies a
+       mask outside that set cannot be represented by the compiled
+       residue columns, and admitting it would send the modular solve
+       looking for an inconsistency whose cause is this letter.  It is a
+       TYPED refusal of the whole compile, not a fallback: the caller
+       declared a grade set and this letter leaves it. *)
+    admissible = Replace[gradeSupport,
+      Automatic :> Range[0, 2^Length[roots] - 1]];
+    support = multiquadraticStripChannelGradeSupport[channels];
+    If[! VectorQ[admissible, IntegerQ] || ! SubsetQ[admissible, support],
+      Return[<|"Status" -> "CompactLetterGradeSupportExceeded",
+        "GradeSupport" -> support,
+        "AdmissibleGradeSupport" -> admissible,
+        "Path" -> "CompactLetterChannels"|>]]];
   path = If[MatchQ[channels, {_List, _List}], "CompactLetterChannels",
     channels = multiquadraticStripDecomposeScalarInterned[#1, roots] & /@ form;
     "DecomposedForm"];
@@ -4147,7 +4923,9 @@ multiquadraticStripCompileOneFormEntry[form : {_, _}, letterRecord_,
     multiquadraticStripCompileRationalInterned[#1, variables, epsilon] &,
     channels, {2}];
   If[! FreeQ[compiled, $Failed], Return[$Failed]];
-  <|"Channels" -> channels, "Compiled" -> compiled, "Path" -> path|>
+  <|"Channels" -> channels, "Compiled" -> compiled, "Path" -> path,
+    "CompactAdmission" -> If[path === "CompactLetterChannels",
+      admission["Method"], admission["Reason"]]|>
 ];
 
 (* Helper side of Codex item 5.  The shard receives an IMMUTABLE payload
@@ -4168,28 +4946,76 @@ multiquadraticStripCompileShardTask[dataFile_String, indices_List] := Module[
       If[MatchQ[records, {___Association}] && Length[records] === Length[forms],
         records[[index]], None],
       roots, {\[FormalX], \[FormalY]}, \[FormalE],
-      TrueQ[Lookup[payload, "Compact", False]]],
+      TrueQ[Lookup[payload, "Compact", False]],
+      Lookup[payload, "GradeSupport", Automatic],
+      Lookup[payload, "AdmissionMode", Automatic]],
     {index, indices}];
   If[! FreeQ[entries, $Failed], $Failed,
     <|"Indices" -> indices, "Entries" -> entries|>]
 ];
 
+(* ---- the one-form pool KEY (2026-08-25, Codex 14:30 "OneForm key
+   provenance").  The pre-2026-08-25 key was {prefix, form}: the SAME
+   form compiled through the compact letter-channel route and through
+   the decomposed-form route landed on ONE entry, so a route flip inside
+   a session could serve the other route's channels, and two records
+   naming DIFFERENT letters for the same stored one-form were
+   indistinguishable.  The key now carries the requested ROUTE and the
+   letter's provenance hash, so an entry can only ever be served to the
+   configuration that produced it.  The stored entry additionally
+   reports the route it actually took ("Path"), which the compact route
+   may still downgrade after an admission refusal. *)
+multiquadraticStripLetterProvenanceHash[record_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
+  {certificate},
+  If[! AssociationQ[record], Return["NoLetterRecord"]];
+  certificate = Lookup[record, "DLogCertificate", Missing["NoCertificate"]];
+  (* the certificate already hashes the canonical letter and one-form
+     texts, so it IS the provenance and costs nothing to reuse *)
+  If[AssociationQ[certificate],
+    Return[Hash[{Lookup[record, "Kind", None], certificate},
+      "SHA256", "HexString"]]];
+  Hash[{Lookup[record, "Kind", None],
+    ToString[InputForm[Lookup[record, "Letter", Missing["NoLetter"]] /.
+      multiquadraticStripCanonicalRules[variables, epsilon]]]},
+    "SHA256", "HexString"]
+];
+
+multiquadraticStripCompileOneFormKey[prefix_, form_, record_, compactQ_,
+    gradeSupport_, admissionMode_, variables : {_Symbol, _Symbol},
+    epsilon_Symbol] := {prefix, form,
+  If[TrueQ[compactQ], "CompactLetterChannels", "DecomposedForm"],
+  multiquadraticStripLetterProvenanceHash[record, variables, epsilon],
+  gradeSupport, admissionMode};
+
 (* The ansatz half of the split: one interned entry per one-form, keyed
-   on the chart symbols, the canonical roots and the form itself.  An
-   exact-prefix alphabet extension therefore hits the pool on every old
-   letter and compiles only the suffix. *)
+   on the chart symbols, the canonical roots, the form itself, the route
+   and the letter provenance.  An exact-prefix alphabet extension
+   therefore hits the pool on every old letter and compiles only the
+   suffix. *)
 multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
     roots_List, variables : {_Symbol, _Symbol}, epsilon_Symbol,
-    compactQ_, shards_] := Module[
+    compactQ_, shards_] :=
+  multiquadraticStripCompileOneForms[oneForms, letterRecords, roots,
+    variables, epsilon, compactQ, shards, Automatic, Automatic];
+
+multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
+    roots_List, variables : {_Symbol, _Symbol}, epsilon_Symbol,
+    compactQ_, shards_, gradeSupport_, admissionMode_] := Module[
   {records, aligned, prefix, keys, pending, entries, planned, groups,
-   payload, dataFile, results, shardCount, rules, inverseRules, canonical},
+   payload, dataFile, results, shardCount, rules, inverseRules, canonical,
+   refused},
   aligned = MatchQ[letterRecords, {___Association}] &&
     Length[letterRecords] === Length[oneForms];
   records = If[aligned, letterRecords,
     ConstantArray[None, Length[oneForms]]];
   prefix = {$multiquadraticStripSourceSHA256, variables, epsilon,
     Lookup[roots, "Root", {}], Lookup[roots, "RootSquare", {}]};
-  keys = Table[{prefix, form}, {form, oneForms}];
+  keys = Table[
+    multiquadraticStripCompileOneFormKey[prefix, oneForms[[index]],
+      records[[index]], compactQ, gradeSupport, admissionMode, variables,
+      epsilon],
+    {index, Length[oneForms]}];
   multiquadraticStripStageStart["compile: one-forms",
     <|"oneForms" -> Length[oneForms], "rank" -> Length[roots],
       "compact" -> TrueQ[compactQ], "shards" -> shards,
@@ -4207,7 +5033,8 @@ multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
       inverseRules = Reverse /@ rules;
       payload = <|"OneForms" -> (oneForms /. rules),
         "LetterRecords" -> If[aligned, letterRecords /. rules, None],
-        "Roots" -> (roots /. rules), "Compact" -> TrueQ[compactQ]|>;
+        "Roots" -> (roots /. rules), "Compact" -> TrueQ[compactQ],
+        "GradeSupport" -> gradeSupport, "AdmissionMode" -> admissionMode|>;
       dataFile = taskBrokerDataFile[
         "mqcompile_" <> Hash[{prefix, oneForms}, "SHA256", "HexString"],
         payload];
@@ -4233,16 +5060,33 @@ multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
   planned = Table[
     With[{form = oneForms[[index]], record = records[[index]],
         key = keys[[index]]},
+      (* BOUNDARY: between letters.  The compile of one letter is a
+         decomposition and an inversion in the grade algebra and is not
+         interruptible inside; the letter is the finest boundary that
+         exists without changing what is computed. *)
+      multiquadraticStripDeadlineCheckpoint["Compilation:OneForms",
+        <|"Letter" -> index, "Of" -> Length[oneForms]|>];
+      multiquadraticStripStageProgress["compile: one-forms",
+        <|"letter" -> index, "of" -> Length[oneForms]|>];
       multiquadraticStripIntern["OneForm", key,
         Function[multiquadraticStripCompileOneFormEntry[form, record, roots,
-          variables, epsilon, compactQ]]]],
+          variables, epsilon, compactQ, gradeSupport, admissionMode]]]],
     {index, Length[oneForms]}];
+  (* a TYPED refusal from the grade gate is propagated as itself, not
+     collapsed into $Failed: the caller must be able to name the letter *)
+  refused = SelectFirst[planned,
+    AssociationQ[#1] && KeyExistsQ[#1, "Status"] &, None];
+  If[refused =!= None,
+    Return[Join[refused, <|"LetterIndex" -> First[Flatten[Position[planned,
+      refused, {1}, 1, Heads -> False]], Missing["NotFound"]]|>]]];
   If[! FreeQ[planned, $Failed] || ! MatchQ[planned, {___Association}],
     Return[$Failed]];
   entries = planned;
   <|"Channels" -> Lookup[entries, "Channels", {}],
     "Compiled" -> Lookup[entries, "Compiled", {}],
-    "Paths" -> Lookup[entries, "Path", {}]|>
+    "Paths" -> Lookup[entries, "Path", {}],
+    "CompactAdmissions" -> Lookup[entries, "CompactAdmission",
+      Missing["NotRecorded"]]|>
 ];
 
 (* The core key.  Deliberately NOT the ABI fingerprint: that one carries
@@ -4253,29 +5097,45 @@ multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
    only in symbol names share an EquationFingerprint (it is computed
    from the canonical text) and must NOT share compiled channels. *)
 (* The key parts, so that PREPARE can key the core before it has an ABI
-   payload (2026-08-25).  The tuple is byte-identical to the one the
-   preparation form below produced at HEAD -- both callers must land on
-   the same pool entry or the core is built twice, which is the whole
-   defect this closes. *)
+   payload (2026-08-25).  Both callers must land on the same pool entry
+   or the core is built twice, which is the whole defect that split
+   closes.
+
+   ---- ROOT EXPRESSIONS (2026-08-25, Codex 14:30 P1) -----------------
+
+   Until today the key carried only the root SQUARES.  The core's
+   algebra does not depend on the squares alone: every channel of E, C
+   and BBar is a coefficient in the basis {1, r_1, r_2, r_1 r_2, ...},
+   and replacing r_a by -r_a is a different basis of the same field with
+   different coefficients.  Two preparations whose ONLY difference was a
+   root sign therefore shared a core key and the second silently
+   received the first's channels -- a wrong-basis collision that no
+   later exact check could see, because every channel is individually
+   well formed.  The ordered canonical root EXPRESSIONS are now keyed as
+   well, so a sign mutant misses.  (The squares stay in the key: they are
+   what the grade multiplication table is built from, and a root whose
+   canonical text is equal while its square differs is not reachable but
+   is also not worth relying on.) *)
 multiquadraticStripCompileCoreKeyFromParts[algebraFingerprint_,
     equationFingerprint_, rootOrderingFingerprint_, rootCanonicalSquares_,
-    dimensions_, variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
+    rootCanonicalExpressions_, dimensions_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
   {$multiquadraticStripSourceSHA256, algebraFingerprint,
    equationFingerprint, rootOrderingFingerprint, rootCanonicalSquares,
-   dimensions, variables, epsilon};
+   rootCanonicalExpressions, dimensions, variables, epsilon};
 
 multiquadraticStripCompileCoreKey[preparation_Association,
     variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
   {payload = Lookup[preparation, "ABIPayload", $Failed]},
   If[! AssociationQ[payload], Return[$Failed]];
   If[AnyTrue[{"EquationFingerprint", "RootOrderingFingerprint",
-      "RootCanonicalSquares", "Dimensions"},
+      "RootCanonicalSquares", "RootCanonicalExpressions", "Dimensions"},
       ! KeyExistsQ[payload, #1] &], Return[$Failed]];
   multiquadraticStripCompileCoreKeyFromParts[
     Lookup[preparation, "AlgebraABIFingerprint", $Failed],
     payload["EquationFingerprint"], payload["RootOrderingFingerprint"],
-    payload["RootCanonicalSquares"], payload["Dimensions"],
-    variables, epsilon]
+    payload["RootCanonicalSquares"], payload["RootCanonicalExpressions"],
+    payload["Dimensions"], variables, epsilon]
 ];
 
 (* Takes the STRIP, not a preparation: prepare consumes this record too
@@ -4425,14 +5285,56 @@ multiquadraticStripSemanticPayload[assembly_Association] := KeyTake[assembly, {
    explicit shard count: naive parallelism duplicates work and peak
    memory, so it is last and opt-in.  "CompileCore" -> False and
    "LetterChannels" -> False restore the pre-2026-08-25 compiler exactly,
-   which is what the equivalence test uses as its reference. *)
+   which is what the equivalence test uses as its reference.
+
+   ---- "CompileShards" IS A PRIVATE TEST CONTROL (decision 2026-08-25)
+
+   It is NOT a production option and has no production caller.  It is
+   absent from Options[solveEpsFormStripMultiquadratic] deliberately, so
+   no public route can reach it, and the top-level option gate refuses
+   it by name like any other unknown option.
+
+   LEDGER NOTE.  What a production shard contract needs, and what does
+   not exist yet: a strict result schema validated per shard (indices,
+   entry count, per-entry shape) before anything is interned; a
+   helper-leak guarantee (a helper that dies must not leave a claimed
+   index uncompiled and unrecomputed); ABSOLUTE deadlines rather than
+   the fixed 7200 s "Timeout" below; and a measured per-entry stage cost
+   that shows sharding pays at all -- on CF300 (12,9) the entire
+   one-form compilation is 89 s, so the serialization of the payload
+   would dominate.  Production sharding waits for those measurements
+   (Codex 14:30, shard row; agreed disposition).  Until then this option
+   exists so the shard PATH stays exercised by its tests and does not
+   rot. *)
 Options[multiquadraticStripCompile] = {
   "PreparationValidated" -> False,
   "ForcingChannels" -> Automatic,
   "CompileCore" -> Automatic,
   "LetterChannels" -> Automatic,
+  (* PRIVATE TEST CONTROL -- see the ledger note above.  Not a public
+     option; do not add it to a production option set. *)
   "CompileShards" -> Automatic,
-  "LegacyCompiler" -> False
+  "LegacyCompiler" -> False,
+  (* the grade masks the compiled system carries.  Automatic = all 2^r
+     of them (no restriction, the historical behaviour); a declared set
+     makes the compact letter-channel route refuse typed any letter
+     whose dlog occupies a mask outside it. *)
+  "LetterGradeSupport" -> Automatic,
+  (* how the compact route may prove form == dlog(Letter): Automatic =
+     the package certificate if the record carries one, else the exact
+     dlog check; "Certified" = certificate only; "Exact" = always
+     recompute and compare. *)
+  "CompactDLogAdmission" -> Automatic,
+  (* absolute AbsoluteTime[] value; Infinity = unbounded, the default,
+     so every existing caller is unchanged.  Read at the compile stage
+     boundaries and, through the dynamic deadline, at every decomposed
+     entry and every letter. *)
+  "Deadline" -> Infinity,
+  (* the persistent compile pools' ceilings, as OPTIONS rather than
+     dynamic globals: a per-call ceiling belongs to the call
+     (2026-08-25).  Automatic on both is the module constant. *)
+  "PoolByteLimit" -> Automatic,
+  "PoolEntryLimit" -> Automatic
 };
 
 multiquadraticStripCompile[preparation_Association,
@@ -4443,10 +5345,19 @@ multiquadraticStripCompile[preparation_Association,
    denominatorLogData, exactForms, compiledForms, canonicalExact, result,
    payload, coreEnabled, compactQ, shards, legacyQ, coreSeconds,
    oneFormSeconds, denominatorSeconds, statistics,
+   gradeSupport, admissionMode, deadline, compileStop, compileProgress,
+   compileBudget, compileGuard, poolByteLimit, poolEntryLimit,
    startTime = AbsoluteTime[]},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripCompile]]]];
   If[AssociationQ[gate], Return[gate]];
+  (* a malformed request is a caller error and outranks a budget stop,
+     exactly as in prepare and in the top-level driver *)
+  deadline = OptionValue["Deadline"];
+  If[! multiquadraticStripDeadlineQ[deadline],
+    Return[multiquadraticStripFailure["InvalidDeadline",
+      <|"Deadline" -> deadline,
+        "Expected" -> "an absolute AbsoluteTime[] value, or Infinity"|>]]];
   If[! TrueQ[OptionValue["PreparationValidated"]] &&
       ! multiquadraticStripPreparationValidQ[preparation],
     Return[multiquadraticStripFailure["InvalidPreparationABI"]]];
@@ -4460,16 +5371,70 @@ multiquadraticStripCompile[preparation_Association,
   coreEnabled = Replace[OptionValue["CompileCore"], Automatic -> ! legacyQ];
   compactQ = Replace[OptionValue["LetterChannels"], Automatic -> ! legacyQ];
   shards = Replace[OptionValue["CompileShards"], Automatic -> 0];
+  gradeSupport = Replace[OptionValue["LetterGradeSupport"],
+    ell_List :> Sort[DeleteDuplicates[ell]]];
+  admissionMode = Replace[OptionValue["CompactDLogAdmission"],
+    Automatic -> "CertifiedOrExact"];
+  poolByteLimit = Replace[OptionValue["PoolByteLimit"],
+    Automatic :> $multiquadraticStripPoolByteLimit];
+  poolEntryLimit = Replace[OptionValue["PoolEntryLimit"],
+    Automatic :> $multiquadraticStripPoolEntryLimit];
+  If[! AssociationQ[poolByteLimit] || ! AssociationQ[poolEntryLimit] ||
+      ! AllTrue[Values[poolByteLimit], NumericQ[#1] && #1 > 0 &] ||
+      ! AllTrue[Values[poolEntryLimit],
+        #1 === Infinity || (IntegerQ[#1] && #1 > 0) &],
+    Return[multiquadraticStripFailure["InvalidCompilePoolCeiling",
+      <|"PoolByteLimit" -> poolByteLimit,
+        "PoolEntryLimit" -> poolEntryLimit|>]]];
   If[! MemberQ[{True, False}, coreEnabled] ||
       ! MemberQ[{True, False}, compactQ] ||
       ! (IntegerQ[shards] && 0 <= shards <= 8),
     Return[multiquadraticStripFailure["InvalidCompileArchitectureOption",
       <|"CompileCore" -> coreEnabled, "LetterChannels" -> compactQ,
         "CompileShards" -> shards|>]]];
+  If[! (gradeSupport === Automatic ||
+      (VectorQ[gradeSupport, IntegerQ] && gradeSupport =!= {} &&
+        AllTrue[gradeSupport, 0 <= #1 < preparation["GradeCount"] &])),
+    Return[multiquadraticStripFailure["InvalidLetterGradeSupport",
+      <|"LetterGradeSupport" -> gradeSupport,
+        "GradeCount" -> preparation["GradeCount"]|>]]];
+  If[! MemberQ[{"CertifiedOrExact", "Certified", "Exact"}, admissionMode],
+    Return[multiquadraticStripFailure["InvalidCompactDLogAdmission",
+      <|"CompactDLogAdmission" -> admissionMode,
+        "Expected" -> {Automatic, "Certified", "Exact"}|>]]];
   If[legacyQ && (coreEnabled || compactQ || shards =!= 0),
     Return[multiquadraticStripFailure["LegacyCompilerOptionConflict",
       <|"CompileCore" -> coreEnabled, "LetterChannels" -> compactQ,
         "CompileShards" -> shards|>]]];
+  (* ---- the cooperative compile deadline (2026-08-25, Codex 14:30) ---
+     Same shape and same mechanism as prepare's: a typed resumable
+     BudgetExhausted whose Stage names a "Compilation:" substage, read
+     at the stage boundaries HERE and, through the dynamic deadline
+     Blocked below, between decomposed entries and between letters.
+     NEVER TimeConstrained: it does not bound task-broker helpers and
+     has escaped in pool subkernels (CLAUDE.md). *)
+  compileStop = None;
+  compileProgress[] := <|
+    "Family" -> Lookup[record, "Family", None],
+    "Sector" -> Lookup[record, "Sector", None],
+    "LowerSector" -> Lookup[record, "LowerSector", None],
+    "Prime" -> Missing["NotSampled"],
+    "RegulatorValue" -> Missing["NotSampled"],
+    "SamplesDone" -> Missing["NotSampled"],
+    "RootCount" -> Lookup[preparation, "RootCount", Missing["NotPrepared"]],
+    "OneFormCount" -> Length[Lookup[preparation, "OneForms", {}]],
+    "UnknownCount" -> Lookup[preparation, "UnknownCount",
+      Missing["NotPrepared"]],
+    "SupportSize" -> Length[Lookup[preparation, "GaugeSupport", {}]],
+    "Architecture" -> If[legacyQ, "Legacy", "CoreAnsatzSplitV1"]|>;
+  compileBudget[substage_String, extra_Association : <||>] :=
+    multiquadraticStripBudgetExhausted["Compilation:" <> substage,
+      AbsoluteTime[] - startTime, deadline,
+      Join[compileProgress[], extra]];
+  compileGuard[substage_String] :=
+    If[multiquadraticStripDeadlineExpiredQ[deadline],
+      compileStop = compileBudget[substage]; True, False];
+  If[compileGuard["Entry"], Return[compileStop]];
   (* the VALUE pools are per call at both ends: they make one call
      compile each unique value once and are never carried *)
   multiquadraticStripInternReset["Scalar"];
@@ -4497,44 +5462,110 @@ multiquadraticStripCompile[preparation_Association,
   coreKey = If[TrueQ[coreEnabled],
     multiquadraticStripCompileCoreKey[preparation, variables, epsilon],
     $Failed];
+  (* one Block for the whole compile: the decomposition loops and the
+     letter loop read the dynamic deadline and leave by Throw, and Block
+     restores it on every exit path including the Throw.  Infinity is
+     compared by SameQ before any clock is read, so the default performs
+     exactly as no deadline at all. *)
   {coreSeconds, core} = AbsoluteTiming[
-    If[legacyQ,
-      multiquadraticStripCompileLegacyCore[preparation, roots, variables,
-        epsilon, reusedChannels],
-      multiquadraticStripCompileCoreRecord[
-        Lookup[record, "Strip", $Failed], roots, variables,
-        epsilon, reusedChannels, coreKey, coreEnabled]]];
+    Catch[
+      Block[{$multiquadraticStripActiveDeadline = deadline,
+        $multiquadraticStripPoolByteLimit = poolByteLimit,
+        $multiquadraticStripPoolEntryLimit = poolEntryLimit},
+        If[legacyQ,
+          multiquadraticStripCompileLegacyCore[preparation, roots, variables,
+            epsilon, reusedChannels],
+          multiquadraticStripCompileCoreRecord[
+            Lookup[record, "Strip", $Failed], roots, variables,
+            epsilon, reusedChannels, coreKey, coreEnabled]]],
+      $multiquadraticStripDeadlineTag,
+      Function[{load, tag},
+        compileStop = compileBudget["Core",
+          Join[<|"Substage" -> Lookup[load, "Substage", "Core"]|>,
+            KeyDrop[load, "Substage"]]];
+        $Failed]]];
+  If[AssociationQ[compileStop],
+    multiquadraticStripInternReset["Scalar"];
+    multiquadraticStripInternReset["Rational"];
+    Return[compileStop]];
   If[! AssociationQ[core],
     multiquadraticStripInternReset["Scalar"];
     multiquadraticStripInternReset["Rational"];
     Return[multiquadraticStripFailure["ExactChannelDecompositionFailed"]]];
   {eData, cData, bData, rootSquareData, rootLogData} =
     Lookup[core, {"E", "C", "BBar", "RootSquares", "RootLogDerivatives"}];
+  If[compileGuard["OneForms"],
+    multiquadraticStripInternReset["Scalar"];
+    multiquadraticStripInternReset["Rational"];
+    Return[compileStop]];
   {oneFormSeconds, oneData} = AbsoluteTiming[
-    If[legacyQ,
-      multiquadraticStripCompileTensor[preparation["OneForms"], 2, roots,
-        variables, epsilon],
-      multiquadraticStripCompileOneForms[preparation["OneForms"],
-        Lookup[preparation, "LetterRecords", None], roots, variables, epsilon,
-        compactQ, shards]]];
+    Catch[
+      Block[{$multiquadraticStripActiveDeadline = deadline,
+        $multiquadraticStripPoolByteLimit = poolByteLimit,
+        $multiquadraticStripPoolEntryLimit = poolEntryLimit},
+        If[legacyQ,
+          multiquadraticStripCompileTensor[preparation["OneForms"], 2, roots,
+            variables, epsilon],
+          multiquadraticStripCompileOneForms[preparation["OneForms"],
+            Lookup[preparation, "LetterRecords", None], roots, variables,
+            epsilon, compactQ, shards, gradeSupport, admissionMode]]],
+      $multiquadraticStripDeadlineTag,
+      Function[{load, tag},
+        compileStop = compileBudget["OneForms",
+          Join[<|"Substage" -> Lookup[load, "Substage", "OneForms"]|>,
+            KeyDrop[load, "Substage"]]];
+        $Failed]]];
   (* pairs with the start emitted inside multiquadraticStripCompileOneForms:
      that function has typed early exits, this line does not *)
   If[! legacyQ,
     multiquadraticStripStageDone["compile: one-forms",
       <|"seconds" -> N[oneFormSeconds],
-        "status" -> If[AssociationQ[oneData], "OK", "Failed"],
+        "status" -> Which[AssociationQ[compileStop], "BudgetExhausted",
+          AssociationQ[oneData] && ! KeyExistsQ[oneData, "Status"], "OK",
+          AssociationQ[oneData], Lookup[oneData, "Status", "Failed"],
+          True, "Failed"],
         "paths" -> If[AssociationQ[oneData],
           Counts[Lookup[oneData, "Paths", {}]], <||>]|>]];
+  If[AssociationQ[compileStop],
+    multiquadraticStripInternReset["Scalar"];
+    multiquadraticStripInternReset["Rational"];
+    Return[compileStop]];
+  (* the typed grade-gate refusal travels as itself: it names the letter
+     and the mask that left the declared grade set *)
+  If[AssociationQ[oneData] && KeyExistsQ[oneData, "Status"],
+    multiquadraticStripInternReset["Scalar"];
+    multiquadraticStripInternReset["Rational"];
+    Return[multiquadraticStripFailure[oneData["Status"],
+      KeyDrop[oneData, "Status"]]]];
   If[! AssociationQ[oneData],
     multiquadraticStripInternReset["Scalar"];
     multiquadraticStripInternReset["Rational"];
     Return[multiquadraticStripFailure["ExactChannelDecompositionFailed"]]];
+  If[compileGuard["GaugeDenominator"],
+    multiquadraticStripInternReset["Scalar"];
+    multiquadraticStripInternReset["Rational"];
+    Return[compileStop]];
   {denominatorSeconds, denominatorRecord} = AbsoluteTiming[
-    If[legacyQ,
-      multiquadraticStripCompileLegacyDenominator[
-        preparation["GaugeDenominator"], variables, epsilon],
-      multiquadraticStripCompileDenominatorRecord[
-        preparation["GaugeDenominator"], variables, epsilon, coreEnabled]]];
+    Catch[
+      Block[{$multiquadraticStripActiveDeadline = deadline,
+        $multiquadraticStripPoolByteLimit = poolByteLimit,
+        $multiquadraticStripPoolEntryLimit = poolEntryLimit},
+        If[legacyQ,
+          multiquadraticStripCompileLegacyDenominator[
+            preparation["GaugeDenominator"], variables, epsilon],
+          multiquadraticStripCompileDenominatorRecord[
+            preparation["GaugeDenominator"], variables, epsilon,
+            coreEnabled]]],
+      $multiquadraticStripDeadlineTag,
+      Function[{load, tag},
+        compileStop = compileBudget["GaugeDenominator",
+          Join[<|"Substage" -> Lookup[load, "Substage",
+            "GaugeDenominator"]|>, KeyDrop[load, "Substage"]]];
+        $Failed]]];
+  If[AssociationQ[compileStop],
+    multiquadraticStripInternReset["Scalar"];
+    multiquadraticStripInternReset["Rational"];
+    Return[compileStop]];
   If[! AssociationQ[denominatorRecord],
     multiquadraticStripInternReset["Scalar"];
     multiquadraticStripInternReset["Rational"];
@@ -4546,8 +5577,12 @@ multiquadraticStripCompile[preparation_Association,
     "CoreSeconds" -> coreSeconds, "OneFormSeconds" -> oneFormSeconds,
     "GaugeDenominatorSeconds" -> denominatorSeconds,
     "CompileCore" -> coreEnabled, "LetterChannels" -> compactQ,
+    (* private test control, echoed here as telemetry only *)
     "CompileShards" -> shards,
+    "LetterGradeSupport" -> gradeSupport,
+    "CompactDLogAdmission" -> admissionMode,
     "OneFormPaths" -> Counts[Lookup[oneData, "Paths", {}]],
+    "CompactAdmissions" -> Counts[Lookup[oneData, "CompactAdmissions", {}]],
     "Pools" -> multiquadraticStripInternStatistics[]|>;
   multiquadraticStripInternReset["Scalar"];
   multiquadraticStripInternReset["Rational"];
@@ -5913,7 +6948,32 @@ Options[solveEpsFormStripMultiquadratic] = DeleteDuplicatesBy[Join[
      PRIVATE test control of multiquadraticStripCompile with no
      production caller until that contract exists. *)
   "LetterChannels" -> Automatic,
+  (* the compact route's grade gate and its dlog-admission policy
+     (2026-08-25).  Automatic on both is the historical behaviour: every
+     grade mask of the declared rank is admissible, and a letter proves
+     its dlog relation by the package certificate if it carries one and
+     by an exact recomputation otherwise. *)
+  "LetterGradeSupport" -> Automatic,
+  "CompactDLogAdmission" -> Automatic,
   "LegacyCompiler" -> False,
+  (* ---- the screen / cache / broker ceilings (2026-08-25, Codex 14:30
+     "top-level ceiling options").  Every one of these was a buried
+     constant of this file; each is now a documented option whose
+     Automatic is exactly the constant, so no existing caller changes
+     and a campaign can bound a screen or a pool without editing the
+     package. *)
+  (* the admission ceilings BOTH screens are gated by, in unknowns and
+     in estimated packed bytes; over either one the screen returns a
+     typed <Screen>NotApplicable and the established route continues *)
+  "ScreenMaximumUnknowns" -> Automatic,
+  "ScreenMaximumBytes" -> Automatic,
+  (* measured ByteCount ceilings of the persistent compile pools, as
+     <|pool -> bytes|>; a value alone above a pool's ceiling bypasses
+     that pool rather than evicting it *)
+  "CompilePoolByteLimit" -> Automatic,
+  "CompilePoolEntryLimit" -> Automatic,
+  (* the byte ceiling of the screens' own compiled-scalar cache *)
+  "ScreenCompileCacheBytes" -> Automatic,
   "Verbose" -> False
 }], First];
 
@@ -5946,11 +7006,43 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
    budgetExhausted, enrich, variables, epsilon, strip, allRoots, classification,
    rootIndices, order, screenRoots, letterRecords, letterData, screen,
    screenRegulatorValue, prepareOptions, gaugeScreen, gaugeLadder,
-   adoptedDegreeOffset,
+   adoptedDegreeOffset, screenMaximumUnknowns, screenMaximumBytes,
+   poolByteLimit, poolEntryLimit, screenCacheBytes, ceilingOptions,
    pathStatisticsBefore = multiquadraticFieldPathStatistics[]},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[solveEpsFormStripMultiquadratic]]]];
   If[AssociationQ[gate], Return[gate]];
+  (* ---- the declared ceilings (2026-08-25).  Automatic is the module
+     constant, so the resolved value is exactly the historical one; a
+     declared value travels to the screens as their own options and to
+     the compile pools through a Block around the compile, which is the
+     scope a per-call ceiling must have. *)
+  screenMaximumUnknowns = Replace[OptionValue["ScreenMaximumUnknowns"],
+    Automatic :> $multiquadraticStripScreenMaximumUnknowns];
+  screenMaximumBytes = Replace[OptionValue["ScreenMaximumBytes"],
+    Automatic :> $multiquadraticStripScreenMaximumBytes];
+  poolByteLimit = Replace[OptionValue["CompilePoolByteLimit"],
+    Automatic :> $multiquadraticStripPoolByteLimit];
+  poolEntryLimit = Replace[OptionValue["CompilePoolEntryLimit"],
+    Automatic :> $multiquadraticStripPoolEntryLimit];
+  screenCacheBytes = Replace[OptionValue["ScreenCompileCacheBytes"],
+    Automatic :> $multiquadraticStripScreenCompileCacheLimit];
+  If[! (IntegerQ[screenMaximumUnknowns] && screenMaximumUnknowns > 0) ||
+      ! (NumericQ[screenMaximumBytes] && screenMaximumBytes > 0) ||
+      ! (NumericQ[screenCacheBytes] && screenCacheBytes > 0) ||
+      ! AssociationQ[poolByteLimit] || ! AssociationQ[poolEntryLimit] ||
+      ! AllTrue[Values[poolByteLimit], NumericQ[#1] && #1 > 0 &] ||
+      ! AllTrue[Values[poolEntryLimit],
+        #1 === Infinity || (IntegerQ[#1] && #1 > 0) &],
+    Return[multiquadraticStripFailure["InvalidCeilingOption",
+      <|"ScreenMaximumUnknowns" -> screenMaximumUnknowns,
+        "ScreenMaximumBytes" -> screenMaximumBytes,
+        "ScreenCompileCacheBytes" -> screenCacheBytes,
+        "CompilePoolByteLimit" -> poolByteLimit,
+        "CompilePoolEntryLimit" -> poolEntryLimit|>]]];
+  ceilingOptions = {"MaximumUnknowns" -> screenMaximumUnknowns,
+    "MaximumBytes" -> screenMaximumBytes,
+    "CompileCacheBytes" -> screenCacheBytes};
   deadline = OptionValue["Deadline"];
   If[! multiquadraticStripDeadlineQ[deadline],
     Return[multiquadraticStripFailure["InvalidDeadline",
@@ -6098,7 +7190,7 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
       letterRecords, "Prime" -> OptionValue["IntegrabilityScreenPrime"],
       "RegulatorValue" -> screenRegulatorValue,
       "PointCount" -> OptionValue["IntegrabilityScreenPointCount"],
-      "Deadline" -> deadline];
+      "Deadline" -> deadline, Sequence @@ ceilingOptions];
     multiquadraticStripStageDone["integrability screen",
       <|"status" -> Lookup[screen, "Status", None],
         "defects" -> Lookup[screen, "Defects", None],
@@ -6188,7 +7280,7 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
     gaugeScreen = multiquadraticStripGaugeScreenImages[preparation,
       "Images" -> OptionValue["GaugeScreenImages"],
       "PointCount" -> OptionValue["GaugeScreenPointCount"],
-      "Deadline" -> deadline];
+      "Deadline" -> deadline, Sequence @@ ceilingOptions];
     multiquadraticStripStageDone["gauge screen",
       <|"status" -> Lookup[gaugeScreen, "Status", None],
         "defects" -> Lookup[gaugeScreen, "Defects", None],
@@ -6227,6 +7319,7 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
           "Deadline" -> deadline, "Verbose" -> verbose,
           "Images" -> OptionValue["GaugeScreenImages"],
           "PointCount" -> OptionValue["GaugeScreenPointCount"],
+          Sequence @@ ceilingOptions,
           (* no witness is wanted on a ladder rung: the base screen above
              already produced one, and the left null space is the
              expensive half of a screen *)
@@ -6305,9 +7398,17 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
     "ForcingChannels" -> Lookup[preparation, "ForcingChannels", Automatic],
     "CompileCore" -> OptionValue["CompileCore"],
     "LetterChannels" -> OptionValue["LetterChannels"],
-    "LegacyCompiler" -> OptionValue["LegacyCompiler"]];
+    "LetterGradeSupport" -> OptionValue["LetterGradeSupport"],
+    "CompactDLogAdmission" -> OptionValue["CompactDLogAdmission"],
+    "LegacyCompiler" -> OptionValue["LegacyCompiler"],
+    (* the caller's deadline now reaches the compiler, which since
+       2026-08-25 checks it at its own stage and per-letter boundaries;
+       before this the driver could only check AFTER compile returned *)
+    "Deadline" -> deadline,
+    "PoolByteLimit" -> poolByteLimit,
+    "PoolEntryLimit" -> poolEntryLimit];
   If[Lookup[assembly, "Status", None] =!= "CompiledMultiquadraticStripV1",
-    Return[assembly]];
+    Return[enrich[assembly]]];
   multiquadraticStripStageDone["compile",
     KeyTake[Lookup[assembly, "CompileStatistics", <||>],
       {"Architecture", "Seconds", "CoreSeconds", "OneFormSeconds",

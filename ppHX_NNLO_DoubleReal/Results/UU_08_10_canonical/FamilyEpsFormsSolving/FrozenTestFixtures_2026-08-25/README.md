@@ -168,3 +168,39 @@ schema-shape assertions moved from the full matrix (2x47x47 / 2x45x45 in
 27 / 25 ranges) to the truncation (2x24x24 / 2x27x27 in 16 ranges), and
 each test additionally asserts the recorded source dimensions, so the
 provenance of the truncation is checked rather than assumed.
+
+---
+
+## CF300 (12,9): three more frozen inputs (2026-08-25, hardening wave)
+
+`Tests/t_multiquadratic_letters.wls`, `Tests/t_multiquadratic_gauge_screen.wls`
+and `Tests/t_multiquadratic_gauge_ladder.wls` read the real CF300 (12,9)
+descriptor. Two of their three inputs were being read from the **live**
+campaign directory
+`FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/`, which every
+campaign mission rewrites: `CF300_12_9_input.wl` was rewritten at
+**13:41 on 2026-08-25 by campaign round 6 while the suite was running**.
+That is the same class of defect the CF259/CF303 freeze above closed, and
+it is closed the same way.
+
+| file | frozen from | bytes |
+|---|---|---|
+| `cf300_frozen_strip_12_9_input.wl` | `triple_root_2026-08-24_fable/CF300/sector_CF300_standard/CF300_12_9_input.wl` (mtime 2026-08-25T13:42:38-07:00, written by campaign round 6) | 2 549 298 |
+| `cf300_frozen_channel_forcing.wl` | `triple_root_2026-08-24_fable/CF300/gauge_screen_2026-08-25/channelForcing.wl` (mtime 2026-08-25T01:09:07-07:00; already a results directory, frozen here so all three inputs live in one place) | 169 784 |
+| `cf300_frozen_stripsolvers.wl` | the `"StripSolvers"` projection of `triple_root_2026-08-24_fable/CF300/sector_state_CF300_standard.wl` (mtime 2026-08-24T17:26:45-07:00, 33 009 263 bytes) | see `SHA256SUMS` |
+
+The third is a **projection, not a copy**. The three suites read exactly
+one field of that 33 MB sector state — the row's installed alphabets, in
+`"StripSolvers"` — and without it the candidate letter set is 52 rather
+than the measured 54, so the field is load bearing while the rest of the
+state is not. Freezing the projection removes a 33 MB read from every run
+of two suites and keeps the tracked bytes at the same scale as the CF259
+reduction above. It carries its own provenance —
+`"Schema" -> "FrozenCF300StripSolversV1"`, `"Source"`, `"SourceSHA256"`,
+`"SourceByteCount"`, `"SourceModified"`, `"FrozenAt"`, `"Sector"` — and is
+written by `freeze_cf300.wls` in this directory.
+
+`.gitignore` re-includes all three, next to the CF259/CF303 reductions.
+The measured expectations in those three suites are unchanged: the frozen
+strip input is byte-identical to the file they were reading, and the
+`StripSolvers` list is the identical list they extracted from the state.

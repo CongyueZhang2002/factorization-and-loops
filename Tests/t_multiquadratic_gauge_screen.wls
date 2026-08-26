@@ -15,7 +15,8 @@
    with the measured polar-denominator census of its forcing channels,
    both read by repository-relative paths under
    Results/UU_08_10_canonical/FamilyEpsFormsSolving/
-   triple_root_2026-08-24_fable/CF300/.
+   FrozenTestFixtures_2026-08-25/ (immutable copies of live campaign
+   inputs; provenance in that directory's README).
 
    ACCEPTANCE CRITERIA, stated before the run.  Note which are pass
    criteria and which are measurements: the CF300 (12,9) defect is OUR
@@ -297,25 +298,32 @@ report["G10 emitted letters",
 FeynFacet`TransportFamilyChartLoad[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
    "Results", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
 chart = FeynFacet`TransportFamilyChart["CF300"];
+(* FROZEN INPUTS (2026-08-25).  These three files used to be read from
+   the LIVE campaign directory triple_root_2026-08-24_fable/CF300/,
+   which every campaign mission rewrites: the strip input was rewritten
+   at 13:41 by round 6 while this suite was running.  A test never reads
+   mutating run state (CLAUDE.md, Verification), so the inputs are now
+   immutable copies under FrozenTestFixtures_2026-08-25/ with their
+   provenance in that directory's README.  The sector state is frozen as
+   its StripSolvers PROJECTION -- the only field this suite uses -- which
+   also removes a 33 MB read from every run. *)
 base = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
    "UU_08_10_canonical", "FamilyEpsFormsSolving",
-   "triple_root_2026-08-24_fable", "CF300"}];
-stripFile = FileNameJoin[{base, "sector_CF300_standard",
-   "CF300_12_9_input.wl"}];
+   "FrozenTestFixtures_2026-08-25"}];
+stripFile = FileNameJoin[{base, "cf300_frozen_strip_12_9_input.wl"}];
 (* the MEASURED channel decomposition of this block's forcing, moved into
    the repository as evidence 2026-08-25.  Recomputing it here is the
    ~10^3 s preparation stage the screen exists to run in front of. *)
-channelFile = FileNameJoin[{base, "gauge_screen_2026-08-25",
-   "channelForcing.wl"}];
-check["the CF300 (12,9) fixture and its channel census are in the repository",
+channelFile = FileNameJoin[{base, "cf300_frozen_channel_forcing.wl"}];
+stateFile = FileNameJoin[{base, "cf300_frozen_stripsolvers.wl"}];
+check["the CF300 (12,9) fixture and its channel census are frozen in the \
+repository",
   FileExistsQ[stripFile] && FileExistsQ[channelFile] &&
-    FileExistsQ[FileNameJoin[{base, "sector_state_CF300_standard.wl"}]] &&
-    AssociationQ[chart]];
+    FileExistsQ[stateFile] && AssociationQ[chart]];
 
 (* the sector state carries the row's installed alphabets; without them
    the candidate letter set is 52 rather than the measured 54, and the
    ansatz is not the one the 2026-08-25 evidence records *)
-stateFile = FileNameJoin[{base, "sector_state_CF300_standard.wl"}];
 If[FileExistsQ[stripFile] && FileExistsQ[channelFile] &&
     FileExistsQ[stateFile] && AssociationQ[chart],
  record = FeynFacet`FamilyArtifactRead[stripFile, "Global`"];
@@ -563,9 +571,48 @@ modular obstruction, not a Q(eps) theorem",
       "rank defect at TWO independent (prime, regulator) images"] &&
     StringContainsQ[solveSource,
       "It is not an unconditional theorem over Q(eps)"]];
+(* BEHAVIOURAL (2026-08-25): the source-text form of this assertion broke
+   on a pure reformatting of the call it greps for, which is exactly the
+   brittleness Codex flagged for S12.  The statement that matters is that
+   the top level runs the CONFIRMING screen -- the two-image one -- and
+   not the single-image one, and that is a property of the result it
+   returns: a two-image verdict carries ImageCount and Images. *)
 check["S6 the top level acts only on the CONFIRMED status",
   StringContainsQ[solveSource,
     "screen = multiquadraticStripIntegrabilityScreenImages["]];
+(* and the same statement made BEHAVIOURALLY (2026-08-25): the source
+   form above broke once on a pure reformatting of the call it greps
+   for, so the contract is now also established by driving the top level
+   and reading the two-image evidence out of its verdict. *)
+s6Frame = <|"Name" -> "S6RationalIdentity", "Kind" -> "TwoVariable",
+  "CoefficientField" -> "Rational", "Variables" -> {ax, ay},
+  "Subst" -> {ax -> ax, ay -> ay}, "Root" -> None, "RootSquare" -> None,
+  "Roots" -> {}|>;
+s6Driven = mq["solveEpsFormStripMultiquadratic"][exceptionalRecord, s6Frame,
+  "OneForms" -> Lookup[Take[exceptionalLetters, 1], "OneForm"],
+  "GaugeScreen" -> False, "IntegrabilityScreenPointCount" -> 12];
+report["S6 top-level verdict on the genuine obstruction",
+  KeyTake[s6Driven, {"Status", "Confirmed", "ImageCount", "Defects",
+    "ContractStrength"}]];
+check["S6 the top level's verdict carries the two-image evidence, which \
+only the confirming screen produces",
+  Lookup[s6Driven, "Status", None] === "AlphabetIntegrabilityObstruction" &&
+    Lookup[s6Driven, "ImageCount", 0] === 2 &&
+    MatchQ[Lookup[s6Driven, "Images", None], {{_Integer, _}, {_Integer, _}}] &&
+    Length[Lookup[s6Driven, "Defects", {}]] === 2 &&
+    Lookup[s6Driven, "ContractStrength", None] ===
+      "HighConfidenceModularObstruction" &&
+    Lookup[s6Driven, "SolutionContract", None] ===
+      "NoGaugeExistsWithThisAlphabet"];
+(* and the SINGLE-image screen on the exceptional fixture would have
+   produced a FALSE obstruction, which is what makes the choice of
+   screen a behavioural fact and not a formatting one *)
+check["S6 the single-image screen would have called the exceptional \
+regulator an obstruction, so the two-image evidence is not decorative",
+  Lookup[exceptionalOne, "Status", None] ===
+      "AlphabetIntegrabilityObstruction" &&
+    Lookup[exceptionalConfirmed, "Status", None] ===
+      "AlphabetIntegrabilityConsistent"];
 
 (* ------------------------------------------------------------------ *)
 (* S7-S12: screen admission ceilings, deadline and phase telemetry      *)
@@ -697,12 +744,35 @@ forcingB = {{{fx/(1 + fy)}}, {{fe fy}}};
 sealRoots = {};
 sealedA = channelRecord[{{{{fx/(1 - fy)}}}, {{{fe fy}}}}, forcingA,
   sealRoots, {fx, fy}, fe];
-check["S12 the seal is a schema-tagged record with a 64-hex fingerprint",
+check["S12 the seal is a schema-tagged V2 record with a 64-hex fingerprint AND a channel content hash",
   AssociationQ[sealedA] &&
-    sealedA["Schema"] === "MultiquadraticForcingChannelsV1" &&
+    sealedA["Schema"] === "MultiquadraticForcingChannelsV2" &&
+    sealedA["SchemaVersion"] === 2 &&
     StringQ[sealedA["Fingerprint"]] &&
     StringLength[sealedA["Fingerprint"]] === 64 &&
+    StringQ[sealedA["ChannelsSHA256"]] &&
+    StringLength[sealedA["ChannelsSHA256"]] === 64 &&
     sealedA["GradeCount"] === 1];
+(* the V2 seal exists BECAUSE V1 authenticated the forcing and not the
+   channels: a same-shape channel mutation under a V1 seal was accepted.
+   These two assertions are what make the block fail against any seal
+   that does not authenticate the channel content. *)
+check["S12 a same-shape CHANNEL-CONTENT mutant under an otherwise valid \
+seal is refused, and the refusal names the content",
+  Module[{mutant = Append[sealedA, "Channels" ->
+      {{{{fx/(1 + fy)}}}, {{{fe fy}}}}], verdict},
+    verdict = channelAccept[mutant, forcingA, sealRoots, {fx, fy}, fe];
+    Lookup[verdict, "Status", None] === "ForcingChannelContentMismatch" &&
+      StringQ[verdict["ExpectedChannelsSHA256"]] &&
+      verdict["ExpectedChannelsSHA256"] =!=
+        verdict["SuppliedChannelsSHA256"]]];
+check["S12 a V1 record is refused-typed and never silently upgraded",
+  Module[{legacy = Join[KeyDrop[sealedA, "ChannelsSHA256"],
+      <|"Schema" -> "MultiquadraticForcingChannelsV1",
+        "SchemaVersion" -> 1|>], verdict},
+    verdict = channelAccept[legacy, forcingA, sealRoots, {fx, fy}, fe];
+    Lookup[verdict, "Status", None] === "ForcingChannelSealSuperseded" &&
+      verdict["ExpectedSchema"] === "MultiquadraticForcingChannelsV2"]];
 check["S12 no supplied decomposition is the unchanged default",
   Lookup[channelAccept[Automatic, forcingA, sealRoots, {fx, fy}, fe],
     "Status", None] === "NotSupplied"];
@@ -733,14 +803,16 @@ check["S12 the seal does not depend on the CONTEXT the variables arrived in",
       {Symbol["FeynFacet`Private`sealX"],
        Symbol["FeynFacet`Private`sealY"]},
       Symbol["FeynFacet`Private`sealE"]]["Fingerprint"]];
-(* both consumers must route through the acceptance helper: a second,
-   shape-only path would reopen exactly the hole this closes *)
-check["S12 prepare and compile both route their ForcingChannels option \
-through the sealed acceptance helper, and no shape-only path is left",
-  StringCount[solveSource,
-    "multiquadraticStripForcingChannelsAccept[\n    OptionValue[\"ForcingChannels\"]"] === 2 &&
-    StringFreeQ[solveSource,
-      "Dimensions[suppliedChannels] === Append[Dimensions[strip[[3]]]"]];
+(* Both consumers must refuse an unsealed decomposition.  The BEHAVIOURAL
+   two-consumer assertion lives in Tests/t_multiquadratic_provenance.wls
+   (block A4), where prepare and compile are actually called with a bare
+   shape-compatible array; what remains here is the negative source
+   statement that no shape-only acceptance path was left behind, which
+   has no behavioural counterpart because a path that is absent cannot
+   be called. *)
+check["S12 no shape-only acceptance path is left in the source",
+  StringFreeQ[solveSource,
+    "Dimensions[suppliedChannels] === Append[Dimensions[strip[[3]]]"]];
 
 Print["t_multiquadratic_gauge_screen: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];

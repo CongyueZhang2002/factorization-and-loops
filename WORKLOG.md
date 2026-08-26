@@ -3037,3 +3037,119 @@ FLINT binaries under `FeynFacet/Backends/flint/bin/` and the
 `BenchmarkStripBackends` results tree. Symlinking those from the main
 tree turned both green with no source change. This is the clone-red debt
 Codex flagged at 08:30, and it is wider than the one file he named.
+
+## 2026-08-25 (18:30-) — HARDENING WAVE: Codex's P1 provenance blockers, cooperative deadlines everywhere, prepare persistence, and the CF303 modular resume gate
+
+Closes the open blocker list of
+`External/CodexExchange/codex_bihourly_fable_optimization_assessment_2026-08-25_1430.md`
+on top of `366deac`. Every item lands with its test; every adversarial
+test presents a mutant the pre-fix code accepts.
+
+**A. Correctness / provenance (Codex P1, merge blockers).**
+
+1. *Root expression/sign in the compile core key.* The key hashed only
+   root SQUARES, so two root declarations differing only in a root sign
+   — different bases of the same field, in which the same channel vector
+   composes to different elements — shared a core entry.
+   `multiquadraticStripCompileCoreKeyFromParts` now takes and keys the
+   ordered `RootCanonicalExpressions` as well. Adversarial test (block
+   A1 of the new `Tests/t_multiquadratic_provenance.wls`): the pre-fix
+   key tuple is reconstructed explicitly and shown to COLLIDE, the
+   current tuple to separate, and the pool is probed behaviourally —
+   under the pre-fix key the mutant HITS the other basis' core.
+2. *Forcing-channel content authentication.* The V1 seal fingerprinted
+   the forcing and the root squares — everything the channels are
+   derived from and not the channels themselves — so a same-shape
+   mutation of one channel entry was accepted. Schema V2 adds
+   `ChannelsSHA256` as a field AND as an ingredient of the fingerprint;
+   acceptance tests content first (`ForcingChannelContentMismatch`) and
+   provenance second. V1 records are refused typed
+   (`ForcingChannelSealSuperseded`), never upgraded.
+3. *Compact-dlog admission.* The compact route installs the channels of
+   `dlog(Letter)` in place of the form it was asked to compile; the old
+   gate tested only `SameQ[record["OneForm"], form]`, which any
+   self-consistent WRONG record passes. A package certificate is now
+   minted at the single site that pairs a letter with the one-form
+   computed from it (`multiquadraticStripLetterDLogCertificate`, bound
+   to the SHA-256 of both canonical texts, reusing the form key the
+   letter builder already computes so the mint costs one `Together`),
+   and admission is certificate-then-exact-dlog-check. A correct letter
+   with a wrong one-form is refused the compact route and compiled by
+   decomposing the form actually requested.
+4. *Behavioural two-consumer refusal* replaces the S12 source grep:
+   prepare and compile are CALLED with a bare shape-compatible array and
+   must both return `ForcingChannelsUnsealed`.
+
+**B. Cooperative deadlines and persistence.**
+
+5. `multiquadraticStripCompile` accepts `"Deadline"`; stage boundaries
+   `Compilation:{Entry,Core,OneForms,GaugeDenominator}` plus, through
+   the dynamic deadline, a boundary at every decomposed entry and every
+   LETTER. `familyRowGaugeHydrateResume` gains a per-strip boundary.
+   Never `TimeConstrained`.
+6. *Prepare intermediate persistence.* Prepare's 2710.9 s checkpointed
+   nothing. Three sealed substage records (`ForcingChannels`,
+   `CandidateLetters`, `GaugeDenominator` — the same vocabulary the
+   deadline uses) with source SHA, algebra ABI fingerprint, an INPUT
+   fingerprint over exactly what the substage consumed, a payload
+   content hash and a seal fingerprint over all of them. The forcing
+   checkpoint's payload IS the V2 sealed channel record, so a mutated
+   channel fails the same authentication the in-memory reuse uses.
+7. *Whole-family deadline persistence* and 8. *stale-stop migration*
+   became PACKAGE POLICY (`familyRowGaugeFamilyDeadlineDecision`,
+   `familyRowGaugeStaleStopMigration`) called by the sector driver, so
+   both are testable without running a family. A resumed run inherits
+   the persisted epoch (the REMAINING budget), never a fresh one.
+
+**C. Caches, options, screens.**
+
+9. The persistent compile pools are byte-bounded as well as
+   entry-bounded, with an OVERSIZE BYPASS: a value that alone exceeds a
+   pool's allowance is returned uncached rather than evicting everything
+   the pool holds. `Bytes` and `Oversize` are reported.
+10. The one-form pool key carries the requested ROUTE and the letter's
+    provenance hash, so a route flip cannot serve the other route's
+    entry.
+11. `"CompileShards"` is documented as a PRIVATE TEST CONTROL with a
+    ledger note naming what a production shard contract still needs
+    (strict per-shard result schema, helper-leak guarantee, absolute
+    deadlines, and a measured per-entry stage cost that shows sharding
+    pays — the whole one-form compile is 89 s on CF300 (12,9)).
+12. Both per-image screens gained interior boundaries: between LETTERS
+    inside the compile phase, and after the RANK pair (carrying the rank
+    and defect they already paid for).
+13. The screen/pool/cache ceilings are documented options
+    (`ScreenMaximumUnknowns`, `ScreenMaximumBytes`,
+    `CompilePoolByteLimit`, `CompilePoolEntryLimit`,
+    `ScreenCompileCacheBytes` at the top level; `CompileCacheBytes` on
+    the screens; `PoolByteLimit`/`PoolEntryLimit` on the compiler) —
+    options, not driver-side `Block`s of dynamic globals.
+
+**D. Rank-3 and CF303 resume.**
+
+14. *Recursive quadratic-tower inversion* replaces the symbolic 2^r x 2^r
+    linear solve: `a = u + v r_k` gives `a^-1 = (u - v r_k) N^-1` with
+    `N = u^2 - delta_k v^2` in `A_{k-1}`, so one rank-k inversion is two
+    squarings and two products plus ONE rank-(k-1) inversion. The
+    LinearSolve route is kept as the equivalence reference and as the
+    fallback for a zero norm; the exact product check still decides.
+    Plus the compact-route GRADE GATE (`"LetterGradeSupport"`): a letter
+    whose dlog occupies a mask outside the declared grade set is refused
+    typed, naming the letter.
+15. *CF303 modular resume gate, steps 2-4.* The strip-input seal is
+    schema V2 with its own fingerprint, recomputed from the hydrated
+    record; two independent held-out modular images of the SAME relation
+    the exact reconstruction checks are evaluated with no symbolic
+    normalization of the connection; a mismatch at an admissible image
+    is a typed `ResumeRejected` naming that image. Default remains
+    `"ResumeGate" -> "ModularThenExact"` — the gate ADDS evidence and
+    the exact reconstruction still decides; `"Modular"` is the opt-in
+    mode that skips the reconstruction, and an `"AdversarialAudit"`
+    re-derives regardless.
+
+**Fixtures.** `Tests/t_multiquadratic_{letters,gauge_screen,gauge_ladder}`
+read the real CF300 (12,9) descriptor from the LIVE campaign directory,
+which round 6 rewrote at 13:41 under a running suite. All three inputs
+are now frozen under `FrozenTestFixtures_2026-08-25/`; the 33 MB sector
+state is frozen as its `StripSolvers` PROJECTION (140 KB), the only field
+those suites read.
