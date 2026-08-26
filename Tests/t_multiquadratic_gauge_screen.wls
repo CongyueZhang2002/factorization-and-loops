@@ -95,6 +95,13 @@
 
 root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+(* the mixed-grade letter generator (G6-G9) has no production caller and
+   was moved to Prototypes/ on 2026-08-26 (Codex review 4.2); this suite
+   is its only exercise and loads it explicitly, inside the private
+   context it is written in *)
+Begin["FeynFacet`Private`"];
+Get[FileNameJoin[{root, "Prototypes", "MultiquadraticMixedGradeLetters.wl"}]];
+End[];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -201,14 +208,18 @@ report["G4 shrunken ansatz", KeyTake[smallScreen, {"Status", "Defect",
   "UnknownCount", "MatrixDimensions"}]];
 
 consistentImages = gaugeScreenImages[fullAnsatz];
-obstructionImages = gaugeScreenImages[strippedAnsatz];
+(* the CHEAP FIRST PASS, unchanged: "FreshImageCount" -> 0 is exactly the
+   pre-2026-08-26 two-image driver, and the ladder rungs use it *)
+obstructionImages = gaugeScreenImages[strippedAnsatz, "FreshImageCount" -> 0];
 check["G5 a consistent first image is not repeated",
   Lookup[consistentImages, "Status", None] === "GaugeImageConsistent" &&
     consistentImages["ImageCount"] === 1];
 check["G5 a defect is confirmed at a second independent image",
   Lookup[obstructionImages, "Status", None] === "GaugeImageObstruction" &&
     obstructionImages["ImageCount"] === 2 &&
-    obstructionImages["Defects"] === {1, 1}];
+    obstructionImages["Defects"] === {1, 1} &&
+    obstructionImages["ConfiguredImageCount"] === 2 &&
+    obstructionImages["FreshImageCount"] === 0];
 report["G5 image verdicts",
   {KeyTake[consistentImages, {"Status", "ImageCount", "Defects"}],
    KeyTake[obstructionImages, {"Status", "ImageCount", "Defects"}]}];
@@ -603,7 +614,7 @@ only the confirming screen produces",
     Lookup[s6Driven, "ContractStrength", None] ===
       "HighConfidenceModularObstruction" &&
     Lookup[s6Driven, "SolutionContract", None] ===
-      "NoGaugeExistsWithThisAlphabet"];
+      "AlphabetObstructionWithinAnsatz"];
 (* and the SINGLE-image screen on the exceptional fixture would have
    produced a FALSE obstruction, which is what makes the choice of
    screen a behavioural fact and not a formatting one *)

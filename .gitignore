@@ -51,6 +51,16 @@ ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTest
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/cf300_frozen_channel_forcing.wl
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/cf300_frozen_stripsolvers.wl
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/FrozenTestFixtures_2026-08-25/freeze_cf300.wls
+# Round-2 review wave (2026-08-26).  Two prose records that reported
+# numbers depend on, so by the workspace rule they travel with the
+# repository rather than living in a session scratchpad: the dated family
+# measurement narratives moved out of Private source comments (Codex 3.1)
+# and the direct-provider measurement record with its two verbatim run
+# logs (the replacement for the retired retiming question).
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/MultiquadraticMeasurementNarratives_2026-08-26.md
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/
+ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/*
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/README.md
 
 # --- Third-party software (own licenses; installed locally, not redistributed) ---
 Addon/Mathematica_Addon/*
@@ -107,3 +117,19 @@ ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_roo
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/**/*.log
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/*.log
+
+# --- Round-2 review-wave evidence logs (2026-08-26) ---
+# These must come AFTER the blanket `*.log` rule above: gitignore is
+# last-match-wins, so a negation placed before it is overridden.  Six
+# verbatim acceptance-run logs that the round-2 measurement record and
+# the red-then-green pairs cite; a reported number may not depend on a
+# file that only exists in a session scratchpad.
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/t_multiquadratic_providers_2026-08-26.log
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/t_multiquadratic_regulator_reconstruction_2026-08-26.log
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/t_multiquadratic_potentials_2026-08-26.log
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/t_construction_dag_divisors_2026-08-26.log
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/t_multiquadratic_dispatch_after_fix_2026-08-26.log
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/t_multiquadratic_gauge_ladder_after_fix_2026-08-26.log
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/t_broker_adaptive_hermetic_2026-08-26.log
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/round2_final_gate_2026-08-26.log
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/round2_final_gate_summary.tsv

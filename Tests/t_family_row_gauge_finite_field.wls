@@ -4,8 +4,7 @@
 root = DirectoryName[DirectoryName[$InputFileName]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Begin["FeynFacet`Private`"];
-Get[FileNameJoin[{root, "FeynFacet", "Private",
-  "FamilyRowGaugeFiniteField.wl"}]];
+Get[FileNameJoin[{root, "Prototypes", "FamilyRowGaugeFiniteField.wl"}]];
 End[];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 

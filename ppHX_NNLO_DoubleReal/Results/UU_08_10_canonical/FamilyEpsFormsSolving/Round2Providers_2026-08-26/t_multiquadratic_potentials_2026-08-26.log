@@ -1,0 +1,36 @@
+Loading FeynCalc from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynCalc/
+$PrePrint is set to FeynCalcForm. Use FI and FC to change the display format.
+FeynCalc 10.2.1 (stable version). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynCalcDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf]]
+If you use FeynCalc in your research, please evaluate FeynCalcHowToCite[] to learn how to cite this software.
+Please keep in mind that the proper academic attribution of our work is crucial to ensure the future development of this package!
+FeynCalcLegacy 1.0.0
+FeynCalcLegacy contains legacy functions and symbols that were removed in FeynCalc 10.2.1
+FeynHelpers 2.0.0 (). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceFeynHelpersDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceFeynHelpersDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynHelpersDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf]]
+ If you use FeynHelpers in your research, please evaluate FeynHelpersHowToCite[] to learn how to cite this work.
+Loading FeynArts from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynArts
+FeynArts 3.12 (27 Mar 2025) patched for use with FeynCalc, for documentation see the DisplayForm[ButtonBox[manual, BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[First[FileNames[{*.pdf, *.PDF}, FileNameJoin[{$FeynArtsDirectory, manual}]]]], Evaluator -> Automatic, Method -> Preemptive]] or visit DisplayForm[ButtonBox[www.feynarts.de., ButtonData :> {URL[http://www.feynarts.de/], None}, BaseStyle -> Hyperlink, ButtonNote -> www.feynarts.de/]]
+If you use FeynArts in your research, please cite
+ • T. Hahn, Comput. Phys. Commun., 140, 418-431, 2001, arXiv:hep-ph/0012260
+FeynFacet 0.1
+OK   P1 a genuine (one-form, letter) pair is verified
+     P1 verdict: Short[<|Status -> PotentialVerified, Verified -> True, Cached -> False|>, 6]
+OK   P2 a WRONG pair is refused
+OK   P3 an algebraic letter A - Sqrt[delta] verifies against its own dlog
+OK   P3 and the same algebraic one-form against a DIFFERENT algebraic letter is refused
+OK   P4 a one-form with no letter offered is not verified, and says so
+OK   P5 the pair is verified once and cached
+     P5 cache statistics: Short[<|Hits -> 1, Misses -> 1, Verified -> 1, Refused -> 0, Entries -> 1|>, 6]
+OK   P6 the cache key is CONTENT: the same pair written differently hits the same entry
+OK   P6 and verifying it is a cache HIT, not a second computation
+OK   the candidate letter set is built
+     P7 kinds / verified: Short[{{Diagonal, False}, {ForcingDLog, True}, {ForcingDLog, True}, {RationalFactor, True}, {RationalFactor, True}, {RationalFactor, True}, {RationalFactor, True}}, 6]
+OK   P7 every record carries a Potential verdict
+OK   P7 every letter-derived kind is VERIFIED
+OK   P7 the Diagonal kind carries no potential and is NOT verified
+OK   P8 an alphabet containing a Diagonal closed form is NOT certified
+OK   P8 the alphabet of only the verified records IS certified
+     P8 counts: Short[<|PotentialsVerified -> 6, PotentialsRefused -> 1, PotentialsCertified -> False|>, 6]
+OK   P9 the preparation records the per-letter potentials and the verdict
+     P9 verdict / reason: Short[<|PotentialsCertified -> False, PotentialsCertifiedReason -> SomeOneFormHasNoVerifiedPotential, PotentialsUnverifiedKinds -> <|Diagonal -> 1|>|>, 6]
+OK   P10 bare one-forms have no letters to verify: NOT certified, with the reason recorded
+t_multiquadratic_potentials: 16 OK, 0 FAIL

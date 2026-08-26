@@ -134,9 +134,18 @@ highGauge = {{(1 + 2 sx - 3 sy + 5 sx^3 sy^3 - 2 sx^2 sy)/(1 - sx - sy)}};
 highRecord = buildSyntheticRecord[highGauge, {{{0}}, {{0}}, {{5/2}}, {{-3}}}];
 highAnsatz = gaugeAnsatz[highRecord, {}, syntheticForms, 1 - sx - sy];
 highBase = gaugeScreenImages[highAnsatz];
+(* the two CONFIGURED images are still the cheap first pass; since
+   2026-08-26 (round-2 item 3) a defect that survives them is re-tested
+   at fresh random good images, so the total image count is 2 plus the
+   fresh ones and the durable statement is about the split *)
 check["L3 the high-numerator fixture is a confirmed obstruction at {0,0}",
   Lookup[highBase, "Status", None] === "GaugeImageObstruction" &&
-    highBase["ImageCount"] === 2];
+    highBase["ConfiguredImageCount"] === 2 &&
+    highBase["ImageCount"] === 2 + highBase["FreshImageCount"] &&
+    highBase["ImageCount"] >= 2 &&
+    AllTrue[highBase["Defects"], IntegerQ[#1] && #1 > 0 &]];
+report["L3 base image split (configured / fresh)",
+  {highBase["ConfiguredImageCount"], highBase["FreshImageCount"]}];
 {highLadderSeconds, highLadder} = AbsoluteTiming[
    ladder[highAnsatz, "DegreeOffsetLadder" -> builtIn]];
 check["L3 the ladder adopts a rung on that fixture",

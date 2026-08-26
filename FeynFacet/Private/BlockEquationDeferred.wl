@@ -1044,6 +1044,158 @@ blockEquationDeferredMaterialize[preparation_Association,
 ];
 blockEquationDeferredMaterialize[___] := <|"Status" -> "InvalidInput"|>;
 
+(* ---- THE PRESERVED DAG AND THE DIVISOR METADATA (2026-08-26,
+   round-2 item 8; Codex review 2.2) ---------------------------------
+
+   TWO PRODUCTS, NOT ONE.  Until now the public forcing result did
+   KeyDrop[preparation, "Records"] and returned only the materialized
+   dense matrices, so every downstream consumer had to work from a huge
+   symbolic expression that this file had just finished avoiding.  Codex
+   2.2: preserve the DAG (or a compiled modular plan) in the strip
+   record, and return a SECOND product beside it --
+
+     * a compact arithmetic DAG a coefficient provider can evaluate at a
+       point, and
+     * explicit divisor / Galois-orbit / multiplicity metadata for
+       alphabet and gauge-denominator construction.
+
+   The reason they must be separate is recorded at
+   blockEquationDeferredCancelledValue: the arithmetic may rationalize or
+   use compact norm denominators, while the ALPHABET still needs the
+   original algebraic divisor.  "The visible spelling of a giant rational
+   expression should not be the alphabet API."
+
+   The DAG is kept whole by default.  A byte bound is available and the
+   measured size is always recorded, but no bound is imposed until a
+   measurement says one is needed -- the round-2 disposition is explicit
+   that a byte bound enters only if it is measured to matter. *)
+
+$blockEquationDeferredDAGSchema = "BlockEquationDeferredDAGV1";
+$blockEquationDeferredDivisorSchema = "BlockEquationDivisorMetadataV1";
+
+blockEquationDeferredDAGRecord[preparation_Association, byteLimit_] := Module[
+  {records, bytes, retained},
+  records = Lookup[preparation, "Records", {}];
+  bytes = ByteCount[records];
+  retained = byteLimit === Infinity || ! NumericQ[byteLimit] || bytes <= byteLimit;
+  <|"Schema" -> $blockEquationDeferredDAGSchema,
+    "ABIVersion" -> Lookup[preparation, "ABIVersion", Missing["NoABIVersion"]],
+    "Variables" -> Lookup[preparation, "Variables", Missing["NoVariables"]],
+    "Regulator" -> Lookup[preparation, "Regulator", Missing["NoRegulator"]],
+    "Parameters" -> Lookup[preparation, "Parameters", {}],
+    "Sector" -> Lookup[preparation, "Sector", None],
+    "LowerSector" -> Lookup[preparation, "LowerSector", None],
+    "RowIndices" -> Lookup[preparation, "RowIndices", {}],
+    "ColumnIndices" -> Lookup[preparation, "ColumnIndices", {}],
+    "Feeders" -> Lookup[preparation, "Feeders", {}],
+    "Dimensions" -> Lookup[preparation, "Dimensions", Missing["NoDimensions"]],
+    "SourceFingerprint" -> Lookup[preparation, "SourceFingerprint",
+      Missing["NoFingerprint"]],
+    "Fingerprint" -> Lookup[preparation, "Fingerprint",
+      Missing["NoFingerprint"]],
+    "TermCount" -> Total[Length[Lookup[#, "Terms", {}]] & /@ records],
+    "RecordCount" -> Length[records],
+    (* MEASURED, always -- this is the number a future byte-bound
+       decision needs, and it costs one ByteCount *)
+    "Bytes" -> bytes, "ByteLimit" -> byteLimit, "Retained" -> retained,
+    "Records" -> If[retained, records, Missing["DAGOverByteLimit"]]|>
+];
+
+(* ---- divisor / Galois-orbit / multiplicity metadata ---------------- *)
+
+(* The polar divisor of the assembled forcing, kept in the form the
+   ALPHABET needs: algebraic factors are NEVER rationalized away (that is
+   the measured trap recorded above -- rationalizing an algebraic
+   denominator by its norm deletes the letter the gauge needs), each
+   distinct irreducible factor carries the highest multiplicity it
+   reaches in any single entry, and the algebraic factors are grouped
+   into Galois orbits under the declared root sign flips with the orbit
+   norm computed exactly.
+
+   Cost: one FactorList per DISTINCT denominator.  That is the work the
+   gauge-denominator rule already does, so this product adds no dominant
+   stage; what it adds is that the result is recorded instead of being
+   re-derived by every consumer from the printed expression. *)
+Options[blockEquationDeferredDivisorMetadata] = {"Roots" -> Automatic};
+
+blockEquationDeferredDivisorMetadata[forcing_, variables_List,
+    opts : OptionsPattern[]] := Module[
+  {started = AbsoluteTime[], entries, denominators, factorPairs, roots,
+   radicalBases, rationalFactors, algebraicFactors, canonical, groups,
+   orbits, orbitOf, conjugates, norm},
+  entries = DeleteCases[Flatten[{forcing}], 0];
+  If[entries === {},
+    Return[<|"Schema" -> $blockEquationDeferredDivisorSchema,
+      "Status" -> "EmptyForcing", "RationalFactors" -> {},
+      "AlgebraicFactors" -> {}, "GaloisOrbits" -> {},
+      "RadicalBases" -> {}, "Seconds" -> 0.|>]];
+  denominators = DeleteDuplicates[
+    Denominator[Quiet[Together[#1]]] & /@ entries];
+  denominators = DeleteCases[denominators, _?NumericQ];
+  factorPairs = Flatten[Map[
+    Function[denominator, Module[{list = Quiet[FactorList[denominator]]},
+      If[! ListQ[list], {},
+        Select[Rest[list], ! NumericQ[First[#1]] &]]]],
+    denominators], 1];
+  radicalBases = DeleteDuplicates[
+    Flatten[transportChartRadicalBases /@ denominators]];
+  roots = Replace[OptionValue["Roots"], Automatic :>
+    (<|"Root" -> Sqrt[#1], "RootSquare" -> #1|> & /@ radicalBases)];
+  If[! MatchQ[roots, {___Association}], roots = {}];
+  (* multiplicity = the highest power the factor reaches in any single
+     entry's denominator; a factor's exponent is never summed across
+     entries, because the common polar divisor is the per-factor MAXIMUM *)
+  canonical[factor_] := Quiet[Expand[Together[factor]]];
+  groups = GatherBy[factorPairs, canonical[First[#1]] &];
+  rationalFactors = Table[
+    <|"Factor" -> canonical[First[First[group]]],
+      "MaximumMultiplicity" -> Max[Last /@ group],
+      "Occurrences" -> Length[group],
+      "Algebraic" -> False|>,
+    {group, Select[groups, FreeQ[First[First[#1]],
+      Power[_, _Rational?(Denominator[#1] === 2 &)]] &]}];
+  (* the exact Galois orbit of an algebraic factor under the declared
+     root sign flips, and its orbit norm *)
+  conjugates[factor_] := DeleteDuplicates[
+    Table[Quiet[Together[transportChartApplyRootBranches[factor, roots,
+      Table[If[BitGet[mask, k - 1] === 1, -1, 1] Lookup[roots[[k]], "Root", 0],
+        {k, Length[roots]}]]]],
+      {mask, 0, 2^Length[roots] - 1}],
+    TrueQ[Quiet[Together[#1 - #2]] === 0] &];
+  norm[factor_] := Quiet[Expand[Together[Times @@ conjugates[factor]]]];
+  algebraicFactors = Table[
+    Module[{factor = First[First[group]], orbit},
+      orbit = conjugates[factor];
+      <|"Factor" -> factor,
+        "MaximumMultiplicity" -> Max[Last /@ group],
+        "Occurrences" -> Length[group],
+        "Algebraic" -> True,
+        "RadicalBases" -> transportChartRadicalBases[factor],
+        "OrbitSize" -> Length[orbit],
+        "Orbit" -> orbit,
+        "Norm" -> norm[factor],
+        "NormFactors" -> Module[{list = Quiet[FactorList[norm[factor]]]},
+          If[ListQ[list], Select[Rest[list], ! NumericQ[First[#1]] &], {}]]|>],
+    {group, Select[groups, ! FreeQ[First[First[#1]],
+      Power[_, _Rational?(Denominator[#1] === 2 &)]] &]}];
+  orbitOf = DeleteDuplicates[Lookup[algebraicFactors, "Orbit", {}],
+    Sort[ToString[InputForm[#1]] & /@ #1] ===
+      Sort[ToString[InputForm[#2]] & /@ #2] &];
+  orbits = Table[
+    <|"Representative" -> First[orbit], "OrbitSize" -> Length[orbit],
+      "Members" -> orbit, "Norm" -> norm[First[orbit]]|>,
+    {orbit, orbitOf}];
+  <|"Schema" -> $blockEquationDeferredDivisorSchema, "Status" -> "OK",
+    "Variables" -> variables,
+    "RadicalBases" -> radicalBases,
+    "DistinctDenominators" -> Length[denominators],
+    "RationalFactors" -> rationalFactors,
+    "AlgebraicFactors" -> algebraicFactors,
+    "GaloisOrbits" -> orbits,
+    "Seconds" -> N[AbsoluteTime[] - started]|>
+];
+blockEquationDeferredDivisorMetadata[___] := <|"Status" -> "InvalidInput"|>;
+
 (* ---- driver entry point --------------------------------------------- *)
 
 (* The forcing bbar of block (k, j) as the dense matrix pair the strip
@@ -1054,6 +1206,13 @@ blockEquationDeferredMaterialize[___] := <|"Status" -> "InvalidInput"|>;
    second Together pass over every entry. *)
 Options[blockEquationDeferredForcing] = {
   "CensusTriples" -> Automatic, "Cancel" -> True, "Fallback" -> True,
+  (* round-2 item 8 (Codex 2.2): the public result no longer discards the
+     expression DAG.  Automatic keeps it whole and records its measured
+     size; a finite "DAGByteLimit" drops the records above that size and
+     says so.  No bound is imposed by default -- a byte bound enters when
+     a measurement says it must, not before. *)
+  "PreserveDAG" -> Automatic, "DAGByteLimit" -> Infinity,
+  "DivisorMetadata" -> Automatic, "DivisorRoots" -> Automatic,
   "CanonicalizeUntouched" -> True,
   "Parallel" -> Automatic, "Helpers" -> Automatic,
   "BatchByteCap" -> Automatic, "BatchDispatcher" -> Automatic,
@@ -1094,6 +1253,24 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
      {mu, dimensions[[1]]}, {i, dimensions[[2]]}, {jj, dimensions[[3]]}];
    <|"Status" -> "OK", "Forcing" -> forcing,
      "Preparation" -> KeyDrop[preparation, "Records"],
+     (* TWO PRODUCTS, not one (round-2 item 8).  The compact arithmetic
+        DAG a coefficient provider can evaluate at a point, and the
+        explicit divisor / Galois-orbit / multiplicity metadata the
+        alphabet and the gauge denominator are built from.  The visible
+        spelling of a giant rational expression is not the alphabet API. *)
+     "DeferredDAG" -> If[TrueQ[Replace[OptionValue["PreserveDAG"],
+         Automatic :> True]],
+       blockEquationDeferredDAGRecord[preparation,
+         OptionValue["DAGByteLimit"]],
+       <|"Schema" -> $blockEquationDeferredDAGSchema,
+         "Retained" -> False, "Records" -> Missing["DAGNotPreserved"],
+         "Bytes" -> ByteCount[Lookup[preparation, "Records", {}]]|>],
+     "DivisorMetadata" -> If[TrueQ[Replace[OptionValue["DivisorMetadata"],
+         Automatic :> True]],
+       blockEquationDeferredDivisorMetadata[forcing, variables,
+         "Roots" -> OptionValue["DivisorRoots"]],
+       <|"Schema" -> $blockEquationDeferredDivisorSchema,
+         "Status" -> "DivisorMetadataSkipped"|>],
      "Census" -> census, "Materialization" -> KeyDrop[materialized, "Values"],
      "ZeroForcingCandidateQ" -> ! TrueQ[census["NonzeroProvedQ"]]|>
 ];

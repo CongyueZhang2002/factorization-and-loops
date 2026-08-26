@@ -55,7 +55,7 @@ Get[FileNameJoin[{root, "FeynFacet", "Private", "MultiquadraticStripSolve.wl"}]]
    FeynFacet`Private` exactly as Tests/t_family_row_gauge_finite_field.wls
    does *)
 Begin["FeynFacet`Private`"];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "FamilyRowGaugeFiniteField.wl"}]];
+Get[FileNameJoin[{root, "Prototypes", "FamilyRowGaugeFiniteField.wl"}]];
 End[];
 
 pass = 0; fail = 0;

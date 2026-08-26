@@ -517,7 +517,12 @@ initializers are not sequentially scoped. Self-assignment `v = Global\`v`
 poisons iteration limits. `Missing[] =!= None` in both directions.
 `Put` is not atomic — write to a temp file and `RenameFile`. `Together`
 rationalizes square-root denominators and destroys algebraic-letter
-words. Packages dump symbols into `Global\`` (asy ~200 of them, plus a
+words. `Lookup[{}, key, default]` returns the DEFAULT — an empty list is
+a valid (empty) rule list, so `Lookup` on a possibly-empty container
+silently yields the fallback (e.g. `None`) where the code expected the
+empty collection; check the container's head before `Lookup` (paid for
+2026-08-26: a `None` fed to `Counts` broke the dispatch terminal-status
+path). Packages dump symbols into `Global\`` (asy ~200 of them, plus a
 bare `x`; SubTropica exports `line`; PolyLogTools 1699 symbols).
 
 ## Shell trap (found 2026-08-24 by the campaign watchdog)
