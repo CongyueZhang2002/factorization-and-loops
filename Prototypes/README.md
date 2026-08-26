@@ -19,6 +19,18 @@ Rules for this directory:
   production caller and its own acceptance test — not by being useful in
   principle.
 
+## `MultiquadraticInstallableSolution.wl`
+
+A pure, fail-closed adapter from the already reconstructed generic
+multiquadratic gauge plus active-support potential certificate to the existing
+row-gauge solution ABI (`Gauge`, `Alphabet`, `ResidueMatrices`).  It accepts
+either an exact channel residual or fresh provider-backed checks at two unseen
+primes and three disjoint images per prime.  It performs no solve and is not a
+production speed path; its purpose is to make the remaining installation seam
+explicit before the provider-backed sampler API settles.  The acceptance and
+refusal cases are in
+`Tests/t_multiquadratic_installable_solution_prototype.wls`.
+
 ## `MultiquadraticMixedGradeLetters.wl`
 
 Witness-guided mixed-grade letter discovery for the multiquadratic
