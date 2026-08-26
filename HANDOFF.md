@@ -1,6 +1,42 @@
-# Session transfer note — updated 2026-08-25 17:30 PDT (Fable)
+# Session transfer note — updated 2026-08-25 23:15 PDT (Fable)
 
-## PAUSED HERE by the user for a context compact. Resume point below.
+## State (23:15): hardening wave LANDED; awaiting Codex review round 1
+
+Resume plan steps 1-5 below are DONE:
+- 366deac serial-phase wave committed (18 suites green pre-commit).
+- fbd856f hardening wave committed: every Codex 12:30/14:30 P1 blocker
+  closed with an adversarial merge-blocker test (root-sign core key,
+  ChannelsSHA256 V2 seal, compact-dlog certificate, behavioral
+  two-consumer refusal); compile Deadline; prepare intermediate
+  checkpoints; family-deadline persistence + stale-stop migration;
+  byte-bounded pools; OneForm route/provenance key; CompileShards
+  demoted; screen boundaries; ceiling options; rank-3 tower inversion
+  (15.76x on one real entry, exact agreement); CF303 modular resume
+  gate steps 2-4 (ResumeGate default ModularThenExact — exact still
+  decides). New suites t_multiquadratic_provenance (61),
+  t_multiquadratic_persistence (52). Two standing base defects fixed:
+  t_block_demands was silently dead (only suite loading FeynFacet.m
+  without the loader; aborted line 3, exit 0), CF259 literal in a
+  usage message. Full regression at fbd856f: 86 suites — GREEN 85,
+  DIAGNOSTIC 1, RED 0, UNVERIFIED 0, GATE PASS (classifier verdicts,
+  not exit codes; summary in the PrepareCoreMeasurement evidence dir).
+- Attribution CLOSED (4 passes, README in
+  Results/.../CF300/PrepareCoreMeasurement_2026-08-25/): CURRENT
+  prepare on the identical strip is 1439.7 s = decomposition 1400.5 s
+  (97.3%) + 39.2 s rest. Refuted by measurement: 52-one-form Expand
+  (13.5 s), context traversal (0 s), root census (0.7 s). The 2710.9 s
+  reference was pre-wave code; difference explained in kind (tower
+  inversion inside decomposition entries), magnitude deliberately
+  unclaimed. OPEN PROPOSAL (not built): modular
+  evaluate-and-reconstruct for multiquadraticFieldDecompose, accepted
+  only on the existing exact recompose check — addresses 97.3% of
+  current prepare.
+- REVIEW REQUEST #1 sent: External/CodexExchange/
+  fable_review_request_2026-08-25_2300.md (P1 closure table, test
+  evidence, 6 questions incl. the decomposition proposal). NEXT:
+  read Codex's reply (scan by mtime, never filter filenames), fix
+  round, iterate until BOTH sides return empty; then families only on
+  the user's explicit word (fresh pool, 8 subkernels, Watchdog.md).
 
 ## Standing gates (user directives, 2026-08-25)
 - NO family production runs until a mutual Fable+Codex sign-off that
