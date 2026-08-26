@@ -74,3 +74,34 @@ apply to you (you report to the coordinator, not the user). Stop after
 Spawn it with `Agent` (subagent_type general-purpose or claude, model opus,
 run_in_background true). When it reports, the coordinator acts and respawns
 (or continues it with SendMessage) while anything is still running.
+
+## Lessons from the 2026-08-25 hardening-wave watch (4 h, 4 real findings, ~7 self-defused false positives)
+
+A watchdog's default failure mode is crying wolf. The rules that earned
+their keep were anchored to AUTHORITATIVE STATE; the ones that fired
+falsely were anchored to names and text. Concretely, for future prompts:
+
+- Judge "did a production run start" by a byte fingerprint of the
+  campaign's state files (sector_state, campaign_status.tsv,
+  *_solve.status, mission logs) against a baseline taken at watch
+  start — never by process paths (an authorized measurement writing
+  into its own evidence dir under the campaign tree is not a launch).
+- Count licence seats by WolframKernel processes only; a wolframscript
+  wrapper is not a seat.
+- Scan for fatal signatures only in RUN logs, excluding the suite's or
+  agent's own reporting lines (assertion labels and prose legitimately
+  quote "$Aborted").
+- Judge a suite only in the NEWEST batch that ran it; a streak counts
+  distinct new results, not rounds re-reading a finished log.
+- Word-boundary the tally regexes ("40 OK, 0 FAIL" is not zero
+  assertions).
+- Verify a stand-down instead of taking it on report: loop PID gone
+  (killed by exact recorded PID — of the script, not its wrapper),
+  kernel count zero, expected commits in git log, gate line in the
+  artifact.
+
+Real findings this watch that a pattern-only watch would have missed:
+a suite recorded exit=0 that had aborted at line 3 (dead in the
+battery), a boolean failure tally reporting fail=1 for two reds, and
+the audit that a test "fix" strengthened rather than weakened its
+assertions (byte-compare against HEAD, count direction).
