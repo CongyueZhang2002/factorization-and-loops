@@ -43,10 +43,14 @@ DONE, in the tree, each with red-before-green evidence:
   evaluate, forcing Output->Bundle early return + MaterializeFunction
   seam, Automatic-roots synthesis now typed Missing[RootFrameRequired].
   Its runs: t_construction_bundle.wls 44/44, t_construction_dag 78/78,
-  t_construction_dag_divisors 15/15. FINAL STATE in scratchpad
-  round3/A3_FINAL.md (also mirrored in its progress log; the scratchpad
-  dies with the session — if missing, the progress-log lines above are
-  the record and the tree is the truth).
+  t_construction_dag_divisors 15/15. FINAL STATE preserved in
+  scratch_round3_handoff/ at the repo root (A3_FINAL.md, the round-3
+  progress log, the pre-fix red probe log, and the SELF-CONTAINED
+  pre-fix red-check script t_construction_bundle_prefix.wls with its
+  overlay BlockEquationDeferred_prefix.wl — A3's one PENDING item: run
+  that script once, expect heavy failures, record the counts as the
+  bundle suite's red evidence, then delete the handoff dir before the
+  A3 commit).
 
 PENDING VERIFICATION (was in flight at cutoff):
 - t_multiquadratic_gauge_screen re-run with S4/S6 STRENGTHENED to
