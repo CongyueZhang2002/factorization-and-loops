@@ -127,6 +127,10 @@ ClearAll[
   multiquadraticStripPotentialRelationZeroQ,
   multiquadraticStripVerifyPotential,
   multiquadraticStripPotentialsCertifiedQ,
+  multiquadraticStripLetterKinematicPart,
+  multiquadraticStripDiagonalSpan,
+  multiquadraticStripActivePotentialCertification,
+  multiquadraticStripTransferDiagnosticResidues,
   multiquadraticStripCompactDLogAdmission,
   multiquadraticStripChannelGradeSupport,
   multiquadraticStripChannelVectorGradeSupport,
@@ -177,6 +181,9 @@ ClearAll[
   $multiquadraticStripScreenMaximumBytes,
   multiquadraticStripIntegrabilityScreen,
   multiquadraticStripIntegrabilityScreenImages,
+  multiquadraticStripScreenEvidenceClassify,
+  multiquadraticStripConfirmedObstructionEvidenceQ,
+  multiquadraticStripFreshResidueScreenImages,
   multiquadraticStripGaugeAnsatz, multiquadraticStripGaugeScreen,
   multiquadraticStripGaugeScreenImages,
   multiquadraticStripFreshScreenImages,
@@ -1477,15 +1484,122 @@ multiquadraticStripVerifyPotential[letter_, form_,
   record
 ];
 
-(* The verdict over a whole alphabet: certified only when EVERY installed
-   one-form carries a verified potential.  A single unverified form makes
-   the alphabet uninstallable, which is the honest refusal both reviews
-   asked to keep. *)
+(* The verdict over a whole CANDIDATE alphabet: certified only when
+   EVERY record carries a verified potential.  Since round-3 A2 this is
+   TELEMETRY about the candidate pool -- it never sets the terminal
+   certification bit, which belongs to the ACTIVE-support verdict below
+   (an unused candidate with zero reconstructed residue cannot obstruct
+   installation). *)
 multiquadraticStripPotentialsCertifiedQ[letterRecords_] :=
   MatchQ[letterRecords, {___Association}] &&
     letterRecords =!= {} &&
     AllTrue[letterRecords,
       TrueQ[Lookup[Lookup[#1, "Potential", <||>], "Verified", False]] &];
+
+(* The kinematic part of a letter: multiplicative factors free of BOTH
+   chart variables (numeric content, powers of the regulator, masses)
+   are stripped -- dlog(c(eps) L0) and dlog(L0) have identical (x, y)
+   components, so a letter like eps*x is the letter x wearing invisible
+   content, and an INSTALLED letter must be the epsilon-independent
+   representative.  A letter whose variable-carrying part still contains
+   the regulator (x + eps) has genuinely kinematics-dependent regulator
+   mixing and is not repairable this way: the caller rejects it. *)
+multiquadraticStripLetterKinematicPart[letter_, variables_List] :=
+  Quiet[Check[Module[{t = Together[letter], keep},
+    keep[expr_] := Times @@ (Power[#1[[1]], #1[[2]]] & /@
+      Select[FactorList[expr],
+        ! FreeQ[#1[[1]], Alternatives @@ variables] &]);
+    keep[Numerator[t]]/keep[Denominator[t]]], $Failed]];
+
+(* Is a closed form an exact CONSTANT-coefficient combination of the
+   verified basis one-forms?  omega_diag = Sum_a c_a omega_a with c_a
+   free of the chart variables and the regulator; free parameters are
+   set to zero deterministically and BOTH components are rechecked with
+   an exact zero test.  A kinematics-dependent coefficient is refused:
+   it would turn constant residue matrices into kinematic functions. *)
+multiquadraticStripDiagonalSpan[form : {_, _}, basisForms_List,
+    variables : {x_, y_}] := Module[
+  {cs, difference, equations, solutions, values, exact},
+  If[basisForms === {}, Return[Missing["NoBasis"]]];
+  cs = Table[Unique["spanC"], {Length[basisForms]}];
+  difference[mu_, coefficients_] := Together[form[[mu]] -
+    Sum[coefficients[[a]] basisForms[[a, mu]], {a, Length[basisForms]}]];
+  equations = And @@ Table[
+    Numerator[difference[mu, cs]] == 0, {mu, 2}];
+  solutions = Quiet[SolveAlways[equations, variables]];
+  If[! MatchQ[solutions, {__List}], Return[Missing["NotSpanned"]]];
+  values = cs /. First[solutions] /. Alternatives @@ cs -> 0;
+  If[! AllTrue[values, FreeQ[#1, Alternatives @@ variables] &],
+    Return[Missing["KinematicCoefficient"]]];
+  exact = AllTrue[Table[difference[mu, values] === 0 ||
+    Together[difference[mu, values]] === 0, {mu, 2}], TrueQ];
+  If[! exact, Return[Missing["NotSpanned"]]];
+  <|"Spanned" -> True, "Coefficients" -> values|>
+];
+multiquadraticStripDiagonalSpan[___] := Missing["InvalidSpanArguments"];
+
+(* THE INSTALLATION VERDICT (round-3 A2): computed from the exact
+   reconstructed representation, never from the candidate pool.  A
+   letter is ACTIVE iff at least one entry of its reconstructed residue
+   matrix K_a(eps) is not the zero rational function -- an exact
+   one-variable test per scalar, never a sampled or floating one.
+   Verified potentials are required exactly for the active support; an
+   empty active alphabet is vacuously certified for a gauge-only
+   solution (AllTrue[{}, ...] is the desired mathematical semantics).
+   If reconstruction was skipped or failed the verdict is
+   PendingReconstruction, not False. *)
+multiquadraticStripActivePotentialCertification[
+    letterRecords : {___Association}, residues_, reconstructedQ_] := Module[
+  {zeroEntryQ, activeQ, active, inactive, unverifiedActive},
+  If[! TrueQ[reconstructedQ] || ! ListQ[residues] ||
+      Length[residues] =!= Length[letterRecords],
+    Return[<|"Status" -> "ActivePotentialCertificationV1",
+      "Certified" -> False,
+      "Pending" -> "PendingReconstruction",
+      "ActiveIndices" -> Missing["PendingReconstruction"],
+      "EmptyActiveAlphabet" -> Missing["PendingReconstruction"]|>]];
+  zeroEntryQ[q_] := Quiet[Check[Numerator[Together[q]] === 0, False]];
+  activeQ[matrix_] := ! AllTrue[Flatten[{matrix}], zeroEntryQ];
+  active = Select[Range[Length[letterRecords]], activeQ[residues[[#1]]] &];
+  inactive = Complement[Range[Length[letterRecords]], active];
+  unverifiedActive = Select[active, ! TrueQ[Lookup[
+    Lookup[letterRecords[[#1]], "Potential", <||>], "Verified", False]] &];
+  <|"Status" -> "ActivePotentialCertificationV1",
+    "ActiveIndices" -> active,
+    "InactiveIndices" -> inactive,
+    "ActiveLetterRecords" -> (KeyTake[letterRecords[[#1]],
+      {"Kind", "Letter", "FormKey", "Potential"}] & /@ active),
+    "ActiveOneForms" -> (Lookup[letterRecords[[#1]], "OneForm",
+      Missing["NoOneForm"]] & /@ active),
+    "ActiveResidues" -> residues[[active]],
+    "EmptyActiveAlphabet" -> (active === {}),
+    "Certified" -> (unverifiedActive === {}),
+    "UnverifiedActiveIndices" -> unverifiedActive|>
+];
+multiquadraticStripActivePotentialCertification[___] :=
+  multiquadraticStripFailure["InvalidActiveCertificationArguments"];
+
+(* The exact basis change for a redundant diagnostic column that
+   survived into a reconstructed result: with omega_diag =
+   Sum_a c_a omega_a, the residues transfer as
+       K_a' = K_a + c_a K_diag,   K_diag' = 0,
+   and Sum K' omega is EXACTLY Sum K omega -- the caller rechecks the
+   differential residual before installation regardless. *)
+multiquadraticStripTransferDiagnosticResidues[residues_List,
+    diagnosticIndex_Integer, coefficients_List, basisIndices_List] := Module[
+  {out = residues, diagResidue},
+  If[diagnosticIndex < 1 || diagnosticIndex > Length[residues] ||
+      Length[coefficients] =!= Length[basisIndices],
+    Return[multiquadraticStripFailure["InvalidResidueTransfer"]]];
+  diagResidue = residues[[diagnosticIndex]];
+  Do[out[[basisIndices[[a]]]] = Map[Together,
+      out[[basisIndices[[a]]]] + coefficients[[a]] diagResidue, {-1}],
+    {a, Length[basisIndices]}];
+  out[[diagnosticIndex]] = Map[0 &, diagResidue, {-1}];
+  out
+];
+multiquadraticStripTransferDiagnosticResidues[___] :=
+  multiquadraticStripFailure["InvalidResidueTransferArguments"];
 
 (* The row's already-installed alphabets.  A driver hands over the
    sector state's StripSolvers records; the blocks that share this
@@ -1525,7 +1639,8 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
     opts : OptionsPattern[]] := Module[
   {samples, pool, sampleCount, alphabet, algebraic, rowLetters, additional,
    records = {}, keys = <||>, form, rootSquares, entries, diagonal,
-   rowSource, add, counts, algebraicRecord},
+   rowSource, add, counts, algebraicRecord, rawCount, kindRank, priority,
+   grouped, verifiedForms, diagnosticRecords, regulatorRejected = 0},
   pool = Replace[OptionValue["RegulatorSamplePool"],
     Automatic :> $multiquadraticStripRegulatorSamplePool];
   sampleCount = OptionValue["RegulatorSampleCount"];
@@ -1551,8 +1666,14 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
       Lookup[record, "Sector", None], Lookup[record, "LowerSector", None]]];
   rowLetters = Flatten[{rowSource}];
   additional = Flatten[{OptionValue["AdditionalLetters"]}];
-  (* accumulate, in a fixed order, with a text key per one-form *)
-  add[kind_String, letter_, oneForm_, extra_Association] := Module[{fkey},
+  (* accumulate RAW records, in a fixed order, with a text key per
+     one-form.  Since round-3 A2 there is NO first-wins deduplication
+     here: every valid record is collected, and a second phase below
+     chooses one representative per one-form by a stable priority, so a
+     later VERIFIED letter replaces an earlier unverified record with
+     the same one-form instead of being discarded by it. *)
+  add[kind_String, letterIn_, oneForm_, extra_Association] := Module[
+    {fkey, letter = letterIn, stripped, extraOut = extra},
     If[oneForm === $Failed || ! MatchQ[oneForm, {_, _}], Return[Null]];
     If[multiquadraticStripZeroQ[oneForm], Return[Null]];
     (* THE regulator, not a symbol whose NAME starts with "eps" (round-2
@@ -1563,11 +1684,22 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
        spelled `eps...` was filtered out of an alphabet it belongs to.
        The regulator argument is already in scope here. *)
     If[! FreeQ[oneForm, epsilon], Return[Null]];
+    (* AN INSTALLED LETTER MUST BE EPSILON-INDEPENDENT (round-3 A2): a
+       letter such as eps*x has the same kinematic dlog as x, so its
+       one-form passes the filter above while the letter symbol does
+       not.  A proven kinematics-independent multiplicative content is
+       stripped and the potential verified against the stripped letter;
+       a letter whose variable-carrying part still contains the
+       regulator (x + eps) is rejected. *)
+    If[! MissingQ[letter] && ! FreeQ[letter, epsilon],
+      stripped = multiquadraticStripLetterKinematicPart[letter, variables];
+      If[stripped === $Failed || ! FreeQ[stripped, epsilon],
+        regulatorRejected++; Return[Null]];
+      letter = stripped;
+      extraOut = Join[extraOut, <|"StrippedContent" -> True|>]];
     If[! multiquadraticStripFieldMemberQ[oneForm[[1]], roots] ||
         ! multiquadraticStripFieldMemberQ[oneForm[[2]], roots], Return[Null]];
     fkey = multiquadraticStripFormTextKey[oneForm, variables, epsilon];
-    If[KeyExistsQ[keys, fkey], Return[Null]];
-    AssociateTo[keys, fkey -> True];
     (* THE dlog CERTIFICATE, minted at the one site that pairs a letter
        with the one-form computed from it.  A "Diagonal" record carries
        Missing["NotADLog"] as its letter and therefore no certificate: it
@@ -1589,7 +1721,7 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
         oneForm, variables, epsilon], "Cached"],
       "DLogCertificate" -> If[MissingQ[letter], Missing["NotADLog"],
         multiquadraticStripLetterDLogCertificateWithKey[letter, fkey,
-          variables, epsilon]]|>, extra]]];
+          variables, epsilon]]|>, extraOut]]];
   diagonal = multiquadraticScalarOneForms /@ {e, c};
   Do[
     If[! multiquadraticClosedOneFormQ[form, variables], Continue[]];
@@ -1614,6 +1746,46 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
   Do[add["Supplied", letter,
       multiquadraticStripLetterOneForm[letter, variables], <||>],
     {letter, additional}];
+  rawCount = Length[records];
+  (* ---- phase 2 (round-3 A2): one representative per one-form, by a
+     STABLE priority -- verified potential first, then installed
+     row-alphabet letters, supplied letters, derived rational/algebraic/
+     forcing letters, and last the bare diagnostic diagonal forms.  The
+     representative sits in the slot of the key's FIRST occurrence, and
+     the kinds it superseded travel with it as diagnostics. *)
+  kindRank = <|"RowAlphabet" -> 2, "Supplied" -> 3, "RationalFactor" -> 4,
+    "Algebraic" -> 4, "ForcingDLog" -> 4, "Diagonal" -> 5|>;
+  priority[rec_] := {If[TrueQ[Lookup[Lookup[rec, "Potential", <||>],
+      "Verified", False]], 0, 1],
+    Lookup[kindRank, Lookup[rec, "Kind", None], 4]};
+  grouped = GroupBy[records, Lookup[#1, "FormKey", None] &];
+  records = Table[Module[{group = grouped[key], best},
+      best = First[MinimalBy[group, priority]];
+      If[Length[group] > 1,
+        best = Join[best, <|"SupersededKinds" -> DeleteCases[
+          Lookup[group, "Kind", None], Lookup[best, "Kind", None]]|>]];
+      best],
+    {key, DeleteDuplicates[Lookup[records, "FormKey", {}]]}];
+  (* ---- phase 3 (round-3 A2): a bare unverified Diagonal form that is
+     an exact CONSTANT-coefficient combination of the verified letters is
+     DIAGNOSTIC, not a basis vector: its column is omitted before the
+     unknown layout is made, and the span certificate travels with it so
+     residues on the verified letters carry the same connection. *)
+  verifiedForms = Lookup[Select[records,
+    TrueQ[Lookup[Lookup[#1, "Potential", <||>], "Verified", False]] &],
+    "OneForm", {}];
+  diagnosticRecords = {};
+  records = Fold[Function[{kept, rec},
+    If[Lookup[rec, "Kind", None] === "Diagonal" &&
+        ! TrueQ[Lookup[Lookup[rec, "Potential", <||>], "Verified", False]],
+      Module[{span = multiquadraticStripDiagonalSpan[
+          Lookup[rec, "OneForm", $Failed], verifiedForms, variables]},
+        If[AssociationQ[span] && TrueQ[span["Spanned"]],
+          AppendTo[diagnosticRecords, Join[rec,
+            <|"Diagnostic" -> True, "SpannedBy" -> span["Coefficients"]|>]];
+          kept,
+          Append[kept, rec]]],
+      Append[kept, rec]]], {}, records];
   counts = Association[Table[kind -> Count[records, item_ /;
       Lookup[item, "Kind", None] === kind],
     {kind, {"Diagonal", "ForcingDLog", "RationalFactor", "Algebraic",
@@ -1622,8 +1794,12 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
     "OneForms" -> Lookup[records, "OneForm", {}],
     "Letters" -> Lookup[records, "Letter", {}],
     "LetterRecords" -> records,
-    (* round-2 item 7: the alphabet says, per letter and in one summary,
-       whether it carries a VERIFIED dlog potential *)
+    (* the spanned diagonal forms, kept OUT of the unknown layout *)
+    "DiagnosticRecords" -> diagnosticRecords,
+    (* round-2 item 7 + round-3 A2: per-letter verdicts, and a summary
+       that is TELEMETRY about the candidate pool -- the installation
+       verdict is the ACTIVE-support certification, computed only after
+       regulator reconstruction *)
     "PotentialsVerified" -> Count[records,
       item_ /; TrueQ[Lookup[Lookup[item, "Potential", <||>], "Verified",
         False]]],
@@ -1631,6 +1807,13 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
       item_ /; ! TrueQ[Lookup[Lookup[item, "Potential", <||>], "Verified",
         False]]],
     "PotentialsCertified" -> multiquadraticStripPotentialsCertifiedQ[records],
+    "CandidatePotentialSummary" -> <|
+      "Considered" -> rawCount,
+      "Installed" -> Length[records],
+      "Diagnostic" -> Length[diagnosticRecords],
+      "RegulatorContentRejected" -> regulatorRejected,
+      "Superseded" -> Count[records, item_ /;
+        Lookup[item, "SupersededKinds", {}] =!= {}]|>,
     "Alphabet" -> alphabet,
     "AlgebraicLetterRecords" -> Select[records,
       Lookup[#1, "Kind", None] === "Algebraic" &],
@@ -2267,16 +2450,145 @@ multiquadraticStripIntegrabilityScreen[___] :=
    HIGH-CONFIDENCE MODULAR OBSTRUCTION, which is what the caller may act
    on; it is still not an unconditional theorem over Q(eps), and the
    status language and the solution contract say so. *)
+(* ------------------------------------------------------------------ *)
+(* The screen-evidence classifier (round-3 A1, Codex instruction).      *)
+(*                                                                      *)
+(* ONE side-effect-free classifier decides every screen verdict, for    *)
+(* the residue-only screen and the full-gauge screen alike.  Its input  *)
+(* is EVIDENCE, not a solver object:                                    *)
+(*   ConfiguredRequired / ConfiguredUsable -- the configured images;    *)
+(*   FreshRequested / FreshGenerated / FreshUsable -- the fresh draw;   *)
+(*   Defects -- every USABLE defect, configured then fresh;             *)
+(*   UnusableStatuses -- statuses of images that did not measure;       *)
+(*   ConfirmationEnabled -- whether a negative may be confirmed at all. *)
+(*                                                                      *)
+(* The one monotonicity rule: adding evidence may confirm or weaken a   *)
+(* verdict, but failed or contrary fresh evidence is NEVER discarded in *)
+(* favour of an earlier two-image result.  "FreshRequested" -> 0 is     *)
+(* deliberately valid: a caller that explicitly asks for zero fresh     *)
+(* images accepts the configured-image evidence as the whole contract.  *)
+(* ------------------------------------------------------------------ *)
+
+multiquadraticStripScreenEvidenceConfirmedQ[ev_Association] :=
+  TrueQ[Lookup[ev, "ConfirmationEnabled", False]] &&
+  Lookup[ev, "ConfiguredUsable", 0] >= Lookup[ev, "ConfiguredRequired", 2] &&
+  Lookup[ev, "FreshGenerated", -1] === Lookup[ev, "FreshRequested", 0] &&
+  Lookup[ev, "FreshUsable", -1] === Lookup[ev, "FreshRequested", 0] &&
+  Length[Lookup[ev, "Defects", {}]] ===
+    Lookup[ev, "ConfiguredUsable", 0] + Lookup[ev, "FreshUsable", 0] &&
+  Lookup[ev, "Defects", {}] =!= {} &&
+  AllTrue[Lookup[ev, "Defects", {None}], IntegerQ[#1] && #1 > 0 &];
+
+multiquadraticStripScreenEvidenceClassify[ev_Association] := Module[
+  {defects = Lookup[ev, "Defects", {}],
+   unusable = Lookup[ev, "UnusableStatuses", {}], allPositive},
+  allPositive = defects =!= {} &&
+    AllTrue[defects, IntegerQ[#1] && #1 > 0 &];
+  Which[
+    (* a usable zero defect is SAMPLED consistency: that image exhibits
+       a solution of its own specialized system.  It wins over every
+       positive defect (monotonicity), but it is not a claim about the
+       generic field. *)
+    defects =!= {} && AllTrue[defects, #1 === 0 &],
+      <|"Verdict" -> "SampledConsistent", "AllZero" -> True|>,
+    AnyTrue[defects, #1 === 0 &],
+      <|"Verdict" -> "SampledConsistent", "AllZero" -> False,
+        "Reason" -> "MixedDefectEvidence"|>,
+    multiquadraticStripScreenEvidenceConfirmedQ[ev],
+      <|"Verdict" -> "ConfirmedObstruction"|>,
+    allPositive && unusable =!= {},
+      <|"Verdict" -> "Inconclusive", "Reason" -> "UnusableFreshImage"|>,
+    allPositive && Lookup[ev, "ConfiguredUsable", 0] >=
+        Lookup[ev, "ConfiguredRequired", 2],
+      (* every usable image carries a defect, but the requested fresh
+         evidence was not fully obtained: the verdict may not harden *)
+      <|"Verdict" -> "Inconclusive", "Reason" -> "FreshEvidenceIncomplete"|>,
+    allPositive,
+      <|"Verdict" -> "Unconfirmed"|>,
+    True,
+      <|"Verdict" -> "Inconclusive", "Reason" -> "InsufficientEvidence"|>]
+];
+multiquadraticStripScreenEvidenceClassify[___] :=
+  multiquadraticStripFailure["InvalidScreenEvidence"];
+
+(* the predicate a DRIVER must recheck before returning any negative
+   contract: the status name alone is not the authority, the evidence
+   record is *)
+multiquadraticStripConfirmedObstructionEvidenceQ[rec_Association] :=
+  Module[{ev = Lookup[rec, "EvidenceRecord", <||>]},
+    AssociationQ[ev] && multiquadraticStripScreenEvidenceConfirmedQ[ev]];
+multiquadraticStripConfirmedObstructionEvidenceQ[___] := False;
+
+(* Fresh random good images for the RESIDUE-ONLY screen.  Same admission
+   as the gauge generator -- unused admissible prime, regulator value the
+   forcing sampler accepts -- but NO gauge-denominator condition, because
+   there is no gauge ansatz here; instead the root squares and letter
+   one-forms must remain evaluable and nondegenerate at the value. *)
+multiquadraticStripFreshResidueScreenImages[record_Association, roots_List,
+    letterRecords_List, count_Integer, seed_Integer, excludePrimes_List,
+    excludeValues_List] := Module[
+  {variables, epsilon, strip, pool, sampled, values, primes, candidate,
+   rejectedPrimes = {}, rejectedValues, attempts, evaluableQ, squares,
+   oneForms},
+  If[count <= 0, Return[<|"Status" -> "NoFreshImagesRequested",
+    "Images" -> {}, "RejectedPrimes" -> {}, "RejectedValues" -> {}|>]];
+  variables = Lookup[record, "Variables", $Failed];
+  epsilon = Lookup[record, "Regulator", $Failed];
+  strip = Lookup[record, "Strip", $Failed];
+  If[! MatchQ[variables, {_Symbol, _Symbol}] || ! MatchQ[epsilon, _Symbol] ||
+      ! MatchQ[strip, {_List, _List, _List}],
+    Return[multiquadraticStripFailure["InvalidRecordForFreshResidueImages"]]];
+  squares = Lookup[roots, "RootSquare", {}];
+  oneForms = Lookup[letterRecords, "OneForm", {}];
+  evaluableQ[value_] := Module[{image = Quiet[Check[
+      Together[{squares, oneForms} /. epsilon -> value], $Failed]]},
+    image =!= $Failed &&
+      FreeQ[image, DirectedInfinity | Indeterminate | ComplexInfinity] &&
+      ! AnyTrue[Flatten[{image[[1]]}], TrueQ[Together[#1] === 0] &]];
+  pool = DeleteCases[
+    BlockRandom[RandomSample[$multiquadraticStripRegulatorSamplePool],
+      RandomSeeding -> seed],
+    Alternatives @@ excludeValues];
+  pool = Select[pool, evaluableQ];
+  sampled = multiquadraticStripRegulatorSampleValues[strip[[3]], variables,
+    epsilon, count, pool];
+  values = Lookup[sampled, "Values", {}];
+  rejectedValues = Lookup[sampled, "RejectedValues", {}];
+  primes = {}; attempts = 0;
+  BlockRandom[
+    While[Length[primes] < Length[values] && attempts < 4096,
+      attempts++;
+      candidate = NextPrime[RandomInteger[{2^29, 2^31 - 2^20}]];
+      If[Mod[candidate, 4] === 3 && candidate < 2^31 &&
+          ! MemberQ[excludePrimes, candidate] && ! MemberQ[primes, candidate],
+        AppendTo[primes, candidate],
+        AppendTo[rejectedPrimes, candidate]]],
+    RandomSeeding -> seed + 104729];
+  If[Length[primes] < Length[values], values = Take[values, Length[primes]]];
+  <|"Status" -> If[Length[values] >= count, "FreshScreenImages",
+      "InsufficientFreshScreenImages"],
+    "Images" -> Transpose[{Take[primes, Length[values]], values}],
+    "Requested" -> count, "Seed" -> seed,
+    "RejectedValues" -> rejectedValues,
+    "RejectedPrimeCount" -> Length[rejectedPrimes]|>
+];
+multiquadraticStripFreshResidueScreenImages[___] :=
+  multiquadraticStripFailure["InvalidFreshResidueImageArguments"];
+
 Options[multiquadraticStripIntegrabilityScreenImages] = Join[
   Options[multiquadraticStripIntegrabilityScreen], {
   "Images" -> Automatic,
-  "ConfirmObstruction" -> True
+  "ConfirmObstruction" -> True,
+  "FreshImageCount" -> Automatic,
+  "FreshImageSeed" -> Automatic
 }];
 
 multiquadraticStripIntegrabilityScreenImages[record_Association, roots_List,
     letterRecords_List, opts : OptionsPattern[]] := Module[
   {gate, images, firstPrime, firstRegulator, results = {}, screenOptions,
-   result, defects, status, startTime = AbsoluteTime[]},
+   result, defects, status, startTime = AbsoluteTime[], configuredCount,
+   freshCount, freshSeed, freshRequest, freshImages = {},
+   freshResults = {}, evidence, verdict, allImages},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripIntegrabilityScreenImages]]]];
   If[AssociationQ[gate], Return[gate]];
@@ -2311,43 +2623,116 @@ multiquadraticStripIntegrabilityScreenImages[record_Association, roots_List,
     If[! MemberQ[{"AlphabetIntegrabilityObstruction",
         "AlphabetIntegrabilityConsistent"}, Lookup[result, "Status", None]],
       Break[]];
-    (* the fast path: a consistent image ends the screen *)
+    (* the fast path: a zero-defect image ends the screen and permits
+       the full route.  It is SAMPLED consistency -- a solution of that
+       image's own specialized system -- not proof of generic
+       solvability; the classifier below records it as such. *)
     If[Lookup[result, "Defect", 1] === 0, Break[]];
     If[! TrueQ[OptionValue["ConfirmObstruction"]], Break[]],
     {k, Length[images]}];
+  configuredCount = Length[results];
+  (* ---- the fresh-image confirmation (round-3 A1): a defect that
+     survives every configured image is re-tested at fresh random good
+     images through the same evidence classifier as the full-gauge
+     screen.  "FreshImageCount" -> 0 accepts the configured evidence. *)
+  freshCount = Replace[OptionValue["FreshImageCount"],
+    Automatic :> $multiquadraticStripDefaultFreshImageCount];
+  freshSeed = Replace[OptionValue["FreshImageSeed"],
+    Automatic :> Replace[OptionValue["RandomSeed"], Automatic -> 20260826]];
+  If[! IntegerQ[freshSeed], freshSeed = 20260826];
+  freshRequest = <|"Status" -> "FreshImagesNotRun"|>;
+  If[freshCount > 0 && TrueQ[OptionValue["ConfirmObstruction"]] &&
+      configuredCount >= 2 &&
+      AllTrue[results, Lookup[#1, "Status", None] ===
+        "AlphabetIntegrabilityObstruction" &] &&
+      AllTrue[results, IntegerQ[Lookup[#1, "Defect", None]] &&
+        Lookup[#1, "Defect", 0] > 0 &],
+    freshRequest = multiquadraticStripFreshResidueScreenImages[record, roots,
+      letterRecords, freshCount, freshSeed, images[[All, 1]],
+      images[[All, 2]]];
+    freshImages = Lookup[freshRequest, "Images", {}];
+    If[! MatchQ[freshImages, {{_Integer, _Integer | _Rational} ...}],
+      freshImages = {}];
+    Do[
+      result = multiquadraticStripIntegrabilityScreen[record, roots,
+        letterRecords, "Prime" -> freshImages[[k, 1]],
+        "RegulatorValue" -> freshImages[[k, 2]],
+        "RandomSeed" -> freshSeed + 15485863 k,
+        Sequence @@ screenOptions];
+      If[! MemberQ[{"AlphabetIntegrabilityObstruction",
+          "AlphabetIntegrabilityConsistent"}, Lookup[result, "Status", None]],
+        freshRequest = Join[freshRequest,
+          <|"UnusableImage" -> freshImages[[k]],
+            "UnusableImageStatus" -> Lookup[result, "Status", None]|>];
+        Break[]];
+      AppendTo[freshResults, result];
+      AppendTo[results, result];
+      If[Lookup[result, "Defect", 1] === 0, Break[]],
+      {k, Length[freshImages]}]];
   defects = Lookup[results, "Defect", Missing["NoDefect"]];
+  evidence = <|
+    "ConfiguredRequired" -> 2,
+    "ConfiguredUsable" -> Count[Take[results, UpTo[configuredCount]],
+      r_ /; MemberQ[{"AlphabetIntegrabilityObstruction",
+        "AlphabetIntegrabilityConsistent"}, Lookup[r, "Status", None]]],
+    "FreshRequested" -> If[Lookup[freshRequest, "Status", None] ===
+        "FreshImagesNotRun" && freshCount > 0 &&
+        ! AllTrue[Take[results, UpTo[configuredCount]],
+          IntegerQ[Lookup[#1, "Defect", None]] &&
+            Lookup[#1, "Defect", 0] > 0 &], 0, freshCount],
+    "FreshGenerated" -> Length[Lookup[freshRequest, "Images", {}]],
+    "FreshUsable" -> Length[freshResults],
+    "Defects" -> Select[defects, IntegerQ],
+    "UnusableStatuses" -> DeleteMissing[
+      {Lookup[freshRequest, "UnusableImageStatus", Missing["None"]]}],
+    "ConfirmationEnabled" -> TrueQ[OptionValue["ConfirmObstruction"]]|>;
+  verdict = multiquadraticStripScreenEvidenceClassify[evidence];
   status = Which[
-    ! AllTrue[results, MemberQ[{"AlphabetIntegrabilityObstruction",
-      "AlphabetIntegrabilityConsistent"}, Lookup[#1, "Status", None]] &],
-      (* a not-applicable / budget-exhausted image is not a verdict *)
-      Lookup[Last[results], "Status", "IntegrabilityScreenNotApplicable"],
-    (* ANY consistent image settles it: that image exhibits a solution of
-       the specialized system, so the generic system is solvable and a
-       defect at another image was an exceptional regulator value, not an
-       obstruction.  The exceptional images are recorded, never acted
-       on. *)
-    AnyTrue[defects, IntegerQ[#1] && #1 === 0 &],
+    ! AllTrue[Take[results, UpTo[configuredCount]],
+        MemberQ[{"AlphabetIntegrabilityObstruction",
+          "AlphabetIntegrabilityConsistent"}, Lookup[#1, "Status", None]] &],
+      (* a not-applicable / budget-exhausted configured image is not a
+         verdict *)
+      Lookup[Last[Take[results, UpTo[configuredCount]]], "Status",
+        "IntegrabilityScreenNotApplicable"],
+    Lookup[verdict, "Verdict", None] === "SampledConsistent",
       "AlphabetIntegrabilityConsistent",
-    Length[results] >= 2 && AllTrue[defects, IntegerQ[#1] && #1 > 0 &],
+    Lookup[verdict, "Verdict", None] === "ConfirmedObstruction",
       "AlphabetIntegrabilityObstruction",
-    True, "AlphabetIntegrabilityObstructionUnconfirmed"];
+    Lookup[verdict, "Verdict", None] === "Unconfirmed",
+      "AlphabetIntegrabilityObstructionUnconfirmed",
+    True, "IntegrabilityScreenInconclusive"];
+  allImages = Join[Take[images, UpTo[configuredCount]],
+    Take[freshImages, UpTo[Length[freshResults]]]];
   Join[
     (* the deciding image's own payload travels on, so witnesses,
        scored letters and phase timings are not lost by the wrapper *)
     KeyDrop[Last[results], {"Status", "Seconds"}],
     <|"Status" -> status, "Module" -> "MultiquadraticStripSolve",
       "Method" -> "ResidueOnlyIntegrability",
-      "Confirmed" -> (status === "AlphabetIntegrabilityObstruction"),
-      (* the images whose defect was NOT reproduced: an exceptional
-         regulator value of an otherwise solvable system, kept as
-         evidence and never acted on *)
+      "Confirmed" -> (status === "AlphabetIntegrabilityObstruction" &&
+        multiquadraticStripScreenEvidenceConfirmedQ[evidence]),
+      "Reason" -> Lookup[verdict, "Reason", Missing["NoReason"]],
+      (* SAMPLED consistency: a zero-defect image exhibits a solution of
+         ITS OWN specialized system.  The positive-defect images beside
+         it are recorded as evidence, never acted on; the generic
+         statement is left to the full route. *)
+      "SampledConsistency" ->
+        (status === "AlphabetIntegrabilityConsistent"),
       "ExceptionalRegulatorImages" ->
         If[status === "AlphabetIntegrabilityConsistent",
-          Pick[Take[images, UpTo[Length[results]]],
+          Pick[Take[allImages, UpTo[Length[defects]]],
             Map[IntegerQ[#1] && #1 > 0 &, defects]], {}],
       "ImageCount" -> Length[results], "Defects" -> defects,
-      "Images" -> Take[images, UpTo[Length[results]]],
+      "Images" -> allImages,
       "ImageResults" -> results,
+      "ConfiguredImageCount" -> configuredCount,
+      "FreshImageCount" -> Length[freshResults],
+      "FreshImageRequest" -> KeyTake[freshRequest,
+        {"Status", "Requested", "Seed", "RejectedValues",
+         "RejectedPrimeCount", "UnusableImage", "UnusableImageStatus"}],
+      "EvidenceRecord" -> Join[evidence,
+        <|"Verdict" -> Lookup[verdict, "Verdict", None]|>],
       "PhaseTimings" -> Merge[
         Lookup[results, "PhaseTimings", <||>], Total],
       "Seconds" -> AbsoluteTime[] - startTime|>]
@@ -3041,7 +3426,7 @@ multiquadraticStripGaugeScreenImages[ansatz_Association,
     opts : OptionsPattern[]] := Module[
   {gate, images, results = {}, screenOptions, result, defects,
    freshCount, freshSeed, freshRequest, freshImages = {}, freshResults = {},
-   configuredCount, imageCount},
+   configuredCount, imageCount, evidence, verdict, measuringCount},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripGaugeScreenImages]]]];
   If[AssociationQ[gate], Return[gate]];
@@ -3051,6 +3436,9 @@ multiquadraticStripGaugeScreenImages[ansatz_Association,
   If[! MatchQ[images, {{_Integer, _Integer | _Rational} ..}],
     Return[multiquadraticStripFailure["InvalidGaugeScreenImages",
       <|"Images" -> images|>]]];
+  (* two identical (prime, regulator) images are one image, never two
+     confirmations *)
+  images = DeleteDuplicates[images];
   freshCount = Replace[OptionValue["FreshImageCount"],
     Automatic :> $multiquadraticStripDefaultFreshImageCount];
   If[! (IntegerQ[freshCount] && freshCount >= 0),
@@ -3114,32 +3502,59 @@ multiquadraticStripGaugeScreenImages[ansatz_Association,
       {k, Length[freshImages]}]];
   defects = Lookup[results, "Defect", Missing["NoDefect"]];
   imageCount = Length[results];
+  measuringCount = Count[results, r_ /; MemberQ[{"GaugeImageObstruction",
+    "GaugeImageConsistent"}, Lookup[r, "Status", None]]];
+  evidence = <|
+    "ConfiguredRequired" -> 2,
+    "ConfiguredUsable" -> Count[Take[results, UpTo[configuredCount]],
+      r_ /; MemberQ[{"GaugeImageObstruction", "GaugeImageConsistent"},
+        Lookup[r, "Status", None]]],
+    "FreshRequested" -> If[Lookup[freshRequest, "Status", None] ===
+        "FreshImagesNotRun", 0, freshCount],
+    "FreshGenerated" -> Length[Lookup[freshRequest, "Images", {}]],
+    "FreshUsable" -> Length[freshResults],
+    "Defects" -> Select[defects, IntegerQ],
+    "UnusableStatuses" -> DeleteMissing[
+      {Lookup[freshRequest, "UnusableImageStatus", Missing["None"]]}],
+    "ConfirmationEnabled" -> TrueQ[OptionValue["ConfirmObstruction"]]|>;
+  verdict = multiquadraticStripScreenEvidenceClassify[evidence];
   Join[<|"Status" -> Which[
-      ! AllTrue[results, MemberQ[{"GaugeImageObstruction",
-        "GaugeImageConsistent"}, Lookup[#1, "Status", None]] &],
+      measuringCount < imageCount,
         (* a budget stop is a RESUMABLE stop, not "the screen does not
            apply to this block": the two must not be conflated *)
         If[AnyTrue[results, Lookup[#1, "Status", None] === "BudgetExhausted" &],
           "BudgetExhausted", "GaugeScreenNotApplicable"],
-      AllTrue[defects, IntegerQ[#1] && #1 === 0 &] &&
-        (Length[results] >= 2 || ! TrueQ[OptionValue["ConfirmConsistency"]]),
-        "GaugeImageConsistent",
-      AllTrue[defects, IntegerQ[#1] && #1 === 0 &],
-        "GaugeImageConsistentUnconfirmed",
-      AllTrue[defects, IntegerQ[#1] && #1 > 0 &] && Length[results] >= 2,
+      Lookup[verdict, "Verdict", None] === "SampledConsistent" &&
+          TrueQ[Lookup[verdict, "AllZero", False]],
+        If[Length[results] >= 2 || ! TrueQ[OptionValue["ConfirmConsistency"]],
+          "GaugeImageConsistent", "GaugeImageConsistentUnconfirmed"],
+      Lookup[verdict, "Verdict", None] === "SampledConsistent",
+        (* a zero defect beside positive ones: sampled consistency.  The
+           full route continues; this is NOT "consistent over the
+           generic field" and NOT an obstruction (round-3 A1) *)
+        "GaugeScreenInconclusive",
+      Lookup[verdict, "Verdict", None] === "ConfirmedObstruction",
         "GaugeImageObstruction",
-      True, "GaugeImageObstructionUnconfirmed"],
+      Lookup[verdict, "Verdict", None] === "Unconfirmed",
+        "GaugeImageObstructionUnconfirmed",
+      True, "GaugeScreenInconclusive"],
+    "Reason" -> Lookup[verdict, "Reason", Missing["NoReason"]],
     "Module" -> "MultiquadraticStripSolve",
     "Method" -> "PointEvaluatedAffineGaugeSystem",
     "ImageCount" -> imageCount, "Defects" -> defects,
     "Images" -> Join[Take[images, UpTo[configuredCount]],
       Take[freshImages, UpTo[imageCount - configuredCount]]],
     "ImageResults" -> results,
-    (* the evidence a consumer must quote instead of a theorem *)
+    (* the evidence a consumer must quote instead of a theorem; the
+       DRIVER rechecks the confirmation predicate on this record before
+       any negative contract *)
+    "EvidenceRecord" -> Join[evidence,
+      <|"Verdict" -> Lookup[verdict, "Verdict", None]|>],
     "ConfiguredImageCount" -> configuredCount,
     "FreshImageCount" -> Length[freshResults],
     "FreshImageRequest" -> KeyTake[freshRequest,
-      {"Status", "Requested", "Seed", "RejectedValues", "RejectedPrimeCount"}],
+      {"Status", "Requested", "Seed", "RejectedValues", "RejectedPrimeCount",
+       "UnusableImage", "UnusableImageStatus"}],
     "FreshImages" -> Take[freshImages, UpTo[Length[freshResults]]],
     "FreshDefects" -> (Lookup[#1, "Defect", Missing["NoDefect"]] & /@
       freshResults),
@@ -4287,6 +4702,10 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
       KeyTake[#1, {"Kind", "Letter", "FormKey", "Potential"}] & /@
         letterRecords,
       Missing["LettersSuppliedAsOneForms"]],
+    (* since round-3 A2 this is CANDIDATE-POOL telemetry: the terminal
+       certification bit is the ACTIVE-support verdict, computed only
+       after regulator reconstruction, because an unused candidate with
+       zero reconstructed residue cannot obstruct installation *)
     "PotentialsCertified" -> If[MatchQ[letterRecords, {___Association}],
       multiquadraticStripPotentialsCertifiedQ[letterRecords], False],
     "PotentialsCertifiedReason" -> Which[
@@ -8375,6 +8794,7 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
   Module[
   {record = sourceRecord, radicalCanonicalization,
    reconstruction, reconstructedQ, potentialsCertifiedQ,
+   activeCertification, activeCertifiedQ,
    screenFirst, screenFirstAnsatz, screenFirstOffset,
    conservativeDenominator,
    startTime = AbsoluteTime[], gate, backendGate, verbose, log, preparation,
@@ -8592,18 +9012,33 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
       Lookup[screen, "ImageCount", None], " image(s), rank ",
       Lookup[screen, "Rank", None], "/", Lookup[screen, "AugmentedRank", None],
       " of ", Lookup[screen, "MatrixDimensions", None]];
-    (* Only a CONFIRMED obstruction -- a defect at two independent
-       (prime, regulator) images -- ends the block.  One image cannot
-       distinguish a generic obstruction from an exceptional regulator
-       value at which a generically solvable system degenerates, so an
-       unconfirmed defect is recorded and the established route runs. *)
-    If[Lookup[screen, "Status", None] === "AlphabetIntegrabilityObstruction",
+    (* Only a CONFIRMED obstruction ends the block: every configured
+       image AND the full requested fresh-image draw carrying a defect,
+       per the evidence classifier (round-3 A1).  The status name alone
+       is not the authority -- the driver rechecks the evidence
+       predicate before returning the negative contract. *)
+    If[Lookup[screen, "Status", None] === "AlphabetIntegrabilityObstruction" &&
+        multiquadraticStripConfirmedObstructionEvidenceQ[screen],
       (* ansatz-relative name, for the same reason as the gauge contract
          below (round-2 item 3): the note here was already bounded, the
          NAME was not, and a consumer that reads only the name would
          record a theorem *)
       Return[Join[screen, <|"SolutionContract" -> "AlphabetObstructionWithinAnsatz",
-        "ContractNote" -> "the residue-only integrability system carries a rank defect at TWO independent (prime, regulator) images: a high-confidence modular obstruction, i.e. no gauge of any shape, denominator or support repairs this alphabet at either image and the alphabet is missing letters. It is not an unconditional theorem over Q(eps): the statement is exact for each specialized finite-field system, and its generic validity rests on the two images being independent, not on a proved epsilon-degree bound.",
+        "ContractNote" -> StringJoin[
+          "the residue-only integrability system carries a rank defect at ",
+          ToString[Lookup[screen, "ImageCount", 0]],
+          " independent (prime, regulator) images (",
+          ToString[Lookup[screen, "ConfiguredImageCount", 0]],
+          " configured plus ",
+          ToString[Lookup[screen, "FreshImageCount", 0]],
+          " drawn fresh at random for this call): a high-confidence ",
+          "modular obstruction, i.e. no gauge of any shape, denominator ",
+          "or support repairs this alphabet at any of these images and ",
+          "the alphabet is missing letters. It is not an unconditional ",
+          "theorem over Q(eps): the statement is exact for each ",
+          "specialized finite-field system, and its generic validity ",
+          "rests on the images being independent, not on a proved ",
+          "epsilon-degree bound."],
         "ContractStrength" -> "HighConfidenceModularObstruction",
         "ImageCount" -> Lookup[screen, "ImageCount", Missing["NotRecorded"]],
         "Seconds" -> AbsoluteTime[] - startTime|>]]];
@@ -8611,6 +9046,11 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
         "AlphabetIntegrabilityObstructionUnconfirmed",
       log["integrability screen: the defect did NOT reproduce at the ",
         "confirmation image; not treated as an obstruction"]];
+    If[Lookup[screen, "Status", None] === "IntegrabilityScreenInconclusive",
+      log["integrability screen: INCONCLUSIVE (",
+        Lookup[screen, "Reason", None],
+        "); the defect evidence is incomplete and may not harden into ",
+        "an obstruction; the established route runs"]];
     If[Lookup[screen, "Status", None] === "BudgetExhausted",
       Return[enrich[Join[budgetExhausted["IntegrabilityScreen"],
         <|"IntegrabilityScreen" -> KeyTake[screen,
@@ -8661,10 +9101,12 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
          by default only because no real block has been screened both
          ways yet under the no-family-run gate. *)
       If[OptionValue["ScreenFirst"] === True &&
-          Lookup[screenFirst, "Status", None] === "GaugeImageObstruction",
+          Lookup[screenFirst, "Status", None] === "GaugeImageObstruction" &&
+          multiquadraticStripConfirmedObstructionEvidenceQ[screenFirst],
         Return[enrich[Join[
           KeyTake[screenFirst, {"ImageCount", "ConfiguredImageCount",
-            "FreshImageCount", "Defects", "Images", "Ansatz"}],
+            "FreshImageCount", "Defects", "Images", "Ansatz",
+            "EvidenceRecord"}],
           <|"Status" -> "GaugeImageObstruction",
             "Stage" -> "ScreenFirst",
             "Module" -> "MultiquadraticStripSolve",
@@ -8831,15 +9273,24 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
             log["gauge screen: fresh-image confirmation ",
               Lookup[confirmed, "Status", None], ", defects ",
               Lookup[confirmed, "Defects", None]];
-            If[MemberQ[{"GaugeImageObstruction",
-                "GaugeImageObstructionUnconfirmed"},
-                Lookup[confirmed, "Status", None]], confirmed, gaugeScreen]]];
+            (* ALWAYS adopt the confirmation run (round-3 A1,
+               monotonicity): failed or contrary fresh evidence may
+               never be discarded in favour of the earlier two-image
+               result *)
+            confirmed]];
+        Which[
+          (* the negative contract: ONLY the exact confirmed status,
+             with the evidence predicate rechecked on the record itself
+             -- the status name alone is not the authority *)
+          Lookup[gaugeScreen, "Status", None] === "GaugeImageObstruction" &&
+            multiquadraticStripConfirmedObstructionEvidenceQ[gaugeScreen],
         Return[enrich[Join[
           KeyDrop[First[gaugeScreen["ImageResults"]], {"Module"}],
           <|"Status" -> "GaugeImageObstruction",
             "Module" -> "MultiquadraticStripSolve",
-            "Confirmed" -> (Lookup[gaugeScreen, "Status", None] ===
-              "GaugeImageObstruction"),
+            "Confirmed" -> True,
+            "EvidenceRecord" -> Lookup[gaugeScreen, "EvidenceRecord",
+              Missing["NotRecorded"]],
             "Defects" -> gaugeScreen["Defects"],
             "Images" -> gaugeScreen["Images"],
             "ImageResults" -> (KeyDrop[#1, {"Witness"}] & /@
@@ -8891,7 +9342,48 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
             "GaugeScreenSeconds" -> gaugeScreen["Seconds"],
             "GaugeScreenLadderSeconds" -> Lookup[gaugeLadder, "Seconds",
               Missing["GaugeScreenLadderNotRun"]],
-            "Seconds" -> AbsoluteTime[] - startTime|>]]]]]];
+            "Seconds" -> AbsoluteTime[] - startTime|>]]],
+          (* a fresh image admitted a solution: the configured defect is
+             an exceptional image of a solvable system.  CONTINUE the
+             full route -- never a negative contract. *)
+          MemberQ[{"GaugeImageConsistent", "GaugeImageConsistentUnconfirmed"},
+              Lookup[gaugeScreen, "Status", None]] ||
+            (Lookup[gaugeScreen, "Status", None] === "GaugeScreenInconclusive" &&
+             Lookup[gaugeScreen, "Reason", None] === "MixedDefectEvidence"),
+          log["gauge screen: a fresh image admitted a solution ",
+            "(sampled consistency); the configured defect is treated as ",
+            "exceptional and the full route continues"],
+          (* a budget stop of the confirmation run stays a budget stop *)
+          Lookup[gaugeScreen, "Status", None] === "BudgetExhausted",
+          Return[enrich[Join[budgetExhausted["GaugeScreenConfirmation"],
+            <|"GaugeScreen" -> KeyTake[gaugeScreen,
+              {"Stage", "SizeEstimate", "PhaseTimings",
+               "MatrixDimensions"}]|>]]],
+          (* everything else -- an unconfirmed defect, incomplete or
+             unusable fresh evidence, a not-applicable re-screen -- is a
+             typed INCONCLUSIVE stop: no negative contract, no contract
+             strength, resumable with a different seed or budget *)
+          True,
+          Return[enrich[Join[
+            KeyTake[gaugeScreen, {"ImageCount", "ConfiguredImageCount",
+              "FreshImageCount", "Defects", "Images", "EvidenceRecord",
+              "FreshImageRequest", "Ansatz"}],
+            <|"Status" -> "GaugeScreenInconclusive",
+              "Module" -> "MultiquadraticStripSolve",
+              "Confirmed" -> False,
+              "Reason" -> Lookup[gaugeScreen, "Reason",
+                Lookup[gaugeScreen, "Status", Missing["NoReason"]]],
+              "DegreeOffset" -> OptionValue["DegreeOffset"],
+              "GaugeScreenLadder" -> gaugeLadder,
+              "ContractNote" -> StringJoin[
+                "the configured images carry a defect but the requested ",
+                "fresh-image confirmation was NOT completed (",
+                ToString[Lookup[gaugeScreen, "Reason",
+                  Lookup[gaugeScreen, "Status", "unknown"]]],
+                "); the evidence may not harden into an obstruction ",
+                "contract.  Re-run with a different FreshImageSeed or a ",
+                "larger budget to decide the block."],
+              "Seconds" -> AbsoluteTime[] - startTime|>]]]]]]];
   If[multiquadraticStripDeadlineExpiredQ[deadline],
     Return[budgetExhausted["GaugeScreen"]]];
   (* the preparation object was built in THIS call: its ABI payload is
@@ -9087,8 +9579,22 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
     reconstruction = <|"Status" -> "RegulatorReconstructionSkipped"|>];
   reconstructedQ = Lookup[reconstruction, "Status", None] ===
     "ReconstructedRegulatorDependenceV1";
+  (* THE INSTALLATION VERDICT (round-3 A2): computed from the exact
+     reconstructed ACTIVE support, never from the candidate pool.  The
+     candidate-pool verdict stays available as telemetry. *)
   potentialsCertifiedQ = TrueQ[Lookup[preparation, "PotentialsCertified",
     False]];
+  activeCertification = Module[{potentialRecords, residuesForActive},
+    residuesForActive = Lookup[reconstruction, "Residues", {}];
+    potentialRecords = Lookup[preparation, "Potentials", {}];
+    If[! MatchQ[potentialRecords, {___Association}] ||
+        Length[potentialRecords] =!= Length[residuesForActive],
+      potentialRecords = Table[<|"Potential" -> <|"Verified" -> False,
+        "Reason" -> "LetterRecordsUnavailableToDriver"|>|>,
+        {Length[Replace[residuesForActive, Except[_List] -> {}]]}]];
+    multiquadraticStripActivePotentialCertification[potentialRecords,
+      residuesForActive, reconstructedQ]];
+  activeCertifiedQ = TrueQ[Lookup[activeCertification, "Certified", False]];
   <|(* THE TERMINAL CONTRACT, and why it is NOT raised by this wave.
        Round-2 items 6 and 7 add two facts that were missing: one
        coherent rational-in-epsilon solution vector, validated at
@@ -9114,17 +9620,23 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
     "SolvedLevelClaim" -> <|
       "Withheld" -> True,
       "RegulatorReconstructed" -> reconstructedQ,
-      "PotentialsCertified" -> potentialsCertifiedQ,
+      (* the INSTALLATION-relevant bit: verified potentials on the
+         ACTIVE support of the reconstructed residues (round-3 A2); the
+         candidate-pool verdict beside it is telemetry *)
+      "ActivePotentialsCertified" -> activeCertifiedQ,
+      "CandidatePotentialsCertified" -> potentialsCertifiedQ,
       "MissingForInstallation" -> "a strip-installation contract: no consumer installs a strip result, so a Solved terminal status on this record would be acted on by nothing",
       "Reason" -> Which[
-        reconstructedQ && potentialsCertifiedQ,
-          "both round-2 preconditions hold and the claim is withheld on the installation contract alone",
+        reconstructedQ && activeCertifiedQ,
+          "both preconditions hold on the ACTIVE support and the claim is withheld on the installation contract alone",
         reconstructedQ,
-          "the regulator dependence is reconstructed and verified, but some installed one-form has no verified dlog potential (" <> ToString[Lookup[preparation, "PotentialsCertifiedReason", "unknown"]] <> ")",
-        potentialsCertifiedQ,
-          "every installed one-form carries a verified dlog potential, but no coherent rational-in-regulator solution vector was reconstructed (" <> ToString[Lookup[reconstruction, "Status", "unknown"]] <> ")",
+          "the regulator dependence is reconstructed and verified, but an ACTIVE letter (nonzero reconstructed residue) has no verified dlog potential: indices " <> ToString[Lookup[activeCertification, "UnverifiedActiveIndices", "unknown"]],
+        Lookup[activeCertification, "Pending", None] === "PendingReconstruction",
+          "no coherent rational-in-regulator solution vector was reconstructed (" <> ToString[Lookup[reconstruction, "Status", "unknown"]] <> "), so the active support is unknown and certification is pending",
         True,
           "neither a reconstructed rational-in-regulator solution vector nor certified potentials"]|>,
+    "ActivePotentialCertification" -> KeyDrop[activeCertification,
+      {"ActiveOneForms", "ActiveResidues"}],
     "ContractNote" -> "closed one-forms and a modular consistency statement: this result is recorded, never installed as a solved epsilon form. Round-2 adds two facts beside it -- see RegulatorReconstruction and SolvedLevelClaim -- and withholds the Solved-level claim itself, because nothing installs a strip result yet.",
     "RegulatorReconstruction" -> KeyTake[reconstruction,
       {"Status", "Method", "SamplePrimes", "UnseenPrime", "RegulatorValues",

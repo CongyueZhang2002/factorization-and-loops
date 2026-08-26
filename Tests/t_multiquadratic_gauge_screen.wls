@@ -550,10 +550,17 @@ genuine = integrabilityScreenImages[exceptionalRecord, {},
   Take[exceptionalLetters, 1], "PointCount" -> 12];
 report["S4 genuine obstruction", KeyTake[genuine,
   {"Status", "Confirmed", "Defects", "ImageCount"}]];
-check["S4 a genuine obstruction is confirmed at two independent images",
+(* round-3 A1: confirmation now ALSO requires the fresh random draw --
+   two configured images plus the default fresh count, every one
+   carrying a defect, with the evidence record satisfied *)
+s4Fresh = mq["$multiquadraticStripDefaultFreshImageCount"];
+check["S4 a genuine obstruction is confirmed at the configured AND the \
+fresh random images",
   Lookup[genuine, "Status", None] === "AlphabetIntegrabilityObstruction" &&
     TrueQ[Lookup[genuine, "Confirmed", False]] &&
-    Lookup[genuine, "ImageCount", 0] === 2 &&
+    Lookup[genuine, "ImageCount", 0] === 2 + s4Fresh &&
+    Lookup[genuine, "ConfiguredImageCount", 0] === 2 &&
+    Lookup[genuine, "FreshImageCount", 0] === s4Fresh &&
     AllTrue[Lookup[genuine, "Defects", {0}], IntegerQ[#1] && #1 > 0 &]];
 check["S4 the deciding image's witness travels with the confirmed verdict",
   AssociationQ[Lookup[genuine, "Witness", None]] &&
@@ -578,8 +585,10 @@ check["S6 the solution contract calls a confirmed defect a high-confidence \
 modular obstruction, not a Q(eps) theorem",
   StringContainsQ[solveSource,
     "\"ContractStrength\" -> \"HighConfidenceModularObstruction\""] &&
+    (* round-3 A1: the note now states the MEASURED image counts
+       (configured plus fresh) instead of hard-coding TWO *)
     StringContainsQ[solveSource,
-      "rank defect at TWO independent (prime, regulator) images"] &&
+      "independent (prime, regulator) images ("] &&
     StringContainsQ[solveSource,
       "It is not an unconditional theorem over Q(eps)"]];
 (* BEHAVIOURAL (2026-08-25): the source-text form of this assertion broke
@@ -605,12 +614,14 @@ s6Driven = mq["solveEpsFormStripMultiquadratic"][exceptionalRecord, s6Frame,
 report["S6 top-level verdict on the genuine obstruction",
   KeyTake[s6Driven, {"Status", "Confirmed", "ImageCount", "Defects",
     "ContractStrength"}]];
-check["S6 the top level's verdict carries the two-image evidence, which \
-only the confirming screen produces",
+check["S6 the top level's verdict carries the configured-plus-fresh \
+evidence, which only the confirming screen produces",
   Lookup[s6Driven, "Status", None] === "AlphabetIntegrabilityObstruction" &&
-    Lookup[s6Driven, "ImageCount", 0] === 2 &&
-    MatchQ[Lookup[s6Driven, "Images", None], {{_Integer, _}, {_Integer, _}}] &&
-    Length[Lookup[s6Driven, "Defects", {}]] === 2 &&
+    Lookup[s6Driven, "ImageCount", 0] === 2 + s4Fresh &&
+    MatchQ[Lookup[s6Driven, "Images", None], {{_Integer, _} ..}] &&
+    Length[Lookup[s6Driven, "Images", {}]] === 2 + s4Fresh &&
+    Length[Lookup[s6Driven, "Defects", {}]] === 2 + s4Fresh &&
+    AllTrue[Lookup[s6Driven, "Defects", {0}], IntegerQ[#1] && #1 > 0 &] &&
     Lookup[s6Driven, "ContractStrength", None] ===
       "HighConfidenceModularObstruction" &&
     Lookup[s6Driven, "SolutionContract", None] ===
