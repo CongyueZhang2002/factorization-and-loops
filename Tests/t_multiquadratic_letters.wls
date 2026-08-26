@@ -125,6 +125,10 @@ check["the fixture is a rank-2 multiquadratic strip over d1 and d2",
     Sort[Together /@ Lookup[order["Roots"], "RootSquare", {}]] ===
       Sort[Together /@ {delta1, delta2}]];
 roots = order["Roots"];
+dlogKernelText = Environment["FACET_MQ_TEST_DLOG_KERNELS"];
+dlogKernels = If[StringQ[dlogKernelText] &&
+    StringMatchQ[dlogKernelText, DigitCharacter ..],
+  FromDigits[dlogKernelText], Automatic];
 
 (* ---- C1: the regulator sample chooser ---- *)
 samples = regulatorSamples[record["Strip"][[3]], variables, regulator, 4,
@@ -138,7 +142,8 @@ report["C1 chosen / rejected regulator samples",
 
 (* ---- the candidate letter set (two samples, to keep the suite fast) ---- *)
 {letterSeconds, letters} = AbsoluteTiming[candidateLetters[record["Strip"],
-   roots, variables, regulator, record, "RegulatorSampleCount" -> 2]];
+   roots, variables, regulator, record, "RegulatorSampleCount" -> 2,
+   "DLogKernels" -> dlogKernels]];
 check["the candidate letter set is built",
   Lookup[letters, "Status", None] === "MultiquadraticCandidateLettersV1"];
 report["candidate letter counts", letters["Counts"]];

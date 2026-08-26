@@ -35,8 +35,9 @@
    P7  Every candidate letter record carries a "Potential" verdict, and
        the letter-derived kinds are verified while the Diagonal kind is
        not.
-   P8  An alphabet containing an unverified form is NOT certified;
-       an alphabet all of whose forms are verified IS.
+   P8  An unverified diagonal form that is exactly spanned by verified
+       dlogs is diagnostic rather than installed; the resulting active
+       candidate alphabet is certified.
 
    The preparation and the terminal contract.
    P9  multiquadraticStripPrepare records the per-letter potentials, the
@@ -152,13 +153,15 @@ check["P7 every letter-derived kind is VERIFIED",
 check["P7 the Diagonal kind carries no potential and is NOT verified",
   AllTrue[Select[records, Lookup[#1, "Kind", None] === "Diagonal" &],
     ! TrueQ[#1["Potential"]["Verified"]] &]];
-check["P8 an alphabet containing a Diagonal closed form is NOT certified",
-  AnyTrue[records, Lookup[#1, "Kind", None] === "Diagonal" &] &&
-    certifiedQ[records] === False &&
-    letters["PotentialsCertified"] === False];
-check["P8 the alphabet of only the verified records IS certified",
-  certifiedQ[Select[records, Lookup[#1, "Kind", None] =!= "Diagonal" &]] ===
-    True];
+diagnostics = Lookup[letters, "DiagnosticRecords", {}];
+check["P8 a spanned unverified Diagonal is diagnostic, not installed",
+  ! AnyTrue[records, Lookup[#1, "Kind", None] === "Diagonal" &] &&
+    AnyTrue[diagnostics,
+      Lookup[#1, "Kind", None] === "Diagonal" &&
+        TrueQ[Lookup[#1, "Diagnostic", False]] &&
+        ListQ[Lookup[#1, "SpannedBy", None]] &]];
+check["P8 the installed alphabet is entirely verified and certified",
+  certifiedQ[records] === True && letters["PotentialsCertified"] === True];
 report["P8 counts", KeyTake[letters,
   {"PotentialsVerified", "PotentialsRefused", "PotentialsCertified"}]];
 
