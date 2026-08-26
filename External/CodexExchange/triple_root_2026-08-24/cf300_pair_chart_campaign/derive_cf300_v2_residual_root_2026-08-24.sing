@@ -1,0 +1,26 @@
+option(redSB);
+ring r = 0,(p,q),dp;
+
+poly k = p*(1-p);
+poly d = q^2 + 4*k;
+poly anum = 4*k - 2*q;
+poly xnum = p*anum;
+poly ynum = -(d-anum)*(1-p);
+
+// C = (1+x-y)^2 + 4*x*y = cnum/d^2.
+poly cnum = (d+xnum-ynum)^2 + 4*xnum*ynum;
+poly cnum_reduced = reduce(cnum,std(ideal(0)));
+
+"d=";
+d;
+"cnum=";
+cnum_reduced;
+"factorization(cnum)=";
+factorize(cnum_reduced);
+"gcd(cnum,d)=";
+gcd(cnum_reduced,d);
+"degrees(cnum)=";
+intvec wp = 1,0;
+intvec wq = 0,1;
+deg(cnum_reduced,wp),deg(cnum_reduced,wq),deg(cnum_reduced);
+quit;

@@ -1,0 +1,264 @@
+Updated verdict
+1. If the materialized source check passes
+
+No mathematical blocker remains to calling the immutable pinned 12→9 strip solved exactly.
+
+The precise claim should be:
+
+The pinned algebraic strip over
+
+E=Q(x,y,ϵ)(α,β),α
+2
+=A,β
+2
+=B,
+
+admits the reconstructed exact 2×2 epsilon-form gauge, with 14 exact dlog letters, on the generic open set of the V2 birational chart.
+
+Before sealing that result, the certificate manifest should also contain:
+
+detG(p,q,ϵ)
+
+=0
+
+as an exact rational-function identity, or an exactly verified inverse; the gauge-transformation orientation; the immutable source-strip and solution hashes; and the declared exceptional divisors. These are small completion conditions, not unresolved mathematics.
+
+ExactDLog=True closes the package-level mathematical distinction previously noted in the report: a strip should not be called solved merely because its one-forms are closed unless exact compatible dlog potentials have also been verified. 
+
+codex_overnight_optimization_tr…
+
+This remains a statement about the immutable pinned strip that originally stopped at 12→9, not about the current CF300 continuation state or full-family completion. 
+
+codex_overnight_optimization_tr…
+
+2. The existing non-materialized proof is already exact
+
+Yes. The current evidence already constitutes a valid exact source-field proof, provided the persisted identities are hash-bound to the same source strip and reconstructed gauge.
+
+Let
+
+Φ:E⟶K=Q(p,q,ϵ)
+
+be the exact V2 function-field isomorphism. You have proved:
+
+Φ(A
+source
+	​
+
+)=A
+chart
+	​
+
+
+by an independent direct pullback, and
+
+R
+chart
+	​
+
+(G)=0
+
+exactly, where R denotes the complete gauge-transformation/Pfaffian residual.
+
+Define
+
+G
+source
+	​
+
+=Φ
+−1
+(G).
+
+Compatibility of Φ with differentiation gives
+
+Φ(R
+source
+	​
+
+(G
+source
+	​
+
+))=R
+chart
+	​
+
+(G)=0.
+
+Because Φ is injective,
+
+R
+source
+	​
+
+(G
+source
+	​
+
+)=0.
+	​
+
+
+The same argument transfers the dlog certificate:
+
+Φ
+−1
+(dlogL(p,q))=dlog(Φ
+−1
+L).
+
+Therefore, the slow materialized source calculation is an independent expanded implementation oracle, not a logically necessary final theorem step. Its value is catching substitution, differentiation, reduction, or convention bugs in a second representation.
+
+The 24 four-sheet checks strengthen branch-label assurance, but the theorem-level source proof comes from the exact field isomorphism and injectivity—not from sampling the four sheets.
+
+3. Safest faster exact source certificate
+
+The best primary certificate is the lazy function-field commutative-diagram certificate, not a fully expanded Together calculation:
+
+(E,A
+source
+	​
+
+)
+G
+source
+	​
+
+=Φ
+−1
+(G)
+R
+source
+	​
+
+	​
+
+Φ
+	​
+
+Φ
+	​
+
+	​
+
+(K,A
+chart
+	​
+
+)
+G
+R
+chart
+	​
+
+=0.
+	​
+
+
+Persist these exact identities:
+
+both forward/inverse map compositions;
+
+the exact independent pullback equality;
+
+detG
+
+=0;
+
+exact chart Pfaffian residuals;
+
+exact chart dlog potentials;
+
+injectivity/birational open-set conditions;
+
+all source, chart, solver, and solution hashes.
+
+For a second, explicitly source-frame oracle, use four-grade normal-form arithmetic, not global radical expansion. Represent every source-field element as
+
+D
+c
+0
+	​
+
++c
+A
+	​
+
+α+c
+B
+	​
+
+β+c
+AB
+	​
+
+αβ
+	​
+
+,c
+∙
+	​
+
+,D∈Q(x,y,ϵ),
+
+with the rules
+
+α
+2
+=A,β
+2
+=B,
+∂
+i
+	​
+
+α=
+2A
+∂
+i
+	​
+
+A
+	​
+
+α,∂
+i
+	​
+
+β=
+2B
+∂
+i
+	​
+
+B
+	​
+
+β.
+
+Keep D factored, perform multiplication and differentiation on the four coefficient tuples, and clear denominators only entrywise at the end. The acceptance condition is
+
+c
+0
+	​
+
+=c
+A
+	​
+
+=c
+B
+	​
+
+=c
+AB
+	​
+
+=0
+
+for every residual entry.
+
+This is safer and usually much faster than forming one enormous source expression and applying Together. It also gives a canonical failure localization: any nonzero residual identifies the exact root grade and matrix entry.
+
+Status: the pinned 12→9 strip is already supported by a valid exact non-materialized proof, subject only to recording generic gauge invertibility and the final hash-bound certificate manifest. A passing materialized source check would supply a strong independent corroboration, not change the underlying mathematical conclusion.

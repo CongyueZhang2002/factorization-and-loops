@@ -1,0 +1,7 @@
+2026-08-24 no-kernel validation
+
+PASS 85/85 runtime-admission static checks
+PASS 52/52 runtime-admission adversarial checks
+
+No Wolfram kernel, native solver, pool mission, subprocess controlled by the
+pool, package edit, or runtime-state mutation was used by these tests.

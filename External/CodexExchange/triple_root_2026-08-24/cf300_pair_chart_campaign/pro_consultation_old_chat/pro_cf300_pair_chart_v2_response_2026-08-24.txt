@@ -1,0 +1,1129 @@
+Updated assessment
+
+V2 survives the adversarial audit. Continue the running simplex reconstruction. The chart is generically birational on the rank-two cover, has substantially lower intrinsic degree than the earlier chart, and the projective-simplex consistency is the first evidence that directly explains the old rectangle failures.
+
+Two qualifications remain:
+
+The current modular result is one good image, not yet a generic or characteristic-zero solution.
+
+The claim that the omitted projective-edge monomials specifically cause the rectangle failure needs one common-row comparison, because the reported simplex and rectangle matrices appear to use different numbers of points.
+
+The old report’s status remains “in progress,” not a completed CF300 certificate. 
+
+codex_overnight_optimization_tr…
+
+1. V2 birational geometry
+
+Write
+
+α=
+A
+	​
+
+,β=
+B
+	​
+
+,
+
+to distinguish the roots from the auxiliary rational function a. Define
+
+k=p(1−p),d=q
+2
++4k,n=4k−2q,
+
+so that
+
+a=
+d
+n
+	​
+
+.
+
+The map can be written more transparently as
+
+x=
+d
+pn
+	​
+
+,
+y=−
+d
+(1−p)q(q+2)
+	​
+
+,
+α=
+d
+n−pd
+	​
+
+,β=
+d
+d+qn
+	​
+
+.
+
+The simplification for y follows from
+
+d−n=q
+2
++2q=q(q+2).
+Exact root identities
+
+From
+
+x=ap,y=−(1−a)(1−p)=(a−1)(1−p),
+
+one has
+
+1+x+y=a+p,
+
+and
+
+1−x+y=a+p−2ap.
+
+Consequently,
+
+(1−x+y)
+2
++4xy=(a−p)
+2
+,
+
+so
+
+α=a−p
+
+rationalizes A identically, without using the relation between a,p,q.
+
+For B,
+
+β
+2
+−B=(1+qa)
+2
+−(1−4xy)=a[a(q
+2
++4k)−(4k−2q)].
+
+Since ad=n=4k−2q, this vanishes exactly.
+
+Exact inverse and birationality
+
+On the cover,
+
+1+x+y=a+p,α=a−p.
+
+Therefore,
+
+a=
+2
+1+x+y+α
+	​
+
+,p=
+2
+1+x+y−α
+	​
+
+.
+
+If a
+
+=0,
+
+q=
+a
+β−1
+	​
+
+.
+
+Conversely, the equation β
+2
+=B implies
+
+a(ad−n)=0.
+
+Thus, on the open set
+
+a
+
+=0,d
+
+=0,
+
+one recovers
+
+a=
+d
+n
+	​
+
+
+and hence the complete forward map.
+
+Therefore,
+
+Q(x,y)(α,β)≅Q(p,q).
+	​
+
+
+There is no hidden dimension defect or generic multiple covering. The map to the cover (x,y,α,β) is generically one-to-one. The projection (p,q)↦(x,y) alone is generically four-to-one because the four sign sheets correspond to four different chart points.
+
+An explicit rational inverse is the decisive function-field certificate; the zero radicand residuals alone would not have been sufficient. This is the same general algebraic principle used in algorithmic square-root rationalization, but here it is proved directly by the two compositions. 
+arXiv
+
+Parameter-side exceptional locus
+Main chart divisor
+
+The affine chart requires
+
+d=q
+2
++4p(1−p)
+
+=0.
+	​
+
+
+Generic points of d=0 map to infinity in the affine (x,y,α,β) coordinates.
+
+Four base points
+
+The simultaneous equations d=n=0 give
+
+q=2p(1−p),
+
+and
+
+4p(1−p)[p(1−p)+1]=0.
+
+Thus the four base points are
+
+(0,0),(1,0),(ρ
++
+	​
+
+,−2),(ρ
+−
+	​
+
+,−2),
+	​
+
+
+where
+
+ρ
+±
+	​
+
+=
+2
+1±
+5
+	​
+
+	​
+
+.
+
+At these points every displayed affine coordinate is of 0/0 type. The rational map is resolved by blowing them up.
+
+This also gives a conservative chart-prime blacklist:
+
+ℓ=2,5
+	​
+
+
+before adding family-specific denominator and resultant primes. Characteristic two destroys the quadratic/sign structure; in characteristic five the two conjugate base points coalesce.
+
+Exceptional curves on the cover
+
+Each base point (p
+0
+	​
+
+,q
+0
+	​
+
+) corresponds after resolution to a curve
+
+(x,y,α,β)=(tp
+0
+	​
+
+,−(1−t)(1−p
+0
+	​
+
+),t−p
+0
+	​
+
+,1+q
+0
+	​
+
+t),
+
+with t free. The displayed inverse contracts this curve back to the base point, where the affine forward formulas are undefined.
+
+These curves must be excluded from the common open set used to state the birational isomorphism. They do not invalidate the function-field map.
+
+Inverse-patch divisor a=0
+
+The displayed formula for q fails on
+
+a=0.
+
+Away from the four base points, this is
+
+n=0,q=2p(1−p).
+
+Its image is
+
+x=0,y=p−1,α=−p=−(1+y),β=1.
+
+The forward chart is regular there, but q=(β−1)/a is 0/0. On this divisor the inverse can instead be continued using
+
+p=1+y,q=−2y(1+y).
+
+Thus a=0 is a limitation of the displayed inverse patch, not a failure of birationality.
+
+Jacobian
+
+The exact factorization is
+
+J=det
+∂(p,q)
+∂(x,y)
+	​
+
+=−
+d
+2αβ
+	​
+
+.
+	​
+
+
+This should be stored as part of the certificate, rather than only recording that the Jacobian is not identically zero.
+
+The computational sampling open set should exclude
+
+d=0,a=0,α=0,β=0,
+
+as well as all strip, alphabet, gauge-denominator, and normalization-minor zeros.
+
+The divisors
+
+α=0,β=0
+
+are the expected ramification loci A=0 and B=0. They are not birational defects, but evaluating there can reduce the differential rank and hide a forcing component.
+
+Sign-sheet coverage
+
+All four generic sign choices
+
+(α,β)↦(σ
+A
+	​
+
+α,σ
+B
+	​
+
+β)
+
+are covered by the same rational chart, but at different (p,q).
+
+Two useful exact Galois transformations are:
+
+α↦−α:a↔p,q↦
+p
+qa
+	​
+
+,
+
+where p
+
+=0, and
+
+β↦−β:p↦p,a↦a,q↦−q−
+a
+2
+	​
+
+.
+
+These are optional but strong branch-label oracles. They should square to the identity after reduction and reproduce the source-frame sign flips.
+
+The necessary birational certificate is therefore:
+
+forward∘inverse=1,inverse∘forward=1
+
+after saturation by the declared exceptional product, at minimum
+
+(ad)
+∞
+.
+
+The CAS output should explicitly record these denominator conditions rather than silently cancel them.
+
+2. Simplex consistency versus rectangle inconsistency
+It is sufficient to continue reconstruction
+
+The result is structurally credible and decisively better than another heuristic ansatz expansion.
+
+The two support sets are
+
+S
+26
+	​
+
+={p
+i
+q
+j
+:i+j≤26},
+
+and
+
+R
+21,17
+	​
+
+={p
+i
+q
+j
+:i≤21, j≤17}.
+
+Their sizes are
+
+∣S
+26
+	​
+
+∣=378,∣R
+21,17
+	​
+
+∣=396,
+
+but the rectangle is not a superset of the simplex:
+
+∣S
+26
+	​
+
+∩R
+21,17
+	​
+
+∣=318,
+∣S
+26
+	​
+
+∖R
+21,17
+	​
+
+∣=60,
+∣R
+21,17
+	​
+
+∖S
+26
+	​
+
+∣=78.
+
+Thus the rectangle spends 78 monomials on high-total-degree corners while omitting 60 projective-edge monomials allowed by the exact infinity bound. With four gauge entries, those are respectively 312 misplaced coefficient directions and 240 missing directions.
+
+The fact that the smaller 378-monomial simplex is consistent while the larger 396-monomial rectangle is inconsistent is therefore not paradoxical. It is exactly what one expects when total projective degree, rather than separate bidegree, controls the rational solution.
+
+This is a concrete new axis not covered by the earlier searches. MAX5 rejected the complete square-free denominator catalog but explicitly did not exclude genuinely larger numerator support. 
+
+codex_overnight_optimization_tr…
+
+ The A0/AS/AL/ASL results likewise showed that nearby rectangular support and the naive additional dlogs did not span the forcing term. 
+
+codex_overnight_optimization_tr…
+
+One certificate is still missing from the causal interpretation
+
+The simplex matrix has 1576 rows, corresponding to 197 points if each point contributes eight rows. The rectangle matrix has 1648 rows, which would correspond to 206 points under the same convention.
+
+Unless the same rows were deliberately embedded and reused, the two support tests were therefore not performed on an identical row set.
+
+That does not justify stopping reconstruction. It does mean that the statement
+
+the rectangle fails specifically because it omits the projective-edge monomials
+
+should receive one common-row certificate.
+
+The cheapest strong test is either:
+
+evaluate the modular simplex particular solution and its nullspace on every point used by the rectangle run; or
+
+assemble both supports on a single common union of accepted points.
+
+Then require:
+
+A
+simplex
+	​
+
+z=b,
+
+while
+
+rankA
+rectangle
+	​
+
+<rank[A
+rectangle
+	​
+
+∣b].
+
+An even sharper certificate is to project the complete simplex affine solution space onto the 60-dimensional quotient
+
+S
+26
+	​
+
+/(S
+26
+	​
+
+∩R
+21,17
+	​
+
+).
+
+Because the rectangle is inconsistent, every simplex solution on the common row set must have a nonzero component in that quotient. One can identify which projective-edge coefficients are forced modulo the four-dimensional nullspace.
+
+This is high-information and does not require restarting reconstruction.
+
+The one-image limitation
+
+At
+
+ℓ=1,000,003,ϵ=
+21
+1
+	​
+
+,
+
+the result is strong modular evidence, but it remains possible in principle that:
+
+the obstruction vanishes at that regulator image;
+
+the characteristic causes an accidental rank drop;
+
+the point set lies on an accidental interpolation locus;
+
+the four-dimensional nullspace is larger or differently aligned generically.
+
+Finite-field functional reconstruction becomes exact only after cross-prime lifting and characteristic-zero substitution; modular consistency itself is a discovery and screening result. 
+arXiv
+
+Continue the running reconstruction, but require the first independent images to reproduce:
+
+rankA=1564,nullityA=4,rank[A∣b]=1564.
+
+A different raw pivot set is not necessarily a failure. A different rank, nullity, support profile, or normalized solution space is.
+
+Most likely remaining failure modes
+1. Nullity-four normalization drift
+
+The affine solution is four-dimensional. Independent modular RREF calls can choose different representatives unless four normalization conditions are fixed over
+
+Q(p,q,ϵ).
+
+The reconstruction must use:
+
+a predetermined cross-prime normalization;
+
+or a semantically fixed pivot/free-column plan;
+
+or reconstruction of the affine space rather than one arbitrary particular solution.
+
+The four null directions should be identified explicitly as expected homogeneous gauge freedom. If they do not vanish on held-out rows, they are sampling null vectors rather than true functional null vectors.
+
+2. Special-ϵ consistency
+
+The pinned old strip had a pure regulator clearance
+
+ϵ
+3
+(1+2ϵ)(1+5ϵ)(2+5ϵ).
+
+That was part of its original preparation. 
+
+codex_overnight_optimization_tr…
+
+ The value ϵ=1/21 is admissible, but at least two unrelated regulator images are required before interpreting the solution as rational in ϵ.
+
+3. Support aliasing
+
+The 197 points need not be unisolvent for every polynomial object independently. A residual polynomial could vanish on the construction set without vanishing identically.
+
+This is controlled by:
+
+independent point ensembles;
+
+unseen-prime evaluation;
+
+and ultimately exact source-frame reduction.
+
+4. Denominator normalization
+
+The gauge denominator must be made primitive and fixed up to a declared rational unit. Otherwise numerator support and coefficient heights can drift between primes.
+
+Require:
+
+gcd(N
+ij
+	​
+
+,D
+G
+	​
+
+)=1
+
+after characteristic-zero reconstruction, with a fixed leading coefficient or primitive integer normalization for D
+G
+	​
+
+.
+
+5. Missed ϵ-degree
+
+The reported strip degrees do not automatically bound the reconstructed gauge’s regulator numerator and denominator degrees. Reconstruction should increase the ϵ-degree bound until the result stabilizes and passes unseen regulator values.
+
+6. Apparent chart poles
+
+A valid rational chart gauge may contain poles on
+
+d=0
+
+or on exceptional divisors that are only chart boundaries. After pushing back to the source field, these may:
+
+cancel;
+
+become legitimate algebraic divisors;
+
+or expose a spurious ansatz artifact.
+
+Only the exact source-frame residual decides.
+
+7. Alphabet and status mismatch
+
+Consistency with 14 rational chart letters can produce an epsilon-factorized strip. Package-level canonical-dlog status additionally requires an exact potential for every one-form. The prior report explicitly records this as a promotion condition. 
+
+codex_overnight_optimization_tr…
+
+8. Branch reconstruction error
+
+The exact acceptance proof should not merely evaluate four symbolic sign substitutions. Reduce the residual as
+
+R
+0
+	​
+
++R
+A
+	​
+
+α+R
+B
+	​
+
+β+R
+AB
+	​
+
+αβ
+
+and prove
+
+R
+0
+	​
+
+=R
+A
+	​
+
+=R
+B
+	​
+
+=R
+AB
+	​
+
+=0
+
+in Q(x,y,ϵ).
+
+Four held-out sign evaluations should remain as an independent branch-label oracle.
+
+3. The third CF300/CF303 root in V2
+
+For the standard CF300/CF303 triple, the remaining root is
+
+γ
+2
+=C,C=(1+x−y)
+2
++4xy.
+
+Using
+
+x=ap,y=−(1−a)(1−p),
+
+one finds
+
+1+x−y=2−p+(2p−1)a,
+
+and
+
+xy=−ka(1−a).
+
+Therefore,
+
+C=[2−p+(2p−1)a]
+2
+−4ka(1−a).
+
+Substitute
+
+a=
+d
+n
+	​
+
+,n=4k−2q.
+
+Then
+
+C=
+d
+2
+F(p,q)
+	​
+
+,
+	​
+
+
+where a compact unexpanded form is
+
+F=[(2−p)d+(2p−1)n]
+2
+−4kn(d−n).
+	​
+
+
+Since
+
+d−n=q(q+2),
+
+an equivalent form is
+
+F=[(2−p)d+(2p−1)n]
+2
+−4knq(q+2).
+
+The expanded reduced radicand is
+
+F(p,q)=
+	​
+
+(p−2)
+2
+q
+4
+−4(3p−2)q
+3
+−4(2p
+4
+−4p
+3
++6p
+2
+−4p−1)q
+2
++16p(p−1)(3p−1)q
++16p
+2
+(p−1)
+2
+(p+1)
+2
+.
+	​
+
+	​
+
+
+Its degrees are
+
+deg
+p
+	​
+
+F=6,deg
+q
+	​
+
+F=4,deg
+total
+	​
+
+F=6.
+
+An exact polynomial check gives
+
+gcd(F,d)=1,
+
+and
+
+gcd(F,∂
+p
+	​
+
+F,∂
+q
+	​
+
+F)=1,
+
+so the displayed F has no repeated polynomial factor and there is no cancellation against d
+2
+.
+
+Define the residual algebraic generator by
+
+R=dγ.
+
+Then
+
+R
+2
+=F.
+
+There is no absolute value:
+
+R=d
+C
+	​
+
+
+is a branch definition in the function field. Its physical sign is fixed at the base point.
+
+Thus
+
+Q(x,y)(
+A
+	​
+
+,
+B
+	​
+
+,
+C
+	​
+
+)≅Q(p,q)(R),R
+2
+=F(p,q).
+	​
+
+
+Because the original three square classes have rank three, F cannot be a square in Q(p,q). V2 therefore reduces all later CF300/CF303 strips to at most a two-grade quadratic solver.
+
+For implementation, use the compact n,d,k expression for F and expand only for factorization, reconstruction, or exact certification. It will produce substantially less intermediate swell.
+
+4. High-information work for tonight
+Continue the existing reconstruction
+
+Do not restart it and do not enlarge the support while it remains generically consistent.
+
+The immediate continuation gates are:
+
+A second prime/regulator image reproduces rank 1564, nullity 4, and consistency.
+
+A third independent image confirms the same normalized affine solution structure.
+
+The CRT modulus exceeds the recorded rational-reconstruction uniqueness bound.
+
+Unseen-prime and unseen-ϵ evaluations pass.
+
+The exact source-frame residual vanishes coefficientwise in
+
+{1,α,β,αβ}.
+
+A failure at one new image should first be classified as:
+
+bad prime;
+
+bad regulator value;
+
+zero denominator or normalization minor;
+
+normalization drift;
+
+or true generic inconsistency.
+
+Do not interpret the first discrepancy automatically as a need for larger support.
+
+Run one common-row simplex-versus-rectangle certificate
+
+This is the most informative parallel calculation.
+
+Use the exact same source rows, point order, normalization, and residue columns for both supports. Store:
+
+the rank pair for each;
+
+the simplex particular solution residual on the rectangle point set;
+
+the projection of the affine solution space onto the 60 simplex-only monomials.
+
+This converts the current compelling explanation into a direct modular certificate.
+
+Resolve the four-dimensional nullspace now
+
+Determine whether the nullity four is:
+
+expected constant homogeneous gauge freedom;
+
+residual basis normalization;
+
+or an artifact of insufficient functional constraints.
+
+Require each null vector to satisfy all held-out chart equations. Then freeze four exact normalization conditions before cross-prime coefficient reconstruction.
+
+This is more important than another prime benchmark.
+
+Prepare the independent source verifier while reconstruction runs
+
+The verifier should not call the pullback or finite-field assembler used in construction.
+
+It should:
+
+load the immutable source strip;
+
+load the reconstructed chart gauge;
+
+apply the inverse map;
+
+reduce every result to
+
+1,α,β,αβ;
+
+differentiate using
+
+∂
+x
+	​
+
+α=
+2A
+∂
+x
+	​
+
+A
+	​
+
+α,∂
+y
+	​
+
+α=
+2A
+∂
+y
+	​
+
+A
+	​
+
+α,
+
+and similarly for β;
+
+verify the original strip PDE exactly;
+
+verify all four held-out sign sheets at unseen source points;
+
+verify the inverse and gauge-orientation conventions independently.
+
+Persist the complete chart certificate
+
+Bind into one immutable record:
+
+k,d,n,a,x,y,α,β;
+
+the inverse;
+
+the four base points;
+
+the exceptional product;
+
+the Jacobian factorization;
+
+the bad-prime list;
+
+the exact helper-source hashes;
+
+the source-strip hash;
+
+the support and alphabet hashes.
+
+Prepare the residual-root certificate
+
+Factor and square-free normalize F in the same exact CAS path used by the production algebra. Record
+
+R
+2
+=F,C=F/d
+2
+,
+
+and verify it independently after source substitution.
+
+This is useful for the first later strip that activates the third root, but it does not interfere with the running rational reconstruction.
+
+Do not run tonight
+
+Absent a new obstruction, do not run:
+
+another broad numerator shell;
+
+another denominator-product census;
+
+a projective witness scan against the currently consistent simplex;
+
+the full eight-grade solver as the primary CF300 path;
+
+a V1-versus-V2 global benchmark;
+
+package installation.
+
+The projective witness becomes useful only if the simplex is generically inconsistent, reconstruction degrees fail to stabilize, or the exact source residual does not vanish.
+
+5. What the pinned-strip campaign can and cannot certify
+
+The distinction is clean.
+
+The old pinned physical sidecar solved 12→11 and 12→10, then reached the rank-two 12→9 strip with roots {2,3} and stopped at NoRationalStripChart. 
+
+codex_overnight_optimization_tr…
+
+ The later preserved production state reached a different stop before sector 12: NeedsMultiquadraticRegulatorFactorization in the 22-by-22 prefix. 
+
+codex_overnight_optimization_tr…
+
+If the current reconstruction passes exact source certification, it can prove
+
+For the immutable old strip equation:
+
+The active rank-two cover is rational.
+
+V2 is a correct birational chart on its declared open set.
+
+An exact rational epsilon-form strip gauge exists in Q(p,q,ϵ).
+
+Its source-frame form lies in
+
+Q(x,y,ϵ)(α,β).
+
+The old NoRationalStripChart stop was a missing-chart condition, not a mathematical obstruction.
+
+The A0/AS/AL/ASL, MAX5, and nearby rectangle failures were failures of their finite support geometry, not evidence that no rational gauge exists.
+
+The projective total-degree simplex contains the required gauge.
+
+The exact gauge and residue matrices solve the pinned old strip on all four algebraic sheets.
+
+The result provides a mathematically exact candidate or seed for transporting into the current continuation state.
+
+That is a substantial exact result even before installation.
+
+It cannot yet prove
+
+Until the sector-11 regulator rescaling is certified and sector 12 is recaptured from the resulting state, this campaign cannot prove that:
+
+the current 12→9 forcing block is identical to the pinned old one;
+
+the current dependency-closed root set is still exactly {α,β};
+
+the same gauge solves the post-rescaling affine strip equation;
+
+the same projective support and denominator remain sufficient;
+
+sectors 12→11 and 12→10 transform exactly as assumed;
+
+installation preserves the certified 22-by-22 prefix;
+
+S and SInverse remain exact inverses;
+
+future-sector propagation is correct;
+
+the enlarged current prefix is epsilon-factorized;
+
+the required Laurent depth after the ϵ-pole rescaling is satisfied;
+
+CF300 has passed sector 12 in the production continuation state.
+
+The rescaling is ϵ-only, so it cannot by itself introduce a new kinematic square root. Nevertheless, it changes future couplings and recursively generated forcing terms. That is why the dependency closure and strip equation must be recaptured rather than inferred.
+
+Correct use of the completed pinned-strip result
+
+After the new continuation state exists:
+
+recapture the current 12→11, 12→10, and 12→9 equations;
+
+derive the exact affine transformation induced by the sector-11 rescaling;
+
+test whether the new 12→9 system is exactly equivalent to the pinned old one;
+
+if equivalent, transport the reconstructed gauge algebraically;
+
+otherwise reuse V2 and the certified simplex machinery on the recaptured strip.
+
+There is no reason to discard or restart the current proof campaign. It is establishing the exact mathematical solution of the first physical rank-two obstruction. The later recapture determines whether that solution can be installed unchanged, transported by a known regulator transformation, or must be reconstructed with the same chart against a modified forcing term.
+
+Revised route verdict
+Item	Decision	Remaining mandatory gate
+V2 geometry	Accepted generically	Persist saturated inverse conditions, four base points, and J=−2αβ/d
+Running simplex reconstruction	Continue	Independent images, stable nullity-four normalization, CRT bound
+Rectangle-failure explanation	Highly plausible, not fully certified	Same-row support comparison and forced simplex-edge projection
+Source-pinned strip solution	Can become an exact standalone result	Coefficientwise source residual and four-sheet oracle
+Current CF300 installation	Not yet authorized	Post-rescaling recapture and exact affine-system equivalence
+Third-root handling	Use one residual quadratic generator R
+2
+=F	Exact factor/square-class and branch certificate
+Broad support or denominator scans	No-go tonight	Reopen only after a specific generic obstruction

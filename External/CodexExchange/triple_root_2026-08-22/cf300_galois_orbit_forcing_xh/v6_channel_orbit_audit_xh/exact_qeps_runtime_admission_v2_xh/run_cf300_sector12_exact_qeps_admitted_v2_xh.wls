@@ -16,10 +16,11 @@ Module[
    maximumReceiptBytes = 2^24, deleteIfPresent, writeReceiptAtomic,
    finish, readPinnedASCIIText, stripShebangExact, sourceText, parseText,
    transformedText,
-   exitCount, ceilingPattern, ceilingReplacement, rereadPattern,
-   rereadReplacement, transformedHash,
+   exitCount, exitReplacements, exitReplacementCounts, driverExitTag =
+    "CF300ExactQepsFrozenDriverExitV2", ceilingPattern,
+   ceilingReplacement, rereadPattern, rereadReplacement, transformedHash,
    expectedTransformedHash =
-    "0b71743d40da509bef35cbadbae0df5f27263ce7ff6b283e9c481a91e89a8f66",
+    "35c3c32e6db5c1b5bb0accd62b7516b43b264191b664f6377e4d8d0d87f31ac8",
    splitContextLines, heldParseRecord, heldParsePassed,
    driverCode, outputExists, outputFileByteCount, outputHash,
    outputAssociation, outputStatus, sourceStable, prerequisiteStable,
@@ -204,6 +205,17 @@ Module[
     Return[$Failed]];
   parseText = stripShebangExact[sourceText];
   exitCount = StringCount[parseText, "Exit["];
+  exitReplacements = {
+    "Exit[64]" ->
+      "Throw[64, \"CF300ExactQepsFrozenDriverExitV2\"]",
+    "Exit[98]" ->
+      "Throw[98, \"CF300ExactQepsFrozenDriverExitV2\"]",
+    "Exit[code]" ->
+      "Throw[code, \"CF300ExactQepsFrozenDriverExitV2\"]",
+    "Exit[65]" ->
+      "Throw[65, \"CF300ExactQepsFrozenDriverExitV2\"]"};
+  exitReplacementCounts = StringCount[parseText, First[#1]] & /@
+    exitReplacements;
   ceilingPattern =
     "If[FileExistsQ[outputFile], Return[$Failed]];";
   ceilingReplacement =
@@ -215,17 +227,19 @@ Module[
     "If[FileByteCount[outputFile] > 2^30,\n" <>
     "    deleteIfPresent[outputFile]; Return[$Failed]];\n" <>
     "  reread = Quiet[Check[Get[outputFile], $Failed]];";
-  If[exitCount =!= 4 || StringCount[parseText, ceilingPattern] =!= 1 ||
+  If[exitCount =!= 4 ||
+      exitReplacementCounts =!= ConstantArray[1, Length[exitReplacements]] ||
+      StringCount[parseText, ceilingPattern] =!= 1 ||
       StringCount[parseText, rereadPattern] =!= 1,
     Print["CF300_EXACT_QEPS_ADMISSION FAIL transform_precondition"];
     Return[$Failed]];
-  transformedText = StringReplace[parseText, {
-    "Exit[" -> "Throw[", ceilingPattern -> ceilingReplacement,
-    rereadPattern -> rereadReplacement}];
+  transformedText = StringReplace[parseText, Join[exitReplacements, {
+    ceilingPattern -> ceilingReplacement,
+    rereadPattern -> rereadReplacement}]];
   transformedHash = Hash[transformedText, "SHA256", "HexString"];
   If[transformedHash =!= expectedTransformedHash ||
       StringCount[transformedText, "Exit["] =!= 0 ||
-      StringCount[transformedText, "Throw["] < 4 ||
+      StringCount[transformedText, driverExitTag] =!= 4 ||
       ! StringContainsQ[transformedText,
         "ByteCount[value] > 2^30"] ||
       ! StringContainsQ[transformedText,
@@ -285,13 +299,14 @@ Module[
     Return[$Failed]];
 
   (* The frozen driver always requests Exit; the source-pinned transform
-     converts only those four requests to Throw so the persistent K24 worker
-     survives and admission can validate/rollback its fresh output. *)
+     converts only those four exact requests to a typed Throw channel so the
+     persistent K24 worker survives.  Unrelated Throw values cannot satisfy
+     this Catch and therefore cannot impersonate a driver exit code. *)
   driverCode = Catch[
     Block[{$ScriptCommandLine = {files["FrozenDriver"], projectRoot,
           v6dArtifactFile, prerequisiteFile, outputFile},
         $InputFileName = files["FrozenDriver"]},
-      ToExpression[transformedText, InputForm]]];
+      ToExpression[transformedText, InputForm]], driverExitTag];
 
   outputExists = FileExistsQ[outputFile];
   outputFileByteCount = If[outputExists,
@@ -366,6 +381,7 @@ Module[
     "AdmissionStateStable" -> admissionStateStable,
     "FrozenDriverSHA256" -> expectedHashes["FrozenDriver"],
     "TransformedDriverSHA256" -> transformedHash,
+    "TypedDriverExitTag" -> driverExitTag,
     "SourceReadMode" -> "PinnedASCIIBytesPreserveTerminalLF",
     "FrozenDriverTerminalLFPresent" -> StringEndsQ[sourceText, "\n"],
     "TransformedDriverHeldParse" -> heldParseRecord,

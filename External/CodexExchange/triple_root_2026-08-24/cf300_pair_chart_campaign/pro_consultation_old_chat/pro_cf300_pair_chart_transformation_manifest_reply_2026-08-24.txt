@@ -1,0 +1,105 @@
+Yes. The unipotent certificate fully replaces the inappropriate condition detG
+
+=0.
+
+Here the actual change of basis is
+
+U=(
+I
+lower
+	​
+
+G
+	​
+
+0
+I
+upper
+	​
+
+	​
+
+),N:=U−I,N
+2
+=0.
+
+Hence
+
+U
+−1
+=I−N=(
+I
+lower
+	​
+
+−G
+	​
+
+0
+I
+upper
+	​
+
+	​
+
+)
+
+for arbitrary G, and
+
+detU=1.
+
+Therefore G need not be square or invertible. Requiring detG
+
+=0 would be mathematically irrelevant and, in a general rectangular strip, not even well-defined. The correct gates are exactly the ones now recorded: two-sided inversion of U, nilpotence of U−I, unit determinant, and the verified orientation in
+
+B
+ˉ
+new
+	​
+
+=
+B
+ˉ
++ϵ(EG−GC)−dG.
+
+No theorem-level gate remains for the immutable pinned 12→9 strip, assuming the previously reported exact chart Pfaffian residual and exact dlog certificate are hash-bound to the same persisted strip, solution, chart, and orientation now named in CF300PairChartTransformationManifestV1.
+
+Together, the certificates prove:
+
+Φ(A
+source
+	​
+
+)=A
+chart
+	​
+
+,
+B
+ˉ
++ϵ(EG−GC)−dG=ϵ
+a
+∑
+	​
+
+R
+a
+	​
+
+dlogL
+a
+	​
+
+,
+
+and that this strip transformation is embedded in an exactly invertible unipotent basis change. Birational injectivity then transfers the exact chart identity back to the source function field. The package’s own earlier promotion criterion required verified dlog potentials rather than mere closed one-forms, and that condition is now reported satisfied. 
+
+codex_overnight_optimization_tr…
+
+The expanded materialized source calculation remains a strong independent implementation oracle, not a missing theorem step.
+
+The exact claim should remain narrowly stated:
+
+The immutable pinned CF300 12→9 algebraic strip is solved exactly by the certified unipotent off-diagonal transformation on the declared generic open set.
+
+It does not yet certify installation into the current post-rescaling family state, recursive propagation, or completion of CF300 sector 12.

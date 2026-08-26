@@ -48,7 +48,7 @@ Module[
       "CF300_V6D_EXACT_LIFT_PREREQUISITE_SCHEMA.wl"}]|>;
   expectedHashes = <|
     "AdmissionDriver" ->
-      "92b7bbaed6df70edac7308cf156a32a0482ddb4f314ea5c028a23fefc632441d",
+      "7e57344560dbf102b84f95640b32000455060c5d933d96f35c294e1f3c6c7630",
     "FrozenDriver" ->
       "446da75743811e2c3d1e2a438205a74786883fa7a4363304c37d911685bfa174",
     "ExactHelper" ->

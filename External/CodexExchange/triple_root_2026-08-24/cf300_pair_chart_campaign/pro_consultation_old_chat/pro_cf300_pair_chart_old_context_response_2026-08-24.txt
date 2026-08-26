@@ -1,0 +1,1361 @@
+Updated assessment
+
+Yes. The explicit chart materially changes tonight’s route ranking. It survives the algebraic audit: it is a generically birational parametrization of the two-root cover, not merely a one-dimensional path rationalization.
+
+For CF300 sector 12→9, the next experiment should be a rational pullback and the mature rational finite-field solver. More importantly, for the entire CF300/CF303 three-root field, this pair chart reduces
+
+Q(x,y)(
+A
+	​
+
+,
+B
+	​
+
+,
+C
+	​
+
+)
+
+to a single quadratic extension of Q(p,q). Thus the eight-grade solver should no longer be the critical path for CF300 or CF303. It remains useful as an independent oracle and fallback.
+
+The overnight ledger remains explicitly an in-progress record, not a family certificate. 
+
+codex_overnight_optimization_tr…
+
+ Its old physical 12→9 strip was exactly a rank-two {2,3} strip stopped by NoRationalStripChart; no physical rank-three input had yet been produced. 
+
+codex_overnight_optimization_tr…
+
+ The new chart directly removes that stop.
+
+1. Algebraic audit: the chart is generically birational
+
+Write
+
+a=
+A
+	​
+
+,b=
+B
+	​
+
+,
+
+and
+
+D=(1−p
+2
+)
+2
+−q
+2
+,
+N=2(1−p+p
+2
++p
+3
++(1+p)q).
+
+The proposed map is
+
+x=
+D
+N
+	​
+
+,y=p(1−px),b=1−2px,a=1+p+qx.
+Direct derivation
+
+The first root identity is immediate:
+
+B−(1−2px)
+2
+=1−4xy−(1−2px)
+2
+=−4x[y−p(1−px)].
+
+Thus y=p(1−px) implies b
+2
+=B.
+
+After this substitution, the second identity factorizes as
+
+A−(1+p+qx)
+2
+=x(Dx−N).
+	​
+
+
+The root x=0 is the rational point used to parametrize the residual conic. The second intersection is exactly
+
+x=
+D
+N
+	​
+
+.
+
+This is the standard line-through-a-rational-point construction for a conic, used systematically in established square-root rationalization methods. 
+arXiv
+
+Exact inverse
+
+On the cover
+
+X:a
+2
+=A(x,y),b
+2
+=B(x,y),
+
+define
+
+p=
+2x
+1−b
+	​
+
+,q=
+x
+a−1−p
+	​
+
+.
+
+For x
+
+=0,
+
+b=1−2px.
+
+Using b
+2
+=1−4xy then gives
+
+y=p(1−px).
+
+Similarly,
+
+a=1+p+qx.
+
+The identity above gives
+
+x(Dx−N)=0.
+
+Hence, away from D=0,
+
+x=
+D
+N
+	​
+
+.
+
+Conversely, substituting the chart formulas into the inverse gives exactly
+
+p
+inv
+	​
+
+=p,q
+inv
+	​
+
+=q.
+
+Therefore
+
+Q(x,y)(a,b)≅Q(p,q).
+	​
+
+
+There is no dimension defect. The cover is a two-dimensional surface and p,q are two algebraically independent parameters.
+
+There is one important distinction:
+
+The map (p,q)↦(x,y) alone is generically four-to-one. The map
+(p,q)↦(x,y,a,b) is generically birational.
+
+That is exactly what is required for an algebraic differential-equation gauge.
+
+2. Exceptional locus and branch limitations
+
+The chart is birational, not a global affine isomorphism.
+
+Parameter-space exceptional divisors
+
+The denominator factorizes as
+
+D=(p
+2
+−q−1)(p
+2
++q−1).
+
+Thus the affine chart excludes
+
+D=0.
+
+Generically these two curves map to divisors at infinity in the affine (x,y) description.
+
+There is no generic cancellation because
+
+gcd(D,N)=1.
+
+The simultaneous base points D=N=0 are
+
+(p,q)=(0,−1)
+
+and
+
+q=−p,p
+2
++p−1=0.
+
+The latter gives two conjugate points over Q(
+5
+	​
+
+). At these three points the displayed formulas have genuine 0/0 indeterminacies. A blow-up supplies the omitted exceptional curves; they must not be used as modular sample points.
+
+Inverse exceptional divisor
+
+The displayed inverse requires
+
+x
+
+=0.
+
+On x=0,
+
+B=1,A=(1+y)
+2
+,
+
+so the cover splits into components
+
+b=±1,a=±(1+y).
+
+The finite curve N=0, D
+
+=0 in the proposed chart reaches only
+
+b=1,a=1+y,p=y.
+
+The other sign components require another affine patch or parameter values at infinity.
+
+Exceptional curves associated with the base points
+
+The inverse can send finite cover points to one of the three parameter base points. The corresponding cover curves are:
+
+p=0, q=−1:y=0,b=1,a=1−x,
+
+and, for either root γ of γ
+2
++γ−1=0,
+
+p=γ, q=−γ:y=γ(1−γx),
+b=1−2γx,a=1+γ−γx.
+
+These curves must be removed from the common open set on which the written forward and inverse formulas are both regular.
+
+Jacobian and ramification
+
+A direct calculation gives
+
+det
+∂(p,q)
+∂(x,y)
+	​
+
+=−
+D
+2ab
+	​
+
+.
+	​
+
+
+Therefore there is no hidden critical divisor. The only generic Jacobian zeros are
+
+a=0orb=0,
+
+which are precisely the expected branch loci A=0 and B=0. The pole is at the chart boundary D=0.
+
+For differential-equation sampling, exclude
+
+DNab=0
+
+as well as all original connection and gauge denominators.
+
+Sign sheets
+
+For any generic source point, each choice
+
+(a,b)↦(σ
+A
+	​
+
+a,σ
+B
+	​
+
+b),σ
+A
+	​
+
+,σ
+B
+	​
+
+∈{±1},
+
+produces a different pair p,q through the inverse. Thus the chart parametrizes all four generic Galois sheets, but not at the same chart coordinates.
+
+For a real physical sheet, the signs of a,b must be fixed at a base point and analytically continued. A physical path crossing x=0, A=0, B=0, or one of the chart boundaries may require a second patch. None of this prevents function-field gauge construction.
+
+3. A substantially lower-degree equivalent chart
+
+The original formulas are correct, but they are not the best representation for production.
+
+Set
+
+u=
+2
+p
+2
++q−1
+	​
+
+,q=1−p
+2
++2u,
+
+and define
+
+h=p
+2
+−u−1,d=uh.
+
+Then
+
+D=4d,N=4[1+(1+p)u].
+
+The chart simplifies to
+
+x=
+d
+1+(1+p)u
+	​
+
+	​
+
+
+and
+
+y=−
+d
+p(p+u)(1+u)
+	​
+
+.
+	​
+
+
+The two rationalized roots become
+
+a=
+d
+(1+p)u
+2
++2u+1−p
+2
+	​
+
+	​
+
+
+and
+
+b=−
+d
+u
+2
++(p+1)
+2
+u+2p
+	​
+
+.
+	​
+
+
+The inverse is
+
+p=
+2x
+1−b
+	​
+
+,
+u=
+2
+1
+	​
+
+[p
+2
+−1+
+x
+a−1−p
+	​
+
+].
+
+This reparametrization lowers the common denominator from the quartic
+
+(1−p
+2
+)
+2
+−q
+2
+
+to
+
+u(p
+2
+−u−1),
+
+and lowers the expanded root numerators from degree five to degree at most three.
+
+The differential identities are especially simple:
+
+∂p
+∂x
+	​
+
+=
+h
+b
+	​
+
+,
+∂u
+∂x
+	​
+
+=
+d
+a
+	​
+
+,
+	​
+
+∂p
+∂y
+	​
+
+=−
+h
+(1+u)b
+	​
+
+,
+∂u
+∂y
+	​
+
+=−
+d
+p
+2
+a
+	​
+
+.
+	​
+
+
+Consequently,
+
+det
+∂(p,u)
+∂(x,y)
+	​
+
+=−
+d
+ab
+	​
+
+.
+	​
+
+
+These four derivative identities should be part of the chart certificate. They provide a compact independent oracle for any private pullback helper.
+
+For implementation, retain the shared directed-acyclic form
+
+d=u(p
+2
+−u−1),X=1+(1+p)u,
+x=X/d,y=−p(p+u)(1+u)/d,
+
+and only expand individual rational coefficients when required. Do not repeatedly expand the original degree-five root numerators.
+
+4. Stronger consequence: the entire CF300/CF303 field becomes rank one
+
+Let the remaining CF300/CF303 root be
+
+C=λ
+2
+	​
+
+=1+2x+x
+2
+−2y+2xy+y
+2
+.
+
+Under the lower-degree chart,
+
+C(x(p,u),y(p,u))=
+d
+2
+F(p,u)
+	​
+
+,
+	​
+
+
+where
+
+F(p,u)=
+	​
+
+(p−1)
+2
+u
+4
++4p(p−2)(p+1)u
+3
++(4p
+4
++6p
+3
+−6p
+2
+−6p−2)u
+2
++4p
+2
+(p
+2
+−1)u+(p
+2
+−1)
+2
+.
+	​
+
+
+Therefore
+
+Q(x,y)(
+A
+	​
+
+,
+B
+	​
+
+,
+C
+	​
+
+)≅Q(p,u)(
+F
+	​
+
+).
+	​
+
+
+The full eight-dimensional multiquadratic field has become a two-dimensional quadratic extension over a rational base field.
+
+This changes the broader production recommendation:
+
+Use the pair chart globally for CF300 and CF303.
+
+The present 12→9 strip is fully rational.
+
+Any later strip is at worst rank one over Q(p,u).
+
+Implement or reuse a two-grade solver for 
+F
+	​
+
+, rather than making the eight-grade solver the CF300 critical path.
+
+Retain the eight-grade implementation as an independent source-frame oracle.
+
+The driver should independently factor F, prove its square class, and bind its ordered definition into the chart ABI. Even if F factors, the residual extension degree can only decrease.
+
+For CF259, the already-known joint Källén-pair chart should be evaluated by the same logic: rationalize the Källén pair and retain 4v+w
+2
+ as the single residual square class. Thus a full eight-grade production solver may not be necessary for any of the three immediate families unless the pair charts cause unacceptable expression growth.
+
+5. Does the chart invalidate the previous inconsistent screens?
+
+No. It changes their interpretation and their priority.
+
+The report established that A0, enlarged support, enlarged rational letters, and their union were inconsistent in four modular images. 
+
+codex_overnight_optimization_tr…
+
+ MAX5 excluded every square-free product from the five-factor denominator catalog, but explicitly did not exclude repeated poles, larger support, or algebraic one-forms. 
+
+codex_overnight_optimization_tr…
+
+ The second support shell was also inconsistent. 
+
+codex_overnight_optimization_tr…
+
+Those remain valid exclusions of those exact finite-dimensional ansatz spaces.
+
+A low-degree rational function of p,u, however, generally becomes in the original frame a ratio of expressions such as
+
+g
+0
+	​
+
+(x,y)+g
+A
+	​
+
+(x,y)a+g
+B
+	​
+
+(x,y)b+g
+AB
+	​
+
+(x,y)ab.
+
+After inversion, its rational coefficient denominators involve field norms and can generate:
+
+algebraic denominator combinations;
+
+repeated rational poles;
+
+higher-degree numerator support;
+
+root-grade mixing;
+
+algebraic one-form potentials.
+
+Those structures are not contained merely by multiplying the old ansatz by square-free products of
+
+x,1−x,A,1+x,1+x+y.
+
+Thus the chart is a genuinely new axis, not another support shell.
+
+The old screens also used a pinned pre-rescaling 12→9 input and preparation. 
+
+codex_overnight_optimization_tr…
+
+ The later production state stopped before sector 12 for regulator factorization. 
+
+codex_overnight_optimization_tr…
+
+ Once the proposed sector-11 regulator rescaling is installed, the future forcing blocks change. The old strip preparation and its inconsistency artifacts cannot be reused unless an exact invertible equivalence between the old and recaptured affine systems is proved.
+
+6. Best next experiment
+
+Yes: pull the recaptured physical strip into the lower-degree (p,u) chart and send it through the mature rational finite-field solver.
+
+“Unchanged” should apply to the solver engine, not to the old preparation artifact.
+
+The following must be regenerated in chart variables:
+
+strip source;
+
+gauge monomial support;
+
+denominator census;
+
+one-form alphabet;
+
+regulator clearance;
+
+normalization columns;
+
+finite-field compilation;
+
+reconstruction bounds.
+
+Mandatory source-frame checks
+1. State provenance
+
+The chart driver must consume the independently certified, post-rescaling CF300 continuation state. It must bind:
+
+state hash;
+
+sector-11 transformation hash;
+
+exact strip hash;
+
+root order;
+
+chart hash;
+
+private-helper source hashes;
+
+solver ABI.
+
+2. Exact active-root census
+
+After all recursive forcing terms have been assembled, prove that the current 12→9 strip contains only a and b.
+
+No grade involving the third root may survive in:
+
+diagonal blocks;
+
+forcing terms;
+
+normalization conditions;
+
+previously installed row gauges;
+
+derivatives;
+
+regulator factors.
+
+The earlier strip had exactly roots {2,3}, but that must be recertified after the basis rescaling. 
+
+codex_overnight_optimization_tr…
+
+3. Independent pullback identity
+
+For
+
+A=A
+x
+	​
+
+dx+A
+y
+	​
+
+dy,
+
+the pulled components are
+
+A
+p
+	​
+
+=x
+p
+	​
+
+A
+x
+	​
+
++y
+p
+	​
+
+A
+y
+	​
+
+,
+A
+u
+	​
+
+=x
+u
+	​
+
+A
+x
+	​
+
++y
+u
+	​
+
+A
+y
+	​
+
+.
+
+The common implementation error is to use the inverse Jacobian, as if transforming vector fields. A differential one-form uses the direct Jacobian above.
+
+Compare the private helper’s result against an independent implementation using ordinary exact substitution, D, matrix multiplication, and entrywise rational simplification.
+
+4. Exact rationality
+
+Every pulled strip entry must reduce to
+
+Q(p,u,ϵ).
+
+No residual a, b, unrecognized square root, Power[...,1/2], or hidden Root object may remain.
+
+5. Flatness preservation
+
+Verify exactly
+
+∂
+p
+	​
+
+A
+u
+	​
+
+−∂
+u
+	​
+
+A
+p
+	​
+
+−[
+A
+p
+	​
+
+,
+A
+u
+	​
+
+]=0
+
+for the relevant prefix or strip closure.
+
+6. Gauge convention
+
+If the package convention is I=GJ, verify
+
+A
+new
+	​
+
+=G
+−1
+AG−G
+−1
+dG
+
+with the package’s actual left/right orientation. The absence of a derivative term in the previous regulator rescaling does not apply to a p,u-dependent strip gauge.
+
+7. Exact back-map
+
+For a reconstructed 
+G
+(p,u,ϵ), define
+
+G(x,y,a,b,ϵ)=
+G
+(
+2x
+1−b
+	​
+
+,
+2
+1
+	​
+
+[p
+2
+−1+
+x
+a−1−p
+	​
+
+],ϵ),
+
+with p=(1−b)/(2x), then reduce it to
+
+G
+0
+	​
+
++G
+A
+	​
+
+a+G
+B
+	​
+
+b+G
+AB
+	​
+
+ab.
+
+The original x,y strip equation must vanish exactly in all four grades after denominators are cleared.
+
+8. All four branch check
+
+At each held-out split source point (x
+0
+	​
+
+,y
+0
+	​
+
+), for every
+
+(σ
+A
+	​
+
+,σ
+B
+	​
+
+)∈{±1}
+2
+,
+
+compute
+
+p
+σ
+	​
+
+=
+2x
+0
+	​
+
+1−σ
+B
+	​
+
+b
+0
+	​
+
+	​
+
+,
+u
+σ
+	​
+
+=
+2
+1
+	​
+
+[p
+σ
+2
+	​
+
+−1+
+x
+0
+	​
+
+σ
+A
+	​
+
+a
+0
+	​
+
+−1−p
+σ
+	​
+
+	​
+
+].
+
+Then compare:
+
+the chart-space gauge evaluated at (p
+σ
+	​
+
+,u
+σ
+	​
+
+);
+
+the source-frame algebraic gauge evaluated with signs
+(σ
+A
+	​
+
+a
+0
+	​
+
+,σ
+B
+	​
+
+b
+0
+	​
+
+).
+
+This catches sign labeling, sheet collapse, and inverse-map mistakes.
+
+9. Installation certificate
+
+After installing the row gauge, verify:
+
+exact inverse basis maps;
+
+exact epsilon factorization of the enlarged prefix;
+
+propagation into every future block;
+
+unchanged certified earlier sectors;
+
+exact dlog potentials for every form if the status is to be CanonicalDLog.
+
+A rational solution in the chart proves epsilon factorization. It does not automatically prove that every source-frame algebraic form has been assigned a valid dlog potential.
+
+7. Differential-pullback hazards and cheap gates
+Hazard	Required gate
+Wrong Jacobian orientation	Compare helper output with 
+A
+p
+	​
+
+=x
+p
+	​
+
+A
+x
+	​
+
++y
+p
+	​
+
+A
+y
+	​
+
+ and 
+A
+u
+	​
+
+=x
+u
+	​
+
+A
+x
+	​
+
++y
+u
+	​
+
+A
+y
+	​
+
+ using the explicit derivative identities.
+Ramification	Reject a=0 and b=0 at all modular samples. These are expected Jacobian zeros, not new singularities.
+Chart poles	Include u=0 and p
+2
+−u−1=0 in the denominator and infinity census.
+Base-point indeterminacy	Reject d=0 together with 1+(1+p)u=0; these include the three common base points.
+Apparent exceptional poles	Permit chart-boundary factors initially, but require exact cancellation or a valid source-frame algebraic interpretation after pushing back.
+Higher pole orders from differentiation	Derivatives introduce up to an extra power of u or p
+2
+−u−1. Measure actual valuations before choosing the gauge pole bounds.
+Infinity behavior	Compute valuations at p=∞ and u=∞; do not infer numerator support solely from finite denominator factors. A reciprocal u-patch can be used if needed.
+Regulator contamination	The chart is ϵ-independent, so it introduces no new regulator factor. Nevertheless, recompute the post-rescaling regulator clearance and reject its exceptional ϵ-images.
+Loss of a forcing grade	Exact pullback is injective at the function-field level. Only point specialization can hide a grade. Detect this with exact back-decomposition and all four source branches.
+Spurious simplification at one chart sheet	Use independent point ensembles and source points with every Galois sign choice.
+Alphabet mismatch	Recompute the rational chart alphabet. Do not reuse the old 36 or 48 one-forms merely under variable renaming.
+Cheap complexity metrics
+
+Before a full compile, record:
+
+number of nonzero pulled entries;
+
+sparse term count and serialized byte count;
+
+maximum numerator and denominator bidegrees in p,u;
+
+unique irreducible denominator factors;
+
+maximum pole order on each factor;
+
+number of exact closed one-forms;
+
+projected gauge and residue unknown count;
+
+finite-field point rejection rate;
+
+assembly time for five held-out points;
+
+rank transition as the system first becomes overdetermined.
+
+A full run is justified if the natural chart preparation is comparable to the already tractable MAX5 scale and the point assembler remains sparse. If the chart preparation exceeds MAX5 by several times in unknown count or expression size, first compare:
+
+the u-chart above;
+
+its reciprocal patch s=1/u;
+
+a termwise rather than globally normalized pullback.
+
+Do not immediately enlarge the chart ansatz.
+
+8. Decisive go/no-go sequence for tonight
+Gate 0 — Regulator state
+
+NO-GO unless the analytic sector-11 rescaling and independent 22-by-22 prefix certificate have passed.
+
+Then recapture 12→11, 12→10, and 12→9 from that state.
+
+Do not consume the old pinned CF300_12_9_input.wl as production input.
+
+Gate 1 — Chart certificate
+
+In a fresh, mission-owned context, prove:
+
+a
+2
+−A=0,b
+2
+−B=0,
+
+both inverse compositions, the base-point list, and
+
+det
+∂(p,u)
+∂(x,y)
+	​
+
+=−
+d
+ab
+	​
+
+.
+
+GO if all pass. The algebra above indicates that they will.
+
+Gate 2 — Actual strip pullback
+
+Pull the recaptured 12→9 strip with both:
+
+the existing private helper;
+
+an independent direct implementation.
+
+Require exact equality.
+
+NO-GO for the purely rational solver if a third root survives. In that event, keep the same pair chart and treat the strip as a rank-one 
+F
+	​
+
+ problem.
+
+Gate 3 — Natural chart census
+
+Build only the support and one-form catalog implied by:
+
+actual pulled denominators;
+
+chart exceptional factors;
+
+local pole valuations;
+
+infinity valuations.
+
+Do not transplant A0/MAX5 support mechanically.
+
+Gate 4 — Bounded modular discriminator
+
+Test at least:
+
+two unrelated primes;
+
+two generic regulator values per prime;
+
+independent chart-point ensembles;
+
+enough points to overdetermine the affine system.
+
+GO to reconstruction if all four images are consistent with stable rank, nullity, normalization, and degree profiles.
+
+If one image differs, treat it as potentially bad and add another prime/image.
+
+If all four are inconsistent with the same rank defect, stop the default chart ansatz.
+
+Gate 5 — Only then use the witness scan
+
+If the natural chart ansatz fails:
+
+reconstruct a chart-frame left/projective obstruction;
+
+perform local resonance and infinity analysis;
+
+test whether a specific repeated pole, support direction, or one-form pierces it;
+
+permit one targeted ansatz enlargement.
+
+If that targeted enlargement also fails generically, stop chart-ansatz expansion and move to:
+
+direct exact rank-one algebraic solving;
+
+leading-singularity/pure-basis information;
+
+or the general multiquadratic solver.
+
+Gate 6 — Production reconstruction
+
+Require:
+
+enough construction primes to exceed the rational-reconstruction uniqueness bound;
+
+at least two unseen primes;
+
+held-out chart points;
+
+all four source-frame sign branches;
+
+exact symbolic back-substituted strip residual;
+
+exact installed-prefix certificate.
+
+Finite-field evaluations are reconstruction data; the exact source-frame polynomial identities are the acceptance proof. Established finite-field reconstruction algorithms follow this reconstruction-and-verification separation. 
+arXiv
+
+Gate 7 — Recurse
+
+After 12→9 installs, recapture the next strip in the same pair chart.
+
+Rank zero: mature rational solver.
+
+Rank one in 
+F
+	​
+
+: two-grade solver.
+
+Only if the pair chart becomes computationally pathological should the original eight-grade route regain priority.
+
+Safe parallel work
+
+The following can continue without blocking the chart run:
+
+the existing Galois-orbit pilot, as an independent infrastructure test;
+
+rank-one direct-channel solver hardening;
+
+local-resonance tooling;
+
+leading-singularity analysis;
+
+CF303 field-level chart preparation.
+
+Do not terminate already running source-pinned jobs. The Galois result should simply no longer determine tonight’s critical path.
+
+Given the report’s reused-kernel hydration failures, the external chart driver should run in a fresh kernel with an isolated exact-symbol context and independently pinned helper hashes. 
+
+codex_overnight_optimization_tr…
+
+9. Updated ranking
+Rank	Route	Decision
+1	Pair-chart pullback plus mature rational solver for 12→9	Immediate critical path
+2	Keep the pair chart globally; solve the residual root as a rank-one extension	Preferred completion route for CF300/CF303
+3	Chart-frame witness/local-resonance analysis	First fallback if the natural rational ansatz fails
+4	Leading-singularity or pure-basis input	Parallel diagnostic and possible simplifier
+5	Full eight-sign multiquadratic solver	Independent oracle and fallback, no longer the CF300 critical path
+6	More old-frame square-free denominators or nearby numerator shells	No-go without a new exact obstruction argument
+
+This chart is stronger than the 2025 multiple-path method: it rationalizes the complete two-variable active subcover and can therefore be used in the epsilon-gauge construction itself. The multiple-path method assumes an algebraic epsilon-factorized system and principally addresses subsequent integration. 
+arXiv
+
+10. Why the pair cover can be rational while the triple cover is K3
+
+There is no contradiction.
+
+The first root is rationalized by
+
+p=
+2x
+1−b
+	​
+
+,y=p(1−px).
+
+This makes the B-double cover rational.
+
+Over the resulting rational surface, the A-equation is a conic in (x,a) over Q(p). It has the rational point
+
+x=0,a=1+p.
+
+The line
+
+a=1+p+qx
+
+therefore rationally parametrizes the conic. Hence the two-root cover is rational.
+
+Adding the third square root is a further double cover of this rational surface. In the lower-degree pair chart it becomes
+
+R
+2
+=F(p,u),
+
+with F of bidegree (4,4). A double cover of a rational surface branched on a sufficiently high-degree curve can have trivial canonical class and be K3 after compactification and resolution. Rationality does not ascend through a double cover.
+
+Equivalently:
+
+two roots: a rational surface obtained by two conic parametrizations;
+
+three roots: a generally nonrational double cover of that rational surface.
+
+The explicit chart therefore does not weaken the earlier K3 conclusion. It identifies the computationally optimal presentation of it:
+
+rational base surface+one residual quadratic root.
+	​
+
+Final verdict
+Question	Decision	Confidence	Mandatory next certificate
+Pair chart mathematically valid	GO	Very high	Independent exact inverse and Jacobian certificate
+Use for current 12→9 strip	GO after recapture	High	Exact post-rescaling strip pullback and rationality check
+Reuse old A0/MAX5 preparation	NO-GO	Very high	Prove affine-system equivalence or rebuild
+Chart-first versus witness scan	Chart first	High	Four-image overdetermined rational consistency screen
+Full CF300 representation	Pair chart plus one residual root	High	Exact C↦F/d
+2
+ square-class certificate
+Eight-sign solver as critical path	De-prioritize	High	Retain only as oracle/fallback
+Package modification	None	Very high	Fresh-kernel external driver and exact source-frame back-certificate

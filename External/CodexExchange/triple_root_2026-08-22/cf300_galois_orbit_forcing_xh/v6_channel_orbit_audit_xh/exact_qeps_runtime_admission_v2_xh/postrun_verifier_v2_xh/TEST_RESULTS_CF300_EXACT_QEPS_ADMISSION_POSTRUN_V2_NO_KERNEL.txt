@@ -1,0 +1,6 @@
+2026-08-24 no-kernel structural verifier validation
+
+Ran 34 tests in 0.451s
+OK
+
+The test process launched no Wolfram kernel, native solver, or pool mission.

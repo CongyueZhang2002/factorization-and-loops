@@ -1,0 +1,57 @@
+Continue the existing **Assess Multiquadratic Pipeline** conversation with its full history. This is the next checkpoint in the same CF303 campaign, not a new standalone assessment.
+
+We completed the dependency-closed 21->18 assembly after exact source-frame solutions for 21->20 and 21->19:
+
+- D_21,20: exact Bilinear115 source solution, active root {3}.
+- D_21,19: exact Kallen2 source solution, active root {1}.
+- D_20,18: exact Bilinear115 source gauge, active root {3}.
+- D_19,18: exact Kallen23 chart gauge pulled exactly to the source field, roots {1,2}; root 3 absent.
+- raw A_21,17 is exactly zero, so there is no omitted row-17 path.
+
+We assembled in the current source frame
+
+  A_20,18^cur = A_20,18 + eps(E_20 D_20,18 - D_20,18 C_18) - dD_20,18,
+  A_19,18^cur = A_19,18 + eps(E_19 D_19,18 - D_19,18 C_18) - dD_19,18,
+
+  Bbase_21,18 = A_21,18 + A_21,19 D_19,18 + A_21,20 D_20,18,
+
+  F_21,18 = Bbase_21,18 - D_21,20 A_20,18^cur - D_21,19 A_19,18^cur.
+
+The optimized exact implementation decomposes each leaf once into the common ordered basis
+
+  {1,r1,r2,r1 r2,r3,r1 r3,r2 r3,r1 r2 r3}
+
+(the package mask ABI is little-endian), performs differentiation and every matrix product in exact xor-grade arithmetic, cancels grade by grade, then composes only the final 2x2 one-form. Every input scalar decomposition has the package's exact compose check; the final forcing has both an exact channel compose/decompose roundtrip and exact radical-classifier agreement.
+
+Certified result:
+
+- status: CF303Sector2118DependencyClosedChannelCensusPassedV2
+- forcing root indices: {1}
+- full strip root indices: {1}
+- nonzero grades: {0,1}
+- selected minimal chart: Kallen2
+- all exact checks true, including raw 21->17 zero, final channel roundtrip, final expression roundtrip, channel/classifier agreement
+- leaf decomposition: 28.703 s
+- current lower blocks: 0.207 s
+- base: 0.560 s
+- forcing: 0.823 s
+- compose: 0.001 s
+- roundtrip: 2.223 s
+- total mission wall: 38.36 s
+- census SHA-256: 84fe3ac1ce855d130d1e13c7c46dac59944a4aec1c377536202c26a63bda8570
+- summary SHA-256: ae3bc5126cd2ad315ebb3c4ad3844a0335199d9706e933e6bf178a68ae853c9d
+- package source was not modified.
+
+For comparison, the independent direct source-expression implementation needed 701.3 s just to form A_20,18^cur and A_19,18^cur and is still normalizing the base/product expression. We are retaining it only as an independent oracle. The exact Kallen2 finite-field eps-form solve of the immutable grade-wise strip is now running (2x2->2x2; support census degree 17, initial 171 monomials / 724 unknowns).
+
+Please assess concisely but technically:
+
+A. Verify the recurrence and whether the exact grade-wise construction plus per-leaf compose checks, final compose/decompose roundtrip, and independent radical census is theorem-level sufficient for selecting the minimal field/chart before the slower direct-expression oracle finishes.
+
+B. Recommend the smallest additional acceptance cross-check, if any, for the finished Kallen2 gauge. Is an exact source-frame strip residual from SolveEpsFormStripInFrame plus its chart/source roundtrip and dlog certificate sufficient, with the direct-expression oracle treated as adversarial redundancy rather than a prerequisite?
+
+C. The roots from already-solved 21->20 ({3}), 21->19 ({1}), and the intermediate 19->18 gauge ({1,2}) cancel down to only {1} in the dependency-closed 21->18 forcing. Confirm that this is another concrete demonstration that roots from different paths must not be unioned before exact recurrence cancellation, and that we should continue downward strip by strip rather than promote sector 21 to a triple extension.
+
+D. The remaining 28.7 s is leaf decomposition in the full rank-3 basis. Would it be safe and worthwhile to classify each scalar's active subset, decompose only over that subset, then use the package's exact `multiquadraticLiftLocalChannels` map into the global 8-grade ABI, provided each local and global composition is checked exactly? State the invariants needed to make this optimization fail-closed.
+
+Also note one confirmed package gap discovered during this chain: Kallen23 inverse coordinate pullback can create a nested radical algebraically inside the declared multiquadratic field, while `Together` alone does not canonicalize it before the wrapper's source roundtrip. We recorded a generic defect report and exact CF303 evidence in Exchange; no package edit was made. If this changes any recommended chart-transition invariant, say how.
