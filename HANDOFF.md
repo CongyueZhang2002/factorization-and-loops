@@ -1,4 +1,86 @@
-# Session transfer note — updated 2026-08-26 07:20 PDT (Fable)
+# Session transfer note — updated 2026-08-26 12:05 PDT (Fable)
+
+## State (12:05): ROUND-3 WAVE A MID-FLIGHT, UNCOMMITTED — session cut
+## at the user's usage limit; RESUME HERE
+
+The working tree at 06ba162 carries UNCOMMITTED round-3 work. The scope
+is Codex's detailed instructions
+(External/CodexExchange/codex_round3_detailed_fix_instructions_2026-08-26.md)
+per the accepted plan (fable_round3_plan_2026-08-26.md). Model policy:
+coordinator writes directly + FABLE-model subagents (user, 2026-08-26;
+all-models limit). Test kernels run CONCURRENTLY (user correction: the
+one-main rule is KernelPool-only; never serialize wolframscript tests).
+
+DONE, in the tree, each with red-before-green evidence:
+- A1 (obstruction promotion, P0) BY COORDINATOR: evidence classifier
+  multiquadraticStripScreenEvidenceClassify + driver predicate
+  multiquadraticStripConfirmedObstructionEvidenceQ; fresh-residue-image
+  generator; both screen wrappers reworked (EvidenceRecord field, typed
+  GaugeScreenInconclusive with Reason, dedup of identical images);
+  driver negative gated on exact status + predicate recheck, adopts the
+  confirmation run unconditionally, typed inconclusive stop otherwise;
+  screen-first predicate recheck. NEW Tests/
+  t_multiquadratic_obstruction_driver.wls 23/0 green, red-check vs
+  pre-fix 4 OK/19 FAIL.
+- A2 (active-support certification, P0/P1) BY COORDINATOR: two-phase
+  candidate dedup (verified-first stable priority, SupersededKinds),
+  diagonal span-pinning (multiquadraticStripDiagonalSpan, exact
+  constant coefficients, DiagnosticRecords out of the layout),
+  regulator-content guard (multiquadraticStripLetterKinematicPart:
+  eps*x -> x; only multiplicative content can reach the guard —
+  argument recorded in the test), ActivePotentialCertification computed
+  from reconstructed residues in the terminal record
+  (PendingReconstruction; vacuously-certified empty active alphabet),
+  residue transfer helper multiquadraticStripTransferDiagnosticResidues.
+  NEW Tests/t_multiquadratic_active_support.wls 13/0, red-check 2/11
+  FAIL. Terminal SolvedLevelClaim now carries
+  ActivePotentialsCertified vs CandidatePotentialsCertified.
+- A3 (deferred bundle) BY FABLE AGENT, per its progress log:
+  BlockEquationDeferredBundleV2 compiler (root frame mandatory,
+  shared-denester canonicalization, pre-cancellation occurrence
+  collection, interned operand table + immutable jobs, validated
+  orbits, pole-order upper-bound labels), bundle validate/fingerprint/
+  evaluate, forcing Output->Bundle early return + MaterializeFunction
+  seam, Automatic-roots synthesis now typed Missing[RootFrameRequired].
+  Its runs: t_construction_bundle.wls 44/44, t_construction_dag 78/78,
+  t_construction_dag_divisors 15/15. FINAL STATE in scratchpad
+  round3/A3_FINAL.md (also mirrored in its progress log; the scratchpad
+  dies with the session — if missing, the progress-log lines above are
+  the record and the tree is the truth).
+
+PENDING VERIFICATION (was in flight at cutoff):
+- t_multiquadratic_gauge_screen re-run with S4/S6 STRENGTHENED to
+  configured+fresh evidence (2 + $multiquadraticStripDefaultFreshImageCount
+  images; ContractNote wording now measured counts). Pre-update run was
+  62/3 with exactly those three assertions red.
+- Consumer batch: t_multiquadratic_letters (A2 changed the candidate
+  builder!), _potentials, _dispatch, _regulator_reconstruction,
+  _obstruction_images.
+- NOT yet re-run: gauge_ladder, providers, strip_solve, prepare_core,
+  persistence, provenance, solver_budget, row_gauge_resume + full gate.
+
+NEXT STEPS in order: (1) re-run the pending suites, fix consumers at
+preserved-or-greater strength; (2) collect A3's final report, verify
+its suites fresh, review its diff; (3) remaining A-scope: 13-file
+narrative sweep (hygiene); (4) full-suite gate (strict classifier — a
+suite is green only on an affirmative marker); (5) commit round-3 wave
+A (separable commits A1/A2/A3 per Codex instruction 4 of Hygiene);
+(6) wave B per the plan+instructions (B1 AssembleSample over providers,
+one sampling loop, delete duplicate fiberwise pass; B2 adaptive 32-prime
+CRT + exceptional-image replacement + pointwise default check; B3
+bounded promotion validation with the CONSTRUCTED rank-3 oracle from
+External/.../cf259_q4_rank3_oracle_2026-08-23_xh/TripleRootRank3CF259Oracle.wl
++ real pairwise CF259 fixtures 24_16/21_11/23_11 — NOT a physical
+rank-3 freeze, Codex's census showed the blocks are pairwise); (7) wave
+C phase-split measurement reported to Codex BEFORE choosing census vs
+IR; (8) review round with Codex; families only after a mutual empty
+round AND the user's word.
+
+STANDING GATES unchanged: no family production runs; scan the exchange
+by mtime never by filename; cheap gate before >10-min stages; adversarial
+tests red on parent; evidence into Results before reporting.
+
+# Superseded below — updated 2026-08-26 07:20 PDT (Fable)
 
 ## State (07:20): ROUND-2 WAVE LANDED (335e42f); review request #2 sent
 
