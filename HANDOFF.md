@@ -56,9 +56,15 @@ PENDING VERIFICATION (was in flight at cutoff):
 - t_multiquadratic_gauge_screen re-run with the STRENGTHENED S4/S6
   (configured+fresh evidence): completed GREEN, exit 0, at 12:5x —
   verified in-session before cutoff. No longer pending.
-- Consumer batch: t_multiquadratic_letters (A2 changed the candidate
-  builder!), _potentials, _dispatch, _regulator_reconstruction,
-  _obstruction_images.
+- Consumer batch RESULT (completed at cutoff): _dispatch 35/0 GREEN,
+  _regulator_reconstruction 18/0 GREEN, _obstruction_images 19/0 GREEN;
+  *** t_multiquadratic_potentials 15 OK / 1 FAIL — diagnose which
+  assertion (A2 changed dedup order/counts; fix code or strengthen the
+  consumer assertion, never weaken); *** t_multiquadratic_letters ENDED
+  WITH NO TALLY LINE (last output: the C1 chosen/rejected samples
+  report) — by the strict-classifier rule that is NOT green: suspect an
+  abort inside the suite at the A2 candidate-builder changes; re-run it
+  FIRST, full output captured, on resume.
 - NOT yet re-run: gauge_ladder, providers, strip_solve, prepare_core,
   persistence, provenance, solver_budget, row_gauge_resume + full gate.
 
