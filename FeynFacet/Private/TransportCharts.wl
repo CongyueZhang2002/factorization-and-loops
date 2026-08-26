@@ -69,7 +69,18 @@ ClearAll[
   transportChartDeadlineQ,
   transportChartDeadlineExpiredQ,
   transportChartBudgetExhausted,
-  transportChartLogSuccessTimings
+  transportChartLogSuccessTimings,
+  transportChartStageLogQ,
+  transportChartStageSize,
+  transportChartStageText,
+  transportChartStageStart,
+  transportChartStageDone,
+  transportChartStageMark,
+  transportChartStageProgress,
+  $transportChartStageLog,
+  $transportChartStageLastProgress,
+  $transportChartStageProgressInterval,
+  $transportChartZeroTestTag
 ];
 
 (* Success-path stage visibility (Codex 08:30, performance addition 3).
@@ -85,6 +96,76 @@ ClearAll[
    one rate-limited log line and nothing else. *)
 $transportChartSuccessLogInterval = 60.;
 $transportChartLastSuccessLogTime = -Infinity;
+
+(* Stage STARTS, added 2026-08-25 after CF259 sector 24 spent more than
+   23 minutes inside this acceptance with nothing printed: the timings
+   above are emitted when the stage has already finished, which tells a
+   watchdog nothing while it is running.  These lines name the stage
+   before it costs anything and carry the SIZE of the object it is about
+   to work on, so a later decision about front-running the exact
+   comparison has measured input.  Acceptance semantics are untouched --
+   every zero test, branch search and identity check below is the same
+   one, in the same order.
+
+   They FOLLOW "Verbose" (Codex 14:30): SolveEpsFormStripInFrame Blocks
+   $transportChartStageLog from its own option, so a caller that asked
+   for a quiet library gets a quiet library and the production sector
+   driver -- which already solves strips with Verbose -> True -- gets the
+   lines.  FACET_STRIP_STAGE_LOG=On/Off forces the decision for a run
+   that cannot pass an option. *)
+$transportChartStageLog = False;
+$transportChartStageLastProgress = <||>;
+$transportChartStageProgressInterval = 60.;
+
+(* the per-entry zero test leaves by Throw on a budget stop: Return
+   inside a Do terminates only the loop (documented Wolfram trap) *)
+$transportChartZeroTestTag = "TransportChartZeroTestBudget";
+
+transportChartStageLogQ[] := Module[
+  {value = Environment["FACET_STRIP_STAGE_LOG"]},
+  Which[value === "On", True, value === "Off", False,
+    True, TrueQ[$transportChartStageLog]]];
+
+(* a size probe is a full traversal: taken only when it will be printed *)
+transportChartStageSize[expression_] :=
+  If[transportChartStageLogQ[], LeafCount[expression],
+    Missing["StageLogDisabled"]];
+
+transportChartStageText[stage_String, data_Association] :=
+  stage <> If[data === <||>, "",
+    ": " <> StringRiffle[KeyValueMap[
+      Function[{key, value},
+        key <> " " <> ToString[
+          If[Head[value] === Real, Round[value, 0.1], value],
+          InputForm]], data], ", "]];
+
+transportChartStageStart[stage_String, data_Association : <||>] := (
+  If[transportChartStageLogQ[],
+    $transportChartStageLastProgress[stage] = AbsoluteTime[];
+    Print["[strip-in-frame] ", transportChartStageText[stage <> " start", data]]];
+  True);
+
+transportChartStageDone[stage_String, data_Association : <||>] := (
+  If[transportChartStageLogQ[],
+    Print["[strip-in-frame] ", transportChartStageText[stage <> " done", data]]];
+  True);
+
+(* A MARK is a completed measurement of a sub-step that had no separate
+   announcement; it is deliberately not spelled "done", so that every
+   "start" printed by this module has exactly one matching "done". *)
+transportChartStageMark[stage_String, data_Association : <||>] := (
+  If[transportChartStageLogQ[],
+    Print["[strip-in-frame] ", transportChartStageText[stage, data]]];
+  True);
+
+transportChartStageProgress[stage_String, data_Association] := If[
+  transportChartStageLogQ[] &&
+    AbsoluteTime[] - Lookup[$transportChartStageLastProgress, stage,
+      -Infinity] >= $transportChartStageProgressInterval,
+  $transportChartStageLastProgress[stage] = AbsoluteTime[];
+  Print["[strip-in-frame] ", transportChartStageText[stage, data]];
+  True,
+  False];
 transportChartLogSuccessTimings[timings_Association, chartName_,
     verboseQ_] := If[
   TrueQ[verboseQ] || AbsoluteTime[] - $transportChartLastSuccessLogTime >=
@@ -1136,19 +1217,29 @@ $transportChartMultiquadraticScopeRefusals = {
 SolveEpsFormStripInFrame[
     strip : {e_List, c_List, bbar_List},
     variables : {_Symbol, _Symbol}, epsilon_Symbol,
-    frame_Association, opts : OptionsPattern[]] := Module[
+    frame_Association, opts : OptionsPattern[]] := Block[
+  (* the stage lines follow this call's "Verbose" (Codex 14:30): a caller
+     that asked for a quiet library gets one.  Block, so every exit path
+     -- including a Return out of the Module below -- restores it. *)
+  (* the EXPLICIT three-argument OptionValue: this sits in a Block
+     variable initializer, which is held *)
+  {$transportChartStageLog = TrueQ[OptionValue[
+    SolveEpsFormStripInFrame, {opts}, "Verbose"]]},
+  Module[
   {allRoots, classification, rootIndices, usedRoots, rootSquares, chart,
    chartVariables, rekeyed, data, chartStrip, inner, chartGauge,
    identityData, coordinateMap, sourceGauge, chartRoots, rootImages,
    chartBranchRoots, mapCanonicalization, comparatorRefusals,
    signChoices, acceptedSigns, branchImages, branchedGauge,
    sourceTransformed, chartTransformed, pulledTransformed,
-   sourceAlphabet, zeroMatrixQ, pullPair, optionRules,
+   sourceAlphabet, zeroMatrixNamedQ, zeroTestStop,
+   identityHolds, pullPair, optionRules,
    finiteFieldQ, finiteFieldFirstQ, finiteFieldOptions, canonicalKernelCount,
    scratchDirectory, stripTag, verbose, solveRationalStrip, innerSolvedQ,
    multiquadraticOptions, multiquadraticResult, multiquadraticStatus,
    constructionStart = AbsoluteTime[], deadline, timings = <||>,
-   stageSeconds, stripDimensions, budgetProgress, budgetExhausted},
+   stageSeconds, substageSeconds, stripDimensions, budgetProgress,
+   budgetExhausted},
 
   (* precomputed, NOT read inside budgetProgress: a pattern variable in
      the body of a delayed definition is substituted when the outer rule
@@ -1390,9 +1481,15 @@ SolveEpsFormStripInFrame[
      solver runs on the chart route) *)
   If[transportChartDeadlineExpiredQ[deadline],
     Return[budgetExhausted["ChartPullBackComplete"]]];
+  transportChartStageStart["inner solve",
+    <|"chart" -> chart["Name"], "strip" -> stripDimensions,
+      "leafCount" -> transportChartStageSize[chartStrip]|>];
   {stageSeconds, inner} = AbsoluteTiming[
     solveRationalStrip[chartStrip, chartVariables]];
   timings["InnerSolve"] = stageSeconds;
+  transportChartStageDone["inner solve",
+    <|"seconds" -> stageSeconds,
+      "status" -> Lookup[inner, "Status", None]|>];
   If[! innerSolvedQ[inner], Return[inner]];
   chartGauge = inner["Gauge"];
 
@@ -1405,6 +1502,12 @@ SolveEpsFormStripInFrame[
   If[transportChartDeadlineExpiredQ[deadline],
     Return[budgetExhausted["GaugePullBack"]]];
   stageSeconds = AbsoluteTime[];
+  transportChartStageStart["acceptance: gauge pull-back",
+    <|"chart" -> chart["Name"], "gauge" -> Dimensions[chartGauge],
+      "gaugeLeafCount" -> transportChartStageSize[chartGauge],
+      "roots" -> Length[usedRoots],
+      "branches" -> 2^Length[usedRoots],
+      "alphabet" -> Length[Lookup[inner, "Alphabet", {}]]|>];
 
   identityData = <|"Status" -> "OK", "Kind" -> "TwoVariable",
     "CoefficientField" -> "Multiquadratic",
@@ -1448,9 +1551,19 @@ SolveEpsFormStripInFrame[
     "Images" -> mapCanonicalization["Images"],
     "DeclaredFieldRewrites" -> KeyTake[mapCanonicalization,
       {"Rewritten", "RewrittenBases", "NumericRadicalClasses"}]|>];
-  sourceGauge = Map[Together, chartGauge /. coordinateMap["Map"], {2}];
-  sourceAlphabet = DeleteDuplicates[Together /@
-    (Lookup[inner, "Alphabet", {}] /. coordinateMap["Map"])];
+  transportChartStageMark["acceptance: coordinate map",
+    <|"seconds" -> N[AbsoluteTime[] - stageSeconds],
+      "rewritten" -> Lookup[mapCanonicalization, "Rewritten", 0]|>];
+  {substageSeconds, sourceGauge} = AbsoluteTiming[
+    Map[Together, chartGauge /. coordinateMap["Map"], {2}]];
+  transportChartStageMark["acceptance: source gauge substitution",
+    <|"seconds" -> N[substageSeconds],
+      "leafCount" -> transportChartStageSize[sourceGauge]|>];
+  {substageSeconds, sourceAlphabet} = AbsoluteTiming[
+    DeleteDuplicates[Together /@
+      (Lookup[inner, "Alphabet", {}] /. coordinateMap["Map"])]];
+  transportChartStageMark["acceptance: source alphabet",
+    <|"seconds" -> N[substageSeconds], "letters" -> Length[sourceAlphabet]|>];
 
   signChoices = Tuples[{1, -1}, Length[usedRoots]];
   (* Together is canonical on rational entries only.  When the branch
@@ -1460,22 +1573,80 @@ SolveEpsFormStripInFrame[
      the declared field is recorded and refused typed -- never silently
      counted as "not zero". *)
   comparatorRefusals = {};
-  zeroMatrixQ[matrix_] := Module[{entries},
-    entries = Flatten[Map[Together, matrix, {2}]];
-    AllTrue[entries, Function[entry,
-      If[FreeQ[entry, Power[_, _Rational]], TrueQ[entry === 0],
+  (* Ordered PER-ENTRY loop (Codex 14:30).  The verdict is exactly the
+     one the previous whole-matrix form returned -- the same predicate
+     over the same entries in the same order, and AllTrue already stopped
+     at the first False -- but the normalization now happens INSIDE the
+     loop instead of over the whole matrix up front, so:
+       - a certified nonzero entry ends the test without normalizing the
+         rest of the matrix (the early exit is now real, not just an
+         early Boolean);
+       - the absolute deadline is read BETWEEN entries and leaves by
+         Throw with a typed budget payload.  Not TimeConstrained: it does
+         not bound broker helpers and has escaped in pool subkernels
+         (CLAUDE.md);
+       - progress is rate limited to done/total.
+     A 20-minute entry normalization is still not preemptible inside a
+     single Together; the boundary is the entry, which is the finest one
+     that exists without changing what is computed. *)
+  zeroMatrixNamedQ[stage_String, matrix_] := Module[
+    {entries, total, index = 0, started = AbsoluteTime[], verdict, entry,
+     normalized, result = True},
+    entries = Flatten[matrix];
+    total = Length[entries];
+    (* seed the rate limiter at the START of this test, so a zero test
+       that finishes inside one interval prints nothing at all and only a
+       genuinely slow one narrates itself *)
+    If[transportChartStageLogQ[],
+      $transportChartStageLastProgress["acceptance: " <> stage] =
+        AbsoluteTime[]];
+    Do[
+      index++;
+      (* BOUNDARY: between entries, before this entry is normalized *)
+      If[transportChartDeadlineExpiredQ[deadline],
+        Throw[<|"Substage" -> stage, "Entry" -> index, "Of" -> total,
+          "SubstageSeconds" -> N[AbsoluteTime[] - started]|>,
+          $transportChartZeroTestTag]];
+      transportChartStageProgress["acceptance: " <> stage,
+        <|"entry" -> index, "of" -> total,
+          "seconds" -> N[AbsoluteTime[] - started]|>];
+      normalized = Together[entry];
+      verdict = If[FreeQ[normalized, Power[_, _Rational]],
+        TrueQ[normalized === 0],
         (* the FRAME's declared roots, not just the strip's: a rewrite may
            legitimately name a declared root the strip itself never used *)
-        Module[{verdict = transportChartAlgebraicZeroQ[entry, allRoots]},
-          If[verdict === $Failed,
-            AppendTo[comparatorRefusals, transportChartRadicalBases[entry]];
+        Module[{algebraic = transportChartAlgebraicZeroQ[normalized, allRoots]},
+          If[algebraic === $Failed,
+            AppendTo[comparatorRefusals,
+              transportChartRadicalBases[normalized]];
             False,
-            TrueQ[verdict]]]]]]];
-  acceptedSigns = Select[signChoices, Function[signs,
-    branchImages = MapThread[Times, {signs, rootImages}];
-    branchedGauge = transportChartApplyRootBranches[
-      sourceGauge, usedRoots, branchImages];
-    zeroMatrixQ[(branchedGauge /. data["Subst"]) - chartGauge]]];
+            TrueQ[algebraic]]]];
+      If[! verdict, result = False; Break[]],
+      {entry, entries}];
+    result];
+  zeroTestStop = None;
+  {substageSeconds, acceptedSigns} = AbsoluteTiming[
+    Catch[
+      Select[signChoices, Function[signs,
+        branchImages = MapThread[Times, {signs, rootImages}];
+        branchedGauge = transportChartApplyRootBranches[
+          sourceGauge, usedRoots, branchImages];
+        zeroMatrixNamedQ["gauge round-trip zero test",
+          (branchedGauge /. data["Subst"]) - chartGauge]]],
+      $transportChartZeroTestTag,
+      Function[{payload, tag}, zeroTestStop = payload; {}]]];
+  transportChartStageMark["acceptance: branch round trip",
+    <|"seconds" -> N[substageSeconds], "branches" -> Length[signChoices],
+      "accepted" -> Length[acceptedSigns],
+      "refusals" -> Length[comparatorRefusals]|>];
+  (* the SUBSTAGE vocabulary is unchanged -- t_construction_budget
+     declares it and a stop outside it is a defect -- so the zero test's
+     own position travels in its own keys, not in the substage name *)
+  If[AssociationQ[zeroTestStop],
+    timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
+    Return[Join[budgetExhausted["GaugePullBack"],
+      <|"ZeroTestSubstage" -> Lookup[zeroTestStop, "Substage", "ZeroTest"]|>,
+      KeyDrop[zeroTestStop, "Substage"]]]];
   If[acceptedSigns === {},
     Return[If[comparatorRefusals === {},
       <|"Status" -> "StripGaugeRoundTripFailed"|>,
@@ -1485,6 +1656,9 @@ SolveEpsFormStripInFrame[
           Lookup[coordinateMap, "DeclaredFieldRewrites", <||>]|>]]];
   branchImages = MapThread[Times, {First[acceptedSigns], rootImages}];
   timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
+  transportChartStageDone["acceptance: gauge pull-back",
+    <|"seconds" -> timings["GaugePullBack"],
+      "branchSigns" -> First[acceptedSigns]|>];
 
   (* BOUNDARY 7 (before the source-frame identity check): the check
      re-derives the transformed one-form in the ALGEBRAIC frame, applies
@@ -1494,6 +1668,11 @@ SolveEpsFormStripInFrame[
   If[transportChartDeadlineExpiredQ[deadline],
     Return[budgetExhausted["SourceFrameIdentity"]]];
   stageSeconds = AbsoluteTime[];
+  transportChartStageStart["acceptance: source-frame identity",
+    <|"chart" -> chart["Name"], "gauge" -> Dimensions[sourceGauge],
+      "sourceGaugeLeafCount" -> transportChartStageSize[sourceGauge],
+      "chartGaugeLeafCount" -> transportChartStageSize[chartGauge],
+      "roots" -> Length[usedRoots]|>];
 
   (* Same ordering rule as the pullback above: the source-frame
      transformed one-form carries the declared radicals in every entry,
@@ -1501,14 +1680,20 @@ SolveEpsFormStripInFrame[
      first and the canonical Together is taken inside pullPair, on
      entries that are rational in the chart variables.  The chart-frame
      side is rational from the start and is normalized as before. *)
-  sourceTransformed = Table[
+  {substageSeconds, sourceTransformed} = AbsoluteTiming[Table[
     bbar[[mu]] + epsilon (e[[mu]] . sourceGauge -
       sourceGauge . c[[mu]]) - D[sourceGauge, variables[[mu]]],
-    {mu, 2}];
-  chartTransformed = Table[Map[Together,
+    {mu, 2}]];
+  transportChartStageMark["acceptance: source one-form",
+    <|"seconds" -> N[substageSeconds],
+      "leafCount" -> transportChartStageSize[sourceTransformed]|>];
+  {substageSeconds, chartTransformed} = AbsoluteTiming[Table[Map[Together,
     chartStrip[[3, mu]] + epsilon (chartStrip[[1, mu]] . chartGauge -
       chartGauge . chartStrip[[2, mu]]) -
-      D[chartGauge, chartVariables[[mu]]], {2}], {mu, 2}];
+      D[chartGauge, chartVariables[[mu]]], {2}], {mu, 2}]];
+  transportChartStageMark["acceptance: chart one-form",
+    <|"seconds" -> N[substageSeconds],
+      "leafCount" -> transportChartStageSize[chartTransformed]|>];
   branchedGauge = transportChartApplyRootBranches[
     sourceTransformed, usedRoots, branchImages];
   pullPair[pair_] := Module[{components},
@@ -1517,15 +1702,39 @@ SolveEpsFormStripInFrame[
     masterTransportPullBackOneForm[
       components[[1]], components[[2]], data["Jacobian"]]
   ];
-  pulledTransformed = pullPair[branchedGauge];
+  {substageSeconds, pulledTransformed} = AbsoluteTiming[
+    pullPair[branchedGauge]];
+  transportChartStageMark["acceptance: Jacobian pull-back",
+    <|"seconds" -> N[substageSeconds],
+      "leafCount" -> transportChartStageSize[pulledTransformed]|>];
   comparatorRefusals = {};
-  If[! zeroMatrixQ[pulledTransformed[[1]] - chartTransformed[[1]]] ||
-      ! zeroMatrixQ[pulledTransformed[[2]] - chartTransformed[[2]]],
+  transportChartStageStart["acceptance: one-form zero test",
+    <|"entries" -> 2 Times @@ Take[Dimensions[chartTransformed], {2, 3}],
+      "roots" -> Length[usedRoots]|>];
+  zeroTestStop = None;
+  identityHolds = Catch[
+    zeroMatrixNamedQ["source-frame zero test mu=1",
+        pulledTransformed[[1]] - chartTransformed[[1]]] &&
+      zeroMatrixNamedQ["source-frame zero test mu=2",
+        pulledTransformed[[2]] - chartTransformed[[2]]],
+    $transportChartZeroTestTag,
+    Function[{payload, tag}, zeroTestStop = payload; False]];
+  If[AssociationQ[zeroTestStop],
+    timings["SourceFrameIdentity"] = AbsoluteTime[] - stageSeconds;
+    Return[Join[budgetExhausted["SourceFrameIdentity"],
+      <|"ZeroTestSubstage" -> Lookup[zeroTestStop, "Substage", "ZeroTest"]|>,
+      KeyDrop[zeroTestStop, "Substage"]]]];
+  transportChartStageDone["acceptance: one-form zero test",
+    <|"seconds" -> N[AbsoluteTime[] - stageSeconds],
+      "identity" -> identityHolds|>];
+  If[! identityHolds,
     Return[If[comparatorRefusals === {},
       <|"Status" -> "StripGaugeSourceFrameIdentityFailed"|>,
       <|"Status" -> "StripGaugeSourceFrameUndeclaredRadicals",
         "RadicalBases" -> DeleteDuplicates[Flatten[comparatorRefusals]]|>]]];
   timings["SourceFrameIdentity"] = AbsoluteTime[] - stageSeconds;
+  transportChartStageDone["acceptance: source-frame identity",
+    <|"seconds" -> timings["SourceFrameIdentity"]|>];
   (* one rate-limited success diagnostic: the payload below is unchanged *)
   transportChartLogSuccessTimings[timings, chart["Name"], verbose];
 
@@ -1551,6 +1760,7 @@ SolveEpsFormStripInFrame[
       "TransformedOneFormPullBack" -> True,
       "SourceDLog" -> True,
       "Exact" -> True|>|>
+]
 ];
 
 transportChartRationalExpressionQ[expr_, variables_List] :=

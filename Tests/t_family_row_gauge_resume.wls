@@ -239,6 +239,110 @@ FTTest`FTAssert["connection identity failure is typed and nonactivating",
     ! TrueQ[Lookup[identityFailure, "ActivateInstalledRow", True]] &&
     FileHash[fullFile, "SHA256", "HexString"] === fullHashBefore];
 
+(* ------------------------------------------------------------------ *)
+(* Resume telemetry and the strip-input SEAL (2026-08-25)               *)
+(* ------------------------------------------------------------------ *)
+(* The resume re-check of banked strips printed nothing at all until its
+   first strip had already been replayed, so a CF303 sector-17 resume
+   with five banked strips and a 61 MB state was silent for more than
+   40 minutes and indistinguishable from a hung kernel.  The record now
+   carries the whole-state identity phases and a per-strip breakdown, and
+   the verbose stream announces each strip BEFORE its re-check begins.
+
+   The strip-input SEAL is step 1 of Codex's integrity design (14:30):
+   the sector driver seals each strip input to the connection, the
+   solved-block prefix, its position and the exact strip when it writes
+   it, and the resume authenticates those digests cheaply.  Steps 2-4 --
+   trusting that authentication, two independent held-out modular
+   relation evaluations, exact reconstruction only on mismatch -- are
+   NOT built: the assertions below therefore require that the seal
+   verdict is RECORDED and that acceptance is unchanged by it, and
+   explicitly that an ABSENT seal still hydrates. *)
+
+FTTest`FTAssert["the resume record carries whole-state identity phase timings",
+  AssociationQ[Lookup[full, "PhaseTimings", None]] &&
+    AllTrue[{"CheckpointRead", "ConnectionHash", "CheckpointIdentity",
+      "StripReplay"}, KeyExistsQ[full["PhaseTimings"], #] &] &&
+    AllTrue[Values[full["PhaseTimings"]], NumericQ[#] && # >= 0 &]];
+
+FTTest`FTAssert["every replay record carries its own per-strip breakdown",
+  MatchQ[Lookup[full, "ReplayRecords", None], {__Association}] &&
+    AllTrue[full["ReplayRecords"], Function[rec,
+      NumericQ[Lookup[rec, "TotalSeconds", None]] &&
+        AssociationQ[Lookup[rec, "PhaseTimings", None]] &&
+        AllTrue[{"InputRead", "SealCheck", "BlockEquation", "StripIdentity"},
+          KeyExistsQ[rec["PhaseTimings"], #] &]]]];
+
+FTTest`FTAssert["an UNSEALED strip input still hydrates, and says so",
+  MatchQ[Lookup[full, "ReplayRecords", None], {__Association}] &&
+    Lookup[full["ReplayRecords"], "InputSeal"] ===
+      ConstantArray["Unsealed", Length[full["ReplayRecords"]]]];
+
+(* now seal the two inputs the way the sector driver seals them, and
+   re-run the identical hydration *)
+sealFor[lowerSector_, stripHash_] := <|
+  "Schema" -> "FamilyStripInputSealV1", "Family" -> "CFTEST",
+  "Sector" -> 3, "LowerSector" -> lowerSector, "Truncation" -> 3,
+  "ConnectionHash" -> Hash[connection /. eps -> CANONICA`eps,
+    "SHA256", "HexString"],
+  "SolvedBlockPrefixHash" -> Hash[KeySort[KeyTake[fullBlocks,
+    Select[Keys[fullBlocks], # > lowerSector &]]], "SHA256", "HexString"],
+  "SolvedBlockKeys" -> Sort[Select[Keys[fullBlocks], # > lowerSector &]],
+  "StripHash" -> stripHash,
+  "VariablesHash" -> Hash[{variables, eps}, "SHA256", "HexString"],
+  "WriterSourceSHA256" -> "test", "WrittenAt" -> DateString[]|>;
+Scan[Function[lowerSector,
+  FeynFacet`FamilyArtifactWrite[
+    sealFor[lowerSector,
+      Hash[ConstantArray[0, {3, 2, 1, 1}], "SHA256", "HexString"]],
+    FileNameJoin[{temporary,
+      "CFTEST_3_" <> ToString[lowerSector] <> "_input_seal.wl"}]]],
+  {1, 2}];
+sealed = FeynFacet`Private`familyRowGaugeHydrateResume[
+  fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
+  variables, eps, frame, ranges, temporary, connection,
+  "FinalCheck" -> "Exact"];
+
+FTTest`FTAssert["a SEALED input authenticates and the record says so",
+  Lookup[sealed, "Status", None] === "Hydrated" &&
+    Lookup[Lookup[sealed, "ReplayRecords", {}], "InputSeal"] ===
+      ConstantArray["SealAuthenticated",
+        Length[Lookup[sealed, "ReplayRecords", {}]]]];
+
+FTTest`FTAssert["the seal changes NOTHING about what is accepted: the \
+sealed and unsealed hydrations agree on every solved form",
+  SameQ[Lookup[sealed, "SolvedForms", <||>],
+    Lookup[full, "SolvedForms", <||>]] &&
+    SameQ[Lookup[sealed, "InstalledRow", None],
+      Lookup[full, "InstalledRow", None]] &&
+    Lookup[sealed, "Status", None] === Lookup[full, "Status", None]];
+
+(* a seal that does NOT authenticate must not change acceptance either:
+   the exact reconstruction is still what decides *)
+FeynFacet`FamilyArtifactWrite[
+  Append[sealFor[1, Hash["a different strip", "SHA256", "HexString"]],
+    "ConnectionHash" -> "0000"],
+  FileNameJoin[{temporary, "CFTEST_3_1_input_seal.wl"}]];
+mismatchedSeal = FeynFacet`Private`familyRowGaugeHydrateResume[
+  fullCheckpoint, fullFile, fullBlocks, <||>, "CFTEST", 3,
+  variables, eps, frame, ranges, temporary, connection,
+  "FinalCheck" -> "Exact"];
+FTTest`FTAssert["a MISMATCHED seal is recorded but does not weaken or \
+strengthen acceptance (the exact reconstruction still decides)",
+  Lookup[mismatchedSeal, "Status", None] === Lookup[full, "Status", None] &&
+    SameQ[Lookup[mismatchedSeal, "SolvedForms", <||>],
+      Lookup[full, "SolvedForms", <||>]] &&
+    MemberQ[Lookup[Lookup[mismatchedSeal, "ReplayRecords", {}], "InputSeal"],
+      "SealConnectionMismatch"]];
+
+FTTest`FTAssert["the sector driver seals every strip input it writes",
+  Module[{driver = Import[FileNameJoin[{root, "Scripts",
+      "family_epsform_sector.wls"}], "Text"]},
+    StringContainsQ[driver, "\"Schema\" -> \"FamilyStripInputSealV1\""] &&
+      StringContainsQ[driver, "_input.wl\" -> \"_input_seal.wl\""] &&
+      StringContainsQ[driver,
+        "\"SolvedBlockPrefixHash\" -> Hash[KeySort[solvedBlocks]"]]];
+
 fallback = FeynFacet`Private`familyRowGaugeApply[
   connection, IdentityMatrix[3], IdentityMatrix[3], {3},
   {{0, 0}}, variables, Automatic];

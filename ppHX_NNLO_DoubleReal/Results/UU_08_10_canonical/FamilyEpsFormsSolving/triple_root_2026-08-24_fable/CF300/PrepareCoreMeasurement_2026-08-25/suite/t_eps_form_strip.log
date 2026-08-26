@@ -1,0 +1,17 @@
+Loading FeynCalc from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynCalc/
+$PrePrint is set to FeynCalcForm. Use FI and FC to change the display format.
+FeynCalc 10.2.1 (stable version). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynCalcDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf]]
+If you use FeynCalc in your research, please evaluate FeynCalcHowToCite[] to learn how to cite this software.
+Please keep in mind that the proper academic attribution of our work is crucial to ensure the future development of this package!
+FeynCalcLegacy 1.0.0
+FeynCalcLegacy contains legacy functions and symbols that were removed in FeynCalc 10.2.1
+FeynHelpers 2.0.0 (). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceFeynHelpersDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceFeynHelpersDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynHelpersDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf]]
+ If you use FeynHelpers in your research, please evaluate FeynHelpersHowToCite[] to learn how to cite this work.
+Loading FeynArts from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynArts
+FeynArts 3.12 (27 Mar 2025) patched for use with FeynCalc, for documentation see the DisplayForm[ButtonBox[manual, BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[First[FileNames[{*.pdf, *.PDF}, FileNameJoin[{$FeynArtsDirectory, manual}]]]], Evaluator -> Automatic, Method -> Preemptive]] or visit DisplayForm[ButtonBox[www.feynarts.de., ButtonData :> {URL[http://www.feynarts.de/], None}, BaseStyle -> Hyperlink, ButtonNote -> www.feynarts.de/]]
+If you use FeynArts in your research, please cite
+ • T. Hahn, Comput. Phys. Commun., 140, 418-431, 2001, arXiv:hep-ph/0012260
+FeynFacet 0.1
+CANONICA 1.0.3
+Author: Christoph Meyer
+InputForm[<|MessageFree -> True, Association -> True, Gauge -> True, ODEEquation -> True, TransformedDLog -> True, ExactDLog -> True, ContextFreeMaple -> True, MapleExitCode -> True|>]

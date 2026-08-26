@@ -1,0 +1,9 @@
+t_multiquadratic_prepare_core exit=0 fails=0
+0 t_multiquadratic_prepare_core: 36 OK, 0 FAIL
+t_multiquadratic_strip_solve exit=0 fails=0
+0 t_multiquadratic_strip_solve: 80 OK, 0 FAIL
+t_multiquadratic_gauge_screen exit=0 fails=0
+0 t_multiquadratic_gauge_screen: 61 OK, 0 FAIL
+t_multiquadratic_letters exit=0 fails=0
+0 t_multiquadratic_letters: 25 OK, 0 FAIL
+RERUN-DONE

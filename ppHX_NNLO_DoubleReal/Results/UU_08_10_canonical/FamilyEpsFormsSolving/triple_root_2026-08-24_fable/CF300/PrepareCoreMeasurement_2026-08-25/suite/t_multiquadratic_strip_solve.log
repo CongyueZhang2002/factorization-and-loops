@@ -1,0 +1,103 @@
+Loading FeynCalc from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynCalc/
+$PrePrint is set to FeynCalcForm. Use FI and FC to change the display format.
+FeynCalc 10.2.1 (stable version). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynCalcDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf]]
+If you use FeynCalc in your research, please evaluate FeynCalcHowToCite[] to learn how to cite this software.
+Please keep in mind that the proper academic attribution of our work is crucial to ensure the future development of this package!
+FeynCalcLegacy 1.0.0
+FeynCalcLegacy contains legacy functions and symbols that were removed in FeynCalc 10.2.1
+FeynHelpers 2.0.0 (). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceFeynHelpersDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceFeynHelpersDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynHelpersDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf]]
+ If you use FeynHelpers in your research, please evaluate FeynHelpersHowToCite[] to learn how to cite this work.
+Loading FeynArts from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynArts
+FeynArts 3.12 (27 Mar 2025) patched for use with FeynCalc, for documentation see the DisplayForm[ButtonBox[manual, BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[First[FileNames[{*.pdf, *.PDF}, FileNameJoin[{$FeynArtsDirectory, manual}]]]], Evaluator -> Automatic, Method -> Preemptive]] or visit DisplayForm[ButtonBox[www.feynarts.de., ButtonData :> {URL[http://www.feynarts.de/], None}, BaseStyle -> Hyperlink, ButtonNote -> www.feynarts.de/]]
+If you use FeynArts in your research, please cite
+ • T. Hahn, Comput. Phys. Commun., 140, 418-431, 2001, arXiv:hep-ph/0012260
+FeynFacet 0.1
+OK   the rank-three multiquadratic frame is exact
+OK   RANK0_1x1: modular consistency without normalization
+OK   RANK0_1x1: the solver never reports Solved
+OK   RANK0_1x1: the declared rank is the rank of the block
+OK   RANK0_1x1: the nullity is exactly the constant-gauge freedom
+OK   RANK0_1x1: every sign branch is satisfied by the modular solution
+OK   RANK0_1x1: the direct rows agree with the split-sign assembly
+OK   RANK0_1x1: the preparation reproduces the ansatz the block was built in
+OK   RANK0_1x1: the held-out sample reassembles at the unseen prime
+OK   RANK0_1x1: the known gauge satisfies the system at the unseen prime
+OK   RANK0_1x1: the known gauge lies in the reported affine solution set
+OK   RANK0_1x1: the known gauge satisfies every sign branch at the unseen prime
+OK   RANK0_1x1: modular consistency with the constant gauge pinned
+OK   RANK0_1x1: the exact lift reproduces the known gauge exactly
+OK   RANK0_1x1: the exact channel identity holds at every regulator value
+OK   RANK0_1x1: the reconstructed gauge equals the known gauge
+OK   RANK0_1x1: the reconstructed residues equal the known residues
+     RANK0_1x1: 3.0300000000000002 s
+OK   RANK1_1x1: modular consistency without normalization
+OK   RANK1_1x1: the solver never reports Solved
+OK   RANK1_1x1: the declared rank is the rank of the block
+OK   RANK1_1x1: the nullity is exactly the constant-gauge freedom
+OK   RANK1_1x1: every sign branch is satisfied by the modular solution
+OK   RANK1_1x1: the direct rows agree with the split-sign assembly
+OK   RANK1_1x1: the preparation reproduces the ansatz the block was built in
+OK   RANK1_1x1: the held-out sample reassembles at the unseen prime
+OK   RANK1_1x1: the known gauge satisfies the system at the unseen prime
+OK   RANK1_1x1: the known gauge lies in the reported affine solution set
+OK   RANK1_1x1: the known gauge satisfies every sign branch at the unseen prime
+OK   RANK1_1x1: modular consistency with the constant gauge pinned
+OK   RANK1_1x1: the exact lift reproduces the known gauge exactly
+OK   RANK1_1x1: the exact channel identity holds at every regulator value
+OK   RANK1_1x1: the reconstructed gauge equals the known gauge
+OK   RANK1_1x1: the reconstructed residues equal the known residues
+     RANK1_1x1: 2.32 s
+OK   RANK2_2x1: modular consistency without normalization
+OK   RANK2_2x1: the solver never reports Solved
+OK   RANK2_2x1: the declared rank is the rank of the block
+OK   RANK2_2x1: the nullity is exactly the constant-gauge freedom
+OK   RANK2_2x1: every sign branch is satisfied by the modular solution
+OK   RANK2_2x1: the direct rows agree with the split-sign assembly
+OK   RANK2_2x1: the preparation reproduces the ansatz the block was built in
+OK   RANK2_2x1: the held-out sample reassembles at the unseen prime
+OK   RANK2_2x1: the known gauge satisfies the system at the unseen prime
+OK   RANK2_2x1: the known gauge lies in the reported affine solution set
+OK   RANK2_2x1: the known gauge satisfies every sign branch at the unseen prime
+OK   RANK2_2x1: modular consistency with the constant gauge pinned
+OK   RANK2_2x1: the exact lift reproduces the known gauge exactly
+OK   RANK2_2x1: the exact channel identity holds at every regulator value
+OK   RANK2_2x1: the reconstructed gauge equals the known gauge
+OK   RANK2_2x1: the reconstructed residues equal the known residues
+     RANK2_2x1: 3.47 s
+OK   RANK3_1x1: modular consistency without normalization
+OK   RANK3_1x1: the solver never reports Solved
+OK   RANK3_1x1: the declared rank is the rank of the block
+OK   RANK3_1x1: the nullity is exactly the constant-gauge freedom
+OK   RANK3_1x1: every sign branch is satisfied by the modular solution
+OK   RANK3_1x1: the direct rows agree with the split-sign assembly
+OK   RANK3_1x1: the preparation reproduces the ansatz the block was built in
+OK   RANK3_1x1: the held-out sample reassembles at the unseen prime
+OK   RANK3_1x1: the known gauge satisfies the system at the unseen prime
+OK   RANK3_1x1: the known gauge lies in the reported affine solution set
+OK   RANK3_1x1: the known gauge satisfies every sign branch at the unseen prime
+OK   RANK3_1x1: modular consistency with the constant gauge pinned
+OK   RANK3_1x1: the exact lift reproduces the known gauge exactly
+OK   RANK3_1x1: the exact channel identity holds at every regulator value
+OK   RANK3_1x1: the reconstructed gauge equals the known gauge
+OK   RANK3_1x1: the reconstructed residues equal the known residues
+     RANK3_1x1: 6.5600000000000005 s
+OK   no case ever returned Solved
+OK   the rejection fixture prepares and compiles
+OK   BranchFlipMask is a typed error in the production sampler
+
+OptionValue::nodef: Unknown option BranchFlipMask for FeynFacet`Private`solveEpsFormStripMultiquadratic.
+OK   BranchFlipMask is a typed error in the top-level solver
+OK   BranchFlipMask is a typed error in the preparation
+
+OptionValue::nodef: Unknown option NoSuchOption for FeynFacet`Private`solveEpsFormStripMultiquadratic.
+OK   an unknown option is a typed error, not a silent default
+OK   a branch flip is still available to the differential certificate
+OK   an unavailable plan-discovery backend fails closed
+OK   an undeclared radical fails closed
+OK   the artifact is written atomically with its hash
+OK   the artifact hydrates in an explicit context, not Global`
+OK   the ABI fingerprint does not depend on the artifact context
+OK   a corrupted artifact is a typed failure
+OK   a truncated artifact is a typed failure, not an exception
+OK   a missing artifact is a typed failure
+t_multiquadratic_strip_solve: 80 OK, 0 FAIL

@@ -31,6 +31,11 @@ $HistoryLength = 0;
    function body it is no longer the script. *)
 driverFile = ExpandFileName[$InputFileName];
 driverProvenance = <|FileNameTake[driverFile] -> driverFile|>;
+(* the writer's identity for the strip-input seal (2026-08-25): a seal is
+   only as good as the knowledge of which code wrote it *)
+$sectorDriverSourceSHA256 = If[FileExistsQ[driverFile],
+  FileHash[driverFile, "SHA256", "HexString"],
+  Missing["SourceFileUnavailable"]];
 root = ParentDirectory[DirectoryName[driverFile]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 (* pool subkernels keep state: clear the Global` symbols CANONICA and earlier
@@ -852,6 +857,16 @@ Do[
           log["  resume hydration explicitly disabled: trusting recovered " <>
             "checkpoint gauges, ignoring SolvedForms, and using sparse row " <>
             "propagation; the final family certificate remains mandatory"],
+          (* announced BEFORE the call, not after it (2026-08-25).  The
+             hydration re-verifies every banked strip against the current
+             connection and printed nothing at all until its first strip
+             had already been replayed: CF303 sector 17 was silent for
+             more than 40 minutes with five strips to re-check and a
+             61 MB state, and a watchdog cannot tell that from a hang. *)
+          log["  resume hydration: re-checking ",
+            Length[solvedBlocks], " banked strip(s) ",
+            Sort[Keys[solvedBlocks]], " of sector ", k,
+            " against the current connection (truncation ", nk, ")"];
           resumeHydration = FeynFacet`Private`familyRowGaugeHydrateResume[
             stripCheckpoint, stripCheckpointFile, solvedBlocks, solvedForms,
             family, k, invariants, ee, chart, ranges, scratch, state["A"],
@@ -874,7 +889,20 @@ Do[
               ", replayed ",
               Length[Lookup[resumeHydration, "ReplayRecords", {}]],
               " forms in ",
-              Round[Lookup[resumeHydration, "Seconds", 0.], 0.1], " s"],
+              Round[Lookup[resumeHydration, "Seconds", 0.], 0.1], " s",
+              (* the per-strip breakdown the campaign had no way to see:
+                 which strip cost what, and the whole-state identity
+                 phases in front of the first one *)
+              If[MatchQ[Lookup[resumeHydration, "PhaseTimings", None],
+                  _Association],
+                ", phases " <> ToString[Map[Round[#, 0.1] &,
+                  resumeHydration["PhaseTimings"]], InputForm], ""],
+              If[MatchQ[Lookup[resumeHydration, "ReplayRecords", None],
+                  {__Association}],
+                ", per strip " <> ToString[
+                  Lookup[#, "LowerSector", None] ->
+                    Round[Lookup[#, "Seconds", 0.], 0.1] & /@
+                  resumeHydration["ReplayRecords"], InputForm], ""]],
             (* A replay failure can mean the recovered gauge itself is
                corrupt, not merely its materialized form.  Discard the whole
                row suffix and recompute every strip; applying recovered
@@ -950,6 +978,41 @@ Do[
             "LowerSector" -> nlow, "Variables" -> invariants,
             "Regulator" -> ee, "Strip" -> {e, c, bbar}|>,
           stripInputFile]]];
+        (* THE STRIP-INPUT SEAL (2026-08-25, Codex 14:30 integrity layer,
+           step 1 of 4).  A resume currently re-derives the whole symbolic
+           block equation for every banked strip just to prove the input
+           on disk is the one the current connection implies.  That proof
+           is a cheap digest comparison IF the digests were recorded when
+           the input was written, which is what this does: the connection
+           the strip was built on, its position, the solved-block prefix
+           it was built from, the writer's schema, and the exact strip.
+
+           It is a SIDECAR, not a new key of the input record: the input
+           record's own hash travels in resume replay records and in
+           existing banked artifacts, and an extra key would change it
+           for every strip already on disk.  An absent sidecar therefore
+           means "written before this seal existed" and costs nothing.
+
+           Steps 2-4 of Codex's design -- authenticate on resume, two
+           independent held-out modular relation evaluations, exact
+           reconstruction only on mismatch or in adversarial mode -- are
+           NOT implemented.  The exact reconstruction below remains
+           mandatory and unconditional; this seal is currently recorded
+           and reported, never trusted in place of it. *)
+        First[AbsoluteTiming[putAtomic[
+          <|"Schema" -> "FamilyStripInputSealV1",
+            "Family" -> family, "Sector" -> k, "LowerSector" -> nlow,
+            "Truncation" -> nk,
+            "ConnectionHash" -> Hash[aP, "SHA256", "HexString"],
+            "SolvedBlockPrefixHash" -> Hash[KeySort[solvedBlocks], "SHA256",
+              "HexString"],
+            "SolvedBlockKeys" -> Sort[Keys[solvedBlocks]],
+            "StripHash" -> Hash[{e, c, bbar}, "SHA256", "HexString"],
+            "VariablesHash" -> Hash[{invariants, ee}, "SHA256", "HexString"],
+            "WriterSourceSHA256" -> $sectorDriverSourceSHA256,
+            "WrittenAt" -> DateString[]|>,
+          StringReplace[stripInputFile,
+            "_input.wl" -> "_input_seal.wl"]]]];
         constructionTimings["StripInputWrite"] = constructionSeconds;
         If[Environment["FACET_RECORD_STRIP_ONLY"] === "True",
           log["  recorded strip ", {k, nlow}, " at ", stripInputFile];

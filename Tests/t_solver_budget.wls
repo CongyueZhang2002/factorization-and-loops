@@ -66,6 +66,20 @@ finiteFieldStages = {"Entry", "SupportLearningCycle", "SupportCensus",
 multiquadraticStages = {"Entry", "IntegrabilityScreen", "Preparation",
   "GaugeScreen", "GaugeScreenLadder", "ModularSampling",
   "HeldOutGuard", "BranchCertificate", "ExactLift"};
+(* multiquadraticStripPrepare became cooperatively deadline-aware on
+   2026-08-25 (until then it was the one stage of this engine a sector
+   budget could not stop: a mission measured 51 minutes inside a
+   first-call prepare on CF300 sector 12 with no way out).  Its interior
+   boundaries name themselves "Preparation:<substage>", so the stage
+   vocabulary admits that form as well as the bare "Preparation" the
+   entry gate still uses. *)
+multiquadraticPrepareSubstages = {"Entry", "RootOrder", "ForcingChannels",
+  "CandidateLetters", "GaugeDenominator", "ABIPayload", "CompileTensor"};
+multiquadraticStageQ[stage_] := StringQ[stage] &&
+  (MemberQ[multiquadraticStages, stage] ||
+    (StringStartsQ[stage, "Preparation:"] &&
+      MemberQ[multiquadraticPrepareSubstages,
+        StringDrop[stage, StringLength["Preparation:"]]]));
 
 budgetExhaustedQ[r_] := AssociationQ[r] &&
   Lookup[r, "Status", None] === "BudgetExhausted";
@@ -322,7 +336,7 @@ check["multiquadratic: an expired deadline returns Status BudgetExhausted",
 check["multiquadratic: the stop is typed, never $Aborted and never $Failed",
   mqExpired =!= $Aborted && mqExpired =!= $Failed && AssociationQ[mqExpired]];
 check["multiquadratic: the stop names a stage from the declared vocabulary",
-  MemberQ[multiquadraticStages, Lookup[mqExpired, "Stage", None]]];
+  multiquadraticStageQ[Lookup[mqExpired, "Stage", None]]];
 check["multiquadratic: the stop returns in under 30 s of wall time",
   mqExpirySeconds < 30];
 check["multiquadratic: the stop carries the partial-progress identifiers",
@@ -343,6 +357,31 @@ check["multiquadratic: a malformed deadline is a typed refusal, not a crash",
 check["multiquadratic: Deadline is an accepted option, not an unknown one",
   Lookup[solveMultiquadratic[mqRecord, frame, Sequence @@ mqOptions,
     "Deadline" -> Infinity], "Status", None] =!= "UnknownOption"];
+
+(* the preparation stage itself, which until 2026-08-25 had no deadline
+   coverage at all: its typed stop must be shape-compatible with every
+   other typed stop of this engine, or a driver's failure summary cannot
+   read it *)
+mqPrepareExpired = multiquadraticPrepare[mqRecord, frame,
+  "Deadline" -> AbsoluteTime[] - 1];
+check["multiquadratic prepare: an expired deadline is a typed \
+BudgetExhausted naming a Preparation substage",
+  budgetExhaustedQ[mqPrepareExpired] &&
+    multiquadraticStageQ[Lookup[mqPrepareExpired, "Stage", None]] &&
+    StringStartsQ[Lookup[mqPrepareExpired, "Stage", ""], "Preparation:"]];
+check["multiquadratic prepare: the stop carries the engine's common \
+partial-progress identifiers",
+  progressComplete[mqPrepareExpired, multiquadraticProgressKeys]];
+check["multiquadratic prepare: Deadline -> Infinity is byte-identical to \
+passing no option",
+  SameQ[multiquadraticPrepare[mqRecord, frame],
+    multiquadraticPrepare[mqRecord, frame, "Deadline" -> Infinity]]];
+check["multiquadratic prepare: a malformed deadline is a typed refusal",
+  Lookup[multiquadraticPrepare[mqRecord, frame, "Deadline" -> "soon"],
+    "Status", None] === "InvalidDeadline"];
+report["multiquadratic prepare expiry", KeyTake[mqPrepareExpired,
+  {"Stage", "Elapsed", "Family", "Sector", "LowerSector", "RootCount",
+   "ForcingChannelsDone", "LetterCount", "SupportSize"}]];
 
 Print["t_solver_budget: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];

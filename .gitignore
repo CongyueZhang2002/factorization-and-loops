@@ -88,3 +88,13 @@ FeynFacet/Backends/flint/bin/
 /External/CodexExchange/triple_root_2026-08-22/cf300_sector12_physical_rank3_xh/physical_sidecar_evidence_2026-08-23_xh_v2/source_identity_snapshot/sector_state_CF300_standard.wl
 /External/CodexExchange/triple_root_2026-08-22/cf300_sector12_physical_rank3_xh/physical_sidecar_evidence_2026-08-23_xh_v3/source_identity_snapshot/sector_state_CF300_standard.wl
 /External/CodexExchange/triple_root_2026-08-22/cf300_sector12_physical_rank3_xh/rank2_cross_prime_v1_xh/CF300_12_9_rank2_preparation.wl
+# Serial-phase measurement evidence (2026-08-25): the CF300 (12,9)
+# prepare/compile measurement record and suite logs are tracked; the
+# rest of the campaign dir (sector_state, strip checkpoints) stays out.
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/
+ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/*
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/
+ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/*
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/**/*.log
+!ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/PrepareCoreMeasurement_2026-08-25/*.log

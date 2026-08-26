@@ -318,6 +318,71 @@ report["late stop", KeyTake[late,
 report["late stop wall seconds", Round[lateSeconds, 0.01]];
 
 (* ------------------------------------------------------------------ *)
+(* (a''') the ACCEPTANCE zero tests are preemptible PER ENTRY           *)
+(* ------------------------------------------------------------------ *)
+(* Until 2026-08-25 the acceptance stages normalized the WHOLE matrix
+   (Map[Together, matrix, {2}]) and only then tested entries, so a
+   deadline could not be read until the normalization finished: CF259
+   sector 24 sat more than 23 minutes inside this stage with no way to
+   stop it.  The test now runs entry by entry, reads the deadline BETWEEN
+   entries, and stops typed.
+
+   Determined, not raced, and independent of how long any entry happens
+   to take: the deadline PREDICATE itself is replaced by a counting
+   stand-in.  Phase 1 counts how many times a successful run reads the
+   deadline; phase 2 makes the LAST of those reads report expiry.  If the
+   deadline were still read only at stage boundaries, that last read
+   would be a boundary and the stop would carry no entry; the assertions
+   below require it to carry one, which is exactly the per-entry claim.
+   Nothing is TimeConstrained and no wall clock decides anything. *)
+deadlineReads = 0;
+SetAttributes[withCountingDeadline, HoldRest];
+withCountingDeadline[expireAt_, body_] := Block[
+  {FeynFacet`Private`transportChartDeadlineExpiredQ},
+  (* expireAt = 0 means "never expire": it is the counting phase *)
+  FeynFacet`Private`transportChartDeadlineExpiredQ[d_] := (
+    deadlineReads++;
+    NumericQ[d] && IntegerQ[expireAt] && expireAt > 0 &&
+      deadlineReads >= expireAt);
+  body];
+
+deadlineReads = 0;
+countingBaseline = withCountingDeadline[0,
+  SolveEpsFormStripInFrame[algebraicStrip, {v, w}, eps, frame,
+    Sequence @@ fixtureOptions, "Deadline" -> AbsoluteTime[] + 3600]];
+totalDeadlineReads = deadlineReads;
+check["the counting stand-in does not disturb the successful fixture",
+  AssociationQ[countingBaseline] &&
+    countingBaseline["Status"] === "Solved" && totalDeadlineReads > 0];
+report["deadline reads in a successful in-frame construction",
+  totalDeadlineReads];
+
+deadlineReads = 0;
+solverCalls = 0; capturedSolverOptions = {};
+{acceptanceSeconds, acceptanceStop} = AbsoluteTiming[
+  withCountingDeadline[totalDeadlineReads,
+    SolveEpsFormStripInFrame[algebraicStrip, {v, w}, eps, frame,
+      Sequence @@ fixtureOptions, "Deadline" -> AbsoluteTime[] + 3600]]];
+
+check["a deadline reached inside an acceptance zero test stops typed",
+  constructionStopQ[acceptanceStop, inFrameSubstages]];
+check["the acceptance stop names an acceptance substage, not the entry gate",
+  budgetExhaustedQ[acceptanceStop] &&
+    MemberQ[{"GaugePullBack", "SourceFrameIdentity"},
+      acceptanceStop["Substage"]]];
+check["the LAST deadline read of a construction is inside a zero test, \
+i.e. the test is preemptible per entry and not only per stage",
+  budgetExhaustedQ[acceptanceStop] &&
+    StringQ[Lookup[acceptanceStop, "ZeroTestSubstage", None]] &&
+    IntegerQ[Lookup[acceptanceStop, "Entry", None]] &&
+    IntegerQ[Lookup[acceptanceStop, "Of", None]] &&
+    acceptanceStop["Entry"] >= 1 &&
+    acceptanceStop["Entry"] <= acceptanceStop["Of"]];
+report["acceptance stop", KeyTake[acceptanceStop,
+  {"Stage", "Substage", "ZeroTestSubstage", "Entry", "Of", "Elapsed"}]];
+report["acceptance stop wall seconds", Round[acceptanceSeconds, 0.01]];
+
+(* ------------------------------------------------------------------ *)
 (* (a'') the deadline reaches the solver through the option plumbing    *)
 (* ------------------------------------------------------------------ *)
 (* a RATIONAL strip: no radicals, so the construction goes straight to

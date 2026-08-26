@@ -96,6 +96,11 @@
 Begin["FeynFacet`Private`"];
 
 ClearAll[
+  multiquadraticStripStageLogQ, multiquadraticStripProgressInterval,
+  multiquadraticStripStageText, multiquadraticStripStageStart,
+  multiquadraticStripStageDone, multiquadraticStripStageProgress,
+  multiquadraticStripStageMark, multiquadraticStripStageSize,
+  $multiquadraticStripProgressLastTime, $multiquadraticStripStageLog,
   multiquadraticStripFailure, multiquadraticStripFingerprint,
   $multiquadraticStripForcingChannelSchema,
   multiquadraticStripForcingChannelFingerprint,
@@ -154,6 +159,7 @@ ClearAll[
   multiquadraticStripGaugeIndex, multiquadraticStripResidueIndex,
   multiquadraticStripPointRowIndex, multiquadraticStripColumnOrder,
   multiquadraticStripRowOrder, multiquadraticStripABIPayload,
+  multiquadraticStripCoreCanonicalData, multiquadraticStripDecomposeForcing,
   multiquadraticStripPrepare, multiquadraticStripPreparationValidQ,
   multiquadraticStripCompilePolynomial, multiquadraticStripCompileRational,
   multiquadraticStripDecomposeScalar, multiquadraticStripCompileTensor,
@@ -183,7 +189,8 @@ ClearAll[
   multiquadraticStripProductionOptionGate, multiquadraticStripBackendGate,
   multiquadraticStripClearCaches, solveEpsFormStripMultiquadratic,
   multiquadraticStripDeadlineQ, multiquadraticStripDeadlineExpiredQ,
-  multiquadraticStripBudgetExhausted,
+  multiquadraticStripBudgetExhausted, multiquadraticStripDeadlineCheckpoint,
+  $multiquadraticStripActiveDeadline, $multiquadraticStripDeadlineTag,
   $multiquadraticStripMaximumRootCount, $multiquadraticStripMaximumEpsilonDegree,
   $multiquadraticStripSourceFile, $multiquadraticStripSourceSHA256,
   $multiquadraticStripPrimeCache, $multiquadraticStripEpsilonCache,
@@ -219,6 +226,106 @@ multiquadraticFieldResetPathStatistics[] := (
 (* The difference of two statistics snapshots, for a record field. *)
 multiquadraticFieldPathStatisticsDelta[before_Association, after_Association] :=
   Association[KeyValueMap[#1 -> #2 - Lookup[before, #1, 0] &, after]];
+
+(* ------------------------------------------------------------------ *)
+(* Stage announcements (2026-08-25).                                    *)
+(* ------------------------------------------------------------------ *)
+
+(* An unlabelled multi-minute gap in a solve log is an instrumentation
+   defect, not merely a cosmetic one: on 2026-08-25 the round-6 campaign
+   watchdog could not distinguish a legitimate 21-minute first-call
+   PREPARE on a 68-letter ansatz from a hung kernel, because every
+   existing line on the prepare / gauge-screen / compile path is emitted
+   when a stage has ALREADY FINISHED and nothing announces that one has
+   started (watchdog ledger item 1, scratchpad/watchdog/r6_criteria.md).
+
+   These helpers are that announcement and nothing else.  No result
+   payload, fingerprint or artifact changes: every caller below uses
+   them for their side effect and discards the returned Boolean.
+
+   They follow "Verbose", they do not override it (Codex 14:30): a
+   library call that was asked to be quiet stays quiet.  The top level
+   Blocks $multiquadraticStripStageLog from its own "Verbose" option, so
+   the production driver -- which already solves strips verbosely -- gets
+   the lines and a quiet caller gets none.  FACET_MQ_STAGE_LOG=On forces
+   them on for a run that cannot pass an option (a pool mission),
+   FACET_MQ_STAGE_LOG=Off forces them off;
+   FACET_MQ_PROGRESS_SECONDS sets the interior progress interval,
+   default 60 s, matching the deferred-materialize convention of
+   BlockEquationDeferred.wl. *)
+$multiquadraticStripProgressLastTime = <||>;
+$multiquadraticStripStageLog = False;
+
+multiquadraticStripStageLogQ[] := Module[
+  {value = Environment["FACET_MQ_STAGE_LOG"]},
+  Which[value === "On", True, value === "Off", False,
+    True, TrueQ[$multiquadraticStripStageLog]]];
+
+(* A size probe costs a full traversal, so it is taken only when a line
+   will actually be printed (Codex 14:30: "measure whether the added
+   LeafCount traversals are material"; this makes the question moot on
+   the quiet path). *)
+multiquadraticStripStageSize[expression_] :=
+  If[multiquadraticStripStageLogQ[], LeafCount[expression],
+    Missing["StageLogDisabled"]];
+
+multiquadraticStripProgressInterval[] :=
+  Module[{value = Environment["FACET_MQ_PROGRESS_SECONDS"]},
+    (* N[...] deliberately, as in BlockEquationDeferred.wl: Max[0, 60]
+       returns the INTEGER 60 and a caller comparing it against a
+       machine number would see a type it did not expect *)
+    If[StringQ[value] && StringMatchQ[value, NumberString],
+      N[Max[0, ToExpression[value]]], 60.]];
+
+(* None-valued entries are dropped: the in-frame dispatcher hands this
+   engine a bare {Variables, Regulator, Strip} record with no family or
+   sector, and "family None, sector None, lower None" on every line is
+   noise, not information. *)
+multiquadraticStripStageText[stage_String, data_Association] := Module[
+  {shown = DeleteCases[data, None]},
+  "[multiquadratic] " <> stage <>
+    If[shown === <||>, "",
+      ": " <> StringRiffle[KeyValueMap[
+        Function[{key, value},
+          key <> " " <> ToString[
+            If[Head[value] === Real, Round[value, 0.1], value], InputForm]],
+        shown], ", "]]];
+
+(* A stage START is never rate limited: one line per stage entry is the
+   whole point, and a stage that is about to cost 20 minutes must be
+   named before it costs them. *)
+multiquadraticStripStageStart[stage_String, data_Association : <||>] := (
+  If[multiquadraticStripStageLogQ[],
+    $multiquadraticStripProgressLastTime[stage] = AbsoluteTime[];
+    Print[multiquadraticStripStageText[stage <> " start", data]]];
+  True);
+
+multiquadraticStripStageDone[stage_String, data_Association : <||>] := (
+  If[multiquadraticStripStageLogQ[],
+    Print[multiquadraticStripStageText[stage <> " done", data]]];
+  True);
+
+(* A MARK is a completed measurement of a step that had no separate
+   announcement -- a sub-phase whose cost is only interesting after the
+   fact.  It is deliberately not spelled "done": every "start" in this
+   module has a matching "done", and a mark is neither. *)
+multiquadraticStripStageMark[stage_String, data_Association : <||>] := (
+  If[multiquadraticStripStageLogQ[],
+    Print[multiquadraticStripStageText[stage, data]]];
+  True);
+
+(* Interior progress IS rate limited, per stage: at most one line per
+   interval.  The clock starts at the stage announcement, so a stage
+   that finishes inside one interval prints its start and its end and
+   nothing in between. *)
+multiquadraticStripStageProgress[stage_String, data_Association] := If[
+  multiquadraticStripStageLogQ[] &&
+    AbsoluteTime[] - Lookup[$multiquadraticStripProgressLastTime, stage,
+      -Infinity] >= multiquadraticStripProgressInterval[],
+  $multiquadraticStripProgressLastTime[stage] = AbsoluteTime[];
+  Print[multiquadraticStripStageText[stage, data]];
+  True,
+  False];
 
 (* The source identity is bound once, at load: DRCA re-hashed its own
    file after every point assembly, which is one file read per modular
@@ -257,6 +364,36 @@ multiquadraticStripBudgetExhausted[stage_String, elapsed_, deadline_,
     progress_Association] := multiquadraticStripFailure["BudgetExhausted",
   Join[<|"Stage" -> stage, "Elapsed" -> elapsed, "Deadline" -> deadline,
     "Method" -> "DirectRootChannel", "Resumable" -> True|>, progress]];
+
+(* ---- cooperative deadline INSIDE the preparation (2026-08-25) ------
+
+   multiquadraticStripPrepare had no interior deadline coverage at all:
+   the driver checked once before entering it and "Deadline" was not
+   among its options, so FilterRules dropped it.  A mission that entered
+   first-call prepare could therefore not be stopped by its sector
+   budget until prepare returned -- measured live at 51+ minutes on
+   CF300 sector 12 (2026-08-25), which is the last stage of this engine
+   not covered by the budget.
+
+   The decomposition loops are the natural interior boundary and they
+   sit behind opaque helpers (the interned tensor compiler, the compile
+   core record), so the deadline is threaded DYNAMICALLY rather than
+   through every signature: prepare Blocks the symbol below, the loops
+   read it, and an expiry leaves by Throw -- Return inside a Map or a Do
+   terminates only the loop (documented Wolfram trap).  Infinity is the
+   default and is compared by SameQ before any clock is read, so
+   "Deadline" -> Infinity performs and behaves exactly as no option at
+   all. *)
+$multiquadraticStripActiveDeadline = Infinity;
+$multiquadraticStripDeadlineTag = "MultiquadraticStripPrepareDeadline";
+
+multiquadraticStripDeadlineCheckpoint[substage_String,
+    progress_Association] := If[
+  $multiquadraticStripActiveDeadline =!= Infinity &&
+    AbsoluteTime[] >= $multiquadraticStripActiveDeadline,
+  Throw[Join[<|"Substage" -> substage|>, progress],
+    $multiquadraticStripDeadlineTag],
+  False];
 
 multiquadraticStripFingerprint[value_] :=
   Hash[ToString[InputForm[value]], "SHA256", "HexString"];
@@ -1899,6 +2036,15 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
     Return[multiquadraticStripBudgetExhausted["GaugeScreen:Compile",
       AbsoluteTime[] - startTime, deadline,
       <|"SizeEstimate" -> sizeEstimate|>]]];
+  (* a MARK, not a start: this function has six typed exits (three budget
+     stops, two admission refusals, the result) and a "start" that only
+     sometimes reaches a "done" is worse than no pair at all *)
+  multiquadraticStripStageMark["gauge screen image",
+    <|"prime" -> prime, "eps" -> regulatorValue,
+      "unknowns" -> unknownCount, "points" -> pointCount,
+      "rows" -> sizeEstimate["Rows"],
+      "columns" -> sizeEstimate["TotalColumns"],
+      "bytes" -> sizeEstimate["PackedBytes"]|>];
   rootSymbols = Take[{rootOne, rootTwo, rootThree}, rank];
   compileScalar[expression_] := multiquadraticStripScreenCompileCached[
     Quiet[Check[Together[expression /. epsilon -> regulatorValue], $Failed,
@@ -2991,20 +3137,51 @@ multiquadraticStripCompileNormalizations[specifications_List, dimensions_List,
   compiled
 ]];
 
-multiquadraticStripABIPayload[record_Association, roots_List,
-    variables : {_Symbol, _Symbol}, epsilon_Symbol, dimensions_List,
-    gaugeDenominator_, support_List, oneForms_List,
-    normalizations_List] := Module[
-  {rules, canonicalSquares, canonicalRoots, strip, equationCanonical, payload},
+(* The context-free canonical texts of the EQUATION and the ROOTS.  Both
+   the ABI payload and the compile core KEY are built from exactly these
+   three, and none of them depends on the ansatz (support, one-forms,
+   gauge denominator).  Splitting them out lets prepare key and build the
+   compile core BEFORE it has a payload, and then hand the same texts to
+   the payload instead of taking the whole-strip InputForm twice
+   (2026-08-25). *)
+multiquadraticStripCoreCanonicalData[record_Association, roots_List,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
+  {rules, strip},
   rules = multiquadraticStripCanonicalRules[variables, epsilon];
   strip = Lookup[record, "Strip", $Failed];
   If[! MatchQ[strip, {_List, _List, _List}], Return[$Failed]];
-  canonicalSquares = multiquadraticStripCanonicalText[
-    Lookup[#1, "RootSquare", $Failed], rules] & /@ roots;
-  canonicalRoots = multiquadraticStripCanonicalText[
-    Lookup[#1, "Root", $Failed], rules] & /@ roots;
-  equationCanonical = ToString[InputForm[Map[
-    multiquadraticStripCanonicalText[#1, rules] &, strip, {4}]]];
+  <|"RootCanonicalSquares" -> (multiquadraticStripCanonicalText[
+      Lookup[#1, "RootSquare", $Failed], rules] & /@ roots),
+    "RootCanonicalExpressions" -> (multiquadraticStripCanonicalText[
+      Lookup[#1, "Root", $Failed], rules] & /@ roots),
+    "EquationCanonical" -> ToString[InputForm[Map[
+      multiquadraticStripCanonicalText[#1, rules] &, strip, {4}]]]|>
+];
+multiquadraticStripCoreCanonicalData[___] := $Failed;
+
+(* the nine-argument form is the ABI as every existing caller (and
+   multiquadraticStripPreparationValidQ, which re-derives the payload to
+   validate it) knows it; the tenth argument is a canonical-data
+   Association a caller has already paid for *)
+multiquadraticStripABIPayload[record_Association, roots_List,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol, dimensions_List,
+    gaugeDenominator_, support_List, oneForms_List,
+    normalizations_List] :=
+  multiquadraticStripABIPayload[record, roots, variables, epsilon, dimensions,
+    gaugeDenominator, support, oneForms, normalizations, Automatic];
+
+multiquadraticStripABIPayload[record_Association, roots_List,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol, dimensions_List,
+    gaugeDenominator_, support_List, oneForms_List,
+    normalizations_List, canonicalData_] := Module[
+  {rules, canonical, canonicalSquares, canonicalRoots, equationCanonical,
+   payload},
+  rules = multiquadraticStripCanonicalRules[variables, epsilon];
+  canonical = If[AssociationQ[canonicalData], canonicalData,
+    multiquadraticStripCoreCanonicalData[record, roots, variables, epsilon]];
+  If[! AssociationQ[canonical], Return[$Failed]];
+  {canonicalSquares, canonicalRoots, equationCanonical} = Lookup[canonical,
+    {"RootCanonicalSquares", "RootCanonicalExpressions", "EquationCanonical"}];
   payload = <|
     (* V2 (2026-08-23, generality audit P2): "RootSourceIndices" left the
        hashed payload.  The DECLARATION order of a basis of square
@@ -3058,6 +3235,38 @@ Options[multiquadraticStripPrepare] = {
      (12,9).  A supplied set is shape-checked, and Automatic (the
      default) decomposes as before, so every other caller is unchanged. *)
   "ForcingChannels" -> Automatic,
+  (* 2026-08-25.  True makes the forcing channels come from the SEALED,
+     interned compile core (E, C and BBar decomposed and compiled once,
+     keyed on the equation and the roots), which the compiler then finds
+     already built.  False decomposes the forcing here and leaves E and C
+     to the compiler.
+
+     Automatic = FALSE, and that default is a MEASUREMENT, not a
+     preference.  Cold, on the real CF300 (12,9) descriptor (52-letter
+     ansatz, 1808 unknowns, support 100), both routes to the same
+     byte-identical preparation and the same assembly fingerprints:
+
+       CompileCore -> False   prepare 2710.9 s + compile  91.3 s = 2802.2 s
+       CompileCore -> True    prepare 2810.7 s + compile  89.8 s = 2900.5 s
+
+     Building the core early cost 99.8 s and gave back 1.5 s, because the
+     duplication it was meant to remove is already gone: the compiler
+     receives prepare's SEALED channels and its whole core stage is
+     0.16 s of a 91.3 s compile, of which 89.0 s is the one-form
+     compilation.  Pre-building E, C and every BBar channel in prepare
+     therefore buys nothing on this shape and is off by default.
+
+     It is kept, and kept correct, because it is the right structure
+     where a core IS reused -- a degree-offset ladder rung, a second
+     ansatz on the same equation, a re-prepare -- and because a caller
+     that wants it should not have to reimplement it.  Turning it on is
+     a measured decision per shape, not a default.
+
+     The fallback is HEAD's STRUCTURE but not HEAD's cost: it goes
+     through the interned decomposer, which returns exactly what
+     multiquadraticStripDecomposeScalar returns and so cannot change a
+     value, but decomposes each distinct entry once. *)
+  "CompileCore" -> Automatic,
   "NormalizationEquations" -> {},
   "RootIndices" -> Automatic,
   (* candidate letter construction; used only when "OneForms" is
@@ -3070,7 +3279,12 @@ Options[multiquadraticStripPrepare] = {
   "AdditionalLetters" -> {},
   "AlgebraicLetters" -> Automatic,
   "MaximumNormFactors" -> 2,
-  "MaximumNormExponent" -> 2
+  "MaximumNormExponent" -> 2,
+  (* absolute AbsoluteTime[] value; Infinity = unbounded, the default, so
+     every existing caller is unchanged.  See the note at
+     multiquadraticStripDeadlineCheckpoint: until 2026-08-25 this was the
+     last stage of the engine outside the sector budget. *)
+  "Deadline" -> Infinity
 };
 
 multiquadraticStripPrepare[record_Association, frame_Association,
@@ -3082,10 +3296,63 @@ multiquadraticStripPrepare[record_Association, frame_Association,
    denominatorDegrees, degreeOffset, numeratorDegrees, support, dimensions,
    gradeCount, gaugeUnknownCount, residueUnknownCount, unknownCount,
    equationsPerPoint, normalizations, payload, fingerprint,
+   coreEnabled, coreCanonical, coreDimensions, coreKey, coreConsumed = False,
+   deadline, prepareProgress, prepareBudget, prepareStop, prepareGuard,
+   familyName, sectorId, lowerSectorId, startTime = AbsoluteTime[],
    pathStatisticsBefore = multiquadraticFieldPathStatistics[], pathStatistics},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripPrepare]]]];
   If[AssociationQ[gate], Return[gate]];
+  (* a malformed request is a caller error and outranks a budget stop,
+     exactly as in solveEpsFormStripMultiquadratic *)
+  deadline = OptionValue["Deadline"];
+  If[! multiquadraticStripDeadlineQ[deadline],
+    Return[multiquadraticStripFailure["InvalidDeadline",
+      <|"Deadline" -> deadline,
+        "Expected" -> "an absolute AbsoluteTime[] value, or Infinity"|>]]];
+  (* precomputed, NOT read inside prepareProgress: a pattern variable in
+     the body of a delayed definition is substituted when the outer rule
+     fires, which would embed the whole strip record in that definition
+     (the rule TransportCharts.wl records at its own budgetProgress) *)
+  {familyName, sectorId, lowerSectorId} = Lookup[record,
+    {"Family", "Sector", "LowerSector"}, None];
+  (* resume-safe progress: what this preparation had established when it
+     stopped, so the next run can see how far the ansatz got *)
+  (* The SHAPE is the engine's common typed-stop shape: the same keys
+     solveEpsFormStripMultiquadratic's own budgetProgress carries, so a
+     preparation stop is shape-compatible with every other stop of this
+     engine (t_solver_budget checks exactly that).  The three sampling
+     identifiers do not exist yet at this stage and say so honestly
+     rather than being omitted. *)
+  prepareProgress[] := <|
+    "Family" -> familyName, "Sector" -> sectorId,
+    "LowerSector" -> lowerSectorId,
+    "Prime" -> Missing["NotSampled"],
+    "RegulatorValue" -> Missing["NotSampled"],
+    "SamplesDone" -> Missing["NotSampled"],
+    "RootCount" -> If[ListQ[roots], Length[roots], Missing["NotOrdered"]],
+    "ForcingDimensions" -> If[MatchQ[coreDimensions, {_Integer, _Integer}],
+      coreDimensions, Missing["NotClassified"]],
+    "ForcingChannelsDone" -> ListQ[channelForcing],
+    "ForcingChannelSource" -> If[TrueQ[coreConsumed], "CompileCore",
+      Missing["NotDecomposed"]],
+    "LetterCount" -> If[MatchQ[letterRecords, {___Association}],
+      Length[letterRecords], Missing["NotBuilt"]],
+    "OneFormCount" -> If[MatchQ[oneForms, {} | {{_, _} ..}],
+      Length[oneForms], Missing["NotBuilt"]],
+    "UnknownCount" -> If[IntegerQ[unknownCount], unknownCount,
+      Missing["NotBuilt"]],
+    "SupportSize" -> If[ListQ[support], Length[support],
+      Missing["NotBuilt"]]|>;
+  prepareBudget[substage_String, extra_Association : <||>] :=
+    multiquadraticStripBudgetExhausted["Preparation:" <> substage,
+      AbsoluteTime[] - startTime, deadline,
+      Join[prepareProgress[], extra]];
+  (* one boundary: check, and stop typed if the budget has passed *)
+  prepareGuard[substage_String] :=
+    If[multiquadraticStripDeadlineExpiredQ[deadline],
+      prepareStop = prepareBudget[substage]; True, False];
+  If[prepareGuard["Entry"], Return[prepareStop]];
   variables = Lookup[record, "Variables", $Failed];
   epsilon = Lookup[record, "Regulator", $Failed];
   strip = Lookup[record, "Strip", $Failed];
@@ -3110,6 +3377,9 @@ multiquadraticStripPrepare[record_Association, frame_Association,
     Return[multiquadraticStripFailure["UnsupportedRootRank",
       <|"MaximumRank" -> $multiquadraticStripMaximumRootCount,
         "ActualRank" -> Length[rootIndices]|>]]];
+  (* before the root order, which denests and square-class-matches every
+     declared radical *)
+  If[prepareGuard["RootOrder"], Return[prepareStop]];
   order = multiquadraticStripRootOrder[frame, variables, rootIndices, epsilon];
   If[Lookup[order, "Status", None] =!= "StableRootOrder", Return[order]];
   roots = order["Roots"];
@@ -3123,15 +3393,96 @@ multiquadraticStripPrepare[record_Association, frame_Association,
       Lookup[suppliedChannels, "Status", None]],
     Return[multiquadraticStripFailure[suppliedChannels["Status"],
       KeyDrop[suppliedChannels, "Status"]]]];
+  (* Automatic is FALSE here and TRUE in multiquadraticStripCompile: the
+     compiler's own core cache is 0.16 s and earns its keep across
+     ansatz changes, while building it EARLY was measured at +99.8 s on
+     CF300 (12,9).  See the option note above. *)
+  coreEnabled = Replace[OptionValue["CompileCore"], Automatic -> False];
+  If[! MemberQ[{True, False}, coreEnabled],
+    Return[multiquadraticStripFailure["InvalidPrepareCompileCoreOption",
+      <|"CompileCore" -> coreEnabled|>]]];
+  (* the core key needs the equation and root canonical texts and the
+     forcing dimensions, none of which depends on the ansatz.  The
+     dimensions are VALIDATED further down exactly where they were
+     validated at HEAD: a malformed strip simply fails to key the core
+     and takes the fallback, so no failure status moved. *)
+  coreCanonical = multiquadraticStripCoreCanonicalData[record, roots,
+    variables, epsilon];
+  coreDimensions = Quiet[Check[Dimensions[strip[[3, 1]]], $Failed]];
+  coreKey = If[AssociationQ[coreCanonical] &&
+      MatchQ[coreDimensions, {_Integer, _Integer}],
+    multiquadraticStripCompileCoreKeyFromParts[
+      multiquadraticAlgebraABIFingerprint[],
+      Hash[coreCanonical["EquationCanonical"], "SHA256", "HexString"],
+      Hash[coreCanonical["RootCanonicalSquares"], "SHA256", "HexString"],
+      coreCanonical["RootCanonicalSquares"], coreDimensions,
+      variables, epsilon],
+    $Failed];
+  (* before the forcing decomposition -- the stage that made this
+     coverage necessary *)
+  If[prepareGuard["ForcingChannels"], Return[prepareStop]];
   channelForcing = If[suppliedChannels["Status"] === "Accepted",
     suppliedChannels["Channels"],
-    Map[multiquadraticStripDecomposeScalar[#1, roots] &, strip[[3]], {3}]];
+    Module[{stage = "prepare: forcing channel decomposition", seconds = 0.,
+        built = $Failed},
+      multiquadraticStripStageStart[stage,
+        <|"family" -> Lookup[record, "Family", None],
+          "sector" -> Lookup[record, "Sector", None],
+          "lower" -> Lookup[record, "LowerSector", None],
+          "forcing" -> coreDimensions, "rank" -> Length[roots],
+          "grades" -> 2^Length[roots],
+          "route" -> If[TrueQ[coreEnabled] && coreKey =!= $Failed,
+            "CompileCore", "Independent"]|>];
+      (* the VALUE pools are per call at both ends, exactly as in the
+         compiler: they make one call decompose each unique value once
+         and are never carried between calls *)
+      multiquadraticStripInternReset["Scalar"];
+      multiquadraticStripInternReset["Rational"];
+      (* the decomposition loops read the deadline per entry and leave by
+         Throw; Block restores the dynamic value on every exit path,
+         including the Throw *)
+      built = Catch[
+        Block[{$multiquadraticStripActiveDeadline = deadline},
+          {seconds, built} = AbsoluteTiming[
+            If[TrueQ[coreEnabled] && coreKey =!= $Failed,
+              Module[{core = multiquadraticStripCompileCoreRecord[strip, roots,
+                  variables, epsilon, Missing["NotSupplied"], coreKey, True]},
+                If[AssociationQ[core],
+                  Lookup[Lookup[core, "BBar", <||>], "Channels", $Failed],
+                  $Failed]],
+              $Failed]];
+          coreConsumed = built =!= $Failed && FreeQ[built, $Failed];
+          If[! coreConsumed,
+            {seconds, built} = AbsoluteTiming[
+              multiquadraticStripDecomposeForcing[strip[[3]], roots]]];
+          built],
+        $multiquadraticStripDeadlineTag,
+        Function[{payload, tag},
+          prepareStop = prepareBudget[
+            Lookup[payload, "Substage", "ForcingChannels"],
+            KeyDrop[payload, "Substage"]];
+          $Failed]];
+      multiquadraticStripInternReset["Scalar"];
+      multiquadraticStripInternReset["Rational"];
+      multiquadraticStripStageDone[stage,
+        <|"seconds" -> N[seconds],
+          "source" -> Which[AssociationQ[prepareStop], "BudgetExhausted",
+            coreConsumed, "CompileCore", True, "Independent"]|>];
+      built]];
+  If[AssociationQ[prepareStop], Return[prepareStop]];
   If[! FreeQ[channelForcing, $Failed],
     Return[multiquadraticStripFailure["ForcingChannelDecompositionFailed"]]];
   letterRecords = OptionValue["LetterRecords"];
   oneFormData = OptionValue["OneForms"];
+  (* before the candidate-letter construction, a single opaque call *)
+  If[prepareGuard["CandidateLetters"], Return[prepareStop]];
   If[oneFormData === Automatic,
     If[! MatchQ[letterRecords, {___Association}],
+      multiquadraticStripStageStart["prepare: candidate letters",
+        <|"family" -> Lookup[record, "Family", None],
+          "sector" -> Lookup[record, "Sector", None],
+          "lower" -> Lookup[record, "LowerSector", None],
+          "rank" -> Length[roots], "forcing" -> coreDimensions|>];
       letterRecords = multiquadraticStripCandidateLetters[strip, roots,
         variables, epsilon, record,
         "RegulatorSampleCount" -> OptionValue["RegulatorSampleCount"],
@@ -3141,6 +3492,9 @@ multiquadraticStripPrepare[record_Association, frame_Association,
         "AlgebraicLetters" -> OptionValue["AlgebraicLetters"],
         "MaximumNormFactors" -> OptionValue["MaximumNormFactors"],
         "MaximumNormExponent" -> OptionValue["MaximumNormExponent"]];
+      multiquadraticStripStageDone["prepare: candidate letters",
+        <|"status" -> Lookup[letterRecords, "Status", None],
+          "letters" -> Length[Lookup[letterRecords, "LetterRecords", {}]]|>];
       If[Lookup[letterRecords, "Status", None] =!=
           "MultiquadraticCandidateLettersV1",
         Return[If[AssociationQ[letterRecords], letterRecords,
@@ -3153,6 +3507,9 @@ multiquadraticStripPrepare[record_Association, frame_Association,
     Lookup[oneFormData, "OneForms", $Failed], oneFormData];
   If[! MatchQ[oneForms, {} | {{_, _} ..}],
     Return[multiquadraticStripFailure["OneFormBasisFailed"]]];
+  (* after the alphabet is fixed and before the gauge denominator, which
+     factors the norms of every algebraic letter actually used *)
+  If[prepareGuard["GaugeDenominator"], Return[prepareStop]];
   gaugeDenominatorFactor = Replace[OptionValue["GaugeDenominatorFactor"],
     Automatic :> If[MatchQ[letterRecords, {___Association}],
       multiquadraticStripNormDenominatorFactor[letterRecords, variables], 1]];
@@ -3198,8 +3555,14 @@ multiquadraticStripPrepare[record_Association, frame_Association,
     OptionValue["NormalizationEquations"], dimensions, gradeCount, support,
     oneForms, gaugeUnknownCount];
   If[! ListQ[normalizations], Return[normalizations]];
+  (* before the ABI payload, the last opaque stage of the preparation *)
+  If[prepareGuard["ABIPayload"], Return[prepareStop]];
+  (* the canonical equation/root texts were already paid for above, when
+     the compile core was keyed; handing them over is what keeps the
+     whole-strip InputForm to ONE pass *)
   payload = multiquadraticStripABIPayload[record, roots, variables, epsilon,
-    dimensions, gaugeDenominator, support, oneForms, normalizations];
+    dimensions, gaugeDenominator, support, oneForms, normalizations,
+    coreCanonical];
   If[payload === $Failed,
     Return[multiquadraticStripFailure["ContextSensitiveStripABI"]]];
   fingerprint = multiquadraticStripFingerprint[payload];
@@ -3411,6 +3774,7 @@ multiquadraticStripCompileTensor[tensor_, scalarLevel_Integer, roots_List,
 
 ClearAll[
   multiquadraticStripInternReset, multiquadraticStripIntern,
+  multiquadraticStripInternValidQ,
   multiquadraticStripInternProbe, multiquadraticStripInternStatistics,
   multiquadraticStripCompileCacheClear,
   multiquadraticStripCompileRationalFromPair,
@@ -3421,7 +3785,8 @@ ClearAll[
   multiquadraticStripCompactInverse, multiquadraticStripLetterChannelPair,
   multiquadraticStripCompileOneFormEntry, multiquadraticStripCompileOneForms,
   multiquadraticStripCompileShardTask,
-  multiquadraticStripCompileCoreKey, multiquadraticStripCompileCoreRecord,
+  multiquadraticStripCompileCoreKey, multiquadraticStripCompileCoreKeyFromParts,
+  multiquadraticStripCompileCoreRecord,
   multiquadraticStripCompileDenominatorRecord,
   multiquadraticStripCompileLegacyCore,
   multiquadraticStripCompileLegacyDenominator,
@@ -3451,7 +3816,7 @@ $multiquadraticStripCompileShardMinimum = 8;
    Association is the only update form with a guaranteed constant-time
    semantics, and the compile does thousands of these per call. *)
 $multiquadraticStripInternCounterNames = {"Hits", "Misses", "Collisions",
-  "Entries", "Resets"};
+  "Entries", "Resets", "Rejected"};
 
 multiquadraticStripInternReset[pool_String] := (
   $multiquadraticStripInternPools = KeySelect[$multiquadraticStripInternPools,
@@ -3486,6 +3851,33 @@ multiquadraticStripInternProbe[pool_String, key_] := Module[{bucket, hit},
    context sensitivity is not an ABI question.  SameQ decides, so a hash
    collision merges nothing; two mathematically equal but structurally
    different values simply miss, which costs time and never correctness. *)
+(* A NEGATIVE result is never cached (Codex P1, 2026-08-25).  The pools
+   used to store whatever compute[] returned, $Failed included, and the
+   early-core construction in prepare made that reachable on the public
+   path: an early core that failed to build stored $Failed under the core
+   key, prepare fell back to its own decomposition and succeeded, and the
+   compiler then HIT the cached $Failed and returned
+   ExactChannelDecompositionFailed on a block that was perfectly
+   solvable.  A failed build is now recomputed rather than remembered --
+   the cost of a repeated failure, against a poisoned cache that fails a
+   whole solve.
+
+   Per-pool validity is a predicate, not a bare $Failed test: a Core
+   record whose five members are not all present is malformed even
+   though it contains no $Failed. *)
+multiquadraticStripInternValidQ["Core", value_] :=
+  AssociationQ[value] && FreeQ[value, $Failed] &&
+    AllTrue[{"E", "C", "BBar", "RootSquares", "RootLogDerivatives"},
+      AssociationQ[Lookup[value, #1, $Failed]] &];
+multiquadraticStripInternValidQ["GaugeDenominator", value_] :=
+  AssociationQ[value] && FreeQ[value, $Failed] &&
+    AllTrue[{"GaugeDenominator", "GaugeLogDerivatives"},
+      AssociationQ[Lookup[value, #1, $Failed]] &];
+multiquadraticStripInternValidQ["OneForm", value_] :=
+  value =!= $Failed && FreeQ[value, $Failed];
+multiquadraticStripInternValidQ[_String, value_] :=
+  value =!= $Failed && FreeQ[value, $Failed];
+
 multiquadraticStripIntern[pool_String, key_, compute_] := Module[
   {hash, bucket, hit, value, limit, hits, misses, resets},
   hash = Hash[key];
@@ -3496,6 +3888,12 @@ multiquadraticStripIntern[pool_String, key_, compute_] := Module[
       Lookup[$multiquadraticStripInternCounters, Key[{pool, "Hits"}], 0] + 1;
     Return[Last[hit]]];
   value = compute[];
+  (* refused BEFORE any counter or bucket is touched: a rejected value
+     leaves the pool exactly as it found it *)
+  If[! multiquadraticStripInternValidQ[pool, value],
+    $multiquadraticStripInternCounters[[Key[{pool, "Rejected"}]]] =
+      Lookup[$multiquadraticStripInternCounters, Key[{pool, "Rejected"}], 0] + 1;
+    Return[value]];
   limit = Lookup[$multiquadraticStripPoolEntryLimit, pool, Infinity];
   If[Lookup[$multiquadraticStripInternCounters, Key[{pool, "Entries"}], 0] >=
       limit,
@@ -3570,15 +3968,73 @@ multiquadraticStripCompileRationalInterned[expression_,
     Function[multiquadraticStripCompileRationalCanonical[expression,
       variables, epsilon]]];
 
+(* prepare's INDEPENDENT forcing decomposition -- the fallback taken when
+   the compile core cannot be built or is switched off.  It differs from
+   the HEAD expression Map[multiquadraticStripDecomposeScalar[...], ...,
+   {3}] in two ways that cannot change its value: the interned decomposer
+   (which memoizes multiquadraticStripDecomposeScalar and returns exactly
+   its result, so the repeated zero entries of a sparse forcing are
+   decomposed once) and one rate-limited progress line per interval. *)
+multiquadraticStripDecomposeForcing[bbar_, roots_List] := Module[
+  {stage = "prepare: forcing channel decomposition", total, done = 0,
+   started = AbsoluteTime[]},
+  total = Quiet[Check[Times @@ Take[Dimensions[bbar], UpTo[3]], 0]];
+  Map[Function[entry,
+      done++;
+      multiquadraticStripDeadlineCheckpoint["ForcingChannels",
+        <|"Entry" -> done, "Of" -> total,
+          "SubstageSeconds" -> N[AbsoluteTime[] - started]|>];
+      multiquadraticStripStageProgress[stage,
+        <|"entry" -> done, "of" -> total,
+          "seconds" -> N[AbsoluteTime[] - started]|>];
+      multiquadraticStripDecomposeScalarInterned[entry, roots]],
+    bbar, {3}]
+];
+
 multiquadraticStripCompileTensorInterned[tensor_, scalarLevel_Integer,
-    roots_List, variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
-  {channels, compiled},
-  channels = Map[multiquadraticStripDecomposeScalarInterned[#1, roots] &,
-    tensor, {scalarLevel}];
-  If[! FreeQ[channels, $Failed], Return[$Failed]];
+    roots_List, variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
+  multiquadraticStripCompileTensorInterned[tensor, scalarLevel, roots,
+    variables, epsilon, None];
+
+(* "stage" is a telemetry label only.  With a label the decomposition
+   emits ONE rate-limited progress line per interval naming the entry it
+   has reached; without one (the root squares and log derivatives, which
+   are a handful of scalars) it is silent.  Nothing else differs, so the
+   returned record is byte-identical either way. *)
+multiquadraticStripCompileTensorInterned[tensor_, scalarLevel_Integer,
+    roots_List, variables : {_Symbol, _Symbol}, epsilon_Symbol,
+    stage_] := Module[
+  {channels, compiled, total, done = 0, started = AbsoluteTime[], decompose},
+  If[StringQ[stage],
+    total = Times @@ Take[Dimensions[tensor], UpTo[scalarLevel]];
+    multiquadraticStripStageStart[stage,
+      <|"entries" -> total, "rank" -> Length[roots],
+        "grades" -> 2^Length[roots]|>];
+    decompose[entry_] := (
+      done++;
+      multiquadraticStripDeadlineCheckpoint[stage,
+        <|"Entry" -> done, "Of" -> total,
+          "SubstageSeconds" -> N[AbsoluteTime[] - started]|>];
+      multiquadraticStripStageProgress[stage,
+        <|"entry" -> done, "of" -> total,
+          "seconds" -> N[AbsoluteTime[] - started]|>];
+      multiquadraticStripDecomposeScalarInterned[entry, roots]),
+    decompose[entry_] := (
+      multiquadraticStripDeadlineCheckpoint["CompileTensor", <||>];
+      multiquadraticStripDecomposeScalarInterned[entry, roots])];
+  channels = Map[decompose, tensor, {scalarLevel}];
+  If[! FreeQ[channels, $Failed],
+    If[StringQ[stage],
+      multiquadraticStripStageDone[stage,
+        <|"seconds" -> N[AbsoluteTime[] - started], "status" -> "Failed"|>]];
+    Return[$Failed]];
   compiled = Map[
     multiquadraticStripCompileRationalInterned[#1, variables, epsilon] &,
     channels, {scalarLevel + 1}];
+  If[StringQ[stage],
+    multiquadraticStripStageDone[stage,
+      <|"seconds" -> N[AbsoluteTime[] - started],
+        "status" -> If[FreeQ[compiled, $Failed], "OK", "Failed"]|>]];
   If[! FreeQ[compiled, $Failed], $Failed,
     <|"Channels" -> channels, "Compiled" -> compiled|>]
 ];
@@ -3734,6 +4190,11 @@ multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
   prefix = {$multiquadraticStripSourceSHA256, variables, epsilon,
     Lookup[roots, "Root", {}], Lookup[roots, "RootSquare", {}]};
   keys = Table[{prefix, form}, {form, oneForms}];
+  multiquadraticStripStageStart["compile: one-forms",
+    <|"oneForms" -> Length[oneForms], "rank" -> Length[roots],
+      "compact" -> TrueQ[compactQ], "shards" -> shards,
+      "cached" -> Count[keys,
+        key_ /; ! MissingQ[multiquadraticStripInternProbe["OneForm", key]]]|>];
   (* shard plan: only the one-forms the pool does NOT already hold, and
      only when a live broker and enough uncached work justify it *)
   shardCount = If[IntegerQ[shards] && shards >= 2 && shards <= 8, shards, 0];
@@ -3791,6 +4252,18 @@ multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
    the chart symbols themselves, because two preparations that differ
    only in symbol names share an EquationFingerprint (it is computed
    from the canonical text) and must NOT share compiled channels. *)
+(* The key parts, so that PREPARE can key the core before it has an ABI
+   payload (2026-08-25).  The tuple is byte-identical to the one the
+   preparation form below produced at HEAD -- both callers must land on
+   the same pool entry or the core is built twice, which is the whole
+   defect this closes. *)
+multiquadraticStripCompileCoreKeyFromParts[algebraFingerprint_,
+    equationFingerprint_, rootOrderingFingerprint_, rootCanonicalSquares_,
+    dimensions_, variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
+  {$multiquadraticStripSourceSHA256, algebraFingerprint,
+   equationFingerprint, rootOrderingFingerprint, rootCanonicalSquares,
+   dimensions, variables, epsilon};
+
 multiquadraticStripCompileCoreKey[preparation_Association,
     variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
   {payload = Lookup[preparation, "ABIPayload", $Failed]},
@@ -3798,25 +4271,29 @@ multiquadraticStripCompileCoreKey[preparation_Association,
   If[AnyTrue[{"EquationFingerprint", "RootOrderingFingerprint",
       "RootCanonicalSquares", "Dimensions"},
       ! KeyExistsQ[payload, #1] &], Return[$Failed]];
-  {$multiquadraticStripSourceSHA256,
-   Lookup[preparation, "AlgebraABIFingerprint", $Failed],
-   payload["EquationFingerprint"], payload["RootOrderingFingerprint"],
-   payload["RootCanonicalSquares"], payload["Dimensions"],
-   variables, epsilon}
+  multiquadraticStripCompileCoreKeyFromParts[
+    Lookup[preparation, "AlgebraABIFingerprint", $Failed],
+    payload["EquationFingerprint"], payload["RootOrderingFingerprint"],
+    payload["RootCanonicalSquares"], payload["Dimensions"],
+    variables, epsilon]
 ];
 
-multiquadraticStripCompileCoreRecord[preparation_Association, roots_List,
+(* Takes the STRIP, not a preparation: prepare consumes this record too
+   and has no preparation object yet when it does (2026-08-25).  The
+   preparation-shaped call site in multiquadraticStripCompile passes
+   preparation["Record"]["Strip"], so nothing it compiles changed. *)
+multiquadraticStripCompileCoreRecord[strip_, roots_List,
     variables : {_Symbol, _Symbol}, epsilon_Symbol, reusedChannels_,
     coreKey_, useCacheQ_] := Module[{build},
+  If[! MatchQ[strip, {_List, _List, _List}], Return[$Failed]];
   build[] := Module[
-    {strip = Lookup[preparation, "Record", <||>]["Strip"], e, c, bbar,
-     eData, cData, bData, rootSquares, rootSquareData, rootLogData},
-    If[! MatchQ[strip, {_List, _List, _List}], Return[$Failed]];
+    {e, c, bbar, eData, cData, bData, rootSquares, rootSquareData,
+     rootLogData},
     {e, c, bbar} = strip;
     eData = multiquadraticStripCompileTensorInterned[e, 3, roots, variables,
-      epsilon];
+      epsilon, "compile core: E"];
     cData = multiquadraticStripCompileTensorInterned[c, 3, roots, variables,
-      epsilon];
+      epsilon, "compile core: C"];
     bData = If[ArrayQ[reusedChannels, 4] &&
         Dimensions[reusedChannels] === Append[Dimensions[bbar],
           2^Length[roots]] && FreeQ[reusedChannels, $Failed],
@@ -3826,7 +4303,7 @@ multiquadraticStripCompileCoreRecord[preparation_Association, roots_List,
         If[! FreeQ[compiled, $Failed], $Failed,
           <|"Channels" -> reusedChannels, "Compiled" -> compiled|>]],
       multiquadraticStripCompileTensorInterned[bbar, 3, roots, variables,
-        epsilon]];
+        epsilon, "compile core: BBar"]];
     rootSquares = Lookup[roots, "RootSquare", {}];
     rootSquareData = multiquadraticStripCompileTensorInterned[rootSquares, 1,
       {}, variables, epsilon];
@@ -4024,7 +4501,8 @@ multiquadraticStripCompile[preparation_Association,
     If[legacyQ,
       multiquadraticStripCompileLegacyCore[preparation, roots, variables,
         epsilon, reusedChannels],
-      multiquadraticStripCompileCoreRecord[preparation, roots, variables,
+      multiquadraticStripCompileCoreRecord[
+        Lookup[record, "Strip", $Failed], roots, variables,
         epsilon, reusedChannels, coreKey, coreEnabled]]];
   If[! AssociationQ[core],
     multiquadraticStripInternReset["Scalar"];
@@ -4039,6 +4517,14 @@ multiquadraticStripCompile[preparation_Association,
       multiquadraticStripCompileOneForms[preparation["OneForms"],
         Lookup[preparation, "LetterRecords", None], roots, variables, epsilon,
         compactQ, shards]]];
+  (* pairs with the start emitted inside multiquadraticStripCompileOneForms:
+     that function has typed early exits, this line does not *)
+  If[! legacyQ,
+    multiquadraticStripStageDone["compile: one-forms",
+      <|"seconds" -> N[oneFormSeconds],
+        "status" -> If[AssociationQ[oneData], "OK", "Failed"],
+        "paths" -> If[AssociationQ[oneData],
+          Counts[Lookup[oneData, "Paths", {}]], <||>]|>]];
   If[! AssociationQ[oneData],
     multiquadraticStripInternReset["Scalar"];
     multiquadraticStripInternReset["Rational"];
@@ -5374,7 +5860,13 @@ multiquadraticStripClearCaches[] := (
 (* Top-level entry point                                                *)
 (* ------------------------------------------------------------------ *)
 
-Options[solveEpsFormStripMultiquadratic] = Join[
+(* DeleteDuplicatesBy on the option NAME: "Deadline" is now declared by
+   multiquadraticStripPrepare as well (2026-08-25), with the identical
+   default, and a duplicated option name in an Options list is a trap
+   waiting for the next reader.  Prepare's declaration wins, which is
+   also what makes FilterRules thread the caller's deadline into the
+   preparation without a special case. *)
+Options[solveEpsFormStripMultiquadratic] = DeleteDuplicatesBy[Join[
   Options[multiquadraticStripPrepare], {
   "SamplePrimes" -> Automatic,
   "RegulatorValues" -> Automatic,
@@ -5407,8 +5899,23 @@ Options[solveEpsFormStripMultiquadratic] = Join[
   (* absolute AbsoluteTime[] value; Infinity = unbounded (the default,
      so every existing caller is unchanged) *)
   "Deadline" -> Infinity,
+  (* The compile-architecture knobs, 2026-08-25 (Codex P2).  "CompileCore"
+     is declared by multiquadraticStripPrepare and reaches THIS option
+     set through the Join above; it is forwarded to the compiler below so
+     that one public option governs both the early core in prepare and
+     the compiler's own core, which is what its documentation claims.
+     "LetterChannels" and "LegacyCompiler" are forwarded for the same
+     reason.
+
+     "CompileShards" is deliberately NOT a public option: it needs a live
+     task broker and its strict result schema, helper-leak and fallback
+     contract are not hardened (Codex 14:30, shard row).  It stays a
+     PRIVATE test control of multiquadraticStripCompile with no
+     production caller until that contract exists. *)
+  "LetterChannels" -> Automatic,
+  "LegacyCompiler" -> False,
   "Verbose" -> False
-}];
+}], First];
 
 (* The terminal success status is ModularConsistent.  It is NEVER
    "Solved": the package strip contract needs a certified dlog
@@ -5417,7 +5924,18 @@ Options[solveEpsFormStripMultiquadratic] = Join[
    records the result; installation stays blocked until an OneForms
    contract exists. *)
 solveEpsFormStripMultiquadratic[record_Association, frame_Association,
-    opts : OptionsPattern[]] := Module[
+    opts : OptionsPattern[]] := Block[
+  (* the stage lines follow this call's "Verbose" (Codex 14:30): they are
+     diagnostics, not a second logging policy.  Block, so every exit path
+     -- including a Return out of the Module below -- restores it, and so
+     that prepare / compile / the screens, which have no Verbose option
+     of their own, inherit the decision made here. *)
+  (* the EXPLICIT three-argument OptionValue: the enclosing-function form
+     relies on being rewritten inside the rule body, and this sits in a
+     Block variable initializer, which is held *)
+  {$multiquadraticStripStageLog = TrueQ[OptionValue[
+    solveEpsFormStripMultiquadratic, {opts}, "Verbose"]]},
+  Module[
   {startTime = AbsoluteTime[], gate, backendGate, verbose, log, preparation,
    assembly, primes, regulatorValues, heldOutPrime, heldOutRegulatorValue,
    allPrimes, samples = <||>, solutions = <||>, sample, solution, signature,
@@ -5533,6 +6051,12 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
           screenRoots = order["Roots"]]]]];
   If[ListQ[screenRoots] && OptionValue["OneForms"] === Automatic &&
       ! MatchQ[OptionValue["LetterRecords"], {___Association}],
+    multiquadraticStripStageStart["alphabet",
+      <|"family" -> Lookup[record, "Family", None],
+        "sector" -> Lookup[record, "Sector", None],
+        "lower" -> Lookup[record, "LowerSector", None],
+        "rank" -> Length[screenRoots],
+        "forcing" -> Quiet[Check[Dimensions[strip[[3, 1]]], None]]|>];
     letterData = multiquadraticStripCandidateLetters[strip, screenRoots,
       variables, epsilon, record,
       "RegulatorSampleCount" -> OptionValue["RegulatorSampleCount"],
@@ -5546,6 +6070,9 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
       Return[If[AssociationQ[letterData], letterData,
         multiquadraticStripFailure["OneFormBasisFailed"]]]];
     letterRecords = letterData["LetterRecords"];
+    multiquadraticStripStageDone["alphabet",
+      <|"letters" -> Length[letterRecords],
+        "counts" -> Lookup[letterData, "Counts", <||>]|>];
     log["alphabet: ", Length[letterRecords], " letters ",
       letterData["Counts"], ", regulator samples ",
       letterData["RegulatorValues"], " (rejected ",
@@ -5564,11 +6091,18 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
       Automatic :> If[AssociationQ[letterData] &&
           MatchQ[Lookup[letterData, "RegulatorValues", {}], {__}],
         First[letterData["RegulatorValues"]], Automatic]];
+    multiquadraticStripStageStart["integrability screen",
+      <|"letters" -> Length[letterRecords],
+        "points" -> OptionValue["IntegrabilityScreenPointCount"]|>];
     screen = multiquadraticStripIntegrabilityScreenImages[record, screenRoots,
       letterRecords, "Prime" -> OptionValue["IntegrabilityScreenPrime"],
       "RegulatorValue" -> screenRegulatorValue,
       "PointCount" -> OptionValue["IntegrabilityScreenPointCount"],
       "Deadline" -> deadline];
+    multiquadraticStripStageDone["integrability screen",
+      <|"status" -> Lookup[screen, "Status", None],
+        "defects" -> Lookup[screen, "Defects", None],
+        "seconds" -> Lookup[screen, "Seconds", Missing["NotMeasured"]]|>];
     log["integrability screen: ", Lookup[screen, "Status", None],
       ", defects ", Lookup[screen, "Defects", None], " over ",
       Lookup[screen, "ImageCount", None], " image(s), rank ",
@@ -5599,13 +6133,38 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
     If[MatchQ[letterRecords, {___Association}] &&
         OptionValue["OneForms"] === Automatic,
       {"LetterRecords" -> letterRecords}, {}],
+    (* the legacy compiler does not consume a compile core, so prepare
+       must not build one for it: "LegacyCompiler" is not a prepare
+       option and would otherwise leave prepare's own Automatic core on *)
+    If[TrueQ[OptionValue["LegacyCompiler"]], {"CompileCore" -> False},
+      {"CompileCore" -> OptionValue["CompileCore"]}],
+    (* the caller's deadline now reaches prepare, which since 2026-08-25
+       checks it at its own interior boundaries *)
+    {"Deadline" -> deadline},
     FilterRules[DeleteCases[Flatten[{opts}],
-      HoldPattern["LetterRecords" -> _] | HoldPattern["LetterRecords" :> _]],
+      HoldPattern["LetterRecords" -> _] | HoldPattern["LetterRecords" :> _] |
+      HoldPattern["CompileCore" -> _] | HoldPattern["CompileCore" :> _] |
+      HoldPattern["Deadline" -> _] | HoldPattern["Deadline" :> _]],
       Options[multiquadraticStripPrepare]]];
+  multiquadraticStripStageStart["prepare",
+    <|"family" -> Lookup[record, "Family", None],
+      "sector" -> Lookup[record, "Sector", None],
+      "lower" -> Lookup[record, "LowerSector", None],
+      "letters" -> If[MatchQ[letterRecords, {___Association}],
+        Length[letterRecords], Missing["NotBuilt"]],
+      "degreeOffset" -> OptionValue["DegreeOffset"],
+      "forcing" -> Quiet[Check[Dimensions[strip[[3, 1]]], None]]|>];
   preparation = multiquadraticStripPrepare[record, frame,
     Sequence @@ prepareOptions];
   If[Lookup[preparation, "Status", None] =!= "PreparedMultiquadraticStripV1",
-    Return[preparation]];
+    (* prepare's own typed stops -- including, since 2026-08-25, its
+       interior BudgetExhausted -- travel out of this driver with the
+       same ansatz context every other typed failure here carries *)
+    Return[enrich[preparation]]];
+  multiquadraticStripStageDone["prepare",
+    <|"unknowns" -> preparation["UnknownCount"],
+      "support" -> Length[preparation["GaugeSupport"]],
+      "oneForms" -> Length[preparation["OneForms"]]|>];
   log["prepared: rank ", preparation["RootCount"], ", ",
     preparation["UnknownCount"], " unknowns, ",
     preparation["EquationsPerPoint"], " equations per point"];
@@ -5620,10 +6179,21 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
   adoptedDegreeOffset = OptionValue["DegreeOffset"];
   gaugeLadder = <|"Status" -> "GaugeScreenLadderNotRun"|>;
   If[TrueQ[OptionValue["GaugeScreen"]],
+    multiquadraticStripStageStart["gauge screen",
+      <|"unknowns" -> preparation["UnknownCount"],
+        "support" -> Length[preparation["GaugeSupport"]],
+        "oneForms" -> Length[preparation["OneForms"]],
+        "equationsPerPoint" -> preparation["EquationsPerPoint"],
+        "degreeOffset" -> adoptedDegreeOffset|>];
     gaugeScreen = multiquadraticStripGaugeScreenImages[preparation,
       "Images" -> OptionValue["GaugeScreenImages"],
       "PointCount" -> OptionValue["GaugeScreenPointCount"],
       "Deadline" -> deadline];
+    multiquadraticStripStageDone["gauge screen",
+      <|"status" -> Lookup[gaugeScreen, "Status", None],
+        "defects" -> Lookup[gaugeScreen, "Defects", None],
+        "images" -> Lookup[gaugeScreen, "ImageCount", None],
+        "seconds" -> Lookup[gaugeScreen, "Seconds", Missing["NotMeasured"]]|>];
     log["gauge screen: ", Lookup[gaugeScreen, "Status", None], ", defects ",
       Lookup[gaugeScreen, "Defects", None], " over ",
       Lookup[gaugeScreen, "ImageCount", None], " image(s), ",
@@ -5684,7 +6254,7 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
             HoldPattern["DegreeOffset" :> _]]];
         If[Lookup[preparation, "Status", None] =!=
             "PreparedMultiquadraticStripV1",
-          Return[preparation]];
+          Return[enrich[preparation]]];
         log["re-prepared at DegreeOffset ", adoptedDegreeOffset, ": ",
           preparation["UnknownCount"], " unknowns, support ",
           Length[preparation["GaugeSupport"]]],
@@ -5720,11 +6290,28 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
      the one just computed and its forcing channels are exact, so the
      compiler neither re-derives the payload nor decomposes the forcing
      a second time (post-mortem item 5) *)
+  multiquadraticStripStageStart["compile",
+    <|"family" -> Lookup[record, "Family", None],
+      "sector" -> Lookup[record, "Sector", None],
+      "lower" -> Lookup[record, "LowerSector", None],
+      "unknowns" -> preparation["UnknownCount"],
+      "oneForms" -> Length[preparation["OneForms"]],
+      "support" -> Length[preparation["GaugeSupport"]]|>];
+  (* the public compile-architecture options reach the compiler, so that
+     "CompileCore" -> False really does restore the pre-2026-08-25 path
+     on the whole route and not merely in prepare (Codex P2) *)
   assembly = multiquadraticStripCompile[preparation,
     "PreparationValidated" -> True,
-    "ForcingChannels" -> Lookup[preparation, "ForcingChannels", Automatic]];
+    "ForcingChannels" -> Lookup[preparation, "ForcingChannels", Automatic],
+    "CompileCore" -> OptionValue["CompileCore"],
+    "LetterChannels" -> OptionValue["LetterChannels"],
+    "LegacyCompiler" -> OptionValue["LegacyCompiler"]];
   If[Lookup[assembly, "Status", None] =!= "CompiledMultiquadraticStripV1",
     Return[assembly]];
+  multiquadraticStripStageDone["compile",
+    KeyTake[Lookup[assembly, "CompileStatistics", <||>],
+      {"Architecture", "Seconds", "CoreSeconds", "OneFormSeconds",
+       "GaugeDenominatorSeconds"}]];
   (* between preparation and the modular schedule *)
   If[multiquadraticStripDeadlineExpiredQ[deadline],
     Return[budgetExhausted["Preparation"]]];
@@ -5931,6 +6518,7 @@ solveEpsFormStripMultiquadratic[record_Association, frame_Association,
     "ChannelPathStatistics" -> multiquadraticFieldPathStatisticsDelta[
       pathStatisticsBefore, multiquadraticFieldPathStatistics[]],
     "Seconds" -> AbsoluteTime[] - startTime|>
+]
 ];
 solveEpsFormStripMultiquadratic[___] :=
   multiquadraticStripFailure["InvalidSolveArguments"];

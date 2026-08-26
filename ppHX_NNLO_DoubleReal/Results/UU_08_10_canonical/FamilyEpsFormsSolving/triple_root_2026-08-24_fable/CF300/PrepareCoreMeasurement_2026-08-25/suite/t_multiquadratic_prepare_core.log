@@ -1,0 +1,48 @@
+Loading FeynCalc from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynCalc/
+$PrePrint is set to FeynCalcForm. Use FI and FC to change the display format.
+FeynCalc 10.2.1 (stable version). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynCalcDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf]]
+If you use FeynCalc in your research, please evaluate FeynCalcHowToCite[] to learn how to cite this software.
+Please keep in mind that the proper academic attribution of our work is crucial to ensure the future development of this package!
+FeynCalcLegacy 1.0.0
+FeynCalcLegacy contains legacy functions and symbols that were removed in FeynCalc 10.2.1
+FeynHelpers 2.0.0 (). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceFeynHelpersDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceFeynHelpersDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynHelpersDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf]]
+ If you use FeynHelpers in your research, please evaluate FeynHelpersHowToCite[] to learn how to cite this work.
+Loading FeynArts from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynArts
+FeynArts 3.12 (27 Mar 2025) patched for use with FeynCalc, for documentation see the DisplayForm[ButtonBox[manual, BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[First[FileNames[{*.pdf, *.PDF}, FileNameJoin[{$FeynArtsDirectory, manual}]]]], Evaluator -> Automatic, Method -> Preemptive]] or visit DisplayForm[ButtonBox[www.feynarts.de., ButtonData :> {URL[http://www.feynarts.de/], None}, BaseStyle -> Hyperlink, ButtonNote -> www.feynarts.de/]]
+If you use FeynArts in your research, please cite
+ • T. Hahn, Comput. Phys. Commun., 140, 418-431, 2001, arXiv:hep-ph/0012260
+FeynFacet 0.1
+OK   the rank-three multiquadratic frame is exact
+OK   the fixture record is a well-formed strip
+OK   E1 both preparation routes succeed
+OK   E2 the early-core preparation is SameQ to the HEAD-route preparation, up to channel-path telemetry
+OK   E2b the sealed forcing channels and the whole ABI are identical
+OK   E3 no wall clock entered the preparation record
+OK   E4 both compiled assemblies agree on every semantic fingerprint
+OK   R1 prepare builds the core exactly once (one miss, no hit)
+OK   R2 the compiler that follows HITS that core and rebuilds nothing
+OK   R3 a SECOND ansatz on the same equation hits the same core
+OK   N1 a failed build returns $Failed to its caller
+OK   N2 and leaves NO entry in the pool
+OK   N3 a later GOOD build for the same key succeeds and is cached
+OK   N4 a MALFORMED core (no $Failed, but members missing) is refused too
+OK   F0 the fault-injection point has a definition to replace
+OK   F1 the fault fired and prepare still succeeded via the fallback
+OK   F2 the Core pool holds NO negative entry for the faulted key
+OK   F3 the compile that follows rebuilds the core and succeeds
+OK   F3b the faulted preparation is SameQ to the unfaulted one, up to channel-path telemetry
+OK   D1 Deadline -> Infinity is byte-identical to passing no option
+OK   D2 an expired deadline is a typed BudgetExhausted naming a Preparation substage
+OK   D3 an invalid deadline is a caller error and outranks the budget
+OK   D4 a deadline expiring mid-preparation stops typed, not by exception
+OK   D5 the interior checkpoint throws when expired and is silent at Infinity
+OK   O1 CompileCore is a public option of the top-level solver
+OK   O2 the option list declares Deadline exactly once
+OK   O3 CompileShards is NOT a public option (private test control)
+OK   O4 the top level forwards the compile-architecture options to the compiler
+OK   T1 a library call is QUIET by default
+OK   T2 the stage lines appear when the stage log is enabled
+OK   T3 every stage START printed has a matching stage DONE
+OK   T4 FACET_MQ_STAGE_LOG=Off silences an enabled stage log
+OK   T5 FACET_MQ_STAGE_LOG=On forces a disabled stage log on
+t_multiquadratic_prepare_core: 33 OK, 0 FAIL

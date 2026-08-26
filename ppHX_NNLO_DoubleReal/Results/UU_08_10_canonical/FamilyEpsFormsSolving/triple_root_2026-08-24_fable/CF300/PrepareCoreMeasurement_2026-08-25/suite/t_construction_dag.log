@@ -1,0 +1,112 @@
+Loading FeynCalc from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynCalc/
+$PrePrint is set to FeynCalcForm. Use FI and FC to change the display format.
+FeynCalc 10.2.1 (stable version). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynCalcDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf]]
+If you use FeynCalc in your research, please evaluate FeynCalcHowToCite[] to learn how to cite this software.
+Please keep in mind that the proper academic attribution of our work is crucial to ensure the future development of this package!
+FeynCalcLegacy 1.0.0
+FeynCalcLegacy contains legacy functions and symbols that were removed in FeynCalc 10.2.1
+FeynHelpers 2.0.0 (). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceFeynHelpersDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceFeynHelpersDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynHelpersDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf]]
+ If you use FeynHelpers in your research, please evaluate FeynHelpersHowToCite[] to learn how to cite this work.
+Loading FeynArts from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynArts
+FeynArts 3.12 (27 Mar 2025) patched for use with FeynCalc, for documentation see the DisplayForm[ButtonBox[manual, BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[First[FileNames[{*.pdf, *.PDF}, FileNameJoin[{$FeynArtsDirectory, manual}]]]], Evaluator -> Automatic, Method -> Preemptive]] or visit DisplayForm[ButtonBox[www.feynarts.de., ButtonData :> {URL[http://www.feynarts.de/], None}, BaseStyle -> Hyperlink, ButtonNote -> www.feynarts.de/]]
+If you use FeynArts in your research, please cite
+ • T. Hahn, Comput. Phys. Commun., 140, 418-431, 2001, arXiv:hep-ph/0012260
+FeynFacet 0.1
+PASS  preparation succeeds on the block-lower-triangular fixture
+PASS  preparation records both feeders
+PASS  preparation records one term DAG entry per candidate entry
+PASS  preparation forms no Together of any accumulated sum
+PASS  a Plus-headed base stays one Base term
+PASS  the Base term reads back as the connection entry SameQ
+[deferred-materialize] start: block {4, 1}, records 8, terms 28
+[deferred-materialize] done: targets done 8, of 8, interned operands 24, intern seconds 0., expand seconds 0., cancel seconds 0., canonicalize seconds 0., route "Serial", fallbacks 0, seconds 0.
+PASS  a Plus-headed base still materializes exactly
+[deferred-materialize] start: block {4, 1}, records 8, terms 28
+[deferred-materialize] done: targets done 8, of 8, interned operands 25, intern seconds 0., expand seconds 0., cancel seconds 0., canonicalize seconds 0., route "Serial", fallbacks 0, seconds 0.
+PASS  materialization succeeds
+PASS  materialization uses the factored assembly, not the fallback
+PASS  materialization interns its operands once
+PASS  (a) deferred forcing equals symbolic forcing exactly
+PASS  (a) modular images agree with the symbolic route at 3 triples
+PASS  (b) a mutated row index is refused by the evaluator
+PASS  (b) a mutated feeder list is refused by the evaluator
+PASS  (b) a mutated term operand is refused by the evaluator
+PASS  (b) a mutated ABI is refused by the materializer
+PASS  (b) the intact preparation carries a self-consistent ABI
+PASS  (c) a denominator-zero point is typed SingularPoint
+PASS  (c) a denominator-zero point returns no image
+PASS  (c) a prime dividing the regulator denominator is typed BadPrime
+PASS  (c) a non-prime modulus is typed InvalidPrime
+PASS  (c) a non-integer point is typed InvalidPoint
+PASS  (c) a free parameter is collected into the pinned ABI
+PASS  (c) a missing parameter rule is typed MissingParameters
+PASS  (c) an unknown parameter rule is typed UnknownParameters
+PASS  (c) an unassigned symbol is typed UnassignedSymbol
+PASS  (c) an algebraic operand is typed AlgebraicOperandUnsupported
+PASS  (c) an algebraic frame rejects every point and proves nothing
+[deferred-materialize] start: block {4, 1}, records 8, terms 28
+[deferred-materialize] done: targets done 8, of 8, interned operands 25, intern seconds 0., expand seconds 0., cancel seconds 0.8, canonicalize seconds 0.1, route "Serial", fallbacks 0, seconds 0.9
+PASS  (c) an algebraic frame still materializes exactly
+PASS  (c) an algebraic frame reaches the algebraic canonicalization
+PASS  (a'') on an algebraic frame the symbolic gauge denominator divides the deferred one
+PASS  (c) the census counts rejections separately from images
+PASS  (c) census rejections carry their own typed status
+PASS  (a') on a rational frame the denominators agree entry by entry
+PASS  (a') on a rational frame the gauge denominator is unchanged
+[deferred-materialize] start: block {4, 1}, records 8, terms 18
+[deferred-materialize] done: targets done 4, of 4, interned operands 15, intern seconds 0., expand seconds 0., cancel seconds 0., canonicalize seconds 0., route "Serial", fallbacks 0, seconds 0.
+PASS  (d) untouched entries are counted
+PASS  (d) an untouched entry is the connection entry itself (SameQ)
+PASS  (d) untouched entries are not Together'd into a new expression
+[deferred-materialize] start: block {4, 1}, records 8, terms 18
+[deferred-materialize] done: targets done 4, of 4, interned operands 15, intern seconds 0., expand seconds 0., cancel seconds 0., canonicalize seconds 0., route "Serial", fallbacks 0, seconds 0.
+PASS  (d) CanonicalizeUntouched restores the previous canonical form
+[deferred-materialize] start: block {4, 1}, records 8, terms 18
+[deferred-materialize] done: targets done 4, of 4, interned operands 15, intern seconds 0., expand seconds 0., cancel seconds 0., canonicalize seconds 0., route "Serial", fallbacks 0, seconds 0.
+PASS  (d) the driver entry point canonicalizes untouched entries
+PASS  (e) a nonzero strict upper block triangle is refused
+PASS  (e) the refusal names the offending block pair
+[deferred-materialize] start: block {4, 1}, records 8, terms 20
+[deferred-materialize] done: targets done 8, of 8, interned operands 19, intern seconds 0., expand seconds 0., cancel seconds 0., canonicalize seconds 0., route "Serial", fallbacks 0, seconds 0.
+PASS  (f) an identically vanishing forcing materializes to exact 0
+PASS  (f) every entry is reported zero by the materializer
+PASS  (f) the census proves no entry nonzero on a zero-forced block
+PASS  (f) a nonzero image is an exact proof that the block is not zero-forced
+[deferred-materialize] start: block {4, 1}, records 8, terms 28
+[deferred-materialize] done: targets done 8, of 8, interned operands 25, intern seconds 0., expand seconds 0., cancel seconds 0., canonicalize seconds 0., route "Serial", fallbacks 0, seconds 0.
+PASS  the driver entry point returns the same forcing
+[deferred-materialize] start: block {4, 1}, records 8, terms 20
+[deferred-materialize] done: targets done 8, of 8, interned operands 19, intern seconds 0., expand seconds 0., cancel seconds 0., canonicalize seconds 0., route "Serial", fallbacks 0, seconds 0.
+PASS  the driver entry point reports the zero-forcing decision
+PASS  (g) FACET_CONSTRUCTION_ROUTE=Symbolic selects the symbolic route
+PASS  (g) FACET_CONSTRUCTION_ROUTE=Deferred selects the deferred route
+PASS  (g) the deferred route is the default when unset
+PASS  (h) the driver dispatches on the deferred route predicate
+PASS  (h) the driver keeps the symbolic construction as the revert path
+PASS  (h) the block-equation dispatch sits inside the budget boundaries
+PASS  (h) the zero-forcing probe still follows its own boundary
+PASS  (i) a start record and a final record are emitted
+PASS  (i) the start record names the block and the record count
+PASS  (i) the final record carries targets done/total and every substage
+PASS  (i) the progress record is rate limited by the wall clock
+PASS  (i) at interval 0 both phases report one record per entry
+PASS  (i) the interning record reports the running record count and pool size
+PASS  (i) a progress record reports the running target count
+PASS  (i) Progress -> False emits no record at all
+PASS  (i) telemetry never changes a value
+PASS  (i) FACET_MATERIALIZE_PROGRESS_SECONDS moves the default interval
+PASS  (i) a malformed interval is ignored in favour of 60 s
+PASS  (j) the parallel route returns the SAME EXPRESSION as the serial route
+PASS  (j) the parallel route really batched to the helpers
+PASS  (j) the parallel route reports the same counters as the serial one
+PASS  (j) the batch plan is a deterministic partition in target order
+PASS  (j) the batch plan splits on the byte cap, never on an entry count
+PASS  (j) a byte cap below one entry gives singleton batches and the same values
+PASS  (j) a helper that returns nothing costs time, never a value
+PASS  (j) with no free helper the route IS the serial route
+PASS  (j) on an algebraic frame the two routes agree as expressions too
+PASS  (j) FACET_MATERIALIZE_PARALLEL=Off reverts the second phase
+PASS  (j) the parallel second phase is the default when unset
+PASS  (j) the driver entry point passes the second-phase options through
+------------------------------------------------
+78 assertions, 0 failed

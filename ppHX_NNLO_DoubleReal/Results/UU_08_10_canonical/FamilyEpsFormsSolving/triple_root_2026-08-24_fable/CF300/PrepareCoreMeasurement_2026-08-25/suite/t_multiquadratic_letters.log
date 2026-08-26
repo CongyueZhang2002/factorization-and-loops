@@ -1,0 +1,54 @@
+Loading FeynCalc from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynCalc/
+$PrePrint is set to FeynCalcForm. Use FI and FC to change the display format.
+FeynCalc 10.2.1 (stable version). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynCalcDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf]]
+If you use FeynCalc in your research, please evaluate FeynCalcHowToCite[] to learn how to cite this software.
+Please keep in mind that the proper academic attribution of our work is crucial to ensure the future development of this package!
+FeynCalcLegacy 1.0.0
+FeynCalcLegacy contains legacy functions and symbols that were removed in FeynCalc 10.2.1
+FeynHelpers 2.0.0 (). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceFeynHelpersDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceFeynHelpersDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynHelpersDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf]]
+ If you use FeynHelpers in your research, please evaluate FeynHelpersHowToCite[] to learn how to cite this work.
+Loading FeynArts from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynArts
+FeynArts 3.12 (27 Mar 2025) patched for use with FeynCalc, for documentation see the DisplayForm[ButtonBox[manual, BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[First[FileNames[{*.pdf, *.PDF}, FileNameJoin[{$FeynArtsDirectory, manual}]]]], Evaluator -> Automatic, Method -> Preemptive]] or visit DisplayForm[ButtonBox[www.feynarts.de., ButtonData :> {URL[http://www.feynarts.de/], None}, BaseStyle -> Hyperlink, ButtonNote -> www.feynarts.de/]]
+If you use FeynArts in your research, please cite
+ • T. Hahn, Comput. Phys. Commun., 140, 418-431, 2001, arXiv:hep-ph/0012260
+FeynFacet 0.1
+OK   the CF300 (12,9) fixture exists in the repository
+OK   the fixture record carries a strip and its chart variables
+OK   the fixture is a rank-2 multiquadratic strip over d1 and d2
+OK   C1 the chooser accepts four generic values and rejects the two poles
+     C1 chosen / rejected regulator samples: Short[{{1, 2, 3, 5}, {0, -1}}, 6]
+OK   the candidate letter set is built
+     candidate letter counts: Short[<|Diagonal -> 8, ForcingDLog -> 16, RationalFactor -> 8, Algebraic -> 20, RowAlphabet -> 0, Supplied -> 0|>, 6]
+     candidate letter seconds: Short[181.67000000000002, 6]
+OK   C2 the polar curves are the eight factors of the denominator census
+     C2 polar curves: Short[{x, y, -1 + x, 1 + x, -1 + x + y, 1 + x + y, -1/4 + x*y, 1 - 2*x + x^2 + 2*y + 2*x*y + y^2}, 6]
+OK   C3 the filter accepts the four repair norms
+OK   C3 the filter rejects every decoy norm
+OK   C3 out of the ten candidates exactly the four repair letters pass
+OK   C3 the recorded norms are -4y, -4xy, 4y(1+x+y), 4x^2y^2
+     C3 decoy norms: Short[{-(y*(2 + 2*x + y)), -4*(-x + y + x*y), 3 - 2*x - 6*y, -1 + x^2 + 6*x*y + y^2, y*(2 + 4*x + y), -1 + 2*x - 2*y - 2*x*y - y^2}, 6]
+     C4 generator seconds / letters: Short[{0.11, 12}, 6]
+OK   C4 the generator produces all four repair letters
+OK   C5 every generated norm passes the filter and is non-zero
+     C4 generated letters: Short[{1 + x + y + Sqrt[1 - 2*x + x^2 + 2*y + 2*x*y + y^2], 1 + x + y - Sqrt[1 - 2*x + x^2 + 2*y + 2*x*y + y^2], -1 + x + y + Sqrt[1 - 2*x + x^2 + 2*y + 2*x*y + y^2], -1 + x + y - Sqrt[1 - 2*x + x^2 + 2*y + 2*x*y + y^2], -1 + x - y + Sqrt[1 - 2*x + x^2 + 2*y + 2*x*y + y^2], -1 + x - y - Sqrt[1 - 2*x + x^2 + 2*y + 2*x*y + y^2], -1 + 2*x*y + Sqrt[1 - 4*x*y], -1 + 2*x*y - Sqrt[1 - 4*x*y], 1 + 2*x + Sqrt[1 - 4*x*y], 1 + 2*x - Sqrt[1 - 4*x*y], 1 + 2*y + Sqrt[1 - 4*x*y], 1 + 2*y - Sqrt[1 - 4*x*y]}, 6]
+OK   C6 the screen on the non-algebraic letters is a typed obstruction
+OK   C6 the affine defect is 1
+OK   C6 the diagonal connections were MEASURED flat
+OK   C7 the obstruction carries a verified left witness
+OK   C9 the screen returns in under 120 s
+     C6 obstruction: Short[<|Status -> AlphabetIntegrabilityObstruction, Defect -> 1, Rank -> 92, AugmentedRank -> 93, MatrixDimensions -> {192, 128}, LetterCount -> 32, PointCount -> 12, Prime -> 2147483423, RegulatorValue -> 1|>, 6]
+     C9 screen seconds: Short[19.38, 6]
+OK   C8 the four repair letters make the same system consistent
+OK   C8 the repair adds exactly four letters and 16 unknowns
+     C8 repaired: Short[<|Status -> AlphabetIntegrabilityConsistent, Defect -> 0, Rank -> 108, AugmentedRank -> 108, MatrixDimensions -> {192, 144}, LetterCount -> 36|>, 6]
+OK   C12 the norm gauge-denominator factor is a non-constant polynomial
+OK   C12 the merge takes the larger order of a shared factor, not the product
+OK   C12 merging admits each shared pole once, at the larger order
+     C12 base / factor / merged / product degrees: Short[{{3, 4}, {7, 7}, {8, 8}, {10, 11}}, 6]
+OK   C10 the synthetic block is consistent with its own alphabet
+     C10 synthetic (full alphabet): Short[<|Status -> AlphabetIntegrabilityConsistent, Defect -> 0, Rank -> 3, AugmentedRank -> 3, MatrixDimensions -> {8, 4}|>, 6]
+OK   C10 removing the letter that carries a residue is an obstruction
+     C10 synthetic (letter 1-x-y removed): Short[<|Status -> AlphabetIntegrabilityObstruction, Defect -> 1, Rank -> 2, AugmentedRank -> 3, MatrixDimensions -> {8, 3}|>, 6]
+OK   C11 a non-flat diagonal connection makes the screen not applicable
+     C11 curved: Short[<|Status -> IntegrabilityScreenNotApplicable, Reason -> DiagonalConnectionsNotFlat, FlatDiagonalConnections -> False|>, 6]
+t_multiquadratic_letters: 25 OK, 0 FAIL

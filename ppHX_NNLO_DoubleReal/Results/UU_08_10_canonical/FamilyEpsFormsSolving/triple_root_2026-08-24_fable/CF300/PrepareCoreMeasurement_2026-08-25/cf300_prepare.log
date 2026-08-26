@@ -1,0 +1,31 @@
+Loading FeynCalc from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynCalc/
+$PrePrint is set to FeynCalcForm. Use FI and FC to change the display format.
+FeynCalc 10.2.1 (stable version). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynCalcDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf]]
+If you use FeynCalc in your research, please evaluate FeynCalcHowToCite[] to learn how to cite this software.
+Please keep in mind that the proper academic attribution of our work is crucial to ensure the future development of this package!
+FeynCalcLegacy 1.0.0
+FeynCalcLegacy contains legacy functions and symbols that were removed in FeynCalc 10.2.1
+FeynHelpers 2.0.0 (). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceFeynHelpersDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceFeynHelpersDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynHelpersDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf]]
+ If you use FeynHelpers in your research, please evaluate FeynHelpersHowToCite[] to learn how to cite this work.
+Loading FeynArts from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynArts
+FeynArts 3.12 (27 Mar 2025) patched for use with FeynCalc, for documentation see the DisplayForm[ButtonBox[manual, BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[First[FileNames[{*.pdf, *.PDF}, FileNameJoin[{$FeynArtsDirectory, manual}]]]], Evaluator -> Automatic, Method -> Preemptive]] or visit DisplayForm[ButtonBox[www.feynarts.de., ButtonData :> {URL[http://www.feynarts.de/], None}, BaseStyle -> Hyperlink, ButtonNote -> www.feynarts.de/]]
+If you use FeynArts in your research, please cite
+ • T. Hahn, Comput. Phys. Commun., 140, 418-431, 2001, arXiv:hep-ph/0012260
+FeynFacet 0.1
+3.53s | record read: {12, 9}, strip leaves 1133532, RSS 390.80078125 MB
+4.2s | root rank 2, squares {1 - 2*x + x^2 + 2*y + 2*x*y + y^2, 1 - 4*x*y}
+187.65s | letters (183.4 s): 52 <|"Diagonal" -> 8, "ForcingDLog" -> 16, "RationalFactor" -> 8, "Algebraic" -> 20, "RowAlphabet" -> 0, "Supplied" -> 0|>, RSS 820. MB
+187.68s | HEAD (CompileCore False): prepare start (cold cache), RSS 820. MB
+2898.59s | HEAD (CompileCore False): prepare 2710.9 s -> PreparedMultiquadraticStripV1, unknowns 1808, support 100, RSS 1630.5078125 MB
+2898.59s | HEAD (CompileCore False): compile start
+2989.93s | HEAD (CompileCore False): compile 91.30000000000001 s -> CompiledMultiquadraticStripV1, total 2802.2000000000003 s, RSS 1794.7421875 MB
+2989.95s | NEW (CompileCore True): prepare start (cold cache), RSS 1794.7421875 MB
+5800.63s | NEW (CompileCore True): prepare 2810.7000000000003 s -> PreparedMultiquadraticStripV1, unknowns 1808, support 100, RSS 1938.5390625 MB
+5800.64s | NEW (CompileCore True): compile start
+5890.46s | NEW (CompileCore True): compile 89.80000000000001 s -> CompiledMultiquadraticStripV1, total 2900.5 s, RSS 2020.31640625 MB
+5890.47s | EQUIVALENCE preparation SameQ (up to channel telemetry): True
+5890.47s | EQUIVALENCE assembly fingerprints agree: True
+5890.47s | HEAD  prepare 2710.9 s, compile 91.30000000000001 s, total 2802.2000000000003 s
+5890.47s | NEW   prepare 2810.7000000000003 s, compile 89.80000000000001 s, total 2900.5 s
+5890.48s | written /tmp/claude-1000/-home-maxzhang/9e941be4-c161-4634-89fb-8d0804f16b66/scratchpad/opt/cf300_prepare_result.wl
+The product exited because of a license error.

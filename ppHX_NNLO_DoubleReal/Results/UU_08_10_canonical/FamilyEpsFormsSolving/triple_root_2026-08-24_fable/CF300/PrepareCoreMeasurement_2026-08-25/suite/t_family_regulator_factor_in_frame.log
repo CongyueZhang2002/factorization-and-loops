@@ -1,0 +1,75 @@
+Loading FeynCalc from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynCalc/
+$PrePrint is set to FeynCalcForm. Use FI and FC to change the display format.
+FeynCalc 10.2.1 (stable version). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynCalcDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf]]
+If you use FeynCalc in your research, please evaluate FeynCalcHowToCite[] to learn how to cite this software.
+Please keep in mind that the proper academic attribution of our work is crucial to ensure the future development of this package!
+FeynCalcLegacy 1.0.0
+FeynCalcLegacy contains legacy functions and symbols that were removed in FeynCalc 10.2.1
+FeynHelpers 2.0.0 (). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceFeynHelpersDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceFeynHelpersDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynHelpersDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf]]
+ If you use FeynHelpers in your research, please evaluate FeynHelpersHowToCite[] to learn how to cite this work.
+Loading FeynArts from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynArts
+FeynArts 3.12 (27 Mar 2025) patched for use with FeynCalc, for documentation see the DisplayForm[ButtonBox[manual, BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[First[FileNames[{*.pdf, *.PDF}, FileNameJoin[{$FeynArtsDirectory, manual}]]]], Evaluator -> Automatic, Method -> Preemptive]] or visit DisplayForm[ButtonBox[www.feynarts.de., ButtonData :> {URL[http://www.feynarts.de/], None}, BaseStyle -> Hyperlink, ButtonNote -> www.feynarts.de/]]
+If you use FeynArts in your research, please cite
+ • T. Hahn, Comput. Phys. Commun., 140, 418-431, 2001, arXiv:hep-ph/0012260
+FeynFacet 0.1
+OK   one-root input carries the root
+OK   one-root input is not eps-factored
+
+                                 1
+Power::infy: Infinite expression - encountered.
+                                 0
+
+                                 1
+Power::infy: Infinite expression - encountered.
+                                 0
+
+                                 1
+Power::infy: Infinite expression - encountered.
+                                 0
+
+General::stop: Further output of Power::infy will be suppressed during this calculation.
+
+******************** Fermatica v1.1 ********************
+Inteface to Hyperlink[Fermat CAS, http://home.bway.net/lewis/].
+© Roman N. Lee, 2018.
+Read from: /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/Fermatica/source/Fermatica.wl (CRC32: 3421388938)
+/home/maxzhang/factorization-and-loops/Addon/Other_Addon/Fermat/fer64:
+Fermat for Linux Ubuntu, Intel64, rational C version 7.9b
+[fer64 <in1 >out1
+FrontEndObject::notavail: A front end is not available; certain operations require a front end.
+]
+
+******************** Libra v1.2 ********************
+Libra (⚖) is a package for the manipulation with differential systems.
+Written by Roman N. Lee, Budker Institute of Nuclear Physics.
+Read from: /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/Libra/Source/Libra.m (CRC32: 3397418289)
+[36|.5.10.15.20.25.30.31.32.33.34.35.36]
+one root: <|Status -> OK, Method -> RationalChart/Kallen1/ExactRationalSamples, Chart -> Kallen1, RootIndices -> {1}, Points -> 2|> (0.4 s)
+OK   one root: status OK
+OK   one root: chart Kallen1, root index 1
+OK   one root: source-frame connection eps-factored
+OK   one root: T constant in the variables, eps-dependent
+OK   one root: inverse exact
+OK   one root: gauge identity in the source frame
+OK   one root: idempotent (AlreadyEpsFactored)
+/home/maxzhang/factorization-and-loops/Addon/Other_Addon/Fermat/fer64:
+Fermat for Linux Ubuntu, Intel64, rational C version 7.9b
+[fer64 <in1 >out1
+FrontEndObject::notavail: A front end is not available; certain operations require a front end.
+]
+[36|.5.10.15.20.25.30.31.32.33.34.35.36]
+OK   rational: status OK via the rational path
+OK   catalog has no joint chart for {lambda1, 1 - 4 v w}
+/home/maxzhang/factorization-and-loops/Addon/Other_Addon/Fermat/fer64:
+Fermat for Linux Ubuntu, Intel64, rational C version 7.9b
+[fer64 <in1 >out1
+FrontEndObject::notavail: A front end is not available; certain operations require a front end.
+
+General::stop: Further output of FrontEndObject::notavail will be suppressed during this calculation.
+]
+[54|.5.10.15.20.25.30.35.40.45.46.47.48.49.50.51.52.53.54]
+two roots: <|Status -> OK, Method -> MultiquadraticGradedAlgebra/MultiquadraticGradedSamples, Chart -> None, RootIndices -> {1, 2}, Rank -> 2|>
+OK   two roots without a joint chart: factored in the graded algebra
+OK   two roots: the exact grade-wise statement is made
+OK   two roots: T is constant in the variables
+t_family_regulator_factor_in_frame: 14 OK, 0 FAIL

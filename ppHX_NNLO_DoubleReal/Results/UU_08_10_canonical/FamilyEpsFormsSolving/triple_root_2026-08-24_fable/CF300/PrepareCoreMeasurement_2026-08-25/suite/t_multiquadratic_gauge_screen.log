@@ -1,0 +1,102 @@
+Loading FeynCalc from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynCalc/
+$PrePrint is set to FeynCalcForm. Use FI and FC to change the display format.
+FeynCalc 10.2.1 (stable version). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynCalcDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc-manual/releases/download/dev-manual/FeynCalcManual.pdf]]
+If you use FeynCalc in your research, please evaluate FeynCalcHowToCite[] to learn how to cite this software.
+Please keep in mind that the proper academic attribution of our work is crucial to ensure the future development of this package!
+FeynCalcLegacy 1.0.0
+FeynCalcLegacy contains legacy functions and symbols that were removed in FeynCalc 10.2.1
+FeynHelpers 2.0.0 (). For help, use the DisplayForm[ButtonBox[online documentation,, ButtonData :> {URL[https://feyncalc.github.io/referenceFeynHelpersDev], None}, BaseStyle -> Hyperlink, ButtonNote -> https://feyncalc.github.io/referenceFeynHelpersDev]] visit the DisplayForm[ButtonBox[forum, ButtonData :> {URL[https://github.com/FeynCalc/feyncalc/discussions], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feyncalc/discussions/]] and have a look at the supplied DisplayForm[ButtonBox[examples., BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[FileNameJoin[{$FeynHelpersDirectory, Examples}]], Evaluator -> Automatic, Method -> Preemptive]] The PDF-version of the manual can be downloaded DisplayForm[ButtonBox[here., ButtonData :> {URL[https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf], None}, BaseStyle -> Hyperlink, ButtonNote -> https://github.com/FeynCalc/feynhelpers-manual/releases/download/dev-manual/FeynHelpersManual.pdf]]
+ If you use FeynHelpers in your research, please evaluate FeynHelpersHowToCite[] to learn how to cite this work.
+Loading FeynArts from /home/maxzhang/factorization-and-loops/Addon/Mathematica_Addon/FeynArts
+FeynArts 3.12 (27 Mar 2025) patched for use with FeynCalc, for documentation see the DisplayForm[ButtonBox[manual, BaseStyle -> Hyperlink, ButtonFunction :> SystemOpen[First[FileNames[{*.pdf, *.PDF}, FileNameJoin[{$FeynArtsDirectory, manual}]]]], Evaluator -> Automatic, Method -> Preemptive]] or visit DisplayForm[ButtonBox[www.feynarts.de., ButtonData :> {URL[http://www.feynarts.de/], None}, BaseStyle -> Hyperlink, ButtonNote -> www.feynarts.de/]]
+If you use FeynArts in your research, please cite
+ • T. Hahn, Comput. Phys. Commun., 140, 418-431, 2001, arXiv:hep-ph/0012260
+FeynFacet 0.1
+OK   the synthetic ansatz descriptor is built
+OK   G1 the block built from a known gauge is GaugeImageConsistent
+OK   G1 the screen reports the ansatz it measured
+     G1 consistent: Short[<|Status -> GaugeImageConsistent, Defect -> 0, Rank -> 7, AugmentedRank -> 7, Nullity -> 1, MatrixDimensions -> {10, 8}, PointCount -> 5|>, 10]
+OK   G2 removing the residue-carrying letter is a typed obstruction
+OK   G2 the obstruction carries a verified left witness
+     G2 obstruction: Short[<|Status -> GaugeImageObstruction, Defect -> 1, Rank -> 6, AugmentedRank -> 7, MatrixDimensions -> {10, 7}|>, 10]
+OK   G3 the missing letter pierces the witness, the innocent one does not
+OK   G3 the missing letter's subset defect is 0, the other's stays 1
+OK   G3 the missing letter carries a new column direction
+OK   G3 the base defect is unchanged by offering candidates
+     G3 candidate scores: Short[{<|Index -> 1, PiercesWitness -> True, RankContribution -> 1, Defect -> 0|>, <|Index -> 2, PiercesWitness -> False, RankContribution -> 0, Defect -> 1|>}, 10]
+OK   G4 a denominator below the gauge's own pole is also an obstruction
+     G4 shrunken ansatz: Short[<|Status -> GaugeImageObstruction, Defect -> 1, UnknownCount -> 5, MatrixDimensions -> {8, 5}|>, 10]
+OK   G5 a consistent first image is not repeated
+OK   G5 a defect is confirmed at a second independent image
+     G5 image verdicts: Short[{<|Status -> GaugeImageConsistent, ImageCount -> 1, Defects -> {0}|>, <|Status -> GaugeImageObstruction, ImageCount -> 2, Defects -> {1, 1}|>}, 10]
+OK   G6 every polar factor linear in one variable is parameterized
+OK   G8 the norm routine reproduces the measured repair-letter norms
+OK   the mixed-grade generator returns its typed record
+OK   G6 the factor that is quadratic in both variables is reported, not guessed
+OK   G7 x and y split COMPLETELY in the rank-2 cover
+OK   G7 -1+x+y and 1+x+y split in the Sqrt[1-4xy] subfield only
+OK   G7 -1+x and 1+x are inert
+OK   G7 -1+4xy is ramified for the grades carrying that root
+     G7 splitting: Short[{<|Factor -> gx, Status -> Split, SplitGrades -> {0, 1, 2, 3}, RamifiedGrades -> {}, FullSplit -> True|>, <|Factor -> gy, Status -> Split, SplitGrades -> {0, 1, 2, 3}, RamifiedGrades -> {}, FullSplit -> True|>, <|Factor -> -1 + gx, Status -> Inert, SplitGrades -> {0}|>, <|Factor -> 1 + gx, Status -> Inert, SplitGrades -> {0}|>, <|Factor -> -1 + gx + gy, Status -> Split, SplitGrades -> {0, 2}, RamifiedGrades -> {}, FullSplit -> False|>, <|Factor -> 1 + gx + gy, Status -> Split, SplitGrades -> {0, 2}, RamifiedGrades -> {}, FullSplit -> False|>, <|Factor -> -1 + 4*gx*gy, Status -> Split, SplitGrades -> {0, 2, 3}, RamifiedGrades -> {2, 3}, FullSplit -> False|>, <|Factor -> 1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2, Status -> NotRationallyParameterized|>}, 10]
+OK   G9 no known repair-letter norm touches a factor marked Inert
+OK   G9 every known repair-letter norm factors into the census
+     G9 inert factors: Short[{-1 + gx, 1 + gx}, 10]
+OK   G10 every emitted norm is exact and factors into the polar census
+     G10 generator seconds / letters / trivial skipped: Short[{69.44, 29, 372}, 10]
+     G10 emitted letters: Short[{{gx, {1, 3}, 16*gx^2*gy^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2}, {gx, {0, 2}, 4*gx*gy}, {gx, {2, 3}, 16*gx^2*(-1 + 4*gx*gy)^2}, {gx, {2, 3}, 16*gx^2*gy^2*(-1 + 4*gx*gy)^2}, {gy, {1, 3}, 16*gx^2*gy^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2}, {gy, {0, 2}, 4*gx*gy}, {gy, {1, 3}, 16*gx^2*(1 + gx)^4*gy^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2}, {gy, {2, 3}, 16*gy^2*(-1 + 4*gx*gy)^2}, {gy, {2, 3}, 16*gx^2*gy^2*(-1 + 4*gx*gy)^2}, {-1 + gx + gy, {1, 3}, ((-1 + gx + gy)^2*(1 + gx + gy)^2*(-1 + 4*gx*gy)^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2)/256}, {-1 + gx + gy, {0, 2}, ((-1 + gx + gy)*(1 + gx + gy)*(-1 + 4*gx*gy))/16}, {-1 + gx + gy, {1, 3}, 16*gx^2*gy^2*(-1 + gx + gy)^2*(1 + gx + gy)^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2}, {-1 + gx + gy, {0, 2}, 4*gx*gy*(-1 + gx + gy)*(1 + gx + gy)}, {-1 + gx + gy, {1, 3}, 16*gx^2*(-1 + gx + gy)^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2}, {-1 + gx + gy, {1, 3}, (-1 + gx + gy)^2*(1 + gx + gy)^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2}, {-1 + gx + gy, {0, 2}, 4*gx*(-1 + gx + gy)}, {-1 + gx + gy, {0, 2}, (-1 + gx + gy)*(1 + gx + gy)}, {1 + gx + gy, {1, 3}, ((-1 + gx + gy)^2*(1 + gx + gy)^2*(-1 + 4*gx*gy)^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2)/256}, {1 + gx + gy, {0, 2}, ((-1 + gx + gy)*(1 + gx + gy)*(-1 + 4*gx*gy))/16}, {1 + gx + gy, {1, 3}, 16*gx^2*gy^2*(-1 + gx + gy)^2*(1 + gx + gy)^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2}, {1 + gx + gy, {0, 2}, 4*gx*gy*(-1 + gx + gy)*(1 + gx + gy)}, {1 + gx + gy, {1, 3}, 16*gx^2*(1 + gx + gy)^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2}, {1 + gx + gy, {1, 3}, (-1 + gx + gy)^2*(1 + gx + gy)^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2}, {1 + gx + gy, {0, 2}, 4*gx*(1 + gx + gy)}, {1 + gx + gy, {0, 2}, (-1 + gx + gy)*(1 + gx + gy)}, {-1 + 4*gx*gy, {1, 3}, 16*gx^2*gy^2*(-1 + 4*gx*gy)^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2}, {-1 + 4*gx*gy, {1, 3}, 16*gx^2*gy^2*(-1 + 4*gx*gy)^2*(1 - 2*gx + gx^2 + 2*gy + 2*gx*gy + gy^2)^2}, {-1 + 4*gx*gy, {0, 2}, 4*gx*gy*(-1 + 4*gx*gy)}, {-1 + 4*gx*gy, {0, 2}, 4*gx*gy*(-1 + 4*gx*gy)}}, 10]
+OK   the CF300 (12,9) fixture and its channel census are in the repository
+OK   G11 the CF300 (12,9) ansatz is the measured one
+     G11 CF300 ansatz: Short[<|GaugeDenominatorDegrees -> {9, 9}, GaugeUnknownCount -> 1600, ResidueUnknownCount -> 216, UnknownCount -> 1816|>, 10]
+     discovery: census factors / mixed-grade letters / new one-forms: Short[{8, 29, 19}, 10]
+OK   G12 the screen's measurement of that block is internally consistent
+OK   G12 a defect, if present, comes with an exactly verified witness
+OK   G13 one image of that block costs under 180 s
+     MEASURED CF300 (12,9) screen: Short[<|Status -> GaugeImageObstruction, Defect -> 1, Rank -> 1712, AugmentedRank -> 1713, Nullity -> 104, LeftNullity -> 144, MatrixDimensions -> {1856, 1816}, PointCount -> 58, AttemptCount -> 277, Prime -> 2147483423, RegulatorValue -> 1/13|>, 10]
+     MEASURED screen seconds: Short[139.35, 10]
+     MEASURED candidates piercing the witness: Short[{}, 10]
+     MEASURED candidates with a new column direction: Short[{}, 10]
+     MEASURED candidate subsets reaching defect 0: Short[0, 10]
+OK   G14 numerator degree three above the denominator repairs the block
+OK   G14 the repair leaves the nullity where the defective ansatz had it
+     G14 DegreeOffset {3,3}: Short[<|Status -> GaugeImageConsistent, Defect -> 0, Rank -> 2816, AugmentedRank -> 2816, Nullity -> 104, MatrixDimensions -> {2976, 2920}, UnknownCount -> 2920|>, 10]
+     G14 seconds: Short[217.24, 10]
+     MEASURED discovery verdict: Short[NEGATIVE: no mixed-grade letter, pair, or the full set repairs the defect at this image, at degree bound 3 over 8 census factors, 10]
+     S1 single image at eps = 1: Short[<|Status -> AlphabetIntegrabilityObstruction, Defect -> 1, Rank -> 1, AugmentedRank -> 2, MatrixDimensions -> {12, 2}|>, 10]
+OK   S1 the single-image screen calls the exceptional regulator an obstruction
+     S2 single image at eps = 3/17: Short[<|Status -> AlphabetIntegrabilityConsistent, Defect -> 0, Rank -> 2, AugmentedRank -> 2|>, 10]
+OK   S2 the same system is consistent at a generic regulator value
+     S3 two-image verdict: Short[<|Status -> AlphabetIntegrabilityConsistent, Confirmed -> False, Defects -> {1, 0}, ImageCount -> 2, Images -> {{2147483423, 1}, {2147483399, 3/17}}, ExceptionalRegulatorImages -> {{2147483423, 1}}|>, 10]
+OK   S3 the confirmation image is run and the FALSE obstruction is not propagated: the verdict is consistent, unconfirmed as an obstruction
+OK   S3b the exceptional regulator image is RECORDED as evidence
+     S4 genuine obstruction: Short[<|Status -> AlphabetIntegrabilityObstruction, Confirmed -> True, Defects -> {1, 1}, ImageCount -> 2|>, 10]
+OK   S4 a genuine obstruction is confirmed at two independent images
+OK   S4 the deciding image's witness travels with the confirmed verdict
+OK   S5 a consistent first image ends the screen (fast path preserved)
+OK   S6 the solution contract calls a confirmed defect a high-confidence modular obstruction, not a Q(eps) theorem
+OK   S6 the top level acts only on the CONFIRMED status
+OK   S7 the size estimate counts rows, columns and packed bytes
+OK   S8 an over-ceiling unknown count is a typed not-applicable, BEFORE any allocation
+OK   S8 an over-ceiling byte estimate is a typed not-applicable
+OK   S8 the gauge screen's ceiling returns GaugeScreenNotApplicable
+OK   S8 the default ceilings admit the MEASURED CF300 (12,9) screen size
+OK   S9 an expired deadline stops the residue screen, typed and resumable
+OK   S9 an expired deadline stops the gauge screen, typed and resumable
+OK   S9 a budget stop is NOT reported as GaugeScreenNotApplicable by the two-image driver
+OK   S9 an unbounded deadline is the default and changes nothing
+     S10 gauge-screen phase timings: Short[<|Compile -> 0.003967, PointAssembly -> 0.031432, Rank -> 0.000061, LeftNullSpace -> 0.000021|>, 10]
+OK   S10 the gauge screen reports Compile / PointAssembly / Rank / LeftNullSpace seconds
+OK   S10 the residue screen reports the same four phases
+     S11 compile cache, first then second call: Short[{<|Hits -> 5, Misses -> 10, Evictions -> 0, Bytes -> 26032|>, <|Hits -> 15, Misses -> 0, Evictions -> 0, Bytes -> 26032|>}, 10]
+OK   S11 the first screen of an image compiles and the second reuses every compiled scalar form
+OK   S11 the reuse does not change the measurement
+OK   S11 the cache is byte-bounded and reports its own size
+OK   S12 the seal is a schema-tagged record with a 64-hex fingerprint
+OK   S12 no supplied decomposition is the unchanged default
+OK   S12 its own forcing accepts it
+OK   S12 a DIFFERENT but shape-compatible forcing is refused on provenance, not accepted on shape
+OK   S12 a BARE shape-compatible array carries no provenance and is refused typed
+OK   S12 a sealed record whose channels have the wrong shape is refused
+OK   S12 the seal does not depend on the CONTEXT the variables arrived in
+OK   S12 prepare and compile both route their ForcingChannels option through the sealed acceptance helper, and no shape-only path is left
+t_multiquadratic_gauge_screen: 61 OK, 0 FAIL
+ OK, 0 FAIL

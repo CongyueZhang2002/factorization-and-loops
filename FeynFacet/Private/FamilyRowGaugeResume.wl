@@ -466,7 +466,25 @@ familyRowGaugeHydrateResume[
    fullCoverageQ, formsShapeQ, resultStatus, nk, coefficientField,
    algebraicFrameQ, expectedSolverConfiguration,
    solverConfigurationCheck,
+   phaseTimings = <||>, phaseClock, phase, note, stripCounter = 0,
    started = AbsoluteTime[]},
+
+  (* Telemetry only (2026-08-25).  Every check below already existed; the
+     defect this closes is that NONE of them announced itself, so a
+     resume that re-verifies banked strips against a large state was
+     indistinguishable from a hung kernel (CF303 sector 17: more than 40
+     minutes silent, five banked strips, a 61 MB state).  What is
+     accepted does not change -- the phases are measured, named and
+     printed, and every accept/reject test below is untouched. *)
+  phaseClock = AbsoluteTime[];
+  phase[name_String, data_ : <||>] := (
+    phaseTimings[name] = AbsoluteTime[] - phaseClock;
+    If[verbose,
+      Print["  resume hydration phase ", name, ": ",
+        Round[phaseTimings[name], 0.1], " s",
+        If[data === <||>, "", " " <> ToString[data, InputForm]]]];
+    phaseClock = AbsoluteTime[]);
+  note[items___] := If[verbose, Print["  resume hydration ", items]];
 
   If[! IntegerQ[kernelCount] || kernelCount < 1 ||
       ! MemberQ[{"Numerical", "Exact"}, finalCheck] ||
@@ -495,14 +513,26 @@ familyRowGaugeHydrateResume[
     Return[<|"Status" -> "InvalidResumeHydrationRangeOrConnection",
       "ActivateInstalledRow" -> False|>]];
 
+  note["start: family ", family, ", sector ", sector, ", ",
+    Length[solvedBlocks], " banked strip(s) ", Sort[Keys[solvedBlocks]],
+    ", truncation ", nk, ", connection ",
+    Dimensions[currentConnection], ", checkpoint ",
+    If[FileExistsQ[checkpointFile],
+      ToString[Round[FileByteCount[checkpointFile]/1024.^2, 0.1]] <> " MB",
+      "absent"], ", final check ", finalCheck];
   diskCheckpoint = If[FileExistsQ[checkpointFile],
     FeynFacet`FamilyArtifactRead[checkpointFile],
     Missing["NoCheckpoint"]];
+  phase["CheckpointRead"];
   expectedConnectionHash = Lookup[checkpoint, "ConnectionHash", None];
   currentTruncation = currentConnection[[All, 1 ;; nk, 1 ;; nk]] /.
     epsilon -> CANONICA`eps;
   currentConnectionHash = Hash[currentTruncation,
     "SHA256", "HexString"];
+  (* the size probe is a full traversal of a matrix that can be tens of
+     megabytes: taken only when a line will actually be printed *)
+  phase["ConnectionHash", <|"LeafCount" -> If[verbose,
+    LeafCount[currentTruncation], Missing["NotMeasured"]]|>];
   If[! SameQ[diskCheckpoint, checkpoint] ||
       ! StringQ[expectedConnectionHash] ||
       currentConnectionHash =!= expectedConnectionHash,
@@ -546,6 +576,7 @@ familyRowGaugeHydrateResume[
       Lookup[checkpoint, "PrevD", Missing["NoPrevD"]]],
     Return[<|"Status" -> "ResumeHydrationSolvedBlocksMismatch",
       "ActivateInstalledRow" -> False|>]];
+  phase["CheckpointIdentity", <|"Strips" -> Length[keys]|>];
 
   missing = Complement[keys, Keys[forms]];
   fullCoverageQ = keys === Range[sector - 1];
@@ -564,7 +595,25 @@ familyRowGaugeHydrateResume[
         summary, summaryMethod, zeroQ, solverRoute, artifactCount,
         beforeHashes, afterHashes,
         seconds, solution, gauge, frameQ, solvedForm, existingForm,
-        replayAction, extraLetters, directRecord, replayRoute},
+        replayAction, extraLetters, directRecord, replayRoute,
+        sealFile, seal, sealVerdict,
+        stripStarted = AbsoluteTime[], stripClock = AbsoluteTime[],
+        stripPhase, stripPhases = <||>},
+      (* BEFORE anything this strip costs, not after it: the identity
+         re-derivation below is a whole-matrix symbolic block equation
+         against the current connection, and at HEAD the first line of
+         this loop body was printed only once that had already run *)
+      stripCounter++;
+      stripPhase[name_String, data_ : <||>] := (
+        stripPhases[name] = AbsoluteTime[] - stripClock;
+        If[verbose,
+          Print["    strip ", {sector, lowerSector}, " ", name, ": ",
+            Round[stripPhases[name], 0.1], " s",
+            If[data === <||>, "", " " <> ToString[data, InputForm]]]];
+        stripClock = AbsoluteTime[]);
+      note["strip ", stripCounter, " of ", Length[keys], " ",
+        {sector, lowerSector}, ": re-check start (",
+        Round[AbsoluteTime[] - started, 0.1], " s into hydration)"];
       stripTag = family <> "_" <> ToString[sector] <> "_" <>
         ToString[lowerSector];
       sourceInput = FileNameJoin[{scratch, stripTag <> "_input.wl"}];
@@ -592,12 +641,60 @@ familyRowGaugeHydrateResume[
           ! MatchQ[Lookup[input, "Strip", None], {_List, _List, _List}],
         Throw[<|"Status" -> "ResumeHydrationInputIdentityMismatch",
           "LowerSector" -> lowerSector|>, tag]];
+      stripPhase["InputRead",
+        <|"Bytes" -> FileByteCount[copiedInput],
+          "StripLeafCount" -> If[verbose, LeafCount[input["Strip"]],
+            Missing["NotMeasured"]]|>];
+      (* THE SEAL, authenticated but NOT yet trusted (2026-08-25, Codex
+         14:30 integrity layer).  The sidecar the sector driver writes
+         beside each strip input records the connection, the solved-block
+         prefix, the position and the exact strip the input was built
+         from.  Comparing those digests costs microseconds and answers
+         exactly the question the whole-matrix block-equation
+         reconstruction below answers in minutes.
+
+         What is NOT built: using that answer.  Steps 3 and 4 of the
+         design -- two independent held-out modular relation evaluations,
+         and exact reconstruction only on mismatch or in adversarial
+         mode -- do not exist yet, so a seal that authenticates saves
+         nothing today.  The exact reconstruction runs unconditionally,
+         as it did before, and the seal verdict is recorded so that the
+         gate can be measured against it before it is ever relied on. *)
+      sealFile = StringReplace[sourceInput, "_input.wl" -> "_input_seal.wl"];
+      seal = If[FileExistsQ[sealFile],
+        Quiet[CheckAbort[FeynFacet`FamilyArtifactRead[sealFile], $Failed]],
+        Missing["NoSeal"]];
+      sealVerdict = Which[
+        ! AssociationQ[seal], "Unsealed",
+        Lookup[seal, "Schema", None] =!= "FamilyStripInputSealV1",
+          "SealSchemaUnknown",
+        Lookup[seal, "ConnectionHash", None] =!= currentConnectionHash,
+          "SealConnectionMismatch",
+        Lookup[seal, "Sector", None] =!= sector ||
+          Lookup[seal, "LowerSector", None] =!= lowerSector ||
+          Lookup[seal, "Truncation", None] =!= nk, "SealPositionMismatch",
+        Lookup[seal, "SolvedBlockPrefixHash", None] =!=
+          Hash[KeySort[KeyTake[solvedBlocks,
+            Lookup[seal, "SolvedBlockKeys", {}]]], "SHA256", "HexString"],
+          "SealPrefixMismatch",
+        Lookup[seal, "StripHash", None] =!=
+          Hash[input["Strip"], "SHA256", "HexString"], "SealStripMismatch",
+        True, "SealAuthenticated"];
+      stripPhase["SealCheck", <|"Verdict" -> sealVerdict|>];
+      (* the whole-matrix symbolic work of the re-check.  Its measured
+         seconds and leaf count are what a later decision about a modular
+         spot-verification in front of it has to be made on; nothing is
+         front-run here, and the SameQ below decides exactly as at HEAD *)
       expectedStrip = familyRowGaugeResumeBlockEquation[
         currentConnection, sector, lowerSector, solvedBlocks, ranges,
         epsilon];
+      stripPhase["BlockEquation",
+        <|"LeafCount" -> If[verbose, LeafCount[expectedStrip],
+          Missing["NotMeasured"]]|>];
       If[! SameQ[input["Strip"], expectedStrip],
         Throw[<|"Status" -> "ResumeHydrationInputConnectionMismatch",
           "LowerSector" -> lowerSector|>, tag]];
+      stripPhase["StripIdentity"];
       expectedGauge = Lookup[solvedBlocks, lowerSector,
         Missing["MissingCheckpointGauge"]];
       dimensions = Dimensions[expectedGauge];
@@ -654,7 +751,9 @@ familyRowGaugeHydrateResume[
       beforeHashes = familyRowGaugeResumeHashDirectory[copiedArtifacts];
       If[verbose, Print["  resume hydration strip ",
         {sector, lowerSector}, ": zero=", zeroQ,
-        ", cached=", artifactCount]];
+        ", cached=", artifactCount, ", replaying via ", solverRoute,
+        " (identity checks took ",
+        Round[AbsoluteTime[] - stripStarted, 0.1], " s)"]];
       directRecord = Join[input, <|"ExtraLetters" -> extraLetters|>];
       {seconds, solution} = AbsoluteTiming[Which[
         solverRoute === "ZeroForcing",
@@ -733,6 +832,8 @@ familyRowGaugeHydrateResume[
         "InputSHA256" -> FileHash[copiedInput, "SHA256", "HexString"],
         "CheckpointStripSameQ" -> True,
         "ZeroForcing" -> zeroQ, "CachedPrimeCount" -> artifactCount,
+        (* recorded, not acted on: see the seal note above *)
+        "InputSeal" -> sealVerdict,
         "Seconds" -> seconds, "Method" -> solution["Method"],
         "SolverConfigurationMode" -> solverConfigurationCheck["Mode"],
         "SolverConfigurationFingerprint" ->
@@ -742,9 +843,16 @@ familyRowGaugeHydrateResume[
         "GaugeSameQ" -> True, "FrameCertificate" -> True,
         "CopiedArtifactsUnchanged" -> True,
         "SolvedFormDimensions" -> Dimensions[solvedForm],
+        "PhaseTimings" -> stripPhases,
+        "TotalSeconds" -> N[AbsoluteTime[] - stripStarted],
         "SolvedFormSHA256" -> Hash[solvedForm,
-          "SHA256", "HexString"]|>]],
+          "SHA256", "HexString"]|>];
+      note["strip ", stripCounter, " of ", Length[keys], " ",
+        {sector, lowerSector}, ": ", replayAction, " in ",
+        Round[AbsoluteTime[] - stripStarted, 0.1], " s (replay ",
+        Round[seconds, 0.1], " s)"]],
       {lowerSector, keys}];
+    phase["StripReplay", <|"Strips" -> Length[keys]|>];
     If[! formsShapeQ[forms],
       Throw[<|"Status" -> "ResumeHydrationFormsInvalid"|>, tag]];
     If[fullCoverageQ,
@@ -765,6 +873,10 @@ familyRowGaugeHydrateResume[
       "MissingLowerSectors" -> missing,
       "ActivateInstalledRow" -> fullCoverageQ,
       "ReplayRecords" -> replayRecords,
+      (* the whole-state identity phases in front of the first strip, and
+         the strip replay total: the breakdown a silent 40-minute resume
+         gave nobody (2026-08-25) *)
+      "PhaseTimings" -> phaseTimings,
       "Seconds" -> N[AbsoluteTime[] - started]|>,
     tag, #1 &];
   If[DirectoryQ[workRoot],
