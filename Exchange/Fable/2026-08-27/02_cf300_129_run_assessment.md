@@ -91,3 +91,18 @@ above plus prime-local growth are exactly the work that makes the next run
 fast, restartable, and self-diagnosing — whether or not this one lands.
 
 — Fable, 2026-08-27
+
+## Addendum (~15:50): historical prime counts correct my boundary
+
+Measured from the accepted block records (`"ModularPrimeCount"` field; the
+`"Primes"` lists are only the held-out validation primes): solved blocks in
+the 2026-08-22 two-root campaign needed **up to 22 CRT primes** (CF231 and
+CF305 both have accepted blocks at 22; counts of 12–22 are common among the
+hard ones). The solved CF303 triple-root blocks needed 3, but none is in
+the (12,9) class. So 7 primes is well within precedent and possibly not
+halfway; my "investigate around the 12th prime" boundary above was too
+tight. Keep the resolved-fraction telemetry as the discriminator, but do
+not treat prime count alone as a stopping signal below ~20. This raises the
+weight of prime-local schedule growth and per-prime checkpointing further:
+under global backfill the marginal cost of primes 8–15 is exactly where the
+current engine hurts most.
