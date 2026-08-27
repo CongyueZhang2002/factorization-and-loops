@@ -67,6 +67,10 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
 note[label_, value_] := Print["     ", label, ": ",
   ToString[Short[value, 8], InputForm]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
+dlogKernelText = Environment["FACET_MQ_TEST_DLOG_KERNELS"];
+dlogKernels = If[StringQ[dlogKernelText] &&
+    StringMatchQ[dlogKernelText, DigitCharacter ..],
+  FromDigits[dlogKernelText], Automatic];
 
 {prepare, compile, rootOrder, coreCanonicalData, coreKeyFromParts,
   coreRecord, intern, internProbe, internStatistics, internReset,
@@ -445,20 +449,82 @@ check["A3 the admitted record takes the compact letter-channel route",
     rightEntry["Path"] === "CompactLetterChannels" &&
     rightEntry["CompactAdmission"] === "CertifiedTag" &&
     SameQ[rightEntry["Channels"], compactGood]];
+check["A3 exact retained dlog channels bypass duplicate construction",
+  Module[{retainedRecord = Append[goodRecordWithTag,
+       "DLogChannels" -> compactGood], entry},
+    entry = Block[{
+        FeynFacet`Private`multiquadraticStripLetterChannelPair =
+          Function[Null, $Failed, HoldAll]},
+      oneFormEntry[goodForm, retainedRecord, rootRecords, {x, y}, eps,
+        True]];
+    AssociationQ[entry] && SameQ[entry["Channels"], compactGood]]];
+check["A3 stale retained channels fall back to exact reconstruction",
+  Module[{stale = ReplacePart[compactGood, {1, 1} ->
+        compactGood[[1, 1]] + 1], staleRecord, entry},
+    staleRecord = Append[goodRecordWithTag, "DLogChannels" -> stale];
+    entry = oneFormEntry[goodForm, staleRecord, rootRecords, {x, y}, eps,
+      True];
+    AssociationQ[entry] && SameQ[entry["Channels"], compactGood]]];
 check["A3 the two routes would have produced DIFFERENT channels for the \
 mutant (the substitution the gate prevents)",
   ! SameQ[decomposedWrong, compactGood]];
 
 (* the letters this package builds all carry the certificate *)
+kernelsBeforeCandidate = Kernels[];
 letterData = candidateLetters[record["Strip"], rootRecords, {x, y}, eps,
-  record, "RegulatorSampleCount" -> 2];
+  record, "RegulatorSampleCount" -> 2, "DLogKernels" -> dlogKernels];
+kernelsAfterCandidate = Kernels[];
+v2LetterRecords = Select[letterData["LetterRecords"],
+  Lookup[Lookup[#, "DLogCertificate", <||>], "Schema", None] ===
+      "MultiquadraticLetterDLogChannelsV2" &];
 check["A3 every non-diagonal candidate letter is minted with a valid \
 dlog certificate",
   Lookup[letterData, "Status", None] === "MultiquadraticCandidateLettersV1" &&
     AllTrue[Select[letterData["LetterRecords"],
         ! MissingQ[Lookup[#, "Letter", Missing[]]] &],
-      dlogCertificateValidQ[Lookup[#, "DLogCertificate", None],
-        #["Letter"], #["OneForm"], {x, y}, eps] &]];
+      If[Lookup[Lookup[#, "DLogCertificate", <||>], "Schema", None] ===
+          "MultiquadraticLetterDLogChannelsV2",
+        dlogCertificateValidQ[Lookup[#, "DLogCertificate", None],
+          #["Letter"], #["OneForm"], {x, y}, eps,
+          Lookup[#, "DLogLetterChannels", $Failed],
+          Lookup[#, "DLogChannels", $Failed]],
+        dlogCertificateValidQ[Lookup[#, "DLogCertificate", None],
+          #["Letter"], #["OneForm"], {x, y}, eps]] &]];
+check["A3 the channel certificate refuses a same-shape retained-channel \
+mutation",
+  v2LetterRecords =!= {} && Module[{rec = First[v2LetterRecords], mutant},
+    mutant = ReplacePart[rec["DLogChannels"], {1, 1} ->
+      rec["DLogChannels"][[1, 1]] + 1];
+    ! dlogCertificateValidQ[rec["DLogCertificate"], rec["Letter"],
+      rec["OneForm"], {x, y}, eps, rec["DLogLetterChannels"], mutant]]];
+check["A3 the compile boundary refuses certified channels whose raw letter \
+was mutated",
+  v2LetterRecords =!= {} && Module[
+    {rec = First[v2LetterRecords], mutant, entry, expected},
+    mutant = Append[rec, "Letter" -> rec["Letter"] + 1];
+    entry = oneFormEntry[rec["OneForm"], mutant, rootRecords, {x, y}, eps,
+      True];
+    expected = fieldDecompose[#, rootRecords] & /@ rec["OneForm"];
+    AssociationQ[entry] && entry["Path"] === "DecomposedForm" &&
+      SameQ[entry["Channels"], expected]]];
+check["A3 every package-built channel certificate reaches the compact compile \
+route",
+  v2LetterRecords =!= {} && AllTrue[v2LetterRecords, Function[rec,
+    Module[{entry = oneFormEntry[rec["OneForm"], rec, rootRecords, {x, y},
+        eps, True]},
+      AssociationQ[entry] && entry["Path"] === "CompactLetterChannels" &&
+        SameQ[entry["Channels"], rec["DLogChannels"]]]]]];
+check["A3 the dlog batch closes only the helper kernels it launched",
+  SameQ[kernelsAfterCandidate, kernelsBeforeCandidate]];
+letterDataSerial = candidateLetters[record["Strip"], rootRecords, {x, y}, eps,
+  record, "RegulatorSampleCount" -> 2, "DLogKernels" -> 1];
+check["A3 serial and selected dlog construction are byte-identical",
+  SameQ[letterDataSerial, letterData]];
+check["A3 invalid dlog kernel counts are refused before construction, typed",
+  Lookup[candidateLetters[record["Strip"], rootRecords, {x, y}, eps, record,
+      "DLogKernels" -> 0], "Status", None] === "InvalidDLogKernelCount" &&
+    Lookup[candidateLetters[record["Strip"], rootRecords, {x, y}, eps, record,
+      "DLogKernels" -> 9], "Status", None] === "InvalidDLogKernelCount"];
 check["A3 a diagonal record carries no certificate (it is not a dlog)",
   AllTrue[Select[letterData["LetterRecords"],
       Lookup[#, "Kind", None] === "Diagonal" &],

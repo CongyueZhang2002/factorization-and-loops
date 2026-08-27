@@ -100,7 +100,8 @@ ClearAll[
   multiquadraticStripStageText, multiquadraticStripStageStart,
   multiquadraticStripStageDone, multiquadraticStripStageProgress,
   multiquadraticStripStageMark, multiquadraticStripStageSize,
-  $multiquadraticStripProgressLastTime, $multiquadraticStripStageLog,
+  $multiquadraticStripProgressLastTime, $multiquadraticStripStageStartTime,
+  $multiquadraticStripStageLog,
   multiquadraticStripFailure, multiquadraticStripFingerprint,
   $multiquadraticStripForcingChannelSchema,
   $multiquadraticStripForcingChannelSchemaV1,
@@ -116,7 +117,10 @@ ClearAll[
   multiquadraticStripLetterDLogCertificate,
   multiquadraticStripLetterDLogCertificateWithKey,
   multiquadraticStripLetterDLogCertificateValidQ,
+  multiquadraticStripChannelTextKey,
+  multiquadraticStripExpressionTextKey,
   $multiquadraticStripLetterDLogSchema,
+  $multiquadraticStripLetterDLogChannelSchema,
   $multiquadraticStripPotentialSchema,
   $multiquadraticStripPotentialCache,
   $multiquadraticStripPotentialCounters,
@@ -124,11 +128,18 @@ ClearAll[
   multiquadraticStripPotentialCacheReset,
   multiquadraticStripPotentialStatistics,
   multiquadraticStripPotentialPairKey,
+  multiquadraticStripConstructedDLogEvidence,
   multiquadraticStripPotentialRelationZeroQ,
   multiquadraticStripVerifyPotential,
   multiquadraticStripPotentialsCertifiedQ,
   multiquadraticStripLetterKinematicPart,
   multiquadraticStripDiagonalSpan,
+  multiquadraticStripDiagonalSpanSampled,
+  multiquadraticStripDiagonalSpansSampled,
+  multiquadraticStripDiagonalSpanBasisImages,
+  multiquadraticStripRationalAffineParticular,
+  multiquadraticStripRationalAffineParticularBatch,
+  $multiquadraticStripDiagonalSpanSamplePoints,
   multiquadraticStripActivePotentialCertification,
   multiquadraticStripTransferDiagnosticResidues,
   multiquadraticStripCompactDLogAdmission,
@@ -161,7 +172,12 @@ ClearAll[
   multiquadraticStripSquareCompletionConstants, multiquadraticStripNormMonomials,
   multiquadraticStripAlgebraicLetters, multiquadraticStripRegulatorSampleValues,
   multiquadraticStripFieldMemberQ, multiquadraticStripFormTextKey,
-  multiquadraticStripLetterOneForm, multiquadraticStripRowAlphabetLetters,
+  multiquadraticStripLetterOneForm,
+  multiquadraticStripLetterChannelData,
+  multiquadraticStripLetterDLogDataInField,
+  multiquadraticStripDLogShardTask,
+  multiquadraticStripConstructDLogBatch,
+  multiquadraticStripRowAlphabetLetters,
   multiquadraticStripCandidateLetters, multiquadraticStripNormDenominatorFactor,
   multiquadraticStripMergeGaugeDenominator,
   multiquadraticStripScreenCompilePolynomial,
@@ -316,6 +332,7 @@ multiquadraticFieldPathStatisticsDelta[before_Association, after_Association] :=
    default 60 s, matching the deferred-materialize convention of
    BlockEquationDeferred.wl. *)
 $multiquadraticStripProgressLastTime = <||>;
+$multiquadraticStripStageStartTime = <||>;
 $multiquadraticStripStageLog = False;
 
 multiquadraticStripStageLogQ[] := Module[
@@ -359,13 +376,20 @@ multiquadraticStripStageText[stage_String, data_Association] := Module[
 multiquadraticStripStageStart[stage_String, data_Association : <||>] := (
   If[multiquadraticStripStageLogQ[],
     $multiquadraticStripProgressLastTime[stage] = AbsoluteTime[];
+    $multiquadraticStripStageStartTime[stage] = AbsoluteTime[];
     Print[multiquadraticStripStageText[stage <> " start", data]]];
   True);
 
-multiquadraticStripStageDone[stage_String, data_Association : <||>] := (
+multiquadraticStripStageDone[stage_String, data_Association : <||>] := Module[
+  {start, completed = data},
   If[multiquadraticStripStageLogQ[],
-    Print[multiquadraticStripStageText[stage <> " done", data]]];
-  True);
+    start = Lookup[$multiquadraticStripStageStartTime, stage, Missing["NoStart"]];
+    If[NumberQ[start], completed = Join[completed,
+      <|"elapsedSeconds" -> N[AbsoluteTime[] - start]|>]];
+    Print[multiquadraticStripStageText[stage <> " done", completed]];
+    KeyDropFrom[$multiquadraticStripStageStartTime, stage]];
+  True
+];
 
 (* A MARK is a completed measurement of a step that had no separate
    announcement -- a sub-phase whose cost is only interesting after the
@@ -1288,6 +1312,42 @@ multiquadraticStripFormTextKey[form : {_, _}, variables_List,
   Hash[ToString[InputForm[canonical]], "SHA256", "HexString"]
 ];
 
+(* When the exact grade channels already exist, they are the canonical
+   field representation.  Key that rational data directly instead of
+   materialising radicals and asking Together to rediscover the same
+   normal form.  Dimensions are part of the payload, so a letter channel
+   vector and a two-component one-form cannot collide. *)
+multiquadraticStripChannelTextKey[channels_List, variables_List,
+    epsilon_Symbol] := Module[{rules, depth, canonical},
+  depth = ArrayDepth[channels];
+  If[depth < 1, Return[$Failed]];
+  rules = multiquadraticStripCanonicalRules[variables, epsilon];
+  canonical = Quiet[Map[Together, channels /. rules, {depth}]];
+  If[! ListQ[canonical] || ! FreeQ[canonical, $Failed], Return[$Failed]];
+  Hash[ToString[InputForm[{Dimensions[canonical], canonical}]],
+    "SHA256", "HexString"]
+];
+multiquadraticStripChannelTextKey[channels_List,
+    variables : {_Symbol, _Symbol}] := Module[{rules, depth, canonical},
+  depth = ArrayDepth[channels];
+  If[depth < 1, Return[$Failed]];
+  rules = Thread[variables -> {\[FormalX], \[FormalY]}];
+  canonical = Quiet[Map[Together, channels /. rules, {depth}]];
+  If[! ListQ[canonical] || ! FreeQ[canonical, $Failed], Return[$Failed]];
+  Hash[ToString[InputForm[{Dimensions[canonical], canonical}]],
+    "SHA256", "HexString"]
+];
+multiquadraticStripChannelTextKey[___] := $Failed;
+
+(* A cheap structural key for an internally constructed expression.  Unlike
+   the channel key this deliberately performs no algebra: it binds the exact
+   raw letter stored in the record while normalizing only the two chart-symbol
+   names.  The retained grade channels separately bind its field value. *)
+multiquadraticStripExpressionTextKey[expression_,
+    variables : {_Symbol, _Symbol}] := Hash[ToString[InputForm[
+      expression /. Thread[variables -> {\[FormalX], \[FormalY]}]]],
+    "SHA256", "HexString"];
+
 multiquadraticStripLetterOneForm[letter_, variables : {x_, y_}] := Module[
   {value = Quiet[Together[letter]], derivative},
   If[TrueQ[value === 0] || ! FreeQ[value, DirectedInfinity | Indeterminate],
@@ -1298,6 +1358,176 @@ multiquadraticStripLetterOneForm[letter_, variables : {x_, y_}] := Module[
     Return[$Failed]];
   derivative
 ];
+
+(* A letter that already belongs to the declared multiquadratic field is
+   differentiated IN THAT FIELD.  Building Together[D[L]/L] first makes
+   a large radical expression and only decomposes it again in the compile
+   stage.  Here L is decomposed once, inverted in the grade algebra, and
+   differentiated channel by channel; composing the two channel vectors
+   yields the same exact one-form without materialising that intermediate
+   expression tree.  multiquadraticStripLetterChannelPair certifies the
+   decomposition and inverse exactly.  Rank zero and any typed refusal
+   retain the conservative historical path. *)
+multiquadraticStripLetterDLogDataInField[letter_, roots_List,
+    variables : {x_, y_}] := Module[
+  {channelData, letterChannels = Missing["NotRetained"], channels, form,
+   letterChannelKey, formChannelKey, letterExpressionKey},
+  letterExpressionKey = multiquadraticStripExpressionTextKey[
+    letter, variables];
+  If[roots =!= {},
+    channelData = Quiet[multiquadraticStripLetterChannelData[
+      letter, roots, variables]];
+    channels = If[AssociationQ[channelData],
+      Lookup[channelData, "DLogChannels", $Failed], $Failed];
+    letterChannels = If[AssociationQ[channelData],
+      Lookup[channelData, "LetterChannels", Missing["NotRetained"]],
+      Missing["NotRetained"]];
+    If[MatchQ[channels, {_List, _List}] && FreeQ[channels, $Failed],
+      form = Quiet[multiquadraticFieldCompose[#1, roots] & /@ channels];
+      If[MatchQ[form, {_, _}] && FreeQ[form,
+          $Failed | DirectedInfinity | Indeterminate],
+        letterChannelKey = multiquadraticStripChannelTextKey[
+          letterChannels, variables];
+        formChannelKey = multiquadraticStripChannelTextKey[
+          channels, variables];
+        Return[<|"OneForm" -> form, "Channels" -> channels,
+          "LetterChannels" -> letterChannels,
+          "LetterChannelKey" -> letterChannelKey,
+          "LetterExpressionKey" -> letterExpressionKey,
+          "OneFormChannelKey" -> formChannelKey,
+          "Path" -> "GradeAlgebra"|>]]]];
+  form = multiquadraticStripLetterOneForm[letter, variables];
+  If[! MatchQ[form, {_, _}], Return[$Failed]];
+  channels = If[roots === {}, List /@ form,
+    Quiet[multiquadraticFieldDecompose[#1, roots] & /@ form]];
+  letterChannels = If[roots === {}, {letter}, Missing["NotRetained"]];
+  <|"OneForm" -> form,
+    "Channels" -> If[MatchQ[channels, {_List, _List}] &&
+      FreeQ[channels, $Failed], channels, Missing["NotRetained"]],
+    "LetterChannels" -> letterChannels,
+    "LetterChannelKey" -> If[ListQ[letterChannels],
+      multiquadraticStripChannelTextKey[letterChannels, variables],
+      Missing["NotRetained"]],
+    "LetterExpressionKey" -> letterExpressionKey,
+    "OneFormChannelKey" -> If[MatchQ[channels, {_List, _List}],
+      multiquadraticStripChannelTextKey[channels, variables],
+      Missing["NotRetained"]],
+    "Path" -> "MaterializedFallback"|>
+];
+
+(* Helper-side shard for the independent whole-forcing dlogs.  The payload
+   is written in formal System` variables, exactly like the compile shard,
+   so a helper's $Context cannot rebind chart symbols. *)
+multiquadraticStripDLogShardTask[dataFile_String, indices_List] := Module[
+  {payload, entries, roots, results},
+  payload = Quiet[CheckAbort[Get[dataFile], $Failed]];
+  If[! AssociationQ[payload], Return[$Failed]];
+  entries = Lookup[payload, "Entries", $Failed];
+  roots = Lookup[payload, "Roots", $Failed];
+  If[! ListQ[entries] || ! ListQ[roots] ||
+      ! VectorQ[indices, IntegerQ] ||
+      ! AllTrue[indices, 1 <= #1 <= Length[entries] &], Return[$Failed]];
+  results = multiquadraticStripLetterDLogDataInField[
+      entries[[#1]], roots, {\[FormalX], \[FormalY]}] & /@ indices;
+  If[! AllTrue[results, AssociationQ], $Failed,
+    <|"Indices" -> indices, "Data" -> results|>]
+];
+multiquadraticStripDLogShardTask[___] := $Failed;
+
+(* Ordered batch constructor.  kernelCount is a SUBKERNEL count: 1 is the
+   conservative serial path; 2..8 launch only the missing kernels and close
+   only those launched here.  A failed/malformed shard is recomputed locally,
+   so parallel transport can cost time but cannot change the candidate set. *)
+multiquadraticStripConstructDLogBatch[letters_List, roots_List,
+    variables : {x_, y_}, kernelCount_Integer] := Module[
+  {count = Length[letters], requested, launched = {}, loadFile, rules,
+   inverseRules, payload, dataFile = None, groups, shardResults, data,
+   validShardQ, route = "Serial", seconds = 0., body, workerKernels,
+   workerIDs, kernelGroups, chunk, k},
+  requested = Min[8, Max[1, kernelCount], Max[1, count]];
+  If[count === {}, Return[<|"Data" -> {}, "Route" -> route,
+      "Subkernels" -> 0, "Seconds" -> 0.|>]];
+  body[] := If[requested < 2 || ! TrueQ[$KernelID === 0],
+    {seconds, data} = AbsoluteTiming[
+      multiquadraticStripLetterDLogDataInField[#1, roots, variables] & /@
+        letters],
+    If[Length[Kernels[]] < requested,
+      launched = Quiet[Check[LaunchKernels[requested - Length[Kernels[]]], {}]]];
+    If[Length[Kernels[]] < requested,
+      {seconds, data} = AbsoluteTiming[
+        multiquadraticStripLetterDLogDataInField[#1, roots, variables] & /@
+          letters],
+      (* ParallelMap schedules over every live kernel.  That violates the
+         requested cap when a caller owns a larger pre-existing pool.
+         Select exactly the requested KernelObjects and give each one a
+         balanced, deterministic shard through ParallelEvaluate. *)
+      workerKernels = Take[Kernels[], requested];
+      workerIDs = Quiet[Check[
+        ParallelEvaluate[$KernelID, workerKernels], $Failed]];
+      If[! VectorQ[workerIDs, IntegerQ] ||
+          Length[workerIDs] =!= Length[workerKernels],
+        {seconds, data} = AbsoluteTiming[
+          multiquadraticStripLetterDLogDataInField[#1, roots, variables] & /@
+            letters];
+        route = "SerialFallback",
+      loadFile = $feynFacetLoader;
+      If[! AllTrue[ParallelEvaluate[
+          NameQ["FeynFacet`Private`multiquadraticStripDLogShardTask"],
+          workerKernels],
+          TrueQ],
+        With[{file = loadFile},
+          ParallelEvaluate[Quiet[Get[file], General::shdw], workerKernels]]];
+      rules = Thread[variables -> {\[FormalX], \[FormalY]}];
+      inverseRules = Reverse /@ rules;
+      payload = <|"Entries" -> (letters /. rules),
+        "Roots" -> (roots /. rules)|>;
+      dataFile = FileNameJoin[{$TemporaryDirectory,
+        "facet_mq_dlog_" <> StringReplace[CreateUUID[], "-" -> ""] <>
+          ".wl"}];
+      Put[payload, dataFile];
+      (* Round-robin rather than contiguous shards: conjugate algebraic
+         letters and hard forcing entries tend to be adjacent, so this
+         prevents one helper from inheriting an entire expensive family. *)
+      groups = Table[Range[offset, count, requested],
+        {offset, requested}];
+      kernelGroups = AssociationThread[workerIDs -> groups];
+      {seconds, shardResults} = AbsoluteTiming[Quiet[Check[
+        With[{file = dataFile, assignments = kernelGroups},
+          ParallelEvaluate[
+            FeynFacet`Private`multiquadraticStripDLogShardTask[file,
+              Lookup[assignments, $KernelID, {}]], workerKernels]],
+        $Failed]]];
+      validShardQ[result_, group_] := AssociationQ[result] &&
+        Lookup[result, "Indices", None] === group &&
+        MatchQ[Lookup[result, "Data", None], {___Association}] &&
+        Length[result["Data"]] === Length[group];
+      If[! ListQ[shardResults] ||
+          Length[shardResults] =!= Length[groups],
+        shardResults = ConstantArray[$Failed, Length[groups]]];
+      data = ConstantArray[$Failed, count];
+      Do[
+        chunk = If[validShardQ[shardResults[[k]], groups[[k]]],
+          shardResults[[k, "Data"]] /. inverseRules,
+          multiquadraticStripLetterDLogDataInField[
+              letters[[#1]], roots, variables] & /@ groups[[k]]];
+        data[[groups[[k]]]] = chunk,
+        {k, Length[groups]}];
+      route = "ParallelShards"]]];
+  CheckAbort[body[],
+    If[StringQ[dataFile] && FileExistsQ[dataFile], Quiet[DeleteFile[dataFile]]];
+    If[launched =!= {}, Quiet[CloseKernels[launched]]];
+    Abort[]];
+  If[StringQ[dataFile] && FileExistsQ[dataFile], Quiet[DeleteFile[dataFile]]];
+  If[launched =!= {}, Quiet[CloseKernels[launched]]];
+  If[! MatchQ[data, {___Association}] || Length[data] =!= count,
+    {seconds, data} = AbsoluteTiming[
+      multiquadraticStripLetterDLogDataInField[#1, roots, variables] & /@
+        letters]; route = "SerialFallback"];
+  <|"Data" -> data, "Route" -> route,
+    "Subkernels" -> If[route === "ParallelShards", requested, 0],
+    "Seconds" -> seconds|>
+];
+multiquadraticStripConstructDLogBatch[___] := $Failed;
 
 (* ---- the compact-route dlog certificate (2026-08-25, Codex 14:30 P1)
 
@@ -1320,6 +1550,8 @@ multiquadraticStripLetterOneForm[letter_, variables : {x_, y_}] := Module[
    correctness of this function; what it proves is that these two
    objects were produced together by this code path from this source. *)
 $multiquadraticStripLetterDLogSchema = "MultiquadraticLetterDLogV1";
+$multiquadraticStripLetterDLogChannelSchema =
+  "MultiquadraticLetterDLogChannelsV2";
 
 (* The two hashes use exactly the normalization
    multiquadraticStripFormTextKey already applies to every candidate
@@ -1362,6 +1594,40 @@ multiquadraticStripLetterDLogCertificateValidQ[certificate_, letter_, form_,
     variables, epsilon];
   AssociationQ[expected] && SameQ[
     KeyTake[certificate, Keys[expected]], expected]
+];
+
+(* Internal grade-algebra records use their already-certified rational
+   channels as the provenance payload and also bind the exact stored letter
+   spelling.  The compile boundary recomposes the one-form channels exactly;
+   the spelling key detects raw-letter mutation without demanding that a
+   recomposed radical expression be SameQ to an algebraically equal input.
+   The five-argument V1 validator above remains the contract for records that
+   do not carry retained channels. *)
+multiquadraticStripLetterDLogCertificateValidQ[certificate_, letter_, form_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol,
+    letterChannels_List, formChannels_List] := Module[
+  {letterKey, formKey, letterExpressionKey},
+  If[Lookup[certificate, "Schema", None] =!=
+      $multiquadraticStripLetterDLogChannelSchema,
+    Return[multiquadraticStripLetterDLogCertificateValidQ[
+      certificate, letter, form, variables, epsilon]]];
+  If[MissingQ[letter] || ! MatchQ[form, {_, _}], Return[False]];
+  letterKey = multiquadraticStripChannelTextKey[
+    letterChannels, variables, epsilon];
+  formKey = multiquadraticStripChannelTextKey[
+    formChannels, variables, epsilon];
+  letterExpressionKey = multiquadraticStripExpressionTextKey[
+    letter, variables];
+  StringQ[letterKey] && StringQ[formKey] &&
+    StringQ[letterExpressionKey] &&
+    SameQ[KeyTake[certificate, {"Schema", "SourceSHA256",
+        "LetterExpressionSHA256", "LetterChannelSHA256",
+        "OneFormChannelSHA256"}],
+      <|"Schema" -> $multiquadraticStripLetterDLogChannelSchema,
+        "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+        "LetterExpressionSHA256" -> letterExpressionKey,
+        "LetterChannelSHA256" -> letterKey,
+        "OneFormChannelSHA256" -> formKey|>]
 ];
 
 (* ------------------------------------------------------------------ *)
@@ -1427,6 +1693,33 @@ multiquadraticStripPotentialPairKey[letter_, form_,
   Hash[{$multiquadraticStripPotentialSchema, letterText, formKey},
     "SHA256", "HexString"]
 ];
+
+(* Evidence for the INTERNAL constructor, which has just produced form as
+   dlog(letter).  Re-differentiating the same letter and subtracting the
+   just-produced form is a tautological second construction, not an
+   independent check; on a representative hard multiquadratic block it
+   doubled this phase's wall time.  Bind the raw letter spelling and both
+   canonical grade-channel payloads, but record explicitly that exactness
+   follows from construction.  Caller-supplied pairs still go through
+   multiquadraticStripVerifyPotential and can be refused. *)
+multiquadraticStripConstructedDLogEvidence[letterKey_String,
+    formKey_String, letterExpressionKey_String] := Module[
+  {pairKey, certificate, potential},
+  pairKey = Hash[{$multiquadraticStripPotentialSchema, letterKey, formKey},
+    "SHA256", "HexString"];
+  certificate = <|"Schema" -> $multiquadraticStripLetterDLogChannelSchema,
+    "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+    "LetterExpressionSHA256" -> letterExpressionKey,
+    "LetterChannelSHA256" -> letterKey,
+    "OneFormChannelSHA256" -> formKey|>;
+  potential = <|"Schema" -> $multiquadraticStripPotentialSchema,
+    "Status" -> "PotentialVerified", "Verified" -> True,
+    "PairKey" -> pairKey,
+    "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+    "VerificationMethod" -> "ConstructedExactDLog"|>;
+  <|"Potential" -> potential, "DLogCertificate" -> certificate|>
+];
+multiquadraticStripConstructedDLogEvidence[___] := $Failed;
 
 (* THE EXACT STATEMENT, made once.  Together is used only as a zero
    test on the DIFFERENCE -- it is not asked to preserve the algebraic
@@ -1538,6 +1831,326 @@ multiquadraticStripDiagonalSpan[form : {_, _}, basisForms_List,
 ];
 multiquadraticStripDiagonalSpan[___] := Missing["InvalidSpanArguments"];
 
+(* Solve a NUMERIC rational affine system with a deterministic free-zero
+   section.  This is deliberately smaller than the modular solver below:
+   diagonal-span sampling has no modulus and needs only one particular
+   vector, followed by independent held-out rational images. *)
+multiquadraticStripRationalAffineParticular[matrix_?MatrixQ,
+    right_List] := Module[
+  {dimensions = Dimensions[matrix], unknownCount, reduced, coefficient,
+   pivotRows = {}, pivotColumns = {}, pivot, inconsistent, particular},
+  If[Length[dimensions] =!= 2 || dimensions[[1]] =!= Length[right],
+    Return[$Failed]];
+  unknownCount = dimensions[[2]];
+  reduced = Quiet[Check[RowReduce[MapThread[Append, {matrix, right}]],
+    $Failed]];
+  If[reduced === $Failed, Return[$Failed]];
+  coefficient = reduced[[All, 1 ;; unknownCount]];
+  Do[
+    pivot = SelectFirst[Range[unknownCount],
+      ! TrueQ[coefficient[[row, #1]] === 0] &,
+      Missing["NotFound"]];
+    If[! MissingQ[pivot],
+      AppendTo[pivotRows, row]; AppendTo[pivotColumns, pivot]],
+    {row, Length[coefficient]}];
+  inconsistent = AnyTrue[Range[Length[coefficient]], Function[row,
+    AllTrue[coefficient[[row]], TrueQ[#1 === 0] &] &&
+      ! TrueQ[reduced[[row, -1]] === 0]]];
+  If[TrueQ[inconsistent],
+    Return[<|"Consistent" -> False, "Rank" -> Length[pivotColumns]|>]];
+  particular = ConstantArray[0, unknownCount];
+  Do[particular[[pivotColumns[[k]]]] = reduced[[pivotRows[[k]], -1]],
+    {k, Length[pivotColumns]}];
+  <|"Consistent" -> True, "Rank" -> Length[pivotColumns],
+    "ParticularSolution" -> particular|>
+];
+multiquadraticStripRationalAffineParticular[___] := $Failed;
+
+(* The same coefficient matrix with several right-hand sides.  RowReduce
+   is allowed to see the appended columns only when every right-hand side
+   is consistent; then no appended column can become a pivot, and the
+   coefficient pivots define all free-zero sections at once.  If any
+   right-hand side is inconsistent the caller falls back to the scalar
+   routine, which identifies the individual verdicts without relying on
+   a mixed augmented reduction. *)
+multiquadraticStripRationalAffineParticularBatch[matrix_?MatrixQ,
+    rightMatrix_?MatrixQ] := Module[
+  {dimensions = Dimensions[matrix], rightDimensions = Dimensions[rightMatrix],
+   unknownCount, targetCount, reduced, coefficient, rightReduced,
+   pivotRows = {}, pivotColumns = {}, pivot, zeroRows, particular},
+  If[Length[dimensions] =!= 2 || Length[rightDimensions] =!= 2 ||
+      dimensions[[1]] =!= rightDimensions[[1]] ||
+      rightDimensions[[2]] < 1, Return[$Failed]];
+  unknownCount = dimensions[[2]];
+  targetCount = rightDimensions[[2]];
+  reduced = Quiet[Check[RowReduce[Join[matrix, rightMatrix, 2]], $Failed]];
+  If[reduced === $Failed, Return[$Failed]];
+  coefficient = reduced[[All, 1 ;; unknownCount]];
+  rightReduced = reduced[[All, unknownCount + 1 ;; unknownCount + targetCount]];
+  zeroRows = Select[Range[Length[coefficient]],
+    AllTrue[coefficient[[#1]], TrueQ[#1 === 0] &] &];
+  If[AnyTrue[Flatten[rightReduced[[zeroRows]]], ! TrueQ[#1 === 0] &],
+    Return[<|"Consistent" -> False|>]];
+  Do[
+    pivot = SelectFirst[Range[unknownCount],
+      ! TrueQ[coefficient[[row, #1]] === 0] &,
+      Missing["NotFound"]];
+    If[! MissingQ[pivot],
+      AppendTo[pivotRows, row]; AppendTo[pivotColumns, pivot]],
+    {row, Length[coefficient]}];
+  particular = ConstantArray[0, {targetCount, unknownCount}];
+  Do[particular[[All, pivotColumns[[k]]]] =
+      rightReduced[[pivotRows[[k]], All]],
+    {k, Length[pivotColumns]}];
+  <|"Consistent" -> True, "Rank" -> Length[pivotColumns],
+    "ParticularSolutions" -> particular|>
+];
+multiquadraticStripRationalAffineParticularBatch[___] := $Failed;
+
+(* A constant-coefficient span is a linear-algebra question, not a
+   polynomial-quantifier problem.  Decompose every component into the
+   declared 2^r rational grade channels, evaluate those rational functions
+   at deterministic exact points, and solve the resulting small rational
+   system.  A sampled inconsistency is already an exact counterexample.
+   A sampled solution is accepted only after six further exact-rational
+   held-out points.  This is deliberately a modular-style probabilistic
+   certificate (no floating tolerance); the final differential-equation
+   image checks remain an independent downstream guard.
+
+   If an expression carries parameters beyond the two chart variables, or
+   the deterministic schedule does not determine a section, return typed
+   NotApplicable and let the historical SolveAlways route handle it.  The
+   optional channel arguments allow the candidate builder to reuse the
+   grade-algebra dlogs it has just constructed instead of decomposing the
+   same 44-letter basis once per diagonal record. *)
+$multiquadraticStripDiagonalSpanSamplePoints = {
+  {2, 3}, {3, 5}, {5, 2}, {2, 5}, {-1, 2}, {2, -1}, {-2, 3}, {3, -2},
+  {-3, 5}, {5, -3}, {1/2, 2/3}, {2/3, 3/5}, {3/5, 5/7}, {5/7, 7/11},
+  {-1/2, 2/3}, {2/3, -1/2}, {-2/3, 3/5}, {3/5, -2/3},
+  {7, 11}, {11, 7}, {-5, 7}, {7, -5}, {11, 13}, {13, 11}
+};
+
+multiquadraticStripDiagonalSpanBasisImages[basisChannels_List,
+    variables : {x_, y_}] := Module[
+  {images = {}, rules, values, numericRationalQ},
+  If[basisChannels === {}, Return[{}]];
+  numericRationalQ[value_] := IntegerQ[value] || Head[value] === Rational;
+  Do[
+    rules = Thread[variables -> point];
+    values = Quiet[Check[
+      (Flatten[#1 /. rules] &) /@ basisChannels, $Failed]];
+    If[values =!= $Failed &&
+        AllTrue[Flatten[values], numericRationalQ],
+      AppendTo[images, <|"Point" -> point,
+        "Rows" -> Transpose[values]|>]],
+    {point, $multiquadraticStripDiagonalSpanSamplePoints}];
+  images
+];
+multiquadraticStripDiagonalSpanBasisImages[___] := $Failed;
+
+(* Several diagonal forms share the same verified dlog basis, grade frame
+   and evaluation points.  Solve their constant-coefficient span in one
+   augmented reduction instead of repeating the 48-by-N row reduction for
+   every scalar entry.  This fast path returns Missing on a mixed or
+   parameterful case; the candidate builder then invokes the scalar
+   routine for each form, so batching never weakens a verdict. *)
+multiquadraticStripDiagonalSpansSampled[forms : {{_, _} ..},
+    basisForms_List, roots_List, variables : {x_, y_},
+    suppliedFormChannels_ : Automatic,
+    suppliedBasisChannels_ : Automatic,
+    suppliedBasisImages_ : Automatic] := Module[
+  {gradeCount = 2^Length[roots], targetCount = Length[forms], formChannels,
+   basisChannels, channelShapeQ, basisImages, imageSchedule,
+   suppliedBasisImagesQ, basisValues, matrix = {}, rightMatrix = {}, rules,
+   targetColumns, targetRows, rows, solve, solutions = None,
+   lastRank = -1, validPoints = 0, heldOutPassed = 0,
+   requiredHeldOut = 6, numericRationalQ, decompose, residual, verdict,
+   basisImageShapeQ, point},
+  If[basisForms === {}, Return[Missing["NoBasis"]]];
+  channelShapeQ[value_] := MatchQ[value, {_List, _List}] &&
+    Dimensions[value] === {2, gradeCount} && FreeQ[value, $Failed];
+  decompose[oneForm_] := If[roots === {}, List /@ oneForm,
+    Quiet[multiquadraticFieldDecompose[#1, roots] & /@ oneForm]];
+  formChannels = If[ListQ[suppliedFormChannels] &&
+      Length[suppliedFormChannels] === targetCount &&
+      AllTrue[suppliedFormChannels, channelShapeQ],
+    suppliedFormChannels, decompose /@ forms];
+  basisChannels = If[ListQ[suppliedBasisChannels] &&
+      Length[suppliedBasisChannels] === Length[basisForms] &&
+      AllTrue[suppliedBasisChannels, channelShapeQ],
+    suppliedBasisChannels, decompose /@ basisForms];
+  If[! ListQ[formChannels] || Length[formChannels] =!= targetCount ||
+      ! AllTrue[formChannels, channelShapeQ] ||
+      ! AllTrue[basisChannels, channelShapeQ],
+    Return[Missing["SampledSpanDecompositionFailed"]]];
+  basisImageShapeQ[image_] := AssociationQ[image] &&
+    MatchQ[Lookup[image, "Point", None], {_, _}] &&
+    MatrixQ[Lookup[image, "Rows", None]] &&
+    Dimensions[image["Rows"]] === {2 gradeCount, Length[basisForms]};
+  suppliedBasisImagesQ = ListQ[suppliedBasisImages] &&
+      suppliedBasisImages =!= {} &&
+      AllTrue[suppliedBasisImages, basisImageShapeQ];
+  basisImages = If[suppliedBasisImagesQ, suppliedBasisImages, {}];
+  imageSchedule = If[suppliedBasisImagesQ, basisImages,
+    <|"Point" -> #1|> & /@ $multiquadraticStripDiagonalSpanSamplePoints];
+  numericRationalQ[value_] := IntegerQ[value] || Head[value] === Rational;
+  multiquadraticStripStageStart["diagonal spans: shared solve",
+    <|"targets" -> targetCount, "basis" -> Length[basisForms],
+      "images" -> Length[imageSchedule],
+      "basisImageRoute" -> If[suppliedBasisImagesQ, "Supplied", "Lazy"]|>];
+  verdict = Catch[Do[
+    point = image["Point"];
+    rules = Thread[variables -> point];
+    If[suppliedBasisImagesQ,
+      rows = image["Rows"],
+      basisValues = Quiet[Check[
+        (Flatten[#1 /. rules] &) /@ basisChannels, $Failed]];
+      If[basisValues === $Failed ||
+          ! AllTrue[Flatten[basisValues], numericRationalQ], Continue[]];
+      rows = Transpose[basisValues]];
+    targetColumns = Quiet[Check[
+      Flatten[#1 /. rules] & /@ formChannels, $Failed]];
+    If[targetColumns === $Failed ||
+        ! AllTrue[Flatten[targetColumns], numericRationalQ], Continue[]];
+    targetRows = Transpose[targetColumns];
+    validPoints++;
+    If[ListQ[solutions],
+      residual = Flatten[rows . Transpose[solutions] - targetRows];
+      If[AllTrue[residual, TrueQ[#1 === 0] &],
+        heldOutPassed++;
+        If[heldOutPassed >= requiredHeldOut,
+          Throw[Table[<|"Spanned" -> True,
+              "Coefficients" -> solutions[[target]],
+              "Method" -> "ExactRationalImagesBatch",
+              "ConstructionPoints" -> validPoints - heldOutPassed,
+              "HeldOutPoints" -> heldOutPassed, "Rank" -> lastRank,
+              "BatchTargets" -> targetCount|>,
+            {target, targetCount}], "DiagonalSpansVerdict"]];
+        Continue[],
+        solutions = None; heldOutPassed = 0]];
+    matrix = Join[matrix, rows];
+    rightMatrix = Join[rightMatrix, targetRows];
+    If[Length[matrix] < Length[basisForms], Continue[]];
+    solve = multiquadraticStripRationalAffineParticularBatch[
+      matrix, rightMatrix];
+    If[! AssociationQ[solve] || ! TrueQ[solve["Consistent"]],
+      Throw[Missing["BatchSpanMixedOrInconsistent"],
+        "DiagonalSpansVerdict"]];
+    lastRank = solve["Rank"];
+    solutions = solve["ParticularSolutions"];
+    heldOutPassed = 0,
+    {image, imageSchedule}], "DiagonalSpansVerdict"];
+  multiquadraticStripStageDone["diagonal spans: shared solve",
+    <|"targets" -> targetCount, "validPoints" -> validPoints,
+      "status" -> If[ListQ[verdict], "Spanned", "Fallback"]|>];
+  If[ListQ[verdict] && Length[verdict] === targetCount, Return[verdict]];
+  Missing[If[validPoints === 0, "SampledSpanNotApplicable",
+    "SampledSpanBatchFallback"]]
+];
+multiquadraticStripDiagonalSpansSampled[___] :=
+  Missing["InvalidSampledSpansArguments"];
+
+multiquadraticStripDiagonalSpanSampled[form : {_, _}, basisForms_List,
+    roots_List, variables : {x_, y_}, suppliedFormChannels_ : Automatic,
+    suppliedBasisChannels_ : Automatic,
+    suppliedBasisImages_ : Automatic] := Module[
+  {gradeCount = 2^Length[roots], formChannels, basisChannels, channelShapeQ,
+   basisImages, matrix = {}, right = {}, rules, targetValues, rows, solve,
+   solution = None, lastRank = -1, validPoints = 0, heldOutPassed = 0,
+   requiredHeldOut = 6, numericRationalQ, decompose, residual, verdict,
+   basisImageShapeQ, point},
+  If[basisForms === {}, Return[Missing["NoBasis"]]];
+  multiquadraticStripStageStart["diagonal span: channel preparation",
+    <|"basis" -> Length[basisForms], "rank" -> Length[roots]|>];
+  channelShapeQ[value_] := MatchQ[value, {_List, _List}] &&
+    Dimensions[value] === {2, gradeCount} && FreeQ[value, $Failed];
+  decompose[oneForm_] := If[roots === {}, List /@ oneForm,
+    Quiet[multiquadraticFieldDecompose[#1, roots] & /@ oneForm]];
+  formChannels = If[channelShapeQ[suppliedFormChannels],
+    suppliedFormChannels, decompose[form]];
+  basisChannels = If[
+    ListQ[suppliedBasisChannels] &&
+      Length[suppliedBasisChannels] === Length[basisForms] &&
+      AllTrue[suppliedBasisChannels, channelShapeQ],
+    suppliedBasisChannels, decompose /@ basisForms];
+  If[! channelShapeQ[formChannels] ||
+      ! AllTrue[basisChannels, channelShapeQ],
+    Return[Missing["SampledSpanDecompositionFailed"]]];
+  basisImageShapeQ[image_] := AssociationQ[image] &&
+    MatchQ[Lookup[image, "Point", None], {_, _}] &&
+    MatrixQ[Lookup[image, "Rows", None]] &&
+    Dimensions[image["Rows"]] === {2 gradeCount, Length[basisForms]};
+  basisImages = If[ListQ[suppliedBasisImages] &&
+      suppliedBasisImages =!= {} &&
+      AllTrue[suppliedBasisImages, basisImageShapeQ],
+    suppliedBasisImages,
+    multiquadraticStripDiagonalSpanBasisImages[basisChannels, variables]];
+  If[! ListQ[basisImages] || basisImages === {},
+    Return[Missing["SampledSpanNoBasisImages"]]];
+  multiquadraticStripStageDone["diagonal span: channel preparation",
+    <|"basis" -> Length[basisChannels], "images" -> Length[basisImages]|>];
+  numericRationalQ[value_] := IntegerQ[value] || Head[value] === Rational;
+  verdict = Catch[Do[
+    point = image["Point"];
+    rows = image["Rows"];
+    multiquadraticStripStageStart["diagonal span: rational image",
+      <|"point" -> point, "accepted" -> validPoints|>];
+    rules = Thread[variables -> point];
+    targetValues = Quiet[Check[Flatten[formChannels /. rules], $Failed]];
+    If[targetValues === $Failed ||
+        ! AllTrue[targetValues, numericRationalQ],
+      multiquadraticStripStageDone["diagonal span: rational image",
+        <|"point" -> point, "status" -> "Rejected"|>];
+      Continue[]];
+    validPoints++;
+    multiquadraticStripStageDone["diagonal span: rational image",
+      <|"point" -> point, "rows" -> Length[rows]|>];
+    (* Once a construction prefix has proposed constant coefficients,
+       the next points are HELD OUT: they neither choose nor modify that
+       vector when it passes.  Six independent exact-rational images are
+       the same probabilistic certification policy used by the modular
+       strip solver; no floating tolerance enters.  A failure is folded
+       into the construction system and a new section is solved. *)
+    If[ListQ[solution],
+      residual = Together /@ (rows . solution - targetValues);
+      If[AllTrue[residual, TrueQ[#1 === 0] &],
+        heldOutPassed++;
+        If[heldOutPassed >= requiredHeldOut,
+          Throw[<|"Spanned" -> True, "Coefficients" -> solution,
+            "Method" -> "ExactRationalImages",
+            "ConstructionPoints" -> validPoints - heldOutPassed,
+            "HeldOutPoints" -> heldOutPassed, "Rank" -> lastRank|>,
+            "DiagonalSpanVerdict"]];
+        Continue[],
+        solution = None; heldOutPassed = 0]];
+    matrix = Join[matrix, rows];
+    right = Join[right, targetValues];
+    If[Length[matrix] < Length[basisForms], Continue[]];
+    multiquadraticStripStageStart["diagonal span: row reduction",
+      <|"rows" -> Length[matrix], "columns" -> Length[basisForms]|>];
+    solve = multiquadraticStripRationalAffineParticular[matrix, right];
+    multiquadraticStripStageDone["diagonal span: row reduction",
+      <|"status" -> If[AssociationQ[solve],
+        Lookup[solve, "Consistent", None], "Failed"]|>];
+    If[! AssociationQ[solve],
+      Throw[Missing["SampledSpanLinearSolveFailed"],
+        "DiagonalSpanVerdict"]];
+    If[! TrueQ[solve["Consistent"]],
+      Throw[<|"Spanned" -> False, "Method" -> "ExactSampleCounterexample",
+        "ValidPoints" -> validPoints, "Rank" -> solve["Rank"]|>,
+        "DiagonalSpanVerdict"]];
+    lastRank = solve["Rank"];
+    solution = solve["ParticularSolution"];
+    heldOutPassed = 0,
+    {image, basisImages}],
+    "DiagonalSpanVerdict"];
+  If[verdict =!= Null, Return[verdict]];
+  Missing[If[validPoints === 0, "SampledSpanNotApplicable",
+    "SampledSpanUnderdetermined"]]
+];
+multiquadraticStripDiagonalSpanSampled[___] :=
+  Missing["InvalidSampledSpanArguments"];
+
 (* THE INSTALLATION VERDICT (round-3 A2): computed from the exact
    reconstructed representation, never from the candidate pool.  A
    letter is ACTIVE iff at least one entry of its reconstructed residue
@@ -1621,7 +2234,10 @@ Options[multiquadraticStripCandidateLetters] = {
   "AdditionalLetters" -> {},
   "AlgebraicLetters" -> Automatic,
   "MaximumNormFactors" -> 2,
-  "MaximumNormExponent" -> 2
+  "MaximumNormExponent" -> 2,
+  (* 1 = serial; 2..8 = requested Wolfram subkernels.  Automatic uses
+     already-live subkernels but launches none. *)
+  "DLogKernels" -> Automatic
 };
 
 (* The candidate one-form basis, rebuilt.  Five sources, each tagged:
@@ -1638,25 +2254,48 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
     roots_List, variables : {x_, y_}, epsilon_Symbol, record_Association,
     opts : OptionsPattern[]] := Module[
   {samples, pool, sampleCount, alphabet, algebraic, rowLetters, additional,
-   records = {}, keys = <||>, form, rootSquares, entries, diagonal,
-   rowSource, add, counts, algebraicRecord, rawCount, kindRank, priority,
-   grouped, verifiedForms, diagnosticRecords, regulatorRejected = 0},
+   records = {}, channelByFormKey = <||>, form, rootSquares, entries, diagonal,
+   rowSource, add, counts, rawCount, kindRank, priority,
+   grouped, verifiedRecords, verifiedForms, verifiedChannelForms,
+   verifiedBasisImages, diagnosticRecords, diagonalBatchRecords,
+   diagonalBatchChannelForms, diagonalBatchSpans, diagonalSpanIndex = 0,
+   regulatorRejected = 0,
+   dlogKernelRequest, dlogKernelCount, forcingEntries, derivedLetters,
+   derivedBatch, derivedData, forcingData, rationalData, algebraicData,
+   algebraicLetters},
   pool = Replace[OptionValue["RegulatorSamplePool"],
     Automatic :> $multiquadraticStripRegulatorSamplePool];
   sampleCount = OptionValue["RegulatorSampleCount"];
+  dlogKernelRequest = OptionValue["DLogKernels"];
+  dlogKernelCount = Replace[dlogKernelRequest,
+    Automatic :> Max[1, Min[8, Length[Kernels[]]]]];
   If[! IntegerQ[sampleCount] || sampleCount < 1 || ! ListQ[pool] || pool === {},
     Return[multiquadraticStripFailure["InvalidRegulatorSampleRequest",
       <|"RegulatorSampleCount" -> sampleCount|>]]];
+  If[! IntegerQ[dlogKernelCount] || ! (1 <= dlogKernelCount <= 8),
+    Return[multiquadraticStripFailure["InvalidDLogKernelCount",
+      <|"DLogKernels" -> dlogKernelRequest,
+        "Expected" -> "Automatic or an integer from 1 through 8"|>]]];
+  multiquadraticStripStageStart["candidate letters: regulator samples"];
   samples = multiquadraticStripRegulatorSampleValues[bbar, variables, epsilon,
     sampleCount, pool];
+  multiquadraticStripStageDone["candidate letters: regulator samples"];
   rootSquares = Lookup[roots, "RootSquare", {}];
   entries = Flatten[samples["SubstitutedEntries"]];
+  multiquadraticStripStageStart["candidate letters: polar census",
+    <|"forcingEntries" -> Length[entries]|>];
   alphabet = multiquadraticStripRationalPolarCurves[
     Join[entries, Flatten[e], Flatten[c]], rootSquares, variables];
+  multiquadraticStripStageDone["candidate letters: polar census",
+    <|"curves" -> Length[alphabet]|>];
+  multiquadraticStripStageStart["candidate letters: algebraic generation",
+    <|"rank" -> Length[roots], "curves" -> Length[alphabet]|>];
   algebraic = Replace[OptionValue["AlgebraicLetters"],
     Automatic :> multiquadraticStripAlgebraicLetters[roots, alphabet, variables,
       "MaximumNormFactors" -> OptionValue["MaximumNormFactors"],
       "MaximumNormExponent" -> OptionValue["MaximumNormExponent"]]];
+  multiquadraticStripStageDone["candidate letters: algebraic generation",
+    <|"records" -> Length[Flatten[{algebraic}]]|>];
   If[! MatchQ[algebraic, {___Association}],
     algebraic = <|"Kind" -> "Algebraic", "Letter" -> #1,
       "Norm" -> Missing["NotDerived"]|> & /@ Flatten[{algebraic}]];
@@ -1672,18 +2311,16 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
      chooses one representative per one-form by a stable priority, so a
      later VERIFIED letter replaces an earlier unverified record with
      the same one-form instead of being discarded by it. *)
-  add[kind_String, letterIn_, oneForm_, extra_Association] := Module[
-    {fkey, letter = letterIn, stripped, extraOut = extra},
-    If[oneForm === $Failed || ! MatchQ[oneForm, {_, _}], Return[Null]];
-    If[multiquadraticStripZeroQ[oneForm], Return[Null]];
-    (* THE regulator, not a symbol whose NAME starts with "eps" (round-2
-       item 1, Codex review 1.6).  The spelling test was wrong in both
-       directions: a production regulator named `ee` was invisible to it,
-       so a form carrying the regulator entered the supposedly
-       regulator-free basis; and an ordinary kinematic or mass symbol
-       spelled `eps...` was filtered out of an alphabet it belongs to.
-       The regulator argument is already in scope here. *)
-    If[! FreeQ[oneForm, epsilon], Return[Null]];
+  add[kind_String, letterIn_, oneFormIn_, extra_Association] := Module[
+    {fkey, letter = letterIn, oneForm = oneFormIn, stripped,
+     extraOut = extra,
+     constructedQ = oneFormIn === Automatic || AssociationQ[oneFormIn],
+     evidence, potential, certificate, dlogData,
+     channels = Missing["NotRetained"],
+     letterChannels = Missing["NotRetained"], channelRepresentationQ,
+     constructedChannelEvidenceQ, letterChannelKey = $Failed,
+     letterExpressionKey = $Failed,
+     suppliedFormChannelKey = $Failed},
     (* AN INSTALLED LETTER MUST BE EPSILON-INDEPENDENT (round-3 A2): a
        letter such as eps*x has the same kinematic dlog as x, so its
        one-form passes the filter above while the letter symbol does
@@ -1697,9 +2334,86 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
         regulatorRejected++; Return[Null]];
       letter = stripped;
       extraOut = Join[extraOut, <|"StrippedContent" -> True|>]];
-    If[! multiquadraticStripFieldMemberQ[oneForm[[1]], roots] ||
-        ! multiquadraticStripFieldMemberQ[oneForm[[2]], roots], Return[Null]];
-    fkey = multiquadraticStripFormTextKey[oneForm, variables, epsilon];
+    (* Every non-diagonal candidate below passes Automatic: derive the
+       one-form HERE, after epsilon-only content has been stripped, so
+       the stored letter and stored form are one indivisible construction.
+       At positive root rank the grade-algebra path avoids the expanded
+       D[L]/L tree; its conservative fallback is the historical routine. *)
+    If[constructedQ,
+      If[MissingQ[letter], Return[Null]];
+      dlogData = If[AssociationQ[oneFormIn], oneFormIn,
+        multiquadraticStripLetterDLogDataInField[
+          letter, roots, variables]];
+      If[! AssociationQ[dlogData], Return[Null]];
+      oneForm = Lookup[dlogData, "OneForm", $Failed];
+      channels = Lookup[dlogData, "Channels", Missing["NotRetained"]];
+      letterChannels = Lookup[dlogData, "LetterChannels",
+        Missing["NotRetained"]];
+      letterChannelKey = Lookup[dlogData, "LetterChannelKey", $Failed];
+      letterExpressionKey = Lookup[dlogData,
+        "LetterExpressionKey", $Failed];
+      suppliedFormChannelKey = Lookup[dlogData,
+        "OneFormChannelKey", $Failed]];
+    If[oneForm === $Failed || ! MatchQ[oneForm, {_, _}], Return[Null]];
+    channelRepresentationQ = MatchQ[channels, {_List, _List}] &&
+      Dimensions[channels] === {2, 2^Length[roots]} &&
+      FreeQ[channels, $Failed];
+    If[! constructedQ && ! channelRepresentationQ,
+      channels = Quiet[multiquadraticFieldDecompose[#1, roots] & /@ oneForm];
+      channelRepresentationQ = MatchQ[channels, {_List, _List}] &&
+        Dimensions[channels] === {2, 2^Length[roots]} &&
+        FreeQ[channels, $Failed]];
+    constructedChannelEvidenceQ = constructedQ && channelRepresentationQ &&
+      ListQ[letterChannels] &&
+      Length[letterChannels] === 2^Length[roots] &&
+      FreeQ[letterChannels, $Failed];
+    If[If[channelRepresentationQ, multiquadraticStripZeroQ[channels],
+        multiquadraticStripZeroQ[oneForm]], Return[Null]];
+    (* THE regulator, not a symbol whose NAME starts with "eps" (round-2
+       item 1, Codex review 1.6).  The spelling test was wrong in both
+       directions: a production regulator named `ee` was invisible to it,
+       so a form carrying the regulator entered the supposedly
+       regulator-free basis; and an ordinary kinematic or mass symbol
+       spelled `eps...` was filtered out of an alphabet it belongs to.
+       The regulator argument is already in scope here. *)
+    If[! FreeQ[oneForm, epsilon], Return[Null]];
+    (* The retained channels are exact membership evidence: the internal
+       constructor decomposed the letter, inverted and differentiated in
+       the grade algebra, then composed this very one-form.  Re-decomposing
+       both materialized components here repeats the expensive operation
+       the compact route was designed to avoid.  Forms without that
+       evidence retain the historical exact membership gate. *)
+    If[! channelRepresentationQ &&
+        (! multiquadraticStripFieldMemberQ[oneForm[[1]], roots] ||
+         ! multiquadraticStripFieldMemberQ[oneForm[[2]], roots]), Return[Null]];
+    fkey = If[channelRepresentationQ,
+      If[constructedQ && StringQ[suppliedFormChannelKey],
+        suppliedFormChannelKey,
+        multiquadraticStripChannelTextKey[channels, variables, epsilon]],
+      multiquadraticStripFormTextKey[oneForm, variables, epsilon]];
+    If[! StringQ[fkey], Return[Null]];
+    If[constructedChannelEvidenceQ,
+      If[! StringQ[letterChannelKey],
+        letterChannelKey = multiquadraticStripChannelTextKey[
+          letterChannels, variables, epsilon]];
+      If[! StringQ[letterChannelKey], Return[Null]];
+      If[! StringQ[letterExpressionKey],
+        letterExpressionKey = multiquadraticStripExpressionTextKey[
+          letter, variables]];
+      If[! StringQ[letterExpressionKey], Return[Null]];
+      evidence = multiquadraticStripConstructedDLogEvidence[
+        letterChannelKey, fkey, letterExpressionKey];
+      If[! AssociationQ[evidence], Return[Null]];
+      potential = evidence["Potential"];
+      certificate = evidence["DLogCertificate"],
+      potential = KeyDrop[multiquadraticStripVerifyPotential[letter,
+        oneForm, variables, epsilon], "Cached"];
+      certificate = If[MissingQ[letter], Missing["NotADLog"],
+        multiquadraticStripLetterDLogCertificate[
+          letter, oneForm, variables, epsilon]]];
+    If[constructedQ && channelRepresentationQ &&
+        TrueQ[Lookup[potential, "Verified", False]],
+      AssociateTo[channelByFormKey, fkey -> channels]];
     (* THE dlog CERTIFICATE, minted at the one site that pairs a letter
        with the one-form computed from it.  A "Diagonal" record carries
        Missing["NotADLog"] as its letter and therefore no certificate: it
@@ -1717,35 +2431,80 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
          identical preparations must be byte-identical (the prepare-core
          suite compares them with SameQ).  The hit/miss counts stay
          available through multiquadraticStripPotentialStatistics[]. *)
-      "Potential" -> KeyDrop[multiquadraticStripVerifyPotential[letter,
-        oneForm, variables, epsilon], "Cached"],
-      "DLogCertificate" -> If[MissingQ[letter], Missing["NotADLog"],
-        multiquadraticStripLetterDLogCertificateWithKey[letter, fkey,
-          variables, epsilon]]|>, extraOut]]];
+      "Potential" -> potential,
+      "DLogCertificate" -> certificate|>,
+      If[channelRepresentationQ,
+        <|"OneFormChannels" -> channels|>, <||>],
+      If[constructedQ && channelRepresentationQ &&
+          TrueQ[Lookup[potential, "Verified", False]],
+        (* The compiler recomposes these exact channels against both raw
+           fields before using them. *)
+        <|"DLogChannels" -> channels,
+          "DLogLetterChannels" -> letterChannels|>, <||>], extraOut]]];
+  multiquadraticStripStageStart["candidate letters: diagonal records"];
   diagonal = multiquadraticScalarOneForms /@ {e, c};
   Do[
     If[! multiquadraticClosedOneFormQ[form, variables], Continue[]];
     add["Diagonal", Missing["NotADLog"], form, <||>],
     {form, Flatten[diagonal, 1]}];
-  Do[
-    If[TrueQ[Together[entry] === 0] ||
-        FreeQ[entry, Alternatives @@ variables], Continue[]];
-    add["ForcingDLog", entry,
-      multiquadraticStripLetterOneForm[entry, variables], <||>],
-    {entry, entries}];
-  Do[add["RationalFactor", letter,
-      multiquadraticStripLetterOneForm[letter, variables], <||>],
-    {letter, alphabet}];
-  Do[add["Algebraic", algebraicRecord["Letter"],
-      multiquadraticStripLetterOneForm[algebraicRecord["Letter"], variables],
-      KeyTake[algebraicRecord, {"A", "Norm", "RootSquare", "NormInAlphabet"}]],
-    {algebraicRecord, algebraic}];
-  Do[add["RowAlphabet", letter,
-      multiquadraticStripLetterOneForm[letter, variables], <||>],
+  multiquadraticStripStageDone["candidate letters: diagonal records",
+    <|"records" -> Length[records]|>];
+  multiquadraticStripStageStart["candidate letters: forcing dlogs",
+    <|"entries" -> Length[entries]|>];
+  forcingEntries = Select[entries,
+    ! TrueQ[Together[#1] === 0] &&
+      ! FreeQ[#1, Alternatives @@ variables] &];
+  (* One helper bootstrap covers every package-derived dlog.  Splitting only
+     ForcingDLog and then rebuilding rational and algebraic dlogs serially
+     leaves most of a large alphabet on the main kernel.  These constructions
+     are independent and obey the same exact grade-algebra ABI. *)
+  algebraicLetters = Lookup[algebraic, "Letter", {}];
+  derivedLetters = Join[forcingEntries, alphabet, algebraicLetters];
+  derivedBatch = multiquadraticStripConstructDLogBatch[
+    derivedLetters, roots, variables, dlogKernelCount];
+  If[! AssociationQ[derivedBatch],
+    Return[multiquadraticStripFailure["DerivedDLogConstructionFailed"]]];
+  derivedData = Lookup[derivedBatch, "Data", {}];
+  If[Length[derivedData] =!= Length[derivedLetters],
+    Return[multiquadraticStripFailure["DerivedDLogConstructionFailed",
+      <|"Expected" -> Length[derivedLetters],
+        "Received" -> Length[derivedData]|>]]];
+  forcingData = Take[derivedData, Length[forcingEntries]];
+  rationalData = Take[Drop[derivedData, Length[forcingEntries]],
+    Length[alphabet]];
+  algebraicData = Drop[derivedData,
+    Length[forcingEntries] + Length[alphabet]];
+  MapThread[add["ForcingDLog", #1, #2, <||>] &,
+    {forcingEntries, forcingData}];
+  multiquadraticStripStageDone["candidate letters: forcing dlogs",
+    <|"records" -> Length[records],
+      "batchedDLogs" -> Length[derivedLetters],
+      "route" -> Lookup[derivedBatch, "Route", None],
+      "subkernels" -> Lookup[derivedBatch, "Subkernels", 0],
+      "seconds" -> Lookup[derivedBatch, "Seconds", Missing["NotMeasured"]]|>];
+  multiquadraticStripStageStart["candidate letters: rational factors",
+    <|"curves" -> Length[alphabet]|>];
+  MapThread[add["RationalFactor", #1, #2, <||>] &,
+    {alphabet, rationalData}];
+  multiquadraticStripStageDone["candidate letters: rational factors",
+    <|"records" -> Length[records]|>];
+  multiquadraticStripStageStart["candidate letters: algebraic records",
+    <|"candidates" -> Length[algebraic]|>];
+  MapThread[Function[{recordItem, dlogItem},
+      add["Algebraic", recordItem["Letter"], dlogItem,
+        KeyTake[recordItem,
+          {"A", "Norm", "RootSquare", "NormInAlphabet"}]]],
+    {algebraic, algebraicData}];
+  multiquadraticStripStageDone["candidate letters: algebraic records",
+    <|"records" -> Length[records]|>];
+  multiquadraticStripStageStart["candidate letters: inherited records",
+    <|"row" -> Length[rowLetters], "supplied" -> Length[additional]|>];
+  Do[add["RowAlphabet", letter, Automatic, <||>],
     {letter, rowLetters}];
-  Do[add["Supplied", letter,
-      multiquadraticStripLetterOneForm[letter, variables], <||>],
+  Do[add["Supplied", letter, Automatic, <||>],
     {letter, additional}];
+  multiquadraticStripStageDone["candidate letters: inherited records",
+    <|"records" -> Length[records]|>];
   rawCount = Length[records];
   (* ---- phase 2 (round-3 A2): one representative per one-form, by a
      STABLE priority -- verified potential first, then installed
@@ -1753,6 +2512,8 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
      forcing letters, and last the bare diagnostic diagonal forms.  The
      representative sits in the slot of the key's FIRST occurrence, and
      the kinds it superseded travel with it as diagnostics. *)
+  multiquadraticStripStageStart["candidate letters: deduplicate",
+    <|"records" -> rawCount|>];
   kindRank = <|"RowAlphabet" -> 2, "Supplied" -> 3, "RationalFactor" -> 4,
     "Algebraic" -> 4, "ForcingDLog" -> 4, "Diagonal" -> 5|>;
   priority[rec_] := {If[TrueQ[Lookup[Lookup[rec, "Potential", <||>],
@@ -1766,26 +2527,65 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
           Lookup[group, "Kind", None], Lookup[best, "Kind", None]]|>]];
       best],
     {key, DeleteDuplicates[Lookup[records, "FormKey", {}]]}];
+  multiquadraticStripStageDone["candidate letters: deduplicate",
+    <|"records" -> Length[records]|>];
   (* ---- phase 3 (round-3 A2): a bare unverified Diagonal form that is
      an exact CONSTANT-coefficient combination of the verified letters is
      DIAGNOSTIC, not a basis vector: its column is omitted before the
      unknown layout is made, and the span certificate travels with it so
      residues on the verified letters carry the same connection. *)
-  verifiedForms = Lookup[Select[records,
-    TrueQ[Lookup[Lookup[#1, "Potential", <||>], "Verified", False]] &],
-    "OneForm", {}];
+  multiquadraticStripStageStart["candidate letters: diagonal span",
+    <|"records" -> Length[records]|>];
+  verifiedRecords = Select[records,
+    TrueQ[Lookup[Lookup[#1, "Potential", <||>], "Verified", False]] &];
+  verifiedForms = Lookup[verifiedRecords, "OneForm", {}];
+  verifiedChannelForms = Lookup[channelByFormKey,
+    Lookup[verifiedRecords, "FormKey", {}], Missing["NotRetained"]];
+  verifiedBasisImages = Automatic;
+  diagonalBatchRecords = Select[records,
+    Lookup[#1, "Kind", None] === "Diagonal" &&
+      ! TrueQ[Lookup[Lookup[#1, "Potential", <||>], "Verified", False]] &];
+  diagonalBatchChannelForms = Lookup[diagonalBatchRecords,
+    "OneFormChannels", Automatic];
+  diagonalBatchSpans = If[diagonalBatchRecords === {}, {},
+    multiquadraticStripDiagonalSpansSampled[
+      Lookup[diagonalBatchRecords, "OneForm", {}], verifiedForms, roots,
+      variables, diagonalBatchChannelForms, verifiedChannelForms,
+      verifiedBasisImages]];
+  (* The normal all-spanned route evaluates basis images lazily and stops
+     after its construction plus held-out points.  Only a mixed/refused
+     batch needs the complete reusable table for the scalar fallbacks. *)
+  If[MissingQ[diagonalBatchSpans] && diagonalBatchRecords =!= {} &&
+      verifiedChannelForms =!= {} &&
+      AllTrue[verifiedChannelForms, MatchQ[#1, {_List, _List}] &],
+    verifiedBasisImages = multiquadraticStripDiagonalSpanBasisImages[
+      verifiedChannelForms, variables]];
   diagnosticRecords = {};
   records = Fold[Function[{kept, rec},
     If[Lookup[rec, "Kind", None] === "Diagonal" &&
         ! TrueQ[Lookup[Lookup[rec, "Potential", <||>], "Verified", False]],
-      Module[{span = multiquadraticStripDiagonalSpan[
-          Lookup[rec, "OneForm", $Failed], verifiedForms, variables]},
+      Module[{diagonalForm = Lookup[rec, "OneForm", $Failed], span},
+        diagonalSpanIndex++;
+        span = If[ListQ[diagonalBatchSpans] &&
+            Length[diagonalBatchSpans] === Length[diagonalBatchRecords],
+          diagonalBatchSpans[[diagonalSpanIndex]],
+          multiquadraticStripDiagonalSpanSampled[diagonalForm,
+            verifiedForms, roots, variables,
+            Lookup[rec, "OneFormChannels", Automatic],
+            verifiedChannelForms, verifiedBasisImages]];
+        If[MissingQ[span],
+          span = multiquadraticStripDiagonalSpan[
+            diagonalForm, verifiedForms, variables]];
         If[AssociationQ[span] && TrueQ[span["Spanned"]],
           AppendTo[diagnosticRecords, Join[rec,
-            <|"Diagnostic" -> True, "SpannedBy" -> span["Coefficients"]|>]];
+            <|"Diagnostic" -> True, "SpannedBy" -> span["Coefficients"],
+              "SpanCertificate" -> KeyDrop[span, "Coefficients"]|>]];
           kept,
           Append[kept, rec]]],
       Append[kept, rec]]], {}, records];
+  multiquadraticStripStageDone["candidate letters: diagonal span",
+    <|"installed" -> Length[records],
+      "diagnostic" -> Length[diagnosticRecords]|>];
   counts = Association[Table[kind -> Count[records, item_ /;
       Lookup[item, "Kind", None] === kind],
     {kind, {"Diagonal", "ForcingDLog", "RationalFactor", "Algebraic",
@@ -4164,6 +4964,9 @@ Options[multiquadraticStripPrepare] = {
   "AlgebraicLetters" -> Automatic,
   "MaximumNormFactors" -> 2,
   "MaximumNormExponent" -> 2,
+  (* 1 = serial; 2..8 = requested Wolfram subkernels.  Automatic uses
+     already-live subkernels but launches none. *)
+  "DLogKernels" -> Automatic,
   (* absolute AbsoluteTime[] value; Infinity = unbounded, the default, so
      every existing caller is unchanged.  See the note at
      multiquadraticStripDeadlineCheckpoint: until 2026-08-25 this was the
@@ -4560,7 +5363,8 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
           "AdditionalLetters" -> OptionValue["AdditionalLetters"],
           "AlgebraicLetters" -> OptionValue["AlgebraicLetters"],
           "MaximumNormFactors" -> OptionValue["MaximumNormFactors"],
-          "MaximumNormExponent" -> OptionValue["MaximumNormExponent"]];
+          "MaximumNormExponent" -> OptionValue["MaximumNormExponent"],
+          "DLogKernels" -> OptionValue["DLogKernels"]];
         multiquadraticStripStageDone["prepare: candidate letters",
           <|"status" -> Lookup[letterRecords, "Status", None],
             "letters" -> Length[Lookup[letterRecords, "LetterRecords", {}]]|>]];
@@ -5290,7 +6094,7 @@ multiquadraticStripCompactInverse[a_List, deltas_List] := Module[
    inverse; derivative and product are exact identities of the ABI.  So
    the returned channels are the exact channels of dlog L without any
    check on the materialized tree. *)
-multiquadraticStripLetterChannelPair[letter_, roots_List,
+multiquadraticStripLetterChannelData[letter_, roots_List,
     variables : {_Symbol, _Symbol}] := Module[
   {rank = Length[roots], deltas, channels, composed, inverse, result},
   deltas = If[rank === 0, {},
@@ -5311,7 +6115,14 @@ multiquadraticStripLetterChannelPair[letter_, roots_List,
         multiquadraticMultiply[derivative, inverse, deltas]]],
     {mu, 2}];
   If[! MatchQ[result, {_List, _List}] || ! FreeQ[result, $Failed], $Failed,
-    result]
+    <|"LetterChannels" -> channels, "DLogChannels" -> result|>]
+];
+multiquadraticStripLetterChannelData[___] := $Failed;
+
+multiquadraticStripLetterChannelPair[letter_, roots_List,
+    variables : {_Symbol, _Symbol}] := Module[{data},
+  data = multiquadraticStripLetterChannelData[letter, roots, variables];
+  If[AssociationQ[data], Lookup[data, "DLogChannels", $Failed], $Failed]
 ];
 
 (* ---- COMPACT-DLOG ADMISSION (2026-08-25, Codex 14:30 P1) -----------
@@ -5344,7 +6155,8 @@ multiquadraticStripLetterChannelPair[letter_, roots_List,
    took which route and why. *)
 multiquadraticStripCompactDLogAdmission[letterRecord_, form_,
     variables : {_Symbol, _Symbol}, epsilon_Symbol, mode_] := Module[
-  {letter, certificate, derived},
+  {letter, certificate, derived, letterChannels, formChannels,
+   certificateValidQ},
   If[! AssociationQ[letterRecord],
     Return[<|"Admitted" -> False, "Reason" -> "NoLetterRecord"|>]];
   letter = Lookup[letterRecord, "Letter", Missing["NoLetter"]];
@@ -5355,9 +6167,15 @@ multiquadraticStripCompactDLogAdmission[letterRecord_, form_,
       "Reason" -> "OneFormIsNotTheRecordOneForm"|>]];
   certificate = Lookup[letterRecord, "DLogCertificate",
     Missing["NoCertificate"]];
+  letterChannels = Lookup[letterRecord, "DLogLetterChannels", $Failed];
+  formChannels = Lookup[letterRecord, "DLogChannels", $Failed];
+  certificateValidQ = If[ListQ[letterChannels] && ListQ[formChannels],
+    multiquadraticStripLetterDLogCertificateValidQ[certificate, letter,
+      form, variables, epsilon, letterChannels, formChannels],
+    multiquadraticStripLetterDLogCertificateValidQ[certificate, letter,
+      form, variables, epsilon]];
   If[mode =!= "Exact" &&
-      multiquadraticStripLetterDLogCertificateValidQ[certificate, letter,
-        form, variables, epsilon],
+      TrueQ[certificateValidQ],
     Return[<|"Admitted" -> True, "Method" -> "CertifiedTag",
       "Letter" -> letter|>]];
   If[mode === "Certified",
@@ -5399,13 +6217,33 @@ multiquadraticStripCompileOneFormEntry[form : {_, _}, letterRecord_,
     compactQ_, gradeSupport_, admissionMode_] := Module[
   {channels = $Failed, admission = <|"Admitted" -> False,
      "Reason" -> "CompactRouteDisabled"|>, path, compiled, support,
-   admissible},
+   admissible, retainedChannels, recomposed, channelCertificateQ},
   If[TrueQ[compactQ],
     admission = multiquadraticStripCompactDLogAdmission[letterRecord, form,
       variables, epsilon, admissionMode];
     If[TrueQ[admission["Admitted"]],
-      channels = multiquadraticStripLetterChannelPair[admission["Letter"],
-        roots, variables];
+      retainedChannels = Lookup[letterRecord, "DLogChannels", $Failed];
+      channelCertificateQ = Lookup[Lookup[letterRecord, "DLogCertificate",
+          <||>], "Schema", None] ===
+          $multiquadraticStripLetterDLogChannelSchema &&
+        Lookup[admission, "Method", None] === "CertifiedTag";
+      If[MatchQ[retainedChannels, {_List, _List}] &&
+          Dimensions[retainedChannels] === {2, 2^Length[roots]} &&
+          FreeQ[retainedChannels, $Failed],
+        recomposed = Quiet[
+          multiquadraticFieldCompose[#1, roots] & /@ retainedChannels];
+        (* Admission has already bound the raw letter and both channel
+           payloads (V2), or checked dlog(letter) exactly (V1/fallback).
+           Recompose only the channels that will actually be installed and
+           demand exact identity with the requested one-form. *)
+        If[SameQ[recomposed, form],
+          channels = retainedChannels]];
+      If[! MatchQ[channels, {_List, _List}],
+        If[TrueQ[channelCertificateQ],
+          admission = <|"Admitted" -> False,
+            "Reason" -> "RetainedChannelRecompositionMismatch"|>,
+          channels = multiquadraticStripLetterChannelPair[
+            admission["Letter"], roots, variables]]];
       If[! MatchQ[channels, {_List, _List}],
         admission = <|"Admitted" -> False,
           "Reason" -> "LetterChannelsUnavailable"|>]]];
@@ -8969,7 +9807,8 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
       "AdditionalLetters" -> OptionValue["AdditionalLetters"],
       "AlgebraicLetters" -> OptionValue["AlgebraicLetters"],
       "MaximumNormFactors" -> OptionValue["MaximumNormFactors"],
-      "MaximumNormExponent" -> OptionValue["MaximumNormExponent"]];
+      "MaximumNormExponent" -> OptionValue["MaximumNormExponent"],
+      "DLogKernels" -> OptionValue["DLogKernels"]];
     If[Lookup[letterData, "Status", None] =!= "MultiquadraticCandidateLettersV1",
       Return[If[AssociationQ[letterData], letterData,
         multiquadraticStripFailure["OneFormBasisFailed"]]]];

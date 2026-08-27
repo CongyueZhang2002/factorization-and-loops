@@ -35,8 +35,9 @@
    P7  Every candidate letter record carries a "Potential" verdict, and
        the letter-derived kinds are verified while the Diagonal kind is
        not.
-   P8  An alphabet containing an unverified form is NOT certified;
-       an alphabet all of whose forms are verified IS.
+   P8  An unverified diagonal form that is exactly spanned by verified
+       dlogs is diagnostic rather than installed; the resulting active
+       candidate alphabet is certified.
 
    The preparation and the terminal contract.
    P9  multiquadraticStripPrepare records the per-letter potentials, the
@@ -46,7 +47,7 @@
        A closed one-form with no verified potential stays
        non-installable. *)
 
-root = DirectoryName[ExpandFileName[$InputFileName], 3];
+root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 pass = 0; fail = 0;
@@ -152,24 +153,15 @@ check["P7 every letter-derived kind is VERIFIED",
 check["P7 the Diagonal kind carries no potential and is NOT verified",
   AllTrue[Select[records, Lookup[#1, "Kind", None] === "Diagonal" &],
     ! TrueQ[#1["Potential"]["Verified"]] &]];
-(* round-3 A2: a Diagonal closed form that certified dlogs SPAN no
-   longer stays in the alphabet as an unverified basis vector -- it is
-   pinned out of the unknown layout into DiagnosticRecords, with the
-   exact span coefficients attached.  The old assertion expected the
-   redundant direction to remain and the whole alphabet to be
-   uncertified; the correct statement is stronger: the redundancy is
-   removed, the removal carries its certificate, and the INSTALLED
-   alphabet is certified. *)
-check["P8 a Diagonal closed form spanned by certified dlogs is pinned \
-out of the layout as a diagnostic record with exact coefficients",
+diagnostics = Lookup[letters, "DiagnosticRecords", {}];
+check["P8 a spanned unverified Diagonal is diagnostic, not installed",
   ! AnyTrue[records, Lookup[#1, "Kind", None] === "Diagonal" &] &&
-    Length[Lookup[letters, "DiagnosticRecords", {}]] >= 1 &&
-    AllTrue[Lookup[letters, "DiagnosticRecords", {}],
-      TrueQ[Lookup[#1, "Diagnostic", False]] &&
+    AnyTrue[diagnostics,
+      Lookup[#1, "Kind", None] === "Diagonal" &&
+        TrueQ[Lookup[#1, "Diagnostic", False]] &&
         ListQ[Lookup[#1, "SpannedBy", None]] &]];
-check["P8 the alphabet of only the verified records IS certified",
-  certifiedQ[Select[records, Lookup[#1, "Kind", None] =!= "Diagonal" &]] ===
-    True];
+check["P8 the installed alphabet is entirely verified and certified",
+  certifiedQ[records] === True && letters["PotentialsCertified"] === True];
 report["P8 counts", KeyTake[letters,
   {"PotentialsVerified", "PotentialsRefused", "PotentialsCertified"}]];
 

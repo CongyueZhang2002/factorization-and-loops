@@ -361,11 +361,16 @@ If[FileExistsQ[stripFile] && FileExistsQ[stateFile] &&
  realAnsatz = gaugeAnsatz[realRecord, realRoots, realLetters["OneForms"],
     realDenominator];
  check["L7 the CF300 (12,9) ansatz is the measured one",
+   (* re-pinned 2026-08-27 after the Codex-unit port: the alphabet is
+      leaner (46 installed one-forms, 8 spanned diagonals pinned out as
+      diagnostics), so the merged denominator, support and unknown count
+      all shrank; the mathematical walk below is unchanged *)
    Lookup[realAnsatz, "Status", None] === "MultiquadraticGaugeAnsatzV1" &&
-     realAnsatz["GaugeDenominatorDegrees"] === {9, 9} &&
-     Length[realAnsatz["GaugeSupport"]] === 100 &&
-     Length[realLetters["OneForms"]] === 54 &&
-     realAnsatz["UnknownCount"] === 1816];
+     realAnsatz["GaugeDenominatorDegrees"] === {7, 7} &&
+     Length[realAnsatz["GaugeSupport"]] === 64 &&
+     Length[realLetters["OneForms"]] === 46 &&
+     Length[Lookup[realLetters, "DiagnosticRecords", {}]] === 8 &&
+     realAnsatz["UnknownCount"] === 1208];
  {realLadderSeconds, realLadder} = AbsoluteTiming[
     ladder[realAnsatz, "DegreeOffsetLadder" -> Automatic,
       "LeftNullSpace" -> False]];
@@ -380,8 +385,8 @@ If[FileExistsQ[stripFile] && FileExistsQ[stateFile] &&
  check["L7 the adopted rung is consistent at TWO independent images",
    Last[realRungs]["ImageCount"] === 2 &&
      Last[realRungs]["Status"] === "GaugeImageConsistent" &&
-     Last[realRungs]["SupportCount"] === 169 &&
-     Last[realRungs]["UnknownCount"] === 2920];
+     Last[realRungs]["SupportCount"] === 121 &&
+     Last[realRungs]["UnknownCount"] === 2120];
  check["L7 the adopted rung's rank equals its augmented rank at both images",
    Last[realRungs]["Ranks"] === Last[realRungs]["AugmentedRanks"]];
  report["L7 MEASURED ladder walk",

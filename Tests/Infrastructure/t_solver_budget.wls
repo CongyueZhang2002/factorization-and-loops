@@ -130,11 +130,16 @@ syntheticRecord = <|
 (* exactly the option set Tests/FiniteField/t_finite_field_strip_solve.wls uses for
    its automated solve, so the comparison is against a recorded
    expectation and not a fresh one *)
+(* enlarged 2026-08-27: the round-3 port made the fixture solve in
+   ~0.45 s, UNDER the 0.75 s floor of the self-calibrating mid-solve
+   budget, so the mid-solve deadline could never fire (the solve
+   completed first).  More epsilon samples and points stretch the solve
+   back over the floor while keeping the budget self-calibrating. *)
 finiteFieldOptions = {
   "Primes" -> {1000003},
-  "EpsilonSamples" -> ((#/(# + 20)) & /@ Range[12]),
+  "EpsilonSamples" -> ((#/(# + 40)) & /@ Range[36]),
   "NumeratorDegreeOffsets" -> {{0, 0}, {1, 0}},
-  "PointCount" -> 8,
+  "PointCount" -> 16,
   "KernelCount" -> 2,
   "ConstructionCount" -> 6,
   "MaximumTotalDegree" -> 4,

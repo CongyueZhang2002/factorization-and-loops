@@ -1345,20 +1345,33 @@ blockEquationDeferredRootFrame[roots_List, variables_List, regulator_] :=
     Return[<|"Status" -> "DependentRootSquares",
       "RootIndices" -> dependent|>]];
   rules = multiquadraticStripCanonicalRules[variables, regulator];
-  decorated = MapThread[Function[{root, index}, Module[{canonical},
+  decorated = MapThread[Function[{root, index}, Module[
+      {canonical, canonicalRoot},
       canonical = ToString[InputForm[
         multiquadraticStripCanonicalExpression[root["RootSquare"], rules]]];
+      canonicalRoot = ToString[InputForm[
+        multiquadraticStripCanonicalExpression[root["Root"], rules]]];
       Join[root, <|"SourceIndex" -> index,
         "CanonicalRootSquare" -> canonical,
-        "RootFingerprint" -> Hash[canonical, "SHA256", "HexString"]|>]]],
+        "CanonicalRootExpression" -> canonicalRoot,
+        "RootSquareFingerprint" ->
+          Hash[canonical, "SHA256", "HexString"],
+        (* A root branch is part of the basis ABI.  Opposite roots have
+           one square but opposite odd-grade coefficients, so a
+           square-only fingerprint can alias two incompatible bundles. *)
+        "RootFingerprint" -> Hash[{canonical, canonicalRoot}, "SHA256",
+          "HexString"]|>]]],
     {roots, Range[Length[roots]]}];
   decorated = SortBy[decorated,
     {Lookup[#1, "CanonicalRootSquare", ""],
+     Lookup[#1, "CanonicalRootExpression", ""],
      Lookup[#1, "RootFingerprint", ""]} &];
   <|"Status" -> "StableRootOrder", "Roots" -> decorated,
     "RootFingerprints" -> Lookup[decorated, "RootFingerprint", {}],
     "OrderingFingerprint" -> Hash[
-      Lookup[decorated, "CanonicalRootSquare", {}], "SHA256", "HexString"]|>
+      Transpose[{Lookup[decorated, "CanonicalRootSquare", {}],
+        Lookup[decorated, "CanonicalRootExpression", {}]}],
+      "SHA256", "HexString"]|>
 ];
 blockEquationDeferredRootFrame[___] := <|"Status" -> "InvalidRootMetadata"|>;
 
@@ -1615,8 +1628,11 @@ blockEquationDeferredBundleFingerprint[bundle_Association] := Hash[{
    fingerprint and the recomputed bundle fingerprint -- the enforceable
    content invariant WL has no const type for. *)
 blockEquationDeferredBundleValidate[bundle_Association] := Module[
-  {dimensions, targetOrder, expected, jobs, operandCount, identifiers,
-   frame, roots},
+  {dimensions, targetOrder, expected, jobs, operandTable, operandCount,
+   identifiers, frame, roots, variables, regulator, rules,
+   canonicalSquares, canonicalRoots, recheckedFrame, summary, factors,
+   orbits, factorCount, orbitCount, occurrences, jobIndex, termIndex, term,
+   factorIndex, operandID, occurrenceFailure, occurrenceTag},
   If[Lookup[bundle, "Schema", None] =!= $blockEquationDeferredBundleSchema ||
       Lookup[bundle, "Status", None] =!= "PreparedDeferredBundle" ||
       Lookup[bundle, "ABIVersion", None] =!=
@@ -1630,11 +1646,79 @@ blockEquationDeferredBundleValidate[bundle_Association] := Module[
   If[targetOrder =!= expected,
     Return[<|"Status" -> "TargetOrderNotLexicographic"|>]];
   jobs = Lookup[bundle, "Jobs", {}];
+  If[! ListQ[jobs] || ! AllTrue[jobs,
+      AssociationQ[#1] && ListQ[Lookup[#1, "Terms", None]] &&
+        AllTrue[Lookup[#1, "Terms", {}],
+          MatchQ[#1, {_, ids_List /; VectorQ[ids, IntegerQ]}] &] &],
+    Return[<|"Status" -> "InvalidBundleJobs"|>]];
   If[Length[jobs] =!= Length[targetOrder] ||
       ! AllTrue[Range[Length[jobs]],
         Lookup[jobs[[#1]], "Target", None] === targetOrder[[#1]] &],
     Return[<|"Status" -> "JobsMisaligned"|>]];
-  operandCount = Length[Lookup[bundle, "OperandTable", {}]];
+  frame = Lookup[bundle, "RootFrame", <||>];
+  roots = Lookup[frame, "Roots", {}];
+  variables = Lookup[bundle, "Variables", {}];
+  regulator = Lookup[bundle, "Regulator", None];
+  If[! MatchQ[variables, {_Symbol, _Symbol}] || ! SymbolQ[regulator] ||
+      ! ListQ[roots] || ! AllTrue[roots,
+        AssociationQ[#1] && KeyExistsQ[#1, "Root"] &&
+          KeyExistsQ[#1, "RootSquare"] &&
+          TrueQ[Together[#1["Root"]^2 - #1["RootSquare"]] === 0] &],
+    Return[<|"Status" -> "RootOrderFingerprintMismatch"|>]];
+  (* Re-run the mathematical frame gate: a refingerprinted artifact must
+     not be able to smuggle duplicate or dependent square classes past
+     the compiler's original check. *)
+  recheckedFrame = blockEquationDeferredRootFrame[
+    KeyTake[#1, {"Root", "RootSquare"}] & /@ roots, variables, regulator];
+  If[Lookup[recheckedFrame, "Status", None] =!= "StableRootOrder",
+    Return[<|"Status" -> "InvalidRootFrame",
+      "Reason" -> Lookup[recheckedFrame, "Status", None]|>]];
+  rules = multiquadraticStripCanonicalRules[variables, regulator];
+  canonicalSquares = ToString[InputForm[
+      multiquadraticStripCanonicalExpression[#1["RootSquare"], rules]]] & /@
+    roots;
+  canonicalRoots = ToString[InputForm[
+      multiquadraticStripCanonicalExpression[#1["Root"], rules]]] & /@ roots;
+  If[Lookup[roots, "CanonicalRootSquare", {}] =!= canonicalSquares ||
+      Lookup[roots, "CanonicalRootExpression", {}] =!= canonicalRoots ||
+      Lookup[roots, "RootSquareFingerprint", {}] =!=
+        (Hash[#1, "SHA256", "HexString"] & /@ canonicalSquares) ||
+      Lookup[roots, "RootFingerprint", {}] =!=
+        (Hash[#1, "SHA256", "HexString"] & /@
+          Transpose[{canonicalSquares, canonicalRoots}]) ||
+      Lookup[frame, "RootFingerprints", {}] =!=
+        Lookup[roots, "RootFingerprint", {}] ||
+      roots =!= SortBy[roots,
+        {Lookup[#1, "CanonicalRootSquare", ""],
+         Lookup[#1, "CanonicalRootExpression", ""],
+         Lookup[#1, "RootFingerprint", ""]} &] ||
+      Lookup[frame, "OrderingFingerprint", None] =!= Hash[
+        Transpose[{canonicalSquares, canonicalRoots}], "SHA256", "HexString"],
+    Return[<|"Status" -> "RootOrderFingerprintMismatch"|>]];
+
+  operandTable = Lookup[bundle, "OperandTable", None];
+  If[! ListQ[operandTable],
+    Return[<|"Status" -> "InvalidOperandTable"|>]];
+  operandCount = Length[operandTable];
+  If[! AllTrue[Range[operandCount], Function[index,
+      Module[{record = operandTable[[index]], recordPairs},
+        If[! AssociationQ[record], Return[False, Module]];
+        recordPairs = Lookup[record, "DenominatorFactors", None];
+        Lookup[record, "ID", None] === index &&
+          KeyExistsQ[record, "Numerator"] && ListQ[recordPairs] &&
+          AllTrue[recordPairs,
+            MatchQ[#1, {_, exponent_Integer?Positive}] &] &&
+          IntegerQ[Lookup[record, "RootMask", None]] &&
+          0 <= record["RootMask"] < 2^Length[roots] &&
+          Lookup[record, "Fingerprint", None] === Hash[
+            {record["Numerator"], recordPairs}, "SHA256", "HexString"]]]],
+    (* Preserve the historical fast integrity verdict for a stale outer
+       fingerprint.  If the caller has recomputed that fingerprint, the
+       stronger structural refusal below is the meaningful one. *)
+    If[Lookup[bundle, "BundleFingerprint", None] =!=
+        blockEquationDeferredBundleFingerprint[bundle],
+      Return[<|"Status" -> "BundleFingerprintMismatch"|>]];
+    Return[<|"Status" -> "InvalidOperandTable"|>]];
   identifiers = DeleteDuplicates[Flatten[
     Map[Function[job, Last /@ Lookup[job, "Terms", {}]], jobs]]];
   If[! AllTrue[identifiers, IntegerQ[#1] && 1 <= #1 <= operandCount &],
@@ -1642,20 +1726,60 @@ blockEquationDeferredBundleValidate[bundle_Association] := Module[
       "OperandCount" -> operandCount,
       "Invalid" -> Select[identifiers,
         ! (IntegerQ[#1] && 1 <= #1 <= operandCount) &]|>]];
-  frame = Lookup[bundle, "RootFrame", <||>];
-  roots = Lookup[frame, "Roots", {}];
-  If[! ListQ[roots] ||
-      Lookup[frame, "RootFingerprints", {}] =!=
-        (Lookup[#1, "RootFingerprint", ""] & /@ roots) ||
-      ! AllTrue[roots, Lookup[#1, "RootFingerprint", ""] ===
-        Hash[Lookup[#1, "CanonicalRootSquare", ""], "SHA256",
-          "HexString"] &] ||
-      roots =!= SortBy[roots, {Lookup[#1, "CanonicalRootSquare", ""],
-        Lookup[#1, "RootFingerprint", ""]} &] ||
-      Lookup[frame, "OrderingFingerprint", None] =!=
-        Hash[Lookup[#1, "CanonicalRootSquare", ""] & /@ roots,
-          "SHA256", "HexString"],
-    Return[<|"Status" -> "RootOrderFingerprintMismatch"|>]];
+  summary = Lookup[bundle, "DivisorSummary", None];
+  If[! AssociationQ[summary] ||
+      Lookup[summary, "Schema", None] =!= "BlockEquationDivisorSummaryV2" ||
+      ! ListQ[Lookup[summary, "Factors", None]] ||
+      ! ListQ[Lookup[summary, "GaloisOrbits", None]],
+    Return[<|"Status" -> "InvalidDivisorSummary"|>]];
+  factors = summary["Factors"];
+  orbits = summary["GaloisOrbits"];
+  factorCount = Length[factors]; orbitCount = Length[orbits];
+  If[! AllTrue[Range[factorCount], Function[index,
+      AssociationQ[factors[[index]]] &&
+        Lookup[factors[[index]], "FactorIndex", None] === index &&
+        IntegerQ[Lookup[factors[[index]], "OrbitIndex", None]] &&
+        0 <= factors[[index]]["OrbitIndex"] <= orbitCount &&
+        If[TrueQ[Lookup[factors[[index]], "Algebraic", False]],
+          factors[[index]]["OrbitIndex"] >= 1,
+          factors[[index]]["OrbitIndex"] === 0]]],
+    Return[<|"Status" -> "InvalidDivisorFactorTable"|>]];
+  If[! AllTrue[orbits, AssociationQ],
+    Return[<|"Status" -> "InvalidDivisorOrbitTable"|>]];
+
+  occurrences = Lookup[bundle, "DivisorOccurrences", None];
+  If[! ListQ[occurrences] || ! AllTrue[occurrences, AssociationQ],
+    Return[<|"Status" -> "InvalidDivisorOccurrences"|>]];
+  occurrenceTag = Unique["blockEquationDeferredOccurrenceValidation"];
+  occurrenceFailure = Catch[Do[
+    factorIndex = Lookup[occurrence, "FactorIndex", None];
+    If[! IntegerQ[factorIndex] || ! (1 <= factorIndex <= factorCount),
+      Throw[<|"Status" -> "DivisorFactorIndexOutOfBounds",
+        "FactorIndex" -> factorIndex|>, occurrenceTag]];
+    jobIndex = FirstPosition[targetOrder,
+      Lookup[occurrence, "Target", None], Missing["UnknownTarget"]];
+    If[MissingQ[jobIndex],
+      Throw[<|"Status" -> "DivisorOccurrenceTargetUnknown"|>,
+        occurrenceTag]];
+    jobIndex = First[jobIndex];
+    termIndex = Lookup[occurrence, "TermIndex", None];
+    If[! IntegerQ[termIndex] ||
+        ! (1 <= termIndex <= Length[jobs[[jobIndex]]["Terms"]]),
+      Throw[<|"Status" -> "DivisorOccurrenceTermOutOfBounds"|>,
+        occurrenceTag]];
+    term = jobs[[jobIndex]]["Terms"][[termIndex]];
+    operandID = Lookup[occurrence, "OperandID", None];
+    If[! IntegerQ[operandID] || ! MemberQ[Last[term], operandID],
+      Throw[<|"Status" -> "DivisorOccurrenceOperandMismatch"|>,
+        occurrenceTag]];
+    If[! MatchQ[Lookup[occurrence, "Exponent", None],
+        _Integer | _Rational] ||
+        ! TrueQ[Lookup[occurrence, "Exponent", None] > 0] ||
+        ! MemberQ[{"CanonicalDenominator", "ExplicitNegativePower"},
+          Lookup[occurrence, "Provenance", None]],
+      Throw[<|"Status" -> "InvalidDivisorOccurrence"|>, occurrenceTag]],
+    {occurrence, occurrences}]; None, occurrenceTag, #1 &];
+  If[AssociationQ[occurrenceFailure], Return[occurrenceFailure]];
   If[Lookup[bundle, "BundleFingerprint", None] =!=
       blockEquationDeferredBundleFingerprint[bundle],
     Return[<|"Status" -> "BundleFingerprintMismatch"|>]];
@@ -1728,8 +1852,9 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
     OptionsPattern[blockEquationDeferredCompileBundle]] := Module[
   {started = AbsoluteTime[], variables, regulator, parameters, records,
    dimensions, rootsOption, frame, squares, targetOrder, recordFor,
-   pool = <||>, frameCache = <||>, operandIndex = <||>, operandTable = {},
-   operandDivisors = <||>, factorTable = {}, factorMatchQ, registerFactor,
+   pool = <||>, frameCache = <||>, sourceOperandCache = <||>,
+   canonicalOperandIndex = <||>, operandTable = {}, factorTable = {},
+   factorMatchQ, registerFactor,
    jobs = {}, occurrences = {}, bounds = <||>, occurrenceCounts = <||>,
    rewrites = 0, failTag, failure, orbitRecords, orbitIndexOf, summary,
    factorSummaries, bundle, statistics, termCount = 0},
@@ -1787,16 +1912,23 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
     Do[Module[{record = recordFor[target], terms, jobTerms = {},
        termIndex = 0},
       terms = Lookup[record, "Terms", {}];
-      Do[Module[{coefficient, operandIDs = {}, termValuation},
+      Do[Module[{coefficient, operandIDs = {}, termSources = {},
+         termValuation, operandID},
         termIndex++; termCount++;
         coefficient = Lookup[term, "Coefficient", 1];
-        Do[Module[{identifier},
-          If[KeyExistsQ[operandIndex, operand],
-            identifier = operandIndex[operand],
-            (* first encounter: steps 2-4 for this operand *)
+        Do[Module[{identifier, sourceData},
+          If[KeyExistsQ[sourceOperandCache, operand],
+            sourceData = sourceOperandCache[operand];
+            identifier = sourceData["OperandID"],
+            (* A source spelling owns its provenance, while an evaluated
+               operand is interned by the canonical numerator/factor
+               record.  Conflating these two identities either evaluates
+               equivalent spellings twice or assigns one spelling's
+               explicit divisors to another. *)
             Module[{canonicalized, canonicalExpr, interned,
               canonicalFactors, explicitFactors = <||>, routeMaps,
-              mergedValuation = <||>, pairs},
+              factorRoutes, mergedValuation, pairs, pairData, canonicalKey,
+              canonicalValue, canonicalMask},
              canonicalized = If[KeyExistsQ[frameCache, operand],
                frameCache[operand],
                frameCache[operand] = blockEquationDeferredFrameCanonicalize[
@@ -1809,9 +1941,8 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
                canonicalExpr, pool];
              canonicalFactors = interned[[2]];
              (* step 3, the pre-cancellation collection: the explicit
-                negative powers of the frame-canonical spelling, kept
-                even where Together's canonical form has already
-                cancelled or rationalized them away *)
+                negative powers of THIS source spelling, kept even when
+                its canonical value is shared with another spelling *)
              Do[Module[{list = Quiet[FactorList[First[pair]]]},
                If[ListQ[list],
                  Do[If[! NumericQ[First[entry]],
@@ -1826,38 +1957,47 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
              routeMaps = <|
                "CanonicalDenominator" -> Normal[canonicalFactors],
                "ExplicitNegativePower" -> Normal[explicitFactors]|>;
-             identifier = Length[operandTable] + 1;
-             operandIndex[operand] = identifier;
-             (* per-route occurrences with exact valuations, and the
-                merged per-factor maximum for the entry bound: exact
-                totals WITHIN a route, the conservative maximum ACROSS
-                the two routes *)
-             operandDivisors[identifier] = <|
-               "Routes" -> Association @ KeyValueMap[
-                 Function[{route, factorRules}, route -> Map[
-                   Function[rule, {registerFactor[First[rule]],
-                     Last[rule]}], factorRules]],
-                 routeMaps]|>;
-             operandDivisors[identifier, "Merged"] = Merge[
+             factorRoutes = Association @ KeyValueMap[
+               Function[{route, factorRules}, route -> Map[
+                 Function[rule, {registerFactor[First[rule]], Last[rule]}],
+                 factorRules]], routeMaps];
+             mergedValuation = Merge[
                Map[Function[routeList, Module[{accumulated = <||>},
                    Do[accumulated[First[entry]] =
                        Lookup[accumulated, First[entry], 0] + Last[entry],
                      {entry, routeList}];
-                   accumulated]],
-                 Values[operandDivisors[identifier, "Routes"]]], Max];
+                   accumulated]], Values[factorRoutes]], Max];
              pairs = SortBy[Normal[canonicalFactors],
                ToString[InputForm[First[#1]]] &];
-             AppendTo[operandTable, <|"ID" -> identifier,
-               "Numerator" -> interned[[1]],
-               "DenominatorFactors" -> ({First[#1], Last[#1]} & /@ pairs),
-               "RootMask" -> Total[2^(canonicalized["RootIndices"] - 1)],
-               "Fingerprint" -> Hash[{interned[[1]], pairs},
-                 "SHA256", "HexString"]|>]]];
-          AppendTo[operandIDs, identifier]],
+             pairData = {First[#1], Last[#1]} & /@ pairs;
+             canonicalKey = {interned[[1]], pairData};
+             If[KeyExistsQ[canonicalOperandIndex, canonicalKey],
+               identifier = canonicalOperandIndex[canonicalKey],
+               identifier = Length[operandTable] + 1;
+               canonicalOperandIndex[canonicalKey] = identifier;
+               canonicalValue = interned[[1]]/
+                 Times @@ (Power[First[#1], Last[#1]] & /@ pairData);
+               canonicalMask = blockEquationDeferredFactorRootMask[
+                 canonicalValue, squares];
+               If[canonicalMask === $Failed,
+                 Throw[<|"Status" -> "RadicalOutsideDeclaredFrame"|>,
+                   failTag]];
+               AppendTo[operandTable, <|"ID" -> identifier,
+                 "Numerator" -> interned[[1]],
+                 "DenominatorFactors" -> pairData,
+                 "RootMask" -> canonicalMask,
+                 "Fingerprint" -> Hash[{interned[[1]], pairData},
+                   "SHA256", "HexString"]|>]];
+             sourceData = <|"OperandID" -> identifier,
+               "Routes" -> factorRoutes, "Merged" -> mergedValuation|>;
+             sourceOperandCache[operand] = sourceData]];
+          AppendTo[operandIDs, identifier];
+          AppendTo[termSources, sourceData]],
           {operand, Lookup[term, "Operands", {}]}];
         (* the exact per-term valuation = the sum of the term's operand
            valuations, recorded per route with full provenance *)
         Do[
+          operandID = operandIDs[[operandPosition]];
           Do[
             AppendTo[occurrences, <|"FactorIndex" -> First[entry],
               "Exponent" -> Last[entry], "Target" -> target,
@@ -1865,12 +2005,12 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
               "Provenance" -> route|>];
             occurrenceCounts[First[entry]] =
               Lookup[occurrenceCounts, First[entry], 0] + 1,
-            {entry, Lookup[operandDivisors[operandID, "Routes"],
+            {entry, Lookup[termSources[[operandPosition]]["Routes"],
               route, {}]}],
-          {operandID, operandIDs},
+          {operandPosition, Length[operandIDs]},
           {route, {"CanonicalDenominator", "ExplicitNegativePower"}}];
-        termValuation = Merge[
-          Map[operandDivisors[#1, "Merged"] &, operandIDs], Total];
+        termValuation = If[termSources === {}, <||>,
+          Merge[Lookup[termSources, "Merged", <||>], Total]];
         KeyValueMap[Function[{factorIndex, valuation},
           bounds[{factorIndex, target}] = Max[
             Lookup[bounds, Key[{factorIndex, target}], 0], valuation]],

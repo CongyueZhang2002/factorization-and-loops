@@ -355,11 +355,16 @@ If[FileExistsQ[stripFile] && FileExistsQ[channelFile] &&
     normFactor[letters["LetterRecords"], variables], variables];
  realAnsatz = gaugeAnsatz[record, roots, letters["OneForms"], merged];
  check["G11 the CF300 (12,9) ansatz is the measured one",
+   (* re-pinned 2026-08-27 after the Codex-unit carry-over: the leaner
+      alphabet (46 installed one-forms, 8 spanned diagonals pinned out)
+      shrinks the merged denominator, support and unknown count; same
+      re-pin as L7 of the ladder suite, measured on the same frozen
+      block *)
    Lookup[realAnsatz, "Status", None] === "MultiquadraticGaugeAnsatzV1" &&
-     realAnsatz["GaugeDenominatorDegrees"] === {9, 9} &&
-     Length[realAnsatz["GaugeSupport"]] === 100 &&
-     Length[letters["OneForms"]] === 54 &&
-     realAnsatz["UnknownCount"] === 1816];
+     realAnsatz["GaugeDenominatorDegrees"] === {7, 7} &&
+     Length[realAnsatz["GaugeSupport"]] === 64 &&
+     Length[letters["OneForms"]] === 46 &&
+     realAnsatz["UnknownCount"] === 1208];
  report["G11 CF300 ansatz", KeyTake[realAnsatz, {"GaugeDenominatorDegrees",
    "GaugeUnknownCount", "ResidueUnknownCount", "UnknownCount"}]];
 
@@ -398,8 +403,12 @@ If[FileExistsQ[stripFile] && FileExistsQ[channelFile] &&
  check["G12 the screen's measurement of that block is internally consistent",
    MemberQ[{"GaugeImageObstruction", "GaugeImageConsistent"},
        Lookup[realScreen, "Status", None]] &&
-     realScreen["MatrixDimensions"] === {1856, 1816} &&
-     realScreen["UnknownCount"] === 1816 &&
+     (* re-pinned 2026-08-27: unknown count is the exact invariant of
+        the leaner alphabet; the row count is the screen's own point
+        budget and is asserted structurally (it must cover the
+        unknowns), not as a magic number *)
+     MatchQ[realScreen["MatrixDimensions"], {r_Integer, 1208} /; r >= 1208] &&
+     realScreen["UnknownCount"] === 1208 &&
      MemberQ[{realScreen["Rank"], realScreen["Rank"] + 1},
        realScreen["AugmentedRank"]]];
  check["G12 a defect, if present, comes with an exactly verified witness",
@@ -439,8 +448,10 @@ If[FileExistsQ[stripFile] && FileExistsQ[channelFile] &&
       "RegulatorValue" -> 1/13, "RandomSeed" -> 20260825,
       "LeftNullSpace" -> False]];
  check["G14 numerator degree three above the denominator repairs the block",
-   Length[offsetAnsatz["GaugeSupport"]] === 169 &&
-     offsetAnsatz["UnknownCount"] === 2920 &&
+   (* re-pinned 2026-08-27, leaner ported alphabet: matches the {3,3}
+      rung of the ladder suite's measured walk *)
+   Length[offsetAnsatz["GaugeSupport"]] === 121 &&
+     offsetAnsatz["UnknownCount"] === 2120 &&
      Lookup[offsetScreen, "Status", None] === "GaugeImageConsistent" &&
      offsetScreen["Defect"] === 0 &&
      offsetScreen["Rank"] === offsetScreen["AugmentedRank"]];
@@ -589,8 +600,10 @@ modular obstruction, not a Q(eps) theorem",
        (configured plus fresh) instead of hard-coding TWO *)
     StringContainsQ[solveSource,
       "independent (prime, regulator) images ("] &&
-    StringContainsQ[solveSource,
-      "It is not an unconditional theorem over Q(eps)"]];
+    (* the sentence is assembled from adjacent StringJoin pieces, so
+       the grep must not span a literal boundary (2026-08-27) *)
+    StringContainsQ[solveSource, "It is not an unconditional"] &&
+    StringContainsQ[solveSource, "theorem over Q(eps)"]];
 (* BEHAVIOURAL (2026-08-25): the source-text form of this assertion broke
    on a pure reformatting of the call it greps for, which is exactly the
    brittleness Codex flagged for S12.  The statement that matters is that
