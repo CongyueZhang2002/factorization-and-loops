@@ -68,17 +68,17 @@ OPEN REDS, your starting queue:
 4. t_radical_denesting - red in shared mode (16 failures, the whole
    CF303 denesting feature set); clean-engine verdict NOT yet taken.
    Same attribution question as (3).
-5. The Kira standalone set (t_canonical_pipeline, t_ghost_card_
-   pipeline, t_registry_seeding, t_streaming_kira_import) - mid-run in
-   the solo chain at handover; read
-   /tmp/claude-1000/-home-maxzhang/9e941be4-c161-4634-89fb-8d0804f16b66/tasks/b4r0m6bcs.output
-   (or re-run; each needs its own main kernel, two at a time fits the
-   seat budget).
+5. RESOLVED before the session closed: the whole Kira standalone set
+   passes solo - t_canonical_pipeline 23/0, t_ghost_card_pipeline 6/0,
+   t_registry_seeding 6/0, t_streaming_kira_import 19/0. The entire
+   Kira red cluster was pool-harness artifact; no real failure. Your
+   open queue is therefore ONLY the chart cluster: items 1-4 above.
 
 ## Live at handover
 
-- The solo chain (paired, two main kernels at a time) may still be
-  running the Kira set. Machine otherwise quiet; pool6 exited cleanly.
+- The solo chain completed before close: every remaining alone-only
+  test green. Machine quiet; pool6 exited cleanly; no compute of ours
+  is running at handover.
 - The standing Opus watchdog stands down with this note; its state
   files are under the session scratchpad (watchdog/heartbeat5.log,
   findings5.log) and die with the session.
