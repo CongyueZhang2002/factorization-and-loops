@@ -1,4 +1,13 @@
-# Session transfer note — updated 2026-08-26 12:05 PDT (Fable)
+# Session transfer note — updated 2026-08-27 02:58 PDT (Fable)
+
+## State (02:58): CODEX TAKES OVER. Read
+## Exchange/Fable/2026-08-27/01_round3_state_and_handover.md — it is
+## the complete authoritative handover (commits through 94ec15b, the
+## verification table, the four open red clusters with their
+## attribution experiment, tonight's operational facts, and the
+## B1/B2/B3/C1 queue). Everything below this line is history.
+
+# Superseded below — updated 2026-08-26 12:05 PDT (Fable)
 
 ## State (12:05): ROUND-3 WAVE A MID-FLIGHT, UNCOMMITTED — session cut
 ## at the user's usage limit; RESUME HERE
