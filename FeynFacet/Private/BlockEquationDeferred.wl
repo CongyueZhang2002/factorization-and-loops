@@ -15,7 +15,7 @@
    whose Together does one polynomial gcd per pair of terms.
 
    THE CONTRACT this file implements is Codex's Q5 review
-   (External/CodexExchange/triple_root_cf300_129_2026-08-24/
+   (Exchange/Fable/2026-08-24/01_cf300_12_9_state_and_reply/
    codex_response_to_fable_cf300_129_2026-08-24.md), points 1-4, 6 and 8:
 
      1. a sparse tagged term DAG is kept for the accumulated object; the
@@ -139,7 +139,22 @@ ClearAll[
   blockEquationDeferredAssembleJob,
   blockEquationDeferredBatchPlan,
   blockEquationDeferredMaterializeTask,
-  $blockEquationDeferredABIVersion
+  blockEquationDeferredRootFrame,
+  blockEquationDeferredGradeReduceRules,
+  blockEquationDeferredGradeReduce,
+  blockEquationDeferredGradeChannels,
+  blockEquationDeferredAlgebraicZeroQ,
+  blockEquationDeferredFrameCanonicalize,
+  blockEquationDeferredFactorRootMask,
+  blockEquationDeferredFactorOrbit,
+  blockEquationDeferredBundleTargetOrder,
+  blockEquationDeferredBundleFingerprint,
+  blockEquationDeferredBundleValidate,
+  blockEquationDeferredBundleEvaluate,
+  blockEquationDeferredCompileBundle,
+  blockEquationDeferredCompileBundleWithCache,
+  $blockEquationDeferredABIVersion,
+  $blockEquationDeferredBundleSchema
 ];
 
 $blockEquationDeferredABIVersion = "BlockEquationDeferredV1";
@@ -685,7 +700,8 @@ blockEquationDeferredAssembleJob[operands_List, job_List, cancelQ_,
   (* WHAT IS DELIBERATELY NOT DONE HERE.  The obvious completion is to
      rationalize each algebraic denominator factor A + B r by its norm
      A^2 - B^2 D (Codex Q2's "correct first family").  MEASURED
-     2026-08-25 on the algebraic fixture of Tests/t_construction_dag:
+     2026-08-25 on the algebraic fixture of
+     Tests/Multiquadratic/t_construction_dag:
      it is exact, cheap (0.38 s) and yields the SMALLEST entries of all
      three routes -- and it is wrong for this pipeline, because it
      removes the algebraic letters from the forcing's denominators
@@ -791,7 +807,15 @@ Options[blockEquationDeferredMaterialize] = {
   "Parallel" -> Automatic, "Helpers" -> Automatic,
   "BatchByteCap" -> Automatic, "BatchDispatcher" -> Automatic,
   "BatchTimeout" -> 7200, "Progress" -> True,
-  "ProgressInterval" -> Automatic, "Label" -> "block"};
+  "ProgressInterval" -> Automatic, "Label" -> "block",
+  (* an already interned pool (operand expression -> {numerator, factor
+     -> exponent}) to seed phase 1 with, so a caller that has ALREADY
+     canonicalized every operand -- the round-3 bundle compiler -- does
+     not pay the Together/FactorList of each distinct operand a second
+     time.  A seed key is reused on a SameQ hit only, exactly like the
+     pool's own entries; anything else is re-derived, so a wrong seed
+     costs time, never a value. *)
+  "SeedPool" -> <||>};
 
 blockEquationDeferredMaterialize[preparation_Association,
     OptionsPattern[]] := Module[
@@ -821,6 +845,7 @@ blockEquationDeferredMaterialize[preparation_Association,
   records = Lookup[preparation, "Records", {}];
   dimensions = preparation["Dimensions"];
   requested = OptionValue["Targets"];
+  If[AssociationQ[OptionValue["SeedPool"]], pool = OptionValue["SeedPool"]];
   cancelQ = TrueQ[OptionValue["Cancel"]];
   progressQ = TrueQ[OptionValue["Progress"]];
   progressInterval = Replace[OptionValue["ProgressInterval"],
@@ -1139,8 +1164,16 @@ blockEquationDeferredDivisorMetadata[forcing_, variables_List,
     denominators], 1];
   radicalBases = DeleteDuplicates[
     Flatten[transportChartRadicalBases /@ denominators]];
-  roots = Replace[OptionValue["Roots"], Automatic :>
-    (<|"Root" -> Sqrt[#1], "RootSquare" -> #1|> & /@ radicalBases)];
+  (* Codex round-3 A3: "Roots" -> Automatic must NOT manufacture an
+     independent generator from every observed radical base -- Sqrt[d1 d2]
+     is the grade {1,2} product of two declared generators, not a third
+     one, and a dependent set inflates the orbit exponentially.  With no
+     DECLARED frame the orbit and the norm of an algebraic factor are
+     simply not derivable here, and the record says so with a typed
+     Missing instead of an invented root tower.  The pre-cancellation
+     bundle (blockEquationDeferredCompileBundle below) is the product
+     that carries the declared frame. *)
+  roots = Replace[OptionValue["Roots"], Automatic -> {}];
   If[! MatchQ[roots, {___Association}], roots = {}];
   (* multiplicity = the highest power the factor reaches in any single
      entry's denominator; a factor's exponent is never summed across
@@ -1165,22 +1198,38 @@ blockEquationDeferredDivisorMetadata[forcing_, variables_List,
   norm[factor_] := Quiet[Expand[Together[Times @@ conjugates[factor]]]];
   algebraicFactors = Table[
     Module[{factor = First[First[group]], orbit},
-      orbit = conjugates[factor];
-      <|"Factor" -> factor,
-        "MaximumMultiplicity" -> Max[Last /@ group],
-        "Occurrences" -> Length[group],
-        "Algebraic" -> True,
-        "RadicalBases" -> transportChartRadicalBases[factor],
-        "OrbitSize" -> Length[orbit],
-        "Orbit" -> orbit,
-        "Norm" -> norm[factor],
-        "NormFactors" -> Module[{list = Quiet[FactorList[norm[factor]]]},
-          If[ListQ[list], Select[Rest[list], ! NumericQ[First[#1]] &], {}]]|>],
+      If[roots === {},
+        <|"Factor" -> factor,
+          "MaximumMultiplicity" -> Max[Last /@ group],
+          "Occurrences" -> Length[group],
+          "Algebraic" -> True,
+          "RadicalBases" -> transportChartRadicalBases[factor],
+          "OrbitSize" -> Missing["RootFrameRequired"],
+          "Orbit" -> Missing["RootFrameRequired"],
+          "Norm" -> Missing["RootFrameRequired"],
+          "NormFactors" -> {}|>,
+        orbit = conjugates[factor];
+        <|"Factor" -> factor,
+          "MaximumMultiplicity" -> Max[Last /@ group],
+          "Occurrences" -> Length[group],
+          "Algebraic" -> True,
+          "RadicalBases" -> transportChartRadicalBases[factor],
+          "OrbitSize" -> Length[orbit],
+          "Orbit" -> orbit,
+          "Norm" -> norm[factor],
+          "NormFactors" -> Module[{list = Quiet[FactorList[norm[factor]]]},
+            If[ListQ[list], Select[Rest[list], ! NumericQ[First[#1]] &],
+              {}]]|>]],
     {group, Select[groups, ! FreeQ[First[First[#1]],
       Power[_, _Rational?(Denominator[#1] === 2 &)]] &]}];
-  orbitOf = DeleteDuplicates[Lookup[algebraicFactors, "Orbit", {}],
-    Sort[ToString[InputForm[#1]] & /@ #1] ===
-      Sort[ToString[InputForm[#2]] & /@ #2] &];
+  (* named Function deliberately: the previous nested-slot comparator
+     (ToString[InputForm[#2]]& inside a two-argument &) raised
+     Function::slotn on every multi-orbit metadata call *)
+  orbitOf = If[roots === {}, {},
+    DeleteDuplicates[Lookup[algebraicFactors, "Orbit", {}],
+      Function[{orbitA, orbitB},
+        Sort[ToString[InputForm[#1]] & /@ orbitA] ===
+          Sort[ToString[InputForm[#1]] & /@ orbitB]]]];
   orbits = Table[
     <|"Representative" -> First[orbit], "OrbitSize" -> Length[orbit],
       "Members" -> orbit, "Norm" -> norm[First[orbit]]|>,
@@ -1188,6 +1237,7 @@ blockEquationDeferredDivisorMetadata[forcing_, variables_List,
   <|"Schema" -> $blockEquationDeferredDivisorSchema, "Status" -> "OK",
     "Variables" -> variables,
     "RadicalBases" -> radicalBases,
+    "RootFrameDeclared" -> roots =!= {},
     "DistinctDenominators" -> Length[denominators],
     "RationalFactors" -> rationalFactors,
     "AlgebraicFactors" -> algebraicFactors,
@@ -1195,6 +1245,723 @@ blockEquationDeferredDivisorMetadata[forcing_, variables_List,
     "Seconds" -> N[AbsoluteTime[] - started]|>
 ];
 blockEquationDeferredDivisorMetadata[___] := <|"Status" -> "InvalidInput"|>;
+
+(* ---- THE PRE-CANCELLATION DEFERRED BUNDLE (2026-08-26, round 3 A3;
+   Codex codex_round3_detailed_fix_instructions section A3) ------------
+
+   THE DEFECT THIS REPLACES.  blockEquationDeferredDivisorMetadata above
+   reads Together of the MATERIALIZED forcing, so a divisor lost to
+   cancellation before that point cannot be recovered from it; the
+   preserved DeferredDAG is the raw record forest, so the measured
+   interning phase was repeated by every downstream consumer; and
+   "Roots" -> Automatic manufactured an independent generator from every
+   observed radical base.  The bundle below is built from the deferred
+   term records BEFORE any summation, cancellation or materialization.
+
+   THE CONTRACT (Codex A3, verbatim fields):
+
+     <|"Schema" -> "BlockEquationDeferredBundleV2",
+       "Status" -> "PreparedDeferredBundle",
+       "ABIVersion", "Variables", "Regulator", "Parameters",
+       "RootFrame" -> <|"Roots", "RootFingerprints",
+         "OrderingFingerprint"|>,
+       "Dimensions" -> {2, nUpper, nLower},
+       "TargetOrder" (complete, unique, lexicographic),
+       "OperandTable" (canonical numerator, ordered denominator
+         factor/exponent pairs, active-root mask, fingerprint),
+       "Jobs" (aligned with TargetOrder; terms are
+         {exactCoefficient, {operandID..}}),
+       "DivisorOccurrences" (source target/term/operand provenance),
+       "DivisorSummary", "SourceFingerprint", "BundleFingerprint",
+       "Statistics"|>
+
+   IMMUTABILITY.  The returned bundle is plain data: no delayed rules,
+   closures, mutable pool symbols or memoized downvalues -- construction
+   mutates only builders local to the compiler.  Consumers treat it as
+   read-only, keep derived caches OUTSIDE it keyed by BundleFingerprint,
+   and validate it first (blockEquationDeferredBundleValidate: schema,
+   dimensions, root-order fingerprint, target coverage, operand-ID
+   bounds, recomputed bundle fingerprint).  "Statistics" carries wall
+   times and is the one field outside the fingerprint.
+
+   BUILD ORDER (Codex A3, mandatory): (1) canonical independent root
+   records from the caller's frame -- never synthesized from observed
+   radicals; (2) every operand canonicalized/denested into that frame
+   through the SHARED exact denester (transportChartDenestRadicalBase +
+   the numerically sign-fixed rewrite), so Sqrt[Delta1 Delta2] becomes
+   the grade {1,2} product of the two declared generators and is never
+   registered as a third one; (3) explicit negative powers and canonical
+   denominator factors collected with source target/term/operand
+   provenance BEFORE any term is summed; (4) canonical operands interned
+   and immutable jobs built; (5) divisor orbits generated from the
+   occurrences, each orbit norm validated in the grade algebra; (6)
+   materialization only as the explicit oracle/artifact mode of the
+   driver entry point.  Typed refusals: DeferredRootFrameRequired
+   (algebraic content, no frame), RadicalOutsideDeclaredFrame (a radical
+   outside the declared square-class span), DependentRootSquares /
+   DuplicateRootSquares (an invalid frame, refused BEFORE orbit
+   generation).
+
+   POLE-ORDER LABELS (Codex A3, "do not overstate pre-cancellation
+   multiplicities").  Per-term divisor valuations are exact statements
+   about the SOURCES; after summation they bound the entry's pole order
+   from above, because leading poles can cancel.  The summary therefore
+   carries EntryPoleOrderUpperBound (the maximum source pole order,
+   safe for candidate-letter discovery, CONSERVATIVE as an ansatz
+   denominator) and CertifiedEntryPoleOrder -> None until a divisor
+   support census proves noncancellation.  Nothing here labels the
+   source maximum as an exact forcing multiplicity. *)
+
+$blockEquationDeferredBundleSchema = "BlockEquationDeferredBundleV2";
+
+(* ---- the canonical independent root frame -------------------------- *)
+
+(* The caller's root records ({<|"Root" -> Sqrt[q], "RootSquare" -> q|>
+   ..}, the shape MultiquadraticStripSolve's root order produces) are
+   validated and put into the solver's canonical order.  The dependence
+   test is the solver's own (multiquadraticStripSquareClassSquareQ,
+   called read-only): {x, y, x y} has rank two, and a dependent set must
+   be refused BEFORE any orbit is generated. *)
+blockEquationDeferredRootFrame[roots_List, variables_List, regulator_] :=
+  Module[{squares, duplicates, dependent, rules, decorated},
+  If[roots === {},
+    Return[<|"Status" -> "StableRootOrder", "Roots" -> {},
+      "RootFingerprints" -> {},
+      "OrderingFingerprint" -> Hash[{}, "SHA256", "HexString"]|>]];
+  If[! AllTrue[roots, AssociationQ[#1] && KeyExistsQ[#1, "Root"] &&
+      KeyExistsQ[#1, "RootSquare"] &&
+      TrueQ[Together[#1["Root"]^2 - #1["RootSquare"]] === 0] &],
+    Return[<|"Status" -> "InvalidRootMetadata"|>]];
+  squares = Together /@ Lookup[roots, "RootSquare"];
+  duplicates = Select[Subsets[Range[Length[roots]], {2}],
+    TrueQ[Together[squares[[#1[[1]]]] - squares[[#1[[2]]]]] === 0] &];
+  If[duplicates =!= {},
+    Return[<|"Status" -> "DuplicateRootSquares",
+      "DuplicatePairs" -> duplicates|>]];
+  dependent = FirstCase[Rest[Subsets[Range[Length[roots]]]],
+    subset_ /; TrueQ[multiquadraticStripSquareClassSquareQ[
+      Times @@ squares[[subset]]]] :> subset, None];
+  If[dependent =!= None,
+    Return[<|"Status" -> "DependentRootSquares",
+      "RootIndices" -> dependent|>]];
+  rules = multiquadraticStripCanonicalRules[variables, regulator];
+  decorated = MapThread[Function[{root, index}, Module[{canonical},
+      canonical = ToString[InputForm[
+        multiquadraticStripCanonicalExpression[root["RootSquare"], rules]]];
+      Join[root, <|"SourceIndex" -> index,
+        "CanonicalRootSquare" -> canonical,
+        "RootFingerprint" -> Hash[canonical, "SHA256", "HexString"]|>]]],
+    {roots, Range[Length[roots]]}];
+  decorated = SortBy[decorated,
+    {Lookup[#1, "CanonicalRootSquare", ""],
+     Lookup[#1, "RootFingerprint", ""]} &];
+  <|"Status" -> "StableRootOrder", "Roots" -> decorated,
+    "RootFingerprints" -> Lookup[decorated, "RootFingerprint", {}],
+    "OrderingFingerprint" -> Hash[
+      Lookup[decorated, "CanonicalRootSquare", {}], "SHA256", "HexString"]|>
+];
+blockEquationDeferredRootFrame[___] := <|"Status" -> "InvalidRootMetadata"|>;
+
+(* ---- the canonical grade algebra ------------------------------------ *)
+
+(* Declared radicals become polynomial generators s_i with s_i^2 = q_i,
+   exactly as the shared denester's internal reduction; every statement
+   about an algebraic factor (conjugates, norms, zero tests) is made in
+   this basis, never by pattern-matching printed radicals. *)
+blockEquationDeferredGradeReduceRules[squares_List, symbols_List] :=
+  Table[With[{s = symbols[[i]], q = squares[[i]]},
+    s^exponent_Integer /; (exponent < 0 || exponent >= 2) :>
+      q^((exponent - Mod[exponent, 2])/2) s^Mod[exponent, 2]],
+    {i, Length[symbols]}];
+
+(* an s-polynomial (multilinear after reduction) from an expression whose
+   symbolic radical bases all lie in `squares`; $Failed otherwise.  A
+   numeric radical (Sqrt[2]) is a constant of the coefficient field and
+   rides along. *)
+blockEquationDeferredGradeReduce[expr_, squares_List, symbols_List] :=
+  Module[{unmatched = {}, substituted, rules},
+  substituted = expr /.
+    Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
+      Module[{position = FirstPosition[squares,
+          q_ /; TrueQ[Together[base - q] === 0], Missing["NoRoot"], {1},
+          Heads -> False]},
+        Which[
+          ! MissingQ[position], symbols[[First[position]]]^(2 exponent),
+          NumericQ[base], Power[base, exponent],
+          True, AppendTo[unmatched, base]; Power[base, exponent]]];
+  If[unmatched =!= {}, Return[$Failed]];
+  rules = blockEquationDeferredGradeReduceRules[squares, symbols];
+  FixedPoint[Expand[#1 /. rules] &, Expand[substituted]]
+];
+
+(* mask -> channel coefficient, mask bit i-1 = generator s_i present *)
+blockEquationDeferredGradeChannels[reduced_, symbols_List] :=
+  Association @ Table[mask -> Fold[
+      Function[{value, i}, Coefficient[value, symbols[[i]],
+        If[BitGet[mask, i - 1] === 1, 1, 0]]],
+      reduced, Range[Length[symbols]]],
+    {mask, 0, 2^Length[symbols] - 1}];
+
+(* exact zero over the declared multiquadratic field: substitute, clear
+   the generators from the denominator by conjugation, and require every
+   grade channel of the numerator to vanish.  $Failed on an undeclared
+   symbolic radical -- never a silent False. *)
+blockEquationDeferredAlgebraicZeroQ[expr_, squares_List] := Module[
+  {symbols, unmatched = {}, substituted, rules, reduce, together,
+   numerator, denominator, conjugate, i},
+  symbols = Table[Unique["FeynFacet`Private`bedGradeRoot"],
+    {Length[squares]}];
+  substituted = expr /.
+    Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
+      Module[{position = FirstPosition[squares,
+          q_ /; TrueQ[Together[base - q] === 0], Missing["NoRoot"], {1},
+          Heads -> False]},
+        Which[
+          ! MissingQ[position], symbols[[First[position]]]^(2 exponent),
+          NumericQ[base], Power[base, exponent],
+          True, AppendTo[unmatched, base]; Power[base, exponent]]];
+  If[unmatched =!= {}, Return[$Failed]];
+  rules = blockEquationDeferredGradeReduceRules[squares, symbols];
+  reduce[p_] := FixedPoint[Expand[#1 /. rules] &, Expand[p]];
+  together = Together[substituted];
+  numerator = reduce[Numerator[together]];
+  denominator = reduce[Denominator[together]];
+  Do[If[! FreeQ[denominator, symbols[[i]]],
+      conjugate = reduce[denominator /. symbols[[i]] -> -symbols[[i]]];
+      numerator = reduce[numerator conjugate];
+      denominator = reduce[denominator conjugate]],
+    {i, Length[symbols]}];
+  If[symbols =!= {} && ! FreeQ[denominator, Alternatives @@ symbols],
+    Return[$Failed]];
+  AllTrue[Values[blockEquationDeferredGradeChannels[numerator, symbols]],
+    TrueQ[Together[#1] === 0] &]
+];
+
+(* ---- canonicalization of one operand into the declared frame -------- *)
+
+(* Build-order step 2.  A radical base that is not literally a declared
+   square is denested through the SHARED exact denester with its
+   numerically sign-fixed rewrite (TransportCharts), so Sqrt[Delta1
+   Delta2] is rewritten to the grade {1,2} product of the declared
+   generators.  A base outside the declared square-class span is the
+   typed RadicalOutsideDeclaredFrame; symbolic radicals with no frame at
+   all are DeferredRootFrameRequired.  A numeric radicand is a constant
+   of the coefficient field, as everywhere else in this repository. *)
+blockEquationDeferredFrameCanonicalize[expr_, frame_Association,
+    variables_List] := Module[
+  {roots, squares, oddPowers, radicals, symbolic, matched, unmatched,
+   denested, failed, canonical, survivors, badSurvivors, indices},
+  roots = Lookup[frame, "Roots", {}];
+  squares = Together /@ (Lookup[#1, "RootSquare", 0] & /@ roots);
+  oddPowers = DeleteDuplicates[Cases[expr,
+    Power[base_ /; ! NumericQ[base],
+      exponent_Rational /; Denominator[exponent] > 2] :> base,
+    {0, Infinity}, Heads -> True]];
+  If[oddPowers =!= {},
+    Return[<|"Status" -> "UnsupportedAlgebraicPower",
+      "Bases" -> oddPowers|>]];
+  radicals = transportChartRadicalBases[expr];
+  symbolic = Select[radicals, ! NumericQ[#1] &];
+  If[symbolic === {},
+    Return[<|"Status" -> "OK", "Expression" -> expr,
+      "RootIndices" -> {}, "Denested" -> 0|>]];
+  If[roots === {},
+    Return[<|"Status" -> "DeferredRootFrameRequired",
+      "RadicalBases" -> symbolic|>]];
+  matched[base_] := FirstPosition[squares,
+    q_ /; TrueQ[Together[base - q] === 0], Missing["NoRoot"], {1},
+    Heads -> False];
+  unmatched = Select[symbolic, MissingQ[matched[#1]] &];
+  denested = Association @ Map[
+    Function[base, base ->
+      transportChartDenestRadicalBase[base, roots, variables]],
+    unmatched];
+  failed = Select[denested, Lookup[#1, "Status", None] =!= "Denested" &];
+  If[failed =!= <||>,
+    Return[<|"Status" -> "RadicalOutsideDeclaredFrame",
+      "RadicalBases" -> Keys[failed], "Detail" -> Values[failed]|>]];
+  canonical = If[denested === <||>,
+    <|"Status" -> "OK", "Expression" -> expr, "Rewritten" -> 0|>,
+    transportChartCanonicalizeDenestedRadicals[expr, roots, variables,
+      denested]];
+  If[Lookup[canonical, "Status", None] =!= "OK",
+    Return[<|"Status" -> "RadicalOutsideDeclaredFrame",
+      "Reason" -> "DenestSignAmbiguous", "Detail" -> canonical|>]];
+  survivors = Select[
+    transportChartRadicalBases[canonical["Expression"]],
+    ! NumericQ[#1] &];
+  badSurvivors = Select[survivors, MissingQ[matched[#1]] &];
+  If[badSurvivors =!= {},
+    Return[<|"Status" -> "RadicalOutsideDeclaredFrame",
+      "RadicalBases" -> badSurvivors,
+      "Reason" -> "SurvivedCanonicalization"|>]];
+  indices = Sort[DeleteDuplicates[Join[
+    First[matched[#1]] & /@ survivors,
+    Flatten[Lookup[Values[denested], "RootIndices", {}]],
+    Flatten[Lookup[Values[denested], "InnerRootIndices", {}]]]]];
+  <|"Status" -> "OK", "Expression" -> canonical["Expression"],
+    "RootIndices" -> indices,
+    "Denested" -> Lookup[canonical, "Rewritten", 0]|>
+];
+
+(* bit i-1 of the mask = declared root i occurs in the factor; $Failed
+   on a radical outside the declared frame *)
+blockEquationDeferredFactorRootMask[factor_, squares_List] := Module[
+  {radicals, positions},
+  radicals = Select[transportChartRadicalBases[factor], ! NumericQ[#1] &];
+  positions = Map[Function[base, FirstPosition[squares,
+      q_ /; TrueQ[Together[base - q] === 0], Missing["NoRoot"], {1},
+      Heads -> False]], radicals];
+  If[AnyTrue[positions, MissingQ], $Failed,
+    Total[2^(DeleteDuplicates[First /@ positions] - 1)]]
+];
+
+(* ---- orbit generation and validation (build-order step 5) ----------- *)
+
+(* Sign conjugates are generated ONLY from the declared independent
+   roots, every conjugate and the orbit product are reduced back to the
+   canonical grade basis, and the norm is accepted only on the four
+   exact conditions of Codex A3: all nonzero grade channels of the norm
+   vanish, the grade-zero channel carries no radical and no generator,
+   every generator sign flip permutes the orbit exactly (hence leaves
+   the norm invariant exactly), and the orbit size divides 2^rank with
+   duplicates removed by exact channel equality.  FreeQ[norm, Sqrt[..]]
+   alone is NOT the acceptance. *)
+blockEquationDeferredFactorOrbit[factor_, squares_List] := Module[
+  {rank = Length[squares], symbols, reduced, channels, rules, masks,
+   conjugates, distinct, toPolynomial, product, productChannels, norm,
+   certificate, members},
+  symbols = Table[Unique["FeynFacet`Private`bedOrbitRoot"], {rank}];
+  reduced = blockEquationDeferredGradeReduce[factor, squares, symbols];
+  If[reduced === $Failed,
+    Return[<|"Status" -> "OrbitReductionFailed", "Factor" -> factor|>]];
+  channels = blockEquationDeferredGradeChannels[reduced, symbols];
+  masks = Keys[channels];
+  conjugates = Table[Association @ Map[
+      Function[mask, mask -> channels[mask] *
+        (-1)^Total[Table[BitGet[mask, i - 1] BitGet[signMask, i - 1],
+          {i, rank}]]],
+      masks],
+    {signMask, 0, 2^rank - 1}];
+  distinct = DeleteDuplicates[conjugates,
+    Function[{channelsA, channelsB}, AllTrue[masks,
+      TrueQ[Together[channelsA[#1] - channelsB[#1]] === 0] &]]];
+  toPolynomial[channelMap_] := Total[KeyValueMap[
+    Function[{mask, value}, value Times @@ Table[
+      If[BitGet[mask, i - 1] === 1, symbols[[i]], 1], {i, rank}]],
+    channelMap]];
+  rules = blockEquationDeferredGradeReduceRules[squares, symbols];
+  product = Fold[
+    Function[{accumulated, channelMap}, FixedPoint[
+      Expand[#1 /. rules] &, Expand[accumulated toPolynomial[channelMap]]]],
+    1, distinct];
+  productChannels = blockEquationDeferredGradeChannels[product, symbols];
+  norm = Together[Lookup[productChannels, Key[0], 0]];
+  certificate = <|
+    "NonzeroGradeChannelsVanish" -> AllTrue[
+      Table[TrueQ[Together[Lookup[productChannels, Key[mask], 0]] === 0],
+        {mask, 1, 2^rank - 1}], TrueQ],
+    "GradeZeroRadicalFree" -> FreeQ[norm, Power[_, _Rational]] &&
+      (symbols === {} || FreeQ[norm, Alternatives @@ symbols]),
+    "GeneratorSignInvariance" -> AllTrue[Range[rank], Function[generator,
+      AllTrue[distinct, Function[channelMap,
+        AnyTrue[distinct, Function[other, AllTrue[masks,
+          TrueQ[Together[channelMap[#1] *
+            If[BitGet[#1, generator - 1] === 1, -1, 1] - other[#1]] ===
+            0] &]]]]]]],
+    "OrbitSizeDividesTwoPowerRank" ->
+      rank === 0 || Divisible[2^rank, Length[distinct]]|>;
+  members = Map[Function[channelMap, Total[KeyValueMap[
+      Function[{mask, value}, value Times @@ Table[
+        If[BitGet[mask, i - 1] === 1, Sqrt[squares[[i]]], 1], {i, rank}]],
+      channelMap]]], distinct];
+  <|"Status" -> If[AllTrue[Values[certificate], TrueQ], "OK",
+      "OrbitNormValidationFailed"],
+    "Representative" -> factor, "Members" -> members,
+    "OrbitSize" -> Length[distinct], "Norm" -> norm,
+    "NormCertificate" -> certificate|>
+];
+
+(* ---- bundle target order, fingerprint, validation, evaluation ------- *)
+
+blockEquationDeferredBundleTargetOrder[
+    {two_Integer, upper_Integer, lower_Integer}] :=
+  Flatten[Table[{mu, i, jj}, {mu, two}, {i, upper}, {jj, lower}], 2];
+blockEquationDeferredBundleTargetOrder[___] := $Failed;
+
+(* recomputable content fingerprint; "Statistics" (wall times) and the
+   fingerprint itself are the only fields outside it *)
+blockEquationDeferredBundleFingerprint[bundle_Association] := Hash[{
+  $blockEquationDeferredBundleSchema,
+  Lookup[bundle, "Status", None],
+  Lookup[bundle, "ABIVersion", None],
+  blockEquationDeferredSymbolKey /@ Lookup[bundle, "Variables", {}],
+  blockEquationDeferredSymbolKey[Lookup[bundle, "Regulator", None]],
+  blockEquationDeferredSymbolKey /@ Lookup[bundle, "Parameters", {}],
+  Lookup[Lookup[bundle, "RootFrame", <||>], "Roots", {}],
+  Lookup[Lookup[bundle, "RootFrame", <||>], "RootFingerprints", {}],
+  Lookup[Lookup[bundle, "RootFrame", <||>], "OrderingFingerprint", None],
+  Lookup[bundle, "Dimensions", {}],
+  Lookup[bundle, "TargetOrder", {}],
+  Lookup[bundle, "OperandTable", {}],
+  Lookup[bundle, "Jobs", {}],
+  Lookup[bundle, "DivisorOccurrences", {}],
+  Lookup[bundle, "DivisorSummary", <||>],
+  Lookup[bundle, "SourceFingerprint", None]},
+  "SHA256", "HexString"];
+
+(* every consumer's first call.  Schema, dimensions, lexicographic
+   target coverage, job alignment, operand-ID bounds, root-order
+   fingerprint and the recomputed bundle fingerprint -- the enforceable
+   content invariant WL has no const type for. *)
+blockEquationDeferredBundleValidate[bundle_Association] := Module[
+  {dimensions, targetOrder, expected, jobs, operandCount, identifiers,
+   frame, roots},
+  If[Lookup[bundle, "Schema", None] =!= $blockEquationDeferredBundleSchema ||
+      Lookup[bundle, "Status", None] =!= "PreparedDeferredBundle" ||
+      Lookup[bundle, "ABIVersion", None] =!=
+        $blockEquationDeferredABIVersion,
+    Return[<|"Status" -> "InvalidBundleSchema"|>]];
+  dimensions = Lookup[bundle, "Dimensions", None];
+  If[! MatchQ[dimensions, {2, _Integer?Positive, _Integer?Positive}],
+    Return[<|"Status" -> "InvalidBundleDimensions"|>]];
+  targetOrder = Lookup[bundle, "TargetOrder", {}];
+  expected = blockEquationDeferredBundleTargetOrder[dimensions];
+  If[targetOrder =!= expected,
+    Return[<|"Status" -> "TargetOrderNotLexicographic"|>]];
+  jobs = Lookup[bundle, "Jobs", {}];
+  If[Length[jobs] =!= Length[targetOrder] ||
+      ! AllTrue[Range[Length[jobs]],
+        Lookup[jobs[[#1]], "Target", None] === targetOrder[[#1]] &],
+    Return[<|"Status" -> "JobsMisaligned"|>]];
+  operandCount = Length[Lookup[bundle, "OperandTable", {}]];
+  identifiers = DeleteDuplicates[Flatten[
+    Map[Function[job, Last /@ Lookup[job, "Terms", {}]], jobs]]];
+  If[! AllTrue[identifiers, IntegerQ[#1] && 1 <= #1 <= operandCount &],
+    Return[<|"Status" -> "OperandIDOutOfBounds",
+      "OperandCount" -> operandCount,
+      "Invalid" -> Select[identifiers,
+        ! (IntegerQ[#1] && 1 <= #1 <= operandCount) &]|>]];
+  frame = Lookup[bundle, "RootFrame", <||>];
+  roots = Lookup[frame, "Roots", {}];
+  If[! ListQ[roots] ||
+      Lookup[frame, "RootFingerprints", {}] =!=
+        (Lookup[#1, "RootFingerprint", ""] & /@ roots) ||
+      ! AllTrue[roots, Lookup[#1, "RootFingerprint", ""] ===
+        Hash[Lookup[#1, "CanonicalRootSquare", ""], "SHA256",
+          "HexString"] &] ||
+      roots =!= SortBy[roots, {Lookup[#1, "CanonicalRootSquare", ""],
+        Lookup[#1, "RootFingerprint", ""]} &] ||
+      Lookup[frame, "OrderingFingerprint", None] =!=
+        Hash[Lookup[#1, "CanonicalRootSquare", ""] & /@ roots,
+          "SHA256", "HexString"],
+    Return[<|"Status" -> "RootOrderFingerprintMismatch"|>]];
+  If[Lookup[bundle, "BundleFingerprint", None] =!=
+      blockEquationDeferredBundleFingerprint[bundle],
+    Return[<|"Status" -> "BundleFingerprintMismatch"|>]];
+  <|"Status" -> "BundleValid"|>
+];
+blockEquationDeferredBundleValidate[___] :=
+  <|"Status" -> "InvalidBundleSchema"|>;
+
+(* Assemble every target from the interned operand table: each operand
+   is evaluated EXACTLY ONCE per call (the reuse the raw record forest
+   never provided; OperandEvaluations is returned so a test can assert
+   it), and every job reads the cached values.  rules = {} is the exact
+   symbolic assembly the oracle tests compare against materialization;
+   exact rational rules give one point.  Fails closed through the
+   validator first. *)
+Options[blockEquationDeferredBundleEvaluate] = {"Validate" -> True};
+blockEquationDeferredBundleEvaluate[bundle_Association, rules_List,
+    OptionsPattern[]] := Module[
+  {validation, operands, dimensions, evaluations = 0, singular = None,
+   values, image, index},
+  If[TrueQ[OptionValue["Validate"]],
+    validation = blockEquationDeferredBundleValidate[bundle];
+    If[Lookup[validation, "Status", None] =!= "BundleValid",
+      Return[validation]]];
+  If[! AllTrue[rules, MatchQ[#1, _Rule] &],
+    Return[<|"Status" -> "InvalidEvaluationRules"|>]];
+  operands = Lookup[bundle, "OperandTable", {}];
+  dimensions = bundle["Dimensions"];
+  values = Table[Module[
+     {record = operands[[id]], numerator, factors},
+     evaluations++;
+     numerator = record["Numerator"] /. rules;
+     factors = ({Together[First[#1] /. rules], Last[#1]} & /@
+       record["DenominatorFactors"]);
+     If[AnyTrue[factors, TrueQ[First[#1] === 0] &],
+       If[singular === None, singular = id]; 0,
+       numerator/(Times @@ (Power[First[#1], Last[#1]] & /@ factors))]],
+    {id, Length[operands]}];
+  If[singular =!= None,
+    Return[<|"Status" -> "SingularPoint", "OperandID" -> singular|>]];
+  image = ConstantArray[0, dimensions];
+  Do[
+    image[[Sequence @@ bundle["TargetOrder"][[index]]]] = Total[Map[
+      Function[term, First[term] Times @@ values[[Last[term]]]],
+      Lookup[bundle["Jobs"][[index]], "Terms", {}]]],
+    {index, Length[bundle["TargetOrder"]]}];
+  <|"Status" -> "OK", "Image" -> image,
+    "OperandEvaluations" -> evaluations|>
+];
+blockEquationDeferredBundleEvaluate[___] := <|"Status" -> "InvalidInput"|>;
+
+(* ---- the compiler (build-order steps 1-5) --------------------------- *)
+
+(* The serial interning phase of the materializer, factored into a
+   compiler that returns the immutable bundle INSTEAD of materializing:
+   the same canonical-operand interning core
+   (blockEquationDeferredCanonicalOperand), reached before any term is
+   summed.  The WithCache variant additionally returns the finished
+   intern pool so the driver's compat mode can seed the materializer
+   with it and the Together/FactorList of each distinct operand is paid
+   once, not twice. *)
+Options[blockEquationDeferredCompileBundle] = {"Roots" -> {}};
+
+blockEquationDeferredCompileBundle[preparation_Association,
+    opts : OptionsPattern[]] :=
+  First[blockEquationDeferredCompileBundleWithCache[preparation, opts]];
+blockEquationDeferredCompileBundle[___] := <|"Status" -> "InvalidInput"|>;
+
+blockEquationDeferredCompileBundleWithCache[preparation_Association,
+    OptionsPattern[blockEquationDeferredCompileBundle]] := Module[
+  {started = AbsoluteTime[], variables, regulator, parameters, records,
+   dimensions, rootsOption, frame, squares, targetOrder, recordFor,
+   pool = <||>, frameCache = <||>, operandIndex = <||>, operandTable = {},
+   operandDivisors = <||>, factorTable = {}, factorMatchQ, registerFactor,
+   jobs = {}, occurrences = {}, bounds = <||>, occurrenceCounts = <||>,
+   rewrites = 0, failTag, failure, orbitRecords, orbitIndexOf, summary,
+   factorSummaries, bundle, statistics, termCount = 0},
+  If[Lookup[preparation, "Status", None] =!= "Prepared" ||
+      Lookup[preparation, "ABIVersion", None] =!=
+        $blockEquationDeferredABIVersion,
+    Return[{<|"Status" -> "InvalidPreparation"|>, <||>}]];
+  If[Lookup[preparation, "Fingerprint", None] =!=
+      blockEquationDeferredFingerprint[KeyDrop[preparation, "Fingerprint"]],
+    Return[{<|"Status" -> "PreparationFingerprintMismatch"|>, <||>}]];
+  variables = preparation["Variables"];
+  regulator = preparation["Regulator"];
+  parameters = Lookup[preparation, "Parameters", {}];
+  records = Lookup[preparation, "Records", {}];
+  dimensions = preparation["Dimensions"];
+  rootsOption = OptionValue["Roots"];
+  If[! ListQ[rootsOption],
+    Return[{<|"Status" -> "InvalidRootMetadata"|>, <||>}]];
+
+  (* step 1: the canonical independent root frame, or the typed refusal
+     BEFORE anything else is built *)
+  frame = blockEquationDeferredRootFrame[rootsOption, variables, regulator];
+  If[Lookup[frame, "Status", None] =!= "StableRootOrder",
+    Return[{frame, <||>}]];
+  squares = Together /@ (Lookup[#1, "RootSquare", 0] & /@ frame["Roots"]);
+
+  targetOrder = blockEquationDeferredBundleTargetOrder[dimensions];
+  recordFor = Association[(#1["Target"] -> #1) & /@ records];
+  If[! AllTrue[targetOrder, KeyExistsQ[recordFor, #1] &],
+    Return[{<|"Status" -> "TargetOrderIncomplete",
+      "Missing" -> Select[targetOrder, ! KeyExistsQ[recordFor, #1] &]|>,
+      <||>}]];
+
+  factorMatchQ[f_, g_] := Module[
+    {algebraic = ! FreeQ[{f, g}, Power[_, _Rational]]},
+    If[! algebraic,
+      TrueQ[Together[f - g] === 0] || TrueQ[Together[f + g] === 0],
+      TrueQ[blockEquationDeferredAlgebraicZeroQ[f - g, squares]] ||
+        TrueQ[blockEquationDeferredAlgebraicZeroQ[f + g, squares]]]];
+  registerFactor[factor_] := Module[{position, mask},
+    position = SelectFirst[Range[Length[factorTable]],
+      factorMatchQ[factorTable[[#1]]["Factor"], factor] &, None];
+    If[position =!= None, Return[position]];
+    mask = blockEquationDeferredFactorRootMask[factor, squares];
+    If[mask === $Failed,
+      Throw[<|"Status" -> "RadicalOutsideDeclaredFrame",
+        "RadicalBases" -> Select[transportChartRadicalBases[factor],
+          ! NumericQ[#1] &]|>, failTag]];
+    AppendTo[factorTable, <|"Factor" -> factor,
+      "Algebraic" -> mask =!= 0, "RootMask" -> mask|>];
+    Length[factorTable]];
+
+  failTag = Unique["blockEquationDeferredCompileTag"];
+  failure = Catch[
+    Do[Module[{record = recordFor[target], terms, jobTerms = {},
+       termIndex = 0},
+      terms = Lookup[record, "Terms", {}];
+      Do[Module[{coefficient, operandIDs = {}, termValuation},
+        termIndex++; termCount++;
+        coefficient = Lookup[term, "Coefficient", 1];
+        Do[Module[{identifier},
+          If[KeyExistsQ[operandIndex, operand],
+            identifier = operandIndex[operand],
+            (* first encounter: steps 2-4 for this operand *)
+            Module[{canonicalized, canonicalExpr, interned,
+              canonicalFactors, explicitFactors = <||>, routeMaps,
+              mergedValuation = <||>, pairs},
+             canonicalized = If[KeyExistsQ[frameCache, operand],
+               frameCache[operand],
+               frameCache[operand] = blockEquationDeferredFrameCanonicalize[
+                 operand, frame, variables]];
+             If[Lookup[canonicalized, "Status", None] =!= "OK",
+               Throw[canonicalized, failTag]];
+             canonicalExpr = canonicalized["Expression"];
+             rewrites += Lookup[canonicalized, "Denested", 0];
+             interned = blockEquationDeferredCanonicalOperand[
+               canonicalExpr, pool];
+             canonicalFactors = interned[[2]];
+             (* step 3, the pre-cancellation collection: the explicit
+                negative powers of the frame-canonical spelling, kept
+                even where Together's canonical form has already
+                cancelled or rationalized them away *)
+             Do[Module[{list = Quiet[FactorList[First[pair]]]},
+               If[ListQ[list],
+                 Do[If[! NumericQ[First[entry]],
+                    explicitFactors[First[entry]] =
+                      Lookup[explicitFactors, First[entry], 0] +
+                        Last[entry] Last[pair]],
+                   {entry, list}]]],
+               {pair, Cases[canonicalExpr,
+                 Power[base_, exponent_ /; (IntegerQ[exponent] ||
+                     Head[exponent] === Rational) && exponent < 0] :>
+                   {base, -exponent}, {0, Infinity}, Heads -> True]}];
+             routeMaps = <|
+               "CanonicalDenominator" -> Normal[canonicalFactors],
+               "ExplicitNegativePower" -> Normal[explicitFactors]|>;
+             identifier = Length[operandTable] + 1;
+             operandIndex[operand] = identifier;
+             (* per-route occurrences with exact valuations, and the
+                merged per-factor maximum for the entry bound: exact
+                totals WITHIN a route, the conservative maximum ACROSS
+                the two routes *)
+             operandDivisors[identifier] = <|
+               "Routes" -> Association @ KeyValueMap[
+                 Function[{route, factorRules}, route -> Map[
+                   Function[rule, {registerFactor[First[rule]],
+                     Last[rule]}], factorRules]],
+                 routeMaps]|>;
+             operandDivisors[identifier, "Merged"] = Merge[
+               Map[Function[routeList, Module[{accumulated = <||>},
+                   Do[accumulated[First[entry]] =
+                       Lookup[accumulated, First[entry], 0] + Last[entry],
+                     {entry, routeList}];
+                   accumulated]],
+                 Values[operandDivisors[identifier, "Routes"]]], Max];
+             pairs = SortBy[Normal[canonicalFactors],
+               ToString[InputForm[First[#1]]] &];
+             AppendTo[operandTable, <|"ID" -> identifier,
+               "Numerator" -> interned[[1]],
+               "DenominatorFactors" -> ({First[#1], Last[#1]} & /@ pairs),
+               "RootMask" -> Total[2^(canonicalized["RootIndices"] - 1)],
+               "Fingerprint" -> Hash[{interned[[1]], pairs},
+                 "SHA256", "HexString"]|>]]];
+          AppendTo[operandIDs, identifier]],
+          {operand, Lookup[term, "Operands", {}]}];
+        (* the exact per-term valuation = the sum of the term's operand
+           valuations, recorded per route with full provenance *)
+        Do[
+          Do[
+            AppendTo[occurrences, <|"FactorIndex" -> First[entry],
+              "Exponent" -> Last[entry], "Target" -> target,
+              "TermIndex" -> termIndex, "OperandID" -> operandID,
+              "Provenance" -> route|>];
+            occurrenceCounts[First[entry]] =
+              Lookup[occurrenceCounts, First[entry], 0] + 1,
+            {entry, Lookup[operandDivisors[operandID, "Routes"],
+              route, {}]}],
+          {operandID, operandIDs},
+          {route, {"CanonicalDenominator", "ExplicitNegativePower"}}];
+        termValuation = Merge[
+          Map[operandDivisors[#1, "Merged"] &, operandIDs], Total];
+        KeyValueMap[Function[{factorIndex, valuation},
+          bounds[{factorIndex, target}] = Max[
+            Lookup[bounds, Key[{factorIndex, target}], 0], valuation]],
+          termValuation];
+        AppendTo[jobTerms, {coefficient, operandIDs}]],
+        {term, terms}];
+      AppendTo[jobs, <|"Target" -> target, "Terms" -> jobTerms|>]],
+      {target, targetOrder}];
+    None, failTag, #1 &];
+  If[failure =!= None, Return[{failure, pool}]];
+
+  (* step 5: one validated orbit per distinct algebraic factor.  Throw,
+     never Return, inside Do -- the trap this file already records *)
+  orbitRecords = {}; orbitIndexOf = <||>;
+  failure = Catch[
+    Do[Module[{entry = factorTable[[factorIndex]], orbit, existing},
+      If[! entry["Algebraic"], orbitIndexOf[factorIndex] = 0,
+        orbit = blockEquationDeferredFactorOrbit[entry["Factor"], squares];
+        If[Lookup[orbit, "Status", None] =!= "OK",
+          Throw[Join[<|"Status" -> Lookup[orbit, "Status",
+              "OrbitNormValidationFailed"]|>, KeyDrop[orbit, "Status"]],
+            failTag]];
+        existing = SelectFirst[Range[Length[orbitRecords]],
+          Function[position, Module[{other = orbitRecords[[position]]},
+            other["OrbitSize"] === orbit["OrbitSize"] &&
+              AllTrue[orbit["Members"], Function[member,
+                AnyTrue[other["Members"], TrueQ[
+                  blockEquationDeferredAlgebraicZeroQ[member - #1,
+                    squares]] &]]]]], None];
+        If[existing === None,
+          AppendTo[orbitRecords, KeyDrop[orbit, "Status"]];
+          orbitIndexOf[factorIndex] = Length[orbitRecords],
+          orbitIndexOf[factorIndex] = existing]]],
+      {factorIndex, Length[factorTable]}];
+    None, failTag, #1 &];
+  If[failure =!= None, Return[{failure, pool}]];
+
+  factorSummaries = Table[Module[{entry = factorTable[[factorIndex]],
+     entryBounds},
+     entryBounds = Sort[Map[Function[key, {Last[key],
+         bounds[key]}], Select[Keys[bounds],
+       First[#1] === factorIndex &]]];
+     <|"FactorIndex" -> factorIndex, "Factor" -> entry["Factor"],
+       "Algebraic" -> entry["Algebraic"],
+       "RootMask" -> entry["RootMask"],
+       "OrbitIndex" -> Lookup[orbitIndexOf, factorIndex, 0],
+       "EntryPoleOrderUpperBounds" -> entryBounds,
+       "MaxEntryPoleOrderUpperBound" -> If[entryBounds === {}, 0,
+         Max[Last /@ entryBounds]],
+       (* an exact final pole order enters ONLY through a
+          noncancellation proof (the planned divisor support census);
+          the source maximum above is a bound, and is labeled one *)
+       "CertifiedEntryPoleOrder" -> None,
+       "OccurrenceCount" -> Lookup[occurrenceCounts, factorIndex, 0]|>],
+    {factorIndex, Length[factorTable]}];
+  summary = <|"Schema" -> "BlockEquationDivisorSummaryV2",
+    "Certification" -> "PreCancellationUpperBound",
+    "CertifiedEntryPoleOrders" -> None,
+    "Factors" -> factorSummaries,
+    "GaloisOrbits" -> orbitRecords|>;
+
+  statistics = <|"CompileSeconds" -> N[AbsoluteTime[] - started],
+    "OperandCount" -> Length[operandTable],
+    "JobCount" -> Length[jobs], "TermCount" -> termCount,
+    "OccurrenceCount" -> Length[occurrences],
+    "DistinctFactors" -> Length[factorTable],
+    "AlgebraicFactorCount" -> Count[factorTable, entry_ /;
+      TrueQ[entry["Algebraic"]]],
+    "FrameRewrites" -> rewrites|>;
+  bundle = <|"Schema" -> $blockEquationDeferredBundleSchema,
+    "Status" -> "PreparedDeferredBundle",
+    "ABIVersion" -> $blockEquationDeferredABIVersion,
+    "Variables" -> variables, "Regulator" -> regulator,
+    "Parameters" -> parameters,
+    "RootFrame" -> <|"Roots" -> frame["Roots"],
+      "RootFingerprints" -> frame["RootFingerprints"],
+      "OrderingFingerprint" -> frame["OrderingFingerprint"]|>,
+    "Dimensions" -> dimensions,
+    "TargetOrder" -> targetOrder,
+    "OperandTable" -> operandTable,
+    "Jobs" -> jobs,
+    "DivisorOccurrences" -> occurrences,
+    "DivisorSummary" -> summary,
+    "SourceFingerprint" -> Lookup[preparation, "SourceFingerprint", None],
+    "Statistics" -> statistics|>;
+  {Append[bundle,
+     "BundleFingerprint" -> blockEquationDeferredBundleFingerprint[bundle]],
+   pool}
+];
+blockEquationDeferredCompileBundleWithCache[___] :=
+  {<|"Status" -> "InvalidInput"|>, <||>};
 
 (* ---- driver entry point --------------------------------------------- *)
 
@@ -1217,12 +1984,34 @@ Options[blockEquationDeferredForcing] = {
   "Parallel" -> Automatic, "Helpers" -> Automatic,
   "BatchByteCap" -> Automatic, "BatchDispatcher" -> Automatic,
   "BatchTimeout" -> 7200, "Progress" -> True,
-  "ProgressInterval" -> Automatic};
+  "ProgressInterval" -> Automatic,
+  (* round 3 A3 (Codex): bundle production is the normal result.
+     "Output" -> "Bundle" returns the immutable pre-cancellation bundle
+     WITHOUT ever materializing -- the early-return mode the direct
+     provider consumes; "BundleAndMaterialized" additionally
+     materializes as the oracle/artifact.  The default stays
+     "BundleAndMaterialized" until the provider consumer lands in
+     MultiquadraticStripSolve.wl (its sole production caller reads
+     "Forcing"); it then flips to "Bundle" per the Codex instruction. *)
+  "Output" -> "BundleAndMaterialized",
+  (* the declared independent root records for the bundle's frame.
+     Automatic inherits an explicitly given "DivisorRoots" list; with
+     neither given, an algebraic block's bundle is the typed
+     DeferredRootFrameRequired -- roots are NEVER synthesized from
+     observed radicals *)
+  "BundleRoots" -> Automatic,
+  (* the injected-oracle seam: tests substitute a materializer that
+     fails if invoked, proving the early-bundle path never calls it *)
+  "MaterializeFunction" -> Automatic};
 
 blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
     solved_Association, variables_, regulator_, OptionsPattern[]] :=
   Module[{preparation, triples, census, materialized, dimensions,
-    forcing, values},
+    forcing, values, output, bundleRoots, bundle, internCache,
+    materializeFunction},
+   output = OptionValue["Output"];
+   If[! MemberQ[{"Bundle", "BundleAndMaterialized"}, output],
+     Return[<|"Status" -> "InvalidOutputMode", "Output" -> output|>]];
    preparation = blockEquationDeferredPrepare[connection, ranges, k, j,
      solved, variables, regulator];
    If[Lookup[preparation, "Status", None] =!= "Prepared",
@@ -1233,7 +2022,29 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
        {censusPoint, {{7717, 9227}, {31627, 44417}}},
        {censusRegulator, {104729, 15485867}}], 2]];
    census = blockEquationDeferredNonzeroCensus[preparation, triples];
-   materialized = blockEquationDeferredMaterialize[preparation,
+   (* round 3 A3: the bundle is compiled from the deferred term records
+      BEFORE materialization -- build-order step 6 is the materialization
+      below, reached only in the compat mode.  Its intern pool seeds the
+      materializer so each distinct operand is canonicalized once. *)
+   bundleRoots = Replace[OptionValue["BundleRoots"], Automatic :>
+     If[ListQ[OptionValue["DivisorRoots"]], OptionValue["DivisorRoots"],
+       {}]];
+   {bundle, internCache} = blockEquationDeferredCompileBundleWithCache[
+     preparation, "Roots" -> bundleRoots];
+   If[output === "Bundle",
+     (* the early return: a typed bundle refusal IS the result here, and
+        blockEquationDeferredMaterialize is never called on this path *)
+     If[Lookup[bundle, "Status", None] =!= "PreparedDeferredBundle",
+       Return[bundle]];
+     Return[Append[bundle, "Statistics" -> Join[
+       Lookup[bundle, "Statistics", <||>],
+       <|"Census" -> census,
+         "ZeroForcingCandidateQ" ->
+           ! TrueQ[census["NonzeroProvedQ"]]|>]]]];
+   materializeFunction = Replace[OptionValue["MaterializeFunction"],
+     Automatic :> blockEquationDeferredMaterialize];
+   materialized = materializeFunction[preparation,
+     "SeedPool" -> internCache,
      "Cancel" -> OptionValue["Cancel"],
      "Fallback" -> OptionValue["Fallback"],
      "CanonicalizeUntouched" -> OptionValue["CanonicalizeUntouched"],
@@ -1271,6 +2082,13 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
          "Roots" -> OptionValue["DivisorRoots"]],
        <|"Schema" -> $blockEquationDeferredDivisorSchema,
          "Status" -> "DivisorMetadataSkipped"|>],
+     (* round 3 A3: the pre-cancellation bundle rides beside the
+        materialized oracle in the compat mode; on an algebraic block
+        with no declared roots it is the typed DeferredRootFrameRequired
+        record, deliberately NON-fatal here so the production driver's
+        materialized route is unchanged until its provider consumes the
+        bundle mode *)
+     "DeferredBundle" -> bundle,
      "Census" -> census, "Materialization" -> KeyDrop[materialized, "Values"],
      "ZeroForcingCandidateQ" -> ! TrueQ[census["NonzeroProvedQ"]]|>
 ];
