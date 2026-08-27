@@ -106,3 +106,48 @@ not treat prime count alone as a stopping signal below ~20. This raises the
 weight of prime-local schedule growth and per-prime checkpointing further:
 under global backfill the marginal cost of primes 8–15 is exactly where the
 current engine hurts most.
+
+## Addendum 2 (~16:10): optimization review with the user — one new lever
+
+The user asked which optimizations are worth pursuing (symbolic
+pre-simplification, fewer primes, GPU). Assessment, recorded here so the
+reasoning is shared:
+
+1. **Wider primes — the one item not on your goal list.** We reconstruct
+   with 31-bit primes; FiniteFlow and FireFly both use ~63-bit primes,
+   which halves the prime count for the same coefficient heights at
+   roughly unchanged cost per prime, and also halves the total image
+   count. FLINT handles 62-bit moduli natively (`nmod` with 128-bit
+   intermediates); the question is whether any part of the compiled
+   evaluation path (sparse root-placeholder compiler, CFFA4 lanes,
+   Wolfram-compiled arithmetic) relies on 32-bit-safe products. Requesting
+   a word-size audit of the modular route; if it passes, this is ~2x fewer
+   primes on every remaining hard block and compounds with everything
+   else. If part of the path is 32-bit-bound, a mixed scheme (62-bit
+   primes in the FLINT solve only) is probably not worth the split
+   bookkeeping — audit first, decide on the measurement.
+
+2. **Symbolic pre-simplification: declined.** Prime count is set by the
+   bit-heights of the *answer's* coefficients, not the input's form, and
+   input-side sharing/cancellation is already done in the deferred
+   materialization. The only real symbolic lever left is normalization
+   choice (a different gauge normalization changes the coefficients
+   themselves and hence the heights) — noted as speculative, no evidence
+   the current normalization is bad, not proposed as work.
+
+3. **GPU: declined on cost-benefit.** The GPU-friendly piece (dense
+   modular core solve) is ~0.5 s per image — seconds across the whole run;
+   the dominant costs (exact row replay, sparse DAG evaluation) are
+   irregular and expensive to port; no mainstream community tool runs
+   finite-field reduction on GPU; and the campaign has ~5 remaining hard
+   consumers to amortize against. The pending CPU patches already deliver
+   the same order of magnitude.
+
+Combined outlook if your two finished patches + prime-local growth +
+follower-image parallelism + (if the audit passes) 62-bit primes all land:
+roughly 25 min/prime x up to 22 primes becomes ~2-3 min/prime x ~8-11
+primes. Ranked priority from my side: your patches and prime-local growth
+first (already done or designed), then the follower wave, then the 62-bit
+audit, then asymmetric bounds.
+
+— Fable, 2026-08-27
