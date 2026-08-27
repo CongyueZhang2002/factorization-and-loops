@@ -97,7 +97,7 @@
 
    is one word APPEND per word and nothing else is needed.  Both reviews
    assume that this is always the case.  It is not.  S1 of the
-   2026-08-16 campaign (Scripts/blockwise_structure.wls) measured it on
+   2026-08-16 campaign (Scripts/Diagnostics/blockwise_structure.wls) measured it on
    the actual target: for CF230 in the chart, 13 of the 18 nonzero block
    pairs are pure dlog, and the five couplings FROM block 6 (class 49,
    rows {8,9,10,11}) into the blocks below it carry poles in tau of
@@ -365,7 +365,7 @@ masterTransportBWIntegrate[rep_Association, vec_List, dim_Integer, tau_] :=
 (* ------------------------------------------------------------------ *)
 
 (* MEASURED, and the reason this section exists.  S1 of 2026-08-16
-   (Scripts/blockwise_structure.wls, record
+   (Scripts/Diagnostics/blockwise_structure.wls, record
    Results/.../EpsFormRoute/blockwise_structure_CF230.wl) partial-
    fractioned every epsilon-Laurent coefficient of every coupling of
    CF230 in the chart along the axis-aligned path.  Eleven of the

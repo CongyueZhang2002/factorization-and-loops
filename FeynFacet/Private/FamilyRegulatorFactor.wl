@@ -10,7 +10,7 @@
    rational samples of A_mu/eps: the identity A(eps, x) T(eps) = T(eps)
    A(mu, x) at generic chart points is linear in T and the unsampled
    symbolic identity is the acceptance test (the method of
-   Scripts/libra_checkpoint_factor_dependence.wls, "ExactRationalSamples").
+   Scripts/Libra/libra_checkpoint_factor_dependence.wls, "ExactRationalSamples").
    Since T is constant in the variables, dT = 0 and A' = T^{-1} A T. *)
 
 Clear[FactorFamilyRegulatorDependence];

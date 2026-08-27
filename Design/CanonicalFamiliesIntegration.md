@@ -47,7 +47,7 @@ canonical family). `ibpInputData` currently flattens records, and
   disappears for canonicalized inputs; legacy inputs take the old path
   unchanged.
 
-## Acceptance tests (`Tests/t_canonical_pipeline.wls`)
+## Acceptance tests (`Tests/EpsilonForm/t_canonical_pipeline.wls`)
 
 1. Canonicalize the 100 regenerated NLO pairs
    (`UU_08_10_10x10_regen`); assert 11 families, zero collisions,

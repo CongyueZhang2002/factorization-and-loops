@@ -133,7 +133,7 @@ If[routes === "NewOnly",
   say["EQUIVALENCE not evaluated in this run: the HEAD route was stopped \
 at the time box, so there is no second preparation to compare against. \
 Equivalence of the two routes is established at fixture scale by \
-Tests/t_multiquadratic_prepare_core.wls (E2, E2b, E4)."];
+Tests/Multiquadratic/t_multiquadratic_prepare_core.wls (E2, E2b, E4)."];
   say["HEAD  prepare > 2470 s (stopped, still running), compile not reached"],
   say["EQUIVALENCE preparation SameQ (up to channel telemetry): ", equivalent];
   say["EQUIVALENCE assembly fingerprints agree: ", fingerprintsAgree];

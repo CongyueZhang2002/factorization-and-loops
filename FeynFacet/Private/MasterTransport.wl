@@ -934,7 +934,7 @@ masterTransportGaussPQ[a0_, b0_, c0_, zsym_Symbol, mmax_Integer] :=
    series-plus-numerics.  It is not an obstruction in the mathematics,
    only in the default rewriting, and the standard fix is the inert-head
    technique this repository already uses for the NLO masters
-   (Tests/t_nlo_masters.wls): substitute an inert head BEFORE any D, then
+   (Tests/Reconstruction/t_nlo_masters.wls): substitute an inert head BEFORE any D, then
    supply the exact identity by hand.
 
    Two exact identities do the whole job.
@@ -3138,7 +3138,7 @@ masterTransportBackendLibra[m_, tau_, wmax_Integer, root_String,
      status, and the suite asserts that controlled failure rather than
      accepting an unverified transport.  Repairing it needs a path or a
      gauge on which the conjugated connection is Fuchsian at infinity,
-     which is a next-session item.  Scripts/diag_cf360_path.wls measures
+     which is a next-session item.  Scripts/HardClasses/diag_cf360_path.wls measures
      the obstruction -- polynomial part in tau per candidate path, and
      which block carries it -- so that attempt starts from data rather
      than from a guess.  Note an irregular singularity at infinity is

@@ -81,7 +81,7 @@ What was built 2026-08-17 (all uncommitted; tests green unless stated):
 - **Algebraic letters** (`FeynFacet/Private/BlockwiseTransport.wl`,
   `MasterTransport.wl` monic gate + radical zero test): quadratic path
   denominators with eps-free discriminant are admitted as letters
-  (-b +- k Sqrt[D0])/(2a); `Tests/t_algebraic_letters.wls` 23/23. This is
+  (-b +- k Sqrt[D0])/(2a); `Tests/Multiquadratic/t_algebraic_letters.wls` 23/23. This is
   unavoidable (1 - w + v w in the Kallen chart is a genus-1 curve).
 - **Chart catalog** `FeynFacet/Private/TransportCharts.wl`
   (`TransportChartCatalog`, `TransportChartVerify`, `TransportFamilyChart`):
@@ -113,7 +113,7 @@ CANONICA off-diagonal recursion at higher degree) are the next work.
 
 Next moves for a fresh session: `Scripts/sweep_status.sh .../Masters`;
 re-run TimedOut families with a larger cap or via route 2; regenerate the
-depth ledger .md over all 91 (`Scripts/transport_depth_ledger.wls` +
+depth ledger .md over all 91 (`Scripts/Diagnostics/transport_depth_ledger.wls` +
 `_assemble.py`; the 29 missing per-family records live in the coordinator
 scratchpad `ledger/`); the triple-root tail; then stage 3.
 
@@ -138,7 +138,7 @@ dimensional regulator eps.
 ## The master-evaluation workflow (stages)
 
 **Stage 1 — canonicalization** (`FeynFacet/Private/CanonicalBlocks.wl`,
-tests `Tests/t_canonical_blocks.wls`). Decompose each family's DE system
+tests `Tests/EpsilonForm/t_canonical_blocks.wls`). Decompose each family's DE system
 into strongly connected blocks (1119 of them), classify blocks into 173
 equivalence classes (equivalence = basis permutation, optionally
 composed with v<->w, as an exact rational matrix identity), and put each
@@ -151,7 +151,7 @@ the charts v = +-xy, w = (1-x)(1-y)); the hard-class stage-1 work is CLOSED — 
 `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/HardClasses/EpsFormRoute/README.md`.
 
 **Stage 2 — transport** (`FeynFacet/Private/MasterTransport.wl`, tests
-`Tests/t_master_transport.wls`). Given eps-forms, solve family by family:
+`Tests/Transport/t_master_transport.wls`). Given eps-forms, solve family by family:
 assemble blocks in dependency order, transport solutions symbolically
 (engine: **Libra**, chosen by measured benchmark — 0.03 s where our own
 custom layer took >30 min; the custom engine is archived under
@@ -219,7 +219,7 @@ every letter is linear; it went through the same pipeline the same day
 (10 balances on a slice, symbolic replay, constant gauge by sampling +
 rational interpolation verified exactly, gate) — `c79_epsform_two_variable.wl`,
 independently re-derived. Ledger records `ClassForms/class{97,77,79}.wl`,
-`Tests/t_hard_class_epsforms.wls` 24/24. Next: transport of these three
+`Tests/EpsilonForm/t_hard_class_epsforms.wls` 24/24. Next: transport of these three
 families in chart variables through the EXISTING `TransportFamily`
 (chart-pullback layer `TransportFamilyInChart`, in review), then boundary
 conditions at x = y by deck invariance and endpoint modes exact in eps.
@@ -243,10 +243,10 @@ one (Claude/Fable, in `~/factorization-and-loops`) and **Codex**
 (OpenAI, in `~/FACET`). This is deliberate: independent methods, then
 cross-checked results. Rules:
 - **Never write into `~/FACET`** — read-only reference, Codex's tree.
-- Exchange goes through `External/CodexExchange/` as exact source files
+- Exchange goes through `Exchange/` as exact source files
   and certificates, not prose summaries.
 - Codex's assessments of our work are valuable and have repeatedly been
-  right; read `External/CodexExchange/codex_*` before re-deriving.
+  right; read the dated entries under `Exchange/Codex/` before re-deriving.
 - The Wolfram license and this box are SHARED: never hold more than
   1 main kernel + 4 subkernels of ours (see House rules below).
 - Consults with a fresh-context Fable ("Fable Max") are done manually:
@@ -292,8 +292,8 @@ cross-checked results. Rules:
 
 ## Layout
 
-- `External/CodexExchange`: exchange with the parallel assistant (Codex),
-  as exact source files and certificates.
+- `Exchange/Codex` and `Exchange/Fable`: dated exchanges with the parallel
+  assistants, as exact source files and certificates.
 - `Addon/Load`: FACET's repository-relative loader.
 - `Addon/Mathematica_Addon`: third-party Wolfram Language packages.
 - `Addon/Other_Addon`: non-Mathematica tools, currently Kira.

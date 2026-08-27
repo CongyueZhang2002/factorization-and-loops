@@ -54,7 +54,7 @@ scripts/NNLOInvariantRootRing.wl`):
 
 Acceptance for rev. 2 is the rev. 1 ladder (items 1-4 below) plus the
 NLO shared-vs-one-by-one comparison and a timed NNLO column subset;
-the test is `Tests/t_physical_variable_coefficients.wls` (renamed from
+the test is `Tests/Core/t_physical_variable_coefficients.wls` (renamed from
 `t_rationalized_coefficients.wls`, assertion F now checks the descend
 provenance and that no root variable is a trace variable).
 
@@ -142,7 +142,7 @@ is no longer on the finite-field path.
 
 ## Acceptance (hard, exact)
 
-1. NLO UU: `Tests/t_nlo_coefficient_golden.wls` passes UNCHANGED -
+1. NLO UU: `Tests/Reconstruction/t_nlo_coefficient_golden.wls` passes UNCHANGED -
    the new path must reproduce the stored reference CoefficientResult
    exactly (identical masters, exact coefficient equality).
 2. TT: fresh coefficient run over `TT_08_10_1` equals the stored

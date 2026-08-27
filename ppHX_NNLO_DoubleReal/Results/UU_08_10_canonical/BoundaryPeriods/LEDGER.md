@@ -5,7 +5,7 @@ census. Superseding the pilot's `SOLVED` / `UNRESOLVED` labels, which did
 not distinguish an exact identity from a numeric branch check.
 
 Date: 2026-08-15. Deliverable of the stage-3 rework mandated by
-`External/CodexExchange/codex_assessment_of_fable_round6_2026-08-15.md`.
+`Exchange/Codex/2026-08-15/02_assessment_of_fable_round6.md`.
 
 ## Taxonomy
 

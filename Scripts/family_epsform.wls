@@ -5,14 +5,14 @@
 (*
    For a family that ASSEMBLES today (TransportFamily in (v,w) or
    TransportFamilyInChart in the class-97 chart, "MaxWeight" -> 0, exactly
-   as Scripts/transport_depth_ledger.wls does it), this driver
+   as Scripts/Diagnostics/transport_depth_ledger.wls does it), this driver
 
      1. assembles and keeps the assembly record (Apv/Apw = conjugated,
         Av/Aw = ORIGINAL permuted, Ranges, per-block T/TInverse/Ev/Ew);
 
      2. MEASURES coupling purity per (block pair, eps-order): every
         coupling entry is decomposed on the axis-aligned path the
-        transport uses (the S1 measurement of Scripts/blockwise_structure.wls
+        transport uses (the S1 measurement of Scripts/Diagnostics/blockwise_structure.wls
         -- pure dlog with tau-free constant residues, or not: pole orders,
         polynomial part, eps-dependent denominator factors) AND, because
         the family eps-form is a TWO-VARIABLE statement, in BOTH chart
@@ -149,7 +149,7 @@ phase["LOAD", AbsoluteTime[] - t0, "wolfram=", $Version];
 (*  artifact hygiene                                                    *)
 (* ------------------------------------------------------------------ *)
 (* The inline  expr /. (s_Symbol /; ... :> Symbol["Global`" <> SymbolName[s]])
-   spelling was MEASURED (Tests/t_wolfram_traps.wls item T2) to insert its
+   spelling was MEASURED (Tests/Infrastructure/t_wolfram_traps.wls item T2) to insert its
    right-hand side UNEVALUATED once a package is on $ContextPath -- and
    this driver LOADS CANONICA.  The rule list is built explicitly.  Do not
    "simplify" this back. *)
@@ -1078,7 +1078,7 @@ frame's own variables (see \"Variables\")",
     "Date" -> DateString[]|>|>;
 putAtomic[record, recordFile];
 
-(* payoff view: Scripts/epsform_offdiag_cf230_payoff.wls reads the record's
+(* payoff view: Scripts/HardClasses/epsform_offdiag_cf230_payoff.wls reads the record's
    Ranges / EpsFormX / EpsFormY / Letters and transports in {x, y}.  For a
    family whose frame is the source (v,w) the same record is written once
    more with v -> x, w -> y (a pure renaming of two free symbols) so the

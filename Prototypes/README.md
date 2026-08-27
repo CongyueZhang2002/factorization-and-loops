@@ -6,9 +6,10 @@ deleting it would lose a working implementation.
 
 Created 2026-08-26 in the round-2 review wave, executing Codex review
 §4.2 and ChatGPT Pro's conciseness list
-(`External/CodexExchange/codex_merged_fable_code_review_2026-08-25.md`,
-`.../chatgpt_pro_fable_code_review_2026-08-25.md`) as accepted in
-`.../fable_disposition_review_round1_2026-08-26.md` (Stage 1, item 5).
+(`Exchange/Codex/2026-08-25/11_merged_private_code_review.md`,
+`Exchange/Codex/2026-08-25/10_pro_private_code_review.md`) as accepted in
+`Exchange/Fable/2026-08-26/01_round1_review_disposition.md` (Stage 1,
+item 5).
 
 Rules for this directory:
 
@@ -32,7 +33,7 @@ Five symbols move with it: `multiquadraticStripCurveParameterization`,
 `multiquadraticStripRationalFunctionSquareRoot`,
 `multiquadraticStripGradeSquare`, `multiquadraticStripGradeNorm`,
 `multiquadraticStripMixedGradeLetters`. They are used only by each other
-and by `Tests/t_multiquadratic_gauge_screen.wls` (criteria G6-G9), which
+and by `Tests/Multiquadratic/t_multiquadratic_gauge_screen.wls` (criteria G6-G9), which
 now loads this file.
 
 **Why it is not production.** The production candidate builder
@@ -65,8 +66,8 @@ without being listed in the package's file list — it was never loaded by
 
 Its remaining value is as a **differential oracle**: it normalizes the
 modular square-root sign representative where `MultiquadraticAlgebra.wl`
-returns the raw exponentiation, and `Tests/t_multiquadratic_algebra_differential.wls`
-holds the neutral algebra to it. `Tests/t_family_row_gauge_finite_field.wls`
+returns the raw exponentiation, and `Tests/Multiquadratic/t_multiquadratic_algebra_differential.wls`
+holds the neutral algebra to it. `Tests/FiniteField/t_family_row_gauge_finite_field.wls`
 is its own adversarial suite. Both now `Get` it from here.
 
 Codex §4.2 asks that its useful modular evaluator be extracted into the

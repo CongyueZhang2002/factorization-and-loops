@@ -9,9 +9,9 @@ reply below for what they do and do not add).
 
 | class | status | certificate |
 |---|---|---|
-| 97 (CF258_B9) | **two-variable eps-form, exact gate PASSED in x and y** on the ORIGINAL chart system | `c97_epsform_two_variable.wl` (T, letters, constant residues, gates); reproduce with `Scripts/epsform_finish_c97_constant_gauge.wls` + `Scripts/epsform_gate_c97_two_variable.wls` |
-| 77 (CF230_B1) | **two-variable eps-form, exact gate PASSED in x and y** on the ORIGINAL chart system; residues = sigma*(class-97 residues) | `c77_epsform_two_variable.wl`; slice data `c77_slice_transformations.wl`; reproduce with `Scripts/epsform_involution_77_vs_97.wls`, `Scripts/epsform_teq_77_slices.wls`, `Scripts/epsform_lift_c77.wls` |
-| 79 (CF231_B1) | **two-variable eps-form, exact gate PASSED in x and y** on the ORIGINAL chart system (chart v = -xy, w = (1-x)(1-y)); independently re-derived by the coordinator | `c79_epsform_two_variable.wl`; `symnorm_c79.wl` (A_norm, Ttot, balance path); `c79_constant_gauge_symbolic.wl`; `balanced_c79_y3_7.wl`; logs in `logs_c79/`; reproduce with `Scripts/epsform_lee79b_c79.wls` (slice normalization, 10 balances) -> `Scripts/epsform_symrep79_c79.wls` (symbolic replay) -> `Scripts/epsform_finish79i_c79.wls` (constant gauge by sampling + rational interpolation, verified exactly) -> `Scripts/epsform_gate79_c79.wls`; independent check `Scripts/epsform_independent_gate_c79.wls` |
+| 97 (CF258_B9) | **two-variable eps-form, exact gate PASSED in x and y** on the ORIGINAL chart system | `c97_epsform_two_variable.wl` (T, letters, constant residues, gates); reproduce with `Scripts/HardClasses/epsform_finish_c97_constant_gauge.wls` + `Scripts/HardClasses/epsform_gate_c97_two_variable.wls` |
+| 77 (CF230_B1) | **two-variable eps-form, exact gate PASSED in x and y** on the ORIGINAL chart system; residues = sigma*(class-97 residues) | `c77_epsform_two_variable.wl`; slice data `c77_slice_transformations.wl`; reproduce with `Scripts/HardClasses/epsform_involution_77_vs_97.wls`, `Scripts/HardClasses/epsform_teq_77_slices.wls`, `Scripts/HardClasses/epsform_lift_c77.wls` |
+| 79 (CF231_B1) | **two-variable eps-form, exact gate PASSED in x and y** on the ORIGINAL chart system (chart v = -xy, w = (1-x)(1-y)); independently re-derived by the coordinator | `c79_epsform_two_variable.wl`; `symnorm_c79.wl` (A_norm, Ttot, balance path); `c79_constant_gauge_symbolic.wl`; `balanced_c79_y3_7.wl`; logs in `logs_c79/`; reproduce with `Scripts/HardClasses/epsform_lee79b_c79.wls` (slice normalization, 10 balances) -> `Scripts/HardClasses/epsform_symrep79_c79.wls` (symbolic replay) -> `Scripts/HardClasses/epsform_finish79i_c79.wls` (constant gauge by sampling + rational interpolation, verified exactly) -> `Scripts/HardClasses/epsform_gate79_c79.wls`; independent check `Scripts/HardClasses/epsform_independent_gate_c79.wls` |
 
 Chart for 97 and 77: v = x y, w = (1-x)(1-y)  (sqrt(lambda) = x - y).
 Chart for 79:        v = -x y, w = (1-x)(1-y)  (sqrt(Q) = x - y; Q(v,w) = lambda(-v,w)).
@@ -58,7 +58,7 @@ which T_eq therefore removes.
 ## What was verified independently before this state was written
 
 The claims of the earlier (automated) session were re-derived from the
-stored artifacts by fresh computation (`Scripts/epsform_verify_c97_chain.wls`):
+stored artifacts by fresh computation (`Scripts/HardClasses/epsform_verify_c97_chain.wls`):
 Ttot maps chart -> A_norm symbolically in y (82 s); A_norm is Fuchsian
 and normalized at all six loci (residue eigenvalues in eps*Z, incl.
 infinity); (A_x,A_y)_norm flat; all 12 phase-2 slice files hold genuine
@@ -107,19 +107,19 @@ invariance at x=y instead of "regularity"; endpoint modes exact in eps
 from the canonical form in the local coordinate u = 1-w, at family
 level) set the design of the boundary and endpoint stages for these
 classes.  Its Q4 suspicion (class 79's quadratic is lambda) is
-DISPROVED by `Scripts/epsform_identify_c79.wls`: lambda does not occur
+DISPROVED by `Scripts/HardClasses/epsform_identify_c79.wls`: lambda does not occur
 in class 79; the quadratics were chart artifacts.
 
 ## Ledger and audits (done 2026-08-16, 19:00-19:45 PDT)
 
 - `ClassForms/class97.wl`, `class77.wl`, `class79.wl` written by
-  `Scripts/build_hard_class_ledger.wls` (schema: Chart of Kind
+  `Scripts/Diagnostics/build_hard_class_ledger.wls` (schema: Chart of Kind
   "TwoVariable" with Subst/Root/RootSquare/Inverse/RootSymbol/Variables;
   Variables {x,y}; EpsForm in (x,y)); `ValidateCanonicalForm` True on all
-  three; `Tests/t_hard_class_epsforms.wls` 24/24 (gates recomputed from
+  three; `Tests/EpsilonForm/t_hard_class_epsforms.wls` 24/24 (gates recomputed from
   the class representatives, chart identities, eps-linearity, validator,
   flatness).  Class ledger **173/173**.
-- Audits (`Scripts/epsform_audits_c97_c77.wls`, `epsform_independent_gate_c79.wls`):
+- Audits (`Scripts/HardClasses/epsform_audits_c97_c77.wls`, `epsform_independent_gate_c79.wls`):
   final letters eps-free (all three); T's denominators are pure letters —
   the eps-dependent apparent loci created by the balances cancel INSIDE
   T (all three); det T carries no eps-dependent (x,y)-factor for 97, and
@@ -191,14 +191,14 @@ supports are in `../../TransportDepthLedger.md` (+ `.wl`) and
 `../../MasterCoefficientValuations.wl`; the rule is
 `FeynFacet/Private/MasterTransport.wl` `masterTransportExactDepth`
 (option `"DepthRule" -> "Exact"`, default still `"Clamped"`), pinned by
-`Tests/t_exact_depth.wls`.  Also measured: the deepest hard-function
+`Tests/Reconstruction/t_exact_depth.wls`.  Also measured: the deepest hard-function
 coefficient column is eps^-4 (ONE master); 203 of 347 columns start at
 eps^0.  The planning estimate "every master through roughly eps^4" is
 superseded.
 
 ## Transport depth-vs-cost (2026-08-16 night): measured, reviewed, plan
 
-Measured (`Scripts/epsform_depth_diag_cf258.wls`, no transport): CF258 in
+Measured (`Scripts/HardClasses/epsform_depth_diag_cf258.wls`, no transport): CF258 in
 the chart has 12 blocks with EVERY deep coupling (eps-orders -1..-3)
 issuing from block 1 (class 1, the 1x1 volume anchor); no coupling of
 order >= 2 (no slack), so per-chain and per-edge clamped longest paths
@@ -252,7 +252,7 @@ Reviews (`FableMax_reply_2026-08-16_night_transport_cost.md`,
    must checkpoint per-weight partials.
 Block-wise engine (Opus agent, 2026-08-16 22:30-23:20; `FeynFacet/Private/
 BlockwiseTransport.wl`, `TransportFamily[..., "Engine" -> "Blockwise"]`,
-`Tests/t_blockwise_transport.wls` 27/27, drivers `Scripts/blockwise_*.wls`,
+`Tests/Transport/t_blockwise_transport.wls` 27/27, drivers `Scripts/blockwise_*.wls`,
 artifacts `blockwise_structure_CF230.wl`, `blockwise_structure_CF258.wl`,
 `blockwise_polestructure_CF230.wl`, `blockwise_anchor.wl` in this
 directory) — measured:
@@ -293,7 +293,7 @@ directory) — measured:
 - Anchors: NLO 7x7 monolith 5.5 s vs block-wise 3.9 s, CF3 55.8 s vs
   8.0 s, F and I equal ENTRYWISE and exactly on both, recursion
   certificate and Phi cross-check all zero.
-- Soundness fix (Codex review, `External/CodexExchange/codex_review_blockwise_transport_2026-08-16.md`):
+- Soundness fix (Codex review, `Exchange/Codex/2026-08-16/01_review_blockwise_transport.md`):
   the dlog "append" integration assumed tau-free word coefficients; after
   a higher-pole coupling produces rational c(tau), a later dlog step must
   integrate the PRODUCT (with c'). Four tests added and run FIRST (3 of 4
@@ -317,9 +317,9 @@ directory) — measured:
   pending on the pool.
 Depth ledger (Opus agent, 2026-08-16 22:30-23:45; `Results/UU_08_10_canonical/
 TransportDepthLedger.wl/.md`, `MasterCoefficientValuations.wl`,
-`Scripts/master_coefficient_valuations.py`, `Scripts/transport_depth_ledger.wls`,
-`Tests/t_exact_depth.wls` 17/17, `Tests/t_transport_checkpoint.wls` 5/5,
-`Tests/t_wolfram_traps.wls` 9/9; `t_master_transport.wls` 68/68) — measured:
+`Scripts/Diagnostics/master_coefficient_valuations.py`, `Scripts/Diagnostics/transport_depth_ledger.wls`,
+`Tests/Reconstruction/t_exact_depth.wls` 17/17, `Tests/Transport/t_transport_checkpoint.wls` 5/5,
+`Tests/Infrastructure/t_wolfram_traps.wls` 9/9; `t_master_transport.wls` 68/68) — measured:
 - Per-master coefficient valuations, exact, all 347 masters (from the
   2026-08-13 reconstruction columns; bound-meeting method, no
   probabilistic step): 203 masters start at eps^0, 131 at eps^-1, 7 at
@@ -362,8 +362,8 @@ family plus its `README.md` ledger; the CF230 record produced here on
 
 ## Superseded
 
-`Scripts/canonica2var.wls` (two-variable CANONICA on the normalized
-pair) and `Scripts/phase3b_interp.wls` (slice interpolation) are
+`Scripts/HardClasses/canonica2var.wls` (two-variable CANONICA on the normalized
+pair) and `Scripts/HardClasses/phase3b_interp.wls` (slice interpolation) are
 superseded by the linear finish; kept for the record.  The historical
 slice artifacts (`canonical_slice_c*`, `p2_c97_y*`, `balanced_c*`,
 `symnorm_c97.wl`) remain the inputs of the certified chain.

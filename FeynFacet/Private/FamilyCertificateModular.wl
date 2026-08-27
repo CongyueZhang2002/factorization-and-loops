@@ -1,6 +1,6 @@
 (* Modular (finite-field) family certificate (2026-08-22; revised the same
-   day after Codex's adversarial review, External/CodexExchange/
-   codex_final_checker_stress_2026-08-22).
+   day after Codex's adversarial review,
+   Exchange/Codex/2026-08-22/02_final_checker_stress_suite).
 
    Every matrix entry is compiled ONCE (after Together) into integer
    coefficient and exponent arrays; all identities are evaluated at random

@@ -1,7 +1,8 @@
 #!/usr/bin/env wolframscript
 (* Completing the family's eps-form -- MAPLE ROUTE (standardized from
-   Codex's CF48 sector-13 strip-4 solution, External/CodexExchange/
-   cf48_maple_rational_gauge_2026-08-18/, and its 7-step request).
+   Codex's CF48 sector-13 strip-4 solution,
+   Exchange/Codex/2026-08-18/07_cf48_maple_rational_gauge/, and its
+   7-step request).
 
    Setting: after assembly (TransportFamilyInChart), the family connection
    (A_p, A_s) is block lower triangular with every DIAGONAL block a certified

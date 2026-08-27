@@ -4,7 +4,7 @@ This is the fresh-agent operating manual for stage 1 of the
 master-solving workflow of `Design/MasterSolvingArchitecture.md`.
 Everything needed to rerun the stage lives in this repository: the
 package module `FeynFacet/Private/CanonicalBlocks.wl`, the test
-`Tests/t_canonical_blocks.wls`, and the differential-equation
+`Tests/EpsilonForm/t_canonical_blocks.wls`, and the differential-equation
 artifacts under `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/`.
 
 **Scope.** Stage 1 takes a lattice of family differential equations and
@@ -155,7 +155,7 @@ Provisional classes are merged on the **orbit key**, which is canonical
 by construction, so any two provisional classes sharing one are the same
 class however they were bucketed; member maps are then re-derived
 against the *final* representative. A bad invariant can now only make
-the quotient slower, never wrong. `Tests/t_canonical_blocks.wls`
+the quotient slower, never wrong. `Tests/EpsilonForm/t_canonical_blocks.wls`
 criterion C asserts the quotient is strictly coarser than the block set
 with every member map independently verified, which is the regression
 for this bug.
@@ -435,7 +435,7 @@ pair = If[Swap, {swapVW[RepAw], swapVW[RepAv]}, {RepAv, RepAw}];
 ```
 
 and this reproduction is exact, entry by entry — it is a certificate of
-equality, not a claim about an invariant. `Tests/t_canonical_blocks.wls`
+equality, not a claim about an invariant. `Tests/EpsilonForm/t_canonical_blocks.wls`
 criterion C recomputes it independently rather than trusting the stored
 `MapVerified` flag; a consumer should do the same the first time it
 imports a foreign catalogue.
@@ -456,7 +456,7 @@ an equivalence.
 
 ```bash
 cd /home/maxzhang/factorization-and-loops
-wolframscript -file Tests/t_canonical_blocks.wls    # one kernel; check the seat first
+wolframscript -file Tests/EpsilonForm/t_canonical_blocks.wls    # one kernel; check the seat first
 ```
 
 Criteria A-I are listed at the top of the test file. It covers the NLO

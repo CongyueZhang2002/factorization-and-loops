@@ -9,7 +9,7 @@
    Codex 3.2 describes the generalization (quotient-ring reduction
    modulo (f, r_i^2 - delta_i), divisor-guided candidate selection) that
    must replace it before it is integrated.  Until then it is a
-   prototype: exercised by Tests/t_multiquadratic_gauge_screen.wls,
+   prototype: exercised by Tests/Multiquadratic/t_multiquadratic_gauge_screen.wls,
    which Gets this file explicitly, and by nothing else.
 
    Load it INSIDE the FeynFacet`Private` context, after FeynFacet:

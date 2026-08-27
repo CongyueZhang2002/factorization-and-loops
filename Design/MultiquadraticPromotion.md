@@ -1,11 +1,11 @@
 # Multiquadratic (extension-field) machinery: promotion into FeynFacet
 
 Scope decided 2026-08-23 (Fable, user-directed standardization of Codex's
-overnight work).  Sources: `External/CodexExchange/triple_root_2026-08-22/`
+overnight work).  Sources: `Exchange/Codex/2026-08-22/04_triple_root_campaign/`
 (TripleRootAlgebra.wl, TripleRootStripAdapter.wl,
 direct_root_channel_assembler_xh/DirectRootChannelAssembler.wl, oracles) and
 the promotion gates in
-`External/CodexExchange/codex_package_bug_handoff_2026-08-23.md`.
+`Exchange/Codex/2026-08-23/12_package_bug_handoff.md`.
 
 ## Module layout
 

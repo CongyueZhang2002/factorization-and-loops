@@ -5,9 +5,9 @@ the hard-class (irreducible diagonal block) stage-1 problem.  Module:
 `FeynFacet/Private/DiagonalBlockEpsForm.wl` (driver `DiagonalBlockEpsForm`,
 stages `DiagonalBlockSliceEpsForm` -> `SolveDiagonalBlockGaugeFiniteField`
 -> `CompleteDiagonalBlockEpsForm` -> `CertifyDiagonalBlockEpsForm`).
-Test: `Tests/t_diagonal_block_epsform.wls` (synthetic 2x2 block with a
+Test: `Tests/EpsilonForm/t_diagonal_block_epsform.wls` (synthetic 2x2 block with a
 known answer, 13/13).  Probe with oracle comparison against the certified
-2026-08-16 forms: `Scripts/diagonal_block_epsform_probe.wls <class> <dir>`.
+2026-08-16 forms: `Scripts/Diagnostics/diagonal_block_epsform_probe.wls <class> <dir>`.
 
 ## Why the off-diagonal affine solver could not be used directly
 
@@ -106,7 +106,7 @@ successful lift -- kept as the measurement that motivated the ODE design.
   the test assigned the conjugator to `C`, so the "T_new = T_old . C
   constant" line in `probe_c*.log` was VACUOUS (the letter/spectrum
   checks and the gate were not affected).  Re-run with a plain symbol
-  (`Scripts/diagonal_block_epsform_oracle.wls`, stored certified
+  (`Scripts/Diagnostics/diagonal_block_epsform_oracle.wls`, stored certified
   records): all three conjugators are free of x and y and invertible —
   class 79 a scalar function of eps, class 97 a constant matrix times
   1/eps, class 77 a constant rational matrix.  Test re-run 13/13 with
@@ -167,12 +167,12 @@ out at 3x300 s on 26/33/118); finite field 516 s, 149/170 at that point
 (21 instant failures: 13 reducible slice directions, 7 normalization
 stalls, 1 scalar with a bi-quadratic letter).  Those 21 are the defects
 fixed by items 1-4 above; every one of them certifies now (retry log in
-`EngineBenchmark/retry/`).  `Scripts/benchmark_diagonal_block_engines.wls`,
-`Scripts/summarize_engine_benchmark.wls`, records in `EngineBenchmark/`.
+`EngineBenchmark/retry/`).  `Scripts/Diagnostics/benchmark_diagonal_block_engines.wls`,
+`Scripts/Diagnostics/summarize_engine_benchmark.wls`, records in `EngineBenchmark/`.
 
 ### Final automatic campaign, all 173 classes from the raw (v,w) representatives
 
-`Scripts/diagonal_block_class_campaign.wls`, 1 main + 4 subkernels, no
+`Scripts/Diagnostics/diagonal_block_class_campaign.wls`, 1 main + 4 subkernels, no
 ledger hints, no fallback: **173/173 certified** (172 in 1843 s wall;
 class 77 alone afterwards with a 2 h cap: 2950 s = slice 1547 + solve
 1378 + gate 12).  Methods: 89 `ScalarDLog`, 83 `SliceResiduesFiniteFieldAffine`,
@@ -181,12 +181,12 @@ Per dimension: dim 1 90 classes in < 1 s total; dim 2 71 classes 167 s
 (max 12 s); dim 3 6 classes 117 s (max 54 s); dim 4 6 classes 1030 s +
 2950 s.  Every record also passes `ValidateCanonicalForm`.
 
-Oracle against the 2026-08 ledger (`Scripts/diagonal_block_class_oracle.wls`):
+Oracle against the 2026-08 ledger (`Scripts/Diagnostics/diagonal_block_class_oracle.wls`):
 170/172 per-letter residue spectra identical and T_ledger^-1 T_new a
 constant invertible matrix on all 169 classes with the same variables;
 the two "mismatches" (79, 97, and 77 once rerun) are chart artifacts --
 the driver picked the conic t-chart, the ledger the Kallen (x,y) chart.
-`Scripts/diagonal_block_cross_chart_oracle.wls` solves the root
+`Scripts/Diagnostics/diagonal_block_cross_chart_oracle.wls` solves the root
 identity for t(x,y) (t = x - 1 or 1 - y), pulls the new forms back to
 (x,y) and finds letters and spectra IDENTICAL to the ledger for all
 three.  Records: `ClassFormsFF/` (173 ledger-schema records,
@@ -204,7 +204,7 @@ three.  Records: `ClassFormsFF/` (173 ledger-schema records,
 - Genuinely reducible blocks (all residues commuting) have no frame with
   a one-dimensional solution space; they are reported `NotCertified`
   and should be split, or handed to the CANONICA fallback.
-- Test: `Tests/t_diagonal_block_epsform.wls` 20/20 (synthetic KZ block,
+- Test: `Tests/EpsilonForm/t_diagonal_block_epsform.wls` 20/20 (synthetic KZ block,
   zero block, scalar block with a bi-quadratic letter, reducible slice
   direction solved in another frame).
 
@@ -213,7 +213,7 @@ three.  Records: `ClassFormsFF/` (173 ledger-schema records,
 The Libra slice with eps symbolic was the last big cost (class 77:
 1547 s).  Two observations remove it (`DiagonalBlockSliceEpsForm`,
 option `"Engine" -> "NumericalEps"`, the default; `"Symbolic"` keeps the old
-engine; `Tests/t_diagonal_block_epsform.wls` checks both agree):
+engine; `Tests/EpsilonForm/t_diagonal_block_epsform.wls` checks both agree):
 
 1. **The slice only has to deliver the residue tuple up to one constant
    conjugation.**  Two normalized Fuchsian forms of the same

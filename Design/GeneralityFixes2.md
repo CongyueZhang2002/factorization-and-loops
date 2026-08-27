@@ -1,7 +1,7 @@
 # Generality round 2: fix plan for Codex's standardization audit (2026-08-23)
 
-Source: `External/CodexExchange/codex_standardization_generality_audit_
-2026-08-23/ASSESSMENT.md` (12 pass / 7 strict fail against HEAD 52ce634).
+Source: `Exchange/Codex/2026-08-23/16_standardization_generality_audit/
+ASSESSMENT.md` (12 pass / 7 strict fail against HEAD 52ce634).
 Verdict accepted: the multiquadratic promotion is a sound engine, not yet
 a finished process-neutral integration.  This plan makes each gap a
 decision, an owner, and a regression.

@@ -86,7 +86,7 @@ cancelled and its measured state recorded. Total CPU stays under the
 
 Production use (many agents solving eps-forms/boundaries): one pool per
 box, all agents submit; the pool directory is the only shared state.
-Open items: a `Tests/t_kernel_pool.wls`-style bash test (start a 2-kernel
+Open items: a `Tests/Infrastructure/t_kernel_pool.wls`-style bash test (start a 2-kernel
 pool, submit, wait, stop); mission priorities; a JSON status for
 dashboards; per-mission memory limits (MemoryConstrained inside the
 wrapper).
@@ -157,10 +157,10 @@ a late result from an earlier timed-out task with the same PID and label.
 Timeout currently does not cancel a queued or running helper: correctness is
 protected by the UUID and local fallback, but late status/result artifacts and
 late helper work remain a P2 cleanup-protocol item.
-`Tests/t_kpsubmit_wrapper.sh` checks wrapper escaping, mission-name traversal
+`Tests/Infrastructure/t_kpsubmit_wrapper.sh` checks wrapper escaping, mission-name traversal
 rejection and missing-target rejection without starting a Wolfram kernel;
-`Tests/t_kpsubmit_argv_roundtrip.wls` is its live-pool decoding companion;
-`Tests/t_kpsubmit_target_namespace.wls` is the live no-symbol-leak gate.
+`Tests/Infrastructure/t_kpsubmit_argv_roundtrip.wls` is its live-pool decoding companion;
+`Tests/Infrastructure/t_kpsubmit_target_namespace.wls` is the live no-symbol-leak gate.
 Measured 2026-08-22, CF254 (9,7), 3 helpers: wall 446 s -> 357 s, sampling
 278 s -> 185 s, oracle-identical; CANONICA ladder 180 s -> 97 s.
 
@@ -172,7 +172,7 @@ regression tests: they assume a clean `Global\`` context, and on
 2026-08-22 two of 21 tests failed on a reused subkernel (`t_chart_transport`'s
 chart symbols, `t_transport_chart_extension`'s output variables) while
 passing standalone. `Scripts/run_tests_pool.sh <pooldir> <N> [tests...]`
-submits every `Tests/t_*.wls` this way and prints a table.
+submits every `Tests/*/t_*.wls` this way and prints a table.
 
 The fresh wrapper returns normally after writing its result and completion
 marker.  On seeing the marker, the server first drains the corresponding

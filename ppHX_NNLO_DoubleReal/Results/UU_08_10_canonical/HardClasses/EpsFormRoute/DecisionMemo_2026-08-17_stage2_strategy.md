@@ -2,7 +2,7 @@
 
 Inputs: `Consult_2026-08-17_stage2_strategy.md` and the three replies —
 `FableMax_reply_2026-08-17_stage2_strategy.md` (FM),
-`../../../../../External/CodexExchange/codex_assessment_stage2_strategy_2026-08-17.md` (CX),
+`../../../../../Exchange/Codex/2026-08-17/01_assessment_stage2_strategy.md` (CX),
 `GPTPro_reply_2026-08-17_stage2_strategy.md` (Pro; user caution: framed
 by the planar-amplitude literature — weigh its program-level advice
 against our different end product, stage-4 distributional data at the

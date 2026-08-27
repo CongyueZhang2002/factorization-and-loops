@@ -5,7 +5,7 @@ acceptance suite stops reading **live campaign state**.
 
 ## Why this directory exists
 
-`Tests/t_kallen_q4_chart.wls` (block T) and `Tests/t_radical_denesting.wls`
+`Tests/Multiquadratic/t_kallen_q4_chart.wls` (block T) and `Tests/Multiquadratic/t_radical_denesting.wls`
 (block d) read
 `FamilyEpsFormsSolving/triple_root_2026-08-24_fable/<family>/sector_state_<family>_standard.wl`
 directly. Those files are **rewritten by every campaign mission**: the solve
@@ -156,8 +156,8 @@ silently edited fixture is a red assertion rather than a wrong result.
 `.gitignore` re-includes only this directory's `README.md`, `SHA256SUMS`
 and the two reduced `.wl` files, together with
 `Results/UU_08_10_canonical/TransportFamilyCharts.wl` (3 KiB) which both
-tests also read. `Tests/t_radical_denesting.wls` block (d) and
-`Tests/t_kallen_q4_chart.wls` block T therefore run on a fresh clone; the
+tests also read. `Tests/Multiquadratic/t_radical_denesting.wls` block (d) and
+`Tests/Multiquadratic/t_kallen_q4_chart.wls` block T therefore run on a fresh clone; the
 skip-with-message path in the latter remains, but it now fires only if
 the tracked file is genuinely absent.
 
@@ -173,8 +173,8 @@ provenance of the truncation is checked rather than assumed.
 
 ## CF300 (12,9): three more frozen inputs (2026-08-25, hardening wave)
 
-`Tests/t_multiquadratic_letters.wls`, `Tests/t_multiquadratic_gauge_screen.wls`
-and `Tests/t_multiquadratic_gauge_ladder.wls` read the real CF300 (12,9)
+`Tests/Multiquadratic/t_multiquadratic_letters.wls`, `Tests/Multiquadratic/t_multiquadratic_gauge_screen.wls`
+and `Tests/Multiquadratic/t_multiquadratic_gauge_ladder.wls` read the real CF300 (12,9)
 descriptor. Two of their three inputs were being read from the **live**
 campaign directory
 `FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF300/`, which every

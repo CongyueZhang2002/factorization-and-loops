@@ -222,5 +222,5 @@ Stage-1 class forms are certified [V]; the depth demands are measured
 [V]; the block-wise engine is exact and cross-checked against Libra on
 anchors [V]; Libra Projector/Fuchsify traps and the CANONICA context
 trap are recorded in CLAUDE.md; the two-assistant setup (Codex owns a
-parallel derivation; exchange via `External/CodexExchange/`) is
+parallel derivation; exchange via `Exchange/`) is
 unchanged; numerics never enter a proof chain.

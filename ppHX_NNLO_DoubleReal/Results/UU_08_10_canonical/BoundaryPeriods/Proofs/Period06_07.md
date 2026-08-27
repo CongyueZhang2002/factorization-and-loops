@@ -5,7 +5,7 @@ symbolic identity; no numerical step appears in the chain. Numerics are
 retained in section 6 as an independent check only.
 
 This entry answers sections 3.2 and 3.3 of
-`External/CodexExchange/codex_assessment_of_fable_round6_2026-08-15.md`,
+`Exchange/Codex/2026-08-15/02_assessment_of_fable_round6.md`,
 which required "an analytic boundedness argument, a convergent integral
 estimate, or an exact closed form" in place of the numeric branch
 identification.

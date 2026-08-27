@@ -1,9 +1,9 @@
 <!-- Migrated into version control 2026-08-15 (stage-3 rework), from the
      ephemeral scratch path stage3_survey/SURVEY_REPORT.md, per section 4 of
-     External/CodexExchange/codex_assessment_of_fable_round6_2026-08-15.md.
+     Exchange/Codex/2026-08-15/02_assessment_of_fable_round6.md.
 
-     Placed in Design/ rather than External/CodexExchange/ because
-     External/CodexExchange/ holds documents exchanged WITH Codex, whereas
+     Placed in Design/ rather than Exchange/ because Exchange/ holds
+     documents exchanged WITH Codex and Fable, whereas
      this is our own measured evidence, and it is the cited decision basis
      for Design/Stage3BoundaryToolchain.md -- the normative doc it backs.
      Keeping evidence next to the design decision it justifies is the

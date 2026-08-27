@@ -100,7 +100,7 @@ processPair[{forward_Integer, conjugate_Integer}] := Module[
    guard adds the two exits it cannot see -- an uncaught Throw and an
    Abort inside the pipeline -- so a worker always answers with a status
    for its own pair and one bad pair never drains the queue. *)
-(* PAIRQUEUE-GUARD-BEGIN: Tests/t_pair_queue_schedule.wls evaluates the
+(* PAIRQUEUE-GUARD-BEGIN: Tests/Infrastructure/t_pair_queue_schedule.wls evaluates the
    source text between these markers against a synthetic worker; keep
    the markers when editing. *)
 processPairGuarded[{forward_Integer, conjugate_Integer}] := Module[
@@ -145,7 +145,7 @@ DistributeDefinitions[
    still reports "Skipped". Completions are collected in whatever order
    they arrive and written back into grid order, so nothing downstream
    depends on the order in which pairs finish. *)
-(* PAIRQUEUE-DRIVER-BEGIN: Tests/t_pair_queue_schedule.wls evaluates the
+(* PAIRQUEUE-DRIVER-BEGIN: Tests/Infrastructure/t_pair_queue_schedule.wls evaluates the
    source text between these markers against a synthetic worker; keep
    the markers when editing. *)
 pairTasks = Table[

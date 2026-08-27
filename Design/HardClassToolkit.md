@@ -466,7 +466,7 @@ eps, invert L0 through its verified first-order chain by exact
 anchored quadratures (Hlog words), certify every order by an exact
 residual identity.  Chains and the class-97 solution through eps^3
 live in Results/UU_08_10_canonical/HardClasses/ (see its README for
-provenance and certificates); suite: Tests/t_epsilon_graded.wls.
+provenance and certificates); suite: Tests/EpsilonForm/t_epsilon_graded.wls.
 Class-97's order-1 solve matches the independently derived Codex route
 in structure; system-level cross-check pending gauge alignment.
 

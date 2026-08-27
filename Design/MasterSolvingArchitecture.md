@@ -38,7 +38,7 @@ must equal `Root²` exactly (checked, not declared).
 Direction adopted 2026-08-16: a family carrying such a block is
 transported **whole, in the chart variables** —
 `TransportFamilyInChart` (`FeynFacet/Private/MasterTransport.wl`,
-tests `Tests/t_chart_transport.wls`) pulls the connection back by the
+tests `Tests/Transport/t_chart_transport.wls`) pulls the connection back by the
 chain rule (Aₓ = A_v ∂ₓv + A_w ∂ₓw) with an exact flatness certificate
 and composes **every** block's stored class form with the chart's
 coordinate map, then calls the existing `TransportFamily` in (x,y).

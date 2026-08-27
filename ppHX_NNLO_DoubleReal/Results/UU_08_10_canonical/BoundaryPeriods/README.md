@@ -2,7 +2,7 @@
 
 Version-controlled home of the stage-3 boundary-period evidence. Created in
 response to section 4 of
-`External/CodexExchange/codex_assessment_of_fable_round6_2026-08-15.md`,
+`Exchange/Codex/2026-08-15/02_assessment_of_fable_round6.md`,
 which observed that the period records, the survey report and the class data
 existed only under an ephemeral `/tmp/claude-1000/.../scratchpad` directory,
 so a clean checkout could not repeat the calculations.

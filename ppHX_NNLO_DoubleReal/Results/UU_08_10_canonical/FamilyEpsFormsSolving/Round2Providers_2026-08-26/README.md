@@ -8,7 +8,7 @@ CF300 (12,9) strip input and its frozen exact channel forcing).
 Reproduce with
 
 ```
-wolframscript -file Tests/t_multiquadratic_providers.wls
+wolframscript -file Tests/Multiquadratic/t_multiquadratic_providers.wls
 ```
 
 The two logs beside this file are that run and the reconstruction run of

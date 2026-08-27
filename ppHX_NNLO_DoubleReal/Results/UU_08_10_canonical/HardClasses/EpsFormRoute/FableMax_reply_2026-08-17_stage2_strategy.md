@@ -14,7 +14,7 @@ the family form existed). (c) Actions taken immediately on receipt:
 by-parts sweep missions deeper than one order halted; the two 6-hour
 CANONICA-recursion cleanup missions (fe2_CF230/fe2_CF258) cancelled
 (CANONICA recursion demoted to cross-check); the gauge implemented as
-`Scripts/strip_gauge.wls` with the decisive CF230 test as specified.
+`Scripts/HardClasses/strip_gauge.wls` with the decisive CF230 test as specified.
 (d) Q5's distributional +1 and the valuation provenance check, the
 triple-root census, Fuchsify retry, and the registry-hygiene items are
 queued in the plan.]

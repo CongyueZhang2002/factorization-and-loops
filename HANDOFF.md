@@ -5,7 +5,7 @@
 
 The working tree at 06ba162 carries UNCOMMITTED round-3 work. The scope
 is Codex's detailed instructions
-(External/CodexExchange/codex_round3_detailed_fix_instructions_2026-08-26.md)
+(Exchange/Codex/2026-08-26/02_round3_detailed_fix_instructions.md)
 per the accepted plan (fable_round3_plan_2026-08-26.md). Model policy:
 coordinator writes directly + FABLE-model subagents (user, 2026-08-26;
 all-models limit). Test kernels run CONCURRENTLY (user correction: the
@@ -32,7 +32,7 @@ DONE, in the tree, each with red-before-green evidence:
   from reconstructed residues in the terminal record
   (PendingReconstruction; vacuously-certified empty active alphabet),
   residue transfer helper multiquadraticStripTransferDiagnosticResidues.
-  NEW Tests/t_multiquadratic_active_support.wls 13/0, red-check 2/11
+  NEW Tests/Multiquadratic/t_multiquadratic_active_support.wls 13/0, red-check 2/11
   FAIL. Terminal SolvedLevelClaim now carries
   ActivePotentialsCertified vs CandidatePotentialsCertified.
 - A3 (deferred bundle) BY FABLE AGENT, per its progress log:
@@ -78,7 +78,7 @@ A (separable commits A1/A2/A3 per Codex instruction 4 of Hygiene);
 one sampling loop, delete duplicate fiberwise pass; B2 adaptive 32-prime
 CRT + exceptional-image replacement + pointwise default check; B3
 bounded promotion validation with the CONSTRUCTED rank-3 oracle from
-External/.../cf259_q4_rank3_oracle_2026-08-23_xh/TripleRootRank3CF259Oracle.wl
+Exchange/Codex/2026-08-22/04_triple_root_campaign/cf259_q4_rank3_oracle_2026-08-23_xh/TripleRootRank3CF259Oracle.wl
 + real pairwise CF259 fixtures 24_16/21_11/23_11 — NOT a physical
 rank-3 freeze, Codex's census showed the blocks are pairwise); (7) wave
 C phase-split measurement reported to Codex BEFORE choosing census vs
@@ -122,8 +122,8 @@ the wave). Round-3 scope declared: providers as default sampler (needs
 real-block validation), compiled modular IR (quotient-grade speed),
 support census, elimination backend/FLINT/parallelism, file split.
 
-REVIEW REQUEST #2: External/CodexExchange/
-fable_review_request_2_2026-08-26.md (item-by-item closure map, 4
+REVIEW REQUEST #2: Exchange/Fable/2026-08-26/
+02_round2_review_request.md (item-by-item closure map, 4
 questions incl. round-3 priority order). NEXT: read the replies (scan
 by mtime, never filter filenames), disposition, round-3 wave; families
 only after a mutual empty round AND the user's word.
@@ -161,8 +161,8 @@ Resume plan steps 1-5 below are DONE:
   evaluate-and-reconstruct for multiquadraticFieldDecompose, accepted
   only on the existing exact recompose check — addresses 97.3% of
   current prepare.
-- REVIEW REQUEST #1 sent: External/CodexExchange/
-  fable_review_request_2026-08-25_2300.md (P1 closure table, test
+- REVIEW REQUEST #1 sent: Exchange/Fable/2026-08-25/
+  04_private_code_review_request.md (P1 closure table, test
   evidence, 6 questions incl. the decomposition proposal). NEXT:
   read Codex's reply (scan by mtime, never filter filenames), fix
   round, iterate until BOTH sides return empty; then families only on
@@ -172,7 +172,7 @@ Resume plan steps 1-5 below are DONE:
 - NO family production runs until a mutual Fable+Codex sign-off that
   neither side has anything left to improve. Tests/benchmarks allowed.
 - Review protocol: Fable SENDS on-demand review-request notes to Codex
-  in External/CodexExchange (changes + test evidence + questions);
+  in `Exchange/Fable/` (changes + test evidence + questions);
   Codex's bihourly cadence is retired (protocol note committed).
 - Exchange scans: NEVER filter filenames (Codex's notes contain
   "fable"); scan by mtime, classify by content.
@@ -182,7 +182,7 @@ Resume plan steps 1-5 below are DONE:
 - HEAD pushed through the protocol/disposition commits; working tree
   carries the UNCOMMITTED serial-phase wave (MultiquadraticStripSolve,
   TransportCharts, FamilyRowGaugeResume, Scripts/family_epsform_sector,
-  new Tests/t_multiquadratic_prepare_core.wls): stage announcements
+  new Tests/Multiquadratic/t_multiquadratic_prepare_core.wls): stage announcements
   (Verbose-gated), prepare Deadline (Preparation:<substage> stops),
   per-entry acceptance zero test with typed budget Throw, seal-at-write
   strip inputs + authenticated resume verdict (modular gate designed,
@@ -247,8 +247,8 @@ Resume plan steps 1-5 below are DONE:
   Open: triple-root CF259/CF300/CF303 (GPT/Codex exploring).
 - Resource rule (user, 22-08): Codex/GPT keep one Wolfram main licence and
   half the CPUs; Fable pools use at most 4 subkernels; never take both mains.
-- Adversarial tests: `Tests/t_family_certificate_modular.wls` (checker, 15)
-  and `Tests/t_finite_field_adversarial.wls` (solver, 13) are the first
+- Adversarial tests: `Tests/FiniteField/t_family_certificate_modular.wls` (checker, 15)
+  and `Tests/FiniteField/t_finite_field_adversarial.wls` (solver, 13) are the first
   things to run after any change to the certificate or the block solver.
 - Memory: `FACET_MEMTRACE=<file>` gives a synchronous memory trace of the
   sector script (stdout is block-buffered when redirected).
@@ -259,9 +259,9 @@ Resume plan steps 1-5 below are DONE:
   blockwise-schema adapter) and the triple-root CF259/CF300/CF303 (no
   rational chart; extension-field finite field is the proposed route).
 - Final checker hardened after Codex's adversarial review (all P0-P2
-  fixed; `Tests/t_family_certificate_modular.wls` 15/15; Codex's suites:
+  fixed; `Tests/FiniteField/t_family_certificate_modular.wls` 15/15; Codex's suites:
   every exploit closed); reply note in
-  `External/CodexExchange/fable_final_check_2026-08-22/`.
+  `Exchange/Fable/2026-08-22/01_final_checker_changes_and_reply/`.
 - Quality flag: residues of the certified forms can be very tall (CF231:
   101 digits) — basis normalization before transport is worth a pass.
 
@@ -272,7 +272,7 @@ Resume plan steps 1-5 below are DONE:
   `FamilyEpsFormsSolving/tworoot_2026-08-22/` (attempts 1-2 archived
   beside it).  Nothing committed.
 - Nothing is running.  Codex review requested on the certificate change:
-  `External/CodexExchange/fable_final_check_2026-08-22/`.
+  `Exchange/Fable/2026-08-22/01_final_checker_changes_and_reply/`.
 - Day's package changes (all tested, see WORKLOG 2026-08-22 afternoon):
   finite-field support = certified simplex + support learning, prime
   sequence extension to 40, task broker per-prime decision and mission-side
@@ -346,7 +346,7 @@ not worth it alone); the `::usage` item is fixed.
   prime-width guard (`::width`, p < 2^31), degree-probe order
   (`finiteFieldStripProbeOrder`: shell 0, rectangle, then shells), reserve
   primes always outside the schedule (`"UnseenPrime"` recorded), and
-  `Tests/t_finite_field_round2.wls` extended to 23 checks. (9,6) acceptance
+  `Tests/FiniteField/t_finite_field_round2.wls` extended to 23 checks. (9,6) acceptance
   re-run: 157.1 -> 140.9 s, oracle-identical. All six finite-field tests green.
   The "width guard" entry in next step 1 below is therefore done.
 - Inventory wording corrected: of the 37 families without a certified
@@ -367,7 +367,7 @@ not worth it alone); the `::usage` item is fixed.
   `Cut` kept `HoldAll`). Those nine files now `Clear` the public symbols
   (definitions dropped, messages/attributes kept) and `ClearAll` only the
   private ones. Measured after load: 94/94 exported symbols with usage.
-  Guarded by the new `Tests/t_usage_messages.wls`.
+  Guarded by the new `Tests/Core/t_usage_messages.wls`.
 - Found by the regression batch and FIXED: `LibraFamilyEpsForm`'s chart
   route had been returning `ChartBlockCompositionFailed` for every chart
   family since ~2026-08-20 — `masterTransportChartBlockSpec` gained a
@@ -452,7 +452,7 @@ gauge/residues identical to the oracle in both.
   install. Wait, do not reinstall anything.
 - **One main kernel is ours; a seat is spared for Codex** (standing user
   rule). Subkernels are fine — the user authorized 4 today.
-- Codex works in `~/FACET` and in `External/CodexExchange/` and is
+- Codex works in `~/FACET` and in `Exchange/Codex/` and is
   read-only for us. A live `RunProjectedTransport*` kernel is theirs.
 - **Never `pkill -f` a pattern**: it matched my own shell twice today.
   Kill by PID, verified with `ps -o args=`.
@@ -491,25 +491,26 @@ Mine, if a commit is ever requested, are: the four private modules
 (`DiagonalBlockEpsForm.wl` new today; `FiniteFieldStripSolve.wl`,
 `FiniteFieldEpsForm.wl`, `FamilyEpsForm.wl`), `FeynFacet/FeynFacet.m`,
 `FeynFacet/Backends/flint/` (source + build.sh; `bin/` is gitignored),
-`Tests/t_diagonal_block_epsform.wls`, `Tests/t_finite_field_round2.wls`,
-the `Scripts/diagonal_block_*` and `Scripts/benchmark_*` drivers,
+`Tests/EpsilonForm/t_diagonal_block_epsform.wls`, `Tests/FiniteField/t_finite_field_round2.wls`,
+the `Scripts/Diagnostics/diagonal_block_*` and
+`Scripts/Diagnostics/benchmark_*` drivers,
 `Addon/Mathematica_Addon/MANIFEST.md`, `CLAUDE.md`, `WORKLOG.md`, this file
 and the records under `Results/UU_08_10_canonical/`.
 
 ## Quick verification for a new session (each needs a free kernel seat)
 
 ```bash
-wolframscript -file Tests/t_diagonal_block_epsform.wls   # 23 checks, ~1 min
+wolframscript -file Tests/EpsilonForm/t_diagonal_block_epsform.wls   # 23 checks, ~1 min
 ```
 
 ```bash
-wolframscript -file Tests/t_finite_field_round2.wls      # 11 checks, ~2 min
+wolframscript -file Tests/FiniteField/t_finite_field_round2.wls      # 11 checks, ~2 min
 ```
 
 The full stage-1 campaign reproduces in ~4 minutes on 4 subkernels:
 
 ```bash
-wolframscript -file Scripts/diagonal_block_class_campaign.wls /tmp/classff 4 ALL
+wolframscript -file Scripts/Diagnostics/diagonal_block_class_campaign.wls /tmp/classff 4 ALL
 ```
 
 ## Update 2026-08-23 00:25 (Fable)

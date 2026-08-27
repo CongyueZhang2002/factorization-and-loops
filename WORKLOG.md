@@ -572,9 +572,9 @@ Plan, in order; each step appends its outcome here:
   numbers, DEs alone certify only functional form.
 - Landed: ppHX_NLO/Results/NLO_UU_Masters.wl (exact + soft branches:
   I3, I5, I6 carry (1-v-w)^(-1-2eps) - the plus-distribution seeds),
-  Tests/t_nlo_masters.wls 6/6 green, Scripts/{build_nlo_de,
+  Tests/Reconstruction/t_nlo_masters.wls 6/6 green, Scripts/{build_nlo_de,
   solve_nlo_exact, numeric_nlo_masters, build_nlo_masters_artifact}.
-- master_NLO.tex updated with the full system table, the closed-form
+- LectureNotes/TeX/master_NLO.tex updated with the full system table, the closed-form
   solution table, endpoint/plus-distribution section, and validation;
   pushed to Overleaf for the user's afternoon meeting.
 - NEXT (user): overnight start on the NNLO double-real (two-loop)
@@ -783,7 +783,7 @@ Plan, in order; each step appends its outcome here:
   leaf growth is 7-12x/weight and weight >=4 generically leaves the
   classical class -> GPL representation (Libra/PolyLogTools) needed
   at NNLO depth.  Free cross-check: CANONICA diagonal residues
-  reproduce master_NLO.tex §3.2 exponent table letter for letter.
+  reproduce LectureNotes/TeX/master_NLO.tex §3.2 exponent table letter for letter.
 - NEXT: pass-2 holdout results; NNLO boundary program on the
   eps-forms (corner residues + physical exponents from stored soft
   spectra + subsector inheritance across the lattice + SubTropica
@@ -1004,7 +1004,7 @@ Plan, in order; each step appends its outcome here:
   forms; of the 81 uncovered, 53 purely linear (ordinary work).
   5 zero-matrix singleton blocks flagged for confirmation.
 - Round-3 note with all five answers + work-split proposal:
-  External/CodexExchange/hybrid_inventory_answers_2026-08-14.md.
+  Exchange/Fable/2026-08-14/02_hybrid_inventory_answers.md.
   Division: we take the 53-class linear batch campaign + VoC engine +
   soft/collinear boundary; they take the 3 open chart geometries +
   hard region; labels rebuilt on the corrected 173 partition after a
@@ -1506,7 +1506,7 @@ branch checks are presently reported too similarly".
   Libra is one; our own unproved certificate was not.
 
 - **W5 CF360: DEFERRED by coordinator decision.**  Stays a documented
-  expected-partial.  `Scripts/diag_cf360_path.wls` measures the
+  expected-partial.  `Scripts/HardClasses/diag_cf360_path.wls` measures the
   obstruction (polynomial part in tau per candidate path, and which
   block carries it) for the next attempt; the module header at the
   PexpExpansion abort site points at it and records that an irregular
@@ -1596,7 +1596,7 @@ branch checks are presently reported too similarly".
    eps-forms by a linear finish + a chart involution; class 79 rechartered
 
 - Independent re-verification of the automated session's class-97 chain
-  from stored artifacts (`Scripts/epsform_verify_c97_chain.wls`): Ttot
+  from stored artifacts (`Scripts/HardClasses/epsform_verify_c97_chain.wls`): Ttot
   maps chart -> A_norm SYMBOLICALLY in y (82 s); A_norm Fuchsian and
   normalized at all six loci incl. infinity (residue eigenvalues in
   eps*Z); normalized pair flat (92 s); all 12 phase-2 slice files are
@@ -1636,7 +1636,7 @@ branch checks are presently reported too similarly".
   (running at close of entry).
 - Ledger: 172/173 classes with certified eps-forms (97, 77 new; 79
   pending).  All evidence under `Results/.../EpsFormRoute/`, scripts as
-  `Scripts/epsform_*.wls`.  Uncommitted at time of writing.
+  `Scripts/HardClasses/epsform_*.wls`.  Uncommitted at time of writing.
 - Codex is running the eps-graded VECTOR-frame route on class 77 with
   lower-sector sources; both reviewers recommend stopping the full 4x4
   second-order frame (keep one column/coefficient as reference) — user
@@ -1657,19 +1657,19 @@ branch checks are presently reported too similarly".
   symbolic); scalar gauge removes the eps-dependent apparent y-loci;
   GATE x/y on the ORIGINAL chart system True/True, flat.  Coordinator's
   independent re-derivation from T + letters + residues + the class rep
-  (`Scripts/epsform_independent_gate_c79.wls`): GATE x/y True/True.
+  (`Scripts/HardClasses/epsform_independent_gate_c79.wls`): GATE x/y True/True.
   Letters {x,y,1-x,1-y,x-y,1-x-y,2-x-y}; residue eigenvalue tuple NOT
   conjugate to 97's (measured).  Deck-covariant.  Artifacts moved into
   `Results/.../EpsFormRoute/` (c79_epsform_two_variable.wl, symnorm_c79.wl,
   c79_constant_gauge_symbolic.wl, balanced_c79_y3_7.wl, logs_c79/),
-  scripts as `Scripts/epsform_*_c79.wls`.
-- Ledger: `Scripts/build_hard_class_ledger.wls` (Opus-written; I fixed
+  scripts as `Scripts/HardClasses/epsform_*_c79.wls`.
+- Ledger: `Scripts/Diagnostics/build_hard_class_ledger.wls` (Opus-written; I fixed
   the class-79 Inverse branch x,y = (1-v-w +- sqrtQ)/2) wrote
   ClassForms/class{97,77,79}.wl; ValidateCanonicalForm True on all three;
-  `Tests/t_hard_class_epsforms.wls` 24/24 after fixing a context trap in
+  `Tests/EpsilonForm/t_hard_class_epsforms.wls` 24/24 after fixing a context trap in
   the test (ValidateCanonicalForm loads CANONICA; later Get read bare eps
   as CANONICA`eps -> 6 false failures; normalize by SymbolName).
-- Audits 97/77 (`Scripts/epsform_audits_c97_c77.wls`): letters eps-free;
+- Audits 97/77 (`Scripts/HardClasses/epsform_audits_c97_c77.wls`): letters eps-free;
   T's denominators pure letters (balance-created apparent loci cancel
   inside T); deck intertwiner exists (dim 1, S^2 scalar; same S for 97
   and 77); det T's only eps-dependent (x,y)-factor for 77 is the raw
@@ -1679,7 +1679,7 @@ branch checks are presently reported too similarly".
   OInverse message; Quiet does not help) — earlier "Libra found no
   balance" verdicts on this box are void; Libra Fuchsify is a no-op on an
   irreducible diagonal block.
-- Codex exchange round 7 written (`External/CodexExchange/round7_hard_classes_epsforms_2026-08-16.md`,
+- Codex exchange round 7 written (`Exchange/Fable/2026-08-16/01_hard_class_eps_forms.md`,
   to be shuttled by the user): results, both reviewers' recommendation on
   Codex's class-77 frame, requests (independent gate, AMFlow points,
   Class-8 certificate).
@@ -1818,7 +1818,7 @@ branch checks are presently reported too similarly".
   undefined `SymbolQ` guard) plus six majors.
 - FF optimization ladder opened on the frozen CF254 (9,6) oracle: M0 census
   1399.5 s -> O1 (setup hoist) 1035.5 s. Milestones M0/M1/M2 and proposals
-  O1/O2/A2/A3/A4 split with Codex in `External/CodexExchange/`.
+  O1/O2/A2/A3/A4 split with Codex in `Exchange/`.
 - **Process failure, user-flagged**: a 28-family zero-root production batch
   was launched without an explicit go and against the agreed sequencing
   (optimize first). Stopped within minutes. Root cause: no plan-consistency
@@ -1869,7 +1869,7 @@ became a package routine: `FeynFacet/Private/DiagonalBlockEpsForm.wl`.
 - **Correction, caught by the watchdog from a `Set::wrsym` line**: probe and
   test assigned the conjugator to the Protected symbol `C`, so the
   "T equals T_old up to a constant" line was VACUOUS. Re-run with a plain
-  symbol (`Scripts/diagonal_block_epsform_oracle.wls`): all three
+  symbol (`Scripts/Diagnostics/diagonal_block_epsform_oracle.wls`): all three
   conjugators are x,y-free and invertible. Letters, spectra and the gate
   were never affected. Rule: never assign to `C`, `D`, `E`, `I`, `K`, `N`, `O`.
 
@@ -1880,7 +1880,7 @@ became a package routine: `FeynFacet/Private/DiagonalBlockEpsForm.wl`.
   refuses the 1x1 classes 16/68/84 and the bilinear 115 in under a second,
   caps out (3x300 s) on 26/33/118. Finite field 516 s but 149/170 — and
   every miss was an INSTANT failure, i.e. a blind spot of the driver, not a
-  hard case. `Scripts/benchmark_diagonal_block_engines.wls`.
+  hard case. `Scripts/Diagnostics/benchmark_diagonal_block_engines.wls`.
 - Those 21 misses drove the standardization: reducible slice directions
   (variable swap, then SHEARED frames `w = s + lambda v` — a generic line
   keeps the monodromy, and a shear along a root direction linearizes a
@@ -1899,7 +1899,7 @@ became a package routine: `FeynFacet/Private/DiagonalBlockEpsForm.wl`.
 - Oracle vs the ledger: per-letter spectra identical and constant
   conjugation on every same-variable class; the three hard classes are
   identical to the Kallen-chart ledger forms after pulling the conic
-  t-chart back (`Scripts/diagonal_block_cross_chart_oracle.wls`).
+  t-chart back (`Scripts/Diagnostics/diagonal_block_cross_chart_oracle.wls`).
 
 ### (13:00-15:35) NumericalEps slice engine + canonical residue frame
 
@@ -1961,11 +1961,11 @@ the package and re-accepted here against the O2b oracle.
 
 ### Tests, process, environment
 
-- New: `Tests/t_diagonal_block_epsform.wls` (23 checks — synthetic KZ block
+- New: `Tests/EpsilonForm/t_diagonal_block_epsform.wls` (23 checks — synthetic KZ block
   with an eps-dependent apparent locus, zero block, scalar block with a
   bi-quadratic letter, reducible slice direction solved in another frame,
   NumericalEps vs symbolic engine agreement) and
-  `Tests/t_finite_field_round2.wls` (11 checks — support census, sparse
+  `Tests/FiniteField/t_finite_field_round2.wls` (11 checks — support census, sparse
   probe, held-out solve exact/fewer images/agrees with deterministic, FLINT
   matches Wolfram). Existing FF tests green;
   `t_finite_field_adaptive_sampling` now pins
@@ -2040,7 +2040,7 @@ the package and re-accepted here against the O2b oracle.
   Those files now `Clear` the public symbols (drops definitions so a re-Get
   stays clean; keeps messages, attributes, options) and `ClearAll` the
   private ones. After load: 94/94 with usage, attributes/options unchanged.
-  New `Tests/t_usage_messages.wls`; the tests of the nine modules re-run
+  New `Tests/Core/t_usage_messages.wls`; the tests of the nine modules re-run
   as regression tests (results below).
   Regression batch after the usage fix (`t_usage_messages`,
   `t_diagonal_block_epsform`, `t_family_epsform_module`,
@@ -2062,7 +2062,7 @@ the package and re-accepted here against the O2b oracle.
 
 ## 2026-08-21 (late evening) — Codex epsilon-form audit: adopted with a scope correction
 
-- Codex (`External/CodexExchange/codex_epsform_stress_2026-08-21/`) found
+- Codex (`Exchange/Codex/2026-08-21/04_eps_form_stress_suite/`) found
   three defects by adversarial examples: the diagonal gate accepted a
   regulator-dependent letter (`x + eps`); `VerifyEpsFormStrip` accepted any
   exact Pfaffian identity regardless of letter/residue structure; the
@@ -2095,7 +2095,7 @@ the package and re-accepted here against the O2b oracle.
   copied into `Codex/TwoRootCF254Sector9Lower/` — no test reads `~/FACET`
   any more); `t_finite_field_strip_solve` (installation positive, two
   refusals); `t_diagonal_block_epsform` 25/25. Reply to Codex:
-  `External/CodexExchange/fable_epsform_audit_reply_2026-08-21.md`.
+  `Exchange/Fable/2026-08-21/04_epsform_audit_reply.md`.
 
 ## 2026-08-22 (00:00-02:00) — parallel architecture, method benchmark, dim-3 defect, finite-field-first route
 
@@ -2140,7 +2140,7 @@ the package and re-accepted here against the O2b oracle.
   substitute. Terminology slip corrected: "off-diagonal block (k,j)", never
   "strip", in prose.
 - **Blockwise Libra route re-read** (Codex `~/FACET/Codex/General/
-  LibraTwoRootBlockwise_20260819`, our `Scripts/libra_saved_blockwise_epsform.wls`
+  LibraTwoRootBlockwise_20260819`, our `Scripts/Libra/libra_saved_blockwise_epsform.wls`
   + `libra_checkpoint_factor_dependence.wls`): per pair (i,j) with a nonzero
   coupling, Libra `FuchsifyBlock` on the LOCAL two-block subsystem (balances,
   no gauge ansatz), embedded into the family; then ONE global Libra
@@ -2184,7 +2184,7 @@ the C build may use 16 cores.
   Measured: CF254 assembly 610.5 -> 97.9 s, identical connection and
   inverses; block solves with the numerical final check, gauge/residues
   SameQ to the oracles: (9,6) 141 -> 69.5 s, (9,7) 446 -> 368 s (before the
-  sampler change below). Test `Tests/t_check_levels.wls` (10 checks).
+  sampler change below). Test `Tests/Infrastructure/t_check_levels.wls` (10 checks).
 - **Sampler restructured**: the residue columns were built from the tensor
   of forcing coefficients (alphabet x upper x lower x 2 x upper x lower,
   zero except one entry per triple: 6656 rational evaluations per point on
@@ -2436,7 +2436,7 @@ families are now in `FamilyEpsFormsCertified/`.
    sector, zero gain on CF265 sector 16) are gone; the residues'
    regulator dependence is removed by `FactorFamilyRegulatorDependence`
    (Libra FactorDependence on exact rational samples, symbolic identity
-   as acceptance; `Tests/t_family_regulator_factor.wls` 7/7).
+   as acceptance; `Tests/EpsilonForm/t_family_regulator_factor.wls` 7/7).
 
 **Final check rewritten** (`FeynFacet/Private/FamilyCertificateModular.wl`,
 default `"IdentityMethod" -> "Modular"` of CertifyFamilyEpsilonForm;
@@ -2451,7 +2451,7 @@ pull-back); Schwartz-Zippel degree bound, primes, points and the failure
 probability recorded in the certificate (CF231 4.6e-77, CF305 1.7e-65,
 CF265 6.8e-68).  Times: CF231 456 s → 10 s (same verdict as the symbolic
 certificate of 12:00), CF305/CF265 (32x32) >60 min unfinished → 17.8 s.
-`Tests/t_family_certificate_modular.wls` 8/8 (corrupted transformation and
+`Tests/FiniteField/t_family_certificate_modular.wls` 8/8 (corrupted transformation and
 corrupted eps-form rejected at the right checks); t_certify_family_
 epsilon_form, t_exact_family_epsilon_form_q, t_family_epsform_module green
 with the new default.
@@ -2465,8 +2465,9 @@ setting (`SupportStrategy` "SimplexFirst", `SupportLearning` True).
 
 ### 18:05-19:00 — final checker hardened after Codex's adversarial review; stress on all cores
 
-Codex's assessment (`External/CodexExchange/codex_final_checker_stress_
-2026-08-22/`): five P0 (empty alphabet accepted; uncombined sums lose
+Codex's assessment (`Exchange/Codex/2026-08-22/
+02_final_checker_stress_suite/`): five P0 (empty alphabet accepted;
+uncombined sums lose
 letters; dlog rank recorded but not gated; residue reconstruction not
 gating and not sticky; degree bound underestimated — no source-flatness
 term), P1 (fitted points reused as validation; duplicate primes;
@@ -2489,8 +2490,8 @@ adaptive loop spun when no new prime could be drawn) fixed.
 Stress (two lanes on all cores): Codex adversarial suite — 4 controls OK,
 all 8 EXPOSE exploits closed; real suite — CF265/CF305 certify (42/79 s);
 `t_family_certificate_modular` 15/15; certificate tests green; CF231/CF265/
-CF305 re-certified exact.  Reply note: `External/CodexExchange/
-fable_final_check_2026-08-22/fable_reply_to_checker_assessment_2026-08-22.md`.
+CF305 re-certified exact.  Reply note: `Exchange/Fable/2026-08-22/
+01_final_checker_changes_and_reply/fable_reply_to_checker_assessment_2026-08-22.md`.
 Finding for the physics: CF231's residues are up to 101 digits (basis
 normalization from CANONICA's per-sector constant transformations) —
 flagged as a quality issue before transport.
@@ -2572,7 +2573,7 @@ buffered, so log lines cannot date a blowup):
    the forcing are now discarded (CF408 (7,4), CF385 (19,10)).
 **88 of 91 families certified**; open: the triple-root CF259/CF300/
 CF303 (GPT/Codex exploring with their main + 4 subkernels).
-Adversarial solver test `Tests/t_finite_field_adversarial.wls` (13
+Adversarial solver test `Tests/FiniteField/t_finite_field_adversarial.wls` (13
 checks: tall residues, off-rectangle numerator, eps^0 dlog part, equal
 diagonal blocks, pilot-point support shrink, poles at schedule values,
 resonance residues, an eps-dependent letter that must be rejected, the
@@ -2663,7 +2664,7 @@ sector route from the existing time records (no finite-field reruns).
 
 ## 2026-08-23 (00:10-00:50) — Codex package bug report: multiquadratic rows bypassed the regulator factorization (fixed)
 
-Codex (`External/CodexExchange/triple_root_2026-08-22/codex_package_bug_
+Codex (`Exchange/Codex/2026-08-22/04_triple_root_campaign/codex_package_bug_
 multiquadratic_regulator_2026-08-22.md`): in a multiquadratic identity
 frame the sector script's `! algebraicFrameQ` guards skipped the
 per-sector and family-level regulator factorization, so completed rows
@@ -2701,7 +2702,7 @@ solved.  Reproduced and fixed:
   before the next row.  Blockwise sector certificates are structural
   (D.D = 0 so T^-1 = 1 - D exactly; Development: exact when every strip
   was exactly checked).
-- Tests: `Tests/t_family_regulator_factor_in_frame.wls` (12: one-root
+- Tests: `Tests/EpsilonForm/t_family_regulator_factor_in_frame.wls` (12: one-root
   chart factorization with source-frame gauge identity and inverse,
   rational path, typed stop for {lambda1, 1-4vw}, idempotence) 12/12;
   `t_family_regulator_factor` 7/7.
@@ -2726,7 +2727,7 @@ tests), Opus subagents for ordinary missions under my oversight.
   permanently Locked worker 144 -- it held every subkernel seat and
   blocked the licence ("No valid password found" for any new subkernel).
   Logs and final status archived to
-  `External/CodexExchange/codex_overnight_pool_final_state_2026-08-23/`;
+  `Exchange/Codex/2026-08-23/14_overnight_pool_final_state/`;
   pool stopped (stopnow).  Lesson recorded: a pool whose owner is gone
   still tops up its subkernels; retire it before starting new pools.
 - Verified Codex's integration exactly matches its mirror (four postimage
@@ -2735,7 +2736,7 @@ tests), Opus subagents for ordinary missions under my oversight.
 - KernelPool.wls: target-level top-level Return can no longer escape
   poolRun before the MISSION end record (function boundary around the
   Get; Codex handoff defect 1); live regression
-  `Tests/t_kernelpool_return_marker.wls` (needs a free subkernel).
+  `Tests/Infrastructure/t_kernelpool_return_marker.wls` (needs a free subkernel).
 - FLINT affine-RREF adapter independently re-verified (Opus subagent):
   all ten pinned hashes match, bit-identical release rebuild, 73/73
   release + 36/36 ASan/UBSan on both shipped and rebuilt binaries,
@@ -3041,7 +3042,7 @@ Codex flagged at 08:30, and it is wider than the one file he named.
 ## 2026-08-25 (18:30-) — HARDENING WAVE: Codex's P1 provenance blockers, cooperative deadlines everywhere, prepare persistence, and the CF303 modular resume gate
 
 Closes the open blocker list of
-`External/CodexExchange/codex_bihourly_fable_optimization_assessment_2026-08-25_1430.md`
+`Exchange/Codex/2026-08-25/07_optimization_review_1430.md`
 on top of `366deac`. Every item lands with its test; every adversarial
 test presents a mutant the pre-fix code accepts.
 
@@ -3053,7 +3054,7 @@ test presents a mutant the pre-fix code accepts.
    composes to different elements — shared a core entry.
    `multiquadraticStripCompileCoreKeyFromParts` now takes and keys the
    ordered `RootCanonicalExpressions` as well. Adversarial test (block
-   A1 of the new `Tests/t_multiquadratic_provenance.wls`): the pre-fix
+   A1 of the new `Tests/Multiquadratic/t_multiquadratic_provenance.wls`): the pre-fix
    key tuple is reconstructed explicitly and shown to COLLIDE, the
    current tuple to separate, and the pool is probed behaviourally —
    under the pre-fix key the mutant HITS the other basis' core.
@@ -3147,7 +3148,7 @@ test presents a mutant the pre-fix code accepts.
     mode that skips the reconstruction, and an `"AdversarialAudit"`
     re-derives regardless.
 
-**Fixtures.** `Tests/t_multiquadratic_{letters,gauge_screen,gauge_ladder}`
+**Fixtures.** `Tests/Multiquadratic/t_multiquadratic_{letters,gauge_screen,gauge_ladder}`
 read the real CF300 (12,9) descriptor from the LIVE campaign directory,
 which round 6 rewrote at 13:41 under a running suite. All three inputs
 are now frozen under `FrozenTestFixtures_2026-08-25/`; the 33 MB sector

@@ -7,7 +7,7 @@
    basis, conjugate evaluation and projection, the split-point test,
    modular square roots, and the F2 grade lattice.
 
-   Source: External/CodexExchange/triple_root_2026-08-22/
+   Source: Exchange/Codex/2026-08-22/04_triple_root_campaign/
    TripleRootAlgebra.wl (Codex, audited).  Semantics are preserved
    exactly; only the names are rehoused in FeynFacet`Private` and the
    two rank-0 fixes named in the promotion handoff are made explicit.

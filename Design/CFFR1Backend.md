@@ -1,7 +1,7 @@
 # Wolfram-side CFFR1 backend ("PlanDiscoveryBackend" -> "FLINTAffineRREF")
 
 Binding design, 2026-08-23 (Fable).  Implements the promotion boundary of
-`External/CodexExchange/codex_package_bug_handoff_2026-08-23.md` for the
+`Exchange/Codex/2026-08-23/12_package_bug_handoff.md` for the
 native affine-RREF adapter now at `FeynFacet/Backends/flint/flint_affine_rref`
 (protocol `PROTOCOL_CFFR1.md`; source SHA256 11f4d337...5617cd; independently
 re-verified 2026-08-23: bit-identical rebuild, 73/73 + 36/36, byte-identical
@@ -54,7 +54,7 @@ follower solves, CRT, lift) is unchanged.
    the native path in this pass (conservative default; flip later by
    measurement).  requested === "Wolfram" is the historical path.
 
-## Tests (new `Tests/t_finite_field_affine_rref_backend.wls`)
+## Tests (new `Tests/FiniteField/t_finite_field_affine_rref_backend.wls`)
 
 Small dense systems with known rank/nullity: (a) agreement of the native
 plan with the Wolfram plan on pivot/free/normalization columns and

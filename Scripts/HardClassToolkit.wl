@@ -27,7 +27,7 @@ HCT$Version = "1.0";
 
 (* Libra trap (MEASURED, WL 14.2), turned off HERE because this toolkit is
    loaded into the same kernel as Libra by every eps-form driver
-   (Scripts/epsform_lee79b_c79.wls, epsform_symrep79_c79.wls, symrep97.wls,
+   (Scripts/HardClasses/epsform_lee79b_c79.wls, epsform_symrep79_c79.wls, symrep97.wls,
    balance_loop5.wls) and the failure mode is silent:
 
      Libra`Projector wraps its work in Check; its own OInverse emits a
@@ -39,7 +39,7 @@ HCT$Version = "1.0";
    The toolkit does not itself Get Libra, so this is a guard for the
    surrounding kernel, not a load-site fix; the load-site fix lives in
    FeynFacet/Private/MasterTransport.wl (masterTransportLoadLibra).
-   Pinned by Tests/t_wolfram_traps.wls.  The message carries no
+   Pinned by Tests/Infrastructure/t_wolfram_traps.wls.  The message carries no
    information we act on -- it reports an option name a third-party
    package passes to its own helper -- so switching it off is not
    suppressing a diagnostic of ours. *)

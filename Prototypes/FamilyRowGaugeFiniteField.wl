@@ -35,7 +35,7 @@
    leave a second implementation behind.
 
    Three consequences of that deletion, all measured by
-   Tests/t_multiquadratic_algebra_differential.wls (which was the
+   Tests/Multiquadratic/t_multiquadratic_algebra_differential.wls (which was the
    agreement gate before the deletion and is the delegation gate after
    it):
 

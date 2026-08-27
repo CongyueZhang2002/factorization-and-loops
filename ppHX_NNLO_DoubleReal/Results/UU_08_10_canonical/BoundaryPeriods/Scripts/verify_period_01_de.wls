@@ -7,7 +7,7 @@
            z (1-z) f'(z) - (a z - (c-1)) f(z) - (c-1) = 0.
        Proved from the exact Pochhammer coefficient recursion, symbolically
        in a, c and in the summation index n.  This replaces the 25-digit
-       numeric spot check used by Tests/t_nlo_masters.wls criterion B.
+       numeric spot check used by Tests/Reconstruction/t_nlo_masters.wls criterion B.
 
    P2. (differential-equation identity)  With the CF1 connection read from
        the repository artifact

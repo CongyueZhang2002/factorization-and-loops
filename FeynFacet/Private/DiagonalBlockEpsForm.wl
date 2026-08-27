@@ -184,7 +184,7 @@ diagonalBlockMaskCombinations[lengths_List] := Module[{n = Length[lengths]},
       {mask, Total[Pick[lengths, mask, 1]]}], {m, 0, 2^n - 1}]]
 ];
 
-(* One Lee step (port of Scripts/epsform_lee79b_c79.wls, 2026-08-16):
+(* One Lee step (port of Scripts/HardClasses/epsform_lee79b_c79.wls, 2026-08-16):
    Poincare-rank-positive points are tried first as the raise point;
    left/right towers come from Libra`GetSubspaces, the projector from
    Libra`Projector, the balance from Libra`Balance.  When a

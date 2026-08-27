@@ -5,7 +5,7 @@ identity; no numerical step appears in the chain. Numerics are retained in
 section 6 as an independent check only.
 
 This entry answers section 3.1 of
-`External/CodexExchange/codex_assessment_of_fable_round6_2026-08-15.md`,
+`Exchange/Codex/2026-08-15/02_assessment_of_fable_round6.md`,
 which required the differential-equation identity as an exact symbolic
 statement and an exact soft-limit analysis in the physical chamber.
 
@@ -148,7 +148,7 @@ specialized to `a = 1-eps`, `c = 2-2 eps`. **This relation is itself proved
 symbolically**, for general `a` and `c`, from the exact Pochhammer
 coefficient recursion `(c+n-1) g[n] = (a+n-1) g[n-1]` with
 `g[n] = (a)_n/(c)_n` `[P1a, P1b]`. That is strictly stronger than the
-25-digit numeric spot check used by `Tests/t_nlo_masters.wls` criterion B,
+25-digit numeric spot check used by `Tests/Reconstruction/t_nlo_masters.wls` criterion B,
 which the same argument would upgrade (`a = 1`, `c = 1-eps` reproduces that
 test's relation exactly).
 

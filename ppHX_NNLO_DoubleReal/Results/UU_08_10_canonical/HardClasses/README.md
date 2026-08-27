@@ -15,7 +15,7 @@ per order through the verified factor chain.
 - `eps0_c97_factored.wl`, `eps0_c77_factored.wl`, `eps0_c79_factored.wl`
   — the symbolic eps=0 first-order factor chains with the operator
   coefficient lists (symbolic eps).  Every chain carries an exact
-  recomposition certificate, re-checked by Tests/t_epsilon_graded.wls
+  recomposition certificate, re-checked by Tests/EpsilonForm/t_epsilon_graded.wls
   from the stored data (stored status is never trusted).
   Chain provenance: 97 by constructive peel over the DSolve kernel
   (rational-dlog span extraction); 77/79 first two factors by

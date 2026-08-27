@@ -2,8 +2,8 @@
 
 Decided by the 2026-08-15 package survey (Design/Stage3PackageSurvey.md,
 migrated into the repository 2026-08-15) and Codex's boundary
-findings/plan (External/CodexExchange/
-codex_boundary_findings_plan_2026-08-15.md). Every adoption below is
+findings/plan (Exchange/Codex/2026-08-15/
+01_boundary_findings_plan.md). Every adoption below is
 probe-verified against certified controls, by us or by Codex (marked).
 
 Boundary-period evidence and the exact ledger now live under

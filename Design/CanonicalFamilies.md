@@ -110,7 +110,7 @@ ground truth and the NNLO collapse is measured.
 - `CanonicalizeTopologyRecords[records]` -> convenience fold returning
   `<| "Registry", "Rules", "Classes", "Rejected" |>`.
 
-## Acceptance tests (`Tests/t_canonical_families.wls`)
+## Acceptance tests (`Tests/EpsilonForm/t_canonical_families.wls`)
 
 1. Over all saved NLO UU 10x10 pair records: exactly 11 canonical
    families, zero `CollisionRegistered`.

@@ -4,7 +4,7 @@ Exact zero proof for the free (`s^0`) Frobenius mode of boundary periods
 1 (CF1), 6 and 7 (CF124), at the soft stratum `s = 1-v-w -> 0`.
 
 This is the analytic argument Codex asked for in
-`External/CodexExchange/codex_assessment_of_fable_round6_2026-08-15.md`
+`Exchange/Codex/2026-08-15/02_assessment_of_fable_round6.md`
 sections 3.2 and 3.3, adapted to cover period 1 as well (their section 3.1).
 It replaces the numeric branch identification recorded by the pilot.
 
