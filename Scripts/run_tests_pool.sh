@@ -7,7 +7,10 @@
 # Limits (measured 2026-08-22, 47 tests in 13 min on 3 subkernels): a test
 # that launches its own subkernels (t_canonica_scheduler passes kernelCount
 # 2) cannot do so inside a pool subkernel (LaunchKernels::subnopar) and must
-# run standalone; t_reconstruction_ghost asserts a FireFly wall-time
+# run standalone; t_canonical_pipeline is the same (Kira parallel import
+# workers), t_pair_queue_schedule (its own 2-worker dynamic queue; in a
+# pool subkernel it LOOPS FOREVER writing ~590 MB/min of QUEUEWARNING,
+# 2026-08-27) and t_kernelpool_return_marker (brings up its own pool); t_reconstruction_ghost asserts a FireFly wall-time
 # baseline and fails under load; t_wolfram_traps pins a Libra symptom that
 # no longer reproduces on 14.2 (pre-existing red).
 set -u
@@ -47,14 +50,23 @@ if ! { [[ -f "$pool/pool.pid" ]] && kill -0 "$(cat "$pool/pool.pid")" 2>/dev/nul
 fi
 for test_file in "${test_files[@]}"; do
   t="$(basename "$test_file" .wls)"
-  "$root/Scripts/kpsubmit.sh" "fresh_$t" "$test_file" > /dev/null
+  # REUSE=1 (2026-08-27): run on the standing preloaded subkernels
+  # instead of one fresh kernel per test.  The fresh-per-test policy
+  # launches ~95 kernels per full batch and outruns the licence
+  # server's seat release, killing the pool (three batches lost
+  # 2026-08-27 01:09-02:15).  Reused kernels skip the ~40 s preload per
+  # test as well.  A test that fails under reuse gets one fresh
+  # STANDALONE confirmation before its failure counts (Global` state
+  # contamination is the known reuse risk, 2026-08-22: 2 of 21).
+  prefix="fresh_"; [ "${REUSE:-0}" = "1" ] && prefix="run_"
+  "$root/Scripts/kpsubmit.sh" "${prefix}$t" "$test_file" > /dev/null
 done
 fail=0; printf '%-45s %-8s %s\n' test status wall
 for test_file in "${test_files[@]}"; do
   t="$(basename "$test_file" .wls)"
-  "$root/Scripts/kpwait.sh" "fresh_$t" 14400 > "$pool/fresh_$t.wait" 2>&1
-  st=$(grep -o '"Status" -> "[A-Z0-9]*"' "$pool/fresh_$t.wait" | head -1 | cut -d'"' -f4)
-  w=$(grep -o '"Wall" -> [0-9.]*' "$pool/fresh_$t.wait" | head -1 | grep -o '[0-9.]*$' | cut -c1-7)
+  "$root/Scripts/kpwait.sh" "${prefix}$t" 14400 > "$pool/${prefix}$t.wait" 2>&1
+  st=$(grep -o '"Status" -> "[A-Z0-9]*"' "$pool/${prefix}$t.wait" | head -1 | cut -d'"' -f4)
+  w=$(grep -o '"Wall" -> [0-9.]*' "$pool/${prefix}$t.wait" | head -1 | grep -o '[0-9.]*$' | cut -c1-7)
   printf '%-45s %-8s %s\n' "$t" "${st:-?}" "${w:-?}"
   [[ "$st" == "OK" ]] || fail=$((fail+1))
 done

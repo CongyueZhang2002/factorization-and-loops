@@ -29,7 +29,7 @@ root = "/home/maxzhang/factorization-and-loops";
 
 sub[d_] := FileNameJoin[{poolDir, d}];
 Do[If[! DirectoryQ[sub[d]], CreateDirectory[sub[d], CreateIntermediateDirectories -> True]],
-  {d, {"queue", "running", "done", "failed", "logs", "control"}}];
+  {d, {"queue", "running", "done", "failed", "duplicates", "logs", "control"}}];
 Export[sub["pool.pid"], ToString[$ProcessID], "Text"];
 log[msg___] := (WriteString["stdout", DateString["ISODateTime"], " POOL ", StringJoin[ToString /@ {msg}], "\n"]);
 putAtomic[expr_, file_] := Module[{tmp = file <> ".tmp"}, Put[expr, tmp]; RenameFile[tmp, file, OverwriteTarget -> True]];
@@ -48,7 +48,16 @@ launched = guardedLaunch[nWanted];
 nk = Length[Kernels[]];
 log["requested ", nWanted, " subkernels, running ", nk, " (license/limits decide)"];
 If[nk == 0, log["no subkernels; exiting"]; Exit[2]];
-relaunchEvery = 300; lastRelaunchTry = AbsoluteTime[];
+(* Orderly close-then-relaunch (2026-08-27, user fix for the seat
+   race): after CLOSING a kernel the licence server needs a moment to
+   register the returned seat, so the replacement launch waits a short
+   grace (not instant, which gets refused) and a refusal retries in
+   SECONDS, not the old 300 s hole that left the pool bleeding while
+   missions were dispatched into phantom slots.  Only persistent
+   refusals (a genuine seat shortage, e.g. the other assistant's
+   campaign) fall back to the long interval. *)
+relaunchGrace = 4; relaunchRetry = 15; relaunchEvery = 300;
+relaunchRefusals = 0; nextRelaunchTry = AbsoluteTime[];
 
 (* per-kernel setup: quiet Libra trap, generous recursion, preload package if asked, and
    trap Exit/Quit so that scripts ending in Exit[code] (TestKit's FTReport) do not kill the
@@ -241,8 +250,16 @@ writeStatus[] := Module[{lines},
 
 finish[name_, res_] := Module[{ok, dest, kf, kid, k},
   ok = AssociationQ[res] && res["Status"] === "OK";
-  dest = If[ok, sub["done"], sub["failed"]];
-  If[ok, doneCount++, failCount++];
+  (* a DUPLICATE is the claim mechanism working, not a failure: the
+     evaluation found another evaluation's claim on the same mission,
+     executed nothing, and the claim OWNER writes the real verdict.
+     Filing it under failed/ made passing tests look red (2026-08-27). *)
+  dest = Which[ok, sub["done"],
+    AssociationQ[res] && res["Status"] === "DUPLICATE", sub["duplicates"],
+    True, sub["failed"]];
+  Which[ok, doneCount++,
+    AssociationQ[res] && res["Status"] === "DUPLICATE", Null,
+    True, failCount++];
   (* fresh_* missions (regression tests, 2026-08-22): tests assume a
      clean Global` context, and two of 21 failed on a REUSED subkernel
      while passing standalone -- close the subkernel that ran a fresh_*
@@ -251,7 +268,8 @@ finish[name_, res_] := Module[{ok, dest, kf, kid, k},
   If[StringStartsQ[name, "fresh_"] && FileExistsQ[kf],
     kid = Quiet[ToExpression[Import[kf, "Text"]]];
     k = If[IntegerQ[kid], Select[Kernels[], KernelID[#] === kid &], {}];
-    If[k =!= {}, Quiet@CloseKernels[k]; lastRelaunchTry = 0;
+    If[k =!= {}, Quiet@CloseKernels[k];
+      nextRelaunchTry = AbsoluteTime[] + relaunchGrace;
       log["fresh mission ", name, ": subkernel ", kid, " closed for relaunch"]]];
   Quiet@RenameFile[poolJobs[name]["File"], FileNameJoin[{dest, name <> ".wl"}], OverwriteTarget -> True];
   putAtomic[If[AssociationQ[res], res, <|"Mission" -> name, "Status" -> "KERNELLOST", "Result" -> res|>],
@@ -274,14 +292,21 @@ maxResubmits = 3;
 interruptKernel[kid_] := Module[{k = Select[Kernels[], KernelID[#] === kid &]},
   If[k =!= {}, Quiet@CloseKernels[k]; log["kernel ", kid, " closed (cancel)"], log["kernel ", kid, " not found"]]];
 topUpKernels[] := Module[{missing = nWanted - Length[Kernels[]], got},   (* target the REQUESTED count, not the startup count *)
-  If[missing > 0 && AbsoluteTime[] - lastRelaunchTry > relaunchEvery,
-    lastRelaunchTry = AbsoluteTime[];
+  If[missing > 0 && AbsoluteTime[] >= nextRelaunchTry,
     got = guardedLaunch[missing];
     If[Length[got] > 0,
+      relaunchRefusals = 0;
+      nextRelaunchTry = AbsoluteTime[];
       kernelSetup[got]; kernelPreload[got]; kernelDefs[got];
       pids = Join[pids, Association[ParallelEvaluate[$KernelID -> $ProcessID, got]]];
       log["relaunched ", Length[got], " subkernel(s); now ", Length[Kernels[]]],
-      log["relaunch of ", missing, " subkernel(s) failed (license?); serving with ", Length[Kernels[]], "; retry in ", relaunchEvery, " s"]]]];
+      relaunchRefusals++;
+      nextRelaunchTry = AbsoluteTime[] +
+        If[relaunchRefusals >= 4, relaunchEvery,
+          relaunchRetry + RandomInteger[{0, 10}]];
+      log["relaunch of ", missing, " subkernel(s) failed (license?); ",
+        "serving with ", Length[Kernels[]], "; refusal ", relaunchRefusals,
+        ", retry in ", Round[nextRelaunchTry - AbsoluteTime[]], " s"]]]];
 
 log["serving; queue=", sub["queue"], "  status=", sub["status.txt"]];
 stopping = False;
@@ -297,7 +322,7 @@ While[True,
        log["cancel ", name, " on kernel ", kid, " (close + guarded relaunch)"];
        If[IntegerQ[kid], interruptKernel[kid]];
        finish[name, <|"Mission" -> name, "Status" -> "CANCELLED", "Wall" -> AbsoluteTime[] - poolJobs[name]["Start"]|>];
-       lastRelaunchTry = AbsoluteTime[] - relaunchEvery + 20;   (* relaunch ~20 s later: an immediate attempt races the license manager releasing the seat (measured 2026-08-17 00:2x) *),
+       nextRelaunchTry = AbsoluteTime[] + 20;   (* relaunch ~20 s later: an immediate attempt races the license manager releasing the seat (measured 2026-08-17 00:2x) *),
        log["cancel ", name, ": not running (ignored)"]];
      Quiet@DeleteFile[c]],
     {c, FileNames["*.cancel", sub["control"]]}];
@@ -364,11 +389,25 @@ While[True,
          rf = FileNameJoin[{sub["running"], name <> ".wl"}];
          lf = FileNameJoin[{sub["logs"], name <> ".log"}];
          kf = FileNameJoin[{sub["running"], name <> ".kernel"}];
+         (* stale-record hygiene (2026-08-27): a re-run of a mission
+            name must not be graded by, or collide with, an earlier
+            verdict of the same name *)
+         Quiet[DeleteFile[FileNameJoin[{sub["done"], name <> ".status"}]]];
+         Quiet[DeleteFile[FileNameJoin[{sub["failed"], name <> ".status"}]]];
+         Quiet[DeleteFile[FileNameJoin[{sub["running"], "claims", name <> ".wl"}]]];
          RenameFile[q, rf, OverwriteTarget -> True];
          eid = With[{rf = rf, lf = lf, kf = kf}, ParallelSubmit[poolRun[rf, lf, kf]]];
          poolJobs[name] = <|"EID" -> eid, "File" -> rf, "Start" -> AbsoluteTime[]|>;
          log["dispatched ", name, " (", Length[poolJobs], "/", Length[Kernels[]], " busy)"]]],
       {q, SortBy[FileNames["*.wl", sub["queue"]], FileDate]}]];
+  (* THE PUMP (2026-08-27): ParallelSubmit only queues; without an
+     explicit QueueRun the evaluations are handed to subkernels only
+     when something else happens to pump the scheduler.  Under fresh_*
+     kernel churn that pumping stalled: seven subkernels sat idle on
+     their links for minutes while dispatched missions waited in the
+     master queue (measured 02:04, all seven in futex wait).  One pump
+     per loop pass keeps the queue moving; it is a no-op when empty. *)
+  Quiet[Parallel`Developer`QueueRun[]];
   writeStatus[];
   If[stopping && Length[poolJobs] == 0, log["stop: queue drained, shutting down"]; Break[]];
   (* 1 s loop (was 3 s): the task broker's round trip is paid per sample
