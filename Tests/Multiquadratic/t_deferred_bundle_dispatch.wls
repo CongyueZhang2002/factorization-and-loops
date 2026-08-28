@@ -2,8 +2,9 @@
 (* A deferred bundle carries the nonzero forcing while the materialized
    BBar slot is only a zero shape placeholder.  The in-frame dispatcher must
    authenticate that bundle before zero-forcing and must include roots used
-   only by its DAG in the canonical root census.  This test disables the
-   downstream multiquadratic solve, so it exercises only that cheap boundary. *)
+   only by its DAG in the canonical root census.  Chartless root sets retain
+   the direct-provider boundary, while bundle presence alone must not suppress
+   a chart.  This test exercises those cheap dispatch boundaries. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
@@ -69,9 +70,8 @@ forcedChart = Block[{TransportRootSetChart = Function[{squares, vars}, fakeChart
     "MultiquadraticDispatch" -> False,
     "MultiquadraticOptions" -> {"DeferredBundle" -> bundle},
     "Verbose" -> False]];
-FTAssert["D4 a bundle uses the direct provider even if chart lookup offers a chart",
-  Lookup[forcedChart, "Status", None] === "NoRationalStripChart" &&
-    Lookup[forcedChart, "MultiquadraticDispatch", None] === "Disabled"];
+FTAssert["D4 bundle presence no longer suppresses an available chart",
+  Lookup[forcedChart, "Status", None] === "ChartNotWellFormed"];
 
 ordinaryZero = SolveEpsFormStripInFrame[placeholderStrip, variables, epsilon,
   frame, "MultiquadraticDispatch" -> False, "Verbose" -> False];

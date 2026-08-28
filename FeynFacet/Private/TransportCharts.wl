@@ -945,6 +945,41 @@ transportChartPullBackStrip[strip : {e_List, c_List, bbar_List},
   pull /@ {e, c, bbar}
 ];
 
+(* Pull a deferred forcing into a rational chart without first forming its
+   source-frame sum.  Each interned operand is substituted and rationalized
+   once, then the immutable jobs assemble the chart image.  This preserves
+   the bundle's main performance property for root-free and chartable rooted
+   strips; bundle presence is not itself a reason to select the direct
+   multiquadratic engine. *)
+transportChartPullBackDeferredBundle[bundle_Association,
+    data_Association, branchRoots_List, images_List] := Module[
+  {transform, evaluated, image, survivingRadicals, pulled},
+  If[! MatchQ[Lookup[data, "Subst", None], {___Rule}] ||
+      ! MatchQ[Lookup[data, "Jacobian", None], {{_, _}, {_, _}}] ||
+      Length[branchRoots] =!= Length[images],
+    Return[<|"Status" -> "DeferredBundleChartDataInvalid"|>]];
+  transform[expr_] := Together[transportChartApplyRootBranches[
+    expr, branchRoots, images]];
+  evaluated = blockEquationDeferredBundleEvaluate[bundle, data["Subst"],
+    "ExpressionTransform" -> transform];
+  If[Lookup[evaluated, "Status", None] =!= "OK",
+    Return[<|"Status" -> "DeferredBundleChartEvaluationFailed",
+      "Detail" -> evaluated|>]];
+  image = evaluated["Image"];
+  If[! MatchQ[Dimensions[image], {2, _, _}],
+    Return[<|"Status" -> "DeferredBundleChartImageInvalid"|>]];
+  survivingRadicals = transportChartRadicalBases[image];
+  If[survivingRadicals =!= {},
+    Return[<|"Status" -> "DeferredBundleChartStillAlgebraic",
+      "RadicalBases" -> survivingRadicals|>]];
+  pulled = masterTransportPullBackOneForm[
+    image[[1]], image[[2]], data["Jacobian"]];
+  <|"Status" -> "OK", "OneForm" -> pulled,
+    "OperandEvaluations" -> evaluated["OperandEvaluations"]|>
+];
+transportChartPullBackDeferredBundle[___] :=
+  <|"Status" -> "DeferredBundleChartInputInvalid"|>;
+
 transportChartCurrentRoots[frame_Association,
     variables : {_Symbol, _Symbol}] := Module[
   {frameVariables, substitution, variableRules},
@@ -1237,6 +1272,7 @@ SolveEpsFormStripInFrame[
    finiteFieldQ, finiteFieldFirstQ, finiteFieldOptions, canonicalKernelCount,
    scratchDirectory, stripTag, verbose, solveRationalStrip, innerSolvedQ,
    multiquadraticOptions, multiquadraticResult, multiquadraticStatus,
+   bundlePullback, rationalStrip,
    deferredBundle, bundleValidation, bundleRoots, bundleIndices,
    selectedIndices, stableFrame, bundleRecord,
    constructionStart = AbsoluteTime[], deadline, timings = <||>,
@@ -1423,11 +1459,22 @@ SolveEpsFormStripInFrame[
   ];
 
   If[rootIndices === {},
+    rationalStrip = strip;
+    If[AssociationQ[deferredBundle],
+      data = <|"Status" -> "OK", "Variables" -> variables,
+        "SourceVariables" -> variables,
+        "Subst" -> Thread[variables -> variables],
+        "Jacobian" -> IdentityMatrix[2], "JacobianDet" -> 1|>;
+      bundlePullback = transportChartPullBackDeferredBundle[
+        deferredBundle, data, {}, {}];
+      If[Lookup[bundlePullback, "Status", None] =!= "OK",
+        Return[bundlePullback]];
+      rationalStrip = ReplacePart[strip, 3 -> bundlePullback["OneForm"]]];
     (* BOUNDARY (solver dispatch, rational frame): no solver is entered
        past the deadline *)
     If[transportChartDeadlineExpiredQ[deadline],
       Return[budgetExhausted["SolverDispatch"]]];
-    inner = solveRationalStrip[strip, variables];
+    inner = solveRationalStrip[rationalStrip, variables];
     If[! innerSolvedQ[inner], Return[inner]];
     Return[Join[inner, <|"Method" -> "RationalFrame/" <> inner["Method"],
       "RootIndices" -> {}, "FrameCertificate" -> <|
@@ -1439,13 +1486,7 @@ SolveEpsFormStripInFrame[
   If[transportChartDeadlineExpiredQ[deadline],
     Return[budgetExhausted["ChartSelection"]]];
   {stageSeconds, chart} = AbsoluteTiming[
-    If[AssociationQ[deferredBundle],
-      (* The rational-chart route needs a materialized BBar to pull back.
-         A deferred bundle deliberately supplies only a shape placeholder,
-         so even a root set that happens to admit a chart must go through
-         the provider that evaluates the authenticated DAG. *)
-      Missing["DeferredBundleRequiresDirectProvider"],
-      TransportRootSetChart[rootSquares, variables]]];
+    TransportRootSetChart[rootSquares, variables]];
   timings["ChartSelection"] = stageSeconds;
   If[MissingQ[chart],
     (* F2 (Design/GeneralityFixes2.md, 2026-08-23): no joint rational
@@ -1534,9 +1575,16 @@ SolveEpsFormStripInFrame[
      BEFORE the pullback, not after it: transportChartPullBackStrip
      substitutes them into the chart entries and only then normalizes
      (see the note at its definition) *)
-  {stageSeconds, chartStrip} = AbsoluteTiming[
-    transportChartPullBackStrip[strip, data, chartBranchRoots, rootImages]];
-  timings["ChartPullBack"] = stageSeconds;
+  stageSeconds = AbsoluteTime[];
+  chartStrip = transportChartPullBackStrip[
+    strip, data, chartBranchRoots, rootImages];
+  If[AssociationQ[deferredBundle],
+    bundlePullback = transportChartPullBackDeferredBundle[
+      deferredBundle, data, chartBranchRoots, rootImages];
+    If[Lookup[bundlePullback, "Status", None] =!= "OK",
+      Return[bundlePullback]];
+    chartStrip[[3]] = bundlePullback["OneForm"]];
+  timings["ChartPullBack"] = AbsoluteTime[] - stageSeconds;
   (* BOUNDARY 5 (after the pullback; also the last boundary before a
      solver runs on the chart route) *)
   If[transportChartDeadlineExpiredQ[deadline],
@@ -1739,9 +1787,13 @@ SolveEpsFormStripInFrame[
      so it is NOT normalized here.  The branch images are substituted
      first and the canonical Together is taken inside pullPair, on
      entries that are rational in the chart variables.  The chart-frame
-     side is rational from the start and is normalized as before. *)
+     side is rational from the start and is normalized as before.  For a
+     deferred bundle, its forcing was already pulled back operandwise and
+     checked to be radical-free above; add that exact chart one-form after
+     pulling the gauge terms instead of materializing the source-frame sum. *)
   {substageSeconds, sourceTransformed} = AbsoluteTiming[Table[
-    bbar[[mu]] + epsilon (e[[mu]] . sourceGauge -
+    If[AssociationQ[deferredBundle], 0, bbar[[mu]]] +
+      epsilon (e[[mu]] . sourceGauge -
       sourceGauge . c[[mu]]) - D[sourceGauge, variables[[mu]]],
     {mu, 2}]];
   transportChartStageMark["acceptance: source one-form",
@@ -1762,8 +1814,10 @@ SolveEpsFormStripInFrame[
     masterTransportPullBackOneForm[
       components[[1]], components[[2]], data["Jacobian"]]
   ];
-  {substageSeconds, pulledTransformed} = AbsoluteTiming[
-    pullPair[branchedGauge]];
+  {substageSeconds, pulledTransformed} = AbsoluteTiming[Module[{pulled},
+    pulled = pullPair[branchedGauge];
+    If[AssociationQ[deferredBundle],
+      Map[Together, pulled + chartStrip[[3]], {2}], pulled]]];
   transportChartStageMark["acceptance: Jacobian pull-back",
     <|"seconds" -> N[substageSeconds],
       "leafCount" -> transportChartStageSize[pulledTransformed]|>];

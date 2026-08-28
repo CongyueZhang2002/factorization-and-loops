@@ -144,7 +144,7 @@ familyRowGaugeDirectAlphabetOptionsValidQ[___] := False;
 familyRowGaugeDirectAlphabetOptions[] := <|
   "AdditionalLetters" -> {}, "AlgebraicLetters" -> Automatic|>;
 familyRowGaugeDirectAlphabetOptions[bundle_Association] := Module[
-  {summary, factors, orbits, rational, algebraic, payload},
+  {summary, factors, orbits, rational, algebraic, payload, safeLookup},
   summary = Lookup[bundle, "DivisorSummary", Missing["NoDivisorSummary"]];
   If[! AssociationQ[summary], Return[$Failed]];
   factors = Lookup[summary, "Factors", Missing["NoFactors"]];
@@ -152,14 +152,18 @@ familyRowGaugeDirectAlphabetOptions[bundle_Association] := Module[
   If[! MatchQ[factors, {___Association}] ||
       ! MatchQ[orbits, {___Association}],
     Return[$Failed]];
-  algebraic = Lookup[Select[factors,
+  (* Lookup[{}, key, default] returns the bare default.  Empty factor and
+     orbit lists are valid for a bundle whose active subfield is rational. *)
+  safeLookup[entries_List, key_, missing_] := If[entries === {}, {},
+    Lookup[entries, key, missing]];
+  algebraic = safeLookup[Select[factors,
     TrueQ[Lookup[#1, "Algebraic", False]] &], "Factor",
     Missing["FactorMissing"]];
   rational = DeleteDuplicates[Join[
-    Lookup[Select[factors,
+    safeLookup[Select[factors,
       ! TrueQ[Lookup[#1, "Algebraic", False]] &], "Factor",
       Missing["FactorMissing"]],
-    Lookup[orbits, "Norm", Missing["NormMissing"]]]];
+    safeLookup[orbits, "Norm", Missing["NormMissing"]]]];
   payload = <|"AdditionalLetters" -> rational,
     "AlgebraicLetters" -> If[algebraic === {}, Automatic, algebraic]|>;
   If[familyRowGaugeDirectAlphabetOptionsValidQ[payload], payload, $Failed]

@@ -67,3 +67,24 @@
 - [ ] Time-box the K3/surface classification separately.  It can prove that
   no global triple chart exists, but it does not determine the active field of
   an individual block.
+
+## Easy-block compatibility after active-subfield pruning
+
+- [🟢] Accept a valid empty divisor census and emit the neutral alphabet
+  payload for a root-free deferred bundle without weakening malformed-record
+  rejection.
+
+- [🟢] Reconstruct a nonzero root-free deferred forcing before entering the
+  rational solver; never mistake its zero shape placeholder for zero forcing.
+
+- [🟢] Route chartable deferred bundles through their exact rational chart by
+  transforming each unique interned operand before job assembly.  Preserve
+  direct multiquadratic dispatch only for active root sets without a chart.
+
+- [🟢] Prove the correction on a fresh CF300 walk: `{2,1}` passes through
+  `RationalFrame`, `{6,5}` passes through `RationalChart/Kallen2` with a
+  sub-second inner solve, and sectors 6 and 7 complete without Legacy.
+
+- [🟡] Align chart-bundle checkpoint sealing so a resumed strip can hydrate
+  instead of safely invalidating and recomputing. Keep this separate from the
+  solver correction; no relaxation is accepted without a matching exact seal.

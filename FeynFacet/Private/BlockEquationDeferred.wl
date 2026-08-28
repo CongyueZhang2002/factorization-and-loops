@@ -1821,24 +1821,28 @@ blockEquationDeferredBundleValidate[___] :=
    symbolic assembly the oracle tests compare against materialization;
    exact rational rules give one point.  Fails closed through the
    validator first. *)
-Options[blockEquationDeferredBundleEvaluate] = {"Validate" -> True};
+Options[blockEquationDeferredBundleEvaluate] = {
+  "Validate" -> True,
+  "ExpressionTransform" -> Identity
+};
 blockEquationDeferredBundleEvaluate[bundle_Association, rules_List,
     OptionsPattern[]] := Module[
   {validation, operands, dimensions, evaluations = 0, singular = None,
-   values, image, index},
+   values, image, index, transform},
   If[TrueQ[OptionValue["Validate"]],
     validation = blockEquationDeferredBundleValidate[bundle];
     If[Lookup[validation, "Status", None] =!= "BundleValid",
       Return[validation]]];
   If[! AllTrue[rules, MatchQ[#1, _Rule] &],
     Return[<|"Status" -> "InvalidEvaluationRules"|>]];
+  transform = OptionValue["ExpressionTransform"];
   operands = Lookup[bundle, "OperandTable", {}];
   dimensions = bundle["Dimensions"];
   values = Table[Module[
      {record = operands[[id]], numerator, factors},
      evaluations++;
-     numerator = record["Numerator"] /. rules;
-     factors = ({Together[First[#1] /. rules], Last[#1]} & /@
+     numerator = transform[record["Numerator"] /. rules];
+     factors = ({Together[transform[First[#1] /. rules]], Last[#1]} & /@
        record["DenominatorFactors"]);
      If[AnyTrue[factors, TrueQ[First[#1] === 0] &],
        If[singular === None, singular = id]; 0,
@@ -1849,7 +1853,8 @@ blockEquationDeferredBundleEvaluate[bundle_Association, rules_List,
   image = ConstantArray[0, dimensions];
   Do[
     image[[Sequence @@ bundle["TargetOrder"][[index]]]] = Total[Map[
-      Function[term, First[term] Times @@ values[[Last[term]]]],
+      Function[term, transform[First[term] /. rules] Times @@
+        values[[Last[term]]]],
       Lookup[bundle["Jobs"][[index]], "Terms", {}]]],
     {index, Length[bundle["TargetOrder"]]}];
   <|"Status" -> "OK", "Image" -> image,
