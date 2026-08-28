@@ -15,7 +15,7 @@ the difficult 17 residue directions.  It is not used below.
 
 ## Decisive result
 
-- 75 trusted aligned fibres were obtained at `p = 2147483647` with no rejected
+- 75 trusted aligned fibres were obtained at `p = 2147483423` with no rejected
   image.  Native Schur reduction takes about 0.45--0.65 seconds per fibre.
 - The residue Schur system has rank 160 and nullity 52.  Its common homogeneous
   kernel across the fibres has dimension 36; quotienting it leaves exactly the

@@ -161,6 +161,9 @@ check["G1 the block built from a known gauge is GaugeImageConsistent",
   Lookup[fullScreen, "Status", None] === "GaugeImageConsistent" &&
     fullScreen["Defect"] === 0 &&
     fullScreen["Rank"] === fullScreen["AugmentedRank"]];
+check["G1 Automatic keeps eight complete point blocks beyond the unknown count",
+  fullScreen["PointCount"] === Ceiling[(fullAnsatz["UnknownCount"] +
+    8 fullAnsatz["GradeCount"] 2)/ (fullAnsatz["GradeCount"] 2)]];
 check["G1 the screen reports the ansatz it measured",
   AssociationQ[fullScreen["Ansatz"]] &&
     fullScreen["Ansatz"]["SupportCount"] === 4 &&

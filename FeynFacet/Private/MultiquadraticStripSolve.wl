@@ -3768,7 +3768,11 @@ Options[multiquadraticStripGaugeScreen] = {
   "PointCount" -> Automatic,
   "MaximumAttempts" -> Automatic,
   "RandomSeed" -> 2026082501,
-  "ExtraRowPoints" -> 1,
+  (* A near-square point set can interpolate a false section in a
+     high-nullity system.  Eight surplus point blocks leave a real
+     held-out row margin while adding much less work than a symbolic
+     compile or an incorrectly adopted support rung. *)
+  "ExtraRowPoints" -> 8,
   "CandidateOneForms" -> {},
   "CandidateSubsets" -> Automatic,
   "LeftNullSpace" -> Automatic,

@@ -189,17 +189,13 @@ with exact normalization and independent fresh-prime provider residuals.
   observation from a lost dirty source state.  Full evidence is in
   `Exchange/Codex/2026-08-27/05_cf300_interpolation_contradiction.md`.
 
-- [🟡] Search the affine nullspace for a low-regulator-degree normalization
-  section only if the cross-route equality test proves that the historical
-  and current systems are identical and the earlier low-degree evidence is
-  invalid.  Reuse captured affine fibres, keep the current residue pins, and
-  compare general column-order policies without encoding CF300 or physical
-  column numbers in package source.  Promote a new policy only after fresh-
-  prime nonsingularity and a material degree reduction.  The bounded search
-  has now exhausted 18 coordinate orders and eight fixed sparse
-  gauge-evaluation sections on 22 p31 fibres.  The coordinate tables really
-  change, but none improves the `1184 / 1076` terminal split; the nonzero
-  evaluation anchors slightly worsen it.  Do not integrate these policies.
+- [🔴] Retire the affine-nullspace section search.  The historical and current
+  routes agreed only on the undersampled 37-point matrix.  Fresh 74-point
+  systems at two primes have `rank A = 2224`, nullity 36, and augmented defect
+  one, so no section of that ansatz solves the actual functional rows.  The 18
+  coordinate orders and eight sparse gauge-evaluation policies remain useful
+  negative diagnostics, but their regulator degrees are not physical.  No
+  section policy is to be integrated.
 
 - [🟢] Localize the interpolation pathology exactly.  After correcting a
   `Position` head artifact in Fable's diagnostic, the 1,184 failing
@@ -211,31 +207,16 @@ with exact normalization and independent fresh-prime provider residuals.
   degree-seven representative.  See
   `Exchange/Codex/2026-08-27/06_nullspace_diagnosis_assessment.md`.
 
-- [🟢] Exhaust the eliminated pointwise-frame polynomial-module branch before
-  investing in a general Popov implementation.  On one fixed set of 37
-  accepted kinematic points, 75 trusted aligned Schur fibres have rank 160
-  and a 36-dimensional common kernel.  After factoring that kernel, the
-  moving quotient is exactly the same 160-by-17 problem as the canonical
-  residue frame.  Exact FLINT block-Toeplitz systems are full column rank for
-  every uniform polynomial numerator/common-denominator degree through 64;
-  the degree-64 system is 11520-by-11505 and takes 41.3 s on eight threads.
-  Per-column projective normalization and the fixed-kernel quotient also fail.
-  Do not spend more images or implement a full Popov basis for this eliminated
-  representation.
+- [🔴] Retire the eliminated pointwise-frame polynomial-module conclusion.
+  Its degree-64 result was exact for the 37-point interpolated system, but D1
+  now proves that system omitted independent functional rows.  Preserve the
+  41.3 s timing as an implementation benchmark only; do not integrate it.
 
-- [🟡] Replace local section guessing with one bounded original-equation
-  polynomial-module pilot.  Exact multi-fibre compatibility solves already
-  rule out a global polynomial representative through degree seven and a
-  single-common-denominator rational representative for every split of total
-  degree at most seven; the planted rational self-check passes.  The stronger
-  aligned Schur test above now closes the eliminated-frame ansatz through
-  degree 64.  Next multiply the original aligned physical equations by their
-  known `Q(point, eps)^2`, confirm the expected regulator degree at most 2--3,
-  and solve that sparse polynomial system or its reduced Schur operator over
-  `F_p[eps]`.  Retain it only if one unchanged representative passes disjoint
-  epsilon values, the original-row residual, and a second prime.  Do not form
-  a scalar LCM of pointwise gauges or encode coordinate-dependent choices in
-  the package.
+- [🔴] Cancel the original-equation polynomial-module pilot for this CF300
+  block.  The exact active-root census shows that root 2 is absent from all
+  deferred operands and source one-forms; the block is a two-root problem and
+  is now solved exactly in the `{1,3}` pair chart.  Reconsider polynomial
+  modules only for a genuinely rank-3, functionally consistent strip.
 
 - [🟢] Reject the proposed structural-prime parallel scheduler.  The audited
   implementation added roughly 574 production lines plus 135 test lines to
@@ -323,12 +304,16 @@ with exact normalization and independent fresh-prime provider residuals.
   included in the exact 3.848 s recurring-image gate.  No further assembler
   rewrite is justified by the remaining fraction of wall time.
 
-- [🟢] Do not reduce the physical point count blindly.  CF300 uses 37 points
-  where 36 are the rank-count minimum, so the maximum possible saving is only
-  one point and does not justify weakening the affine system.
+- [🟢] Correct the physical point budget.  The old 37-point screen admitted a
+  false section.  At 74 fresh points the system has rank 2224, nullity 36, and
+  augmented defect one at two primes.  Automatic screening now keeps eight
+  surplus complete point blocks; the focused screen suite passes 66/0.
 
-- [🟢] Do not add more support machinery for the current block.  The physical
-  support ladder already adopted the minimal support `{0,0}` with zero defect.
+- [🔴] Withdraw the zero-defect support conclusion.  Fresh 74-point screens
+  remain defect one through support `{3,3}`, the full mixed-letter deck orbit,
+  generic polynomial and pole directions, and the available pair-chart source
+  alphabet.  The resolution is exact active-subfield pruning followed by the
+  `{1,3}` pair chart, not larger rank-3 support.
 
 ## Campaign and validation goals
 
@@ -342,9 +327,14 @@ with exact normalization and independent fresh-prime provider residuals.
   follower authentication, modal reconstruction, installed-family chain, and
   physical residual stress gates on the final source.
 
-- [ ] Use the validated optimized source for the remaining CF259 and CF303
-  triple-root families.  Run through the broker pool so deferred symbolic
-  materialization can use its already measured helper route.
+- [🟡] Install and transport the exact current CF300 `(12,9)` pair-chart gauge
+  through the family continuation.  Exact dlog and Pfaffian residuals pass,
+  three construction primes validate, and an unseen fourth prime has zero
+  residual.  The solver wall was 166.90 s.
+
+- [ ] Census the authenticated active subfield of every remaining CF259 and
+  CF303 strip before dispatch.  Use rank-3 machinery only where the union of
+  diagonal, forcing, and one-form sources uses three independent generators.
 
 - [🟢] Record physical phase timings for preparation, provider preflight,
   coefficient evaluation, row assembly, core solve, exact all-row residual,
@@ -360,8 +350,12 @@ with exact normalization and independent fresh-prime provider residuals.
 
 ## Completion conditions
 
-- [ ] One real triple-root off-diagonal block is installed and accepted by the
-  family certificate.
+- [🟡] The current CF300 off-diagonal block is solved exactly and awaits
+  installed-family transport/certification.  Its exact active subfield has
+  rank two, so it is not a genuine triple-root solve.
+
+- [ ] One genuinely three-active-root off-diagonal block is solved, installed,
+  and accepted by the family certificate.
 
 - [ ] The focused adversarial suites and the integrated package gate are green
   on the final source.

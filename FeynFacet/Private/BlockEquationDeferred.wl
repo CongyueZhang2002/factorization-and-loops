@@ -1867,7 +1867,10 @@ blockEquationDeferredBundleEvaluate[___] := <|"Status" -> "InvalidInput"|>;
    intern pool so the driver's compat mode can seed the materializer
    with it and the Together/FactorList of each distinct operand is paid
    once, not twice. *)
-Options[blockEquationDeferredCompileBundle] = {"Roots" -> {}};
+Options[blockEquationDeferredCompileBundle] = {
+  "Roots" -> {},
+  "PruneUnusedRoots" -> True
+};
 
 blockEquationDeferredCompileBundle[preparation_Association,
     opts : OptionsPattern[]] :=
@@ -1883,7 +1886,9 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
    factorMatchQ, registerFactor,
    jobs = {}, occurrences = {}, bounds = <||>, occurrenceCounts = <||>,
    rewrites = 0, failTag, failure, orbitRecords, orbitIndexOf, summary,
-   factorSummaries, bundle, statistics, termCount = 0},
+   factorSummaries, bundle, statistics, termCount = 0,
+   activeRootMask = 0, activeRootIndices, projectMask, projectedFrame,
+   originalRootCount},
   If[Lookup[preparation, "Status", None] =!= "Prepared" ||
       Lookup[preparation, "ABIVersion", None] =!=
         $blockEquationDeferredABIVersion,
@@ -1938,10 +1943,20 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
     Do[Module[{record = recordFor[target], terms, jobTerms = {},
        termIndex = 0},
       terms = Lookup[record, "Terms", {}];
-      Do[Module[{coefficient, operandIDs = {}, termSources = {},
-         termValuation, operandID},
+      Do[Module[{coefficient, coefficientData, coefficientMask,
+         operandIDs = {}, termSources = {}, termValuation, operandID},
         termIndex++; termCount++;
         coefficient = Lookup[term, "Coefficient", 1];
+        coefficientData = blockEquationDeferredFrameCanonicalize[
+          coefficient, frame, variables];
+        If[Lookup[coefficientData, "Status", None] =!= "OK",
+          Throw[coefficientData, failTag]];
+        coefficient = coefficientData["Expression"];
+        coefficientMask = blockEquationDeferredFactorRootMask[
+          coefficient, squares];
+        If[coefficientMask === $Failed,
+          Throw[<|"Status" -> "RadicalOutsideDeclaredFrame"|>, failTag]];
+        activeRootMask = BitOr[activeRootMask, coefficientMask];
         Do[Module[{identifier, sourceData},
           If[KeyExistsQ[sourceOperandCache, operand],
             sourceData = sourceOperandCache[operand];
@@ -2008,6 +2023,7 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
                If[canonicalMask === $Failed,
                  Throw[<|"Status" -> "RadicalOutsideDeclaredFrame"|>,
                    failTag]];
+               activeRootMask = BitOr[activeRootMask, canonicalMask];
                AppendTo[operandTable, <|"ID" -> identifier,
                  "Numerator" -> interned[[1]],
                  "DenominatorFactors" -> pairData,
@@ -2047,6 +2063,32 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
       {target, targetOrder}];
     None, failTag, #1 &];
   If[failure =!= None, Return[{failure, pool}]];
+
+  (* A declared family frame may be larger than this deferred source.  Keeping
+     unused generators doubles every sheet and gauge grade for each one.  The
+     compiler has now authenticated every operand mask and coefficient, so it
+     can project the immutable bundle to its exact active subfield once. *)
+  originalRootCount = Length[frame["Roots"]];
+  If[TrueQ[OptionValue["PruneUnusedRoots"]] && originalRootCount > 0,
+    activeRootIndices = Select[Range[originalRootCount],
+      BitGet[activeRootMask, #1 - 1] === 1 &];
+    If[Length[activeRootIndices] < originalRootCount,
+      projectMask[mask_Integer] := Total[MapIndexed[
+        If[BitGet[mask, #1 - 1] === 1, 2^(First[#2] - 1), 0] &,
+        activeRootIndices]];
+      operandTable = Map[Function[item, Join[item,
+          <|"RootMask" -> projectMask[item["RootMask"]]|>]], operandTable];
+      factorTable = Map[Function[item, Module[
+          {mask = projectMask[item["RootMask"]]},
+          Join[item, <|"Algebraic" -> (mask =!= 0), "RootMask" -> mask|>]]],
+        factorTable];
+      projectedFrame = blockEquationDeferredRootFrame[
+        KeyTake[#1, {"Root", "RootSquare"}] & /@
+          frame["Roots"][[activeRootIndices]], variables, regulator];
+      If[Lookup[projectedFrame, "Status", None] =!= "StableRootOrder",
+        Return[{projectedFrame, pool}]];
+      frame = projectedFrame;
+      squares = Together /@ Lookup[frame["Roots"], "RootSquare", {}]]];
 
   (* step 5: one validated orbit per distinct algebraic factor.  Throw,
      never Return, inside Do -- the trap this file already records *)
@@ -2101,6 +2143,9 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
   statistics = <|"CompileSeconds" -> N[AbsoluteTime[] - started],
     "OperandCount" -> Length[operandTable],
     "JobCount" -> Length[jobs], "TermCount" -> termCount,
+    "DeclaredRootCount" -> Length[rootsOption],
+    "BundleRootCount" -> Length[frame["Roots"]],
+    "PrunedRootCount" -> Length[rootsOption] - Length[frame["Roots"]],
     "OccurrenceCount" -> Length[occurrences],
     "DistinctFactors" -> Length[factorTable],
     "AlgebraicFactorCount" -> Count[factorTable, entry_ /;

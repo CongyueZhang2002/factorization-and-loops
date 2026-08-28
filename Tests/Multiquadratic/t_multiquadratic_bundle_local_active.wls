@@ -38,7 +38,8 @@ buildMixedBundle[rank_Integer] := Module[
   preparation = deferredPrepare[baseConnection, ranges, 2, 1, <||>,
     {lx, ly}, le];
   base = compileBundle[preparation,
-    "Roots" -> Take[declaredRoots, rank]];
+    "Roots" -> Take[declaredRoots, rank],
+    "PruneUnusedRoots" -> False];
   If[Lookup[base, "Status", None] =!= "PreparedDeferredBundle",
     Return[base]];
   frame = base["RootFrame"];
@@ -178,6 +179,31 @@ results = Association@Table[Module[
     rank -> <|"Bundle" -> bundle, "Provider" -> provider,
       "Image" -> image, "OracleSeconds" -> oracleTiming|>
   ], {rank, 0, 3}];
+
+(* Production compilation keeps only generators that occur in an operand or
+   term coefficient.  The synthetic mixed-mask constructor above opts out
+   because it deliberately injects new operands after compilation. *)
+prunePreparation = deferredPrepare[baseConnection, ranges, 2, 1, <||>,
+  {lx, ly}, le];
+prunedRational = compileBundle[prunePreparation, "Roots" -> declaredRoots];
+check["an unused declared root frame is pruned completely",
+  Lookup[validateBundle[prunedRational], "Status", None] === "BundleValid" &&
+    prunedRational["RootFrame"]["Roots"] === {} &&
+    prunedRational["Statistics"]["PrunedRootCount"] === 3];
+partialConnection = {{{0, 0},
+    {Sqrt[rootSquares[[1]]] + Sqrt[rootSquares[[3]]], 0}},
+  {{0, 0}, {0, 0}}};
+partialPreparation = deferredPrepare[partialConnection, ranges, 2, 1, <||>,
+  {lx, ly}, le];
+prunedPartial = compileBundle[partialPreparation, "Roots" -> declaredRoots];
+partialSquares = Together /@
+  Lookup[prunedPartial["RootFrame"]["Roots"], "RootSquare", {}];
+check["a strict active root subset is retained in canonical order",
+  Lookup[validateBundle[prunedPartial], "Status", None] === "BundleValid" &&
+    Length[partialSquares] === 2 &&
+    ContainsAll[partialSquares, Together /@ rootSquares[[{1, 3}]]] &&
+    ContainsAll[Together /@ rootSquares[[{1, 3}]], partialSquares] &&
+    prunedPartial["Statistics"]["PrunedRootCount"] === 1];
 
 rank3 = results[3];
 check["rank 3 exercises root-free, single, pair, and triple masks",
