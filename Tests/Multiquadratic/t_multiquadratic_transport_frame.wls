@@ -187,4 +187,22 @@ FTAssert["the root census classifies every radical against the declared field",
     census["MaximumRootCount"] === 1 &&
     census["RootCountHistogram"] === <|1 -> 1|>];
 
+(* Exact entrywise substitution is the expensive chart-gauge transport
+   primitive.  Its broker and serial routes must be SameQ, not merely equal
+   at points. *)
+togetherInput = {{1/(1 + x) + y/(1 - x y), (x + y)^3/(2 - x)},
+  {(1 + x y)/(1 - y)^2, x^2/(1 + y) + 1/(1 - x)}};
+togetherRules = {x -> (v + w)/(1 - v w),
+  y -> (v - w)/(1 + v w)};
+togetherExpected = Map[Together, togetherInput /. togetherRules, {2}];
+togetherResult = FeynFacet`Private`transportChartParallelTogether[
+  togetherInput, togetherRules, "tctest"];
+FTAssert["parallel chart Together preserves exact entrywise substitution",
+  togetherResult["Status"] === "OK" &&
+    togetherResult["Result"] === togetherExpected];
+expiredTogether = FeynFacet`Private`transportChartParallelTogether[
+  togetherInput, togetherRules, "tctest_expired", AbsoluteTime[] - 1];
+FTAssert["chart Together refuses before work when its deadline has expired",
+  expiredTogether["Status"] === "DeadlineExpired"];
+
 FTReport[];

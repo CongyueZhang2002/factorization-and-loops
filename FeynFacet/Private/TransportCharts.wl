@@ -77,6 +77,8 @@ ClearAll[
   transportChartStageDone,
   transportChartStageMark,
   transportChartStageProgress,
+  transportChartTogetherTask,
+  transportChartParallelTogether,
   $transportChartStageLog,
   $transportChartStageLastProgress,
   $transportChartStageProgressInterval,
@@ -166,6 +168,84 @@ transportChartStageProgress[stage_String, data_Association] := If[
   Print["[strip-in-frame] ", transportChartStageText[stage, data]];
   True,
   False];
+
+(* Exact Together of independent array entries.  A chart gauge can have only
+   four entries yet spend tens of minutes substituting its inverse map; each
+   entry is mathematically independent.  Every helper receives only its own
+   entry, while the largest entry stays local.  Failed helper values are
+   recomputed locally while the same cooperative deadline remains. *)
+transportChartTogetherTask[dataFile_String] := Module[
+  {data = taskBrokerRead[dataFile]},
+  If[! AssociationQ[data], Return[$Failed]];
+  Together[data["Expression"] /. data["Rules"]]
+];
+
+transportChartParallelTogether[array_, rules_List, label_String,
+    deadline_: Infinity] := Module[
+  {started = AbsoluteTime[], dimensions = Dimensions[array],
+   expressions = Flatten[array], values, helpers, bytes, localIndex,
+   helperIndices, dataFiles, codes, handle, farmed, missing,
+   timeout, route = "Serial"},
+  If[! AllTrue[rules, MatchQ[#1, _Rule] &],
+    Return[<|"Status" -> "InvalidTogetherRules"|>]];
+  If[! transportChartDeadlineQ[deadline],
+    Return[<|"Status" -> "InvalidTogetherDeadline",
+      "Deadline" -> deadline|>]];
+  If[transportChartDeadlineExpiredQ[deadline],
+    Return[<|"Status" -> "DeadlineExpired", "Seconds" -> 0.|>]];
+  If[expressions === {},
+    Return[<|"Status" -> "OK", "Result" -> array, "Route" -> "Serial",
+      "Helpers" -> 0, "Tasks" -> 0, "Seconds" -> 0.|>]];
+  helpers = If[taskBrokerActiveQ[], taskBrokerFreeKernels[], 0];
+  helpers = Min[helpers, Max[0, Length[expressions] - 1]];
+  values = ConstantArray[$Failed, Length[expressions]];
+  If[helpers < 1,
+    values = Together /@ (expressions /. rules),
+    route = "Parallel";
+    bytes = ByteCount /@ expressions;
+    localIndex = First[Ordering[bytes, -1]];
+    helperIndices = DeleteCases[Range[Length[expressions]], localIndex];
+    dataFiles = Map[Function[index, taskBrokerDataFile[
+        "tctogether_" <> Hash[{expressions[[index]], rules},
+          "SHA256", "HexString"],
+        <|"Expression" -> expressions[[index]], "Rules" -> rules|>]],
+      helperIndices];
+    codes = StringJoin[
+        "FeynFacet`Private`transportChartTogetherTask[\"", #1, "\"]"] & /@
+      dataFiles;
+    timeout = If[deadline === Infinity, 7200.,
+      Max[0.25, N[deadline - AbsoluteTime[]]]];
+    handle = taskBrokerSubmit[codes, "Label" -> label,
+      "Timeout" -> timeout];
+    values[[localIndex]] = Together[expressions[[localIndex]] /. rules];
+    farmed = taskBrokerCollect[handle];
+    If[ListQ[farmed],
+      Do[If[index <= Length[farmed] && farmed[[index]] =!= $Failed,
+          values[[helperIndices[[index]]]] = farmed[[index]]],
+        {index, Length[helperIndices]}]];
+    missing = Select[helperIndices,
+      values[[#1]] === $Failed &];
+    If[transportChartDeadlineExpiredQ[deadline],
+      Return[<|"Status" -> "DeadlineExpired",
+        "Route" -> route, "Helpers" -> helpers,
+        "Tasks" -> Length[helperIndices],
+        "Seconds" -> N[AbsoluteTime[] - started]|>]];
+    If[missing =!= {},
+      values[[missing]] = Together /@ (expressions[[missing]] /. rules)]];
+  If[transportChartDeadlineExpiredQ[deadline],
+    Return[<|"Status" -> "DeadlineExpired",
+      "Route" -> route,
+      "Helpers" -> If[route === "Parallel", helpers, 0],
+      "Tasks" -> If[route === "Parallel", Length[expressions] - 1, 0],
+      "Seconds" -> N[AbsoluteTime[] - started]|>]];
+  <|"Status" -> "OK", "Result" -> ArrayReshape[values, dimensions],
+    "Route" -> route, "Helpers" -> If[route === "Parallel", helpers, 0],
+    "Tasks" -> If[route === "Parallel", Length[expressions] - 1, 0],
+    "Seconds" -> N[AbsoluteTime[] - started]|>
+];
+transportChartParallelTogether[___] :=
+  <|"Status" -> "InvalidParallelTogetherInput"|>;
+
 transportChartLogSuccessTimings[timings_Association, chartName_,
     verboseQ_] := If[
   TrueQ[verboseQ] || AbsoluteTime[] - $transportChartLastSuccessLogTime >=
@@ -1316,7 +1396,7 @@ SolveEpsFormStripInFrame[
    signChoices, acceptedSigns, branchImages, branchedGauge,
    sourceTransformed, chartTransformed, pulledTransformed,
    sourceAlphabet, zeroMatrixNamedQ, zeroTestStop,
-   identityHolds, pullPair, optionRules,
+   identityHolds, pullPair, optionRules, parallelTogether,
    finiteFieldQ, finiteFieldFirstQ, finiteFieldOptions, canonicalKernelCount,
    scratchDirectory, stripTag, verbose, solveRationalStrip, innerSolvedQ,
    multiquadraticOptions, multiquadraticResult, multiquadraticStatus,
@@ -1710,11 +1790,21 @@ SolveEpsFormStripInFrame[
   transportChartStageMark["acceptance: coordinate map",
     <|"seconds" -> N[AbsoluteTime[] - stageSeconds],
       "rewritten" -> Lookup[mapCanonicalization, "Rewritten", 0]|>];
-  {substageSeconds, sourceGauge} = AbsoluteTiming[
-    Map[Together, chartGauge /. coordinateMap["Map"], {2}]];
+  parallelTogether = transportChartParallelTogether[
+    chartGauge, coordinateMap["Map"], "chartgauge", deadline];
+  If[Lookup[parallelTogether, "Status", None] === "DeadlineExpired",
+    timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
+    Return[budgetExhausted["GaugePullBack"]]];
+  If[Lookup[parallelTogether, "Status", None] =!= "OK",
+    Return[<|"Status" -> "StripGaugeSubstitutionFailed",
+      "Detail" -> parallelTogether|>]];
+  sourceGauge = parallelTogether["Result"];
+  substageSeconds = parallelTogether["Seconds"];
   transportChartStageMark["acceptance: source gauge substitution",
     <|"seconds" -> N[substageSeconds],
-      "leafCount" -> transportChartStageSize[sourceGauge]|>];
+      "leafCount" -> transportChartStageSize[sourceGauge],
+      "route" -> parallelTogether["Route"],
+      "helpers" -> parallelTogether["Helpers"]|>];
   {substageSeconds, sourceAlphabet} = AbsoluteTiming[
     DeleteDuplicates[Together /@
       (Lookup[inner, "Alphabet", {}] /. coordinateMap["Map"])]];
