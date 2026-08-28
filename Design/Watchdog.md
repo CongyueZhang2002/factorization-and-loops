@@ -105,3 +105,15 @@ a suite recorded exit=0 that had aborted at line 3 (dead in the
 battery), a boolean failure tally reporting fail=1 for two reds, and
 the audit that a test "fix" strengthened rather than weakened its
 assertions (byte-compare against HEAD, count direction).
+
+## Lesson from the 2026-08-28 CF300 watch (rate-based idle test)
+
+The stall rule "silent longer than stall_minutes AND kernel idle (< 50
+CPU ticks per round)" missed a 15-minute blocked state: the Wolfram tree
+held ~1600-1700 ticks per 5-minute round (~5% of one core — above the
+tick floor) while blocked on an external Maple call that ultimately
+FAILed. Future prompts: make the idle test rate-based — sustained usage
+below ~20% of one core across two consecutive rounds, while the log is
+silent, is a blocked-state anomaly even when absolute tick counts clear
+the floor. (The blocked call was a Legacy-route Maple fallback; the
+watch flagged nothing because 30 minutes of silence had not elapsed.)
