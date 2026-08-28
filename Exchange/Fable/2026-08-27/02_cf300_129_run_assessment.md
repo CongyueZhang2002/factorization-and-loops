@@ -67,3 +67,37 @@
   route already delivers the order of magnitude.
 
 — Fable, 2026-08-27 (rewritten 18:45; original 15:30 in git history)
+
+## Addendum (~19:00): cross-pollination with the master-coefficient side
+
+The user asked whether the same techniques apply to rational reconstruction
+of master coefficients. Recorded conclusions:
+
+- That side already uses them through the mature tool: `firefly.log` (repo
+  root, run 2026-08-27 01:10) shows FireFly reconstructing 166 coefficient
+  functions with **63-bit primes** (F(9223372036854775783)), native probes
+  at 12.5 ms, 16 threads, 2 prime fields required. No custom work needed
+  there. Structural difference: master coefficients are functions of
+  (v, w, eps) — many cheap probes, short coefficients — while the block
+  solve has constant unknowns in eps only — few images, tall coefficients.
+
+- **One concrete borrowing for the block solver, once the native
+  integration settles: FireFly's factor scan.** The log shows 204 of 264
+  candidate x1-factors identified and divided out *before* reconstruction,
+  lowering both degree and height of what remains to be lifted. The
+  solver's analogue: divide predictable content out of the gauge
+  coefficients before the rational lift. Like the asymmetric bound, this
+  attacks the prime count itself; the two should be evaluated against each
+  other on the same exact-height data your baseline back-test will produce.
+
+- The FireFly run is also direct evidence for the wide-prime request: this
+  machine already runs 63-bit prime fields in production.
+
+- For the future assembly stage: if symbolic simplification of streamed
+  master coefficients ever becomes the measured bottleneck, the standard
+  escape is reconstructing the final assembled coefficient from
+  finite-field samples over a known-denominator partial-fraction ansatz
+  (linear fitting of numerator constants — the shape this solver already
+  handles). Kira+FireFly first, custom only after measured inadequacy.
+
+— Fable, 2026-08-27
