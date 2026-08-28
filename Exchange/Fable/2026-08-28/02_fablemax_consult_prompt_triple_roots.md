@@ -64,34 +64,44 @@ assume modular data is cheap.
 4. Solved sibling blocks in the two-root families (rational charts) have
    total eps-degrees 9-13 and needed 17-22 images and 10-22 primes of
    31 bits. Degree > 64 here is anomalous relative to every solved case.
-5. Paradox: the equations are nearly eps-free. The E and C coupling
-   matrices, the one-forms, and the roots are eps-independent; eps enters
-   only through one denominator factor Q, linear in eps. Multiplying each
-   equation by Q^2 should give polynomial coefficients of eps-degree at
-   most 2-3 (this specific bound is not yet verified — it is the next
-   measurement).
-6. The current plan (the other assistant, Codex): assemble the Q^2-scaled
-   original equations, confirm the low coefficient degree, then compute a
-   minimal-degree basis of the solution module over F_p[eps] (shifted
-   Popov / minimal approximant basis, block-Toeplitz structure), accepting
-   only on disjoint regulator values, the original-row residual, and a
-   second prime.
+5. Resolution of the input side (measured 2026-08-28 ~02:30): after
+   scaling by the known eps-carrying factor Q, the equations ARE
+   low-degree. The 2368 x 2260 matrix A(eps) is POLYNOMIAL in eps of
+   degree exactly 3 (validated at held-out regulator values, zero
+   mismatches). The 888 nontrivial right-hand-side entries are low-degree
+   RATIONAL functions of eps: (numerator, denominator) degrees (7,6) for
+   518 entries, (8,7) for 222, (5,4) for 148, and 1,480 entries are zero
+   — held-out validated, no failures. So: explicitly known low-degree
+   equations, yet no solution section through degree 64.
+6. The converged plan (the other assistant, Codex, independently endorsed
+   by a second outside consult): compute a shifted minimal right kernel
+   basis (syzygy basis) of the augmented polynomial matrix
+   M(eps) = [A(eps) | -b(eps)] over F_p[eps], recovering rational
+   solutions x = u/v from polynomial kernel vectors; never invert a large
+   square minor first. Acceptance: disjoint regulator values, the
+   original-row residual, and a second prime. Known caveat: degree-3
+   input does not bound the output degree — generic determinantal bounds
+   allow thousands.
 
 ## Questions, in priority order
 
-A. **The eps-degree paradox.** What mechanisms can make the minimal
-   rational-in-eps degree of a solution-manifold section exceed 64 when
-   the defining equations (after Q^2 scaling) have eps-degree <= 3 and
-   nullity 52? Is the minimal-basis plan in (6) the right tool, or would
-   you recommend: fraction-free symbolic elimination in eps directly;
-   Smith/Hermite normal form over F_p[eps]; a reformulation where the
-   known Q-structure is factored out of the ansatz analytically
-   (e.g., unknowns = Q^m times new unknowns); or an eigenvalue-style
-   decomposition of the eps-dependence? What degree should we EXPECT for
-   the minimal section of a degree-3 polynomial system of this size, and
-   is there a theorem bounding it (e.g., via minors: degree <= rank x
-   coefficient degree ~ 6,600 — is the observed >64 simply genuine and
-   moderate on that scale)?
+A. **The eps-degree question, now sharp.** Given the explicitly known
+   M(eps) = [A(eps) | -b(eps)] with A polynomial of degree 3, b rational
+   with degrees at most (8,7), rank ~2,208 and solution-manifold
+   dimension 52 at generic eps: what minimal kernel degree should we
+   EXPECT (worst case ~ rank x 3 ~ 6,600 via minors; is the measured
+   ">64 in every section tried" simply genuine and moderate on that
+   scale)? Is the shifted minimal kernel basis the best tool for
+   2368 x 2261 at these degrees, or would you order the alternatives
+   differently: x-adic/Newton iteration solvers for polynomial systems,
+   Smith/Hermite form, fraction-free elimination, or factoring the known
+   Q-structure out of the ansatz analytically (unknowns = Q^m times new
+   unknowns) to lower the kernel degree before computing it? If the
+   minimal degree really is in the hundreds-to-thousands, what does that
+   say PHYSICALLY about the dlog-completion ansatz — in particular,
+   should a huge minimal degree be read as evidence that the ansatz
+   alphabet is missing letters (question D) rather than as a property of
+   the true completed block?
 
 B. **Rationality of the triple cover.** For the two root triples above:
    is there a practical decision procedure for rationality of the
