@@ -211,17 +211,31 @@ with exact normalization and independent fresh-prime provider residuals.
   degree-seven representative.  See
   `Exchange/Codex/2026-08-27/06_nullspace_diagnosis_assessment.md`.
 
-- [🟡] Replace local section guessing with one bounded polynomial-module
-  pilot.  Exact multi-fibre compatibility solves already rule out a global
-  polynomial representative through degree seven and a single-common-
-  denominator rational representative for every split of total degree at
-  most seven; the planted rational self-check passes.  Next reconstruct the
-  low-degree epsilon dependence of the affine equations and test a shifted
-  Popov/minimal approximant basis over `F_p[eps]`, outside production.  Retain
-  it only if one unchanged representative passes disjoint epsilon values and
-  a second prime with a material image-count reduction.  Do not encode a
-  vague low-degree `lambda(eps)` ansatz or coordinate-dependent choices in the
-  package.
+- [🟢] Exhaust the eliminated pointwise-frame polynomial-module branch before
+  investing in a general Popov implementation.  On one fixed set of 37
+  accepted kinematic points, 75 trusted aligned Schur fibres have rank 160
+  and a 36-dimensional common kernel.  After factoring that kernel, the
+  moving quotient is exactly the same 160-by-17 problem as the canonical
+  residue frame.  Exact FLINT block-Toeplitz systems are full column rank for
+  every uniform polynomial numerator/common-denominator degree through 64;
+  the degree-64 system is 11520-by-11505 and takes 41.3 s on eight threads.
+  Per-column projective normalization and the fixed-kernel quotient also fail.
+  Do not spend more images or implement a full Popov basis for this eliminated
+  representation.
+
+- [🟡] Replace local section guessing with one bounded original-equation
+  polynomial-module pilot.  Exact multi-fibre compatibility solves already
+  rule out a global polynomial representative through degree seven and a
+  single-common-denominator rational representative for every split of total
+  degree at most seven; the planted rational self-check passes.  The stronger
+  aligned Schur test above now closes the eliminated-frame ansatz through
+  degree 64.  Next multiply the original aligned physical equations by their
+  known `Q(point, eps)^2`, confirm the expected regulator degree at most 2--3,
+  and solve that sparse polynomial system or its reduced Schur operator over
+  `F_p[eps]`.  Retain it only if one unchanged representative passes disjoint
+  epsilon values, the original-row residual, and a second prime.  Do not form
+  a scalar LCM of pointwise gauges or encode coordinate-dependent choices in
+  the package.
 
 - [🟢] Reject the proposed structural-prime parallel scheduler.  The audited
   implementation added roughly 574 production lines plus 135 test lines to
