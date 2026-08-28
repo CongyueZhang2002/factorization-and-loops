@@ -5,27 +5,29 @@
    subkernel (LaunchKernels::subnopar) and the licence allows two main
    kernels on this machine, so "one main kernel + N subkernels, several
    families at once, each family parallelized" needs the MAIN to dispatch
-   every parallel piece.  The KernelPool already dispatches file missions
-   to free subkernels; a family mission running on one subkernel writes
-   its sample/degree tasks as further missions into the same queue, waits
-   for their result files, and continues.  The pattern is the flat task
-   queue (Codex, round 2: "batch by scheduler phase, not by prime
-   nesting").
+   every parallel piece.  The KernelPool owns the live family allocation:
+   a family mission writes sample/degree tasks into the same flat queue,
+   and the main kernel admits them fairly under its current helper ceiling.
+   Native threads are divided separately over its simultaneous workers.
 
    Activation: the environment variable FACET_TASK_BROKER names the pool
    directory (set when the pool is started; subkernels inherit it).  A
    task never brokers (it would wait for itself), and a kernel that owns
    real subkernels (kernelCount > 1) keeps using ParallelMap.
-   Guard for the driver: family missions must number at most N - 2, or
-   no helper is ever free and every family waits forever.
+   A zero helper grant is not a deadlock: the family computes locally.
+   The campaign driver nevertheless keeps two helper seats available for
+   worthwhile concurrent batches.
 
-   Cost model: one pool loop is 3 s, so a task must carry at least a few
+   Cost model: a broker round trip has fixed overhead, so a task must carry a few
    seconds of work; the finite-field sampler brokers only when the pilot
    sample measured at least "BrokerMinimumSeconds" of build time, and the
    CANONICA ladder runs degree 0 locally and farms the rest. *)
 
 ClearAll[
   taskBrokerDirectory, taskBrokerActiveQ, taskBrokerPoolAliveQ,
+  taskBrokerResourceGroup, taskBrokerResourceOwner, taskBrokerResourceAllocation,
+  taskBrokerActiveFamilyCount, taskBrokerNativeCoreQuota,
+  taskBrokerNativeThreadLimit, taskBrokerNativeCommand,
   taskBrokerPutAtomic, taskBrokerDataFile, taskBrokerRead, taskBrokerCached,
   taskBrokerFreeKernels, taskBrokerNewName, taskBrokerRun, taskBrokerSubmit,
   taskBrokerCollect, taskBrokerSampleBatch,
@@ -51,6 +53,96 @@ taskBrokerPoolAliveQ[] := With[{d = taskBrokerDirectory[]},
 
 (* usable from a mission: a pool exists, is alive, and we are not a task *)
 taskBrokerActiveQ[] := ! TrueQ[$taskBrokerInsideTask] && taskBrokerPoolAliveQ[];
+
+taskBrokerResourceGroup[] := Module[{scoped, inherited},
+  scoped = If[ValueQ[KernelPoolMission`$TaskBrokerResourceGroup],
+    KernelPoolMission`$TaskBrokerResourceGroup, None];
+  inherited = Environment["FACET_RESOURCE_GROUP"];
+  Which[
+    StringQ[scoped] && StringMatchQ[scoped,
+      RegularExpression["[A-Za-z0-9][A-Za-z0-9._-]{0,179}"]], scoped,
+    StringQ[inherited] && StringMatchQ[inherited,
+      RegularExpression["[A-Za-z0-9][A-Za-z0-9._-]{0,179}"]], inherited,
+    True, "ungrouped"]
+];
+
+taskBrokerResourceOwner[] := Module[{scoped, inherited},
+  scoped = If[ValueQ[KernelPoolMission`$TaskBrokerResourceOwner],
+    KernelPoolMission`$TaskBrokerResourceOwner, None];
+  inherited = Environment["FACET_RESOURCE_OWNER"];
+  Which[
+    StringQ[scoped] && StringMatchQ[scoped,
+      RegularExpression["[A-Za-z0-9][A-Za-z0-9._-]{0,179}"]], scoped,
+    StringQ[inherited] && StringMatchQ[inherited,
+      RegularExpression["[A-Za-z0-9][A-Za-z0-9._-]{0,179}"]], inherited,
+    True, "ungrouped"]
+];
+
+(* The main KernelPool owns this snapshot and replaces it atomically whenever
+   the active family or running-worker set changes.  Readers never reserve a
+   seat themselves; fair dispatch remains centralized in the main kernel. *)
+taskBrokerResourceAllocation[] := Module[
+  {directory = taskBrokerDirectory[], file, allocation, groups, record},
+  If[directory === None, Return[<||>]];
+  file = FileNameJoin[{directory, "resource_allocations.wl"}];
+  If[! FileExistsQ[file], Return[<||>]];
+  allocation = Quiet[Check[Get[file], $Failed]];
+  If[! AssociationQ[allocation] ||
+      Lookup[allocation, "Schema", None] =!=
+        "KernelPoolResourceAllocationV1", Return[<||>]];
+  groups = Lookup[allocation, "Groups", <||>];
+  If[! AssociationQ[groups], Return[<||>]];
+  record = Lookup[groups, taskBrokerResourceGroup[], <||>];
+  If[! AssociationQ[record] ||
+      ! IntegerQ[Lookup[record, "HelperCeiling", None]] ||
+      Lookup[record, "HelperCeiling", -1] < 0 ||
+      ! IntegerQ[Lookup[record, "NativeCoreQuota", None]] ||
+      Lookup[record, "NativeCoreQuota", 0] < 1 ||
+      ! IntegerQ[Lookup[record, "NativeThreadsPerWorker", None]] ||
+      ! Between[Lookup[record, "NativeThreadsPerWorker", 0], {1, 8}],
+    Return[<||>]];
+  Join[KeyTake[allocation, {"ActiveFamilyCount", "HelperCapacity",
+      "SubkernelCapacity", "NativeCoreCapacity"}], record]
+];
+
+taskBrokerActiveFamilyCount[] := Max[1, Lookup[
+  taskBrokerResourceAllocation[], "ActiveFamilyCount", 1]];
+taskBrokerNativeCoreQuota[] := Module[{allocation, processors},
+  allocation = taskBrokerResourceAllocation[];
+  If[IntegerQ[Lookup[allocation, "NativeCoreQuota", None]],
+    Return[Max[1, allocation["NativeCoreQuota"]]]];
+  processors = Quiet[Check[$ProcessorCount, 1]];
+  If[IntegerQ[processors] && processors > 0, processors, 1]
+];
+taskBrokerNativeThreadLimit[requested_Integer] := Module[{limit},
+  If[! Between[requested, {1, 8}], Return[requested]];
+  limit = Lookup[taskBrokerResourceAllocation[],
+    "NativeThreadsPerWorker", requested];
+  If[IntegerQ[limit] && Between[limit, {1, 8}], Min[requested, limit],
+    requested]
+];
+taskBrokerNativeThreadLimit[value_] := value;
+
+(* A published quota alone cannot shrink an adapter that is already running.
+   Every native subprocess therefore also takes a process-shared lease.  The
+   wrapper may reduce the final thread argument or wait for older calls to
+   drain; standalone calls retain the direct command. *)
+taskBrokerNativeCommand[command_List, requested_Integer] := Module[
+  {effective, adjusted, directory, root, wrapper},
+  If[command === {} || ! AllTrue[command, StringQ] ||
+      ! Between[requested, {1, 8}], Return[command]];
+  effective = taskBrokerNativeThreadLimit[requested];
+  adjusted = ReplacePart[command, -1 -> ToString[effective]];
+  directory = taskBrokerDirectory[];
+  If[directory === None || ! taskBrokerPoolAliveQ[], Return[adjusted]];
+  root = Quiet[Check[
+    DirectoryName[DirectoryName[$feynFacetPrivateDirectory]], None]];
+  If[! StringQ[root], Return[adjusted]];
+  wrapper = FileNameJoin[{root, "Scripts", "native_core_lease.sh"}];
+  If[! FileExistsQ[wrapper], Return[adjusted]];
+  Join[{wrapper, directory, ToString[effective], "--"}, adjusted]
+];
+taskBrokerNativeCommand[command_, _] := command;
 
 taskBrokerPutAtomic[expr_, file_String] := (
   Put[expr, file <> ".tmp"];
@@ -80,9 +172,10 @@ taskBrokerCached[key_, expr_] := Module[{value},
 (* helpers free right now per the pool's status file (0 when every
    subkernel is busy; a stale file counts as one).  A mission may impose
    its own ceiling with FACET_TASK_BROKER_MAX_HELPERS; this lets several
-   independent algorithms share one flat pool without nested kernels. *)
+   independent algorithms share one flat pool without nested kernels.  The
+   pool-owned family grant is the final ceiling. *)
 taskBrokerFreeKernels[] := Module[
-  {status, m, free, limitText, environmentLimit, missionLimit},
+  {status, m, free, limitText, environmentLimit, missionLimit, familyLimit},
   status = Quiet[Import[FileNameJoin[{taskBrokerDirectory[], "status.txt"}], "Text"]];
   m = If[StringQ[status], StringCases[status, "free: " ~~ n : DigitCharacter .. :> ToExpression[n]], {}];
   free = If[m === {}, 1, First[m]];
@@ -98,7 +191,9 @@ taskBrokerFreeKernels[] := Module[
       IntegerQ[KernelPoolMission`$TaskBrokerMaxHelpers] &&
       KernelPoolMission`$TaskBrokerMaxHelpers >= 0,
     KernelPoolMission`$TaskBrokerMaxHelpers, Infinity];
-  Min[free, environmentLimit, missionLimit]];
+  familyLimit = Lookup[taskBrokerResourceAllocation[],
+    "HelperCeiling", Infinity];
+  Min[free, environmentLimit, missionLimit, familyLimit]];
 
 (* FeynFacet is reloaded on persistent pool subkernels, resetting the local
    counter while the PID stays fixed.  A per-load filesystem-safe nonce keeps
@@ -122,8 +217,13 @@ taskBrokerRun[codes_List, opts : OptionsPattern[]] :=
 Options[taskBrokerSubmit] = Options[taskBrokerRun];
 taskBrokerSubmit[codes_List, OptionsPattern[]] := Module[
   {dir = taskBrokerDirectory[], names, files, resultDir, resultFiles, t0 = AbsoluteTime[],
-   timeout = OptionValue["Timeout"], label = OptionValue["Label"]},
+   timeout = OptionValue["Timeout"], label = OptionValue["Label"],
+   resourceGroup, resourceOwner, resourceLiteral, resourceOwnerLiteral},
   If[dir === None, Return[<|"Directory" -> None, "Codes" -> codes|>]];
+  resourceGroup = taskBrokerResourceGroup[];
+  resourceOwner = taskBrokerResourceOwner[];
+  resourceLiteral = ToString[resourceGroup, InputForm];
+  resourceOwnerLiteral = ToString[resourceOwner, InputForm];
   resultDir = FileNameJoin[{dir, "data", "results"}];
   If[! DirectoryQ[resultDir], Quiet[CreateDirectory[resultDir, CreateIntermediateDirectories -> True]]];
   names = Table[taskBrokerNewName[label], {Length[codes]}];
@@ -131,10 +231,16 @@ taskBrokerSubmit[codes_List, OptionsPattern[]] := Module[
   files = MapThread[Function[{name, code, resultFile},
     Module[{q = FileNameJoin[{dir, "queue", name <> ".wl"}], text},
       text = StringJoin["(* broker task ", name, " *)\n",
-        "Module[{taskResult}, FeynFacet`Private`$taskBrokerInsideTask = True;\n",
+        "(* FACET_RESOURCE group=", resourceGroup, " role=helper owner=",
+        resourceOwner, " *)\n",
+        "Block[{KernelPoolMission`$TaskBrokerResourceGroup = ",
+        resourceLiteral, ", KernelPoolMission`$TaskBrokerResourceRole = \"helper\", ",
+        "KernelPoolMission`$TaskBrokerResourceOwner = ",
+        resourceOwnerLiteral, "},\n",
+        " Module[{taskResult}, FeynFacet`Private`$taskBrokerInsideTask = True;\n",
         "  taskResult = Quiet[Check[", code, ", $Failed]];\n",
         "  FeynFacet`Private`$taskBrokerInsideTask = False;\n",
-        "  FeynFacet`Private`taskBrokerPutAtomic[taskResult, \"", resultFile, "\"]; Null]\n"];
+        "  FeynFacet`Private`taskBrokerPutAtomic[taskResult, \"", resultFile, "\"]; Null]]\n"];
       Export[q <> ".tmp", text, "Text"];
       RenameFile[q <> ".tmp", q, OverwriteTarget -> True]; q]],
     {names, codes, resultFiles}];
@@ -185,29 +291,45 @@ taskBrokerSampleTask[recordFile_String, fingerprint_String, values_List, prime_I
    task that fails is recomputed locally, so the result is exactly what
    the serial path would have produced. *)
 taskBrokerSampleBatch[record_Association, values_List, prime_Integer, sampleOptions_List] :=
- Module[{fingerprint, recordFile, options, optionsFile, free, batches, codes, handle, local, results, flat, missing},
+ Module[{fingerprint, recordFile, options, optionsFile, free, batches,
+   workerCount, threadsPerWorker, balancedOptions, codes, handle, local,
+   results, flat, missing},
   fingerprint = Replace[Lookup[sampleOptions, "ExpectedFingerprint", Automatic],
     Automatic :> finiteFieldStripFingerprint[record]];
   recordFile = taskBrokerDataFile["record_" <> fingerprint, record];
-  options = DeleteCases[sampleOptions, ("Preparation" | "ExpectedFingerprint") -> _];
-  optionsFile = taskBrokerDataFile["opts_" <> fingerprint <> "_" <> Hash[options, "SHA256", "HexString"], options];
+  balancedOptions = sampleOptions /. Rule["BackendThreads",
+      requested_Integer] :> Rule["BackendThreads",
+        taskBrokerNativeThreadLimit[requested]];
   free = Min[taskBrokerFreeKernels[], Length[values] - 1];
   (* no helper free: compute locally rather than queue behind the others *)
   If[free < 1,
-    Return[SampleEpsFormStripAffine[record, #, prime, Sequence @@ sampleOptions] & /@ values]];
+    Return[SampleEpsFormStripAffine[record, #, prime,
+      Sequence @@ balancedOptions] & /@ values]];
   (* free + 1 shares: the helpers take the first `free`, this kernel the last *)
   batches = Partition[values, UpTo[Max[1, Ceiling[Length[values]/(free + 1)]]]];
+  workerCount = Length[batches];
+  threadsPerWorker = Max[1, Quotient[
+    taskBrokerNativeCoreQuota[], workerCount]];
+  balancedOptions = sampleOptions /. Rule["BackendThreads",
+      requested_Integer] :> Rule["BackendThreads",
+        Min[requested, threadsPerWorker]];
+  options = DeleteCases[balancedOptions,
+    ("Preparation" | "ExpectedFingerprint") -> _];
+  optionsFile = taskBrokerDataFile["opts_" <> fingerprint <> "_" <>
+    Hash[options, "SHA256", "HexString"], options];
   codes = StringJoin["FeynFacet`Private`taskBrokerSampleTask[\"", recordFile, "\", \"", fingerprint, "\", ",
     ToString[#, InputForm], ", ", ToString[prime], ", \"", optionsFile, "\"]"] & /@ Most[batches];
   handle = taskBrokerSubmit[codes, "Label" -> "ff" <> ToString[prime]];
-  local = SampleEpsFormStripAffine[record, #, prime, Sequence @@ sampleOptions] & /@ Last[batches];
+  local = SampleEpsFormStripAffine[record, #, prime,
+      Sequence @@ balancedOptions] & /@ Last[batches];
   results = Append[taskBrokerCollect[handle], local];
   flat = Flatten[MapThread[Function[{batch, r},
     If[ListQ[r] && Length[r] === Length[batch], r, ConstantArray[$Failed, Length[batch]]]],
     {batches, results}], 1];
   (* local fallback for failed tasks *)
   missing = Flatten[Position[flat, $Failed, {1}, Heads -> False]];
-  Do[flat[[i]] = SampleEpsFormStripAffine[record, values[[i]], prime, Sequence @@ sampleOptions], {i, missing}];
+  Do[flat[[i]] = SampleEpsFormStripAffine[record, values[[i]], prime,
+    Sequence @@ balancedOptions], {i, missing}];
   flat];
 
 (* ---- CANONICA numerator-degree ladder ---- *)

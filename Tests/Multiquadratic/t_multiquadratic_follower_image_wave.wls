@@ -162,6 +162,23 @@ parallelResolution = Internal`InheritedBlock[
   FeynFacet`Private`taskBrokerActiveQ[] := True;
   FeynFacet`Private`taskBrokerFreeKernels[] := 1;
   Block[{$ProcessorCount = 16}, kernelCount[2, 8]]];
+multiFamilyResolution = Internal`InheritedBlock[
+  {FeynFacet`Private`taskBrokerActiveQ,
+   FeynFacet`Private`taskBrokerFreeKernels,
+   FeynFacet`Private`taskBrokerActiveFamilyCount,
+   FeynFacet`Private`taskBrokerNativeCoreQuota,
+   FeynFacet`Private`taskBrokerNativeThreadLimit},
+  Unprotect[FeynFacet`Private`taskBrokerActiveQ,
+    FeynFacet`Private`taskBrokerFreeKernels,
+    FeynFacet`Private`taskBrokerActiveFamilyCount,
+    FeynFacet`Private`taskBrokerNativeCoreQuota,
+    FeynFacet`Private`taskBrokerNativeThreadLimit];
+  FeynFacet`Private`taskBrokerActiveQ[] := True;
+  FeynFacet`Private`taskBrokerFreeKernels[] := 7;
+  FeynFacet`Private`taskBrokerActiveFamilyCount[] := 2;
+  FeynFacet`Private`taskBrokerNativeCoreQuota[] := 8;
+  FeynFacet`Private`taskBrokerNativeThreadLimit[value_] := value;
+  kernelCount[Automatic, 1]];
 wideResolution = Internal`InheritedBlock[
   {FeynFacet`Private`taskBrokerActiveQ,
    FeynFacet`Private`taskBrokerFreeKernels},
@@ -184,10 +201,12 @@ FTTest`FTAssert["Automatic is serial without a broker helper",
       FeynFacet`Private`taskBrokerActiveQ[] := True;
       FeynFacet`Private`taskBrokerFreeKernels[] := 0;
       Block[{$ProcessorCount = 16}, kernelCount[Automatic, 8]]] === 1];
+FTTest`FTAssert["multi-family operation suppresses nested image waves",
+  multiFamilyResolution === 1];
 FTTest`FTAssert["an explicit sixteen-core allowance admits exactly two eight-thread images",
   parallelResolution === 2 && kernelCount[1, 8] === 1];
-FTTest`FTAssert["Automatic uses free helpers but respects native-thread CPU pressure",
-  wideResolution === {8, 4}];
+FTTest`FTAssert["Automatic tail scaling stops at the measured two-image width",
+  wideResolution === {2, 2}];
 
 (* Normal suite runs have no broker and therefore prove the serial fallback.
    When this file is submitted as a KernelPool mission, the same fixture also

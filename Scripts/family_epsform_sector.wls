@@ -142,7 +142,7 @@ kernelCount = Module[{value = Environment["FACET_KERNEL_COUNT"]},
    Unset preserves the historical tuning by inheriting FACET_KERNEL_COUNT;
    an explicit value permits one main kernel with an eight-thread native
    adapter. *)
-mqNativeThreads = Module[{value = Environment["FACET_MQ_NATIVE_THREADS"],
+mqNativeThreadCap = Module[{value = Environment["FACET_MQ_NATIVE_THREADS"],
     parsed},
   If[! StringQ[value] || StringLength[value] === 0, Return[kernelCount]];
   parsed = Quiet[Check[ToExpression[value], $Failed]];
@@ -151,6 +151,8 @@ mqNativeThreads = Module[{value = Environment["FACET_MQ_NATIVE_THREADS"],
       "from 1 through 8"]; Exit[64]];
   parsed
 ];
+mqNativeThreads = FeynFacet`Private`taskBrokerNativeThreadLimit[
+  mqNativeThreadCap];
 mqImageKernelCount = Module[{
     value = Environment["FACET_MQ_IMAGE_KERNEL_COUNT"], parsed},
   If[! StringQ[value] || StringLength[value] === 0, Return[Automatic]];
@@ -162,13 +164,30 @@ mqImageKernelCount = Module[{
   parsed
 ];
 (* Fixed-core and plan-discovery backends are intentionally distinct.
-   These values are explicit so checkpoints bind the exact request. *)
+   The caps are explicit; the pool-owned live grants choose the effective
+   values at each strip boundary. *)
 finiteFieldBackend = Automatic;
-finiteFieldBackendThreads = 2;
+finiteFieldBackendThreadCap = 2;
+finiteFieldBackendThreads = FeynFacet`Private`taskBrokerNativeThreadLimit[
+  finiteFieldBackendThreadCap];
 planDiscoveryBackend = "Wolfram";
 If[! DirectoryQ[outdir], CreateDirectory[outdir, CreateIntermediateDirectories -> True]];
 start = AbsoluteTime[];
 log[a___] := Print["[sector-epsform ", family, " +", ToString[Round[AbsoluteTime[] - start]], "s] ", StringJoin[ToString[#, InputForm] & /@ {a}]];
+refreshResourceAllocation[] := Module[{nextFinite, nextMQ},
+  nextFinite = FeynFacet`Private`taskBrokerNativeThreadLimit[
+    finiteFieldBackendThreadCap];
+  nextMQ = FeynFacet`Private`taskBrokerNativeThreadLimit[mqNativeThreadCap];
+  If[{nextFinite, nextMQ} =!=
+      {finiteFieldBackendThreads, mqNativeThreads},
+    log["resource rebalance: active families ",
+      FeynFacet`Private`taskBrokerActiveFamilyCount[],
+      ", fixed-core native threads ", finiteFieldBackendThreads, " -> ",
+      nextFinite, ", direct-MQ native threads ", mqNativeThreads, " -> ",
+      nextMQ]];
+  finiteFieldBackendThreads = nextFinite;
+  mqNativeThreads = nextMQ;
+];
 log["worker-kernel limit ", kernelCount];
 log["direct-MQ native thread count ", mqNativeThreads];
 log["direct-MQ follower image concurrency ", mqImageKernelCount];
@@ -1048,6 +1067,7 @@ Do[
             Length[solvedBlocks], " banked strip(s) ",
             Sort[Keys[solvedBlocks]], " of sector ", k,
             " against the current connection (truncation ", nk, ")"];
+          refreshResourceAllocation[];
           resumeHydration = FeynFacet`Private`familyRowGaugeHydrateResume[
             stripCheckpoint, stripCheckpointFile, solvedBlocks, solvedForms,
             family, k, invariants, ee, chart, ranges, scratch, state["A"],
@@ -1310,6 +1330,7 @@ Do[
               TrueQ[Lookup[$blockConstructionRecord,
                 "ZeroForcingCandidateQ", True]] && zeroQ[bbar]];
           constructionTimings["ZeroForcingProbe"] = constructionSeconds;
+          refreshResourceAllocation[];
           deferredBundle = Lookup[$blockConstructionRecord,
             "DeferredBundle", Missing["NoDeferredBundle"]];
           directAlphabetOptions = If[AssociationQ[deferredBundle],

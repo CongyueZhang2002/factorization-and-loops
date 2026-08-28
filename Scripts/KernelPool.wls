@@ -13,6 +13,8 @@
              touch <pool>/control/stopnow         shutdown now (aborts running missions)
              touch <pool>/control/<name>.cancel   cancel one running mission (its subkernel is
                                                   closed and replaced)
+             write a positive integer to <pool>/control/native_cores to
+                                                  resize the native CPU budget live
    Client:   Scripts/kpsubmit.sh <name> <script.wls> [args...]   (writes queue/<name>.wl)
    Status:   <pool>/status.txt (rewritten every loop), <pool>/pool.pid
 
@@ -26,6 +28,16 @@ poolDir = If[Length[args] >= 1, args[[1]],
 nWanted = If[Length[args] >= 2, ToExpression[args[[2]]], 8];
 preload = If[Length[args] >= 3, ToExpression[args[[3]]], True];
 root = "/home/maxzhang/factorization-and-loops";
+resourcePolicyFile = FileNameJoin[{root, "Scripts",
+    "KernelPoolResourcePolicy.wl"}];
+If[! FileExistsQ[resourcePolicyFile] ||
+    Quiet[Check[Get[resourcePolicyFile]; True, False]] =!= True,
+  WriteString["stdout", "KernelPool resource policy could not be loaded\n"];
+  Exit[2]];
+nativeCoreCapacity = Module[{value = Environment["FACET_NATIVE_CORE_COUNT"]},
+  If[StringQ[value] && StringMatchQ[value, DigitCharacter ..] &&
+      FromDigits[value] >= 1,
+    FromDigits[value], Max[1, nWanted]]];
 
 sub[d_] := FileNameJoin[{poolDir, d}];
 Do[If[! DirectoryQ[sub[d]], CreateDirectory[sub[d], CreateIntermediateDirectories -> True]],
@@ -33,6 +45,18 @@ Do[If[! DirectoryQ[sub[d]], CreateDirectory[sub[d], CreateIntermediateDirectorie
 Export[sub["pool.pid"], ToString[$ProcessID], "Text"];
 log[msg___] := (WriteString["stdout", DateString["ISODateTime"], " POOL ", StringJoin[ToString /@ {msg}], "\n"]);
 putAtomic[expr_, file_] := Module[{tmp = file <> ".tmp"}, Put[expr, tmp]; RenameFile[tmp, file, OverwriteTarget -> True]];
+If[! FileExistsQ[FileNameJoin[{sub["control"], "native_cores"}]],
+  putAtomic[nativeCoreCapacity,
+    FileNameJoin[{sub["control"], "native_cores"}]]];
+
+currentNativeCoreCapacity[] := Module[{file, text, trimmed},
+  file = FileNameJoin[{sub["control"], "native_cores"}];
+  text = Quiet[Check[Import[file, "Text"], ""]];
+  trimmed = If[StringQ[text], StringTrim[text], ""];
+  If[StringMatchQ[trimmed, DigitCharacter ..] &&
+      FromDigits[trimmed] >= 1,
+    FromDigits[trimmed], nativeCoreCapacity]
+];
 
 Needs["Parallel`Developer`"];
 (* NB: Parallel`Developer` exports the Protected state symbols running/queued/finished -- never use them as variables. *)
@@ -223,6 +247,107 @@ log["subkernel PIDs: ", pids];
 poolJobs = <||>;   (* name -> <|"EID"->eid, "File"->runningFile, "Start"->t|> *)
 requeues = <||>;   (* name -> number of KERNELLOST requeues *)
 doneCount = 0; failCount = 0;
+lastHelperDispatch = <||>;
+resourceEpoch = 0;
+resourceGroups = {};
+
+missionRecord[file_String] := Module[{text, metadata, date},
+  text = Quiet[Check[Import[file, "Text"], ""]];
+  metadata = KernelPoolResourcePolicy`KernelPoolResourceMetadata[text];
+  date = Quiet[Check[AbsoluteTime[FileDate[file]], 0.]];
+  Join[<|"File" -> file, "Date" -> date|>, metadata]
+];
+
+activeResourceGroups[] := Sort[DeleteDuplicates[Lookup[
+  Select[Values[poolJobs], Function[job,
+    AssociationQ[job] && Lookup[job, "Role", None] === "family" &&
+      StringQ[Lookup[job, "Group", None]] &&
+      Lookup[job, "Group", None] =!= "ungrouped"]], "Group", {}]]];
+
+activeResourceOwners[] := Sort[DeleteDuplicates[Lookup[
+  Select[Values[poolJobs], Function[job,
+    AssociationQ[job] && Lookup[job, "Role", None] === "family" &&
+      StringQ[Lookup[job, "Owner", None]]]], "Owner", {}]]];
+
+runningResourceCounts[role_: All] := Counts[Lookup[
+  Select[Values[poolJobs], Function[job,
+    AssociationQ[job] && StringQ[Lookup[job, "Group", None]] &&
+      Lookup[job, "Group", None] =!= "ungrouped" &&
+      (role === All || Lookup[job, "Role", None] === role)]],
+  "Group", {}]];
+
+resourceSnapshot[] := Module[{groups, running, coreCapacity},
+  groups = activeResourceGroups[];
+  If[groups =!= resourceGroups,
+    resourceGroups = groups;
+    resourceEpoch++];
+  running = runningResourceCounts[];
+  coreCapacity = currentNativeCoreCapacity[];
+  KernelPoolResourcePolicy`KernelPoolResourceAllocate[
+    groups, Length[Kernels[]], coreCapacity, running, resourceEpoch]
+];
+
+writeResourceAllocations[] := Module[{allocation = resourceSnapshot[]},
+  If[AssociationQ[allocation],
+    putAtomic[allocation, sub["resource_allocations.wl"]]];
+  allocation
+];
+
+selectNextMission[records_List] := Module[
+  {primary, helper, allocation, runningHelpers, selected,
+   activeGroups, activeOwners},
+  If[records === {}, Return[Missing["QueueEmpty"]]];
+  activeGroups = activeResourceGroups[];
+  activeOwners = activeResourceOwners[];
+  (* Admit a newly queued family before helper work.  The campaign's
+     controller limit bounds family count; the next allocation snapshot then
+     shrinks every family's helper/native share before another helper starts. *)
+  primary = Select[records,
+    Lookup[#1, "Role", "mission"] =!= "helper" &&
+      ! (Lookup[#1, "Role", None] === "family" &&
+        MemberQ[activeGroups, Lookup[#1, "Group", None]]) &];
+  If[primary =!= {}, Return[First[SortBy[primary,
+    {Lookup[#1, "Date", 0.] &, Lookup[#1, "File", ""] &}]]]];
+  helper = Select[records,
+    Lookup[#1, "Role", None] === "helper" &&
+      (MemberQ[{None, "ungrouped"}, Lookup[#1, "Owner", None]] ||
+        MemberQ[activeOwners, Lookup[#1, "Owner", None]]) &];
+  If[helper === {}, Return[Missing["NoEligibleMission"]]];
+  allocation = resourceSnapshot[];
+  runningHelpers = runningResourceCounts["helper"];
+  selected = KernelPoolResourcePolicy`KernelPoolResourceSelectHelper[
+    helper, runningHelpers, allocation, lastHelperDispatch];
+  If[AssociationQ[selected], Return[selected]];
+  (* Legacy ungrouped helpers retain FIFO service.  A grouped helper whose
+     family has already left is deliberately not dispatched: it is stale
+     work from a cancelled/failed controller, not spare work that another
+     family may safely inherit. *)
+  helper = Select[helper,
+    MemberQ[{None, "ungrouped"}, Lookup[#1, "Group", None]] &];
+  If[helper === {}, selected, First[SortBy[helper,
+    {Lookup[#1, "Date", 0.] &, Lookup[#1, "File", ""] &}]]]
+];
+
+quarantineQueuedOwnerHelpers[owner_String] := Module[
+  {records, targets, file, name, destination},
+  records = missionRecord /@ FileNames["*.wl", sub["queue"]];
+  targets = Select[records,
+    Lookup[#1, "Role", None] === "helper" &&
+      Lookup[#1, "Owner", None] === owner &];
+  Do[
+    file = target["File"];
+    name = FileBaseName[file];
+    destination = FileNameJoin[{sub["failed"], name <> ".wl"}];
+    Quiet[RenameFile[file, destination, OverwriteTarget -> True]];
+    If[FileExistsQ[destination],
+      failCount++;
+      putAtomic[<|"Mission" -> name, "Status" -> "OWNERFINISHED",
+        "Owner" -> owner,
+        "Note" -> "helper was still queued when its controller finished"|>,
+        FileNameJoin[{sub["failed"], name <> ".status"}]];
+      log["quarantined stale helper ", name, " for owner ", owner]],
+    {target, targets}]
+];
 (* startup recovery: missions left in running/ by a previous (crashed/hung) server *)
 Do[Module[{name = FileBaseName[f], lg, ok, dest},
    lg = FileNameJoin[{sub["logs"], name <> ".log"}];
@@ -236,19 +361,36 @@ Do[Module[{name = FileBaseName[f], lg, ok, dest},
    Quiet@DeleteFile[FileNameJoin[{sub["running"], name <> ".kernel.done"}]];
    log["recovered stale running mission ", name, " -> ", If[ok, "done (log says OK)", "failed (POOLRESTART)"]]],
   {f, FileNames["*.wl", sub["running"]]}];
-writeStatus[] := Module[{lines},
+writeStatus[] := Module[{lines, allocation, resourceLines},
+  allocation = writeResourceAllocations[];
+  resourceLines = If[AssociationQ[allocation], KeyValueMap[
+    Function[{group, grant}, StringJoin["  allocation ", group,
+      " helpers<=", ToString[grant["HelperCeiling"]],
+      " native=", ToString[grant["NativeCoreQuota"]],
+      " workers=", ToString[grant["RunningWorkers"]],
+      " threads/worker=", ToString[grant["NativeThreadsPerWorker"]]]],
+    Lookup[allocation, "Groups", <||>]], {}];
   lines = Join[
     {"KernelPool status " <> DateString["ISODateTime"],
      "pool dir: " <> poolDir,
      "subkernels: " <> ToString[Length[Kernels[]]] <> "  busy: " <> ToString[Length[poolJobs]] <>
        "  free: " <> ToString[Length[Kernels[]] - Length[poolJobs]],
      "queued: " <> ToString[Length[FileNames["*.wl", sub["queue"]]]] <>
-       "  done: " <> ToString[doneCount] <> "  failed: " <> ToString[failCount]},
-    Table["  running " <> k <> "  elapsed " <> ToString[Round[AbsoluteTime[] - poolJobs[k]["Start"]]] <> " s",
+       "  done: " <> ToString[doneCount] <> "  failed: " <> ToString[failCount],
+      "active families: " <> ToString[Lookup[allocation,
+        "ActiveFamilyCount", 0]] <> "  native cores: " <>
+        ToString[Lookup[allocation, "NativeCoreCapacity", nativeCoreCapacity]]}, resourceLines,
+    Table["  running " <> k <> " group=" <>
+      ToString[Lookup[poolJobs[k], "Group", None]] <> " role=" <>
+      ToString[Lookup[poolJobs[k], "Role", "mission"]] <> " owner=" <>
+      ToString[Lookup[poolJobs[k], "Owner", None]] <> " elapsed " <>
+      ToString[Round[AbsoluteTime[] - poolJobs[k]["Start"]]] <> " s",
       {k, Keys[poolJobs]}]];
   Export[sub["status.txt"], StringRiffle[lines, "\n"] <> "\n", "Text"]];
 
-finish[name_, res_] := Module[{ok, dest, kf, kid, k},
+finish[name_, res_] := Module[{ok, dest, kf, kid, k, job, owner},
+  job = Lookup[poolJobs, name, <||>];
+  owner = Lookup[job, "Owner", None];
   ok = AssociationQ[res] && res["Status"] === "OK";
   (* a DUPLICATE is the claim mechanism working, not a failure: the
      evaluation found another evaluation's claim on the same mission,
@@ -278,6 +420,9 @@ finish[name_, res_] := Module[{ok, dest, kf, kid, k},
   Quiet@DeleteFile[FileNameJoin[{sub["running"], name <> ".kernel.done"}]];
   Quiet@DeleteFile[FileNameJoin[{sub["running"], name <> ".kernel.result"}]];
   log["finished ", name, " -> ", If[ok, "done", "failed"], " (", If[AssociationQ[res], Round[res["Wall"], 0.1], "?"], " s)"];
+  If[Lookup[job, "Role", None] === "family" && StringQ[owner] &&
+      ! (AssociationQ[res] && Lookup[res, "Status", None] === "DUPLICATE"),
+    quarantineQueuedOwnerHelpers[owner]];
   poolJobs = KeyDrop[poolJobs, name]];
 
 (* Cancel policy (measured 2026-08-16 23:31): an OS SIGINT to a subkernel does NOT abort its
@@ -384,22 +529,39 @@ While[True,
   If[Length[Kernels[]] < nWanted && ! stopping, topUpKernels[]];
   (* dispatch *)
   If[! stopping,
-    Do[If[Length[poolJobs] < Length[Kernels[]],
-       Module[{name = FileBaseName[q], rf, lf, kf, eid},
-         rf = FileNameJoin[{sub["running"], name <> ".wl"}];
-         lf = FileNameJoin[{sub["logs"], name <> ".log"}];
-         kf = FileNameJoin[{sub["running"], name <> ".kernel"}];
-         (* stale-record hygiene (2026-08-27): a re-run of a mission
-            name must not be graded by, or collide with, an earlier
-            verdict of the same name *)
-         Quiet[DeleteFile[FileNameJoin[{sub["done"], name <> ".status"}]]];
-         Quiet[DeleteFile[FileNameJoin[{sub["failed"], name <> ".status"}]]];
-         Quiet[DeleteFile[FileNameJoin[{sub["running"], "claims", name <> ".wl"}]]];
-         RenameFile[q, rf, OverwriteTarget -> True];
-         eid = With[{rf = rf, lf = lf, kf = kf}, ParallelSubmit[poolRun[rf, lf, kf]]];
-         poolJobs[name] = <|"EID" -> eid, "File" -> rf, "Start" -> AbsoluteTime[]|>;
-         log["dispatched ", name, " (", Length[poolJobs], "/", Length[Kernels[]], " busy)"]]],
-      {q, SortBy[FileNames["*.wl", sub["queue"]], FileDate]}]];
+    Module[{records, selected, q, name, rf, lf, kf, eid},
+      records = missionRecord /@ FileNames["*.wl", sub["queue"]];
+      While[Length[poolJobs] < Length[Kernels[]] && records =!= {},
+        selected = selectNextMission[records];
+        If[! AssociationQ[selected], Break[]];
+        q = selected["File"];
+        name = FileBaseName[q];
+        rf = FileNameJoin[{sub["running"], name <> ".wl"}];
+        lf = FileNameJoin[{sub["logs"], name <> ".log"}];
+        kf = FileNameJoin[{sub["running"], name <> ".kernel"}];
+        (* stale-record hygiene (2026-08-27): a re-run of a mission
+           name must not be graded by, or collide with, an earlier
+           verdict of the same name *)
+        Quiet[DeleteFile[FileNameJoin[{sub["done"], name <> ".status"}]]];
+        Quiet[DeleteFile[FileNameJoin[{sub["failed"], name <> ".status"}]]];
+        Quiet[DeleteFile[FileNameJoin[{sub["running"], "claims",
+          name <> ".wl"}]]];
+        RenameFile[q, rf, OverwriteTarget -> True];
+        eid = With[{rf = rf, lf = lf, kf = kf},
+          ParallelSubmit[poolRun[rf, lf, kf]]];
+        poolJobs[name] = Join[<|"EID" -> eid, "File" -> rf,
+          "Start" -> AbsoluteTime[]|>,
+          KeyTake[selected, {"Group", "Role", "Owner"}]];
+        If[selected["Role"] === "helper" &&
+            StringQ[selected["Group"]],
+          lastHelperDispatch[selected["Group"]] = AbsoluteTime[]];
+        records = Select[records, Lookup[#1, "File", None] =!= q &];
+        log["dispatched ", name, " group ", selected["Group"],
+          " role ", selected["Role"], " (", Length[poolJobs], "/",
+          Length[Kernels[]], " busy)"]];
+      (* Publish the new family count before QueueRun lets a just-admitted
+         mission reach its first resource-sensitive stage. *)
+      writeResourceAllocations[]]];
   (* THE PUMP (2026-08-27): ParallelSubmit only queues; without an
      explicit QueueRun the evaluations are handed to subkernels only
      when something else happens to pump the scheduler.  Under fresh_*

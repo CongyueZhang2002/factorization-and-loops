@@ -9785,20 +9785,28 @@ multiquadraticStripFollowerImageTask[dataFile_String,
 multiquadraticStripFollowerImageTask[___] := $Failed;
 
 (* Concurrency counts images, including the mission kernel's local share.
-   The physical CF300 gate measured a 1.85x warm two-image speedup.  Resolve
-   Automatic against the processors and helpers that are actually free; the
-   TaskBroker remains the only owner of Wolfram kernels. *)
+   A physical hard-block gate measured a 1.85x warm two-image speedup. Resolve
+   Automatic against the pool-owned family/core grant and helpers that are
+   actually free; the TaskBroker remains the only owner of Wolfram kernels.
+   Multi-family waves are deliberately serial: current warm images cost only
+   4--5 s, so coarse family parallelism is both fairer and cheaper than nested
+   image fan-out.  The last family may scale back to a two-image wave. *)
 multiquadraticStripFollowerImageKernelCount[requested_,
     nativeThreads_Integer] := Module[
-  {processors, free, requestedCount, processorCount},
+  {processors, free, requestedCount, processorCount, effectiveNative,
+   activeFamilies},
   If[! (requested === Automatic ||
         IntegerQ[requested] && Between[requested, {1, 8}]) ||
       ! Between[nativeThreads, {1, 8}], Return[1]];
-  requestedCount = Replace[requested, Automatic -> 8];
+  activeFamilies = Quiet[Check[taskBrokerActiveFamilyCount[], 1]];
+  If[IntegerQ[activeFamilies] && activeFamilies > 1, Return[1]];
+  requestedCount = Replace[requested, Automatic -> 2];
   If[requestedCount === 1, Return[1]];
-  processors = Quiet[Check[$ProcessorCount, 1]];
+  processors = Quiet[Check[taskBrokerNativeCoreQuota[], 1]];
+  effectiveNative = Quiet[Check[
+    taskBrokerNativeThreadLimit[nativeThreads], nativeThreads]];
   processorCount = If[IntegerQ[processors] && processors > 0,
-    Max[1, Quotient[processors, nativeThreads]], 1];
+    Max[1, Quotient[processors, effectiveNative]], 1];
   If[processorCount < 2, Return[1]];
   If[! TrueQ[Quiet[Check[taskBrokerActiveQ[], False]]], Return[1]];
   free = Quiet[Check[taskBrokerFreeKernels[], 0]];
@@ -11743,7 +11751,8 @@ multiquadraticStripNativeSparseEvaluateBatch[plan_Association,
       Throw[multiquadraticStripFailure[
         "NativeSparsePointWriteFailed"], tag]];
     {adapterSeconds, process} = AbsoluteTiming[RunProcess[
-      {binary, planFile, pointFile, outputFile, ToString[threads]}]];
+      taskBrokerNativeCommand[
+        {binary, planFile, pointFile, outputFile, ToString[threads]}, threads]]];
     If[! AssociationQ[process] || process["ExitCode"] =!= 0,
       Throw[multiquadraticStripFailure[
         "NativeSparseAdapterFailed"], tag]];
@@ -11954,7 +11963,8 @@ multiquadraticStripNativeRowAssembleBatch[assembly_Association,
       Throw[multiquadraticStripFailure[
         "NativeRowInputWriteFailed"], tag]];
     {adapterSeconds, process} = AbsoluteTiming[RunProcess[
-      {binary, inputFile, outputFile, ToString[threads]}]];
+      taskBrokerNativeCommand[
+        {binary, inputFile, outputFile, ToString[threads]}, threads]]];
     If[! AssociationQ[process] || process["ExitCode"] =!= 0,
       Throw[multiquadraticStripFailure[
         "NativeRowAdapterFailed"], tag]];

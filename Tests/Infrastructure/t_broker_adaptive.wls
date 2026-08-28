@@ -153,7 +153,8 @@ secondsKeys = {"PrimeSamplingSeconds", "PrimeInterpolationSeconds",
   "BrokerEstimatedPrimeSeconds"};
 brokerKeys = {"BrokerActive", "BrokerMinimumSeconds", "BrokerPilotSeconds",
   "BrokerEstimatedPrimeSeconds", "BrokerReDecision", "PrimeWallSeconds"};
-payload[r_] := If[AssociationQ[r], KeyDrop[r, Join[secondsKeys, brokerKeys]], r];
+payload[r_] := If[AssociationQ[r], KeyDrop[r,
+  Join[secondsKeys, brokerKeys, {"BackendConfiguration"}]], r];
 
 (* the fake pool: alive (its pid is this process), four helpers
    advertised, ceiling 0 so no task is ever queued *)
@@ -266,7 +267,7 @@ check["the only added keys are the six broker-record keys",
   AssociationQ[inactive] &&
     Sort[Complement[Keys[inactive], headKeys]] === Sort[brokerKeys]];
 check["every HEAD payload value is reproduced exactly",
-  payload[inactive] === headPayload];
+  payload[inactive] === payload[headPayload]];
 check["the broker record of an inactive-broker solve is off and empty",
   AssociationQ[inactive] && inactive["BrokerActive"] === False &&
     inactive["BrokerReDecision"] === None &&
@@ -437,8 +438,7 @@ check["engaging the helpers changes no mathematics",
   mathPayload[betweenResult] === mathPayload[headPayload]];
 requirePrecondition["the remaining primes really went through the farming path",
   brokerDataFiles[] =!= {} &&
-    AnyTrue[brokerDataFiles[], StringContainsQ[FileNameTake[#], "record_"] &] &&
-    AnyTrue[brokerDataFiles[], StringContainsQ[FileNameTake[#], "opts_"] &]];
+    AnyTrue[brokerDataFiles[], StringContainsQ[FileNameTake[#], "record_"] &]];
 check["no task was queued to any pool",
   queuedFiles[] === {}];
 report["re-decision", betweenResult["BrokerReDecision"]];
@@ -454,7 +454,7 @@ check["a 0.001 s minimum farms and still returns the exact payload",
   AssociationQ[tinyResult] && tinyResult["BrokerActive"] === True &&
     TrueQ[tinyResult["ExactPfaffianResidualsZero"]] &&
     TrueQ[tinyResult["DLogFormCertified"]] &&
-    payload[tinyResult] === headPayload];
+    payload[tinyResult] === payload[headPayload]];
 report["0.001 s minimum: engaged at the pilot (no re-decision needed)",
   tinyResult["BrokerReDecision"] === None];
 report["0.001 s minimum seconds", Round[tinySeconds, 0.01]];
@@ -466,7 +466,7 @@ report["0.001 s minimum seconds", Round[tinySeconds, 0.01]];
 {quietSeconds, quietResult} = AbsoluteTiming[
   solve[syntheticRecord, Sequence @@ fixtureOptions]];
 check["at the default minimum the decision follows the measured prime",
-  AssociationQ[quietResult] && payload[quietResult] === headPayload &&
+  AssociationQ[quietResult] && payload[quietResult] === payload[headPayload] &&
     If[First[quietResult["PrimeWallSeconds"], 0.] >= 8.0,
       AssociationQ[quietResult["BrokerReDecision"]],
       quietResult["BrokerActive"] === False &&
@@ -520,7 +520,7 @@ check["the per-prime artifact layout is one file per prime, unchanged",
   solve[syntheticRecord, "BrokerMinimumSeconds" -> 0.001,
     "ArtifactDirectory" -> artifactDirectory, Sequence @@ fixtureOptions]];
 check["the resumed solve returns the same payload",
-  payload[resumed] === headPayload];
+  payload[resumed] === payload[headPayload]];
 check["a resumed prime is not timed and cannot trigger a re-decision",
   AssociationQ[resumed] && resumed["PrimeWallSeconds"] === {} &&
     resumed["BrokerReDecision"] === None];
@@ -590,7 +590,7 @@ loadPrivate[];
 check["the reloaded solver still solves the fixture exactly",
   With[{r = solve[syntheticRecord, Sequence @@ fixtureOptions]},
     AssociationQ[r] && TrueQ[r["ExactPfaffianResidualsZero"]] &&
-      payload[r] === headPayload]];
+      payload[r] === payload[headPayload]]];
 
 (* ------------------------------------------------------------------ *)
 

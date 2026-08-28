@@ -38,6 +38,7 @@ export FACET_RATIONAL_MAPLE_BUDGET="${FACET_RATIONAL_MAPLE_BUDGET:-300}"
 export FACET_CHECK_LEVEL="${FACET_CHECK_LEVEL:-Production}"
 sector_budget="${FACET_SECTOR_BUDGET:-1800}"
 cpus="${FACET_CPU_LIST:-0,1,6,7,8,9,18,19}"
+export FACET_MQ_NATIVE_THREADS="${FACET_MQ_NATIVE_THREADS:-8}"
 (( nk < 1 )) && { echo "need at least 1 subkernel"; exit 64; }
 # families in flight: leave two helpers for the task broker when there are
 # enough subkernels; with 1-2 subkernels families run one at a time and the
@@ -46,7 +47,17 @@ maxfam=$(( nk > 2 ? nk - 2 : 1 ))
 # FACET_MAX_FAMILIES overrides (user campaigns that want every family in
 # flight at once accept broker helpers computing locally)
 [[ -n "${FACET_MAX_FAMILIES:-}" ]] && maxfam="$FACET_MAX_FAMILIES"
+native_core_count="${FACET_NATIVE_CORE_COUNT:-$(taskset -c "$cpus" nproc 2>/dev/null || printf '%s' "$nk")}"
+if [[ ! "$native_core_count" =~ ^[0-9]+$ ]] || (( native_core_count < 1 )); then
+  echo "FACET_NATIVE_CORE_COUNT must be a positive integer" >&2
+  exit 64
+fi
+export FACET_NATIVE_CORE_COUNT="$native_core_count"
 mkdir -p "$out" "$pool"
+mkdir -p "$pool/control"
+native_core_file="$pool/control/native_cores"
+printf '%s\n' "$native_core_count" > "$native_core_file.$$"
+mv -f "$native_core_file.$$" "$native_core_file"
 status="$out/campaign_status.tsv"
 [[ -f "$status" ]] || printf 'family\tphase\tstarted\tfinished\tseconds\tresult\n' > "$status"
 
@@ -56,13 +67,14 @@ if ! { [[ -f "$pool/pool.pid" ]] && kill -0 "$(cat "$pool/pool.pid")" 2>/dev/nul
   for i in $(seq 1 180); do grep -q "preload done" "$pool/pool.log" 2>/dev/null && break; sleep 5; done
   grep -q "preload done" "$pool/pool.log" || { echo "pool did not come up; see $pool/pool.log"; exit 2; }
 fi
-echo "pool: $(grep -o 'running [0-9]* (license' "$pool/pool.log" | tail -1); families at once: $maxfam"
+echo "pool: $(grep -o 'running [0-9]* (license' "$pool/pool.log" | tail -1); families at once: $maxfam; native cores: $native_core_count"
 
 run_family() {   # submit, wait, certify -- one family, sequential
   local family="$1" t0; t0=$(date +%s)
   mkdir -p "$out/$family"
   ln -sfn "$pool/logs/fresh_sol_$family.log" "$out/$family/run.log"
-  "$root/Scripts/kpsubmit.sh" "fresh_sol_$family" "$root/Scripts/family_epsform_sector.wls" \
+  FACET_RESOURCE_GROUP="$family" FACET_RESOURCE_ROLE=family \
+    "$root/Scripts/kpsubmit.sh" "fresh_sol_$family" "$root/Scripts/family_epsform_sector.wls" \
     "$family" "$out/$family" "$sector_budget" standard 30 > /dev/null
   printf '%s\tsolving\t%s\t-\t-\tmission fresh_sol_%s\n' "$family" "$(date --iso-8601=seconds)" "$family" >> "$status"
   "$root/Scripts/kpwait.sh" "fresh_sol_$family" 259200 > "$out/${family}_solve.status" 2>&1
@@ -72,7 +84,8 @@ run_family() {   # submit, wait, certify -- one family, sequential
       "$(grep -o '"Status" -> "[A-Z0-9]*"' "$out/${family}_solve.status" | head -1)" >> "$status"; return
   fi
   printf '%s\tcertifying\t-\t-\t%d\tmission fresh_cert_%s\n' "$family" "$(( $(date +%s) - t0 ))" "$family" >> "$status"
-  "$root/Scripts/kpsubmit.sh" "fresh_cert_$family" "$root/Scripts/certify_family_epsform_record.wls" \
+  FACET_RESOURCE_GROUP="$family" FACET_RESOURCE_ROLE=family \
+    "$root/Scripts/kpsubmit.sh" "fresh_cert_$family" "$root/Scripts/certify_family_epsform_record.wls" \
     "$record" "$R/DifferentialEquations/nnlo_de_$family.wl" "$certified/family_epsform_$family.wl" > /dev/null
   "$root/Scripts/kpwait.sh" "fresh_cert_$family" 86400 > "$out/${family}_certify.status" 2>&1
   ln -sfn "$pool/logs/fresh_cert_$family.log" "$out/${family}_certify.log"

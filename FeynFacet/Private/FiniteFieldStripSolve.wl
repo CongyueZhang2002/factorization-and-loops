@@ -477,7 +477,8 @@ finiteFieldStripFLINTSolve[core_, rhs_, prime_Integer, threads_Integer] := Modul
     BinaryWrite[stream, Flatten[Normal[core]], "UnsignedInteger64", ByteOrdering -> -1];
     BinaryWrite[stream, Flatten[Normal[rhs]], "UnsignedInteger64", ByteOrdering -> -1];
     Close[stream];
-    process = RunProcess[{binary, input, output, ToString[Clip[threads, {1, 8}]]}];
+    process = RunProcess[taskBrokerNativeCommand[
+      {binary, input, output, ToString[Clip[threads, {1, 8}]]}, threads]];
     If[! AssociationQ[process] || process["ExitCode"] =!= 0, Throw[$Failed, "flint"]];
     stream = OpenRead[output, BinaryFormat -> True];
     magic = BinaryReadList[stream, "UnsignedInteger8", 8];
@@ -794,8 +795,9 @@ finiteFieldStripCFFRRun[matrix_, rightHandSide_, prime_Integer,
     Return[Join[written, <|"RequestFile" -> requestFile,
       "ResponseFile" -> responseFile|>]]];
   threadArgument = Max[1, Min[threads, 8]];
-  process = Quiet[Check[RunProcess[{hashes["AdapterBinary"], requestFile,
-    responseFile, ToString[threadArgument]}], $Failed]];
+  process = Quiet[Check[RunProcess[taskBrokerNativeCommand[
+    {hashes["AdapterBinary"], requestFile, responseFile,
+      ToString[threadArgument]}, threadArgument]], $Failed]];
   exitCode = If[AssociationQ[process], Lookup[process, "ExitCode", -1], -1];
   If[exitCode =!= 0,
     Return[finiteFieldStripCFFRFailure[
@@ -2004,10 +2006,14 @@ finiteFieldStripNativeHeldOutInterpolate[canonicalSamples_List,
   mode = If[ListQ[expected], 1, 0];
   (* Discovery scans every minimal Pade split for thousands of coordinates
      and scales materially with OpenMP.  A fixed-profile pass solves one
-     known split and is faster without thread startup. *)
+     known split and is faster without thread startup.  In a family pool the
+     discovery count is capped by the pool-owned native allocation; this is
+     re-read on every call, so the next prime scales up or down when a family
+     enters or leaves without changing the interpolation mathematics. *)
   processorCount = Quiet[Check[$ProcessorCount, 1]];
-  threads = If[mode == 0, Min[8, If[IntegerQ[processorCount] &&
-      processorCount > 0, processorCount, 1]], 1];
+  threads = If[mode == 0, taskBrokerNativeThreadLimit[Min[8,
+      If[IntegerQ[processorCount] && processorCount > 0,
+        processorCount, 1]]], 1];
   nativeInitial = initial;
   If[mode == 1,
     If[Length[expected] =!= coordinateCount || ! AllTrue[expected,
@@ -2043,7 +2049,8 @@ finiteFieldStripNativeHeldOutInterpolate[canonicalSamples_List,
       "UnsignedInteger64", ByteOrdering -> -1]];
     Close[stream]; stream = None;
     {timing, process} = AbsoluteTiming[RunProcess[
-      {binary, inputFile, outputFile, ToString[threads]}]];
+      taskBrokerNativeCommand[
+        {binary, inputFile, outputFile, ToString[threads]}, threads]]];
     If[! AssociationQ[process] || process["ExitCode"] =!= 0 ||
         ! FileExistsQ[outputFile], Throw[$Failed]];
     stream = OpenRead[outputFile, BinaryFormat -> True];

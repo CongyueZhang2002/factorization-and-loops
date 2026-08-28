@@ -55,6 +55,19 @@ check["native discovery matches Wolfram coefficients and consumption",
       (KeyTake[#, {"Numerator", "Denominator", "Degrees"}] & /@
         wolframDiscovery["Interpolations"])] ;
 
+cappedDiscovery = Internal`InheritedBlock[
+  {FeynFacet`Private`taskBrokerNativeThreadLimit},
+  Unprotect[FeynFacet`Private`taskBrokerNativeThreadLimit];
+  Clear[FeynFacet`Private`taskBrokerNativeThreadLimit];
+  FeynFacet`Private`taskBrokerNativeThreadLimit[requested_Integer] :=
+    Min[requested, 1];
+  FeynFacet`Private`finiteFieldStripNativeHeldOutInterpolate[
+    canonical[p], p, 4, 3, 22, Automatic]];
+check["native discovery obeys the live pool thread grant",
+  Lookup[cappedDiscovery, "Status", None] === "HeldOutValidated" &&
+    Lookup[cappedDiscovery, "InterpolationBackendThreads", None] === 1 &&
+    Lookup[cappedDiscovery["Interpolations"], "Degrees"] === degrees];
+
 nativeWideDiscovery =
   FeynFacet`Private`finiteFieldStripNativeHeldOutInterpolate[
     canonical[wide], wide, 4, 3, 22, Automatic];

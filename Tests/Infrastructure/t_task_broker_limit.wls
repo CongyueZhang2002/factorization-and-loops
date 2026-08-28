@@ -116,6 +116,105 @@ FTTest`FTAssert["failed broker missions leave no status or mission artifacts",
     ! FileExistsQ[FileNameJoin[{directory, "failed",
       failedName <> ".wl"}]]];
 
+resourceFile = FileNameJoin[{directory, "resource_allocations.wl"}];
+allocation[helpers_, native_, perWorker_] := <|
+  "Schema" -> "KernelPoolResourceAllocationV1",
+  "SubkernelCapacity" -> 8, "NativeCoreCapacity" -> 16,
+  "ActiveFamilyCount" -> 2, "HelperCapacity" -> 6,
+  "Groups" -> <|"CF300" -> <|"HelperCeiling" -> helpers,
+    "NativeCoreQuota" -> native, "RunningWorkers" -> 2,
+    "NativeThreadsPerWorker" -> perWorker|>|>|>;
+Put[allocation[2, 8, 4], resourceFile];
+SetEnvironment["FACET_TASK_BROKER_MAX_HELPERS" -> "invalid"];
+dynamicGrant = Block[
+  {KernelPoolMission`$TaskBrokerResourceGroup = "CF300",
+   KernelPoolMission`$TaskBrokerMaxHelpers = Infinity},
+  {FeynFacet`Private`taskBrokerFreeKernels[],
+   FeynFacet`Private`taskBrokerActiveFamilyCount[],
+   FeynFacet`Private`taskBrokerNativeCoreQuota[],
+   FeynFacet`Private`taskBrokerNativeThreadLimit[8]}];
+FTTest`FTAssert["pool-owned family grant caps helpers and native threads",
+  dynamicGrant === {2, 2, 8, 4}];
+
+Put[allocation[4, 12, 8], resourceFile];
+rebalancedGrant = Block[
+  {KernelPoolMission`$TaskBrokerResourceGroup = "CF300",
+   KernelPoolMission`$TaskBrokerMaxHelpers = Infinity},
+  {FeynFacet`Private`taskBrokerFreeKernels[],
+   FeynFacet`Private`taskBrokerNativeCoreQuota[],
+   FeynFacet`Private`taskBrokerNativeThreadLimit[8]}];
+FTTest`FTAssert["a replaced allocation is observed without reloading the mission",
+  rebalancedGrant === {4, 12, 8}];
+
+Clear[brokerSampleSubmit, brokerSampleCollect, brokerSampleAffine,
+  capturedSampleCodes, capturedLocalThreads];
+brokerSampleSubmit[codes_List, ___Rule] := (
+  capturedSampleCodes = codes; <|"Codes" -> codes|>);
+brokerSampleCollect[handle_Association] :=
+  Table[{index}, {index, Length[handle["Codes"]]}];
+brokerSampleAffine[_, value_, _, opts___Rule] := (
+  capturedLocalThreads = Lookup[Association[{opts}],
+    "BackendThreads", None]; value);
+capturedSampleCodes = {}; capturedLocalThreads = None;
+balancedSample = Block[
+  {KernelPoolMission`$TaskBrokerResourceGroup = "CF300",
+   KernelPoolMission`$TaskBrokerMaxHelpers = Infinity,
+   FeynFacet`Private`taskBrokerSubmit = brokerSampleSubmit,
+   FeynFacet`Private`taskBrokerCollect = brokerSampleCollect,
+   FeynFacet`SampleEpsFormStripAffine = brokerSampleAffine},
+  FeynFacet`Private`taskBrokerSampleBatch[<||>, {1, 2, 3, 4},
+    1000003, {"ExpectedFingerprint" -> "sample-balance",
+      "BackendThreads" -> 8}]];
+balancedOptionsFile = First[FileNames[
+  "opts_sample-balance_*.wl", FileNameJoin[{directory, "data"}]], None];
+balancedHelperThreads = If[StringQ[balancedOptionsFile], Lookup[
+  Association[Get[balancedOptionsFile]], "BackendThreads", None], None];
+FTTest`FTAssert["a family native quota is divided across all sample workers",
+  Length[capturedSampleCodes] === 3 && capturedLocalThreads === 3 &&
+    balancedHelperThreads === 3 && balancedSample === {1, 2, 3, 4}];
+
+Put[allocation[4, 3, 1], resourceFile];
+capturedLocalThreads = None;
+Block[{KernelPoolMission`$TaskBrokerResourceGroup = "CF300",
+   KernelPoolMission`$TaskBrokerMaxHelpers = Infinity,
+   FeynFacet`Private`taskBrokerSubmit = brokerSampleSubmit,
+   FeynFacet`Private`taskBrokerCollect = brokerSampleCollect,
+   FeynFacet`SampleEpsFormStripAffine = brokerSampleAffine},
+  FeynFacet`Private`taskBrokerSampleBatch[<||>, {1, 2, 3, 4},
+    1000003, {"ExpectedFingerprint" -> "sample-balance-small",
+      "BackendThreads" -> 8}]];
+smallOptionsFile = First[FileNames["opts_sample-balance-small_*.wl",
+  FileNameJoin[{directory, "data"}]], None];
+FTTest`FTAssert["oversubscribed sample workers fall back to one native thread",
+  capturedLocalThreads === 1 && StringQ[smallOptionsFile] &&
+    Lookup[Association[Get[smallOptionsFile]], "BackendThreads", None] === 1];
+
+CreateDirectory[FileNameJoin[{directory, "control"}]];
+Export[FileNameJoin[{directory, "control", "native_cores"}], "3\n", "Text"];
+leasedCommand = Block[
+  {KernelPoolMission`$TaskBrokerResourceGroup = "CF300",
+   KernelPoolMission`$TaskBrokerResourceOwner = "fresh_sol_CF300"},
+  FeynFacet`Private`taskBrokerNativeCommand[
+    {"adapter", "input", "output", "8"}, 8]];
+FTTest`FTAssert["native adapters are routed through the live lease with the current cap",
+  FileNameTake[First[leasedCommand]] === "native_core_lease.sh" &&
+    leasedCommand[[2]] === directory && leasedCommand[[3]] === "1" &&
+    leasedCommand[[4]] === "--" && Last[leasedCommand] === "1"];
+
+groupedHandle = Block[
+  {KernelPoolMission`$TaskBrokerResourceGroup = "CF300",
+   KernelPoolMission`$TaskBrokerResourceOwner = "fresh_sol_CF300"},
+  FeynFacet`Private`taskBrokerSubmit[{"1"}, "Label" -> "grouped"]];
+groupedMission = Import[FileNameJoin[{directory, "queue",
+  First[groupedHandle["Names"]] <> ".wl"}], "Text"];
+FTTest`FTAssert["broker helpers inherit resource group metadata",
+  StringContainsQ[groupedMission,
+    "FACET_RESOURCE group=CF300 role=helper owner=fresh_sol_CF300"] &&
+  StringContainsQ[groupedMission,
+    "KernelPoolMission`$TaskBrokerResourceGroup = \"CF300\""] &&
+  StringContainsQ[groupedMission,
+    "KernelPoolMission`$TaskBrokerResourceOwner = \"fresh_sol_CF300\""]];
+
 If[StringQ[oldBroker], SetEnvironment["FACET_TASK_BROKER" -> oldBroker],
   SetEnvironment["FACET_TASK_BROKER" -> ""]];
 If[StringQ[oldLimit],
