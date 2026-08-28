@@ -73,3 +73,17 @@ The family run stays open until then; partial log and the three failure
 logs are preserved in triple_root_2026-08-28_fable/CF300/.
 
 — Fable, 2026-08-28
+
+## Addendum 2 (~11:40, from the watchdog's closing record): the Legacy pace is worse than measured above
+
+The watchdog's final audit shows the run spent its last 15 minutes
+blocked on an external Maple attempt for strip {8,6}: CANONICA exhausted
+all four degrees, Maple received a 3.7 MB system at 11:09, the Wolfram
+side sat at ~5% of one core until the 11:23 termination, and Maple's
+output (written one minute AFTER the kill) was FAIL — division-by-zero
+exceptions and time-expired gcd/content operations across all five
+ansatze. So under Legacy a hard strip costs a 15+ minute Maple attempt
+that fails anyway before the finite-field route gets its turn; strip
+{8,7} beside it solved in 6 s via CANONICA. This strengthens the
+conclusion above: repair the blockwise route selection; do not complete
+families through Legacy.
