@@ -168,7 +168,7 @@ with exact normalization and independent fresh-prime provider residuals.
   result characterizes that captured data stream only: it does **not** prove
   that the affine section itself has degree above 64.
 
-- [🟡] Resolve the historical-status versus current direct-provider
+- [🟢] Resolve the historical-status versus current direct-provider
   contradiction before changing the section.  The 11:38 run already used the
   deferred-bundle `SplitBranch` route from an uncommitted source snapshot; it
   was not a compiled-channel run.  The surviving baseline says six 31-bit
@@ -179,14 +179,17 @@ with exact normalization and independent fresh-prime provider residuals.
   and a Wolfram reference subset also requests more samples.  On the current
   physical matrix, historical Wolfram RREF and the new FLINT constrained plan
   now agree exactly on rank, pivots, all 52 normalization columns, and all
-  2,260 canonical coordinates, with an exact all-row residual.  Finish the
-  registered-family-frame versus identity-fixture comparison; if its roots,
-  alphabet, denominator, normalization rows, coefficient ABI, and provider
-  expressions also agree, classify the old six-prime narrative as
-  unauthenticated and rerun one 31-bit prime only with the nine canonical
-  vectors and interpolation verdict persisted.
+  2,260 canonical coordinates, with an exact all-row residual.  The
+  registered-family-frame comparison also agrees on root squares/order,
+  denominator, normalization rows, one-forms, coefficient ABI, and provider
+  expressions.  A fresh 31-bit run persisted all nine canonical vectors and
+  reproduced the `1184 ambiguous / 1076 shortfall` split; a Wolfram refit of
+  ten ambiguous coordinates independently requests more samples.  The old
+  six-prime narrative is therefore retained only as an unauthenticated
+  observation from a lost dirty source state.  Full evidence is in
+  `Exchange/Codex/2026-08-27/05_cf300_interpolation_contradiction.md`.
 
-- [ ] Search the affine nullspace for a low-regulator-degree normalization
+- [🟡] Search the affine nullspace for a low-regulator-degree normalization
   section only if the cross-route equality test proves that the historical
   and current systems are identical and the earlier low-degree evidence is
   invalid.  Reuse captured affine fibres, keep the current residue pins, and
