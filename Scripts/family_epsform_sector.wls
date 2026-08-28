@@ -1175,7 +1175,12 @@ Do[
             If[AssociationQ[Lookup[$blockConstructionRecord,
                 "DeferredBundle", None]],
               <|"DeferredBundle" ->
-                $blockConstructionRecord["DeferredBundle"]|>, <||>]],
+                $blockConstructionRecord["DeferredBundle"]|>, <||>],
+            If[AssociationQ[Lookup[$blockConstructionRecord,
+                "DeferredMaterializationCertificate", None]],
+              <|"DeferredMaterializationCertificate" ->
+                $blockConstructionRecord[
+                  "DeferredMaterializationCertificate"]|>, <||>]],
           stripInputFile]]];
         (* THE STRIP-INPUT SEAL (2026-08-25, Codex 14:30 integrity layer,
            step 1 of 4).  A resume currently re-derives the whole symbolic
@@ -1390,6 +1395,9 @@ Do[
                    source-frame identity check (2026-08-24) *)
                 "Deadline" -> sectorDeadline,
                 "ScratchDirectory" -> scratch,
+                "DeferredMaterializationCertificate" -> Lookup[
+                  $blockConstructionRecord,
+                  "DeferredMaterializationCertificate", Automatic],
                 "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
                 "Verbose" -> True],
             True, finiteFieldSolve[]],

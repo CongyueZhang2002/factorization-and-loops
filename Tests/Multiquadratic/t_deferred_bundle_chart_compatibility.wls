@@ -120,12 +120,49 @@ FTAssert["C8 chartable deferred forcing uses the rational chart and solves exact
     TrueQ[oneSolution["ExactDLog"]] &&
     TrueQ[oneSolution["FrameCertificate", "SourceDLog"]]];
 
+oneMaterialized = forcingOf[oneConnection, ranges, 2, 1, <||>, variables,
+  epsilon, "Output" -> "BundleAndMaterialized",
+  "BundleRoots" -> oneRoots];
+certifiedMaterializedSolution = SolveEpsFormStripInFrame[
+  {zeroPair, zeroPair, oneMaterialized["Forcing"]},
+  variables, epsilon, oneFrame,
+  "FiniteFieldFirst" -> True,
+  "FiniteFieldOptions" -> commonFiniteOptions["one_root_certified"],
+  "MultiquadraticOptions" -> {
+    "DeferredBundle" -> oneMaterialized["DeferredBundle"]},
+  "DeferredMaterializationCertificate" ->
+    oneMaterialized["DeferredMaterializationCertificate"],
+  "Verbose" -> False];
+FTAssert["C9 certified materialized forcing skips redundant bundle pullback \
+without changing the exact gauge",
+  Lookup[certifiedMaterializedSolution, "Status", None] === "Solved" &&
+    StringStartsQ[certifiedMaterializedSolution["Method"],
+      "RationalChart/Kallen1/"] &&
+    AllTrue[Flatten[certifiedMaterializedSolution["Gauge"] -
+        oneSolution["Gauge"]],
+      TrueQ[FeynFacet`Private`transportChartAlgebraicZeroQ[#1,
+        oneRoots]] &]];
+mutatedForcing = ReplacePart[oneMaterialized["Forcing"],
+  {1, 1, 1} -> 2 oneMaterialized["Forcing"][[1, 1, 1]]];
+mutatedMaterializedSolution = SolveEpsFormStripInFrame[
+  {zeroPair, zeroPair, mutatedForcing}, variables, epsilon, oneFrame,
+  "FiniteFieldFirst" -> True,
+  "FiniteFieldOptions" -> commonFiniteOptions["one_root_mutated"],
+  "MultiquadraticOptions" -> {
+    "DeferredBundle" -> oneMaterialized["DeferredBundle"]},
+  "DeferredMaterializationCertificate" ->
+    oneMaterialized["DeferredMaterializationCertificate"],
+  "Verbose" -> False];
+FTAssert["C10 a mutated BBar cannot reuse a bundle materialization certificate",
+  Lookup[mutatedMaterializedSolution, "Status", None] ===
+    "InvalidDeferredMaterializationCertificate"];
+
 plainRationalSolution = SolveEpsFormStripInFrame[
   {zeroPair, zeroPair, {{{1}}, {{0}}}}, variables, epsilon, declaredFrame,
   "FiniteFieldFirst" -> True,
   "FiniteFieldOptions" -> commonFiniteOptions["plain_rational"],
   "Verbose" -> False];
-FTAssert["C9 an ordinary nonzero rational strip still uses RationalFrame",
+FTAssert["C11 an ordinary nonzero rational strip still uses RationalFrame",
   Lookup[plainRationalSolution, "Status", None] === "Solved" &&
     StringStartsQ[plainRationalSolution["Method"], "RationalFrame/"] &&
     plainRationalSolution["RootIndices"] === {} &&

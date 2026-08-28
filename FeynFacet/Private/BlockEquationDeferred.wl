@@ -149,15 +149,21 @@ ClearAll[
   blockEquationDeferredFactorOrbit,
   blockEquationDeferredBundleTargetOrder,
   blockEquationDeferredBundleFingerprint,
+  blockEquationDeferredMaterializedForcingFingerprint,
+  blockEquationDeferredMaterializationCertificate,
+  blockEquationDeferredMaterializationCertificateValidate,
   blockEquationDeferredBundleValidate,
   blockEquationDeferredBundleEvaluate,
   blockEquationDeferredCompileBundle,
   blockEquationDeferredCompileBundleWithCache,
   $blockEquationDeferredABIVersion,
-  $blockEquationDeferredBundleSchema
+  $blockEquationDeferredBundleSchema,
+  $blockEquationDeferredMaterializationCertificateSchema
 ];
 
 $blockEquationDeferredABIVersion = "BlockEquationDeferredV1";
+$blockEquationDeferredMaterializationCertificateSchema =
+  "FeynFacetDeferredMaterializationCertificateV1";
 
 (* ---- route ---------------------------------------------------------- *)
 
@@ -1623,6 +1629,47 @@ blockEquationDeferredBundleFingerprint[bundle_Association] := Hash[{
   Lookup[bundle, "SourceFingerprint", None]},
   "SHA256", "HexString"];
 
+(* A materialized BBar and its deferred bundle are two representations of
+   the same forcing.  The certificate is minted only on the materializer
+   path and binds the exact array to that bundle, so a chart may use the
+   already-materialized array without changing which equation is solved. *)
+blockEquationDeferredMaterializedForcingFingerprint[forcing_,
+    variables_List, regulator_] := Hash[{
+  $blockEquationDeferredMaterializationCertificateSchema,
+  blockEquationDeferredSymbolKey /@ variables,
+  blockEquationDeferredSymbolKey[regulator],
+  Dimensions[forcing], forcing}, "SHA256", "HexString"];
+
+blockEquationDeferredMaterializationCertificate[bundle_Association,
+    forcing_, variables_List, regulator_] := <|
+  "Schema" -> $blockEquationDeferredMaterializationCertificateSchema,
+  "BundleFingerprint" -> Lookup[bundle, "BundleFingerprint", None],
+  "ForcingFingerprint" ->
+    blockEquationDeferredMaterializedForcingFingerprint[
+      forcing, variables, regulator],
+  "Variables" -> (blockEquationDeferredSymbolKey /@ variables),
+  "Regulator" -> blockEquationDeferredSymbolKey[regulator],
+  "Dimensions" -> Dimensions[forcing]|>;
+blockEquationDeferredMaterializationCertificate[___] :=
+  <|"Status" -> "InvalidMaterializationCertificateInput"|>;
+
+blockEquationDeferredMaterializationCertificateValidate[
+    certificate_Association, bundle_Association, forcing_,
+    variables_List, regulator_] := Module[{expected},
+  expected = blockEquationDeferredMaterializationCertificate[
+    bundle, forcing, variables, regulator];
+  If[Lookup[certificate, "Schema", None] =!=
+      $blockEquationDeferredMaterializationCertificateSchema,
+    Return[<|"Status" -> "InvalidMaterializationCertificateSchema"|>]];
+  If[! SameQ[KeySort[certificate], KeySort[expected]],
+    Return[<|"Status" -> "MaterializationCertificateMismatch",
+      "Expected" -> expected,
+      "Observed" -> certificate|>]];
+  <|"Status" -> "MaterializationCertificateValid"|>
+];
+blockEquationDeferredMaterializationCertificateValidate[___] :=
+  <|"Status" -> "InvalidMaterializationCertificateInput"|>;
+
 (* every consumer's first call.  Schema, dimensions, lexicographic
    target coverage, job alignment, operand-ID bounds, root-order
    fingerprint and the recomputed bundle fingerprint -- the enforceable
@@ -2319,8 +2366,13 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
         record, deliberately NON-fatal here so the production driver's
         materialized route is unchanged until its provider consumes the
         bundle mode *)
-     "DeferredBundle" -> bundle,
-     "Census" -> census, "Materialization" -> KeyDrop[materialized, "Values"],
+   "DeferredBundle" -> bundle,
+    "DeferredMaterializationCertificate" ->
+      If[Lookup[bundle, "Status", None] === "PreparedDeferredBundle",
+        blockEquationDeferredMaterializationCertificate[
+          bundle, forcing, variables, regulator],
+        Missing["NoPreparedDeferredBundle"]],
+    "Census" -> census, "Materialization" -> KeyDrop[materialized, "Values"],
      "ZeroForcingCandidateQ" -> ! TrueQ[census["NonzeroProvedQ"]]|>
 ];
 

@@ -1352,6 +1352,7 @@ Options[SolveEpsFormStripInFrame] = Join[
     "FiniteFieldOptions" -> {},
     "MultiquadraticDispatch" -> True,
     "MultiquadraticOptions" -> {},
+    "DeferredMaterializationCertificate" -> Automatic,
     (* absolute AbsoluteTime[] value; Infinity = unbounded (the default,
        so every existing caller is unchanged).  It bounds the
        construction stage of this function AND is handed to whichever
@@ -1402,6 +1403,8 @@ SolveEpsFormStripInFrame[
    multiquadraticOptions, multiquadraticResult, multiquadraticStatus,
    bundlePullback, rationalStrip,
    deferredBundle, bundleValidation, bundleRoots, bundleIndices,
+   materializationCertificate, materializationValidation,
+   deferredForcingMaterializedQ,
    selectedIndices, stableFrame, bundleRecord,
    constructionStart = AbsoluteTime[], deadline, timings = <||>,
    stageSeconds, substageSeconds, stripDimensions, budgetProgress,
@@ -1461,6 +1464,22 @@ SolveEpsFormStripInFrame[
       Return[<|"Status" -> "DeferredBundleFrameMismatch"|>]],
     If[! MissingQ[deferredBundle] && deferredBundle =!= Automatic,
       Return[<|"Status" -> "InvalidDeferredBundle"|>]]];
+  materializationCertificate =
+    OptionValue["DeferredMaterializationCertificate"];
+  deferredForcingMaterializedQ = False;
+  If[materializationCertificate =!= Automatic,
+    If[! AssociationQ[deferredBundle] ||
+        ! AssociationQ[materializationCertificate],
+      Return[<|"Status" -> "InvalidDeferredMaterializationCertificate"|>]];
+    materializationValidation =
+      blockEquationDeferredMaterializationCertificateValidate[
+        materializationCertificate, deferredBundle, bbar,
+        variables, epsilon];
+    If[Lookup[materializationValidation, "Status", None] =!=
+        "MaterializationCertificateValid",
+      Return[<|"Status" -> "InvalidDeferredMaterializationCertificate",
+        "Detail" -> materializationValidation|>]];
+    deferredForcingMaterializedQ = True];
   (* BOUNDARY 1 (entry): an already-expired deadline never starts the
      root classifier, which denests and square-class-matches every
      radical occurring in the strip *)
@@ -1520,7 +1539,7 @@ SolveEpsFormStripInFrame[
      forcing vanishes.  This must precede chart selection: the diagonal
      blocks may span a root set with no joint rational chart even though
      this off-diagonal problem needs no field arithmetic at all. *)
-  If[! AssociationQ[deferredBundle] &&
+  If[(! AssociationQ[deferredBundle] || deferredForcingMaterializedQ) &&
       AllTrue[Flatten[bbar], SameQ[#, 0] &],
     Return[<|"Status" -> "Solved", "Method" -> "ZeroForcing",
       "Gauge" -> ConstantArray[0, Dimensions[bbar[[1]]]],
@@ -1588,7 +1607,7 @@ SolveEpsFormStripInFrame[
 
   If[rootIndices === {},
     rationalStrip = strip;
-    If[AssociationQ[deferredBundle],
+    If[AssociationQ[deferredBundle] && ! deferredForcingMaterializedQ,
       data = <|"Status" -> "OK", "Variables" -> variables,
         "SourceVariables" -> variables,
         "Subst" -> Thread[variables -> variables],
@@ -1706,7 +1725,7 @@ SolveEpsFormStripInFrame[
   stageSeconds = AbsoluteTime[];
   chartStrip = transportChartPullBackStrip[
     strip, data, chartBranchRoots, rootImages];
-  If[AssociationQ[deferredBundle],
+  If[AssociationQ[deferredBundle] && ! deferredForcingMaterializedQ,
     bundlePullback = transportChartPullBackDeferredBundle[
       deferredBundle, data, chartBranchRoots, rootImages];
     If[Lookup[bundlePullback, "Status", None] =!= "OK",
@@ -1930,7 +1949,8 @@ SolveEpsFormStripInFrame[
      checked to be radical-free above; add that exact chart one-form after
      pulling the gauge terms instead of materializing the source-frame sum. *)
   {substageSeconds, sourceTransformed} = AbsoluteTiming[Table[
-    If[AssociationQ[deferredBundle], 0, bbar[[mu]]] +
+    If[AssociationQ[deferredBundle] && ! deferredForcingMaterializedQ,
+      0, bbar[[mu]]] +
       epsilon (e[[mu]] . sourceGauge -
       sourceGauge . c[[mu]]) - D[sourceGauge, variables[[mu]]],
     {mu, 2}]];
@@ -1954,7 +1974,7 @@ SolveEpsFormStripInFrame[
   ];
   {substageSeconds, pulledTransformed} = AbsoluteTiming[Module[{pulled},
     pulled = pullPair[branchedGauge];
-    If[AssociationQ[deferredBundle],
+    If[AssociationQ[deferredBundle] && ! deferredForcingMaterializedQ,
       Map[Together, pulled + chartStrip[[3]], {2}], pulled]]];
   transportChartStageMark["acceptance: Jacobian pull-back",
     <|"seconds" -> N[substageSeconds],
