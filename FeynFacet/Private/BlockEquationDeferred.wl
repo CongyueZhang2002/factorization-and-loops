@@ -2205,7 +2205,12 @@ Options[blockEquationDeferredForcing] = {
      "Output" -> "Bundle" returns the immutable pre-cancellation bundle
      WITHOUT ever materializing -- the early-return mode the direct
      provider consumes; "BundleAndMaterialized" additionally
-     materializes as the oracle/artifact.  The default stays
+     materializes as the oracle/artifact.  "BundleOrMaterialized" is the
+     production decision mode: a modular nonzero witness returns the
+     bundle immediately, while an inconclusive census materializes from
+     the SAME preparation and compiler cache.  This avoids compiling a
+     costly algebraic bundle twice merely to decide exact zero forcing.
+     The default stays
      "BundleAndMaterialized" until the provider consumer lands in
      MultiquadraticStripSolve.wl (its sole production caller reads
      "Forcing"); it then flips to "Bundle" per the Codex instruction. *)
@@ -2226,7 +2231,8 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
     forcing, values, output, bundleRoots, bundle, internCache,
     materializeFunction},
    output = OptionValue["Output"];
-   If[! MemberQ[{"Bundle", "BundleAndMaterialized"}, output],
+   If[! MemberQ[{"Bundle", "BundleAndMaterialized",
+       "BundleOrMaterialized"}, output],
      Return[<|"Status" -> "InvalidOutputMode", "Output" -> output|>]];
    preparation = blockEquationDeferredPrepare[connection, ranges, k, j,
      solved, variables, regulator];
@@ -2247,9 +2253,18 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
        {}]];
    {bundle, internCache} = blockEquationDeferredCompileBundleWithCache[
      preparation, "Roots" -> bundleRoots];
-   If[output === "Bundle",
-     (* the early return: a typed bundle refusal IS the result here, and
-        blockEquationDeferredMaterialize is never called on this path *)
+   If[MemberQ[{"Bundle", "BundleOrMaterialized"}, output] &&
+       Lookup[bundle, "Status", None] =!= "PreparedDeferredBundle",
+     (* A typed bundle refusal is the result on either provider path.
+        Falling through to materialization here would silently change the
+        driver's established refusal/fallback semantics. *)
+     Return[bundle]];
+   If[output === "Bundle" ||
+       (output === "BundleOrMaterialized" &&
+         TrueQ[census["NonzeroProvedQ"]]),
+     (* The unconditional early path, and the conditional provider path
+        after one exact modular nonzero witness.  Neither invokes the
+        materializer. *)
      If[Lookup[bundle, "Status", None] =!= "PreparedDeferredBundle",
        Return[bundle]];
      Return[Append[bundle, "Statistics" -> Join[

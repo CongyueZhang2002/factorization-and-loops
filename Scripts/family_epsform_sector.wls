@@ -857,7 +857,7 @@ blockEquationSymbolicForcing[k_, j_, solved_Association] := Module[
       {m, Select[Keys[solved], j < # < k &]}], {2}], {mu, 2}]];
 blockEquation[k_, j_, solved_Association] := Module[
   {rk = blockRows[k], rj = blockRows[j], A = state["A"], e, c, bbar,
-   deferred, materialized, route, bundleRoots, zeroPlaceholder},
+   deferred, route, bundleRoots, zeroPlaceholder},
   e = Table[Map[Together[#/ee] &, A[[mu, rk, rk]], {2}], {mu, 2}];
   c = Table[Map[Together[#/ee] &, A[[mu, rj, rj]], {2}], {mu, 2}];
   route = FeynFacet`Private`blockEquationDeferredRoute[];
@@ -868,32 +868,24 @@ blockEquation[k_, j_, solved_Association] := Module[
     deferred = If[TrueQ[algebraicFrameQ] && ListQ[bundleRoots],
       FeynFacet`Private`blockEquationDeferredForcing[
         A, ranges, k, j, solved, invariants, ee,
-        "Output" -> "Bundle", "BundleRoots" -> bundleRoots],
+        "Output" -> "BundleOrMaterialized",
+        "BundleRoots" -> bundleRoots],
       FeynFacet`Private`blockEquationDeferredForcing[
         A, ranges, k, j, solved, invariants, ee]];
     If[AssociationQ[deferred] &&
         Lookup[deferred, "Status", None] === "PreparedDeferredBundle",
-      (* A nonzero census witness proves this is not a zero-forcing block,
-         so the direct provider can consume the immutable DAG immediately.
-         Only the inconclusive zero candidate pays materialization for the
-         exact zero test. *)
-      If[! TrueQ[Lookup[deferred, "ZeroForcingCandidateQ", True]],
-        zeroPlaceholder = ConstantArray[0, deferred["Dimensions"]];
-        $blockConstructionRecord = <|"Route" -> "DeferredBundle",
-          "DeferredBundle" -> deferred,
-          "DeferredBundleFingerprint" -> deferred["BundleFingerprint"],
-          "Census" -> Lookup[deferred["Statistics"], "Census", <||>],
-          "ZeroForcingCandidateQ" -> False,
-          "BundleStatistics" -> KeyDrop[deferred["Statistics"], "Census"]|>;
-        Return[{e, c, zeroPlaceholder}]];
-      materialized = FeynFacet`Private`blockEquationDeferredForcing[
-        A, ranges, k, j, solved, invariants, ee,
-        "Output" -> "BundleAndMaterialized", "BundleRoots" -> bundleRoots];
-      If[AssociationQ[materialized] &&
-          Lookup[materialized, "Status", None] === "OK",
-        $blockConstructionRecord = Join[$blockConstructionRecord,
-          KeyDrop[materialized, {"Forcing", "Status"}]];
-        Return[{e, c, materialized["Forcing"]}]]];
+      (* BundleOrMaterialized returns a bundle here only after a modular
+         nonzero witness.  An inconclusive census was materialized from
+         the same preparation and compiler cache, below as Status -> OK;
+         the expensive bundle compiler is never repeated. *)
+      zeroPlaceholder = ConstantArray[0, deferred["Dimensions"]];
+      $blockConstructionRecord = <|"Route" -> "DeferredBundle",
+        "DeferredBundle" -> deferred,
+        "DeferredBundleFingerprint" -> deferred["BundleFingerprint"],
+        "Census" -> Lookup[deferred["Statistics"], "Census", <||>],
+        "ZeroForcingCandidateQ" -> False,
+        "BundleStatistics" -> KeyDrop[deferred["Statistics"], "Census"]|>;
+      Return[{e, c, zeroPlaceholder}]];
     If[AssociationQ[deferred] && Lookup[deferred, "Status", None] === "OK",
       $blockConstructionRecord = Join[$blockConstructionRecord,
         KeyDrop[deferred, {"Forcing", "Status"}]];

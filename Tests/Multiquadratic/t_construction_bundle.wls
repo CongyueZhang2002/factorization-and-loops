@@ -58,7 +58,10 @@
 
    (j) THE EARLY-BUNDLE PATH NEVER MATERIALIZES: an injected oracle that
        fails if invoked proves "Output" -> "Bundle" does not call the
-       materializer; the compat mode does (negative control).
+       materializer.  The adaptive "BundleOrMaterialized" mode likewise
+       skips it after a nonzero witness, but invokes it after an
+       inconclusive algebraic census; the compat mode invokes it
+       unconditionally (negative control).
 
    (k) The seeded materializer (the compiler's intern pool passed
        through) returns the SAME expressions as the unseeded one. *)
@@ -369,13 +372,41 @@ materializer (injected oracle untouched)",
 FTAssert["(j) the early bundle carries the census in its statistics",
   AssociationQ[earlyBundle["Statistics"]["Census"]] &&
     KeyExistsQ[earlyBundle["Statistics"], "ZeroForcingCandidateQ"]];
-framelessInvoked = forcingOf[algebraicConnection, ranges, 3, 1, solved,
-  {gx, gy}, ge, "Output" -> "Bundle",
+oracleInvoked = False;
+adaptiveBundle = forcingOf[rationalConnection, ranges, 3, 1, solved,
+  {gx, gy}, ge, "Output" -> "BundleOrMaterialized",
   "MaterializeFunction" -> injectedOracle];
-FTAssert["(j) a typed bundle refusal on the early path also never \
+FTAssert["(j) BundleOrMaterialized returns a witnessed-nonzero bundle and \
+does not invoke the materializer",
+  Lookup[adaptiveBundle, "Status", None] === "PreparedDeferredBundle" &&
+    TrueQ[! adaptiveBundle["Statistics"]["ZeroForcingCandidateQ"]] &&
+    oracleInvoked === False];
+framelessInvoked = forcingOf[algebraicConnection, ranges, 3, 1, solved,
+  {gx, gy}, ge, "Output" -> "BundleOrMaterialized",
+  "MaterializeFunction" -> injectedOracle];
+FTAssert["(j) a typed bundle refusal on the adaptive path also never \
 materializes",
   Lookup[framelessInvoked, "Status", None] === "DeferredRootFrameRequired" &&
     oracleInvoked === False];
+oracleInvoked = False;
+adaptiveMaterialized = forcingOf[algebraicConnection, ranges, 3, 1, solved,
+  {gx, gy}, ge, "Output" -> "BundleOrMaterialized",
+  "BundleRoots" -> {deltaRoot}, "MaterializeFunction" -> injectedOracle];
+FTAssert["(j) BundleOrMaterialized invokes the exact materializer after an \
+inconclusive algebraic census",
+  oracleInvoked === True &&
+    Lookup[adaptiveMaterialized, "Status", None] ===
+      "InjectedOracleInvoked"];
+adaptiveAlgebraic = forcingOf[algebraicConnection, ranges, 3, 1, solved,
+  {gx, gy}, ge, "Output" -> "BundleOrMaterialized",
+  "BundleRoots" -> {deltaRoot}, "Progress" -> False];
+FTAssert["(j) adaptive exact materialization preserves forcing and the \
+authenticated bundle fingerprint",
+  Lookup[adaptiveAlgebraic, "Status", None] === "OK" &&
+    adaptiveAlgebraic["Forcing"] === algebraicResult["Forcing"] &&
+    adaptiveAlgebraic["DeferredBundle"]["BundleFingerprint"] ===
+      algebraicBundle["BundleFingerprint"]];
+oracleInvoked = False;
 compatControl = forcingOf[rationalConnection, ranges, 3, 1, solved, {gx, gy},
   ge, "Output" -> "BundleAndMaterialized",
   "MaterializeFunction" -> injectedOracle];
