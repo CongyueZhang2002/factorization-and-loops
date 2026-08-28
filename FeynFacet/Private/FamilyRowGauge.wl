@@ -30,7 +30,7 @@ familyRowGaugeSupport[entries_List] :=
    while its Alphabet has already been pulled back to the source frame. *)
 familyRowGaugeDLogForm[solution_Association,
     variables : {_, _}, epsilon_, dimensions : {_Integer, _Integer}] :=
- Module[{alphabet, residues, inner, dlog},
+ Module[{alphabet, residues, inner, dlog, certifiedForms, useCertifiedForms},
   If[Lookup[solution, "Method", None] === "ZeroForcing",
     Return[ConstantArray[0, Prepend[dimensions, 2]]]];
   alphabet = Lookup[solution, "Alphabet", Missing["NoAlphabet"]];
@@ -45,8 +45,20 @@ familyRowGaugeDLogForm[solution_Association,
     Return[Missing["MaterializedDLogUnavailable"]]];
   If[alphabet === {},
     Return[ConstantArray[0, Prepend[dimensions, 2]]]];
-  dlog = Table[Together[D[Log[alphabet[[a]]], variables[[mu]]]],
-    {a, Length[alphabet]}, {mu, 2}];
+  useCertifiedForms =
+    Lookup[solution, "SolutionContract", None] ===
+      "InstallableMultiquadraticDLogV1" &&
+    TrueQ[Lookup[solution, "OneFormsCertified", False]];
+  If[useCertifiedForms,
+    certifiedForms = Lookup[solution, "OneForms", Missing["NoOneForms"]];
+    If[! ListQ[certifiedForms] ||
+        ! AllTrue[certifiedForms, MatchQ[#1, {_, _}] &] ||
+        Length[certifiedForms] =!= Length[alphabet] ||
+        ! FreeQ[certifiedForms, epsilon],
+      Return[Missing["MaterializedDLogUnavailable"]]];
+    dlog = certifiedForms,
+    dlog = Table[Together[D[Log[alphabet[[a]]], variables[[mu]]]],
+      {a, Length[alphabet]}, {mu, 2}]];
   Table[epsilon Total[MapThread[Times,
       {residues, dlog[[All, mu]]}]], {mu, 2}]
 ];

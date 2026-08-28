@@ -37,8 +37,9 @@ If[! AssociationQ[certified],
   Exit[4]
 ];
 
-If[certified["Status"] === "ExactEpsilonForm" &&
-    FeynFacet`ExactFamilyEpsilonFormQ[certified],
+If[MemberQ[{"ExactEpsilonForm", "CertifiedEpsilonForm"},
+      certified["Status"]] &&
+    FeynFacet`CertifiedFamilyEpsilonFormQ[certified],
   outputDirectory = DirectoryName[ExpandFileName[outputFile]];
   If[! DirectoryQ[outputDirectory],
     CreateDirectory[outputDirectory, CreateIntermediateDirectories -> True]];
@@ -46,10 +47,13 @@ If[certified["Status"] === "ExactEpsilonForm" &&
   Put[certified, temporary];
   RenameFile[temporary, outputFile, OverwriteTarget -> True];
   Print["CERTIFY family=", certified["Family"],
-    " exact=True seconds=", Round[seconds, 0.1],
+    " certified=True level=", Lookup[
+      Lookup[certified, "EpsilonFormCertificate", <||>],
+      "CertificationLevel", "LegacyExact"],
+    " seconds=", Round[seconds, 0.1],
     " bytes=", FileByteCount[outputFile]],
   Print["CERTIFY family=", Lookup[certified, "Family", "?"],
-    " exact=False status=", certified["Status"],
+    " certified=False status=", certified["Status"],
     " checks=", InputForm[Lookup[certified, "Checks", <||>]],
     " seconds=", Round[seconds, 0.1]];
   Exit[5]

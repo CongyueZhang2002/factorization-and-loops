@@ -97,8 +97,8 @@ int main(int argc, char **argv)
     }
     if (argc == 4) {
         threads = atoi(argv[3]);
-        if (threads < 1 || threads > 4) {
-            fprintf(stderr, "THREADS must be between 1 and 4.\n");
+        if (threads < 1 || threads > 8) {
+            fprintf(stderr, "THREADS must be between 1 and 8.\n");
             return 2;
         }
     }
@@ -200,4 +200,3 @@ int main(int argc, char **argv)
     flint_cleanup();
     return (solved && verified) ? 0 : 5;
 }
-

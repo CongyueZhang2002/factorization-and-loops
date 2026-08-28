@@ -73,3 +73,18 @@ is its own adversarial suite. Both now `Get` it from here.
 Codex §4.2 asks that its useful modular evaluator be extracted into the
 common coefficient provider; when that happens the remainder stays here
 as the oracle the provider is differentially tested against.
+
+## `MultiquadraticPerEntryChannels.wl`
+
+Persistent characteristic-zero decomposition of a forcing tensor, one scalar
+entry and checkpoint at a time. Each entry is decomposed in its active root
+subfield and then lifted to the declared global grade basis; an optional exact
+symbolic fallback is local to the failed entry.
+
+It left `FeynFacet/Private/MultiquadraticStripSolve.wl` because it has no
+production caller. The direct solver now samples the deferred DAG through
+`SplitBranch`; `QuotientGrade` and `CompiledChannel` are its explicit
+differential oracles. Keeping a fourth, unused production materializer made
+the available paths look less settled than they are. A future consumer that
+really needs persistent exact channel artifacts can load this prototype
+explicitly and must add a focused acceptance test before promoting it again.

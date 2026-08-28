@@ -17,10 +17,13 @@
    the usage messages FeynFacet.m defines before loading this file
    (found 2026-08-21). Clear still drops their definitions, so re-Get of
    this file stays clean. *)
-Clear[FamilyArtifactRead, FamilyArtifactWrite, FamilyEpsilonFormRecord, CertifyFamilyEpsilonForm, ExactFamilyEpsilonFormQ];
+Clear[FamilyArtifactRead, FamilyArtifactWrite, FamilyEpsilonFormRecord,
+  CertifyFamilyEpsilonForm, ExactFamilyEpsilonFormQ,
+  CertifiedFamilyEpsilonFormQ];
 ClearAll[
   familyEpsFormDiagonalBlocks,
   familyEpsFormLegacyChart,
+  familyEpsFormRegulatorRootFrames,
   familyEpsFormDegreeData, familyEpsFormEvaluate, familyEpsFormIdentitiesAtPoints,
   $familyArtifactReadMessages
 ];
@@ -119,6 +122,34 @@ familyEpsFormLegacyChart[record_Association] := Module[
   If[StringQ[alias], Join[record, <|"Chart" -> alias|>], record]
 ];
 
+(* Root-frame evidence is attached to the factorization which introduced
+   it.  Collect both truncation-level and final-family records; a graded
+   factorization without its frame is not silently treated as the chart's
+   smaller coefficient field. *)
+familyEpsFormRegulatorRootFrames[record_Association] := Module[
+  {single, multiple, records, graded, missing},
+  single = Lookup[record, "RegulatorFactorization", Missing["Absent"]];
+  multiple = Lookup[record, "RegulatorFactorizations", {}];
+  If[! MatchQ[multiple, {___Association}],
+    Return[<|"Status" -> "RegulatorFactorizationMetadataInvalid"|>]];
+  records = Join[If[AssociationQ[single], {single}, {}], multiple];
+  graded = Select[records,
+    AssociationQ[Lookup[#1, "GradedRootFrame", None]] ||
+      With[{method = Lookup[#1, "Method", ""]},
+        StringQ[method] && StringStartsQ[method,
+          "MultiquadraticGradedAlgebra/"]] &];
+  missing = Select[graded,
+    ! AssociationQ[Lookup[#1, "GradedRootFrame", None]] &];
+  If[missing =!= {},
+    Return[<|"Status" -> "RegulatorRootFrameMetadataMissing",
+      "FactorizationMethods" -> Lookup[missing, "Method", {}]|>]];
+  <|"Status" -> "OK", "Frames" -> Lookup[graded, "GradedRootFrame", {}],
+    "FactorizationCount" -> Length[records],
+    "GradedFactorizationCount" -> Length[graded]|>
+];
+familyEpsFormRegulatorRootFrames[___] :=
+  <|"Status" -> "RegulatorFactorizationMetadataInvalid"|>;
+
 (* Schema normalization for one family epsilon-form record: canonical
    plain "Blocks", presence check for the required analytic fields.
    Returns the normalized record, or a typed <|"Status" -> ...|>. *)
@@ -157,6 +188,18 @@ Options[CertifyFamilyEpsilonForm] = {
   "Points" -> 4,
   "ModularPoints" -> 12,
   "ModularPrimes" -> 3,
+  (* Algebraic frames use a separate all-sign-sheet verifier.  Its point
+     counts are smaller because one rank-r point supplies 2^r embeddings. *)
+  "MultiquadraticTrainingPoints" -> 3,
+  "MultiquadraticValidationPoints" -> 2,
+  "MultiquadraticPrimes" -> 3,
+  "MultiquadraticMaxPrimes" -> 9,
+  "MultiquadraticFreshValidationPrimes" -> 2,
+  "MultiquadraticMaxPrimeAttempts" -> 36,
+  "MultiquadraticMaxPointAttempts" -> 320,
+  "MultiquadraticRootRankLimit" -> Automatic,
+  "MultiquadraticPivotSignatureQuorum" -> 2,
+  "MultiquadraticPivotPilotPrimes" -> 3,
   "SymbolicPullBack" -> False   (* True: pull the source back symbolically even for the point methods (diagnostics) *)
 };
 
@@ -225,7 +268,8 @@ familyEpsFormIdentitiesAtPoints[sourceAtPoint_, sourceDegrees_List, epsilonForm_
 
 CertifyFamilyEpsilonForm[record_Association, system_Association,
     OptionsPattern[]] := Module[
-  {sourceVariables, regulator, chart, chartData, chartCertificate,
+  {sourceVariablesOption, sourceVariables, regulator, chart, chartData,
+   chartCertificate,
    normalizedSystem, normalizedRecord, pullBack, frameSystem, variables,
    sourceConnection, transformation, storedInverse, inverse,
    epsilonForm, dimension, inverseResiduals, inverseOK, gaugeResiduals,
@@ -233,13 +277,23 @@ CertifyFamilyEpsilonForm[record_Association, system_Association,
    dlogDetails, dlogValid, dlogResiduals, epsilonLinear, lettersEpsilonFree,
    constantResidues, dlogX, dlogY, blocks, permutation, ranges,
    blockLower, gate, checks, identityMethod, identityData, identitySeconds, modularData,
-   exact, certificate, originalStatus},
+   checksPassed, certified, exact, highConfidence, certificate, originalStatus,
+   algebraicFrameQ, certificateRoots, certificateLetters,
+   certificateChart, certificateRankLimit, preauthenticatedRootFrame,
+   regulatorRootFrameData, regulatorRootFrames},
 
-  sourceVariables = masterTransportResolveVariables[
-    OptionValue["SourceVariables"]];
-  If[sourceVariables === $Failed || Length[sourceVariables] < 2,
-    Return[<|"Status" -> "SourceVariablesInvalid"|>]];
-  sourceVariables = sourceVariables[[{1, 2}]];
+  sourceVariablesOption = OptionValue["SourceVariables"];
+  If[ListQ[sourceVariablesOption] && Length[sourceVariablesOption] =!= 2,
+    Return[<|"Status" -> "SourceVariablesInvalid",
+      "Expected" -> "exactly two source variables",
+      "Actual" -> Length[sourceVariablesOption]|>]];
+  sourceVariables = masterTransportResolveVariables[sourceVariablesOption];
+  If[sourceVariables === $Failed || ! MatchQ[sourceVariables,
+      {_Symbol, _Symbol}],
+    Return[<|"Status" -> "SourceVariablesInvalid",
+      "Expected" -> "exactly two source variables",
+      "Actual" -> If[ListQ[sourceVariables], Length[sourceVariables],
+        Missing["NotAList"]]|>]];
 
   regulator = Lookup[record, "Regulator", Automatic];
   regulator = masterTransportResolveRegulator[regulator,
@@ -292,6 +346,13 @@ CertifyFamilyEpsilonForm[record_Association, system_Association,
 
   normalizedRecord = masterTransportNormalize[record, regulator,
     Join[sourceVariables, variables]];
+  regulatorRootFrameData = familyEpsFormRegulatorRootFrames[normalizedRecord];
+  If[Lookup[regulatorRootFrameData, "Status", None] =!= "OK",
+    Return[regulatorRootFrameData]];
+  regulatorRootFrames = regulatorRootFrameData["Frames"];
+  algebraicFrameQ = (AssociationQ[chartData] &&
+      Lookup[chartData, "CoefficientField", "Rational"] ===
+        "Multiquadratic") || regulatorRootFrames =!= {};
   sourceConnection = {Lookup[frameSystem, "Av", $Failed],
     Lookup[frameSystem, "Aw", $Failed]};
   transformation = Lookup[normalizedRecord, "TTotal", $Failed];
@@ -324,13 +385,60 @@ CertifyFamilyEpsilonForm[record_Association, system_Association,
     Quiet[Check[Map[Together, Inverse[transformation], {2}], $Failed]]];
   If[! MatrixQ[inverse] || Dimensions[inverse] =!= {dimension, dimension},
     Return[<|"Status" -> "TransformationInverseUnavailable"|>]];
+  If[algebraicFrameQ,
+    certificateRoots = If[AssociationQ[chartData],
+      transportChartCurrentRoots[chartData, variables], {}];
+    certificateChart = If[AssociationQ[chartData], chartData,
+      <|"Subst" -> Thread[sourceVariables -> variables],
+        "Jacobian" -> IdentityMatrix[2],
+        "CoefficientField" -> "Multiquadratic",
+        "CertificateFrame" -> "IdentitySourceVariables"|>];
+    certificateRankLimit = Replace[
+      OptionValue["MultiquadraticRootRankLimit"], Automatic :>
+        $familyRegulatorMaximumGradedRank];
+    If[! ListQ[certificateRoots],
+      Return[<|"Status" -> "MultiquadraticCertificateMetadataInvalid",
+        "Roots" -> certificateRoots|>]];
+    preauthenticatedRootFrame =
+      familyCertMQAuthenticateRegulatorRootFrames[certificateRoots,
+        regulatorRootFrames, variables, regulator, certificateRankLimit];
+    If[Lookup[preauthenticatedRootFrame, "Status", None] =!=
+        "AuthenticatedRegulatorRootFrames",
+      Return[<|"Status" -> "RegulatorRootFrameCertificateRefused",
+        "Detail" -> preauthenticatedRootFrame|>]]];
   identityMethod = OptionValue["IdentityMethod"];
   modularData = None;
   If[identityMethod === "Modular",
     {identitySeconds, modularData} = AbsoluteTiming[Module[{lazy = Lookup[frameSystem, "LazyChart", None]},
-      familyCertificateModular[epsilonForm, transformation, inverse, variables, regulator,
-        sourceConnection, If[AssociationQ[lazy], sourceVariables, variables], lazy,
-        "Points" -> OptionValue["ModularPoints"], "Primes" -> OptionValue["ModularPrimes"]]]];
+      If[algebraicFrameQ,
+        certificateLetters = Lookup[normalizedRecord, "Letters", {}];
+        If[! ListQ[certificateRoots] || ! ListQ[certificateLetters],
+          familyCertMQFailure["MultiquadraticCertificateMetadataInvalid",
+            <|"Roots" -> certificateRoots,
+              "Letters" -> certificateLetters|>],
+          familyCertificateMultiquadratic[epsilonForm, transformation,
+            inverse, variables, regulator, sourceConnection,
+            sourceVariables, certificateChart, certificateRoots,
+            certificateLetters,
+            "TrainingPoints" -> OptionValue["MultiquadraticTrainingPoints"],
+            "ValidationPoints" -> OptionValue["MultiquadraticValidationPoints"],
+            "Primes" -> OptionValue["MultiquadraticPrimes"],
+            "MaxPrimes" -> OptionValue["MultiquadraticMaxPrimes"],
+            "FreshValidationPrimes" ->
+              OptionValue["MultiquadraticFreshValidationPrimes"],
+            "MaxPrimeAttempts" -> OptionValue["MultiquadraticMaxPrimeAttempts"],
+            "MaxPointAttempts" -> OptionValue["MultiquadraticMaxPointAttempts"],
+            "RootRankLimit" -> OptionValue["MultiquadraticRootRankLimit"],
+            "RegulatorRootFrames" -> regulatorRootFrames,
+            "PivotSignatureQuorum" ->
+              OptionValue["MultiquadraticPivotSignatureQuorum"],
+            "PivotSignaturePilotPrimes" ->
+              OptionValue["MultiquadraticPivotPilotPrimes"]]],
+        familyCertificateModular[epsilonForm, transformation, inverse,
+          variables, regulator, sourceConnection,
+          If[AssociationQ[lazy], sourceVariables, variables], lazy,
+          "Points" -> OptionValue["ModularPoints"],
+          "Primes" -> OptionValue["ModularPrimes"]]]]];
     If[! (AssociationQ[modularData] && KeyExistsQ[modularData, "GaugeIdentity"]),
       Return[<|"Status" -> "ModularCertificateFailed", "Modular" -> modularData|>]];
     identityData = <|"Points" -> Lookup[modularData, "PointsDone", {}], "DegreeBound" -> Lookup[modularData, "DegreeBound", Missing[]],
@@ -458,10 +566,28 @@ CertifyFamilyEpsilonForm[record_Association, system_Association,
     "Flatness" -> flat,
     "ChartIdentity" -> TrueQ[Lookup[chartCertificate, "OK", False]]
   |>;
-  exact = And @@ (TrueQ /@ Values[checks]);
+  checksPassed = And @@ (TrueQ /@ Values[checks]);
+  (* The all-sign-sheet multiquadratic verifier deliberately avoids the
+     characteristic-zero numerator expansion needed for a deterministic
+     identity proof.  Its independent finite-field points and fresh-prime
+     residue replay are accepted high-confidence evidence, not an exact
+     characteristic-zero certificate.  Rational and symbolic routes retain
+     their established exact contract. *)
+  highConfidence = checksPassed && algebraicFrameQ &&
+    identityMethod === "Modular";
+  exact = checksPassed && ! (algebraicFrameQ &&
+    identityMethod =!= "Symbolic");
+  certified = exact || highConfidence;
   certificate = <|
     "Version" -> 1,
     "Exact" -> exact,
+    "Certified" -> certified,
+    "CertificationLevel" -> Which[
+      exact, "CharacteristicZeroExact",
+      highConfidence, "HighConfidenceFiniteField",
+      True, "Failed"],
+    "CoefficientField" -> If[algebraicFrameQ,
+      "Multiquadratic", "Rational"],
     "IdentityMethod" -> identityMethod,
     "Probabilistic" -> identityMethod =!= "Symbolic",
     "IdentityPoints" -> identityData["Points"],
@@ -474,6 +600,20 @@ CertifyFamilyEpsilonForm[record_Association, system_Association,
     "IdentityErrorBoundDLog" -> If[AssociationQ[modularData], Lookup[modularData, "ErrorBoundDLog", Missing[]], Missing["NotModular"]],
     "IdentitySeconds" -> identitySeconds,
     "Modular" -> If[AssociationQ[modularData], KeyDrop[modularData, {"Residues", "Letters"}], Missing["NotUsed"]],
+    "RegulatorRootFrameEvidence" -> If[algebraicFrameQ,
+      <|"FactorizationCount" ->
+          regulatorRootFrameData["FactorizationCount"],
+        "GradedFactorizationCount" ->
+          regulatorRootFrameData["GradedFactorizationCount"],
+        "AuthenticatedFrameCount" ->
+          Lookup[If[AssociationQ[modularData], modularData, <||>],
+            "RegulatorRootFrameEvidenceCount",
+            Lookup[preauthenticatedRootFrame, "EvidenceCount", 0]],
+        "AuthenticatedFrameFingerprints" -> If[
+          AssociationQ[modularData], Lookup[modularData,
+            "RegulatorRootFrameEvidenceFingerprints", {}],
+          Lookup[preauthenticatedRootFrame, "EvidenceFingerprints", {}]]|>,
+      Missing["RationalCoefficientField"]],
     "Variables" -> variables,
     "Regulator" -> regulator,
     "BasisPermutation" -> permutation,
@@ -488,13 +628,17 @@ CertifyFamilyEpsilonForm[record_Association, system_Association,
   originalStatus = Lookup[record, "Status", Missing[]];
 
   Join[normalizedRecord, <|
-    "Status" -> If[exact, "ExactEpsilonForm",
-      "EpsilonFormCertificationFailed"],
+    "Status" -> Which[
+      exact, "ExactEpsilonForm",
+      highConfidence, "CertifiedEpsilonForm",
+      True, "EpsilonFormCertificationFailed"],
     "OriginalStatus" -> originalStatus,
-    "CertificationMethod" -> "ExactWholeFamilyRecalculation",
+    "CertificationMethod" -> If[highConfidence,
+      "HighConfidenceWholeFamilyFiniteField",
+      "ExactWholeFamilyRecalculation"],
     "BasisPermutation" -> permutation,
     "TTotalInverse" -> inverse,
-    "GateVerdict" -> exact,
+    "GateVerdict" -> certified,
     "Gate" -> gate,
     "Checks" -> checks,
     "TTotalInvertible" -> inverseOK,
@@ -511,12 +655,21 @@ CertifyFamilyEpsilonForm[_, _, OptionsPattern[]] :=
 
 ExactFamilyEpsilonFormQ[record_Association] := Module[
   {status, standardizedCertificate, gateRecord, cleanedGate, checks,
-   requiredChecks, chartCertificate, pullBack, libraRecord},
+   requiredChecks, chartCertificate, pullBack, libraRecord,
+   probabilisticMultiquadratic},
   status = Lookup[record, "Status", Missing[]];
   standardizedCertificate = Lookup[record, "EpsilonFormCertificate", <||>];
+  probabilisticMultiquadratic =
+    AssociationQ[standardizedCertificate] &&
+    TrueQ[Lookup[standardizedCertificate, "Probabilistic", False]] &&
+    (Lookup[standardizedCertificate, "CoefficientField", None] ===
+        "Multiquadratic" ||
+      Lookup[Lookup[standardizedCertificate, "Modular", <||>],
+        "CoefficientField", None] === "Multiquadratic");
   If[status === "ExactEpsilonForm" && AssociationQ[standardizedCertificate] &&
       Lookup[standardizedCertificate, "Version", 0] >= 1,
-    Return[TrueQ[Lookup[standardizedCertificate, "Exact", False]] &&
+    Return[! probabilisticMultiquadratic &&
+      TrueQ[Lookup[standardizedCertificate, "Exact", False]] &&
       TrueQ[Lookup[record, "GateVerdict", False]] &&
       TrueQ[Lookup[record, "GaugeIdentity", False]] &&
       TrueQ[Lookup[record, "Flatness", False]] &&
@@ -559,3 +712,39 @@ ExactFamilyEpsilonFormQ[record_Association] := Module[
 ];
 
 ExactFamilyEpsilonFormQ[_] := False;
+
+CertifiedFamilyEpsilonFormQ[record_Association] := Module[
+  {status, certificate, modular, requiredChecks},
+  If[ExactFamilyEpsilonFormQ[record], Return[True]];
+  status = Lookup[record, "Status", Missing[]];
+  certificate = Lookup[record, "EpsilonFormCertificate", <||>];
+  modular = Lookup[certificate, "Modular", <||>];
+  requiredChecks = {
+    "EpsFactored", "DLog", "BlockLowerTriangular",
+    "TransformationInverse", "GaugeIdentity", "SourceFlatness",
+    "Flatness", "ChartIdentity"
+  };
+  status === "CertifiedEpsilonForm" &&
+    AssociationQ[certificate] && AssociationQ[modular] &&
+    Lookup[certificate, "Version", 0] >= 1 &&
+    TrueQ[Lookup[certificate, "Certified", False]] &&
+    ! TrueQ[Lookup[certificate, "Exact", True]] &&
+    TrueQ[Lookup[certificate, "Probabilistic", False]] &&
+    Lookup[certificate, "CertificationLevel", None] ===
+      "HighConfidenceFiniteField" &&
+    Lookup[certificate, "CoefficientField", None] ===
+      "Multiquadratic" &&
+    Lookup[modular, "Status", None] ===
+      "CertifiedMultiquadraticFamily" &&
+    Lookup[modular, "CoefficientField", None] === "Multiquadratic" &&
+    TrueQ[Lookup[modular, "Probabilistic", False]] &&
+    TrueQ[Lookup[record, "GateVerdict", False]] &&
+    TrueQ[Lookup[record, "GaugeIdentity", False]] &&
+    TrueQ[Lookup[record, "Flatness", False]] &&
+    TrueQ[Lookup[record, "TTotalInvertible", False]] &&
+    AssociationQ[Lookup[record, "Checks", None]] &&
+    And @@ (TrueQ[Lookup[record["Checks"], #, False]] & /@
+      requiredChecks)
+];
+
+CertifiedFamilyEpsilonFormQ[_] := False;

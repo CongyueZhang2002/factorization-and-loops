@@ -180,7 +180,7 @@ multiquadraticGradeClosure[seeds_List, generators_List] :=
     Union[seeds]
   ];
 
-multiquadraticActiveRank[masks_List, rank_Integer: 3] :=
+multiquadraticActiveRank[masks_List, rank_Integer?NonNegative] :=
   If[masks === {} || masks === {0}, 0,
     MatrixRank[BitGet[#, Range[0, rank - 1]] & /@ DeleteCases[Union[masks], 0],
       Modulus -> 2]

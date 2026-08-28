@@ -135,7 +135,7 @@ randomDiagonal[size_, seed_] := BlockRandom[SeedRandom[seed];
 runCase[name_String, indices_List, dimensions_List, seed_Integer] := Module[
   {roots, gradeCount, coefficients, residues, gauge, e, c, bbar, record,
    preparation, assembly, known, knownImage, normalizations, plain, pinned,
-   heldSample, heldPrime, particular, nullspace, membership, branchResiduals},
+   heldSample, heldPrime, branchResiduals},
   roots = canonicalRoots[indices];
   gradeCount = 2^Length[indices];
   coefficients = randomCoefficients[dimensions, gradeCount, seed];
@@ -191,13 +191,12 @@ runCase[name_String, indices_List, dimensions_List, seed_Integer] := Module[
   check[name <> ": the known gauge satisfies the system at the unseen prime",
     AllTrue[Mod[heldSample["Matrix"] . knownImage - heldSample["RightHandSide"],
       heldPrime], # === 0 &]];
-  particular = plain["HeldOutSolution"]["ParticularSolution"];
-  nullspace = plain["HeldOutSolution"]["NullspaceBasis"];
-  membership = Quiet[LinearSolve[Transpose[nullspace],
-    Mod[knownImage - particular, heldPrime], Modulus -> heldPrime]];
-  check[name <> ": the known gauge lies in the reported affine solution set",
-    ListQ[membership] && AllTrue[Mod[Transpose[nullspace] . membership -
-      (knownImage - particular), heldPrime], # === 0 &]];
+  check[name <> ": fresh reconstruction checks replace the duplicate held-out solve",
+    plain["HeldOutSolution"]["Status"] ===
+        "SupersededByReconstructionFreshChecks" &&
+      plain["PostReconstructionAffineSolveCount"] === 0 &&
+      plain["FullAffineSolveCount"] ===
+        plain["RegulatorReconstruction"]["FullAffineSolveCount"]];
   branchResiduals = Table[
     Module[{transformed = transformSample[assembly, heldSample, heldPrime, mask]},
       Lookup[transformed, "Status", None] ===
@@ -221,13 +220,28 @@ runCase[name_String, indices_List, dimensions_List, seed_Integer] := Module[
     AllTrue[pinned["RegulatorValues"],
       pinned["ExactLift"][#] === "LiftedMultiquadraticVector" &&
         pinned["ExactLiftVectors"][#] === known &]];
-  check[name <> ": the exact channel identity holds at every regulator value",
+  check[name <> ": the reconstructed identity carries its selected verification contract",
     AllTrue[pinned["RegulatorValues"],
-      pinned["ExactChannelResidual"][#] === "ExactChannelResidualZero" &]];
+      pinned["ExactChannelResidual"][#] === If[
+        pinned["RegulatorReconstruction"]["ExactVerification"] ===
+          "ProviderPoints", "ProviderPointwiseResidualZero",
+        "ExactChannelResidualZero"] &]];
   check[name <> ": the reconstructed gauge equals the known gauge",
     AllTrue[Flatten[Map[Together, pinned["Gauge"] - gauge, {2}]], # === 0 &]];
   check[name <> ": the reconstructed residues equal the known residues",
     AllTrue[Flatten[pinned["Residues"] - residues], # === 0 &]];
+  check[name <> ": reconstruction reuses the constrained elimination plan",
+    pinned["RegulatorReconstruction"]["FullAffineSolveCount"] >= 1 &&
+      pinned["RegulatorReconstruction"]["ConstrainedSolveCount"] >= 1 &&
+      AllTrue[Lookup[pinned["RegulatorReconstruction"]["ImagePhaseRecords"],
+        "SolvePath", {}], StringQ]];
+  check[name <> ": sampling and elimination have disjoint telemetry",
+    AllTrue[Lookup[pinned["RegulatorReconstruction"]["PhaseSeconds"],
+      {"Sampling", "Elimination"}, {}], NumericQ[#] && # >= 0 &]];
+  check[name <> ": top-level adds no affine solve after reconstruction",
+    pinned["PostReconstructionAffineSolveCount"] === 0 &&
+      pinned["FullAffineSolveCount"] ===
+        pinned["RegulatorReconstruction"]["FullAffineSolveCount"]];
   pinned];
 
 results = <||>;
@@ -280,9 +294,11 @@ check["a branch flip is still available to the differential certificate",
       "SplitPointsOnly" -> True]["AcceptedPoints"]], #], "Status", None] ===
     "MultiquadraticPointDifferentialPassed" &]];
 check["an unavailable plan-discovery backend fails closed",
-  Lookup[solve[record1, frame, "OneForms" -> oneForms,
-    "PlanDiscoveryBackend" -> "FLINTAffineRREF"], "Status", None] ===
-    "PlanDiscoveryBackendUnavailable"];
+  Block[{FeynFacet`Private`$feynFacetDirectory =
+      FileNameJoin[{$TemporaryDirectory, "cffr-definitely-absent"}]},
+    Lookup[solve[record1, frame, "OneForms" -> oneForms,
+      "PlanDiscoveryBackend" -> "FLINTAffineRREF"], "Status", None] ===
+      "PlanDiscoveryBackendUnavailable"]];
 check["an undeclared radical fails closed",
   Lookup[solve[<|"Family" -> "UNDECLARED", "Variables" -> {x, y},
     "Regulator" -> eps, "Strip" -> {diagonalForm[{{{1}}, {{0}}, {{0}}}],

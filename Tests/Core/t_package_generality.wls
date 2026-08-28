@@ -281,16 +281,16 @@ FTAssert["a driver declares its own identity through the option",
 sealed = FeynFacet`Private`familyRowGaugeSolverConfiguration[
   "ZeroForcing", "Rational", <||>, None, None, None, None,
   "DriverProvenance" -> <|"driver.wls" -> driverPath|>];
-FTAssert["the sealed solver configuration is schema version 3 and valid",
+FTAssert["the sealed solver configuration is schema version 5 and valid",
   AssociationQ[sealed] && sealed["Status"] === "OK" &&
-    sealed["SchemaVersion"] === 3 &&
+    sealed["SchemaVersion"] === 5 &&
     FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[sealed]];
-FTAssert["a version-2 configuration is refused, so old checkpoints recompute",
+FTAssert["a version-3 configuration is refused, so old checkpoints recompute",
   ! FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
-      Join[sealed, <|"SchemaVersion" -> 2|>]] &&
+      Join[sealed, <|"SchemaVersion" -> 3|>]] &&
     Lookup[FeynFacet`Private`familyRowGaugeResumeSolverConfigurationCheck[
         <|"Method" -> "ZeroForcing",
-          "SolverConfiguration" -> Join[sealed, <|"SchemaVersion" -> 2|>]|>,
+          "SolverConfiguration" -> Join[sealed, <|"SchemaVersion" -> 3|>]|>,
         sealed], "Status", None] === "ResumeSolverConfigurationMismatch"];
 FTAssert["a configuration whose driver source changed is refused",
   ! FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[

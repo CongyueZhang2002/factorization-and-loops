@@ -4,7 +4,7 @@
    square classes lambda1, lambda3 and Q4, but no family-specific package
    branch: it is ordinary two-variable multiquadratic input. *)
 
-root = DirectoryName[DirectoryName[$InputFileName]];
+root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 

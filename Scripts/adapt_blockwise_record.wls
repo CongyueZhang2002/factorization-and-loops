@@ -34,7 +34,13 @@ record = Join[input, <|
     "FactorDependence" -> "factor_dependence_" <> family <> "_canonicadlog.wl"|>|>];
 {t3, certified} = AbsoluteTiming[FeynFacet`CertifyFamilyEpsilonForm[record, system]];
 Print["certificate in ", Round[t3, 0.1], " s: ", certified["Status"], " ", Lookup[certified, "Checks", "?"]];
-If[certified["Status"] === "ExactEpsilonForm" && FeynFacet`ExactFamilyEpsilonFormQ[certified],
+If[MemberQ[{"ExactEpsilonForm", "CertifiedEpsilonForm"},
+      certified["Status"]] &&
+    FeynFacet`CertifiedFamilyEpsilonFormQ[certified],
   Put[certified, outputFile <> ".partial"]; RenameFile[outputFile <> ".partial", outputFile, OverwriteTarget -> True];
-  Print["CERTIFY family=", family, " exact=True seconds=", Round[t3, 0.1], " bytes=", FileByteCount[outputFile]],
-  Print["CERTIFY family=", family, " exact=False status=", certified["Status"]]];
+  Print["CERTIFY family=", family, " certified=True level=",
+    Lookup[Lookup[certified, "EpsilonFormCertificate", <||>],
+      "CertificationLevel", "LegacyExact"], " seconds=", Round[t3, 0.1],
+    " bytes=", FileByteCount[outputFile]],
+  Print["CERTIFY family=", family, " certified=False status=",
+    certified["Status"]]];

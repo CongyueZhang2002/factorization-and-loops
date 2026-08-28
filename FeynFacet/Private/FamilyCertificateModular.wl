@@ -30,6 +30,13 @@ ClearAll[
   familyCertDegree, familyCertLetters, familyCertRationalReconstruct,
   familyCertDegMul, familyCertDegDeriv, familyCertDegAdd, familyCertDegCompose, familyCertBounds,
   familyCertCharacteristicZeroPoint, familyCertificateModular
+  , familyCertMQFailure, familyCertMQModRational, familyCertMQSquareRoot,
+  familyCertMQPrepare, familyCertMQEvaluateMatrix, familyCertMQIndependentColumns,
+  familyCertMQAuthenticateRegulatorRootFrames,
+  familyCertMQPivotSignature, familyCertMQSelectModalPivotTrials,
+  familyCertMQTrial, familyCertMQReconstructResidues,
+  familyCertMQValidateResiduesAtTrial,
+  familyCertificateMultiquadratic
 ];
 
 (* ---- compilation ---- *)
@@ -439,3 +446,838 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
       "CompileSeconds" -> compileSeconds, "Seconds" -> AbsoluteTime[] - t0,
       "Trouble" -> trouble|>]]
 ];
+
+(* ------------------------------------------------------------------ *)
+(* Whole-family certificate in a declared multiquadratic source frame. *)
+(* ------------------------------------------------------------------ *)
+
+(* This is deliberately a verifier, not a second solver.  The expensive
+   algebraic objects are converted once to rational expressions in formal
+   generators rho_i.  At a split finite-field point every one of the 2^r
+   embeddings rho_i -> +/-sqrt(delta_i) is then evaluated.  Matrix products
+   are formed only after evaluation.  Thus the certificate proves the same
+   identities as familyCertificateModular, but never asks Together to
+   multiply full matrices containing radicals. *)
+
+familyCertMQFailure[status_String, detail_: <||>] := Join[
+  <|"Status" -> status, "Probabilistic" -> True,
+    "CoefficientField" -> "Multiquadratic"|>,
+  If[AssociationQ[detail], detail, <|"Detail" -> detail|>]];
+
+(* Authenticate every graded root frame carried by regulator
+   factorization before adding its generators to the certificate field.
+   Recomputing the evidence catches altered counts, branches, ordering,
+   numeric classes or fingerprints.  The union is then revalidated as one
+   independent square-class basis; duplicate generators shared with the
+   chart frame are merged by their exact root square. *)
+familyCertMQAuthenticateRegulatorRootFrames[baseRoots_List, frames_List,
+    variables : {_Symbol, _Symbol}, regulator_Symbol,
+    rankLimit_Integer] := Module[
+  {required, frame, recomputed, authenticated = {}, combined, merged, stable},
+  required = {"Schema", "Status", "RootCount", "GradeCount",
+    "MaximumRank", "RootFingerprints", "OrderingFingerprint",
+    "NumericRootIndices", "NumericRootSquares", "FrameFingerprint"};
+  Do[
+    frame = frames[[frameIndex]];
+    If[! AssociationQ[frame] ||
+        Lookup[frame, "Schema", None] =!=
+          "FamilyRegulatorGradedRootFrameV1" ||
+        ! ListQ[Lookup[frame, "Roots", $Failed]],
+      Return[familyCertMQFailure["RegulatorRootFrameMetadataInvalid",
+        <|"FrameIndex" -> frameIndex|>], Module]];
+    recomputed = familyRegulatorGradedFrameEvidence[
+      frame["Roots"], variables, regulator];
+    If[Lookup[recomputed, "Status", None] =!= "StableRootFrame" ||
+        KeyTake[frame, required] =!= KeyTake[recomputed, required],
+      Return[familyCertMQFailure["RegulatorRootFrameAuthenticationFailed",
+        <|"FrameIndex" -> frameIndex,
+          "Expected" -> KeyDrop[recomputed, "Roots"],
+          "Observed" -> KeyDrop[frame, "Roots"]|>], Module]];
+    AppendTo[authenticated, recomputed],
+    {frameIndex, Length[frames]}];
+  combined = Join[baseRoots, Flatten[Lookup[authenticated, "Roots", {}], 1]];
+  merged = Fold[Function[{kept, root},
+      If[AnyTrue[kept, TrueQ[Quiet[Together[
+            #1["RootSquare"] - root["RootSquare"]]] === 0] &],
+        kept, Append[kept, KeyTake[root, {"Root", "RootSquare"}]]]],
+    {}, combined];
+  If[Length[merged] > rankLimit,
+    Return[familyCertMQFailure["RootRankTooLarge",
+      <|"RootCount" -> Length[merged], "RootRankLimit" -> rankLimit,
+        "ProducerMaximumRank" -> $familyRegulatorMaximumGradedRank|>]]];
+  stable = blockEquationDeferredRootFrame[merged, variables, regulator];
+  If[Lookup[stable, "Status", None] =!= "StableRootOrder",
+    Return[familyCertMQFailure[
+      Lookup[stable, "Status", "InvalidCombinedRootFrame"],
+      <|"RootFrame" -> stable|>]]];
+  <|"Status" -> "AuthenticatedRegulatorRootFrames",
+    "Roots" -> stable["Roots"],
+    "RootCount" -> Length[stable["Roots"]],
+    "GradeCount" -> 2^Length[stable["Roots"]],
+    "RootFingerprints" -> stable["RootFingerprints"],
+    "OrderingFingerprint" -> stable["OrderingFingerprint"],
+    "EvidenceCount" -> Length[authenticated],
+    "EvidenceFingerprints" -> Lookup[authenticated, "FrameFingerprint", {}],
+    "RootRankLimit" -> rankLimit|>
+];
+familyCertMQAuthenticateRegulatorRootFrames[___] :=
+  familyCertMQFailure["RegulatorRootFrameMetadataInvalid"];
+
+familyCertMQModRational[value_, prime_Integer] := Module[{q, numerator, denominator},
+  q = Quiet[Check[Together[value], $Failed]];
+  If[q === $Failed || ! MatchQ[q, _Integer | _Rational], Return[$Failed]];
+  numerator = Mod[Numerator[q], prime];
+  denominator = Mod[Denominator[q], prime];
+  If[denominator === 0, $Failed,
+    Mod[numerator PowerMod[denominator, -1, prime], prime]]
+];
+
+(* The certificate samples primes p == 3 mod 4, so a quadratic-residue
+   square root is one modular exponentiation.  Zero is excluded: otherwise
+   two sign embeddings coalesce and the point does not test every grade. *)
+familyCertMQSquareRoot[value_Integer, prime_Integer] := Module[{a = Mod[value, prime], root},
+  If[a === 0 || Mod[prime, 4] =!= 3 ||
+      PowerMod[a, Quotient[prime - 1, 2], prime] =!= 1, Return[$Failed]];
+  root = PowerMod[a, Quotient[prime + 1, 4], prime];
+  If[Mod[root^2 - a, prime] === 0, root, $Failed]
+];
+
+(* Prepare all scalar expressions once.  The root frame is the same
+   canonical, square-class-independent frame used by the deferred equation
+   and direct strip solver.  Nested radicals are admitted only after the
+   shared exact denester rewrites them in that frame; an extra numeric square
+   class is not silently synthesized and is therefore an undeclared root. *)
+familyCertMQPrepare[objects_Association, roots_List,
+    variables : {_Symbol, _Symbol}, regulator_Symbol, rankLimit_Integer] := Module[
+  {frame, orderedRoots, census, denested, canonical, rootSymbols, polynomialized,
+   surviving, numericClasses, numericClassIndices, undeclaredNumericClasses,
+   rootImage, normalObjects, canonicalObjects,
+   polynomializedObjects, polynomializeEntry, channels, vectorKeys},
+  If[rankLimit < 0 || Length[roots] > rankLimit,
+    Return[familyCertMQFailure["RootRankTooLarge",
+      <|"RootCount" -> Length[roots], "RootRankLimit" -> rankLimit|>]]];
+  frame = blockEquationDeferredRootFrame[roots, variables, regulator];
+  If[Lookup[frame, "Status", None] =!= "StableRootOrder",
+    Return[familyCertMQFailure[Lookup[frame, "Status", "InvalidRootFrame"],
+      <|"RootFrame" -> frame|>]]];
+  orderedRoots = frame["Roots"];
+  (* SparseArray is atomic to ReplaceAll.  Normalize only those containers;
+     otherwise a radical stored in a sparse matrix can be seen by the census
+     but skipped by the branch substitution. *)
+  normalObjects = Map[Replace[#, sparse_SparseArray :> Normal[sparse],
+      {0, Infinity}] &, objects];
+  If[AnyTrue[Lookup[orderedRoots, "RootSquare", {}], ! FreeQ[#, regulator] &],
+    Return[familyCertMQFailure["RegulatorDependentRootSquare"]]];
+  census = transportChartRootIndices[Values[normalObjects], orderedRoots];
+  If[! AssociationQ[census], Return[familyCertMQFailure["RootCensusFailed"]]];
+  If[Lookup[census, "UnclassifiedRadicalBases", {}] =!= {},
+    Return[familyCertMQFailure["UndeclaredRadicals",
+      <|"RadicalBases" -> census["UnclassifiedRadicalBases"]|>]]];
+  numericClasses = Lookup[census, "NumericRadicalClasses", {}];
+  numericClassIndices = Table[FirstCase[
+      Subsets[Range[Length[orderedRoots]]],
+      subset_ /; TrueQ[multiquadraticStripSquareClassSquareQ[
+        Together[numericClass/Times @@ Lookup[
+          orderedRoots[[subset]], "RootSquare", {}]]]] :> subset,
+      None],
+    {numericClass, numericClasses}];
+  undeclaredNumericClasses = Pick[numericClasses,
+    (#1 === None & /@ numericClassIndices)];
+  If[undeclaredNumericClasses =!= {},
+    Return[familyCertMQFailure["UndeclaredNumericRootClasses",
+      <|"SquareClasses" -> undeclaredNumericClasses,
+        "DeclaredRootSquares" -> Lookup[orderedRoots, "RootSquare", {}]|>]]];
+  denested = Lookup[census, "DenestedRadicalBases", <||>];
+  canonical = If[denested === <||>,
+    <|"Status" -> "OK", "Expression" -> Values[normalObjects],
+      "Rewrites" -> <||>, "Rewritten" -> 0|>,
+    transportChartCanonicalizeDenestedRadicals[
+      Values[normalObjects], orderedRoots, variables, denested]];
+  If[Lookup[canonical, "Status", None] =!= "OK",
+    Return[familyCertMQFailure["RadicalDenestingFailed",
+      <|"Denesting" -> canonical|>]]];
+  rootSymbols = Table[Unique["FeynFacet`Private`familyCertMQRoot"],
+    {Length[orderedRoots]}];
+  (* Apply all root substitutions in one traversal.  Apart from avoiding r
+     separate walks, this is stable when a previous certificate in the same
+     kernel has already evaluated another set of Module-local root symbols. *)
+  rootImage[base_] := rootImage[base] = Module[{scale, index},
+    index = SelectFirst[Range[Length[orderedRoots]],
+      transportChartRootBranchScale[base,
+        orderedRoots[[#]]["RootSquare"]] =!= None &, None];
+    If[index === None, None,
+      scale = transportChartRootBranchScale[base,
+        orderedRoots[[index]]["RootSquare"]];
+      scale rootSymbols[[index]]]];
+  canonicalObjects = AssociationThread[Keys[normalObjects],
+    canonical["Expression"]];
+  polynomializeEntry[entry_] := polynomializeEntry[entry] = Module[{direct},
+    direct = entry /.
+        Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
+          With[{image = rootImage[base]},
+            If[image === None, Power[base, exponent],
+              image^(2 exponent)]];
+    If[transportChartRadicalBases[direct] === {}, Return[direct]];
+    (* Rare representation fallback: decompose just this scalar in the
+       exact graded algebra.  This is not a global channel materialization;
+       it runs only when direct radical substitution cannot see through an
+       atomic/container representation. *)
+    channels = Quiet[Check[familyRegulatorGradedDecompose[entry,
+      orderedRoots], $Failed]];
+    If[channels === $Failed, direct,
+      multiquadraticToExpression[channels, rootSymbols]]];
+  vectorKeys = {"Letters", "LetterX", "LetterY"};
+  polynomializedObjects = AssociationMap[Function[key,
+      If[MemberQ[vectorKeys, key],
+        Map[polynomializeEntry, canonicalObjects[key], {1}],
+        Map[polynomializeEntry, canonicalObjects[key], {2}]]],
+    Keys[canonicalObjects]];
+  polynomialized = Values[polynomializedObjects];
+  surviving = transportChartRadicalBases[polynomialized];
+  If[surviving =!= {},
+    Return[familyCertMQFailure["UndeclaredRadicalsAfterDenesting",
+      <|"RadicalBases" -> surviving,
+        "DeclaredRootSquares" -> Lookup[orderedRoots, "RootSquare", {}],
+        "DenestedRadicalBases" -> Keys[denested],
+        "PerObjectRadicals" -> Select[
+          Map[transportChartRadicalBases,
+            polynomializedObjects], # =!= {} &],
+        "SurvivingPowers" -> Take[Cases[polynomialized,
+          Power[_, exponent_Rational /; Denominator[exponent] === 2],
+          {0, Infinity}, Heads -> True], UpTo[6]]|>]]];
+  <|"Status" -> "PreparedMultiquadraticCertificate",
+    "Objects" -> polynomializedObjects,
+    "Roots" -> orderedRoots, "RootSymbols" -> rootSymbols,
+    "RootCount" -> Length[orderedRoots],
+    "GradeCount" -> 2^Length[orderedRoots],
+    "RootFingerprints" -> frame["RootFingerprints"],
+    "RootOrderingFingerprint" -> frame["OrderingFingerprint"],
+    "RootCensus" -> Join[KeyTake[census,
+      {"RootIndices", "RadicalBases", "DenestedRadicalBases"}],
+      <|"RootIndices" -> Sort[DeleteDuplicates[Join[
+        Lookup[census, "RootIndices", {}],
+        Flatten[DeleteCases[numericClassIndices, None]]]]]|>],
+    "DeclaredNumericRootClasses" -> numericClasses,
+    "DeclaredNumericRootIndices" -> numericClassIndices,
+    "DenestedRadicals" -> Lookup[canonical, "Rewritten", 0]|>
+];
+
+(* eval is supplied by familyCertMQTrial and memoized there for one sheet;
+   repeated zeroes, diagonal entries and repeated residues are evaluated
+   once rather than once per matrix occurrence. *)
+familyCertMQEvaluateMatrix[matrix_List, eval_] := Module[{value},
+  value = Map[eval, matrix, {2}];
+  If[FreeQ[value, $Failed], value, $Failed]
+];
+
+(* A redundant supplied alphabet is harmless.  Select a deterministic
+   independent column subset instead of rejecting a correct dlog form merely
+   because two supplied letters have the same logarithmic differential. *)
+familyCertMQIndependentColumns[matrix_List, prime_Integer] := Module[
+  {selected = {}, rank = 0, next},
+  Do[
+    next = MatrixRank[matrix[[All, Append[selected, column]]],
+      Modulus -> prime];
+    If[next > rank, AppendTo[selected, column]; rank = next],
+    {column, If[matrix === {}, 0, Length[First[matrix]]]}];
+  selected
+];
+
+familyCertMQPivotSignature[trial_Association] := Module[
+  {prime = Lookup[trial, "Prime", $Failed],
+   pivots = Lookup[trial, "PivotColumns", $Failed],
+   rank = Lookup[trial, "DLogRank", $Failed], signature},
+  If[! IntegerQ[prime] || ! PrimeQ[prime] ||
+      ! VectorQ[pivots, IntegerQ] || ! IntegerQ[rank] || rank < 0 ||
+      Length[pivots] =!= rank || ! DuplicateFreeQ[pivots],
+    Return[familyCertMQFailure["DLogPivotSignatureInvalid",
+      <|"Prime" -> prime|>]]];
+  signature = {rank, pivots};
+  <|"Status" -> "DLogPivotSignature", "Prime" -> prime,
+    "Rank" -> rank, "PivotColumns" -> pivots,
+    "Signature" -> signature,
+    "SignatureFingerprint" ->
+      Hash[signature, "SHA256", "HexString"]|>
+];
+familyCertMQPivotSignature[___] :=
+  familyCertMQFailure["DLogPivotSignatureInvalid"];
+
+(* Select a pivot plan only after a bounded quorum over distinct primes.
+   This prevents an exceptional first characteristic from becoming the
+   authority which rejects every later generic prime.  Ties and a missing
+   quorum are typed instability, never an arbitrary first-prime choice. *)
+familyCertMQSelectModalPivotTrials[trials_List, quorum_Integer] := Module[
+  {evidence, groups, groupCounts, maximum, modes, mode, accepted, rejected,
+   reference, signature},
+  If[quorum < 2 || Length[trials] < quorum ||
+      ! DuplicateFreeQ[Lookup[trials, "Prime", {}]],
+    Return[familyCertMQFailure["DLogPivotQuorumInvalid",
+      <|"Quorum" -> quorum, "TrialCount" -> Length[trials]|>]]];
+  evidence = familyCertMQPivotSignature /@ trials;
+  If[AnyTrue[evidence,
+      Lookup[#1, "Status", None] =!= "DLogPivotSignature" &],
+    Return[FirstCase[evidence,
+      item_ /; Lookup[item, "Status", None] =!= "DLogPivotSignature" :>
+        item]]];
+  groups = GatherBy[evidence, Lookup[#1, "Signature", Missing[]] &];
+  groupCounts = (<|"Signature" -> First[#1]["Signature"],
+      "SignatureFingerprint" -> First[#1]["SignatureFingerprint"],
+      "Count" -> Length[#1]|> &) /@ groups;
+  maximum = If[groups === {}, 0, Max[Length /@ groups]];
+  modes = Select[groups, Length[#1] === maximum &];
+  If[maximum < quorum || Length[modes] =!= 1,
+    Return[familyCertMQFailure["DLogPivotStructureUnstable",
+      <|"Quorum" -> quorum, "SignatureCounts" -> groupCounts,
+        "Evidence" -> evidence|>]]];
+  mode = First[modes];
+  reference = First[mode];
+  signature = reference["Signature"];
+  accepted = Select[trials,
+    {Lookup[#1, "DLogRank", Missing[]],
+       Lookup[#1, "PivotColumns", Missing[]]} === signature &];
+  rejected = Select[trials,
+    {Lookup[#1, "DLogRank", Missing[]],
+       Lookup[#1, "PivotColumns", Missing[]]} =!= signature &];
+  <|"Status" -> "ModalDLogPivotSignature",
+    "Signature" -> signature,
+    "SignatureFingerprint" -> reference["SignatureFingerprint"],
+    "Rank" -> reference["Rank"],
+    "PivotColumns" -> reference["PivotColumns"],
+    "Quorum" -> quorum, "VoteCount" -> maximum,
+    "Trials" -> accepted, "RejectedTrials" -> rejected,
+    "Evidence" -> evidence|>
+];
+familyCertMQSelectModalPivotTrials[___] :=
+  familyCertMQFailure["DLogPivotQuorumInvalid"];
+
+(* One prime trial.  A point is usable only if all declared root squares are
+   nonzero residues and every denominator is regular on every sign sheet.
+   Training and validation are point-disjoint; all sign sheets of a point
+   remain in the same partition. *)
+familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
+    regulator_Symbol, prime_Integer, trainingPoints_Integer,
+    validationPoints_Integer, maxPointAttempts_Integer] := Module[
+  {objects = prepared["Objects"], roots = prepared["Roots"],
+   rootSymbols = prepared["RootSymbols"], rank = prepared["RootCount"],
+   n, target, accepted = 0, attempts = 0, trainRows = {}, trainRhs = {},
+   validationRows = {}, validationRhs = {}, identityChecks, pointRecords = {},
+   point, epsilon2, scalarRules, deltaValues, rootValues, pointRows, pointRhs,
+   pointIdentity, pointOK, sheetRecords, signedRoots, signs, eval, evalMatrix,
+   S, Si, B1, B2, B1b, B2b, dSx, dSy, dB1y, dB2x, Av, Aw, dAvw, dAwv,
+   jacobian, A1, A2, letterX, letterY, inverseEpsilon, ok, dimension,
+   pivotColumns, coefficients, dlogOK, zeroFormAtPoints = True,
+   trainingQ, mask},
+  n = Length[objects["S"]]; dimension = n;
+  target = trainingPoints + validationPoints;
+  identityChecks = <|"TransformationInverse" -> True,
+    "GaugeIdentity" -> True, "Flatness" -> True,
+    "EpsFactored" -> True, "SourceFlatness" -> True|>;
+  ok[matrix_] := AllTrue[Flatten[Mod[matrix, prime]], # === 0 &];
+  While[accepted < target && attempts < maxPointAttempts,
+    attempts++;
+    point = RandomInteger[{2, prime - 2}, 3];
+    If[point[[3]] === 0, Continue[]];
+    scalarRules = Thread[Append[variables, regulator] -> point];
+    deltaValues = familyCertMQModRational[# /. scalarRules, prime] & /@
+      Lookup[roots, "RootSquare", {}];
+    If[MemberQ[deltaValues, $Failed], Continue[]];
+    rootValues = familyCertMQSquareRoot[#, prime] & /@ deltaValues;
+    If[MemberQ[rootValues, $Failed], Continue[]];
+    epsilon2 = RandomInteger[{2, prime - 2}];
+    While[epsilon2 === point[[3]], epsilon2 = RandomInteger[{2, prime - 2}]];
+    pointRows = {}; pointRhs = {}; pointIdentity = identityChecks;
+    pointOK = True; sheetRecords = {};
+    Do[
+      signs = Table[If[BitGet[mask, bit] === 1, -1, 1],
+        {bit, 0, rank - 1}];
+      signedRoots = Mod[signs rootValues, prime];
+      Clear[eval];
+      eval[expression_] := eval[expression] = familyCertMQModRational[
+        expression /. Thread[rootSymbols -> signedRoots] /. scalarRules,
+        prime];
+      evalMatrix[matrix_] := familyCertMQEvaluateMatrix[matrix, eval];
+      {S, Si, B1, B2, dSx, dSy, dB1y, dB2x, Av, Aw, dAvw, dAwv,
+        jacobian, letterX, letterY} = Map[evalMatrix, Lookup[objects,
+        {"S", "Si", "B1", "B2", "dSx", "dSy", "dB1y", "dB2x",
+         "Av", "Aw", "dAvw", "dAwv", "Jacobian", "LetterX", "LetterY"}]];
+      If[MemberQ[{S, Si, B1, B2, dSx, dSy, dB1y, dB2x, Av, Aw,
+          dAvw, dAwv, jacobian, letterX, letterY}, $Failed],
+        pointOK = False; Break[]];
+      Clear[eval];
+      eval[expression_] := eval[expression] = familyCertMQModRational[
+        expression /. Thread[rootSymbols -> signedRoots] /.
+          Thread[Append[variables, regulator] -> ReplacePart[point, 3 -> epsilon2]],
+        prime];
+      {B1b, B2b} = evalMatrix /@ Lookup[objects, {"B1", "B2"}];
+      If[MemberQ[{B1b, B2b}, $Failed], pointOK = False; Break[]];
+      A1 = Mod[Av jacobian[[1, 1]] + Aw jacobian[[2, 1]], prime];
+      A2 = Mod[Av jacobian[[1, 2]] + Aw jacobian[[2, 2]], prime];
+      pointIdentity["TransformationInverse"] =
+        pointIdentity["TransformationInverse"] &&
+        ok[S . Si - IdentityMatrix[dimension]] &&
+        ok[Si . S - IdentityMatrix[dimension]];
+      pointIdentity["GaugeIdentity"] = pointIdentity["GaugeIdentity"] &&
+        ok[Si . A1 . S - Si . dSx - B1] &&
+        ok[Si . A2 . S - Si . dSy - B2];
+      pointIdentity["Flatness"] = pointIdentity["Flatness"] &&
+        ok[dB1y - dB2x + B1 . B2 - B2 . B1];
+      pointIdentity["SourceFlatness"] = pointIdentity["SourceFlatness"] &&
+        ok[dAvw - dAwv + Av . Aw - Aw . Av];
+      pointIdentity["EpsFactored"] = pointIdentity["EpsFactored"] &&
+        ok[epsilon2 B1 - point[[3]] B1b] &&
+        ok[epsilon2 B2 - point[[3]] B2b];
+      inverseEpsilon = PowerMod[point[[3]], -1, prime];
+      If[Length[letterX] === 0,
+        If[! (ok[B1] && ok[B2]), zeroFormAtPoints = False],
+        AppendTo[pointRows, Flatten[letterX]];
+        AppendTo[pointRhs, Mod[inverseEpsilon Flatten[B1], prime]];
+        AppendTo[pointRows, Flatten[letterY]];
+        AppendTo[pointRhs, Mod[inverseEpsilon Flatten[B2], prime]]];
+      AppendTo[sheetRecords, <|"Sheet" -> mask,
+        "RootSigns" -> signs|>],
+      {mask, 0, 2^rank - 1}];
+    If[! pointOK, Continue[]];
+    identityChecks = AssociationMap[
+      identityChecks[#] && pointIdentity[#] &, Keys[identityChecks]];
+    accepted++; trainingQ = accepted <= trainingPoints;
+    If[trainingQ,
+      trainRows = Join[trainRows, pointRows]; trainRhs = Join[trainRhs, pointRhs],
+      validationRows = Join[validationRows, pointRows];
+      validationRhs = Join[validationRhs, pointRhs]];
+    AppendTo[pointRecords, <|"Point" -> point,
+      "SecondRegulator" -> epsilon2,
+      "Partition" -> If[trainingQ, "Training", "Validation"],
+      "Sheets" -> sheetRecords|>]];
+  If[accepted < target,
+    Return[familyCertMQFailure["InsufficientUsablePoints",
+      <|"Prime" -> prime, "UsablePoints" -> accepted,
+        "RequestedPoints" -> target, "PointAttempts" -> attempts|>]]];
+  If[objects["Letters"] === {},
+    pivotColumns = {}; coefficients = {}; dlogOK = zeroFormAtPoints,
+    pivotColumns = familyCertMQIndependentColumns[trainRows, prime];
+    If[pivotColumns === {},
+      Return[familyCertMQFailure["DLogDesignRankZero",
+        <|"Prime" -> prime, "LetterCount" -> Length[objects["Letters"]]|>]]];
+    coefficients = Quiet[Check[LinearSolve[
+      trainRows[[All, pivotColumns]], trainRhs, Modulus -> prime], $Failed]];
+    dlogOK = MatrixQ[coefficients] &&
+      ok[trainRows[[All, pivotColumns]] . coefficients - trainRhs] &&
+      ok[validationRows[[All, pivotColumns]] . coefficients - validationRhs]];
+  <|"Status" -> "UsablePrime", "Prime" -> prime,
+    "Checks" -> Join[identityChecks,
+      <|"DLog" -> dlogOK, "ConstantResidues" -> dlogOK|>],
+    "PivotColumns" -> pivotColumns, "Coefficients" -> coefficients,
+    "TrainingRows" -> trainRows, "TrainingRhs" -> trainRhs,
+    "ValidationRows" -> validationRows,
+    "ValidationRhs" -> validationRhs,
+    "DLogRank" -> Length[pivotColumns],
+    "DLogPivotSignature" -> {Length[pivotColumns], pivotColumns},
+    "DLogPivotSignatureFingerprint" ->
+      Hash[{Length[pivotColumns], pivotColumns}, "SHA256", "HexString"],
+    "TrainingPoints" -> trainingPoints,
+    "ValidationPoints" -> validationPoints,
+    "PointAttempts" -> attempts, "Points" -> pointRecords,
+    "AllSheetsPerPoint" -> 2^rank|>
+];
+
+familyCertMQReconstructResidues[trials_List, letterCount_Integer,
+    dimension_Integer] := Module[
+  {primes, pivots, coefficientTables, modulus, crt, reconstructed, verified,
+   full},
+  If[letterCount === 0, Return[<|"Status" -> "ReconstructedResidues",
+    "Residues" -> {}, "PivotCoefficientTable" -> {},
+    "Verified" -> True, "PivotColumns" -> {}|>]];
+  primes = Lookup[trials, "Prime", {}];
+  pivots = Lookup[First[trials], "PivotColumns", {}];
+  If[pivots === {} || ! AllTrue[trials, Lookup[#, "PivotColumns", None] === pivots &],
+    Return[familyCertMQFailure["DLogPivotPlanUnstable"]]];
+  coefficientTables = Lookup[trials, "Coefficients", {}];
+  modulus = Times @@ primes;
+  crt = Table[ChineseRemainder[
+      coefficientTables[[All, i, j]], primes],
+    {i, Length[pivots]}, {j, dimension^2}];
+  reconstructed = Map[familyCertRationalReconstruct[#, modulus] &, crt, {2}];
+  If[! FreeQ[reconstructed, $Failed],
+    Return[familyCertMQFailure["ResidueReconstructionNeedsMorePrimes",
+      <|"ModulusBits" -> IntegerLength[modulus, 2]|>]]];
+  verified = AllTrue[Range[Length[primes]], Function[k,
+    Mod[Map[Mod[Numerator[#] PowerMod[Denominator[#], -1, primes[[k]]],
+          primes[[k]]] &, reconstructed, {2}] - coefficientTables[[k]],
+      primes[[k]]] === ConstantArray[0, Dimensions[reconstructed]]]];
+  If[! verified, Return[familyCertMQFailure["ResidueCRTVerificationFailed"]]];
+  full = ConstantArray[0, {letterCount, dimension^2}];
+  full[[pivots]] = reconstructed;
+  <|"Status" -> "ReconstructedResidues",
+    "Residues" -> (Partition[#, dimension] & /@ full),
+    "PivotCoefficientTable" -> reconstructed,
+    "Verified" -> True, "PivotColumns" -> pivots,
+    "ModulusBits" -> IntegerLength[modulus, 2]|>
+];
+
+(* Validate a reconstructed rational lift at one prime which did not enter
+   its CRT modulus.  Equality with the independently fitted coefficients is
+   checked first, then the lift itself is replayed on both the training and
+   point-disjoint validation rows.  A prime dividing a reconstructed
+   denominator is exceptional, never positive evidence. *)
+familyCertMQValidateResiduesAtTrial[reconstruction_Association,
+    trial_Association] := Module[
+  {prime, pivots, rational, reduced, reduce, expected, trainingRows,
+   trainingRhs, validationRows, validationRhs, zero, requiredChecks},
+  If[Lookup[reconstruction, "Status", None] =!= "ReconstructedResidues" ||
+      Lookup[trial, "Status", None] =!= "UsablePrime",
+    Return[familyCertMQFailure["FreshPrimeValidationInputsInvalid"]]];
+  prime = Lookup[trial, "Prime", $Failed];
+  pivots = Lookup[reconstruction, "PivotColumns", $Failed];
+  rational = Lookup[reconstruction, "PivotCoefficientTable", $Failed];
+  expected = Lookup[trial, "Coefficients", $Failed];
+  If[! IntegerQ[prime] || ! ListQ[pivots] || ! ListQ[rational] ||
+      ! ListQ[expected] || Lookup[trial, "PivotColumns", None] =!= pivots,
+    Return[familyCertMQFailure["FreshPrimePivotPlanMismatch",
+      <|"Prime" -> prime, "ExpectedPivots" -> pivots,
+        "FoundPivots" -> Lookup[trial, "PivotColumns", Missing[]]|>]]];
+  reduce[value_] := Module[{denominator = Mod[Denominator[value], prime]},
+    If[denominator === 0, $Failed,
+      Mod[Numerator[value] PowerMod[denominator, -1, prime], prime]]];
+  reduced = Map[reduce, rational, {2}];
+  If[! FreeQ[reduced, $Failed],
+    Return[familyCertMQFailure["FreshPrimeDividesLiftDenominator",
+      <|"Prime" -> prime|>]]];
+  If[Mod[reduced - expected, prime] =!=
+      ConstantArray[0, Dimensions[expected]],
+    Return[familyCertMQFailure["FreshPrimeResidueMismatch",
+      <|"Prime" -> prime|>]]];
+  {trainingRows, trainingRhs, validationRows, validationRhs} = Lookup[trial,
+    {"TrainingRows", "TrainingRhs", "ValidationRows", "ValidationRhs"},
+    $Failed];
+  If[MemberQ[{trainingRows, trainingRhs, validationRows, validationRhs},
+      $Failed],
+    Return[familyCertMQFailure["FreshPrimeReplayRowsMissing",
+      <|"Prime" -> prime|>]]];
+  zero[matrix_] := AllTrue[Flatten[Mod[matrix, prime]], # === 0 &];
+  If[pivots =!= {} &&
+      ! (zero[trainingRows[[All, pivots]] . reduced - trainingRhs] &&
+        zero[validationRows[[All, pivots]] . reduced - validationRhs]),
+    Return[familyCertMQFailure["FreshPrimeResidueReplayFailed",
+      <|"Prime" -> prime|>]]];
+  If[pivots === {} &&
+      ! (zero[trainingRhs] && zero[validationRhs]),
+    Return[familyCertMQFailure["FreshPrimeZeroAlphabetReplayFailed",
+      <|"Prime" -> prime|>]]];
+  requiredChecks = {"TransformationInverse", "GaugeIdentity", "Flatness",
+    "EpsFactored", "SourceFlatness", "DLog", "ConstantResidues"};
+  If[! AllTrue[requiredChecks,
+      TrueQ[Lookup[trial["Checks"], #, False]] &],
+    Return[familyCertMQFailure["FreshPrimeIdentityCheckFailed",
+      <|"Prime" -> prime, "Checks" -> trial["Checks"]|>]]];
+  <|"Status" -> "FreshPrimeValidated", "Prime" -> prime,
+    "PivotColumns" -> pivots,
+    "TrainingPoints" -> trial["TrainingPoints"],
+    "ValidationPoints" -> trial["ValidationPoints"],
+    "AllSheetsPerPoint" -> trial["AllSheetsPerPoint"],
+    "ResidueCoefficientMatch" -> True,
+    "TrainingReplay" -> True, "ValidationReplay" -> True|>
+];
+
+familyCertMQValidateResiduesAtTrial[___] :=
+  familyCertMQFailure["FreshPrimeValidationInputsInvalid"];
+
+Options[familyCertificateMultiquadratic] = {
+  "TrainingPoints" -> 3, "ValidationPoints" -> 2,
+  "Primes" -> 3, "MaxPrimes" -> 9,
+  "FreshValidationPrimes" -> 2,
+  "MaxPrimeAttempts" -> 36, "MaxPointAttempts" -> 320,
+  "RootRankLimit" -> Automatic,
+  "RegulatorRootFrames" -> {},
+  "PivotSignatureQuorum" -> 2,
+  "PivotSignaturePilotPrimes" -> 3,
+  "Seed" -> Automatic, "Verbose" -> False};
+
+familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
+    variables : {_Symbol, _Symbol}, regulator_Symbol,
+    {av_, aw_}, sourceVariables : {_Symbol, _Symbol}, chart_Association,
+    roots_List, letters_List, OptionsPattern[]] := Module[
+  {trainingPoints, validationPoints, requestedPrimes, maxPrimes,
+   freshValidationPrimes, maxPrimeAttempts, maxPointAttempts, rankLimit,
+   regulatorRootFrames, authenticatedRootFrame,
+   pivotSignatureQuorum, pivotSignaturePilotPrimes,
+   seed, jacobian, subst,
+   objects, prepared, trials = {}, pivotPilotTrials = {},
+   pivotSelection = <||>, modalPivotSignature = None,
+   rejected = {}, attemptedPrimes = {},
+   primeAttempts = 0, p, trial, reconstruction, checks, dimension = Length[s],
+   allTrue, rootsUsed, t0 = AbsoluteTime[], falsePositiveEstimate, pMin,
+   dlogTrialsOK, crtCandidateOK, validationTrials = {}, validationEvidence = {},
+   validation, allTrials, trialEvidence},
+  trainingPoints = OptionValue["TrainingPoints"];
+  validationPoints = OptionValue["ValidationPoints"];
+  requestedPrimes = OptionValue["Primes"];
+  maxPrimes = OptionValue["MaxPrimes"];
+  freshValidationPrimes = OptionValue["FreshValidationPrimes"];
+  maxPrimeAttempts = OptionValue["MaxPrimeAttempts"];
+  maxPointAttempts = OptionValue["MaxPointAttempts"];
+  rankLimit = Replace[OptionValue["RootRankLimit"], Automatic :>
+    $familyRegulatorMaximumGradedRank];
+  regulatorRootFrames = OptionValue["RegulatorRootFrames"];
+  pivotSignatureQuorum = OptionValue["PivotSignatureQuorum"];
+  pivotSignaturePilotPrimes = OptionValue["PivotSignaturePilotPrimes"];
+  If[! And @@ {IntegerQ[trainingPoints] && trainingPoints > 0,
+      IntegerQ[validationPoints] && validationPoints > 0,
+      IntegerQ[requestedPrimes] && requestedPrimes >= 2,
+      IntegerQ[maxPrimes] && maxPrimes >= requestedPrimes,
+      IntegerQ[freshValidationPrimes] && freshValidationPrimes >= 2,
+      IntegerQ[maxPrimeAttempts] && maxPrimeAttempts >= requestedPrimes,
+      IntegerQ[maxPointAttempts] && maxPointAttempts >= trainingPoints + validationPoints,
+      IntegerQ[rankLimit] && rankLimit >= 0 &&
+        rankLimit <= $familyRegulatorMaximumGradedRank,
+      MatchQ[regulatorRootFrames, {___Association}],
+      IntegerQ[pivotSignatureQuorum] && pivotSignatureQuorum >= 2 &&
+        pivotSignatureQuorum <= requestedPrimes,
+      IntegerQ[pivotSignaturePilotPrimes] &&
+        pivotSignaturePilotPrimes >= pivotSignatureQuorum &&
+        pivotSignaturePilotPrimes <= maxPrimeAttempts},
+    Return[familyCertMQFailure["InvalidCounts", <|
+      "TrainingPoints" -> trainingPoints,
+      "ValidationPoints" -> validationPoints,
+      "Primes" -> requestedPrimes, "MaxPrimes" -> maxPrimes,
+      "FreshValidationPrimes" -> freshValidationPrimes,
+      "MaxPrimeAttempts" -> maxPrimeAttempts,
+      "MaxPointAttempts" -> maxPointAttempts,
+      "RootRankLimit" -> rankLimit,
+      "ProducerMaximumRootRank" -> $familyRegulatorMaximumGradedRank,
+      "PivotSignatureQuorum" -> pivotSignatureQuorum,
+      "PivotSignaturePilotPrimes" -> pivotSignaturePilotPrimes|>]]];
+  If[! FreeQ[letters, regulator],
+    Return[familyCertMQFailure["LettersDependOnRegulator"]]];
+  seed = Replace[OptionValue["Seed"], Automatic :> RandomInteger[{1, 2^31 - 1}]];
+  SeedRandom[seed];
+  subst = chart["Subst"];
+  jacobian = chart["Jacobian"];
+  (* Differentiate before the chart substitution.  This is the source
+     connection's curvature, not the derivative of a pulled-back scalar. *)
+  objects = <|
+    "S" -> s, "Si" -> si, "B1" -> b1, "B2" -> b2,
+    "dSx" -> D[s, variables[[1]]], "dSy" -> D[s, variables[[2]]],
+    "dB1y" -> D[b1, variables[[2]]], "dB2x" -> D[b2, variables[[1]]],
+    "Av" -> (av /. subst), "Aw" -> (aw /. subst),
+    "dAvw" -> (D[av, sourceVariables[[2]]] /. subst),
+    "dAwv" -> (D[aw, sourceVariables[[1]]] /. subst),
+    "Jacobian" -> jacobian,
+    "Letters" -> letters,
+    "LetterX" -> ({D[#, variables[[1]]]/#} & /@ letters),
+    "LetterY" -> ({D[#, variables[[2]]]/#} & /@ letters)|>;
+  authenticatedRootFrame = familyCertMQAuthenticateRegulatorRootFrames[
+    roots, regulatorRootFrames, variables, regulator, rankLimit];
+  If[Lookup[authenticatedRootFrame, "Status", None] =!=
+      "AuthenticatedRegulatorRootFrames", Return[authenticatedRootFrame]];
+  prepared = familyCertMQPrepare[objects, authenticatedRootFrame["Roots"],
+    variables, regulator, rankLimit];
+  If[Lookup[prepared, "Status", None] =!= "PreparedMultiquadraticCertificate",
+    Return[prepared]];
+  rootsUsed = Lookup[prepared["RootCensus"], "RootIndices", {}];
+  (* Structural pilot: choose the modal {rank,pivots} signature over
+     distinct primes before any one prime is allowed to define the CRT
+     section.  Two agreeing primes suffice, with at most three usable pilot
+     primes by default. *)
+  While[Length[pivotPilotTrials] < pivotSignaturePilotPrimes &&
+      primeAttempts < maxPrimeAttempts,
+    primeAttempts++;
+    p = RandomPrime[{2^22, 2^23 - 1}];
+    If[Mod[p, 4] =!= 3 || MemberQ[attemptedPrimes, p], Continue[]];
+    AppendTo[attemptedPrimes, p];
+    trial = familyCertMQTrial[prepared, variables, regulator, p,
+      trainingPoints, validationPoints, maxPointAttempts];
+    If[Lookup[trial, "Status", None] === "UsablePrime",
+      AppendTo[pivotPilotTrials, trial];
+      If[Length[pivotPilotTrials] >= pivotSignatureQuorum,
+        pivotSelection = familyCertMQSelectModalPivotTrials[
+          pivotPilotTrials, pivotSignatureQuorum];
+        If[Lookup[pivotSelection, "Status", None] ===
+            "ModalDLogPivotSignature", Break[]]],
+      AppendTo[rejected, <|"Prime" -> p,
+        "Reason" -> Lookup[trial, "Status", "PrimeTrialFailed"],
+        "Detail" -> KeyDrop[trial, {"Points"}]|>]]];
+  If[Lookup[pivotSelection, "Status", None] =!=
+      "ModalDLogPivotSignature",
+    Return[familyCertMQFailure["DLogPivotStructureUnstable",
+      <|"PivotSignatureQuorum" -> pivotSignatureQuorum,
+        "PivotSignaturePilotPrimes" -> pivotSignaturePilotPrimes,
+        "PilotPrimes" -> Lookup[pivotPilotTrials, "Prime", {}],
+        "PilotEvidence" -> Lookup[pivotSelection, "Evidence", {}],
+        "PrimeAttempts" -> primeAttempts,
+        "RejectedPrimes" -> rejected|>]]];
+  modalPivotSignature = pivotSelection["Signature"];
+  trials = pivotSelection["Trials"];
+  Do[AppendTo[rejected, <|"Prime" -> nonmodal["Prime"],
+      "Reason" -> "NonmodalDLogPivotSignature",
+      "ObservedSignature" -> nonmodal["DLogPivotSignature"],
+      "ModalSignature" -> modalPivotSignature|>],
+    {nonmodal, pivotSelection["RejectedTrials"]}];
+  While[Length[trials] < requestedPrimes && primeAttempts < maxPrimeAttempts,
+    primeAttempts++;
+    p = RandomPrime[{2^22, 2^23 - 1}];
+    If[Mod[p, 4] =!= 3 || MemberQ[attemptedPrimes, p], Continue[]];
+    AppendTo[attemptedPrimes, p];
+    trial = familyCertMQTrial[prepared, variables, regulator, p,
+      trainingPoints, validationPoints, maxPointAttempts];
+    If[Lookup[trial, "Status", None] === "UsablePrime" &&
+        Lookup[trial, "DLogPivotSignature", None] === modalPivotSignature,
+      AppendTo[trials, trial],
+      AppendTo[rejected, <|"Prime" -> p,
+        "Reason" -> If[Lookup[trial, "Status", None] === "UsablePrime",
+          "NonmodalDLogPivotSignature",
+          Lookup[trial, "Status", "PrimeTrialFailed"]],
+        "ObservedSignature" ->
+          Lookup[trial, "DLogPivotSignature", Missing["NoSignature"]]|>]]];
+  If[Length[trials] < requestedPrimes,
+    Return[familyCertMQFailure["InsufficientUsablePrimes",
+      <|"UsablePrimes" -> Lookup[trials, "Prime", {}],
+        "RequestedPrimes" -> requestedPrimes,
+        "RejectedPrimes" -> rejected|>]]];
+  dlogTrialsOK = AllTrue[trials,
+    TrueQ[Lookup[#1["Checks"], "DLog", False]] &&
+      TrueQ[Lookup[#1["Checks"], "ConstantResidues", False]] &];
+  If[dlogTrialsOK,
+    reconstruction = familyCertMQReconstructResidues[trials,
+      Length[letters], dimension];
+    While[Lookup[reconstruction, "Status", None] ===
+          "ResidueReconstructionNeedsMorePrimes" &&
+        Length[trials] < maxPrimes && primeAttempts < maxPrimeAttempts,
+      primeAttempts++;
+      p = RandomPrime[{2^22, 2^23 - 1}];
+      If[Mod[p, 4] =!= 3 || MemberQ[attemptedPrimes, p], Continue[]];
+      AppendTo[attemptedPrimes, p];
+      trial = familyCertMQTrial[prepared, variables, regulator, p,
+        trainingPoints, validationPoints, maxPointAttempts];
+      If[Lookup[trial, "Status", None] === "UsablePrime" &&
+          Lookup[trial, "DLogPivotSignature", None] === modalPivotSignature,
+        AppendTo[trials, trial],
+        AppendTo[rejected, <|"Prime" -> p,
+          "Reason" -> If[Lookup[trial, "Status", None] === "UsablePrime",
+            "NonmodalDLogPivotSignature",
+            Lookup[trial, "Status", "PrimeTrialFailed"]],
+          "ObservedSignature" ->
+            Lookup[trial, "DLogPivotSignature", Missing["NoSignature"]]|>]];
+      reconstruction = familyCertMQReconstructResidues[trials,
+        Length[letters], dimension]];
+    If[Lookup[reconstruction, "Status", None] =!= "ReconstructedResidues",
+      Return[Join[reconstruction, <|"Trials" -> trials,
+        "RejectedPrimes" -> rejected|>]]],
+    (* An inconsistent dlog system is already a negative certificate.  Do
+       not spend the remaining prime budget trying to reconstruct a matrix
+       that LinearSolve has proved does not exist. *)
+    reconstruction = <|"Status" -> "ReconstructedResidues",
+      "Residues" -> Missing["DLogInconsistent"], "Verified" -> False,
+      "PivotColumns" -> Lookup[First[trials], "PivotColumns", {}],
+      "PivotCoefficientTable" -> Missing["DLogInconsistent"]|>];
+  crtCandidateOK = dlogTrialsOK && AllTrue[trials, Function[one,
+    And @@ (TrueQ[Lookup[one["Checks"], #, False]] & /@
+      {"TransformationInverse", "GaugeIdentity", "Flatness",
+       "EpsFactored", "SourceFlatness", "DLog", "ConstantResidues"})]];
+  (* Only a candidate which passed every CRT-prime identity reaches the
+     unseen-prime gate.  A known-negative record keeps its negative verdict
+     without consuming validation-prime work. *)
+  If[crtCandidateOK,
+    While[Length[validationTrials] < freshValidationPrimes &&
+        primeAttempts < maxPrimeAttempts,
+      primeAttempts++;
+      p = RandomPrime[{2^22, 2^23 - 1}];
+      If[Mod[p, 4] =!= 3 || MemberQ[attemptedPrimes, p], Continue[]];
+      AppendTo[attemptedPrimes, p];
+      trial = familyCertMQTrial[prepared, variables, regulator, p,
+        trainingPoints, validationPoints, maxPointAttempts];
+      If[Lookup[trial, "Status", None] =!= "UsablePrime",
+        AppendTo[rejected, <|"Prime" -> p,
+          "Reason" -> Lookup[trial, "Status", "FreshPrimeTrialFailed"]|>];
+        Continue[]];
+      validation = familyCertMQValidateResiduesAtTrial[reconstruction, trial];
+      If[Lookup[validation, "Status", None] === "FreshPrimeValidated",
+        AppendTo[validationTrials, trial];
+        AppendTo[validationEvidence, Join[validation,
+          <|"Points" -> (Join[KeyTake[#,
+                {"Point", "SecondRegulator", "Partition"}],
+              <|"SheetCount" -> Length[Lookup[#, "Sheets", {}]]|>] & /@
+            trial["Points"] )|>]],
+        AppendTo[rejected, <|"Prime" -> p,
+          "Reason" -> Lookup[validation, "Status",
+            "FreshPrimeLiftValidationFailed"],
+          "Detail" -> KeyDrop[validation, {"Points"}]|>]]];
+    If[Length[validationTrials] < freshValidationPrimes,
+      Return[familyCertMQFailure["InsufficientFreshValidationPrimes",
+        <|"CRTPrimes" -> Lookup[trials, "Prime", {}],
+          "ValidationPrimes" -> Lookup[validationTrials, "Prime", {}],
+          "RequestedValidationPrimes" -> freshValidationPrimes,
+          "FreshValidationEvidence" -> validationEvidence,
+          "RejectedPrimes" -> rejected|>]]]];
+  allTrials = Join[trials, validationTrials];
+  checks = AssociationMap[Function[key,
+      AllTrue[allTrials, Function[one,
+        TrueQ[Lookup[one["Checks"], key, False]]]]],
+    {"TransformationInverse", "GaugeIdentity", "Flatness",
+     "EpsFactored", "SourceFlatness", "DLog", "ConstantResidues"}];
+  checks["LettersEpsFree"] = FreeQ[letters, regulator];
+  checks["FreshLiftValidation"] = ! crtCandidateOK ||
+    Length[validationTrials] >= freshValidationPrimes;
+  allTrue = And @@ (TrueQ /@ Values[checks]);
+  pMin = Min[Lookup[allTrials, "Prime"]];
+  (* This number intentionally is not presented as a formal degree bound:
+     the verifier avoids expanding algebraic numerators.  It is the direct
+     independent-image collision scale; every point is fresh and every root
+     embedding is tested. *)
+  falsePositiveEstimate = N[pMin^(-Length[allTrials] validationPoints), 3];
+  trialEvidence[one_] := KeyDrop[one,
+    {"Coefficients", "TrainingRows", "TrainingRhs",
+     "ValidationRows", "ValidationRhs"}];
+  Join[checks, <|
+    "Status" -> If[allTrue, "CertifiedMultiquadraticFamily", "CertificateFailed"],
+    "CoefficientField" -> "Multiquadratic",
+    "Method" -> "AllSignSheetsAtFreshSplitPoints",
+    "Probabilistic" -> True, "Seed" -> seed,
+    "RootCount" -> prepared["RootCount"],
+    "GradeCount" -> prepared["GradeCount"],
+    "RootIndicesUsed" -> rootsUsed,
+    "RootFingerprints" -> prepared["RootFingerprints"],
+    "RootOrderingFingerprint" -> prepared["RootOrderingFingerprint"],
+    "RootRankLimit" -> rankLimit,
+    "ProducerMaximumRootRank" -> $familyRegulatorMaximumGradedRank,
+    "RegulatorRootFrameEvidenceCount" ->
+      authenticatedRootFrame["EvidenceCount"],
+    "RegulatorRootFrameEvidenceFingerprints" ->
+      authenticatedRootFrame["EvidenceFingerprints"],
+    "DenestedRadicals" -> prepared["DenestedRadicals"],
+    "AllRootSheetsChecked" -> AllTrue[trials,
+      #1["AllSheetsPerPoint"] === prepared["GradeCount"] &],
+    "Letters" -> letters, "Residues" -> reconstruction["Residues"],
+    "ResiduesVerifiedAtAllPrimes" -> (reconstruction["Verified"] &&
+      (! crtCandidateOK || Length[validationTrials] >= freshValidationPrimes)),
+    "DLogPivotColumns" -> reconstruction["PivotColumns"],
+    "DLogModalPivotSignature" -> modalPivotSignature,
+    "DLogPivotSignatureQuorum" -> pivotSignatureQuorum,
+    "DLogPivotPilotPrimeLimit" -> pivotSignaturePilotPrimes,
+    "DLogPivotPilotEvidence" -> pivotSelection["Evidence"],
+    "Primes" -> Lookup[allTrials, "Prime", {}],
+    "CRTPrimes" -> Lookup[trials, "Prime", {}],
+    "ValidationPrimes" -> Lookup[validationTrials, "Prime", {}],
+    "FreshValidationEvidence" -> validationEvidence,
+    "RejectedPrimes" -> rejected,
+    "PointsPerPrime" -> trainingPoints + validationPoints,
+    "TrainingPointsPerPrime" -> trainingPoints,
+    "ValidationPointsPerPrime" -> validationPoints,
+    "PointsDone" -> (KeyTake[#,
+        {"Prime", "TrainingPoints", "ValidationPoints", "DLogRank",
+         "AllSheetsPerPoint", "PointAttempts"}] & /@ allTrials),
+    "Trials" -> (trialEvidence /@ trials),
+    "ValidationTrials" -> (trialEvidence /@ validationTrials),
+    "FalsePositiveCollisionScale" -> falsePositiveEstimate,
+    "ErrorBoundGoodCharacteristic" ->
+      Missing["AlgebraicDegreeBoundNotExpanded"],
+    "ErrorBoundIdentities" ->
+      Missing["AlgebraicDegreeBoundNotExpanded"],
+    "ErrorBoundDLog" -> Missing["AlgebraicDegreeBoundNotExpanded"],
+    "DegreeBound" -> Missing["NotExpandedInAlgebraicVerifier"],
+    "BadCharacteristicGuard" -> "IndependentPrimesAndAllEmbeddings",
+    "Seconds" -> AbsoluteTime[] - t0,
+    "Trouble" -> <||>|>]
+];
+
+familyCertificateMultiquadratic[___] :=
+  familyCertMQFailure["MultiquadraticCertificateInputsInvalid"];

@@ -25,6 +25,10 @@ ClearAll[
   $familyRowGaugeResumeGateImages,
   familyRowGaugeSolverConfiguration,
   familyRowGaugeSolverConfigurationValidQ,
+  familyRowGaugeDirectPolicyDefaults,
+  familyRowGaugeDirectPolicyValidQ,
+  familyRowGaugeDirectAlphabetOptions,
+  familyRowGaugeDirectAlphabetOptionsValidQ,
   familyRowGaugeSolverImplementationProvenance,
   familyRowGaugeProvenanceDriverPaths,
   familyRowGaugeResumeSolverConfigurationCheck,
@@ -35,7 +39,21 @@ ClearAll[
 
 $familyRowGaugeSolverConfigurationSchema =
   "FeynFacetStripSolverConfiguration";
-(* Version 3 (generality pass 2026-08-23, B2): the implementation
+(* Version 5 binds the direct multiquadratic plan-discovery execution policy:
+   Automatic backend selection plus the native thread count.  Version 4
+   named only the driver's Wolfram replay backend even though production
+   actually requested Automatic, so hydration could silently switch a
+   native pilot to Wolfram and its fingerprint did not bind the worker count.
+
+   Version 4 adds the installed direct-multiquadratic route.  Its
+   configuration seals not merely a route name, but the coefficient
+   provider and every policy that fixes the bundle/provider/layout,
+   reconstruction and fresh-validation ABIs, plus the exact
+   AdditionalLetters/AlgebraicLetters payload derived from its authenticated
+   deferred bundle.  A version-3 checkpoint is intentionally recomputed: it
+   cannot say which of those contracts made its installed gauge admissible.
+
+   Version 3 (generality pass 2026-08-23, B2): the implementation
    provenance hashes ONLY the package's own Private sources; a driver
    passes its own identity through the "DriverProvenance" option, which is
    carried in the sealed configuration and re-verified on resume.  A
@@ -45,13 +63,108 @@ $familyRowGaugeSolverConfigurationSchema =
    recomputed rather than trusted -- the legacy branch of
    familyRowGaugeResumeSolverConfigurationCheck is reached only by
    checkpoints that have no configuration field at all. *)
-$familyRowGaugeSolverConfigurationSchemaVersion = 3;
+$familyRowGaugeSolverConfigurationSchemaVersion = 5;
 $familyRowGaugeSolverConfigurationRequiredKeys = {
   "Status", "Schema", "SchemaVersion", "Route", "CoefficientField",
   "FinalCheck", "FiniteFieldBackend", "FiniteFieldBackendThreads",
-  "PlanDiscoveryBackend", "FrameFingerprint",
+  "PlanDiscoveryBackend", "PlanDiscoveryBackendThreads",
+  "FrameFingerprint", "ProviderKind",
+  "BundleABIPolicy", "ProviderABIPolicy", "LayoutABIPolicy",
+  "ReconstructionPolicy", "FreshValidationPolicy",
+  "DirectAlphabetOptions",
   "ImplementationProvenance", "BackendImplementationProvenance",
   "Fingerprint"};
+
+(* These are solver-general contracts, not campaign tuning.  Automatic
+   resolves to this complete payload; callers may also pass the identical
+   Associations explicitly so a driver has one inspectable place to state
+   its policy.  A changed policy requires a new supported schema here -- a
+   refingerprinted ad-hoc mutation is not silently accepted. *)
+familyRowGaugeDirectPolicyDefaults[] := <|
+  "ProviderKind" -> "SplitBranch",
+  "BundleABIPolicy" -> <|
+    "Schema" -> "DirectMultiquadraticBundlePolicyV1",
+    "BundleSchema" -> "BlockEquationDeferredBundleV2",
+    "BundleABIVersion" -> "BlockEquationDeferredV1",
+    "Use" -> "ValidatedWhenPresent",
+    "Validation" -> "StrictFingerprintAndStructure"|>,
+  "ProviderABIPolicy" -> <|
+    "Schema" -> "DirectMultiquadraticProviderPolicyV1",
+    "DirectProviderSchema" -> "MultiquadraticDirectProviderV1",
+    "CompiledProviderSchema" -> "MultiquadraticCoefficientProviderV1",
+    "CoefficientABISchema" -> "MultiquadraticCoefficientABIV1",
+    "Validation" -> "ExactCoefficientABIAndFingerprint"|>,
+  "LayoutABIPolicy" -> <|
+    "Schema" -> "DirectMultiquadraticLayoutPolicyV1",
+    "LayoutSchema" -> "MultiquadraticStripAssemblyLayoutV1",
+    "CoefficientABISchema" -> "MultiquadraticCoefficientABIV1",
+    "Validation" -> "ExactLayoutFingerprint"|>,
+  "ReconstructionPolicy" -> <|
+    "Schema" -> "DirectMultiquadraticReconstructionPolicyV1",
+    "Mode" -> "AdaptiveRationalInRegulatorCRT",
+    "ExceptionalImagePolicy" -> "Replace",
+    "MaximumGoodPrimeCount" -> 32,
+    "MaximumRejectedPrimeCount" -> 64,
+    "UnseenPrimeCount" -> 2|>,
+  "FreshValidationPolicy" -> <|
+    "Schema" -> "DirectMultiquadraticFreshValidationPolicyV1",
+    "Mode" -> "ProviderPointsOrExact",
+    "MinimumUnseenPrimes" -> 2,
+    "MinimumImagesPerPrime" -> 3,
+    "RequireTrainingDisjoint" -> True|>|>;
+
+familyRowGaugeDirectPolicyValidQ[provider_, bundle_, providerABI_,
+    layoutABI_, reconstruction_, fresh_] := Module[{defaults},
+  defaults = familyRowGaugeDirectPolicyDefaults[];
+  MemberQ[{"CompiledChannel", "SplitBranch", "QuotientGrade"}, provider] &&
+    SameQ[bundle, defaults["BundleABIPolicy"]] &&
+    SameQ[providerABI, defaults["ProviderABIPolicy"]] &&
+    SameQ[layoutABI, defaults["LayoutABIPolicy"]] &&
+    SameQ[reconstruction, defaults["ReconstructionPolicy"]] &&
+    SameQ[fresh, defaults["FreshValidationPolicy"]]
+];
+familyRowGaugeDirectPolicyValidQ[___] := False;
+
+(* The direct route's materialized BBar is deliberately a zero-shape
+   placeholder.  Its rational factors, Galois-orbit norms and algebraic
+   factors therefore have to be recovered from the authenticated deferred
+   bundle, not from BBar.  Keep that derivation in one package helper so the
+   production dispatch and resume replay bind byte-for-byte identical option
+   payloads. *)
+familyRowGaugeDirectAlphabetOptionsValidQ[payload_] :=
+  AssociationQ[payload] &&
+    Sort[Keys[payload]] ===
+      Sort[{"AdditionalLetters", "AlgebraicLetters"}] &&
+    ListQ[payload["AdditionalLetters"]] &&
+    (payload["AlgebraicLetters"] === Automatic ||
+      ListQ[payload["AlgebraicLetters"]]) &&
+    FreeQ[payload, Alternatives[_Missing, $Failed]];
+familyRowGaugeDirectAlphabetOptionsValidQ[___] := False;
+
+familyRowGaugeDirectAlphabetOptions[] := <|
+  "AdditionalLetters" -> {}, "AlgebraicLetters" -> Automatic|>;
+familyRowGaugeDirectAlphabetOptions[bundle_Association] := Module[
+  {summary, factors, orbits, rational, algebraic, payload},
+  summary = Lookup[bundle, "DivisorSummary", Missing["NoDivisorSummary"]];
+  If[! AssociationQ[summary], Return[$Failed]];
+  factors = Lookup[summary, "Factors", Missing["NoFactors"]];
+  orbits = Lookup[summary, "GaloisOrbits", Missing["NoGaloisOrbits"]];
+  If[! MatchQ[factors, {___Association}] ||
+      ! MatchQ[orbits, {___Association}],
+    Return[$Failed]];
+  algebraic = Lookup[Select[factors,
+    TrueQ[Lookup[#1, "Algebraic", False]] &], "Factor",
+    Missing["FactorMissing"]];
+  rational = DeleteDuplicates[Join[
+    Lookup[Select[factors,
+      ! TrueQ[Lookup[#1, "Algebraic", False]] &], "Factor",
+      Missing["FactorMissing"]],
+    Lookup[orbits, "Norm", Missing["NormMissing"]]]];
+  payload = <|"AdditionalLetters" -> rational,
+    "AlgebraicLetters" -> If[algebraic === {}, Automatic, algebraic]|>;
+  If[familyRowGaugeDirectAlphabetOptionsValidQ[payload], payload, $Failed]
+];
+familyRowGaugeDirectAlphabetOptions[___] := $Failed;
 
 Options[familyRowGaugeSolverImplementationProvenance] = {
   (* <|name -> absolute path|> of the files that make up the CALLING
@@ -92,6 +205,19 @@ familyRowGaugeSolverImplementationProvenance[route_String,
         {$feynFacetPrivateDirectory, "FiniteFieldStripSolve.wl"}],
       "TransportCharts.wl" -> FileNameJoin[
         {$feynFacetPrivateDirectory, "TransportCharts.wl"}]|>],
+    "DirectMultiquadraticFiniteField", Join[common, <|
+      "MultiquadraticStripSolve.wl" -> FileNameJoin[
+        {$feynFacetPrivateDirectory, "MultiquadraticStripSolve.wl"}],
+      "MultiquadraticAlgebra.wl" -> FileNameJoin[
+        {$feynFacetPrivateDirectory, "MultiquadraticAlgebra.wl"}],
+      "MultiquadraticInstallation.wl" -> FileNameJoin[
+        {$feynFacetPrivateDirectory, "MultiquadraticInstallation.wl"}],
+      "BlockEquationDeferred.wl" -> FileNameJoin[
+        {$feynFacetPrivateDirectory, "BlockEquationDeferred.wl"}],
+      "FiniteFieldStripSolve.wl" -> FileNameJoin[
+        {$feynFacetPrivateDirectory, "FiniteFieldStripSolve.wl"}],
+      "TransportCharts.wl" -> FileNameJoin[
+        {$feynFacetPrivateDirectory, "TransportCharts.wl"}]|>],
     _, Return[$Failed]];
   If[! AllTrue[Values[files], FileExistsQ], Return[$Failed]];
   hashes = Association@KeyValueMap[#1 ->
@@ -113,6 +239,18 @@ familyRowGaugeSolverImplementationProvenance[route_String,
       "RootOrderingABIVersion" -> 1,
       "EliminationPlanSchemaVersion" -> 1,
       "PlanDiscoveryBackendProtocol" -> "WolframV1",
+      "FixedCoreBackendProtocol" -> "CFFA4V1OrWolfram"|>,
+    "DirectMultiquadraticFiniteField", <|
+      "Solver" -> "SolveEpsFormStripInFrame/DirectMultiquadratic",
+      "SolverABIVersion" -> 1, "MaterializerABIVersion" -> 1,
+      "RootOrderingABIVersion" -> 1,
+      "BundleSchema" -> "BlockEquationDeferredBundleV2",
+      "CoefficientABISchema" -> "MultiquadraticCoefficientABIV1",
+      "LayoutSchema" -> "MultiquadraticStripAssemblyLayoutV1",
+      "ReconstructionSchema" -> "ReconstructedRegulatorDependenceV1",
+      "InstallationSchema" -> "InstallableMultiquadraticDLogV1",
+      "PlanDiscoveryBackendProtocol" ->
+        "AutomaticFLINTAffineRREFOrWolframV1",
       "FixedCoreBackendProtocol" -> "CFFA4V1OrWolfram"|>];
   Join[base, <|"SourceSHA256" -> hashes,
     "DriverProvenance" -> driverHashes|>]
@@ -132,36 +270,105 @@ familyRowGaugeProvenanceDriverPaths[provenance_] := Module[{driver},
   Association @ KeyValueMap[#1 -> #2["Path"] &, driver]
 ];
 
-Options[familyRowGaugeSolverConfiguration] =
-  Options[familyRowGaugeSolverImplementationProvenance];
+Options[familyRowGaugeSolverConfiguration] = Join[
+  Options[familyRowGaugeSolverImplementationProvenance], {
+    "ProviderKind" -> Automatic,
+    "BundleABIPolicy" -> Automatic,
+    "ProviderABIPolicy" -> Automatic,
+    "LayoutABIPolicy" -> Automatic,
+    "ReconstructionPolicy" -> Automatic,
+    "FreshValidationPolicy" -> Automatic,
+    "PlanDiscoveryBackendThreads" -> Automatic,
+    "DirectAlphabetOptions" -> Automatic}];
 
 familyRowGaugeSolverConfiguration[route_String,
     coefficientField_String, frame_Association, finalCheck_, backend_,
     backendThreads_, planDiscoveryBackend_, OptionsPattern[]] := Module[
-  {frameFingerprint, provenance, backendProvenance, payload},
+  {frameFingerprint, provenance, backendProvenance, payload, defaults,
+   providerKind, bundlePolicy, providerPolicy, layoutPolicy,
+   reconstructionPolicy, freshValidationPolicy, directAlphabetOptions,
+   directQ, planDiscoveryBackendThreads},
+  directQ = route === "DirectMultiquadraticFiniteField";
+  planDiscoveryBackendThreads = If[directQ,
+    Replace[OptionValue["PlanDiscoveryBackendThreads"],
+      Automatic :> backendThreads],
+    Replace[OptionValue["PlanDiscoveryBackendThreads"], Automatic -> None]];
   If[! MemberQ[{"ZeroForcing", "DirectRationalFiniteField",
-        "RationalChartFiniteField"}, route] ||
+        "RationalChartFiniteField", "DirectMultiquadraticFiniteField"},
+        route] ||
       ! MemberQ[{"Rational", "Multiquadratic"}, coefficientField] ||
       ! MemberQ[{None, "Numerical", "Exact"}, finalCheck] ||
       ! MemberQ[{None, Automatic, "Wolfram", "FLINT"}, backend] ||
       ! (backendThreads === None ||
         IntegerQ[backendThreads] && Between[backendThreads, {1, 4}]) ||
-      ! MemberQ[{None, "Wolfram"}, planDiscoveryBackend],
+      ! MemberQ[{None, Automatic, "Wolfram"}, planDiscoveryBackend] ||
+      ! (planDiscoveryBackendThreads === None ||
+        IntegerQ[planDiscoveryBackendThreads] &&
+          Between[planDiscoveryBackendThreads, {1, 8}]),
     Return[<|"Status" -> "InvalidSolverConfigurationArguments"|>]];
   If[(route === "DirectRationalFiniteField" &&
         coefficientField =!= "Rational") ||
       (route === "RationalChartFiniteField" &&
         coefficientField =!= "Multiquadratic") ||
+      (route === "DirectMultiquadraticFiniteField" &&
+        coefficientField =!= "Multiquadratic") ||
       (route === "ZeroForcing" &&
         ! SameQ[{finalCheck, backend, backendThreads,
-          planDiscoveryBackend}, {None, None, None, None}]) ||
-      (route =!= "ZeroForcing" &&
+          planDiscoveryBackend, planDiscoveryBackendThreads},
+          {None, None, None, None, None}]) ||
+      (directQ &&
         (! MemberQ[{"Numerical", "Exact"}, finalCheck] ||
           ! MemberQ[{Automatic, "Wolfram", "FLINT"}, backend] ||
           ! IntegerQ[backendThreads] ||
-          planDiscoveryBackend =!= "Wolfram")),
+          planDiscoveryBackend =!= Automatic ||
+          ! IntegerQ[planDiscoveryBackendThreads] ||
+          ! Between[planDiscoveryBackendThreads, {1, 8}])) ||
+      (! directQ && route =!= "ZeroForcing" &&
+        (! MemberQ[{"Numerical", "Exact"}, finalCheck] ||
+          ! MemberQ[{Automatic, "Wolfram", "FLINT"}, backend] ||
+          ! IntegerQ[backendThreads] ||
+          planDiscoveryBackend =!= "Wolfram" ||
+          planDiscoveryBackendThreads =!= None)),
     Return[<|"Status" ->
       "InconsistentSolverConfigurationRoute"|>]];
+  defaults = familyRowGaugeDirectPolicyDefaults[];
+  providerKind = If[directQ,
+    Replace[OptionValue["ProviderKind"],
+      Automatic :> defaults["ProviderKind"]], None];
+  bundlePolicy = If[directQ,
+    Replace[OptionValue["BundleABIPolicy"],
+      Automatic :> defaults["BundleABIPolicy"]], None];
+  providerPolicy = If[directQ,
+    Replace[OptionValue["ProviderABIPolicy"],
+      Automatic :> defaults["ProviderABIPolicy"]], None];
+  layoutPolicy = If[directQ,
+    Replace[OptionValue["LayoutABIPolicy"],
+      Automatic :> defaults["LayoutABIPolicy"]], None];
+  reconstructionPolicy = If[directQ,
+    Replace[OptionValue["ReconstructionPolicy"],
+      Automatic :> defaults["ReconstructionPolicy"]], None];
+  freshValidationPolicy = If[directQ,
+    Replace[OptionValue["FreshValidationPolicy"],
+      Automatic :> defaults["FreshValidationPolicy"]], None];
+  directAlphabetOptions = If[directQ,
+    Replace[OptionValue["DirectAlphabetOptions"],
+      Automatic :> familyRowGaugeDirectAlphabetOptions[]], None];
+  If[directQ && ! familyRowGaugeDirectPolicyValidQ[providerKind,
+      bundlePolicy, providerPolicy, layoutPolicy, reconstructionPolicy,
+      freshValidationPolicy],
+    Return[<|"Status" -> "InvalidDirectMultiquadraticPolicy"|>]];
+  If[directQ && ! familyRowGaugeDirectAlphabetOptionsValidQ[
+      directAlphabetOptions],
+    Return[<|"Status" ->
+      "InvalidDirectMultiquadraticAlphabetOptions"|>]];
+  If[! directQ && ! SameQ[
+      {OptionValue["ProviderKind"], OptionValue["BundleABIPolicy"],
+       OptionValue["ProviderABIPolicy"], OptionValue["LayoutABIPolicy"],
+       OptionValue["ReconstructionPolicy"],
+       OptionValue["FreshValidationPolicy"],
+       OptionValue["DirectAlphabetOptions"]},
+      ConstantArray[Automatic, 7]],
+    Return[<|"Status" -> "DirectPolicyOnNonDirectRoute"|>]];
   frameFingerprint = If[coefficientField === "Multiquadratic",
     Hash[KeySort[KeyTake[frame,
       {"Name", "CoefficientField", "Variables", "Subst", "Roots",
@@ -185,7 +392,15 @@ familyRowGaugeSolverConfiguration[route_String,
     "FinalCheck" -> finalCheck, "FiniteFieldBackend" -> backend,
     "FiniteFieldBackendThreads" -> backendThreads,
     "PlanDiscoveryBackend" -> planDiscoveryBackend,
+    "PlanDiscoveryBackendThreads" -> planDiscoveryBackendThreads,
     "FrameFingerprint" -> frameFingerprint,
+    "ProviderKind" -> providerKind,
+    "BundleABIPolicy" -> bundlePolicy,
+    "ProviderABIPolicy" -> providerPolicy,
+    "LayoutABIPolicy" -> layoutPolicy,
+    "ReconstructionPolicy" -> reconstructionPolicy,
+    "FreshValidationPolicy" -> freshValidationPolicy,
+    "DirectAlphabetOptions" -> directAlphabetOptions,
     "ImplementationProvenance" -> provenance,
     "BackendImplementationProvenance" -> backendProvenance|>;
   Join[payload, <|"Fingerprint" -> Hash[KeySort[payload],
@@ -196,7 +411,9 @@ familyRowGaugeSolverConfiguration[___] :=
 
 familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
   {route, field, expectedProvenance, expectedBackendProvenance,
-   expectedPlanDiscoveryBackend, fingerprint, driverPaths},
+   expectedPlanDiscoveryBackend, expectedPlanDiscoveryBackendThreads,
+   fingerprint, driverPaths, directQ,
+   directFields, directAlphabetOptions},
   If[! AssociationQ[configuration] ||
       Sort[Keys[configuration]] =!=
         Sort[$familyRowGaugeSolverConfigurationRequiredKeys] ||
@@ -208,6 +425,7 @@ familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
     Return[False]];
   {route, field} = Lookup[configuration,
     {"Route", "CoefficientField"}, None];
+  directQ = route === "DirectMultiquadraticFiniteField";
   (* the driver files the record names are re-hashed from their recorded
      paths: a changed (or vanished) driver source makes the expected
      provenance differ from the sealed one, and the checkpoint is
@@ -223,8 +441,16 @@ familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
     finiteFieldStripBackendConfiguration[
       Lookup[configuration, "FiniteFieldBackend", None],
       Lookup[configuration, "FiniteFieldBackendThreads", None]]];
-  expectedPlanDiscoveryBackend = If[route === "ZeroForcing", None,
-    "Wolfram"];
+  expectedPlanDiscoveryBackend = Which[route === "ZeroForcing", None,
+    directQ, Automatic, True, "Wolfram"];
+  expectedPlanDiscoveryBackendThreads = If[directQ,
+    Lookup[configuration, "PlanDiscoveryBackendThreads", Missing[]], None];
+  directFields = Lookup[configuration,
+    {"ProviderKind", "BundleABIPolicy", "ProviderABIPolicy",
+      "LayoutABIPolicy", "ReconstructionPolicy",
+      "FreshValidationPolicy"}, Missing["DirectPolicyMissing"]];
+  directAlphabetOptions = Lookup[configuration, "DirectAlphabetOptions",
+    Missing["DirectAlphabetOptionsMissing"]];
   If[! SameQ[Lookup[configuration, "ImplementationProvenance", None],
       expectedProvenance] ||
       ! SameQ[Lookup[configuration,
@@ -232,10 +458,22 @@ familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
         expectedBackendProvenance] ||
       Lookup[configuration, "PlanDiscoveryBackend", Missing[]] =!=
         expectedPlanDiscoveryBackend ||
+      Lookup[configuration, "PlanDiscoveryBackendThreads", Missing[]] =!=
+        expectedPlanDiscoveryBackendThreads ||
       ! MemberQ[{"Rational", "Multiquadratic"}, field] ||
       (route === "DirectRationalFiniteField" && field =!= "Rational") ||
       (route === "RationalChartFiniteField" &&
         field =!= "Multiquadratic") ||
+      (directQ && field =!= "Multiquadratic") ||
+      (directQ && ! familyRowGaugeDirectPolicyValidQ[
+        Sequence @@ directFields]) ||
+      (directQ && ! familyRowGaugeDirectAlphabetOptionsValidQ[
+        directAlphabetOptions]) ||
+      (directQ &&
+        (! IntegerQ[expectedPlanDiscoveryBackendThreads] ||
+          ! Between[expectedPlanDiscoveryBackendThreads, {1, 8}])) ||
+      (! directQ && directFields =!= ConstantArray[None, 6]) ||
+      (! directQ && directAlphabetOptions =!= None) ||
       (field === "Rational" &&
         Lookup[configuration, "FrameFingerprint", Missing[]] =!= None) ||
       (field === "Multiquadratic" &&
@@ -244,8 +482,9 @@ familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
       (route === "ZeroForcing" &&
         ! SameQ[Lookup[configuration,
           {"FinalCheck", "FiniteFieldBackend",
-            "FiniteFieldBackendThreads", "PlanDiscoveryBackend"},
-          Missing[]], {None, None, None, None}]) ||
+            "FiniteFieldBackendThreads", "PlanDiscoveryBackend",
+            "PlanDiscoveryBackendThreads"},
+          Missing[]], {None, None, None, None, None}]) ||
       (route =!= "ZeroForcing" &&
         (! MemberQ[{"Numerical", "Exact"},
             Lookup[configuration, "FinalCheck", None]] ||
@@ -393,10 +632,49 @@ familyRowGaugeResumeHashDirectory[directory_] := If[DirectoryQ[directory],
 familyRowGaugeResumeZeroQ[value_] :=
   AllTrue[Flatten[value], SameQ[#, 0] &];
 
-familyRowGaugeResumeFrameCertificateQ[solution_Association] := Module[
-  {method = Lookup[solution, "Method", None], certificate},
+familyRowGaugeResumeFrameCertificateQ[solution_Association,
+    freshPolicy_ : Automatic] := Module[
+  {method = Lookup[solution, "Method", None], certificate, policy,
+   installation, solutionCertificate, fingerprintQ},
   If[method === "ZeroForcing",
     Return[TrueQ[Lookup[solution, "ExactDLog", False]]]];
+  policy = Replace[freshPolicy, Automatic :>
+    familyRowGaugeDirectPolicyDefaults[]["FreshValidationPolicy"]];
+  fingerprintQ[value_] := StringQ[value] && StringLength[value] === 64;
+  If[method === "DirectMultiquadraticFiniteField",
+    installation = Lookup[solution, "InstallationEvidence", <||>];
+    solutionCertificate = Lookup[solution, "Certificate", None];
+    Return[AssociationQ[installation] &&
+      Lookup[solution, "SolutionContract", None] ===
+        "InstallableMultiquadraticDLogV1" &&
+      MatchQ[Lookup[solution, "RootIndices", None], {__Integer}] &&
+      MemberQ[{"CompiledChannel", "SplitBranch", "QuotientGrade"},
+        Lookup[solution, "Provider", None]] &&
+      fingerprintQ[Lookup[solution, "ProviderFingerprint", None]] &&
+      fingerprintQ[Lookup[solution, "LayoutFingerprint", None]] &&
+      fingerprintQ[Lookup[solution,
+        "ReconstructedVectorFingerprint", None]] &&
+      TrueQ[Lookup[solution, "OneFormsCertified", False]] &&
+      TrueQ[Lookup[solution, "LettersEpsFree", False]] &&
+      TrueQ[Lookup[solution, "ResiduesKinematicsFree", False]] &&
+      Lookup[installation, "Status", None] ===
+        "InstallationEvidenceAccepted" &&
+      Lookup[installation, "Certificate", None] === solutionCertificate &&
+      Which[
+        solutionCertificate === "ExactResidual",
+          TrueQ[Lookup[solution, "ExactDLog", False]] &&
+            TrueQ[Lookup[installation, "Exact", False]],
+        solutionCertificate === "NumericalResidual",
+          AssociationQ[policy] &&
+            Lookup[policy, "Schema", None] ===
+              "DirectMultiquadraticFreshValidationPolicyV1" &&
+            TrueQ[Lookup[policy, "RequireTrainingDisjoint", False]] &&
+            Lookup[installation, "ValidationPrimeCount", 0] >=
+              Lookup[policy, "MinimumUnseenPrimes", Infinity] &&
+            Lookup[installation, "ValidationImageCount", 0] >=
+              Lookup[policy, "MinimumUnseenPrimes", Infinity] *
+                Lookup[policy, "MinimumImagesPerPrime", Infinity],
+        True, False]]];
   certificate = Lookup[solution, "FrameCertificate", <||>];
   If[! AssociationQ[certificate] || ! StringQ[method], Return[False]];
   Which[
@@ -412,7 +690,7 @@ familyRowGaugeResumeFrameCertificateQ[solution_Association] := Module[
            "TransformedOneFormPullBack", "SourceDLog", "Exact"}),
     True, False]
 ];
-familyRowGaugeResumeFrameCertificateQ[_] := False;
+familyRowGaugeResumeFrameCertificateQ[___] := False;
 
 (* Source-identical semantics to the sector driver's blockEquation. *)
 familyRowGaugeResumeBlockEquation[connection_List, sector_Integer,
@@ -785,7 +1063,24 @@ Options[familyRowGaugeHydrateResume] = {
   "FiniteFieldBackend" -> Automatic,
   "FiniteFieldBackendThreads" -> 2,
   "PlanDiscoveryBackend" -> "Wolfram",
+  (* Direct MQ uses a native threaded RREF under Automatic selection.  Keep
+     this independent of KernelCount; Automatic preserves the historical
+     helper API by inheriting KernelCount. *)
+  "PlanDiscoveryBackendThreads" -> Automatic,
+  (* Performance-only follower concurrency; mathematical admission is
+     fingerprint/residual checked and is independent of this value. *)
+  "MultiquadraticImageKernelCount" -> Automatic,
   "MinimumCachedPrimeCount" -> 3,
+  (* Installed direct-multiquadratic replay policy.  Automatic resolves to
+     the solver-general ABI payload returned by
+     familyRowGaugeDirectPolicyDefaults[]; the same resolved fields are
+     sealed in every strip summary and threaded into replay. *)
+  "ProviderKind" -> Automatic,
+  "BundleABIPolicy" -> Automatic,
+  "ProviderABIPolicy" -> Automatic,
+  "LayoutABIPolicy" -> Automatic,
+  "ReconstructionPolicy" -> Automatic,
+  "FreshValidationPolicy" -> Automatic,
   (* the calling driver's own identity, threaded into the sealed solver
      configuration (generality pass 2026-08-23, B2) *)
   "DriverProvenance" -> <||>,
@@ -834,7 +1129,18 @@ familyRowGaugeHydrateResume[
    finiteFieldBackend = OptionValue["FiniteFieldBackend"],
    finiteFieldBackendThreads = OptionValue["FiniteFieldBackendThreads"],
    planDiscoveryBackend = OptionValue["PlanDiscoveryBackend"],
+   planDiscoveryBackendThreads = Replace[
+     OptionValue["PlanDiscoveryBackendThreads"],
+     Automatic :> OptionValue["KernelCount"]],
+   multiquadraticImageKernelCount =
+     OptionValue["MultiquadraticImageKernelCount"],
    driverProvenance = OptionValue["DriverProvenance"],
+   providerKindOption = OptionValue["ProviderKind"],
+   bundlePolicyOption = OptionValue["BundleABIPolicy"],
+   providerPolicyOption = OptionValue["ProviderABIPolicy"],
+   layoutPolicyOption = OptionValue["LayoutABIPolicy"],
+   reconstructionPolicyOption = OptionValue["ReconstructionPolicy"],
+   freshValidationPolicyOption = OptionValue["FreshValidationPolicy"],
    minimumCached = OptionValue["MinimumCachedPrimeCount"],
    resumeGate = Replace[OptionValue["ResumeGate"],
      Automatic -> "ModularThenExact"],
@@ -875,6 +1181,11 @@ familyRowGaugeHydrateResume[
       ! IntegerQ[finiteFieldBackendThreads] ||
       ! Between[finiteFieldBackendThreads, {1, 4}] ||
       planDiscoveryBackend =!= "Wolfram" ||
+      ! IntegerQ[planDiscoveryBackendThreads] ||
+      ! Between[planDiscoveryBackendThreads, {1, 8}] ||
+      ! (multiquadraticImageKernelCount === Automatic ||
+        IntegerQ[multiquadraticImageKernelCount] &&
+          Between[multiquadraticImageKernelCount, {1, 8}]) ||
       ! IntegerQ[minimumCached] || minimumCached < 1 ||
       ! MatchQ[ranges, {{__Integer} ..}] ||
       ! MatchQ[Dimensions[currentConnection], {2, _Integer, _Integer}] ||
@@ -986,6 +1297,9 @@ familyRowGaugeHydrateResume[
         beforeHashes, afterHashes, gateVerdict, exactRecheckQ,
         seconds, solution, gauge, frameQ, solvedForm, existingForm,
         replayAction, extraLetters, directRecord, replayRoute,
+        multiquadraticReplayOptions, directReplayIdentityQ,
+        deferredBundle, directDeferredQ = False, directAlphabetOptions,
+        inputSealHash,
         sealFile, seal, sealVerdict,
         stripStarted = AbsoluteTime[], stripClock = AbsoluteTime[],
         stripPhase, stripPhases = <||>},
@@ -1043,6 +1357,46 @@ familyRowGaugeHydrateResume[
           ! MatchQ[Lookup[input, "Strip", None], {_List, _List, _List}],
         Throw[<|"Status" -> "ResumeHydrationInputIdentityMismatch",
           "LowerSector" -> lowerSector|>, tag]];
+      summary = SelectFirst[stripSolvers,
+        Lookup[#, "Sector", None] === sector &&
+          Lookup[#, "LowerSector", None] === lowerSector &,
+        Missing["NoStripSolverSummary"]];
+      If[MissingQ[summary],
+        Throw[<|"Status" -> "ResumeHydrationSummaryMissing",
+          "LowerSector" -> lowerSector|>, tag]];
+      summaryMethod = Lookup[summary, "Method", None];
+      (* Legacy summaries predate ExtraLetters.  A malformed value is never
+         allowed to alter the replay ansatz. *)
+      extraLetters = Lookup[summary, "ExtraLetters", {}];
+      If[! ListQ[extraLetters],
+        Throw[<|"Status" -> "ResumeHydrationSummaryExtraLettersInvalid",
+          "LowerSector" -> lowerSector|>, tag]];
+      deferredBundle = Lookup[input, "DeferredBundle",
+        Missing["NoDeferredBundle"]];
+      If[AssociationQ[deferredBundle] &&
+          Lookup[blockEquationDeferredBundleValidate[deferredBundle],
+            "Status", None] =!= "BundleValid",
+        Throw[<|"Status" -> "ResumeDeferredBundleInvalid",
+          "LowerSector" -> lowerSector|>, tag]];
+      directDeferredQ = summaryMethod ===
+          "DirectMultiquadraticFiniteField" &&
+        AssociationQ[deferredBundle];
+      If[summaryMethod === "DirectMultiquadraticFiniteField" &&
+          ! directDeferredQ,
+        Throw[<|"Status" -> "ResumeDirectDeferredBundleMissing",
+          "LowerSector" -> lowerSector|>, tag]];
+      If[AssociationQ[deferredBundle] && ! directDeferredQ,
+        Throw[<|"Status" -> "ResumeDeferredBundleRouteMismatch",
+          "LowerSector" -> lowerSector,
+          "SummaryMethod" -> summaryMethod|>, tag]];
+      directAlphabetOptions = If[directDeferredQ,
+        familyRowGaugeDirectAlphabetOptions[deferredBundle], Automatic];
+      If[directDeferredQ && directAlphabetOptions === $Failed,
+        Throw[<|"Status" -> "ResumeDirectAlphabetOptionsInvalid",
+          "LowerSector" -> lowerSector|>, tag]];
+      inputSealHash = Hash[If[AssociationQ[deferredBundle],
+        {input["Strip"], deferredBundle["BundleFingerprint"]},
+        input["Strip"]], "SHA256", "HexString"];
       stripPhase["InputRead",
         <|"Bytes" -> FileByteCount[copiedInput],
           "StripLeafCount" -> If[verbose, LeafCount[input["Strip"]],
@@ -1070,17 +1424,26 @@ familyRowGaugeHydrateResume[
          record, decides before any field of it is believed *)
       sealVerdict = familyRowGaugeStripInputSealVerdict[seal, family, sector,
         lowerSector, nk, currentConnectionHash, solvedBlocks,
-        Hash[input["Strip"], "SHA256", "HexString"]];
+        inputSealHash];
       stripPhase["SealCheck", <|"Verdict" -> sealVerdict|>];
       (* STEP 3: two independent held-out modular images of the SAME
          relation the exact reconstruction below checks.  Cheap: every
          operation is arithmetic in F_p at one point and the connection
          is never normalized. *)
-      gateVerdict = If[resumeGate === "Exact",
-        <|"Status" -> "ResumeModularGateNotRun"|>,
-        familyRowGaugeResumeModularGate[input["Strip"], currentConnection,
-          sector, lowerSector, solvedBlocks, ranges, variables, epsilon,
-          resumeGateImages, resumeGateImageCount]];
+      If[directDeferredQ && sealVerdict =!= "SealAuthenticated",
+        Throw[<|"Status" -> "ResumeDirectDeferredBundleSealRequired",
+          "LowerSector" -> lowerSector, "SealVerdict" -> sealVerdict|>, tag]];
+      gateVerdict = Which[
+        directDeferredQ,
+          <|"Status" -> "ResumeDeferredBundleGateAuthenticated",
+            "BundleFingerprint" -> deferredBundle["BundleFingerprint"],
+            "ImageCount" -> 0|>,
+        resumeGate === "Exact",
+          <|"Status" -> "ResumeModularGateNotRun"|>,
+        True,
+          familyRowGaugeResumeModularGate[input["Strip"], currentConnection,
+            sector, lowerSector, solvedBlocks, ranges, variables, epsilon,
+            resumeGateImages, resumeGateImageCount]];
       stripPhase["ModularGate",
         <|"Verdict" -> Lookup[gateVerdict, "Status", None],
           "Images" -> Lookup[gateVerdict, "ImageCount", 0]|>];
@@ -1099,9 +1462,10 @@ familyRowGaugeHydrateResume[
          never in an adversarial audit.  In every other case the
          whole-matrix symbolic identity runs exactly as it did before,
          and the SameQ below decides exactly as at HEAD. *)
-      exactRecheckQ = adversarialAudit || resumeGate =!= "Modular" ||
-        sealVerdict =!= "SealAuthenticated" ||
-        Lookup[gateVerdict, "Status", None] =!= "ResumeModularGateAccepted";
+      exactRecheckQ = ! directDeferredQ && (adversarialAudit ||
+        resumeGate =!= "Modular" || sealVerdict =!= "SealAuthenticated" ||
+        Lookup[gateVerdict, "Status", None] =!=
+          "ResumeModularGateAccepted");
       If[exactRecheckQ,
         expectedStrip = familyRowGaugeResumeBlockEquation[
           currentConnection, sector, lowerSector, solvedBlocks, ranges,
@@ -1119,29 +1483,26 @@ familyRowGaugeHydrateResume[
       expectedGauge = Lookup[solvedBlocks, lowerSector,
         Missing["MissingCheckpointGauge"]];
       dimensions = Dimensions[expectedGauge];
-      summary = SelectFirst[stripSolvers,
-        Lookup[#, "Sector", None] === sector &&
-          Lookup[#, "LowerSector", None] === lowerSector &,
-        Missing["NoStripSolverSummary"]];
-      If[MissingQ[summary],
-        Throw[<|"Status" -> "ResumeHydrationSummaryMissing",
-          "LowerSector" -> lowerSector|>, tag]];
-      (* Legacy summaries predate this field.  Their ordinary ansatz is {},
-         while an obstruction-widened legacy cache will not match and the
-         replay fails closed to sparse propagation in the sector driver. *)
-      extraLetters = Lookup[summary, "ExtraLetters", {}];
-      If[! ListQ[extraLetters],
-        Throw[<|"Status" -> "ResumeHydrationSummaryExtraLettersInvalid",
-          "LowerSector" -> lowerSector|>, tag]];
       zeroQ = familyRowGaugeResumeZeroQ[input["Strip"][[3]]];
-      summaryMethod = Lookup[summary, "Method", None];
       solverRoute = Which[
         summaryMethod === "ZeroForcing" && zeroQ, "ZeroForcing",
         summaryMethod === "ZeroForcing",
           Throw[<|"Status" -> "ResumeZeroForcingInputMismatch",
             "LowerSector" -> lowerSector|>, tag],
+        summaryMethod === "DirectMultiquadraticFiniteField" &&
+            ! algebraicFrameQ,
+          Throw[<|"Status" ->
+            "ResumeDirectMultiquadraticCoefficientFieldMismatch",
+            "LowerSector" -> lowerSector|>, tag],
+        summaryMethod === "DirectMultiquadraticFiniteField",
+          "DirectMultiquadraticFiniteField",
         algebraicFrameQ, "RationalChartFiniteField",
         True, "DirectRationalFiniteField"];
+      replayRoute = Switch[solverRoute,
+        "DirectMultiquadraticFiniteField", "DirectMultiquadratic",
+        "RationalChartFiniteField", "InFrame",
+        "ZeroForcing", If[algebraicFrameQ, "InFrame", "DirectFiniteField"],
+        _, "DirectFiniteField"];
       expectedSolverConfiguration = familyRowGaugeSolverConfiguration[
         solverRoute, coefficientField, frame,
         If[solverRoute === "ZeroForcing", None, finalCheck],
@@ -1149,8 +1510,19 @@ familyRowGaugeHydrateResume[
         If[solverRoute === "ZeroForcing", None,
           finiteFieldBackendThreads],
         If[solverRoute === "ZeroForcing", None,
-          planDiscoveryBackend],
-        "DriverProvenance" -> driverProvenance];
+          If[solverRoute === "DirectMultiquadraticFiniteField",
+            Automatic, planDiscoveryBackend]],
+        "PlanDiscoveryBackendThreads" -> If[
+          solverRoute === "DirectMultiquadraticFiniteField",
+          planDiscoveryBackendThreads, Automatic],
+        "DriverProvenance" -> driverProvenance,
+        "ProviderKind" -> providerKindOption,
+        "BundleABIPolicy" -> bundlePolicyOption,
+        "ProviderABIPolicy" -> providerPolicyOption,
+        "LayoutABIPolicy" -> layoutPolicyOption,
+        "ReconstructionPolicy" -> reconstructionPolicyOption,
+        "FreshValidationPolicy" -> freshValidationPolicyOption,
+        "DirectAlphabetOptions" -> directAlphabetOptions];
       solverConfigurationCheck =
         familyRowGaugeResumeSolverConfigurationCheck[
           summary, expectedSolverConfiguration];
@@ -1164,7 +1536,8 @@ familyRowGaugeHydrateResume[
             "Fingerprint", None]|>, tag]];
       artifactCount = If[DirectoryQ[sourceArtifacts],
         Length[FileNames[stripTag <> "_mod_*.wl", sourceArtifacts]], 0];
-      If[solverRoute =!= "ZeroForcing" && artifactCount < minimumCached,
+      If[! MemberQ[{"ZeroForcing", "DirectMultiquadraticFiniteField"},
+          solverRoute] && artifactCount < minimumCached,
         Throw[<|"Status" -> "ResumeHydrationArtifactsInsufficient",
           "LowerSector" -> lowerSector, "Count" -> artifactCount|>, tag]];
       If[DirectoryQ[sourceArtifacts],
@@ -1176,6 +1549,38 @@ familyRowGaugeHydrateResume[
         " (identity checks took ",
         Round[AbsoluteTime[] - stripStarted, 0.1], " s)"]];
       directRecord = Join[input, <|"ExtraLetters" -> extraLetters|>];
+      multiquadraticReplayOptions =
+        If[solverRoute === "DirectMultiquadraticFiniteField",
+          Join[{"DeferredBundle" -> deferredBundle,
+            "CoefficientProvider" ->
+              expectedSolverConfiguration["ProviderKind"],
+            "PlanDiscoveryBackend" ->
+              expectedSolverConfiguration["PlanDiscoveryBackend"],
+            "PlanDiscoveryBackendThreads" ->
+              expectedSolverConfiguration["PlanDiscoveryBackendThreads"],
+            "RegulatorReconstructionImageKernelCount" ->
+              multiquadraticImageKernelCount,
+            (* The authenticated bundle is the real forcing; BBar is only a
+               zero-shape placeholder.  Replay the same pre-solve screens as
+               production so no placeholder-only gate can replace it. *)
+            "IntegrabilityScreen" -> False,
+            "ScreenFirst" -> False, "GaugeScreen" -> False,
+            "RegulatorReconstruction" -> True,
+            "ReconstructionMaximumGoodPrimeCount" -> Lookup[
+              expectedSolverConfiguration["ReconstructionPolicy"],
+              "MaximumGoodPrimeCount", 32],
+            "ReconstructionMaximumRejectedPrimeCount" -> Lookup[
+              expectedSolverConfiguration["ReconstructionPolicy"],
+              "MaximumRejectedPrimeCount", 64],
+            "ReconstructionUnseenPrimeCount" -> Lookup[
+              expectedSolverConfiguration["ReconstructionPolicy"],
+              "UnseenPrimeCount", 2],
+            "ReconstructionFreshPointwiseChecksPerPrime" -> Lookup[
+              expectedSolverConfiguration["FreshValidationPolicy"],
+              "MinimumImagesPerPrime", 3],
+            "RegulatorReconstructionCheck" -> "ProviderPoints"},
+            Normal[expectedSolverConfiguration[
+              "DirectAlphabetOptions"]]], {}];
       {seconds, solution} = AbsoluteTiming[Which[
         solverRoute === "ZeroForcing",
           <|"Status" -> "Solved", "Method" -> "ZeroForcing",
@@ -1192,6 +1597,7 @@ familyRowGaugeHydrateResume[
               "BackendThreads" -> finiteFieldBackendThreads,
               "PlanDiscoveryBackend" -> planDiscoveryBackend,
               "Verbose" -> verbose},
+            "MultiquadraticOptions" -> multiquadraticReplayOptions,
             "ScratchDirectory" -> workRoot,
             "Tag" -> stripTag, "Verbose" -> verbose],
         True,
@@ -1215,8 +1621,14 @@ familyRowGaugeHydrateResume[
           "LowerSector" -> lowerSector|>, tag]];
       gauge = Lookup[solution, "Gauge", Missing["NoGauge"]];
       frameQ = If[algebraicFrameQ,
-        familyRowGaugeResumeFrameCertificateQ[solution], True];
+        familyRowGaugeResumeFrameCertificateQ[solution,
+          expectedSolverConfiguration["FreshValidationPolicy"]], True];
+      directReplayIdentityQ =
+        solverRoute =!= "DirectMultiquadraticFiniteField" ||
+          Lookup[solution, "Provider", None] ===
+            expectedSolverConfiguration["ProviderKind"];
       If[! SameQ[gauge, expectedGauge] || ! frameQ ||
+          ! directReplayIdentityQ ||
           Lookup[solution, "Method", None] =!=
             Lookup[summary, "Method", None] ||
           beforeHashes =!= afterHashes,
@@ -1224,6 +1636,7 @@ familyRowGaugeHydrateResume[
           "LowerSector" -> lowerSector,
           "GaugeSameQ" -> SameQ[gauge, expectedGauge],
           "FrameCertificate" -> frameQ,
+          "ProviderKindSameQ" -> directReplayIdentityQ,
           "MethodSameQ" -> (Lookup[solution, "Method", None] ===
             Lookup[summary, "Method", None]),
           "CopiedArtifactsUnchanged" ->

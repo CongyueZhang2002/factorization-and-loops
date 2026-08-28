@@ -41,10 +41,13 @@ Do[
   If[FileExistsQ[outputFile],
     existing = FeynFacet`FamilyArtifactRead[outputFile];
     If[AssociationQ[existing] &&
-        FeynFacet`ExactFamilyEpsilonFormQ[existing],
-      AppendTo[results, <|"Family" -> family, "Status" -> "AlreadyExact",
+        FeynFacet`CertifiedFamilyEpsilonFormQ[existing],
+      acceptedStatus = If[FeynFacet`ExactFamilyEpsilonFormQ[existing],
+        "AlreadyExact", "AlreadyCertified"];
+      AppendTo[results, <|"Family" -> family, "Status" -> acceptedStatus,
         "File" -> outputFile, "Seconds" -> 0.|>];
-      Print["CERTIFY-CAMPAIGN family=", family, " exact=True cached"];
+      Print["CERTIFY-CAMPAIGN family=", family,
+        " certified=True status=", acceptedStatus, " cached"];
       Continue[]
     ]
   ];
@@ -79,15 +82,19 @@ Do[
       Continue[]];
     certified = FeynFacet`CertifyFamilyEpsilonForm[record, system];
     If[AssociationQ[certified] &&
-        certified["Status"] === "ExactEpsilonForm" &&
-        FeynFacet`ExactFamilyEpsilonFormQ[certified],
+        MemberQ[{"ExactEpsilonForm", "CertifiedEpsilonForm"},
+          certified["Status"]] &&
+        FeynFacet`CertifiedFamilyEpsilonFormQ[certified],
       writeAtomic[certified, outputFile];
       elapsed = AbsoluteTime[] - familyStart;
-      AppendTo[results, <|"Family" -> family, "Status" -> "Exact",
+      acceptedStatus = If[FeynFacet`ExactFamilyEpsilonFormQ[certified],
+        "Exact", "Certified"];
+      AppendTo[results, <|"Family" -> family, "Status" -> acceptedStatus,
         "Source" -> candidate, "File" -> outputFile,
         "Seconds" -> elapsed, "Bytes" -> FileByteCount[outputFile]|>];
       Print["CERTIFY-CAMPAIGN family=", family,
-        " exact=True seconds=", Round[elapsed, 0.1],
+        " certified=True status=", acceptedStatus,
+        " seconds=", Round[elapsed, 0.1],
         " bytes=", FileByteCount[outputFile]];
       accepted = True;
       Break[],
@@ -103,12 +110,12 @@ Do[
   If[! accepted,
     elapsed = AbsoluteTime[] - familyStart;
     AppendTo[results, <|"Family" -> family,
-      "Status" -> "NoExactlyCertifiedCandidate",
+      "Status" -> "NoCertifiedCandidate",
       "Candidates" -> candidates,
       "CandidateDiagnostics" -> candidateDiagnostics,
       "Seconds" -> elapsed|>];
     Print["CERTIFY-CAMPAIGN family=", family,
-      " exact=False seconds=", Round[elapsed, 0.1],
+      " certified=False seconds=", Round[elapsed, 0.1],
       " criteria=", InputForm[DeleteDuplicates[
         Lookup[candidateDiagnostics, "Checks", <||>]]]]
   ];
@@ -116,11 +123,18 @@ Do[
   {systemFile, differentialFiles}
 ];
 
+acceptedStatuses = {"Exact", "AlreadyExact", "Certified",
+  "AlreadyCertified"};
 report = <|
   "Status" -> If[AllTrue[results,
-      MemberQ[{"Exact", "AlreadyExact"}, #Status] &],
-    "CompleteExactInventory", "IncompleteExactInventory"],
+      MemberQ[acceptedStatuses, #Status] &],
+    "CompleteCertifiedInventory", "IncompleteCertifiedInventory"],
   "DifferentialFamilyCount" -> Length[differentialFiles],
+  "CertifiedFamilyCount" -> Count[results,
+    row_ /; MemberQ[acceptedStatuses, row["Status"]]],
+  "CertifiedFamilies" -> Lookup[
+    Select[results, MemberQ[acceptedStatuses, #["Status"]] &],
+    "Family", {}],
   "ExactFamilyCount" -> Count[results,
     row_ /; MemberQ[{"Exact", "AlreadyExact"}, row["Status"]]],
   "ExactFamilies" -> Lookup[
@@ -129,12 +143,13 @@ report = <|
     "Family", {}],
   "IncompleteFamilies" -> Lookup[
     Select[results,
-      ! MemberQ[{"Exact", "AlreadyExact"}, #["Status"]] &],
+      ! MemberQ[acceptedStatuses, #["Status"]] &],
     "Family", {}],
   "ElapsedSeconds" -> AbsoluteTime[] - campaignStart,
   "Results" -> results
 |>;
 writeAtomic[report, FileNameJoin[{outputDirectory, "certification_report.wl"}]];
-Print["CERTIFY-CAMPAIGN exact=", report["ExactFamilyCount"], "/",
+Print["CERTIFY-CAMPAIGN certified=", report["CertifiedFamilyCount"], "/",
   report["DifferentialFamilyCount"], " seconds=",
-  Round[report["ElapsedSeconds"], 0.1]];
+  Round[report["ElapsedSeconds"], 0.1], " exact=",
+  report["ExactFamilyCount"]];

@@ -83,7 +83,8 @@ observableTransportBlockLowerQ[matrices : {_, _}, ranges_List] := Module[
   ]
 ];
 
-(* CertifyFamilyEpsilonForm and ExactFamilyEpsilonFormQ moved to
+(* CertifyFamilyEpsilonForm, ExactFamilyEpsilonFormQ and
+   CertifiedFamilyEpsilonFormQ moved to
    FamilyEpsForm.wl on 2026-08-20. *)
 
 (* Default family-name extractor (generality pass 2026-08-23): the family
@@ -130,7 +131,7 @@ BuildObservableTransportManifest[
     manifestFile_String, OptionsPattern[]] := Module[
   {directories, differentialFiles, familyFromFile, candidates,
    candidateRows, grouped, selected = <||>, rejected = <||>,
-   duplicates = <||>, missing, family, records, exactRecords,
+   duplicates = <||>, missing, family, records, certifiedRecords,
    card, reportFile, rows, report, differentialPattern, epsFormPattern,
    familySortKey},
   directories = ExpandFileName /@ epsilonFormDirectories;
@@ -171,18 +172,19 @@ BuildObservableTransportManifest[
         record = Quiet[Check[Get[file], $Failed]];
         <|"Family" -> name, "Priority" -> priority,
           "File" -> ExpandFileName[file],
+          "Certified" -> CertifiedFamilyEpsilonFormQ[record],
           "Exact" -> ExactFamilyEpsilonFormQ[record]|>]
     ]];
   grouped = GroupBy[candidateRows, #Family &];
   Do[
     records = SortBy[Lookup[grouped, family, {}],
       {#Priority &, #File &}];
-    exactRecords = Select[records, TrueQ[#Exact] &];
-    If[exactRecords === {},
+    certifiedRecords = Select[records, TrueQ[#Certified] &];
+    If[certifiedRecords === {},
       If[records =!= {}, AssociateTo[rejected, family -> records]],
-      AssociateTo[selected, family -> First[exactRecords]];
-      If[Length[exactRecords] > 1,
-        AssociateTo[duplicates, family -> Rest[exactRecords]]]],
+      AssociateTo[selected, family -> First[certifiedRecords]];
+      If[Length[certifiedRecords] > 1,
+        AssociateTo[duplicates, family -> Rest[certifiedRecords]]]],
     {family, Keys[differentialFiles]}];
   missing = Select[Keys[differentialFiles], ! KeyExistsQ[selected, #] &];
   card = OptionValue["Card"];
@@ -735,15 +737,15 @@ BuildObservableTransport[record_Association, demand_Association,
    maximumWeight, wordRecord,
    nextStates, liftedSecond, boundaryDerivative, inducedRhs, pivotRows,
    pivotSquare, inducedConnection, inducedResidual, kernelRecord,
-   secondRecord, verbose, start, recordExactQ, stabilized,
+   secondRecord, verbose, start, recordCertifiedQ, stabilized,
    constrainedRules, kernelColumns, coefficientField},
 
   start = AbsoluteTime[];
   verbose = TrueQ[OptionValue["Verbose"]];
   status = Lookup[record, "Status", Missing[]];
-  recordExactQ = ExactFamilyEpsilonFormQ[record];
-  If[! recordExactQ,
-    Return[<|"Status" -> "FamilyEpsilonFormNotExactlyCertified",
+  recordCertifiedQ = CertifiedFamilyEpsilonFormQ[record];
+  If[! recordCertifiedQ,
+    Return[<|"Status" -> "FamilyEpsilonFormNotCertified",
       "RecordStatus" -> status|>, Module]
   ];
 

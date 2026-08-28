@@ -3,6 +3,7 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 v = Symbol["Global`v"];
 w = Symbol["Global`w"];
+u = Symbol["Global`u"];
 eps = Symbol["Global`eps"];
 
 transformation = {{v, 0}, {0, 1}};
@@ -33,10 +34,16 @@ record = <|
 certified = FeynFacet`CertifyFamilyEpsilonForm[record, system];
 broken = FeynFacet`CertifyFamilyEpsilonForm[
   ReplacePart[record, {"EpsFormX", 1, 1} -> 2 eps/v], system];
+threeVariableSource = FeynFacet`CertifyFamilyEpsilonForm[record, system,
+  "SourceVariables" -> {v, w, u}];
+oneVariableSource = FeynFacet`CertifyFamilyEpsilonForm[record, system,
+  "SourceVariables" -> {v}];
 
 tests = <|
   "CertifiedStatus" -> certified["Status"] === "ExactEpsilonForm",
   "ExactPredicate" -> FeynFacet`ExactFamilyEpsilonFormQ[certified],
+  "GeneralCertifiedPredicateIncludesExact" ->
+    FeynFacet`CertifiedFamilyEpsilonFormQ[certified],
   "Inverse" -> certified["TTotalInvertible"],
   "Gauge" -> certified["GaugeIdentity"],
   "Flat" -> certified["Flatness"],
@@ -45,7 +52,13 @@ tests = <|
     certified["ChartCertificate", "Frame"] === "SourceVariables",
   "BrokenGaugeRejected" ->
     broken["Status"] === "EpsilonFormCertificationFailed" &&
-      ! FeynFacet`ExactFamilyEpsilonFormQ[broken]
+      ! FeynFacet`ExactFamilyEpsilonFormQ[broken],
+  "ThreeSourceVariablesRejected" ->
+    threeVariableSource["Status"] === "SourceVariablesInvalid" &&
+      threeVariableSource["Actual"] === 3,
+  "OneSourceVariableRejected" ->
+    oneVariableSource["Status"] === "SourceVariablesInvalid" &&
+      oneVariableSource["Actual"] === 1
 |>;
 
 Print[InputForm[tests]];

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Run the test suite through a KernelPool, one FRESH subkernel per test
-# (fresh_* missions), N tests at a time; prints a table and exits nonzero
-# if any test failed.  Usage: run_tests_pool.sh <pooldir> <N>
+# Run the test suite through a KernelPool, N tests at a time; prints a table
+# and exits nonzero if any test failed.  With REUSE=1 the pool is a screening
+# pass: after it drains, every non-OK result is confirmed by a genuinely fresh
+# standalone wolframscript process, and only that confirmation can count red.
+# Usage: run_tests_pool.sh <pooldir> <N>
 # [t_name|Category/t_name ...]. Basenames remain accepted after test
 # categorization and must resolve uniquely.
 # Limits (measured 2026-08-22, 47 tests in 13 min on 3 subkernels): a test
@@ -16,6 +18,66 @@
 set -u
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 pool="$1"; nk="$2"; shift 2
+wolframscript_cmd="${FACET_WOLFRAMSCRIPT:-wolframscript}"
+kpsubmit_cmd="${FACET_KPSUBMIT:-$root/Scripts/kpsubmit.sh}"
+kpwait_cmd="${FACET_KPWAIT:-$root/Scripts/kpwait.sh}"
+cpu_list="${FACET_CPU_LIST:-0,1,6,7}"
+standalone_grace="${FACET_STANDALONE_GRACE:-4}"
+pool_stop_wait="${FACET_POOL_STOP_WAIT:-180}"
+
+process_alive() {
+  local pid="$1"
+  [[ "$pid" =~ ^[0-9]+$ && -d "/proc/$pid" ]]
+}
+
+current_pool_pid() {
+  local pid
+  [[ -f "$pool/pool.pid" ]] || return 1
+  IFS= read -r pid < "$pool/pool.pid"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$pid"
+}
+
+# These suites deliberately exercise short Global` chart-variable names and
+# project chart registration.  They are valid standalone tests, but arbitrary
+# preceding Global`/package state changes their inputs before the assertions
+# begin.  Keep them off reused subkernels until an isolation regression proves
+# that the whole kernel state, not merely newly parsed symbols, is restored.
+standalone_only() {
+  case "$1" in
+    t_chart_transport|t_transport_chart_extension|t_kallen_q4_chart|\
+    t_family_regulator_factor_in_frame|t_radical_denesting) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+preserve_log() {
+  local log_file="$1" stamp destination counter=0
+  [[ -e "$log_file" ]] || return 0
+  stamp="$(date +%Y%m%d-%H%M%S)"
+  destination="$log_file.$stamp"
+  while [[ -e "$destination" ]]; do
+    counter=$((counter + 1))
+    destination="$log_file.$stamp-$counter"
+  done
+  mv -- "$log_file" "$destination"
+}
+
+graceful_pool_stop() {
+  local pid waited=0
+  mkdir -p "$pool/control"
+  touch "$pool/control/stop"
+  while pid="$(current_pool_pid 2>/dev/null)" && process_alive "$pid"; do
+    if (( waited >= pool_stop_wait )); then
+      printf 'pool did not exit after graceful stop in %s s: %s (pid %s)\n' \
+        "$pool_stop_wait" "$pool" "$pid" >&2
+      return 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+}
+
 test_files=()
 if (( $# == 0 )); then
   mapfile -d '' -t test_files < <(
@@ -43,32 +105,111 @@ else
 fi
 export POOL="$pool"; unset FACET_TASK_BROKER FACET_CHECK_LEVEL; export FACET_KERNEL_COUNT=1
 mkdir -p "$pool"
-if ! { [[ -f "$pool/pool.pid" ]] && kill -0 "$(cat "$pool/pool.pid")" 2>/dev/null; }; then
-  rm -f "$pool/control/stop" "$pool/control/stopnow"
-  taskset -c "${FACET_CPU_LIST:-0,1,6,7}" nohup wolframscript -file "$root/Scripts/KernelPool.wls" "$pool" "$nk" True > "$pool/pool.log" 2>&1 &
-  for i in $(seq 1 90); do grep -q "preload done" "$pool/pool.log" 2>/dev/null && break; sleep 5; done
-fi
+
+pool_test_files=()
+standalone_test_files=()
 for test_file in "${test_files[@]}"; do
   t="$(basename "$test_file" .wls)"
-  # REUSE=1 (2026-08-27): run on the standing preloaded subkernels
-  # instead of one fresh kernel per test.  The fresh-per-test policy
-  # launches ~95 kernels per full batch and outruns the licence
-  # server's seat release, killing the pool (three batches lost
-  # 2026-08-27 01:09-02:15).  Reused kernels skip the ~40 s preload per
-  # test as well.  A test that fails under reuse gets one fresh
-  # STANDALONE confirmation before its failure counts (Global` state
-  # contamination is the known reuse risk, 2026-08-22: 2 of 21).
-  prefix="fresh_"; [ "${REUSE:-0}" = "1" ] && prefix="run_"
-  "$root/Scripts/kpsubmit.sh" "${prefix}$t" "$test_file" > /dev/null
+  if standalone_only "$t"; then
+    standalone_test_files+=("$test_file")
+  else
+    pool_test_files+=("$test_file")
+  fi
 done
-fail=0; printf '%-45s %-8s %s\n' test status wall
-for test_file in "${test_files[@]}"; do
+
+pool_active=0
+if pid="$(current_pool_pid 2>/dev/null)" && process_alive "$pid"; then
+  pool_active=1
+fi
+if (( ${#pool_test_files[@]} > 0 && pool_active == 0 )); then
+  mkdir -p "$pool/control"
+  rm -f "$pool/control/stop" "$pool/control/stopnow"
+  taskset -c "$cpu_list" nohup "$wolframscript_cmd" -file \
+    "$root/Scripts/KernelPool.wls" "$pool" "$nk" True \
+    > "$pool/pool.log" 2>&1 &
+  pool_active=1
+  pool_ready=0
+  for _ in $(seq 1 90); do
+    if grep -q "preload done" "$pool/pool.log" 2>/dev/null; then
+      pool_ready=1
+      break
+    fi
+    sleep 5
+  done
+  if (( pool_ready == 0 )); then
+    printf 'pool did not report preload completion: %s\n' "$pool" >&2
+    exit 2
+  fi
+fi
+
+reuse_mode=0
+prefix="fresh_"
+if [[ "${REUSE:-0}" == "1" ]]; then
+  reuse_mode=1
+  prefix="run_"
+fi
+
+for test_file in "${pool_test_files[@]}"; do
   t="$(basename "$test_file" .wls)"
-  "$root/Scripts/kpwait.sh" "${prefix}$t" 14400 > "$pool/${prefix}$t.wait" 2>&1
+  "$kpsubmit_cmd" "${prefix}$t" "$test_file" > /dev/null
+done
+
+fail=0
+reuse_confirmation_files=()
+printf '%-45s %-8s %s\n' test status wall
+for test_file in "${pool_test_files[@]}"; do
+  t="$(basename "$test_file" .wls)"
+  "$kpwait_cmd" "${prefix}$t" 14400 > "$pool/${prefix}$t.wait" 2>&1
   st=$(grep -o '"Status" -> "[A-Z0-9]*"' "$pool/${prefix}$t.wait" | head -1 | cut -d'"' -f4)
   w=$(grep -o '"Wall" -> [0-9.]*' "$pool/${prefix}$t.wait" | head -1 | grep -o '[0-9.]*$' | cut -c1-7)
-  printf '%-45s %-8s %s\n' "$t" "${st:-?}" "${w:-?}"
-  [[ "$st" == "OK" ]] || fail=$((fail+1))
+  if (( reuse_mode == 1 )) && [[ "$st" != "OK" ]]; then
+    reuse_confirmation_files+=("$test_file")
+    printf '%-45s %-8s %s (pooled %s; standalone confirmation queued)\n' \
+      "$t" SCREEN "${w:-?}" "${st:-?}"
+  else
+    printf '%-45s %-8s %s\n' "$t" "${st:-?}" "${w:-?}"
+    [[ "$st" == "OK" ]] || fail=$((fail + 1))
+  fi
 done
-touch "$pool/control/stop"
-echo "failed: $fail"; exit $fail
+
+# kpwait above has observed every pooled completion.  Release the pool's
+# main-kernel licence seat and wait for the graceful file-control shutdown;
+# a standalone confirmation is never launched alongside this pool master.
+if (( pool_active == 1 )); then
+  graceful_pool_stop || exit 70
+fi
+
+standalone_queue=("${standalone_test_files[@]}" "${reuse_confirmation_files[@]}")
+for (( index=0; index<${#standalone_queue[@]}; index++ )); do
+  test_file="${standalone_queue[index]}"
+  t="$(basename "$test_file" .wls)"
+  standalone_log="$pool/standalone_$t.log"
+  preserve_log "$standalone_log"
+  start_seconds=$SECONDS
+  (
+    cd "$root" || exit 72
+    taskset -c "$cpu_list" "$wolframscript_cmd" -file "$test_file"
+  ) > "$standalone_log" 2>&1
+  standalone_rc=$?
+  standalone_wall=$((SECONDS - start_seconds))
+  if (( standalone_rc == 0 )); then
+    standalone_status=OK
+  else
+    standalone_status="EXIT$standalone_rc"
+    fail=$((fail + 1))
+  fi
+  if standalone_only "$t"; then
+    standalone_reason="standalone-only"
+  else
+    standalone_reason="reuse confirmation"
+  fi
+  printf '%-45s %-8s %s (%s; log %s)\n' \
+    "$t" "$standalone_status" "$standalone_wall" "$standalone_reason" \
+    "$standalone_log"
+  if (( index + 1 < ${#standalone_queue[@]} )) && \
+      [[ "$standalone_grace" != "0" ]]; then
+    sleep "$standalone_grace"
+  fi
+done
+
+echo "failed: $fail"; exit "$fail"

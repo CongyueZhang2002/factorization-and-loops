@@ -1630,9 +1630,10 @@ blockEquationDeferredBundleFingerprint[bundle_Association] := Hash[{
 blockEquationDeferredBundleValidate[bundle_Association] := Module[
   {dimensions, targetOrder, expected, jobs, operandTable, operandCount,
    identifiers, frame, roots, variables, regulator, rules,
-   canonicalSquares, canonicalRoots, recheckedFrame, summary, factors,
-   orbits, factorCount, orbitCount, occurrences, jobIndex, termIndex, term,
-   factorIndex, operandID, occurrenceFailure, occurrenceTag},
+   canonicalSquares, canonicalRoots, squares, recheckedFrame, summary,
+   factors, orbits, factorCount, orbitCount, occurrences, jobIndex,
+   termIndex, term, factorIndex, operandID, operandFailure, operandTag,
+   occurrenceFailure, occurrenceTag},
   If[Lookup[bundle, "Schema", None] =!= $blockEquationDeferredBundleSchema ||
       Lookup[bundle, "Status", None] =!= "PreparedDeferredBundle" ||
       Lookup[bundle, "ABIVersion", None] =!=
@@ -1700,25 +1701,50 @@ blockEquationDeferredBundleValidate[bundle_Association] := Module[
   If[! ListQ[operandTable],
     Return[<|"Status" -> "InvalidOperandTable"|>]];
   operandCount = Length[operandTable];
-  If[! AllTrue[Range[operandCount], Function[index,
-      Module[{record = operandTable[[index]], recordPairs},
-        If[! AssociationQ[record], Return[False, Module]];
-        recordPairs = Lookup[record, "DenominatorFactors", None];
-        Lookup[record, "ID", None] === index &&
+  squares = Together /@ Lookup[roots, "RootSquare", {}];
+  operandTag = Unique["blockEquationDeferredOperandValidation"];
+  operandFailure = Catch[Do[Module[
+      {record = operandTable[[index]], recordPairs, expression,
+       recomputedMask},
+      If[! AssociationQ[record],
+        Throw[<|"Status" -> "InvalidOperandTable",
+          "OperandID" -> index|>, operandTag]];
+      recordPairs = Lookup[record, "DenominatorFactors", None];
+      If[! (Lookup[record, "ID", None] === index &&
           KeyExistsQ[record, "Numerator"] && ListQ[recordPairs] &&
           AllTrue[recordPairs,
             MatchQ[#1, {_, exponent_Integer?Positive}] &] &&
           IntegerQ[Lookup[record, "RootMask", None]] &&
           0 <= record["RootMask"] < 2^Length[roots] &&
           Lookup[record, "Fingerprint", None] === Hash[
-            {record["Numerator"], recordPairs}, "SHA256", "HexString"]]]],
+            {record["Numerator"], recordPairs}, "SHA256", "HexString"]),
+        Throw[<|"Status" -> "InvalidOperandTable",
+          "OperandID" -> index|>, operandTag]];
+      (* RootMask is executable hot-path metadata, not advisory telemetry.
+         Recompute it from the immutable canonical operand at every bundle
+         authentication boundary.  Merely checking its numeric range lets a
+         refingerprinted artifact suppress a root and evaluate the operand in
+         the wrong local subfield. *)
+      expression = record["Numerator"]/Times @@
+        (Power[First[#1], Last[#1]] & /@ recordPairs);
+      recomputedMask = blockEquationDeferredFactorRootMask[
+        expression, squares];
+      If[recomputedMask === $Failed,
+        Throw[<|"Status" -> "InvalidOperandRootMask",
+          "OperandID" -> index|>, operandTag]];
+      If[recomputedMask =!= record["RootMask"],
+        Throw[<|"Status" -> "OperandRootMaskMismatch",
+          "OperandID" -> index, "ExpectedRootMask" -> recomputedMask,
+          "ObservedRootMask" -> record["RootMask"]|>, operandTag]]],
+    {index, operandCount}]; None, operandTag, #1 &];
+  If[AssociationQ[operandFailure],
     (* Preserve the historical fast integrity verdict for a stale outer
        fingerprint.  If the caller has recomputed that fingerprint, the
-       stronger structural refusal below is the meaningful one. *)
+       stronger structural refusal above is the meaningful one. *)
     If[Lookup[bundle, "BundleFingerprint", None] =!=
         blockEquationDeferredBundleFingerprint[bundle],
       Return[<|"Status" -> "BundleFingerprintMismatch"|>]];
-    Return[<|"Status" -> "InvalidOperandTable"|>]];
+    Return[operandFailure]];
   identifiers = DeleteDuplicates[Flatten[
     Map[Function[job, Last /@ Lookup[job, "Terms", {}]], jobs]]];
   If[! AllTrue[identifiers, IntegerQ[#1] && 1 <= #1 <= operandCount &],

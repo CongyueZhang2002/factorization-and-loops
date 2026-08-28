@@ -28,6 +28,9 @@ ClearAll[
   finiteFieldStripCanonicalSamples,
   finiteFieldStripFitSplit,
   finiteFieldStripFitCandidates,
+  finiteFieldStripRegulatorInterpolationBinary,
+  finiteFieldStripNativeHeldOutInterpolate,
+  finiteFieldStripExpectedDegreeInterpolate,
   finiteFieldStripHeldOutInterpolate,
   finiteFieldStripAdaptiveSamplingPlan,
   finiteFieldStripUnseenPrimeResidualQ,
@@ -168,12 +171,12 @@ finiteFieldStripBackendDecision[requested_, threads_,
     Return[<|"Status" -> "InvalidBackendOption",
       "BackendRequested" -> reported,
       "AllowedBackends" -> {Automatic, "Wolfram", "FLINT"}|>]];
-  If[! IntegerQ[threads] || ! Between[threads, {1, 4}],
+  If[! IntegerQ[threads] || ! Between[threads, {1, 8}],
     Return[<|"Status" -> "InvalidBackendThreads",
       "BackendRequested" -> requested,
       "BackendThreads" -> If[IntegerQ[threads], threads,
         ToString[Head[threads], InputForm]],
-      "AllowedRange" -> {1, 4}|>]];
+      "AllowedRange" -> {1, 8}|>]];
   binary = finiteFieldStripFLINTBinary[];
   Which[
     requested === "Wolfram",
@@ -474,7 +477,7 @@ finiteFieldStripFLINTSolve[core_, rhs_, prime_Integer, threads_Integer] := Modul
     BinaryWrite[stream, Flatten[Normal[core]], "UnsignedInteger64", ByteOrdering -> -1];
     BinaryWrite[stream, Flatten[Normal[rhs]], "UnsignedInteger64", ByteOrdering -> -1];
     Close[stream];
-    process = RunProcess[{binary, input, output, ToString[Clip[threads, {1, 4}]]}];
+    process = RunProcess[{binary, input, output, ToString[Clip[threads, {1, 8}]]}];
     If[! AssociationQ[process] || process["ExitCode"] =!= 0, Throw[$Failed, "flint"]];
     stream = OpenRead[output, BinaryFormat -> True];
     magic = BinaryReadList[stream, "UnsignedInteger8", 8];
@@ -1960,6 +1963,273 @@ finiteFieldStripFitCandidates[data_List, prime_Integer, maximumTotalDegree_Integ
   candidates
 ];
 
+(* Bulk rational interpolation belongs in native finite-field arithmetic, not
+   in thousands of tiny Wolfram NullSpace calls.  FFRI1 performs exactly the
+   same synchronized held-out algorithm across all coordinates.  The adapter
+   is deliberately a thin mathematical boundary: protocol shape is checked,
+   while the later coefficient-image and fresh-prime equation residuals remain
+   the independent certificate. *)
+$finiteFieldStripNativeInterpolationMinimumCoordinates = 128;
+
+finiteFieldStripRegulatorInterpolationBinary[] := With[{file = FileNameJoin[{
+    $feynFacetDirectory, "Backends", "flint", "bin",
+    "flint_regulator_interpolate"}]},
+  If[FileExistsQ[file], ExpandFileName[file], None]];
+
+finiteFieldStripNativeHeldOutInterpolate[canonicalSamples_List,
+    prime_Integer, initial_Integer, heldOut_Integer,
+    maximumTotalDegree_Integer, expected_] := Module[
+  {binary, sampleCount, coordinateCount, abscissae, values, mode,
+   expectedWords = {}, maximumDegreeSum, nativeInitial, requiredCount,
+   threads = 1, processorCount, directory = None, inputFile, outputFile,
+   stream = None,
+   process, magic, header, records, fields, coefficients, numeratorCount,
+   denominatorCount, numeratorDegree, denominatorDegree, trailing,
+   result = $Failed, timing = 0., status, reason, consumed,
+   constructionCount, requiredAdditional, actualThreads,
+   interpolations, mismatchCoordinates, degreeBoundExceededCoordinates},
+  binary = finiteFieldStripRegulatorInterpolationBinary[];
+  sampleCount = Length[canonicalSamples];
+  If[! StringQ[binary] || sampleCount == 0 || ! PrimeQ[prime] ||
+      ! (3 < prime < 2^63) || initial < 1 || heldOut < 1 ||
+      maximumTotalDegree < 0, Return[$Failed]];
+  abscissae = Lookup[canonicalSamples, "EpsilonMod", $Failed];
+  values = Lookup[canonicalSamples, "Values", $Failed];
+  coordinateCount = If[MatrixQ[values, IntegerQ], Last[Dimensions[values]], 0];
+  If[coordinateCount < $finiteFieldStripNativeInterpolationMinimumCoordinates ||
+      ! VectorQ[abscissae, IntegerQ] || Length[abscissae] =!= sampleCount ||
+      Dimensions[values] =!= {sampleCount, coordinateCount} ||
+      ! AllTrue[Join[abscissae, Flatten[values]], 0 <= #1 < prime &],
+    Return[$Failed]];
+  mode = If[ListQ[expected], 1, 0];
+  (* Discovery scans every minimal Pade split for thousands of coordinates
+     and scales materially with OpenMP.  A fixed-profile pass solves one
+     known split and is faster without thread startup. *)
+  processorCount = Quiet[Check[$ProcessorCount, 1]];
+  threads = If[mode == 0, Min[8, If[IntegerQ[processorCount] &&
+      processorCount > 0, processorCount, 1]], 1];
+  nativeInitial = initial;
+  If[mode == 1,
+    If[Length[expected] =!= coordinateCount || ! AllTrue[expected,
+        MatchQ[#1, {-Infinity, 0} | {n_Integer, d_Integer} /;
+          n >= 0 && d >= 0 && n + d <= maximumTotalDegree] &],
+      Return[$Failed]];
+    maximumDegreeSum = Max[Prepend[Cases[expected,
+      {n_Integer, d_Integer} :> n + d], 0]];
+    nativeInitial = Max[initial, maximumDegreeSum + 1];
+    requiredCount = nativeInitial + heldOut;
+    If[sampleCount < requiredCount,
+      Return[<|"Status" -> "MoreSamplesRequired",
+        "RequiredAdditionalSampleCount" -> requiredCount - sampleCount,
+        "Reason" -> "ExpectedDegreeHeldOutRound",
+        "InterpolationBackend" -> "FLINTRegulatorInterpolation"|>]];
+    expectedWords = Flatten[expected /. {-Infinity, 0} -> {2^64 - 1, 0}]];
+  directory = CreateDirectory[FileNameJoin[{$TemporaryDirectory,
+      "feynfacet-ffri-" <> ToString[$ProcessID] <> "-" <>
+        StringReplace[CreateUUID[], "-" -> ""]}]];
+  inputFile = FileNameJoin[{directory, "input.bin"}];
+  outputFile = FileNameJoin[{directory, "output.bin"}];
+  result = Catch[
+    stream = OpenWrite[inputFile, BinaryFormat -> True];
+    BinaryWrite[stream, ToCharacterCode["FFRI1V1\000"],
+      "UnsignedInteger8"];
+    BinaryWrite[stream, {prime, sampleCount, coordinateCount, nativeInitial,
+      heldOut, maximumTotalDegree, mode}, "UnsignedInteger64",
+      ByteOrdering -> -1];
+    BinaryWrite[stream, abscissae, "UnsignedInteger64", ByteOrdering -> -1];
+    BinaryWrite[stream, Flatten[values], "UnsignedInteger64",
+      ByteOrdering -> -1];
+    If[mode == 1, BinaryWrite[stream, expectedWords,
+      "UnsignedInteger64", ByteOrdering -> -1]];
+    Close[stream]; stream = None;
+    {timing, process} = AbsoluteTiming[RunProcess[
+      {binary, inputFile, outputFile, ToString[threads]}]];
+    If[! AssociationQ[process] || process["ExitCode"] =!= 0 ||
+        ! FileExistsQ[outputFile], Throw[$Failed]];
+    stream = OpenRead[outputFile, BinaryFormat -> True];
+    magic = BinaryReadList[stream, "UnsignedInteger8", 8];
+    header = BinaryReadList[stream, "UnsignedInteger64", 10,
+      ByteOrdering -> -1];
+    If[magic =!= ToCharacterCode["FFRI1X1\000"] || Length[header] =!= 10 ||
+        header[[1 ;; 4]] =!= {prime, sampleCount, coordinateCount, mode},
+      Throw[$Failed]];
+    {status, reason, consumed, constructionCount, requiredAdditional,
+      actualThreads} = header[[5 ;; 10]];
+    records = Table[
+      fields = BinaryReadList[stream, "UnsignedInteger64", 6,
+        ByteOrdering -> -1];
+      If[Length[fields] =!= 6, Throw[$Failed]];
+      numeratorCount = fields[[5]]; denominatorCount = fields[[6]];
+      coefficients = BinaryReadList[stream, "UnsignedInteger64",
+        numeratorCount + denominatorCount, ByteOrdering -> -1];
+      If[Length[coefficients] =!= numeratorCount + denominatorCount,
+        Throw[$Failed]];
+      numeratorDegree = If[fields[[2]] == 2^64 - 1,
+        -Infinity, fields[[2]]];
+      denominatorDegree = If[fields[[3]] == 2^64 - 1,
+        -Infinity, fields[[3]]];
+      <|"CoordinateStatus" -> fields[[1]],
+        "Degrees" -> {numeratorDegree, denominatorDegree},
+        "Consumed" -> fields[[4]],
+        "Numerator" -> Take[coefficients, numeratorCount],
+        "Denominator" -> Drop[coefficients, numeratorCount]|>,
+      {coordinateCount}];
+    trailing = BinaryRead[stream, "UnsignedInteger8"];
+    Close[stream]; stream = None;
+    If[trailing =!= EndOfFile || ! MemberQ[{0, 1, 2}, status] ||
+        ! Between[actualThreads, {1, 8}], Throw[$Failed]];
+    Which[
+      status == 0 && AllTrue[records,
+          Lookup[#1, "CoordinateStatus", None] == 0 &],
+        interpolations = Join[
+          KeyDrop[#1, {"CoordinateStatus", "Consumed"}],
+          <|"ConstructionNullity" -> 1,
+            "ValidatedPointCount" -> consumed,
+            "UniquenessPointRequirement" -> If[
+              #1["Degrees"][[1]] === -Infinity, 1,
+              2 Total[#1["Degrees"]] + 1]|>] & /@ records;
+        <|"Status" -> "HeldOutValidated", "Prime" -> prime,
+          "SampleCount" -> consumed,
+          "ConstructionCount" -> constructionCount,
+          "ValidationCount" -> heldOut,
+          "MaximumTotalDegree" -> maximumTotalDegree,
+          "InterpolationSeconds" -> timing,
+          "UnresolvedCoordinates" -> {},
+          "CertificationMode" -> "HeldOut",
+          "DeterministicShortfallCoordinates" ->
+            Select[Range[coordinateCount], consumed <
+              interpolations[[#1]]["UniquenessPointRequirement"] &],
+          "DegreeHistogram" -> Counts[Lookup[interpolations, "Degrees"]],
+          "Interpolations" -> interpolations,
+          "InterpolationBackend" -> "FLINTRegulatorInterpolation",
+          "InterpolationBackendThreads" -> actualThreads|>,
+      status == 1 && reason == 4,
+        degreeBoundExceededCoordinates = Flatten[Position[
+          Lookup[records, "CoordinateStatus", None], 1, {1},
+          Heads -> False]];
+        <|"Status" -> "MaximumTotalDegreeExceeded",
+          "MaximumTotalDegree" -> maximumTotalDegree,
+          "ConsumedSampleCount" -> consumed,
+          "ConstructionCount" -> constructionCount,
+          "DegreeBoundExceededCoordinates" ->
+            degreeBoundExceededCoordinates,
+          "CoordinateStatusHistogram" -> Counts[
+            Lookup[records, "CoordinateStatus", None]],
+          "InterpolationBackend" -> "FLINTRegulatorInterpolation",
+          "InterpolationBackendThreads" -> actualThreads|>,
+      status == 1 && mode == 1 && sampleCount >= nativeInitial + heldOut,
+        mismatchCoordinates = Flatten[Position[
+          Lookup[records, "CoordinateStatus", None],
+          Alternatives[1, 3, 5], {1}, Heads -> False]];
+        If[mismatchCoordinates === {}, mismatchCoordinates = Range[
+          coordinateCount]];
+        <|"Status" -> "RejectPrimeDegreeProfileChanged",
+          "DegreeMismatchCoordinates" -> mismatchCoordinates,
+          "InterpolationBackend" -> "FLINTRegulatorInterpolation"|>,
+      status == 1,
+        <|"Status" -> "MoreSamplesRequired",
+          "RequiredAdditionalSampleCount" -> requiredAdditional,
+          "ConsumedSampleCount" -> consumed,
+          "ConstructionCount" -> constructionCount,
+          "Reason" -> Switch[reason, 1, "GrowRequired", 2,
+            "HeldOutRound", _, "NativeInterpolationIncomplete"],
+          "CoordinateStatusHistogram" -> Counts[
+            Lookup[records, "CoordinateStatus", None]],
+          "UnresolvedCoordinates" -> Flatten[Position[
+            Lookup[records, "CoordinateStatus", None], 1, {1},
+            Heads -> False]],
+          "AmbiguousCoordinates" -> Flatten[Position[
+            Lookup[records, "CoordinateStatus", None], 3, {1},
+            Heads -> False]],
+          "InterpolationBackend" -> "FLINTRegulatorInterpolation",
+          "InterpolationBackendThreads" -> actualThreads|>,
+      True, $Failed]];
+  If[Head[stream] === OutputStream || Head[stream] === InputStream,
+    Quiet[Close[stream]]];
+  If[StringQ[directory] && DirectoryQ[directory],
+    Quiet[DeleteDirectory[directory, DeleteContents -> True]]];
+  result
+];
+finiteFieldStripNativeHeldOutInterpolate[___] := $Failed;
+
+(* Once one good prime has fixed every coordinate's degree pair, later
+   primes do not need to rediscover that profile by scanning every Pade
+   split.  Solve exactly the known split and certify it on held-out fibres.
+   The first prime retains the adaptive discovery path below. *)
+finiteFieldStripExpectedDegreeInterpolate[canonicalSamples_List,
+    prime_Integer, expected_List, initial_Integer, heldOut_Integer,
+    maximumTotalDegree_Integer] := Module[
+  {coordinateCount, validDegreesQ, maximumDegreeSum, constructionCount,
+   requiredCount, construction, validation, data, fits, failures,
+   interpolations, seconds},
+  coordinateCount = Length[First[canonicalSamples]["Values"]];
+  validDegreesQ[{-Infinity, 0}] := True;
+  validDegreesQ[{numerator_Integer, denominator_Integer}] :=
+    numerator >= 0 && denominator >= 0 &&
+      numerator + denominator <= maximumTotalDegree;
+  validDegreesQ[_] := False;
+  If[Length[expected] =!= coordinateCount ||
+      ! AllTrue[expected, validDegreesQ],
+    Return[<|"Status" -> "RejectPrimeDegreeProfileChanged",
+      "Reason" -> "ExpectedDegreeProfileInvalid",
+      "DegreeMismatchCoordinates" -> Range[coordinateCount]|>]];
+  maximumDegreeSum = Max[Prepend[
+    Cases[expected, {numerator_Integer, denominator_Integer} :>
+      numerator + denominator], 0]];
+  constructionCount = Max[initial, maximumDegreeSum + 1];
+  requiredCount = constructionCount + heldOut;
+  If[Length[canonicalSamples] < requiredCount,
+    Return[<|"Status" -> "MoreSamplesRequired",
+      "RequiredAdditionalSampleCount" ->
+        requiredCount - Length[canonicalSamples],
+      "Reason" -> "ExpectedDegreeHeldOutRound"|>]];
+  construction = Range[constructionCount];
+  validation = Range[constructionCount + 1, requiredCount];
+  data[coordinate_, indices_] := Table[
+    {canonicalSamples[[index, "EpsilonMod"]],
+      canonicalSamples[[index, "Values", coordinate]]},
+    {index, indices}];
+  {seconds, fits} = AbsoluteTiming[Table[
+    If[expected[[coordinate]] === {-Infinity, 0},
+      If[AllTrue[data[coordinate, Join[construction, validation]],
+          Last[#1] === 0 &],
+        <|"Numerator" -> {0}, "Denominator" -> {1},
+          "Degrees" -> {-Infinity, 0}, "ConstructionNullity" -> 1|>,
+        $Failed],
+      Module[{degrees = expected[[coordinate]], fit},
+        fit = finiteFieldStripFitSplit[data[coordinate, construction],
+          prime, degrees[[1]], degrees[[2]]];
+        If[AssociationQ[fit] && fit["Degrees"] === degrees &&
+            finiteFieldStripInterpolationQ[
+              {fit["Numerator"], fit["Denominator"]},
+              data[coordinate, validation], prime],
+          fit, $Failed]]],
+    {coordinate, coordinateCount}]];
+  failures = Flatten[Position[fits, $Failed, {1}, Heads -> False]];
+  If[failures =!= {},
+    Return[<|"Status" -> "RejectPrimeDegreeProfileChanged",
+      "DegreeMismatchCoordinates" -> failures|>]];
+  interpolations = Join[#1, <|
+      "ValidatedPointCount" -> requiredCount,
+      "UniquenessPointRequirement" ->
+        If[#1["Degrees"][[1]] === -Infinity, 1,
+          2 Total[#1["Degrees"]] + 1]|>] & /@ fits;
+  <|"Status" -> "HeldOutValidated", "Prime" -> prime,
+    "SampleCount" -> requiredCount,
+    "ConstructionCount" -> constructionCount,
+    "ValidationCount" -> heldOut,
+    "MaximumTotalDegree" -> maximumTotalDegree,
+    "InterpolationSeconds" -> seconds,
+    "UnresolvedCoordinates" -> {},
+    "CertificationMode" -> "HeldOut",
+    "DeterministicShortfallCoordinates" ->
+      Select[Range[coordinateCount],
+        requiredCount < interpolations[[#1]][
+          "UniquenessPointRequirement"] &],
+    "DegreeHistogram" -> Counts[Lookup[interpolations, "Degrees"]],
+    "Interpolations" -> interpolations|>
+];
+
 Options[finiteFieldStripHeldOutInterpolate] = {
   "InitialConstructionCount" -> 4,
   "HeldOutCount" -> 3,
@@ -1972,12 +2242,18 @@ finiteFieldStripHeldOutInterpolate[canonicalSamples_List, prime_Integer,
   {initial, heldOut, maximumTotalDegree, expected, coordinateCount,
    construction, consumed, candidateSets, active, unresolved, validation,
    survivors, failures, ambiguous, seconds = 0., fit, data, mismatches,
-   interpolations, exit},
+   interpolations, exit, native},
   initial = OptionValue["InitialConstructionCount"];
   heldOut = OptionValue["HeldOutCount"];
   maximumTotalDegree = OptionValue["MaximumTotalDegree"];
   expected = OptionValue["ExpectedDegrees"];
   coordinateCount = Length[First[canonicalSamples]["Values"]];
+  native = finiteFieldStripNativeHeldOutInterpolate[canonicalSamples,
+    prime, initial, heldOut, maximumTotalDegree, expected];
+  If[AssociationQ[native], Return[native]];
+  If[ListQ[expected],
+    Return[finiteFieldStripExpectedDegreeInterpolate[canonicalSamples,
+      prime, expected, initial, heldOut, maximumTotalDegree]]];
   If[Length[canonicalSamples] < initial + heldOut,
     Return[<|"Status" -> "MoreSamplesRequired",
       "RequiredAdditionalSampleCount" -> initial + heldOut - Length[canonicalSamples]|>]];

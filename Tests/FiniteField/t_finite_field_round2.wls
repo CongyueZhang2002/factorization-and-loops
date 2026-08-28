@@ -74,7 +74,7 @@ If[FeynFacet`Private`finiteFieldStripFLINTBinary[] =!= None,
   checks["FLINTAbsentFallsBackToWolfram"] = ! FeynFacet`Private`finiteFieldStripBackendQ[Automatic, 600] &&
     ! FeynFacet`Private`finiteFieldStripBackendQ["FLINT", 600]];
 (* ---- held-out interpolation mechanics at nontrivial degrees ---- *)
-Module[{p = 2147483647, p2 = 2147483629, modQ, fs, trueDeg, epsVals, canon, canon2, ev, r, r2, r3, r4, r5, fresh, e},
+Module[{p = 2147483647, p2 = 2147483629, modQ, fs, trueDeg, epsVals, canon, canon2, ev, r, r2, r3, r4, r5, r6, fresh, e},
   modQ[q_, v_] := Mod[Mod[Numerator[v], q] PowerMod[Mod[Denominator[v], q], -1, q], q];
   fs = {(3 e^3 + 2 e + 1)/(e^3 - 5 e^2 + 7), (e + 2)/(4 e^2 + 1), 5, 0, e^5/(e + 3), (e^2 - 1)/(e^2 + 2 e + 1)};
   trueDeg = {{3, 3}, {1, 2}, {0, 0}, {-Infinity, 0}, {5, 1}, {1, 1}};
@@ -94,7 +94,15 @@ Module[{p = 2147483647, p2 = 2147483629, modQ, fs, trueDeg, epsVals, canon, cano
   r4 = FeynFacet`Private`finiteFieldStripHeldOutInterpolate[Take[canon, 8], p, "InitialConstructionCount" -> 4, "HeldOutCount" -> 3];
   checks["HeldOutAsksForMoreSamples"] = r3["Status"] === "MoreSamplesRequired" && r4["Status"] === "MoreSamplesRequired" && r4["RequiredAdditionalSampleCount"] === 2;
   r5 = FeynFacet`Private`finiteFieldStripHeldOutInterpolate[canon2, p2, "InitialConstructionCount" -> 7, "HeldOutCount" -> 3, "ExpectedDegrees" -> trueDeg];
-  checks["HeldOutLearnedProfileSecondPrime"] = r5["Status"] === "HeldOutValidated" && r5["SampleCount"] === 10];
+  checks["HeldOutLearnedProfileSecondPrime"] = r5["Status"] === "HeldOutValidated" &&
+    r5["SampleCount"] === 10 && r5["CertificationMode"] === "HeldOut" &&
+    Lookup[r5["Interpolations"], "Degrees"] === trueDeg;
+  r6 = FeynFacet`Private`finiteFieldStripHeldOutInterpolate[Take[canon2, 9], p2,
+    "InitialConstructionCount" -> 7, "HeldOutCount" -> 3, "ExpectedDegrees" -> trueDeg];
+  checks["HeldOutExpectedProfileRequestsExactShortfall"] =
+    r6["Status"] === "MoreSamplesRequired" &&
+      r6["RequiredAdditionalSampleCount"] === 1 &&
+      r6["Reason"] === "ExpectedDegreeHeldOutRound"];
 
 (* ---- unseen-prime residual on the real (9,6) A4 acceptance artifacts ---- *)
 Module[{files, modular, lifted, opts, bad, bad2},

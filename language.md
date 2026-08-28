@@ -1,7 +1,7 @@
 # Language rules for reports to the user
 
 Every status report, plan, and exchange summary must be readable by a
-physicist with no software background: plain English + physics/mathematics
+physicist with limited software background: plain English + physics/mathematics
 English only. This file is the authoritative banned-word library; re-read
 it before writing any status report.
 
@@ -26,19 +26,16 @@ it before writing any status report.
 - cut / channel / current / propagate (operational use) → literal description
 - drain → finish
 - fire (a job fires) → starts
-- gate / gate-verified / acceptance gate / resume gate / pre-gate → the
-  exact ε-form check / the full test run / the checkpoint acceptance
-  conditions / candidate
+- gate → check/test
 - goal state → the family certificate reports exact agreement
 - green / red → passing / failing
 - in flight → running
 - land / ship → finished
 - lever → option / change
-- meticulous → precise, or just state the facts
+- meticulous → no need for meaningless adjective
 - mortem / post-mortem → record of the terminated run / what happened
 - phase (operational use) → stage, batch, step
 - port → carrying over
-- purification / cleanup / strip gauge → completing the family's ε-form
 - spawn → start
 - suite → test
 - wall (metaphor) → the measured limit

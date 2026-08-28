@@ -1237,6 +1237,8 @@ SolveEpsFormStripInFrame[
    finiteFieldQ, finiteFieldFirstQ, finiteFieldOptions, canonicalKernelCount,
    scratchDirectory, stripTag, verbose, solveRationalStrip, innerSolvedQ,
    multiquadraticOptions, multiquadraticResult, multiquadraticStatus,
+   deferredBundle, bundleValidation, bundleRoots, bundleIndices,
+   selectedIndices, stableFrame, bundleRecord,
    constructionStart = AbsoluteTime[], deadline, timings = <||>,
    stageSeconds, substageSeconds, stripDimensions, budgetProgress,
    budgetExhausted},
@@ -1273,6 +1275,28 @@ SolveEpsFormStripInFrame[
   allRoots = transportChartCurrentRoots[frame, variables];
   If[allRoots === $Failed,
     Return[<|"Status" -> "AlgebraicFrameNotWellFormed"|>]];
+  (* A deferred forcing bundle is part of the strip's mathematical input,
+     even though the materialized BBar slot is intentionally a zero shape
+     placeholder.  Authenticate it before either the zero-forcing shortcut
+     or the root census can draw conclusions from that placeholder. *)
+  multiquadraticOptions = OptionValue["MultiquadraticOptions"];
+  If[! MatchQ[multiquadraticOptions, {___Rule}],
+    Return[<|"Status" -> "InvalidMultiquadraticOptions"|>]];
+  deferredBundle = FirstCase[multiquadraticOptions,
+    HoldPattern["DeferredBundle" -> value_] :> value,
+    Missing["NoDeferredBundle"]];
+  If[AssociationQ[deferredBundle],
+    bundleValidation = blockEquationDeferredBundleValidate[deferredBundle];
+    If[Lookup[bundleValidation, "Status", None] =!= "BundleValid",
+      Return[<|"Status" -> "InvalidDeferredBundle",
+        "Detail" -> bundleValidation|>]];
+    If[Lookup[deferredBundle, "Variables", None] =!= variables ||
+        Lookup[deferredBundle, "Regulator", None] =!= epsilon ||
+        Lookup[deferredBundle, "Dimensions", None] =!=
+          Prepend[Dimensions[bbar[[1]]], 2],
+      Return[<|"Status" -> "DeferredBundleFrameMismatch"|>]],
+    If[! MissingQ[deferredBundle] && deferredBundle =!= Automatic,
+      Return[<|"Status" -> "InvalidDeferredBundle"|>]]];
   (* BOUNDARY 1 (entry): an already-expired deadline never starts the
      root classifier, which denests and square-class-matches every
      radical occurring in the strip *)
@@ -1297,13 +1321,43 @@ SolveEpsFormStripInFrame[
       "NumericRadicalClasses" ->
         Lookup[classification, "NumericRadicalClasses", {}]|>]];
   rootIndices = classification["RootIndices"];
+  If[AssociationQ[deferredBundle],
+    (* Roots used only by the deferred forcing are invisible in the zero
+       placeholder.  Match the authenticated bundle frame back to the
+       caller's frame, then canonicalize the UNION.  Source indices remain
+       provenance; declaration order is not allowed to become a grade ABI. *)
+    bundleRoots = Lookup[deferredBundle["RootFrame"], "Roots", {}];
+    bundleIndices = Table[Module[{matches},
+        matches = Flatten[Position[allRoots,
+          candidate_ /; TrueQ[Together[candidate["RootSquare"] -
+                bundleRoot["RootSquare"]] === 0] &&
+            TrueQ[Together[candidate["Root"] - bundleRoot["Root"]] === 0],
+          {1}, Heads -> False]];
+        If[Length[matches] =!= 1,
+          Return[<|"Status" -> "DeferredBundleRootFrameMismatch",
+            "BundleRoot" -> bundleRoot, "Matches" -> matches|>, Module]];
+        First[matches]],
+      {bundleRoot, bundleRoots}];
+    If[! VectorQ[bundleIndices, IntegerQ],
+      Return[FirstCase[bundleIndices, failure_Association :> failure,
+        <|"Status" -> "DeferredBundleRootFrameMismatch"|>]]];
+    selectedIndices = DeleteDuplicates[Join[rootIndices, bundleIndices]];
+    stableFrame = blockEquationDeferredRootFrame[
+      KeyTake[#1, {"Root", "RootSquare"}] & /@ allRoots[[selectedIndices]],
+      variables, epsilon];
+    If[Lookup[stableFrame, "Status", None] =!= "StableRootOrder",
+      Return[<|"Status" -> "DeferredBundleRootUnionInvalid",
+        "Detail" -> stableFrame|>]];
+    rootIndices = selectedIndices[[Lookup[stableFrame["Roots"],
+      "SourceIndex", {}]]]];
   usedRoots = allRoots[[rootIndices]];
   rootSquares = Lookup[usedRoots, "RootSquare", {}];
   (* dD = eps (e.D-D.c)+bbar is solved identically by D=0 when the
      forcing vanishes.  This must precede chart selection: the diagonal
      blocks may span a root set with no joint rational chart even though
      this off-diagonal problem needs no field arithmetic at all. *)
-  If[AllTrue[Flatten[bbar], SameQ[#, 0] &],
+  If[! AssociationQ[deferredBundle] &&
+      AllTrue[Flatten[bbar], SameQ[#, 0] &],
     Return[<|"Status" -> "Solved", "Method" -> "ZeroForcing",
       "Gauge" -> ConstantArray[0, Dimensions[bbar[[1]]]],
       "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
@@ -1385,25 +1439,27 @@ SolveEpsFormStripInFrame[
   If[transportChartDeadlineExpiredQ[deadline],
     Return[budgetExhausted["ChartSelection"]]];
   {stageSeconds, chart} = AbsoluteTiming[
-    TransportRootSetChart[rootSquares, variables]];
+    If[AssociationQ[deferredBundle],
+      (* The rational-chart route needs a materialized BBar to pull back.
+         A deferred bundle deliberately supplies only a shape placeholder,
+         so even a root set that happens to admit a chart must go through
+         the provider that evaluates the authenticated DAG. *)
+      Missing["DeferredBundleRequiresDirectProvider"],
+      TransportRootSetChart[rootSquares, variables]]];
   timings["ChartSelection"] = stageSeconds;
   If[MissingQ[chart],
     (* F2 (Design/GeneralityFixes2.md, 2026-08-23): no joint rational
        chart is not the end of the road.  The direct multiquadratic
        engine solves such a strip in the grade basis of the declared
-       root set; its terminal success status is "ModularConsistent" and
-       NEVER "Solved" -- it returns closed one-forms, not certified dlog
-       potentials, so the caller RECORDS the result and never installs
-       it (Design/MultiquadraticPromotion.md section 3).  The result is
-       returned exactly as the engine typed it. *)
+       root set.  A reconstructed gauge with certified active dlog
+       potentials and independent fresh residuals returns the installable
+       "Solved" ABI; an incomplete "ModularConsistent" result is recorded
+       but never installed.  The result is returned exactly as the engine
+       typed it. *)
     If[! TrueQ[OptionValue["MultiquadraticDispatch"]],
       Return[<|"Status" -> "NoRationalStripChart",
         "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
         "MultiquadraticDispatch" -> "Disabled"|>]];
-    multiquadraticOptions = OptionValue["MultiquadraticOptions"];
-    If[! MatchQ[multiquadraticOptions, {___Rule}],
-      Return[<|"Status" -> "InvalidMultiquadraticOptions",
-        "RootIndices" -> rootIndices, "RootSquares" -> rootSquares|>]];
     If[verbose, Print["[strip-in-frame] no rational chart for root squares ",
       rootSquares, "; dispatching to the multiquadratic engine"]];
     (* BOUNDARY (solver dispatch, multiquadratic): no engine is entered
@@ -1412,8 +1468,12 @@ SolveEpsFormStripInFrame[
        "MultiquadraticOptions" comes first in the Join and still wins) *)
     If[transportChartDeadlineExpiredQ[deadline],
       Return[budgetExhausted["MultiquadraticDispatch"]]];
-    multiquadraticResult = solveEpsFormStripMultiquadratic[
+    bundleRecord = Join[
       <|"Variables" -> variables, "Regulator" -> epsilon, "Strip" -> strip|>,
+      If[AssociationQ[deferredBundle],
+        <|"DeferredBundle" -> deferredBundle|>, <||>]];
+    multiquadraticResult = solveEpsFormStripMultiquadratic[
+      bundleRecord,
       frame,
       Sequence @@ DeleteDuplicatesBy[
         Join[multiquadraticOptions,

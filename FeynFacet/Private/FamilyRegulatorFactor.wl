@@ -357,7 +357,9 @@ using the Wolfram backend"];
 
 Clear[FactorFamilyRegulatorDependenceMultiquadratic];
 ClearAll[familyRegulatorNonSquareRationalQ, familyRegulatorGradedRoots,
-  familyRegulatorGradedDecompose, familyRegulatorGradedMatrices,
+  familyRegulatorGradedRootFrame, familyRegulatorGradedDecompose,
+  familyRegulatorGradedFrameEvidence,
+  familyRegulatorGradedDecomposeUnchecked, familyRegulatorGradedMatrices,
   familyRegulatorGradedDecomposeTask,
   familyRegulatorGradedPointFactoredQ, familyRegulatorModularImage,
   familyRegulatorGradedCorroborate, familyRegulatorGradedSpotCheck,
@@ -374,6 +376,75 @@ familyRegulatorNonSquareRationalQ[value_] :=
   MatchQ[value, _Integer | _Rational] && value =!= 0 &&
     ! MatchQ[Sqrt[value], _Integer | _Rational];
 
+(* The graded algebra has one sign bit per independent square class.
+   Distinct root squares are not sufficient: {q1,q2,q1 q2} would create
+   a fake third generator.  Use the same exact square-class predicate as
+   the deferred-bundle and strip root-frame validators, while preserving
+   the caller's established root order. *)
+familyRegulatorGradedRootFrame[roots_List] := Module[
+  {squares, duplicates, dependent},
+  If[! AllTrue[roots, AssociationQ[#1] && KeyExistsQ[#1, "Root"] &&
+      KeyExistsQ[#1, "RootSquare"] &&
+      TrueQ[Together[#1["Root"]^2 - #1["RootSquare"]] === 0] &],
+    Return[<|"Status" -> "InvalidRootMetadata"|>]];
+  squares = Together /@ Lookup[roots, "RootSquare", {}];
+  duplicates = Select[Subsets[Range[Length[roots]], {2}],
+    TrueQ[Together[squares[[#1[[1]]]] - squares[[#1[[2]]]]] === 0] &];
+  If[duplicates =!= {},
+    Return[<|"Status" -> "DuplicateRootSquares",
+      "DuplicatePairs" -> duplicates|>]];
+  dependent = FirstCase[Rest[Subsets[Range[Length[roots]]]],
+    subset_ /; TrueQ[multiquadraticStripSquareClassSquareQ[
+      Times @@ squares[[subset]]]] :> subset, None];
+  If[dependent =!= None,
+    Return[<|"Status" -> "DependentRootSquares",
+      "RootIndices" -> dependent|>]];
+  <|"Status" -> "StableRootFrame", "Roots" -> roots,
+    "RootSquares" -> squares|>
+];
+familyRegulatorGradedRootFrame[___] := <|"Status" -> "InvalidRootMetadata"|>;
+
+(* Persistable, self-authenticating description of the actual graded field.
+   The factorizer may extend the chart roots by independent numeric square
+   classes, so RootIndices/RootSquares from the chart alone are not enough to
+   replay a later whole-family certificate.  The shared canonical root-frame
+   builder supplies branch-sensitive fingerprints and a stable ordering; the
+   remaining fields bind the exponential grade ABI and its resource ceiling. *)
+familyRegulatorGradedFrameEvidence[roots_List,
+    variables : {_Symbol, _Symbol}, regulator_Symbol] := Module[
+  {frame, numericIndices, semantic},
+  If[Length[roots] > $familyRegulatorMaximumGradedRank,
+    Return[<|"Status" -> "GradedRankTooLarge", "Rank" -> Length[roots],
+      "MaximumRank" -> $familyRegulatorMaximumGradedRank|>]];
+  frame = blockEquationDeferredRootFrame[roots, variables, regulator];
+  If[Lookup[frame, "Status", None] =!= "StableRootOrder", Return[frame]];
+  If[AnyTrue[Lookup[frame["Roots"], "RootSquare", {}],
+      ! FreeQ[#1, regulator] &],
+    Return[<|"Status" -> "RegulatorDependentRootSquare"|>]];
+  numericIndices = Flatten[Position[
+    Lookup[frame["Roots"], "RootSquare", {}],
+    value_ /; familyRegulatorNonSquareRationalQ[value], {1},
+    Heads -> False]];
+  semantic = <|
+    "Schema" -> "FamilyRegulatorGradedRootFrameV1",
+    "Status" -> "StableRootFrame",
+    "Roots" -> frame["Roots"],
+    "RootCount" -> Length[frame["Roots"]],
+    "GradeCount" -> 2^Length[frame["Roots"]],
+    "MaximumRank" -> $familyRegulatorMaximumGradedRank,
+    "RootFingerprints" -> frame["RootFingerprints"],
+    "OrderingFingerprint" -> frame["OrderingFingerprint"],
+    "NumericRootIndices" -> numericIndices,
+    "NumericRootSquares" ->
+      Lookup[frame["Roots"][[numericIndices]], "RootSquare", {}]|>;
+  Append[semantic, "FrameFingerprint" -> Hash[KeyTake[semantic,
+    {"Schema", "RootCount", "GradeCount", "MaximumRank",
+     "RootFingerprints", "OrderingFingerprint", "NumericRootIndices",
+     "NumericRootSquares"}], "SHA256", "HexString"]]
+];
+familyRegulatorGradedFrameEvidence[___] :=
+  <|"Status" -> "InvalidRootMetadata"|>;
+
 (* A numeric square class (Sqrt[2] and the like) is a constant of the
    coefficient field, not a function of the chart variables, so the chart
    route may ignore it.  The graded route may NOT: 1/(1 + Sqrt[2]) and
@@ -382,18 +453,22 @@ familyRegulatorNonSquareRationalQ[value_] :=
    Carrying the class as one more graded generator makes every channel an
    honest rational function over Q and the test canonical. *)
 familyRegulatorGradedRoots[usedRoots_List, numericClasses_List] := Module[
-  {classes},
+  {classes, candidates, frame},
   classes = Select[DeleteDuplicates[Together /@ numericClasses],
     familyRegulatorNonSquareRationalQ];
-  Join[usedRoots, Map[<|"Root" -> Sqrt[#], "RootSquare" -> #|> &, classes]]
+  candidates = Join[usedRoots,
+    Map[<|"Root" -> Sqrt[#], "RootSquare" -> #|> &, classes]];
+  frame = familyRegulatorGradedRootFrame[candidates];
+  If[Lookup[frame, "Status", None] =!= "StableRootFrame", frame,
+    frame["Roots"]]
 ];
 
 (* multiquadraticFieldDecompose with the strip module's rank-3 ABI
    ceiling lifted (see above) and the exact compose check kept.  Root
    symbols are Module locals: nothing is interned, nothing survives the
    call (pool defect 8). *)
-familyRegulatorGradedDecompose[expression_, roots_List] := Module[
-  {rank = Length[roots], rootA, rootB, rootC, rootD, rootE, symbols, deltas,
+familyRegulatorGradedDecomposeUnchecked[expression_, roots_List] := Module[
+  {rank = Length[roots], symbols, deltas,
    replaced, rational, numerator, denominator, numeratorChannels,
    denominatorChannels, denominatorInverse, channels, reconstructed,
    difference},
@@ -401,7 +476,8 @@ familyRegulatorGradedDecompose[expression_, roots_List] := Module[
   deltas = Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]];
   If[Length[deltas] =!= rank || ! FreeQ[deltas, $Failed], Return[$Failed]];
   deltas = Together /@ deltas;
-  symbols = Take[{rootA, rootB, rootC, rootD, rootE}, rank];
+  symbols = Table[Unique["FeynFacet`Private`familyRegulatorGradeRoot"],
+    {rank}];
   replaced = If[rank === 0, expression,
     transportChartApplyRootBranches[expression, roots, symbols]];
   If[replaced === $Failed, Return[$Failed]];
@@ -434,16 +510,26 @@ familyRegulatorGradedDecompose[expression_, roots_List] := Module[
   channels
 ];
 
+familyRegulatorGradedDecompose[expression_, roots_List] := Module[{frame},
+  If[Length[roots] > $familyRegulatorMaximumGradedRank, Return[$Failed]];
+  frame = familyRegulatorGradedRootFrame[roots];
+  If[Lookup[frame, "Status", None] =!= "StableRootFrame", Return[$Failed]];
+  familyRegulatorGradedDecomposeUnchecked[expression, frame["Roots"]]
+];
+
 (* helper side of the optional brokered decomposition: one task = one
    contiguous slice of the UNIQUE entry expressions.  Roots and
    expressions are written once per call and read once per helper kernel
    (taskBrokerRead memoizes by path and modification time). *)
 familyRegulatorGradedDecomposeTask[dataFile_String, indices_List] :=
-  Module[{data = taskBrokerRead[dataFile]},
+  Module[{data = taskBrokerRead[dataFile], frame},
     If[! AssociationQ[data], Return[$Failed]];
+    frame = familyRegulatorGradedRootFrame[Lookup[data, "Roots", $Failed]];
+    If[Lookup[frame, "Status", None] =!= "StableRootFrame",
+      Return[$Failed]];
     Function[expression,
-      Quiet[Check[familyRegulatorGradedDecompose[expression, data["Roots"]],
-        $Failed]]] /@ data["Expressions"][[indices]]];
+      Quiet[Check[familyRegulatorGradedDecomposeUnchecked[expression,
+        frame["Roots"]], $Failed]]] /@ data["Expressions"][[indices]]];
 
 (* {Ax, Ay} -> the 2 * 2^k grade-component matrices.  A zero entry keeps
    its zero channels without a decomposition call; a failure is reported
@@ -479,7 +565,12 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
    internQ, unique = {}, uniqueIndex = <||>, entryIds,
    nonzeroCount = 0, values, helpers = 0, byteCap, dispatcher, parallel,
    batches = {}, bytes, dataFile, codes, handle, farmed, localBatch,
-   missing, decomposeLocal, route = "Serial", batchSeconds = 0.},
+   missing, decomposeLocal, route = "Serial", batchSeconds = 0., frame},
+  If[rank > $familyRegulatorMaximumGradedRank,
+    Return[<|"Status" -> "GradedRankTooLarge", "Rank" -> rank,
+      "MaximumRank" -> $familyRegulatorMaximumGradedRank|>]];
+  frame = familyRegulatorGradedRootFrame[roots];
+  If[Lookup[frame, "Status", None] =!= "StableRootFrame", Return[frame]];
   gradeCount = 2^rank;
   internQ = TrueQ[OptionValue["Intern"]];
 
@@ -488,7 +579,7 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
       entry = connection[[mu, i, j]];
       If[TrueQ[entry === 0], ConstantArray[0, gradeCount],
         nonzeroCount++;
-        decomposed = familyRegulatorGradedDecompose[entry, roots];
+        decomposed = familyRegulatorGradedDecomposeUnchecked[entry, roots];
         If[ListQ[decomposed] && Length[decomposed] === gradeCount, decomposed,
           If[Length[failures] < 4, AppendTo[failures, {mu, i, j}]];
           ConstantArray[0, gradeCount]]],
@@ -510,7 +601,8 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
        task does wrap it, so a message on a HELPER only sends that
        expression back to this kernel to be decomposed unwrapped. *)
     decomposeLocal[indices_List] := Map[
-      Function[index, familyRegulatorGradedDecompose[unique[[index]], roots]],
+      Function[index, familyRegulatorGradedDecomposeUnchecked[
+        unique[[index]], roots]],
       indices];
     bytes = ByteCount /@ unique;
     byteCap = Replace[OptionValue["BatchByteCap"], Automatic :> 2^28];
@@ -832,7 +924,8 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
    pointsUsed = 0, exactLimit, conjugated, factoredQ, inverseQ, newAx, newAy,
    spot, corroboration, exactSeconds, gradeFailure = None,
    deadline, expired = False, ladderLimit, decompositionSeconds,
-   numericGradeCount = 0, skippedStages = {}},
+   numericGradeCount = 0, skippedStages = {}, rootFrame,
+   gradedFrameEvidence},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependenceMultiquadratic::input];
@@ -852,6 +945,16 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
     Return[<|"Status" -> "GradedRankTooLarge", "Rank" -> rank,
       "MaximumRank" -> $familyRegulatorMaximumGradedRank,
       "Seconds" -> AbsoluteTime[] - start|>]];
+  rootFrame = familyRegulatorGradedRootFrame[roots];
+  If[Lookup[rootFrame, "Status", None] =!= "StableRootFrame",
+    Return[Join[rootFrame, <|"Module" -> "FamilyRegulatorFactor",
+      "Rank" -> rank, "Seconds" -> AbsoluteTime[] - start|>]]];
+  gradedFrameEvidence = familyRegulatorGradedFrameEvidence[
+    roots, variables, epsilon];
+  If[Lookup[gradedFrameEvidence, "Status", None] =!= "StableRootFrame",
+    Return[Join[gradedFrameEvidence,
+      <|"Module" -> "FamilyRegulatorFactor", "Rank" -> rank,
+        "Seconds" -> AbsoluteTime[] - start|>]]];
   If[familyRegulatorDeadlineExpiredQ[deadline],
     Return[familyRegulatorDeadlineStop["Entry", deadline, start,
       <|"Rank" -> rank|>]]];
@@ -882,7 +985,9 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
     Return[<|"Status" -> "AlreadyEpsFactored", "Method" -> "MultiquadraticGrades",
       "Transformation" -> IdentityMatrix[n], "Inverse" -> IdentityMatrix[n],
       "Connection" -> {ax, ay}, "Rank" -> rank, "GradeCount" -> gradeCount,
-      "ActiveGrades" -> activeGrades, "Seconds" -> AbsoluteTime[] - start|>]];
+      "ActiveGrades" -> activeGrades,
+      "GradedRootFrame" -> gradedFrameEvidence,
+      "Seconds" -> AbsoluteTime[] - start|>]];
   (* every grade component is an ORDINARY rational function: the sampled
      matrices are rational in the regulator and Fermat is admissible even
      though the source connection carries radicals *)
@@ -1068,6 +1173,7 @@ carries numeric square classes in which a valid constant T may live",
     "GradeDecompositionSeconds" -> decompositionSeconds,
     "Points" -> pointsUsed, "Rank" -> rank, "GradeCount" -> gradeCount,
     "ActiveGrades" -> activeGrades,
+    "GradedRootFrame" -> gradedFrameEvidence,
     "Transformation" -> transformation, "Inverse" -> inverse,
     "Connection" -> {newAx, newAy}, "Attempts" -> attempts,
     "ExactEpsFactorization" -> True, "ExactInverse" -> True,
@@ -1187,6 +1293,13 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
        remains if THAT route refuses, and it then carries the graded
        route's diagnostics. *)
     gradedRoots = familyRegulatorGradedRoots[usedRoots, numericClasses];
+    If[! ListQ[gradedRoots],
+      Return[<|"Status" -> "InvalidGradedRootFrame",
+        "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+        "GradedRootFrame" -> gradedRoots,
+        "RadicalCanonicalization" -> canonicalRecord,
+        "NumericRadicalClasses" -> numericClasses,
+        "Seconds" -> AbsoluteTime[] - start|>]];
     multiquadratic = FactorFamilyRegulatorDependenceMultiquadratic[
       {canonicalAx, canonicalAy}, variables, epsilon, gradedRoots,
       FilterRules[{opts},

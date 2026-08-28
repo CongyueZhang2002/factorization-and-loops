@@ -1,4 +1,4 @@
-(* Parallel certification census: recompute the exact whole-family
+(* Parallel certification census: recompute the whole-family
    epsilon-form certificate for every differential-equation family, on
    one main kernel plus subkernels (the license-safe topology).
 
@@ -9,7 +9,8 @@
    in order; each candidate is read with the context-guarded
    FamilyArtifactRead and re-certified from the differential system by
    CertifyFamilyEpsilonForm (never trusting a stored verdict); the
-   first exactly certified candidate is written atomically to OUTPUT.
+   first accepted exact or high-confidence finite-field candidate is written
+   atomically to OUTPUT.
    The report certification_report.wl matches the serial campaign's
    schema. *)
 
@@ -55,15 +56,17 @@ If[launched =!= {},
 
 certifyOne[systemFile_String] := Module[
   {family, outputFile, existing, candidates, system, accepted = False,
-   diagnostics = {}, familyStart, record, certified, elapsed},
+   acceptedStatus, diagnostics = {}, familyStart, record, certified, elapsed},
   family = familyName[systemFile];
   outputFile = FileNameJoin[{outputDirectory,
     "family_epsform_" <> family <> ".wl"}];
   If[FileExistsQ[outputFile],
     existing = FeynFacet`FamilyArtifactRead[outputFile];
     If[AssociationQ[existing] &&
-        FeynFacet`ExactFamilyEpsilonFormQ[existing],
-      Return[<|"Family" -> family, "Status" -> "AlreadyExact",
+        FeynFacet`CertifiedFamilyEpsilonFormQ[existing],
+      acceptedStatus = If[FeynFacet`ExactFamilyEpsilonFormQ[existing],
+        "AlreadyExact", "AlreadyCertified"];
+      Return[<|"Family" -> family, "Status" -> acceptedStatus,
         "File" -> outputFile, "Seconds" -> 0.|>]]];
   candidates = DeleteDuplicates @ Flatten[
     FileNames["family_epsform_" <> family <> ".wl", #, Infinity] & /@
@@ -82,10 +85,13 @@ certifyOne[systemFile_String] := Module[
       Continue[]];
     certified = FeynFacet`CertifyFamilyEpsilonForm[record, system];
     If[AssociationQ[certified] &&
-        certified["Status"] === "ExactEpsilonForm" &&
-        FeynFacet`ExactFamilyEpsilonFormQ[certified],
+        MemberQ[{"ExactEpsilonForm", "CertifiedEpsilonForm"},
+          certified["Status"]] &&
+        FeynFacet`CertifiedFamilyEpsilonFormQ[certified],
       FeynFacet`FamilyArtifactWrite[certified, outputFile];
       elapsed = AbsoluteTime[] - familyStart;
+      acceptedStatus = If[FeynFacet`ExactFamilyEpsilonFormQ[certified],
+        "Exact", "Certified"];
       accepted = True;
       Break[],
       AppendTo[diagnostics, <|"Source" -> candidate,
@@ -94,13 +100,14 @@ certifyOne[systemFile_String] := Module[
     ],
     {candidate, candidates}];
   If[accepted,
-    Print["CERTIFY-LIVE family=", family, " exact=True seconds=",
+    Print["CERTIFY-LIVE family=", family, " certified=True status=",
+      acceptedStatus, " seconds=",
       Round[elapsed, 0.1]];
-    <|"Family" -> family, "Status" -> "Exact", "File" -> outputFile,
+    <|"Family" -> family, "Status" -> acceptedStatus, "File" -> outputFile,
       "Seconds" -> elapsed, "Bytes" -> FileByteCount[outputFile]|>,
-    Print["CERTIFY-LIVE family=", family, " exact=False seconds=",
+    Print["CERTIFY-LIVE family=", family, " certified=False seconds=",
       Round[AbsoluteTime[] - familyStart, 0.1]];
-    <|"Family" -> family, "Status" -> "NoExactlyCertifiedCandidate",
+    <|"Family" -> family, "Status" -> "NoCertifiedCandidate",
       "Candidates" -> candidates,
       "CandidateDiagnostics" -> diagnostics,
       "Seconds" -> AbsoluteTime[] - familyStart|>]
@@ -118,11 +125,18 @@ Do[
     " seconds=", Round[Lookup[row, "Seconds", 0.], 0.1]],
   {row, results}];
 
+acceptedStatuses = {"Exact", "AlreadyExact", "Certified",
+  "AlreadyCertified"};
 report = <|
   "Status" -> If[AllTrue[results,
-      MemberQ[{"Exact", "AlreadyExact"}, #Status] &],
-    "CompleteExactInventory", "IncompleteExactInventory"],
+      MemberQ[acceptedStatuses, #Status] &],
+    "CompleteCertifiedInventory", "IncompleteCertifiedInventory"],
   "DifferentialFamilyCount" -> Length[differentialFiles],
+  "CertifiedFamilyCount" -> Count[results,
+    row_ /; MemberQ[acceptedStatuses, row["Status"]]],
+  "CertifiedFamilies" -> Lookup[
+    Select[results, MemberQ[acceptedStatuses, #["Status"]] &],
+    "Family", {}],
   "ExactFamilyCount" -> Count[results,
     row_ /; MemberQ[{"Exact", "AlreadyExact"}, row["Status"]]],
   "ExactFamilies" -> Lookup[
@@ -130,7 +144,7 @@ report = <|
     "Family", {}],
   "IncompleteFamilies" -> Lookup[
     Select[results,
-      ! MemberQ[{"Exact", "AlreadyExact"}, #["Status"]] &],
+      ! MemberQ[acceptedStatuses, #["Status"]] &],
     "Family", {}],
   "KernelCount" -> Length[launched] + 1,
   "ElapsedSeconds" -> AbsoluteTime[] - campaignStart,
@@ -139,7 +153,8 @@ report = <|
 FeynFacet`FamilyArtifactWrite[report,
   FileNameJoin[{outputDirectory, "certification_report.wl"}]];
 If[launched =!= {}, Quiet[CloseKernels[launched]]];
-Print["CERTIFY-PARALLEL exact=", report["ExactFamilyCount"], "/",
+Print["CERTIFY-PARALLEL certified=", report["CertifiedFamilyCount"], "/",
   report["DifferentialFamilyCount"], " seconds=",
-  Round[report["ElapsedSeconds"], 0.1]];
+  Round[report["ElapsedSeconds"], 0.1], " exact=",
+  report["ExactFamilyCount"]];
 Print["CERTIFY-PARALLEL incomplete=", report["IncompleteFamilies"]];

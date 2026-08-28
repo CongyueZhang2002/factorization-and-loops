@@ -138,6 +138,29 @@ kernelCount = Module[{value = Environment["FACET_KERNEL_COUNT"]},
     8
   ]
 ];
+(* Native direct-MQ RREF threads are independent of Wolfram helper kernels.
+   Unset preserves the historical tuning by inheriting FACET_KERNEL_COUNT;
+   an explicit value permits one main kernel with an eight-thread native
+   adapter. *)
+mqNativeThreads = Module[{value = Environment["FACET_MQ_NATIVE_THREADS"],
+    parsed},
+  If[! StringQ[value] || StringLength[value] === 0, Return[kernelCount]];
+  parsed = Quiet[Check[ToExpression[value], $Failed]];
+  If[! IntegerQ[parsed] || ! Between[parsed, {1, 8}],
+    Print["[sector-epsform] FACET_MQ_NATIVE_THREADS must be an integer " <>
+      "from 1 through 8"]; Exit[64]];
+  parsed
+];
+mqImageKernelCount = Module[{
+    value = Environment["FACET_MQ_IMAGE_KERNEL_COUNT"], parsed},
+  If[! StringQ[value] || StringLength[value] === 0, Return[Automatic]];
+  parsed = Quiet[Check[ToExpression[value], $Failed]];
+  If[! IntegerQ[parsed] || ! Between[parsed, {1, 8}],
+    Print["[sector-epsform] FACET_MQ_IMAGE_KERNEL_COUNT must be an " <>
+      "integer from 1 through 8"];
+    Exit[64]];
+  parsed
+];
 (* Fixed-core and plan-discovery backends are intentionally distinct.
    These values are explicit so checkpoints bind the exact request. *)
 finiteFieldBackend = Automatic;
@@ -147,6 +170,8 @@ If[! DirectoryQ[outdir], CreateDirectory[outdir, CreateIntermediateDirectories -
 start = AbsoluteTime[];
 log[a___] := Print["[sector-epsform ", family, " +", ToString[Round[AbsoluteTime[] - start]], "s] ", StringJoin[ToString[#, InputForm] & /@ {a}]];
 log["worker-kernel limit ", kernelCount];
+log["direct-MQ native thread count ", mqNativeThreads];
+log["direct-MQ follower image concurrency ", mqImageKernelCount];
 ownedKernels = {};
 If[kernelCount > 1 && Length[Kernels[]] < kernelCount,
   ownedKernels = Quiet[
@@ -561,6 +586,7 @@ stripSolverSummary[solution_Association, sector_Integer,
     "Primes", "ModularPrimeCount", "SelectedNumeratorDegreeOffset",
     "BackendRequested", "BackendThreads", "BackendsUsed",
     "PlanDiscoveryBackendRequested", "PlanDiscoveryBackendUsed",
+    "PlanDiscoveryBackendThreads",
     "EliminationPlanFingerprint",
     "PrimeSamplingSeconds", "PrimeInterpolationSeconds",
     "TotalSamplingSeconds", "TotalInterpolationSeconds",
@@ -569,18 +595,47 @@ stripSolverSummary[solution_Association, sector_Integer,
     "ResidueKernels",
     "LetterDenominatorPower", "NumeratorDegreeOffset",
     "ExactDLog", "ODEEquationZero", "TransformedDLogZero",
-    "Alphabet", "RootIndices", "FrameCertificate"}],
+    "Alphabet", "RootIndices", "FrameCertificate",
+    "SolutionContract", "Certificate", "Provider",
+    "ProviderFingerprint", "LayoutFingerprint",
+    "CoefficientABIFingerprint", "ReconstructedVectorFingerprint",
+    "OneFormsCertified", "LettersEpsFree", "ResiduesKinematicsFree",
+    "InstallationEvidence", "PhaseSeconds"}],
+  If[AssociationQ[Lookup[solution, "RegulatorReconstruction", None]],
+    With[{reconstruction = solution["RegulatorReconstruction"]},
+      <|"RegulatorReconstruction" -> Join[
+        KeyTake[reconstruction,
+          {"Status", "Method", "SamplePrimes", "GoodPrimes",
+           "LearnedRegulatorSampleCount", "PrimeRegulatorImageCounts",
+           "RegulatorScheduleGrowths", "LiftAttemptCount",
+           "PrimeCountEstimate", "CombinedModulusBitLength",
+           "CoefficientHeight", "CoefficientHeightBitLength",
+           "RationalReconstructionMinimumPrimeCount",
+           "ActualMinimumPrimeCount", "ActualPrimeCount",
+           "PrimeCountOvershoot", "ActualMinimumPrimeCountBasis",
+           "FreshProviderPointwiseCheckCount", "PhaseSeconds", "Seconds"}],
+        <|"LiftAttemptHistory" ->
+          (KeyDrop[#1, {"UnresolvedCoefficientLocations"}] & /@
+            Lookup[reconstruction, "LiftAttemptHistory", {}])|>]|>],
+    <||>],
   <|"ExtraLetters" -> extraLetters,
     "SolverConfiguration" -> solverConfiguration|>];
-stripSolverConfiguration[route_String] :=
+stripSolverConfiguration[route_String,
+    directAlphabetOptions_ : Automatic] :=
   FeynFacet`Private`familyRowGaugeSolverConfiguration[
     route, Lookup[chart, "CoefficientField", "Rational"], chart,
     If[route === "ZeroForcing", None,
       If[productionQ, "Numerical", "Exact"]],
     If[route === "ZeroForcing", None, finiteFieldBackend],
     If[route === "ZeroForcing", None, finiteFieldBackendThreads],
-    If[route === "ZeroForcing", None, planDiscoveryBackend],
-    "DriverProvenance" -> driverProvenance];
+    Which[route === "ZeroForcing", None,
+      route === "DirectMultiquadraticFiniteField", Automatic,
+      True, planDiscoveryBackend],
+    "PlanDiscoveryBackendThreads" -> If[
+      route === "DirectMultiquadraticFiniteField", mqNativeThreads,
+      Automatic],
+    "DriverProvenance" -> driverProvenance,
+    "DirectAlphabetOptions" -> directAlphabetOptions];
 
 (* Regulator factorization of the completed rows 1..m (FiniteFieldFirst
    route, 2026-08-22): a completed block may be a dlog form whose residue
@@ -705,6 +760,8 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
         (* graded-algebra route only (2026-08-25): the evidence the
            recorded eps-factorization rests on *)
         "GradedRank" -> Lookup[factor, "Rank", Missing["NotGraded"]],
+        "GradedRootFrame" -> Lookup[factor, "GradedRootFrame",
+          Missing["NotGraded"]],
         "ActiveGrades" -> Lookup[factor, "ActiveGrades", Missing["NotGraded"]],
         "ExactEpsFactorization" -> Lookup[factor, "ExactEpsFactorization", Missing["NotGraded"]],
         "CompositionSpotCheck" -> Lookup[factor, "CompositionSpotCheck", Missing["NotGraded"]],
@@ -781,14 +838,43 @@ blockEquationSymbolicForcing[k_, j_, solved_Association] := Module[
       {m, Select[Keys[solved], j < # < k &]}], {2}], {mu, 2}]];
 blockEquation[k_, j_, solved_Association] := Module[
   {rk = blockRows[k], rj = blockRows[j], A = state["A"], e, c, bbar,
-   deferred, route},
+   deferred, materialized, route, bundleRoots, zeroPlaceholder},
   e = Table[Map[Together[#/ee] &, A[[mu, rk, rk]], {2}], {mu, 2}];
   c = Table[Map[Together[#/ee] &, A[[mu, rj, rj]], {2}], {mu, 2}];
   route = FeynFacet`Private`blockEquationDeferredRoute[];
   $blockConstructionRecord = <|"Route" -> route|>;
   If[route === "Deferred",
-    deferred = FeynFacet`Private`blockEquationDeferredForcing[
-      A, ranges, k, j, solved, invariants, ee];
+    bundleRoots = If[TrueQ[algebraicFrameQ],
+      FeynFacet`Private`transportChartCurrentRoots[chart, invariants], {}];
+    deferred = If[TrueQ[algebraicFrameQ] && ListQ[bundleRoots],
+      FeynFacet`Private`blockEquationDeferredForcing[
+        A, ranges, k, j, solved, invariants, ee,
+        "Output" -> "Bundle", "BundleRoots" -> bundleRoots],
+      FeynFacet`Private`blockEquationDeferredForcing[
+        A, ranges, k, j, solved, invariants, ee]];
+    If[AssociationQ[deferred] &&
+        Lookup[deferred, "Status", None] === "PreparedDeferredBundle",
+      (* A nonzero census witness proves this is not a zero-forcing block,
+         so the direct provider can consume the immutable DAG immediately.
+         Only the inconclusive zero candidate pays materialization for the
+         exact zero test. *)
+      If[! TrueQ[Lookup[deferred, "ZeroForcingCandidateQ", True]],
+        zeroPlaceholder = ConstantArray[0, deferred["Dimensions"]];
+        $blockConstructionRecord = <|"Route" -> "DeferredBundle",
+          "DeferredBundle" -> deferred,
+          "DeferredBundleFingerprint" -> deferred["BundleFingerprint"],
+          "Census" -> Lookup[deferred["Statistics"], "Census", <||>],
+          "ZeroForcingCandidateQ" -> False,
+          "BundleStatistics" -> KeyDrop[deferred["Statistics"], "Census"]|>;
+        Return[{e, c, zeroPlaceholder}]];
+      materialized = FeynFacet`Private`blockEquationDeferredForcing[
+        A, ranges, k, j, solved, invariants, ee,
+        "Output" -> "BundleAndMaterialized", "BundleRoots" -> bundleRoots];
+      If[AssociationQ[materialized] &&
+          Lookup[materialized, "Status", None] === "OK",
+        $blockConstructionRecord = Join[$blockConstructionRecord,
+          KeyDrop[materialized, {"Forcing", "Status"}]];
+        Return[{e, c, materialized["Forcing"]}]]];
     If[AssociationQ[deferred] && Lookup[deferred, "Status", None] === "OK",
       $blockConstructionRecord = Join[$blockConstructionRecord,
         KeyDrop[deferred, {"Forcing", "Status"}]];
@@ -828,7 +914,7 @@ Do[
    dk2, sfull, sfullInverse, aPrevious, aNew, secs, remaining,
    stageInverse, stageGauge, newS, newSInverse, sectorCertificate,
    rowGaugeStatistics, installedRow = Automatic,
-   stripCheckpointFile = None},
+   stripCheckpointFile = None, deferredBundle, directAlphabetOptions},
   log["==== sector ", k, " (rows ", bounds[[k]], ", truncation ", nk, "x", nk, ")"];
   (* recomputed at each sector start: this sector's strip solves must
      finish within sectorBudget seconds of the sector's own start AND
@@ -970,6 +1056,8 @@ Do[
             "FiniteFieldBackend" -> finiteFieldBackend,
             "FiniteFieldBackendThreads" -> finiteFieldBackendThreads,
             "PlanDiscoveryBackend" -> planDiscoveryBackend,
+            "PlanDiscoveryBackendThreads" -> mqNativeThreads,
+            "MultiquadraticImageKernelCount" -> mqImageKernelCount,
             "DriverProvenance" -> driverProvenance,
             "Verbose" -> True];
           If[AssociationQ[resumeHydration] &&
@@ -1069,9 +1157,13 @@ Do[
             "_input.wl"}];
         (* putAtomic returns the renamed path, so only the timing is taken *)
         constructionSeconds = First[AbsoluteTiming[putAtomic[
-          <|"Family" -> family, "Sector" -> k,
+          Join[<|"Family" -> family, "Sector" -> k,
             "LowerSector" -> nlow, "Variables" -> invariants,
             "Regulator" -> ee, "Strip" -> {e, c, bbar}|>,
+            If[AssociationQ[Lookup[$blockConstructionRecord,
+                "DeferredBundle", None]],
+              <|"DeferredBundle" ->
+                $blockConstructionRecord["DeferredBundle"]|>, <||>]],
           stripInputFile]]];
         (* THE STRIP-INPUT SEAL (2026-08-25, Codex 14:30 integrity layer,
            step 1 of 4).  A resume currently re-derives the whole symbolic
@@ -1106,7 +1198,11 @@ Do[
           FeynFacet`Private`familyRowGaugeStripInputSeal[
             family, k, nlow, nk,
             Hash[aP, "SHA256", "HexString"], solvedBlocks,
-            Hash[{e, c, bbar}, "SHA256", "HexString"],
+            Hash[If[AssociationQ[Lookup[$blockConstructionRecord,
+                "DeferredBundle", None]],
+              {{e, c, bbar}, $blockConstructionRecord[
+                "DeferredBundleFingerprint"]}, {e, c, bbar}],
+              "SHA256", "HexString"],
             Hash[{invariants, ee}, "SHA256", "HexString"],
             $sectorDriverSourceSHA256],
           StringReplace[stripInputFile,
@@ -1214,9 +1310,25 @@ Do[
               TrueQ[Lookup[$blockConstructionRecord,
                 "ZeroForcingCandidateQ", True]] && zeroQ[bbar]];
           constructionTimings["ZeroForcingProbe"] = constructionSeconds;
+          deferredBundle = Lookup[$blockConstructionRecord,
+            "DeferredBundle", Missing["NoDeferredBundle"]];
+          directAlphabetOptions = If[AssociationQ[deferredBundle],
+            FeynFacet`Private`familyRowGaugeDirectAlphabetOptions[
+              deferredBundle], Automatic];
+          If[AssociationQ[deferredBundle] &&
+              directAlphabetOptions === $Failed,
+            log["  !! deferred bundle has no valid direct alphabet payload " <>
+              "for strip ", {k, nlow}];
+            putAtomic[state, stateFile]; Exit[2]];
           requestedSolverConfiguration = stripSolverConfiguration[
-            If[zeroForcingQ, "ZeroForcing", If[algebraicFrameQ,
-              "RationalChartFiniteField", "DirectRationalFiniteField"]]];
+            Which[zeroForcingQ, "ZeroForcing",
+              algebraicFrameQ && AssociationQ[deferredBundle],
+                "DirectMultiquadraticFiniteField",
+              algebraicFrameQ, "RationalChartFiniteField",
+              True, "DirectRationalFiniteField"],
+            If[! zeroForcingQ && algebraicFrameQ &&
+                AssociationQ[deferredBundle],
+              directAlphabetOptions, Automatic]];
           If[! FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
               requestedSolverConfiguration],
             log["  !! solver configuration could not be sealed before strip ",
@@ -1245,7 +1357,21 @@ Do[
                   "Verbose" -> True},
                 (* the chartless dispatch to the direct multiquadratic
                    engine carries the same deadline *)
-                "MultiquadraticOptions" -> {"Deadline" -> sectorDeadline},
+                "MultiquadraticOptions" -> Join[
+                  {"Deadline" -> sectorDeadline,
+                   "PlanDiscoveryBackend" -> Automatic,
+                   "PlanDiscoveryBackendThreads" -> mqNativeThreads,
+                   "RegulatorReconstructionImageKernelCount" ->
+                     mqImageKernelCount},
+                  If[AssociationQ[deferredBundle],
+                    Join[{"DeferredBundle" -> deferredBundle},
+                     Normal[directAlphabetOptions],
+                     {
+                     (* the raw strip carries only a shape placeholder for
+                        BBar on this route; screening and certification use
+                        the provider's authenticated bundle images instead *)
+                     "IntegrabilityScreen" -> False,
+                     "ScreenFirst" -> False, "GaugeScreen" -> False}], {}]],
                 (* and so does the STRIP-CONSTRUCTION stage inside this
                    call -- the chart pullback, the gauge pullback and the
                    source-frame identity check (2026-08-24) *)
@@ -1474,10 +1600,16 @@ Do[
         gauge = solution["Gauge"];
         solverConfiguration = If[blockwiseRouteQ,
           stripSolverConfiguration[
-            If[Lookup[solution, "Method", None] === "ZeroForcing",
-              "ZeroForcing", If[algebraicFrameQ,
-                "RationalChartFiniteField",
-                "DirectRationalFiniteField"]]], <||>];
+            Which[Lookup[solution, "Method", None] === "ZeroForcing",
+              "ZeroForcing",
+              Lookup[solution, "Method", None] ===
+                "DirectMultiquadraticFiniteField",
+              "DirectMultiquadraticFiniteField",
+              algebraicFrameQ, "RationalChartFiniteField",
+              True, "DirectRationalFiniteField"],
+            If[Lookup[solution, "Method", None] ===
+                "DirectMultiquadraticFiniteField",
+              directAlphabetOptions, Automatic]], <||>];
         If[blockwiseRouteQ &&
             ! FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
               solverConfiguration],
@@ -1609,7 +1741,8 @@ Do[
     "CheckLevel" -> checkLevel|>;
   state = Join[
     KeyTake[state, {"OriginalA", "Ranges", "Blocks", "OriginalAReconstruction",
-      "ChartFingerprint", "TDiagonal", "TDiagonalInverse"}],
+      "ChartFingerprint", "TDiagonal", "TDiagonalInverse",
+      "RegulatorFactorizations", "RegulatorFactorization"}],
     <|"Sector" -> k, "S" -> newS, "SInverse" -> newSInverse,
       "A" -> aNew, "StripSolvers" -> state["StripSolvers"],
       "SectorCertificates" ->
@@ -1628,7 +1761,7 @@ Do[
     remaining = Missing["DeferredProductionCensus"];
     memtrace["sector " <> ToString[k] <> " full badStrips census deferred"];
     log["  sector ", k, " done; full non-eps-factored strip census " <>
-      "deferred in Production; exact acceptance remains the family certificate"],
+      "deferred in Production; acceptance remains the whole-family certificate"],
     remaining = Length[badStrips[state["A"], nSectors]];
     memtrace["sector " <> ToString[k] <> " after badStrips"];
     log["  sector ", k,
@@ -1725,6 +1858,27 @@ If[MatrixQ[tdiagChart] && MatrixQ[tdiagChartInverse],
     "the record's TTotal is relative to the assembled connection"];
   ttotalAbsolute = S; ttotalAbsoluteInverse = Sinv;
   ttotalBasis = "AssembledConnection"];
+(* Regulator factorizations were constructed in the working {xx,yy}
+   variables.  Rebind their graded-root evidence to the final record's
+   {c1,c2} variables and recompute the canonical fingerprints, so the
+   whole-family certifier authenticates exactly what the artifact carries. *)
+Clear[finalRegulatorFactorizationRecord];
+finalRegulatorFactorizationRecord[entry_Association] := Module[
+  {mapped = entry /. fromXY, evidence, roots, refreshed},
+  evidence = Lookup[mapped, "GradedRootFrame", Missing["NotGraded"]];
+  If[! AssociationQ[evidence], Return[mapped]];
+  roots = KeyTake[#1, {"Root", "RootSquare"}] & /@
+    Lookup[evidence, "Roots", {}];
+  refreshed = FeynFacet`Private`familyRegulatorGradedFrameEvidence[
+    roots, {c1, c2}, ee];
+  Join[mapped, <|"GradedRootFrame" -> refreshed|>]
+];
+finalRegulatorFactorizationRecord[value_] := value;
+finalRegulatorFactorizations = finalRegulatorFactorizationRecord /@
+  Lookup[state, "RegulatorFactorizations", {}];
+finalRegulatorFactorization = Replace[
+  Lookup[state, "RegulatorFactorization", Missing["Absent"]],
+  association_Association :> finalRegulatorFactorizationRecord[association]];
 out = <|"Family" -> family,
   "Method" -> "SectorCANONICA+ExactStripSolver",
   "Chart" -> chart["Name"], "ChartRecord" -> chart,
@@ -1741,6 +1895,8 @@ out = <|"Family" -> family,
   "Triangular" -> True, "TTotalInvertible" -> finalInverse,
   "SectorCertificates" -> state["SectorCertificates"],
   "StripSolvers" -> state["StripSolvers"],
+  "RegulatorFactorizations" -> finalRegulatorFactorizations,
+  "RegulatorFactorization" -> finalRegulatorFactorization,
   "RowGaugePropagationPolicy" -> If[productionQ,
     "DeferredFutureAWithCompleteInstalledRowElseTogether", "Together"],
   "Status" -> Which[verdict === True, "ExactEpsilonForm",
@@ -1748,7 +1904,7 @@ out = <|"Family" -> family,
     True, "Incomplete"],
   "CheckLevel" -> checkLevel,
   "WallSeconds" -> AbsoluteTime[] - start,
-  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip. In Production, a complete materialized current row is installed, future A row-gauge corrections and sealed constant-regulator right-products retain exact deferred sums, and unavailable installed rows fall back to Together; CertifyFamilyEpsilonForm is the sole exact acceptance test. Development retains Together propagation and its exact intermediate checks."|>;
+  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip. In Production, a complete materialized current row is installed, future A row-gauge corrections and sealed constant-regulator right-products retain exact deferred sums, and unavailable installed rows fall back to Together; CertifyFamilyEpsilonForm is the sole whole-family acceptance test and records whether its evidence is characteristic-zero exact or high-confidence finite-field. Development retains Together propagation and its exact intermediate checks."|>;
 putAtomic[out, FileNameJoin[{outdir, "family_epsform_" <> family <> ".wl"}]];
 log["written family_epsform_", family, ".wl; GateVerdict ", verdict, "; wall ", Round[AbsoluteTime[] - start], " s"];
 If[ownedKernels =!= {}, Quiet[CloseKernels[ownedKernels]]];

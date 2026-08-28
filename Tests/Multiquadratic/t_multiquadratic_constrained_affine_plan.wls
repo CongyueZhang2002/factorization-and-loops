@@ -1,0 +1,366 @@
+#!/usr/bin/env wolframscript
+(* Pilot/constrained-core equality and adversarial fallback tests. *)
+
+root = DirectoryName[ExpandFileName[$InputFileName], 3];
+Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+
+pass = 0; fail = 0;
+check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
+  fail++; Print["FAIL ", label]];
+mq[name_String] := Symbol["FeynFacet`Private`" <> name];
+{fullSolve, discover, plannedSolve, fallbackSolve, planValidQ,
+  discoverySolve, backendDecision, consistencyEvidence,
+  residualEvidenceValidQ} = mq /@ {
+  "multiquadraticStripAffineSolve",
+  "multiquadraticStripConstrainedPlanDiscover",
+  "multiquadraticStripConstrainedAffineSolve",
+  "multiquadraticStripConstrainedAffineFallback",
+  "multiquadraticStripConstrainedPlanValidQ",
+  "multiquadraticStripPlanDiscoverySolve",
+  "multiquadraticStripPlanDiscoveryBackendDecision",
+  "multiquadraticStripAffineConsistencyEvidence",
+  "multiquadraticStripFullResidualEvidenceValidQ"};
+
+prime = 1000003;
+originalCheckLevel = Quiet[Environment["FACET_CHECK_LEVEL"]];
+SetEnvironment["FACET_CHECK_LEVEL" -> ""];
+
+(* rootRank controls the grade multiplicity of the synthetic block; the
+   affine algebra itself is deliberately generic.  The first rank rows are
+   an explicit basis and the trailing rows are dependent checks. *)
+fixture[rootRank_Integer, shift_Integer] := Module[
+  {unknowns = 6 + 2^rootRank, nullity, rank, base, extras, matrix, vector},
+  nullity = Min[3, rootRank + 1]; rank = unknowns - nullity;
+  base = Table[Join[UnitVector[rank, i], Table[
+      Mod[(i + shift) (j + 2) + i j + shift, prime], {j, nullity}]],
+    {i, rank}];
+  extras = Table[Mod[base[[1 + Mod[k, rank]]] +
+      (k + 1) base[[1 + Mod[2 k + 1, rank]]], prime], {k, 1, 3}];
+  matrix = Join[base, extras];
+  vector = Join[Table[Mod[17 i + 13 shift, prime], {i, rank}],
+    ConstantArray[0, nullity]];
+  <|"Matrix" -> matrix, "Vector" -> vector,
+    "Right" -> Mod[matrix . vector, prime], "Rank" -> rank,
+    "Nullity" -> nullity,
+    "NormalizationColumns" -> (rank + Range[nullity])|>
+];
+
+Do[
+  pilot = fixture[rootRank, 1];
+  wolframPilot = discoverySolve[pilot["Matrix"], pilot["Right"], prime,
+    Length[First[pilot["Matrix"]]], 0, "Wolfram", 2, 0];
+  nativePilot = discoverySolve[pilot["Matrix"], pilot["Right"], prime,
+    Length[First[pilot["Matrix"]]], 0, "FLINTAffineRREF", 2, 0];
+  check["declared root rank " <> ToString[rootRank] <>
+      " native and Wolfram affine ABIs agree exactly",
+    KeyTake[nativePilot, {"Rank", "Nullity", "PivotColumns",
+        "FreeColumns", "PivotSignature", "ParticularSolution",
+        "NullspaceBasis"}] ===
+      KeyTake[wolframPilot, {"Rank", "Nullity", "PivotColumns",
+        "FreeColumns", "PivotSignature", "ParticularSolution",
+        "NullspaceBasis"}] &&
+      nativePilot["PlanDiscoveryBackendUsed"] === "FLINTAffineRREF" &&
+      nativePilot["PlanDiscoveryBackendThreads"] === 2 &&
+      NumericQ[nativePilot["PlanDiscoveryBackendSeconds"]]];
+  pilotFull = fullSolve[pilot["Matrix"], pilot["Right"], prime];
+  plan = discover[pilot["Matrix"], pilot["Right"], pilotFull,
+    pilot["NormalizationColumns"], prime,
+    "layout-r" <> ToString[rootRank], "provider-r" <> ToString[rootRank]];
+  later = fixture[rootRank, 7];
+  laterFull = fullSolve[later["Matrix"], later["Right"], prime];
+  laterCanonical = NormalizeEpsFormAffineSample[
+    <|"ParticularSolution" -> laterFull["ParticularSolution"],
+      "NullspaceBasis" -> laterFull["NullspaceBasis"]|>,
+    pilot["NormalizationColumns"], prime];
+  laterPlanned = plannedSolve[later["Matrix"], later["Right"], prime, plan];
+  check["declared root rank " <> ToString[rootRank] <>
+      " discovers an authenticated constrained plan",
+    planValidQ[plan] &&
+      Lookup[plan, "Status", None] ===
+        "MultiquadraticConstrainedAffinePlanV1"];
+  check["declared root rank " <> ToString[rootRank] <>
+      " constrained solution equals the full affine section",
+    Lookup[laterPlanned, "Status", None] ===
+        "MultiquadraticConstrainedAffineSolution" &&
+      laterPlanned["CanonicalValues"] ===
+        laterCanonical["ParticularSolution"] &&
+      TrueQ[laterPlanned["FullResidualZero"]] &&
+      TrueQ[laterPlanned["NullspaceResidualZero"]] &&
+      laterPlanned["FullResidualCheckMethod"] === "ExactMatrixMatrix" &&
+      TrueQ[laterPlanned["FullResidualExact"]] &&
+      laterPlanned["ConstrainedSolveFullResidualReplayCount"] === 1 &&
+      residualEvidenceValidQ[laterPlanned, prime]],
+  {rootRank, 0, 3}];
+
+(* Cross the production fixed-core threshold with a genuinely wide affine
+   section.  This is intentionally unrelated to a named family: the direct
+   solver must route any sufficiently large authenticated constrained core
+   through the existing CFFA4 multi-RHS adapter, then retain the identical
+   all-row certificate and canonical section. *)
+wideFixture[shift_Integer] := Module[
+  {unknowns = 260, nullity = 12, rank = 248, base, extras, matrix, vector},
+  base = Table[Join[UnitVector[rank, i], Table[
+      Mod[(i + shift) (j + 3) + 2 i j + 17, prime], {j, nullity}]],
+    {i, rank}];
+  extras = Table[Mod[base[[1 + Mod[3 k, rank]]] +
+      (k + shift + 1) base[[1 + Mod[5 k + 1, rank]]], prime],
+    {k, 1, 16}];
+  matrix = Join[base, extras];
+  vector = Join[Table[Mod[31 i + 19 shift, prime], {i, rank}],
+    ConstantArray[0, nullity]];
+  <|"Matrix" -> matrix, "Vector" -> vector,
+    "Right" -> Mod[matrix . vector, prime],
+    "NormalizationColumns" -> (rank + Range[nullity])|>
+];
+widePilot = wideFixture[2];
+widePilotFull = discoverySolve[widePilot["Matrix"], widePilot["Right"], prime,
+  Length[First[widePilot["Matrix"]]], 0, "FLINTAffineRREF", 8, 0];
+widePlan = discover[widePilot["Matrix"], widePilot["Right"], widePilotFull,
+  widePilot["NormalizationColumns"], prime, "wide-layout",
+  "wide-provider", widePilotFull["IndependentEquationRows"]];
+wideLater = wideFixture[9];
+widePlanned = plannedSolve[wideLater["Matrix"], wideLater["Right"], prime,
+  widePlan];
+check["large constrained follower uses CFFA4 and preserves full residuals",
+  Lookup[widePlanned, "Status", None] ===
+      "MultiquadraticConstrainedAffineSolution" &&
+    widePlanned["ConstrainedSolveBackendUsed"] === "FLINT" &&
+    widePlanned["ConstrainedSolveBackendThreads"] === 8 &&
+    widePlanned["ConstrainedSolveNativeCoreReplayCount"] === 0 &&
+    widePlanned["ConstrainedSolveFullResidualReplayCount"] === 1 &&
+    widePlanned["FullResidualCheckMethod"] === "ExactMatrixMatrix" &&
+    TrueQ[widePlanned["FullResidualExact"]] &&
+    widePlanned["ConstrainedSolveNativeValidationFailure"] === None &&
+    ! TrueQ[widePlanned["ConstrainedSolveNativeValidationRecovered"]] &&
+    widePlanned["CanonicalValues"] === wideLater["Vector"] &&
+    TrueQ[widePlanned["FullResidualZero"]] &&
+    TrueQ[widePlanned["NullspaceResidualZero"]]];
+
+(* A protocol-valid but mathematically false native matrix is provisional.
+   Change one pivot coordinate of the already authenticated section so that
+   normalization remains canonical while the full original-row residual is
+   nonzero.  The Wolfram retry must recover the exact same section. *)
+wideNativeMatrix = Transpose[Prepend[widePlanned["NullspaceBasis"],
+  widePlanned["ParticularSolution"]]];
+wideCorruptNative = ReplacePart[wideNativeMatrix, {1, 1} ->
+  Mod[wideNativeMatrix[[1, 1]] + 1, prime]];
+wideCorruptRecovered = Internal`InheritedBlock[
+  {FeynFacet`Private`finiteFieldStripFLINTSolve},
+  Unprotect[FeynFacet`Private`finiteFieldStripFLINTSolve];
+  Clear[FeynFacet`Private`finiteFieldStripFLINTSolve];
+  FeynFacet`Private`finiteFieldStripFLINTSolve[___] := wideCorruptNative;
+  Protect[FeynFacet`Private`finiteFieldStripFLINTSolve];
+  plannedSolve[wideLater["Matrix"], wideLater["Right"], prime, widePlan]];
+check["a corrupt native follower is rejected and Wolfram recovers exactly",
+  Lookup[wideCorruptRecovered, "Status", None] ===
+      "MultiquadraticConstrainedAffineSolution" &&
+    wideCorruptRecovered["ConstrainedSolveBackendUsed"] === "Wolfram" &&
+    wideCorruptRecovered["ConstrainedSolveBackendFallbackReason"] ===
+      "FLINTFullResidualValidationFailed" &&
+    wideCorruptRecovered["ConstrainedSolveNativeValidationFailure"] ===
+      "FLINTFullResidualValidationFailed" &&
+    TrueQ[wideCorruptRecovered[
+      "ConstrainedSolveNativeValidationRecovered"]] &&
+    wideCorruptRecovered["ConstrainedSolveFullResidualReplayCount"] === 2 &&
+    wideCorruptRecovered["CanonicalValues"] === wideLater["Vector"] &&
+    TrueQ[wideCorruptRecovered["FullResidualZero"]]];
+
+wideCorruptRejected = Internal`InheritedBlock[
+  {FeynFacet`Private`finiteFieldStripFLINTSolve, LinearSolve},
+  Unprotect[FeynFacet`Private`finiteFieldStripFLINTSolve, LinearSolve];
+  Clear[FeynFacet`Private`finiteFieldStripFLINTSolve, LinearSolve];
+  FeynFacet`Private`finiteFieldStripFLINTSolve[___] := wideCorruptNative;
+  LinearSolve[___] := $Failed;
+  Protect[FeynFacet`Private`finiteFieldStripFLINTSolve, LinearSolve];
+  plannedSolve[wideLater["Matrix"], wideLater["Right"], prime, widePlan]];
+check["a corrupt native follower is typed when the Wolfram retry also fails",
+  Lookup[wideCorruptRejected, "Status", None] ===
+      "ConstrainedCoreSingular" &&
+    wideCorruptRejected["ConstrainedSolveBackendUsed"] === "Wolfram" &&
+    wideCorruptRejected["ConstrainedSolveBackendFallbackReason"] ===
+      "FLINTFullResidualValidationFailed" &&
+    wideCorruptRejected["ConstrainedSolveNativeValidationFailure"] ===
+      "FLINTFullResidualValidationFailed" &&
+    ! TrueQ[wideCorruptRejected[
+      "ConstrainedSolveNativeValidationRecovered"]] &&
+    wideCorruptRejected["ConstrainedSolveFullResidualReplayCount"] === 1];
+
+wideNormalizationCorrupt = ReplacePart[wideNativeMatrix,
+  {First[widePlan["NormalizationColumns"]], 2} -> 0];
+wideNormalizationRecovered = Internal`InheritedBlock[
+  {FeynFacet`Private`finiteFieldStripFLINTSolve},
+  Unprotect[FeynFacet`Private`finiteFieldStripFLINTSolve];
+  Clear[FeynFacet`Private`finiteFieldStripFLINTSolve];
+  FeynFacet`Private`finiteFieldStripFLINTSolve[___] :=
+    wideNormalizationCorrupt;
+  Protect[FeynFacet`Private`finiteFieldStripFLINTSolve];
+  plannedSolve[wideLater["Matrix"], wideLater["Right"], prime, widePlan]];
+check["normalization is exact and precedes the all-row residual replay",
+  Lookup[wideNormalizationRecovered, "Status", None] ===
+      "MultiquadraticConstrainedAffineSolution" &&
+    wideNormalizationRecovered["ConstrainedSolveNativeValidationFailure"] ===
+      "FLINTNormalizationValidationFailed" &&
+    wideNormalizationRecovered["ConstrainedSolveFullResidualReplayCount"] ===
+      1 && Length[wideNormalizationRecovered["FullResidualChecks"]] === 1 &&
+    wideNormalizationRecovered["FullResidualChecks"][[1, "Status"]] ===
+      "Accepted"];
+
+SetEnvironment["FACET_CHECK_LEVEL" -> "Production"];
+productionExact = plannedSolve[wideLater["Matrix"], wideLater["Right"],
+  prime, widePlan];
+SetEnvironment["FACET_CHECK_LEVEL" -> ""];
+check["Production uses the same exact all-original-row certificate",
+  Lookup[productionExact, "Status", None] ===
+      "MultiquadraticConstrainedAffineSolution" &&
+    productionExact["FullResidualCheckMethod"] === "ExactMatrixMatrix" &&
+    TrueQ[productionExact["FullResidualExact"]] &&
+    productionExact["ConstrainedSolveFullResidualReplayCount"] === 1 &&
+    residualEvidenceValidQ[productionExact, prime]];
+
+wideUnavailable = Block[{FeynFacet`Private`$feynFacetDirectory =
+      FileNameJoin[{$TemporaryDirectory,
+        "cffa4-follower-definitely-absent"}]},
+  plannedSolve[wideLater["Matrix"], wideLater["Right"], prime, widePlan]];
+check["large constrained follower falls back exactly when CFFA4 is absent",
+  Lookup[wideUnavailable, "Status", None] ===
+      "MultiquadraticConstrainedAffineSolution" &&
+    wideUnavailable["ConstrainedSolveBackendUsed"] === "Wolfram" &&
+    wideUnavailable["ConstrainedSolveBackendFallbackReason"] ===
+      "FLINTAdapterUnavailable" &&
+    wideUnavailable["CanonicalValues"] === wideLater["Vector"] &&
+    TrueQ[wideUnavailable["FullResidualZero"]] &&
+    TrueQ[wideUnavailable["NullspaceResidualZero"]]];
+
+pilot = fixture[3, 11];
+nativePilot = discoverySolve[pilot["Matrix"], pilot["Right"], prime,
+  Length[First[pilot["Matrix"]]], 0, "FLINTAffineRREF", 3, 0];
+nativePlan = discover[pilot["Matrix"], pilot["Right"], nativePilot,
+  pilot["NormalizationColumns"], prime, "native-plan-layout",
+  "native-plan-provider", nativePilot["IndependentEquationRows"]];
+wolframPilot = discoverySolve[pilot["Matrix"], pilot["Right"], prime,
+  Length[First[pilot["Matrix"]]], 0, "Wolfram", 3, 0];
+wolframPlan = discover[pilot["Matrix"], pilot["Right"], wolframPilot,
+  pilot["NormalizationColumns"], prime, "native-plan-layout",
+  "native-plan-provider"];
+check["native discovery translates to the exact constrained-plan semantics",
+  planValidQ[nativePlan] && nativePlan["PilotReplayMethod"] ===
+      "CFFRFullOriginalRowResiduals" &&
+    KeyTake[nativePlan, {"Rank", "Nullity", "IndependentEquationRows",
+       "NormalizationColumns", "PivotColumns", "FreeColumns",
+       "PivotSignature"}] ===
+     KeyTake[wolframPlan, {"Rank", "Nullity", "IndependentEquationRows",
+       "NormalizationColumns", "PivotColumns", "FreeColumns",
+       "PivotSignature"}] &&
+    AssociationQ[nativePlan["PlanDiscoveryBackendBinding"]] &&
+    nativePlan["PlanFingerprint"] =!= wolframPlan["PlanFingerprint"]];
+
+automaticNative = discoverySolve[pilot["Matrix"], pilot["Right"], prime,
+  Length[First[pilot["Matrix"]]], 0, Automatic, 4, 0];
+automaticWolfram = discoverySolve[pilot["Matrix"], pilot["Right"], prime,
+  Length[First[pilot["Matrix"]]], 0, Automatic, 4, 10^9];
+check["Automatic uses the declared size threshold honestly",
+  automaticNative["PlanDiscoveryBackendUsed"] === "FLINTAffineRREF" &&
+    automaticWolfram["PlanDiscoveryBackendUsed"] === "Wolfram" &&
+    automaticNative["NativeMinimumMatrixEntries"] === 0 &&
+    automaticWolfram["NativeMinimumMatrixEntries"] === 10^9];
+
+absent = Block[{FeynFacet`Private`$feynFacetDirectory =
+      FileNameJoin[{$TemporaryDirectory, "cffr-definitely-absent"}]},
+  backendDecision["FLINTAffineRREF", 2, {10, 10}, 0]];
+check["an explicitly absent native adapter is typed and never falls back",
+  Lookup[absent, "Status", None] === "PlanDiscoveryBackendUnavailable" &&
+    Lookup[absent, "PlanDiscoveryBackendUsed", Missing[]] === None];
+
+badNative = discoverySolve[{{1/2}}, {0}, prime, 1, 0,
+  "FLINTAffineRREF", 2, 0];
+check["an explicit native request or execution failure is typed",
+  Lookup[badNative, "Status", None] === "PlanDiscoveryBackendFailed" &&
+    AssociationQ[Lookup[badNative, "BackendFailure", None]]];
+
+automaticFailureFallback = discoverySolve[{{1/2}}, {0}, prime, 1, 0,
+  Automatic, 2, 0];
+automaticAbsenceFallback = Block[{
+    FeynFacet`Private`$feynFacetDirectory =
+      FileNameJoin[{$TemporaryDirectory, "cffr-definitely-absent"}]},
+  discoverySolve[pilot["Matrix"], pilot["Right"], prime,
+    Length[First[pilot["Matrix"]]], 0, Automatic, 2, 0]];
+check["Automatic falls back only for adapter failure or absence",
+  automaticFailureFallback["Status"] ===
+      "MultiquadraticAffineSolution" &&
+    automaticFailureFallback["PlanDiscoveryBackendUsed"] === "Wolfram" &&
+    automaticFailureFallback["PlanDiscoveryBackendFallbackReason"] ===
+      "CFFRRequestMatrixInvalid" &&
+    automaticAbsenceFallback["PlanDiscoveryBackendUsed"] === "Wolfram" &&
+    automaticAbsenceFallback["PlanDiscoveryBackendFallbackReason"] ===
+      "CFFRAdapterUnavailable"];
+
+inconsistent = consistencyEvidence[{{1, 0}, {0, 0}}, {1, 1}, prime,
+  2, 0, Automatic, 2, 0];
+check["a native inconsistent verdict is preserved without Wolfram fallback",
+  inconsistent["Status"] === "ProviderSupportImageInconsistent" &&
+    inconsistent["Rank"] === 1 && inconsistent["AugmentedRank"] === 2 &&
+    inconsistent["Defect"] === 1 &&
+    inconsistent["PlanDiscoveryBackendUsed"] === "FLINTAffineRREF"];
+
+(* Make one selected pilot row vanish, but move that exact row to a
+   nonselected slot.  The planned core is singular while the full affine
+   space, pivot signature, and locked section are unchanged. *)
+pilot = fixture[3, 3];
+pilotFull = fullSolve[pilot["Matrix"], pilot["Right"], prime];
+plan = discover[pilot["Matrix"], pilot["Right"], pilotFull,
+  pilot["NormalizationColumns"], prime, "layout-adversarial",
+  "provider-adversarial"];
+selected = First[plan["IndependentEquationRows"]];
+replacement = First[Complement[Range[Length[pilot["Matrix"]]],
+  plan["IndependentEquationRows"]]];
+singularMatrix = pilot["Matrix"];
+singularMatrix[[replacement]] = singularMatrix[[selected]];
+singularMatrix[[selected]] = ConstantArray[0, Length[First[singularMatrix]]];
+singularRight = Mod[singularMatrix . pilot["Vector"], prime];
+singularPlanned = plannedSolve[singularMatrix, singularRight, prime, plan];
+singularFallback = fallbackSolve[singularMatrix, singularRight, prime, plan];
+check["a singular reused core is a typed refusal",
+  MemberQ[{"ConstrainedCoreSingular", "ConstrainedFullResidualNonzero"},
+    Lookup[singularPlanned, "Status", None]]];
+check["a singular reused core falls back under the identical section",
+  Lookup[singularFallback, "Status", None] ===
+      "MultiquadraticConstrainedAffineFallbackSolution" &&
+    singularFallback["SolvePath"] === "FullAffineSameSectionFallback" &&
+    singularFallback["FallbackReason"] ===
+      Lookup[singularPlanned, "Status", None] &&
+    singularFallback["CanonicalValues"] === pilot["Vector"]];
+
+(* An extra equation on a pilot-free column raises the rank.  The square
+   core alone still solves, but its reconstructed nullspace fails against
+   all original rows; fallback must refuse the changed signature. *)
+rankJumpMatrix = pilot["Matrix"];
+rankJumpMatrix[[replacement]] = UnitVector[Length[First[rankJumpMatrix]],
+  First[pilot["NormalizationColumns"]]];
+rankJumpRight = Mod[rankJumpMatrix . pilot["Vector"], prime];
+rankJumpPlanned = plannedSolve[rankJumpMatrix, rankJumpRight, prime, plan];
+rankJumpFallback = fallbackSolve[rankJumpMatrix, rankJumpRight, prime, plan];
+check["full-row nullspace replay detects an adversarial rank jump",
+  Lookup[rankJumpPlanned, "Status", None] ===
+      "ConstrainedFullResidualNonzero" &&
+    rankJumpPlanned["ConstrainedSolveFullResidualReplayCount"] === 1];
+check["fallback refuses a changed affine signature instead of changing section",
+  Lookup[rankJumpFallback, "Status", None] ===
+    "ConstrainedPlanSignatureMismatch"];
+
+check["constrained telemetry separates core solve and full residual",
+  AssociationQ[laterPlanned["PhaseSeconds"]] &&
+    And @@ (NumericQ[Lookup[laterPlanned["PhaseSeconds"], #, None]] & /@
+      {"CoreSolve", "FullResidual"})];
+
+mutatedPlan = ReplacePart[plan, "NormalizationColumns" ->
+  Reverse[plan["NormalizationColumns"]]];
+check["a same-shape mutated plan fails authentication",
+  ! TrueQ[planValidQ[mutatedPlan]] &&
+    Lookup[plannedSolve[pilot["Matrix"], pilot["Right"], prime,
+       mutatedPlan], "Status", None] === "InvalidConstrainedAffinePlan"];
+
+SetEnvironment["FACET_CHECK_LEVEL" -> If[StringQ[originalCheckLevel],
+  originalCheckLevel, ""]];
+Print["t_multiquadratic_constrained_affine_plan: ", pass, " OK, ", fail,
+  " FAIL"];
+Exit[If[fail === 0, 0, 1]];
