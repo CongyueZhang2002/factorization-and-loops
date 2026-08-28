@@ -202,7 +202,7 @@ TransportChartCatalog[] := With[
    y = $transportChartY, s = $transportChartS, u = $transportChartU,
    p = $transportChartP, t = $transportChartT},
   Module[{k1, k2, k3, q4a, q4b, b115, k12, k13, k23, x12, x13, x23,
-    kq4av, kq4a, kq4b},
+    k3b115k, k3b115a, k3b115, kq4av, kq4a, kq4b},
   (* ---- single-root charts ------------------------------------------ *)
   k1 = <|"Name" -> "Kallen1", "Kind" -> "TwoVariable", "Variables" -> {x, y},
     "Subst" -> {v -> x y, w -> (1 - x) (1 - y)},
@@ -276,6 +276,33 @@ point (x, z) = (1, 1-y) of z^2 = lambda3|_{Kallen1}"|>;
     "Parents" -> <|"Kallen2" -> {x -> x23, y -> y}|>,
     "Notes" -> "Kallen2 base; the line z = (1+y) + s (x-1) through the rational \
 point (x, z) = (1, 1+y) of z^2 = lambda3|_{Kallen2}"|>;
+  (* lambda3 together with the bilinear root sqrt(1-4 v w).  Begin with
+     the Kallen3 parametrization v = a p, w = -(1-a)(1-p), for which
+     sqrt(lambda3) = a-p.  Writing sqrt(1-4 v w) = 1 + u a makes the
+     second square identity linear in a and gives
+
+       a = (4 p (1-p) - 2 u)/(u^2 + 4 p (1-p)).
+
+     This chart was first derived for a difficult family strip, but the
+     formula and lookup key are root-square data only: no family identity
+     belongs in the package catalog. *)
+  k3b115k = p (1 - p);
+  k3b115a = Together[(4 k3b115k - 2 u)/(u^2 + 4 k3b115k)];
+  k3b115 = <|
+    "Name" -> "Kallen3Bilinear115", "Kind" -> "TwoVariable",
+    "Variables" -> {p, u},
+    "Subst" -> {v -> Together[k3b115a p],
+      w -> Together[-(1 - k3b115a) (1 - p)]},
+    "Root" -> Together[k3b115a - p],
+    "RootSquare" -> transportChartLambda3[v, w],
+    "Roots" -> {
+      <|"Root" -> Together[k3b115a - p],
+        "RootSquare" -> transportChartLambda3[v, w]|>,
+      <|"Root" -> Together[1 + u k3b115a],
+        "RootSquare" -> 1 - 4 v w|>},
+    "Parents" -> <|"Kallen3" -> {x -> k3b115a, y -> p}|>,
+    "Notes" -> "Kallen3 base v=a p, w=-(1-a)(1-p); imposing \
+sqrt(1-4 v w)=1+u a gives a=(4 p(1-p)-2u)/(u^2+4 p(1-p))"|>;
   (* ---- joint charts for {lambda1, 4 v + w^2} and its v<->w image,
           derived 2026-08-24 by the ITERATED PENCIL and verified exactly
           (CF259 rows 1..16 carry exactly this pair; the pair has no
@@ -332,6 +359,7 @@ solves for w linearly; sqrt(lambda1) = (2 (t-2) w + s)/(2 t), \
 sqrt(v^2 + 4 w) = (4 w + t^2)/(2 t)"|>;
   <|"Kallen1" -> k1, "Kallen2" -> k2, "Kallen3" -> k3, "Q4a" -> q4a, "Q4b" -> q4b,
     "Bilinear115" -> b115, "Kallen12" -> k12, "Kallen13" -> k13, "Kallen23" -> k23,
+    "Kallen3Bilinear115" -> k3b115,
     "KallenQ4a" -> kq4a, "KallenQ4b" -> kq4b|>
 ]];
 

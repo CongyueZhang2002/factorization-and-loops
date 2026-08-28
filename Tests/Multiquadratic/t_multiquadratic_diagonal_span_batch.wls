@@ -4,16 +4,18 @@
    mixed batch must decline the fast route so the caller can preserve the
    individual scalar verdicts. *)
 
-root = DirectoryName[DirectoryName[$InputFileName]];
+root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
-{affineBatch, spansSampled, spanSampled, spanExact} =
+{affineBatch, spansSampled, spanSampled, spanExact, spanBounded} =
   mq /@ {"multiquadraticStripRationalAffineParticularBatch",
     "multiquadraticStripDiagonalSpansSampled",
     "multiquadraticStripDiagonalSpanSampled",
-    "multiquadraticStripDiagonalSpan"};
+    "multiquadraticStripDiagonalSpan",
+    "multiquadraticStripDiagonalSpanBoundedExact"};
+samplePoints = mq["$multiquadraticStripDiagonalSpanSamplePoints"];
 
 Clear[x, y];
 
@@ -62,5 +64,29 @@ FTAssert["B6 scalar fallback preserves the good target's positive verdict",
 FTAssert["B7 scalar fallback preserves the outside target's negative verdict",
   ! (AssociationQ[badScalar] && TrueQ[Lookup[badScalar, "Spanned", False]]) &&
     MissingQ[badExact]];
+
+(* The original 24-point table can be exhausted by exceptional images.  Make
+   every one of those points a pole and require the extended deterministic
+   tail to provide the construction plus six held-out images. *)
+firstPointAbscissae = DeleteDuplicates[First /@ Take[samplePoints, 24]];
+vanisher = Times @@ ((x - #) & /@ firstPointAbscissae);
+lateBasis = {{1/vanisher, 0}};
+late = spanSampled[3 First[lateBasis], lateBasis, {}, {x, y}];
+FTAssert["B8 the extended point tail certifies after the original table is exceptional",
+  AssociationQ[late] && TrueQ[late["Spanned"]] &&
+    late["Coefficients"] === {3} && late["HeldOutPoints"] >= 6];
+
+(* SolveAlways is an optional compression aid, not a correctness gate.  A
+   large inconclusive basis must be retained rather than sent into an
+   unbounded symbolic quantifier expansion. *)
+largeBasis = Table[{x^(degree - 1), 0}, {degree, 9}];
+largeVerdict = spanBounded[{x^9, 0}, largeBasis, {x, y}];
+smallVerdict = spanBounded[2 basis[[1]] - basis[[2]],
+  basis[[1 ;; 2]], {x, y}];
+FTAssert["B9 large exact fallback is skipped with a typed conservative verdict",
+  MatchQ[largeVerdict, Missing["ExactSpanSkippedLargeBasis"]]];
+FTAssert["B10 small exact fallback remains available",
+  AssociationQ[smallVerdict] && TrueQ[smallVerdict["Spanned"]] &&
+    smallVerdict["Coefficients"] === {2, -1}];
 
 FTReport[];

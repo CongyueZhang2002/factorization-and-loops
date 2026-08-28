@@ -129,12 +129,14 @@ ClearAll[
   multiquadraticStripPotentialsCertifiedQ,
   multiquadraticStripLetterKinematicPart,
   multiquadraticStripDiagonalSpan,
+  multiquadraticStripDiagonalSpanBoundedExact,
   multiquadraticStripDiagonalSpanSampled,
   multiquadraticStripDiagonalSpansSampled,
   multiquadraticStripDiagonalSpanBasisImages,
   multiquadraticStripRationalAffineParticular,
   multiquadraticStripRationalAffineParticularBatch,
   $multiquadraticStripDiagonalSpanSamplePoints,
+  $multiquadraticStripDiagonalSpanExactBasisLimit,
   multiquadraticStripActivePotentialCertification,
   multiquadraticStripTransferDiagnosticResidues,
   multiquadraticStripCompactDLogAdmission,
@@ -1890,6 +1892,21 @@ multiquadraticStripDiagonalSpan[form : {_, _}, basisForms_List,
 ];
 multiquadraticStripDiagonalSpan[___] := Missing["InvalidSpanArguments"];
 
+(* SolveAlways is useful for a tiny residual basis, but its polynomial
+   quantifier expansion grows catastrophically with a large dlog alphabet.
+   A failed sampled span is only a compression miss: retaining the diagonal
+   form is conservative and leaves the downstream exact installation gate
+   unchanged.  Bound the historical exact fallback instead of allowing an
+   optional alphabet-reduction step to consume a whole strip budget. *)
+$multiquadraticStripDiagonalSpanExactBasisLimit = 8;
+multiquadraticStripDiagonalSpanBoundedExact[form : {_, _},
+    basisForms_List, variables : {_, _}] :=
+  If[Length[basisForms] <= $multiquadraticStripDiagonalSpanExactBasisLimit,
+    multiquadraticStripDiagonalSpan[form, basisForms, variables],
+    Missing["ExactSpanSkippedLargeBasis"]];
+multiquadraticStripDiagonalSpanBoundedExact[___] :=
+  Missing["InvalidBoundedSpanArguments"];
+
 (* Solve a NUMERIC rational affine system with a deterministic free-zero
    section.  This is deliberately smaller than the modular solver below:
    diagonal-span sampling has no modulus and needs only one particular
@@ -1978,15 +1995,21 @@ multiquadraticStripRationalAffineParticularBatch[___] := $Failed;
 
    If an expression carries parameters beyond the two chart variables, or
    the deterministic schedule does not determine a section, return typed
-   NotApplicable and let the historical SolveAlways route handle it.  The
-   optional channel arguments allow the candidate builder to reuse the
+   NotApplicable.  Only a small residual basis may then use the historical
+   SolveAlways route; a large basis keeps the diagonal form conservatively.
+   The optional channel arguments allow the candidate builder to reuse the
    grade-algebra dlogs it has just constructed instead of decomposing the
    same 44-letter basis once per diagonal record. *)
 $multiquadraticStripDiagonalSpanSamplePoints = {
   {2, 3}, {3, 5}, {5, 2}, {2, 5}, {-1, 2}, {2, -1}, {-2, 3}, {3, -2},
   {-3, 5}, {5, -3}, {1/2, 2/3}, {2/3, 3/5}, {3/5, 5/7}, {5/7, 7/11},
   {-1/2, 2/3}, {2/3, -1/2}, {-2/3, 3/5}, {3/5, -2/3},
-  {7, 11}, {11, 7}, {-5, 7}, {7, -5}, {11, 13}, {13, 11}
+  {7, 11}, {11, 7}, {-5, 7}, {7, -5}, {11, 13}, {13, 11},
+  {13, 17}, {17, 13}, {-7, 11}, {11, -7}, {17, 19}, {19, 17},
+  {-11, 13}, {13, -11}, {1/3, 2/5}, {2/5, 3/7}, {3/7, 5/11},
+  {5/11, 7/13}, {-1/3, 2/5}, {2/5, -1/3}, {-3/7, 5/11},
+  {5/11, -3/7}, {19, 23}, {23, 19}, {-13, 17}, {17, -13},
+  {23, 29}, {29, 23}, {-17, 19}, {19, -17}
 };
 
 multiquadraticStripDiagonalSpanBasisImages[basisChannels_List,
@@ -2636,7 +2659,7 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
             Lookup[rec, "OneFormChannels", Automatic],
             verifiedChannelForms, verifiedBasisImages]];
         If[MissingQ[span],
-          span = multiquadraticStripDiagonalSpan[
+          span = multiquadraticStripDiagonalSpanBoundedExact[
             diagonalForm, verifiedForms, variables]];
         If[AssociationQ[span] && TrueQ[span["Spanned"]],
           AppendTo[diagnosticRecords, Join[rec,
