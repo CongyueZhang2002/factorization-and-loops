@@ -47,12 +47,26 @@
   actual TaskBroker run (`Parallel`, two helpers, three tasks, exact result).
   A hard-family wall-time comparison is in progress.
 
+- [🟢] Eliminate redundant deferred-bundle pullback only when the exact
+  materialized BBar is cryptographically bound to that bundle.  Commit
+  `58df9d1` mints one semantic certificate, rejects a mutated BBar, and
+  lets rational-chart routes consume the already-materialized forcing while
+  chartless direct-MQ fallback retains the bundle.  This targets measured
+  silent pullbacks of about 9 minutes on CF300 `(12,7)` and 10 minutes on
+  CF303 `(21,18)`; 158 focused construction, compatibility, deadline, and
+  resume assertions passed.
+
 - [🟡] Attack CF259 `(21,16)` before-materialization construction rather
   than the already-parallel materializer.  The measured block equation was
   2,519.6 s, of which materialization was only 140 s; a new idea must target
   the roughly 2,380 s bundle-compile/census prefix and clear the 1.5x gate.
   The current recovery run uses a 7,200 s sector allowance so it cannot
   repeat a guaranteed post-construction timeout.
+
+- [ ] Do not add an exact factor-spelling index.  It preserved the physical
+  CF303 `(21,18)` bundle and bypassed 527 repeated spellings, but compiled
+  in 143.79 s against the 144.3 s baseline.  Factor lookup is therefore not
+  the dominant cost, and the prototype was removed.
 
 - [ ] Allow an unresolved strip with a matching authenticated input seal to
   resume from its persisted input instead of rebuilding the block equation.
