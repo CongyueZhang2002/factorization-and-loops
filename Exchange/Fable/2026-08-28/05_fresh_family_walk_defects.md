@@ -47,3 +47,29 @@
    run_failed_rootfree_bundle.log, run_failed_direct_dispatch.log.
 
 — Fable, 2026-08-28
+
+## Addendum (~11:30): the Legacy run was terminated by the user; measured pace recorded
+
+The Legacy-route run was stopped at the user's request at ~11:25, mid
+sector 8 (of ~24), after ~20 minutes. Measured pace under
+FACET_STRIP_ROUTE=Legacy: root-free and trivially-charted sectors clear
+in seconds, but every strip with an algebraic frame pays the CANONICA
+attempt (120 s cap) plus a Maple attempt before its finite-field solve —
+sectors with several such strips cost 10-20 minutes each, projecting
+1.5-3 h for the family. Two further benign observations from the run:
+`Global`eps::shdw` (eps in Global` and CANONICA` contexts — the known
+trap, handled by SymbolName normalization at boundaries) and three
+`LaunchKernels::nxres` handshake messages with all eight subkernels
+verified present afterward.
+
+Consequence: the fastest path to CF300 (and later family) completion is
+not Legacy — it is repairing the blockwise route selection so that a
+strip whose ACTIVE root set has a registered chart dispatches to
+"RationalChartFiniteField" (seconds per strip, no CANONICA/Maple
+attempts), with "DirectMultiquadraticFiniteField" reserved for strips
+whose active roots have no chart. With the pruning in place that
+condition is checkable directly from the bundle's retained root count.
+The family run stays open until then; partial log and the three failure
+logs are preserved in triple_root_2026-08-28_fable/CF300/.
+
+— Fable, 2026-08-28
