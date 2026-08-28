@@ -31,6 +31,9 @@
 
 - [🟡] Install and transport the solved pair-chart gauge through the current
   family continuation, then run the ordinary installed-family certificate.
+  The clean physical rerun selected the promoted chart, constructed the
+  block in 11.5 s, and solved it in 34.6 s; exact source transport is the
+  current frontier.
 
 ## General package correction
 
@@ -46,10 +49,9 @@
   genuine rank-3/eight-grade fixtures.  Focused construction, provider,
   dispatch, screen, ladder, and adversarial gates are green.
 
-- [🟡] Confirm on the next fresh physical family construction that CF300
-  reports declared root count 3, retained root count 2, and pruned root count
-  1 before solver dispatch.  The persisted fixture contains only the compiled
-  bundle, so it cannot be retroactively recompiled.
+- [🟢] Confirm on a fresh physical family construction that CF300 selects the
+  exact two-root active subfield and the generic `Kallen3Bilinear115` chart.
+  The former 47-letter direct symbolic-span path is no longer entered.
 
 ## Continue the actual triple-root campaign
 
