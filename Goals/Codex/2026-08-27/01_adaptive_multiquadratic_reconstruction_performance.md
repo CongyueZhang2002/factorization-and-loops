@@ -195,7 +195,33 @@ with exact normalization and independent fresh-prime provider residuals.
   invalid.  Reuse captured affine fibres, keep the current residue pins, and
   compare general column-order policies without encoding CF300 or physical
   column numbers in package source.  Promote a new policy only after fresh-
-  prime nonsingularity and a material degree reduction.
+  prime nonsingularity and a material degree reduction.  The bounded search
+  has now exhausted 18 coordinate orders and eight fixed sparse
+  gauge-evaluation sections on 22 p31 fibres.  The coordinate tables really
+  change, but none improves the `1184 / 1076` terminal split; the nonzero
+  evaluation anchors slightly worsen it.  Do not integrate these policies.
+
+- [🟢] Localize the interpolation pathology exactly.  After correcting a
+  `Position` head artifact in Fable's diagnostic, the 1,184 failing
+  coordinates equal the 1,236-coordinate nullspace support minus the 52
+  pinned coordinates, with empty set differences and invariant support across
+  all nine fibres.  Of the 1,076 fitting coordinates, 1,024 are outside the
+  support and constant across all 22 captured fibres; 52 are pinned zeros.
+  This exonerates the arithmetic but does not establish a nontrivial
+  degree-seven representative.  See
+  `Exchange/Codex/2026-08-27/06_nullspace_diagnosis_assessment.md`.
+
+- [🟡] Replace local section guessing with one bounded polynomial-module
+  pilot.  Exact multi-fibre compatibility solves already rule out a global
+  polynomial representative through degree seven and a single-common-
+  denominator rational representative for every split of total degree at
+  most seven; the planted rational self-check passes.  Next reconstruct the
+  low-degree epsilon dependence of the affine equations and test a shifted
+  Popov/minimal approximant basis over `F_p[eps]`, outside production.  Retain
+  it only if one unchanged representative passes disjoint epsilon values and
+  a second prime with a material image-count reduction.  Do not encode a
+  vague low-degree `lambda(eps)` ansatz or coordinate-dependent choices in the
+  package.
 
 - [🟢] Reject the proposed structural-prime parallel scheduler.  The audited
   implementation added roughly 574 production lines plus 135 test lines to
