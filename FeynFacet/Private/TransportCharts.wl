@@ -171,20 +171,22 @@ transportChartStageProgress[stage_String, data_Association] := If[
 
 (* Exact Together of independent array entries.  A chart gauge can have only
    four entries yet spend tens of minutes substituting its inverse map; each
-   entry is mathematically independent.  Every helper receives only its own
-   entry, while the largest entry stays local.  Failed helper values are
-   recomputed locally while the same cooperative deadline remains. *)
+   entry is mathematically independent.  The largest entry stays local and
+   the remainder is byte-balanced across no more than the family's live
+   helper grant.  Failed helper values are recomputed locally while the same
+   cooperative deadline remains. *)
 transportChartTogetherTask[dataFile_String] := Module[
   {data = taskBrokerRead[dataFile]},
   If[! AssociationQ[data], Return[$Failed]];
-  Together[data["Expression"] /. data["Rules"]]
+  Together /@ (data["Expressions"] /. data["Rules"])
 ];
 
 transportChartParallelTogether[array_, rules_List, label_String,
     deadline_: Infinity] := Module[
   {started = AbsoluteTime[], dimensions = Dimensions[array],
    expressions = Flatten[array], values, helpers, bytes, localIndex,
-   helperIndices, dataFiles, codes, handle, farmed, missing,
+   helperIndices, helperBatches, batchLoads, targetBatch,
+   dataFiles, codes, handle, farmed, missing,
    timeout, route = "Serial"},
   If[! AllTrue[rules, MatchQ[#1, _Rule] &],
     Return[<|"Status" -> "InvalidTogetherRules"|>]];
@@ -205,11 +207,19 @@ transportChartParallelTogether[array_, rules_List, label_String,
     bytes = ByteCount /@ expressions;
     localIndex = First[Ordering[bytes, -1]];
     helperIndices = DeleteCases[Range[Length[expressions]], localIndex];
-    dataFiles = Map[Function[index, taskBrokerDataFile[
-        "tctogether_" <> Hash[{expressions[[index]], rules},
+    helperBatches = ConstantArray[{}, helpers];
+    batchLoads = ConstantArray[0, helpers];
+    Do[
+      targetBatch = First[Ordering[batchLoads, 1]];
+      helperBatches[[targetBatch]] = Append[
+        helperBatches[[targetBatch]], index];
+      batchLoads[[targetBatch]] += bytes[[index]],
+      {index, SortBy[helperIndices, -bytes[[#1]] &]}];
+    dataFiles = Map[Function[batch, taskBrokerDataFile[
+        "tctogether_" <> Hash[{expressions[[batch]], rules},
           "SHA256", "HexString"],
-        <|"Expression" -> expressions[[index]], "Rules" -> rules|>]],
-      helperIndices];
+        <|"Expressions" -> expressions[[batch]], "Rules" -> rules|>]],
+      helperBatches];
     codes = StringJoin[
         "FeynFacet`Private`transportChartTogetherTask[\"", #1, "\"]"] & /@
       dataFiles;
@@ -220,15 +230,16 @@ transportChartParallelTogether[array_, rules_List, label_String,
     values[[localIndex]] = Together[expressions[[localIndex]] /. rules];
     farmed = taskBrokerCollect[handle];
     If[ListQ[farmed],
-      Do[If[index <= Length[farmed] && farmed[[index]] =!= $Failed,
-          values[[helperIndices[[index]]]] = farmed[[index]]],
-        {index, Length[helperIndices]}]];
+      Do[If[index <= Length[farmed] && ListQ[farmed[[index]]] &&
+            Length[farmed[[index]]] === Length[helperBatches[[index]]],
+          values[[helperBatches[[index]]]] = farmed[[index]]],
+        {index, Length[helperBatches]}]];
     missing = Select[helperIndices,
       values[[#1]] === $Failed &];
     If[transportChartDeadlineExpiredQ[deadline],
       Return[<|"Status" -> "DeadlineExpired",
         "Route" -> route, "Helpers" -> helpers,
-        "Tasks" -> Length[helperIndices],
+        "Tasks" -> Length[helperBatches],
         "Seconds" -> N[AbsoluteTime[] - started]|>]];
     If[missing =!= {},
       values[[missing]] = Together /@ (expressions[[missing]] /. rules)]];
@@ -236,11 +247,11 @@ transportChartParallelTogether[array_, rules_List, label_String,
     Return[<|"Status" -> "DeadlineExpired",
       "Route" -> route,
       "Helpers" -> If[route === "Parallel", helpers, 0],
-      "Tasks" -> If[route === "Parallel", Length[expressions] - 1, 0],
+      "Tasks" -> If[route === "Parallel", Length[helperBatches], 0],
       "Seconds" -> N[AbsoluteTime[] - started]|>]];
   <|"Status" -> "OK", "Result" -> ArrayReshape[values, dimensions],
     "Route" -> route, "Helpers" -> If[route === "Parallel", helpers, 0],
-    "Tasks" -> If[route === "Parallel", Length[expressions] - 1, 0],
+    "Tasks" -> If[route === "Parallel", Length[helperBatches], 0],
     "Seconds" -> N[AbsoluteTime[] - started]|>
 ];
 transportChartParallelTogether[___] :=
