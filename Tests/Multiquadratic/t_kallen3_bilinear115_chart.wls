@@ -1,7 +1,7 @@
 #!/usr/bin/env wolframscript
-(* Exact catalog and inverse-composition coverage for the joint chart of
-   lambda3 and 1-4 v w.  The chart is mathematical catalog data: no family
-   name or family root index participates in lookup. *)
+(* Exact catalog and inverse-composition coverage for the joint charts of
+   lambda2/lambda3 and 1-4 v w.  The charts are mathematical catalog data:
+   no family name or family root index participates in lookup. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
@@ -9,6 +9,7 @@ Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 
 Clear[v, w, p, u, a, b];
 lambda3[x_, y_] := (1 - x + y)^2 + 4 x y;
+lambda2[x_, y_] := (1 + x - y)^2 + 4 x y;
 bilinear[x_, y_] := 1 - 4 x y;
 
 catalog = FeynFacet`TransportChartCatalog[];
@@ -54,7 +55,41 @@ roundTrip = Map[Together,
 FTAssert["A5 explicit inverse composes exactly on the declared branches",
   roundTrip === {0, 0}];
 
-FTAssert["A6 every catalog chart still verifies exactly",
+k2chart = Lookup[catalog, "Kallen2Bilinear115", Missing["NotInCatalog"]];
+FTAssert["A6 the simultaneous source-sign image is catalogued generically",
+  AssociationQ[k2chart] && k2chart["Name"] === "Kallen2Bilinear115"];
+k2certificate = FeynFacet`TransportChartVerify[k2chart];
+FTAssert["A7 the lambda2 image certifies both roots and its Kallen2 parent",
+  TrueQ[k2certificate["OK"]] &&
+    k2certificate["RootIdentities"] === {True, True} &&
+    TrueQ[k2certificate["ParentMaps", "Kallen2"]]];
+k2matched = FeynFacet`TransportRootSetChart[
+  {lambda2[v, w], bilinear[v, w]}, {v, w}];
+k2matchedReversed = FeynFacet`TransportRootSetChart[
+  {bilinear[v, w], lambda2[v, w]}, {v, w}];
+FTAssert["A8 lambda2-bilinear lookup is order independent",
+  k2matched["Name"] === "Kallen2Bilinear115" &&
+    k2matchedReversed["Name"] === "Kallen2Bilinear115"];
+
+k2data = FeynFacet`Private`masterTransportChartData[k2chart, {v, w}];
+k2sourceRoots = {
+  <|"Root" -> Sqrt[lambda2[v, w]], "RootSquare" -> lambda2[v, w]|>,
+  <|"Root" -> Sqrt[bilinear[v, w]], "RootSquare" -> bilinear[v, w]|>};
+k2pulledRootSquares = Map[
+  <|"RootSquare" -> Together[#1["RootSquare"] /. k2data["Subst"]]|> &,
+  k2sourceRoots];
+k2rootImages = Lookup[k2chart["Roots"], "Root"];
+k2inverseA = Together[(1 - v - w + k2sourceRoots[[1, "Root"]])/2];
+k2inverseP = Together[(1 - v - w - k2sourceRoots[[1, "Root"]])/2];
+k2inverseU = Together[(k2sourceRoots[[2, "Root"]] - 1)/k2inverseA];
+k2roundTrip = Map[Together,
+  FeynFacet`Private`transportChartApplyRootBranches[
+    {k2inverseP, k2inverseU} /. k2data["Subst"], k2pulledRootSquares,
+    k2rootImages] - k2chart["Variables"]];
+FTAssert["A9 lambda2 explicit inverse composes on the declared branches",
+  k2roundTrip === {0, 0}];
+
+FTAssert["A10 every catalog chart still verifies exactly",
   AllTrue[Values[catalog],
     TrueQ[FeynFacet`TransportChartVerify[#1]["OK"]] &]];
 

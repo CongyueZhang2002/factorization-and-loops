@@ -202,7 +202,7 @@ TransportChartCatalog[] := With[
    y = $transportChartY, s = $transportChartS, u = $transportChartU,
    p = $transportChartP, t = $transportChartT},
   Module[{k1, k2, k3, q4a, q4b, b115, k12, k13, k23, x12, x13, x23,
-    k3b115k, k3b115a, k3b115, kq4av, kq4a, kq4b},
+    k3b115k, k3b115a, k2b115, k3b115, kq4av, kq4a, kq4b},
   (* ---- single-root charts ------------------------------------------ *)
   k1 = <|"Name" -> "Kallen1", "Kind" -> "TwoVariable", "Variables" -> {x, y},
     "Subst" -> {v -> x y, w -> (1 - x) (1 - y)},
@@ -288,6 +288,25 @@ point (x, z) = (1, 1+y) of z^2 = lambda3|_{Kallen2}"|>;
      belongs in the package catalog. *)
   k3b115k = p (1 - p);
   k3b115a = Together[(4 k3b115k - 2 u)/(u^2 + 4 k3b115k)];
+  (* lambda2(v,w) = lambda3(-v,-w), while 1-4 v w is invariant
+     under the simultaneous sign flip.  The lambda2 joint chart is
+     therefore the exact sign image of the lambda3 chart below, with
+     the same chart variables and rationalized roots. *)
+  k2b115 = <|
+    "Name" -> "Kallen2Bilinear115", "Kind" -> "TwoVariable",
+    "Variables" -> {p, u},
+    "Subst" -> {v -> Together[-k3b115a p],
+      w -> Together[(1 - k3b115a) (1 - p)]},
+    "Root" -> Together[k3b115a - p],
+    "RootSquare" -> transportChartLambda2[v, w],
+    "Roots" -> {
+      <|"Root" -> Together[k3b115a - p],
+        "RootSquare" -> transportChartLambda2[v, w]|>,
+      <|"Root" -> Together[1 + u k3b115a],
+        "RootSquare" -> 1 - 4 v w|>},
+    "Parents" -> <|"Kallen2" -> {x -> k3b115a, y -> p}|>,
+    "Notes" -> "the simultaneous source sign image of Kallen3Bilinear115: \
+lambda2(v,w)=lambda3(-v,-w), while 1-4vw is invariant"|>;
   k3b115 = <|
     "Name" -> "Kallen3Bilinear115", "Kind" -> "TwoVariable",
     "Variables" -> {p, u},
@@ -359,6 +378,7 @@ solves for w linearly; sqrt(lambda1) = (2 (t-2) w + s)/(2 t), \
 sqrt(v^2 + 4 w) = (4 w + t^2)/(2 t)"|>;
   <|"Kallen1" -> k1, "Kallen2" -> k2, "Kallen3" -> k3, "Q4a" -> q4a, "Q4b" -> q4b,
     "Bilinear115" -> b115, "Kallen12" -> k12, "Kallen13" -> k13, "Kallen23" -> k23,
+    "Kallen2Bilinear115" -> k2b115,
     "Kallen3Bilinear115" -> k3b115,
     "KallenQ4a" -> kq4a, "KallenQ4b" -> kq4b|>
 ]];
