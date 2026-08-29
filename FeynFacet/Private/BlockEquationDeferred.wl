@@ -2033,7 +2033,8 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
    classification, indices, syntacticIndices, usedRoots, rootSquares, chart,
    properChartableQ, activeCensus = Missing["NotNeeded"], reducedIndices,
    reducedRoots, reducedSquares, reducedChart, denestedQ,
-   method = "SyntacticRootUnion", diagonalStarted, projectionIndices},
+   declaredRootSquares, method = "SyntacticRootUnion", diagonalStarted,
+   projectionIndices},
   variables = Lookup[preparation, "Variables", {}];
   regulator = Lookup[preparation, "Regulator", None];
   rows = Lookup[preparation, "RowIndices", {}];
@@ -2042,6 +2043,35 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
   If[! MatchQ[variables, {_Symbol, _Symbol}] || ! SymbolQ[regulator] ||
       ! ListQ[roots] || rows === {} || columns === {},
     Return[<|"Status" -> "ChartDecisionInvalidInput"|>]];
+  terms = Flatten[Lookup[records, "Terms", {}]];
+  expressions = DeleteDuplicates[DeleteCases[Flatten[{
+      connection[[All, rows, rows]], connection[[All, columns, columns]],
+      Lookup[terms, "Coefficient", 1], Lookup[terms, "Operands", {}]
+    }], 0]];
+  classification = transportChartRootIndices[expressions, roots];
+  If[Lookup[classification, "UnclassifiedRadicalBases", {}] =!= {},
+    Return[<|"Status" -> "ChartDecisionInconclusive",
+      "Classification" -> classification|>]];
+  denestedQ = Lookup[classification, "DenestedRadicalBases", <||>] =!= <||>;
+  indices = Lookup[classification, "RootIndices", {}];
+  If[! VectorQ[indices, IntegerQ] ||
+      ! AllTrue[indices, 1 <= # <= Length[roots] &],
+    Return[<|"Status" -> "ChartDecisionInvalidRootIndices"|>]];
+  syntacticIndices = indices;
+  usedRoots = roots[[indices]];
+  rootSquares = Lookup[usedRoots, "RootSquare", {}];
+  chart = If[indices === {}, None,
+    TransportRootSetChart[rootSquares, variables]];
+  (* Exact absence in the raw DAG is enough when its root union is already
+     chartable.  Cancellation-sensitive modular sampling remains necessary
+     only for a chartless or denested raw union. *)
+  If[! denestedQ && (indices === {} || AssociationQ[chart]),
+    Return[<|"Status" -> "OK", "RootIndices" -> indices,
+      "RootSquares" -> rootSquares, "ChartAvailableQ" -> True,
+      "Chart" -> If[AssociationQ[chart], Lookup[chart, "Name", None], None],
+      "Method" -> method, "SyntacticRootIndices" -> syntacticIndices,
+      "ActiveGradeCensus" -> activeCensus,
+      "ExpressionCount" -> Length[expressions]|>]];
   (* A multiroot family whose full declared frame is chartless must not pay
      an exact source-expression census merely to discover that assembled
      grades cancel.  Ask the bounded all-sheet evaluator first.  A chartable
@@ -2049,10 +2079,10 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
      test; otherwise retain the complete declared frame and let the exact
      bundle compiler validate it.  An inconclusive modular probe falls
      through to the older exact classifier below. *)
-  rootSquares = Lookup[roots, "RootSquare", $Failed];
-  If[Length[roots] >= 2 && ListQ[rootSquares] &&
-      Length[rootSquares] === Length[roots] &&
-      ! AssociationQ[TransportRootSetChart[rootSquares, variables]],
+  declaredRootSquares = Lookup[roots, "RootSquare", $Failed];
+  If[Length[roots] >= 2 && ListQ[declaredRootSquares] &&
+      Length[declaredRootSquares] === Length[roots] &&
+      ! AssociationQ[TransportRootSetChart[declaredRootSquares, variables]],
     Print["[deferred-router] modular-first chart decision: rank ",
       Length[roots], ", records ", Length[records]];
     diagonalStarted = AbsoluteTime[];
@@ -2097,30 +2127,12 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
             "ExpressionCount" -> Length[records]|>],
           Return[<|"Status" -> "OK",
             "RootIndices" -> Range[Length[roots]],
-            "RootSquares" -> rootSquares, "ChartAvailableQ" -> False,
+            "RootSquares" -> declaredRootSquares,
+            "ChartAvailableQ" -> False,
             "Chart" -> None, "Method" -> "ModularDeclaredFrame",
             "SyntacticRootIndices" -> Missing["ModularPreclassification"],
             "ActiveGradeCensus" -> activeCensus,
             "ExpressionCount" -> Length[records]|>]]]]];
-  terms = Flatten[Lookup[records, "Terms", {}]];
-  expressions = DeleteDuplicates[DeleteCases[Flatten[{
-      connection[[All, rows, rows]], connection[[All, columns, columns]],
-      Lookup[terms, "Coefficient", 1], Lookup[terms, "Operands", {}]
-    }], 0]];
-  classification = transportChartRootIndices[expressions, roots];
-  If[Lookup[classification, "UnclassifiedRadicalBases", {}] =!= {},
-    Return[<|"Status" -> "ChartDecisionInconclusive",
-      "Classification" -> classification|>]];
-  denestedQ = Lookup[classification, "DenestedRadicalBases", <||>] =!= <||>;
-  indices = Lookup[classification, "RootIndices", {}];
-  If[! VectorQ[indices, IntegerQ] ||
-      ! AllTrue[indices, 1 <= # <= Length[roots] &],
-    Return[<|"Status" -> "ChartDecisionInvalidRootIndices"|>]];
-  syntacticIndices = indices;
-  usedRoots = roots[[indices]];
-  rootSquares = Lookup[usedRoots, "RootSquare", {}];
-  chart = If[indices === {}, None,
-    TransportRootSetChart[rootSquares, variables]];
   (* The raw chart substituter handles declared square classes directly.
      A denested occurrence therefore needs the modular canonicalizer below;
      it must not take the older syntactic fast path. *)

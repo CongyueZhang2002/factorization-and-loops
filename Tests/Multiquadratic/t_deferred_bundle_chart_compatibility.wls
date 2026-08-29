@@ -176,6 +176,20 @@ kallenFrame = BuildAlgebraicTransportFrame[
   kallenSquares, variables, {cbfx, cbfy}];
 kallenRoots = currentRoots[kallenFrame, variables];
 kallenRootExpressions = Lookup[kallenRoots, "Root"];
+subsetConnection = {
+  {{0, 0, 0}, {0, 0, 0},
+    {kallenRootExpressions[[1]] + kallenRootExpressions[[3]], 0, 0}},
+  ConstantArray[0, {3, 3}]};
+subsetChartFast = forcingOf[subsetConnection, {{1}, {2}, {3}}, 3, 1,
+  <||>, variables, epsilon, "Output" -> "ChartOrBundle",
+  "BundleRoots" -> kallenRoots];
+FTAssert["C10c0 a chartable raw subfield bypasses modular grade sampling",
+  Lookup[subsetChartFast, "Status", None] === "PreparedChartDeferred" &&
+    Lookup[subsetChartFast["ChartDecision"], "Method", None] ===
+      "SyntacticRootUnion" &&
+    subsetChartFast["ChartDecision", "RootIndices"] === {1, 3} &&
+    subsetChartFast["ChartDecision", "Chart"] === "Kallen13" &&
+    MissingQ[subsetChartFast["ChartDecision", "ActiveGradeCensus"]]];
 cancelConnection = {
   {{0, 0, 0},
    {kallenRootExpressions[[2]] + kallenRootExpressions[[3]], 0, 0},
