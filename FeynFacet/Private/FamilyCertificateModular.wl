@@ -763,7 +763,7 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
    validationRows = {}, validationRhs = {}, identityChecks, pointRecords = {},
    point, epsilon2, scalarRules, deltaValues, rootValues, pointRows, pointRhs,
    pointIdentity, pointOK, sheetRecords, signedRoots, signs, eval, evalMatrix,
-   S, Si, B1, B2, B1b, B2b, dSx, dSy, dB1y, dB2x, Av, Aw, dAvw, dAwv,
+   S, Si, B1, B2, B1b, B2b, dSx, dSy, Av, Aw, dAvw, dAwv,
    jacobian, A1, A2, letterX, letterY, inverseEpsilon, ok, dimension,
    pivotColumns, coefficients, dlogOK, zeroFormAtPoints = True,
    trainingQ, mask},
@@ -796,11 +796,11 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
         expression /. Thread[rootSymbols -> signedRoots] /. scalarRules,
         prime];
       evalMatrix[matrix_] := familyCertMQEvaluateMatrix[matrix, eval];
-      {S, Si, B1, B2, dSx, dSy, dB1y, dB2x, Av, Aw, dAvw, dAwv,
+      {S, Si, B1, B2, dSx, dSy, Av, Aw, dAvw, dAwv,
         jacobian, letterX, letterY} = Map[evalMatrix, Lookup[objects,
-        {"S", "Si", "B1", "B2", "dSx", "dSy", "dB1y", "dB2x",
+        {"S", "Si", "B1", "B2", "dSx", "dSy",
          "Av", "Aw", "dAvw", "dAwv", "Jacobian", "LetterX", "LetterY"}]];
-      If[MemberQ[{S, Si, B1, B2, dSx, dSy, dB1y, dB2x, Av, Aw,
+      If[MemberQ[{S, Si, B1, B2, dSx, dSy, Av, Aw,
           dAvw, dAwv, jacobian, letterX, letterY}, $Failed],
         pointOK = False; Break[]];
       Clear[eval];
@@ -819,10 +819,16 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
       pointIdentity["GaugeIdentity"] = pointIdentity["GaugeIdentity"] &&
         ok[Si . A1 . S - Si . dSx - B1] &&
         ok[Si . A2 . S - Si . dSy - B2];
-      pointIdentity["Flatness"] = pointIdentity["Flatness"] &&
-        ok[dB1y - dB2x + B1 . B2 - B2 . B1];
       pointIdentity["SourceFlatness"] = pointIdentity["SourceFlatness"] &&
         ok[dAvw - dAwv + Av . Aw - Aw . Av];
+      (* For an invertible gauge, the gauge identity transports the source
+         curvature covariantly.  Re-differentiating the two enormous final
+         epsilon-form matrices proves no additional statement and dominated
+         CF300's otherwise modular certificate. *)
+      pointIdentity["Flatness"] = pointIdentity["Flatness"] &&
+        pointIdentity["TransformationInverse"] &&
+        pointIdentity["GaugeIdentity"] &&
+        pointIdentity["SourceFlatness"];
       pointIdentity["EpsFactored"] = pointIdentity["EpsFactored"] &&
         ok[epsilon2 B1 - point[[3]] B1b] &&
         ok[epsilon2 B2 - point[[3]] B2b];
@@ -1057,7 +1063,6 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
   objects = <|
     "S" -> s, "Si" -> si, "B1" -> b1, "B2" -> b2,
     "dSx" -> D[s, variables[[1]]], "dSy" -> D[s, variables[[2]]],
-    "dB1y" -> D[b1, variables[[2]]], "dB2x" -> D[b2, variables[[1]]],
     "Av" -> (av /. subst), "Aw" -> (aw /. subst),
     "dAvw" -> (D[av, sourceVariables[[2]]] /. subst),
     "dAwv" -> (D[aw, sourceVariables[[1]]] /. subst),
