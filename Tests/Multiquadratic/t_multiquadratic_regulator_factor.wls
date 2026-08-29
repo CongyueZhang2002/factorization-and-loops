@@ -272,6 +272,21 @@ check["graded decompose: the compose check reproduces the element",
       (3 + r1 r3)/(2 - r2 + x r1 r2 r3), gr] === True]];
 check["graded decompose: an undeclared radical fails closed",
   FeynFacet`Private`familyRegulatorGradedDecompose[Sqrt[1 + x + y^3], gr] === $Failed];
+formalTags = Table[Unique["formalRoot"], {3}];
+formalRoots = MapThread[
+  <|"Root" -> #1, "RootSquare" -> #2, "FormalGenerator" -> True|> &,
+  {formalTags, {2, 3, 5}}];
+formalSum = 1/(1 + formalTags[[1]]) +
+  formalTags[[2]]/(2 + formalTags[[2]]) +
+  formalTags[[1]] formalTags[[3]]/(3 + formalTags[[3]]) +
+  eps formalTags[[1]]/(1 + eps);
+formalSplit = FeynFacet`Private`familyRegulatorGradedDecomposeUnchecked[
+  formalSum, formalRoots, False];
+formalCombined = FeynFacet`Private`familyRegulatorGradedDecomposeUnchecked[
+  Together[formalSum], formalRoots, False];
+check["formal grade decomposition splits sums without changing the field element",
+  ListQ[formalSplit] && ListQ[formalCombined] &&
+    AllTrue[Together /@ (formalSplit - formalCombined), TrueQ[# === 0] &]];
 (* a numeric square class becomes an extra graded generator *)
 gr4 = FeynFacet`Private`familyRegulatorGradedRoots[gr, {2}];
 check["graded roots: a numeric square class raises the rank to 4",

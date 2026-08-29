@@ -603,6 +603,7 @@ Clear[FactorFamilyRegulatorDependenceMultiquadratic];
 ClearAll[familyRegulatorNonSquareRationalQ, familyRegulatorGradedRoots,
   familyRegulatorGradedRootFrame, familyRegulatorGradedDecompose,
   familyRegulatorGradedFrameEvidence,
+  familyRegulatorLiftLocalChannels,
   familyRegulatorGradedDecomposeUnchecked, familyRegulatorGradedMatrices,
   familyRegulatorGradedPointSample,
   familyRegulatorGradedPointSampleTask,
@@ -716,18 +717,52 @@ familyRegulatorGradedRoots[usedRoots_List, numericClasses_List] := Module[
    ceiling lifted (see above).  The exact compose replay is retained for
    audit mode and skipped in Production.  Root symbols are Module locals:
    nothing is interned, nothing survives the call (pool defect 8). *)
+familyRegulatorLiftLocalChannels[local_List, active_List,
+    rank_Integer?NonNegative] := Module[
+  {localRank = Length[active], lifted, globalMask},
+  If[Length[local] =!= 2^localRank ||
+      ! VectorQ[active, IntegerQ] || ! DuplicateFreeQ[active] ||
+      ! AllTrue[active, Between[#1, {1, rank}] &], Return[$Failed]];
+  lifted = ConstantArray[0, 2^rank];
+  Do[
+    globalMask = Sum[
+      BitGet[localMask, localIndex - 1] 2^(active[[localIndex]] - 1),
+      {localIndex, localRank}];
+    lifted[[globalMask + 1]] = local[[localMask + 1]],
+    {localMask, 0, 2^localRank - 1}];
+  lifted
+];
+familyRegulatorLiftLocalChannels[___] := $Failed;
+
 familyRegulatorGradedDecomposeUnchecked[expression_, roots_List,
     validateRoundTrip_: True] := Module[
   {rank = Length[roots], symbols, deltas, rootImages,
    replaced, rational, numerator, denominator, numeratorChannels,
    denominatorChannels, denominatorInverse, channels, reconstructed,
-   difference},
+   difference, formalQ, termChannels, active, localChannels},
   If[rank > $familyRegulatorMaximumGradedRank, Return[$Failed]];
   deltas = Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]];
   If[Length[deltas] =!= rank || ! FreeQ[deltas, $Failed], Return[$Failed]];
   deltas = Together /@ deltas;
   rootImages = Lookup[roots, "Root", ConstantArray[$Failed, rank]];
   If[! FreeQ[rootImages, $Failed], Return[$Failed]];
+  formalQ = AnyTrue[roots,
+    TrueQ[Lookup[#1, "FormalGenerator", False]] &];
+  If[formalQ && Head[expression] === Plus &&
+      ! TrueQ[validateRoundTrip],
+    (* Deferred row assembly deliberately preserves sums.  Projection is
+       linear: reduce each summand in its actual local root subfield, lift
+       its masks into the global ABI, and combine only the resulting
+       univariate-in-eps channels. *)
+    termChannels = Table[
+      active = Pick[Range[rank], Not[FreeQ[term, #1]] & /@ rootImages];
+      localChannels = familyRegulatorGradedDecomposeUnchecked[
+        term, roots[[active]], False];
+      If[! ListQ[localChannels], Return[$Failed]];
+      familyRegulatorLiftLocalChannels[localChannels, active, rank],
+      {term, List @@ expression}];
+    If[! FreeQ[termChannels, $Failed], Return[$Failed]];
+    Return[Together /@ Total[termChannels]]];
   symbols = Table[Unique["FeynFacet`Private`familyRegulatorGradeRoot"],
     {rank}];
   replaced = If[rank === 0, expression,
