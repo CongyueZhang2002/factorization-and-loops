@@ -268,12 +268,13 @@ check["P5 a checkpoint for another SUBSTAGE is refused",
     checkpointRecord["ForcingChannels", "FP", {1}, {x, y}, eps],
     "CandidateLetters", "FP", {x, y}, eps], "Status", None] ===
     "PrepareCheckpointSubstageMismatch"];
-check["P5 a checkpoint from another implementation is refused",
-  Lookup[checkpointAccept[
-    Append[checkpointRecord["ForcingChannels", "FP", {1}, {x, y}, eps],
-      "SourceSHA256" -> StringRepeat["a", 64]],
-    "ForcingChannels", "FP", {x, y}, eps], "Status", None] ===
-    "PrepareCheckpointImplementationMismatch"];
+check["P5 resume admission is blind to the current implementation hash",
+  Module[{good = checkpointRecord["ForcingChannels", "FP", {1},
+      {x, y}, eps]},
+    Block[{FeynFacet`Private`$multiquadraticStripSourceSHA256 =
+        StringRepeat["a", 64]},
+      Lookup[checkpointAccept[good, "ForcingChannels", "FP", {x, y}, eps],
+        "Status", None] === "Accepted"]]];
 check["P5 a payload is stored CONTEXT FREE and comes back in the \
 caller's symbols",
   Module[{stored = checkpointRecord["ForcingChannels", "FP", {x + y},

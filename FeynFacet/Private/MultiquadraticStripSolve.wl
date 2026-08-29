@@ -700,12 +700,13 @@ record; a bare array carries no provenance and is refused"|>]];
    speak the same vocabulary.
 
    PROVENANCE.  A checkpoint is NOT a cache keyed by a file name.  Every
-   record carries: this source file's SHA-256, the grade-algebra ABI
-   fingerprint, an INPUT fingerprint over exactly the inputs its
-   substage consumed, a PAYLOAD content hash, and a seal fingerprint
-   over all of those.  A reader recomputes all of them from its own
-   inputs and refuses typed on any mismatch -- it never repairs, never
-   upgrades and never trusts a file because it has the expected name.
+   record carries implementation provenance for diagnostics, an INPUT
+   fingerprint over exactly the mathematical inputs its substage consumed,
+   a PAYLOAD content hash, and a seal fingerprint over the stored header.
+   Resume admission is deliberately blind to implementation provenance:
+   changing a backend or the source file cannot change a mathematical
+   intermediate.  A reader therefore requires the same substage and input,
+   and verifies that the stored payload still matches its stored seal.
    The forcing checkpoint's payload is additionally the V2 sealed
    forcing-channel record itself, so its channels are content
    authenticated by exactly the code path the in-memory reuse uses.
@@ -761,12 +762,6 @@ multiquadraticStripPrepareCheckpointAccept[record_, substage_String,
     Return[<|"Status" -> "PrepareCheckpointSubstageMismatch",
       "Substage" -> substage,
       "SuppliedSubstage" -> Lookup[record, "Substage", None]|>]];
-  If[Lookup[record, "SourceSHA256", None] =!=
-        $multiquadraticStripSourceSHA256 ||
-      Lookup[record, "AlgebraABIFingerprint", None] =!=
-        multiquadraticAlgebraABIFingerprint[],
-    Return[<|"Status" -> "PrepareCheckpointImplementationMismatch",
-      "Substage" -> substage|>]];
   If[Lookup[record, "InputFingerprint", None] =!= inputFingerprint,
     Return[<|"Status" -> "PrepareCheckpointInputMismatch",
       "Substage" -> substage,
