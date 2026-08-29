@@ -941,11 +941,12 @@ multiquadraticFieldInverse[___] := $Failed;
 (* Root symbols are generated from the declared frame.  Rank three is the
    current resource ceiling, not part of the algebraic ABI. *)
 multiquadraticFieldDecompose[expression_, roots_List,
-    validateRoundTrip_: True] := Module[
+    validateRoundTrip_: True, normalizeInput_: True] := Module[
   {rank = Length[roots], deltas, symbols,
    replaced, rational, numerator, denominator, numeratorChannels,
    denominatorChannels, denominatorInverse, result, channels, reconstructed},
-  If[rank > $multiquadraticStripMaximumRootCount, Return[$Failed]];
+  If[rank > $multiquadraticStripMaximumRootCount ||
+      ! MemberQ[{True, False}, normalizeInput], Return[$Failed]];
   deltas = If[rank === 0, {},
     Together /@ Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]]];
   If[! FreeQ[deltas, $Failed], Return[$Failed]];
@@ -959,7 +960,13 @@ multiquadraticFieldDecompose[expression_, roots_List,
   If[rank > 0 &&
       ! FreeQ[replaced, Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
     Return[$Failed]];
-  rational = Together[replaced];
+  (* Deferred target assembly already returns one exact numerator over one
+     exact denominator in inert root tags.  Re-running Together on those
+     multi-million-leaf quotients was the entire 635 s CF259 {24,15}
+     projection.  Consumers that own that representation may skip only this
+     input normalization; the polynomial guards and exact field arithmetic
+     below are unchanged, and an uncombined input is refused. *)
+  rational = If[TrueQ[normalizeInput], Together[replaced], replaced];
   If[! FreeQ[rational, Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
     Return[$Failed]];
   (* Scalar-local root-free fast path (2026-08-23, ported from

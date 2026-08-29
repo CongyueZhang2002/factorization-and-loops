@@ -1186,7 +1186,8 @@ transportChartPullBackDeferredPreparation[record_Association,
    survivingRadicals, pulled, polynomialSymbols,
    projectionRoots, transformedProjectionRoots, projectionChannels,
    projectionTags, projectionRootImages,
-   projectionSeconds = 0., inactiveChannels, projectionRecord = None},
+   projectionSeconds = 0., inactiveChannels, projectionRecord = None,
+   projectionPreparedFallbacks = 0},
   preparation = Lookup[record, "Preparation",
     Lookup[record, "DeferredPreparation", Missing["NoPreparation"]]];
   If[! AssociationQ[preparation] ||
@@ -1242,8 +1243,14 @@ transportChartPullBackDeferredPreparation[record_Association,
   If[projectionRoots =!= {},
     image = image /. Thread[projectionTags -> projectionRootImages];
     {projectionSeconds, projectionChannels} = AbsoluteTiming[
-      Map[multiquadraticFieldDecompose[#1,
-          transformedProjectionRoots, False] &, image, {3}]];
+      Map[Function[entry, Module[{prepared},
+        prepared = multiquadraticFieldDecompose[entry,
+          transformedProjectionRoots, False, False];
+        If[prepared === $Failed,
+          projectionPreparedFallbacks++;
+          multiquadraticFieldDecompose[entry,
+            transformedProjectionRoots, False],
+          prepared]]], image, {3}]];
     If[! FreeQ[projectionChannels, $Failed],
       Return[<|"Status" -> "DeferredPreparationInactiveProjectionFailed",
         "ProjectionRootCount" -> Length[projectionRoots]|>]];
@@ -1255,10 +1262,12 @@ transportChartPullBackDeferredPreparation[record_Association,
     image = Map[First, projectionChannels, {3}];
     projectionRecord = <|"Status" -> "ExactInactiveGradeProjection",
       "RootCount" -> Length[projectionRoots],
+      "PrecombinedFallbacks" -> projectionPreparedFallbacks,
       "Seconds" -> N[projectionSeconds]|>;
     Print["[deferred-router] exact inactive-root projection: roots ",
       Length[projectionRoots], ", ",
-      Round[N[projectionSeconds], 0.1], " s"]];
+      Round[N[projectionSeconds], 0.1], " s, precombined fallbacks ",
+      projectionPreparedFallbacks]];
   survivingRadicals = transportChartRadicalBases[image];
   If[survivingRadicals =!= {},
     Return[<|"Status" -> "DeferredPreparationChartStillAlgebraic",
