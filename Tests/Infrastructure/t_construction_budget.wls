@@ -535,9 +535,13 @@ inFrameChunks = Rest[StringSplit[driverSource,
   "FeynFacet`SolveEpsFormStripInFrame["]];
 check["every driver SolveEpsFormStripInFrame call site carries the sector deadline",
   Length[inFrameChunks] === 2 &&
-    AllTrue[inFrameChunks, StringContainsQ[
-      normalizeSource[StringTake[#, UpTo[2000]]],
-      "\"Deadline\" -> sectorDeadline, \"ScratchDirectory\" -> scratch"] &]];
+    AllTrue[inFrameChunks, Function[chunk,
+      Module[{normalized = normalizeSource[
+          StringTake[chunk, UpTo[2000]]]},
+        StringContainsQ[normalized,
+          "\"Deadline\" -> sectorDeadline"] &&
+          StringContainsQ[normalized,
+            "\"ScratchDirectory\" -> scratch"]]]]];
 check["the driver checks the construction deadline at every declared substage",
   And @@ (StringContainsQ[driverSource,
     "constructionCheck[\"" <> # <> "\"]"] & /@ driverSubstages)];

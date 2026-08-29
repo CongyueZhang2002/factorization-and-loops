@@ -689,9 +689,21 @@ familyRowGaugeResumeFrameCertificateQ[solution_Association,
           {"GaugeRoundTrip", "TransformedOneFormPullBack", "Exact"}),
     StringStartsQ[method, "RationalChart/"],
       MatchQ[Lookup[solution, "RootIndices", {}], {__Integer}] &&
-        And @@ (TrueQ[Lookup[certificate, #, False]] & /@
-          {"CoordinateComposition", "GaugeRoundTrip",
-           "TransformedOneFormPullBack", "SourceDLog", "Exact"}),
+        If[Lookup[certificate, "ValidationMode", None] ===
+            "CompositionalNumerical",
+          TrueQ[Lookup[certificate, "CoordinateComposition", False]] &&
+            TrueQ[Lookup[certificate, "GaugeRoundTrip", False]] &&
+            Lookup[certificate, "GaugeRoundTripProof", None] ===
+              "ExactCoordinateComposition" &&
+            Lookup[certificate, "InnerCertificate", None] ===
+              "NumericalResidual" &&
+            IntegerQ[Lookup[certificate, "UnseenPrime", None]] &&
+            TrueQ[Lookup[certificate,
+              "NumericalPfaffianResidualsZero", False]] &&
+            ! TrueQ[Lookup[certificate, "Exact", True]],
+          And @@ (TrueQ[Lookup[certificate, #, False]] & /@
+            {"CoordinateComposition", "GaugeRoundTrip",
+             "TransformedOneFormPullBack", "SourceDLog", "Exact"})],
     True, False]
 ];
 familyRowGaugeResumeFrameCertificateQ[___] := False;
@@ -1602,6 +1614,8 @@ familyRowGaugeHydrateResume[
               "PlanDiscoveryBackend" -> planDiscoveryBackend,
               "Verbose" -> verbose},
             "MultiquadraticOptions" -> multiquadraticReplayOptions,
+            "GaugePullBackMode" -> If[finalCheck === "Exact",
+              "Exact", "CompactCompositional"],
             "ScratchDirectory" -> workRoot,
             "Tag" -> stripTag, "Verbose" -> verbose],
         True,

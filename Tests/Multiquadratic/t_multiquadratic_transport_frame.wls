@@ -109,6 +109,36 @@ FTAssert["a one-root algebraic strip is solved in its rational chart and pulled 
     TrueQ[stripSolution["FrameCertificate"]["SourceDLog"]] &&
     TrueQ[stripSolution["FrameCertificate"]["Exact"]]];
 
+compactStripSolution = SolveEpsFormStripInFrame[
+  algebraicStrip, {v, w}, eps, frame,
+  "CANONICANumeratorDegrees" -> {0, 1, 2, 3},
+  "CANONICATimeLimit" -> 30, "CANONICAKernels" -> 1,
+  "MapleTimeLimit" -> 60, "MapleResidueKernels" -> 1,
+  "GaugePullBackMode" -> "CompactCompositional",
+  "Verbose" -> False];
+compactGaugeDifference = MapThread[Subtract,
+  {compactStripSolution["Gauge"], stripSolution["Gauge"]}, 2];
+FTAssert["compact chart composition preserves the exact gauge without a common-fraction pullback",
+  AssociationQ[compactStripSolution] &&
+    compactStripSolution["Status"] === "Solved" &&
+    AllTrue[Flatten[compactGaugeDifference],
+      TrueQ[FeynFacet`Private`transportChartAlgebraicZeroQ[
+        #, frame["Roots"]]] &] &&
+    FreeQ[compactStripSolution["Gauge"],
+      FeynFacet`Private`stripChartX | FeynFacet`Private`stripChartY] &&
+    compactStripSolution["FrameCertificate", "ValidationMode"] ===
+      "ExactFunctorial" &&
+    compactStripSolution["FrameCertificate", "GaugeRoundTripProof"] ===
+      "ExactCoordinateComposition" &&
+    TrueQ[compactStripSolution["FrameCertificate", "Exact"]]];
+
+invalidCompactMode = SolveEpsFormStripInFrame[
+  algebraicStrip, {v, w}, eps, frame,
+  "GaugePullBackMode" -> "NotAMode", "Verbose" -> False];
+FTAssert["an unknown gauge pullback mode is refused before solving",
+  AssociationQ[invalidCompactMode] &&
+    invalidCompactMode["Status"] === "InvalidGaugePullBackMode"];
+
 data = FeynFacet`Private`masterTransportChartData[frame, {v, w}];
 FTAssert["chart data retains the declared multiquadratic coefficient field",
   data["Status"] === "OK" &&

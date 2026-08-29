@@ -1364,6 +1364,14 @@ Options[SolveEpsFormStripInFrame] = Join[
     "MultiquadraticDispatch" -> True,
     "MultiquadraticOptions" -> {},
     "DeferredMaterializationCertificate" -> Automatic,
+    (* "Exact" materializes and rechecks the pulled-back gauge entry by
+       entry.  "CompactCompositional" keeps the exact composition
+       G(chart^-1(x)) unevaluated and certifies the inverse branch on the
+       two coordinate images.  The latter is intended for production
+       finite-field solutions whose final equation is certified once at
+       family level; exact inner solutions still receive an exact frame
+       certificate by functoriality. *)
+    "GaugePullBackMode" -> "Exact",
     (* absolute AbsoluteTime[] value; Infinity = unbounded (the default,
        so every existing caller is unchanged).  It bounds the
        construction stage of this function AND is handed to whichever
@@ -1417,6 +1425,8 @@ SolveEpsFormStripInFrame[
    materializationCertificate, materializationValidation,
    deferredForcingMaterializedQ,
    selectedIndices, stableFrame, bundleRecord,
+   gaugePullBackMode, compactCompositionQ, sourceClassification,
+   coordinateRoundTripQ, innerExactQ,
    constructionStart = AbsoluteTime[], deadline, timings = <||>,
    stageSeconds, substageSeconds, stripDimensions, budgetProgress,
    budgetExhausted},
@@ -1429,6 +1439,12 @@ SolveEpsFormStripInFrame[
   If[! transportChartDeadlineQ[deadline],
     Return[<|"Status" -> "InvalidDeadline", "Deadline" -> deadline,
       "Expected" -> "an absolute AbsoluteTime[] value, or Infinity"|>]];
+  gaugePullBackMode = OptionValue["GaugePullBackMode"];
+  If[! MemberQ[{"Exact", "CompactCompositional"}, gaugePullBackMode],
+    Return[<|"Status" -> "InvalidGaugePullBackMode",
+      "Allowed" -> {"Exact", "CompactCompositional"},
+      "Actual" -> gaugePullBackMode|>]];
+  compactCompositionQ = gaugePullBackMode === "CompactCompositional";
   (* what a construction stop reports: the substage wall times measured
      so far (this is the record that was missing tonight -- the budget
      passed with no evidence of which substage consumed it) and the
@@ -1820,6 +1836,81 @@ SolveEpsFormStripInFrame[
   transportChartStageMark["acceptance: coordinate map",
     <|"seconds" -> N[AbsoluteTime[] - stageSeconds],
       "rewritten" -> Lookup[mapCanonicalization, "Rewritten", 0]|>];
+
+  (* A rational chart gauge is already an exact rational expression in
+     the chart variables.  Substitution by a certified inverse map is a
+     field homomorphism; forcing it into one common source-frame fraction
+     is representation work, not mathematics.  On CF300/CF303 that outer
+     Together exceeded 19 minutes for a 2x2 gauge.  The compact route
+     proves the branch on the TWO coordinate images and keeps the exact
+     deterministic composition.  If the inner solve was exact, chain-rule
+     functoriality makes the source solution exact as well.  Numerical
+     inner solves retain their unseen-prime/Pfaffian evidence and remain
+     explicitly deferred to the mandatory family certificate. *)
+  If[compactCompositionQ,
+    stageSeconds = AbsoluteTime[];
+    sourceGauge = chartGauge /. coordinateMap["Map"];
+    If[! FreeQ[sourceGauge, Alternatives @@ chartVariables],
+      Return[<|"Status" -> "CompactGaugeCarriesChartVariables",
+        "ChartVariables" -> chartVariables|>]];
+    sourceClassification = transportChartRootIndices[sourceGauge, allRoots];
+    If[Lookup[sourceClassification, "UnclassifiedRadicalBases", {}] =!= {},
+      Return[<|"Status" -> "CompactGaugeUndeclaredRadicals",
+        "RadicalBases" ->
+          sourceClassification["UnclassifiedRadicalBases"]|>]];
+    coordinateRoundTripQ[signs_List] := Module[
+      {images, signedRoots},
+      signedRoots = MapThread[Times, {signs, rootImages}];
+      images = transportChartApplyRootBranches[
+        coordinateMap["Images"], usedRoots, signedRoots];
+      ListQ[images] && Length[images] === Length[chartVariables] &&
+        And @@ MapThread[
+          TrueQ[Together[(#1 /. data["Subst"]) - #2] === 0] &,
+          {images, chartVariables}]];
+    signChoices = Tuples[{1, -1}, Length[usedRoots]];
+    acceptedSigns = Select[signChoices, coordinateRoundTripQ];
+    If[Length[acceptedSigns] =!= 1,
+      Return[<|"Status" -> "CompactGaugeCoordinateBranchNotUnique",
+        "BranchCount" -> Length[acceptedSigns],
+        "RootCount" -> Length[usedRoots]|>]];
+    branchImages = MapThread[Times, {First[acceptedSigns], rootImages}];
+    sourceAlphabet = DeleteDuplicates[Together /@
+      (Lookup[inner, "Alphabet", {}] /. coordinateMap["Map"])];
+    innerExactQ = TrueQ[Lookup[inner, "ExactDLog", False]];
+    timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
+    timings["SourceFrameIdentity"] = 0.;
+    transportChartStageDone["acceptance: gauge pull-back",
+      <|"seconds" -> timings["GaugePullBack"],
+        "branchSigns" -> First[acceptedSigns],
+        "route" -> "CompactCompositional",
+        "gaugeLeafCount" -> transportChartStageSize[sourceGauge]|>];
+    transportChartLogSuccessTimings[timings, chart["Name"], verbose];
+    Return[<|"Status" -> "Solved",
+      "Method" -> "RationalChart/" <> chart["Name"] <> "/" <>
+        inner["Method"],
+      "Gauge" -> sourceGauge, "RootIndices" -> rootIndices,
+      "RootSquares" -> rootSquares, "Chart" -> chart,
+      "Alphabet" -> sourceAlphabet,
+      "InnerSolution" -> KeyDrop[inner, "Gauge"],
+      "ExactDLog" -> Lookup[inner, "ExactDLog", False],
+      "Certificate" -> Lookup[inner, "Certificate", "ExactDLog"],
+      "FrameCertificate" -> <|
+        "CoordinateComposition" ->
+          TrueQ[coordinateMap["CompositionExact"]],
+        "BranchSigns" -> First[acceptedSigns],
+        "GaugeRoundTrip" -> True,
+        "GaugeRoundTripProof" -> "ExactCoordinateComposition",
+        "TransformedOneFormPullBack" -> If[innerExactQ, True,
+          Missing["DeferredToFamilyCertificate"]],
+        "SourceDLog" -> If[innerExactQ, True,
+          Missing["DeferredToFamilyCertificate"]],
+        "Exact" -> innerExactQ,
+        "ValidationMode" -> If[innerExactQ,
+          "ExactFunctorial", "CompositionalNumerical"],
+        "InnerCertificate" -> Lookup[inner, "Certificate", None],
+        "UnseenPrime" -> Lookup[inner, "UnseenPrime", None],
+        "NumericalPfaffianResidualsZero" -> Lookup[inner,
+          "NumericalPfaffianResidualsZero", Missing["NotRun"]]|>|>]];
   parallelTogether = transportChartParallelTogether[
     chartGauge, coordinateMap["Map"], "chartgauge", deadline];
   If[Lookup[parallelTogether, "Status", None] === "DeadlineExpired",
