@@ -388,7 +388,7 @@ finiteFieldGaugePullBackFitDenominator[points_List, values_List,
     anchors_List, numeratorSupport_List, denominatorSupport_List,
     prime_Integer, normalizationInput_: Automatic] := Module[
   {numeratorCount, denominatorCount, anchorCount, unknownCount,
-   normalizations, fitAt, result, failures = {}},
+   normalizations, fitAt, result, candidate, failures = {}},
   numeratorCount = Length[numeratorSupport];
   denominatorCount = Length[denominatorSupport];
   anchorCount = Length[anchors];
@@ -454,9 +454,17 @@ finiteFieldGaugePullBackFitDenominator[points_List, values_List,
         {anchorCount, numeratorCount}],
       "UnknownCount" -> unknownCount|>
   ];
-  result = SelectFirst[fitAt /@ normalizations,
-    AssociationQ[#] && Lookup[#, "Status", None] ===
-      "FiniteFieldGaugePullBackDenominatorFitV1" &, $Failed];
+  (* Map would eagerly solve every possible denominator normalization before
+     SelectFirst inspects the results.  Stop at the first nonsingular
+     normalization: later choices describe the same projective denominator
+     and are fallback work, not independent candidates. *)
+  result = $Failed;
+  Do[
+    candidate = fitAt[normalization];
+    If[AssociationQ[candidate] && Lookup[candidate, "Status", None] ===
+        "FiniteFieldGaugePullBackDenominatorFitV1",
+      result = candidate; Break[]],
+    {normalization, normalizations}];
   If[result === $Failed,
     finiteFieldGaugePullBackFailure[If[MemberQ[failures, "Inconsistent"],
       "FiniteFieldGaugePullBackDenominatorModelInconsistent",
