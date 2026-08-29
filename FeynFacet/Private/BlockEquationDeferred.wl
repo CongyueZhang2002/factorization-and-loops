@@ -562,6 +562,7 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
    literalMatch, placeholder,
    canonicalTag, numericBases, numericPlaceholder,
    directPlaceholderCount = 0, canonicalizedPlaceholderCount = 0,
+   denominatorRootIndices = {}, recordDenominatorRoots,
    termData, primes = {2147483423, 2147483399}, maxAttempts = 64,
    activeGrades = {}, accepted = 0, attempts = 0, sampleRecords = {},
    primeIndex, prime, attempt, point, epsilonValue, parameterValues,
@@ -594,6 +595,16 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
     Round[N[AbsoluteTime[] - started], 0.1], " s"];
   rootHead = Unique["blockEquationDeferredCensusRoot"];
   rootImages = rootHead /@ Range[rank];
+  recordDenominatorRoots[expression_] := Module[{bases, indices},
+    bases = DeleteDuplicates[Cases[Unevaluated[expression],
+      Power[base_, exponent_ /; (IntegerQ[exponent] ||
+          Head[exponent] === Rational) && exponent < 0] :> base,
+      {0, Infinity}, Heads -> True]];
+    indices = DeleteDuplicates[Cases[bases,
+      rootHead[index_Integer] /; 1 <= index <= rank :> index,
+      {0, Infinity}, Heads -> True]];
+    denominatorRootIndices = Union[denominatorRootIndices, indices];
+    Null];
   literalMatch[base_] := literalMatch[base] = FirstPosition[rootSquares,
     candidate_ /; SameQ[base, candidate], Missing["NoLiteralRoot"], {1},
     Heads -> False];
@@ -613,7 +624,8 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
       Power[base_ /; ! NumericQ[base], exponent_Rational /;
           Denominator[exponent] === 2] :> base,
       {0, Infinity}, Heads -> True]];
-    If[survivors === {}, directPlaceholderCount++; Return[direct, Module]];
+    If[survivors === {}, directPlaceholderCount++;
+      recordDenominatorRoots[direct]; Return[direct, Module]];
     (* Preserve the existing exact rational-square scaling fast path before
        invoking the full denester. *)
     direct = transportChartApplyRootBranches[direct, roots, rootImages];
@@ -621,14 +633,17 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
       Power[base_ /; ! NumericQ[base], exponent_Rational /;
           Denominator[exponent] === 2] :> base,
       {0, Infinity}, Heads -> True]];
-    If[survivors === {}, directPlaceholderCount++; Return[direct, Module]];
+    If[survivors === {}, directPlaceholderCount++;
+      recordDenominatorRoots[direct]; Return[direct, Module]];
     canonicalizedPlaceholderCount++;
     canonical = blockEquationDeferredFrameCanonicalize[
       expression, frame, variables];
     If[Lookup[canonical, "Status", None] =!= "OK",
       Throw[canonical, canonicalTag]];
-    transportChartApplyRootBranches[
-      canonical["Expression"], roots, rootImages]];
+    direct = transportChartApplyRootBranches[
+      canonical["Expression"], roots, rootImages];
+    recordDenominatorRoots[direct];
+    direct];
   termData = Catch[Map[Function[record,
       Map[Function[term, <|
           "Coefficient" -> placeholder[Lookup[term, "Coefficient", 1]],
@@ -774,6 +789,7 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
     "AcceptedSamples" -> accepted, "Attempts" -> attempts,
     "DirectPlaceholderCount" -> directPlaceholderCount,
     "CanonicalizedPlaceholderCount" -> canonicalizedPlaceholderCount,
+    "DenominatorRootIndices" -> denominatorRootIndices,
     "Samples" -> sampleRecords,
     "CensusSeconds" -> N[AbsoluteTime[] - started]|>
 ];
@@ -1904,8 +1920,10 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
         reducedChart = If[reducedIndices === {}, None,
           TransportRootSetChart[reducedSquares, variables]];
         If[(reducedIndices === {} || AssociationQ[reducedChart]) &&
-            TrueQ[blockEquationDeferredChartMaterializableQ[
-              preparation, roots, reducedIndices]],
+            Intersection[
+              Lookup[activeCensus, "DenominatorRootIndices",
+                Range[Length[roots]]],
+              Complement[Range[Length[roots]], reducedIndices]] === {},
           Return[<|"Status" -> "OK", "RootIndices" -> reducedIndices,
             "RootSquares" -> reducedSquares, "ChartAvailableQ" -> True,
             "Chart" -> If[AssociationQ[reducedChart],
