@@ -252,6 +252,10 @@ input fingerprint",
     Lookup[SelectFirst[otherRecords,
       #["Substage"] === "ForcingChannels" && #["Action"] === "Read" &, <||>],
       "Status", None] === "PrepareCheckpointInputMismatch"];
+check["P4 a sealed stale gauge denominator is only reused as an ansatz proposal",
+  Lookup[SelectFirst[otherRecords,
+    #["Substage"] === "GaugeDenominator" && #["Action"] === "Read" &, <||>],
+    "Status", None] === "AcceptedGaugeDenominatorProposal"];
 
 (* ---- the seal fingerprint itself ---- *)
 check["P5 a checkpoint whose header was edited without re-deriving its \

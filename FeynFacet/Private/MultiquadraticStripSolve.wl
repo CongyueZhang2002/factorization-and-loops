@@ -5461,7 +5461,8 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
      the refusal is RECORDED, so a poisoned checkpoint is visible in the
      preparation rather than silently ignored *)
   checkpointRead[substage_String, fingerprint_] := Module[
-    {file, raw, verdict},
+    {file, raw, verdict, proposalVerdict = <||>, proposalQ = False,
+     suppliedFingerprint, readStatus},
     If[checkpointDirectory === None ||
         ! MemberQ[{"ReadWrite", "Read"}, checkpointMode],
       Return[Missing["CheckpointsDisabled"]]];
@@ -5481,11 +5482,29 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
       Return[Missing["CheckpointUnreadable"]]];
     verdict = multiquadraticStripPrepareCheckpointAccept[raw["Value"],
       substage, fingerprint, variables, epsilon];
+    (* A gauge denominator is an ansatz proposal, not accepted mathematics.
+       If the exact input representation changed, an internally intact stored
+       denominator may still be tried: a bad proposal can only make the
+       solver fail to find a gauge, while the normal fresh modular residual
+       remains the sole per-block acceptance.  Forcing channels and letters
+       never receive this relaxation. *)
+    If[substage === "GaugeDenominator" &&
+        Lookup[verdict, "Status", None] ===
+          "PrepareCheckpointInputMismatch",
+      suppliedFingerprint = Lookup[raw["Value"], "InputFingerprint", None];
+      If[StringQ[suppliedFingerprint],
+        proposalVerdict = multiquadraticStripPrepareCheckpointAccept[
+          raw["Value"], substage, suppliedFingerprint, variables, epsilon];
+        proposalQ = Lookup[proposalVerdict, "Status", None] === "Accepted" &&
+          MatchQ[Lookup[proposalVerdict, "Payload", None], {_, _}]]];
+    readStatus = If[proposalQ, "AcceptedGaugeDenominatorProposal",
+      Lookup[verdict, "Status", None]];
     AppendTo[checkpointRecords, <|"Substage" -> substage,
-      "Action" -> "Read", "Status" -> Lookup[verdict, "Status", None],
+      "Action" -> "Read", "Status" -> readStatus,
       "File" -> file, "FileSHA256" -> raw["SHA256"],
       "Refusal" -> KeyDrop[verdict, {"Status", "Payload"}]|>];
-    If[Lookup[verdict, "Status", None] =!= "Accepted",
+    If[proposalQ, Return[proposalVerdict["Payload"]]];
+    If[readStatus =!= "Accepted",
       Return[Missing["CheckpointRefused"]]];
     verdict["Payload"]];
   checkpointWrite[substage_String, fingerprint_, payload_] := Module[
