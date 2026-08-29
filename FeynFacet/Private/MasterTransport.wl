@@ -2117,6 +2117,7 @@ through the target Subst (exact); the record's single variable is that root",
       If[AssociationQ[composed] && composed["Status"] === "OK",
         Return[<|"Status" -> "OK", "Frame" -> "TwoVariableComposition",
           "Map" -> composed["Map"], "Images" -> composed["Images"],
+          "CompositionRoute" -> Lookup[composed, "Route", "Solve"],
           "CompositionIdentity" ->
             "record Subst at the solved record variables equals the target \
 chart Subst (exact); record variables obtained from the target's rational \

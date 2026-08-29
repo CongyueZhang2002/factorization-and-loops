@@ -480,6 +480,14 @@ sqrt(1-4 v w)=1+u a gives a=(4 p(1-p)-2u)/(u^2+4 p(1-p))"|>;
         "RootSquare" -> transportChartLambda1[v, w]|>,
       <|"Root" -> Together[(4 kq4av + t^2)/(2 t)],
         "RootSquare" -> 4 v + w^2|>},
+    (* Exact inverse from the two declared roots.  The generic chart
+       composer validates every returned branch against Subst before it
+       is used; recording the pencil inverse here avoids asking Solve to
+       invert this high-degree rational presentation from scratch. *)
+    "InverseByRoots" -> Function[{sourceValues, rootValues},
+      With[{tau = rootValues[[2]] - sourceValues[[2]]},
+        {Together[2 tau rootValues[[1]] -
+          2 (tau - 2) sourceValues[[1]]], Together[tau]}]],
     "Parents" -> <|"Q4a" -> {p -> Together[kq4av], s -> t/2}|>,
     "Notes" -> "iterated pencil: sqrt(4 v + w^2) = w + t gives \
 w = (4 v - t^2)/(2 t); lambda1 pulls back to N(v,t)/(4 t^2) with a square \
@@ -494,6 +502,10 @@ sqrt(lambda1) = (2 (t-2) v + s)/(2 t), sqrt(4 v + w^2) = (4 v + t^2)/(2 t)"|>;
         "RootSquare" -> transportChartLambda1[v, w]|>,
       <|"Root" -> Together[(4 kq4av + t^2)/(2 t)],
         "RootSquare" -> v^2 + 4 w|>},
+    "InverseByRoots" -> Function[{sourceValues, rootValues},
+      With[{tau = rootValues[[2]] - sourceValues[[1]]},
+        {Together[2 tau rootValues[[1]] -
+          2 (tau - 2) sourceValues[[2]]], Together[tau]}]],
     "Parents" -> <|"Q4b" -> {p -> Together[kq4av], s -> t/2}|>,
     "Notes" -> "the v<->w image of KallenQ4a: sqrt(v^2 + 4 w) = v + t \
 gives v = (4 w - t^2)/(2 t), the pulled-back lambda1 is the SAME N with v \
@@ -1084,12 +1096,12 @@ transportChartRekey[chart_Association, sourceVariables : {_Symbol, _Symbol},
     <|"Root" -> Together[#["Root"] /. variableRules],
       "RootSquare" -> Together[#["RootSquare"] /. sourceRules]|> &,
     Lookup[chart, "Roots", {}]];
-  <|"Name" -> Lookup[chart, "Name", "Chart"] <> "Rekeyed",
+  Join[<|"Name" -> Lookup[chart, "Name", "Chart"] <> "Rekeyed",
     "Kind" -> "TwoVariable", "CoefficientField" -> "Rational",
     "Variables" -> chartVariables, "Subst" -> substitution,
     "Root" -> If[roots === {}, None, roots[[1]]["Root"]],
     "RootSquare" -> If[roots === {}, None, roots[[1]]["RootSquare"]],
-    "Roots" -> roots|>
+    "Roots" -> roots|>, KeyTake[chart, {"InverseByRoots"}]]
 ];
 
 (* Order matters (measured 2026-08-24 on the 27x27 CF303 truncation; the
@@ -1984,7 +1996,8 @@ SolveEpsFormStripInFrame[
       {"Rewritten", "RewrittenBases", "NumericRadicalClasses"}]|>];
   transportChartStageMark["acceptance: coordinate map",
     <|"seconds" -> N[AbsoluteTime[] - stageSeconds],
-      "rewritten" -> Lookup[mapCanonicalization, "Rewritten", 0]|>];
+      "rewritten" -> Lookup[mapCanonicalization, "Rewritten", 0],
+      "route" -> Lookup[coordinateMap, "CompositionRoute", None]|>];
 
   If[mapleCanonicalQ,
     preNormalizationGauge = chartGauge /. coordinateMap["Map"];
@@ -2649,10 +2662,11 @@ TransportFamilyChart[family_String,
 (* Compose a class record written in ITS OWN two-variable chart with a
    TARGET two-variable chart that rationalizes the record's root:
    solve the record's substitution for the record's variables using the
-   target chart's rational root for the same quadratic (both signs), and
-   accept a candidate only if the record's Subst at that candidate
-   reproduces the target Subst EXACTLY.  Uses the kernel's Solve; the
-   acceptance is the identity, never Solve's return shape.
+   target chart's rational roots (all signs), and accept a candidate only
+   if the record's Subst at that candidate reproduces the target Subst
+   EXACTLY.  Charts may provide an analytic InverseByRoots; otherwise the
+   kernel's Solve is the fallback.  The acceptance is always the forward
+   identity, never the declared inverse or Solve's return shape.
 
    record chart:  <|"Variables" -> {x', y'}, "Subst" -> {v -> f(x',y'), w -> g(x',y')},
                     "Root" -> rho(x',y'), "RootSquare" -> Q(v,w)|>
@@ -2662,8 +2676,9 @@ TransportFamilyChart[family_String,
              "Sign" -> +-1|> or a named refusal. *)
 masterTransportComposeTwoVariableRecord[recordChart_Association,
     targetData_Association, sourceVariables_List] := Module[
-  {recVars, recSubst, recRoot, recSquare, tgtVars, tgtSubst, tf, tg, tgtRoots,
-   matching, candidates, verified, eqs, sols, coefficientField},
+  {recVars, recSubst, recRoot, recSquare, tgtVars, tf, tg, tgtRoots,
+   matching, recRoots, inverseByRoots, rootMatches, declaredCandidates,
+   candidates, verified, eqs, coefficientField, route = "Solve"},
   recVars = Lookup[recordChart, "Variables", $Failed];
   recSubst = Lookup[recordChart, "Subst", $Failed];
   recRoot = Lookup[recordChart, "Root", None];
@@ -2677,6 +2692,12 @@ masterTransportComposeTwoVariableRecord[recordChart_Association,
   If[! ListQ[tgtRoots],
     tgtRoots = If[Lookup[targetData, "Root", None] === None, {},
       {<|"Root" -> targetData["Root"], "RootSquare" -> targetData["RootSquare"]|>}]];
+  recRoots = Lookup[recordChart, "Roots", {}];
+  inverseByRoots = Lookup[recordChart, "InverseByRoots", None];
+  rootMatches = If[ListQ[recRoots], Table[
+    SelectFirst[tgtRoots,
+      TrueQ[Together[#1["RootSquare"] - recRoot["RootSquare"]] === 0] &,
+      Missing["RootNotAvailable"]], {recRoot, recRoots}], {}];
   (* the target root that rationalizes the RECORD's quadratic *)
   matching = If[recSquare === None || recRoot === None, {},
     Select[tgtRoots, TrueQ[Together[#["RootSquare"] - recSquare] === 0] &]];
@@ -2692,17 +2713,26 @@ masterTransportComposeTwoVariableRecord[recordChart_Association,
     gRec = Last[recSubst[[2]]] /. rename;
     rhoRec = If[recRoot === None, None, recRoot /. rename];
     eqs = {fRec == tf, gRec == tg};
-    candidates = If[matching === {},
-      (* no root available: try the plain algebraic solve and keep only
-         rational solutions *)
-      Quiet[Solve[eqs, fresh]],
-      (* Table over {root, sign} of Solve's solution LISTS: flatten two
-         levels to a plain list of rule lists (one level left each
-         candidate as {{rules}} and the identity check below then compared
-         a LIST -- measured 2026-08-17 03:20 on class 79 in Kallen23) *)
-      Flatten[Table[
-        Quiet[Solve[Append[eqs, rhoRec == sign m["Root"]], fresh]],
-        {m, matching}, {sign, {1, -1}}], 2]];
+    declaredCandidates = If[MatchQ[inverseByRoots, _Function] &&
+        recRoots =!= {} && AllTrue[rootMatches, AssociationQ],
+      DeleteDuplicates[Function[signs, Module[{images},
+        images = Quiet[Check[inverseByRoots[{tf, tg},
+          MapThread[Times, {signs, Lookup[rootMatches, "Root"]}]], $Failed]];
+        If[MatchQ[images, {_, _}], Thread[fresh -> images], Nothing]]]
+        /@ Tuples[{1, -1}, Length[recRoots]]], {}];
+    candidates = If[declaredCandidates =!= {},
+      route = "DeclaredInverseByRoots"; declaredCandidates,
+      If[matching === {},
+        (* no root available: try the plain algebraic solve and keep only
+           rational solutions *)
+        Quiet[Solve[eqs, fresh]],
+        (* Table over {root, sign} of Solve's solution LISTS: flatten two
+           levels to a plain list of rule lists (one level left each
+           candidate as {{rules}} and the identity check below then compared
+           a LIST -- measured 2026-08-17 03:20 on class 79 in Kallen23) *)
+        Flatten[Table[
+          Quiet[Solve[Append[eqs, rhoRec == sign m["Root"]], fresh]],
+          {m, matching}, {sign, {1, -1}}], 2]]];
     candidates = Select[candidates,
       Which[
         coefficientField === "Rational" || matching === {},
@@ -2716,8 +2746,10 @@ masterTransportComposeTwoVariableRecord[recordChart_Association,
     If[verified === {},
       Return[<|"Status" -> "TwoVariableChartsNotComposable",
         "RecordVariables" -> recVars, "TargetVariables" -> tgtVars,
-        "MatchingRoots" -> Length[matching], "Candidates" -> Length[candidates]|>]];
+        "MatchingRoots" -> Length[matching], "Candidates" -> Length[candidates],
+        "Route" -> route|>]];
     <|"Status" -> "OK",
       "Map" -> Map[Together, First[verified] /. back, {2}],
       "Images" -> Map[Together, fresh /. First[verified]],
-      "Candidates" -> Length[candidates], "Verified" -> Length[verified]|>]];
+      "Candidates" -> Length[candidates], "Verified" -> Length[verified],
+      "Route" -> route|>]];

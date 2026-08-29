@@ -72,6 +72,10 @@
       and must NOT touch a base that differs by a non-square, negative or
       symbolic factor.
 
+   I. The gauge pull-back uses the chart's analytic two-root inverse,
+      rather than generic elimination, and that inverse forward-composes
+      exactly for both KallenQ4 charts.
+
    T. END TO END on the artifact that motivated the chart: the CF259
       sector state, its rows 1..16 truncation (row bound from the state's
       own "Ranges"), the family's registered multiquadratic frame, and
@@ -298,10 +302,10 @@ FTAssert["R0 the catalog rationalizes exactly these six quadratics",
     Function[q, AnyTrue[distinctSquares, zeroQ[q - #] &]]] &&
   AllTrue[distinctSquares,
     Function[q, AnyTrue[catalogSquares, zeroQ[q - #] &]]]];
-(* MEASURED on the base commit f002abb (2026-08-24), before KallenQ4a/b
-   existed; the two entries marked NEW were Missing["NoRationalChart"]
-   there and are the change under test. *)
-baseResolution = <|
+(* The current catalog resolution for all 21 singleton/pair subsets.  This
+   catches accidental shadowing when a new chart is added: every existing
+   root set must continue to select its smallest registered chart. *)
+expectedResolution = <|
   {1} -> "Kallen1", {2} -> "Kallen2", {3} -> "Kallen3",
   {4} -> "Q4a", {5} -> "Q4b", {6} -> "Bilinear115",
   {1, 2} -> "Kallen12", {1, 3} -> "Kallen13",
@@ -309,28 +313,67 @@ baseResolution = <|
   {1, 6} -> "Missing:NoRationalChart",
   {2, 3} -> "Kallen23",
   {2, 4} -> "Missing:NoRationalChart", {2, 5} -> "Missing:NoRationalChart",
-  {2, 6} -> "Missing:NoRationalChart",
+  {2, 6} -> "Kallen2Bilinear115",
   {3, 4} -> "Missing:NoRationalChart", {3, 5} -> "Missing:NoRationalChart",
-  {3, 6} -> "Missing:NoRationalChart",
+  {3, 6} -> "Kallen3Bilinear115",
   {4, 5} -> "Missing:NoRationalChart", {4, 6} -> "Missing:NoRationalChart",
   {5, 6} -> "Missing:NoRationalChart"|>;
 measuredResolution = Association @ Table[
   index -> chartName[FeynFacet`TransportRootSetChart[
     catalogSquares[[index]], {vv, ww}]],
-  {index, Keys[baseResolution]}];
-Print["resolution differences against the base commit: ", InputForm[
+  {index, Keys[expectedResolution]}];
+Print["resolution differences against the expected catalog: ", InputForm[
   Select[Association @ KeyValueMap[
-      #1 -> {baseResolution[#1], #2} &, measuredResolution],
+      #1 -> {expectedResolution[#1], #2} &, measuredResolution],
     #[[1]] =!= #[[2]] &]]];
-FTAssert["R1 all 21 singleton and pair resolutions are unchanged except \
-the two new pairs",
-  measuredResolution === baseResolution];
+FTAssert["R1 all 21 singleton and pair resolutions match the catalog contract",
+  measuredResolution === expectedResolution];
 FTAssert["R2 every catalog chart still resolves its OWN root set to itself",
   AllTrue[Keys[catalog], Function[name,
     chartName[FeynFacet`TransportRootSetChart[
       #["RootSquare"] & /@ catalog[name]["Roots"], {vv, ww}]] === name]]];
 FTAssert["R3 every catalog chart still passes TransportChartVerify",
   AllTrue[Values[catalog], TrueQ[FeynFacet`TransportChartVerify[#]["OK"]] &]];
+
+(* ---- I. analytic inverse used by gauge pull-back ------------------ *)
+inverseComposition[chart_, squares_] := Module[{roots, identityData},
+  roots = <|"Root" -> Sqrt[#], "RootSquare" -> #|> & /@ squares;
+  identityData = <|"Status" -> "OK", "Kind" -> "TwoVariable",
+    "CoefficientField" -> "Multiquadratic", "Variables" -> {vv, ww},
+    "SourceVariables" -> {vv, ww}, "Subst" -> {vv -> vv, ww -> ww},
+    "Jacobian" -> IdentityMatrix[2], "JacobianDet" -> 1,
+    "Root" -> roots[[1]]["Root"],
+    "RootSquare" -> roots[[1]]["RootSquare"], "Roots" -> roots|>;
+  FeynFacet`Private`masterTransportRecordCoordinateMap[
+    <|"Variables" -> chart["Variables"], "Chart" -> chart|>,
+    identityData, Automatic]];
+{inverseASeconds, inverseA} = AbsoluteTiming[inverseComposition[kq4a,
+  {lambda1[vv, ww], q3a[vv, ww]}]];
+{inverseBSeconds, inverseB} = AbsoluteTiming[inverseComposition[kq4b,
+  {lambda1[vv, ww], q3b[vv, ww]}]];
+Print["analytic inverse coordinate maps: KallenQ4a ",
+  Round[inverseASeconds, .001], " s; KallenQ4b ",
+  Round[inverseBSeconds, .001], " s"];
+FTAssert["I1 both KallenQ4 charts use their declared root inverse",
+  AssociationQ[inverseA] && AssociationQ[inverseB] &&
+  inverseA["Status"] === "OK" && inverseB["Status"] === "OK" &&
+  inverseA["CompositionRoute"] === "DeclaredInverseByRoots" &&
+  inverseB["CompositionRoute"] === "DeclaredInverseByRoots"];
+inverseZeroQ[result_, chart_, squares_] := If[
+  ! AssociationQ[result] || ! MatchQ[Lookup[result, "Images", None], {_, _}],
+  False,
+  Module[{roots, images, forward},
+    roots = <|"Root" -> Sqrt[#], "RootSquare" -> #|> & /@ squares;
+    images = result["Images"];
+    forward = (Last /@ chart["Subst"]) /.
+      Thread[chart["Variables"] -> images];
+    And @@ MapThread[
+      TrueQ[FeynFacet`Private`transportChartAlgebraicZeroQ[#1 - #2,
+        roots]] &, {forward, {vv, ww}}]]];
+FTAssert["I2 KallenQ4a's inverse forward-composes exactly",
+  inverseZeroQ[inverseA, kq4a, {lambda1[vv, ww], q3a[vv, ww]}]];
+FTAssert["I3 KallenQ4b's inverse forward-composes exactly",
+  inverseZeroQ[inverseB, kq4b, {lambda1[vv, ww], q3b[vv, ww]}]];
 
 (* ---- S. the square class of a radical base ------------------------ *)
 applyBranches = FeynFacet`Private`transportChartApplyRootBranches;

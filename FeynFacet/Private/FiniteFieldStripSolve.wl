@@ -876,6 +876,8 @@ finiteFieldStripCFFRDiscoverPlan[matrix_, rightHandSide_,
     "PilotPrime" -> prime,
     "PivotColumns" -> response["PivotColumns"],
     "FreeColumns" -> response["FreeColumns"],
+    "ParticularSolution" -> response["ParticularSolution"],
+    "NullspaceBasis" -> response["NullspaceBasis"],
     "Binding" -> <|
       "AdapterSourceSHA256" -> run["AdapterSourceSHA256"],
       "AdapterBinarySHA256" -> run["AdapterBinarySHA256"],
@@ -1255,7 +1257,8 @@ SampleEpsFormStripAffine[
    samplingSeconds, samplingResult, setupStart, setupSeconds,
    preparation, preparationReused, eliminationPlan, discoverPlanQ,
    planCompatible, selector, core, rhsMatrix, solutionMatrix,
-   constrainedSeconds, normalizationOK, planResult, discard,
+   constrainedSeconds, normalizationOK, planResult, nativePlanResult,
+   nativePlanHandledQ = False, sealedPlan, discard,
    maximumExponents, tableExponents, blockLength, collapsePoly,
    collapseRational, support, supportX, supportY, backendUsed = None,
    backendRequested, backendThreads, backendDecision,
@@ -1538,6 +1541,73 @@ SampleEpsFormStripAffine[
   planCompatible = solveAffineQ &&
     Lookup[planValidation, "Status", None] === "OK";
   discard = None;
+  (* A discovery pilot already asks CFFR1 for the complete affine data:
+     rank, one particular solution, a nullspace basis, independent rows,
+     and normalization columns.  Consume that answer directly.  The old
+     route first repeated MatrixRank twice, LinearSolve and NullSpace in
+     Wolfram and called the adapter only afterward, so a 6,680-unknown
+     chart pilot spent tens of minutes single-threaded before reaching the
+     native backend.  CFFR1's existing all-original-row replay remains the
+     acceptance gate; no second symbolic elimination is useful evidence. *)
+  nativePlanHandledQ = ! planCompatible && solveAffineQ && discoverPlanQ &&
+    planDiscoveryBackend === "FLINTAffineRREF";
+  If[nativePlanHandledQ,
+    planDiscoveryBackendUsed = "FLINTAffineRREF";
+    {planSeconds, nativePlanResult} = AbsoluteTiming[
+      finiteFieldStripCFFRDiscoverPlan[matrix, rightHandSide,
+        gaugeUnknownCount, Length[freeResidues], numeratorDegrees,
+        denominatorDegrees, prime, backendThreads,
+        OptionValue["ArtifactDirectory"], Automatic]];
+    If[AssociationQ[nativePlanResult] &&
+        Lookup[nativePlanResult, "Status", None] === "OK",
+      sealedPlan = finiteFieldStripSealEliminationPlan[
+        Join[KeyDrop[nativePlanResult,
+            {"Binding", "PivotColumns", "FreeColumns",
+             "ParticularSolution", "NullspaceBasis"}],
+          <|"GaugeSupport" -> support|>],
+        preparation["Fingerprint"], planDiscoveryBackend,
+        nativePlanResult["Binding"]];
+      If[AssociationQ[sealedPlan] && Lookup[sealedPlan, "Status", None] === "OK",
+        planResult = sealedPlan;
+        rank = nativePlanResult["GenericRank"];
+        augmentedRank = rank;
+        rankSeconds = 0.; augmentedRankSeconds = 0.;
+        linearSolveSeconds = 0.; nullspaceSeconds = 0.;
+        particularSolution = nativePlanResult["ParticularSolution"];
+        nullspaceBasis = nativePlanResult["NullspaceBasis"];
+        backendUsed = None;
+        affineData = <|
+          "LinearSolveSeconds" -> 0., "NullspaceSeconds" -> 0.,
+          "ParticularSolution" -> particularSolution,
+          "NullspaceBasis" -> nullspaceBasis,
+          "ParticularCheckZero" -> True, "NullspaceCheckZero" -> True,
+          "SolvePath" -> "NativeAffineRREFPlanDiscovery",
+          "Backend" -> None, "BackendRequested" -> backendRequested,
+          "BackendUsed" -> None, "BackendFallbackReason" -> None,
+          "BackendFailure" -> None, "EliminationPlan" -> planResult,
+          "PlanDiscoverySeconds" -> planSeconds,
+          "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
+          "PlanDiscoveryBackendUsed" -> planDiscoveryBackendUsed|>,
+        nativePlanResult = sealedPlan],
+      Null];
+    If[! AssociationQ[Lookup[affineData, "EliminationPlan", None]],
+      rank = -1; augmentedRank = -2; rankSeconds = 0.;
+      augmentedRankSeconds = 0.; backendUsed = None;
+      backendFailure = If[AssociationQ[nativePlanResult],
+        Lookup[nativePlanResult, "Status", "NativePlanDiscoveryFailed"],
+        "NativePlanDiscoveryFailed"];
+      planResult = If[AssociationQ[nativePlanResult], nativePlanResult,
+        <|"Status" -> "NativePlanDiscoveryFailed"|>];
+      affineData = <|"Status" -> "DiscardPlanDiscoveryBackendFailure",
+        "SolvePath" -> "NativeAffineRREFPlanDiscovery",
+        "Backend" -> None, "BackendRequested" -> backendRequested,
+        "BackendUsed" -> None, "BackendFallbackReason" -> None,
+        "BackendFailure" -> backendFailure,
+        "EliminationPlan" -> planResult,
+        "PlanDiscoverySeconds" -> planSeconds,
+        "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
+        "PlanDiscoveryBackendUsed" -> planDiscoveryBackendUsed|>]];
+  If[! nativePlanHandledQ,
   If[planCompatible,
     (* M1 constrained path: one factorization, nullity+1 right-hand
        sides, then every original row checked *)
@@ -1679,35 +1749,20 @@ SampleEpsFormStripAffine[
       "PlanDiscoveryBackendUsed" -> "Wolfram"
     |>;
     If[discoverPlanQ,
-      (* the plan-discovery backend replaces exactly this step and
-         nothing downstream; the Wolfram rank computed just above is
-         handed to the native path as a free cross-check of the adapter's
-         rank (Design/CFFR1Backend.md) *)
-      If[planDiscoveryBackend === "FLINTAffineRREF",
-        planDiscoveryBackendUsed = "FLINTAffineRREF";
-        {planSeconds, planResult} = AbsoluteTiming[
-          finiteFieldStripCFFRDiscoverPlan[matrix, rightHandSide,
-            gaugeUnknownCount, Length[freeResidues], numeratorDegrees,
-            denominatorDegrees, prime, backendThreads,
-            OptionValue["ArtifactDirectory"], rank]];
-        If[AssociationQ[planResult] && planResult["Status"] === "OK",
-          planResult = finiteFieldStripSealEliminationPlan[
-            Join[KeyDrop[planResult,
-                {"Binding", "PivotColumns", "FreeColumns"}],
-              <|"GaugeSupport" -> support|>],
-            preparation["Fingerprint"], planDiscoveryBackend,
-            planResult["Binding"]]],
-        planDiscoveryBackendUsed = "Wolfram";
-        {planSeconds, planResult} = AbsoluteTiming[finiteFieldStripDiscoverPlan[matrix, rank,
-          nullspaceBasis, gaugeUnknownCount, Length[freeResidues],
-          numeratorDegrees, denominatorDegrees, prime]];
-        If[AssociationQ[planResult] && planResult["Status"] === "OK",
-          planResult = finiteFieldStripSealEliminationPlan[
-            Join[planResult, <|"GaugeSupport" -> support|>],
-            preparation["Fingerprint"], planDiscoveryBackend]]];
+      (* Native discovery was consumed before this historical path. *)
+      planDiscoveryBackendUsed = "Wolfram";
+      {planSeconds, planResult} = AbsoluteTiming[
+        finiteFieldStripDiscoverPlan[matrix, rank, nullspaceBasis,
+          gaugeUnknownCount, Length[freeResidues], numeratorDegrees,
+          denominatorDegrees, prime]];
+      If[AssociationQ[planResult] && planResult["Status"] === "OK",
+        planResult = finiteFieldStripSealEliminationPlan[
+          Join[planResult, <|"GaugeSupport" -> support|>],
+          preparation["Fingerprint"], planDiscoveryBackend]];
       affineData = Join[affineData, <|"EliminationPlan" -> planResult,
         "PlanDiscoverySeconds" -> planSeconds,
         "PlanDiscoveryBackendUsed" -> planDiscoveryBackendUsed|>]]];
+  ];
   Join[<|
     "EpsilonValue" -> epsilonValue,
     "Prime" -> prime,
@@ -2656,7 +2711,8 @@ SolveEpsFormStripFiniteField[record_Association,
    brokerReDecision = None, primeStart, primeComputed = False,
    primeSeconds, primeWallSeconds = {},
    liftReason = "OK", backendDecision, backendConfiguration,
-   planDiscoveryBackend, planDiscoveryDecision,
+   planDiscoveryBackend, planDiscoveryDecision, nativeProbeQ = False,
+   nativeProbeFailure,
    eliminationPlanFingerprint = None,
    solveStart = AbsoluteTime[], deadline, budgetStop = None,
    budgetProgress, budgetExhausted},
@@ -2706,6 +2762,23 @@ SolveEpsFormStripFiniteField[record_Association,
     planDiscoveryBackend];
   If[Lookup[planDiscoveryDecision, "Status", None] =!= "OK",
     Return[planDiscoveryDecision]];
+  nativeProbeQ = planDiscoveryBackend === "FLINTAffineRREF" &&
+    OptionValue["Elimination"] === "Constrained";
+  nativeProbeFailure[sample_] := Module[{plan, detail},
+    If[! nativeProbeQ, Return[None]];
+    plan = If[AssociationQ[sample],
+      Lookup[sample, "EliminationPlan", None], None];
+    If[AssociationQ[plan] && MemberQ[{"OK", "InconsistentModularSystem"},
+        Lookup[plan, "Status", None]], Return[None]];
+    detail = Which[
+      AssociationQ[plan], plan,
+      AssociationQ[sample], KeyTake[sample,
+        {"Status", "BackendFailure", "PlanDiscoveryBackendUsed"}],
+      True, <|"Status" -> "SampleFailed"|>];
+    <|"Status" -> "PlanDiscoveryBackendFailed",
+      "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
+      "PlanDiscoveryBackendUsed" -> "FLINTAffineRREF",
+      "PlanDiscoveryFailure" -> detail|>];
   (* after the option gates (a malformed request is a caller error and
      outranks a budget stop): an already-expired deadline never starts
      the expensive preparation, which also makes the internal re-entries
@@ -2835,16 +2908,23 @@ SolveEpsFormStripFiniteField[record_Association,
     shells = If[supportKind === "Rectangle" || ListQ[supportKind], {"Rectangle"},
       finiteFieldStripSupportLadder[preparation,
         preparation["DenominatorDegrees"] + offset, supportKind]];
-    Module[{probeOf, probes = <||>, order, rectangleOK = False, ok},
+    Module[{probeOf, probes = <||>, order, rectangleOK = False, ok,
+        failure},
       probeOf[shell_] := (probeCount++; probes[shell] = SampleEpsFormStripAffine[
         record, First[epsilonSamples], prime,
         "PointCount" -> pointCount,
         "NumeratorDegreeOffset" -> offset,
         "Support" -> If[shell === "Rectangle", "Rectangle", supportKind],
         "SupportShell" -> If[IntegerQ[shell], shell, 0],
-        "SolveAffineSystem" -> False,
+        "Backend" -> OptionValue["Backend"],
+        "BackendThreads" -> OptionValue["BackendThreads"],
+        "PlanDiscoveryBackend" -> planDiscoveryBackend,
+        "SolveAffineSystem" -> nativeProbeQ,
+        "DiscoverPlan" -> nativeProbeQ,
         "Preparation" -> preparation,
         "ExpectedFingerprint" -> preparation["Fingerprint"]];
+        failure = nativeProbeFailure[probes[shell]];
+        If[AssociationQ[failure], budgetStop = failure];
         ok = AssociationQ[probes[shell]] && TrueQ[probes[shell]["Consistent"]];
         log["Finite-field degree probe ", offset, " support shell ", shell,
           If[ok, ": consistent", ": inconsistent"]];
@@ -2855,6 +2935,7 @@ SolveEpsFormStripFiniteField[record_Association,
         If[finiteFieldStripDeadlineExpiredQ[deadline],
           budgetStop = budgetExhausted["SupportCensus"]; Break[]];
         ok = probeOf[shell];
+        If[budgetStop =!= None, Break[]];
         Which[
           ok && shell =!= "Rectangle",
             selectedOffset = offset; selectedShell = shell; Break[],
@@ -2883,12 +2964,19 @@ SolveEpsFormStripFiniteField[record_Association,
   If[MissingQ[selectedOffset] && supportKind === "Sparse" &&
       TrueQ[Lookup[Lookup[preparation, "SupportCensus", <||>], "CertifiedQ", False]],
     supportKind = Automatic;
-    Module[{probe},
+    Module[{probe, failure},
       probeCount++;
       probe = SampleEpsFormStripAffine[record, First[epsilonSamples], prime,
         "PointCount" -> pointCount, "NumeratorDegreeOffset" -> {0, 0},
-        "Support" -> Automatic, "SupportShell" -> 0, "SolveAffineSystem" -> False,
+        "Support" -> Automatic, "SupportShell" -> 0,
+        "Backend" -> OptionValue["Backend"],
+        "BackendThreads" -> OptionValue["BackendThreads"],
+        "PlanDiscoveryBackend" -> planDiscoveryBackend,
+        "SolveAffineSystem" -> nativeProbeQ,
+        "DiscoverPlan" -> nativeProbeQ,
         "Preparation" -> preparation, "ExpectedFingerprint" -> preparation["Fingerprint"]];
+      failure = nativeProbeFailure[probe];
+      If[AssociationQ[failure], Return[failure]];
       If[AssociationQ[probe] && TrueQ[probe["Consistent"]],
         log["Finite-field degree probe {0, 0} certified simplex: consistent"];
         selectedOffset = {0, 0}; selectedShell = 0; degreeProbe = probe,
@@ -2910,18 +2998,26 @@ SolveEpsFormStripFiniteField[record_Association,
   If[finiteFieldStripDeadlineExpiredQ[deadline],
     Return[budgetExhausted["EliminationPilot"]]];
   If[OptionValue["Elimination"] === "Constrained",
-    {pilotSeconds, pilotSample} = AbsoluteTiming[SampleEpsFormStripAffine[
-      record, First[epsilonSamples], prime,
-      "PointCount" -> pointCount,
-      "NumeratorDegreeOffset" -> selectedOffset,
-      Sequence @@ supportOptions,
-      "Backend" -> "Wolfram",
-      "BackendThreads" -> OptionValue["BackendThreads"],
-      "PlanDiscoveryBackend" -> planDiscoveryBackend,
-      "SolveAffineSystem" -> True, "DiscoverPlan" -> True,
-      "ArtifactDirectory" -> artifactDirectory,
-      "Preparation" -> preparation,
-      "ExpectedFingerprint" -> preparation["Fingerprint"]]];
+    If[nativeProbeQ &&
+        AssociationQ[Lookup[degreeProbe, "EliminationPlan", None]] &&
+        Lookup[degreeProbe["EliminationPlan"], "Status", None] === "OK",
+      pilotSample = degreeProbe;
+      pilotSeconds = Total[Lookup[degreeProbe,
+        {"SetupSeconds", "PreprocessingSeconds", "SamplingSeconds",
+         "PlanDiscoverySeconds"}, 0.]],
+      {pilotSeconds, pilotSample} = AbsoluteTiming[
+        SampleEpsFormStripAffine[
+          record, First[epsilonSamples], prime,
+          "PointCount" -> pointCount,
+          "NumeratorDegreeOffset" -> selectedOffset,
+          Sequence @@ supportOptions,
+          "Backend" -> "Wolfram",
+          "BackendThreads" -> OptionValue["BackendThreads"],
+          "PlanDiscoveryBackend" -> planDiscoveryBackend,
+          "SolveAffineSystem" -> True, "DiscoverPlan" -> True,
+          "ArtifactDirectory" -> artifactDirectory,
+          "Preparation" -> preparation,
+          "ExpectedFingerprint" -> preparation["Fingerprint"]]]];
     If[AssociationQ[pilotSample] &&
         AssociationQ[Lookup[pilotSample, "EliminationPlan", None]] &&
         pilotSample["EliminationPlan"]["Status"] === "OK",

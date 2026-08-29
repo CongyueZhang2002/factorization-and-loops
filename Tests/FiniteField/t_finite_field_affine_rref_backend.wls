@@ -320,6 +320,16 @@ sealedWolfram = Lookup[wolframPilot, "EliminationPlan", <||>];
 syntheticSealed = Lookup[syntheticNativePilot, "EliminationPlan", <||>];
 syntheticSealedWolfram = Lookup[syntheticWolframPilot,
   "EliminationPlan", <||>];
+check["the native pilot bypasses Wolfram rank/solve/nullspace discovery",
+  nativePilot["SolvePath"] === "NativeAffineRREFPlanDiscovery" &&
+    syntheticNativePilot["SolvePath"] ===
+      "NativeAffineRREFPlanDiscovery" &&
+    nativePilot["RankSeconds"] === 0. &&
+    nativePilot["AugmentedRankSeconds"] === 0. &&
+    nativePilot["LinearSolveSeconds"] === 0. &&
+    nativePilot["NullspaceSeconds"] === 0. &&
+    TrueQ[nativePilot["ParticularCheckZero"]] &&
+    TrueQ[nativePilot["NullspaceCheckZero"]]];
 check["(a) the two discoverers agree on a strip pilot with nullity 1",
   Lookup[sealed, "Status", None] === "OK" &&
     Lookup[sealedWolfram, "Status", None] === "OK" &&

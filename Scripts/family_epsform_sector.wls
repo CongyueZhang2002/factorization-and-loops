@@ -167,10 +167,16 @@ mqImageKernelCount = Module[{
    The caps are explicit; the pool-owned live grants choose the effective
    values at each strip boundary. *)
 finiteFieldBackend = Automatic;
-finiteFieldBackendThreadCap = 2;
+finiteFieldBackendThreadCap = 8;
 finiteFieldBackendThreads = FeynFacet`Private`taskBrokerNativeThreadLimit[
   finiteFieldBackendThreadCap];
-planDiscoveryBackend = "Wolfram";
+(* Prefer the native affine RREF whenever this installation has built it.
+   It returns the complete pilot solution and plan in one pass; the solver
+   verifies that answer on every original modular row.  A clone without the
+   optional adapter retains the Wolfram route. *)
+planDiscoveryBackend = If[
+  FeynFacet`Private`finiteFieldStripCFFRBinary[] === None,
+  "Wolfram", "FLINTAffineRREF"];
 If[! DirectoryQ[outdir], CreateDirectory[outdir, CreateIntermediateDirectories -> True]];
 start = AbsoluteTime[];
 log[a___] := Print["[sector-epsform ", family, " +", ToString[Round[AbsoluteTime[] - start]], "s] ", StringJoin[ToString[#, InputForm] & /@ {a}]];
