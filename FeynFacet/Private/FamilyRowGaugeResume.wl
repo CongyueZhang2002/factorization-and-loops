@@ -293,10 +293,15 @@ familyRowGaugeSolverConfiguration[route_String,
    reconstructionPolicy, freshValidationPolicy, directAlphabetOptions,
    directQ, planDiscoveryBackendThreads},
   directQ = route === "DirectMultiquadraticFiniteField";
-  planDiscoveryBackendThreads = If[directQ,
-    Replace[OptionValue["PlanDiscoveryBackendThreads"],
-      Automatic :> backendThreads],
-    Replace[OptionValue["PlanDiscoveryBackendThreads"], Automatic -> None]];
+  planDiscoveryBackendThreads = Which[
+    directQ,
+      Replace[OptionValue["PlanDiscoveryBackendThreads"],
+        Automatic :> backendThreads],
+    route === "ZeroForcing" || planDiscoveryBackend =!= "FLINTAffineRREF",
+      Replace[OptionValue["PlanDiscoveryBackendThreads"], Automatic -> None],
+    True,
+      Replace[OptionValue["PlanDiscoveryBackendThreads"],
+        Automatic :> backendThreads]];
   If[! MemberQ[{"ZeroForcing", "DirectRationalFiniteField",
         "RationalChartFiniteField", "DirectMultiquadraticFiniteField"},
         route] ||
@@ -304,8 +309,9 @@ familyRowGaugeSolverConfiguration[route_String,
       ! MemberQ[{None, "Numerical", "Exact"}, finalCheck] ||
       ! MemberQ[{None, Automatic, "Wolfram", "FLINT"}, backend] ||
       ! (backendThreads === None ||
-        IntegerQ[backendThreads] && Between[backendThreads, {1, 4}]) ||
-      ! MemberQ[{None, Automatic, "Wolfram"}, planDiscoveryBackend] ||
+        IntegerQ[backendThreads] && Between[backendThreads, {1, 8}]) ||
+      ! MemberQ[{None, Automatic, "Wolfram", "FLINTAffineRREF"},
+        planDiscoveryBackend] ||
       ! (planDiscoveryBackendThreads === None ||
         IntegerQ[planDiscoveryBackendThreads] &&
           Between[planDiscoveryBackendThreads, {1, 8}]),
@@ -331,8 +337,12 @@ familyRowGaugeSolverConfiguration[route_String,
         (! MemberQ[{"Numerical", "Exact"}, finalCheck] ||
           ! MemberQ[{Automatic, "Wolfram", "FLINT"}, backend] ||
           ! IntegerQ[backendThreads] ||
-          planDiscoveryBackend =!= "Wolfram" ||
-          planDiscoveryBackendThreads =!= None)),
+          ! MemberQ[{"Wolfram", "FLINTAffineRREF"},
+            planDiscoveryBackend] ||
+          If[planDiscoveryBackend === "FLINTAffineRREF",
+            ! IntegerQ[planDiscoveryBackendThreads] ||
+              ! Between[planDiscoveryBackendThreads, {1, 8}],
+            planDiscoveryBackendThreads =!= None])),
     Return[<|"Status" ->
       "InconsistentSolverConfigurationRoute"|>]];
   defaults = familyRowGaugeDirectPolicyDefaults[];
@@ -445,10 +455,17 @@ familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
     finiteFieldStripBackendConfiguration[
       Lookup[configuration, "FiniteFieldBackend", None],
       Lookup[configuration, "FiniteFieldBackendThreads", None]]];
-  expectedPlanDiscoveryBackend = Which[route === "ZeroForcing", None,
-    directQ, Automatic, True, "Wolfram"];
-  expectedPlanDiscoveryBackendThreads = If[directQ,
-    Lookup[configuration, "PlanDiscoveryBackendThreads", Missing[]], None];
+  expectedPlanDiscoveryBackend = Which[
+    route === "ZeroForcing", None,
+    directQ, Automatic,
+    MemberQ[{"Wolfram", "FLINTAffineRREF"},
+      Lookup[configuration, "PlanDiscoveryBackend", Missing[]]],
+      configuration["PlanDiscoveryBackend"],
+    True, Missing["InvalidPlanDiscoveryBackend"]];
+  expectedPlanDiscoveryBackendThreads = Which[
+    directQ || expectedPlanDiscoveryBackend === "FLINTAffineRREF",
+      Lookup[configuration, "PlanDiscoveryBackendThreads", Missing[]],
+    True, None];
   directFields = Lookup[configuration,
     {"ProviderKind", "BundleABIPolicy", "ProviderABIPolicy",
       "LayoutABIPolicy", "ReconstructionPolicy",
@@ -476,6 +493,9 @@ familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
       (directQ &&
         (! IntegerQ[expectedPlanDiscoveryBackendThreads] ||
           ! Between[expectedPlanDiscoveryBackendThreads, {1, 8}])) ||
+      (! directQ && expectedPlanDiscoveryBackend === "FLINTAffineRREF" &&
+        (! IntegerQ[expectedPlanDiscoveryBackendThreads] ||
+          ! Between[expectedPlanDiscoveryBackendThreads, {1, 8}])) ||
       (! directQ && directFields =!= ConstantArray[None, 6]) ||
       (! directQ && directAlphabetOptions =!= None) ||
       (field === "Rational" &&
@@ -497,7 +517,7 @@ familyRowGaugeSolverConfigurationValidQ[configuration_] := Module[
           ! IntegerQ[Lookup[configuration,
             "FiniteFieldBackendThreads", None]] ||
           ! Between[configuration["FiniteFieldBackendThreads"],
-            {1, 4}])),
+            {1, 8}])),
     Return[False]];
   fingerprint = Hash[KeySort[KeyDrop[configuration, "Fingerprint"]],
     "SHA256", "HexString"];

@@ -152,21 +152,37 @@ rationalConfiguration =
   FeynFacet`Private`familyRowGaugeSolverConfiguration[
     "DirectRationalFiniteField", "Rational", <||>, "Exact", Automatic,
     2, "Wolfram"];
+nativeRationalConfiguration =
+  FeynFacet`Private`familyRowGaugeSolverConfiguration[
+    "DirectRationalFiniteField", "Rational", <||>, "Exact", Automatic,
+    8, "FLINTAffineRREF"];
 FTTest`FTAssert["existing zero and rational routes remain valid",
   FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
       zeroConfiguration] &&
     FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
       rationalConfiguration] &&
+    FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
+      nativeRationalConfiguration] &&
     Lookup[zeroConfiguration,
       {"ProviderKind", "BundleABIPolicy", "ProviderABIPolicy",
        "LayoutABIPolicy", "ReconstructionPolicy",
        "FreshValidationPolicy", "DirectAlphabetOptions"}] ===
       ConstantArray[None, 7]];
 
-FTTest`FTAssert["non-direct configurations carry no native discovery threads",
+FTTest`FTAssert["non-direct configurations bind threads only for native discovery",
   zeroConfiguration["PlanDiscoveryBackendThreads"] === None &&
     rationalConfiguration["PlanDiscoveryBackendThreads"] === None &&
-    rationalConfiguration["PlanDiscoveryBackend"] === "Wolfram"];
+    rationalConfiguration["PlanDiscoveryBackend"] === "Wolfram" &&
+    nativeRationalConfiguration["PlanDiscoveryBackend"] ===
+      "FLINTAffineRREF" &&
+    nativeRationalConfiguration["FiniteFieldBackendThreads"] === 8 &&
+    nativeRationalConfiguration["PlanDiscoveryBackendThreads"] === 8];
+
+FTTest`FTAssert["Wolfram discovery refuses an irrelevant native thread count",
+  FeynFacet`Private`familyRowGaugeSolverConfiguration[
+    "DirectRationalFiniteField", "Rational", <||>, "Exact", Automatic,
+    8, "Wolfram", "PlanDiscoveryBackendThreads" -> 8]["Status"] ===
+      "InconsistentSolverConfigurationRoute"];
 
 refingerprint[candidate_Association] := Module[{payload},
   payload = KeyDrop[candidate, "Fingerprint"];
