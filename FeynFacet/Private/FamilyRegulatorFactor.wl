@@ -267,8 +267,8 @@ familyRegulatorSampleFactoredQ[inverse_List, samples_List,
    only as many training points as it requests, and the point gate is disjoint.
    This routine constructs T(eps); Production's final family certificate is
    still the acceptance boundary for the unsampled connection. *)
-Options[familyRegulatorFactorFromPointEvaluator] =
-  Options[FactorFamilyRegulatorDependence];
+Options[familyRegulatorFactorFromPointEvaluator] = Join[
+  Options[FactorFamilyRegulatorDependence], {"BatchEvaluator" -> None}];
 
 familyRegulatorFactorFromPointEvaluator[evaluator_, n_Integer?Positive,
     variables : {_Symbol, _Symbol}, epsilon_Symbol,
@@ -276,7 +276,8 @@ familyRegulatorFactorFromPointEvaluator[evaluator_, n_Integer?Positive,
   {start = AbsoluteTime[], verbose, log, deadline, validationMode,
    deferAcceptanceQ, rules, head = 1, tail, training = {}, gates = {},
    trainingRules = {}, gateRules = {}, expired = False, sampleTimedOut = False,
-   sampleAt, validSampleQ, ensureTraining, ensureGates, backend = None,
+   sampleAt, sampleBatchAt, validSampleQ, ensurePointSets,
+   batchEvaluator, backend = None,
    fermatRequested, reference = Unique["regulatorReference"],
    transformation = $Failed, inverse, raw, pointsUsed = 0, attempts = {},
    ladderLimit},
@@ -286,6 +287,7 @@ familyRegulatorFactorFromPointEvaluator[evaluator_, n_Integer?Positive,
   deadline = OptionValue["Deadline"];
   validationMode = OptionValue["ValidationMode"];
   deferAcceptanceQ = validationMode === "DeferredToFamilyCertificate";
+  batchEvaluator = OptionValue["BatchEvaluator"];
   If[! deferAcceptanceQ,
     Return[<|"Status" -> "EvaluatedRouteRequiresDeferredValidation"|>]];
   rules = Table[{variables[[1]] -> Prime[k + 3]/Prime[k + 11],
@@ -304,22 +306,52 @@ familyRegulatorFactorFromPointEvaluator[evaluator_, n_Integer?Positive,
     If[sampled === "TimedOut",
       sampleTimedOut = True; Return[$Failed]];
     sampled];
-  ensureTraining[count_Integer] := Module[{sampled},
-    While[Length[training] < count && head <= tail,
-      sampled = sampleAt[rules[[head]]];
-      If[validSampleQ[sampled], AppendTo[training, sampled];
-        AppendTo[trainingRules, rules[[head]]]];
-      head++];
-    Length[training] >= count];
-  ensureGates[count_Integer] := Module[{sampled},
-    While[Length[gates] < count && head <= tail,
-      sampled = sampleAt[rules[[tail]]];
-      If[validSampleQ[sampled], AppendTo[gates, sampled];
-        AppendTo[gateRules, rules[[tail]]]];
-      tail--];
-    Length[gates] >= count];
+  sampleBatchAt[pointRules_List] := Module[{remaining, sampled},
+    If[pointRules === {}, Return[{}]];
+    If[batchEvaluator === None, Return[sampleAt /@ pointRules]];
+    If[familyRegulatorDeadlineExpiredQ[deadline],
+      expired = True; Return[ConstantArray[$Failed, Length[pointRules]]]];
+    remaining = familyRegulatorBoundedLimit[OptionValue["TimeLimit"],
+      deadline];
+    sampled = Quiet[TimeConstrained[batchEvaluator[pointRules], remaining,
+      "TimedOut"]];
+    If[sampled === "TimedOut",
+      sampleTimedOut = True;
+      Return[ConstantArray[$Failed, Length[pointRules]]]];
+    If[ListQ[sampled] && Length[sampled] === Length[pointRules], sampled,
+      ConstantArray[$Failed, Length[pointRules]]]];
+  (* A Production candidate needs one training image and two disjoint gate
+     images.  They are independent exact specializations of the same large
+     connection, so request the whole missing set together.  The default
+     scalar evaluator keeps the historical sequential behavior; the graded
+     route supplies a brokered batch evaluator. *)
+  ensurePointSets[trainingCount_Integer, gateCount_Integer] := Module[
+    {requestedRules, requestedKinds, sampled, neededTraining, neededGates},
+    While[(Length[training] < trainingCount || Length[gates] < gateCount) &&
+        head <= tail,
+      requestedRules = {}; requestedKinds = {};
+      neededTraining = trainingCount - Length[training];
+      While[neededTraining > 0 && head <= tail,
+        AppendTo[requestedRules, rules[[head]]];
+        AppendTo[requestedKinds, "Training"];
+        head++; neededTraining--];
+      neededGates = gateCount - Length[gates];
+      While[neededGates > 0 && head <= tail,
+        AppendTo[requestedRules, rules[[tail]]];
+        AppendTo[requestedKinds, "Gate"];
+        tail--; neededGates--];
+      If[requestedRules === {}, Break[]];
+      sampled = sampleBatchAt[requestedRules];
+      Do[If[validSampleQ[sampled[[index]]],
+        If[requestedKinds[[index]] === "Training",
+          AppendTo[training, sampled[[index]]];
+          AppendTo[trainingRules, requestedRules[[index]]],
+          AppendTo[gates, sampled[[index]]];
+          AppendTo[gateRules, requestedRules[[index]]]]],
+        {index, Length[requestedRules]}]];
+    Length[training] >= trainingCount && Length[gates] >= gateCount];
   Do[
-    If[! ensureTraining[count], Break[]];
+    If[! ensurePointSets[count, OptionValue["GatePoints"]], Break[]];
     If[backend === None,
       fermatRequested = OptionValue["UseFermat"];
       If[! libraEpsFormFermatCompatibleQ[First[training]],
@@ -343,7 +375,7 @@ familyRegulatorFactorFromPointEvaluator[evaluator_, n_Integer?Positive,
         ladderLimit, "TimedOut"]]];
       candidate = If[MatrixQ[result],
         familyRegulatorSpecialize[result, reference, n], $Failed];
-      If[MatrixQ[candidate] && ensureGates[OptionValue["GatePoints"]],
+      If[MatrixQ[candidate],
         inverse = Map[Together, Inverse[candidate], {2}];
         gate = familyRegulatorSampleFactoredQ[inverse, gates, candidate,
           epsilon];
@@ -574,6 +606,8 @@ ClearAll[familyRegulatorNonSquareRationalQ, familyRegulatorGradedRoots,
   familyRegulatorGradedFrameEvidence,
   familyRegulatorGradedDecomposeUnchecked, familyRegulatorGradedMatrices,
   familyRegulatorTaggedGradeDecompose, familyRegulatorGradedPointSample,
+  familyRegulatorGradedPointSampleTask,
+  familyRegulatorGradedPointSampleBatch,
   familyRegulatorGradedDecomposeTask,
   familyRegulatorGradedPointFactoredQ, familyRegulatorModularImage,
   familyRegulatorGradedCorroborate, familyRegulatorGradedSpotCheck,
@@ -792,6 +826,72 @@ familyRegulatorGradedPointSample[connection : {_List, _List}, tags_List,
     {mu, 2}, {grade, gradeCount}], 1]
 ];
 familyRegulatorGradedPointSample[___] := $Failed;
+
+familyRegulatorGradedPointSampleTask[payload_Association,
+    indices_List] := Module[{rules, samples},
+  rules = Lookup[payload, "Rules", $Failed];
+  If[! ListQ[rules] || ! VectorQ[indices, IntegerQ] ||
+      ! AllTrue[indices, Between[#1, {1, Length[rules]}] &],
+    Return[$Failed]];
+  samples = familyRegulatorGradedPointSample[
+      payload["Connection"], payload["Tags"], payload["RootSquares"],
+      #1] & /@ rules[[indices]];
+  <|"Indices" -> indices, "Samples" -> samples|>
+];
+familyRegulatorGradedPointSampleTask[dataFile_String,
+    indices_List] := Module[{payload = taskBrokerRead[dataFile]},
+  If[AssociationQ[payload],
+    familyRegulatorGradedPointSampleTask[payload, indices], $Failed]
+];
+familyRegulatorGradedPointSampleTask[___] := $Failed;
+
+familyRegulatorGradedPointSampleBatch[connection : {_List, _List},
+    tags_List, rootSquares_List, rules_List] := Module[
+  {count = Length[rules], free = 0, workerCount, groups, helperGroups,
+   localGroup, payload, dataFile, codes, handle, helperResults,
+   localResult, results, samples, result, indices, values, missing},
+  If[count === 0, Return[{}]];
+  If[TrueQ[Quiet[Check[taskBrokerActiveQ[], False]]],
+    free = Quiet[Check[taskBrokerFreeKernels[], 0]]];
+  If[! IntegerQ[free] || free < 0, free = 0];
+  workerCount = Min[count, free + 1];
+  groups = TakeList[Range[count],
+    Ceiling[(count - Range[workerCount] + 1)/workerCount]];
+  helperGroups = Most[groups]; localGroup = Last[groups];
+  payload = <|"Connection" -> connection, "Tags" -> tags,
+    "RootSquares" -> rootSquares, "Rules" -> rules|>;
+  dataFile = If[helperGroups === {}, None,
+    taskBrokerDataFile["frfpoints_" <>
+      StringReplace[CreateUUID[], "-" -> ""], payload]];
+  If[helperGroups =!= {} && StringQ[dataFile],
+    codes = Table[
+      "FeynFacet`Private`familyRegulatorGradedPointSampleTask[" <>
+        ToString[dataFile, InputForm] <> "," <>
+        ToString[group, InputForm] <> "]", {group, helperGroups}];
+    handle = taskBrokerSubmit[codes, "Label" -> "frfpoints",
+      "Timeout" -> 7200.],
+    helperGroups = {}; localGroup = Range[count]; handle = None];
+  localResult = familyRegulatorGradedPointSampleTask[payload, localGroup];
+  helperResults = If[AssociationQ[handle], taskBrokerCollect[handle], {}];
+  results = Join[helperResults, {localResult}];
+  samples = ConstantArray[$Failed, count];
+  Do[
+    result = results[[k]];
+    If[AssociationQ[result],
+      indices = Lookup[result, "Indices", {}];
+      values = Lookup[result, "Samples", {}];
+      If[VectorQ[indices, IntegerQ] && Length[indices] === Length[values],
+        MapThread[(samples[[#1]] = #2) &, {indices, values}]]],
+    {k, Length[results]}];
+  missing = Select[Range[count], samples[[#1]] === $Failed &];
+  If[missing =!= {},
+    result = familyRegulatorGradedPointSampleTask[payload, missing];
+    If[AssociationQ[result],
+      MapThread[(samples[[#1]] = #2) &,
+        {result["Indices"], result["Samples"]}]]];
+  samples
+];
+familyRegulatorGradedPointSampleBatch[___] := $Failed;
 
 familyRegulatorGradedDecompose[expression_, roots_List] := Module[{frame},
   If[Length[roots] > $familyRegulatorMaximumGradedRank, Return[$Failed]];
@@ -1277,6 +1377,9 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
       Function[{pointRules}, familyRegulatorGradedPointSample[
         taggedConnection, rootTags, rootSquares, pointRules]],
       n, variables, epsilon,
+      "BatchEvaluator" -> Function[{pointRuleBatch},
+        familyRegulatorGradedPointSampleBatch[
+          taggedConnection, rootTags, rootSquares, pointRuleBatch]],
       "TimeLimit" -> OptionValue["TimeLimit"],
       "Deadline" -> deadline,
       "InputResiduesEpsFree" -> OptionValue["InputResiduesEpsFree"],
