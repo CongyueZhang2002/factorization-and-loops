@@ -593,10 +593,15 @@ BuildAlgebraicTransportFrame[rootSquares_List,
     "ChartCertificate" -> certificate|>]
 ];
 
-transportChartRadicalBases[expr_] := DeleteDuplicates[Cases[
-  Unevaluated[expr],
-  Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
-    Together[base], {0, Infinity}, Heads -> True]];
+transportChartRadicalBases[expr_] := Module[{raw},
+  (* A large connection repeats the same declared roots hundreds of
+     thousands of times.  Normalize each distinct syntactic radicand once,
+     not once per occurrence, then merge algebraically identical images. *)
+  raw = DeleteDuplicates[Cases[Unevaluated[expr],
+    Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
+      base, {0, Infinity}, Heads -> True]];
+  DeleteDuplicates[Together /@ raw]
+];
 
 (* ------------------------------------------------------------------ *)
 (*  Square classes and the denesting of nested radical bases            *)

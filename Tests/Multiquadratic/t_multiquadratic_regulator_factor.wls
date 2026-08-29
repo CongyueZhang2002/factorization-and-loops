@@ -162,6 +162,32 @@ If[AssociationQ[f] && f["Status"] === "OK",
   check["planted T: idempotent (AlreadyEpsFactored on the output)",
     AssociationQ[g] && g["Status"] === "AlreadyEpsFactored"]];
 
+(* Production constructs the same candidate and transformed connection, but
+   does not run a second acceptance stack before the family certificate. *)
+spotCalls = 0; corroborationCalls = 0;
+deferred = Block[{FeynFacet`Private`familyRegulatorGradedSpotCheck,
+    FeynFacet`Private`familyRegulatorGradedCorroborate},
+  FeynFacet`Private`familyRegulatorGradedSpotCheck[___] :=
+    (spotCalls++; $Failed);
+  FeynFacet`Private`familyRegulatorGradedCorroborate[___] :=
+    (corroborationCalls++; $Failed);
+  FeynFacet`FactorFamilyRegulatorDependenceInFrame[
+    connection, {x, y}, eps, frame,
+    "InputResiduesEpsFree" -> False,
+    "ValidationMode" -> "DeferredToFamilyCertificate"]];
+check["Production defers regulator acceptance to the family certificate",
+  AssociationQ[deferred] && deferred["Status"] === "OK" &&
+    deferred["ValidationMode"] === "DeferredToFamilyCertificate" &&
+    MissingQ[deferred["ExactEpsFactorization"]] &&
+    MissingQ[deferred["ExactInverse"]] &&
+    MissingQ[deferred["SourceFrameEpsFactored"]]];
+check["Production skips the decomposition replay, spot check, and corroboration",
+  AssociationQ[deferred] &&
+    ! TrueQ[deferred["GradeDecompositionStatistics"]["RoundTripValidated"]] &&
+    MissingQ[deferred["CompositionSpotCheck"]] &&
+    MissingQ[deferred["ModularCorroboration"]] &&
+    spotCalls === 0 && corroborationCalls === 0];
+
 (* ---- a rational-frame input must not change behavior ---- *)
 letters0 = {x, y, 1 - x - y};
 canonical0 = Table[

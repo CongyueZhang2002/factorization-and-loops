@@ -720,8 +720,8 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
     " regulator-dependent residues; FactorFamilyRegulatorDependence",
     If[algebraicFrameQ, "InFrame", ""], " on the ", nm, "x", nm, " truncation"];
   factor = If[algebraicFrameQ,
-    FeynFacet`FactorFamilyRegulatorDependenceInFrame[aT, {xx, yy}, ee, chart, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "Verbose" -> False],
-    FeynFacet`FactorFamilyRegulatorDependence[aT, {xx, yy}, ee, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "Verbose" -> False]];
+    FeynFacet`FactorFamilyRegulatorDependenceInFrame[aT, {xx, yy}, ee, chart, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "ValidationMode" -> If[productionQ, "DeferredToFamilyCertificate", "Exact"], "Verbose" -> False],
+    FeynFacet`FactorFamilyRegulatorDependence[aT, {xx, yy}, ee, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "ValidationMode" -> If[productionQ, "DeferredToFamilyCertificate", "Exact"], "Verbose" -> False]];
   If[AssociationQ[factor] &&
       factor["Status"] === "RegulatorFactorizationDeadlineExpired",
     (* a budget stop, not a mathematical verdict: resumable, and the
@@ -765,7 +765,7 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
   propagation = FeynFacet`Private`familyRegulatorPropagateTruncation[
     state["A"], factor["Connection"], factor["Inverse"],
     factor["Transformation"], nm, {xx, yy},
-    Lookup[factor, "PropagationSeal", <||>], futureAMode];
+    Lookup[factor, "PropagationSeal", <||>], futureAMode, ! productionQ];
   If[! AssociationQ[propagation] ||
       Lookup[propagation, "Status", None] =!= "OK",
     log["  !! regulator propagation of rows 1..", m,
@@ -824,7 +824,7 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
       " cleared and the resolution recorded"]];
   log["  regulator factorization of rows 1..", m, ": ", factor["Method"], ", ", factor["Points"], " points, ",
     Round[factor["Seconds"], 0.1], " s",
-    If[KeyExistsQ[factor, "ModularCorroboration"],
+    If[AssociationQ[Lookup[factor, "ModularCorroboration", None]],
       ", graded rank " <> ToString[Lookup[factor, "Rank", "?"]] <>
         ", sign-sheet corroboration " <>
         ToString[Lookup[Lookup[factor, "ModularCorroboration", <||>], "Status", "?"]],
