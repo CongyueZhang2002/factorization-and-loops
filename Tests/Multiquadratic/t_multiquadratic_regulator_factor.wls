@@ -193,6 +193,8 @@ deferred = Block[{FeynFacet`Private`familyRegulatorGradedSpotCheck,
     "ValidationMode" -> "DeferredToFamilyCertificate"]];
 check["Production defers regulator acceptance to the family certificate",
   AssociationQ[deferred] && deferred["Status"] === "OK" &&
+    StringContainsQ[deferred["Method"],
+      "MultiquadraticEvaluatedGradeSamples"] &&
     deferred["ValidationMode"] === "DeferredToFamilyCertificate" &&
     MissingQ[deferred["ExactEpsFactorization"]] &&
     MissingQ[deferred["ExactInverse"]] &&

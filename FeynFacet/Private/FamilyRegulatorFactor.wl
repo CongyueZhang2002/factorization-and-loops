@@ -632,7 +632,9 @@ familyRegulatorGradedRootFrame[roots_List] := Module[
   {squares, duplicates, dependent},
   If[! AllTrue[roots, AssociationQ[#1] && KeyExistsQ[#1, "Root"] &&
       KeyExistsQ[#1, "RootSquare"] &&
-      TrueQ[Together[#1["Root"]^2 - #1["RootSquare"]] === 0] &],
+      (TrueQ[Together[#1["Root"]^2 - #1["RootSquare"]] === 0] ||
+        (TrueQ[Lookup[#1, "FormalGenerator", False]] &&
+          MatchQ[#1["Root"], _Symbol])) &],
     Return[<|"Status" -> "InvalidRootMetadata"|>]];
   squares = Together /@ Lookup[roots, "RootSquare", {}];
   duplicates = Select[Subsets[Range[Length[roots]], {2}],
@@ -716,7 +718,7 @@ familyRegulatorGradedRoots[usedRoots_List, numericClasses_List] := Module[
    nothing is interned, nothing survives the call (pool defect 8). *)
 familyRegulatorGradedDecomposeUnchecked[expression_, roots_List,
     validateRoundTrip_: True] := Module[
-  {rank = Length[roots], symbols, deltas,
+  {rank = Length[roots], symbols, deltas, rootImages,
    replaced, rational, numerator, denominator, numeratorChannels,
    denominatorChannels, denominatorInverse, channels, reconstructed,
    difference},
@@ -724,10 +726,13 @@ familyRegulatorGradedDecomposeUnchecked[expression_, roots_List,
   deltas = Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]];
   If[Length[deltas] =!= rank || ! FreeQ[deltas, $Failed], Return[$Failed]];
   deltas = Together /@ deltas;
+  rootImages = Lookup[roots, "Root", ConstantArray[$Failed, rank]];
+  If[! FreeQ[rootImages, $Failed], Return[$Failed]];
   symbols = Table[Unique["FeynFacet`Private`familyRegulatorGradeRoot"],
     {rank}];
   replaced = If[rank === 0, expression,
-    transportChartApplyRootBranches[expression, roots, symbols]];
+    transportChartApplyRootBranches[
+      expression /. Thread[rootImages -> symbols], roots, symbols]];
   If[replaced === $Failed, Return[$Failed]];
   (* a radical the declared roots do not account for is not decomposable
      in this field: fail closed, never report a wrong grade-0 channel *)
@@ -780,9 +785,13 @@ familyRegulatorGradedPointSample[connection : {_List, _List}, tags_List,
       multiquadraticStripSquareClassSquareQ[
         Times @@ deltas[[#1]]] &],
     Return[$Failed]];
-  specialized = connection /. rule;
-  pointRoots = MapThread[<|"Root" -> #1, "RootSquare" -> #2|> &,
+  (* Keep the sampled roots as independent inert generators.  Substituting
+     explicit Sqrt[rational] values here lets Mathematica collapse products
+     such as r1 r2 into a new radical spelling and loses the grade basis. *)
+  pointRoots = MapThread[
+    <|"Root" -> #1, "RootSquare" -> #2, "FormalGenerator" -> True|> &,
     {tags, deltas}];
+  specialized = connection /. rule;
   (* Reuse the exact sparse grade engine after specialization.  It interns
      repeated nonzero entries and brokers the unique decompositions across
      the currently granted helpers; the former entry-wise Map left every
