@@ -136,6 +136,18 @@ dynamicGrant = Block[
 FTTest`FTAssert["pool-owned family grant caps helpers and native threads",
   dynamicGrant === {2, 2, 8, 4}];
 
+Export[FileNameJoin[{directory, "status.txt"}],
+  "KernelPool status test\nsubkernels: 8  busy: 8  free: 0\n", "Text"];
+contendedGrant = Block[
+  {KernelPoolMission`$TaskBrokerResourceGroup = "CF300",
+   KernelPoolMission`$TaskBrokerMaxHelpers = Infinity},
+  FeynFacet`Private`taskBrokerFreeKernels[]];
+FTTest`FTAssert[
+  "a family queues against its grant when borrowed helpers occupy the pool",
+  contendedGrant === 2];
+Export[FileNameJoin[{directory, "status.txt"}],
+  "KernelPool status test\nsubkernels: 8  busy: 3  free: 5\n", "Text"];
+
 Put[allocation[4, 12, 8], resourceFile];
 rebalancedGrant = Block[
   {KernelPoolMission`$TaskBrokerResourceGroup = "CF300",

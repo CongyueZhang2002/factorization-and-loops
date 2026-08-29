@@ -169,13 +169,14 @@ taskBrokerCached[key_, expr_] := Module[{value},
   If[Length[$taskBrokerCache] >= 8, $taskBrokerCache = Take[$taskBrokerCache, -4]];
   $taskBrokerCache[key] = value];
 
-(* helpers free right now per the pool's status file (0 when every
-   subkernel is busy; a stale file counts as one).  A mission may impose
-   its own ceiling with FACET_TASK_BROKER_MAX_HELPERS; this lets several
-   independent algorithms share one flat pool without nested kernels.  The
-   pool-owned family grant is the final ceiling. *)
+(* Helper seats available to this mission.  A grouped family uses its
+   pool-owned entitlement even when every subkernel is momentarily busy:
+   submitting into the fair queue is what lets the pool reclaim borrowed
+   capacity for that family.  Ungrouped/legacy callers retain the live-free
+   count.  Mission and pool-wide safety ceilings remain final bounds. *)
 taskBrokerFreeKernels[] := Module[
-  {status, m, free, limitText, environmentLimit, missionLimit, familyLimit},
+  {status, m, free, limitText, environmentLimit, missionLimit,
+   allocation, familyLimit, available},
   status = Quiet[Import[FileNameJoin[{taskBrokerDirectory[], "status.txt"}], "Text"]];
   m = If[StringQ[status], StringCases[status, "free: " ~~ n : DigitCharacter .. :> ToExpression[n]], {}];
   free = If[m === {}, 1, First[m]];
@@ -191,9 +192,10 @@ taskBrokerFreeKernels[] := Module[
       IntegerQ[KernelPoolMission`$TaskBrokerMaxHelpers] &&
       KernelPoolMission`$TaskBrokerMaxHelpers >= 0,
     KernelPoolMission`$TaskBrokerMaxHelpers, Infinity];
-  familyLimit = Lookup[taskBrokerResourceAllocation[],
-    "HelperCeiling", Infinity];
-  Min[free, environmentLimit, missionLimit, familyLimit]];
+  allocation = taskBrokerResourceAllocation[];
+  familyLimit = Lookup[allocation, "HelperCeiling", Infinity];
+  available = If[IntegerQ[familyLimit], familyLimit, free];
+  Min[available, environmentLimit, missionLimit, familyLimit]];
 
 (* FeynFacet is reloaded on persistent pool subkernels, resetting the local
    counter while the PID stays fixed.  A per-load filesystem-safe nonce keeps
