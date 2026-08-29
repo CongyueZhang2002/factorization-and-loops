@@ -191,6 +191,11 @@ FactorFamilyRegulatorDependence::input =
 Options[FactorFamilyRegulatorDependence] = {
   "TimeLimit" -> 900,
   "Deadline" -> Infinity,
+  (* False means the caller already has the strip solver's residue
+     metadata proving that regulator factorization is needed.  It skips
+     only the redundant whole-connection precheck; candidate acceptance
+     inside this routine is unchanged. *)
+  "InputResiduesEpsFree" -> Automatic,
   "UseFermat" -> Automatic,
   "PointLadder" -> {2, 4, 8, 16},
   "GatePoints" -> 2,
@@ -243,7 +248,9 @@ FactorFamilyRegulatorDependence[{ax_List, ay_List}, {x_Symbol, y_Symbol}, epsilo
   deadline = OptionValue["Deadline"];
   If[familyRegulatorDeadlineExpiredQ[deadline],
     Return[familyRegulatorDeadlineStop["Entry", deadline, start]]];
-  If[familyRegulatorFactoredQ[ax, epsilon] && familyRegulatorFactoredQ[ay, epsilon],
+  If[OptionValue["InputResiduesEpsFree"] =!= False &&
+      familyRegulatorFactoredQ[ax, epsilon] &&
+      familyRegulatorFactoredQ[ay, epsilon],
     log["the connection is already eps-factored"];
     Return[<|"Status" -> "AlreadyEpsFactored", "Transformation" -> IdentityMatrix[n],
       "Inverse" -> IdentityMatrix[n], "Connection" -> {ax, ay}, "Seconds" -> 0.|>]];
@@ -905,6 +912,7 @@ FactorFamilyRegulatorDependenceMultiquadratic::input =
 Options[FactorFamilyRegulatorDependenceMultiquadratic] = {
   "TimeLimit" -> 900,
   "Deadline" -> Infinity,
+  "InputResiduesEpsFree" -> Automatic,
   "UseFermat" -> Automatic,
   "PointLadder" -> {1, 2, 4, 8},
   "GatePoints" -> 2,
@@ -980,7 +988,8 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
   activeMatrices = grades[[#1[[1]], #1[[2]]]] & /@ activeGrades;
   log[Length[activeGrades], " active grade components of ", 2 gradeCount];
   If[activeMatrices === {} ||
-      AllTrue[activeMatrices, familyRegulatorFactoredQ[#1, epsilon] &],
+      (OptionValue["InputResiduesEpsFree"] =!= False &&
+        AllTrue[activeMatrices, familyRegulatorFactoredQ[#1, epsilon] &]),
     log["every grade component is already eps-factored"];
     Return[<|"Status" -> "AlreadyEpsFactored", "Method" -> "MultiquadraticGrades",
       "Transformation" -> IdentityMatrix[n], "Inverse" -> IdentityMatrix[n],
@@ -1233,7 +1242,9 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
   deadline = OptionValue["Deadline"];
   If[familyRegulatorDeadlineExpiredQ[deadline],
     Return[familyRegulatorDeadlineStop["FrameEntry", deadline, start]]];
-  If[familyRegulatorFactoredQ[ax, epsilon] && familyRegulatorFactoredQ[ay, epsilon],
+  If[OptionValue["InputResiduesEpsFree"] =!= False &&
+      familyRegulatorFactoredQ[ax, epsilon] &&
+      familyRegulatorFactoredQ[ay, epsilon],
     Return[<|"Status" -> "AlreadyEpsFactored", "Transformation" -> IdentityMatrix[n],
       "Inverse" -> IdentityMatrix[n], "Connection" -> {ax, ay}, "RootIndices" -> {},
       "Chart" -> None, "Seconds" -> 0.|>]];

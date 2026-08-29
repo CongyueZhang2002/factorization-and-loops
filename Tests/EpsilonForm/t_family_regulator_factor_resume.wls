@@ -233,7 +233,21 @@ record3 = If[AssociationQ[persisted3],
 check["the record says no stale stop was resolved",
   AssociationQ[record3] && MissingQ[Lookup[record3, "ResolvedStop", None]]];
 
-(* ---- (d) the driver threads its sector deadline into the stage ---- *)
+(* ---- (d) Production consumes residue metadata, not epsFormQ ---------- *)
+freshState[99];
+Global`state["StripSolvers"] = {
+  <|"Sector" -> 1, "LowerSector" -> 0,
+    "ResiduesEpsFree" -> False|>};
+Global`productionQ = True;
+precheckCalls = 0;
+productionResult = Block[{Global`epsFormQ},
+  Global`epsFormQ[___] := (precheckCalls++; False);
+  Global`factorTruncated[1]];
+check["Production routes from accepted residue metadata without a prefix epsFormQ",
+  TrueQ[productionResult] && precheckCalls === 0];
+Global`productionQ = False;
+
+(* ---- (e) the driver threads its sector deadline into the stage ---- *)
 check["the driver hands the sector deadline to both factorization routes",
   StringCount[driverSource,
     "\"TimeLimit\" -> Min[sectorBudget, 600], \"Deadline\" -> sectorDeadline"] === 2];

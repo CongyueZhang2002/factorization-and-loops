@@ -505,7 +505,10 @@ monic[f_] := Module[{variables = Variables[f], variable, leading},
   variable = First[variables];
   leading = Coefficient[f, variable, Exponent[f, variable]];
   If[NumericQ[leading], Expand[f/leading], f]];
-log["initial: ", Length[badStrips[A0, nSectors]], " non-eps-factored strips"];
+If[productionQ,
+  log["initial whole-connection eps census deferred in Production"],
+  log["initial: ", Length[badStrips[A0, nSectors]],
+    " non-eps-factored strips"]];
 
 (* ---- state (resume) ---- *)
 If[algebraicFrameQ && AssociationQ[cachedState] &&
@@ -596,6 +599,17 @@ If[Lookup[staleStopMigration, "Status", None] === "Migrated",
     staleStopMigration["Migration"]["Rows"],
     " is resolved by the factorization already recorded there"]];
 
+stripResiduesEpsFree[solution_Association] := Which[
+  BooleanQ[Lookup[solution, "ResiduesEpsFree", Missing[]]],
+    solution["ResiduesEpsFree"],
+  AssociationQ[Lookup[solution, "InnerSolution", None]] &&
+      BooleanQ[Lookup[solution["InnerSolution"], "ResiduesEpsFree",
+        Missing[]]],
+    solution["InnerSolution", "ResiduesEpsFree"],
+  Lookup[solution, "Method", None] === "ZeroForcing", True,
+  True, Missing["ResidueEpsilonDependenceNotReported"]
+];
+
 stripSolverSummary[solution_Association, sector_Integer,
     lowerSector_Integer, extraLetters_List : {}] := Join[
   <|"Sector" -> sector, "LowerSector" -> lowerSector|>,
@@ -636,7 +650,8 @@ stripSolverSummary[solution_Association, sector_Integer,
           (KeyDrop[#1, {"UnresolvedCoefficientLocations"}] & /@
             Lookup[reconstruction, "LiftAttemptHistory", {}])|>]|>],
     <||>],
-  <|"ExtraLetters" -> extraLetters|>];
+  <|"ResiduesEpsFree" -> stripResiduesEpsFree[solution],
+    "ExtraLetters" -> extraLetters|>];
 
 (* Regulator factorization of the completed rows 1..m (FiniteFieldFirst
    route, 2026-08-22): a completed block may be a dlog form whose residue
@@ -669,14 +684,44 @@ staleRegulatorStop[m_] := Module[{stop = Lookup[state, "Stop", Missing["NoStop"]
     stop, Missing["NoMatchingStop"]]];
 factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
   tInv, rowCertificate, futureAMode, propagation, staleStop, resolution,
-  checkpointFile},
-  aT = {state["A"][[1, 1 ;; nm, 1 ;; nm]], state["A"][[2, 1 ;; nm, 1 ;; nm]]};
-  If[epsFormQ[aT[[1]]] && epsFormQ[aT[[2]]], Return[False]];   (* nothing applied *)
-  log["  rows 1..", m, " carry regulator-dependent residues; FactorFamilyRegulatorDependence",
+  checkpointFile, rowSolvers, residueFlags, dependentCount},
+  If[productionQ,
+    (* Every accepted strip already computed this structural statement
+       from its reconstructed residue matrices.  Consuming it here avoids
+       rediscovering the same fact by Together on the assembled prefix. *)
+    rowSolvers = Select[Lookup[state, "StripSolvers", {}],
+      Lookup[#, "Sector", None] === m &];
+    residueFlags = Lookup[rowSolvers, "ResiduesEpsFree",
+      Missing["ResidueEpsilonDependenceNotReported"]];
+    If[AnyTrue[residueFlags, MissingQ],
+      log["  !! residue epsilon-dependence metadata is missing for rows ",
+        m, "; refusing the redundant whole-connection fallback"];
+      state["Stop"] = <|"Status" -> "MissingResidueEpsilonMetadata",
+        "Rows" -> m,
+        "LowerSectors" -> Lookup[
+          Pick[rowSolvers, MissingQ /@ residueFlags], "LowerSector", {}],
+        "Resumable" -> True|>;
+      putAtomic[state, stateFile]; Exit[2]];
+    dependentCount = Count[residueFlags, False];
+    If[dependentCount === 0,
+      log["  rows 1..", m,
+        " need no regulator factorization (all row residues eps-free)"];
+      Return[False]],
+    aT = {state["A"][[1, 1 ;; nm, 1 ;; nm]],
+      state["A"][[2, 1 ;; nm, 1 ;; nm]]};
+    If[epsFormQ[aT[[1]]] && epsFormQ[aT[[2]]], Return[False]];
+    dependentCount = Missing["DiagnosticExactPrecheck"]];
+  If[! ValueQ[aT],
+    aT = {state["A"][[1, 1 ;; nm, 1 ;; nm]],
+      state["A"][[2, 1 ;; nm, 1 ;; nm]]}];
+  log["  rows 1..", m,
+    If[IntegerQ[dependentCount], " have " <> ToString[dependentCount] <>
+      " strip(s) with", " have"],
+    " regulator-dependent residues; FactorFamilyRegulatorDependence",
     If[algebraicFrameQ, "InFrame", ""], " on the ", nm, "x", nm, " truncation"];
   factor = If[algebraicFrameQ,
-    FeynFacet`FactorFamilyRegulatorDependenceInFrame[aT, {xx, yy}, ee, chart, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "Verbose" -> False],
-    FeynFacet`FactorFamilyRegulatorDependence[aT, {xx, yy}, ee, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "Verbose" -> False]];
+    FeynFacet`FactorFamilyRegulatorDependenceInFrame[aT, {xx, yy}, ee, chart, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "Verbose" -> False],
+    FeynFacet`FactorFamilyRegulatorDependence[aT, {xx, yy}, ee, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "Verbose" -> False]];
   If[AssociationQ[factor] &&
       factor["Status"] === "RegulatorFactorizationDeadlineExpired",
     (* a budget stop, not a mathematical verdict: resumable, and the
@@ -785,7 +830,10 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
         ToString[Lookup[Lookup[factor, "ModularCorroboration", <||>], "Status", "?"]],
       ""],
     "; future A mode ", futureAMode,
-    " -> eps-factored ", epsFormQ[state["A"][[1, 1 ;; nm, 1 ;; nm]]] && epsFormQ[state["A"][[2, 1 ;; nm, 1 ;; nm]]]];
+    If[productionQ, "; final acceptance is the family certificate",
+      " -> eps-factored " <> ToString[
+        epsFormQ[state["A"][[1, 1 ;; nm, 1 ;; nm]]] &&
+          epsFormQ[state["A"][[2, 1 ;; nm, 1 ;; nm]]]]]];
   True];
 
 (* synchronous memory trace (stdout is block-buffered when redirected):
@@ -943,12 +991,10 @@ Do[
         {"Hour", ":", "Minute", ":", "Second"}] <> ", " <>
         ToString[Round[familyDeadline - AbsoluteTime[]]] <> " s of family budget left", ""], ")"];
   memtrace["sector " <> ToString[k] <> " start"];
-  (* factorTruncated itself now discards the stale strip checkpoint of
-     sector m+1 and persists the transformed state before returning, so
-     the resolved terminal never survives into the next strip (Codex
-     0830 P1) *)
-  If[blockwiseRouteQ && k > 1, factorTruncated[k - 1]];
-  memtrace["sector " <> ToString[k] <> " after factorTruncated check"];
+  (* The previous row was factorized (or proved unnecessary from its
+     residue metadata) before its sector state was committed.  Repeating
+     that work here was a second whole-prefix precheck on every row. *)
+  memtrace["sector " <> ToString[k] <> " after regulator-ready resume"];
   aTrunc = toC[{state["A"][[1, 1 ;; nk, 1 ;; nk]],
     state["A"][[2, 1 ;; nk, 1 ;; nk]]}];
   memtrace["sector " <> ToString[k] <> " after toC"];
@@ -1251,7 +1297,8 @@ Do[
           Which[
             zeroForcingQ,
               <|"Status" -> "Solved", "Method" -> "ZeroForcing",
-                "Gauge" -> ConstantArray[0, Dimensions[First[bbar]]], "ExactDLog" -> True|>,
+                "Gauge" -> ConstantArray[0, Dimensions[First[bbar]]],
+                "ExactDLog" -> True, "ResiduesEpsFree" -> True|>,
             algebraicFrameQ,
               FeynFacet`SolveEpsFormStripInFrame[
                 {e, c, bbar}, invariants, ee, chart,
@@ -1665,38 +1712,13 @@ Do[
       " done; non-eps-factored strips remaining (all sectors): ", remaining]]],
  {k, Max[2, state["Sector"] + 1], nSectors}];
 
-(* ---- family-level regulator factorization (FiniteFieldFirst route) ---- *)
-If[blockwiseRouteQ &&
-    ! (epsFormQ[state["A"][[1]]] && epsFormQ[state["A"][[2]]]),
-  Module[{factor, tFull, tInv, familyDeadline = AbsoluteTime[] + sectorBudget},
-    log["family connection has regulator-dependent residues; FactorFamilyRegulatorDependence", If[algebraicFrameQ, "InFrame", ""]];
-    (* the same absolute budget the in-sector stage gets: "TimeLimit"
-       bounds one subcall, "Deadline" bounds the stage (Codex 0830 P2) *)
-    log["  family regulator budget ", sectorBudget, " s (deadline ",
-      DateString[familyDeadline, {"Hour", ":", "Minute", ":", "Second"}], ")"];
-    factor = If[algebraicFrameQ,
-      FeynFacet`FactorFamilyRegulatorDependenceInFrame[state["A"], {xx, yy}, ee, chart,
-        "TimeLimit" -> sectorBudget, "Deadline" -> familyDeadline, "Verbose" -> True],
-      FeynFacet`FactorFamilyRegulatorDependence[state["A"], {xx, yy}, ee,
-        "TimeLimit" -> sectorBudget, "Deadline" -> familyDeadline, "Verbose" -> True]];
-    If[AssociationQ[factor] && factor["Status"] === "OK",
-      tFull = factor["Transformation"]; tInv = factor["Inverse"];
-      state = Join[state, <|"A" -> factor["Connection"],
-        "S" -> FeynFacet`Private`familyRegulatorSparseDot[state["S"], tFull, False],
-        "SInverse" -> FeynFacet`Private`familyRegulatorSparseDot[tInv, state["SInverse"], True],
-        "RegulatorFactorization" -> KeyDrop[factor, {"Connection", "Transformation", "Inverse"}]|>];
-      putAtomic[state, stateFile];
-      log["family regulator factorization: ", factor["Method"], ", ", factor["Points"], " points, ",
-        Round[factor["Seconds"], 0.1], " s -> eps-factored ", epsFormQ[state["A"][[1]]] && epsFormQ[state["A"][[2]]]],
-      log["!! family regulator factorization failed: ", If[AssociationQ[factor], factor["Status"], factor],
-        "; the dlog form with regulator-dependent residues is kept"]]]];
-
 (* ---- family-level exact checks (in chart variables) ---- *)
 S = state["S"] /. fromXY;
 Sinv = state["SInverse"] /. fromXY;
 Ap = {state["A"][[1]] /. fromXY, state["A"][[2]] /. fromXY};
 Aorig = {assembly["Apv"], assembly["Apw"]};
-allEps = epsFormQ[Ap[[1]]] && epsFormQ[Ap[[2]]];
+allEps = If[productionQ, Missing["DeferredToFamilyCertificate"],
+  epsFormQ[Ap[[1]]] && epsFormQ[Ap[[2]]]];
 sectorCertificatesExact =
   Length[state["SectorCertificates"]] === Max[0, nSectors - 1] &&
   AllTrue[state["SectorCertificates"],
@@ -1733,7 +1755,7 @@ If[productionQ,
 log["FAMILY: A'/eps eps-free ", allEps, "; gauge identity ", gauge,
   "; flatness ", flatness, "; individual strip solvers ",
   state["StripSolvers"]];
-verdict = If[productionQ, If[allEps, "DeferredToFamilyCertificate", False],
+verdict = If[productionQ, "DeferredToFamilyCertificate",
   allEps && gauge && flatness && finalInverse];
 denominatorLetters = DeleteDuplicates[monic /@ Select[
   DeleteDuplicates[Flatten[
