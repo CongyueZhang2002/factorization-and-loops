@@ -697,7 +697,8 @@ staleRegulatorStop[m_] := Module[{stop = Lookup[state, "Stop", Missing["NoStop"]
     stop, Missing["NoMatchingStop"]]];
 factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
   tInv, rowCertificate, futureAMode, propagation, staleStop, resolution,
-  checkpointFile, rowSolvers, residueFlags, dependentCount},
+  checkpointFile, rowSolvers, residueFlags, dependentCount, newS,
+  newSInverse, propagationSeconds, sSeconds, sInverseSeconds, saveSeconds},
   If[productionQ,
     (* Every accepted strip already computed this structural statement
        from its reconstructed residue matrices.  Consuming it here avoids
@@ -775,10 +776,11 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
   futureAMode = If[productionQ,
     Lookup[Lookup[Lookup[rowCertificate, "RowGaugeStatistics", <||>],
       "A", <||>], "FutureAMode", "Together"], "Together"];
-  propagation = FeynFacet`Private`familyRegulatorPropagateTruncation[
-    state["A"], factor["Connection"], factor["Inverse"],
-    factor["Transformation"], nm, {xx, yy},
-    Lookup[factor, "PropagationSeal", <||>], futureAMode, ! productionQ];
+  {propagationSeconds, propagation} = AbsoluteTiming[
+    FeynFacet`Private`familyRegulatorPropagateTruncation[
+      state["A"], factor["Connection"], factor["Inverse"],
+      factor["Transformation"], nm, {xx, yy},
+      Lookup[factor, "PropagationSeal", <||>], futureAMode, ! productionQ]];
   If[! AssociationQ[propagation] ||
       Lookup[propagation, "Status", None] =!= "OK",
     log["  !! regulator propagation of rows 1..", m,
@@ -805,12 +807,20 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
     <|"ClearedStatus" -> staleStop["Status"], "Rows" -> m,
       "ResolvedBy" -> factor["Method"],
       "ResolvedAt" -> DateString[{"ISODateTime"}]|>];
+  {sSeconds, newS} = AbsoluteTiming[If[productionQ,
+    FeynFacet`Private`familyRegulatorSparseDotDeferred[
+      state["S"], tFull, False],
+    FeynFacet`Private`familyRegulatorSparseDot[
+      state["S"], tFull, False]]];
+  {sInverseSeconds, newSInverse} = AbsoluteTiming[If[productionQ,
+    FeynFacet`Private`familyRegulatorSparseDotDeferred[
+      tInv, state["SInverse"], True],
+    FeynFacet`Private`familyRegulatorSparseDot[
+      tInv, state["SInverse"], True]]];
   state = Join[state, <|
     "A" -> propagation["Connection"],
-    "S" -> FeynFacet`Private`familyRegulatorSparseDot[
-      state["S"], tFull, False],
-    "SInverse" -> FeynFacet`Private`familyRegulatorSparseDot[
-      tInv, state["SInverse"], True],
+    "S" -> newS,
+    "SInverse" -> newSInverse,
     "RegulatorFactorizations" -> Append[Lookup[state, "RegulatorFactorizations", {}],
       <|"Rows" -> m, "Method" -> factor["Method"], "Points" -> factor["Points"], "Seconds" -> factor["Seconds"],
         "Chart" -> Lookup[factor, "Chart", None],
@@ -831,7 +841,7 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
   If[FileExistsQ[checkpointFile], DeleteFile[checkpointFile];
     log["  strip checkpoint of sector ", m + 1,
       " discarded (connection transformed)"]];
-  putAtomic[state, stateFile];
+  saveSeconds = First[AbsoluteTiming[putAtomic[state, stateFile]]];
   If[! MissingQ[staleStop],
     log["  stale ", staleStop["Status"], " stop for rows ", m,
       " cleared and the resolution recorded"]];
@@ -843,6 +853,9 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
         ToString[Lookup[Lookup[factor, "ModularCorroboration", <||>], "Status", "?"]],
       ""],
     "; future A mode ", futureAMode,
+    "; propagation/S/SInverse/save ",
+    Round[#, 0.1] & /@ {propagationSeconds, sSeconds,
+      sInverseSeconds, saveSeconds}, " s",
     If[productionQ, "; final acceptance is the family certificate",
       " -> eps-factored " <> ToString[
         epsFormQ[state["A"][[1, 1 ;; nm, 1 ;; nm]]] &&
