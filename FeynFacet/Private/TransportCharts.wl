@@ -1185,6 +1185,7 @@ transportChartPullBackDeferredPreparation[record_Association,
   {preparation, transform, materialized, dimensions, values, image,
    survivingRadicals, pulled, polynomialSymbols,
    projectionRoots, transformedProjectionRoots, projectionChannels,
+   projectionTags, projectionRootImages,
    projectionSeconds = 0., inactiveChannels, projectionRecord = None},
   preparation = Lookup[record, "Preparation",
     Lookup[record, "DeferredPreparation", Missing["NoPreparation"]]];
@@ -1199,19 +1200,33 @@ transportChartPullBackDeferredPreparation[record_Association,
       ! AllTrue[projectionRoots, AssociationQ[#1] &&
         KeyExistsQ[#1, "Root"] && KeyExistsQ[#1, "RootSquare"] &],
     Return[<|"Status" -> "DeferredPreparationProjectionFrameInvalid"|>]];
-  transform[expr_] := transportChartApplyRootBranches[
-    expr /. data["Subst"], branchRoots, images];
+  transformedProjectionRoots = projectionRoots /. data["Subst"];
+  projectionTags = Table[
+    Unique["FeynFacet`Private`deferredProjectionRoot"],
+    {Length[projectionRoots]}];
+  projectionRootImages = Lookup[transformedProjectionRoots, "Root", {}];
+  transform[expr_] := Module[{activeImage},
+    activeImage = transportChartApplyRootBranches[
+      expr /. data["Subst"], branchRoots, images];
+    (* Inactive roots are algebra generators during operand interning.  This
+       prevents Together/FactorList from rationalizing their denominators
+       separately in dozens of operands before the four target sums cancel
+       those roots. *)
+    transportChartApplyRootBranches[activeImage,
+      transformedProjectionRoots, projectionTags]];
   polynomialSymbols = DeleteDuplicates[Join[
     Lookup[data, "Variables", {}],
     {Lookup[preparation, "Regulator", None]},
-    Lookup[preparation, "Parameters", {}]]];
+    Lookup[preparation, "Parameters", {}], projectionTags]];
   materialized = blockEquationDeferredMaterialize[preparation,
     "ValidatePreparation" -> False,
     "ExpressionTransform" -> transform,
     "PolynomialSymbols" -> polynomialSymbols,
     "Cancel" -> False, "CanonicalizeUntouched" -> False,
     "AlgebraicCanonicalize" -> False,
-    "Parallel" -> Automatic, "Helpers" -> Automatic,
+    "Parallel" -> If[projectionRoots === {}, Automatic,
+      blockEquationDeferredParallelRouteQ[]],
+    "Helpers" -> Automatic,
     "Progress" -> transportChartStageLogQ[],
     "Label" -> "chart_" <> ToString[
       Lookup[preparation, "Sector", "block"]] <> "_" <>
@@ -1225,7 +1240,7 @@ transportChartPullBackDeferredPreparation[record_Association,
     {mu, dimensions[[1]]}, {i, dimensions[[2]]},
     {j, dimensions[[3]]}];
   If[projectionRoots =!= {},
-    transformedProjectionRoots = projectionRoots /. data["Subst"];
+    image = image /. Thread[projectionTags -> projectionRootImages];
     {projectionSeconds, projectionChannels} = AbsoluteTiming[
       Map[multiquadraticFieldDecompose[#1,
           transformedProjectionRoots] &, image, {3}]];
