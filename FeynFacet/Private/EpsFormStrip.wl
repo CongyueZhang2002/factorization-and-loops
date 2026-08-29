@@ -33,6 +33,12 @@ ClearAll[
   epsFormStripUnknownNameCollisions,
   epsFormStripSafeTag,
   epsFormStripMapleSqrtToInputForm,
+  epsFormStripMapleInputString,
+  epsFormStripMapleCacheKey,
+  epsFormStripMapleCompleteOutputLines,
+  epsFormStripMapleCacheLineSyntaxQ,
+  epsFormStripMaplePutTextAtomic,
+  epsFormStripMapleCanonicalizeEntries,
   epsFormStripMapleCanonicalize
 ];
 
@@ -87,9 +93,11 @@ $epsFormStripCPURunner = FileNameJoin[{
 Options[epsFormStripMapleCanonicalize] = {
   "MapleExecutable" -> "maple",
   "ScratchDirectory" -> Automatic,
+  "CacheDirectory" -> Automatic,
   "Tag" -> "maple_canonical",
   "TimeLimit" -> 1800,
   "Runner" -> Automatic,
+  "InternalSingleEntry" -> False,
   "Verbose" -> False
 };
 
@@ -121,13 +129,162 @@ epsFormStripMapleSqrtToInputForm[text_String] := Module[{convert},
 ];
 epsFormStripMapleSqrtToInputForm[___] := $Failed;
 
+epsFormStripMapleInputString[expression_] := StringReplace[
+  ToString[expression, InputForm],
+  {RegularExpression["(?:[A-Za-z$][A-Za-z0-9$]*`)+"] -> "",
+   "Sqrt[" -> "sqrt(", "[" -> "(", "]" -> ")", " " -> ""}];
+
+epsFormStripMapleCacheKey[expression_] := Hash[
+  {"MapleCanonicalEntryV1", epsFormStripMapleInputString[expression]},
+  "SHA256", "HexString"];
+
+(* Keep only newline-terminated records.  A killed Maple process may leave
+   the next expression half-written; that suffix is never a checkpoint. *)
+epsFormStripMapleCompleteOutputLines[file_String] := Module[
+  {stream, bytes, text, lines},
+  If[! FileExistsQ[file], Return[{}]];
+  text = Quiet[Check[
+    stream = OpenRead[file, BinaryFormat -> True];
+    bytes = BinaryReadList[stream, "UnsignedInteger8"];
+    Close[stream];
+    StringReplace[FromCharacterCode[bytes], "\r" -> ""], $Failed]];
+  If[Head[stream] === InputStream, Quiet[Close[stream]]];
+  If[! StringQ[text], Return[{}]];
+  lines = StringSplit[text, "\n"];
+  If[lines === {}, Return[{}]];
+  If[StringEndsQ[text, "\n"], lines, Most[lines]]
+];
+epsFormStripMapleCompleteOutputLines[___] := {};
+
+epsFormStripMapleCacheLineSyntaxQ[line_String] := Module[{converted},
+  converted = epsFormStripMapleSqrtToInputForm[line];
+  StringQ[converted] && TrueQ[Quiet[Check[
+    Block[{$Context = "FeynFacetMapleCacheSyntax`",
+      $ContextPath = {"System`"}}, ToExpression[converted]; True], False]]]
+];
+epsFormStripMapleCacheLineSyntaxQ[___] := False;
+
+epsFormStripMaplePutTextAtomic[text_String, file_String] := Module[
+  {temporary = file <> ".next." <> ToString[$ProcessID] <> "." <>
+      StringReplace[CreateUUID[], "-" -> ""]},
+  Quiet[Check[
+    Export[temporary, text, "Text"];
+    RenameFile[temporary, file, OverwriteTarget -> True]; file,
+    If[FileExistsQ[temporary], Quiet[DeleteFile[temporary]]]; $Failed]]
+];
+epsFormStripMaplePutTextAtomic[___] := $Failed;
+
+(* Production normalization is entry-resumable.  Each algebraic entry is
+   an independent exact Normal call; a shared cache lets equal blocks in
+   different families do that work once.  The injected Runner seam keeps
+   the historical whole-array contract for focused tests. *)
+epsFormStripMapleCanonicalizeEntries[array_List, OptionsPattern[
+    epsFormStripMapleCanonicalize]] := Module[
+  {started = AbsoluteTime[], dimensions = Dimensions[array], expressions,
+   scratchDirectory, cacheDirectory, tag, timeLimit, verbose, outputFile,
+   inputSymbols, duplicateNames, mapleInputs, legacyMapleFile,
+   legacyMapleText, legacyPayloadQ = False, legacyLines, cacheFiles,
+   parsed = {}, records = {},
+   rawLines = {}, remaining, result, cacheLines, failure, i, seeded = 0},
+  expressions = Flatten[array];
+  inputSymbols = DeleteDuplicates@Cases[expressions,
+    symbol_Symbol /; Context[symbol] =!= "System`",
+    {0, Infinity}, Heads -> True];
+  duplicateNames = Select[GatherBy[inputSymbols, SymbolName],
+    Length[DeleteDuplicates[Context /@ #1]] > 1 &];
+  If[duplicateNames =!= {},
+    Return[<|"Status" -> "MapleCanonicalSymbolNameCollision",
+      "Symbols" -> Map[ToString[InputForm[#1]] &,
+        duplicateNames, {2}]|>]];
+  scratchDirectory = Replace[OptionValue["ScratchDirectory"],
+    Automatic :> FileNameJoin[{$TemporaryDirectory, "FeynFacet",
+      "EpsFormStrip"}]];
+  cacheDirectory = Replace[OptionValue["CacheDirectory"],
+    Automatic :> FileNameJoin[{scratchDirectory,
+      "MapleCanonicalCache"}]];
+  tag = epsFormStripSafeTag[OptionValue["Tag"]];
+  timeLimit = OptionValue["TimeLimit"];
+  verbose = TrueQ[OptionValue["Verbose"]];
+  If[! DirectoryQ[cacheDirectory], Quiet[CreateDirectory[cacheDirectory,
+    CreateIntermediateDirectories -> True]]];
+  If[! DirectoryQ[cacheDirectory],
+    Return[<|"Status" -> "MapleCanonicalCacheUnavailable",
+      "CacheDirectory" -> cacheDirectory|>]];
+  mapleInputs = epsFormStripMapleInputString /@ expressions;
+  cacheFiles = FileNameJoin[{cacheDirectory, # <> ".out"}] & /@
+    (epsFormStripMapleCacheKey /@ expressions);
+  outputFile = FileNameJoin[{scratchDirectory, tag <> ".out"}];
+  legacyLines = epsFormStripMapleCompleteOutputLines[outputFile];
+  legacyMapleFile = FileNameJoin[{scratchDirectory, tag <> ".mpl"}];
+  If[FileExistsQ[legacyMapleFile],
+    legacyMapleText = Quiet[Check[Import[legacyMapleFile, "Text"],
+      $Failed]];
+    legacyPayloadQ = StringQ[legacyMapleText] && StringContainsQ[
+      legacyMapleText, "feynfacetGaugeEntries := [" <>
+        StringRiffle[mapleInputs, ","] <> "]:"]];
+  If[legacyPayloadQ && legacyLines =!= {} && First[legacyLines] === "OK",
+    legacyLines = Take[Rest[legacyLines],
+      UpTo[Length[expressions]]];
+    Do[If[! FileExistsQ[cacheFiles[[i]]] &&
+          epsFormStripMapleCacheLineSyntaxQ[legacyLines[[i]]],
+        If[StringQ[epsFormStripMaplePutTextAtomic[
+            "OK\n" <> legacyLines[[i]] <> "\n", cacheFiles[[i]]]],
+          seeded++]], {i, Length[legacyLines]}]];
+  failure = Catch[Do[
+    remaining = timeLimit - (AbsoluteTime[] - started);
+    If[remaining <= 0,
+      Throw[<|"Status" -> "MapleCanonicalTimedOut",
+        "Seconds" -> N[AbsoluteTime[] - started],
+        "CompletedEntries" -> Length[parsed],
+        "EntryCount" -> Length[expressions], "Resumable" -> True|>,
+        "MapleEntryFailure"]];
+    result = Function[{}, epsFormStripMapleCanonicalize[
+      {expressions[[i]]},
+      "MapleExecutable" -> OptionValue["MapleExecutable"],
+      "ScratchDirectory" -> scratchDirectory,
+      "CacheDirectory" -> cacheDirectory,
+      "Tag" -> tag <> "_entry_" <> IntegerString[i, 10, 3],
+      "TimeLimit" -> remaining, "Runner" -> Automatic,
+      "InternalSingleEntry" -> True, "Verbose" -> verbose]][];
+    If[Lookup[result, "Status", None] =!= "MapleCanonicalGaugeV1",
+      Throw[<|"Status" -> Lookup[result, "Status",
+          "MapleCanonicalEntryFailed"], "EntryIndex" -> i,
+        "CompletedEntries" -> Length[parsed],
+        "EntryCount" -> Length[expressions], "Detail" -> result,
+        "Resumable" -> True|>, "MapleEntryFailure"]];
+    AppendTo[parsed, First[result["Result"]]];
+    AppendTo[records, KeyDrop[result, "Result"]];
+    cacheLines = epsFormStripMapleCompleteOutputLines[cacheFiles[[i]]];
+    If[Length[cacheLines] =!= 2 || First[cacheLines] =!= "OK",
+      Throw[<|"Status" -> "MapleCanonicalCacheRecordInvalid",
+        "EntryIndex" -> i, "CacheFile" -> cacheFiles[[i]]|>,
+        "MapleEntryFailure"]];
+    AppendTo[rawLines, Last[cacheLines]],
+    {i, Length[expressions]}], "MapleEntryFailure"];
+  If[AssociationQ[failure], Return[failure]];
+  epsFormStripMaplePutTextAtomic[
+    "OK\n" <> StringRiffle[rawLines, "\n"] <> "\n", outputFile];
+  <|"Status" -> "MapleCanonicalGaugeV1",
+    "Result" -> ArrayReshape[parsed, dimensions],
+    "Seconds" -> N[AbsoluteTime[] - started],
+    "EntryCount" -> Length[expressions],
+    "Route" -> "MapleEntryCache",
+    "CacheDirectory" -> cacheDirectory,
+    "CacheHits" -> Count[Lookup[records, "CacheHit", False], True],
+    "ComputedEntries" -> Count[Lookup[records, "CacheHit", False], False],
+    "LegacyEntriesSeeded" -> seeded,
+    "EntryRecords" -> records|>
+];
+
 epsFormStripMapleCanonicalize[array_List, OptionsPattern[]] := Module[
   {started = AbsoluteTime[], dimensions = Dimensions[array], expressions,
-   mapleExecutable, scratchDirectory, tag, timeLimit, runner, verbose,
+   mapleExecutable, scratchDirectory, cacheDirectory, tag, timeLimit,
+   runner, internalSingleEntry, verbose,
    toMaple, inputSymbols, duplicateNames, symbolByName, parseContext,
-   mapleFile, outputFile, diagnosticFile, mapleText, mapleCommand,
-   processCommand, process, runnerResult, lines, parsed, parseRules,
-   unresolved, log, maplePath},
+   mapleFile, outputFile, mapleOutputFile, diagnosticFile, mapleText,
+   mapleCommand, processCommand, lockedCommand, shellScript, lockFile,
+   process, runnerResult, lines, parsed, parseRules, unresolved, log,
+   maplePath, cacheFile = None, cacheHit = False, useCache = False},
   expressions = Flatten[array];
   If[expressions === {},
     Return[<|"Status" -> "MapleCanonicalGaugeV1", "Result" -> array,
@@ -138,13 +295,25 @@ epsFormStripMapleCanonicalize[array_List, OptionsPattern[]] := Module[
   scratchDirectory = Replace[OptionValue["ScratchDirectory"],
     Automatic :> FileNameJoin[{$TemporaryDirectory, "FeynFacet",
       "EpsFormStrip"}]];
+  cacheDirectory = Replace[OptionValue["CacheDirectory"],
+    Automatic :> FileNameJoin[{scratchDirectory,
+      "MapleCanonicalCache"}]];
   tag = epsFormStripSafeTag[OptionValue["Tag"]];
   timeLimit = OptionValue["TimeLimit"];
   runner = OptionValue["Runner"];
+  internalSingleEntry = TrueQ[OptionValue["InternalSingleEntry"]];
   verbose = TrueQ[OptionValue["Verbose"]];
   If[! StringQ[mapleExecutable] || ! StringQ[scratchDirectory] ||
       ! NumericQ[timeLimit] || timeLimit <= 0,
     Return[<|"Status" -> "MapleCanonicalOptionsInvalid"|>]];
+  If[runner === Automatic && Length[expressions] > 1 &&
+      ! internalSingleEntry,
+    Return[epsFormStripMapleCanonicalizeEntries[array,
+      "MapleExecutable" -> mapleExecutable,
+      "ScratchDirectory" -> scratchDirectory,
+      "CacheDirectory" -> cacheDirectory, "Tag" -> tag,
+      "TimeLimit" -> timeLimit, "Runner" -> Automatic,
+      "InternalSingleEntry" -> False, "Verbose" -> verbose]]];
   log[items___] := If[verbose, Print[items]];
   If[! DirectoryQ[scratchDirectory],
     Quiet[CreateDirectory[scratchDirectory,
@@ -153,9 +322,7 @@ epsFormStripMapleCanonicalize[array_List, OptionsPattern[]] := Module[
     Return[<|"Status" -> "MapleCanonicalScratchUnavailable",
       "ScratchDirectory" -> scratchDirectory|>]];
 
-  toMaple[expr_] := StringReplace[ToString[expr, InputForm],
-    {RegularExpression["(?:[A-Za-z$][A-Za-z0-9$]*`)+"] -> "",
-     "Sqrt[" -> "sqrt(", "[" -> "(", "]" -> ")", " " -> ""}];
+  toMaple[expr_] := epsFormStripMapleInputString[expr];
   inputSymbols = DeleteDuplicates@Cases[expressions,
     symbol_Symbol /; Context[symbol] =!= "System`",
     {0, Infinity}, Heads -> True];
@@ -171,7 +338,28 @@ epsFormStripMapleCanonicalize[array_List, OptionsPattern[]] := Module[
   mapleFile = FileNameJoin[{scratchDirectory, tag <> ".mpl"}];
   outputFile = FileNameJoin[{scratchDirectory, tag <> ".out"}];
   diagnosticFile = FileNameJoin[{scratchDirectory, tag <> ".log"}];
-  If[FileExistsQ[outputFile], Quiet[DeleteFile[outputFile]]];
+  useCache = runner === Automatic && Length[expressions] === 1;
+  If[useCache,
+    If[! DirectoryQ[cacheDirectory], Quiet[CreateDirectory[cacheDirectory,
+      CreateIntermediateDirectories -> True]]];
+    If[! DirectoryQ[cacheDirectory],
+      Return[<|"Status" -> "MapleCanonicalCacheUnavailable",
+        "CacheDirectory" -> cacheDirectory|>]];
+    cacheFile = FileNameJoin[{cacheDirectory,
+      epsFormStripMapleCacheKey[First[expressions]] <> ".out"}];
+    cacheHit = With[{cached =
+        epsFormStripMapleCompleteOutputLines[cacheFile]},
+      Length[cached] === 2 && First[cached] === "OK" &&
+        epsFormStripMapleCacheLineSyntaxQ[Last[cached]]];
+    If[FileExistsQ[cacheFile] && ! cacheHit,
+      Quiet[DeleteFile[cacheFile]]];
+    outputFile = cacheFile];
+  mapleOutputFile = If[useCache && ! cacheHit,
+    cacheFile <> ".next." <> ToString[$ProcessID] <> "." <>
+      StringReplace[CreateUUID[], "-" -> ""], outputFile];
+  If[! useCache && FileExistsQ[outputFile], Quiet[DeleteFile[outputFile]]];
+  If[FileExistsQ[mapleOutputFile] && mapleOutputFile =!= outputFile,
+    Quiet[DeleteFile[mapleOutputFile]]];
   If[FileExistsQ[diagnosticFile], Quiet[DeleteFile[diagnosticFile]]];
   maplePath[path_String] := StringReplace[path,
     {"\\" -> "/", "\"" -> "\\\""}];
@@ -179,7 +367,7 @@ epsFormStripMapleCanonicalize[array_List, OptionsPattern[]] := Module[
     "restart:\ninterface(prettyprint=0):\n",
     "feynfacetGaugeEntries := [",
       StringRiffle[toMaple /@ expressions, ","], "]:\n",
-    "fd := fopen(\"", maplePath[outputFile], "\", WRITE):\n",
+    "fd := fopen(\"", maplePath[mapleOutputFile], "\", WRITE):\n",
     "fprintf(fd, \"OK\\n\"):\n",
     "for i from 1 to nops(feynfacetGaugeEntries) do\n",
     "  fprintf(fd, \"%a\\n\", ",
@@ -188,34 +376,53 @@ epsFormStripMapleCanonicalize[array_List, OptionsPattern[]] := Module[
   Export[mapleFile, mapleText, "Text"];
 
   If[runner === Automatic,
-    mapleCommand = If[$OperatingSystem === "Unix" &&
-        FileExistsQ[$epsFormStripCPURunner],
-      {$epsFormStripCPURunner, facetCPUList[], mapleExecutable, "-q",
-        mapleFile},
-      {mapleExecutable, "-q", mapleFile}];
-    processCommand = If[$OperatingSystem === "Unix" &&
-        FileExistsQ["/usr/bin/timeout"],
-      {"/usr/bin/timeout", "--signal=TERM", "--kill-after=5s",
-        ToString[Ceiling[timeLimit]] <> "s", Sequence @@ mapleCommand},
-      mapleCommand];
-    process = Quiet[TimeConstrained[RunProcess[processCommand],
-      timeLimit + 15, $TimedOut]];
-    If[AssociationQ[process],
-      Export[diagnosticFile, StringRiffle[{
-        "ExitCode: " <> ToString[Lookup[process, "ExitCode", Missing[]]],
-        "StandardOutput:", Lookup[process, "StandardOutput", ""],
-        "StandardError:", Lookup[process, "StandardError", ""]}, "\n"],
-        "Text"]];
-    If[process === $TimedOut,
-      Return[<|"Status" -> "MapleCanonicalTimedOut",
-        "Seconds" -> N[AbsoluteTime[] - started]|>]];
-    If[! AssociationQ[process] || Lookup[process, "ExitCode", -1] =!= 0 ||
-        ! FileExistsQ[outputFile],
-      Return[<|"Status" -> "MapleCanonicalExecutionFailed",
-        "DiagnosticFile" -> diagnosticFile,
-        "Seconds" -> N[AbsoluteTime[] - started]|>]];
-    lines = StringSplit[StringReplace[Import[outputFile, "Text"],
-      "\r" -> ""], "\n"],
+    If[! cacheHit,
+      mapleCommand = If[$OperatingSystem === "Unix" &&
+          FileExistsQ[$epsFormStripCPURunner],
+        {$epsFormStripCPURunner, facetCPUList[], mapleExecutable, "-q",
+          mapleFile},
+        {mapleExecutable, "-q", mapleFile}];
+      lockedCommand = mapleCommand;
+      If[useCache && $OperatingSystem === "Unix" &&
+          FileExistsQ["/usr/bin/flock"],
+        lockFile = cacheFile <> ".lock";
+        shellScript = "cache=\"$1\"; temp=\"$2\"; shift 2; " <>
+          "if [ -s \"$cache\" ]; then exit 0; fi; " <>
+          "\"$@\"; status=$?; " <>
+          "if [ \"$status\" -eq 0 ] && [ -s \"$temp\" ]; then " <>
+          "mv -f -- \"$temp\" \"$cache\"; fi; exit \"$status\"";
+        lockedCommand = {"/usr/bin/flock", "-x", lockFile,
+          "/bin/sh", "-c", shellScript, "sh", cacheFile,
+          mapleOutputFile, Sequence @@ mapleCommand}];
+      processCommand = If[$OperatingSystem === "Unix" &&
+          FileExistsQ["/usr/bin/timeout"],
+        {"/usr/bin/timeout", "--signal=TERM", "--kill-after=5s",
+          ToString[Ceiling[timeLimit]] <> "s",
+          Sequence @@ lockedCommand}, lockedCommand];
+      process = Quiet[TimeConstrained[RunProcess[processCommand],
+        timeLimit + 15, $TimedOut]];
+      If[AssociationQ[process],
+        Export[diagnosticFile, StringRiffle[{
+          "ExitCode: " <> ToString[Lookup[process, "ExitCode", Missing[]]],
+          "StandardOutput:", Lookup[process, "StandardOutput", ""],
+          "StandardError:", Lookup[process, "StandardError", ""]}, "\n"],
+          "Text"]];
+      If[process === $TimedOut,
+        Return[<|"Status" -> "MapleCanonicalTimedOut",
+          "Seconds" -> N[AbsoluteTime[] - started],
+          "Resumable" -> useCache|>]];
+      If[AssociationQ[process] && Lookup[process, "ExitCode", -1] === 0 &&
+          useCache && ! FileExistsQ[cacheFile] &&
+          FileExistsQ[mapleOutputFile],
+        Quiet[RenameFile[mapleOutputFile, cacheFile,
+          OverwriteTarget -> True]]];
+      If[! AssociationQ[process] || Lookup[process, "ExitCode", -1] =!= 0 ||
+          ! FileExistsQ[outputFile],
+        Return[<|"Status" -> "MapleCanonicalExecutionFailed",
+          "DiagnosticFile" -> diagnosticFile,
+          "Seconds" -> N[AbsoluteTime[] - started],
+          "Resumable" -> useCache|>]]];
+    lines = epsFormStripMapleCompleteOutputLines[outputFile],
     runnerResult = Quiet[Check[runner[<|
         "Expressions" -> expressions, "Dimensions" -> dimensions,
         "MapleText" -> mapleText, "MapleFile" -> mapleFile,
@@ -256,7 +463,10 @@ epsFormStripMapleCanonicalize[array_List, OptionsPattern[]] := Module[
   <|"Status" -> "MapleCanonicalGaugeV1",
     "Result" -> ArrayReshape[parsed, dimensions],
     "Seconds" -> N[AbsoluteTime[] - started],
-    "EntryCount" -> Length[expressions], "Route" -> "Maple"|>
+    "EntryCount" -> Length[expressions],
+    "Route" -> If[useCache, "MapleEntryCache", "Maple"],
+    "CacheHit" -> cacheHit,
+    "CacheFile" -> If[useCache, cacheFile, None]|>
 ];
 epsFormStripMapleCanonicalize[___] :=
   <|"Status" -> "MapleCanonicalInputInvalid"|>;

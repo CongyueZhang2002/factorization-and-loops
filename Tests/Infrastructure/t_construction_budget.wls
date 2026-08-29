@@ -537,7 +537,7 @@ check["every driver SolveEpsFormStripInFrame call site carries the sector deadli
   Length[inFrameChunks] === 2 &&
     AllTrue[inFrameChunks, Function[chunk,
       Module[{normalized = normalizeSource[
-          StringTake[chunk, UpTo[2000]]]},
+          StringTake[chunk, UpTo[4000]]]},
         StringContainsQ[normalized,
           "\"Deadline\" -> sectorDeadline"] &&
           StringContainsQ[normalized,

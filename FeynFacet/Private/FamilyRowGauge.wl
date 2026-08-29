@@ -19,6 +19,7 @@
 
 ClearAll[familyRowGaugeSupport, familyRowGaugeDLogForm,
   familyRowGaugeDecodeCheckpoint, familyRowGaugeCheckpointGaugeShapeQ,
+  familyRowGaugeStripAcceptanceRecordQ,
   familyRowGaugeCheckpointStripSolversQ,
   familyRowGaugeAssembleInstalledRow, familyRowGaugeApply];
 
@@ -93,6 +94,56 @@ familyRowGaugeCheckpointGaugeShapeQ[prevD_, rowSize_Integer?Positive,
 ];
 familyRowGaugeCheckpointGaugeShapeQ[___] := False;
 
+(* Resume admission is mathematical, not operational.  A saved block is
+   reusable when its acceptance record says which identity certified it;
+   backend, thread, cache, source and implementation provenance are not part
+   of that statement. *)
+familyRowGaugeStripAcceptanceRecordQ[record_Association] := Module[
+  {method = Lookup[record, "Method", None],
+   certificate = Lookup[record, "Certificate", None], frame,
+   validationMode, installation},
+  If[method === "ZeroForcing",
+    Return[TrueQ[Lookup[record, "ExactDLog", False]]]];
+  If[method === "DirectMultiquadraticFiniteField",
+    installation = Lookup[record, "InstallationEvidence", <||>];
+    Return[Lookup[record, "SolutionContract", None] ===
+        "InstallableMultiquadraticDLogV1" &&
+      TrueQ[Lookup[record, "OneFormsCertified", False]] &&
+      TrueQ[Lookup[record, "LettersEpsFree", False]] &&
+      TrueQ[Lookup[record, "ResiduesKinematicsFree", False]] &&
+      AssociationQ[installation] &&
+      Lookup[installation, "Status", None] ===
+        "InstallationEvidenceAccepted" &&
+      Lookup[installation, "Certificate", None] === certificate &&
+      MemberQ[{"ExactResidual", "NumericalResidual"}, certificate]]];
+  frame = Lookup[record, "FrameCertificate", <||>];
+  If[StringQ[method] && StringStartsQ[method, "RationalChart/"],
+    If[! AssociationQ[frame], Return[False]];
+    validationMode = Lookup[frame, "ValidationMode", None];
+    Return[If[MemberQ[{"PostMapleFiniteFieldResidual",
+          "PostPullBackFiniteFieldResidual"}, validationMode],
+      TrueQ[Lookup[frame, "CoordinateComposition", False]] &&
+        TrueQ[Lookup[frame, "GaugeRoundTrip", False]] &&
+        TrueQ[Lookup[frame, "TransformedOneFormPullBack", False]] &&
+        MatchQ[Lookup[frame, "BranchSigns", None], {__Integer}] &&
+        AllTrue[Lookup[frame, "BranchSigns", {}],
+          MemberQ[{-1, 1}, #] &] &&
+        Lookup[frame, "InnerCertificate", None] ===
+          "NumericalResidual" &&
+        IntegerQ[Lookup[frame, "UnseenPrime", None]] &&
+        TrueQ[Lookup[frame, "NumericalPfaffianResidualsZero", False]],
+      And @@ (TrueQ[Lookup[frame, #, False]] & /@
+        {"CoordinateComposition", "GaugeRoundTrip",
+         "TransformedOneFormPullBack", "SourceDLog", "Exact"})]]];
+  If[StringQ[method] && StringStartsQ[method, "RationalFrame/"],
+    Return[AssociationQ[frame] &&
+      And @@ (TrueQ[Lookup[frame, #, False]] & /@
+        {"GaugeRoundTrip", "TransformedOneFormPullBack", "Exact"})]];
+  TrueQ[Lookup[record, "ExactDLog", False]] ||
+    MemberQ[{"ExactResidual", "NumericalResidual"}, certificate]
+];
+familyRowGaugeStripAcceptanceRecordQ[___] := False;
+
 (* The saved summaries are the check provenance of the complete suffix
    represented by PrevD.  Require one ordered summary per recovered block so
    a missing field cannot turn AllTrue[{}] into a positive sector certificate. *)
@@ -110,6 +161,7 @@ familyRowGaugeCheckpointStripSolversQ[stripSolvers_, prevD_,
   solvedCount = First[position] - 1;
   expectedLowerSectors = Take[Reverse[Range[sector - 1]], solvedCount];
   Length[stripSolvers] === solvedCount &&
+    AllTrue[stripSolvers, familyRowGaugeStripAcceptanceRecordQ] &&
     (Lookup[#, "Sector", Missing["NoSector"]] & /@ stripSolvers) ===
       ConstantArray[sector, solvedCount] &&
     (Lookup[#, "LowerSector", Missing["NoLowerSector"]] & /@
@@ -168,7 +220,7 @@ familyRowGaugeApply[
    sSingleTerm = 0,
    siProducts = 0, siTouched = 0, siNormalizationSeconds = 0.,
    siStageSeconds = 0.,
-   siSingleTerm = 0,
+   siSingleTerm = 0, siDeferredNormalization = 0,
    started = AbsoluteTime[], stageStarted, mu, aRight, aLower, derivative,
    aRightRowSupport, aLowerColumnSupport, supportAD, supportDA,
    correction, correctionTerms, base, normalizedAt, leftS,
@@ -325,9 +377,15 @@ familyRowGaugeApply[
         If[SameQ[base, 0] && Length[correctionTerms] === 1,
           newInverse[[rowIndices[[i]], j]] = First[correctionTerms];
           siSingleTerm++,
-          normalizedAt = AbsoluteTime[];
-          newInverse[[rowIndices[[i]], j]] = Together[base + correction];
-          siNormalizationSeconds += AbsoluteTime[] - normalizedAt];
+          If[futureAMode === "Deferred",
+            (* factorTruncated immediately composes and canonicalizes the
+               cumulative inverse.  Keeping this exact sum here avoids
+               normalizing the same large row twice in production. *)
+            newInverse[[rowIndices[[i]], j]] = base + correction;
+            siDeferredNormalization++,
+            normalizedAt = AbsoluteTime[];
+            newInverse[[rowIndices[[i]], j]] = Together[base + correction];
+            siNormalizationSeconds += AbsoluteTime[] - normalizedAt]];
         siTouched++]],
     {i, rowSize}, {j, n}];
   siStageSeconds = AbsoluteTime[] - stageStarted;
@@ -353,6 +411,7 @@ familyRowGaugeApply[
     "SInverse" -> <|"CandidateEntries" -> rowSize n,
       "Products" -> siProducts, "Touched" -> siTouched,
       "SingleTermFastPath" -> siSingleTerm,
+      "DeferredNormalizationEntries" -> siDeferredNormalization,
       "StageSeconds" -> N[siStageSeconds],
       "NormalizationSeconds" -> N[siNormalizationSeconds]|>,
     "TotalSeconds" -> N[AbsoluteTime[] - started]|>;

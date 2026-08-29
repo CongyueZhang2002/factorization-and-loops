@@ -167,6 +167,24 @@ FTTest`FTAssert["deferred future entries remain raw exact sums",
     zeroQ[rawResult["Connection"][[1, 3, 1]] -
       Together[rawExpected]]];
 
+rawInverse = {{1, 1/y, 0}, {0, 1, 0}, {0, 0, 1}};
+rawTransformation = {{1, -1/y, 0}, {0, 1, 0}, {0, 0, 1}};
+rawDeferredInverse = FeynFacet`Private`familyRowGaugeApply[
+  rawConnection, rawTransformation, rawInverse, {2}, rawGauge,
+  {x, y}, rawInstalled, "Deferred"];
+rawD = ConstantArray[0, {3, 3}];
+rawD[[2, 1]] = First[First[rawGauge]];
+rawExpectedInverse = (IdentityMatrix[3] - rawD) . rawInverse;
+FTTest`FTAssert["production inverse normalization is deferred exactly once",
+  rawDeferredInverse["Status"] === "OK" &&
+    rawDeferredInverse["Statistics", "SInverse",
+      "DeferredNormalizationEntries"] > 0 &&
+    rawDeferredInverse["Statistics", "SInverse",
+      "NormalizationSeconds"] === 0. &&
+    sameMatrixQ[rawDeferredInverse["Inverse"], rawExpectedInverse] &&
+    ! SameQ[rawDeferredInverse["Inverse"],
+      Map[Together, rawExpectedInverse, {2}]]];
+
 missingInstalledDeferred = FeynFacet`Private`familyRowGaugeApply[
   connection, IdentityMatrix[n], IdentityMatrix[n], rows, gauge,
   {x, y}, Automatic, "Deferred"];

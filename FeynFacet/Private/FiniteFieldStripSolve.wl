@@ -55,6 +55,8 @@ ClearAll[
   finiteFieldStripPlanDiscoveryBackendDecision,
   finiteFieldStripCoreSolutionQ,
   finiteFieldStripEliminationPlanFingerprint,
+  finiteFieldStripEliminationPlanArtifactIdentity,
+  finiteFieldStripBackendArtifactIdentity,
   finiteFieldStripSealEliminationPlan,
   finiteFieldStripValidateEliminationPlan,
   finiteFieldStripModularArtifactValidQ,
@@ -64,6 +66,7 @@ ClearAll[
   finiteFieldStripDeadlineQ,
   finiteFieldStripDeadlineExpiredQ,
   finiteFieldStripBudgetExhausted,
+  finiteFieldStripParallelBackendThreads,
   finiteFieldStripBrokerMinimumSecondsParse,
   finiteFieldStripBrokerMinimumSeconds,
   $finiteFieldStripBrokerMinimumSecondsDefault,
@@ -305,6 +308,20 @@ $finiteFieldStripEliminationPlanCFFRRequiredKeys = Join[
 finiteFieldStripEliminationPlanFingerprint[plan_Association] := Hash[
   KeySort[KeyDrop[plan, "PlanFingerprint"]], "SHA256", "HexString"];
 
+(* Modular interpolation depends on the affine section, not on which row
+   basis, nonce, thread count, or adapter transcript discovered it.  Rank
+   plus the normalization columns uniquely identify that section. *)
+finiteFieldStripEliminationPlanArtifactIdentity[plan_Association] :=
+  KeyTake[plan, {"GenericRank", "NormalizationColumns"}];
+finiteFieldStripEliminationPlanArtifactIdentity[___] := None;
+
+(* Native thread allocation is execution telemetry.  It cannot change an
+   exact modular solution, so it must not invalidate completed primes when
+   the dynamic pool is rebalanced on a resume. *)
+finiteFieldStripBackendArtifactIdentity[configuration_Association] :=
+  KeyDrop[configuration, {"BackendThreads", "Fingerprint"}];
+finiteFieldStripBackendArtifactIdentity[___] := None;
+
 finiteFieldStripSealEliminationPlan[plan_Association,
     preparationFingerprint_String,
     planDiscoveryBackend_: "Wolfram",
@@ -441,21 +458,27 @@ finiteFieldStripValidateEliminationPlan[plan_,
 ];
 
 finiteFieldStripModularArtifactValidQ[artifact_, recordFingerprint_,
-    selectedOffset_, selectedShell_, planFingerprint_,
-    backendConfiguration_, planDiscoveryBackend_] :=
-  AssociationQ[artifact] &&
+    selectedOffset_, selectedShell_, planIdentity_,
+    backendIdentity_, planDiscoveryBackend_] := Module[
+  {artifactPlanIdentity, artifactBackendIdentity},
+  If[! AssociationQ[artifact], Return[False]];
+  artifactPlanIdentity = Lookup[artifact, "EliminationPlanIdentity",
+    KeyTake[artifact, {"GenericRank", "NormalizationColumns"}]];
+  artifactBackendIdentity = Lookup[artifact, "BackendArtifactIdentity",
+    finiteFieldStripBackendArtifactIdentity[
+      Lookup[artifact, "BackendConfiguration", <||>]]];
+  TrueQ[
     Lookup[artifact, "RecordFingerprint", Missing[]] ===
       recordFingerprint &&
     Lookup[artifact, "SelectedNumeratorDegreeOffset", Missing[]] ===
       selectedOffset &&
     Lookup[artifact, "SelectedSupportShell", "Rectangle"] ===
       selectedShell &&
-    Lookup[artifact, "EliminationPlanFingerprint", Missing[]] ===
-      planFingerprint &&
-    SameQ[Lookup[artifact, "BackendConfiguration", Missing[]],
-      backendConfiguration] &&
+    SameQ[artifactPlanIdentity, planIdentity] &&
+    SameQ[artifactBackendIdentity, backendIdentity] &&
     Lookup[artifact, "PlanDiscoveryBackend", Missing[]] ===
-      planDiscoveryBackend;
+      planDiscoveryBackend]
+];
 finiteFieldStripModularArtifactValidQ[___] := False;
 
 (* solve core . X = rhs modulo prime through the adapter; X (a dense
@@ -1567,6 +1590,9 @@ SampleEpsFormStripAffine[
           <|"GaugeSupport" -> support|>],
         preparation["Fingerprint"], planDiscoveryBackend,
         nativePlanResult["Binding"]];
+      (* Never leave the adapter's raw OK payload live after sealing was
+         attempted.  A sealing refusal is the result and must propagate. *)
+      nativePlanResult = sealedPlan;
       If[AssociationQ[sealedPlan] && Lookup[sealedPlan, "Status", None] === "OK",
         planResult = sealedPlan;
         rank = nativePlanResult["GenericRank"];
@@ -1587,8 +1613,7 @@ SampleEpsFormStripAffine[
           "BackendFailure" -> None, "EliminationPlan" -> planResult,
           "PlanDiscoverySeconds" -> planSeconds,
           "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
-          "PlanDiscoveryBackendUsed" -> planDiscoveryBackendUsed|>,
-        nativePlanResult = sealedPlan],
+          "PlanDiscoveryBackendUsed" -> planDiscoveryBackendUsed|>],
       Null];
     If[! AssociationQ[Lookup[affineData, "EliminationPlan", None]],
       rank = -1; augmentedRank = -2; rankSeconds = 0.;
@@ -2591,6 +2616,12 @@ finiteFieldStripDeadlineExpiredQ[deadline_] :=
 $finiteFieldStripBrokerMinimumSecondsDefault = 8.0;
 $finiteFieldStripBrokerMinimumSecondsCache = None;
 
+finiteFieldStripParallelBackendThreads[requested_Integer?Positive,
+    workerCount_Integer?Positive, nativeQuota_Integer?Positive] :=
+  If[workerCount === 1, requested,
+    Min[requested, Max[1, Quotient[nativeQuota, workerCount]]]];
+finiteFieldStripParallelBackendThreads[___] := $Failed;
+
 finiteFieldStripBrokerMinimumSecondsParse[text_, fallback_] := Module[
   {trimmed, parsed},
   trimmed = If[StringQ[text], StringTrim[text], ""];
@@ -2696,7 +2727,8 @@ SolveEpsFormStripFiniteField[record_Association,
    artifactPrefix, minimumPrimeCount, adaptivePrimeSampling,
    adaptiveValidationMargin, verbose, log, degreeProbe,
    selectedOffset = Missing["NotFound"], prime, launched = {},
-   sampleOptions, samples, interpolation, modularData = {},
+   sampleOptions, sampleBackendThreads, samples, interpolation,
+   modularData = {},
    currentEpsilonSamples, currentConstructionCount,
    currentMaximumTotalDegree, adaptivePlan,
    solution = $Failed, file, seconds, loadFile, recordFingerprint,
@@ -2714,6 +2746,7 @@ SolveEpsFormStripFiniteField[record_Association,
    planDiscoveryBackend, planDiscoveryDecision, nativeProbeQ = False,
    nativeProbeFailure,
    eliminationPlanFingerprint = None,
+   eliminationPlanIdentity = None, backendArtifactIdentity = None,
    solveStart = AbsoluteTime[], deadline, budgetStop = None,
    budgetProgress, budgetExhausted},
   If[! finiteFieldStripRecordQ[record],
@@ -2757,6 +2790,8 @@ SolveEpsFormStripFiniteField[record_Association,
   If[Lookup[backendConfiguration, "Schema", None] =!=
       "FeynFacetFiniteFieldFixedCoreBackendConfiguration",
     Return[backendConfiguration]];
+  backendArtifactIdentity =
+    finiteFieldStripBackendArtifactIdentity[backendConfiguration];
   planDiscoveryBackend = OptionValue["PlanDiscoveryBackend"];
   planDiscoveryDecision = finiteFieldStripPlanDiscoveryBackendDecision[
     planDiscoveryBackend];
@@ -2810,6 +2845,10 @@ SolveEpsFormStripFiniteField[record_Association,
   pointCount = OptionValue["PointCount"];
   kernelCount = facetKernelCount[
     OptionValue["KernelCount"], Length[epsilonSamples]];
+  sampleBackendThreads = If[kernelCount > 1,
+    finiteFieldStripParallelBackendThreads[
+      OptionValue["BackendThreads"], kernelCount,
+      taskBrokerNativeCoreQuota[]], OptionValue["BackendThreads"]];
   constructionCount = OptionValue["ConstructionCount"];
   maximumTotalDegree = OptionValue["MaximumTotalDegree"];
   artifactDirectory = OptionValue["ArtifactDirectory"];
@@ -3131,7 +3170,7 @@ SolveEpsFormStripFiniteField[record_Association,
     "NumeratorDegreeOffset" -> selectedOffset,
     Sequence @@ supportOptions,
     "Backend" -> OptionValue["Backend"],
-    "BackendThreads" -> OptionValue["BackendThreads"],
+    "BackendThreads" -> sampleBackendThreads,
     "PlanDiscoveryBackend" -> planDiscoveryBackend,
     "SolveAffineSystem" -> True,
     "Preparation" -> preparation,
@@ -3139,6 +3178,8 @@ SolveEpsFormStripFiniteField[record_Association,
     "EliminationPlan" -> eliminationPlan};
   eliminationPlanFingerprint = If[AssociationQ[eliminationPlan],
     Lookup[eliminationPlan, "PlanFingerprint", None], None];
+  eliminationPlanIdentity =
+    finiteFieldStripEliminationPlanArtifactIdentity[eliminationPlan];
   currentEpsilonSamples = epsilonSamples;
   currentConstructionCount = constructionCount;
   currentMaximumTotalDegree = maximumTotalDegree;
@@ -3170,7 +3211,7 @@ SolveEpsFormStripFiniteField[record_Association,
       interpolation = FamilyArtifactRead[file];
       If[! finiteFieldStripModularArtifactValidQ[interpolation,
           recordFingerprint, selectedOffset, selectedShell,
-          eliminationPlanFingerprint, backendConfiguration,
+          eliminationPlanIdentity, backendArtifactIdentity,
           planDiscoveryBackend],
         log["Stale modular interpolation for prime ", prime, " ignored (another record or ansatz)"];
         Quiet[DeleteFile[file]]]];
@@ -3320,7 +3361,9 @@ SolveEpsFormStripFiniteField[record_Association,
           "SelectedSupportShell" -> selectedShell,
           "RecordFingerprint" -> recordFingerprint,
           "EliminationPlanFingerprint" -> eliminationPlanFingerprint,
+          "EliminationPlanIdentity" -> eliminationPlanIdentity,
           "BackendConfiguration" -> backendConfiguration,
+          "BackendArtifactIdentity" -> backendArtifactIdentity,
           "PlanDiscoveryBackend" -> planDiscoveryBackend,
           (* M0 census: per-sample stage timers persisted with the
              prime artifact, so every production run is self-

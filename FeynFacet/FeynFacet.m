@@ -402,6 +402,7 @@ $feynFacetPrivateFiles = FileNameJoin[{$feynFacetPrivateDirectory, #}] & /@ {
     "MasterTransport.wl", "BlockwiseTransport.wl",
     "TransportCharts.wl", "FamilyRowGaugeResume.wl",
     "MultiquadraticAlgebra.wl", "MultiquadraticStripSolve.wl",
+    "FiniteFieldGaugePullBack.wl",
     "MultiquadraticInstallation.wl",
     "LibraEpsForm.wl", "FamilyEpsForm.wl",
     "DiagonalBlockEpsForm.wl", "TaskBroker.wl"

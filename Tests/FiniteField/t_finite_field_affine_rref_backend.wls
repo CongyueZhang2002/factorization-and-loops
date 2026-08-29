@@ -53,6 +53,10 @@ check["the option surface accepts exactly Wolfram and FLINTAffineRREF",
       "PlanDiscoveryBackendUsed" -> "FLINTAffineRREF"|> &&
   Lookup[FeynFacet`Private`finiteFieldStripPlanDiscoveryBackendDecision[
     Automatic], "Status", None] === "InvalidPlanDiscoveryBackendOption"];
+check["direct eight-worker sampling divides a 16-core native quota",
+  FeynFacet`Private`finiteFieldStripParallelBackendThreads[8, 8, 16] === 2 &&
+  FeynFacet`Private`finiteFieldStripParallelBackendThreads[8, 4, 16] === 4 &&
+  FeynFacet`Private`finiteFieldStripParallelBackendThreads[8, 1, 16] === 8];
 nonces = Table[FeynFacet`Private`finiteFieldStripCFFRNonce[], 32];
 check["the 128-bit nonce is nonzero and not repeated",
   AllTrue[nonces, IntegerQ[#] && 0 < # < 2^128 &] &&
@@ -374,6 +378,44 @@ check["(f) the binding is inside the plan fingerprint",
     FeynFacet`Private`finiteFieldStripEliminationPlanFingerprint[
         Join[sealed, <|"Nonce" -> sealed["Nonce"] + 1|>]] =!=
       sealed["PlanFingerprint"]];
+planArtifactIdentity =
+  FeynFacet`Private`finiteFieldStripEliminationPlanArtifactIdentity[
+    sealed];
+backendConfiguration2 =
+  FeynFacet`Private`finiteFieldStripBackendConfiguration[Automatic, 2];
+backendConfiguration7 =
+  FeynFacet`Private`finiteFieldStripBackendConfiguration[Automatic, 7];
+backendArtifactIdentity =
+  FeynFacet`Private`finiteFieldStripBackendArtifactIdentity[
+    backendConfiguration7];
+legacyArtifact = <|
+  "RecordFingerprint" -> "same-record",
+  "SelectedNumeratorDegreeOffset" -> {0, 0},
+  "SelectedSupportShell" -> 0,
+  "GenericRank" -> sealed["GenericRank"],
+  "NormalizationColumns" -> sealed["NormalizationColumns"],
+  "EliminationPlanFingerprint" -> sealed["PlanFingerprint"],
+  "BackendConfiguration" -> backendConfiguration2,
+  "PlanDiscoveryBackend" -> "FLINTAffineRREF"|>;
+check["resumable prime identity ignores adapter nonce, rows and threads",
+  planArtifactIdentity ===
+      KeyTake[sealed, {"GenericRank", "NormalizationColumns"}] &&
+    planArtifactIdentity ===
+      FeynFacet`Private`finiteFieldStripEliminationPlanArtifactIdentity[
+        Join[sealed, <|"Nonce" -> sealed["Nonce"] + 1,
+          "Threads" -> 7,
+          "IndependentEquationRows" ->
+            Reverse[sealed["IndependentEquationRows"]]|>]] &&
+    FeynFacet`Private`finiteFieldStripBackendArtifactIdentity[
+        backendConfiguration2] === backendArtifactIdentity &&
+    FeynFacet`Private`finiteFieldStripModularArtifactValidQ[
+      legacyArtifact, "same-record", {0, 0}, 0,
+      planArtifactIdentity, backendArtifactIdentity,
+      "FLINTAffineRREF"] &&
+    ! FeynFacet`Private`finiteFieldStripModularArtifactValidQ[
+      Join[legacyArtifact, <|"NormalizationColumns" -> {}|>],
+      "same-record", {0, 0}, 0, planArtifactIdentity,
+      backendArtifactIdentity, "FLINTAffineRREF"]];
 tamperedBinding = Module[{payload},
   payload = KeyDrop[Join[sealed,
     <|"AdapterBinarySHA256" -> StringRepeat["0", 64]|>],

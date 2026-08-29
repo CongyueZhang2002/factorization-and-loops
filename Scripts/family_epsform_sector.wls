@@ -24,18 +24,7 @@
           [sectorBudget=1800] [tag] [directSectorBudget=30] [chartFile]
           [familyDataDirectory] [classFormDirectory] *)
 $HistoryLength = 0;
-(* This driver's own identity.  The package hashes only its own Private
-   sources; a driver that participates in a strip solve declares itself
-   through the solver configuration's "DriverProvenance" (generality pass
-   2026-08-23, B2).  $InputFileName is captured NOW: inside a later
-   function body it is no longer the script. *)
 driverFile = ExpandFileName[$InputFileName];
-driverProvenance = <|FileNameTake[driverFile] -> driverFile|>;
-(* the writer's identity for the strip-input seal (2026-08-25): a seal is
-   only as good as the knowledge of which code wrote it *)
-$sectorDriverSourceSHA256 = If[FileExistsQ[driverFile],
-  FileHash[driverFile, "SHA256", "HexString"],
-  Missing["SourceFileUnavailable"]];
 root = ParentDirectory[DirectoryName[driverFile]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 (* pool subkernels keep state: clear the Global` symbols CANONICA and earlier
@@ -259,6 +248,11 @@ If[FileExistsQ[familyChartFile],
     "; the chart registry stays empty"]];
 mapleLib = FileNameJoin[{root, "Addon", "Other_Addon", "Maple", "IntegrableConnections"}];
 scratch = FileNameJoin[{outdir, "sector_" <> family <> tag}]; If[! DirectoryQ[scratch], CreateDirectory[scratch]];
+mapleCanonicalCache = Module[
+  {configured = Environment["FACET_MAPLE_CANONICAL_CACHE"]},
+  If[StringQ[configured] && StringLength[configured] > 0,
+    ExpandFileName[configured],
+    FileNameJoin[{DirectoryName[outdir], "MapleCanonicalCache"}]]];
 stateFile = FileNameJoin[{outdir, "sector_state_" <> family <> tag <> ".wl"}];
 cachedState = If[FileExistsQ[stateFile], normalizeSymbols[Get[stateFile]],
   Missing["NotFound"]];
@@ -603,8 +597,7 @@ If[Lookup[staleStopMigration, "Status", None] === "Migrated",
     " is resolved by the factorization already recorded there"]];
 
 stripSolverSummary[solution_Association, sector_Integer,
-    lowerSector_Integer, extraLetters_List : {},
-    solverConfiguration_Association : <||>] := Join[
+    lowerSector_Integer, extraLetters_List : {}] := Join[
   <|"Sector" -> sector, "LowerSector" -> lowerSector|>,
   KeyTake[solution, {"Method", "NumeratorDegree", "DenominatorDegree",
     "GaugeNumeratorDegrees", "GaugeDenominatorDegrees",
@@ -643,24 +636,7 @@ stripSolverSummary[solution_Association, sector_Integer,
           (KeyDrop[#1, {"UnresolvedCoefficientLocations"}] & /@
             Lookup[reconstruction, "LiftAttemptHistory", {}])|>]|>],
     <||>],
-  <|"ExtraLetters" -> extraLetters,
-    "SolverConfiguration" -> solverConfiguration|>];
-stripSolverConfiguration[route_String,
-    directAlphabetOptions_ : Automatic] :=
-  FeynFacet`Private`familyRowGaugeSolverConfiguration[
-    route, Lookup[chart, "CoefficientField", "Rational"], chart,
-    If[route === "ZeroForcing", None,
-      If[productionQ, "Numerical", "Exact"]],
-    If[route === "ZeroForcing", None, finiteFieldBackend],
-    If[route === "ZeroForcing", None, finiteFieldBackendThreads],
-    Which[route === "ZeroForcing", None,
-      route === "DirectMultiquadraticFiniteField", Automatic,
-      True, planDiscoveryBackend],
-    "PlanDiscoveryBackendThreads" -> If[
-      route === "DirectMultiquadraticFiniteField", mqNativeThreads,
-      Automatic],
-    "DriverProvenance" -> driverProvenance,
-    "DirectAlphabetOptions" -> directAlphabetOptions];
+  <|"ExtraLetters" -> extraLetters|>];
 
 (* Regulator factorization of the completed rows 1..m (FiniteFieldFirst
    route, 2026-08-22): a completed block may be a dlog form whose residue
@@ -1008,8 +984,7 @@ Do[
       blockColumns, checkpointData, solvedForms, solvedForm,
       stripSolvers = {}, transformation, stripCheckpoint,
       checkpointValid, stripInputFile, extraLetters, obstruction,
-      resumeHydration, resumeReset, zeroForcingQ,
-      requestedSolverConfiguration, solverConfiguration,
+      zeroForcingQ,
       modularBranches, modularArtifact, modularSummary,
       constructionStart, constructionTimings, constructionSeconds,
       constructionCheck},
@@ -1021,6 +996,18 @@ Do[
          (the truncated regulator factorization changes it; CF265 sector
          18, 2026-08-22) *)
       checkpointValid = AssociationQ[stripCheckpoint] &&
+        (Lookup[stripCheckpoint, "Family", Missing["LegacyCheckpoint"]] ===
+            family ||
+          MissingQ[Lookup[stripCheckpoint, "Family",
+            Missing["LegacyCheckpoint"]]] &&
+          AllTrue[Lookup[stripCheckpoint, "StripSolvers", {}],
+            Function[summary, With[{inputFile = FileNameJoin[{scratch,
+                family <> "_" <> ToString[k] <> "_" <>
+                  ToString[Lookup[summary, "LowerSector", -1]] <>
+                  "_input.wl"}]},
+              FileExistsQ[inputFile] &&
+                Lookup[readArtifact[inputFile], "Family", None] ===
+                  family]]]) &&
         Lookup[stripCheckpoint, "ConnectionHash", None] === Hash[aP, "SHA256", "HexString"] &&
         Lookup[stripCheckpoint, "Sector", Missing[]] === k &&
         Lookup[stripCheckpoint, "SubSize", Missing[]] === subSize &&
@@ -1052,88 +1039,24 @@ Do[
           assoc[m] = fromC[prevD][[All, col - Length[blockRows[m]] + 1 ;; col]];
           col -= Length[blockRows[m]]; m--];
         assoc];
-      (* Every blockwise resume replays all recovered blocks from exact-
-         matching copied inputs/caches: direct finite-field artifacts in a
-         rational frame, per-strip rational charts in a multiquadratic frame.
-         Existing SolvedForms are SameQ-verified against the replay; missing
-         forms are hydrated.  The helper is read-only with respect to the live
-         checkpoint and this driver remains its sole writer.  Any typed
-         replay failure invalidates the whole recovered row and re-solves its
-         strips.  Explicitly disabling hydration is the opt-out: it trusts the
-         saved gauges but ignores saved forms and uses the exact sparse formula
-         until the mandatory final family certificate. *)
+      (* The checkpoint validator above is deliberately mathematical only:
+         same family/sector/connection content, a complete block-boundary
+         gauge prefix, and one accepted strip record per banked block.  How a
+         block was computed (backend, threads, caches or source revision) can
+         neither strengthen nor invalidate that identity.  Saved dlog forms
+         are an optional acceleration; malformed or incomplete forms simply
+         leave the exact sparse row formula active until the mandatory final
+         family certificate. *)
       If[checkpointValid && blockwiseRouteQ && Length[solvedBlocks] > 0,
-        If[Environment["FACET_RESUME_HYDRATION"] === "False",
-          solvedForms = <||>; installedRow = Automatic;
-          log["  resume hydration explicitly disabled: trusting recovered " <>
-            "checkpoint gauges, ignoring SolvedForms, and using sparse row " <>
-            "propagation; the final family certificate remains mandatory"],
-          (* announced BEFORE the call, not after it (2026-08-25).  The
-             hydration re-verifies every banked strip against the current
-             connection and printed nothing at all until its first strip
-             had already been replayed: CF303 sector 17 was silent for
-             more than 40 minutes with five strips to re-check and a
-             61 MB state, and a watchdog cannot tell that from a hang. *)
-          log["  resume hydration: re-checking ",
-            Length[solvedBlocks], " banked strip(s) ",
-            Sort[Keys[solvedBlocks]], " of sector ", k,
-            " against the current connection (truncation ", nk, ")"];
-          refreshResourceAllocation[];
-          resumeHydration = FeynFacet`Private`familyRowGaugeHydrateResume[
-            stripCheckpoint, stripCheckpointFile, solvedBlocks, solvedForms,
-            family, k, invariants, ee, chart, ranges, scratch, state["A"],
-            "KernelCount" -> kernelCount,
-            "FinalCheck" -> If[productionQ, "Numerical", "Exact"],
-            "FiniteFieldBackend" -> finiteFieldBackend,
-            "FiniteFieldBackendThreads" -> finiteFieldBackendThreads,
-            "PlanDiscoveryBackend" -> planDiscoveryBackend,
-            "PlanDiscoveryBackendThreads" -> mqNativeThreads,
-            "MultiquadraticImageKernelCount" -> mqImageKernelCount,
-            "DriverProvenance" -> driverProvenance,
-            "Verbose" -> True];
-          If[AssociationQ[resumeHydration] &&
-              MemberQ[{"Hydrated", "HydratedPartial", "Verified",
-                "VerifiedPartial"},
-                Lookup[resumeHydration, "Status", None]],
-            solvedForms = resumeHydration["SolvedForms"];
-            If[TrueQ[Lookup[resumeHydration,
-                "ActivateInstalledRow", False]],
-              installedRow = resumeHydration["InstalledRow"]];
-            log["  resume hydration: ", resumeHydration["Status"],
-              ", replayed ",
-              Length[Lookup[resumeHydration, "ReplayRecords", {}]],
-              " forms in ",
-              Round[Lookup[resumeHydration, "Seconds", 0.], 0.1], " s",
-              (* the per-strip breakdown the campaign had no way to see:
-                 which strip cost what, and the whole-state identity
-                 phases in front of the first one *)
-              If[MatchQ[Lookup[resumeHydration, "PhaseTimings", None],
-                  _Association],
-                ", phases " <> ToString[Map[Round[#, 0.1] &,
-                  resumeHydration["PhaseTimings"]], InputForm], ""],
-              If[MatchQ[Lookup[resumeHydration, "ReplayRecords", None],
-                  {__Association}],
-                ", per strip " <> ToString[
-                  Lookup[#, "LowerSector", None] ->
-                    Round[Lookup[#, "Seconds", 0.], 0.1] & /@
-                  resumeHydration["ReplayRecords"], InputForm], ""]],
-            (* A replay failure can mean the recovered gauge itself is
-               corrupt, not merely its materialized form.  Discard the whole
-               row suffix and recompute every strip; applying recovered
-               solvedBlocks through the sparse formula would preserve exactly
-               the untrusted payload that replay rejected. *)
-            resumeReset =
-              FeynFacet`Private`familyRowGaugeResumeInvalidatedState[
-                subSize];
-            {prevD, solvedBlocks, solvedForms, stripSolvers, installedRow} =
-              Lookup[resumeReset, {"PrevD", "SolvedBlocks", "SolvedForms",
-                "StripSolvers", "InstalledRow"}];
-            log["  resume hydration unavailable: ",
-              If[AssociationQ[resumeHydration],
-                KeyTake[resumeHydration,
-                  {"Status", "LowerSector", "DiskSameQ",
-                   "CurrentConnectionHashSameQ"}], resumeHydration],
-              "; invalidating the recovered row and resolving every strip"]]]];
+        If[Sort[Keys[solvedForms]] =!= Sort[Keys[solvedBlocks]] ||
+            ! AllTrue[Keys[solvedBlocks],
+              Dimensions[Lookup[solvedForms, #, Missing["NoForm"]]] ===
+                {2, subSize, Length[blockRows[#]]} &],
+          solvedForms = <||>];
+        installedRow = Automatic;
+        log["  resume accepted ", Length[solvedBlocks],
+          " banked strip(s) by mathematical checkpoint identity; " <>
+          "execution settings ignored"]];
       (* one cooperative deadline check of the strip-CONSTRUCTION stage;
          it reads the CURRENT constructionStart / nlow /
          constructionTimings of the strip being built, and leaves the
@@ -1205,54 +1128,6 @@ Do[
                 $blockConstructionRecord[
                   "DeferredMaterializationCertificate"]|>, <||>]],
           stripInputFile]]];
-        (* THE STRIP-INPUT SEAL (2026-08-25, Codex 14:30 integrity layer,
-           step 1 of 4).  A resume currently re-derives the whole symbolic
-           block equation for every banked strip just to prove the input
-           on disk is the one the current connection implies.  That proof
-           is a cheap digest comparison IF the digests were recorded when
-           the input was written, which is what this does: the connection
-           the strip was built on, its position, the solved-block prefix
-           it was built from, the writer's schema, and the exact strip.
-
-           It is a SIDECAR, not a new key of the input record: the input
-           record's own hash travels in resume replay records and in
-           existing banked artifacts, and an extra key would change it
-           for every strip already on disk.  An absent sidecar therefore
-           means "written before this seal existed" and costs nothing.
-
-           Steps 2-4 landed on 2026-08-25 in FamilyRowGaugeResume.wl:
-           the seal carries its own FINGERPRINT (schema V2) and a resume
-           recomputes it from the hydrated record; two independent
-           held-out modular images of the block-equation relation are
-           evaluated; a mismatch at an admissible image is a typed
-           ResumeRejected naming that image.  The exact reconstruction
-           remains the DEFAULT companion ("ResumeGate" ->
-           "ModularThenExact"); "Modular" is the opt-in mode that skips
-           it once the seal authenticates and both images agree.
-
-           The record is built by the package
-           (familyRowGaugeStripInputSeal), not assembled here, so the
-           writer and the reader cannot drift apart in the field order
-           the fingerprint is taken over. *)
-        First[AbsoluteTiming[putAtomic[
-          FeynFacet`Private`familyRowGaugeStripInputSeal[
-            family, k, nlow, nk,
-            Hash[aP, "SHA256", "HexString"], solvedBlocks,
-            Hash[If[AssociationQ[Lookup[$blockConstructionRecord,
-                "DeferredBundle", None]],
-              {{e, c, bbar}, $blockConstructionRecord[
-                "DeferredBundleFingerprint"]},
-              If[AssociationQ[Lookup[$blockConstructionRecord,
-                  "DeferredPreparation", None]],
-                {{e, c, bbar},
-                  $blockConstructionRecord["DeferredPreparation"][
-                    "Preparation"]["Fingerprint"]},
-                {e, c, bbar}]],
-              "SHA256", "HexString"],
-            Hash[{invariants, ee}, "SHA256", "HexString"],
-            $sectorDriverSourceSHA256],
-          StringReplace[stripInputFile,
-            "_input.wl" -> "_input_seal.wl"]]]];
         constructionTimings["StripInputWrite"] = constructionSeconds;
         If[Environment["FACET_RECORD_STRIP_ONLY"] === "True",
           log["  recorded strip ", {k, nlow}, " at ", stripInputFile];
@@ -1369,20 +1244,6 @@ Do[
             log["  !! deferred bundle has no valid direct alphabet payload " <>
               "for strip ", {k, nlow}];
             putAtomic[state, stateFile]; Exit[2]];
-          requestedSolverConfiguration = stripSolverConfiguration[
-            Which[zeroForcingQ, "ZeroForcing",
-              algebraicFrameQ && AssociationQ[deferredBundle],
-                "DirectMultiquadraticFiniteField",
-              algebraicFrameQ, "RationalChartFiniteField",
-              True, "DirectRationalFiniteField"],
-            If[! zeroForcingQ && algebraicFrameQ &&
-                AssociationQ[deferredBundle],
-              directAlphabetOptions, Automatic]];
-          If[! FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
-              requestedSolverConfiguration],
-            log["  !! solver configuration could not be sealed before strip ",
-              {k, nlow}, ": ", requestedSolverConfiguration];
-            putAtomic[state, stateFile]; Exit[2]];
           (* BOUNDARY: the last driver-side check before any solver runs.
              Past it the deadline is enforced inside the solver, and
              inside SolveEpsFormStripInFrame's own construction stage,
@@ -1425,7 +1286,9 @@ Do[
                    call -- the chart pullback, the gauge pullback and the
                    source-frame identity check (2026-08-24) *)
                 "GaugePullBackMode" -> If[productionQ,
-                  "MapleCanonical", "Exact"],
+                  "FiniteFieldReconstruct", "Exact"],
+                "MapleTimeLimit" -> stripMapleBudget,
+                "MapleCanonicalCacheDirectory" -> mapleCanonicalCache,
                 "DeferredPreparation" -> deferredPreparation,
                 "Deadline" -> sectorDeadline,
                 "ScratchDirectory" -> scratch,
@@ -1499,12 +1362,13 @@ Do[
             "CANONICAKernels" -> kernelCount,
             "MapleLibrary" -> mapleLib,
             "MapleTimeLimit" -> stripMapleBudget,
+            "MapleCanonicalCacheDirectory" -> mapleCanonicalCache,
             "MapleResidueKernels" -> kernelCount,
             "MultiquadraticOptions" -> {"Deadline" -> sectorDeadline},
             (* and the strip-construction stage inside this call *)
             "Deadline" -> sectorDeadline,
             "GaugePullBackMode" -> If[productionQ,
-              "MapleCanonical", "Exact"],
+              "FiniteFieldReconstruct", "Exact"],
             "ScratchDirectory" -> scratch,
             "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
             "Verbose" -> False],
@@ -1619,9 +1483,6 @@ Do[
                 "Dimensions" -> Dimensions[First[bbar]],
                 "ConnectionHash" -> Hash[aP, "SHA256", "HexString"],
                 "StripCheckpointFile" -> stripCheckpointFile|>,
-              "SolverConfiguration" -> If[blockwiseRouteQ,
-                requestedSolverConfiguration,
-                Missing["LegacySolverRouteNotBound"]],
               "Summary" -> modularSummary,
               "Result" -> solution|>,
             modularArtifact];
@@ -1644,9 +1505,6 @@ Do[
             <|"Family" -> family, "Sector" -> k,
               "LowerSector" -> nlow, "Variables" -> invariants,
               "Regulator" -> ee, "Strip" -> {e, c, bbar},
-              "SolverConfiguration" -> If[blockwiseRouteQ,
-                requestedSolverConfiguration,
-                Missing["LegacySolverRouteNotBound"]],
               "SolverFailure" ->
                 FeynFacet`Private`familyRowGaugeSolverFailureSummary[
                   solution],
@@ -1657,32 +1515,13 @@ Do[
                 ToString[nlow] <> "_unsolved.wl"}]];
           putAtomic[state, stateFile]; Exit[2]];
         gauge = solution["Gauge"];
-        solverConfiguration = If[blockwiseRouteQ,
-          stripSolverConfiguration[
-            Which[Lookup[solution, "Method", None] === "ZeroForcing",
-              "ZeroForcing",
-              Lookup[solution, "Method", None] ===
-                "DirectMultiquadraticFiniteField",
-              "DirectMultiquadraticFiniteField",
-              algebraicFrameQ, "RationalChartFiniteField",
-              True, "DirectRationalFiniteField"],
-            If[Lookup[solution, "Method", None] ===
-                "DirectMultiquadraticFiniteField",
-              directAlphabetOptions, Automatic]], <||>];
-        If[blockwiseRouteQ &&
-            ! FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
-              solverConfiguration],
-          log["  !! solver configuration could not be sealed for strip ",
-            {k, nlow}, ": ", solverConfiguration];
-          putAtomic[state, stateFile]; Exit[2]];
         solvedForm = FeynFacet`Private`familyRowGaugeDLogForm[
           solution, invariants, ee, Dimensions[First[bbar]]];
         If[ListQ[solvedForm], solvedForms[nlow] = solvedForm,
           log["    materialized dlog row form unavailable; row propagation " <>
             "will use the exact sparse formula"]];
         AppendTo[stripSolvers,
-          stripSolverSummary[solution, k, nlow, extraLetters,
-            solverConfiguration]];
+          stripSolverSummary[solution, k, nlow, extraLetters]];
         log["    ", solution["Method"],
           If[KeyExistsQ[solution, "NumeratorDegree"],
             " at numerator degree " <> ToString[solution["NumeratorDegree"]],
@@ -1690,7 +1529,7 @@ Do[
         prevD = MapIndexed[Join[toC[gauge][[#2[[1]]]], #1] &, prevD];
         solvedBlocks[nlow] = gauge;
         putAtomic[
-          <|"Sector" -> k, "SubSize" -> subSize,
+          <|"Family" -> family, "Sector" -> k, "SubSize" -> subSize,
             "Truncation" -> nk, "PrevD" -> fromC[prevD],
             "ConnectionHash" -> Hash[aP, "SHA256", "HexString"],
             "StripSolvers" -> stripSolvers,

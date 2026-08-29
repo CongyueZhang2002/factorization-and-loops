@@ -255,47 +255,6 @@ FTAssert["the blockwise transport root option defaults to Automatic",
   Lookup[Options[FeynFacet`Private`masterTransportBlockwiseSolve], "Root",
     Missing[]] === Automatic];
 
-(* a context-qualified name may not be broken across lines *)
-solverProvenance = FeynFacet`Private`familyRowGaugeSolverImplementationProvenance;
-packageProvenance = solverProvenance["RationalChartFiniteField"];
-driverPath = FileNameJoin[{root, "Scripts", "family_epsform_sector.wls"}];
-driverProvenance = solverProvenance["RationalChartFiniteField",
-  "DriverProvenance" -> <|"driver.wls" -> driverPath|>];
-FTAssert["the solver provenance hashes only package sources by default",
-  AssociationQ[packageProvenance] &&
-    packageProvenance["DriverProvenance"] === <||> &&
-    Sort[Keys[packageProvenance["SourceSHA256"]]] ===
-      Sort[{"FamilyRowGaugeResume.wl", "FamilyRowGauge.wl",
-        "FiniteFieldStripSolve.wl", "TransportCharts.wl"}]];
-FTAssert["a driver declares its own identity through the option",
-  AssociationQ[driverProvenance] &&
-    Keys[driverProvenance["DriverProvenance"]] === {"driver.wls"} &&
-    driverProvenance["DriverProvenance"]["driver.wls"]["Path"] ===
-      driverPath &&
-    driverProvenance["DriverProvenance"]["driver.wls"]["SHA256"] ===
-      FileHash[driverPath, "SHA256", "HexString"] &&
-    driverProvenance =!= packageProvenance &&
-    solverProvenance["RationalChartFiniteField",
-      "DriverProvenance" -> <|"driver.wls" -> missingFile|>] === $Failed];
-
-sealed = FeynFacet`Private`familyRowGaugeSolverConfiguration[
-  "ZeroForcing", "Rational", <||>, None, None, None, None,
-  "DriverProvenance" -> <|"driver.wls" -> driverPath|>];
-FTAssert["the sealed solver configuration is schema version 5 and valid",
-  AssociationQ[sealed] && sealed["Status"] === "OK" &&
-    sealed["SchemaVersion"] === 5 &&
-    FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[sealed]];
-FTAssert["a version-3 configuration is refused, so old checkpoints recompute",
-  ! FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
-      Join[sealed, <|"SchemaVersion" -> 3|>]] &&
-    Lookup[FeynFacet`Private`familyRowGaugeResumeSolverConfigurationCheck[
-        <|"Method" -> "ZeroForcing",
-          "SolverConfiguration" -> Join[sealed, <|"SchemaVersion" -> 3|>]|>,
-        sealed], "Status", None] === "ResumeSolverConfigurationMismatch"];
-FTAssert["a configuration whose driver source changed is refused",
-  ! FeynFacet`Private`familyRowGaugeSolverConfigurationValidQ[
-    sealed /. driverPath -> FileNameJoin[{root, "Tests", "TestKit.wl"}]]];
-
 (* A2: an empty differential directory is named, never a complete inventory *)
 emptyDirectory = CreateDirectory[FileNameJoin[{$TemporaryDirectory,
   "feynfacet-generality-" <> CreateUUID[]}]];

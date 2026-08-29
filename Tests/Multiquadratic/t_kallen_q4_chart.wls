@@ -347,10 +347,12 @@ inverseComposition[chart_, squares_] := Module[{roots, identityData},
   FeynFacet`Private`masterTransportRecordCoordinateMap[
     <|"Variables" -> chart["Variables"], "Chart" -> chart|>,
     identityData, Automatic]];
-{inverseASeconds, inverseA} = AbsoluteTiming[inverseComposition[kq4a,
-  {lambda1[vv, ww], q3a[vv, ww]}]];
-{inverseBSeconds, inverseB} = AbsoluteTiming[inverseComposition[kq4b,
-  {lambda1[vv, ww], q3b[vv, ww]}]];
+{inverseASeconds, inverseA} = AbsoluteTiming[TimeConstrained[
+  inverseComposition[kq4a, {lambda1[vv, ww], q3a[vv, ww]}],
+  5, $TimedOut]];
+{inverseBSeconds, inverseB} = AbsoluteTiming[TimeConstrained[
+  inverseComposition[kq4b, {lambda1[vv, ww], q3b[vv, ww]}],
+  5, $TimedOut]];
 Print["analytic inverse coordinate maps: KallenQ4a ",
   Round[inverseASeconds, .001], " s; KallenQ4b ",
   Round[inverseBSeconds, .001], " s"];
