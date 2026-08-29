@@ -256,11 +256,9 @@ familyRegulatorPointFactoredQ[inverse_List, {ax_List, ay_List}, candidate_List, 
 familyRegulatorSampleFactoredQ[inverse_List, samples_List,
     candidate_List, epsilon_Symbol] := AllTrue[samples,
   Function[sample,
-    MatchQ[sample, {_List, _List}] &&
-      familyRegulatorFactoredQ[
-        familyRegulatorConjugate[inverse, sample[[1]], candidate], epsilon] &&
-      familyRegulatorFactoredQ[
-        familyRegulatorConjugate[inverse, sample[[2]], candidate], epsilon]]];
+    ListQ[sample] && sample =!= {} && AllTrue[sample,
+      Function[matrix, MatrixQ[matrix] && familyRegulatorFactoredQ[
+        familyRegulatorConjugate[inverse, matrix, candidate], epsilon]]]]];
 
 (* Find the constant regulator transformation from an exact point evaluator.
    The evaluator substitutes kinematics before Together, so a rational chart
@@ -293,9 +291,8 @@ familyRegulatorFactorFromPointEvaluator[evaluator_, n_Integer?Positive,
   rules = Table[{variables[[1]] -> Prime[k + 3]/Prime[k + 11],
       variables[[2]] -> Prime[2 k + 5]/Prime[2 k + 15]}, {k, 1, 24}];
   tail = Length[rules];
-  validSampleQ[sample_] := MatchQ[sample, {_List, _List}] &&
-    Dimensions[sample[[1]]] === {n, n} &&
-    Dimensions[sample[[2]]] === {n, n} &&
+  validSampleQ[sample_] := ListQ[sample] && sample =!= {} &&
+    AllTrue[sample, MatrixQ[#1] && Dimensions[#1] === {n, n} &] &&
     FreeQ[sample, Indeterminate | ComplexInfinity | DirectedInfinity[_]];
   sampleAt[rule_] := Module[{remaining, sampled},
     If[familyRegulatorDeadlineExpiredQ[deadline],
@@ -576,6 +573,7 @@ ClearAll[familyRegulatorNonSquareRationalQ, familyRegulatorGradedRoots,
   familyRegulatorGradedRootFrame, familyRegulatorGradedDecompose,
   familyRegulatorGradedFrameEvidence,
   familyRegulatorGradedDecomposeUnchecked, familyRegulatorGradedMatrices,
+  familyRegulatorTaggedGradeDecompose, familyRegulatorGradedPointSample,
   familyRegulatorGradedDecomposeTask,
   familyRegulatorGradedPointFactoredQ, familyRegulatorModularImage,
   familyRegulatorGradedCorroborate, familyRegulatorGradedSpotCheck,
@@ -727,6 +725,73 @@ familyRegulatorGradedDecomposeUnchecked[expression_, roots_List,
     Return[$Failed]];
   channels
 ];
+
+(* Production samples kinematics before grade decomposition.  At that point
+   the declared radicals have already been replaced by inert generators and
+   their squares are exact rationals.  Reducing this small univariate-in-eps
+   object is algebraically the same field operation as the symbolic route,
+   but it never constructs giant bivariate grade expressions. *)
+familyRegulatorTaggedGradeDecompose[expression_, tags_List,
+    deltas_List] := Module[
+  {rank = Length[tags], reducedDeltas, rational, numerator, denominator,
+   numeratorChannels, denominatorChannels, denominatorInverse, channels},
+  If[Length[deltas] =!= rank || rank > $familyRegulatorMaximumGradedRank,
+    Return[$Failed]];
+  reducedDeltas = Together /@ deltas;
+  If[! AllTrue[reducedDeltas, MatchQ[#1, _Integer | _Rational] &],
+    Return[$Failed]];
+  rational = Together[expression];
+  If[! FreeQ[rational,
+      Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
+    Return[$Failed]];
+  If[rank === 0 || FreeQ[rational, Alternatives @@ tags],
+    Return[PadRight[{rational}, 2^rank, 0]]];
+  numerator = Numerator[rational]; denominator = Denominator[rational];
+  If[! PolynomialQ[numerator, tags] || ! PolynomialQ[denominator, tags],
+    Return[$Failed]];
+  numeratorChannels = multiquadraticFromPolynomial[
+    numerator, tags, reducedDeltas];
+  denominatorChannels = multiquadraticFromPolynomial[
+    denominator, tags, reducedDeltas];
+  If[numeratorChannels === $Failed || denominatorChannels === $Failed,
+    Return[$Failed]];
+  denominatorInverse = multiquadraticFieldInverse[
+    denominatorChannels, reducedDeltas];
+  If[denominatorInverse === $Failed, Return[$Failed]];
+  channels = Together /@ multiquadraticMultiply[
+    numeratorChannels, denominatorInverse, reducedDeltas];
+  If[Length[channels] === 2^rank, channels, $Failed]
+];
+familyRegulatorTaggedGradeDecompose[___] := $Failed;
+
+familyRegulatorGradedPointSample[connection : {_List, _List}, tags_List,
+    rootSquares_List, rule_List] := Module[
+  {rank = Length[tags], gradeCount, n, deltas, specialized, channels},
+  If[Length[rootSquares] =!= rank || ! MatrixQ[connection[[1]]] ||
+      ! MatrixQ[connection[[2]]] ||
+      Dimensions[connection[[1]]] =!= Dimensions[connection[[2]]] ||
+      Length[connection[[1]]] =!= Length[First[connection[[1]]]],
+    Return[$Failed]];
+  n = Length[connection[[1]]]; gradeCount = 2^rank;
+  deltas = Together /@ (rootSquares /. rule);
+  If[! AllTrue[deltas, MatchQ[#1, _Integer | _Rational] &],
+    Return[$Failed]];
+  If[MemberQ[deltas, 0] || AnyTrue[
+      Rest[Subsets[Range[rank]]],
+      multiquadraticStripSquareClassSquareQ[
+        Times @@ deltas[[#1]]] &],
+    Return[$Failed]];
+  specialized = connection /. rule;
+  channels = Map[
+    If[TrueQ[#1 === 0], ConstantArray[0, gradeCount],
+      familyRegulatorTaggedGradeDecompose[#1, tags, deltas]] &,
+    specialized, {3}];
+  If[! FreeQ[channels, $Failed], Return[$Failed]];
+  Flatten[Table[
+    Table[channels[[mu, i, j, grade]], {i, n}, {j, n}],
+    {mu, 2}, {grade, gradeCount}], 1]
+];
+familyRegulatorGradedPointSample[___] := $Failed;
 
 familyRegulatorGradedDecompose[expression_, roots_List] := Module[{frame},
   If[Length[roots] > $familyRegulatorMaximumGradedRank, Return[$Failed]];
@@ -1154,7 +1219,9 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
    spot, corroboration, exactSeconds, gradeFailure = None,
    deadline, expired = False, ladderLimit, decompositionSeconds,
    numericGradeCount = 0, skippedStages = {}, rootFrame,
-   gradedFrameEvidence, validationMode, deferAcceptanceQ},
+   gradedFrameEvidence, validationMode, deferAcceptanceQ,
+   evaluated, rootTags, taggedConnection, rootSquares,
+   sourceConjugationSeconds = 0.},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependenceMultiquadratic::input];
@@ -1190,6 +1257,76 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
     Return[familyRegulatorDeadlineStop["Entry", deadline, start,
       <|"Rank" -> rank|>]]];
   gradeCount = 2^rank;
+
+  (* Production needs T(eps), not symbolic bivariate grade matrices.  Tag
+     the roots while their square classes are still distinct, specialize
+     (x,y) exactly, and only then reduce the resulting small algebra over
+     Q(eps).  Held-out exact rational points select the candidate; the final
+     family certificate remains the acceptance boundary.  Development keeps
+     the full symbolic grade path below. *)
+  If[deferAcceptanceQ,
+    log["sampling kinematics before grade decomposition (", gradeCount,
+      " grades)"];
+    rootTags = Table[
+      Unique["FeynFacet`Private`familyRegulatorSampleRoot"], {rank}];
+    taggedConnection = Map[
+      transportChartApplyRootBranches[#1, roots, rootTags] &,
+      {ax, ay}];
+    rootSquares = Lookup[roots, "RootSquare", {}];
+    evaluated = familyRegulatorFactorFromPointEvaluator[
+      Function[{pointRules}, familyRegulatorGradedPointSample[
+        taggedConnection, rootTags, rootSquares, pointRules]],
+      n, variables, epsilon,
+      "TimeLimit" -> OptionValue["TimeLimit"],
+      "Deadline" -> deadline,
+      "InputResiduesEpsFree" -> OptionValue["InputResiduesEpsFree"],
+      "ValidationMode" -> validationMode,
+      "UseFermat" -> OptionValue["UseFermat"],
+      "PointLadder" -> OptionValue["PointLadder"],
+      "GatePoints" -> OptionValue["GatePoints"],
+      "Verbose" -> verbose];
+    If[AssociationQ[evaluated] && evaluated["Status"] === "OK",
+      transformation = evaluated["Transformation"];
+      inverse = evaluated["Inverse"];
+      If[! FreeQ[{transformation, inverse}, Alternatives @@ variables],
+        Return[<|"Status" -> "TransformationNotConstant", "Rank" -> rank,
+          "Attempts" -> evaluated["Attempts"],
+          "Seconds" -> AbsoluteTime[] - start|>]];
+      {sourceConjugationSeconds, {newAx, newAy}} = AbsoluteTiming[{
+        familyRegulatorConjugateDeferred[inverse, ax, transformation],
+        familyRegulatorConjugateDeferred[inverse, ay, transformation]}];
+      log["sample-first factorization and deferred source conjugation completed; ",
+        "source conjugation ", Round[sourceConjugationSeconds, 0.1],
+        " s; acceptance deferred to family certificate"];
+      Return[<|"Status" -> "OK",
+        "Method" -> "MultiquadraticEvaluatedGradeSamples",
+        "DeadlineSkippedStages" -> {},
+        "GradeDecompositionSeconds" ->
+          Missing["SpecializedBeforeDecomposition"],
+        "GradeDecompositionStatistics" -> <|
+          "Route" -> "EvaluatedPoints", "Interned" -> False,
+          "RoundTripValidated" -> False|>,
+        "Points" -> evaluated["Points"], "Rank" -> rank,
+        "GradeCount" -> gradeCount,
+        "ActiveGrades" -> Missing["PointwiseGrades"],
+        "GradedRootFrame" -> gradedFrameEvidence,
+        "Transformation" -> transformation, "Inverse" -> inverse,
+        "Connection" -> {newAx, newAy},
+        "Attempts" -> evaluated["Attempts"],
+        "ValidationMode" -> validationMode,
+        "ExactEpsFactorization" -> Missing["DeferredToFamilyCertificate"],
+        "ExactInverse" -> Missing["DeferredToFamilyCertificate"],
+        "GradeConjugationSeconds" -> sourceConjugationSeconds,
+        "ExactCheckSeconds" -> Missing["NotRun"],
+        "CompositionSpotCheck" -> Missing["DeferredToFamilyCertificate"],
+        "ModularCorroboration" -> Missing["DeferredToFamilyCertificate"],
+        "UseFermat" -> evaluated["UseFermat"],
+        "PropagationSeal" -> Missing["DeferredToFamilyCertificate"],
+        "Seconds" -> AbsoluteTime[] - start|>]];
+    log["sample-first route returned ",
+      If[AssociationQ[evaluated], Lookup[evaluated, "Status", "Unknown"],
+        Head[evaluated]], "; using the symbolic grade fallback"]];
+
   log["grade decomposition of a ", n, "x", n, " connection at rank ", rank,
     " (", gradeCount, " grades)"];
   (* the decomposition is the measured 87% of this stage (CF259 rows
