@@ -1319,6 +1319,8 @@ familyRowGaugeHydrateResume[
         replayAction, extraLetters, directRecord, replayRoute,
         multiquadraticReplayOptions, directReplayIdentityQ,
         deferredBundle, directDeferredQ = False, directAlphabetOptions,
+        deferredPreparation, chartDeferredQ = False, preparation,
+        preparationFingerprint,
         inputSealHash,
         sealFile, seal, sealVerdict,
         stripStarted = AbsoluteTime[], stripClock = AbsoluteTime[],
@@ -1398,6 +1400,12 @@ familyRowGaugeHydrateResume[
             "Status", None] =!= "BundleValid",
         Throw[<|"Status" -> "ResumeDeferredBundleInvalid",
           "LowerSector" -> lowerSector|>, tag]];
+      deferredPreparation = Lookup[input, "DeferredPreparation",
+        Missing["NoDeferredPreparation"]];
+      chartDeferredQ = AssociationQ[deferredPreparation];
+      If[AssociationQ[deferredBundle] && chartDeferredQ,
+        Throw[<|"Status" -> "ResumeAmbiguousDeferredForcing",
+          "LowerSector" -> lowerSector|>, tag]];
       directDeferredQ = summaryMethod ===
           "DirectMultiquadraticFiniteField" &&
         AssociationQ[deferredBundle];
@@ -1409,14 +1417,40 @@ familyRowGaugeHydrateResume[
         Throw[<|"Status" -> "ResumeDeferredBundleRouteMismatch",
           "LowerSector" -> lowerSector,
           "SummaryMethod" -> summaryMethod|>, tag]];
+      If[chartDeferredQ,
+        preparation = Lookup[deferredPreparation, "Preparation",
+          Missing["NoPreparation"]];
+        preparationFingerprint = Lookup[preparation, "Fingerprint", None];
+        If[! AssociationQ[preparation] ||
+            Lookup[preparation, "Status", None] =!= "Prepared" ||
+            Lookup[preparation, "ABIVersion", None] =!=
+              $blockEquationDeferredABIVersion ||
+            Lookup[preparation, "Variables", None] =!= variables ||
+            Lookup[preparation, "Regulator", None] =!= epsilon ||
+            Lookup[preparation, "Dimensions", None] =!=
+              Dimensions[input["Strip"][[3]]] ||
+            ! ListQ[Lookup[deferredPreparation, "RootSquares", None]] ||
+            ! StringQ[preparationFingerprint],
+          Throw[<|"Status" -> "ResumeDeferredPreparationInvalid",
+            "LowerSector" -> lowerSector|>, tag]]];
+      If[chartDeferredQ &&
+          ! (StringQ[summaryMethod] &&
+            (StringStartsQ[summaryMethod, "RationalChart/"] ||
+             StringStartsQ[summaryMethod, "RationalFrame/"])),
+        Throw[<|"Status" -> "ResumeDeferredPreparationRouteMismatch",
+          "LowerSector" -> lowerSector,
+          "SummaryMethod" -> summaryMethod|>, tag]];
       directAlphabetOptions = If[directDeferredQ,
         familyRowGaugeDirectAlphabetOptions[deferredBundle], Automatic];
       If[directDeferredQ && directAlphabetOptions === $Failed,
         Throw[<|"Status" -> "ResumeDirectAlphabetOptionsInvalid",
           "LowerSector" -> lowerSector|>, tag]];
-      inputSealHash = Hash[If[AssociationQ[deferredBundle],
-        {input["Strip"], deferredBundle["BundleFingerprint"]},
-        input["Strip"]], "SHA256", "HexString"];
+      inputSealHash = Hash[Which[
+        directDeferredQ,
+          {input["Strip"], deferredBundle["BundleFingerprint"]},
+        chartDeferredQ,
+          {input["Strip"], preparationFingerprint},
+        True, input["Strip"]], "SHA256", "HexString"];
       stripPhase["InputRead",
         <|"Bytes" -> FileByteCount[copiedInput],
           "StripLeafCount" -> If[verbose, LeafCount[input["Strip"]],
@@ -1450,13 +1484,18 @@ familyRowGaugeHydrateResume[
          relation the exact reconstruction below checks.  Cheap: every
          operation is arithmetic in F_p at one point and the connection
          is never normalized. *)
-      If[directDeferredQ && sealVerdict =!= "SealAuthenticated",
-        Throw[<|"Status" -> "ResumeDirectDeferredBundleSealRequired",
+      If[(directDeferredQ || chartDeferredQ) &&
+          sealVerdict =!= "SealAuthenticated",
+        Throw[<|"Status" -> "ResumeDeferredForcingSealRequired",
           "LowerSector" -> lowerSector, "SealVerdict" -> sealVerdict|>, tag]];
       gateVerdict = Which[
         directDeferredQ,
           <|"Status" -> "ResumeDeferredBundleGateAuthenticated",
             "BundleFingerprint" -> deferredBundle["BundleFingerprint"],
+            "ImageCount" -> 0|>,
+        chartDeferredQ,
+          <|"Status" -> "ResumeDeferredPreparationGateAuthenticated",
+            "PreparationFingerprint" -> preparationFingerprint,
             "ImageCount" -> 0|>,
         resumeGate === "Exact",
           <|"Status" -> "ResumeModularGateNotRun"|>,
@@ -1482,7 +1521,8 @@ familyRowGaugeHydrateResume[
          never in an adversarial audit.  In every other case the
          whole-matrix symbolic identity runs exactly as it did before,
          and the SameQ below decides exactly as at HEAD. *)
-      exactRecheckQ = ! directDeferredQ && (adversarialAudit ||
+      exactRecheckQ = ! directDeferredQ && ! chartDeferredQ &&
+        (adversarialAudit ||
         resumeGate =!= "Modular" || sealVerdict =!= "SealAuthenticated" ||
         Lookup[gateVerdict, "Status", None] =!=
           "ResumeModularGateAccepted");
@@ -1620,6 +1660,8 @@ familyRowGaugeHydrateResume[
             "MultiquadraticOptions" -> multiquadraticReplayOptions,
             "GaugePullBackMode" -> If[finalCheck === "Exact",
               "Exact", "MapleCanonical"],
+            "DeferredPreparation" -> If[chartDeferredQ,
+              deferredPreparation, Automatic],
             "ScratchDirectory" -> workRoot,
             "Tag" -> stripTag, "Verbose" -> verbose],
         True,

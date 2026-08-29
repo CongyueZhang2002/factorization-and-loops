@@ -79,6 +79,7 @@ ClearAll[
   transportChartStageProgress,
   transportChartTogetherTask,
   transportChartParallelTogether,
+  transportChartPullBackDeferredPreparation,
   transportChartMapleCanonicalGauge,
   $transportChartStageLog,
   $transportChartStageLastProgress,
@@ -1151,6 +1152,60 @@ transportChartPullBackDeferredBundle[bundle_Association,
 transportChartPullBackDeferredBundle[___] :=
   <|"Status" -> "DeferredBundleChartInputInvalid"|>;
 
+(* Materialize the raw block-equation DAG only after its roots and source
+   coordinates have been replaced by the rational chart.  This is the
+   chartable-block production path: it performs the arithmetic the rational
+   solver needs and none of the direct multiquadratic provider's divisor,
+   orbit, provenance, fingerprint or source-frame factorization work. *)
+transportChartPullBackDeferredPreparation[record_Association,
+    data_Association, branchRoots_List, images_List] := Module[
+  {preparation, transform, materialized, dimensions, values, image,
+   survivingRadicals, pulled, polynomialSymbols},
+  preparation = Lookup[record, "Preparation",
+    Lookup[record, "DeferredPreparation", Missing["NoPreparation"]]];
+  If[! AssociationQ[preparation] ||
+      Lookup[preparation, "Status", None] =!= "Prepared" ||
+      ! MatchQ[Lookup[data, "Subst", None], {___Rule}] ||
+      ! MatchQ[Lookup[data, "Jacobian", None], {{_, _}, {_, _}}] ||
+      Length[branchRoots] =!= Length[images],
+    Return[<|"Status" -> "DeferredPreparationChartInputInvalid"|>]];
+  transform[expr_] := transportChartApplyRootBranches[
+    expr /. data["Subst"], branchRoots, images];
+  polynomialSymbols = DeleteDuplicates[Join[
+    Lookup[data, "Variables", {}],
+    {Lookup[preparation, "Regulator", None]},
+    Lookup[preparation, "Parameters", {}]]];
+  materialized = blockEquationDeferredMaterialize[preparation,
+    "ValidatePreparation" -> False,
+    "ExpressionTransform" -> transform,
+    "PolynomialSymbols" -> polynomialSymbols,
+    "Cancel" -> False, "CanonicalizeUntouched" -> False,
+    "AlgebraicCanonicalize" -> False,
+    "Parallel" -> Automatic, "Helpers" -> Automatic,
+    "Progress" -> transportChartStageLogQ[],
+    "Label" -> "chart_" <> ToString[
+      Lookup[preparation, "Sector", "block"]] <> "_" <>
+      ToString[Lookup[preparation, "LowerSector", "source"]]];
+  If[Lookup[materialized, "Status", None] =!= "OK",
+    Return[<|"Status" -> "DeferredPreparationMaterializationFailed",
+      "Detail" -> materialized|>]];
+  dimensions = preparation["Dimensions"];
+  values = materialized["Values"];
+  image = Table[values[{mu, i, j}],
+    {mu, dimensions[[1]]}, {i, dimensions[[2]]},
+    {j, dimensions[[3]]}];
+  survivingRadicals = transportChartRadicalBases[image];
+  If[survivingRadicals =!= {},
+    Return[<|"Status" -> "DeferredPreparationChartStillAlgebraic",
+      "RadicalBases" -> survivingRadicals|>]];
+  pulled = masterTransportPullBackOneForm[
+    image[[1]], image[[2]], data["Jacobian"]];
+  <|"Status" -> "OK", "OneForm" -> pulled,
+    "Materialization" -> KeyDrop[materialized, "Values"]|>
+];
+transportChartPullBackDeferredPreparation[___] :=
+  <|"Status" -> "DeferredPreparationChartInputInvalid"|>;
+
 transportChartCurrentRoots[frame_Association,
     variables : {_Symbol, _Symbol}] := Module[
   {frameVariables, substitution, variableRules},
@@ -1395,6 +1450,7 @@ Options[SolveEpsFormStripInFrame] = Join[
     "FiniteFieldOptions" -> {},
     "MultiquadraticDispatch" -> True,
     "MultiquadraticOptions" -> {},
+    "DeferredPreparation" -> Automatic,
     "DeferredMaterializationCertificate" -> Automatic,
     (* Existing callers retain the package's exact Together route.
        "MapleCanonical" is the explicit external-normalizer route: Maple
@@ -1450,8 +1506,10 @@ SolveEpsFormStripInFrame[
    finiteFieldQ, finiteFieldFirstQ, finiteFieldOptions, canonicalKernelCount,
    scratchDirectory, stripTag, verbose, solveRationalStrip, innerSolvedQ,
    multiquadraticOptions, multiquadraticResult, multiquadraticStatus,
-   bundlePullback, rationalStrip,
+   bundlePullback, preparationPullback, rationalStrip,
    deferredBundle, bundleValidation, bundleRoots, bundleIndices,
+   deferredPreparation, preparation, preparationRootSquares,
+   preparationIndices, deferredSourceQ,
    materializationCertificate, materializationValidation,
    deferredForcingMaterializedQ,
    selectedIndices, stableFrame, bundleRecord,
@@ -1522,6 +1580,27 @@ SolveEpsFormStripInFrame[
       Return[<|"Status" -> "DeferredBundleFrameMismatch"|>]],
     If[! MissingQ[deferredBundle] && deferredBundle =!= Automatic,
       Return[<|"Status" -> "InvalidDeferredBundle"|>]]];
+  deferredPreparation = OptionValue["DeferredPreparation"];
+  If[AssociationQ[deferredPreparation],
+    preparation = Lookup[deferredPreparation, "Preparation",
+      Lookup[deferredPreparation, "DeferredPreparation",
+        Missing["NoPreparation"]]];
+    preparationRootSquares = Lookup[deferredPreparation,
+      "RootSquares", Missing["NoRootSquares"]];
+    If[! AssociationQ[preparation] ||
+        Lookup[preparation, "Status", None] =!= "Prepared" ||
+        Lookup[preparation, "ABIVersion", None] =!=
+          $blockEquationDeferredABIVersion ||
+        Lookup[preparation, "Variables", None] =!= variables ||
+        Lookup[preparation, "Regulator", None] =!= epsilon ||
+        Lookup[preparation, "Dimensions", None] =!=
+          Prepend[Dimensions[bbar[[1]]], 2] ||
+        ! ListQ[preparationRootSquares],
+      Return[<|"Status" -> "DeferredPreparationFrameMismatch"|>]],
+    If[deferredPreparation =!= Automatic,
+      Return[<|"Status" -> "InvalidDeferredPreparation"|>]]];
+  If[AssociationQ[deferredBundle] && AssociationQ[deferredPreparation],
+    Return[<|"Status" -> "AmbiguousDeferredForcing"|>]];
   materializationCertificate =
     OptionValue["DeferredMaterializationCertificate"];
   deferredForcingMaterializedQ = False;
@@ -1538,6 +1617,9 @@ SolveEpsFormStripInFrame[
       Return[<|"Status" -> "InvalidDeferredMaterializationCertificate",
         "Detail" -> materializationValidation|>]];
     deferredForcingMaterializedQ = True];
+  deferredSourceQ =
+    (AssociationQ[deferredBundle] && ! deferredForcingMaterializedQ) ||
+      AssociationQ[deferredPreparation];
   (* BOUNDARY 1 (entry): an already-expired deadline never starts the
      root classifier, which denests and square-class-matches every
      radical occurring in the strip *)
@@ -1591,13 +1673,29 @@ SolveEpsFormStripInFrame[
         "Detail" -> stableFrame|>]];
     rootIndices = selectedIndices[[Lookup[stableFrame["Roots"],
       "SourceIndex", {}]]]];
+  If[AssociationQ[deferredPreparation],
+    preparationIndices = Table[Module[{matches},
+        matches = Flatten[Position[allRoots,
+          candidate_ /; TrueQ[Together[
+              candidate["RootSquare"] - square] === 0],
+          {1}, Heads -> False]];
+        If[Length[matches] =!= 1,
+          Return[<|"Status" -> "DeferredPreparationRootFrameMismatch",
+            "RootSquare" -> square, "Matches" -> matches|>, Module]];
+        First[matches]],
+      {square, preparationRootSquares}];
+    If[! VectorQ[preparationIndices, IntegerQ],
+      Return[FirstCase[preparationIndices, failure_Association :> failure,
+        <|"Status" -> "DeferredPreparationRootFrameMismatch"|>]]];
+    rootIndices = Sort[DeleteDuplicates[
+      Join[rootIndices, preparationIndices]]]];
   usedRoots = allRoots[[rootIndices]];
   rootSquares = Lookup[usedRoots, "RootSquare", {}];
   (* dD = eps (e.D-D.c)+bbar is solved identically by D=0 when the
      forcing vanishes.  This must precede chart selection: the diagonal
      blocks may span a root set with no joint rational chart even though
      this off-diagonal problem needs no field arithmetic at all. *)
-  If[(! AssociationQ[deferredBundle] || deferredForcingMaterializedQ) &&
+  If[! deferredSourceQ &&
       AllTrue[Flatten[bbar], SameQ[#, 0] &],
     Return[<|"Status" -> "Solved", "Method" -> "ZeroForcing",
       "Gauge" -> ConstantArray[0, Dimensions[bbar[[1]]]],
@@ -1671,16 +1769,24 @@ SolveEpsFormStripInFrame[
 
   If[rootIndices === {},
     rationalStrip = strip;
-    If[AssociationQ[deferredBundle] && ! deferredForcingMaterializedQ,
+    If[deferredSourceQ,
       data = <|"Status" -> "OK", "Variables" -> variables,
         "SourceVariables" -> variables,
         "Subst" -> Thread[variables -> variables],
-        "Jacobian" -> IdentityMatrix[2], "JacobianDet" -> 1|>;
+        "Jacobian" -> IdentityMatrix[2], "JacobianDet" -> 1|>];
+    If[AssociationQ[deferredBundle] && ! deferredForcingMaterializedQ,
       bundlePullback = transportChartPullBackDeferredBundle[
         deferredBundle, data, {}, {}];
       If[Lookup[bundlePullback, "Status", None] =!= "OK",
         Return[bundlePullback]];
       rationalStrip = ReplacePart[strip, 3 -> bundlePullback["OneForm"]]];
+    If[AssociationQ[deferredPreparation],
+      preparationPullback = transportChartPullBackDeferredPreparation[
+        deferredPreparation, data, {}, {}];
+      If[Lookup[preparationPullback, "Status", None] =!= "OK",
+        Return[preparationPullback]];
+      rationalStrip = ReplacePart[strip, 3 ->
+        preparationPullback["OneForm"]]];
     (* BOUNDARY (solver dispatch, rational frame): no solver is entered
        past the deadline *)
     If[transportChartDeadlineExpiredQ[deadline],
@@ -1795,6 +1901,12 @@ SolveEpsFormStripInFrame[
     If[Lookup[bundlePullback, "Status", None] =!= "OK",
       Return[bundlePullback]];
     chartStrip[[3]] = bundlePullback["OneForm"]];
+  If[AssociationQ[deferredPreparation],
+    preparationPullback = transportChartPullBackDeferredPreparation[
+      deferredPreparation, data, chartBranchRoots, rootImages];
+    If[Lookup[preparationPullback, "Status", None] =!= "OK",
+      Return[preparationPullback]];
+    chartStrip[[3]] = preparationPullback["OneForm"]];
   timings["ChartPullBack"] = AbsoluteTime[] - stageSeconds;
   (* BOUNDARY 5 (after the pullback; also the last boundary before a
      solver runs on the chart route) *)
@@ -1941,9 +2053,9 @@ SolveEpsFormStripInFrame[
     postPullBackCandidates = Select[postPullBackCandidates,
       TrueQ[Lookup[Lookup[#1, "Verification", <||>],
         "DLogFormCertified", False]] &];
-    If[Length[postPullBackCandidates] =!= 1,
+    If[postPullBackCandidates === {},
       Return[<|"Status" -> "PostMapleResidualFailed",
-        "PassingBranchCount" -> Length[postPullBackCandidates],
+        "PassingBranchCount" -> 0,
         "BranchCount" -> Length[signChoices]|>]];
     acceptedSigns = {
       Lookup[First[postPullBackCandidates], "Signs", Missing[]]};
@@ -2106,7 +2218,7 @@ SolveEpsFormStripInFrame[
      checked to be radical-free above; add that exact chart one-form after
      pulling the gauge terms instead of materializing the source-frame sum. *)
   {substageSeconds, sourceTransformed} = AbsoluteTiming[Table[
-    If[AssociationQ[deferredBundle] && ! deferredForcingMaterializedQ,
+    If[deferredSourceQ,
       0, bbar[[mu]]] +
       epsilon (e[[mu]] . sourceGauge -
       sourceGauge . c[[mu]]) - D[sourceGauge, variables[[mu]]],
@@ -2131,7 +2243,7 @@ SolveEpsFormStripInFrame[
   ];
   {substageSeconds, pulledTransformed} = AbsoluteTiming[Module[{pulled},
     pulled = pullPair[branchedGauge];
-    If[AssociationQ[deferredBundle] && ! deferredForcingMaterializedQ,
+    If[deferredSourceQ,
       Map[Together, pulled + chartStrip[[3]], {2}], pulled]]];
   transportChartStageMark["acceptance: Jacobian pull-back",
     <|"seconds" -> N[substageSeconds],

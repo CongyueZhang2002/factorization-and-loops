@@ -868,16 +868,28 @@ blockEquation[k_, j_, solved_Association] := Module[
     deferred = If[TrueQ[algebraicFrameQ] && ListQ[bundleRoots],
       FeynFacet`Private`blockEquationDeferredForcing[
         A, ranges, k, j, solved, invariants, ee,
-        "Output" -> "BundleOrMaterialized",
+        "Output" -> "ChartOrBundle",
         "BundleRoots" -> bundleRoots],
       FeynFacet`Private`blockEquationDeferredForcing[
         A, ranges, k, j, solved, invariants, ee]];
     If[AssociationQ[deferred] &&
+        Lookup[deferred, "Status", None] === "PreparedChartDeferred",
+      zeroPlaceholder = ConstantArray[0, deferred["Dimensions"]];
+      $blockConstructionRecord = <|
+        "Route" -> "DeferredChartPreparation",
+        "DeferredPreparation" -> <|
+          "Preparation" -> deferred["DeferredPreparation"],
+          "RootSquares" -> Lookup[deferred["ChartDecision"],
+            "RootSquares", {}]|>,
+        "ChartDecision" -> deferred["ChartDecision"],
+        "Census" -> deferred["Census"],
+        "ZeroForcingCandidateQ" -> False|>;
+      Return[{e, c, zeroPlaceholder}]];
+    If[AssociationQ[deferred] &&
         Lookup[deferred, "Status", None] === "PreparedDeferredBundle",
-      (* BundleOrMaterialized returns a bundle here only after a modular
-         nonzero witness.  An inconclusive census was materialized from
-         the same preparation and compiler cache, below as Status -> OK;
-         the expensive bundle compiler is never repeated. *)
+      (* ChartOrBundle returns a bundle only when the roots actually used by
+         this strip have no joint rational chart.  Chartable strips bypass
+         direct-provider compilation and arrive below already materialized. *)
       zeroPlaceholder = ConstantArray[0, deferred["Dimensions"]];
       $blockConstructionRecord = <|"Route" -> "DeferredBundle",
         "DeferredBundle" -> deferred,
@@ -925,7 +937,8 @@ Do[
    dk2, sfull, sfullInverse, aPrevious, aNew, secs, remaining,
    stageInverse, stageGauge, newS, newSInverse, sectorCertificate,
    rowGaugeStatistics, installedRow = Automatic,
-   stripCheckpointFile = None, deferredBundle, directAlphabetOptions},
+   stripCheckpointFile = None, deferredBundle, deferredPreparation,
+   directAlphabetOptions},
   log["==== sector ", k, " (rows ", bounds[[k]], ", truncation ", nk, "x", nk, ")"];
   (* recomputed at each sector start: this sector's strip solves must
      finish within sectorBudget seconds of the sector's own start AND
@@ -1177,6 +1190,10 @@ Do[
               <|"DeferredBundle" ->
                 $blockConstructionRecord["DeferredBundle"]|>, <||>],
             If[AssociationQ[Lookup[$blockConstructionRecord,
+                "DeferredPreparation", None]],
+              <|"DeferredPreparation" ->
+                $blockConstructionRecord["DeferredPreparation"]|>, <||>],
+            If[AssociationQ[Lookup[$blockConstructionRecord,
                 "DeferredMaterializationCertificate", None]],
               <|"DeferredMaterializationCertificate" ->
                 $blockConstructionRecord[
@@ -1218,7 +1235,13 @@ Do[
             Hash[If[AssociationQ[Lookup[$blockConstructionRecord,
                 "DeferredBundle", None]],
               {{e, c, bbar}, $blockConstructionRecord[
-                "DeferredBundleFingerprint"]}, {e, c, bbar}],
+                "DeferredBundleFingerprint"]},
+              If[AssociationQ[Lookup[$blockConstructionRecord,
+                  "DeferredPreparation", None]],
+                {{e, c, bbar},
+                  $blockConstructionRecord["DeferredPreparation"][
+                    "Preparation"]["Fingerprint"]},
+                {e, c, bbar}]],
               "SHA256", "HexString"],
             Hash[{invariants, ee}, "SHA256", "HexString"],
             $sectorDriverSourceSHA256],
@@ -1330,6 +1353,8 @@ Do[
           refreshResourceAllocation[];
           deferredBundle = Lookup[$blockConstructionRecord,
             "DeferredBundle", Missing["NoDeferredBundle"]];
+          deferredPreparation = Lookup[$blockConstructionRecord,
+            "DeferredPreparation", Automatic];
           directAlphabetOptions = If[AssociationQ[deferredBundle],
             FeynFacet`Private`familyRowGaugeDirectAlphabetOptions[
               deferredBundle], Automatic];
@@ -1395,6 +1420,7 @@ Do[
                    source-frame identity check (2026-08-24) *)
                 "GaugePullBackMode" -> If[productionQ,
                   "MapleCanonical", "Exact"],
+                "DeferredPreparation" -> deferredPreparation,
                 "Deadline" -> sectorDeadline,
                 "ScratchDirectory" -> scratch,
                 "DeferredMaterializationCertificate" -> Lookup[

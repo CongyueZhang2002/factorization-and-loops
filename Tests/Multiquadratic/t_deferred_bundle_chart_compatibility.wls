@@ -123,6 +123,58 @@ FTAssert["C8 chartable deferred forcing uses the rational chart and solves exact
 oneMaterialized = forcingOf[oneConnection, ranges, 2, 1, <||>, variables,
   epsilon, "Output" -> "BundleAndMaterialized",
   "BundleRoots" -> oneRoots];
+oneChartFast = forcingOf[oneConnection, ranges, 2, 1, <||>, variables,
+  epsilon, "Output" -> "ChartOrBundle", "BundleRoots" -> oneRoots];
+oneChartPreparation = <|
+  "Preparation" -> oneChartFast["DeferredPreparation"],
+  "RootSquares" -> oneChartFast["ChartDecision", "RootSquares"]|>;
+FTAssert["C9 chart-aware production bypasses provider compilation and \
+source-frame materialization",
+  Lookup[oneChartFast, "Status", None] === "PreparedChartDeferred" &&
+    ! KeyExistsQ[oneChartFast, "DeferredBundle"] &&
+    ! KeyExistsQ[oneChartFast, "Forcing"] &&
+    Lookup[oneChartFast["Census"], "Status", None] ===
+      "SkippedForChart" &&
+    TrueQ[oneChartFast["ChartDecision", "ChartAvailableQ"]]];
+oneChartFastSolution = SolveEpsFormStripInFrame[
+  placeholderStrip, variables, epsilon, oneFrame,
+  "FiniteFieldFirst" -> True,
+  "FiniteFieldOptions" -> commonFiniteOptions["one_root_preparation"],
+  "DeferredPreparation" -> oneChartPreparation,
+  "Verbose" -> False];
+FTAssert["C10 deferred preparation materializes in the chart and gives the \
+same exact gauge",
+  Lookup[oneChartFastSolution, "Status", None] === "Solved" &&
+    StringStartsQ[oneChartFastSolution["Method"],
+      "RationalChart/Kallen1/"] &&
+    AllTrue[Flatten[oneChartFastSolution["Gauge"] - oneSolution["Gauge"]],
+      TrueQ[FeynFacet`Private`transportChartAlgebraicZeroQ[#1,
+        oneRoots]] &]];
+ambiguousDeferredSolution = SolveEpsFormStripInFrame[
+  placeholderStrip, variables, epsilon, oneFrame,
+  "FiniteFieldFirst" -> True,
+  "FiniteFieldOptions" -> commonFiniteOptions["ambiguous_deferred"],
+  "MultiquadraticOptions" -> {"DeferredBundle" -> oneBundle},
+  "DeferredPreparation" -> oneChartPreparation,
+  "Verbose" -> False];
+FTAssert["C10b simultaneous bundle and preparation are refused before solve",
+  Lookup[ambiguousDeferredSolution, "Status", None] ===
+    "AmbiguousDeferredForcing"];
+
+fullRootConnection = {
+  {{0, 0}, {Total[Lookup[declaredRoots, "Root"]], 0}},
+  {{0, 0}, {0, 0}}
+};
+chartlessDirect = forcingOf[fullRootConnection, ranges, 2, 1, <||>,
+  variables, epsilon, "Output" -> "ChartOrBundle",
+  "BundleRoots" -> declaredRoots];
+FTAssert["C11 chartless production returns the direct provider without a \
+materialized oracle",
+  Lookup[chartlessDirect, "Status", None] === "PreparedDeferredBundle" &&
+    Lookup[validateBundle[chartlessDirect], "Status", None] ===
+      "BundleValid" &&
+    Length[chartlessDirect["RootFrame", "Roots"]] === 3];
+
 certifiedMaterializedSolution = SolveEpsFormStripInFrame[
   {zeroPair, zeroPair, oneMaterialized["Forcing"]},
   variables, epsilon, oneFrame,
@@ -133,7 +185,7 @@ certifiedMaterializedSolution = SolveEpsFormStripInFrame[
   "DeferredMaterializationCertificate" ->
     oneMaterialized["DeferredMaterializationCertificate"],
   "Verbose" -> False];
-FTAssert["C9 certified materialized forcing skips redundant bundle pullback \
+FTAssert["C12 certified materialized forcing skips redundant bundle pullback \
 without changing the exact gauge",
   Lookup[certifiedMaterializedSolution, "Status", None] === "Solved" &&
     StringStartsQ[certifiedMaterializedSolution["Method"],
@@ -153,7 +205,7 @@ mutatedMaterializedSolution = SolveEpsFormStripInFrame[
   "DeferredMaterializationCertificate" ->
     oneMaterialized["DeferredMaterializationCertificate"],
   "Verbose" -> False];
-FTAssert["C10 a mutated BBar cannot reuse a bundle materialization certificate",
+FTAssert["C13 a mutated BBar cannot reuse a bundle materialization certificate",
   Lookup[mutatedMaterializedSolution, "Status", None] ===
     "InvalidDeferredMaterializationCertificate"];
 
@@ -162,7 +214,7 @@ plainRationalSolution = SolveEpsFormStripInFrame[
   "FiniteFieldFirst" -> True,
   "FiniteFieldOptions" -> commonFiniteOptions["plain_rational"],
   "Verbose" -> False];
-FTAssert["C11 an ordinary nonzero rational strip still uses RationalFrame",
+FTAssert["C14 an ordinary nonzero rational strip still uses RationalFrame",
   Lookup[plainRationalSolution, "Status", None] === "Solved" &&
     StringStartsQ[plainRationalSolution["Method"], "RationalFrame/"] &&
     plainRationalSolution["RootIndices"] === {} &&

@@ -358,6 +358,121 @@ FTTest`FTAssert["direct deferred replay requires no rational prime cache",
   ! DirectoryQ[FileNameJoin[{temporary,
       "CFMQRESUME_2_1_finite_field"}]]];
 
+(* The chart-first sibling carries the authenticated preparation behind the
+   same zero-shape BBar ABI.  Hydration must bind its stored fingerprint,
+   skip the placeholder identity gate and forward the exact envelope. *)
+chartSquare = (1 - x - y)^2 - 4 x y;
+chartFrame = BuildAlgebraicTransportFrame[{chartSquare}, variables, {v, w}];
+chartConnection = ConstantArray[0, {2, 2, 2}];
+chartConnection[[1, 2, 1]] = D[Sqrt[chartSquare], x];
+chartConnection[[2, 2, 1]] = D[Sqrt[chartSquare], y];
+chartPreparationRecord = FeynFacet`Private`blockEquationDeferredPrepare[
+  chartConnection, {{1}, {2}}, 2, 1, <||>, variables, eps];
+chartPreparation = <|
+  "Preparation" -> chartPreparationRecord,
+  "RootSquares" -> {chartSquare}|>;
+chartPlaceholderStrip = ConstantArray[0, {3, 2, 1, 1}];
+chartInput = <|"Family" -> "CFCHARTRESUME", "Sector" -> 2,
+  "LowerSector" -> 1, "Variables" -> variables, "Regulator" -> eps,
+  "Strip" -> chartPlaceholderStrip,
+  "DeferredPreparation" -> chartPreparation|>;
+chartInputFile = FileNameJoin[{temporary,
+  "CFCHARTRESUME_2_1_input.wl"}];
+FeynFacet`FamilyArtifactWrite[chartInput, chartInputFile];
+chartConfiguration = FeynFacet`Private`familyRowGaugeSolverConfiguration[
+  "RationalChartFiniteField", "Multiquadratic", chartFrame,
+  "Exact", Automatic, 2, "Wolfram", "DriverProvenance" -> driver];
+chartSolution = <|"Status" -> "Solved",
+  "Method" -> "RationalChart/Kallen1/FiniteField",
+  "Gauge" -> {{0}}, "Alphabet" -> {},
+  "InnerSolution" -> <|"ResidueMatrices" -> {}|>,
+  "RootIndices" -> {1}, "ExactDLog" -> True,
+  "Certificate" -> "ExactDLog", "FrameCertificate" -> <|
+    "CoordinateComposition" -> True, "BranchSigns" -> {1},
+    "GaugeRoundTrip" -> True, "TransformedOneFormPullBack" -> True,
+    "SourceDLog" -> True, "Exact" -> True|>|>;
+chartCheckpoint = <|"Sector" -> 2, "SubSize" -> 1,
+  "Truncation" -> 2, "PrevD" -> {{0}},
+  "ConnectionHash" -> Hash[
+    chartConnection /. eps -> CANONICA`eps, "SHA256", "HexString"],
+  "StripSolvers" -> {<|"Sector" -> 2, "LowerSector" -> 1,
+    "Method" -> chartSolution["Method"], "ExtraLetters" -> {},
+    "SolverConfiguration" -> chartConfiguration|>},
+  "SolvedForms" -> <|1 -> ConstantArray[0, {2, 1, 1}]|>|>;
+chartCheckpointFile = FileNameJoin[{temporary,
+  "chart_checkpoint.wl"}];
+FeynFacet`FamilyArtifactWrite[chartCheckpoint, chartCheckpointFile];
+chartSeal = FeynFacet`Private`familyRowGaugeStripInputSeal[
+  "CFCHARTRESUME", 2, 1, 2, chartCheckpoint["ConnectionHash"],
+  <|1 -> {{0}}|>, Hash[{chartPlaceholderStrip,
+    chartPreparation["Preparation"]["Fingerprint"]},
+    "SHA256", "HexString"], Hash[{variables, eps},
+    "SHA256", "HexString"], FileHash[driverPath, "SHA256", "HexString"]];
+FeynFacet`FamilyArtifactWrite[chartSeal,
+  StringReplace[chartInputFile, "_input.wl" -> "_input_seal.wl"]];
+chartArtifactDirectory = FileNameJoin[{temporary,
+  "CFCHARTRESUME_2_1_finite_field"}];
+CreateDirectory[chartArtifactDirectory];
+FeynFacet`FamilyArtifactWrite[<|"Fixture" -> True|>,
+  FileNameJoin[{chartArtifactDirectory,
+    "CFCHARTRESUME_2_1_mod_fixture.wl"}]];
+
+runChartHydration[solver_Function] := Internal`InheritedBlock[
+  {FeynFacet`SolveEpsFormStripInFrame},
+  Unprotect[FeynFacet`SolveEpsFormStripInFrame];
+  Clear[FeynFacet`SolveEpsFormStripInFrame];
+  FeynFacet`SolveEpsFormStripInFrame[args___] := solver[{args}];
+  Protect[FeynFacet`SolveEpsFormStripInFrame];
+  FeynFacet`Private`familyRowGaugeHydrateResume[
+    chartCheckpoint, chartCheckpointFile, <|1 -> {{0}}|>,
+    chartCheckpoint["SolvedForms"], "CFCHARTRESUME", 2,
+    variables, eps, chartFrame, {{1}, {2}}, temporary, chartConnection,
+    "KernelCount" -> 1, "MinimumCachedPrimeCount" -> 1,
+    "FinalCheck" -> "Exact", "ResumeGate" -> "Exact",
+    "DriverProvenance" -> driver]];
+
+capturedPreparation = Missing["SolverNotCalled"];
+chartSolverCalls = 0;
+chartHydrated = runChartHydration[Function[arguments,
+    chartSolverCalls++;
+    capturedPreparation = First[Cases[arguments, HoldPattern[
+      "DeferredPreparation" -> value_] :> value],
+      Missing["DeferredPreparationMissing"]];
+    chartSolution]];
+FTTest`FTAssert["authenticated chart preparation is forwarded without a placeholder identity check",
+  Lookup[chartHydrated, "Status", None] === "Verified" &&
+    chartSolverCalls === 1 && SameQ[capturedPreparation, chartPreparation] &&
+    Lookup[chartHydrated["ReplayRecords"][[1]],
+      "InputSeal", None] === "SealAuthenticated" &&
+    Lookup[chartHydrated["ReplayRecords"][[1]],
+      "ExactBlockEquationRecheck", True] === False &&
+    Lookup[Lookup[chartHydrated["ReplayRecords"][[1]],
+      "ModularGate", <||>], "Status", None] ===
+        "ResumeDeferredPreparationGateAuthenticated"];
+
+fingerprintMutant = ReplacePart[chartInput,
+  {"DeferredPreparation", "Preparation", "Fingerprint"} ->
+    StringRepeat["0", 64]];
+FeynFacet`FamilyArtifactWrite[fingerprintMutant, chartInputFile];
+fingerprintMutantSolverCalls = 0;
+fingerprintMutantHydration = runChartHydration[Function[arguments,
+  fingerprintMutantSolverCalls++; chartSolution]];
+FTTest`FTAssert["a changed stored preparation fingerprint mismatches the seal before solve",
+  Lookup[fingerprintMutantHydration, "Status", None] ===
+      "ResumeDeferredForcingSealRequired" &&
+    Lookup[fingerprintMutantHydration, "SealVerdict", None] ===
+      "SealStripMismatch" && fingerprintMutantSolverCalls === 0];
+
+FeynFacet`FamilyArtifactWrite[
+  Append[chartInput, "DeferredBundle" -> bundle], chartInputFile];
+ambiguousSolverCalls = 0;
+ambiguousHydration = runChartHydration[Function[arguments,
+  ambiguousSolverCalls++; chartSolution]];
+FTTest`FTAssert["bundle plus preparation ambiguity is refused before solve",
+  Lookup[ambiguousHydration, "Status", None] ===
+      "ResumeAmbiguousDeferredForcing" && ambiguousSolverCalls === 0];
+FeynFacet`FamilyArtifactWrite[chartInput, chartInputFile];
+
 (* Even a structurally valid, refingerprinted alphabet mutation is stale
    against the payload re-derived from the authenticated input bundle. *)
 mutantCheckpoint = ReplacePart[checkpoint,

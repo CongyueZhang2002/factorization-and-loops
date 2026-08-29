@@ -310,7 +310,8 @@ selectNextMission[records_List] := Module[
     {Lookup[#1, "Date", 0.] &, Lookup[#1, "File", ""] &}]]]];
   helper = Select[records,
     Lookup[#1, "Role", None] === "helper" &&
-      (MemberQ[{None, "ungrouped"}, Lookup[#1, "Owner", None]] ||
+      (Lookup[#1, "Group", None] === "ungrouped" ||
+        MemberQ[{None, "ungrouped"}, Lookup[#1, "Owner", None]] ||
         MemberQ[activeOwners, Lookup[#1, "Owner", None]]) &];
   If[helper === {}, Return[Missing["NoEligibleMission"]]];
   allocation = resourceSnapshot[];
@@ -420,7 +421,7 @@ finish[name_, res_] := Module[{ok, dest, kf, kid, k, job, owner},
   Quiet@DeleteFile[FileNameJoin[{sub["running"], name <> ".kernel.done"}]];
   Quiet@DeleteFile[FileNameJoin[{sub["running"], name <> ".kernel.result"}]];
   log["finished ", name, " -> ", If[ok, "done", "failed"], " (", If[AssociationQ[res], Round[res["Wall"], 0.1], "?"], " s)"];
-  If[Lookup[job, "Role", None] === "family" && StringQ[owner] &&
+  If[Lookup[job, "Role", None] =!= "helper" && StringQ[owner] &&
       ! (AssociationQ[res] && Lookup[res, "Status", None] === "DUPLICATE"),
     quarantineQueuedOwnerHelpers[owner]];
   poolJobs = KeyDrop[poolJobs, name]];
