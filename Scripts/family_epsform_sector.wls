@@ -1790,13 +1790,25 @@ If[productionQ,
 ]];
 log["FAMILY: A'/eps eps-free ", allEps, "; gauge identity ", gauge,
   "; flatness ", flatness, "; individual strip solvers ",
-  state["StripSolvers"]];
+  If[productionQ,
+    ToString[Length[state["StripSolvers"]]] <> " accepted records",
+    state["StripSolvers"]]];
 verdict = If[productionQ, "DeferredToFamilyCertificate",
   allEps && gauge && flatness && finalInverse];
+(* Every off-diagonal block carries the alphabet returned by its accepted
+   strip solver.  In Production, scan symbolic denominators only on the
+   diagonal blocks; scanning the full deferred connection expands exactly
+   the large off-diagonal sums whose alphabets are already recorded.  A
+   constant regulator transformation introduces no kinematic letter. *)
+letterEntries = If[productionQ,
+  DeleteCases[Flatten[Table[
+    Ap[[mu, ranges[[sector]], ranges[[sector]]]],
+    {mu, 2}, {sector, nSectors}]], 0],
+  DeleteCases[Flatten[Ap], 0]];
 denominatorLetters = DeleteDuplicates[monic /@ Select[
   DeleteDuplicates[Flatten[
     First /@ FactorList[Denominator[Together[#]]] & /@
-      DeleteCases[Flatten[Ap], 0]]] /. fromXY,
+      letterEntries]] /. fromXY,
   PolynomialQ[#, {c1, c2}] && ! FreeQ[#, c1 | c2] &]];
 stripLetters = DeleteDuplicates[Flatten[
   Lookup[state["StripSolvers"], "Alphabet", {}]]];
