@@ -169,6 +169,24 @@ brokerOff[] := SetEnvironment["FACET_TASK_BROKER" -> ""];
 brokerDataFiles[] := FileNames["*.wl", FileNameJoin[{poolDirectory, "data"}]];
 queuedFiles[] := FileNames["*", FileNameJoin[{poolDirectory, "queue"}]];
 
+(* A broker client can request several kernels, but the client itself may
+   already be a KernelPool subkernel.  The strip solver must then bypass the
+   local kernel sizer and use its serial/broker path, never nested Wolfram
+   parallelism. *)
+brokerOn[];
+localKernelRequests = {};
+brokerClient = Block[{FeynFacet`Private`facetKernelCount},
+  FeynFacet`Private`facetKernelCount[requested_: Automatic, ___] :=
+    (AppendTo[localKernelRequests, requested]; 1);
+  solve[syntheticRecord, "KernelCount" -> 8,
+    Sequence @@ DeleteCases[fixtureOptions,
+      HoldPattern["KernelCount" -> _]]]];
+check["a broker client never enters the nested local-kernel path",
+  AssociationQ[brokerClient] && brokerClient["Status"] === "Solved" &&
+    Lookup[brokerClient, "BrokerActive", None] === False &&
+    localKernelRequests =!= {} && ! MemberQ[localKernelRequests, 8]];
+brokerOff[];
+
 (* ------------------------------------------------------------------ *)
 (* (a) REGRESSION against the recorded HEAD behaviour                   *)
 (* ------------------------------------------------------------------ *)

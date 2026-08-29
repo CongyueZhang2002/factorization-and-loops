@@ -2843,8 +2843,12 @@ SolveEpsFormStripFiniteField[record_Association,
   degreeOffsets = DeleteDuplicates[OptionValue[
     "NumeratorDegreeOffsets"]];
   pointCount = OptionValue["PointCount"];
-  kernelCount = facetKernelCount[
-    OptionValue["KernelCount"], Length[epsilonSamples]];
+  (* A KernelPool mission already runs on a Wolfram subkernel.  It cannot
+     launch a second parallel-kernel tree; expensive samples are shared
+     through the task broker below instead. *)
+  kernelCount = If[
+    TrueQ[Quiet[Check[taskBrokerActiveQ[], False]]], 1,
+    facetKernelCount[OptionValue["KernelCount"], Length[epsilonSamples]]];
   sampleBackendThreads = If[kernelCount > 1,
     finiteFieldStripParallelBackendThreads[
       OptionValue["BackendThreads"], kernelCount,
