@@ -128,8 +128,8 @@ raised = FeynFacet`Private`transportChartFiniteFieldCanonicalGauge[
 FTAssert["the bounded degree ladder returns a reduced gauge only",
   Lookup[raised, "Status", None] ===
       "FiniteFieldCanonicalGaugePrepared" &&
-    Lookup[raised, "Model", None] === "PerEntryDenominatorsV1" &&
-    Lookup[First[raised["EntryRecords"]], "DegreeCap", None] === 6 &&
+    Lookup[raised, "Model", None] === "CommonDenominatorV1" &&
+    Lookup[raised, "KinematicDegreeCap", None] === 6 &&
     TrueQ[Together[raised["Result"][[1, 1]] -
       (gaugeRaised /. {p -> x, q -> y})[[1, 1]]] === 0]];
 

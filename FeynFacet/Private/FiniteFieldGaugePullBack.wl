@@ -1135,10 +1135,9 @@ Options[transportChartFiniteFieldCanonicalGauge] = Join[
    "SymbolicPreDispatchSeconds" -> 1.}];
 
 (* A tiny compact composition gets one bounded canonical Together attempt.
-   Otherwise prefer one common modular denominator for the complete gauge;
-   on exact model refusal reconstruct each algebraic entry independently,
-   widening only that entry's denominator and degree cap.  No raw composition
-   is ever returned. *)
+   Otherwise widen one common modular model for the complete gauge; only an
+   incompatible-denominator refusal falls back to independently widened
+   entries.  No raw composition is ever returned. *)
 transportChartFiniteFieldCanonicalGauge[chartGauge_List,
     chartDenominator_, chartVariables : {_Symbol, _Symbol},
     coordinateImages : {_, _}, variables : {_Symbol, _Symbol},
@@ -1194,11 +1193,6 @@ transportChartFiniteFieldCanonicalGauge[chartGauge_List,
           "DenominatorTermCount", "BuildSeconds"}],
         "Seconds" -> N[AbsoluteTime[] - started],
         "SymbolicSeconds" -> N[symbolicSeconds]|>]]];
-  common = runCommon[chartGauge, baseCap, "Maximum"];
-  If[Lookup[common, "Status", None] ===
-      "FiniteFieldCanonicalGaugePrepared",
-    Return[Join[common, <|"Model" -> "CommonDenominatorV1"|>]]];
-  If[! finiteFieldGaugePullBackModelRefusalQ[common], Return[common]];
   schedule = Replace[OptionValue["KinematicDegreeSchedule"],
     Automatic :> {baseCap, Ceiling[3 baseCap/2], 2 baseCap}];
   If[! ListQ[schedule] ||
@@ -1207,6 +1201,19 @@ transportChartFiniteFieldCanonicalGauge[chartGauge_List,
       "FiniteFieldGaugePullBackDegreeScheduleInvalid",
       <|"Schedule" -> schedule, "BaseDegree" -> baseCap|>]]];
   schedule = Sort[DeleteDuplicates[Prepend[schedule, baseCap]]];
+  acceptedCap = None;
+  Do[
+    common = runCommon[chartGauge, cap, "Maximum"];
+    If[Lookup[common, "Status", None] ===
+        "FiniteFieldCanonicalGaugePrepared",
+      acceptedCap = cap; Break[]];
+    If[Lookup[common, "Status", None] =!=
+        "FiniteFieldGaugePullBackSliceDegreeExceeded", Break[]],
+    {cap, schedule}];
+  If[IntegerQ[acceptedCap],
+    Return[Join[common, <|"Model" -> "CommonDenominatorV1",
+      "KinematicDegreeCap" -> acceptedCap|>]]];
+  If[! finiteFieldGaugePullBackModelRefusalQ[common], Return[common]];
   dimensions = Dimensions[chartGauge];
   entries = Flatten[chartGauge];
   reconstructed = ConstantArray[0, Length[entries]];
