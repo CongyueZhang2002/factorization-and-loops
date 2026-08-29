@@ -218,8 +218,7 @@ transportChartParallelTogether[array_, rules_List, label_String,
       batchLoads[[targetBatch]] += bytes[[index]],
       {index, SortBy[helperIndices, -bytes[[#1]] &]}];
     dataFiles = Map[Function[batch, taskBrokerDataFile[
-        "tctogether_" <> Hash[{expressions[[batch]], rules},
-          "SHA256", "HexString"],
+        "tctogether_" <> StringReplace[CreateUUID[], "-" -> ""],
         <|"Expressions" -> expressions[[batch]], "Rules" -> rules|>]],
       helperBatches];
     codes = StringJoin[
@@ -1188,7 +1187,8 @@ transportChartPullBackDeferredPreparation[record_Association,
    projectionTags, projectionRootImages,
    taggedProjectionRoots,
    projectionSeconds = 0., inactiveChannels, projectionRecord = None,
-   projectionPreparedFallbacks = 0},
+   projectionPreparedFallbacks = 0, uncombinedPullBack,
+   jacobianPullBack},
   preparation = Lookup[record, "Preparation",
     Lookup[record, "DeferredPreparation", Missing["NoPreparation"]]];
   If[! AssociationQ[preparation] ||
@@ -1276,8 +1276,32 @@ transportChartPullBackDeferredPreparation[record_Association,
   If[survivingRadicals =!= {},
     Return[<|"Status" -> "DeferredPreparationChartStillAlgebraic",
       "RadicalBases" -> survivingRadicals|>]];
-  pulled = masterTransportPullBackOneForm[
-    image[[1]], image[[2]], data["Jacobian"]];
+  If[projectionRoots =!= {},
+    (* The four Jacobian combinations are independent exact rational
+       normalizations.  Serial Together spent more than four minutes after
+       CF259 {24,6}'s field projection; use the live helper allocation just
+       as the target materializer does. *)
+    uncombinedPullBack = {
+      image[[1]] data["Jacobian"][[1, 1]] +
+        image[[2]] data["Jacobian"][[2, 1]],
+      image[[1]] data["Jacobian"][[1, 2]] +
+        image[[2]] data["Jacobian"][[2, 2]]};
+    jacobianPullBack = transportChartParallelTogether[
+      uncombinedPullBack, {}, "chartforcing_" <> ToString[
+        Lookup[preparation, "Sector", "block"]] <> "_" <>
+        ToString[Lookup[preparation, "LowerSector", "source"]]];
+    If[Lookup[jacobianPullBack, "Status", None] =!= "OK",
+      Return[<|"Status" -> "DeferredPreparationJacobianPullBackFailed",
+        "Detail" -> KeyDrop[jacobianPullBack, "Result"]|>]];
+    pulled = jacobianPullBack["Result"];
+    projectionRecord = Join[projectionRecord, <|
+      "JacobianPullBack" -> KeyDrop[jacobianPullBack, "Result"]|>];
+    Print["[deferred-router] Jacobian pullback normalization: ",
+      Round[Lookup[jacobianPullBack, "Seconds", 0.], 0.1],
+      " s, route ", Lookup[jacobianPullBack, "Route", None],
+      ", helpers ", Lookup[jacobianPullBack, "Helpers", 0]],
+    pulled = masterTransportPullBackOneForm[
+      image[[1]], image[[2]], data["Jacobian"]]];
   <|"Status" -> "OK", "OneForm" -> pulled,
     "Materialization" -> KeyDrop[materialized, "Values"],
     "InactiveRootProjection" -> projectionRecord|>
