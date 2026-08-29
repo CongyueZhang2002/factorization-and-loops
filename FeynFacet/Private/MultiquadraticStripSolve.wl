@@ -940,7 +940,8 @@ multiquadraticFieldInverse[___] := $Failed;
 
 (* Root symbols are generated from the declared frame.  Rank three is the
    current resource ceiling, not part of the algebraic ABI. *)
-multiquadraticFieldDecompose[expression_, roots_List] := Module[
+multiquadraticFieldDecompose[expression_, roots_List,
+    validateRoundTrip_: True] := Module[
   {rank = Length[roots], deltas, symbols,
    replaced, rational, numerator, denominator, numeratorChannels,
    denominatorChannels, denominatorInverse, result, channels, reconstructed},
@@ -974,12 +975,13 @@ multiquadraticFieldDecompose[expression_, roots_List] := Module[
      compose-checked as well. *)
   If[FreeQ[rational, Alternatives @@ symbols],
     channels = PadRight[{rational}, 2^rank, 0];
-    reconstructed = multiquadraticFieldCompose[channels, roots];
-    If[reconstructed === $Failed ||
-        ! TrueQ[Together[reconstructed - expression] === 0],
-      Return[$Failed]];
+    If[TrueQ[validateRoundTrip],
+      reconstructed = multiquadraticFieldCompose[channels, roots];
+      If[reconstructed === $Failed ||
+          ! TrueQ[Together[reconstructed - expression] === 0],
+        Return[$Failed]];
+      $multiquadraticFieldComposeCheckCount++];
     $multiquadraticFieldRootFreeFastPathCount++;
-    $multiquadraticFieldComposeCheckCount++;
     Return[channels]];
   $multiquadraticFieldAlgebraicPathCount++;
   numerator = Numerator[rational];
@@ -6768,7 +6770,8 @@ multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
   (* shard plan: only the one-forms the pool does NOT already hold, and
      only when a live broker and enough uncached work justify it *)
   shardCount = If[IntegerQ[shards] && shards >= 2 && shards <= 8, shards, 0];
-  If[shardCount >= 2 && TrueQ[Quiet[taskBrokerActiveQ[]]],
+  If[shardCount >= 2 && TrueQ[Quiet[taskBrokerActiveQ[]]] &&
+      Quiet[Check[taskBrokerFreeKernels[], 0]] >= 1,
     pending = Select[Range[Length[oneForms]],
       MissingQ[multiquadraticStripInternProbe["OneForm", keys[[#1]]]] &];
     pending = DeleteDuplicatesBy[pending, keys[[#1]] &];

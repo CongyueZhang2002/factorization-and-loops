@@ -1243,7 +1243,7 @@ transportChartPullBackDeferredPreparation[record_Association,
     image = image /. Thread[projectionTags -> projectionRootImages];
     {projectionSeconds, projectionChannels} = AbsoluteTiming[
       Map[multiquadraticFieldDecompose[#1,
-          transformedProjectionRoots] &, image, {3}]];
+          transformedProjectionRoots, False] &, image, {3}]];
     If[! FreeQ[projectionChannels, $Failed],
       Return[<|"Status" -> "DeferredPreparationInactiveProjectionFailed",
         "ProjectionRootCount" -> Length[projectionRoots]|>]];
