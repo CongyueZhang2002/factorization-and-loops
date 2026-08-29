@@ -558,8 +558,10 @@ blockEquationDeferredNonzeroCensus[preparation_Association,
 blockEquationDeferredActiveGradeCensus[preparation_Association,
     roots_List] := Module[
   {started = AbsoluteTime[], variables, regulator, parameters, records,
-   rank = Length[roots], rootSquares, frame, rootHead, rootImages, placeholder,
+   rank = Length[roots], rootSquares, frame, rootHead, rootImages,
+   literalMatch, placeholder,
    canonicalTag, numericBases, numericPlaceholder,
+   directPlaceholderCount = 0, canonicalizedPlaceholderCount = 0,
    termData, primes = {2147483423, 2147483399}, maxAttempts = 64,
    activeGrades = {}, accepted = 0, attempts = 0, sampleRecords = {},
    primeIndex, prime, attempt, point, epsilonValue, parameterValues,
@@ -588,7 +590,35 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
       "Reason" -> "InvalidRootMetadata"|>]];
   rootHead = Unique["blockEquationDeferredCensusRoot"];
   rootImages = rootHead /@ Range[rank];
-  placeholder[expression_] := placeholder[expression] = Module[{canonical},
+  literalMatch[base_] := literalMatch[base] = FirstPosition[rootSquares,
+    candidate_ /; SameQ[base, candidate], Missing["NoLiteralRoot"], {1},
+    Heads -> False];
+  placeholder[expression_] := placeholder[expression] = Module[
+    {direct, survivors, canonical},
+    (* Literal declared roots are overwhelmingly the common case.  Substitute
+       them first and enter the exact denester only when a symbolic radical
+       actually survives.  This keeps the routing probe modular and avoids a
+       source-frame Together/denesting pass over every large DAG operand. *)
+    direct = expression /.
+      Power[base_ /; ! NumericQ[base], exponent_Rational /;
+          Denominator[exponent] === 2] :>
+        With[{position = literalMatch[base]},
+          If[MissingQ[position], Power[base, exponent],
+            rootImages[[First[position]]]^(2 exponent)]];
+    survivors = DeleteDuplicates[Cases[Unevaluated[direct],
+      Power[base_ /; ! NumericQ[base], exponent_Rational /;
+          Denominator[exponent] === 2] :> base,
+      {0, Infinity}, Heads -> True]];
+    If[survivors === {}, directPlaceholderCount++; Return[direct, Module]];
+    (* Preserve the existing exact rational-square scaling fast path before
+       invoking the full denester. *)
+    direct = transportChartApplyRootBranches[direct, roots, rootImages];
+    survivors = DeleteDuplicates[Cases[Unevaluated[direct],
+      Power[base_ /; ! NumericQ[base], exponent_Rational /;
+          Denominator[exponent] === 2] :> base,
+      {0, Infinity}, Heads -> True]];
+    If[survivors === {}, directPlaceholderCount++; Return[direct, Module]];
+    canonicalizedPlaceholderCount++;
     canonical = blockEquationDeferredFrameCanonicalize[
       expression, frame, variables];
     If[Lookup[canonical, "Status", None] =!= "OK",
@@ -719,12 +749,21 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
         "Attempts" -> attempts,
         "CensusSeconds" -> N[AbsoluteTime[] - started]|>]],
     {primeIndex, Length[primes]}];
+  If[accepted =!= Length[primes],
+    Return[<|"Status" -> "ActiveGradeCensusInconclusive",
+      "Reason" -> "NoAcceptedPrime", "AcceptedSamples" -> accepted,
+      "Attempts" -> attempts,
+      "DirectPlaceholderCount" -> directPlaceholderCount,
+      "CanonicalizedPlaceholderCount" -> canonicalizedPlaceholderCount,
+      "CensusSeconds" -> N[AbsoluteTime[] - started]|>]];
   rootIndices = Select[Range[rank], Function[index,
     AnyTrue[activeGrades,
       BitGet[#1, index - 1] === 1 &]]];
   <|"Status" -> "ActiveGradeCensus", "Method" -> "AllSignSheetsHadamard",
     "ActiveGrades" -> activeGrades, "RootIndices" -> rootIndices,
     "AcceptedSamples" -> accepted, "Attempts" -> attempts,
+    "DirectPlaceholderCount" -> directPlaceholderCount,
+    "CanonicalizedPlaceholderCount" -> canonicalizedPlaceholderCount,
     "Samples" -> sampleRecords,
     "CensusSeconds" -> N[AbsoluteTime[] - started]|>
 ];

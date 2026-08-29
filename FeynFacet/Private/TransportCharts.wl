@@ -1260,6 +1260,10 @@ transportChartCurrentRoots[frame_Association,
    unknown), so a symbolic ratio means the base is a different quadratic
    and must stay untouched. *)
 transportChartRootBranchScale[base_, rootSquare_] := Module[{ratio, scale},
+  (* The common case is a literal declared radicand.  Avoid invoking
+     Together on every occurrence merely to rediscover structural equality;
+     the algebraic comparison below remains the general fallback. *)
+  If[SameQ[base, rootSquare], Return[1]];
   If[TrueQ[Together[base - rootSquare] === 0], Return[1]];
   If[TrueQ[Together[rootSquare] === 0], Return[None]];
   ratio = Together[base/rootSquare];

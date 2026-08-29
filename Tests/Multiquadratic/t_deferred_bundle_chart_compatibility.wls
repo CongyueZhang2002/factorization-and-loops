@@ -189,6 +189,10 @@ FTAssert["C10c an assembled one-root forcing bypasses a syntactic three-root pro
       "ModularActiveGrades" &&
     Length[Lookup[cancelChartFast["ChartDecision"],
       "SyntacticRootIndices", {}]] === 3 &&
+    Lookup[cancelChartFast["ChartDecision", "ActiveGradeCensus"],
+      "DirectPlaceholderCount", 0] > 0 &&
+    Lookup[cancelChartFast["ChartDecision", "ActiveGradeCensus"],
+      "CanonicalizedPlaceholderCount", -1] === 0 &&
     Length[cancelChartFast["ChartDecision", "RootSquares"]] === 1 &&
     TrueQ[Together[First[cancelChartFast["ChartDecision", "RootSquares"]] -
       kallenSquares[[1]]] === 0] &&
