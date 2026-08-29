@@ -79,6 +79,9 @@ ClearAll[
   transportChartStageProgress,
   transportChartTogetherTask,
   transportChartParallelTogether,
+  transportChartJacobianTogetherRecipe,
+  transportChartJacobianTogetherTask,
+  transportChartParallelJacobianPullBack,
   transportChartPullBackDeferredPreparation,
   transportChartMapleCanonicalGauge,
   $transportChartStageLog,
@@ -257,6 +260,110 @@ transportChartParallelTogether[array_, rules_List, label_String,
 ];
 transportChartParallelTogether[___] :=
   <|"Status" -> "InvalidParallelTogetherInput"|>;
+
+(* Form the Jacobian combinations on the workers, not before dispatch.
+   Passing an already formed A_v J + A_w J to transportChartParallelTogether
+   still lets Times/Plus canonicalization monopolize the mission kernel before
+   the broker sees any work.  A recipe contains only the two source entries
+   and the two scalar Jacobian coefficients, so writing and distributing it
+   does not construct the expensive product. *)
+transportChartJacobianTogetherRecipe[
+    {av_, aw_, jv_, jw_}] := Together[av jv + aw jw];
+transportChartJacobianTogetherRecipe[___] := $Failed;
+
+transportChartJacobianTogetherTask[dataFile_String] := Module[
+  {data = taskBrokerRead[dataFile], recipes},
+  If[! AssociationQ[data], Return[$Failed]];
+  recipes = Lookup[data, "Recipes", $Failed];
+  If[! ListQ[recipes], Return[$Failed]];
+  transportChartJacobianTogetherRecipe /@ recipes
+];
+
+transportChartParallelJacobianPullBack[image_, jacobian_, label_String,
+    deadline_: Infinity] := Module[
+  {started = AbsoluteTime[], imageDimensions, outputDimensions, indices,
+   recipes, values, helpers, bytes, localIndex, helperIndices,
+   helperBatches, batchLoads, targetBatch, dataFiles, codes, handle,
+   farmed, missing, timeout, route = "Serial"},
+  imageDimensions = Dimensions[image];
+  If[Length[imageDimensions] =!= 3 || First[imageDimensions] =!= 2 ||
+      Dimensions[jacobian] =!= {2, 2},
+    Return[<|"Status" -> "InvalidJacobianPullBackInput"|>]];
+  If[! transportChartDeadlineQ[deadline],
+    Return[<|"Status" -> "InvalidTogetherDeadline",
+      "Deadline" -> deadline|>]];
+  If[transportChartDeadlineExpiredQ[deadline],
+    Return[<|"Status" -> "DeadlineExpired", "Seconds" -> 0.|>]];
+  outputDimensions = {2, imageDimensions[[2]], imageDimensions[[3]]};
+  indices = Tuples[Range /@ outputDimensions];
+  recipes = Map[Function[index, {
+      image[[1, index[[2]], index[[3]]]],
+      image[[2, index[[2]], index[[3]]]],
+      jacobian[[1, index[[1]]]], jacobian[[2, index[[1]]]]}], indices];
+  If[recipes === {},
+    Return[<|"Status" -> "OK", "Result" -> ArrayReshape[{},
+        outputDimensions], "Route" -> "Serial", "Helpers" -> 0,
+      "Tasks" -> 0, "Seconds" -> 0.|>]];
+  helpers = If[taskBrokerActiveQ[], taskBrokerFreeKernels[], 0];
+  helpers = Min[helpers, Max[0, Length[recipes] - 1]];
+  values = ConstantArray[$Failed, Length[recipes]];
+  If[helpers < 1,
+    values = transportChartJacobianTogetherRecipe /@ recipes,
+    route = "Parallel";
+    bytes = Total[ByteCount /@ #1] & /@ recipes;
+    localIndex = First[Ordering[bytes, -1]];
+    helperIndices = DeleteCases[Range[Length[recipes]], localIndex];
+    helperBatches = ConstantArray[{}, helpers];
+    batchLoads = ConstantArray[0, helpers];
+    Do[
+      targetBatch = First[Ordering[batchLoads, 1]];
+      helperBatches[[targetBatch]] = Append[
+        helperBatches[[targetBatch]], index];
+      batchLoads[[targetBatch]] += bytes[[index]],
+      {index, SortBy[helperIndices, -bytes[[#1]] &]}];
+    dataFiles = Map[Function[batch, taskBrokerDataFile[
+        "tcjacobian_" <> StringReplace[CreateUUID[], "-" -> ""],
+        <|"Recipes" -> recipes[[batch]]|>]], helperBatches];
+    codes = StringJoin[
+        "FeynFacet`Private`transportChartJacobianTogetherTask[\"",
+        #1, "\"]"] & /@ dataFiles;
+    timeout = If[deadline === Infinity, 7200.,
+      Max[0.25, N[deadline - AbsoluteTime[]]]];
+    handle = taskBrokerSubmit[codes, "Label" -> label,
+      "Timeout" -> timeout];
+    values[[localIndex]] = transportChartJacobianTogetherRecipe[
+      recipes[[localIndex]]];
+    farmed = taskBrokerCollect[handle];
+    If[ListQ[farmed],
+      Do[If[index <= Length[farmed] && ListQ[farmed[[index]]] &&
+            Length[farmed[[index]]] === Length[helperBatches[[index]]],
+          values[[helperBatches[[index]]]] = farmed[[index]]],
+        {index, Length[helperBatches]}]];
+    missing = Select[helperIndices, values[[#1]] === $Failed &];
+    If[transportChartDeadlineExpiredQ[deadline],
+      Return[<|"Status" -> "DeadlineExpired", "Route" -> route,
+        "Helpers" -> helpers, "Tasks" -> Length[helperBatches],
+        "Seconds" -> N[AbsoluteTime[] - started]|>]];
+    If[missing =!= {}, values[[missing]] =
+      transportChartJacobianTogetherRecipe /@ recipes[[missing]]]];
+  missing = Select[Range[Length[values]], values[[#1]] === $Failed &];
+  If[missing =!= {},
+    Return[<|"Status" -> "JacobianPullBackNormalizationFailed",
+      "Targets" -> indices[[missing]],
+      "Route" -> route, "Helpers" -> If[route === "Parallel", helpers, 0],
+      "Seconds" -> N[AbsoluteTime[] - started]|>]];
+  If[transportChartDeadlineExpiredQ[deadline],
+    Return[<|"Status" -> "DeadlineExpired", "Route" -> route,
+      "Helpers" -> If[route === "Parallel", helpers, 0],
+      "Tasks" -> If[route === "Parallel", Length[helperBatches], 0],
+      "Seconds" -> N[AbsoluteTime[] - started]|>]];
+  <|"Status" -> "OK", "Result" -> ArrayReshape[values, outputDimensions],
+    "Route" -> route, "Helpers" -> If[route === "Parallel", helpers, 0],
+    "Tasks" -> If[route === "Parallel", Length[helperBatches], 0],
+    "Seconds" -> N[AbsoluteTime[] - started]|>
+];
+transportChartParallelJacobianPullBack[___] :=
+  <|"Status" -> "InvalidParallelJacobianPullBackInput"|>;
 
 Options[transportChartMapleCanonicalGauge] = {
   "MapleExecutable" -> "maple",
@@ -1187,7 +1294,7 @@ transportChartPullBackDeferredPreparation[record_Association,
    projectionTags, projectionRootImages,
    taggedProjectionRoots,
    projectionSeconds = 0., inactiveChannels, projectionRecord = None,
-   projectionPreparedFallbacks = 0, uncombinedPullBack,
+   projectionPreparedFallbacks = 0,
    jacobianPullBack},
   preparation = Lookup[record, "Preparation",
     Lookup[record, "DeferredPreparation", Missing["NoPreparation"]]];
@@ -1281,13 +1388,8 @@ transportChartPullBackDeferredPreparation[record_Association,
        normalizations.  Serial Together spent more than four minutes after
        CF259 {24,6}'s field projection; use the live helper allocation just
        as the target materializer does. *)
-    uncombinedPullBack = {
-      image[[1]] data["Jacobian"][[1, 1]] +
-        image[[2]] data["Jacobian"][[2, 1]],
-      image[[1]] data["Jacobian"][[1, 2]] +
-        image[[2]] data["Jacobian"][[2, 2]]};
-    jacobianPullBack = transportChartParallelTogether[
-      uncombinedPullBack, {}, "chartforcing_" <> ToString[
+    jacobianPullBack = transportChartParallelJacobianPullBack[
+      image, data["Jacobian"], "chartforcing_" <> ToString[
         Lookup[preparation, "Sector", "block"]] <> "_" <>
         ToString[Lookup[preparation, "LowerSector", "source"]]];
     If[Lookup[jacobianPullBack, "Status", None] =!= "OK",

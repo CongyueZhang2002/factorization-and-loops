@@ -216,4 +216,28 @@ expiredTogether = FeynFacet`Private`transportChartParallelTogether[
 FTAssert["chart Together refuses before work when its deadline has expired",
   expiredTogether["Status"] === "DeadlineExpired"];
 
+jacobianImage = {
+  {{1/(1 + x), y/(1 - x y)}},
+  {{x/(1 - y), (1 + x y)/(2 - x)}}};
+jacobianMatrix = {{1 + x, y/(1 + x)}, {x/(1 - y), 1 - x y}};
+jacobianExpected = {
+  Map[Together,
+    jacobianImage[[1]] jacobianMatrix[[1, 1]] +
+      jacobianImage[[2]] jacobianMatrix[[2, 1]], {2}],
+  Map[Together,
+    jacobianImage[[1]] jacobianMatrix[[1, 2]] +
+      jacobianImage[[2]] jacobianMatrix[[2, 2]], {2}]};
+jacobianResult =
+  FeynFacet`Private`transportChartParallelJacobianPullBack[
+    jacobianImage, jacobianMatrix, "tcjacobiantest"];
+FTAssert["recipe-first Jacobian pullback preserves the exact one-form",
+  jacobianResult["Status"] === "OK" &&
+    jacobianResult["Result"] === jacobianExpected];
+expiredJacobian =
+  FeynFacet`Private`transportChartParallelJacobianPullBack[
+    jacobianImage, jacobianMatrix, "tcjacobiantest_expired",
+    AbsoluteTime[] - 1];
+FTAssert["recipe-first Jacobian pullback honors an expired deadline",
+  expiredJacobian["Status"] === "DeadlineExpired"];
+
 FTReport[];
