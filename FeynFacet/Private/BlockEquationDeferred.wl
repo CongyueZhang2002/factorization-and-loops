@@ -583,11 +583,15 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
   If[! ListQ[rootSquares] || Length[rootSquares] =!= rank,
     Return[<|"Status" -> "ActiveGradeCensusInconclusive",
       "Reason" -> "InvalidRootMetadata"|>]];
+  Print["[deferred-router] active-grade census start: rank ", rank,
+    ", records ", Length[records]];
 
   frame = blockEquationDeferredRootFrame[roots, variables, regulator];
   If[Lookup[frame, "Status", None] =!= "StableRootOrder",
     Return[<|"Status" -> "ActiveGradeCensusInconclusive",
       "Reason" -> "InvalidRootMetadata"|>]];
+  Print["[deferred-router] active-grade frame ready: ",
+    Round[N[AbsoluteTime[] - started], 0.1], " s"];
   rootHead = Unique["blockEquationDeferredCensusRoot"];
   rootImages = rootHead /@ Range[rank];
   literalMatch[base_] := literalMatch[base] = FirstPosition[rootSquares,
@@ -633,6 +637,9 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
   If[AssociationQ[termData],
     Return[<|"Status" -> "ActiveGradeCensusInconclusive",
       "Reason" -> Lookup[termData, "Status", "FrameCanonicalizationFailed"]|>]];
+  Print["[deferred-router] active-grade placeholders ready: direct ",
+    directPlaceholderCount, ", denested ", canonicalizedPlaceholderCount,
+    ", ", Round[N[AbsoluteTime[] - started], 0.1], " s"];
   numericBases = DeleteDuplicates[Cases[termData,
     Power[base_ /; NumericQ[base], exponent_Rational /;
       Denominator[exponent] === 2] :> Together[base],
@@ -741,6 +748,9 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
       AppendTo[sampleRecords, <|"Prime" -> prime, "Point" -> point,
         "Regulator" -> epsilonValue, "ActiveGrades" -> sampleGrades|>];
       failureStatus = None;
+      Print["[deferred-router] active-grade prime ", prime,
+        " accepted after ", attempts, " attempt(s): grades ", sampleGrades,
+        ", ", Round[N[AbsoluteTime[] - started], 0.1], " s"];
       Break[],
       {attempt, maxAttempts}];
     If[failureStatus =!= None,
@@ -1849,7 +1859,7 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
    classification, indices, syntacticIndices, usedRoots, rootSquares, chart,
    properChartableQ, activeCensus = Missing["NotNeeded"], reducedIndices,
    reducedRoots, reducedSquares, reducedChart, denestedQ,
-   method = "SyntacticRootUnion"},
+   method = "SyntacticRootUnion", diagonalStarted},
   variables = Lookup[preparation, "Variables", {}];
   regulator = Lookup[preparation, "Regulator", None];
   rows = Lookup[preparation, "RowIndices", {}];
@@ -1869,11 +1879,17 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
   If[Length[roots] >= 2 && ListQ[rootSquares] &&
       Length[rootSquares] === Length[roots] &&
       ! AssociationQ[TransportRootSetChart[rootSquares, variables]],
+    Print["[deferred-router] modular-first chart decision: rank ",
+      Length[roots], ", records ", Length[records]];
+    diagonalStarted = AbsoluteTime[];
     diagonalExpressions = DeleteDuplicates[DeleteCases[Flatten[{
         connection[[All, rows, rows]], connection[[All, columns, columns]]
       }], 0]];
     diagonalClassification = transportChartRootIndices[
       diagonalExpressions, roots];
+    Print["[deferred-router] diagonal root census done: ",
+      Round[N[AbsoluteTime[] - diagonalStarted], 0.1], " s, roots ",
+      Lookup[diagonalClassification, "RootIndices", $Failed]];
     diagonalIndices = Lookup[diagonalClassification, "RootIndices", $Failed];
     If[VectorQ[diagonalIndices, IntegerQ] &&
         Lookup[diagonalClassification, "UnclassifiedRadicalBases", {}] === {} &&
