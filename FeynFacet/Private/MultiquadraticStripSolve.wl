@@ -942,7 +942,7 @@ multiquadraticFieldInverse[___] := $Failed;
    current resource ceiling, not part of the algebraic ABI. *)
 multiquadraticFieldDecompose[expression_, roots_List,
     validateRoundTrip_: True, normalizeInput_: True] := Module[
-  {rank = Length[roots], deltas, symbols,
+  {rank = Length[roots], deltas, rootImages, symbols,
    replaced, rational, numerator, denominator, numeratorChannels,
    denominatorChannels, denominatorInverse, result, channels, reconstructed},
   If[rank > $multiquadraticStripMaximumRootCount ||
@@ -950,9 +950,17 @@ multiquadraticFieldDecompose[expression_, roots_List,
   deltas = If[rank === 0, {},
     Together /@ Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]]];
   If[! FreeQ[deltas, $Failed], Return[$Failed]];
+  rootImages = Lookup[roots, "Root", ConstantArray[$Failed, rank]];
+  If[! FreeQ[rootImages, $Failed], Return[$Failed]];
   symbols = Table[Unique["multiquadraticRoot$"], {rank}];
   replaced = If[rank === 0, expression,
-    transportChartApplyRootBranches[expression, roots, symbols]];
+    (* Deferred assembly represents inactive algebra generators by literal
+       symbols.  Replace each declared root expression directly before the
+       radical square-class matcher; the latter remains the fallback for
+       equivalent radical spellings.  Without this first rule, literal tags
+       bypassed the algebraic path as apparently root-free scalars. *)
+    transportChartApplyRootBranches[
+      expression /. Thread[rootImages -> symbols], roots, symbols]];
   If[replaced === $Failed, Return[$Failed]];
   (* rank 0 decides on the normal form, as it always has: Together may
      rationalize a numeric radical away, and that expression is a

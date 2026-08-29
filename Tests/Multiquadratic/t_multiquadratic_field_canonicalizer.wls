@@ -203,5 +203,20 @@ check["C9 the canonicalizer is then a NO-OP and says so",
     plainCanonical["Expression"] === plainRecord["Strip"] &&
     plainCanonical["Rewritten"] === 0];
 
+(* ---- C10: literal algebra-generator symbols ---- *)
+Clear[taggedRoot, taggedDelta];
+taggedRoots = {<|"Root" -> taggedRoot,
+  "RootSquare" -> taggedDelta|>};
+taggedChannels = decompose[(1 + taggedRoot)/(2 + taggedRoot),
+  taggedRoots, False, False];
+check["C10 a literal declared root symbol enters the algebraic path",
+  ListQ[taggedChannels] && Length[taggedChannels] === 2 &&
+    FreeQ[taggedChannels, taggedRoot]];
+check["C10 literal-root channels are reduced with r^2 equal to its square",
+  ListQ[taggedChannels] &&
+    And @@ (TrueQ[Together[#1] === 0] & /@
+      (taggedChannels - {(2 - taggedDelta)/(4 - taggedDelta),
+        1/(4 - taggedDelta)}))];
+
 Print["t_multiquadratic_field_canonicalizer: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];

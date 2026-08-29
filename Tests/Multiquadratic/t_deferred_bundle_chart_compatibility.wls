@@ -250,7 +250,10 @@ FTAssert["C10e exact post-sum projection removes canceled inactive roots before 
       "ExactInactiveGradeProjection" &&
     Lookup[denominatorPull["InactiveRootProjection"], "RootCount", None] === 2 &&
     FeynFacet`Private`transportChartRadicalBases[
-      denominatorPull["OneForm"]] === {}];
+      denominatorPull["OneForm"]] === {} &&
+    FreeQ[denominatorPull["OneForm"],
+      symbol_Symbol /; StringStartsQ[SymbolName[symbol],
+        "deferredProjectionRoot"]]];
 
 unsupportedPreparation = prepareDeferred[unsupportedConnection,
   {{1}, {2}, {3}}, 3, 1, cancelSolved, variables, epsilon];
