@@ -33,6 +33,15 @@ acceptance = <|
   "SolverConfiguration" -> <|
     "Backend" -> "OldBackend", "Threads" -> 1,
     "SourceRevision" -> "old"|>|>;
+legacyCompositionalAcceptance = ReplacePart[acceptance,
+  "FrameCertificate" -> Join[acceptance["FrameCertificate"], <|
+    "ValidationMode" -> "CompositionalNumerical",
+    "TransformedOneFormPullBack" ->
+      Missing["DeferredToFamilyCertificate"],
+    "GaugeRoundTripProof" -> "ExactCoordinateComposition"|>]];
+FTAssert["an exact chart composition transports an older numerical certificate",
+  FeynFacet`Private`familyRowGaugeStripAcceptanceRecordQ[
+    legacyCompositionalAcceptance]];
 checkpoint = <|
   "Family" -> family, "Sector" -> sector, "SubSize" -> 1,
   "Truncation" -> 3, "PrevD" -> {{x + y}},

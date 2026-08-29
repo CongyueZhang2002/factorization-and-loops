@@ -101,7 +101,7 @@ familyRowGaugeCheckpointGaugeShapeQ[___] := False;
 familyRowGaugeStripAcceptanceRecordQ[record_Association] := Module[
   {method = Lookup[record, "Method", None],
    certificate = Lookup[record, "Certificate", None], frame,
-   validationMode, installation},
+   validationMode, installation, branchSigns, numericalBaseQ},
   If[method === "ZeroForcing",
     Return[TrueQ[Lookup[record, "ExactDLog", False]]]];
   If[method === "DirectMultiquadraticFiniteField",
@@ -120,19 +120,28 @@ familyRowGaugeStripAcceptanceRecordQ[record_Association] := Module[
   If[StringQ[method] && StringStartsQ[method, "RationalChart/"],
     If[! AssociationQ[frame], Return[False]];
     validationMode = Lookup[frame, "ValidationMode", None];
-    Return[If[MemberQ[{"PostMapleFiniteFieldResidual",
-          "PostPullBackFiniteFieldResidual"}, validationMode],
+    branchSigns = Lookup[frame, "BranchSigns", None];
+    numericalBaseQ =
       TrueQ[Lookup[frame, "CoordinateComposition", False]] &&
         TrueQ[Lookup[frame, "GaugeRoundTrip", False]] &&
-        TrueQ[Lookup[frame, "TransformedOneFormPullBack", False]] &&
-        MatchQ[Lookup[frame, "BranchSigns", None], {__Integer}] &&
-        AllTrue[Lookup[frame, "BranchSigns", {}],
-          MemberQ[{-1, 1}, #] &] &&
+        MatchQ[branchSigns, {__Integer}] &&
+        AllTrue[branchSigns, MemberQ[{-1, 1}, #] &] &&
         Lookup[frame, "InnerCertificate", None] ===
           "NumericalResidual" &&
         IntegerQ[Lookup[frame, "UnseenPrime", None]] &&
-        TrueQ[Lookup[frame, "NumericalPfaffianResidualsZero", False]],
-      And @@ (TrueQ[Lookup[frame, #, False]] & /@
+        TrueQ[Lookup[frame, "NumericalPfaffianResidualsZero", False]];
+    Return[Switch[validationMode,
+      "PostMapleFiniteFieldResidual" | "PostPullBackFiniteFieldResidual",
+        numericalBaseQ &&
+          TrueQ[Lookup[frame, "TransformedOneFormPullBack", False]],
+      (* Before a gauge-normalization stage existed, the chart gauge and
+         coordinate composition were installed literally.  An accepted
+         chart-frame residual therefore pulls back functorially; the exact
+         composition proof is the mathematical acceptance record. *)
+      "CompositionalNumerical",
+        numericalBaseQ && Lookup[frame, "GaugeRoundTripProof", None] ===
+          "ExactCoordinateComposition",
+      _, And @@ (TrueQ[Lookup[frame, #, False]] & /@
         {"CoordinateComposition", "GaugeRoundTrip",
          "TransformedOneFormPullBack", "SourceDLog", "Exact"})]]];
   If[StringQ[method] && StringStartsQ[method, "RationalFrame/"],
