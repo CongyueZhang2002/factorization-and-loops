@@ -61,16 +61,13 @@
 
    SCOPE, MEASURED AND STATED.  The exact materialization is frame
    independent: it is ordinary exact algebra and is used on rational and
-   algebraic (multiquadratic) frames alike.  The MODULAR CENSUS is not:
-   its evaluator refuses a half-power with the typed rejection
-   AlgebraicOperandUnsupported, so on an algebraic frame every point is
-   rejected, nothing is proved, and the caller falls back to its own
-   exact zero test -- fail closed, no regression.  Accepting points on an
-   algebraic frame needs the declared-root ABI of
-   FamilyRowGaugeFiniteField.wl (canonical root order, all 2^r sign
-   conjugates, the Hadamard grade round trip: Codex Q5 point 5), which
-   this layer does not yet carry.  Measured on CF259 (21,18): 8 of 8
-   entries algebraic, 8 of 8 census points rejected.
+   algebraic (multiquadratic) frames alike.  The ENTRY-NONZERO modular
+   census remains rational-only: an undeclared half-power is a typed
+   AlgebraicOperandUnsupported rejection and falls back to exact
+   materialization.  The separate chart ROUTER below supplies declared
+   root placeholders, evaluates all 2^r sign sheets and projects them by
+   the shared Hadamard ABI; its samples select execution only and never
+   accept a solved block.
 
    THE ONE MEASURED DIFFERENCE FROM THE SYMBOLIC ROUTE, and its blast
    radius.  The two routes agree EXACTLY as rational functions (proved
@@ -129,6 +126,7 @@ ClearAll[
   blockEquationDeferredModEvaluate,
   blockEquationDeferredEvaluate,
   blockEquationDeferredNonzeroCensus,
+  blockEquationDeferredActiveGradeCensus,
   blockEquationDeferredCanonicalOperand,
   blockEquationDeferredMaterialize,
   blockEquationDeferredSourceExpression,
@@ -147,6 +145,7 @@ ClearAll[
   blockEquationDeferredFrameCanonicalize,
   blockEquationDeferredFactorRootMask,
   blockEquationDeferredFactorCanonicalKey,
+  blockEquationDeferredChartMaterializableQ,
   blockEquationDeferredChartDecision,
   blockEquationDeferredFactorOrbit,
   blockEquationDeferredBundleTargetOrder,
@@ -412,16 +411,10 @@ blockEquationDeferredModEvaluate[expression_, scalarValues_Association,
             PowerMod[baseValue, exponent, prime], $Failed]];
           If[value === $Failed,
             Throw[<|"Status" -> "SingularPoint"|>, tag], value]],
-      (* An ALGEBRAIC operand (a half-power the caller did not replace by
-         a declared root placeholder) is its own typed rejection, not a
-         generic unsupported node.  MEASURED on CF259 (21,18): all eight
-         entries of that block carry square roots, so the census rejects
-         every point of an algebraic frame and the caller falls back to
-         its exact zero test -- the fail-closed behaviour.  Accepting
-         such a point needs the declared-root ABI of
-         FamilyRowGaugeFiniteField.wl (canonical root order, all 2^r sign
-         conjugates, the Hadamard grade round trip: Codex Q5 point 5),
-         which this construction layer does not yet carry. *)
+      (* A half-power the caller did not replace by a declared root
+         placeholder is its own typed rejection, not a generic unsupported
+         node.  The rational entry census therefore fails closed, while the
+         active-grade chart router supplies the declared placeholders. *)
       MatchQ[node, Power[_, _Rational]],
         Throw[<|"Status" -> "AlgebraicOperandUnsupported",
           "RadicalBase" -> HoldForm[First[node]],
@@ -555,6 +548,188 @@ blockEquationDeferredNonzeroCensus[preparation_Association,
     "NonzeroProvedQ" -> Length[Keys[nonzero]] > 0,
     "CensusSeconds" -> N[AbsoluteTime[] - started]|>
 ];
+
+(* The raw term union can mention generators that cancel only when the
+   deferred source is assembled.  This ROUTING-ONLY census evaluates that
+   assembled DAG on every sign sheet at one split point over each of two
+   primes and projects the sheets back with the shared Hadamard transform.
+   A refusal is inconclusive and leaves the caller on its existing direct
+   provider route; no sampled statement is used as solver acceptance. *)
+blockEquationDeferredActiveGradeCensus[preparation_Association,
+    roots_List] := Module[
+  {started = AbsoluteTime[], variables, regulator, parameters, records,
+   rank = Length[roots], rootSquares, frame, rootHead, rootImages, placeholder,
+   canonicalTag, numericBases, numericPlaceholder,
+   termData, primes = {2147483423, 2147483399}, maxAttempts = 64,
+   activeGrades = {}, accepted = 0, attempts = 0, sampleRecords = {},
+   primeIndex, prime, attempt, point, epsilonValue, parameterValues,
+   scalarValues, deltaResults, deltaValues, rootValues, numericResults,
+   numericValues, numericRootValues, sheet, signs, signedRoots,
+   evaluationRoots, cache, evaluate, branch, branchImages, channels,
+   sampleGrades, failureStatus, rootIndices, evalTag, sampleTag},
+  If[Lookup[preparation, "Status", None] =!= "Prepared" ||
+      ! MatchQ[Lookup[preparation, "Variables", None], {_Symbol, _Symbol}] ||
+      ! SymbolQ[Lookup[preparation, "Regulator", None]] ||
+      ! Between[rank, {1, $multiquadraticStripMaximumRootCount}],
+    Return[<|"Status" -> "ActiveGradeCensusInconclusive",
+      "Reason" -> "InvalidInput"|>]];
+  variables = preparation["Variables"];
+  regulator = preparation["Regulator"];
+  parameters = Lookup[preparation, "Parameters", {}];
+  records = Lookup[preparation, "Records", {}];
+  rootSquares = Lookup[roots, "RootSquare", $Failed];
+  If[! ListQ[rootSquares] || Length[rootSquares] =!= rank,
+    Return[<|"Status" -> "ActiveGradeCensusInconclusive",
+      "Reason" -> "InvalidRootMetadata"|>]];
+
+  frame = blockEquationDeferredRootFrame[roots, variables, regulator];
+  If[Lookup[frame, "Status", None] =!= "StableRootOrder",
+    Return[<|"Status" -> "ActiveGradeCensusInconclusive",
+      "Reason" -> "InvalidRootMetadata"|>]];
+  rootHead = Unique["blockEquationDeferredCensusRoot"];
+  rootImages = rootHead /@ Range[rank];
+  placeholder[expression_] := placeholder[expression] = Module[{canonical},
+    canonical = blockEquationDeferredFrameCanonicalize[
+      expression, frame, variables];
+    If[Lookup[canonical, "Status", None] =!= "OK",
+      Throw[canonical, canonicalTag]];
+    transportChartApplyRootBranches[
+      canonical["Expression"], roots, rootImages]];
+  termData = Catch[Map[Function[record,
+      Map[Function[term, <|
+          "Coefficient" -> placeholder[Lookup[term, "Coefficient", 1]],
+          "Operands" -> (placeholder /@ Lookup[term, "Operands", {}])|>],
+        Lookup[record, "Terms", {}]]], records], canonicalTag, #1 &];
+  If[AssociationQ[termData],
+    Return[<|"Status" -> "ActiveGradeCensusInconclusive",
+      "Reason" -> Lookup[termData, "Status", "FrameCanonicalizationFailed"]|>]];
+  numericBases = DeleteDuplicates[Cases[termData,
+    Power[base_ /; NumericQ[base], exponent_Rational /;
+      Denominator[exponent] === 2] :> Together[base],
+    {0, Infinity}, Heads -> True]];
+  numericPlaceholder[expression_] := Fold[Function[{current, index},
+      With[{square = numericBases[[index]], image = rootHead[rank + index]},
+        current /. Power[base_, exponent_Rational /;
+            Denominator[exponent] === 2] :>
+          If[TrueQ[Together[base - square] === 0],
+            image^(2 exponent), Power[base, exponent]]]],
+    expression, Range[Length[numericBases]]];
+  If[numericBases =!= {}, termData = Map[Function[record,
+    Map[Function[term, <|
+      "Coefficient" -> numericPlaceholder[term["Coefficient"]],
+      "Operands" -> (numericPlaceholder /@ term["Operands"])|>],
+      record]], termData]];
+
+  Do[
+    prime = primes[[primeIndex]];
+    failureStatus = "NoUsableSplitPoint";
+    Do[
+      attempts++;
+      point = {2 + Mod[7919 attempt + 104729 primeIndex, prime - 3],
+        2 + Mod[15485863 attempt + 13007 primeIndex, prime - 3]};
+      epsilonValue = 2 + Mod[65537 attempt + 8191 primeIndex, prime - 3];
+      parameterValues = Table[
+        2 + Mod[104729 attempt + 15485863 parameterIndex + primeIndex,
+          prime - 3], {parameterIndex, Length[parameters]}];
+      scalarValues = Association[Join[Thread[variables -> point],
+        {regulator -> epsilonValue}, Thread[parameters -> parameterValues]]];
+      deltaResults = blockEquationDeferredModEvaluate[
+          #1, scalarValues, {}, prime] & /@ rootSquares;
+      If[! AllTrue[deltaResults, Lookup[#1, "Status", None] === "OK" &],
+        failureStatus = Lookup[FirstCase[deltaResults,
+          result_ /; Lookup[result, "Status", None] =!= "OK"],
+          "Status", "RootSquareEvaluationFailed"];
+        If[MemberQ[{"UnsupportedExpression", "UnassignedSymbol",
+            "AlgebraicOperandUnsupported"}, failureStatus],
+          Return[<|"Status" -> "ActiveGradeCensusInconclusive",
+            "Reason" -> failureStatus|>]];
+        Continue[]];
+      deltaValues = Lookup[deltaResults, "Value", {}];
+      If[! VectorQ[deltaValues, IntegerQ] ||
+          ! AllTrue[deltaValues,
+            #1 =!= 0 && JacobiSymbol[#1, prime] === 1 &], Continue[]];
+      rootValues = multiquadraticSquareRoots[deltaValues, prime];
+      If[! VectorQ[rootValues, IntegerQ] || Length[rootValues] =!= rank,
+        Continue[]];
+      numericResults = blockEquationDeferredModEvaluate[
+          #1, scalarValues, {}, prime] & /@ numericBases;
+      If[! AllTrue[numericResults,
+          Lookup[#1, "Status", None] === "OK" &],
+        Return[<|"Status" -> "ActiveGradeCensusInconclusive",
+          "Reason" -> "NumericRadicalEvaluationFailed"|>]];
+      numericValues = Lookup[numericResults, "Value", {}];
+      If[! AllTrue[numericValues,
+          #1 =!= 0 && JacobiSymbol[#1, prime] === 1 &],
+        Return[<|"Status" -> "ActiveGradeCensusInconclusive",
+          "Reason" -> "NumericRadicalNotSplit"|>]];
+      numericRootValues = multiquadraticSquareRoots[numericValues, prime];
+      If[! VectorQ[numericRootValues, IntegerQ],
+        Return[<|"Status" -> "ActiveGradeCensusInconclusive",
+          "Reason" -> "NumericSquareRootFailed"|>]];
+
+      branchImages = Catch[Table[
+        signs = Table[If[BitGet[sheet, index - 1] === 1, -1, 1],
+          {index, rank}];
+        signedRoots = Mod[signs rootValues, prime];
+        evaluationRoots = Join[signedRoots, numericRootValues];
+        cache = <||>;
+        evaluate[expression_] := If[KeyExistsQ[cache, expression],
+          cache[expression], cache[expression] =
+            blockEquationDeferredModEvaluate[expression, scalarValues,
+              evaluationRoots, prime, rootHead]];
+        branch = Catch[Table[Mod[Total[Map[Function[term, Module[
+              {factors, bad},
+              factors = evaluate /@ Prepend[term["Operands"],
+                term["Coefficient"]];
+              bad = SelectFirst[factors,
+                Lookup[#1, "Status", None] =!= "OK" &, None];
+              If[bad =!= None, Throw[bad, evalTag]];
+              Times @@ (Lookup[#1, "Value", 0] & /@ factors)]],
+            record]], prime], {record, termData}], evalTag, #1 &];
+        If[AssociationQ[branch], Throw[branch, sampleTag]];
+        branch, {sheet, 0, 2^rank - 1}], sampleTag, #1 &];
+      If[AssociationQ[branchImages],
+        failureStatus = Lookup[branchImages, "Status", "EvaluationFailed"];
+        If[MemberQ[{"UnsupportedExpression", "UnassignedSymbol",
+            "AlgebraicOperandUnsupported", "InvalidRootPlaceholder"},
+            failureStatus],
+          Return[<|"Status" -> "ActiveGradeCensusInconclusive",
+            "Reason" -> failureStatus|>]];
+        Continue[]];
+      channels = Table[multiquadraticProjectConjugates[
+          branchImages[[All, target]], rootValues, prime],
+        {target, Length[records]}];
+      If[AnyTrue[channels, #1 === $Failed ||
+          ! VectorQ[#1, IntegerQ] || Length[#1] =!= 2^rank &],
+        failureStatus = "HadamardProjectionFailed"; Continue[]];
+      sampleGrades = Select[Range[0, 2^rank - 1], Function[grade,
+        AnyTrue[channels,
+          Mod[#1[[grade + 1]], prime] =!= 0 &]]];
+      activeGrades = Union[activeGrades, sampleGrades];
+      accepted++;
+      AppendTo[sampleRecords, <|"Prime" -> prime, "Point" -> point,
+        "Regulator" -> epsilonValue, "ActiveGrades" -> sampleGrades|>];
+      failureStatus = None;
+      Break[],
+      {attempt, maxAttempts}];
+    If[failureStatus =!= None,
+      Return[<|"Status" -> "ActiveGradeCensusInconclusive",
+        "Reason" -> failureStatus, "AcceptedSamples" -> accepted,
+        "Attempts" -> attempts,
+        "CensusSeconds" -> N[AbsoluteTime[] - started]|>]],
+    {primeIndex, Length[primes]}];
+  rootIndices = Select[Range[rank], Function[index,
+    AnyTrue[activeGrades,
+      BitGet[#1, index - 1] === 1 &]]];
+  <|"Status" -> "ActiveGradeCensus", "Method" -> "AllSignSheetsHadamard",
+    "ActiveGrades" -> activeGrades, "RootIndices" -> rootIndices,
+    "AcceptedSamples" -> accepted, "Attempts" -> attempts,
+    "Samples" -> sampleRecords,
+    "CensusSeconds" -> N[AbsoluteTime[] - started]|>
+];
+blockEquationDeferredActiveGradeCensus[___] :=
+  <|"Status" -> "ActiveGradeCensusInconclusive",
+    "Reason" -> "InvalidInput"|>;
 
 (* ---- exact materialization ------------------------------------------ *)
 
@@ -1594,19 +1769,47 @@ blockEquationDeferredFactorCanonicalKey[factor_, squares_List] := Module[
 ];
 blockEquationDeferredFactorCanonicalKey[___] := $Failed;
 
+(* The chart materializer expands sums but deliberately does not rationalize
+   an algebraic denominator.  Therefore an active-subfield route is safe only
+   when every generator omitted from the chart is absent from every raw
+   negative-power base.  Polynomial occurrences may cancel in the assembled
+   numerator; denominator occurrences stay on the direct provider. *)
+blockEquationDeferredChartMaterializableQ[preparation_Association,
+    roots_List, activeIndices_List] := Module[
+  {inactiveIndices, terms, expressions, denominatorBases, classification},
+  inactiveIndices = Complement[Range[Length[roots]], activeIndices];
+  If[inactiveIndices === {}, Return[True]];
+  terms = Flatten[Lookup[Lookup[preparation, "Records", {}], "Terms", {}]];
+  expressions = Flatten[{
+    Lookup[terms, "Coefficient", 1], Lookup[terms, "Operands", {}]}];
+  denominatorBases = DeleteDuplicates[Cases[expressions,
+    Power[base_, exponent_ /; (IntegerQ[exponent] ||
+        Head[exponent] === Rational) && exponent < 0] :> base,
+    {0, Infinity}, Heads -> True]];
+  If[denominatorBases === {}, Return[True]];
+  classification = transportChartRootIndices[denominatorBases, roots];
+  Lookup[classification, "UnclassifiedRadicalBases", {}] === {} &&
+    Lookup[classification, "DenestedRadicalBases", <||>] === <||> &&
+    Intersection[Lookup[classification, "RootIndices", {}],
+      inactiveIndices] === {}
+];
+blockEquationDeferredChartMaterializableQ[___] := False;
+
 (* Cheap routing probe used before the heavyweight direct-provider compiler.
-   It asks only which declared roots occur in the two diagonal blocks and in
-   the deferred source operands, then queries the chart catalog for that root
-   set.  This is not a certificate: SolveEpsFormStripInFrame repeats its normal
-   frame and chart gates on the materialized strip.  Consequently a mistaken
-   optimistic probe can only produce a typed refusal later; it cannot accept a
-   wrong gauge.  Its purpose is to avoid building divisor provenance, Galois
-   orbits and an authenticated provider for a block that will immediately be
-   converted to an ordinary rational strip. *)
+   The exact syntactic union is tried first.  Only when that union is chartless
+   but a proper chartable subset exists do we census the ASSEMBLED deferred
+   source's active grades modulo two primes; roots used by the diagonal blocks
+   remain mandatory.  This is not a certificate: the chart materializer and
+   SolveEpsFormStripInFrame repeat their exact frame gates, while an
+   inconclusive census leaves the direct-provider route unchanged. *)
 blockEquationDeferredChartDecision[connection_, preparation_Association,
     roots_List] := Module[
   {variables, regulator, rows, columns, records, terms, expressions,
-   classification, indices, usedRoots, rootSquares, chart},
+   diagonalExpressions, diagonalClassification, diagonalIndices,
+   classification, indices, syntacticIndices, usedRoots, rootSquares, chart,
+   properChartableQ, activeCensus = Missing["NotNeeded"], reducedIndices,
+   reducedRoots, reducedSquares, reducedChart, denestedQ,
+   method = "SyntacticRootUnion"},
   variables = Lookup[preparation, "Variables", {}];
   regulator = Lookup[preparation, "Regulator", None];
   rows = Lookup[preparation, "RowIndices", {}];
@@ -1621,22 +1824,60 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
       Lookup[terms, "Coefficient", 1], Lookup[terms, "Operands", {}]
     }], 0]];
   classification = transportChartRootIndices[expressions, roots];
-  If[Lookup[classification, "UnclassifiedRadicalBases", {}] =!= {} ||
-      Lookup[classification, "DenestedRadicalBases", <||>] =!= <||>,
+  If[Lookup[classification, "UnclassifiedRadicalBases", {}] =!= {},
     Return[<|"Status" -> "ChartDecisionInconclusive",
       "Classification" -> classification|>]];
+  denestedQ = Lookup[classification, "DenestedRadicalBases", <||>] =!= <||>;
   indices = Lookup[classification, "RootIndices", {}];
   If[! VectorQ[indices, IntegerQ] ||
       ! AllTrue[indices, 1 <= # <= Length[roots] &],
     Return[<|"Status" -> "ChartDecisionInvalidRootIndices"|>]];
+  syntacticIndices = indices;
   usedRoots = roots[[indices]];
   rootSquares = Lookup[usedRoots, "RootSquare", {}];
   chart = If[indices === {}, None,
     TransportRootSetChart[rootSquares, variables]];
+  (* The raw chart substituter handles declared square classes directly.
+     A denested occurrence therefore needs the modular canonicalizer below;
+     it must not take the older syntactic fast path. *)
+  If[denestedQ && AssociationQ[chart], chart = Missing["NeedsGradeCensus"]];
+  If[indices =!= {} && ! AssociationQ[chart],
+    diagonalExpressions = DeleteDuplicates[DeleteCases[Flatten[{
+        connection[[All, rows, rows]], connection[[All, columns, columns]]
+      }], 0]];
+    diagonalClassification = transportChartRootIndices[
+      diagonalExpressions, roots];
+    diagonalIndices = Lookup[diagonalClassification, "RootIndices", $Failed];
+    If[VectorQ[diagonalIndices, IntegerQ] &&
+        Lookup[diagonalClassification, "UnclassifiedRadicalBases", {}] === {} &&
+        Lookup[diagonalClassification, "DenestedRadicalBases", <||>] === <||>,
+      properChartableQ = AnyTrue[Subsets[indices], Function[subset,
+        Length[subset] < Length[indices] &&
+          ContainsAll[subset, diagonalIndices] &&
+          (subset === {} || AssociationQ[TransportRootSetChart[
+            Lookup[roots[[subset]], "RootSquare", {}], variables]])]];
+      If[properChartableQ,
+        activeCensus = blockEquationDeferredActiveGradeCensus[
+          preparation, roots];
+        If[Lookup[activeCensus, "Status", None] === "ActiveGradeCensus",
+          reducedIndices = Sort[DeleteDuplicates[Join[diagonalIndices,
+            Lookup[activeCensus, "RootIndices", {}]]]];
+          reducedRoots = roots[[reducedIndices]];
+          reducedSquares = Lookup[reducedRoots, "RootSquare", {}];
+          reducedChart = If[reducedIndices === {}, None,
+            TransportRootSetChart[reducedSquares, variables]];
+          If[(reducedIndices === {} || AssociationQ[reducedChart]) &&
+              TrueQ[blockEquationDeferredChartMaterializableQ[
+                preparation, roots, reducedIndices]],
+            indices = reducedIndices; usedRoots = reducedRoots;
+            rootSquares = reducedSquares; chart = reducedChart;
+            method = "ModularActiveGrades"]]]]];
   <|"Status" -> "OK", "RootIndices" -> indices,
     "RootSquares" -> rootSquares,
     "ChartAvailableQ" -> (indices === {} || AssociationQ[chart]),
     "Chart" -> If[AssociationQ[chart], Lookup[chart, "Name", None], None],
+    "Method" -> method, "SyntacticRootIndices" -> syntacticIndices,
+    "ActiveGradeCensus" -> activeCensus,
     "ExpressionCount" -> Length[expressions]|>
 ];
 blockEquationDeferredChartDecision[___] :=

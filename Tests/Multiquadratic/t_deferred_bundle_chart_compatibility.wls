@@ -10,9 +10,11 @@ Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
-{forcingOf, validateBundle, currentRoots, pullBundle, bundleEvaluate,
-  directAlphabet, chartRekey, chartData} = mq /@ {
-  "blockEquationDeferredForcing", "blockEquationDeferredBundleValidate",
+{forcingOf, prepareDeferred, chartDecision, validateBundle, currentRoots,
+  pullBundle, bundleEvaluate, directAlphabet, chartRekey, chartData} = mq /@ {
+  "blockEquationDeferredForcing", "blockEquationDeferredPrepare",
+  "blockEquationDeferredChartDecision",
+  "blockEquationDeferredBundleValidate",
   "transportChartCurrentRoots", "transportChartPullBackDeferredBundle",
   "blockEquationDeferredBundleEvaluate",
   "familyRowGaugeDirectAlphabetOptions", "transportChartRekey",
@@ -160,6 +162,66 @@ ambiguousDeferredSolution = SolveEpsFormStripInFrame[
 FTAssert["C10b simultaneous bundle and preparation are refused before solve",
   Lookup[ambiguousDeferredSolution, "Status", None] ===
     "AmbiguousDeferredForcing"];
+
+(* Cancellation can make the assembled source live in a strict subfield even
+   when its raw DAG operands mention the full declared frame.  The route-only
+   all-sheet census must see the assembled grades before provider compilation. *)
+kallenSquares = {
+  (1 - cbx - cby)^2 - 4 cbx cby,
+  (1 + cbx - cby)^2 + 4 cbx cby,
+  (1 - cbx + cby)^2 + 4 cbx cby};
+kallenFrame = BuildAlgebraicTransportFrame[
+  kallenSquares, variables, {cbfx, cbfy}];
+kallenRoots = currentRoots[kallenFrame, variables];
+kallenRootExpressions = Lookup[kallenRoots, "Root"];
+cancelConnection = {
+  {{0, 0, 0},
+   {kallenRootExpressions[[2]] + kallenRootExpressions[[3]], 0, 0},
+   {Total[kallenRootExpressions], 0, 0}},
+  ConstantArray[0, {3, 3}]};
+cancelSolved = <|2 -> {{1}}|>;
+cancelChartFast = forcingOf[cancelConnection, {{1}, {2}, {3}}, 3, 1,
+  cancelSolved, variables, epsilon, "Output" -> "ChartOrBundle",
+  "BundleRoots" -> kallenRoots];
+FTAssert["C10c an assembled one-root forcing bypasses a syntactic three-root provider",
+  Lookup[cancelChartFast, "Status", None] === "PreparedChartDeferred" &&
+    Lookup[cancelChartFast["ChartDecision"], "Method", None] ===
+      "ModularActiveGrades" &&
+    Length[Lookup[cancelChartFast["ChartDecision"],
+      "SyntacticRootIndices", {}]] === 3 &&
+    Length[cancelChartFast["ChartDecision", "RootSquares"]] === 1 &&
+    TrueQ[Together[First[cancelChartFast["ChartDecision", "RootSquares"]] -
+      kallenSquares[[1]]] === 0] &&
+    cancelChartFast["ChartDecision", "Chart"] === "Kallen1"];
+
+unsupportedConnection = ReplacePart[cancelConnection,
+  {1, 3, 1} -> Sin[cbx] Total[kallenRootExpressions]];
+inactiveDenominator = 1/(1 + kallenRootExpressions[[2]]) +
+  1/(1 + kallenRootExpressions[[3]]);
+denominatorConnection = ReplacePart[cancelConnection, {
+  {1, 2, 1} -> inactiveDenominator,
+  {1, 3, 1} -> kallenRootExpressions[[1]] + inactiveDenominator}];
+denominatorPreparation = prepareDeferred[denominatorConnection,
+  {{1}, {2}, {3}}, 3, 1, cancelSolved, variables, epsilon];
+denominatorDecision = chartDecision[denominatorConnection,
+  denominatorPreparation, kallenRoots];
+FTAssert["C10d a canceled inactive algebraic denominator stays direct",
+  Lookup[denominatorDecision, "Status", None] === "OK" &&
+    ! TrueQ[denominatorDecision["ChartAvailableQ"]] &&
+    Lookup[denominatorDecision, "Method", None] === "SyntacticRootUnion" &&
+    Lookup[denominatorDecision["ActiveGradeCensus"], "Status", None] ===
+      "ActiveGradeCensus"];
+
+unsupportedPreparation = prepareDeferred[unsupportedConnection,
+  {{1}, {2}, {3}}, 3, 1, cancelSolved, variables, epsilon];
+unsupportedDecision = chartDecision[unsupportedConnection,
+  unsupportedPreparation, kallenRoots];
+FTAssert["C10e an inconclusive active-grade census stays on the direct route",
+  Lookup[unsupportedDecision, "Status", None] === "OK" &&
+    ! TrueQ[unsupportedDecision["ChartAvailableQ"]] &&
+    Lookup[unsupportedDecision, "Method", None] === "SyntacticRootUnion" &&
+    Lookup[unsupportedDecision["ActiveGradeCensus"], "Status", None] ===
+      "ActiveGradeCensusInconclusive"];
 
 fullRootConnection = {
   {{0, 0}, {Total[Lookup[declaredRoots, "Root"]], 0}},
