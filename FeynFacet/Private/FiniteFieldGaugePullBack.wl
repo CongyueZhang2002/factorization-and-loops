@@ -1194,7 +1194,8 @@ transportChartFiniteFieldCanonicalGauge[chartGauge_List,
         "Seconds" -> N[AbsoluteTime[] - started],
         "SymbolicSeconds" -> N[symbolicSeconds]|>]]];
   schedule = Replace[OptionValue["KinematicDegreeSchedule"],
-    Automatic :> {baseCap, Ceiling[3 baseCap/2], 2 baseCap}];
+    Automatic :> {baseCap, Ceiling[3 baseCap/2], 2 baseCap,
+      3 baseCap, 4 baseCap, 6 baseCap, 8 baseCap}];
   If[! ListQ[schedule] ||
       ! AllTrue[schedule, IntegerQ[#] && # >= baseCap &],
     Return[finiteFieldGaugePullBackFailure[
