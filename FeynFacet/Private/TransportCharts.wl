@@ -1457,7 +1457,7 @@ SolveEpsFormStripInFrame[
    selectedIndices, stableFrame, bundleRecord,
    gaugePullBackMode, mapleCanonicalQ, mapleGauge, preNormalizationGauge,
    postPullBackCheckQ, postPullBackCandidates, postPullBackVerification,
-   postPullBackGauge,
+   postPullBackGauge, sourceGaugeRadicalFreeQ,
    constructionStart = AbsoluteTime[], deadline, timings = <||>,
    stageSeconds, substageSeconds, stripDimensions, budgetProgress,
    budgetExhausted},
@@ -1921,7 +1921,11 @@ SolveEpsFormStripInFrame[
      than duplicates) the inner solver's final residual; the latter returned
      PendingPostPullBackResidual above. *)
   If[mapleCanonicalQ,
-    signChoices = Tuples[{1, -1}, Length[usedRoots]];
+    sourceGaugeRadicalFreeQ = FreeQ[sourceGauge,
+      Power[_, exponent_Rational /; Denominator[exponent] > 1]];
+    signChoices = If[sourceGaugeRadicalFreeQ,
+      {ConstantArray[1, Length[usedRoots]]},
+      Tuples[{1, -1}, Length[usedRoots]]];
     postPullBackCandidates = Table[
       branchImages = MapThread[Times, {signs, rootImages}];
       postPullBackGauge = transportChartApplyRootBranches[

@@ -1407,7 +1407,9 @@ Do[
           If[! solvedQ[solution] && ! stripBudgetExhaustedQ[solution] &&
               algebraicFrameQ,
             log["    finite field found no gauge in frame: ",
-              If[AssociationQ[solution], KeyTake[solution, {"Status", "RootIndices", "RootSquares", "Method"}], solution]]];
+              If[AssociationQ[solution], KeyTake[solution,
+                {"Status", "RootIndices", "RootSquares", "Method",
+                 "PassingBranchCount", "BranchCount"}], solution]]];
           (* An ALGEBRAIC frame has no rational-gauge obstruction series
              to compute -- EpsFormStripObstruction expands a rational
              ansatz -- so the guard below has always skipped it, and a
