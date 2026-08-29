@@ -23,6 +23,7 @@ ClearAll[familyRegulatorFactoredQ, familyRegulatorSpecialize,
   familyRegulatorSampleFactoredQ,
   familyRegulatorFactorFromPointEvaluator,
   familyRegulatorChartPointConnection,
+  familyRegulatorLiteralRootClassification,
   familyRegulatorDeadlineActiveQ, familyRegulatorRemainingSeconds,
   familyRegulatorDeadlineExpiredQ, familyRegulatorBoundedLimit,
   familyRegulatorDeadlineStop];
@@ -1441,6 +1442,47 @@ carries numeric square classes in which a valid constant T may live",
 FactorFamilyRegulatorDependenceMultiquadratic[___] :=
   <|"Status" -> "InvalidArguments"|>;
 
+(* A connection assembled from already-canonical strip records normally
+   carries the declared radicands literally.  In that common case an exact
+   denesting census over every large matrix entry computes a known answer.
+   Recognize only structural declared roots and numeric square classes here;
+   any scaled, nested, or otherwise nonliteral radical falls through to the
+   existing exact classifier.  The fast path therefore cannot broaden the
+   coefficient field or misclassify an algebraic square class. *)
+familyRegulatorLiteralRootClassification[expression_, roots_List] := Module[
+  {rootSquares, radicals, indices = {}, numericClasses = {}, unmatched = {},
+   index, split, numericClass},
+  rootSquares = Lookup[roots, "RootSquare", $Failed];
+  If[! ListQ[rootSquares] || Length[rootSquares] =!= Length[roots] ||
+      ! FreeQ[rootSquares, $Failed],
+    Return[<|"Status" -> "LiteralRootFrameInvalid"|>]];
+  radicals = transportChartRadicalBases[expression];
+  Do[
+    index = SelectFirst[Range[Length[rootSquares]],
+      SameQ[base, rootSquares[[#1]]] &, 0];
+    Which[
+      index > 0, AppendTo[indices, index],
+      MatchQ[base, _Integer | _Rational],
+        split = transportChartSquareSplit[base];
+        If[split === $Failed,
+          AppendTo[unmatched, base],
+          numericClass = First[split];
+          If[numericClass =!= 1 && numericClass =!= 0,
+            AppendTo[numericClasses, numericClass]]],
+      True, AppendTo[unmatched, base]],
+    {base, radicals}];
+  <|"Status" -> If[unmatched === {},
+      "LiteralRootClassification", "NeedsExactRootClassification"],
+    "RootIndices" -> Sort[DeleteDuplicates[indices]],
+    "RadicalBases" -> radicals,
+    "UnclassifiedRadicalBases" -> unmatched,
+    "NumericRadicalClasses" ->
+      DeleteDuplicates[Together /@ numericClasses],
+    "DenestedRadicalBases" -> <||>|>
+];
+familyRegulatorLiteralRootClassification[___] :=
+  <|"Status" -> "LiteralRootFrameInvalid"|>;
+
 (* Frame-aware dispatcher (Codex package bug report 2026-08-22, CF300
    (8,5)): for a family whose global coefficient frame is multiquadratic
    the completed truncation 1..m may still be rational in a catalogued
@@ -1479,7 +1521,8 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
    newAx, newAy, factoredQ, inverseQ, canonicalization, numericClasses,
    canonicalAx, canonicalAy, canonicalRecord, gradedRoots, multiquadratic,
    deadline, validationMode, deferAcceptanceQ, rootTags, taggedConnection,
-   factorOptions},
+   factorOptions, literalClassification, classificationSeconds = 0.,
+   canonicalizationSeconds = 0., classificationMethod},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependenceInFrame::input]; Return[$Failed]];
@@ -1497,7 +1540,17 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
       "Chart" -> None, "Seconds" -> 0.|>]];
   allRoots = transportChartCurrentRoots[frame, variables];
   If[allRoots === $Failed, Return[<|"Status" -> "AlgebraicFrameNotWellFormed"|>]];
-  classification = transportChartRootIndices[{ax, ay}, allRoots];
+  {classificationSeconds, literalClassification} = AbsoluteTiming[
+    familyRegulatorLiteralRootClassification[{ax, ay}, allRoots]];
+  If[Lookup[literalClassification, "Status", None] ===
+      "LiteralRootClassification",
+    classification = literalClassification;
+    classificationMethod = "LiteralDeclaredRoots";
+    canonicalization = <|"Status" -> "OK", "Expression" -> {ax, ay},
+      "Rewrites" -> <||>, "Rewritten" -> 0|>,
+    {classificationSeconds, classification} = AbsoluteTiming[
+      transportChartRootIndices[{ax, ay}, allRoots]];
+    classificationMethod = "ExactSquareClass"];
   If[classification["UnclassifiedRadicalBases"] =!= {},
     Return[<|"Status" -> "ConnectionContainsUndeclaredRadicals",
       "RadicalBases" -> classification["UnclassifiedRadicalBases"]|>]];
@@ -1520,9 +1573,11 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
   If[familyRegulatorDeadlineExpiredQ[deadline],
     Return[familyRegulatorDeadlineStop["RadicalCanonicalization", deadline,
       start, <|"RootIndices" -> rootIndices|>]]];
-  canonicalization = transportChartCanonicalizeDenestedRadicals[
-    {ax, ay}, allRoots, variables,
-    Lookup[classification, "DenestedRadicalBases", <||>]];
+  If[classificationMethod === "ExactSquareClass",
+    {canonicalizationSeconds, canonicalization} = AbsoluteTiming[
+      transportChartCanonicalizeDenestedRadicals[
+        {ax, ay}, allRoots, variables,
+        Lookup[classification, "DenestedRadicalBases", <||>]]]];
   If[Lookup[canonicalization, "Status", None] =!= "OK",
     Return[Join[canonicalization,
       <|"RootIndices" -> rootIndices, "Seconds" -> AbsoluteTime[] - start|>]]];
@@ -1532,7 +1587,16 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     "Bases" -> Keys[canonicalization["Rewrites"]],
     "Signs" -> Lookup[Values[canonicalization["Rewrites"]], "Sign", {}],
     "Witnesses" -> Lookup[Values[canonicalization["Rewrites"]], "Witness", {}],
-    "NumericRadicalClasses" -> numericClasses|>;
+    "NumericRadicalClasses" -> numericClasses,
+    "ClassificationMethod" -> classificationMethod,
+    "ClassificationSeconds" -> N[classificationSeconds],
+    "CanonicalizationSeconds" -> N[canonicalizationSeconds]|>;
+  Print["[regulator-factor/frame] root classification: ",
+    classificationMethod, ", roots ", rootIndices, ", numeric classes ",
+    numericClasses, ", ", Round[N[classificationSeconds], 0.1], " s",
+    If[canonicalizationSeconds > 0,
+      "; canonicalization " <>
+        ToString[Round[N[canonicalizationSeconds], 0.1]] <> " s", ""]];
   If[rootIndices === {},
     inner = FactorFamilyRegulatorDependence[{canonicalAx, canonicalAy},
       variables, epsilon,

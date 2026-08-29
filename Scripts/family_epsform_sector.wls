@@ -734,8 +734,8 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
     " regulator-dependent residues; FactorFamilyRegulatorDependence",
     If[algebraicFrameQ, "InFrame", ""], " on the ", nm, "x", nm, " truncation"];
   factor = If[algebraicFrameQ,
-    FeynFacet`FactorFamilyRegulatorDependenceInFrame[aT, {xx, yy}, ee, chart, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "ValidationMode" -> If[productionQ, "DeferredToFamilyCertificate", "Exact"], "Verbose" -> False],
-    FeynFacet`FactorFamilyRegulatorDependence[aT, {xx, yy}, ee, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "ValidationMode" -> If[productionQ, "DeferredToFamilyCertificate", "Exact"], "Verbose" -> False]];
+    FeynFacet`FactorFamilyRegulatorDependenceInFrame[aT, {xx, yy}, ee, chart, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "ValidationMode" -> If[productionQ, "DeferredToFamilyCertificate", "Exact"], "Verbose" -> True],
+    FeynFacet`FactorFamilyRegulatorDependence[aT, {xx, yy}, ee, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "InputResiduesEpsFree" -> False, "ValidationMode" -> If[productionQ, "DeferredToFamilyCertificate", "Exact"], "Verbose" -> True]];
   If[AssociationQ[factor] &&
       factor["Status"] === "RegulatorFactorizationDeadlineExpired",
     (* a budget stop, not a mathematical verdict: resumable, and the

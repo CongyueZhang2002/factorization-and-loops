@@ -60,14 +60,30 @@ tKnown = {{1, eps, 0}, {0, 1 + 4 eps, 0}, {eps^2, 0, 1/(1 - 2 eps)}};
 tKnownInverse = Map[Together, Inverse[tKnown], {2}];
 connection = Table[
   Map[Together, tKnown . canonical[[mu]] . tKnownInverse, {2}], {mu, 2}];
+literalRoots = FeynFacet`Private`transportChartCurrentRoots[frame, {x, y}];
 (* the radicands are compared through the frame's classifier, not
    syntactically: Together writes Sqrt[(1-x-y)^2-4xy] in expanded form
    and a FreeQ on the unexpanded radicand is then false for a connection
    that does carry the root *)
 check["the conjugated input carries all three declared roots",
   FeynFacet`Private`transportChartRootIndices[connection,
-    FeynFacet`Private`transportChartCurrentRoots[frame, {x, y}]][
+    literalRoots][
       "RootIndices"] === {1, 2, 3}];
+literalClassification =
+  FeynFacet`Private`familyRegulatorLiteralRootClassification[
+    connection, literalRoots];
+check["literal root census recognizes an already-canonical rank-3 connection",
+  Lookup[literalClassification, "Status", None] ===
+      "LiteralRootClassification" &&
+    literalClassification["RootIndices"] === {1, 2, 3} &&
+    literalClassification["UnclassifiedRadicalBases"] === {}];
+nonliteralClassification =
+  FeynFacet`Private`familyRegulatorLiteralRootClassification[
+    Sqrt[(1 + x)^2 q1], literalRoots];
+check["literal root census defers a nonliteral square class to exact classification",
+  Lookup[nonliteralClassification, "Status", None] ===
+      "NeedsExactRootClassification" &&
+    nonliteralClassification["UnclassifiedRadicalBases"] =!= {}];
 check["the conjugated input is not eps-factored",
   ! (FeynFacet`Private`familyRegulatorFactoredQ[connection[[1]], eps] &&
      FeynFacet`Private`familyRegulatorFactoredQ[connection[[2]], eps])];
