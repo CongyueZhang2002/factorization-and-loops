@@ -187,8 +187,8 @@ FTAssert["C10c an assembled one-root forcing bypasses a syntactic three-root pro
   Lookup[cancelChartFast, "Status", None] === "PreparedChartDeferred" &&
     Lookup[cancelChartFast["ChartDecision"], "Method", None] ===
       "ModularActiveGrades" &&
-    Length[Lookup[cancelChartFast["ChartDecision"],
-      "SyntacticRootIndices", {}]] === 3 &&
+    MissingQ[Lookup[cancelChartFast["ChartDecision"],
+      "SyntacticRootIndices", None]] &&
     Lookup[cancelChartFast["ChartDecision", "ActiveGradeCensus"],
       "DirectPlaceholderCount", 0] > 0 &&
     Lookup[cancelChartFast["ChartDecision", "ActiveGradeCensus"],
@@ -212,7 +212,8 @@ denominatorDecision = chartDecision[denominatorConnection,
 FTAssert["C10d a canceled inactive algebraic denominator stays direct",
   Lookup[denominatorDecision, "Status", None] === "OK" &&
     ! TrueQ[denominatorDecision["ChartAvailableQ"]] &&
-    Lookup[denominatorDecision, "Method", None] === "SyntacticRootUnion" &&
+    Lookup[denominatorDecision, "Method", None] ===
+      "ModularDeclaredFrame" &&
     Lookup[denominatorDecision["ActiveGradeCensus"], "Status", None] ===
       "ActiveGradeCensus"];
 

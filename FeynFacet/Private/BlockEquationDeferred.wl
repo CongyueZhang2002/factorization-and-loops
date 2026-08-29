@@ -1858,6 +1858,53 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
   If[! MatchQ[variables, {_Symbol, _Symbol}] || ! SymbolQ[regulator] ||
       ! ListQ[roots] || rows === {} || columns === {},
     Return[<|"Status" -> "ChartDecisionInvalidInput"|>]];
+  (* A multiroot family whose full declared frame is chartless must not pay
+     an exact source-expression census merely to discover that assembled
+     grades cancel.  Ask the bounded all-sheet evaluator first.  A chartable
+     proper subfield is still guarded by the negative-power materializability
+     test; otherwise retain the complete declared frame and let the exact
+     bundle compiler validate it.  An inconclusive modular probe falls
+     through to the older exact classifier below. *)
+  rootSquares = Lookup[roots, "RootSquare", $Failed];
+  If[Length[roots] >= 2 && ListQ[rootSquares] &&
+      Length[rootSquares] === Length[roots] &&
+      ! AssociationQ[TransportRootSetChart[rootSquares, variables]],
+    diagonalExpressions = DeleteDuplicates[DeleteCases[Flatten[{
+        connection[[All, rows, rows]], connection[[All, columns, columns]]
+      }], 0]];
+    diagonalClassification = transportChartRootIndices[
+      diagonalExpressions, roots];
+    diagonalIndices = Lookup[diagonalClassification, "RootIndices", $Failed];
+    If[VectorQ[diagonalIndices, IntegerQ] &&
+        Lookup[diagonalClassification, "UnclassifiedRadicalBases", {}] === {} &&
+        Lookup[diagonalClassification, "DenestedRadicalBases", <||>] === <||>,
+      activeCensus = blockEquationDeferredActiveGradeCensus[
+        preparation, roots];
+      If[Lookup[activeCensus, "Status", None] === "ActiveGradeCensus",
+        reducedIndices = Sort[DeleteDuplicates[Join[diagonalIndices,
+          Lookup[activeCensus, "RootIndices", {}]]]];
+        reducedRoots = roots[[reducedIndices]];
+        reducedSquares = Lookup[reducedRoots, "RootSquare", {}];
+        reducedChart = If[reducedIndices === {}, None,
+          TransportRootSetChart[reducedSquares, variables]];
+        If[(reducedIndices === {} || AssociationQ[reducedChart]) &&
+            TrueQ[blockEquationDeferredChartMaterializableQ[
+              preparation, roots, reducedIndices]],
+          Return[<|"Status" -> "OK", "RootIndices" -> reducedIndices,
+            "RootSquares" -> reducedSquares, "ChartAvailableQ" -> True,
+            "Chart" -> If[AssociationQ[reducedChart],
+              Lookup[reducedChart, "Name", None], None],
+            "Method" -> "ModularActiveGrades",
+            "SyntacticRootIndices" -> Missing["ModularPreclassification"],
+            "ActiveGradeCensus" -> activeCensus,
+            "ExpressionCount" -> Length[records]|>],
+          Return[<|"Status" -> "OK",
+            "RootIndices" -> Range[Length[roots]],
+            "RootSquares" -> rootSquares, "ChartAvailableQ" -> False,
+            "Chart" -> None, "Method" -> "ModularDeclaredFrame",
+            "SyntacticRootIndices" -> Missing["ModularPreclassification"],
+            "ActiveGradeCensus" -> activeCensus,
+            "ExpressionCount" -> Length[records]|>]]]]];
   terms = Flatten[Lookup[records, "Terms", {}]];
   expressions = DeleteDuplicates[DeleteCases[Flatten[{
       connection[[All, rows, rows]], connection[[All, columns, columns]],
