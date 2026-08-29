@@ -31,7 +31,9 @@ ClearAll[
   epsFormStripRunCanonicaOne,
   epsFormStripRunCanonica,
   epsFormStripUnknownNameCollisions,
-  epsFormStripSafeTag
+  epsFormStripSafeTag,
+  epsFormStripMapleSqrtToInputForm,
+  epsFormStripMapleCanonicalize
 ];
 
 SolveResidueRationalGauge::shape =
@@ -73,6 +75,191 @@ $epsFormStripMapleLibrary = FileNameJoin[{
 $epsFormStripCPURunner = FileNameJoin[{
   $feynFacetDirectory, "Tools", "RunWithCPUList.sh"
 }];
+
+(* Entrywise Maple normal form for an already-exact array of algebraic
+   expressions (including declared Sqrt radicals).  This is deliberately a
+   representation service, not an
+   acceptance test: its caller must prove that the returned expressions are
+   the same elements of its coefficient field.  The bridge uses the same
+   context-stripping, CPU runner, hard process timeout and private parse
+   context as SolveResidueRationalGauge below.  A private Runner seam lets a
+   focused suite exercise serialization and parsing without requiring Maple. *)
+Options[epsFormStripMapleCanonicalize] = {
+  "MapleExecutable" -> "maple",
+  "ScratchDirectory" -> Automatic,
+  "Tag" -> "maple_canonical",
+  "TimeLimit" -> 1800,
+  "Runner" -> Automatic,
+  "Verbose" -> False
+};
+
+(* Maple prints algebraic radicals as sqrt(...), whereas Wolfram function
+   application uses square brackets.  Convert only the balanced sqrt calls;
+   ordinary parentheses remain grouping parentheses and nested radicals are
+   handled recursively. *)
+epsFormStripMapleSqrtToInputForm[text_String] := Module[{convert},
+  convert[string_String] := Module[
+    {position, start, index, depth, length, character, close, inner},
+    position = StringPosition[string, "sqrt(", 1];
+    If[position === {}, Return[string]];
+    start = position[[1, 1]];
+    length = StringLength[string];
+    index = start + 5;
+    depth = 1;
+    While[index <= length && depth > 0,
+      character = StringTake[string, {index}];
+      If[character === "(", depth++];
+      If[character === ")", depth--];
+      index++];
+    If[depth =!= 0, Return[$Failed]];
+    close = index - 1;
+    inner = If[close === start + 5, "",
+      StringTake[string, {start + 5, close - 1}]];
+    convert[StringTake[string, start - 1] <> "Sqrt[" <>
+      convert[inner] <> "]" <> StringDrop[string, close]]];
+  convert[text]
+];
+epsFormStripMapleSqrtToInputForm[___] := $Failed;
+
+epsFormStripMapleCanonicalize[array_List, OptionsPattern[]] := Module[
+  {started = AbsoluteTime[], dimensions = Dimensions[array], expressions,
+   mapleExecutable, scratchDirectory, tag, timeLimit, runner, verbose,
+   toMaple, inputSymbols, duplicateNames, symbolByName, parseContext,
+   mapleFile, outputFile, diagnosticFile, mapleText, mapleCommand,
+   processCommand, process, runnerResult, lines, parsed, parseRules,
+   unresolved, log, maplePath},
+  expressions = Flatten[array];
+  If[expressions === {},
+    Return[<|"Status" -> "MapleCanonicalGaugeV1", "Result" -> array,
+      "Seconds" -> 0., "EntryCount" -> 0|>]];
+  If[dimensions === {} || Times @@ dimensions =!= Length[expressions],
+    Return[<|"Status" -> "MapleCanonicalInputNotRectangular"|>]];
+  mapleExecutable = OptionValue["MapleExecutable"];
+  scratchDirectory = Replace[OptionValue["ScratchDirectory"],
+    Automatic :> FileNameJoin[{$TemporaryDirectory, "FeynFacet",
+      "EpsFormStrip"}]];
+  tag = epsFormStripSafeTag[OptionValue["Tag"]];
+  timeLimit = OptionValue["TimeLimit"];
+  runner = OptionValue["Runner"];
+  verbose = TrueQ[OptionValue["Verbose"]];
+  If[! StringQ[mapleExecutable] || ! StringQ[scratchDirectory] ||
+      ! NumericQ[timeLimit] || timeLimit <= 0,
+    Return[<|"Status" -> "MapleCanonicalOptionsInvalid"|>]];
+  log[items___] := If[verbose, Print[items]];
+  If[! DirectoryQ[scratchDirectory],
+    Quiet[CreateDirectory[scratchDirectory,
+      CreateIntermediateDirectories -> True]]];
+  If[! DirectoryQ[scratchDirectory],
+    Return[<|"Status" -> "MapleCanonicalScratchUnavailable",
+      "ScratchDirectory" -> scratchDirectory|>]];
+
+  toMaple[expr_] := StringReplace[ToString[expr, InputForm],
+    {RegularExpression["(?:[A-Za-z$][A-Za-z0-9$]*`)+"] -> "",
+     "Sqrt[" -> "sqrt(", "[" -> "(", "]" -> ")", " " -> ""}];
+  inputSymbols = DeleteDuplicates@Cases[expressions,
+    symbol_Symbol /; Context[symbol] =!= "System`",
+    {0, Infinity}, Heads -> True];
+  duplicateNames = Select[GatherBy[inputSymbols, SymbolName],
+    Length[DeleteDuplicates[Context /@ #1]] > 1 &];
+  If[duplicateNames =!= {},
+    Return[<|"Status" -> "MapleCanonicalSymbolNameCollision",
+      "Symbols" -> Map[ToString[InputForm[#1]] &, duplicateNames, {2}]|>]];
+  symbolByName = AssociationThread[SymbolName /@ inputSymbols -> inputSymbols];
+  parseContext = "FeynFacetMapleCanonicalParse" <>
+    StringReplace[CreateUUID[], "-" -> ""] <> "`";
+
+  mapleFile = FileNameJoin[{scratchDirectory, tag <> ".mpl"}];
+  outputFile = FileNameJoin[{scratchDirectory, tag <> ".out"}];
+  diagnosticFile = FileNameJoin[{scratchDirectory, tag <> ".log"}];
+  If[FileExistsQ[outputFile], Quiet[DeleteFile[outputFile]]];
+  If[FileExistsQ[diagnosticFile], Quiet[DeleteFile[diagnosticFile]]];
+  maplePath[path_String] := StringReplace[path,
+    {"\\" -> "/", "\"" -> "\\\""}];
+  mapleText = StringJoin[
+    "restart:\ninterface(prettyprint=0):\n",
+    "feynfacetGaugeEntries := [",
+      StringRiffle[toMaple /@ expressions, ","], "]:\n",
+    "fd := fopen(\"", maplePath[outputFile], "\", WRITE):\n",
+    "fprintf(fd, \"OK\\n\"):\n",
+    "for i from 1 to nops(feynfacetGaugeEntries) do\n",
+    "  fprintf(fd, \"%a\\n\", ",
+      "evala(Normal(feynfacetGaugeEntries[i]))):\n",
+    "end do:\nfclose(fd):\nquit:\n"];
+  Export[mapleFile, mapleText, "Text"];
+
+  If[runner === Automatic,
+    mapleCommand = If[$OperatingSystem === "Unix" &&
+        FileExistsQ[$epsFormStripCPURunner],
+      {$epsFormStripCPURunner, facetCPUList[], mapleExecutable, "-q",
+        mapleFile},
+      {mapleExecutable, "-q", mapleFile}];
+    processCommand = If[$OperatingSystem === "Unix" &&
+        FileExistsQ["/usr/bin/timeout"],
+      {"/usr/bin/timeout", "--signal=TERM", "--kill-after=5s",
+        ToString[Ceiling[timeLimit]] <> "s", Sequence @@ mapleCommand},
+      mapleCommand];
+    process = Quiet[TimeConstrained[RunProcess[processCommand],
+      timeLimit + 15, $TimedOut]];
+    If[AssociationQ[process],
+      Export[diagnosticFile, StringRiffle[{
+        "ExitCode: " <> ToString[Lookup[process, "ExitCode", Missing[]]],
+        "StandardOutput:", Lookup[process, "StandardOutput", ""],
+        "StandardError:", Lookup[process, "StandardError", ""]}, "\n"],
+        "Text"]];
+    If[process === $TimedOut,
+      Return[<|"Status" -> "MapleCanonicalTimedOut",
+        "Seconds" -> N[AbsoluteTime[] - started]|>]];
+    If[! AssociationQ[process] || Lookup[process, "ExitCode", -1] =!= 0 ||
+        ! FileExistsQ[outputFile],
+      Return[<|"Status" -> "MapleCanonicalExecutionFailed",
+        "DiagnosticFile" -> diagnosticFile,
+        "Seconds" -> N[AbsoluteTime[] - started]|>]];
+    lines = StringSplit[StringReplace[Import[outputFile, "Text"],
+      "\r" -> ""], "\n"],
+    runnerResult = Quiet[Check[runner[<|
+        "Expressions" -> expressions, "Dimensions" -> dimensions,
+        "MapleText" -> mapleText, "MapleFile" -> mapleFile,
+        "OutputFile" -> outputFile|>], $Failed]];
+    If[AssociationQ[runnerResult] &&
+        MatchQ[Lookup[runnerResult, "Expressions", None], {_ ..}],
+      parsed = runnerResult["Expressions"];
+      If[Length[parsed] =!= Length[expressions],
+        Return[<|"Status" -> "MapleCanonicalRunnerOutputInvalid"|>]];
+      Return[<|"Status" -> "MapleCanonicalGaugeV1",
+        "Result" -> ArrayReshape[parsed, dimensions],
+        "Seconds" -> N[AbsoluteTime[] - started],
+        "EntryCount" -> Length[expressions], "Route" -> "InjectedRunner"|>]];
+    lines = If[AssociationQ[runnerResult],
+      Lookup[runnerResult, "OutputLines", $Failed], runnerResult]];
+
+  If[! ListQ[lines] || ! AllTrue[lines, StringQ] || lines === {} ||
+      First[lines] =!= "OK" || Length[Rest[lines]] =!= Length[expressions],
+    log["Maple canonical output invalid: ", lines];
+    Return[<|"Status" -> "MapleCanonicalOutputInvalid",
+      "DiagnosticFile" -> diagnosticFile|>]];
+  parsed = Quiet[Check[
+    Block[{$Context = parseContext, $ContextPath = {"System`"}},
+      ToExpression /@ (epsFormStripMapleSqrtToInputForm /@ Rest[lines])],
+    $Failed]];
+  If[! ListQ[parsed] || Length[parsed] =!= Length[expressions],
+    Return[<|"Status" -> "MapleCanonicalParseFailed"|>]];
+  parseRules = KeyValueMap[
+    Function[{name, symbol}, Symbol[parseContext <> name] -> symbol],
+    symbolByName];
+  parsed = parsed /. parseRules;
+  unresolved = DeleteDuplicates@Cases[parsed,
+    symbol_Symbol /; Context[symbol] === parseContext,
+    {0, Infinity}, Heads -> True];
+  If[unresolved =!= {},
+    Return[<|"Status" -> "MapleCanonicalUnknownOutputSymbols",
+      "Symbols" -> (SymbolName /@ unresolved)|>]];
+  <|"Status" -> "MapleCanonicalGaugeV1",
+    "Result" -> ArrayReshape[parsed, dimensions],
+    "Seconds" -> N[AbsoluteTime[] - started],
+    "EntryCount" -> Length[expressions], "Route" -> "Maple"|>
+];
+epsFormStripMapleCanonicalize[___] :=
+  <|"Status" -> "MapleCanonicalInputInvalid"|>;
 
 epsFormStripCanonicaSymbol[name_String] := Module[{public, private},
   public = ToExpression["CANONICA`" <> name];

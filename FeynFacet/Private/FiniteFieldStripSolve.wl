@@ -3348,6 +3348,20 @@ SolveEpsFormStripFiniteField[record_Association,
           {"LettersDependOnRegulator", "ResiduesDependOnKinematics"},
           {! TrueQ[lifted["LettersEpsFree"]], ! TrueQ[lifted["ResiduesKinematicsFree"]]}, True]];
         loopExit = "NotDLogForm"; Break[]];
+      (* A chart gauge that will be pulled back and externally normalized
+         must be checked after that representation change.  Return the
+         authenticated lift now; SolveEpsFormStripInFrame performs the same
+         production residual check on the final Maple-normalized gauge. *)
+      If[AssociationQ[lifted] && TrueQ[unseen] &&
+          OptionValue["FinalCheck"] === "PostPullBack",
+        solution = Join[KeyDrop[lifted, "LiftedVector"], <|
+          "Status" -> "Solved",
+          "Certificate" -> "PendingPostPullBackResidual",
+          "ExactDLog" -> Missing["PendingPostPullBackResidual"],
+          "DLogFormCertified" -> Missing["PendingPostPullBackResidual"],
+          "ExactPfaffianResidualsZero" -> Missing["NotRunPostPullBack"],
+          "UnseenPrime" -> unseenPrime|>];
+        Break[]];
       If[AssociationQ[lifted] && TrueQ[unseen] &&
           MemberQ[{"Numerical", "Modular"}, OptionValue["FinalCheck"]] && unseenPrimeCheck,
         Module[{numerical = VerifyEpsFormStrip[record, lifted, "Method" -> "Numerical", "KernelCount" -> 1]},

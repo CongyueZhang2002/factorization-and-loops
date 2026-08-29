@@ -79,6 +79,7 @@ ClearAll[
   transportChartStageProgress,
   transportChartTogetherTask,
   transportChartParallelTogether,
+  transportChartMapleCanonicalGauge,
   $transportChartStageLog,
   $transportChartStageLastProgress,
   $transportChartStageProgressInterval,
@@ -256,6 +257,37 @@ transportChartParallelTogether[array_, rules_List, label_String,
 ];
 transportChartParallelTogether[___] :=
   <|"Status" -> "InvalidParallelTogetherInput"|>;
+
+Options[transportChartMapleCanonicalGauge] = {
+  "MapleExecutable" -> "maple",
+  "ScratchDirectory" -> Automatic,
+  "Tag" -> "chart_gauge",
+  "TimeLimit" -> 1800,
+  "Runner" -> Automatic,
+  "Verbose" -> False
+};
+
+transportChartMapleCanonicalGauge[before_List,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol, roots_List,
+    OptionsPattern[]] := Module[
+  {started = AbsoluteTime[], normalized, after},
+  normalized = epsFormStripMapleCanonicalize[before,
+    "MapleExecutable" -> OptionValue["MapleExecutable"],
+    "ScratchDirectory" -> OptionValue["ScratchDirectory"],
+    "Tag" -> OptionValue["Tag"], "TimeLimit" -> OptionValue["TimeLimit"],
+    "Runner" -> OptionValue["Runner"], "Verbose" -> OptionValue["Verbose"]];
+  If[Lookup[normalized, "Status", None] =!= "MapleCanonicalGaugeV1",
+    Return[<|"Status" -> "MapleGaugeCanonicalizationFailed",
+      "Detail" -> normalized|>]];
+  after = normalized["Result"];
+  If[Dimensions[after] =!= Dimensions[before],
+    Return[<|"Status" -> "MapleGaugeCanonicalShapeMismatch"|>]];
+  <|"Status" -> "MapleCanonicalGaugePrepared", "Result" -> after,
+    "Normalizer" -> KeyDrop[normalized, "Result"],
+    "Seconds" -> N[AbsoluteTime[] - started]|>
+];
+transportChartMapleCanonicalGauge[___] :=
+  <|"Status" -> "MapleGaugeCanonicalizationInvalidInput"|>;
 
 transportChartLogSuccessTimings[timings_Association, chartName_,
     verboseQ_] := If[
@@ -1364,13 +1396,11 @@ Options[SolveEpsFormStripInFrame] = Join[
     "MultiquadraticDispatch" -> True,
     "MultiquadraticOptions" -> {},
     "DeferredMaterializationCertificate" -> Automatic,
-    (* "Exact" materializes and rechecks the pulled-back gauge entry by
-       entry.  "CompactCompositional" keeps the exact composition
-       G(chart^-1(x)) unevaluated and certifies the inverse branch on the
-       two coordinate images.  The latter is intended for production
-       finite-field solutions whose final equation is certified once at
-       family level; exact inner solutions still receive an exact frame
-       certificate by functoriality. *)
+    (* Existing callers retain the package's exact Together route.
+       "MapleCanonical" is the explicit external-normalizer route: Maple
+       returns an entrywise algebraic normal form, but the package accepts it
+       only after exact multiquadratic equality and four modular images, then
+       runs the historical exact frame gates below. *)
     "GaugePullBackMode" -> "Exact",
     (* absolute AbsoluteTime[] value; Infinity = unbounded (the default,
        so every existing caller is unchanged).  It bounds the
@@ -1425,8 +1455,9 @@ SolveEpsFormStripInFrame[
    materializationCertificate, materializationValidation,
    deferredForcingMaterializedQ,
    selectedIndices, stableFrame, bundleRecord,
-   gaugePullBackMode, compactCompositionQ, sourceClassification,
-   coordinateRoundTripQ, innerExactQ,
+   gaugePullBackMode, mapleCanonicalQ, mapleGauge, preNormalizationGauge,
+   postPullBackCheckQ, postPullBackCandidates, postPullBackVerification,
+   postPullBackGauge,
    constructionStart = AbsoluteTime[], deadline, timings = <||>,
    stageSeconds, substageSeconds, stripDimensions, budgetProgress,
    budgetExhausted},
@@ -1440,11 +1471,11 @@ SolveEpsFormStripInFrame[
     Return[<|"Status" -> "InvalidDeadline", "Deadline" -> deadline,
       "Expected" -> "an absolute AbsoluteTime[] value, or Infinity"|>]];
   gaugePullBackMode = OptionValue["GaugePullBackMode"];
-  If[! MemberQ[{"Exact", "CompactCompositional"}, gaugePullBackMode],
+  If[! MemberQ[{"Exact", "MapleCanonical"}, gaugePullBackMode],
     Return[<|"Status" -> "InvalidGaugePullBackMode",
-      "Allowed" -> {"Exact", "CompactCompositional"},
+      "Allowed" -> {"Exact", "MapleCanonical"},
       "Actual" -> gaugePullBackMode|>]];
-  compactCompositionQ = gaugePullBackMode === "CompactCompositional";
+  mapleCanonicalQ = gaugePullBackMode === "MapleCanonical";
   (* what a construction stop reports: the substage wall times measured
      so far (this is the record that was missing tonight -- the budget
      passed with no evidence of which substage consumed it) and the
@@ -1593,7 +1624,8 @@ SolveEpsFormStripInFrame[
   innerSolvedQ[candidate_] := AssociationQ[candidate] &&
     Lookup[candidate, "Status", None] === "Solved" &&
     (TrueQ[Lookup[candidate, "ExactDLog", False]] ||
-      Lookup[candidate, "Certificate", None] === "NumericalResidual");
+      MemberQ[{"NumericalResidual", "PendingPostPullBackResidual"},
+        Lookup[candidate, "Certificate", None]]);
   solveRationalStrip = Function[{rationalStrip, rationalVariables},
     Module[{candidate, directory, defaults, finiteOptions},
       (* "FiniteFieldFirst" -> True: no CANONICA/Maple ladder in the
@@ -1624,6 +1656,11 @@ SolveEpsFormStripInFrame[
         finiteOptions = DeleteDuplicatesBy[
           Join[FilterRules[finiteFieldOptions,
             Options[SolveEpsFormStripFiniteField]], defaults], First];
+        postPullBackCheckQ = mapleCanonicalQ && rootIndices =!= {};
+        If[postPullBackCheckQ,
+          finiteOptions = Prepend[
+            DeleteCases[finiteOptions, HoldPattern["FinalCheck" -> _]],
+            "FinalCheck" -> "PostPullBack"]];
         candidate = SolveEpsFormStripFiniteField[
           <|"Strip" -> rationalStrip, "Variables" -> rationalVariables,
             "Regulator" -> epsilon|>, Sequence @@ finiteOptions];
@@ -1837,53 +1874,90 @@ SolveEpsFormStripInFrame[
     <|"seconds" -> N[AbsoluteTime[] - stageSeconds],
       "rewritten" -> Lookup[mapCanonicalization, "Rewritten", 0]|>];
 
-  (* A rational chart gauge is already an exact rational expression in
-     the chart variables.  Substitution by a certified inverse map is a
-     field homomorphism; forcing it into one common source-frame fraction
-     is representation work, not mathematics.  On CF300/CF303 that outer
-     Together exceeded 19 minutes for a 2x2 gauge.  The compact route
-     proves the branch on the TWO coordinate images and keeps the exact
-     deterministic composition.  If the inner solve was exact, chain-rule
-     functoriality makes the source solution exact as well.  Numerical
-     inner solves retain their unseen-prime/Pfaffian evidence and remain
-     explicitly deferred to the mandatory family certificate. *)
-  If[compactCompositionQ,
-    stageSeconds = AbsoluteTime[];
-    sourceGauge = chartGauge /. coordinateMap["Map"];
-    If[! FreeQ[sourceGauge, Alternatives @@ chartVariables],
-      Return[<|"Status" -> "CompactGaugeCarriesChartVariables",
+  If[mapleCanonicalQ,
+    preNormalizationGauge = chartGauge /. coordinateMap["Map"];
+    If[! FreeQ[preNormalizationGauge, Alternatives @@ chartVariables],
+      Return[<|"Status" -> "MapleGaugeCarriesChartVariables",
         "ChartVariables" -> chartVariables|>]];
-    sourceClassification = transportChartRootIndices[sourceGauge, allRoots];
-    If[Lookup[sourceClassification, "UnclassifiedRadicalBases", {}] =!= {},
-      Return[<|"Status" -> "CompactGaugeUndeclaredRadicals",
-        "RadicalBases" ->
-          sourceClassification["UnclassifiedRadicalBases"]|>]];
-    coordinateRoundTripQ[signs_List] := Module[
-      {images, signedRoots},
-      signedRoots = MapThread[Times, {signs, rootImages}];
-      images = transportChartApplyRootBranches[
-        coordinateMap["Images"], usedRoots, signedRoots];
-      ListQ[images] && Length[images] === Length[chartVariables] &&
-        And @@ MapThread[
-          TrueQ[Together[(#1 /. data["Subst"]) - #2] === 0] &,
-          {images, chartVariables}]];
+    mapleGauge = transportChartMapleCanonicalGauge[
+      preNormalizationGauge, variables, epsilon, allRoots,
+      "MapleExecutable" -> OptionValue["MapleExecutable"],
+      "ScratchDirectory" -> scratchDirectory,
+      "Tag" -> ToString[stripTag] <> "_chart_gauge",
+      "TimeLimit" -> OptionValue["MapleTimeLimit"],
+      "Verbose" -> verbose];
+    If[Lookup[mapleGauge, "Status", None] =!=
+        "MapleCanonicalGaugePrepared",
+      Return[<|"Status" -> "StripGaugeMapleCanonicalizationFailed",
+        "Detail" -> KeyDrop[mapleGauge, "Result"]|>]];
+    sourceGauge = mapleGauge["Result"];
+    substageSeconds = mapleGauge["Seconds"];
+    parallelTogether = <|"Route" -> "MapleCanonical",
+      "Helpers" -> 0|>,
+    parallelTogether = transportChartParallelTogether[
+      chartGauge, coordinateMap["Map"], "chartgauge", deadline];
+    If[Lookup[parallelTogether, "Status", None] === "DeadlineExpired",
+      timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
+      Return[budgetExhausted["GaugePullBack"]]];
+    If[Lookup[parallelTogether, "Status", None] =!= "OK",
+      Return[<|"Status" -> "StripGaugeSubstitutionFailed",
+        "Detail" -> parallelTogether|>]];
+    sourceGauge = parallelTogether["Result"];
+    substageSeconds = parallelTogether["Seconds"]];
+  transportChartStageMark["acceptance: source gauge substitution",
+    <|"seconds" -> N[substageSeconds],
+      "leafCount" -> transportChartStageSize[sourceGauge],
+      "route" -> parallelTogether["Route"],
+      "helpers" -> parallelTogether["Helpers"]|>];
+  {substageSeconds, sourceAlphabet} = AbsoluteTiming[
+    DeleteDuplicates[Together /@
+      (Lookup[inner, "Alphabet", {}] /. coordinateMap["Map"])]];
+  transportChartStageMark["acceptance: source alphabet",
+    <|"seconds" -> N[substageSeconds], "letters" -> Length[sourceAlphabet]|>];
+
+  (* In production the one block residual is deliberately run HERE, on the
+     Maple-normalized gauge that will actually be installed.  Trying every
+     chart-root sheet also fixes the unique branch.  This replaces (rather
+     than duplicates) the inner solver's final residual; the latter returned
+     PendingPostPullBackResidual above. *)
+  If[mapleCanonicalQ,
     signChoices = Tuples[{1, -1}, Length[usedRoots]];
-    acceptedSigns = Select[signChoices, coordinateRoundTripQ];
-    If[Length[acceptedSigns] =!= 1,
-      Return[<|"Status" -> "CompactGaugeCoordinateBranchNotUnique",
-        "BranchCount" -> Length[acceptedSigns],
-        "RootCount" -> Length[usedRoots]|>]];
-    branchImages = MapThread[Times, {First[acceptedSigns], rootImages}];
-    sourceAlphabet = DeleteDuplicates[Together /@
-      (Lookup[inner, "Alphabet", {}] /. coordinateMap["Map"])];
-    innerExactQ = TrueQ[Lookup[inner, "ExactDLog", False]];
+    postPullBackCandidates = Table[
+      branchImages = MapThread[Times, {signs, rootImages}];
+      postPullBackGauge = transportChartApplyRootBranches[
+          sourceGauge, usedRoots, branchImages] /. data["Subst"];
+      postPullBackVerification = VerifyEpsFormStrip[
+        <|"Strip" -> chartStrip, "Variables" -> chartVariables,
+          "Regulator" -> epsilon|>,
+        Join[KeyTake[inner, {"Alphabet", "ResidueMatrices"}],
+          <|"Gauge" -> postPullBackGauge|>],
+        "Method" -> "Numerical", "KernelCount" -> 1];
+      <|"Signs" -> signs, "Verification" -> postPullBackVerification|>,
+      {signs, signChoices}];
+    postPullBackCandidates = Select[postPullBackCandidates,
+      TrueQ[Lookup[Lookup[#1, "Verification", <||>],
+        "DLogFormCertified", False]] &];
+    If[Length[postPullBackCandidates] =!= 1,
+      Return[<|"Status" -> "PostMapleResidualFailed",
+        "PassingBranchCount" -> Length[postPullBackCandidates],
+        "BranchCount" -> Length[signChoices]|>]];
+    acceptedSigns = {
+      Lookup[First[postPullBackCandidates], "Signs", Missing[]]};
+    postPullBackVerification = Lookup[
+      First[postPullBackCandidates], "Verification", <||>];
+    inner = Join[inner,
+      KeyTake[postPullBackVerification,
+        {"NumericalPfaffianResidualsZero", "LettersEpsFree",
+         "ResiduesKinematicsFree", "ResiduesEpsFree"}],
+      <|"Certificate" -> "NumericalResidual",
+        "ExactDLog" -> Missing["DeferredToFamilyCertificate"],
+        "DLogFormCertified" -> Missing["DeferredToFamilyCertificate"]|>];
     timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
-    timings["SourceFrameIdentity"] = 0.;
     transportChartStageDone["acceptance: gauge pull-back",
       <|"seconds" -> timings["GaugePullBack"],
+        "route" -> "MapleCanonical",
         "branchSigns" -> First[acceptedSigns],
-        "route" -> "CompactCompositional",
-        "gaugeLeafCount" -> transportChartStageSize[sourceGauge]|>];
+        "familyCertificate" -> "Required"|>];
     transportChartLogSuccessTimings[timings, chart["Name"], verbose];
     Return[<|"Status" -> "Solved",
       "Method" -> "RationalChart/" <> chart["Name"] <> "/" <>
@@ -1899,38 +1973,15 @@ SolveEpsFormStripInFrame[
           TrueQ[coordinateMap["CompositionExact"]],
         "BranchSigns" -> First[acceptedSigns],
         "GaugeRoundTrip" -> True,
-        "GaugeRoundTripProof" -> "ExactCoordinateComposition",
-        "TransformedOneFormPullBack" -> If[innerExactQ, True,
-          Missing["DeferredToFamilyCertificate"]],
-        "SourceDLog" -> If[innerExactQ, True,
-          Missing["DeferredToFamilyCertificate"]],
-        "Exact" -> innerExactQ,
-        "ValidationMode" -> If[innerExactQ,
-          "ExactFunctorial", "CompositionalNumerical"],
+        "TransformedOneFormPullBack" -> True,
+        "SourceDLog" -> Missing["DeferredToFamilyCertificate"],
+        "Exact" -> False,
+        "ValidationMode" -> "PostMapleFiniteFieldResidual",
         "InnerCertificate" -> Lookup[inner, "Certificate", None],
         "UnseenPrime" -> Lookup[inner, "UnseenPrime", None],
         "NumericalPfaffianResidualsZero" -> Lookup[inner,
-          "NumericalPfaffianResidualsZero", Missing["NotRun"]]|>|>]];
-  parallelTogether = transportChartParallelTogether[
-    chartGauge, coordinateMap["Map"], "chartgauge", deadline];
-  If[Lookup[parallelTogether, "Status", None] === "DeadlineExpired",
-    timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
-    Return[budgetExhausted["GaugePullBack"]]];
-  If[Lookup[parallelTogether, "Status", None] =!= "OK",
-    Return[<|"Status" -> "StripGaugeSubstitutionFailed",
-      "Detail" -> parallelTogether|>]];
-  sourceGauge = parallelTogether["Result"];
-  substageSeconds = parallelTogether["Seconds"];
-  transportChartStageMark["acceptance: source gauge substitution",
-    <|"seconds" -> N[substageSeconds],
-      "leafCount" -> transportChartStageSize[sourceGauge],
-      "route" -> parallelTogether["Route"],
-      "helpers" -> parallelTogether["Helpers"]|>];
-  {substageSeconds, sourceAlphabet} = AbsoluteTiming[
-    DeleteDuplicates[Together /@
-      (Lookup[inner, "Alphabet", {}] /. coordinateMap["Map"])]];
-  transportChartStageMark["acceptance: source alphabet",
-    <|"seconds" -> N[substageSeconds], "letters" -> Length[sourceAlphabet]|>];
+          "NumericalPfaffianResidualsZero", Missing["NotRun"]],
+        "Normalizer" -> KeyDrop[mapleGauge, "Result"]|>|>]];
 
   signChoices = Tuples[{1, -1}, Length[usedRoots]];
   (* Together is canonical on rational entries only.  When the branch

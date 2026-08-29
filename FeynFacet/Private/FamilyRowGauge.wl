@@ -237,8 +237,7 @@ familyRowGaugeApply[
     aLower = connection[[mu, lowerColumns, lowerColumns]];
     (* A complete installed row supplies every current-row entry and the
        loop immediately Continue's before consulting dD.  Differentiating
-       a compact chart-composed gauge here was therefore pure dead work
-       (and could expand it catastrophically). *)
+       the gauge here would therefore be pure dead work. *)
     derivative = If[installedRowQ, None, D[gauge, variables[[mu]]]];
     aRightRowSupport = familyRowGaugeSupport /@ aRight;
     aLowerColumnSupport = familyRowGaugeSupport /@ Transpose[aLower];

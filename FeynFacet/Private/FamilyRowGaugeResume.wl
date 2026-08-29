@@ -690,11 +690,15 @@ familyRowGaugeResumeFrameCertificateQ[solution_Association,
     StringStartsQ[method, "RationalChart/"],
       MatchQ[Lookup[solution, "RootIndices", {}], {__Integer}] &&
         If[Lookup[certificate, "ValidationMode", None] ===
-            "CompositionalNumerical",
+            "PostMapleFiniteFieldResidual",
           TrueQ[Lookup[certificate, "CoordinateComposition", False]] &&
             TrueQ[Lookup[certificate, "GaugeRoundTrip", False]] &&
-            Lookup[certificate, "GaugeRoundTripProof", None] ===
-              "ExactCoordinateComposition" &&
+            TrueQ[Lookup[certificate,
+              "TransformedOneFormPullBack", False]] &&
+            MatchQ[Lookup[certificate, "BranchSigns", None],
+              {__Integer}] &&
+            AllTrue[Lookup[certificate, "BranchSigns", {}],
+              MemberQ[{-1, 1}, #1] &] &&
             Lookup[certificate, "InnerCertificate", None] ===
               "NumericalResidual" &&
             IntegerQ[Lookup[certificate, "UnseenPrime", None]] &&
@@ -1615,7 +1619,7 @@ familyRowGaugeHydrateResume[
               "Verbose" -> verbose},
             "MultiquadraticOptions" -> multiquadraticReplayOptions,
             "GaugePullBackMode" -> If[finalCheck === "Exact",
-              "Exact", "CompactCompositional"],
+              "Exact", "MapleCanonical"],
             "ScratchDirectory" -> workRoot,
             "Tag" -> stripTag, "Verbose" -> verbose],
         True,

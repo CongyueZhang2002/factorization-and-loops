@@ -64,7 +64,11 @@
        unconditionally (negative control).
 
    (k) The seeded materializer (the compiler's intern pool passed
-       through) returns the SAME expressions as the unseeded one. *)
+       through) returns the SAME expressions as the unseeded one.
+
+   (l) Exact repeated factor spellings are interned before the semantic
+       fallback matcher; the four counters are coherent, and statistics do
+       not enter the bundle fingerprint or perturb deterministic numbering. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
@@ -430,5 +434,40 @@ changes nothing about the values (SameQ)",
   materializedSeeded["Status"] === "OK" &&
     materializedPlain["Status"] === "OK" &&
     materializedSeeded["Values"] === materializedPlain["Values"]];
+
+(* ---- (l) exact factor interning -------------------------------------- *)
+internStatistics = seedBundle["Statistics"];
+FTAssert["(l) exact factor interning reports all four bounded counters",
+  And @@ {
+    IntegerQ[internStatistics["FactorRegistrationCallCount"]] &&
+      internStatistics["FactorRegistrationCallCount"] >=
+        internStatistics["DistinctFactors"],
+    IntegerQ[internStatistics["FactorExactInternHitCount"]] &&
+      0 < internStatistics["FactorExactInternHitCount"] <
+        internStatistics["FactorRegistrationCallCount"],
+    IntegerQ[internStatistics["FactorFallbackComparisonCount"]] &&
+      internStatistics["FactorFallbackComparisonCount"] >= 0,
+    NumericQ[internStatistics["FactorMatchSeconds"]] &&
+      internStatistics["FactorMatchSeconds"] >= 0
+  }];
+FTAssert["(l) repeated exact spellings bypass semantic factor comparisons",
+  internStatistics["FactorFallbackComparisonCount"] <
+    internStatistics["FactorRegistrationCallCount"]
+      internStatistics["DistinctFactors"]];
+restattedBundle = Append[seedBundle, "Statistics" -> Join[
+    seedBundle["Statistics"],
+    <|"FactorRegistrationCallCount" -> -1,
+      "FactorExactInternHitCount" -> -1,
+      "FactorFallbackComparisonCount" -> -1,
+      "FactorMatchSeconds" -> -1.|>]];
+FTAssert["(l) factor-intern telemetry is outside the fingerprinted bundle",
+  fingerprintOf[restattedBundle] === seedBundle["BundleFingerprint"] &&
+    validate[restattedBundle]["Status"] === "BundleValid"];
+FTAssert["(l) interning preserves factor numbering and bundle content",
+  seedBundle["BundleFingerprint"] === bundle["BundleFingerprint"] &&
+    seedBundle["DivisorSummary"]["Factors"] ===
+      bundle["DivisorSummary"]["Factors"] &&
+    seedBundle["Jobs"] === bundle["Jobs"] &&
+    seedBundle["DivisorOccurrences"] === bundle["DivisorOccurrences"]];
 
 FTReport[];

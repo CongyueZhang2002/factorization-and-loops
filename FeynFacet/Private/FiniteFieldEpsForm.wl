@@ -44,10 +44,10 @@ Options[VerifyEpsFormStrip] = {
   "KernelCount" -> Automatic,
   (* "Exact": both Pfaffian identities as rational-function identities
      (Together on every entry; 16-60 s on a hard block).  "Numerical"
-     (production guard, user decision 2026-08-22): the same residuals
-     evaluated EXACTLY at "Points" random rational points (x, y, eps) --
-     ~1 s, a wrong gauge passes with probability ~ degree/10^6 per point;
-     the exact statement is then made once by the family certificate. *)
+     is the historical option name for the production guard: the same
+     residuals are evaluated exactly at random points modulo a large prime.
+     The characteristic-zero statement is made once by the family
+     certificate. *)
   "Method" -> "Exact",
   "Points" -> 2
 };
@@ -180,7 +180,7 @@ VerifyEpsFormStrip[record_Association, solution_Association,
    residueMatrices, dimensions, dlog, residuals, entries, kernelCount,
    launched = {}, checkedEntries, seconds, identitiesZero,
    lettersEpsilonFree, residuesKinematicsFree, residuesEpsilonFree,
-   dlogForm, canonical, numericalQ, points, pointOK},
+   dlogForm, canonical, numericalQ, points, pointOK, prime},
   If[! And @@ (KeyExistsQ[record, #] & /@
       {"Strip", "Variables", "Regulator"}) ||
       ! MatchQ[record["Variables"], {_, _}] ||
@@ -244,17 +244,20 @@ VerifyEpsFormStrip[record_Association, solution_Association,
   entries = Flatten[residuals];
   numericalQ = OptionValue["Method"] === "Numerical";
   If[numericalQ,
-    (* exact rational arithmetic at random points; a point on a pole is
-       replaced *)
+    (* Exact finite-field arithmetic at random points.  Only after all
+       variables are specialized is Together used; poles are resampled. *)
     {seconds, pointOK} = AbsoluteTiming[Module[{done = 0, tries = 0, pt, vals, ok = True},
+      prime = RandomPrime[{2^30, 2^31 - 1}];
       While[ok && done < OptionValue["Points"] && tries < 12,
         tries++;
         pt = Thread[Join[variables, {epsilon}] ->
-          RandomInteger[{3, 10^6}, 3]/RandomInteger[{10^6, 10^7}, 3]];
-        vals = Quiet[Check[entries /. pt, $Failed]];
-        If[vals === $Failed || ! FreeQ[vals, ComplexInfinity | Indeterminate | DirectedInfinity],
+          RandomInteger[{3, prime - 3}, 3]];
+        vals = Quiet[Check[Together /@ (entries /. pt), $Failed]];
+        If[vals === $Failed ||
+            ! AllTrue[vals, MatchQ[#1, _Integer | _Rational] &] ||
+            AnyTrue[vals, Mod[Denominator[#1], prime] === 0 &],
           Continue[]];
-        If[! AllTrue[vals, TrueQ[# == 0] &], ok = False];
+        If[! AllTrue[vals, Mod[Numerator[#1], prime] === 0 &], ok = False];
         done++];
       ok && done >= OptionValue["Points"]]];
     dlogForm = pointOK && lettersEpsilonFree && residuesKinematicsFree;

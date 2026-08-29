@@ -1935,10 +1935,12 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
    dimensions, rootsOption, frame, squares, targetOrder, recordFor,
    pool = <||>, frameCache = <||>, sourceOperandCache = <||>,
    canonicalOperandIndex = <||>, operandTable = {}, factorTable = {},
-   factorMatchQ, registerFactor,
+   factorExactIndex = <||>, factorMatchQ, registerFactor,
    jobs = {}, occurrences = {}, bounds = <||>, occurrenceCounts = <||>,
    rewrites = 0, failTag, failure, orbitRecords, orbitIndexOf, summary,
    factorSummaries, bundle, statistics, termCount = 0,
+   factorRegistrationCalls = 0, factorExactInternHits = 0,
+   factorFallbackComparisons = 0, factorMatchSeconds = 0.,
    activeRootMask = 0, activeRootIndices, projectMask, projectedFrame,
    originalRootCount},
   If[Lookup[preparation, "Status", None] =!= "Prepared" ||
@@ -1973,22 +1975,36 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
 
   factorMatchQ[f_, g_] := Module[
     {algebraic = ! FreeQ[{f, g}, Power[_, _Rational]]},
+    factorFallbackComparisons++;
     If[! algebraic,
       TrueQ[Together[f - g] === 0] || TrueQ[Together[f + g] === 0],
       TrueQ[blockEquationDeferredAlgebraicZeroQ[f - g, squares]] ||
         TrueQ[blockEquationDeferredAlgebraicZeroQ[f + g, squares]]]];
-  registerFactor[factor_] := Module[{position, mask},
-    position = SelectFirst[Range[Length[factorTable]],
-      factorMatchQ[factorTable[[#1]]["Factor"], factor] &, None];
-    If[position =!= None, Return[position]];
-    mask = blockEquationDeferredFactorRootMask[factor, squares];
-    If[mask === $Failed,
-      Throw[<|"Status" -> "RadicalOutsideDeclaredFrame",
-        "RadicalBases" -> Select[transportChartRadicalBases[factor],
-          ! NumericQ[#1] &]|>, failTag]];
-    AppendTo[factorTable, <|"Factor" -> factor,
-      "Algebraic" -> mask =!= 0, "RootMask" -> mask|>];
-    Length[factorTable]];
+  registerFactor[factor_] := Module[{position, mask, timing},
+    factorRegistrationCalls++;
+    If[KeyExistsQ[factorExactIndex, factor],
+      factorExactInternHits++;
+      Return[factorExactIndex[factor]]];
+    {timing, position} = AbsoluteTiming[
+      SelectFirst[Range[Length[factorTable]],
+        factorMatchQ[factorTable[[#1]]["Factor"], factor] &, None]];
+    factorMatchSeconds += timing;
+    If[position === None,
+      mask = blockEquationDeferredFactorRootMask[factor, squares];
+      If[mask === $Failed,
+        Throw[<|"Status" -> "RadicalOutsideDeclaredFrame",
+          "RadicalBases" -> Select[transportChartRadicalBases[factor],
+            ! NumericQ[#1] &]|>, failTag]];
+      AppendTo[factorTable, <|"Factor" -> factor,
+        "Algebraic" -> mask =!= 0, "RootMask" -> mask|>];
+      position = Length[factorTable]];
+    (* Exact source spellings, including the only unit equivalence accepted
+       by factorMatchQ, are interned after the first exact acceptance.  A
+       nonidentical spelling still reaches factorMatchQ above; the index is a
+       fast path, never an additional factor-equivalence criterion. *)
+    factorExactIndex[factor] = position;
+    factorExactIndex[-factor] = position;
+    position];
 
   failTag = Unique["blockEquationDeferredCompileTag"];
   failure = Catch[
@@ -2195,6 +2211,10 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
   statistics = <|"CompileSeconds" -> N[AbsoluteTime[] - started],
     "OperandCount" -> Length[operandTable],
     "JobCount" -> Length[jobs], "TermCount" -> termCount,
+    "FactorRegistrationCallCount" -> factorRegistrationCalls,
+    "FactorExactInternHitCount" -> factorExactInternHits,
+    "FactorFallbackComparisonCount" -> factorFallbackComparisons,
+    "FactorMatchSeconds" -> N[factorMatchSeconds],
     "DeclaredRootCount" -> Length[rootsOption],
     "BundleRootCount" -> Length[frame["Roots"]],
     "PrunedRootCount" -> Length[rootsOption] - Length[frame["Roots"]],

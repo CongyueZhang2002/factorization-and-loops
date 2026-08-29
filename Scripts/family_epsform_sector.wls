@@ -988,11 +988,7 @@ Do[
       prevD, nextEq, e, c, bbar, nlow, solution, gauge, solvedBlocks,
       blockColumns, checkpointData, solvedForms, solvedForm,
       stripSolvers = {}, transformation, stripCheckpoint,
-      checkpointValid, stripInputFile, stripInputSealFile,
-      cachedStripInput, cachedStripSeal, cachedStripBundle,
-      cachedStripCertificate, cachedStripHash, cachedStripVerdict,
-      cachedStripBundleValidQ, cachedStripCertificateValidQ,
-      reuseStripInputQ, extraLetters, obstruction,
+      checkpointValid, stripInputFile, extraLetters, obstruction,
       resumeHydration, resumeReset, zeroForcingQ,
       requestedSolverConfiguration, solverConfiguration,
       modularBranches, modularArtifact, modularSummary,
@@ -1138,137 +1134,8 @@ Do[
            its lower sector only from NextEquationD *)
         nlow = If[blockwiseRouteQ, k - 1 - Length[solvedBlocks],
           Missing["NotConstructed"]];
-        (* BOUNDARY: immediately before this strip costs anything, including
-           importing a possibly large saved input. *)
+        (* BOUNDARY: immediately before this strip's construction begins *)
         constructionCheck["Entry"];
-        stripInputFile = None;
-        stripInputSealFile = None;
-        cachedStripInput = Missing["NotFound"];
-        cachedStripSeal = Missing["NotFound"];
-        cachedStripBundle = Missing["NoDeferredBundle"];
-        cachedStripCertificate = Missing[
-          "NoDeferredMaterializationCertificate"];
-        cachedStripHash = $Failed;
-        cachedStripVerdict = "NotChecked";
-        cachedStripBundleValidQ = False;
-        reuseStripInputQ = False;
-        (* A failed or interrupted solve may already have paid for the strip
-           equation and its deferred bundle.  Reuse that replay artifact only
-           when its V2 sidecar binds the current connection, exact row prefix,
-           position, variables and payload.  This saves construction work; it
-           is not an acceptance certificate.  Production still ends at the
-           mandatory whole-family certificate.
-           The writer source is deliberately not required to equal today's
-           driver: changing the solver or pullback does not invalidate an
-           already sealed equation. *)
-        If[blockwiseRouteQ,
-          stripInputFile = FileNameJoin[{scratch,
-            family <> "_" <> ToString[k] <> "_" <> ToString[nlow] <>
-              "_input.wl"}];
-          stripInputSealFile = StringReplace[stripInputFile,
-            "_input.wl" -> "_input_seal.wl"];
-          cachedStripInput = If[FileExistsQ[stripInputFile],
-            Quiet[CheckAbort[
-              FeynFacet`FamilyArtifactRead[stripInputFile], $Failed]],
-            Missing["NotFound"]];
-          cachedStripSeal = If[FileExistsQ[stripInputSealFile],
-            Quiet[CheckAbort[
-              FeynFacet`FamilyArtifactRead[stripInputSealFile], $Failed]],
-            Missing["NotFound"]];
-          If[AssociationQ[cachedStripInput],
-            cachedStripBundle = Lookup[cachedStripInput,
-              "DeferredBundle", Missing["NoDeferredBundle"]];
-            cachedStripCertificate = Lookup[cachedStripInput,
-              "DeferredMaterializationCertificate",
-              Missing["NoDeferredMaterializationCertificate"]]];
-          cachedStripBundleValidQ =
-            MissingQ[cachedStripBundle] ||
-              AssociationQ[cachedStripBundle] &&
-                Lookup[
-                  FeynFacet`Private`blockEquationDeferredBundleValidate[
-                    cachedStripBundle], "Status", None] === "BundleValid";
-          cachedStripCertificateValidQ = Which[
-            AssociationQ[cachedStripCertificate] &&
-                AssociationQ[cachedStripBundle] &&
-                MatchQ[Lookup[cachedStripInput, "Strip", None],
-                  {_List, _List, _List}],
-              Lookup[
-                FeynFacet`Private`blockEquationDeferredMaterializationCertificateValidate[
-                    cachedStripCertificate, cachedStripBundle,
-                    cachedStripInput["Strip"][[3]], invariants, ee],
-                "Status", None] === "MaterializationCertificateValid",
-            MissingQ[cachedStripCertificate] &&
-                MissingQ[cachedStripBundle], True,
-            MissingQ[cachedStripCertificate] &&
-                AssociationQ[cachedStripBundle],
-              TrueQ[Lookup[
-                Lookup[Lookup[cachedStripBundle, "Statistics", <||>],
-                  "Census", <||>], "NonzeroProvedQ", False]],
-            True, False];
-          If[AssociationQ[cachedStripInput] &&
-              MatchQ[Lookup[cachedStripInput, "Strip", None],
-                {_List, _List, _List}] && cachedStripBundleValidQ,
-            cachedStripHash = Hash[
-              If[AssociationQ[cachedStripBundle],
-                {cachedStripInput["Strip"],
-                  cachedStripBundle["BundleFingerprint"]},
-                cachedStripInput["Strip"]], "SHA256", "HexString"];
-            cachedStripVerdict =
-              FeynFacet`Private`familyRowGaugeStripInputSealVerdict[
-                cachedStripSeal, family, k, nlow, nk,
-                Hash[aP, "SHA256", "HexString"], solvedBlocks,
-                cachedStripHash]];
-          reuseStripInputQ = AssociationQ[cachedStripInput] &&
-            AssociationQ[cachedStripSeal] && cachedStripBundleValidQ &&
-            cachedStripCertificateValidQ &&
-            cachedStripVerdict === "SealAuthenticated" &&
-            Lookup[cachedStripSeal, "SolvedBlockKeys", Missing[]] ===
-              Sort[Keys[solvedBlocks]] &&
-            Lookup[cachedStripSeal, "VariablesHash", Missing[]] ===
-              Hash[{invariants, ee}, "SHA256", "HexString"] &&
-            Lookup[cachedStripInput, "Family", None] === family &&
-            Lookup[cachedStripInput, "Sector", None] === k &&
-            Lookup[cachedStripInput, "LowerSector", None] === nlow &&
-            SameQ[Lookup[cachedStripInput, "Variables", None], invariants] &&
-            SameQ[Lookup[cachedStripInput, "Regulator", None], ee] &&
-            MatchQ[Lookup[cachedStripInput, "Strip", None],
-              {_List, _List, _List}] &&
-            Dimensions[cachedStripInput["Strip"][[1]]] ===
-              {2, subSize, subSize} &&
-            Dimensions[cachedStripInput["Strip"][[2]]] ===
-              {2, Length[blockRows[nlow]], Length[blockRows[nlow]]} &&
-            Dimensions[cachedStripInput["Strip"][[3]]] ===
-              {2, subSize, Length[blockRows[nlow]]};
-        ];
-        If[reuseStripInputQ,
-          {e, c, bbar} = cachedStripInput["Strip"];
-          $blockConstructionRecord = <|
-            "Route" -> "SealedInputCache",
-            "ZeroForcingCandidateQ" -> True|>;
-          If[AssociationQ[cachedStripBundle],
-            $blockConstructionRecord = Join[$blockConstructionRecord, <|
-              "DeferredBundle" -> cachedStripBundle,
-              "DeferredBundleFingerprint" ->
-                cachedStripBundle["BundleFingerprint"],
-              "Census" -> Lookup[
-                Lookup[cachedStripBundle, "Statistics", <||>],
-                "Census", <||>],
-              "ZeroForcingCandidateQ" -> ! TrueQ[Lookup[
-                Lookup[Lookup[cachedStripBundle, "Statistics", <||>],
-                  "Census", <||>], "NonzeroProvedQ", False]],
-              "BundleStatistics" -> KeyDrop[
-                Lookup[cachedStripBundle, "Statistics", <||>],
-                "Census"]|>]];
-          If[KeyExistsQ[cachedStripInput,
-              "DeferredMaterializationCertificate"],
-            $blockConstructionRecord = Join[$blockConstructionRecord, <|
-              "DeferredMaterializationCertificate" ->
-                cachedStripInput[
-                  "DeferredMaterializationCertificate"]|>]];
-          constructionTimings["BlockEquation"] = 0.;
-          constructionTimings["StripInputWrite"] = 0.;
-          log["  reusing authenticated sealed strip input ", {k, nlow},
-            " from ", stripInputFile],
         If[blockwiseRouteQ,
           memtrace["block " <> ToString[{k, nlow}] <> " before equation"];
           (* the blockwise block equation is one Together pass over the
@@ -1295,14 +1162,11 @@ Do[
           {e, c, bbar, nlow} = {
             fromC[nextEq[[1]]], fromC[nextEq[[2]]],
             fromC[nextEq[[3]]], nextEq[[5]]}];
-        ];
         (* BOUNDARY: after the block equation / NextEquationD *)
         constructionCheck["EquationConstructed"];
-        If[! StringQ[stripInputFile],
-          stripInputFile = FileNameJoin[{scratch,
-            family <> "_" <> ToString[k] <> "_" <> ToString[nlow] <>
-              "_input.wl"}]];
-        If[! reuseStripInputQ,
+        stripInputFile = FileNameJoin[{scratch,
+          family <> "_" <> ToString[k] <> "_" <> ToString[nlow] <>
+            "_input.wl"}];
         (* putAtomic returns the renamed path, so only the timing is taken *)
         constructionSeconds = First[AbsoluteTiming[putAtomic[
           Join[<|"Family" -> family, "Sector" -> k,
@@ -1361,7 +1225,6 @@ Do[
           StringReplace[stripInputFile,
             "_input.wl" -> "_input_seal.wl"]]]];
         constructionTimings["StripInputWrite"] = constructionSeconds;
-        ];
         If[Environment["FACET_RECORD_STRIP_ONLY"] === "True",
           log["  recorded strip ", {k, nlow}, " at ", stripInputFile];
           putAtomic[state, stateFile];
@@ -1530,9 +1393,9 @@ Do[
                 (* and so does the STRIP-CONSTRUCTION stage inside this
                    call -- the chart pullback, the gauge pullback and the
                    source-frame identity check (2026-08-24) *)
-                "Deadline" -> sectorDeadline,
                 "GaugePullBackMode" -> If[productionQ,
-                  "CompactCompositional", "Exact"],
+                  "MapleCanonical", "Exact"],
+                "Deadline" -> sectorDeadline,
                 "ScratchDirectory" -> scratch,
                 "DeferredMaterializationCertificate" -> Lookup[
                   $blockConstructionRecord,
@@ -1606,6 +1469,8 @@ Do[
             "MultiquadraticOptions" -> {"Deadline" -> sectorDeadline},
             (* and the strip-construction stage inside this call *)
             "Deadline" -> sectorDeadline,
+            "GaugePullBackMode" -> If[productionQ,
+              "MapleCanonical", "Exact"],
             "ScratchDirectory" -> scratch,
             "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
             "Verbose" -> False],
