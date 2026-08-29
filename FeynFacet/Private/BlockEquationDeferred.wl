@@ -993,9 +993,15 @@ blockEquationDeferredAssembleJob[operands_List, job_List, cancelQ_,
    pure function of (bytes, workers, cap), so it is deterministic and is
    asserted to be in the suite. *)
 blockEquationDeferredBatchPlan[bytes_List, workers_Integer, byteCap_] :=
-  Module[{n = Length[bytes], share, batches = {}, current, load},
+  Module[{n = Length[bytes], activeWorkers, base, remainder, groupSizes,
+    groups, batches = {}, current, load},
     If[n === 0, Return[{}]];
-    share = Max[1, Ceiling[n/Max[1, workers]]];
+    activeWorkers = Min[n, Max[1, workers]];
+    base = Quotient[n, activeWorkers];
+    remainder = Mod[n, activeWorkers];
+    groupSizes = Table[base + Boole[index <= remainder],
+      {index, activeWorkers}];
+    groups = TakeList[Range[n], groupSizes];
     Do[
       current = {}; load = 0;
       Do[
@@ -1004,7 +1010,7 @@ blockEquationDeferredBatchPlan[bytes_List, workers_Integer, byteCap_] :=
         AppendTo[current, index]; load += bytes[[index]],
         {index, group}];
       If[current =!= {}, AppendTo[batches, current]],
-      {group, Partition[Range[n], UpTo[share]]}];
+      {group, groups}];
     batches];
 
 (* helper side: one task = one batch of independent target jobs.  The

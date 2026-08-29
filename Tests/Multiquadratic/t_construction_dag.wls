@@ -606,6 +606,10 @@ FTAssert["(j) the batch plan is a deterministic partition in target order",
    batchPlan[bytes, 4, 10^9] === batchPlan[bytes, 4, 10^9] &&
      Flatten[batchPlan[bytes, 4, 10^9]] === Range[8] &&
      Length[batchPlan[bytes, 4, 10^9]] === 4]];
+FTAssert["(j) four costly targets occupy all three available workers",
+  Length[batchPlan[ConstantArray[10, 4], 3, 10^9]] === 3 &&
+    Sort[Length /@ batchPlan[
+      ConstantArray[10, 4], 3, 10^9]] === {1, 1, 2}];
 FTAssert["(j) the batch plan splits on the byte cap, never on an entry count",
   Module[{bytes = ConstantArray[10, 8]},
    batchPlan[bytes, 4, 1] === List /@ Range[8] &&
