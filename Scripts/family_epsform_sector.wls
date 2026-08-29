@@ -990,7 +990,8 @@ Do[
       stripSolvers = {}, transformation, stripCheckpoint,
       checkpointValid, stripInputFile, stripInputSealFile,
       cachedStripInput, cachedStripSeal, cachedStripBundle,
-      cachedStripHash, cachedStripVerdict, cachedStripBundleValidQ,
+      cachedStripCertificate, cachedStripHash, cachedStripVerdict,
+      cachedStripBundleValidQ, cachedStripCertificateValidQ,
       reuseStripInputQ, extraLetters, obstruction,
       resumeHydration, resumeReset, zeroForcingQ,
       requestedSolverConfiguration, solverConfiguration,
@@ -1137,19 +1138,26 @@ Do[
            its lower sector only from NextEquationD *)
         nlow = If[blockwiseRouteQ, k - 1 - Length[solvedBlocks],
           Missing["NotConstructed"]];
+        (* BOUNDARY: immediately before this strip costs anything, including
+           importing a possibly large saved input. *)
+        constructionCheck["Entry"];
         stripInputFile = None;
         stripInputSealFile = None;
         cachedStripInput = Missing["NotFound"];
         cachedStripSeal = Missing["NotFound"];
         cachedStripBundle = Missing["NoDeferredBundle"];
+        cachedStripCertificate = Missing[
+          "NoDeferredMaterializationCertificate"];
         cachedStripHash = $Failed;
         cachedStripVerdict = "NotChecked";
         cachedStripBundleValidQ = False;
         reuseStripInputQ = False;
-        (* A failed or interrupted solve may already have paid for the exact
-           strip equation and its deferred bundle.  Reuse that mathematical
-           artifact only when its V2 sidecar authenticates the current
-           connection, exact row prefix, position, variables and payload.
+        (* A failed or interrupted solve may already have paid for the strip
+           equation and its deferred bundle.  Reuse that replay artifact only
+           when its V2 sidecar binds the current connection, exact row prefix,
+           position, variables and payload.  This saves construction work; it
+           is not an acceptance certificate.  Production still ends at the
+           mandatory whole-family certificate.
            The writer source is deliberately not required to equal today's
            driver: changing the solver or pullback does not invalidate an
            already sealed equation. *)
@@ -1169,11 +1177,34 @@ Do[
             Missing["NotFound"]];
           If[AssociationQ[cachedStripInput],
             cachedStripBundle = Lookup[cachedStripInput,
-              "DeferredBundle", Missing["NoDeferredBundle"]]];
+              "DeferredBundle", Missing["NoDeferredBundle"]];
+            cachedStripCertificate = Lookup[cachedStripInput,
+              "DeferredMaterializationCertificate",
+              Missing["NoDeferredMaterializationCertificate"]]];
           cachedStripBundleValidQ =
-            ! AssociationQ[cachedStripBundle] ||
-              Lookup[FeynFacet`Private`blockEquationDeferredBundleValidate[
-                cachedStripBundle], "Status", None] === "BundleValid";
+            MissingQ[cachedStripBundle] ||
+              AssociationQ[cachedStripBundle] &&
+                Lookup[
+                  FeynFacet`Private`blockEquationDeferredBundleValidate[
+                    cachedStripBundle], "Status", None] === "BundleValid";
+          cachedStripCertificateValidQ = Which[
+            AssociationQ[cachedStripCertificate] &&
+                AssociationQ[cachedStripBundle] &&
+                MatchQ[Lookup[cachedStripInput, "Strip", None],
+                  {_List, _List, _List}],
+              Lookup[
+                FeynFacet`Private`blockEquationDeferredMaterializationCertificateValidate[
+                    cachedStripCertificate, cachedStripBundle,
+                    cachedStripInput["Strip"][[3]], invariants, ee],
+                "Status", None] === "MaterializationCertificateValid",
+            MissingQ[cachedStripCertificate] &&
+                MissingQ[cachedStripBundle], True,
+            MissingQ[cachedStripCertificate] &&
+                AssociationQ[cachedStripBundle],
+              TrueQ[Lookup[
+                Lookup[Lookup[cachedStripBundle, "Statistics", <||>],
+                  "Census", <||>], "NonzeroProvedQ", False]],
+            True, False];
           If[AssociationQ[cachedStripInput] &&
               MatchQ[Lookup[cachedStripInput, "Strip", None],
                 {_List, _List, _List}] && cachedStripBundleValidQ,
@@ -1189,6 +1220,7 @@ Do[
                 cachedStripHash]];
           reuseStripInputQ = AssociationQ[cachedStripInput] &&
             AssociationQ[cachedStripSeal] && cachedStripBundleValidQ &&
+            cachedStripCertificateValidQ &&
             cachedStripVerdict === "SealAuthenticated" &&
             Lookup[cachedStripSeal, "SolvedBlockKeys", Missing[]] ===
               Sort[Keys[solvedBlocks]] &&
@@ -1208,8 +1240,6 @@ Do[
             Dimensions[cachedStripInput["Strip"][[3]]] ===
               {2, subSize, Length[blockRows[nlow]]};
         ];
-        (* BOUNDARY: immediately before this strip's construction begins *)
-        constructionCheck["Entry"];
         If[reuseStripInputQ,
           {e, c, bbar} = cachedStripInput["Strip"];
           $blockConstructionRecord = <|
