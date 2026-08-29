@@ -43,6 +43,10 @@ sub[d_] := FileNameJoin[{poolDir, d}];
 Do[If[! DirectoryQ[sub[d]], CreateDirectory[sub[d], CreateIntermediateDirectories -> True]],
   {d, {"queue", "running", "done", "failed", "duplicates", "logs", "control"}}];
 Export[sub["pool.pid"], ToString[$ProcessID], "Text"];
+(* Subkernels inherit process environment only when they launch.  Publish the
+   broker directory before LaunchKernels so missions can return independent
+   work to this main kernel instead of silently falling back to serial. *)
+SetEnvironment["FACET_TASK_BROKER" -> poolDir];
 log[msg___] := (WriteString["stdout", DateString["ISODateTime"], " POOL ", StringJoin[ToString /@ {msg}], "\n"]);
 putAtomic[expr_, file_] := Module[{tmp = file <> ".tmp"}, Put[expr, tmp]; RenameFile[tmp, file, OverwriteTarget -> True]];
 If[! FileExistsQ[FileNameJoin[{sub["control"], "native_cores"}]],
