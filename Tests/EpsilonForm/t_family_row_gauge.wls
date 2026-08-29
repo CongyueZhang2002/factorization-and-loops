@@ -174,7 +174,18 @@ rawDeferredInverse = FeynFacet`Private`familyRowGaugeApply[
   {x, y}, rawInstalled, "Deferred"];
 rawD = ConstantArray[0, {3, 3}];
 rawD[[2, 1]] = First[First[rawGauge]];
+rawExpectedTransformation = rawTransformation . (IdentityMatrix[3] + rawD);
 rawExpectedInverse = (IdentityMatrix[3] - rawD) . rawInverse;
+FTTest`FTAssert["production transformation normalization is deferred exactly once",
+  rawDeferredInverse["Status"] === "OK" &&
+    rawDeferredInverse["Statistics", "S",
+      "DeferredNormalizationEntries"] > 0 &&
+    rawDeferredInverse["Statistics", "S",
+      "NormalizationSeconds"] === 0. &&
+    sameMatrixQ[rawDeferredInverse["Transformation"],
+      rawExpectedTransformation] &&
+    ! SameQ[rawDeferredInverse["Transformation"],
+      Map[Together, rawExpectedTransformation, {2}]]];
 FTTest`FTAssert["production inverse normalization is deferred exactly once",
   rawDeferredInverse["Status"] === "OK" &&
     rawDeferredInverse["Statistics", "SInverse",

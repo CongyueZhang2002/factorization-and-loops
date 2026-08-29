@@ -208,8 +208,8 @@ familyRowGaugeAssembleInstalledRow[solvedForms_Association,
 familyRowGaugeAssembleInstalledRow[___] := Automatic;
 
 (* "Deferred" is an explicit production mode: a complete materialized
-   current row is installed, while later A rows and the inverse row retain
-   their exact raw block products.  The default keeps the established
+   current row is installed, while later A rows and both transformation
+   updates retain their exact raw sums.  The default keeps the established
    entrywise Together semantics. *)
 familyRowGaugeApply[
     connection : {_List, _List}, transformation_List,
@@ -227,7 +227,7 @@ familyRowGaugeApply[
    installedRowCompleteQ,
    sProducts = 0, sTouched = 0, sNormalizationSeconds = 0.,
    sStageSeconds = 0.,
-   sSingleTerm = 0,
+   sSingleTerm = 0, sDeferredNormalization = 0,
    siProducts = 0, siTouched = 0, siNormalizationSeconds = 0.,
    siStageSeconds = 0.,
    siSingleTerm = 0, siDeferredNormalization = 0,
@@ -404,10 +404,13 @@ familyRowGaugeApply[
           newTransformation[[i, lowerColumns[[j]]]] =
             First[correctionTerms];
           sSingleTerm++,
-          normalizedAt = AbsoluteTime[];
-          newTransformation[[i, lowerColumns[[j]]]] =
-            Together[base + correction];
-          sNormalizationSeconds += AbsoluteTime[] - normalizedAt];
+          If[futureAMode === "Deferred",
+            newTransformation[[i, lowerColumns[[j]]]] = base + correction;
+            sDeferredNormalization++,
+            normalizedAt = AbsoluteTime[];
+            newTransformation[[i, lowerColumns[[j]]]] =
+              Together[base + correction];
+            sNormalizationSeconds += AbsoluteTime[] - normalizedAt]];
         sTouched++]],
     {i, n}, {j, lowerSize}];
   sStageSeconds = AbsoluteTime[] - stageStarted;
@@ -464,6 +467,7 @@ familyRowGaugeApply[
     "S" -> <|"CandidateEntries" -> n lowerSize,
       "Products" -> sProducts, "Touched" -> sTouched,
       "SingleTermFastPath" -> sSingleTerm,
+      "DeferredNormalizationEntries" -> sDeferredNormalization,
       "StageSeconds" -> N[sStageSeconds],
       "NormalizationSeconds" -> N[sNormalizationSeconds]|>,
     "SInverse" -> <|"CandidateEntries" -> rowSize n,
