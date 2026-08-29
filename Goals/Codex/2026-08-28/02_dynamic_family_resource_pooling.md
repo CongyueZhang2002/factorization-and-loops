@@ -38,6 +38,11 @@
   helpers when their owner finishes. Already-running helpers drain without
   destructive preemption.
 
+- [🟢] Admit helpers emitted by ungrouped controllers and quarantine them when
+  any non-helper controller finishes.  A live regression dispatched 52 helper
+  missions from an ungrouped DAG test, completed 78 assertions, and left no
+  queued work; the former policy stranded those helpers indefinitely.
+
 ## Avoid harmful nested parallelism
 
 - [🟢] Keep fixed-profile regulator interpolation single-threaded and cap

@@ -56,17 +56,26 @@
   CF303 `(21,18)`; 158 focused construction, compatibility, deadline, and
   resume assertions passed.
 
-- [🟡] Attack CF259 `(21,16)` before-materialization construction rather
-  than the already-parallel materializer.  The measured block equation was
-  2,519.6 s, of which materialization was only 140 s; a new idea must target
-  the roughly 2,380 s bundle-compile/census prefix and clear the 1.5x gate.
-  The current recovery run uses a 7,200 s sector allowance so it cannot
-  repeat a guaranteed post-construction timeout.
+- [🟢] Replace CF259 `(21,16)` source-frame provider compilation with a
+  chart-first deferred DAG.  The old measured path was 2,450.9 s
+  (2,330.6 s bundle compile plus 106.4 s materialization).  The final
+  physical path writes the chart-deferred strip in 19 s and materializes it
+  in the rational chart in 16.1 s: about 35 s total, a roughly 70x reduction.
+  Chartable blocks also skip the unused source-frame nonzero census.
 
-- [ ] Do not add an exact factor-spelling index.  It preserved the physical
-  CF303 `(21,18)` bundle and bypassed 527 repeated spellings, but compiled
-  in 143.79 s against the 144.3 s baseline.  Factor lookup is therefore not
-  the dominant cost, and the prototype was removed.
+- [🟢] Replace the chartless compiler's linear factor-equivalence scan with
+  an exact multiquadratic grade-channel key modulo sign.  Exact keys preserve
+  first-occurrence numbering; the old semantic scan remains only when grade
+  reduction cannot form a key.  Production bundles omit occurrence-level
+  audit records while retaining every factor, orbit norm, and global pole
+  bound consumed by the solver.
+
+- [🟢] Reject the tempting raw chart-assembly shortcut on physical evidence.
+  It assembled CF259 `(21,16)` in 2.5 s but produced a 4.24-million-leaf
+  intermediate whose final exact `Together` was still running after 38 s,
+  already slower than the complete 16.1 s factored chart route.  The current
+  operand factorization is therefore useful preconditioning, not removable
+  bookkeeping.
 
 - [ ] Allow an unresolved strip with a matching authenticated input seal to
   resume from its persisted input instead of rebuilding the block equation.
