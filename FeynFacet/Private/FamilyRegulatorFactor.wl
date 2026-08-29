@@ -1456,7 +1456,13 @@ familyRegulatorLiteralRootClassification[expression_, roots_List] := Module[
   If[! ListQ[rootSquares] || Length[rootSquares] =!= Length[roots] ||
       ! FreeQ[rootSquares, $Failed],
     Return[<|"Status" -> "LiteralRootFrameInvalid"|>]];
-  radicals = transportChartRadicalBases[expression];
+  (* This path is deliberately structural.  The general classifier below
+     normalizes and denests nonliteral radicands; doing Together here would
+     repeat that expensive work across a family-sized connection before we
+     know it is needed. *)
+  radicals = DeleteDuplicates[Cases[Unevaluated[expression],
+    Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
+      base, {0, Infinity}, Heads -> True]];
   Do[
     index = SelectFirst[Range[Length[rootSquares]],
       SameQ[base, rootSquares[[#1]]] &, 0];
@@ -1477,7 +1483,7 @@ familyRegulatorLiteralRootClassification[expression_, roots_List] := Module[
     "RadicalBases" -> radicals,
     "UnclassifiedRadicalBases" -> unmatched,
     "NumericRadicalClasses" ->
-      DeleteDuplicates[Together /@ numericClasses],
+      DeleteDuplicates[numericClasses],
     "DenestedRadicalBases" -> <||>|>
 ];
 familyRegulatorLiteralRootClassification[___] :=
