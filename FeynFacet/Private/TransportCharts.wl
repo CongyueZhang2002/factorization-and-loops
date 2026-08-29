@@ -1186,6 +1186,7 @@ transportChartPullBackDeferredPreparation[record_Association,
    survivingRadicals, pulled, polynomialSymbols,
    projectionRoots, transformedProjectionRoots, projectionChannels,
    projectionTags, projectionRootImages,
+   taggedProjectionRoots,
    projectionSeconds = 0., inactiveChannels, projectionRecord = None,
    projectionPreparedFallbacks = 0},
   preparation = Lookup[record, "Preparation",
@@ -1206,6 +1207,9 @@ transportChartPullBackDeferredPreparation[record_Association,
     Unique["FeynFacet`Private`deferredProjectionRoot"],
     {Length[projectionRoots]}];
   projectionRootImages = Lookup[transformedProjectionRoots, "Root", {}];
+  taggedProjectionRoots = MapThread[
+    <|"Root" -> #1, "RootSquare" -> Lookup[#2, "RootSquare", $Failed]|> &,
+    {projectionTags, transformedProjectionRoots}];
   transform[expr_] := Module[{activeImage},
     activeImage = transportChartApplyRootBranches[
       expr /. data["Subst"], branchRoots, images];
@@ -1241,14 +1245,14 @@ transportChartPullBackDeferredPreparation[record_Association,
     {mu, dimensions[[1]]}, {i, dimensions[[2]]},
     {j, dimensions[[3]]}];
   If[projectionRoots =!= {},
-    image = image /. Thread[projectionTags -> projectionRootImages];
     {projectionSeconds, projectionChannels} = AbsoluteTiming[
       Map[Function[entry, Module[{prepared},
         prepared = multiquadraticFieldDecompose[entry,
-          transformedProjectionRoots, False, False];
+          taggedProjectionRoots, False, False];
         If[prepared === $Failed,
           projectionPreparedFallbacks++;
-          multiquadraticFieldDecompose[entry,
+          multiquadraticFieldDecompose[
+            entry /. Thread[projectionTags -> projectionRootImages],
             transformedProjectionRoots, False],
           prepared]]], image, {3}]];
     If[! FreeQ[projectionChannels, $Failed],
