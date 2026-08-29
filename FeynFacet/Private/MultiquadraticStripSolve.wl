@@ -14313,6 +14313,14 @@ multiquadraticStripReconstructRegulator[preparation_Association,
     primeResult = perPrime[candidatePrime];
     If[Lookup[primeResult, "Status", None] === "BudgetExhausted",
       Return[primeResult, Module]];
+    (* A degree cap is a property of the fixed rational section, not of the
+       modular prime.  Repeating the same complete degree census at every
+       prime cannot change this verdict and only rebuilds all epsilon fibres. *)
+    If[Lookup[primeResult, "Status", None] ===
+        "RegulatorMaximumTotalDegreeExceeded",
+      log["regulator reconstruction stopped at the configured degree cap ",
+        maximumTotalDegree, " after prime ", candidatePrime];
+      Return[primeResult, Module]];
     If[Lookup[primeResult, "Status", None] =!= "HeldOutValidated",
       AppendTo[rejectedPrimes, candidatePrime];
       AssociateTo[primeRejections, candidatePrime ->
