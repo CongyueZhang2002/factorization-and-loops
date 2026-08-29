@@ -152,14 +152,19 @@ mqImageKernelCount = Module[{
     Exit[64]];
   parsed
 ];
-(* The adaptive rational interpolator admits total regulator degree 22 and
-   retains three held-out images.  Its historical 22-value schedule could
-   therefore never certify the declared boundary (23 construction + 3
-   held-outs).  Extra generic values are consumed only when a hard block
-   needs them; easy blocks stop on the original prefix. *)
-mqRegulatorReconstructionValues = Join[
+mqMaximumRegulatorDegree = Module[{
+    value = Environment["FACET_MQ_MAX_REGULATOR_DEGREE"], parsed},
+  If[! StringQ[value] || StringLength[value] === 0, Return[64]];
+  parsed = Quiet[Check[ToExpression[value], $Failed]];
+  If[! IntegerQ[parsed] || ! Between[parsed, {1, 256}],
+    Print["[sector-epsform] FACET_MQ_MAX_REGULATOR_DEGREE must be an " <>
+      "integer from 1 through 256"];
+    Exit[64]];
+  parsed
+];
+mqRegulatorReconstructionValues = DeleteDuplicates[Join[
   FeynFacet`Private`$multiquadraticStripRegulatorScheduleDefault,
-  {37, 41, 43, 47, 53, 59, 61, 67}];
+  Range[1, mqMaximumRegulatorDegree + 4]]];
 (* Fixed-core and plan-discovery backends are intentionally distinct.
    The caps are explicit; the pool-owned live grants choose the effective
    values at each strip boundary. *)
@@ -1329,7 +1334,11 @@ Do[
                      mqImageKernelCount,
                    "RegulatorReconstructionValues" ->
                      mqRegulatorReconstructionValues,
-                   "CheckpointDirectory" -> scratch},
+                   "ReconstructionMaximumTotalDegree" ->
+                     mqMaximumRegulatorDegree,
+                   "CheckpointDirectory" -> scratch,
+                   "CheckpointTag" -> family <> "_" <> ToString[k] <>
+                     "_" <> ToString[nlow]},
                   If[AssociationQ[deferredBundle],
                     Join[{"DeferredBundle" -> deferredBundle},
                      Normal[directAlphabetOptions],

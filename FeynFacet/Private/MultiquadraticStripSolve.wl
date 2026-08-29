@@ -13089,8 +13089,8 @@ multiquadraticStripBundleExactChannels[forcing_, roots_List,
     free = Quiet[Check[taskBrokerFreeKernels[], 0]]];
   If[! IntegerQ[free] || free < 0, free = 0];
   workerCount = Min[Length[entries], free + 1];
-  groups = Partition[Range[Length[entries]],
-    UpTo[Ceiling[Length[entries]/workerCount]]];
+  groups = TakeList[Range[Length[entries]],
+    Ceiling[(Length[entries] - Range[workerCount] + 1)/workerCount]];
   helperGroups = Most[groups];
   localGroup = Last[groups];
   dataFile = If[helperGroups === {}, None,
@@ -13238,8 +13238,9 @@ multiquadraticStripBundleRefinedGaugeDenominator[___] :=
    removes it at family level with a constant-in-kinematics T(eps).
    Nothing here changes that stage. *)
 
-$multiquadraticStripRegulatorScheduleDefault = {1, 2, 3, 5, 7, 11, 13, 17,
-  19, 23, 4, 6, 8, 9, 10, 12, 5/3, 7/3, 11/5, 13/7, 29, 31};
+$multiquadraticStripRegulatorScheduleDefault = DeleteDuplicates[Join[
+  {1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 4, 6, 8, 9, 10, 12,
+   5/3, 7/3, 11/5, 13/7, 29, 31}, Range[1, 72]]];
 
 (* A fresh finite-field replay of one reconstructed generic vector.  The
    provider, rather than an exact global channel materialization, builds the
@@ -13325,7 +13326,7 @@ Options[multiquadraticStripReconstructRegulator] = {
   "RandomSeed" -> 2026082601,
   "InitialConstructionCount" -> 4,
   "HeldOutCount" -> 3,
-  "MaximumTotalDegree" -> 22,
+  "MaximumTotalDegree" -> 64,
   "NormalizationColumns" -> Automatic,
   "PlanDiscoveryBackend" -> Automatic,
   "PlanDiscoveryBackendThreads" -> 2,
@@ -14823,6 +14824,7 @@ Options[solveEpsFormStripMultiquadratic] = DeleteDuplicatesBy[Join[
   "ReconstructionMinimumGoodPrimeCount" -> Automatic,
   "ReconstructionMaximumGoodPrimeCount" -> 32,
   "ReconstructionMaximumRejectedPrimeCount" -> 64,
+  "ReconstructionMaximumTotalDegree" -> 64,
   "ReconstructionUnseenPrimeCount" -> 2,
   "ReconstructionFreshPointwiseChecksPerPrime" -> 3,
   (* True = verify the reconstructed GENERIC object in the differential
@@ -15755,6 +15757,8 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
         OptionValue["ReconstructionMaximumGoodPrimeCount"],
       "MaximumRejectedPrimeCount" ->
         OptionValue["ReconstructionMaximumRejectedPrimeCount"],
+      "MaximumTotalDegree" ->
+        OptionValue["ReconstructionMaximumTotalDegree"],
       "UnseenPrimeCount" ->
         OptionValue["ReconstructionUnseenPrimeCount"],
       "FreshPointwiseChecksPerPrime" ->
