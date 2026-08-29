@@ -1070,10 +1070,12 @@ TransportRootSetChart[rootSquares_List,
       {$transportChartV, $transportChartW}])];
   If[wanted === {}, Return[None]];
   candidates = Select[Values[TransportChartCatalog[]], Function[chart,
-    Module[{chartSquares = Together /@ Lookup[
-        Lookup[chart, "Roots", {}], "RootSquare", {}]},
-      AllTrue[wanted, Function[q, AnyTrue[chartSquares,
-        Function[candidate, TrueQ[Together[q - candidate] === 0]]]]]]]];
+    Module[{chartRoots = Lookup[chart, "Roots", {}], chartSquares},
+      If[Length[chartRoots] < Length[wanted], False,
+        chartSquares = Together /@ Lookup[chartRoots, "RootSquare", {}];
+        AllTrue[wanted, Function[q, AnyTrue[chartSquares,
+          Function[candidate,
+            TrueQ[Together[q - candidate] === 0]]]]]]]]];
   If[candidates === {},
     Missing["NoRationalChart", wanted],
     First[SortBy[candidates,
