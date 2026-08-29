@@ -133,8 +133,8 @@ dynamicGrant = Block[
    FeynFacet`Private`taskBrokerActiveFamilyCount[],
    FeynFacet`Private`taskBrokerNativeCoreQuota[],
    FeynFacet`Private`taskBrokerNativeThreadLimit[8]}];
-FTTest`FTAssert["pool-owned family grant caps helpers and native threads",
-  dynamicGrant === {2, 2, 8, 4}];
+FTTest`FTAssert["idle helper seats remain borrowable beyond a family grant",
+  dynamicGrant === {5, 2, 8, 4}];
 
 Export[FileNameJoin[{directory, "status.txt"}],
   "KernelPool status test\nsubkernels: 8  busy: 8  free: 0\n", "Text"];
@@ -156,7 +156,7 @@ rebalancedGrant = Block[
    FeynFacet`Private`taskBrokerNativeCoreQuota[],
    FeynFacet`Private`taskBrokerNativeThreadLimit[8]}];
 FTTest`FTAssert["a replaced allocation is observed without reloading the mission",
-  rebalancedGrant === {4, 12, 8}];
+  rebalancedGrant === {5, 12, 8}];
 
 Clear[brokerSampleSubmit, brokerSampleCollect, brokerSampleAffine,
   capturedSampleCodes, capturedLocalThreads];

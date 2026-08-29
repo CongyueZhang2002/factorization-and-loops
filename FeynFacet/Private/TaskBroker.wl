@@ -169,11 +169,14 @@ taskBrokerCached[key_, expr_] := Module[{value},
   If[Length[$taskBrokerCache] >= 8, $taskBrokerCache = Take[$taskBrokerCache, -4]];
   $taskBrokerCache[key] = value];
 
-(* Helper seats available to this mission.  A grouped family uses its
+(* Helper seats worth planning for.  A grouped family uses at least its
    pool-owned entitlement even when every subkernel is momentarily busy:
    submitting into the fair queue is what lets the pool reclaim borrowed
-   capacity for that family.  Ungrouped/legacy callers retain the live-free
-   count.  Mission and pool-wide safety ceilings remain final bounds. *)
+   capacity for that family.  When more kernels are genuinely idle it may
+   also plan for those borrowable seats; the pool remains the authority that
+   redistributes them as other families enter or leave.  Ungrouped/legacy
+   callers retain the live-free count.  Mission and pool-wide safety ceilings
+   remain final bounds. *)
 taskBrokerFreeKernels[] := Module[
   {status, m, free, limitText, environmentLimit, missionLimit,
    allocation, familyLimit, available},
@@ -194,8 +197,8 @@ taskBrokerFreeKernels[] := Module[
     KernelPoolMission`$TaskBrokerMaxHelpers, Infinity];
   allocation = taskBrokerResourceAllocation[];
   familyLimit = Lookup[allocation, "HelperCeiling", Infinity];
-  available = If[IntegerQ[familyLimit], familyLimit, free];
-  Min[available, environmentLimit, missionLimit, familyLimit]];
+  available = If[IntegerQ[familyLimit], Max[free, familyLimit], free];
+  Min[available, environmentLimit, missionLimit]];
 
 (* FeynFacet is reloaded on persistent pool subkernels, resetting the local
    counter while the PID stays fixed.  A per-load filesystem-safe nonce keeps
