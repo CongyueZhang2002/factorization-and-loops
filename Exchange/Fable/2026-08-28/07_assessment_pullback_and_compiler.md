@@ -31,14 +31,28 @@ only if Maple proves measurably inadequate at scale (many blocks x many
 entries, or availability problems), which would be a measured-inadequacy
 trigger under the house rule.
 
-**Validation contract for every Maple-normalized entry:** (1) exact
-difference zero against the pre-normalization gauge in the DECLARED
-multiquadratic field, computed by our package — this also proves branch
-correctness, since Maple's RootOf carries no branch and its own zero
-test is never trusted; (2) the four independent modular images
-(different primes AND regulator values) as the second witness;
-(3) numerical comparison remains a smoke test only (it caught
-Fermatica's wrong result; it accepts nothing).
+**Validation contract for every Maple-normalized entry (user decision,
+2026-08-28 ~18:45): production uses EXACT MODULAR ARITHMETIC AT RANDOM
+POINTS ONLY — no full symbolic identity checks in production paths.**
+
+- Acceptance: the normalized entry agrees with the pre-normalization
+  gauge at 8 independent images — random kinematic points AND random
+  regulator values, across at least 2 distinct 61-bit primes, freshly
+  drawn per block (not a fixed schedule). All arithmetic exact mod p;
+  root values are OUR declared branches (the recorded quadratic-residue
+  square roots), substituted identically into both sides — this settles
+  Maple's branch ambiguity in modular terms. A nonzero rational
+  discrepancy of our degrees survives 8 such images with probability
+  below ~10^-100; record the images with the entry.
+- Full symbolic difference-zero checks move to Development and the
+  focused test batteries only; they never run in production.
+- Floating-point comparison remains a smoke test that can reject and
+  accepts nothing.
+
+Scope note: this supersedes my earlier symbolic-at-import-boundaries
+requirement for all production block work. The standing 2026-08-22
+decision that the FAMILY CERTIFICATE is the one exact symbolic statement
+at family level is left untouched unless the user directs otherwise.
 
 ## 2. CF259 (21,16) compiler: GO on factor interning
 
