@@ -570,6 +570,7 @@ If[! KeyExistsQ[state, "DiagonalAlphabets"],
         ListQ[Lookup[assemblyAlphabet, "Forms", None]],
       state["DiagonalAlphabets"] = DeleteDuplicates[Flatten[
         Lookup[assemblyAlphabet["Forms"], "Alphabet", {}]]];
+      putAtomic[state, stateFile];
       log["recovered ", Length[state["DiagonalAlphabets"]],
         " transported diagonal letters"],
       log["!! transported diagonal alphabet recovery failed"];

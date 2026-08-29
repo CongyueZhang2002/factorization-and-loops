@@ -1002,7 +1002,8 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
     variables : {_Symbol, _Symbol}, regulator_Symbol,
     {av_, aw_}, sourceVariables : {_Symbol, _Symbol}, chart_Association,
     roots_List, letters_List, OptionsPattern[]] := Module[
-  {trainingPoints, validationPoints, requestedPrimes, maxPrimes,
+  {trainingPoints, requestedTrainingPoints, trainingPointFloor,
+   validationPoints, requestedPrimes, maxPrimes,
    freshValidationPrimes, maxPrimeAttempts, maxPointAttempts, rankLimit,
    regulatorRootFrames, authenticatedRootFrame,
    pivotSignatureQuorum, pivotSignaturePilotPrimes,
@@ -1015,6 +1016,7 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
    dlogTrialsOK, crtCandidateOK, validationTrials = {}, validationEvidence = {},
    validation, allTrials, trialEvidence},
   trainingPoints = OptionValue["TrainingPoints"];
+  requestedTrainingPoints = trainingPoints;
   validationPoints = OptionValue["ValidationPoints"];
   requestedPrimes = OptionValue["Primes"];
   maxPrimes = OptionValue["MaxPrimes"];
@@ -1074,6 +1076,21 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
     roots, regulatorRootFrames, variables, regulator, rankLimit];
   If[Lookup[authenticatedRootFrame, "Status", None] =!=
       "AuthenticatedRegulatorRootFrames", Return[authenticatedRootFrame]];
+  (* One kinematic point contributes two one-form rows on every sign sheet.
+     A smaller training design cannot determine a generic coefficient vector
+     in the supplied alphabet: CF300's old 3-point design found a spurious
+     rank-17 section which fit training images but failed fresh points, while
+     seven points exposed the stable rank 23 and validated.  Size the design
+     before sampling; held-out points remain disjoint acceptance evidence. *)
+  trainingPointFloor = 1 + Ceiling[Length[letters]/
+    (2 2^authenticatedRootFrame["RootCount"])];
+  trainingPoints = Max[trainingPoints, trainingPointFloor];
+  If[trainingPoints + validationPoints > maxPointAttempts,
+    Return[familyCertMQFailure["TrainingDesignExceedsPointBudget", <|
+      "RequestedTrainingPoints" -> requestedTrainingPoints,
+      "RequiredTrainingPoints" -> trainingPoints,
+      "ValidationPoints" -> validationPoints,
+      "MaxPointAttempts" -> maxPointAttempts|>]]];
   prepared = familyCertMQPrepare[objects, authenticatedRootFrame["Roots"],
     variables, regulator, rankLimit];
   If[Lookup[prepared, "Status", None] =!= "PreparedMultiquadraticCertificate",
@@ -1265,6 +1282,8 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
     "FreshValidationEvidence" -> validationEvidence,
     "RejectedPrimes" -> rejected,
     "PointsPerPrime" -> trainingPoints + validationPoints,
+    "RequestedTrainingPointsPerPrime" -> requestedTrainingPoints,
+    "TrainingPointFloor" -> trainingPointFloor,
     "TrainingPointsPerPrime" -> trainingPoints,
     "ValidationPointsPerPrime" -> validationPoints,
     "PointsDone" -> (KeyTake[#,
