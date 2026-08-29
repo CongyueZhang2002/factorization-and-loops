@@ -207,10 +207,10 @@ familyRowGaugeAssembleInstalledRow[solvedForms_Association,
 ];
 familyRowGaugeAssembleInstalledRow[___] := Automatic;
 
-(* "Deferred" is an explicit preparation mode: a complete materialized
-   current row is installed, while only later A rows retain their exact raw
-   base + correction sums.  The default keeps the established Together
-   semantics; S and SInverse are identical in both modes. *)
+(* "Deferred" is an explicit production mode: a complete materialized
+   current row is installed, while later A rows and the inverse row retain
+   their exact raw block products.  The default keeps the established
+   entrywise Together semantics. *)
 familyRowGaugeApply[
     connection : {_List, _List}, transformation_List,
     inverse_List, rowIndices_List, gauge_List,
@@ -222,7 +222,8 @@ familyRowGaugeApply[
    aProducts = 0, aTouched = 0, aNormalizationSeconds = 0.,
    aStageSeconds = 0.,
    aSingleTerm = 0, aInstalled = 0, aFutureProducts = 0,
-   aFutureTouched = 0, aDeferredFuture = 0, installedRowQ,
+   aFutureTouched = 0, aDeferredFuture = 0, aDeferredCurrent = 0,
+   installedRowQ,
    installedRowCompleteQ,
    sProducts = 0, sTouched = 0, sNormalizationSeconds = 0.,
    sStageSeconds = 0.,
@@ -232,9 +233,10 @@ familyRowGaugeApply[
    siSingleTerm = 0, siDeferredNormalization = 0,
    started = AbsoluteTime[], stageStarted, mu, aRight, aLower, derivative,
    aRightRowSupport, aLowerColumnSupport, supportAD, supportDA,
-   correction, correctionTerms, base, normalizedAt, leftS,
+   correction, correctionTerms, correctionBlock, base, normalizedAt, leftS,
    leftSRowSupport, supportS,
-   rightInverse, rightInverseColumnSupport, supportSi, i, j},
+   rightInverse, rightInverseColumnSupport, supportSi, futureLocalRows,
+   productCount, touchedCount, i, j},
 
   validSquare[m_] := MatrixQ[m] && Length[m] > 0 &&
     Dimensions[m] === {Length[m], Length[m]};
@@ -273,7 +275,8 @@ familyRowGaugeApply[
     Return[<|"Status" -> "InvalidFutureAMode",
       "Allowed" -> {"Together", "Deferred"},
       "Actual" -> futureAMode|>]];
-  If[futureAMode === "Deferred" && ! installedRowCompleteQ,
+  If[futureAMode === "Deferred" && installedRow =!= Automatic &&
+      ! installedRowCompleteQ,
     Return[<|"Status" ->
       "DeferredFutureARequiresCompleteInstalledRow"|>]];
 
@@ -296,12 +299,52 @@ familyRowGaugeApply[
   Do[
     aRight = connection[[mu, futureRows, rowIndices]];
     aLower = connection[[mu, lowerColumns, lowerColumns]];
-    (* A complete installed row supplies every current-row entry and the
-       loop immediately Continue's before consulting dD.  Differentiating
-       the gauge here would therefore be pure dead work. *)
+    (* A complete installed row supplies every current-row entry, so its
+       derivative would be dead work.  Without that optional acceleration,
+       Production retains the exact raw block formula. *)
     derivative = If[installedRowQ, None, D[gauge, variables[[mu]]]];
     aRightRowSupport = familyRowGaugeSupport /@ aRight;
     aLowerColumnSupport = familyRowGaugeSupport /@ Transpose[aLower];
+    If[futureAMode === "Deferred",
+      If[installedRowCompleteQ,
+        base = connection[[mu, rowIndices, lowerColumns]];
+        newConnection[[mu, rowIndices, lowerColumns]] = installedRow[[mu]];
+        touchedCount = Count[MapThread[SameQ,
+          {Flatten[base], Flatten[installedRow[[mu]]]}], False];
+        aTouched += touchedCount;
+        aInstalled += rowSize lowerSize,
+        productCount = Total[Flatten[Table[
+          Length[Intersection[aRightRowSupport[[i]],
+              gaugeColumnSupport[[j]]]] +
+            Length[Intersection[gaugeRowSupport[[i]],
+              aLowerColumnSupport[[j]]]],
+          {i, rowSize}, {j, lowerSize}]]];
+        correctionBlock = aRight[[Range[rowSize]]] . gauge -
+          gauge . aLower - derivative;
+        base = connection[[mu, rowIndices, lowerColumns]];
+        newConnection[[mu, rowIndices, lowerColumns]] =
+          base + correctionBlock;
+        touchedCount = Count[Flatten[correctionBlock], Except[0]];
+        aProducts += productCount;
+        aTouched += touchedCount;
+        aDeferredCurrent += touchedCount];
+      futureLocalRows = Range[rowSize + 1, Length[futureRows]];
+      If[futureLocalRows =!= {},
+        productCount = Total[Flatten[Table[Length[Intersection[
+            aRightRowSupport[[i]], gaugeColumnSupport[[j]]]],
+          {i, futureLocalRows}, {j, lowerSize}]]];
+        correctionBlock = aRight[[futureLocalRows]] . gauge;
+        base = connection[[mu, futureRows[[futureLocalRows]],
+          lowerColumns]];
+        newConnection[[mu, futureRows[[futureLocalRows]], lowerColumns]] =
+          base + correctionBlock;
+        touchedCount = Count[Flatten[correctionBlock], Except[0]];
+        aProducts += productCount;
+        aFutureProducts += productCount;
+        aTouched += touchedCount;
+        aFutureTouched += touchedCount;
+        aDeferredFuture += touchedCount];
+      Continue[]];
     Do[
       If[installedRowQ && i <= rowSize,
         base = connection[[mu, futureRows[[i]], lowerColumns[[j]]]];
@@ -373,30 +416,35 @@ familyRowGaugeApply[
   rightInverse = inverse[[lowerColumns, All]];
   rightInverseColumnSupport =
     familyRowGaugeSupport /@ Transpose[rightInverse];
-  Do[
-    supportSi = Intersection[gaugeRowSupport[[i]],
-      rightInverseColumnSupport[[j]]];
-    siProducts += Length[supportSi];
-    If[supportSi =!= {},
-      correctionTerms =
-        (-gauge[[i, #]] rightInverse[[#, j]] &) /@ supportSi;
-      correction = Total[correctionTerms];
-      If[! SameQ[correction, 0],
-        base = inverse[[rowIndices[[i]], j]];
-        If[SameQ[base, 0] && Length[correctionTerms] === 1,
-          newInverse[[rowIndices[[i]], j]] = First[correctionTerms];
-          siSingleTerm++,
-          If[futureAMode === "Deferred",
-            (* factorTruncated immediately composes and canonicalizes the
-               cumulative inverse.  Keeping this exact sum here avoids
-               normalizing the same large row twice in production. *)
-            newInverse[[rowIndices[[i]], j]] = base + correction;
-            siDeferredNormalization++,
+  If[futureAMode === "Deferred",
+    productCount = Total[Flatten[Table[Length[Intersection[
+        gaugeRowSupport[[i]], rightInverseColumnSupport[[j]]]],
+      {i, rowSize}, {j, n}]]];
+    correctionBlock = -(gauge . rightInverse);
+    base = inverse[[rowIndices, All]];
+    newInverse[[rowIndices, All]] = base + correctionBlock;
+    touchedCount = Count[Flatten[correctionBlock], Except[0]];
+    siProducts = productCount;
+    siTouched = touchedCount;
+    siDeferredNormalization = touchedCount,
+    Do[
+      supportSi = Intersection[gaugeRowSupport[[i]],
+        rightInverseColumnSupport[[j]]];
+      siProducts += Length[supportSi];
+      If[supportSi =!= {},
+        correctionTerms =
+          (-gauge[[i, #]] rightInverse[[#, j]] &) /@ supportSi;
+        correction = Total[correctionTerms];
+        If[! SameQ[correction, 0],
+          base = inverse[[rowIndices[[i]], j]];
+          If[SameQ[base, 0] && Length[correctionTerms] === 1,
+            newInverse[[rowIndices[[i]], j]] = First[correctionTerms];
+            siSingleTerm++,
             normalizedAt = AbsoluteTime[];
             newInverse[[rowIndices[[i]], j]] = Together[base + correction];
-            siNormalizationSeconds += AbsoluteTime[] - normalizedAt]];
-        siTouched++]],
-    {i, rowSize}, {j, n}];
+            siNormalizationSeconds += AbsoluteTime[] - normalizedAt];
+          siTouched++]],
+      {i, rowSize}, {j, n}]];
   siStageSeconds = AbsoluteTime[] - stageStarted;
 
   statistics = <|
@@ -408,6 +456,7 @@ familyRowGaugeApply[
       "FutureCandidateEntries" -> 2 (n - stop) lowerSize,
       "FutureProducts" -> aFutureProducts,
       "FutureTouched" -> aFutureTouched,
+      "DeferredCurrentEntries" -> aDeferredCurrent,
       "DeferredFutureEntries" -> aDeferredFuture,
       "FutureAMode" -> futureAMode,
       "StageSeconds" -> N[aStageSeconds],

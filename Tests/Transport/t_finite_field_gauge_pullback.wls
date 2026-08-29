@@ -22,6 +22,7 @@ rank0 = FeynFacet`Private`transportChartFiniteFieldCanonicalGauge[
   "MaximumPrimeCount" -> 2,
   "MaximumKinematicTotalDegree" -> 4,
   "MaximumEpsilonTotalDegree" -> 4,
+  "SymbolicPreDispatchSeconds" -> 0,
   "HeldOutPointCount" -> 3];
 expected0 = gauge0 /. {p -> x, q -> y};
 FTAssert["rank-zero finite-field pullback reconstructs the exact gauge",
@@ -30,6 +31,17 @@ FTAssert["rank-zero finite-field pullback reconstructs the exact gauge",
     Dimensions[rank0["Result"]] === Dimensions[gauge0] &&
     And @@ Flatten[MapThread[TrueQ[Together[#1 - #2] === 0] &,
       {rank0["Result"], expected0}, 2]]];
+
+symbolicSmall =
+  FeynFacet`Private`transportChartFiniteFieldCanonicalGauge[
+    gauge0, den0, {p, q}, {x, y}, {x, y}, eps, {},
+    "SymbolicPreDispatchSeconds" -> 1.];
+FTAssert["a cheap canonical symbolic pullback bypasses modular discovery",
+  Lookup[symbolicSmall, "Status", None] ===
+      "FiniteFieldCanonicalGaugePrepared" &&
+    Lookup[symbolicSmall, "Model", None] === "SymbolicSmallV1" &&
+    And @@ Flatten[MapThread[TrueQ[Together[#1 - #2] === 0] &,
+      {symbolicSmall["Result"], expected0}, 2]]];
 
 (* Regression from live CF300 (12,11): one output has a reduced denominator
    that divides the common denominator.  Moving it to the common denominator
@@ -43,6 +55,7 @@ mixed = FeynFacet`Private`transportChartFiniteFieldCanonicalGauge[
   "MaximumPrimeCount" -> 2,
   "MaximumKinematicTotalDegree" -> 4,
   "MaximumEpsilonTotalDegree" -> 3,
+  "SymbolicPreDispatchSeconds" -> 0,
   "HeldOutPointCount" -> 3];
 expectedMixed = gaugeMixed /. {p -> x, q -> y};
 FTAssert["common-denominator fitting transports reduced numerator degrees",
@@ -50,6 +63,102 @@ FTAssert["common-denominator fitting transports reduced numerator degrees",
       "FiniteFieldCanonicalGaugePrepared" &&
     And @@ Flatten[MapThread[TrueQ[Together[#1 - #2] === 0] &,
       {mixed["Result"], expectedMixed}, 2]]];
+
+(* Two entries can have incompatible reduced denominators even though the
+   chart solver reports one common chart denominator.  The whole-matrix model
+   must refuse cleanly and the entrywise reduced model must still reconstruct
+   canonical entries. *)
+denPerEntry = (1 + p) (2 + p);
+gaugePerEntry = {{1/(1 + p), 1/(2 + p)}};
+perEntry = FeynFacet`Private`transportChartFiniteFieldCanonicalGauge[
+  gaugePerEntry, denPerEntry, {p, q}, {x, y}, {x, y}, eps, {},
+  "Primes" -> primes, "MinimumPrimeCount" -> 2,
+  "MaximumPrimeCount" -> 2,
+  "MaximumKinematicTotalDegree" -> 3,
+  "MaximumEpsilonTotalDegree" -> 2,
+  "SymbolicPreDispatchSeconds" -> 0,
+  "HeldOutPointCount" -> 3];
+expectedPerEntry = gaugePerEntry /. {p -> x, q -> y};
+FTAssert["incompatible matrix denominators use canonical per-entry models",
+  Lookup[perEntry, "Status", None] ===
+      "FiniteFieldCanonicalGaugePrepared" &&
+    Lookup[perEntry, "Model", None] === "PerEntryDenominatorsV1" &&
+    And @@ Flatten[MapThread[TrueQ[Together[#1 - #2] === 0] &,
+      {perEntry["Result"], expectedPerEntry}, 2]]];
+
+(* One algebraic entry can itself have quotient grades with distinct reduced
+   denominators.  Their least common denominator is wider than the maximum
+   univariate grade degree, so the entry model must widen toward the product
+   ceiling and recompute its numerator support at that width. *)
+rPerGrade = Sqrt[1 + y];
+rootsPerGrade = {
+  <|"Root" -> rPerGrade, "RootSquare" -> 1 + y|>};
+denPerGrade = (1 + p) (2 + p);
+gaugePerGrade = {{((2 + p) + q (1 + p))/denPerGrade}};
+perGrade = FeynFacet`Private`transportChartFiniteFieldCanonicalGauge[
+  gaugePerGrade, denPerGrade, {p, q}, {x, rPerGrade}, {x, y}, eps,
+  rootsPerGrade, "Primes" -> primes, "MinimumPrimeCount" -> 2,
+  "MaximumPrimeCount" -> 2,
+  "MaximumKinematicTotalDegree" -> 3,
+  "MaximumEpsilonTotalDegree" -> 2,
+  "SymbolicPreDispatchSeconds" -> 0,
+  "HeldOutPointCount" -> 3];
+expectedPerGrade = gaugePerGrade /. {p -> x, q -> rPerGrade};
+FTAssert["one algebraic entry widens across incompatible grade denominators",
+  Lookup[perGrade, "Status", None] ===
+      "FiniteFieldCanonicalGaugePrepared" &&
+    Lookup[perGrade, "Model", None] === "PerEntryDenominatorsV1" &&
+    TrueQ[Together[perGrade["Result"][[1, 1]] -
+      expectedPerGrade[[1, 1]]] === 0]];
+
+(* A degree refusal at the base cap is model information, not permission to
+   store a raw composition.  The bounded cap ladder retries the same reduced
+   entry and returns only the canonical reconstruction. *)
+denRaised = 1 + p;
+gaugeRaised = {{(1 + p^5)/(1 + p)}};
+raised = FeynFacet`Private`transportChartFiniteFieldCanonicalGauge[
+  gaugeRaised, denRaised, {p, q}, {x, y}, {x, y}, eps, {},
+  "Primes" -> primes, "MinimumPrimeCount" -> 2,
+  "MaximumPrimeCount" -> 2,
+  "MaximumKinematicTotalDegree" -> 2,
+  "KinematicDegreeSchedule" -> {2, 6},
+  "MaximumEpsilonTotalDegree" -> 2,
+  "SymbolicPreDispatchSeconds" -> 0,
+  "HeldOutPointCount" -> 3];
+FTAssert["the bounded degree ladder returns a reduced gauge only",
+  Lookup[raised, "Status", None] ===
+      "FiniteFieldCanonicalGaugePrepared" &&
+    Lookup[raised, "Model", None] === "PerEntryDenominatorsV1" &&
+    Lookup[First[raised["EntryRecords"]], "DegreeCap", None] === 6 &&
+    TrueQ[Together[raised["Result"][[1, 1]] -
+      (gaugeRaised /. {p -> x, q -> y})[[1, 1]]] === 0]];
+
+FTAssert["adaptive epsilon budgets replace the fixed full fibre grid",
+  Lookup[rank0, "Model", None] === "CommonDenominatorV1" &&
+    Max[Lookup[rank0["PrimeRecords"], "FibreBudget", Infinity]] <
+      2 4 + 8];
+
+(* The two cheap budget probes can both hit a zero of the leading epsilon
+   coefficient.  That may underestimate work, never correctness: the full
+   coefficient interpolation requests more fibres and the retained schedule
+   widens without repeating degree discovery. *)
+probePrime = First[primes];
+probePrimitive = PrimitiveRoot[probePrime];
+probeRoots = {
+  PowerMod[probePrimitive, 414, probePrime],
+  PowerMod[probePrimitive, 427, probePrime]};
+gaugeProbeCancellation = {{1 + eps +
+  eps^8 (p - probeRoots[[1]]) (p - probeRoots[[2]])}};
+probePlan = FeynFacet`Private`finiteFieldGaugePullBackPlan[
+  gaugeProbeCancellation, 1, {p, q}, {x, y}, {x, y}, eps, {}];
+probeRecord = FeynFacet`Private`finiteFieldGaugePullBackPrime[
+  probePlan, probePrime, "MaximumKinematicTotalDegree" -> 4,
+  "MaximumEpsilonTotalDegree" -> 10, "HeldOutPointCount" -> 3];
+FTAssert["an underestimated epsilon probe widens its retained fibre schedule",
+  Lookup[probeRecord, "Status", None] ===
+      "FiniteFieldGaugePullBackPrimeV1" &&
+    Lookup[probeRecord, "FibreBudget", 0] > 9 &&
+    Lookup[probeRecord, "FibreBudget", Infinity] < 2 10 + 8];
 
 (* A genuine rank-two inverse map: no split square roots are chosen by the
    production evaluator; the four quotient grades are reconstructed and
@@ -68,6 +177,7 @@ rank2 = FeynFacet`Private`transportChartFiniteFieldCanonicalGauge[
   "MaximumPrimeCount" -> 2,
   "MaximumKinematicTotalDegree" -> 10,
   "MaximumEpsilonTotalDegree" -> 12,
+  "SymbolicPreDispatchSeconds" -> 0,
   "HeldOutPointCount" -> 4];
 expected2 = gauge2 /. {p -> images[[1]], q -> images[[2]]};
 differences = If[Lookup[rank2, "Status", None] ===
@@ -121,6 +231,7 @@ integration = Block[{FeynFacet`SolveEpsFormStripFiniteField},
       "MaximumPrimeCount" -> 2,
       "MaximumKinematicTotalDegree" -> 2,
       "MaximumEpsilonTotalDegree" -> 2,
+      "SymbolicPreDispatchSeconds" -> 0,
       "HeldOutPointCount" -> 3}, "Verbose" -> False]];
 FTAssert["the in-frame mode uses the existing post-pullback residual",
   Lookup[integration, "Status", None] === "Solved" &&

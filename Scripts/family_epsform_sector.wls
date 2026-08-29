@@ -902,8 +902,7 @@ applyRowGauge[k_, solved_Association, installedRow_: Automatic] := Module[
   cols = Range[1, start - 1];
   Dk = ConstantArray[0, {Length[rk], start - 1}];
   Do[Dk[[All, blockRows[m] ]] = solved[m], {m, Keys[solved]}];
-  futureAMode = If[productionQ && installedRow =!= Automatic,
-    "Deferred", "Together"];
+  futureAMode = If[productionQ, "Deferred", "Together"];
   result = FeynFacet`Private`familyRowGaugeApply[
     state["A"], state["S"], state["SInverse"], rk, Dk, {xx, yy},
     installedRow, futureAMode];
@@ -1796,13 +1795,13 @@ out = <|"Family" -> family,
   "RegulatorFactorizations" -> finalRegulatorFactorizations,
   "RegulatorFactorization" -> finalRegulatorFactorization,
   "RowGaugePropagationPolicy" -> If[productionQ,
-    "DeferredFutureAWithCompleteInstalledRowElseTogether", "Together"],
+    "DeferredExactBlockProducts", "Together"],
   "Status" -> Which[verdict === True, "ExactEpsilonForm",
     verdict === "DeferredToFamilyCertificate", "CandidateEpsilonForm",
     True, "Incomplete"],
   "CheckLevel" -> checkLevel,
   "WallSeconds" -> AbsoluteTime[] - start,
-  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip. In Production, a complete materialized current row is installed, future A row-gauge corrections and sealed constant-regulator right-products retain exact deferred sums, and unavailable installed rows fall back to Together; CertifyFamilyEpsilonForm is the sole whole-family acceptance test and records whether its evidence is characteristic-zero exact or high-confidence finite-field. Development retains Together propagation and its exact intermediate checks."|>;
+  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip. In Production, a complete materialized current row is installed when available; otherwise the exact current-row block formula is retained without redundant symbolic normalization. Future A and inverse row-gauge corrections likewise retain exact block sums. CertifyFamilyEpsilonForm is the sole whole-family acceptance test and records whether its evidence is characteristic-zero exact or high-confidence finite-field. Development retains Together propagation and its exact intermediate checks."|>;
 putAtomic[out, FileNameJoin[{outdir, "family_epsform_" <> family <> ".wl"}]];
 log["written family_epsform_", family, ".wl; GateVerdict ", verdict, "; wall ", Round[AbsoluteTime[] - start], " s"];
 If[ownedKernels =!= {}, Quiet[CloseKernels[ownedKernels]]];

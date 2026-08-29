@@ -2050,24 +2050,8 @@ SolveEpsFormStripInFrame[
         {"Deadline" -> deadline, "Verbose" -> TrueQ[verbose]}], First]];
     If[Lookup[finiteFieldGauge, "Status", None] =!=
         "FiniteFieldCanonicalGaugePrepared",
-      If[MemberQ[{"FiniteFieldGaugePullBackNotEnoughGoodPrimes",
-            "FiniteFieldGaugePullBackModulusTooSmall",
-            "FiniteFieldGaugePullBackSliceDegreeExceeded",
-            "FiniteFieldGaugePullBackDenominatorModelInconsistent",
-            "FiniteFieldGaugePullBackCommonDenominatorInsufficient"},
-          Lookup[finiteFieldGauge, "Status", None]],
-        substageSeconds = AbsoluteTime[];
-        sourceGauge = chartGauge /. coordinateMap["Map"];
-        substageSeconds = AbsoluteTime[] - substageSeconds;
-        If[! FreeQ[sourceGauge, Alternatives @@ chartVariables],
-          Return[<|"Status" -> "CompactGaugeCarriesChartVariables",
-            "ChartVariables" -> chartVariables|>]];
-        If[verbose, Print["[finite-field gauge pullback] bounded " <>
-          "reconstruction refused; using unsimplified compact composition"]];
-        parallelTogether = <|"Route" -> "CompactCompositionFallback",
-          "Helpers" -> 0|>,
-        Return[<|"Status" -> "StripGaugeFiniteFieldReconstructionFailed",
-          "Detail" -> KeyDrop[finiteFieldGauge, "Result"]|>]],
+      Return[<|"Status" -> "StripGaugeFiniteFieldReconstructionFailed",
+        "Detail" -> KeyDrop[finiteFieldGauge, "Result"]|>],
       sourceGauge = finiteFieldGauge["Result"];
       substageSeconds = finiteFieldGauge["Seconds"];
       parallelTogether = <|"Route" -> "FiniteFieldReconstruct",

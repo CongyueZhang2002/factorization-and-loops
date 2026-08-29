@@ -197,8 +197,11 @@ badFutureMode = FeynFacet`Private`familyRowGaugeApply[
   connection, IdentityMatrix[n], IdentityMatrix[n], rows, gauge,
   {x, y}, installedRow, "Unknown"];
 FTTest`FTAssert["future A modes fail closed before mutation",
-  missingInstalledDeferred["Status"] ===
-      "DeferredFutureARequiresCompleteInstalledRow" &&
+  missingInstalledDeferred["Status"] === "OK" &&
+    sameMatrixQ[missingInstalledDeferred["Connection"],
+      expectedConnection] &&
+    sameMatrixQ[missingInstalledDeferred["Transformation"], t] &&
+    sameMatrixQ[missingInstalledDeferred["Inverse"], tInverse] &&
     incompleteInstalledDeferred["Status"] ===
       "DeferredFutureARequiresCompleteInstalledRow" &&
     badFutureMode["Status"] === "InvalidFutureAMode"];
