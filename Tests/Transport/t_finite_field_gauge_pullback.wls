@@ -133,6 +133,24 @@ FTAssert["the bounded degree ladder returns a reduced gauge only",
     TrueQ[Together[raised["Result"][[1, 1]] -
       (gaugeRaised /. {p -> x, q -> y})[[1, 1]]] === 0]];
 
+(* Return inside Do exits only the loop.  A refused entry must therefore be
+   propagated explicitly instead of falling through with the untouched zero
+   slot mislabeled as a prepared gauge. *)
+gaugeRefused = {{(1 + p^7)/(1 + p)}};
+refused = FeynFacet`Private`transportChartFiniteFieldCanonicalGauge[
+  gaugeRefused, 1 + p, {p, q}, {x, y}, {x, y}, eps, {},
+  "Primes" -> primes, "MinimumPrimeCount" -> 2,
+  "MaximumPrimeCount" -> 2,
+  "MaximumKinematicTotalDegree" -> 2,
+  "KinematicDegreeSchedule" -> {2, 4},
+  "MaximumEpsilonTotalDegree" -> 2,
+  "SymbolicPreDispatchSeconds" -> 0,
+  "HeldOutPointCount" -> 3];
+FTAssert["a refused entry cannot fall through as a zero prepared gauge",
+  Lookup[refused, "Status", None] ===
+      "FiniteFieldGaugePullBackReducedModelRefused" &&
+    Lookup[refused, "Entry", None] === {1, 1}];
+
 FTAssert["adaptive epsilon budgets replace the fixed full fibre grid",
   Lookup[rank0, "Model", None] === "CommonDenominatorV1" &&
     Max[Lookup[rank0["PrimeRecords"], "FibreBudget", Infinity]] <

@@ -1146,7 +1146,7 @@ transportChartFiniteFieldCanonicalGauge[chartGauge_List,
    dimensions, entries, reconstructed, entryRecords = {}, result,
    attemptRecords, accepted, acceptedCap, entry, row, column,
    symbolicLimit, symbolicBudget, symbolicSeconds, symbolic,
-   validationPlan, deadline},
+   validationPlan, deadline, entryFailure = None},
   baseCap = OptionValue["MaximumKinematicTotalDegree"];
   symbolicLimit = OptionValue["SymbolicPreDispatchSeconds"];
   deadline = OptionValue["Deadline"];
@@ -1239,16 +1239,19 @@ transportChartFiniteFieldCanonicalGauge[chartGauge_List,
           "FiniteFieldCanonicalGaugePrepared",
         accepted = result; acceptedCap = cap; Break[]];
       If[! finiteFieldGaugePullBackModelRefusalQ[result],
-        Return[Join[result, <|"Entry" -> {row, column},
+        entryFailure = Join[result, <|"Entry" -> {row, column},
           "DegreeCaps" -> schedule,
-          "EntryAttempts" -> attemptRecords|>]]],
+          "EntryAttempts" -> attemptRecords|>];
+        Break[]],
       {cap, schedule}];
+    If[AssociationQ[entryFailure], Break[]];
     If[! AssociationQ[accepted],
-      Return[finiteFieldGaugePullBackFailure[
+      entryFailure = finiteFieldGaugePullBackFailure[
         "FiniteFieldGaugePullBackReducedModelRefused",
         <|"Entry" -> {row, column}, "DegreeCaps" -> schedule,
           "EntryAttempts" -> attemptRecords,
-          "Detail" -> result|>]]];
+          "Detail" -> result|>];
+      Break[]];
     reconstructed[[index]] = accepted["Result"][[1, 1]];
     AppendTo[entryRecords, <|"Entry" -> {row, column},
       "Status" -> "FiniteFieldCanonicalGaugePrepared",
@@ -1256,6 +1259,7 @@ transportChartFiniteFieldCanonicalGauge[chartGauge_List,
       "Primes" -> accepted["Primes"],
       "Seconds" -> accepted["Seconds"]|>],
     {index, Length[entries]}];
+  If[AssociationQ[entryFailure], Return[entryFailure]];
   <|"Status" -> "FiniteFieldCanonicalGaugePrepared",
     "Result" -> ArrayReshape[reconstructed, dimensions],
     "Model" -> "PerEntryDenominatorsV1",
