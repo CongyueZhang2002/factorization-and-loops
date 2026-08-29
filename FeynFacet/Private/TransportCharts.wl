@@ -79,6 +79,9 @@ ClearAll[
   transportChartStageProgress,
   transportChartTogetherTask,
   transportChartParallelTogether,
+  transportChartProjectionDecomposeEntry,
+  transportChartProjectionDecomposeTask,
+  transportChartParallelProjectionDecompose,
   transportChartJacobianTogetherRecipe,
   transportChartJacobianTogetherTask,
   transportChartParallelJacobianPullBack,
@@ -260,6 +263,113 @@ transportChartParallelTogether[array_, rules_List, label_String,
 ];
 transportChartParallelTogether[___] :=
   <|"Status" -> "InvalidParallelTogetherInput"|>;
+
+transportChartProjectionDecomposeEntry[entry_, taggedRoots_List,
+    transformedRoots_List, projectionTags_List,
+    projectionRootImages_List] := Module[{channels, fallback = 0},
+  channels = multiquadraticFieldDecompose[
+    entry, taggedRoots, False, False];
+  If[channels === $Failed,
+    fallback = 1;
+    channels = multiquadraticFieldDecompose[
+      entry /. Thread[projectionTags -> projectionRootImages],
+      transformedRoots, False]];
+  If[! ListQ[channels] || Length[channels] =!= 2^Length[taggedRoots],
+    $Failed, <|"Channels" -> channels, "Fallback" -> fallback|>]
+];
+transportChartProjectionDecomposeEntry[___] := $Failed;
+
+transportChartProjectionDecomposeTask[dataFile_String] := Module[
+  {data = taskBrokerRead[dataFile], entries},
+  If[! AssociationQ[data], Return[$Failed]];
+  entries = Lookup[data, "Entries", $Failed];
+  If[! ListQ[entries], Return[$Failed]];
+  transportChartProjectionDecomposeEntry[#1,
+      data["TaggedRoots"], data["TransformedRoots"], data["Tags"],
+      data["RootImages"]] & /@ entries
+];
+
+transportChartParallelProjectionDecompose[image_, taggedRoots_List,
+    transformedRoots_List, projectionTags_List,
+    projectionRootImages_List, label_String] := Module[
+  {started = AbsoluteTime[], dimensions = Dimensions[image], entries,
+   gradeCount = 2^Length[taggedRoots], results, helpers, bytes,
+   localIndex, helperIndices, helperBatches, batchLoads, targetBatch,
+   payload, dataFiles, codes, handle, farmed, missing, channelVectors,
+   route = "Serial"},
+  If[Length[dimensions] =!= 3 || First[dimensions] =!= 2 ||
+      Length[taggedRoots] =!= Length[transformedRoots] ||
+      Length[taggedRoots] =!= Length[projectionTags] ||
+      Length[taggedRoots] =!= Length[projectionRootImages],
+    Return[<|"Status" -> "InvalidProjectionDecompositionInput"|>]];
+  entries = Flatten[image];
+  If[entries === {},
+    Return[<|"Status" -> "OK", "Channels" ->
+        ArrayReshape[{}, Append[dimensions, gradeCount]],
+      "Fallbacks" -> 0, "Route" -> "Serial", "Helpers" -> 0,
+      "Seconds" -> 0.|>]];
+  results = ConstantArray[$Failed, Length[entries]];
+  helpers = If[taskBrokerActiveQ[], taskBrokerFreeKernels[], 0];
+  helpers = Min[helpers, Max[0, Length[entries] - 1]];
+  If[helpers < 1,
+    results = transportChartProjectionDecomposeEntry[#1, taggedRoots,
+        transformedRoots, projectionTags, projectionRootImages] & /@ entries,
+    route = "Parallel";
+    bytes = ByteCount /@ entries;
+    localIndex = First[Ordering[bytes, -1]];
+    helperIndices = DeleteCases[Range[Length[entries]], localIndex];
+    helperBatches = ConstantArray[{}, helpers];
+    batchLoads = ConstantArray[0, helpers];
+    Do[
+      targetBatch = First[Ordering[batchLoads, 1]];
+      helperBatches[[targetBatch]] = Append[
+        helperBatches[[targetBatch]], index];
+      batchLoads[[targetBatch]] += bytes[[index]],
+      {index, SortBy[helperIndices, -bytes[[#1]] &]}];
+    payload[batch_] := <|"Entries" -> entries[[batch]],
+      "TaggedRoots" -> taggedRoots,
+      "TransformedRoots" -> transformedRoots,
+      "Tags" -> projectionTags, "RootImages" -> projectionRootImages|>;
+    dataFiles = Map[Function[batch, taskBrokerDataFile[
+        "tcprojection_" <> StringReplace[CreateUUID[], "-" -> ""],
+        payload[batch]]], helperBatches];
+    codes = StringJoin[
+        "FeynFacet`Private`transportChartProjectionDecomposeTask[\"",
+        #1, "\"]"] & /@ dataFiles;
+    handle = taskBrokerSubmit[codes, "Label" -> label,
+      "Timeout" -> 7200.];
+    results[[localIndex]] = transportChartProjectionDecomposeEntry[
+      entries[[localIndex]], taggedRoots, transformedRoots,
+      projectionTags, projectionRootImages];
+    farmed = taskBrokerCollect[handle];
+    If[ListQ[farmed],
+      Do[If[index <= Length[farmed] && ListQ[farmed[[index]]] &&
+            Length[farmed[[index]]] === Length[helperBatches[[index]]],
+          results[[helperBatches[[index]]]] = farmed[[index]]],
+        {index, Length[helperBatches]}]];
+    missing = Select[helperIndices, results[[#1]] === $Failed &];
+    If[missing =!= {},
+      results[[missing]] =
+        transportChartProjectionDecomposeEntry[#1, taggedRoots,
+          transformedRoots, projectionTags, projectionRootImages] & /@
+            entries[[missing]]]];
+  missing = Select[Range[Length[results]],
+    ! AssociationQ[results[[#1]]] &];
+  If[missing =!= {},
+    Return[<|"Status" -> "ProjectionDecompositionFailed",
+      "EntryIndices" -> missing, "Route" -> route,
+      "Helpers" -> If[route === "Parallel", helpers, 0],
+      "Seconds" -> N[AbsoluteTime[] - started]|>]];
+  channelVectors = Lookup[results, "Channels", $Failed];
+  <|"Status" -> "OK",
+    "Channels" -> ArrayReshape[Flatten[channelVectors],
+      Append[dimensions, gradeCount]],
+    "Fallbacks" -> Total[Lookup[results, "Fallback", 0]],
+    "Route" -> route, "Helpers" -> If[route === "Parallel", helpers, 0],
+    "Seconds" -> N[AbsoluteTime[] - started]|>
+];
+transportChartParallelProjectionDecompose[___] :=
+  <|"Status" -> "InvalidParallelProjectionDecompositionInput"|>;
 
 (* Form the Jacobian combinations on the workers, not before dispatch.
    Passing an already formed A_v J + A_w J to transportChartParallelTogether
@@ -1293,7 +1403,8 @@ transportChartPullBackDeferredPreparation[record_Association,
    projectionRoots, transformedProjectionRoots, projectionChannels,
    projectionTags, projectionRootImages,
    taggedProjectionRoots,
-   projectionSeconds = 0., inactiveChannels, projectionRecord = None,
+   projectionParallel, projectionSeconds = 0., inactiveChannels,
+   projectionRecord = None,
    projectionPreparedFallbacks = 0,
    jacobianPullBack},
   preparation = Lookup[record, "Preparation",
@@ -1352,19 +1463,19 @@ transportChartPullBackDeferredPreparation[record_Association,
     {mu, dimensions[[1]]}, {i, dimensions[[2]]},
     {j, dimensions[[3]]}];
   If[projectionRoots =!= {},
-    {projectionSeconds, projectionChannels} = AbsoluteTiming[
-      Map[Function[entry, Module[{prepared},
-        prepared = multiquadraticFieldDecompose[entry,
-          taggedProjectionRoots, False, False];
-        If[prepared === $Failed,
-          projectionPreparedFallbacks++;
-          multiquadraticFieldDecompose[
-            entry /. Thread[projectionTags -> projectionRootImages],
-            transformedProjectionRoots, False],
-          prepared]]], image, {3}]];
-    If[! FreeQ[projectionChannels, $Failed],
+    projectionParallel = transportChartParallelProjectionDecompose[
+      image, taggedProjectionRoots, transformedProjectionRoots,
+      projectionTags, projectionRootImages,
+      "chartprojection_" <> ToString[
+        Lookup[preparation, "Sector", "block"]] <> "_" <>
+        ToString[Lookup[preparation, "LowerSector", "source"]]];
+    If[Lookup[projectionParallel, "Status", None] =!= "OK",
       Return[<|"Status" -> "DeferredPreparationInactiveProjectionFailed",
-        "ProjectionRootCount" -> Length[projectionRoots]|>]];
+        "ProjectionRootCount" -> Length[projectionRoots],
+        "Detail" -> KeyDrop[projectionParallel, "Channels"]|>]];
+    projectionChannels = projectionParallel["Channels"];
+    projectionSeconds = projectionParallel["Seconds"];
+    projectionPreparedFallbacks = projectionParallel["Fallbacks"];
     inactiveChannels = Flatten[Map[Rest, projectionChannels, {3}]];
     If[! AllTrue[inactiveChannels, TrueQ[Together[#1] === 0] &],
       Return[<|"Status" ->
@@ -1378,7 +1489,9 @@ transportChartPullBackDeferredPreparation[record_Association,
     Print["[deferred-router] exact inactive-root projection: roots ",
       Length[projectionRoots], ", ",
       Round[N[projectionSeconds], 0.1], " s, precombined fallbacks ",
-      projectionPreparedFallbacks]];
+      projectionPreparedFallbacks, ", route ",
+      projectionParallel["Route"], ", helpers ",
+      projectionParallel["Helpers"]]];
   survivingRadicals = transportChartRadicalBases[image];
   If[survivingRadicals =!= {},
     Return[<|"Status" -> "DeferredPreparationChartStillAlgebraic",
