@@ -94,19 +94,16 @@
    reverts every caller to the previous symbolic construction, so the
    risk of this change is contained to one environment variable.
 
-   PHASE TELEMETRY AND THE PARALLEL SECOND PHASE (2026-08-25, Codex's
-   06:30 items A and B, confirmed by his 08:30 measurement of the CF303
-   {17,12} construction: 1868.4 s of which 1604.1 s numerator expansion,
-   248.5 s cancellation, 6.5 s the shared interning).  The materializer
+   PHASE TELEMETRY AND PARALLEL EXACT PHASES (2026-08-25/29, Codex).
+   The materializer
    now emits a start record and a RATE-LIMITED progress record, so a
    1868 s construction is no longer one silent interval to a watchdog;
-   and its second phase -- per-target numerator expansion, per-factor
-   cancellation and the final one-quotient algebraic Together -- is
-   farmed to the currently free pool helpers as bounded batches of
-   IMMUTABLE jobs over an interned operand table, while the mutable
-   interning/factorization phase stays serial on the main kernel in
-   deterministic order.  FACET_MATERIALIZE_PARALLEL=Off reverts the
-   second phase to serial; FACET_MATERIALIZE_PROGRESS_SECONDS moves the
+   Operand IDs and expression transforms remain serial and deterministic;
+   the resulting independent Together/FactorList jobs are farmed before
+   the existing per-target expansion/cancellation batches.  Both operate
+   on immutable data, and failed helper work is recomputed locally.
+   FACET_MATERIALIZE_PARALLEL=Off reverts both phases to serial;
+   FACET_MATERIALIZE_PROGRESS_SECONDS moves the
    telemetry interval.  See the phase note above
    blockEquationDeferredMaterialize. *)
 
@@ -127,6 +124,7 @@ ClearAll[
   blockEquationDeferredEvaluate,
   blockEquationDeferredNonzeroCensus,
   blockEquationDeferredActiveGradeCensus,
+  blockEquationDeferredCanonicalOperandValue,
   blockEquationDeferredCanonicalOperand,
   blockEquationDeferredMaterialize,
   blockEquationDeferredSourceExpression,
@@ -137,6 +135,7 @@ ClearAll[
   blockEquationDeferredParallelWorthwhileQ,
   blockEquationDeferredAssembleJob,
   blockEquationDeferredBatchPlan,
+  blockEquationDeferredInternTask,
   blockEquationDeferredMaterializeTask,
   blockEquationDeferredRootFrame,
   blockEquationDeferredGradeReduceRules,
@@ -800,29 +799,31 @@ blockEquationDeferredActiveGradeCensus[___] :=
 
 (* ---- exact materialization ------------------------------------------ *)
 
-(* One interned canonical operand: {numerator with the denominator's
-   numeric content folded in, the denominator's irreducible factors as
-   factor -> exponent}.  The pool is an Association keyed by the
-   expression, i.e. a hash bucket with SameQ collision semantics
-   (Codex 2 / Q1.2). *)
-SetAttributes[blockEquationDeferredCanonicalOperand, HoldRest];
-blockEquationDeferredCanonicalOperand[expression_, pool_Symbol] :=
+(* Pure canonicalization of one operand: {numerator with the denominator's
+   numeric content folded in, denominator factor -> exponent}.  Keeping the
+   arithmetic separate from the cache lets independent operands be evaluated
+   by pool helpers after their deterministic IDs have been assigned. *)
+blockEquationDeferredCanonicalOperandValue[expression_] :=
   Module[{q, numerator, denominator, factorList, content, factors},
-    If[KeyExistsQ[pool, expression], Return[pool[expression]]];
     q = Together[expression];
     numerator = Numerator[q]; denominator = Denominator[q];
     If[TrueQ[denominator === 1],
-      pool[expression] = {numerator, <||>};
-      Return[pool[expression]]];
+      Return[{numerator, <||>}]];
     factorList = FactorList[denominator];
     content = Times @@ ((First[#]^Last[#]) & /@
       Select[factorList, NumericQ[First[#]] &]);
     factors = Association[
       (First[#] -> Last[#]) & /@ Select[factorList, ! NumericQ[First[#]] &]];
-    pool[expression] = {
+    {
       If[TrueQ[content === 1], numerator, Cancel[numerator/content]],
-      factors};
-    pool[expression]];
+      factors}];
+
+(* The mutable wrapper remains the single cache contract used by bundle
+   compilation and serial callers. *)
+SetAttributes[blockEquationDeferredCanonicalOperand, HoldRest];
+blockEquationDeferredCanonicalOperand[expression_, pool_Symbol] :=
+  If[KeyExistsQ[pool, expression], pool[expression],
+    pool[expression] = blockEquationDeferredCanonicalOperandValue[expression]];
 
 (* ---- phase telemetry (Codex 2026-08-25 06:30, item A) --------------- *)
 
@@ -1013,6 +1014,17 @@ blockEquationDeferredBatchPlan[bytes_List, workers_Integer, byteCap_] :=
       {group, groups}];
     batches];
 
+(* Helper side of phase 1.  Expressions have already been transformed and
+   assigned deterministic IDs by the mission kernel; each item below is now
+   independent exact Together/FactorList arithmetic. *)
+blockEquationDeferredInternTask[dataFile_String, indices_List] :=
+  Module[{data = taskBrokerRead[dataFile]},
+    If[! AssociationQ[data] || ! ListQ[Lookup[data, "Expressions", None]],
+      Return[$Failed]];
+    Map[Function[index, Quiet[Check[
+        blockEquationDeferredCanonicalOperandValue[
+          data["Expressions"][[index]]], $Failed]]], indices]];
+
 (* helper side: one task = one batch of independent target jobs.  The
    operand table and the job list are written ONCE per materialization
    and read once per helper kernel (taskBrokerRead memoizes by path and
@@ -1041,20 +1053,14 @@ blockEquationDeferredMaterializeTask[dataFile_String, indices_List] :=
    denominators as letters even when the reduced entry has one.  On that
    path the untouched entry costs exactly what it cost before this file
    existed, and the saving is taken only where it was measured. *)
-(* PHASES.  The materialization is one shared phase and one independent
-   phase, and only the second is ever farmed out (Codex 2026-08-25 06:30,
-   item B, confirmed 08:30 by the CF303 {17,12} split: 1604.1 s of 1868.4
-   is numerator expansion, 248.5 s cancellation, and only 6.5 s the
-   shared interning):
+(* PHASES.  The materialization has two deterministic-ID boundaries; work
+   after either boundary is immutable and may be farmed:
 
-     1. SHARED, SERIAL, MAIN KERNEL.  Walk the records in deterministic
-        target order and canonicalize every operand exactly once through
-        blockEquationDeferredCanonicalOperand, which mutates the intern
-        pool.  Each distinct operand receives an integer ID in
-        first-encounter order, and each target's record is replaced by
-        the IMMUTABLE job {coefficient, {operand id, ...}}.  This phase
-        is never parallelized: naive parallelism would duplicate every
-        Together/FactorList and lose the interning benefit outright.
+     1. The mission kernel walks records in target order, applies the caller's
+        expression transform, and assigns first-encounter source/canonical
+        IDs.  Missing unique canonical expressions are then independent
+        Together/FactorList jobs.  Helpers never mutate the intern pool;
+        results are installed by canonical ID on the mission kernel.
 
      2. INDEPENDENT, PER TARGET.  Numerator expansion, per-factor
         cancellation and the final one-quotient algebraic Together read
@@ -1090,6 +1096,9 @@ Options[blockEquationDeferredMaterialize] = {
   "PolynomialSymbols" -> Automatic,
   "Parallel" -> Automatic, "Helpers" -> Automatic,
   "BatchByteCap" -> Automatic, "BatchDispatcher" -> Automatic,
+  (* test seam for the independent phase-1 canonicalizations; production
+     leaves this Automatic and uses the shared task broker *)
+  "InternDispatcher" -> Automatic,
   "BatchTimeout" -> 7200, "Progress" -> True,
   "ProgressInterval" -> Automatic, "Label" -> "block",
   (* an already interned pool (operand expression -> {numerator, factor
@@ -1109,13 +1118,23 @@ blockEquationDeferredMaterialize[preparation_Association,
    expandSeconds = 0., cancelSeconds = 0., internSeconds = 0.,
    fallbacks = 0, failedEntries = 0, zeroEntries = 0, untouchedEntries = 0,
    timing, entry,
-   operandIndex = <||>, operandTable = {}, jobs = {}, jobTargets = {},
+   operandIndex = <||>, operandExpressions = {}, operandTable = {},
+   jobs = {}, jobTargets = {},
    jobRecords = {}, jobBytes = {}, cancelQ, total, results, progressQ,
    progressInterval, progressCount = 0, lastProgress, emit, absorb,
    helpers, byteCap, dispatcher, parallel, batches, dataFile, codes,
    handle, farmed, localBatch, assembleBatch, done = 0, missing, route,
    batchSeconds = 0., dispatchedBatches = 0, planned = 0,
-   expressionTransform, baseValue},
+   expressionTransform, baseValue, internStarted,
+   internDispatcher, internHelpers = 0, internParallel = False,
+   internRoute = "Serial", internBatchSeconds = 0.,
+   canonicalLookup = <||>, canonicalExpressions = {},
+   canonicalForOperand = {}, canonicalTable = {}, canonicalResults = {},
+   canonicalBytes = {}, canonicalBatches = {}, canonicalDataFile,
+   canonicalCodes, canonicalHandle, canonicalFarmed,
+   canonicalFarmedBatchIndices = {}, canonicalLocalBatchIndices = {},
+   canonicalizeBatch, canonicalMissing = {},
+   canonicalDispatchedBatches = 0},
   If[Lookup[preparation, "Status", None] =!= "Prepared" ||
       Lookup[preparation, "ABIVersion", None] =!=
         $blockEquationDeferredABIVersion,
@@ -1158,11 +1177,13 @@ blockEquationDeferredMaterialize[preparation_Association,
       algebraicSeconds += Lookup[record, "AlgebraicSeconds", 0.]];
     record);
 
-  (* ---- phase 1: shared operand interning, serial, main kernel ------- *)
-  (* MEASURED 2026-08-25 on the real CF259 (21,18) block: this phase is
-     156 of its 196 s, so it needs its own progress records -- a start
-     record alone would still leave a watchdog with a silent interval
-     longer than the one that prompted the request. *)
+  (* ---- phase 1: deterministic discovery, independent canonicalization *)
+  (* The mission kernel alone owns IDs and applies ExpressionTransform.
+     Once that ordered pass is complete, distinct transformed expressions
+     are immutable independent Together/FactorList jobs.  Farming only those
+     jobs preserves first-encounter IDs and SeedPool semantics while avoiding
+     the measured CF259 serial canonicalization wall. *)
+  internStarted = AbsoluteTime[];
   planned = Count[records, candidate_ /;
     (requested === All || MemberQ[requested, candidate["Target"]])];
   emit["start", <|"block" -> {Lookup[preparation, "Sector", None],
@@ -1186,20 +1207,132 @@ blockEquationDeferredMaterialize[preparation_Association,
           {expressionTransform[Lookup[term, "Coefficient", 1]],
            Map[Function[operand,
              If[KeyExistsQ[operandIndex, operand], operandIndex[operand],
-               AppendTo[operandTable,
-                 blockEquationDeferredCanonicalOperand[
-                   expressionTransform[operand], pool]];
-               operandIndex[operand] = Length[operandTable]]],
+               AppendTo[operandExpressions, expressionTransform[operand]];
+               operandIndex[operand] = Length[operandExpressions]]],
              Lookup[term, "Operands", {}]]}],
         record["Terms"]]]];
-    internSeconds += First[timing];
+    internSeconds = N[AbsoluteTime[] - internStarted];
     AppendTo[jobTargets, record["Target"]];
     AppendTo[jobRecords, record];
     emit["intern", <|"records interned" -> Length[jobs], "of" -> planned,
       "target" -> record["Target"],
-      "interned operands" -> Length[operandTable],
+      "interned operands" -> Length[operandExpressions],
       "intern seconds" -> internSeconds|>],
     {record, records}];
+
+  (* A source spelling keeps its own ID even when the chart maps two source
+     expressions to the same rational expression.  The expensive canonical
+     value is nevertheless computed once, just as the old mutable pool did. *)
+  operandTable = ConstantArray[Missing["NotCanonicalized"],
+    Length[operandExpressions]];
+  canonicalForOperand = ConstantArray[0, Length[operandExpressions]];
+  Do[Module[{expression = operandExpressions[[sourceIndex]], identifier},
+    If[KeyExistsQ[pool, expression],
+      operandTable[[sourceIndex]] = pool[expression],
+      If[KeyExistsQ[canonicalLookup, expression],
+        identifier = canonicalLookup[expression],
+        AppendTo[canonicalExpressions, expression];
+        identifier = Length[canonicalExpressions];
+        canonicalLookup[expression] = identifier];
+      canonicalForOperand[[sourceIndex]] = identifier]],
+    {sourceIndex, Length[operandExpressions]}];
+
+  canonicalTable = ConstantArray[$Failed, Length[canonicalExpressions]];
+  canonicalResults = ConstantArray[$Failed, Length[canonicalExpressions]];
+  canonicalBytes = ByteCount /@ canonicalExpressions;
+  byteCap = Replace[OptionValue["BatchByteCap"], Automatic :> 2^28];
+  internDispatcher = OptionValue["InternDispatcher"];
+  internHelpers = OptionValue["Helpers"];
+  If[internHelpers === Automatic,
+    internHelpers = If[internDispatcher === Automatic,
+      If[taskBrokerActiveQ[], taskBrokerFreeKernels[], 0], 1]];
+  If[! IntegerQ[internHelpers] || internHelpers < 0, internHelpers = 0];
+  internHelpers = Min[internHelpers,
+    Max[0, Length[canonicalExpressions] - 1]];
+  internParallel = Length[canonicalExpressions] >= 2 && internHelpers >= 1 &&
+    Which[
+      OptionValue["Parallel"] === Automatic,
+        blockEquationDeferredParallelRouteQ[] &&
+          (Length[canonicalExpressions] >= 64 ||
+           Total[canonicalBytes] >= 2^18 ||
+           Max[Append[canonicalBytes, 0]] >= 2^16),
+      TrueQ[OptionValue["Parallel"]], True,
+      True, False];
+  If[internDispatcher === Automatic && ! taskBrokerActiveQ[],
+    internParallel = False];
+  internRoute = If[internParallel, "Parallel", "Serial"];
+  canonicalizeBatch[indices_List] := Map[
+    Function[index, Quiet[Check[
+      blockEquationDeferredCanonicalOperandValue[
+        canonicalExpressions[[index]]], $Failed]]], indices];
+  canonicalBatches = If[canonicalExpressions === {}, {},
+    (* Four waves absorb uneven Together/FactorList costs without making the
+       byte estimate part of correctness. *)
+    blockEquationDeferredBatchPlan[canonicalBytes,
+      Min[Length[canonicalExpressions], 4 (internHelpers + 1)], byteCap]];
+
+  If[! internParallel || Length[canonicalBatches] <= 1,
+    internRoute = "Serial";
+    Do[canonicalResults[[canonicalBatches[[batchIndex]]]] =
+        canonicalizeBatch[canonicalBatches[[batchIndex]]],
+      {batchIndex, Length[canonicalBatches]}],
+    canonicalLocalBatchIndices = Range[internHelpers + 1,
+      Length[canonicalBatches], internHelpers + 1];
+    canonicalFarmedBatchIndices = Complement[Range[Length[canonicalBatches]],
+      canonicalLocalBatchIndices];
+    canonicalDispatchedBatches = Length[canonicalFarmedBatchIndices];
+    emit["intern-dispatch", <|"operands" -> Length[canonicalExpressions],
+      "batches" -> Length[canonicalBatches],
+      "to helpers" -> canonicalDispatchedBatches,
+      "helpers free" -> internHelpers,
+      "batch sizes" -> Length /@ canonicalBatches|>, True];
+    timing = AbsoluteTiming[
+      If[internDispatcher === Automatic,
+        canonicalDataFile = taskBrokerDataFile[
+          "bedintern_call_" <> StringReplace[CreateUUID[], "-" -> ""],
+          <|"Expressions" -> canonicalExpressions|>];
+        canonicalCodes = Map[Function[batchIndex, StringJoin[
+            "FeynFacet`Private`blockEquationDeferredInternTask[\"",
+            canonicalDataFile, "\", ",
+            ToString[canonicalBatches[[batchIndex]], InputForm], "]"]],
+          canonicalFarmedBatchIndices];
+        canonicalHandle = taskBrokerSubmit[canonicalCodes,
+          "Label" -> "bedintern" <> ToString[OptionValue["Label"]],
+          "Timeout" -> OptionValue["BatchTimeout"]],
+        canonicalHandle = None];
+      Do[canonicalResults[[canonicalBatches[[batchIndex]]]] =
+          canonicalizeBatch[canonicalBatches[[batchIndex]]],
+        {batchIndex, canonicalLocalBatchIndices}];
+      canonicalFarmed = If[internDispatcher === Automatic,
+        taskBrokerCollect[canonicalHandle],
+        internDispatcher[<|"Expressions" -> canonicalExpressions|>,
+          canonicalBatches[[canonicalFarmedBatchIndices]]]]];
+    internBatchSeconds = First[timing];
+    Do[Module[{batchIndex = canonicalFarmedBatchIndices[[position]], value},
+      value = If[ListQ[canonicalFarmed] && position <= Length[canonicalFarmed],
+        canonicalFarmed[[position]], $Failed];
+      If[ListQ[value] &&
+          Length[value] === Length[canonicalBatches[[batchIndex]]],
+        canonicalResults[[canonicalBatches[[batchIndex]]]] = value]],
+      {position, Length[canonicalFarmedBatchIndices]}]];
+
+  canonicalMissing = Select[Range[Length[canonicalExpressions]],
+    ! MatchQ[canonicalResults[[#]], {_, _Association}] &];
+  If[canonicalMissing =!= {},
+    emit["intern-recompute", <|"operands" -> Length[canonicalMissing],
+      "reason" -> "no usable helper result"|>, True];
+    canonicalResults[[canonicalMissing]] =
+      canonicalizeBatch[canonicalMissing]];
+  Do[
+    canonicalTable[[canonicalIndex]] = canonicalResults[[canonicalIndex]];
+    pool[canonicalExpressions[[canonicalIndex]]] =
+      canonicalResults[[canonicalIndex]],
+    {canonicalIndex, Length[canonicalExpressions]}];
+  Do[If[canonicalForOperand[[sourceIndex]] > 0,
+      operandTable[[sourceIndex]] =
+        canonicalTable[[canonicalForOperand[[sourceIndex]]]]],
+    {sourceIndex, Length[operandExpressions]}];
+  internSeconds = N[AbsoluteTime[] - internStarted];
   total = Length[jobs];
 
   (* ---- phase 2: independent per-target assembly -------------------- *)
@@ -1354,6 +1487,11 @@ blockEquationDeferredMaterialize[preparation_Association,
     "AlgebraicEntries" -> algebraicEntries,
     "Statistics" -> <|"InternedOperands" -> Length[pool],
       "InternSeconds" -> internSeconds,
+      "InternRoute" -> internRoute,
+      "InternHelpers" -> internHelpers,
+      "InternBatches" -> Length[canonicalBatches],
+      "InternDispatchedBatches" -> canonicalDispatchedBatches,
+      "InternBatchSeconds" -> internBatchSeconds,
       "ExpandSeconds" -> expandSeconds,
       "CancelSeconds" -> cancelSeconds,
       "AlgebraicCanonicalizeSeconds" -> algebraicSeconds,

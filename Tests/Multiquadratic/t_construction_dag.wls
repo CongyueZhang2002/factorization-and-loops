@@ -70,9 +70,10 @@
        moves the default and a malformed value is ignored.
 
    (j) SERIAL == PARALLEL, EXACTLY (Codex 2026-08-25 06:30, item B).
-       The second phase -- per-target numerator expansion, per-factor
-       cancellation and the final algebraic Together -- runs on immutable
-       operand IDs, so it may be batched to helpers.  The acceptance is
+       Both expensive phases run only after their deterministic IDs exist:
+       phase 1 farms independent Together/FactorList canonicalizations, and
+       phase 2 farms per-target numerator expansion, per-factor cancellation
+       and the final algebraic Together.  The acceptance is
        SameQ, not equality as a rational function: every target's value
        from the parallel route is the SAME EXPRESSION as the serial
        route's, on the rational and on the algebraic fixture alike.  The
@@ -94,6 +95,8 @@ prepare = FeynFacet`Private`blockEquationDeferredPrepare;
 evaluate = FeynFacet`Private`blockEquationDeferredEvaluate;
 census = FeynFacet`Private`blockEquationDeferredNonzeroCensus;
 materialize = FeynFacet`Private`blockEquationDeferredMaterialize;
+canonicalOperandValue =
+  FeynFacet`Private`blockEquationDeferredCanonicalOperandValue;
 forcing = FeynFacet`Private`blockEquationDeferredForcing;
 routeQ = FeynFacet`Private`blockEquationDeferredRouteQ;
 fingerprint = FeynFacet`Private`blockEquationDeferredFingerprint;
@@ -582,6 +585,11 @@ localDispatcher[data_Association, batchList_List] := Map[
   batchList];
 deadDispatcher[data_Association, batchList_List] :=
   ConstantArray[$Failed, Length[batchList]];
+localInternDispatcher[data_Association, batchList_List] := Map[
+  Function[batch, canonicalOperandValue /@ data["Expressions"][[batch]]],
+  batchList];
+deadInternDispatcher[data_Association, batchList_List] :=
+  ConstantArray[$Failed, Length[batchList]];
 
 matSerial = materialize[prep, "Parallel" -> False, "Progress" -> False];
 matParallel = materialize[prep, "Parallel" -> True, "Helpers" -> 3,
@@ -601,6 +609,21 @@ FTAssert["(j) the parallel route reports the same counters as the serial one",
     Lookup[matParallel, "AlgebraicEntries", -1] ===
       Lookup[matSerial, "AlgebraicEntries", -2] &&
     Lookup[matParallel, "Fallbacks", -1] === 0];
+matParallelIntern = materialize[prep, "Parallel" -> True, "Helpers" -> 3,
+  "InternDispatcher" -> localInternDispatcher,
+  "BatchDispatcher" -> localDispatcher, "Progress" -> False];
+FTAssert["(j) phase-1 parallel canonicalization is exactly the serial result",
+  sameValuesQ[matSerial, matParallelIntern]];
+FTAssert["(j) phase 1 dispatches immutable canonicalization batches",
+  Lookup[matParallelIntern["Statistics"], "InternRoute", None] ===
+      "Parallel" &&
+    Lookup[matParallelIntern["Statistics"],
+      "InternDispatchedBatches", 0] > 0];
+matDeadIntern = materialize[prep, "Parallel" -> True, "Helpers" -> 3,
+  "InternDispatcher" -> deadInternDispatcher,
+  "BatchDispatcher" -> localDispatcher, "Progress" -> False];
+FTAssert["(j) a failed phase-1 helper batch is recomputed exactly on mission",
+  sameValuesQ[matSerial, matDeadIntern]];
 FTAssert["(j) the batch plan is a deterministic partition in target order",
   Module[{bytes = {7, 3, 11, 2, 5, 13, 1, 9}},
    batchPlan[bytes, 4, 10^9] === batchPlan[bytes, 4, 10^9] &&
