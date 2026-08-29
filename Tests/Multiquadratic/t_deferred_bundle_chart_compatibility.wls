@@ -11,11 +11,13 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {forcingOf, prepareDeferred, chartDecision, validateBundle, currentRoots,
-  pullBundle, bundleEvaluate, directAlphabet, chartRekey, chartData} = mq /@ {
+  pullBundle, pullPreparation, bundleEvaluate, directAlphabet, chartRekey,
+  chartData} = mq /@ {
   "blockEquationDeferredForcing", "blockEquationDeferredPrepare",
   "blockEquationDeferredChartDecision",
   "blockEquationDeferredBundleValidate",
   "transportChartCurrentRoots", "transportChartPullBackDeferredBundle",
+  "transportChartPullBackDeferredPreparation",
   "blockEquationDeferredBundleEvaluate",
   "familyRowGaugeDirectAlphabetOptions", "transportChartRekey",
   "masterTransportChartData"};
@@ -211,21 +213,50 @@ denominatorPreparation = prepareDeferred[denominatorConnection,
   {{1}, {2}, {3}}, 3, 1, cancelSolved, variables, epsilon];
 denominatorDecision = chartDecision[denominatorConnection,
   denominatorPreparation, kallenRoots];
-FTAssert["C10d a canceled inactive algebraic denominator stays direct",
+FTAssert["C10d canceled inactive algebraic denominators route through exact post-sum projection",
   Lookup[denominatorDecision, "Status", None] === "OK" &&
-    ! TrueQ[denominatorDecision["ChartAvailableQ"]] &&
+    TrueQ[denominatorDecision["ChartAvailableQ"]] &&
     Lookup[denominatorDecision, "Method", None] ===
-      "ModularDeclaredFrame" &&
+      "ModularActiveGradesProjected" &&
+    Lookup[denominatorDecision, "ProjectionRootIndices", None] === {2, 3} &&
     Lookup[denominatorDecision["ActiveGradeCensus"], "Status", None] ===
       "ActiveGradeCensus" &&
     ContainsAll[Lookup[denominatorDecision["ActiveGradeCensus"],
       "DenominatorRootIndices", {}], {2, 3}]];
 
+denominatorChart = TransportRootSetChart[
+  denominatorDecision["RootSquares"], variables];
+denominatorRekeyed = chartRekey[
+  denominatorChart, variables, chartVariables];
+denominatorData = chartData[denominatorRekeyed, variables];
+denominatorChartRoot = SelectFirst[denominatorRekeyed["Roots"],
+  TrueQ[Together[#1["RootSquare"] -
+    First[denominatorDecision["RootSquares"]]] === 0] &];
+denominatorBranchRoots = {
+  <|"RootSquare" -> Together[
+    First[denominatorDecision["RootSquares"]] /.
+      denominatorData["Subst"]]|>};
+denominatorRootImages = {denominatorChartRoot["Root"]};
+denominatorDeferredRecord = <|
+  "Preparation" -> denominatorPreparation,
+  "RootSquares" -> denominatorDecision["RootSquares"],
+  "ProjectionRoots" -> kallenRoots[[
+    denominatorDecision["ProjectionRootIndices"]]]|>;
+denominatorPull = pullPreparation[denominatorDeferredRecord,
+  denominatorData, denominatorBranchRoots, denominatorRootImages];
+FTAssert["C10e exact post-sum projection removes canceled inactive roots before rational solving",
+  Lookup[denominatorPull, "Status", None] === "OK" &&
+    Lookup[denominatorPull["InactiveRootProjection"], "Status", None] ===
+      "ExactInactiveGradeProjection" &&
+    Lookup[denominatorPull["InactiveRootProjection"], "RootCount", None] === 2 &&
+    FeynFacet`Private`transportChartRadicalBases[
+      denominatorPull["OneForm"]] === {}];
+
 unsupportedPreparation = prepareDeferred[unsupportedConnection,
   {{1}, {2}, {3}}, 3, 1, cancelSolved, variables, epsilon];
 unsupportedDecision = chartDecision[unsupportedConnection,
   unsupportedPreparation, kallenRoots];
-FTAssert["C10e an inconclusive active-grade census stays on the direct route",
+FTAssert["C10f an inconclusive active-grade census stays on the direct route",
   Lookup[unsupportedDecision, "Status", None] === "OK" &&
     ! TrueQ[unsupportedDecision["ChartAvailableQ"]] &&
     Lookup[unsupportedDecision, "Method", None] === "SyntacticRootUnion" &&

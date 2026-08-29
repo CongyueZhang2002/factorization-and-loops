@@ -1173,15 +1173,19 @@ transportChartPullBackDeferredBundle[bundle_Association,
 transportChartPullBackDeferredBundle[___] :=
   <|"Status" -> "DeferredBundleChartInputInvalid"|>;
 
-(* Materialize the raw block-equation DAG only after its roots and source
-   coordinates have been replaced by the rational chart.  This is the
-   chartable-block production path: it performs the arithmetic the rational
-   solver needs and none of the direct multiquadratic provider's divisor,
-   orbit, provenance, fingerprint or source-frame factorization work. *)
+(* Materialize the raw block-equation DAG only after its active roots and
+   source coordinates have been replaced by the rational chart.  If modular
+   routing proved that other declared roots cancel only after summation,
+   decompose the four assembled scalars over precisely those inactive roots
+   and retain their exact grade-zero channels.  This is result construction,
+   not an additional acceptance layer: a nonzero inactive grade is a typed
+   refusal and remains eligible for the direct multiquadratic route. *)
 transportChartPullBackDeferredPreparation[record_Association,
     data_Association, branchRoots_List, images_List] := Module[
   {preparation, transform, materialized, dimensions, values, image,
-   survivingRadicals, pulled, polynomialSymbols},
+   survivingRadicals, pulled, polynomialSymbols,
+   projectionRoots, transformedProjectionRoots, projectionChannels,
+   projectionSeconds = 0., inactiveChannels, projectionRecord = None},
   preparation = Lookup[record, "Preparation",
     Lookup[record, "DeferredPreparation", Missing["NoPreparation"]]];
   If[! AssociationQ[preparation] ||
@@ -1190,6 +1194,11 @@ transportChartPullBackDeferredPreparation[record_Association,
       ! MatchQ[Lookup[data, "Jacobian", None], {{_, _}, {_, _}}] ||
       Length[branchRoots] =!= Length[images],
     Return[<|"Status" -> "DeferredPreparationChartInputInvalid"|>]];
+  projectionRoots = Lookup[record, "ProjectionRoots", {}];
+  If[! ListQ[projectionRoots] ||
+      ! AllTrue[projectionRoots, AssociationQ[#1] &&
+        KeyExistsQ[#1, "Root"] && KeyExistsQ[#1, "RootSquare"] &],
+    Return[<|"Status" -> "DeferredPreparationProjectionFrameInvalid"|>]];
   transform[expr_] := transportChartApplyRootBranches[
     expr /. data["Subst"], branchRoots, images];
   polynomialSymbols = DeleteDuplicates[Join[
@@ -1215,6 +1224,26 @@ transportChartPullBackDeferredPreparation[record_Association,
   image = Table[values[{mu, i, j}],
     {mu, dimensions[[1]]}, {i, dimensions[[2]]},
     {j, dimensions[[3]]}];
+  If[projectionRoots =!= {},
+    transformedProjectionRoots = projectionRoots /. data["Subst"];
+    {projectionSeconds, projectionChannels} = AbsoluteTiming[
+      Map[multiquadraticFieldDecompose[#1,
+          transformedProjectionRoots] &, image, {3}]];
+    If[! FreeQ[projectionChannels, $Failed],
+      Return[<|"Status" -> "DeferredPreparationInactiveProjectionFailed",
+        "ProjectionRootCount" -> Length[projectionRoots]|>]];
+    inactiveChannels = Flatten[Map[Rest, projectionChannels, {3}]];
+    If[! AllTrue[inactiveChannels, TrueQ[Together[#1] === 0] &],
+      Return[<|"Status" ->
+          "DeferredPreparationInactiveProjectionNonzero",
+        "ProjectionRootCount" -> Length[projectionRoots]|>]];
+    image = Map[First, projectionChannels, {3}];
+    projectionRecord = <|"Status" -> "ExactInactiveGradeProjection",
+      "RootCount" -> Length[projectionRoots],
+      "Seconds" -> N[projectionSeconds]|>;
+    Print["[deferred-router] exact inactive-root projection: roots ",
+      Length[projectionRoots], ", ",
+      Round[N[projectionSeconds], 0.1], " s"]];
   survivingRadicals = transportChartRadicalBases[image];
   If[survivingRadicals =!= {},
     Return[<|"Status" -> "DeferredPreparationChartStillAlgebraic",
@@ -1222,7 +1251,8 @@ transportChartPullBackDeferredPreparation[record_Association,
   pulled = masterTransportPullBackOneForm[
     image[[1]], image[[2]], data["Jacobian"]];
   <|"Status" -> "OK", "OneForm" -> pulled,
-    "Materialization" -> KeyDrop[materialized, "Values"]|>
+    "Materialization" -> KeyDrop[materialized, "Values"],
+    "InactiveRootProjection" -> projectionRecord|>
 ];
 transportChartPullBackDeferredPreparation[___] :=
   <|"Status" -> "DeferredPreparationChartInputInvalid"|>;

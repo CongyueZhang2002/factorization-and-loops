@@ -936,7 +936,10 @@ blockEquation[k_, j_, solved_Association] := Module[
         "DeferredPreparation" -> <|
           "Preparation" -> deferred["DeferredPreparation"],
           "RootSquares" -> Lookup[deferred["ChartDecision"],
-            "RootSquares", {}]|>,
+            "RootSquares", {}],
+          "ProjectionRoots" -> If[ListQ[bundleRoots],
+            bundleRoots[[Lookup[deferred["ChartDecision"],
+              "ProjectionRootIndices", {}]]], {}]|>,
         "ChartDecision" -> deferred["ChartDecision"],
         "Census" -> deferred["Census"],
         "ZeroForcingCandidateQ" -> False|>;

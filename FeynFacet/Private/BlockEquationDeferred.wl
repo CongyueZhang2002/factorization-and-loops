@@ -1875,7 +1875,7 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
    classification, indices, syntacticIndices, usedRoots, rootSquares, chart,
    properChartableQ, activeCensus = Missing["NotNeeded"], reducedIndices,
    reducedRoots, reducedSquares, reducedChart, denestedQ,
-   method = "SyntacticRootUnion", diagonalStarted},
+   method = "SyntacticRootUnion", diagonalStarted, projectionIndices},
   variables = Lookup[preparation, "Variables", {}];
   regulator = Lookup[preparation, "Regulator", None];
   rows = Lookup[preparation, "RowIndices", {}];
@@ -1913,22 +1913,27 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
       activeCensus = blockEquationDeferredActiveGradeCensus[
         preparation, roots];
       If[Lookup[activeCensus, "Status", None] === "ActiveGradeCensus",
+        Print["[deferred-router] active-grade decision data: roots ",
+          Lookup[activeCensus, "RootIndices", {}], ", denominator roots ",
+          Lookup[activeCensus, "DenominatorRootIndices", {}]];
         reducedIndices = Sort[DeleteDuplicates[Join[diagonalIndices,
           Lookup[activeCensus, "RootIndices", {}]]]];
         reducedRoots = roots[[reducedIndices]];
         reducedSquares = Lookup[reducedRoots, "RootSquare", {}];
         reducedChart = If[reducedIndices === {}, None,
           TransportRootSetChart[reducedSquares, variables]];
-        If[(reducedIndices === {} || AssociationQ[reducedChart]) &&
-            Intersection[
-              Lookup[activeCensus, "DenominatorRootIndices",
-                Range[Length[roots]]],
-              Complement[Range[Length[roots]], reducedIndices]] === {},
+        projectionIndices = Intersection[
+          Lookup[activeCensus, "DenominatorRootIndices",
+            Range[Length[roots]]],
+          Complement[Range[Length[roots]], reducedIndices]];
+        If[reducedIndices === {} || AssociationQ[reducedChart],
           Return[<|"Status" -> "OK", "RootIndices" -> reducedIndices,
             "RootSquares" -> reducedSquares, "ChartAvailableQ" -> True,
             "Chart" -> If[AssociationQ[reducedChart],
               Lookup[reducedChart, "Name", None], None],
-            "Method" -> "ModularActiveGrades",
+            "Method" -> If[projectionIndices === {},
+              "ModularActiveGrades", "ModularActiveGradesProjected"],
+            "ProjectionRootIndices" -> projectionIndices,
             "SyntacticRootIndices" -> Missing["ModularPreclassification"],
             "ActiveGradeCensus" -> activeCensus,
             "ExpressionCount" -> Length[records]|>],
