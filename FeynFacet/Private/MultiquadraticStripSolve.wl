@@ -11090,7 +11090,7 @@ multiquadraticStripBundleRootEmbedding[___] := $Failed;
    recomputes this record; trusted point loops only read the sealed copy. *)
 multiquadraticStripBundleLocalData[bundle_Association, roots_List,
     variables : {_Symbol, _Symbol}] := Catch[Module[
-  {frame, bundleRoots, bundleRank,
+  {rank = Length[roots], frame, bundleRoots, bundleRank,
    bundleRootEmbedding, squares, operands, expressions, localMasks,
    localActiveRoots, masks, activeRoots, coefficientData, tag},
   tag = Unique["MultiquadraticBundleLocalDataFailure"];

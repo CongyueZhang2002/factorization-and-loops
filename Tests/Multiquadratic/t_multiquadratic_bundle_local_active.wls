@@ -217,16 +217,18 @@ globalRoots = globalFrame["Roots"];
 emptyProvider = buildProvider[prunedRational, "SplitBranch", globalRoots];
 emptyPoint = splitPoint[globalRoots];
 emptyImage = providerChannels[emptyProvider, epsilonValue, prime, emptyPoint];
+emptyOracle = globalSheetOracle[emptyProvider, emptyPoint];
 check["a root-free forcing bundle embeds in a larger diagonal root frame",
   Lookup[emptyProvider, "Status", None] ===
       "MultiquadraticDirectProviderV1" &&
     emptyProvider["RootCount"] === Length[globalRoots] &&
-    emptyProvider["BundleOperandRootMasks"] === {0} &&
-    emptyProvider["BundleOperandActiveRoots"] === {{}} &&
+    emptyProvider["BundleOperandRootMasks"] === ConstantArray[0,
+      Length[prunedRational["OperandTable"]]] &&
+    emptyProvider["BundleOperandActiveRoots"] === ConstantArray[{},
+      Length[prunedRational["OperandTable"]]] &&
     Lookup[emptyImage, "Status", None] ===
       "MultiquadraticPointCoefficientsV1" &&
-    emptyImage["BBar"] === ConstantArray[0,
-      Append[prunedRational["Dimensions"], 2^Length[globalRoots]]]];
+    emptyImage["BBar"] === emptyOracle];
 
 partialProvider = buildProvider[prunedPartial, "SplitBranch", globalRoots];
 partialPoint = splitPoint[globalRoots];
