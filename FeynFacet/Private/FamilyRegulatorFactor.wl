@@ -953,7 +953,7 @@ Options[familyRegulatorGradedMatrices] = {
   "Intern" -> True, "Parallel" -> Automatic, "Helpers" -> Automatic,
   "ValidateRoundTrip" -> True,
   "BatchByteCap" -> Automatic, "BatchDispatcher" -> Automatic,
-  "BatchTimeout" -> 3600};
+  "BatchOversubscription" -> 8, "BatchTimeout" -> 3600};
 
 familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
     OptionsPattern[]] := Module[
@@ -963,7 +963,7 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
    nonzeroCount = 0, values, helpers = 0, byteCap, dispatcher, parallel,
    batches = {}, bytes, dataFile, codes, handle, farmed, localBatch,
    missing, decomposeLocal, route = "Serial", batchSeconds = 0., frame,
-   validateRoundTrip},
+   validateRoundTrip, batchOversubscription, batchWorkers},
   If[rank > $familyRegulatorMaximumGradedRank,
     Return[<|"Status" -> "GradedRankTooLarge", "Rank" -> rank,
       "MaximumRank" -> $familyRegulatorMaximumGradedRank|>]];
@@ -1019,8 +1019,16 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
           helpers >= 1 && blockEquationDeferredParallelRouteQ[],
         TrueQ[requestedParallel], helpers >= 1,
         True, False]];
+    batchOversubscription = Replace[OptionValue["BatchOversubscription"],
+      {value_Integer?Positive :> value, _ -> 1}];
+    (* Entry count and ByteCount are poor predictors of exact Together cost.
+       Feed the dynamic pool several small chunks per worker so a helper that
+       finishes a cheap region immediately takes another instead of idling
+       behind one pathological contiguous quarter of the matrix. *)
+    batchWorkers = Min[Length[unique],
+      batchOversubscription (helpers + 1)];
     batches = If[unique === {}, {},
-      blockEquationDeferredBatchPlan[bytes, helpers + 1, byteCap]];
+      blockEquationDeferredBatchPlan[bytes, batchWorkers, byteCap]];
     values = ConstantArray[$Failed, Length[unique]];
     If[! parallel || Length[batches] <= 1,
       Do[values[[batches[[b]]]] = decomposeLocal[batches[[b]]],
@@ -1078,6 +1086,7 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
       "UniqueEntries" -> If[internQ, Length[unique], nonzeroCount],
       "Interned" -> internQ, "Route" -> route, "Helpers" -> helpers,
       "RoundTripValidated" -> validateRoundTrip,
+      "BatchOversubscription" -> batchOversubscription,
       "Batches" -> Length[batches], "BatchSeconds" -> batchSeconds,
       "DecomposeSeconds" -> N[AbsoluteTime[] - started]|>|>
 ];
