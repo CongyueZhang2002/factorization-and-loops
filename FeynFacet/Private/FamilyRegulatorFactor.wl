@@ -604,6 +604,7 @@ ClearAll[familyRegulatorNonSquareRationalQ, familyRegulatorGradedRoots,
   familyRegulatorGradedRootFrame, familyRegulatorGradedDecompose,
   familyRegulatorGradedFrameEvidence,
   familyRegulatorLiftLocalChannels,
+  familyRegulatorGradedTreeDecompose,
   familyRegulatorGradedDecomposeUnchecked, familyRegulatorGradedMatrices,
   familyRegulatorGradedPointSample,
   familyRegulatorGradedPointSampleTask,
@@ -734,12 +735,74 @@ familyRegulatorLiftLocalChannels[local_List, active_List,
 ];
 familyRegulatorLiftLocalChannels[___] := $Failed;
 
+(* Evaluate a formal-root expression directly in the multiquadratic quotient
+   algebra.  Root-free subtrees stay atomic, so a large rational function of
+   eps is never expanded merely because it multiplies an algebraic factor.
+   Memoization is scoped to one expression and reuses the repeated deferred
+   subtrees produced by sparse row conjugation. *)
+familyRegulatorGradedTreeDecompose[expression_, roots_List] := Module[
+  {rank = Length[roots], deltas, rootImages, dimension, one,
+   containsRootQ, power, evaluate, result},
+  If[rank > $familyRegulatorMaximumGradedRank, Return[$Failed]];
+  deltas = Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]];
+  rootImages = Lookup[roots, "Root", ConstantArray[$Failed, rank]];
+  If[Length[deltas] =!= rank || Length[rootImages] =!= rank ||
+      ! FreeQ[{deltas, rootImages}, $Failed], Return[$Failed]];
+  dimension = 2^rank;
+  one = UnitVector[dimension, 1];
+  containsRootQ[value_] := AnyTrue[rootImages,
+    Function[root, Not[FreeQ[value, root]]]];
+  power[base_List, exponent_Integer?NonNegative] := Module[
+    {accumulator = one, factor = base, n = exponent},
+    While[n > 0,
+      If[OddQ[n],
+        accumulator = multiquadraticMultiply[
+          accumulator, factor, deltas]];
+      n = Quotient[n, 2];
+      If[n > 0, factor = multiquadraticMultiply[factor, factor, deltas]]];
+    accumulator];
+  evaluate[value_] := evaluate[value] = Module[
+    {rootIndex, children, base, exponent},
+    rootIndex = FirstCase[Range[rank],
+      index_ /; SameQ[value, rootImages[[index]]] :> index,
+      Missing["NotFound"]];
+    If[IntegerQ[rootIndex],
+      Return[UnitVector[dimension, 2^(rootIndex - 1) + 1]]];
+    If[! containsRootQ[value],
+      Return[If[FreeQ[value,
+          Power[_, rational_Rational /; ! IntegerQ[rational]]],
+        value one, $Failed]]];
+    Switch[Head[value],
+      Plus,
+        children = evaluate /@ (List @@ value);
+        If[AnyTrue[children, # === $Failed &], $Failed,
+          Together /@ Total[children]],
+      Times,
+        children = evaluate /@ (List @@ value);
+        If[AnyTrue[children, # === $Failed &], $Failed,
+          Fold[multiquadraticMultiply[#1, #2, deltas] &, one, children]],
+      Power,
+        {base, exponent} = List @@ value;
+        If[! IntegerQ[exponent], Return[$Failed]];
+        base = evaluate[base];
+        If[base === $Failed, Return[$Failed]];
+        If[exponent < 0,
+          base = multiquadraticFieldInverse[base, deltas];
+          If[base === $Failed, Return[$Failed]]];
+        power[base, Abs[exponent]],
+      _, $Failed]
+    ];
+  result = evaluate[expression];
+  If[ListQ[result] && Length[result] === dimension, result, $Failed]
+];
+familyRegulatorGradedTreeDecompose[___] := $Failed;
+
 familyRegulatorGradedDecomposeUnchecked[expression_, roots_List,
     validateRoundTrip_: True] := Module[
   {rank = Length[roots], symbols, deltas, rootImages,
    replaced, rational, numerator, denominator, numeratorChannels,
    denominatorChannels, denominatorInverse, channels, reconstructed,
-   difference, formalQ, termChannels, active, localChannels},
+   difference, formalQ, treeChannels, termChannels, active, localChannels},
   If[rank > $familyRegulatorMaximumGradedRank, Return[$Failed]];
   deltas = Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]];
   If[Length[deltas] =!= rank || ! FreeQ[deltas, $Failed], Return[$Failed]];
@@ -748,6 +811,15 @@ familyRegulatorGradedDecomposeUnchecked[expression_, roots_List,
   If[! FreeQ[rootImages, $Failed], Return[$Failed]];
   formalQ = AnyTrue[roots,
     TrueQ[Lookup[#1, "FormalGenerator", False]] &];
+  If[formalQ && ! TrueQ[validateRoundTrip],
+    active = Pick[Range[rank],
+      Not[FreeQ[expression, #1]] & /@ rootImages];
+    treeChannels = familyRegulatorGradedTreeDecompose[
+      expression, roots[[active]]];
+    If[ListQ[treeChannels] && Length[treeChannels] === 2^Length[active],
+      treeChannels = familyRegulatorLiftLocalChannels[
+        treeChannels, active, rank];
+      If[ListQ[treeChannels], Return[treeChannels]]]];
   If[formalQ && Head[expression] === Plus &&
       ! TrueQ[validateRoundTrip],
     (* Deferred row assembly deliberately preserves sums.  Projection is
