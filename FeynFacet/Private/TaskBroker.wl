@@ -30,7 +30,7 @@ ClearAll[
   taskBrokerNativeThreadLimit, taskBrokerNativeCommand,
   taskBrokerPutAtomic, taskBrokerDataFile, taskBrokerRead, taskBrokerCached,
   taskBrokerFreeKernels, taskBrokerNewName, taskBrokerRun, taskBrokerSubmit,
-  taskBrokerCollect, taskBrokerSampleBatch,
+  taskBrokerCancel, taskBrokerCollect, taskBrokerSampleBatch,
   taskBrokerSampleTask, taskBrokerCanonicaLadder, taskBrokerCanonicaTask,
   $taskBrokerInsideTask, $taskBrokerCache, $taskBrokerCounter,
   $taskBrokerNonce, $taskBrokerLog
@@ -247,7 +247,23 @@ taskBrokerSubmit[codes_List, OptionsPattern[]] := Module[
   <|"Directory" -> dir, "Names" -> names, "ResultFiles" -> resultFiles, "Start" -> t0,
     "Timeout" -> timeout, "Label" -> label, "Codes" -> codes|>];
 
-taskBrokerCollect[handle_Association] := Module[
+(* A surrounding TimeConstrained aborts the collector, not the helper
+   evaluations.  Remove work that is still queued and ask the pool to close
+   anything already running, so a bounded call cannot leak duplicate jobs. *)
+taskBrokerCancel[handle_Association] := Module[
+  {dir = Lookup[handle, "Directory", None], names, queueFile, controlFile},
+  If[dir === None, Return[Null]];
+  names = Lookup[handle, "Names", {}];
+  Do[
+    queueFile = FileNameJoin[{dir, "queue", name <> ".wl"}];
+    If[FileExistsQ[queueFile], Quiet[DeleteFile[queueFile]]];
+    controlFile = FileNameJoin[{dir, "control", name <> ".cancel"}];
+    taskBrokerPutAtomic[Null, controlFile],
+    {name, names}];
+  Null];
+taskBrokerCancel[___] := Null;
+
+taskBrokerCollect[handle_Association] := CheckAbort[Module[
   {dir = handle["Directory"], names, resultFiles, t0, timeout, label, pending, done, results},
   If[dir === None, Return[ConstantArray[$Failed, Length[handle["Codes"]]]]];
   {names, resultFiles, t0, timeout, label} = Lookup[handle, {"Names", "ResultFiles", "Start", "Timeout", "Label"}];
@@ -258,6 +274,7 @@ taskBrokerCollect[handle_Association] := Module[
       FileExistsQ[FileNameJoin[{dir, "done", name <> ".status"}]] ||
       FileExistsQ[FileNameJoin[{dir, "failed", name <> ".status"}]]]];
     pending = Complement[pending, done]];
+  If[pending =!= {}, taskBrokerCancel[handle]];
   results = MapThread[Function[{name, resultFile},
     Module[{r = If[FileExistsQ[resultFile], FamilyArtifactRead[resultFile], $Failed]},
       Quiet[DeleteFile[resultFile]];
@@ -270,7 +287,8 @@ taskBrokerCollect[handle_Association] := Module[
     Print["[broker] ", label, ": ", Length[names], " tasks, ",
       Count[results, Except[$Failed]], " results, ", Round[AbsoluteTime[] - t0, 0.1], " s",
       If[pending =!= {}, " (TIMEOUT on " <> ToString[Length[pending]] <> ")", ""]]];
-  results];
+  results],
+  taskBrokerCancel[handle]; Abort[]];
 
 (* ---- finite-field sample batches ---- *)
 

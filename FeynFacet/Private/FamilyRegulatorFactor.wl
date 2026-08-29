@@ -320,11 +320,10 @@ familyRegulatorFactorFromPointEvaluator[evaluator_, n_Integer?Positive,
       Return[ConstantArray[$Failed, Length[pointRules]]]];
     If[ListQ[sampled] && Length[sampled] === Length[pointRules], sampled,
       ConstantArray[$Failed, Length[pointRules]]]];
-  (* A Production candidate needs one training image and two disjoint gate
-     images.  They are independent exact specializations of the same large
-     connection, so request the whole missing set together.  The default
-     scalar evaluator keeps the historical sequential behavior; the graded
-     route supplies a brokered batch evaluator. *)
+  (* Training images and any requested disjoint gate images are independent
+     exact specializations of the same large connection, so request the whole
+     missing set together.  The default scalar evaluator keeps the historical
+     sequential behavior; the graded route supplies a brokered batch evaluator. *)
   ensurePointSets[trainingCount_Integer, gateCount_Integer] := Module[
     {requestedRules, requestedKinds, sampled, neededTraining, neededGates},
     While[(Length[training] < trainingCount || Length[gates] < gateCount) &&
@@ -605,7 +604,7 @@ ClearAll[familyRegulatorNonSquareRationalQ, familyRegulatorGradedRoots,
   familyRegulatorGradedRootFrame, familyRegulatorGradedDecompose,
   familyRegulatorGradedFrameEvidence,
   familyRegulatorGradedDecomposeUnchecked, familyRegulatorGradedMatrices,
-  familyRegulatorTaggedGradeDecompose, familyRegulatorGradedPointSample,
+  familyRegulatorGradedPointSample,
   familyRegulatorGradedPointSampleTask,
   familyRegulatorGradedPointSampleBatch,
   familyRegulatorGradedDecomposeTask,
@@ -765,48 +764,14 @@ familyRegulatorGradedDecomposeUnchecked[expression_, roots_List,
    their squares are exact rationals.  Reducing this small univariate-in-eps
    object is algebraically the same field operation as the symbolic route,
    but it never constructs giant bivariate grade expressions. *)
-familyRegulatorTaggedGradeDecompose[expression_, tags_List,
-    deltas_List] := Module[
-  {rank = Length[tags], reducedDeltas, rational, numerator, denominator,
-   numeratorChannels, denominatorChannels, denominatorInverse, channels},
-  If[Length[deltas] =!= rank || rank > $familyRegulatorMaximumGradedRank,
-    Return[$Failed]];
-  reducedDeltas = Together /@ deltas;
-  If[! AllTrue[reducedDeltas, MatchQ[#1, _Integer | _Rational] &],
-    Return[$Failed]];
-  rational = Together[expression];
-  If[! FreeQ[rational,
-      Power[_, exponent_Rational /; ! IntegerQ[exponent]]],
-    Return[$Failed]];
-  If[rank === 0 || FreeQ[rational, Alternatives @@ tags],
-    Return[PadRight[{rational}, 2^rank, 0]]];
-  numerator = Numerator[rational]; denominator = Denominator[rational];
-  If[! PolynomialQ[numerator, tags] || ! PolynomialQ[denominator, tags],
-    Return[$Failed]];
-  numeratorChannels = multiquadraticFromPolynomial[
-    numerator, tags, reducedDeltas];
-  denominatorChannels = multiquadraticFromPolynomial[
-    denominator, tags, reducedDeltas];
-  If[numeratorChannels === $Failed || denominatorChannels === $Failed,
-    Return[$Failed]];
-  denominatorInverse = multiquadraticFieldInverse[
-    denominatorChannels, reducedDeltas];
-  If[denominatorInverse === $Failed, Return[$Failed]];
-  channels = Together /@ multiquadraticMultiply[
-    numeratorChannels, denominatorInverse, reducedDeltas];
-  If[Length[channels] === 2^rank, channels, $Failed]
-];
-familyRegulatorTaggedGradeDecompose[___] := $Failed;
-
 familyRegulatorGradedPointSample[connection : {_List, _List}, tags_List,
     rootSquares_List, rule_List] := Module[
-  {rank = Length[tags], gradeCount, n, deltas, specialized, channels},
+  {rank = Length[tags], deltas, specialized, pointRoots, decomposition},
   If[Length[rootSquares] =!= rank || ! MatrixQ[connection[[1]]] ||
       ! MatrixQ[connection[[2]]] ||
       Dimensions[connection[[1]]] =!= Dimensions[connection[[2]]] ||
       Length[connection[[1]]] =!= Length[First[connection[[1]]]],
     Return[$Failed]];
-  n = Length[connection[[1]]]; gradeCount = 2^rank;
   deltas = Together /@ (rootSquares /. rule);
   If[! AllTrue[deltas, MatchQ[#1, _Integer | _Rational] &],
     Return[$Failed]];
@@ -816,14 +781,17 @@ familyRegulatorGradedPointSample[connection : {_List, _List}, tags_List,
         Times @@ deltas[[#1]]] &],
     Return[$Failed]];
   specialized = connection /. rule;
-  channels = Map[
-    If[TrueQ[#1 === 0], ConstantArray[0, gradeCount],
-      familyRegulatorTaggedGradeDecompose[#1, tags, deltas]] &,
-    specialized, {3}];
-  If[! FreeQ[channels, $Failed], Return[$Failed]];
-  Flatten[Table[
-    Table[channels[[mu, i, j, grade]], {i, n}, {j, n}],
-    {mu, 2}, {grade, gradeCount}], 1]
+  pointRoots = MapThread[<|"Root" -> #1, "RootSquare" -> #2|> &,
+    {tags, deltas}];
+  (* Reuse the exact sparse grade engine after specialization.  It interns
+     repeated nonzero entries and brokers the unique decompositions across
+     the currently granted helpers; the former entry-wise Map left every
+     helper idle on the single Production construction point. *)
+  decomposition = familyRegulatorGradedMatrices[specialized, pointRoots,
+    "ValidateRoundTrip" -> False];
+  If[! AssociationQ[decomposition] ||
+      Lookup[decomposition, "Status", None] =!= "OK", Return[$Failed]];
+  Flatten[decomposition["Grades"], 1]
 ];
 familyRegulatorGradedPointSample[___] := $Failed;
 
@@ -1361,9 +1329,10 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
   (* Production needs T(eps), not symbolic bivariate grade matrices.  Tag
      the roots while their square classes are still distinct, specialize
      (x,y) exactly, and only then reduce the resulting small algebra over
-     Q(eps).  Held-out exact rational points select the candidate; the final
-     family certificate remains the acceptance boundary.  Development keeps
-     the full symbolic grade path below. *)
+     Q(eps).  The one point requested by the ladder constructs the candidate;
+     the final family certificate is Production's acceptance boundary, so
+     Production does not spend two more full specializations on point gates.
+     Development keeps the full symbolic grade path below. *)
   If[deferAcceptanceQ,
     log["sampling kinematics before grade decomposition (", gradeCount,
       " grades)"];
@@ -1386,7 +1355,7 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
       "ValidationMode" -> validationMode,
       "UseFermat" -> OptionValue["UseFermat"],
       "PointLadder" -> OptionValue["PointLadder"],
-      "GatePoints" -> OptionValue["GatePoints"],
+      "GatePoints" -> 0,
       "Verbose" -> verbose];
     If[AssociationQ[evaluated] && evaluated["Status"] === "OK",
       transformation = evaluated["Transformation"];

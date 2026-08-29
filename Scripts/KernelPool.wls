@@ -427,7 +427,19 @@ finish[name_, res_] := Module[{ok, dest, kf, kid, k, job, owner},
   log["finished ", name, " -> ", If[ok, "done", "failed"], " (", If[AssociationQ[res], Round[res["Wall"], 0.1], "?"], " s)"];
   If[Lookup[job, "Role", None] =!= "helper" && StringQ[owner] &&
       ! (AssociationQ[res] && Lookup[res, "Status", None] === "DUPLICATE"),
-    quarantineQueuedOwnerHelpers[owner]];
+    quarantineQueuedOwnerHelpers[owner];
+    Do[Module[{helper = helperName, kf, kid},
+      kf = FileNameJoin[{sub["running"], helper <> ".kernel"}];
+      kid = If[FileExistsQ[kf],
+        Quiet[Check[ToExpression[Import[kf, "Text"]], None]], None];
+      log["cancel orphaned helper ", helper, " for finished owner ", owner,
+        " on kernel ", kid];
+      If[IntegerQ[kid], interruptKernel[kid]];
+      finish[helper, <|"Mission" -> helper, "Status" -> "OWNERFINISHED",
+        "Owner" -> owner, "Wall" -> AbsoluteTime[] - poolJobs[helper]["Start"]|>]],
+      {helperName, Select[Keys[poolJobs],
+        Lookup[poolJobs[#1], "Role", None] === "helper" &&
+          Lookup[poolJobs[#1], "Owner", None] === owner &]}]];
   poolJobs = KeyDrop[poolJobs, name]];
 
 (* Cancel policy (measured 2026-08-16 23:31): an OS SIGINT to a subkernel does NOT abort its
