@@ -267,6 +267,7 @@ ClearAll[
   $multiquadraticStripGradeEvaluateTag,
   multiquadraticStripEntryActiveRoots,
   multiquadraticStripRootMaskActiveRoots,
+  multiquadraticStripBundleRootEmbedding,
   multiquadraticStripBundleLocalData,
   multiquadraticStripQuotientGradeEntry,
   multiquadraticStripSplitBranchEntry,
@@ -5259,7 +5260,8 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
    gradeCount, gaugeUnknownCount, residueUnknownCount, unknownCount,
    equationsPerPoint, normalizations, payload, fingerprint,
    coreEnabled, coreCanonical, coreDimensions, coreKey, coreConsumed = False,
-   coefficientProvider, deferredBundle, bundleGauge, refinedBundleGauge,
+   coefficientProvider, deferredBundle, bundleRootEmbedding, bundleGauge,
+   refinedBundleGauge,
    provisionalDegrees, provisionalSupportCount, provisionalUnknownCount,
    provisionalEquationsPerPoint, provisionalPointCount,
    provisionalSampleEstimate,
@@ -5392,13 +5394,9 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
     Return[multiquadraticStripFailure["InvalidCoefficientProvider",
       <|"CoefficientProvider" -> coefficientProvider|>]]];
   If[! MissingQ[deferredBundle],
-    If[Length[Lookup[deferredBundle["RootFrame"], "Roots", {}]] =!=
-          Length[roots] ||
-        ! AllTrue[Transpose[{deferredBundle["RootFrame"]["Roots"], roots}],
-          TrueQ[Quiet[Together[#1[[1, "RootSquare"]] -
-              #1[[2, "RootSquare"]]]] === 0] &&
-            TrueQ[Quiet[Together[#1[[1, "Root"]] -
-              #1[[2, "Root"]]]] === 0] &],
+    bundleRootEmbedding = multiquadraticStripBundleRootEmbedding[
+      Lookup[deferredBundle["RootFrame"], "Roots", {}], roots];
+    If[bundleRootEmbedding === $Failed,
       Return[multiquadraticStripFailure[
         "DeferredBundleRootOrderMismatch"]]];
     record = Join[record, <|"DeferredBundle" -> deferredBundle|>]];
@@ -11066,6 +11064,25 @@ multiquadraticStripRootMaskActiveRoots[mask_Integer, rank_Integer] /;
   Select[Range[rank], BitGet[mask, #1 - 1] === 1 &];
 multiquadraticStripRootMaskActiveRoots[___] := $Failed;
 
+(* Embed the bundle's own canonical root frame into the solver's canonical
+   root frame.  Bundle compilation deliberately prunes roots absent from the
+   deferred forcing, while E and C may still require them; equality of the two
+   frames is therefore too strong.  Exact root and square matching preserves
+   the declared branch, and unique positions give the mask relabelling below. *)
+multiquadraticStripBundleRootEmbedding[bundleRoots_List, roots_List] :=
+ Module[{positions},
+  positions = Table[Module[{matches = Select[Range[Length[roots]],
+       TrueQ[Quiet[Together[
+           roots[[#1, "RootSquare"]] - bundleRoot["RootSquare"]]] === 0] &&
+         TrueQ[Quiet[Together[
+           roots[[#1, "Root"]] - bundleRoot["Root"]]] === 0] &]},
+      If[Length[matches] === 1, First[matches], $Failed]],
+    {bundleRoot, bundleRoots}];
+  If[VectorQ[positions, IntegerQ] && DuplicateFreeQ[positions], positions,
+    $Failed]
+];
+multiquadraticStripBundleRootEmbedding[___] := $Failed;
+
 (* Immutable, derived hot-path data for one deferred bundle.  Operand masks
    come from the validator-authenticated table.  Coefficients have no bundle
    mask field, so canonicalize composite radicals and compute their masks once
@@ -11073,30 +11090,33 @@ multiquadraticStripRootMaskActiveRoots[___] := $Failed;
    recomputes this record; trusted point loops only read the sealed copy. *)
 multiquadraticStripBundleLocalData[bundle_Association, roots_List,
     variables : {_Symbol, _Symbol}] := Catch[Module[
-  {rank = Length[roots], frame, squares, operands, expressions, masks,
-   activeRoots, coefficientData, tag},
+  {frame, bundleRoots, bundleRank,
+   bundleRootEmbedding, squares, operands, expressions, localMasks,
+   localActiveRoots, masks, activeRoots, coefficientData, tag},
   tag = Unique["MultiquadraticBundleLocalDataFailure"];
   frame = Lookup[bundle, "RootFrame", <||>];
-  If[! ListQ[Lookup[frame, "Roots", None]] ||
-      Length[frame["Roots"]] =!= rank ||
-      ! AllTrue[Transpose[{frame["Roots"], roots}],
-        TrueQ[Quiet[Together[#1[[1, "RootSquare"]] -
-            #1[[2, "RootSquare"]]]] === 0] &&
-          TrueQ[Quiet[Together[#1[[1, "Root"]] -
-            #1[[2, "Root"]]]] === 0] &],
+  bundleRoots = Lookup[frame, "Roots", None];
+  bundleRootEmbedding = If[ListQ[bundleRoots],
+    multiquadraticStripBundleRootEmbedding[bundleRoots, roots], $Failed];
+  If[bundleRootEmbedding === $Failed,
     Throw[multiquadraticStripFailure[
       "DeferredBundleRootOrderMismatch"], tag]];
+  bundleRank = Length[bundleRoots];
   squares = Together /@ Lookup[roots, "RootSquare", {}];
   operands = Lookup[bundle, "OperandTable", {}];
   expressions = Map[Function[operand,
     operand["Numerator"]/Times @@
       (Power[First[#1], Last[#1]] & /@
         operand["DenominatorFactors"])], operands];
-  masks = Lookup[operands, "RootMask", $Failed];
-  activeRoots = multiquadraticStripRootMaskActiveRoots[#1, rank] & /@ masks;
-  If[MemberQ[activeRoots, $Failed],
+  localMasks = Lookup[operands, "RootMask", $Failed];
+  localActiveRoots =
+    multiquadraticStripRootMaskActiveRoots[#1, bundleRank] & /@ localMasks;
+  If[MemberQ[localActiveRoots, $Failed],
     Throw[multiquadraticStripFailure[
       "InvalidBundleOperandRootMask"], tag]];
+  activeRoots = Map[Function[indices, bundleRootEmbedding[[indices]]],
+    localActiveRoots];
+  masks = Total[2^(#1 - 1)] & /@ activeRoots;
   coefficientData = Map[Function[job,
       Map[Function[term, Module[{canonical, expression, mask, active},
         canonical = blockEquationDeferredFrameCanonicalize[
@@ -11300,7 +11320,7 @@ multiquadraticStripDirectProvider[record_Association, roots_List,
    gaugeDenominator, gaugeLog, rootLog, oneFormActive, dimensions,
    coefficientPayload, coefficientFingerprint, requestedFingerprint,
    sourceFingerprint, canonicalData, result, deferredBundle,
-   bundleValidation, bundleFingerprint = None, bundleRoots,
+   bundleValidation, bundleFingerprint = None, bundleRootEmbedding,
    bundleLocalData = Missing["NoDeferredBundle"],
    startTime = AbsoluteTime[]},
   gate = multiquadraticStripProductionOptionGate[{opts},
@@ -11323,13 +11343,9 @@ multiquadraticStripDirectProvider[record_Association, roots_List,
     If[Lookup[bundleValidation, "Status", None] =!= "BundleValid",
       Return[multiquadraticStripFailure["InvalidDeferredBundle",
         <|"Detail" -> bundleValidation|>]]];
-    bundleRoots = deferredBundle["RootFrame"]["Roots"];
-    If[Length[bundleRoots] =!= Length[roots] ||
-        ! AllTrue[Transpose[{bundleRoots, roots}],
-          TrueQ[Quiet[Together[#1[[1, "RootSquare"]] -
-              #1[[2, "RootSquare"]]]] === 0] &&
-            TrueQ[Quiet[Together[#1[[1, "Root"]] -
-              #1[[2, "Root"]]]] === 0] &],
+    bundleRootEmbedding = multiquadraticStripBundleRootEmbedding[
+      Lookup[deferredBundle["RootFrame"], "Roots", {}], roots];
+    If[bundleRootEmbedding === $Failed,
       Return[multiquadraticStripFailure[
         "DeferredBundleRootOrderMismatch"]]];
     bundleFingerprint = deferredBundle["BundleFingerprint"];

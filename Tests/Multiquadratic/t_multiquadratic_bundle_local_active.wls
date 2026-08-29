@@ -71,8 +71,10 @@ buildMixedBundle[rank_Integer] := Module[
   Append[bundle, "BundleFingerprint" -> fingerprintBundle[bundle]]
 ];
 
-buildProvider[bundle_Association, kind_String] := Module[
-  {roots = bundle["RootFrame"]["Roots"], dimensions, zeroE, zeroC,
+buildProvider[bundle_Association, kind_String, rootsSpec_: Automatic] := Module[
+  {roots = Replace[rootsSpec,
+      Automatic :> bundle["RootFrame"]["Roots"]],
+   dimensions, zeroE, zeroC,
    zeroB, record},
   dimensions = Rest[bundle["Dimensions"]];
   zeroE = ConstantArray[0, {2, dimensions[[1]], dimensions[[1]]}];
@@ -204,6 +206,49 @@ check["a strict active root subset is retained in canonical order",
     ContainsAll[partialSquares, Together /@ rootSquares[[{1, 3}]]] &&
     ContainsAll[Together /@ rootSquares[[{1, 3}]], partialSquares] &&
     prunedPartial["Statistics"]["PrunedRootCount"] === 1];
+
+(* The solver field is the union of diagonal-block and forcing roots.  A
+   production bundle contains only roots active in the forcing, so its frame
+   may be empty or a strict subframe.  Provider masks must be lifted from that
+   local frame into the solver's canonical root order. *)
+globalFrame = mq["blockEquationDeferredRootFrame"][declaredRoots,
+  {lx, ly}, le];
+globalRoots = globalFrame["Roots"];
+emptyProvider = buildProvider[prunedRational, "SplitBranch", globalRoots];
+emptyPoint = splitPoint[globalRoots];
+emptyImage = providerChannels[emptyProvider, epsilonValue, prime, emptyPoint];
+check["a root-free forcing bundle embeds in a larger diagonal root frame",
+  Lookup[emptyProvider, "Status", None] ===
+      "MultiquadraticDirectProviderV1" &&
+    emptyProvider["RootCount"] === Length[globalRoots] &&
+    emptyProvider["BundleOperandRootMasks"] === {0} &&
+    emptyProvider["BundleOperandActiveRoots"] === {{}} &&
+    Lookup[emptyImage, "Status", None] ===
+      "MultiquadraticPointCoefficientsV1" &&
+    emptyImage["BBar"] === ConstantArray[0,
+      Append[prunedRational["Dimensions"], 2^Length[globalRoots]]]];
+
+partialProvider = buildProvider[prunedPartial, "SplitBranch", globalRoots];
+partialPoint = splitPoint[globalRoots];
+partialImage = providerChannels[partialProvider, epsilonValue, prime,
+  partialPoint];
+partialOracle = globalSheetOracle[partialProvider, partialPoint];
+partialPositions = Flatten[FirstPosition[
+      Together /@ Lookup[globalRoots, "RootSquare", {}], #] & /@
+    partialSquares];
+partialLocalMasks = Lookup[prunedPartial["OperandTable"], "RootMask", {}];
+partialExpectedActive = Map[
+  Function[mask, partialPositions[[activeIndices[mask,
+    Length[partialPositions]]]]], partialLocalMasks];
+partialExpectedMasks = Total[2^(# - 1)] & /@ partialExpectedActive;
+check["a strict forcing subframe is relabelled into the solver root order",
+  Lookup[partialProvider, "Status", None] ===
+      "MultiquadraticDirectProviderV1" &&
+    partialProvider["BundleOperandActiveRoots"] === partialExpectedActive &&
+    partialProvider["BundleOperandRootMasks"] === partialExpectedMasks &&
+    Lookup[partialImage, "Status", None] ===
+      "MultiquadraticPointCoefficientsV1" &&
+    partialImage["BBar"] === partialOracle];
 
 rank3 = results[3];
 check["rank 3 exercises root-free, single, pair, and triple masks",
