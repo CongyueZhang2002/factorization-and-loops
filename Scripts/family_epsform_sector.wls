@@ -267,7 +267,11 @@ mapleCanonicalCache = Module[
     ExpandFileName[configured],
     FileNameJoin[{DirectoryName[outdir], "MapleCanonicalCache"}]]];
 stateFile = FileNameJoin[{outdir, "sector_state_" <> family <> tag <> ".wl"}];
-cachedState = If[FileExistsQ[stateFile], normalizeSymbols[Get[stateFile]],
+(* State files are written by this driver in InputForm with the canonical
+   Global` chart/regulator symbols.  Get already recreates unqualified symbols
+   in Global`; walking an 80--210 MB cached connection a second time through
+   normalizeSymbols made resume startup take minutes and changed nothing. *)
+cachedState = If[FileExistsQ[stateFile], Get[stateFile],
   Missing["NotFound"]];
 
 (* ---- assemble in the chart; rename chart variables to (x, y) for CANONICA ---- *)
