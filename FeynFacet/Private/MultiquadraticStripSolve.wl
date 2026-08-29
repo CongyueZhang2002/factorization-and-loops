@@ -190,6 +190,8 @@ ClearAll[
   multiquadraticStripScreenPowerTables,
   multiquadraticStripScreenSizeEstimate,
   multiquadraticStripScreenAdmissionRefusal,
+  multiquadraticStripSampleSizeEstimate,
+  multiquadraticStripSampleAdmissionRefusal,
   multiquadraticStripScreenCompileCached,
   multiquadraticStripScreenCompileCacheClear,
   $multiquadraticStripScreenCompileCache,
@@ -198,6 +200,7 @@ ClearAll[
   $multiquadraticStripScreenCompileStatistics,
   $multiquadraticStripScreenMaximumUnknowns,
   $multiquadraticStripScreenMaximumBytes,
+  $multiquadraticStripSampleMaximumBytes,
   multiquadraticStripIntegrabilityScreen,
   multiquadraticStripIntegrabilityScreenImages,
   multiquadraticStripScreenEvidenceClassify,
@@ -287,6 +290,9 @@ ClearAll[
   multiquadraticStripPlannedProviderChannels,
   multiquadraticStripDirectProvider, multiquadraticStripProviderChannels,
   multiquadraticStripBundleGaugeDenominator,
+  multiquadraticStripBundleExactChannelTask,
+  multiquadraticStripBundleExactChannels,
+  multiquadraticStripBundleRefinedGaugeDenominator,
   multiquadraticStripBundleProviderChannels,
   multiquadraticStripConservativeGaugeDenominator,
   multiquadraticStripAssemblePoint, multiquadraticStripNormalizationRows,
@@ -2961,6 +2967,7 @@ multiquadraticStripScreenPowerTables[values_List, maximumExponents_List,
    afford to run. *)
 $multiquadraticStripScreenMaximumUnknowns = 20000;
 $multiquadraticStripScreenMaximumBytes = 4. 10^9;
+$multiquadraticStripSampleMaximumBytes = 4. 10^9;
 
 multiquadraticStripScreenSizeEstimate[rowCount_, columnCount_,
     candidateColumnCount_ : 0] := Module[{total = columnCount + candidateColumnCount},
@@ -2982,6 +2989,36 @@ multiquadraticStripScreenAdmissionRefusal[estimate_Association,
       "Reason" -> "ByteCeilingExceeded", "SizeEstimate" -> estimate,
       "MaximumUnknowns" -> maximumUnknowns, "MaximumBytes" -> maximumBytes|>,
   True, None];
+
+(* The production sampler used to discover this limit only after allocation.
+   It retains per-point rows and then joins them into the final packed matrix,
+   so two dense copies are a hard lower bound on peak memory.  Refuse before
+   compiling a provider plan or drawing one point; a smaller support or a
+   fibre solver may proceed, but the current dense algorithm may not consume
+   the machine merely to demonstrate that it is too large. *)
+multiquadraticStripSampleSizeEstimate[pointCount_Integer,
+    equationsPerPoint_Integer, normalizationCount_Integer,
+    unknownCount_Integer] := Module[{rows},
+  rows = pointCount equationsPerPoint + normalizationCount;
+  <|"Points" -> pointCount, "Rows" -> rows, "Columns" -> unknownCount,
+    "PackedMatrixBytes" -> 8 rows unknownCount,
+    "PeakPackedBytesLowerBound" -> 16 rows unknownCount|>
+];
+multiquadraticStripSampleSizeEstimate[___] := $Failed;
+
+multiquadraticStripSampleAdmissionRefusal[estimate_Association,
+    maximumBytes_] := If[
+  NumericQ[maximumBytes] &&
+      estimate["PeakPackedBytesLowerBound"] > maximumBytes,
+  multiquadraticStripFailure["SampleMatrixResourceLimit", <|
+    "Reason" -> "DenseMatrixByteCeilingExceeded",
+    "SizeEstimate" -> estimate,
+    "MaximumMatrixBytes" -> maximumBytes,
+    "Resumable" -> True|>],
+  None
+];
+multiquadraticStripSampleAdmissionRefusal[___] :=
+  multiquadraticStripFailure["InvalidSampleMatrixAdmission"];
 
 (* Compiled scalar forms are reused across the images of a confirmation
    pair and across the rungs of the degree-offset ladder (Codex 04:30 P1,
@@ -5227,7 +5264,10 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
    gradeCount, gaugeUnknownCount, residueUnknownCount, unknownCount,
    equationsPerPoint, normalizations, payload, fingerprint,
    coreEnabled, coreCanonical, coreDimensions, coreKey, coreConsumed = False,
-   coefficientProvider, deferredBundle, bundleGauge,
+   coefficientProvider, deferredBundle, bundleGauge, refinedBundleGauge,
+   provisionalDegrees, provisionalSupportCount, provisionalUnknownCount,
+   provisionalEquationsPerPoint, provisionalPointCount,
+   provisionalSampleEstimate,
    checkpointDirectory, checkpointMode, checkpointTag, checkpointRecords = {},
    checkpointRead, checkpointWrite, checkpointInputFingerprint,
    forcingCheckpointFingerprint, checkpointChannels,
@@ -5661,7 +5701,10 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
      multiquadraticStripFingerprint[OptionValue["GaugeDenominatorFactor"] /.
        multiquadraticStripCanonicalRules[variables, epsilon]],
      multiquadraticStripFingerprint[OptionValue["GaugeDenominator"] /.
-       multiquadraticStripCanonicalRules[variables, epsilon]]}];
+       multiquadraticStripCanonicalRules[variables, epsilon]],
+     coefficientProvider,
+     If[AssociationQ[deferredBundle],
+       Lookup[deferredBundle, "BundleFingerprint", None], None]}];
   checkpointDenominator = checkpointRead["GaugeDenominator",
     denominatorCheckpointFingerprint];
   If[MatchQ[checkpointDenominator, {_, _}],
@@ -5683,6 +5726,63 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
             If[MatchQ[letterRecords, {___Association}], letterRecords, {}]];
           If[Lookup[bundleGauge, "Status", None] =!=
               "BundleGaugeDenominatorV1", Return[bundleGauge, Module]];
+          (* Refine only when the pre-cancellation rectangle would exceed
+             the sampler's hard memory ceiling.  Small/easy blocks retain
+             the cheap divisor-summary path exactly. *)
+          If[OptionValue["Support"] === Automatic &&
+              MatchQ[coreDimensions, {_Integer, _Integer}] &&
+              MatchQ[OptionValue["DegreeOffset"],
+                {_Integer?NonNegative, _Integer?NonNegative}],
+            provisionalDegrees =
+              (Exponent[bundleGauge["GaugeDenominator"], #1] & /@ variables) +
+                OptionValue["DegreeOffset"];
+            provisionalSupportCount = Times @@ (provisionalDegrees + 1);
+            provisionalUnknownCount = (Times @@ coreDimensions) *
+                2^Length[roots] * provisionalSupportCount +
+              Length[oneForms] * (Times @@ coreDimensions);
+            provisionalEquationsPerPoint = 2 * (Times @@ coreDimensions) *
+              2^Length[roots];
+            provisionalPointCount = Max[4, Ceiling[
+              (provisionalUnknownCount + provisionalEquationsPerPoint)/
+                provisionalEquationsPerPoint]];
+            provisionalSampleEstimate = multiquadraticStripSampleSizeEstimate[
+              provisionalPointCount, provisionalEquationsPerPoint, 0,
+              provisionalUnknownCount];
+            If[AssociationQ[provisionalSampleEstimate] &&
+                provisionalSampleEstimate["PeakPackedBytesLowerBound"] >
+                  $multiquadraticStripSampleMaximumBytes,
+              multiquadraticStripStageStart[
+                "prepare: exact bundle denominator refinement",
+                <|"preCancellationUnknowns" -> provisionalUnknownCount,
+                  "preCancellationPeakBytes" ->
+                    provisionalSampleEstimate[
+                      "PeakPackedBytesLowerBound"],
+                  "entries" -> Times @@ coreDimensions,
+                  "rank" -> Length[roots]|>];
+              refinedBundleGauge =
+                multiquadraticStripBundleRefinedGaugeDenominator[
+                  deferredBundle, roots, variables, epsilon,
+                  If[MatchQ[letterRecords, {___Association}],
+                    letterRecords, {}]];
+              multiquadraticStripStageDone[
+                "prepare: exact bundle denominator refinement",
+                <|"status" -> Lookup[refinedBundleGauge, "Status", None],
+                  "seconds" -> Lookup[refinedBundleGauge, "Seconds",
+                    Missing["NotMeasured"]],
+                  "helpers" -> Lookup[refinedBundleGauge,
+                    "BrokerHelperCount", 0]|>];
+              If[Lookup[refinedBundleGauge, "Status", None] =!=
+                  "BundleRefinedGaugeDenominatorV1",
+                Return[refinedBundleGauge, Module]];
+              bundleGauge = Join[bundleGauge, <|
+                "PreCancellationGaugeDenominator" ->
+                  bundleGauge["GaugeDenominator"],
+                "GaugeDenominator" ->
+                  refinedBundleGauge["GaugeDenominator"],
+                "ExactCancellationRefinement" ->
+                  KeyDrop[refinedBundleGauge, "GaugeDenominator"],
+                "PreCancellationSampleEstimate" ->
+                  provisionalSampleEstimate|>]]];
           bundleGauge["GaugeDenominator"],
           multiquadraticStripConservativeGaugeDenominator[strip, roots,
             letterRecords, variables]]]]];
@@ -7907,7 +8007,8 @@ Options[multiquadraticStripAssembleSample] = {
   "RandomSeed" -> 2026082307,
   "CandidatePoints" -> Automatic,
   "SplitPointsOnly" -> False,
-  "SplitSparseEvaluationPlan" -> Automatic
+  "SplitSparseEvaluationPlan" -> Automatic,
+  "MaximumMatrixBytes" -> Automatic
 };
 
 multiquadraticStripAssembleSample[assembly_Association, epsilonValue_,
@@ -7916,7 +8017,8 @@ multiquadraticStripAssembleSample[assembly_Association, epsilonValue_,
    randomSeed, candidatePoints, accepted = {}, rejected = {},
    acceptedPointKeys = <||>, pointKey, attempts = 0, candidateIndex = 0, point,
    pointResult, pointRows, pointRight, normalization, matrix, right,
-   pointRanges, equationCount, splitOnly},
+   pointRanges, equationCount, splitOnly, maximumMatrixBytes,
+   matrixEstimate, matrixAdmission},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripAssembleSample]]]];
   If[AssociationQ[gate], Return[gate]];
@@ -7942,11 +8044,20 @@ multiquadraticStripAssembleSample[assembly_Association, epsilonValue_,
   randomSeed = OptionValue["RandomSeed"];
   candidatePoints = OptionValue["CandidatePoints"];
   splitOnly = TrueQ[OptionValue["SplitPointsOnly"]];
+  maximumMatrixBytes = Replace[OptionValue["MaximumMatrixBytes"],
+    Automatic :> $multiquadraticStripSampleMaximumBytes];
   If[! IntegerQ[pointCount] || pointCount < 1 || ! IntegerQ[maximumAttempts] ||
       maximumAttempts < pointCount || ! IntegerQ[randomSeed] ||
+      ! (NumericQ[maximumMatrixBytes] && maximumMatrixBytes > 0) ||
       ! (candidatePoints === Automatic ||
         MatchQ[candidatePoints, {{_Integer, _Integer} ..}]),
     Return[multiquadraticStripFailure["InvalidSampleAssemblyOptions"]]];
+  matrixEstimate = multiquadraticStripSampleSizeEstimate[pointCount,
+    assembly["EquationsPerPoint"], Length[assembly["Normalizations"]],
+    assembly["UnknownCount"]];
+  matrixAdmission = multiquadraticStripSampleAdmissionRefusal[
+    matrixEstimate, maximumMatrixBytes];
+  If[AssociationQ[matrixAdmission], Return[matrixAdmission]];
   BlockRandom[
     SeedRandom[randomSeed, Method -> "MersenneTwister"];
     While[Length[accepted] < pointCount && attempts < maximumAttempts,
@@ -8050,7 +8161,8 @@ multiquadraticStripAssembleSample[layout_Association,
    nativePreflightBatchSeconds = 0.,
    nativePreflightCompileSeconds = 0.,
    nativePreflightEvaluationSeconds = 0.,
-   nativePreflightDecodeSeconds = 0.},
+   nativePreflightDecodeSeconds = 0., maximumMatrixBytes,
+   matrixEstimate, matrixAdmission},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripAssembleSample]]]];
   If[AssociationQ[gate], Return[gate]];
@@ -8077,12 +8189,21 @@ multiquadraticStripAssembleSample[layout_Association,
   candidatePoints = OptionValue["CandidatePoints"];
   splitOnly = TrueQ[OptionValue["SplitPointsOnly"]];
   requestedSplitPlan = OptionValue["SplitSparseEvaluationPlan"];
+  maximumMatrixBytes = Replace[OptionValue["MaximumMatrixBytes"],
+    Automatic :> $multiquadraticStripSampleMaximumBytes];
   If[! IntegerQ[pointCount] || pointCount < 1 ||
       ! IntegerQ[maximumAttempts] || maximumAttempts < pointCount ||
       ! IntegerQ[randomSeed] ||
+      ! (NumericQ[maximumMatrixBytes] && maximumMatrixBytes > 0) ||
       ! (candidatePoints === Automatic ||
         MatchQ[candidatePoints, {{_Integer, _Integer} ..}]),
     Return[multiquadraticStripFailure["InvalidSampleAssemblyOptions"]]];
+  matrixEstimate = multiquadraticStripSampleSizeEstimate[pointCount,
+    layout["EquationsPerPoint"], Length[layout["Normalizations"]],
+    layout["UnknownCount"]];
+  matrixAdmission = multiquadraticStripSampleAdmissionRefusal[
+    matrixEstimate, maximumMatrixBytes];
+  If[AssociationQ[matrixAdmission], Return[matrixAdmission]];
   If[provider["Kind"] === "SplitBranch",
     Which[
       requestedSplitPlan === Automatic,
@@ -12915,6 +13036,154 @@ multiquadraticStripBundleGaugeDenominator[bundle_Association,
 ];
 multiquadraticStripBundleGaugeDenominator[___] :=
   multiquadraticStripFailure["InvalidBundleGaugeDenominatorArguments"];
+
+(* The bundle divisor census is deliberately pre-cancellation.  That is a
+   cheap and safe default, but a large overestimate makes the dense affine
+   system grow quadratically in memory.  When the estimated sampler would
+   cross its hard byte ceiling, materialize only the small target block and
+   decompose its scalar entries exactly.  This is denominator computation,
+   not a second acceptance test: the existing block-level modular identity
+   remains the production acceptance boundary. *)
+multiquadraticStripBundleExactChannelTask[payload_Association,
+    indices_List] := Module[{entries, roots, channels},
+  If[! AssociationQ[payload], Return[$Failed]];
+  entries = Lookup[payload, "Entries", $Failed];
+  roots = Lookup[payload, "Roots", $Failed];
+  If[! ListQ[entries] || ! ListQ[roots] ||
+      ! VectorQ[indices, IntegerQ] ||
+      ! AllTrue[indices, Between[#1, {1, Length[entries]}] &],
+    Return[$Failed]];
+  channels = multiquadraticStripDecomposeScalar[#1, roots] & /@
+    entries[[indices]];
+  If[! AllTrue[channels,
+      ListQ[#1] && Length[#1] === 2^Length[roots] &&
+        FreeQ[#1, $Failed] &], $Failed,
+    <|"Indices" -> indices, "Channels" -> channels|>]
+];
+multiquadraticStripBundleExactChannelTask[dataFile_String,
+    indices_List] := Module[{payload = taskBrokerRead[dataFile]},
+  If[AssociationQ[payload],
+    multiquadraticStripBundleExactChannelTask[payload, indices], $Failed]
+];
+multiquadraticStripBundleExactChannelTask[___] := $Failed;
+
+multiquadraticStripBundleExactChannels[forcing_, roots_List,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol,
+    bundleFingerprint_String] := Module[
+  {startTime = AbsoluteTime[], dimensions = Dimensions[forcing], entries,
+   gradeCount = 2^Length[roots], rules, inverseRules, payload, dataFile,
+   free = 0, workerCount, groups, helperGroups, localGroup, codes, handle,
+   helperResults, localResult, results, channelVectors, result, indices,
+   channels, missing},
+  If[! MatchQ[dimensions, {2, _Integer, _Integer}],
+    Return[multiquadraticStripFailure[
+      "InvalidBundleExactChannelForcing"]]];
+  entries = Flatten[forcing];
+  rules = multiquadraticStripCanonicalRules[variables, epsilon];
+  inverseRules = Reverse /@ rules;
+  payload = <|"Entries" -> (entries /. rules), "Roots" -> (roots /. rules)|>;
+  If[! multiquadraticStripContextFreeQ[payload],
+    Return[multiquadraticStripFailure[
+      "ContextSensitiveBundleExactChannels"]]];
+  If[TrueQ[Quiet[Check[taskBrokerActiveQ[], False]]],
+    free = Quiet[Check[taskBrokerFreeKernels[], 0]]];
+  If[! IntegerQ[free] || free < 0, free = 0];
+  workerCount = Min[Length[entries], free + 1];
+  groups = Partition[Range[Length[entries]],
+    UpTo[Ceiling[Length[entries]/workerCount]]];
+  helperGroups = Most[groups];
+  localGroup = Last[groups];
+  dataFile = If[helperGroups === {}, None,
+    taskBrokerDataFile["mqbundlechannels_" <>
+      Hash[{"BundleExactChannelsV1", $multiquadraticStripSourceSHA256,
+        bundleFingerprint, Lookup[roots, "RootSquare", {}] /. rules},
+        "SHA256", "HexString"], payload]];
+  If[helperGroups =!= {} && StringQ[dataFile],
+    codes = Table[
+      "FeynFacet`Private`multiquadraticStripBundleExactChannelTask[" <>
+        ToString[dataFile, InputForm] <> "," <>
+        ToString[group, InputForm] <> "]", {group, helperGroups}];
+    handle = taskBrokerSubmit[codes, "Label" -> "mqbundlechannels",
+      "Timeout" -> 7200],
+    helperGroups = {};
+    localGroup = Range[Length[entries]];
+    handle = None];
+  localResult = multiquadraticStripBundleExactChannelTask[payload, localGroup];
+  helperResults = If[AssociationQ[handle], taskBrokerCollect[handle], {}];
+  results = Join[helperResults, {localResult}];
+  channelVectors = ConstantArray[Missing["NotComputed"], Length[entries]];
+  Do[
+    result = results[[k]];
+    If[AssociationQ[result],
+      indices = Lookup[result, "Indices", {}];
+      channels = Lookup[result, "Channels", {}];
+      If[VectorQ[indices, IntegerQ] && Length[indices] === Length[channels] &&
+          AllTrue[indices, Between[#1, {1, Length[entries]}] &],
+        MapThread[(channelVectors[[#1]] = #2) &, {indices, channels}]]],
+    {k, Length[results]}];
+  missing = Flatten[Position[channelVectors, _Missing, {1}, Heads -> False]];
+  If[missing =!= {},
+    result = multiquadraticStripBundleExactChannelTask[payload, missing];
+    If[! AssociationQ[result],
+      Return[multiquadraticStripFailure[
+        "BundleExactChannelDecompositionFailed",
+        <|"MissingEntryIndices" -> missing|>]]];
+    MapThread[(channelVectors[[#1]] = #2) &,
+      {result["Indices"], result["Channels"]}]];
+  If[! AllTrue[channelVectors,
+      ListQ[#1] && Length[#1] === gradeCount && FreeQ[#1, $Failed] &],
+    Return[multiquadraticStripFailure[
+      "BundleExactChannelDecompositionFailed"]]];
+  <|"Status" -> "BundleExactForcingChannelsV1",
+    "Channels" -> (ArrayReshape[Flatten[channelVectors],
+       Append[dimensions, gradeCount]] /. inverseRules),
+    "EntryCount" -> Length[entries],
+    "BrokerHelperCount" -> Length[helperGroups],
+    "Seconds" -> N[AbsoluteTime[] - startTime]|>
+];
+multiquadraticStripBundleExactChannels[___] :=
+  multiquadraticStripFailure["InvalidBundleExactChannelArguments"];
+
+multiquadraticStripBundleRefinedGaugeDenominator[bundle_Association,
+    roots_List, variables : {_Symbol, _Symbol}, epsilon_Symbol,
+    letterRecords_: {}] := Module[
+  {startTime = AbsoluteTime[], evaluated, exactChannels, forcingFactor,
+   letterFactor, denominator},
+  (* The caller has already authenticated the bundle while constructing the
+     conservative denominator.  Repeating that scan here adds no mathematics. *)
+  evaluated = blockEquationDeferredBundleEvaluate[bundle, {},
+    "Validate" -> False, "ExpressionTransform" -> Identity];
+  If[Lookup[evaluated, "Status", None] =!= "OK",
+    Return[multiquadraticStripFailure[
+      "BundleExactMaterializationFailed"]]];
+  exactChannels = multiquadraticStripBundleExactChannels[
+    evaluated["Image"], roots, variables, epsilon,
+    Lookup[bundle, "BundleFingerprint", "UnfingerprintedBundle"]];
+  If[Lookup[exactChannels, "Status", None] =!=
+      "BundleExactForcingChannelsV1", Return[exactChannels]];
+  forcingFactor = multiquadraticRationalGaugeDenominator[
+    exactChannels["Channels"], variables];
+  letterFactor = If[MatchQ[letterRecords, {___Association}],
+    multiquadraticStripNormDenominatorFactor[letterRecords, variables], 1];
+  denominator = multiquadraticStripMergeGaugeDenominator[
+    forcingFactor, letterFactor, variables];
+  If[denominator === $Failed || TrueQ[Quiet[Together[denominator]] === 0] ||
+      ! FreeQ[denominator,
+        Power[_, exponent_Rational /; Denominator[exponent] === 2]],
+    Return[multiquadraticStripFailure[
+      "BundleRefinedGaugeDenominatorNotRational"]]];
+  <|"Status" -> "BundleRefinedGaugeDenominatorV1",
+    "GaugeDenominator" -> denominator,
+    "ForcingFactor" -> forcingFactor, "LetterFactor" -> letterFactor,
+    "EntryCount" -> exactChannels["EntryCount"],
+    "BrokerHelperCount" -> exactChannels["BrokerHelperCount"],
+    "ChannelSeconds" -> exactChannels["Seconds"],
+    "Seconds" -> N[AbsoluteTime[] - startTime],
+    "BundleFingerprint" -> Lookup[bundle, "BundleFingerprint", None]|>
+];
+multiquadraticStripBundleRefinedGaugeDenominator[___] :=
+  multiquadraticStripFailure[
+    "InvalidBundleRefinedGaugeDenominatorArguments"];
 
 
 (* ------------------------------------------------------------------ *)
