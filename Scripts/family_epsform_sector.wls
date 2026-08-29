@@ -456,7 +456,8 @@ If[chartNotRegisteredQ,
    only on the fresh-assembly path; it is cached in the state so
    resumed runs keep it. *)
 freshDiagonal = Module[{forms = Lookup[assembly, "Forms", Missing[]],
-    inverses = Lookup[assembly, "TInverse", Missing[]], dim, td, tdi},
+    inverses = Lookup[assembly, "TInverse", Missing[]], dim, td, tdi,
+    alphabets},
   dim = Length[A0[[1]]];
   If[! ListQ[forms] || ! ListQ[inverses] ||
       Length[forms] =!= Length[ranges] ||
@@ -476,7 +477,9 @@ freshDiagonal = Module[{forms = Lookup[assembly, "Forms", Missing[]],
       td[[ranges[[i]], ranges[[i]]]] = forms[[i]]["T"] /. toXY;
       tdi[[ranges[[i]], ranges[[i]]]] = inverses[[i]] /. toXY,
       {i, Length[ranges]}];
-    {td, tdi}]
+    alphabets = DeleteDuplicates[Flatten[
+      Lookup[forms, "Alphabet", {}]]];
+    {td, tdi, alphabets}]
 ];
 If[AssociationQ[cachedState] &&
     MissingQ[Lookup[cachedState, "ChartFingerprint", Missing[]]],
@@ -540,8 +543,41 @@ state = If[AssociationQ[cachedState], (log["resuming"]; cachedState),
 If[! KeyExistsQ[state, "TDiagonal"] && ListQ[freshDiagonal],
   state["TDiagonal"] = freshDiagonal[[1]];
   state["TDiagonalInverse"] = freshDiagonal[[2]]];
+If[! KeyExistsQ[state, "DiagonalAlphabets"] &&
+    ListQ[freshDiagonal] && Length[freshDiagonal] >= 3,
+  state["DiagonalAlphabets"] = freshDiagonal[[3]]];
+(* Older checkpoints predate transported class alphabets.  Rebuild only the
+   assembly metadata once; the saved sector gauges and accepted strips are
+   untouched.  The final modular family dlog certificate is the acceptance
+   of these letters. *)
+If[! KeyExistsQ[state, "DiagonalAlphabets"],
+  log["recovering transported diagonal alphabets for the older checkpoint"];
+  Module[{deAlphabet, systemAlphabet, recAlphabet, assemblyAlphabet},
+    deAlphabet = readArtifact[FileNameJoin[{ftData, "DifferentialEquations",
+      "nnlo_de_" <> family <> ".wl"}]];
+    systemAlphabet = <|"Family" -> family,
+      "Basis" -> deAlphabet["BlockBasis"], "Av" -> deAlphabet["Av"],
+      "Aw" -> deAlphabet["Aw"]|>;
+    recAlphabet = FeynFacet`TransportFamilyInChart[systemAlphabet, chart,
+      "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
+      "AssemblyOnly" -> True, "Blocks" -> blocks,
+      "FormDirectory" -> classFormDirectory,
+      "PhysicalValuation" -> 0, "Orders" -> {0, 1},
+      "TransportBackend" -> "Libra", "MaxWeight" -> 0,
+      "Verbose" -> False];
+    assemblyAlphabet = Lookup[recAlphabet, "Assembly", Missing[]];
+    If[AssociationQ[assemblyAlphabet] &&
+        ListQ[Lookup[assemblyAlphabet, "Forms", None]],
+      state["DiagonalAlphabets"] = DeleteDuplicates[Flatten[
+        Lookup[assemblyAlphabet["Forms"], "Alphabet", {}]]];
+      log["recovered ", Length[state["DiagonalAlphabets"]],
+        " transported diagonal letters"],
+      log["!! transported diagonal alphabet recovery failed"];
+      Exit[2]]]
+];
 log["diagonal composition state: fresh ", Head[freshDiagonal],
-  " attached ", KeyExistsQ[state, "TDiagonal"]];
+  " attached ", KeyExistsQ[state, "TDiagonal"], "; alphabet letters ",
+  Length[Lookup[state, "DiagonalAlphabets", {}]]];
 If[! KeyExistsQ[state, "StripSolvers"],
   state["StripSolvers"] = Replace[Lookup[state, "Fallbacks", {}],
     {i_Integer, j_Integer} :> <|"Sector" -> i, "LowerSector" -> j,
@@ -1812,7 +1848,9 @@ denominatorLetters = DeleteDuplicates[monic /@ Select[
   PolynomialQ[#, {c1, c2}] && ! FreeQ[#, c1 | c2] &]];
 stripLetters = DeleteDuplicates[Flatten[
   Lookup[state["StripSolvers"], "Alphabet", {}]]];
-letters = DeleteDuplicates[Join[denominatorLetters, stripLetters]];
+diagonalLetters = Lookup[state, "DiagonalAlphabets", {}];
+letters = DeleteDuplicates[Join[
+  denominatorLetters, diagonalLetters, stripLetters]];
 tdiagChart = Lookup[state, "TDiagonal", Missing[]];
 tdiagChartInverse = Lookup[state, "TDiagonalInverse", Missing[]];
 If[MatrixQ[tdiagChart] && MatrixQ[tdiagChartInverse],

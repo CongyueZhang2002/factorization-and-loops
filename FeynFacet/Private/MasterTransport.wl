@@ -1309,6 +1309,7 @@ masterTransportBlockProvider[specification_, av_, aw_, eps_, variables_,
               "Ew" -> Lookup[specification, "Ew",
                 Together[Inverse[specification["T"]] . aw . specification["T"] -
                   Inverse[specification["T"]] . D[specification["T"], variables[[2]]]]],
+              "Alphabet" -> Lookup[specification, "Alphabet", {}],
               "Source" -> "explicit"|>,
             <|"Status" -> "NoTransformation"|>],
         _, <|"Status" -> "UnknownProviderType"|>],
@@ -2249,7 +2250,7 @@ masterTransportPullBackClassFormOnce[rec_Association, data_Association,
   {coordinates, x, y, t, tx, detTx, tInverse, inverseOK, ax, ay, ex, ey,
    epsLinear, stored, storedPulled, matches, jacobian, images, foreign,
    evaluate, identity, result, repChart, permutation,
-   rationalTransformation},
+   rationalTransformation, recordVariables, recordAlphabet, pulledAlphabet},
   If[! MemberQ[{"Rational", "Multiquadratic"}, coefficientField],
     Return[<|"Status" -> "ClassFormCoefficientFieldInvalid",
       "CoefficientField" -> coefficientField|>]];
@@ -2306,6 +2307,25 @@ masterTransportPullBackClassFormOnce[rec_Association, data_Association,
     storedPulled = masterTransportPullBackOneForm[
       Map[Together, stored[[1]] /. coordinates["Map"], {2}],
       Map[Together, stored[[2]] /. coordinates["Map"], {2}], jacobian]];
+  (* A dlog alphabet pulls back functorially: dlog L becomes
+       dlog (L o chart).
+     Preserve that information while the class chart is still known.
+     Recover it from the rational class form when older records did not
+     store an explicit Alphabet; factoring the already algebraic target
+     form later loses the conjugate letters and made the whole-family
+     multiquadratic dlog certificate fail despite every gauge identity
+     passing (CF300, 2026-08-29). *)
+  recordVariables = Lookup[rec, "Variables", First /@ coordinates["Map"]];
+  recordAlphabet = Lookup[rec, "Alphabet", Missing["NotStored"]];
+  If[! ListQ[recordAlphabet] && MatchQ[stored, {_?MatrixQ, _?MatrixQ}] &&
+      ListQ[recordVariables],
+    recordAlphabet = Quiet[Check[
+      familyCertLetters[stored, recordVariables, eps], {}]]];
+  pulledAlphabet = If[ListQ[recordAlphabet],
+    DeleteDuplicates[DeleteCases[
+      Quiet[Check[Together[#1 /. coordinates["Map"]], $Failed]] & /@
+        Select[recordAlphabet, FreeQ[#1, eps] &], $Failed]],
+    {}];
 
   (* One candidate basis permutation q, put through both exact gates.
      (P T P^T)^-1 = P T^-1 P^T exactly, so the inverse that was just
@@ -2365,6 +2385,7 @@ masterTransportPullBackClassFormOnce[rec_Association, data_Association,
   <|"Status" -> "OK", "Type" -> "EpsForm", "T" -> result["T"],
     "TInverse" -> result["TInverse"],
     "Ev" -> ex, "Ew" -> ey,
+    "Alphabet" -> pulledAlphabet,
     "Source" -> "chart-pullback", "ClassID" -> classID,
     "Frame" -> coordinates["Frame"], "Variables" -> {x, y},
     "Coordinates" -> coordinates, "Swapped" -> swapped,
@@ -2504,7 +2525,8 @@ pulling one back is not a rational operation and is not attempted here"|>],
   <|"Status" -> "OK", "Rows" -> rows, "ClassID" -> classID,
     "Spec" -> <|"Type" -> "EpsForm", "T" -> pulled["T"],
       "TInverse" -> pulled["TInverse"],
-      "Ev" -> pulled["Ev"], "Ew" -> pulled["Ew"]|>,
+      "Ev" -> pulled["Ev"], "Ew" -> pulled["Ew"],
+      "Alphabet" -> Lookup[pulled, "Alphabet", {}]|>,
     "Form" -> pulled, "Certificate" -> pulled["Certificate"]|>
 ];
 
