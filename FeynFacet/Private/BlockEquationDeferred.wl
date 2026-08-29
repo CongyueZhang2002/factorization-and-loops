@@ -1127,7 +1127,7 @@ blockEquationDeferredMaterialize[preparation_Association,
    batchSeconds = 0., dispatchedBatches = 0, planned = 0,
    expressionTransform, baseValue, internStarted,
    internDispatcher, internHelpers = 0, internParallel = False,
-   internRoute = "Serial", internBatchSeconds = 0.,
+   internRoute = "Serial", internBatchSeconds = 0., internWaves = 4,
    canonicalLookup = <||>, canonicalExpressions = {},
    canonicalForOperand = {}, canonicalTable = {}, canonicalResults = {},
    canonicalBytes = {}, canonicalBatches = {}, canonicalDataFile,
@@ -1265,13 +1265,17 @@ blockEquationDeferredMaterialize[preparation_Association,
     Function[index, Quiet[Check[
       blockEquationDeferredCanonicalOperandValue[
         canonicalExpressions[[index]]], $Failed]]], indices];
+  internWaves = If[Total[canonicalBytes] >= 2^26 ||
+      Max[Append[canonicalBytes, 0]] >= 2^23, 16, 4];
   canonicalBatches = If[canonicalExpressions === {}, {},
     (* Fine waves absorb the measured heavy-tail Together/FactorList costs.
        CF259 {27,16} showed 0.1--417 s for equal five-expression batches;
-       sixteen waves keep every worker's static share representative while
-       adding only seconds of broker overhead to a many-minute phase. *)
+       sixteen waves keep every worker's static share representative.  Small
+       payloads retain four waves so easy families do not pay that scheduler
+       granularity. *)
     blockEquationDeferredBatchPlan[canonicalBytes,
-      Min[Length[canonicalExpressions], 16 (internHelpers + 1)], byteCap]];
+      Min[Length[canonicalExpressions], internWaves (internHelpers + 1)],
+      byteCap]];
 
   If[! internParallel || Length[canonicalBatches] <= 1,
     internRoute = "Serial";
@@ -1492,6 +1496,7 @@ blockEquationDeferredMaterialize[preparation_Association,
       "InternRoute" -> internRoute,
       "InternHelpers" -> internHelpers,
       "InternBatches" -> Length[canonicalBatches],
+      "InternWaves" -> internWaves,
       "InternDispatchedBatches" -> canonicalDispatchedBatches,
       "InternBatchSeconds" -> internBatchSeconds,
       "ExpandSeconds" -> expandSeconds,
