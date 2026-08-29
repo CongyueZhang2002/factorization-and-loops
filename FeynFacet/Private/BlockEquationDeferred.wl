@@ -662,7 +662,8 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
           #1 =!= 0 && JacobiSymbol[#1, prime] === 1 &],
         Return[<|"Status" -> "ActiveGradeCensusInconclusive",
           "Reason" -> "NumericRadicalNotSplit"|>]];
-      numericRootValues = multiquadraticSquareRoots[numericValues, prime];
+      numericRootValues = If[numericValues === {}, {},
+        multiquadraticSquareRoots[numericValues, prime]];
       If[! VectorQ[numericRootValues, IntegerQ],
         Return[<|"Status" -> "ActiveGradeCensusInconclusive",
           "Reason" -> "NumericSquareRootFailed"|>]];
