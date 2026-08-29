@@ -134,6 +134,7 @@ ClearAll[
   blockEquationDeferredProgressRecord,
   blockEquationDeferredProgressIntervalDefault,
   blockEquationDeferredParallelRouteQ,
+  blockEquationDeferredParallelWorthwhileQ,
   blockEquationDeferredAssembleJob,
   blockEquationDeferredBatchPlan,
   blockEquationDeferredMaterializeTask,
@@ -860,6 +861,17 @@ blockEquationDeferredParallelRouteQ[] := Module[
   ! (StringQ[value] && StringMatchQ[value, "Off" | "False" | "0",
       IgnoreCase -> True])];
 
+(* Target count alone is a poor proxy for assembly cost: an algebraic chart
+   has only four matrix-component targets, but each can carry hundreds of
+   kilobytes of interned operands and take minutes to expand.  Farm a small
+   batch when its immutable payload is substantial, while keeping genuinely
+   small rational work below one broker round trip. *)
+blockEquationDeferredParallelWorthwhileQ[cancelQ_, algebraicQ_,
+    total_Integer, jobBytes_List] :=
+  total >= 2 && (
+    TrueQ[cancelQ] || TrueQ[algebraicQ] || total >= 64 ||
+    Total[jobBytes] >= 2^20 || Max[Append[jobBytes, 0]] >= 2^18);
+
 (* ONE TARGET, ON IMMUTABLE DATA.  `operands` is the interned operand
    table -- entry id -> {numerator, factor -> exponent} -- and `job` is
    one target's terms as {coefficient, {operand id, ...}}.  Nothing here
@@ -1206,11 +1218,8 @@ blockEquationDeferredMaterialize[preparation_Association,
     Which[
       requestedParallel === Automatic,
         helpers >= 1 && blockEquationDeferredParallelRouteQ[] &&
-          (* With neither cancellation nor algebraic canonicalization,
-             small rational batches finish below one broker round trip.
-             Keep them local; large target sets still farm automatically. *)
-          ! (! cancelQ &&
-            ! TrueQ[OptionValue["AlgebraicCanonicalize"]] && total < 64),
+          blockEquationDeferredParallelWorthwhileQ[cancelQ,
+            TrueQ[OptionValue["AlgebraicCanonicalize"]], total, jobBytes],
       TrueQ[requestedParallel], helpers >= 1,
       True, False]];
   route = If[parallel, "Parallel", "Serial"];
@@ -1254,9 +1263,7 @@ blockEquationDeferredMaterialize[preparation_Association,
     timing = AbsoluteTiming[
       If[dispatcher === Automatic,
         dataFile = taskBrokerDataFile[
-          "bedmat_" <> Hash[{operandTable, jobs, cancelQ, symbols,
-              TrueQ[OptionValue["AlgebraicCanonicalize"]]},
-            "SHA256", "HexString"],
+          "bedmat_call_" <> StringReplace[CreateUUID[], "-" -> ""],
           <|"Operands" -> operandTable, "Jobs" -> jobs,
             "Cancel" -> cancelQ, "PolynomialSymbols" -> symbols,
             "AlgebraicCanonicalize" ->

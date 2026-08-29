@@ -477,6 +477,15 @@ assembleJob = FeynFacet`Private`blockEquationDeferredAssembleJob;
 batchPlan = FeynFacet`Private`blockEquationDeferredBatchPlan;
 progressDefault = FeynFacet`Private`blockEquationDeferredProgressIntervalDefault;
 parallelRouteQ = FeynFacet`Private`blockEquationDeferredParallelRouteQ;
+parallelWorthwhileQ =
+  FeynFacet`Private`blockEquationDeferredParallelWorthwhileQ;
+
+FTAssert["(i) tiny four-target rational batches stay below a broker trip",
+  ! parallelWorthwhileQ[False, False, 4, ConstantArray[1000, 4]]];
+FTAssert["(i) large four-target rational batches use available helpers",
+  parallelWorthwhileQ[False, False, 4, ConstantArray[2^19, 4]]];
+FTAssert["(i) one target cannot benefit from helper dispatch",
+  ! parallelWorthwhileQ[False, False, 1, {2^22}]];
 
 (* The materializer prints its telemetry; capture $Output rather than
    redefining the protected Print.  Two environment defences, both
