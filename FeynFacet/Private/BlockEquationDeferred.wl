@@ -1266,10 +1266,12 @@ blockEquationDeferredMaterialize[preparation_Association,
       blockEquationDeferredCanonicalOperandValue[
         canonicalExpressions[[index]]], $Failed]]], indices];
   canonicalBatches = If[canonicalExpressions === {}, {},
-    (* Four waves absorb uneven Together/FactorList costs without making the
-       byte estimate part of correctness. *)
+    (* Fine waves absorb the measured heavy-tail Together/FactorList costs.
+       CF259 {27,16} showed 0.1--417 s for equal five-expression batches;
+       sixteen waves keep every worker's static share representative while
+       adding only seconds of broker overhead to a many-minute phase. *)
     blockEquationDeferredBatchPlan[canonicalBytes,
-      Min[Length[canonicalExpressions], 4 (internHelpers + 1)], byteCap]];
+      Min[Length[canonicalExpressions], 16 (internHelpers + 1)], byteCap]];
 
   If[! internParallel || Length[canonicalBatches] <= 1,
     internRoute = "Serial";
