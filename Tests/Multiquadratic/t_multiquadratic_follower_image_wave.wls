@@ -154,14 +154,26 @@ serialResolution = Internal`InheritedBlock[
   kernelCount[Automatic, 8]];
 parallelResolution = Internal`InheritedBlock[
   {FeynFacet`Private`taskBrokerActiveQ,
-   FeynFacet`Private`taskBrokerFreeKernels},
+   FeynFacet`Private`taskBrokerFreeKernels,
+   FeynFacet`Private`taskBrokerActiveFamilyCount,
+   FeynFacet`Private`taskBrokerNativeCoreQuota,
+   FeynFacet`Private`taskBrokerNativeThreadLimit},
   Unprotect[FeynFacet`Private`taskBrokerActiveQ,
-    FeynFacet`Private`taskBrokerFreeKernels];
+    FeynFacet`Private`taskBrokerFreeKernels,
+    FeynFacet`Private`taskBrokerActiveFamilyCount,
+    FeynFacet`Private`taskBrokerNativeCoreQuota,
+    FeynFacet`Private`taskBrokerNativeThreadLimit];
   Clear[FeynFacet`Private`taskBrokerActiveQ,
-    FeynFacet`Private`taskBrokerFreeKernels];
+    FeynFacet`Private`taskBrokerFreeKernels,
+    FeynFacet`Private`taskBrokerActiveFamilyCount,
+    FeynFacet`Private`taskBrokerNativeCoreQuota,
+    FeynFacet`Private`taskBrokerNativeThreadLimit];
   FeynFacet`Private`taskBrokerActiveQ[] := True;
   FeynFacet`Private`taskBrokerFreeKernels[] := 1;
-  Block[{$ProcessorCount = 16}, kernelCount[2, 8]]];
+  FeynFacet`Private`taskBrokerActiveFamilyCount[] := 1;
+  FeynFacet`Private`taskBrokerNativeCoreQuota[] := 8;
+  FeynFacet`Private`taskBrokerNativeThreadLimit[value_] := value;
+  kernelCount[2, 8]];
 multiFamilyResolution = Internal`InheritedBlock[
   {FeynFacet`Private`taskBrokerActiveQ,
    FeynFacet`Private`taskBrokerFreeKernels,
@@ -181,15 +193,51 @@ multiFamilyResolution = Internal`InheritedBlock[
   kernelCount[Automatic, 1]];
 wideResolution = Internal`InheritedBlock[
   {FeynFacet`Private`taskBrokerActiveQ,
-   FeynFacet`Private`taskBrokerFreeKernels},
+   FeynFacet`Private`taskBrokerFreeKernels,
+   FeynFacet`Private`taskBrokerActiveFamilyCount,
+   FeynFacet`Private`taskBrokerNativeCoreQuota,
+   FeynFacet`Private`taskBrokerNativeThreadLimit},
   Unprotect[FeynFacet`Private`taskBrokerActiveQ,
-    FeynFacet`Private`taskBrokerFreeKernels];
+    FeynFacet`Private`taskBrokerFreeKernels,
+    FeynFacet`Private`taskBrokerActiveFamilyCount,
+    FeynFacet`Private`taskBrokerNativeCoreQuota,
+    FeynFacet`Private`taskBrokerNativeThreadLimit];
   Clear[FeynFacet`Private`taskBrokerActiveQ,
-    FeynFacet`Private`taskBrokerFreeKernels];
+    FeynFacet`Private`taskBrokerFreeKernels,
+    FeynFacet`Private`taskBrokerActiveFamilyCount,
+    FeynFacet`Private`taskBrokerNativeCoreQuota,
+    FeynFacet`Private`taskBrokerNativeThreadLimit];
   FeynFacet`Private`taskBrokerActiveQ[] := True;
   FeynFacet`Private`taskBrokerFreeKernels[] := 7;
-  Block[{$ProcessorCount = 16},
-    {kernelCount[Automatic, 1], kernelCount[Automatic, 4]}]];
+  FeynFacet`Private`taskBrokerActiveFamilyCount[] := 1;
+  FeynFacet`Private`taskBrokerNativeCoreQuota[] := 8;
+  FeynFacet`Private`taskBrokerNativeThreadLimit[value_] := value;
+  {kernelCount[Automatic, 8], kernelCount[Automatic, 4],
+    kernelCount[2, 8]}];
+limitedResolution = Internal`InheritedBlock[
+  {FeynFacet`Private`taskBrokerActiveQ,
+   FeynFacet`Private`taskBrokerFreeKernels,
+   FeynFacet`Private`taskBrokerActiveFamilyCount,
+   FeynFacet`Private`taskBrokerNativeCoreQuota,
+   FeynFacet`Private`taskBrokerNativeThreadLimit},
+  Unprotect[FeynFacet`Private`taskBrokerActiveQ,
+    FeynFacet`Private`taskBrokerFreeKernels,
+    FeynFacet`Private`taskBrokerActiveFamilyCount,
+    FeynFacet`Private`taskBrokerNativeCoreQuota,
+    FeynFacet`Private`taskBrokerNativeThreadLimit];
+  Clear[FeynFacet`Private`taskBrokerActiveQ,
+    FeynFacet`Private`taskBrokerFreeKernels,
+    FeynFacet`Private`taskBrokerActiveFamilyCount,
+    FeynFacet`Private`taskBrokerNativeCoreQuota,
+    FeynFacet`Private`taskBrokerNativeThreadLimit];
+  FeynFacet`Private`taskBrokerActiveQ[] := True;
+  FeynFacet`Private`taskBrokerFreeKernels[] := 7;
+  FeynFacet`Private`taskBrokerActiveFamilyCount[] := 1;
+  FeynFacet`Private`taskBrokerNativeThreadLimit[value_] := value;
+  Module[{quota = 4},
+    FeynFacet`Private`taskBrokerNativeCoreQuota[] := quota;
+    {kernelCount[Automatic, 8],
+      quota = 1; kernelCount[Automatic, 8]}]];
 FTTest`FTAssert["Automatic is serial without a broker helper",
   serialResolution === 1 &&
     Internal`InheritedBlock[{FeynFacet`Private`taskBrokerActiveQ,
@@ -203,10 +251,12 @@ FTTest`FTAssert["Automatic is serial without a broker helper",
       Block[{$ProcessorCount = 16}, kernelCount[Automatic, 8]]] === 1];
 FTTest`FTAssert["multi-family operation suppresses nested image waves",
   multiFamilyResolution === 1];
-FTTest`FTAssert["an explicit sixteen-core allowance admits exactly two eight-thread images",
+FTTest`FTAssert["an explicit request remains an upper bound on image concurrency",
   parallelResolution === 2 && kernelCount[1, 8] === 1];
-FTTest`FTAssert["Automatic tail scaling stops at the measured two-image width",
-  wideResolution === {2, 2}];
+FTTest`FTAssert["Automatic uses four two-core follower-image lanes for one family",
+  wideResolution === {4, 4, 2}];
+FTTest`FTAssert["Automatic follower-image lanes respect smaller native grants",
+  limitedResolution === {2, 1}];
 
 (* Normal suite runs have no broker and therefore prove the serial fallback.
    When this file is submitted as a KernelPool mission, the same fixture also

@@ -344,6 +344,9 @@ ClearAll[
   $multiquadraticStripSourceFile, $multiquadraticStripSourceSHA256,
   $multiquadraticStripPrimeCache, $multiquadraticStripEpsilonCache,
   $multiquadraticStripDefaultPrimes, $multiquadraticStripPrimePool,
+  $multiquadraticStripWideDefaultPrimes,
+  $multiquadraticStripWidePrimePool,
+  multiquadraticStripWidePrimeScheduleQ,
   $multiquadraticStripValidationPrimePool,
   $multiquadraticStripDefaultRegulatorValues,
   $multiquadraticFieldRootFreeFastPathCount, $multiquadraticFieldAlgebraicPathCount,
@@ -490,8 +493,14 @@ $multiquadraticStripSourceSHA256 = If[$multiquadraticStripSourceFile =!= "" &&
   Missing["SourceFileUnavailable"]];
 
 (* Sampling defaults: primes are 3 mod 4 so that every split point has
-   an explicit square root (the sign-branch certificate needs one), and
-   below 2^31 so that products stay machine integers. *)
+   an explicit square root (the sign-branch certificate needs one).
+
+   CompiledChannel retains the historical 31-bit pool because its packed
+   Wolfram compatibility sampler multiplies machine integers.  SplitBranch
+   evaluates sparse leaves and assembles rows in FLINT nmod arithmetic, whose
+   binary protocols use unsigned 64-bit words; it therefore uses the 61-bit
+   pool below.  The independent validation pool deliberately remains 31-bit
+   and disjoint from both reconstruction schedules. *)
 $multiquadraticStripDefaultPrimes = {2147483423, 2147483399};
 $multiquadraticStripPrimePool = {
   2147483423, 2147483399, 2147483587, 2147483579, 2147483563,
@@ -501,6 +510,36 @@ $multiquadraticStripPrimePool = {
   2147482583, 2147482507, 2147482367, 2147482343, 2147482327,
   2147482291, 2147482231, 2147482223, 2147482091, 2147482063,
   2147481967, 2147481907};
+$multiquadraticStripWidePrimePool = {
+  2305843009213693951, 2305843009213693907, 2305843009213693723,
+  2305843009213693487, 2305843009213693123, 2305843009213692967,
+  2305843009213692799, 2305843009213692671, 2305843009213692527,
+  2305843009213692463, 2305843009213692427, 2305843009213692419,
+  2305843009213692343, 2305843009213692331, 2305843009213692283,
+  2305843009213692211, 2305843009213692199, 2305843009213692139,
+  2305843009213692107, 2305843009213692103, 2305843009213692083,
+  2305843009213692043, 2305843009213692031, 2305843009213692007,
+  2305843009213691819, 2305843009213691767, 2305843009213691579,
+  2305843009213691567, 2305843009213691551, 2305843009213691347,
+  2305843009213691287, 2305843009213690907};
+$multiquadraticStripWideDefaultPrimes =
+  Take[$multiquadraticStripWidePrimePool, 2];
+multiquadraticStripWidePrimeScheduleQ[provider_Association] := Module[{plan},
+  If[Lookup[provider, "Kind", None] =!= "SplitBranch" ||
+      ! StringQ[multiquadraticStripNativeSparseBinary[]] ||
+      ! StringQ[multiquadraticStripNativeRowBinary[]], Return[False]];
+  (* Building this plan is not an extra production pass: the sampler needs
+     the same provider/prime plan, and the established plan cache makes that
+     later lookup free.  Wide Automatic is admitted only when every leaf can
+     remain in native modular arithmetic. *)
+  plan = Quiet[Check[multiquadraticStripSplitSparseEvaluationPlan[
+      provider, First[$multiquadraticStripWidePrimePool]], $Failed]];
+  AssociationQ[plan] &&
+    Lookup[plan, "Status", None] ===
+      "MultiquadraticSplitSparseEvaluationPlanV1" &&
+    Lookup[plan, "FallbackLeafCount", -1] === 0
+];
+multiquadraticStripWidePrimeScheduleQ[_] := False;
 $multiquadraticStripValidationPrimePool = {
   2147483323, 2147481899, 2147481883, 2147481863, 2147481827,
   2147481811, 2147481571, 2147481563};
@@ -10432,28 +10471,31 @@ multiquadraticStripFollowerImageTask[dataFile_String,
 multiquadraticStripFollowerImageTask[___] := $Failed;
 
 (* Concurrency counts images, including the mission kernel's local share.
-   A physical hard-block gate measured a 1.85x warm two-image speedup. Resolve
-   Automatic against the pool-owned family/core grant and helpers that are
-   actually free; the TaskBroker remains the only owner of Wolfram kernels.
-   Multi-family waves are deliberately serial: current warm images cost only
-   4--5 s, so coarse family parallelism is both fairer and cheaper than nested
-   image fan-out.  The last family may scale back to a two-image wave. *)
+   Resolve Automatic against the pool-owned family/core grant and helpers that
+   are actually free; the TaskBroker remains the only owner of Wolfram kernels.
+   A follower wave needs at least two native cores per image to be worthwhile,
+   but the native-core lease may redistribute the remaining grant dynamically.
+   Multi-family waves stay serial so the pool can divide resources among
+   families instead of creating nested image fan-out. *)
 multiquadraticStripFollowerImageKernelCount[requested_,
     nativeThreads_Integer] := Module[
   {processors, free, requestedCount, processorCount, effectiveNative,
-   activeFamilies},
+   minimumNativePerImage, activeFamilies},
   If[! (requested === Automatic ||
         IntegerQ[requested] && Between[requested, {1, 8}]) ||
       ! Between[nativeThreads, {1, 8}], Return[1]];
   activeFamilies = Quiet[Check[taskBrokerActiveFamilyCount[], 1]];
   If[IntegerQ[activeFamilies] && activeFamilies > 1, Return[1]];
-  requestedCount = Replace[requested, Automatic -> 2];
+  requestedCount = Replace[requested, Automatic -> 4];
   If[requestedCount === 1, Return[1]];
   processors = Quiet[Check[taskBrokerNativeCoreQuota[], 1]];
   effectiveNative = Quiet[Check[
     taskBrokerNativeThreadLimit[nativeThreads], nativeThreads]];
+  minimumNativePerImage = If[
+    IntegerQ[processors] && processors > 1 &&
+      IntegerQ[effectiveNative] && effectiveNative > 1, 2, 1];
   processorCount = If[IntegerQ[processors] && processors > 0,
-    Max[1, Quotient[processors, effectiveNative]], 1];
+    Max[1, Quotient[processors, minimumNativePerImage]], 1];
   If[processorCount < 2, Return[1]];
   If[! TrueQ[Quiet[Check[taskBrokerActiveQ[], False]]], Return[1]];
   free = Quiet[Check[taskBrokerFreeKernels[], 0]];
@@ -11729,17 +11771,24 @@ multiquadraticStripSplitBranchEntry[entry_, roots_List, activeIndices_List,
   localRootRecords = roots[[activeIndices]];
   localRootSymbols = Take[$multiquadraticStripSplitRootSymbols, localRank];
   scalarVariables = Keys[scalarRules];
-  If[plannedQ,
-    compiled = suppliedCompiled,
-   If[TrueQ[$multiquadraticStripSplitSparseCompilation],
-    cacheHitsBefore = Lookup[$multiquadraticStripScreenCompileStatistics,
-      "Hits", 0];
-    {compileSeconds, compiled} = AbsoluteTiming[
-      multiquadraticStripScreenCompileCached[entry, localRootRecords,
-        localRootSymbols, scalarVariables, prime]];
-    cacheHit = Lookup[$multiquadraticStripScreenCompileStatistics, "Hits", 0] >
-      cacheHitsBefore,
-    compiled = $Failed]];
+  (* The packed Wolfram sparse dot product is a 31-bit compatibility path:
+     products of 61-bit residues do not stay in signed machine integers.
+     Wide production normally supplies native FLINT leaf channels and never
+     enters here; an explicit-wide or exceptional native fallback uses the
+     exact substitution evaluator instead. *)
+  If[prime < 2^31,
+    If[plannedQ,
+      compiled = suppliedCompiled,
+     If[TrueQ[$multiquadraticStripSplitSparseCompilation],
+      cacheHitsBefore = Lookup[$multiquadraticStripScreenCompileStatistics,
+        "Hits", 0];
+      {compileSeconds, compiled} = AbsoluteTiming[
+        multiquadraticStripScreenCompileCached[entry, localRootRecords,
+          localRootSymbols, scalarVariables, prime]];
+      cacheHit = Lookup[$multiquadraticStripScreenCompileStatistics, "Hits", 0] >
+        cacheHitsBefore,
+      compiled = $Failed]],
+    compiled = $Failed];
   If[AssociationQ[compiled],
     {evaluationSeconds, branchValues} = AbsoluteTiming[Catch[
       Quiet[Check[Table[
@@ -13929,8 +13978,8 @@ Options[multiquadraticStripReconstructRegulator] = {
      reconstruction boundary; standalone callers retain full validation. *)
   "InputsValidated" -> False,
   (* Total simultaneous follower images, including this kernel.  Automatic
-     uses up to eight images subject to free TaskBroker helpers and the
-     native-thread processor ceiling. *)
+     uses up to four images subject to free TaskBroker helpers and the
+     native-core grant. *)
   "ImageKernelCount" -> Automatic,
   (* provider support discovery can hand the exact successful samples and
      affine responses to reconstruction; they are authenticated again before
@@ -14012,7 +14061,7 @@ multiquadraticStripReconstructRegulator[preparation_Association,
    modalReferenceEvidence, modalReferencePrime, modalReferenceValue,
    isolatedStructuralEvidence, structuralFailureDetails,
    structuralFailureStatuses, planDiscoveryTelemetry = <||>,
-   inputsValidated},
+   inputsValidated, widePrimeSchedule},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripReconstructRegulator]]]];
   If[AssociationQ[gate], Return[gate]];
@@ -14037,10 +14086,20 @@ multiquadraticStripReconstructRegulator[preparation_Association,
   log[items___] := If[verbose, Print["[multiquadratic] reconstruct: ", items]];
   epsilon = preparation["Regulator"];
   variables = preparation["Variables"];
-  primes = Replace[OptionValue["SamplePrimes"],
-    Automatic :> $multiquadraticStripDefaultPrimes];
+  widePrimeSchedule = If[
+    OptionValue["SamplePrimes"] === Automatic ||
+      OptionValue["PrimePool"] === Automatic,
+    Block[{$multiquadraticStripTrustedProviderEvaluation = True},
+      multiquadraticStripWidePrimeScheduleQ[provider]], False];
+  primes = Replace[OptionValue["SamplePrimes"], Automatic :>
+    If[widePrimeSchedule,
+      $multiquadraticStripWideDefaultPrimes,
+      $multiquadraticStripDefaultPrimes]];
   primePool = Replace[OptionValue["PrimePool"], Automatic :>
-    DeleteDuplicates[Join[primes, $multiquadraticStripPrimePool]]];
+    DeleteDuplicates[Join[primes,
+      If[widePrimeSchedule,
+        $multiquadraticStripWidePrimePool,
+        $multiquadraticStripPrimePool]]]];
   minimumGoodPrimeCount = Replace[OptionValue["MinimumGoodPrimeCount"],
     Automatic :> Length[primes]];
   maximumGoodPrimeCount = OptionValue["MaximumGoodPrimeCount"];
@@ -14662,7 +14721,13 @@ multiquadraticStripReconstructRegulator[preparation_Association,
       "Observed" -> evidence["Signature"],
       "Modal" -> modalStructuralSignature|>],
     {evidence, isolatedStructuralEvidence}];
-  primePool = DeleteDuplicates[Join[{modalReferencePrime}, primePool]];
+  (* A support-ladder pilot may deliberately use the cheap historical
+     31-bit discovery pool while reconstruction uses wide CRT primes.  Such a
+     pilot fixes the common section and constrained plan, but must not mutate
+     the requested reconstruction-prime schedule.  A modal prime already in
+     that schedule still moves to the front as before. *)
+  If[MemberQ[primePool, modalReferencePrime],
+    primePool = DeleteDuplicates[Join[{modalReferencePrime}, primePool]]];
   referenceSignature = modalStructuralSignature;
   (* Consume the modal cached response as the one existing discovery image.
      This discovers the common normalization and constrained plan without a
@@ -15540,7 +15605,7 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
    conservativeDenominator,
    startTime = AbsoluteTime[], gate, backendGate, verbose, log, preparation,
    assembly, layout, provider, coefficientProvider, reconstructionEnabled,
-   primes, regulatorValues, heldOutPrime, heldOutRegulatorValue,
+   primes, widePrimeSchedule, regulatorValues, heldOutPrime, heldOutRegulatorValue,
    allPrimes, samples = <||>, solutions = <||>, sample, solution, signature,
    signatures = {}, lifts = <||>, exactChecks = <||>, heldOutSolution,
    freshProviderChecks, freshReference, branchCertificate, branchMask,
@@ -16352,8 +16417,13 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
   (* between preparation and the modular schedule *)
   If[multiquadraticStripDeadlineExpiredQ[deadline],
     Return[budgetExhausted["Preparation"]]];
-  primes = Replace[OptionValue["SamplePrimes"],
-    Automatic :> $multiquadraticStripDefaultPrimes];
+  widePrimeSchedule = If[OptionValue["SamplePrimes"] === Automatic,
+    Block[{$multiquadraticStripTrustedProviderEvaluation = True},
+      multiquadraticStripWidePrimeScheduleQ[provider]], False];
+  primes = Replace[OptionValue["SamplePrimes"], Automatic :>
+    If[widePrimeSchedule,
+      $multiquadraticStripWideDefaultPrimes,
+      $multiquadraticStripDefaultPrimes]];
   regulatorValues = Replace[OptionValue["RegulatorValues"],
     Automatic :> $multiquadraticStripDefaultRegulatorValues];
   heldOutPrime = Replace[OptionValue["HeldOutPrime"], Automatic :> 2147483323];

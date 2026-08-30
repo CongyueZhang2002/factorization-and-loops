@@ -12,12 +12,18 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
   fail++; Print["FAIL ", label]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
-{prepare, layoutBuilder, directProvider, reconstruct, residualImage} =
+{prepare, layoutBuilder, directProvider, reconstruct, residualImage,
+  assembleSample, discoverySolve, pilotRecord, wideScheduleQ, splitEntry} =
   mq /@ {"multiquadraticStripPrepare",
     "multiquadraticStripAssemblyLayout",
     "multiquadraticStripDirectProvider",
     "multiquadraticStripReconstructRegulator",
-    "multiquadraticStripProviderResidualImage"};
+    "multiquadraticStripProviderResidualImage",
+    "multiquadraticStripAssembleSample",
+    "multiquadraticStripPlanDiscoverySolve",
+    "multiquadraticStripPilotImageRecord",
+    "multiquadraticStripWidePrimeScheduleQ",
+    "multiquadraticStripSplitBranchEntry"};
 
 Clear[bx, by, be];
 badPrime = 2147483423;
@@ -114,6 +120,58 @@ check["B2 validation image keys are disjoint from training keys",
   Intersection[result["TrainingImageKeys"], Flatten[
       Lookup[result["FreshProviderPointwiseChecks"],
         "ValidationImageKeys", {}], 1]] === {}];
+
+(* SplitBranch's native sparse evaluator and native row assembler both use
+   FLINT nmod arithmetic and a 64-bit word protocol.  Its Automatic schedule
+   therefore uses 61-bit reconstruction primes, while the fresh final replay
+   deliberately remains on the disjoint historical 31-bit validation pool. *)
+widePool = FeynFacet`Private`$multiquadraticStripWidePrimePool;
+check["the native SplitBranch prime pool is a full valid 61-bit schedule",
+  Length[widePool] === 32 && DuplicateFreeQ[widePool] &&
+    AllTrue[widePool, PrimeQ[#1] && Mod[#1, 4] === 3 &&
+      2^60 < #1 < 2^61 &]];
+check["Automatic wide primes require a completely native split plan",
+  TrueQ[wideScheduleQ[provider]] &&
+    Internal`InheritedBlock[{
+      FeynFacet`Private`$multiquadraticStripSplitSparseCompilation,
+      FeynFacet`Private`$multiquadraticStripSplitSparsePlanCache,
+      FeynFacet`Private`$multiquadraticStripSplitSparseExactPlanCache},
+      FeynFacet`Private`$multiquadraticStripSplitSparseCompilation = False;
+      FeynFacet`Private`$multiquadraticStripSplitSparsePlanCache = <||>;
+      FeynFacet`Private`$multiquadraticStripSplitSparseExactPlanCache = <||>;
+      ! TrueQ[wideScheduleQ[provider]]]];
+wideFallback = splitEntry[bx + Sqrt[delta], {rootRecord}, {1},
+  <|bx -> 3, by -> 5, be -> 7|>, {4}, {2}, First[widePool]];
+check["an explicit wide-prime Wolfram fallback uses exact substitution",
+  Lookup[wideFallback, "Status", None] === "OK" &&
+    Lookup[wideFallback, "Method", None] === "Substitution" &&
+    wideFallback["Channels"] === {3, 1}];
+discoveryPilotPrimes = {2147483399, 2147483587};
+discoveryPilots = Table[Module[{sample, solution},
+    sample = assembleSample[layout, provider, 2, p,
+      "PointCount" -> 2, "MaximumAttempts" -> 80,
+      "RandomSeed" -> 2026083100 + Mod[p, 997]];
+    solution = discoverySolve[sample["Matrix"], sample["RightHandSide"], p,
+      prepared["GaugeUnknownCount"], prepared["ResidueUnknownCount"],
+      Automatic, 2, Automatic];
+    pilotRecord[p, 2, sample, solution]],
+  {p, discoveryPilotPrimes}];
+wideDefault = reconstruct[prepared, layout, provider,
+  "MinimumGoodPrimeCount" -> 2, "MaximumGoodPrimeCount" -> 2,
+  "MaximumRejectedPrimeCount" -> 4,
+  "UnseenPrimeCount" -> 1, "FreshPointwiseChecksPerPrime" -> 1,
+  "PilotImages" -> discoveryPilots,
+  "ExactVerification" -> "ProviderPoints"];
+check["31-bit discovery pilots do not enter the wide CRT schedule",
+  Lookup[wideDefault, "Status", None] ===
+      "ReconstructedRegulatorDependenceV1" &&
+    wideDefault["ModalReferencePrime"] === First[discoveryPilotPrimes] &&
+    wideDefault["SamplePrimes"] === Take[widePool, 2] &&
+    Intersection[wideDefault["GoodPrimes"], discoveryPilotPrimes] === {} &&
+    AllTrue[wideDefault["GoodPrimes"], 2^60 < #1 < 2^61 &] &&
+    AllTrue[wideDefault["UnseenPrimes"], #1 < 2^31 &] &&
+    TrueQ[Together[wideDefault["Gauge"][[1, 1]] -
+      knownGauge[[1, 1]]] === 0]];
 
 corrupted = ReplacePart[result["Vector"], 1 -> result["Vector"][[1]] + 1];
 corruptCheck = residualImage[layout, provider, corrupted, be, 37,
