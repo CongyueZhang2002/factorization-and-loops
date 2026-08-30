@@ -1268,14 +1268,16 @@ blockEquationDeferredMaterialize[preparation_Association,
   internWaves = If[Total[canonicalBytes] >= 2^26 ||
       Max[Append[canonicalBytes, 0]] >= 2^23, 16, 4];
   canonicalBatches = If[canonicalExpressions === {}, {},
-    (* Fine waves absorb the measured heavy-tail Together/FactorList costs.
-       CF259 {27,16} showed 0.1--417 s for equal five-expression batches;
-       sixteen waves keep every worker's static share representative.  Small
-       payloads retain four waves so easy families do not pay that scheduler
-       granularity. *)
-    blockEquationDeferredBatchPlan[canonicalBytes,
-      Min[Length[canonicalExpressions], internWaves (internHelpers + 1)],
-      byteCap]];
+    (* Large chart payloads have extreme per-operand Together/FactorList
+       tails: CF259/CF303 measured subsecond work beside 400--900 s work.
+       A pair can therefore double the critical path, so large payloads use
+       one immutable operand per task.  Small payloads retain four balanced
+       waves and avoid needless queue traffic. *)
+    If[internWaves === 16,
+      List /@ Range[Length[canonicalExpressions]],
+      blockEquationDeferredBatchPlan[canonicalBytes,
+        Min[Length[canonicalExpressions], internWaves (internHelpers + 1)],
+        byteCap]]];
 
   If[! internParallel || Length[canonicalBatches] <= 1,
     internRoute = "Serial";
