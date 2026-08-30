@@ -2591,7 +2591,13 @@ Options[blockEquationDeferredCompileBundle] = {
   (* Full source occurrence provenance is an audit artifact.  Production
      direct solving consumes only each factor, its orbit norm and the global
      pre-cancellation pole bound. *)
-  "AuditMetadata" -> True
+  "AuditMetadata" -> True,
+  (* Canonical operands are immutable after frame reduction.  A chartless
+     bundle can therefore use the same broker worker as materialization
+     without moving any source/factor/orbit IDs off the controller. *)
+  "Parallel" -> Automatic, "Helpers" -> Automatic,
+  "InternDispatcher" -> Automatic, "BatchTimeout" -> 7200,
+  "Progress" -> True, "Label" -> "bundle"
 };
 
 blockEquationDeferredCompileBundle[preparation_Association,
@@ -2615,7 +2621,14 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
    factorCanonicalInternHits = 0,
    factorFallbackComparisons = 0, factorMatchSeconds = 0.,
    activeRootMask = 0, activeRootIndices, projectMask, projectedFrame,
-   originalRootCount},
+   originalRootCount, sourceOperands, prefillHelpers = 0,
+   prefillDispatcher, prefillParallel = False, prefillStarted,
+   prefillCanonicalExpressions = {}, prefillBytes = {},
+   prefillResults = {}, prefillLocalIndices = {},
+   prefillFarmedIndices = {}, prefillDataFile, prefillCodes,
+   prefillHandle, prefillFarmed, prefillMissing = {}, prefillFailure,
+   prefillTag,
+   prefillRoute = "Serial", prefillSeconds = 0.},
   If[Lookup[preparation, "Status", None] =!= "Prepared" ||
       Lookup[preparation, "ABIVersion", None] =!=
         $blockEquationDeferredABIVersion,
@@ -2646,6 +2659,113 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
     Return[{<|"Status" -> "TargetOrderIncomplete",
       "Missing" -> Select[targetOrder, ! KeyExistsQ[recordFor, #1] &]|>,
       <||>}]];
+
+  (* The bundle compiler historically reached the immutable
+     Together/FactorList kernel one operand at a time.  Materialization
+     already farms that exact pure kernel.  Prefill only its cache here;
+     the existing serial walk below still owns every deterministic ID,
+     valuation, factor, orbit and fingerprint. *)
+  (* Join only the two container levels.  An operand is an arbitrary exact
+     expression and may itself have List heads; unrestricted Flatten would
+     silently change such an operand and make this optimization non-general. *)
+  sourceOperands = DeleteDuplicates[Join @@ Map[
+    Function[target, Join @@ Map[
+      Lookup[#1, "Operands", {}] &,
+      Lookup[recordFor[target], "Terms", {}]]],
+    targetOrder]];
+  prefillDispatcher = OptionValue["InternDispatcher"];
+  prefillHelpers = Replace[OptionValue["Helpers"], Automatic :>
+    If[prefillDispatcher === Automatic,
+      If[taskBrokerActiveQ[], taskBrokerFreeKernels[], 0], 1]];
+  If[! IntegerQ[prefillHelpers] || prefillHelpers < 0,
+    prefillHelpers = 0];
+  prefillHelpers = Min[prefillHelpers,
+    Max[0, Length[sourceOperands] - 1]];
+  prefillBytes = ByteCount /@ sourceOperands;
+  prefillParallel = Length[sourceOperands] >= 2 && prefillHelpers >= 1 &&
+    Which[
+      OptionValue["Parallel"] === Automatic,
+        blockEquationDeferredParallelRouteQ[] &&
+          (Length[sourceOperands] >= 64 ||
+           Total[prefillBytes] >= 2^18 ||
+           Max[Append[prefillBytes, 0]] >= 2^16),
+      TrueQ[OptionValue["Parallel"]], True,
+      True, False];
+  If[prefillDispatcher === Automatic && ! taskBrokerActiveQ[],
+    prefillParallel = False];
+  If[prefillParallel,
+    prefillStarted = AbsoluteTime[];
+    prefillTag = Unique["blockEquationDeferredPrefillTag"];
+    prefillFailure = Catch[
+      prefillCanonicalExpressions = DeleteDuplicates[Map[
+        Function[operand, Module[{canonicalized},
+          canonicalized = If[KeyExistsQ[frameCache, operand],
+            frameCache[operand],
+            frameCache[operand] = blockEquationDeferredFrameCanonicalize[
+              operand, frame, variables]];
+          If[Lookup[canonicalized, "Status", None] =!= "OK",
+            Throw[canonicalized, prefillTag]];
+          canonicalized["Expression"]]],
+        sourceOperands]];
+      None, prefillTag, #1 &];
+    If[prefillFailure =!= None,
+      Return[{prefillFailure, pool}]];
+    prefillResults = ConstantArray[$Failed,
+      Length[prefillCanonicalExpressions]];
+    prefillBytes = ByteCount /@ prefillCanonicalExpressions;
+    prefillLocalIndices = TakeSmallestBy[
+      Range[Length[prefillCanonicalExpressions]],
+      prefillBytes[[#]] &,
+      UpTo[Ceiling[Length[prefillCanonicalExpressions]/
+        (prefillHelpers + 1)]]];
+    prefillFarmedIndices = Complement[
+      Range[Length[prefillCanonicalExpressions]], prefillLocalIndices];
+    prefillFarmedIndices = SortBy[prefillFarmedIndices,
+      {-prefillBytes[[#]], #} &];
+    If[TrueQ[OptionValue["Progress"]],
+      Print["[deferred-bundle] intern-dispatch: operands ",
+        Length[prefillCanonicalExpressions], ", to helpers ",
+        Length[prefillFarmedIndices], ", helpers free ", prefillHelpers]];
+    If[prefillDispatcher === Automatic,
+      prefillDataFile = taskBrokerDataFile[
+        "bedbundleintern_" <> StringReplace[CreateUUID[], "-" -> ""],
+        <|"Expressions" -> prefillCanonicalExpressions,
+          "PolynomialSymbols" -> Automatic|>];
+      prefillCodes = Map[Function[index, StringJoin[
+          "FeynFacet`Private`blockEquationDeferredInternTask[",
+          ToString[prefillDataFile, InputForm], ", {",
+          ToString[index], "}]" ]], prefillFarmedIndices];
+      prefillHandle = taskBrokerSubmit[prefillCodes,
+        "Label" -> "bedbundleintern" <> ToString[OptionValue["Label"]],
+        "Timeout" -> OptionValue["BatchTimeout"]]];
+    Do[prefillResults[[index]] = Quiet[Check[
+        blockEquationDeferredCanonicalOperandValue[
+          prefillCanonicalExpressions[[index]], Automatic], $Failed]],
+      {index, prefillLocalIndices}];
+    prefillFarmed = If[prefillDispatcher === Automatic,
+      taskBrokerCollect[prefillHandle],
+      prefillDispatcher[
+        <|"Expressions" -> prefillCanonicalExpressions,
+          "PolynomialSymbols" -> Automatic|>,
+        List /@ prefillFarmedIndices]];
+    Do[Module[{index = prefillFarmedIndices[[position]], value},
+      value = If[ListQ[prefillFarmed] &&
+          position <= Length[prefillFarmed],
+        prefillFarmed[[position]], $Failed];
+      If[ListQ[value] && Length[value] === 1,
+        prefillResults[[index]] = First[value]]],
+      {position, Length[prefillFarmedIndices]}];
+    prefillMissing = Select[Range[Length[prefillCanonicalExpressions]],
+      ! MatchQ[prefillResults[[#]], {_, _Association}] &];
+    If[prefillMissing =!= {},
+      prefillResults[[prefillMissing]] = Map[
+        blockEquationDeferredCanonicalOperandValue[#, Automatic] &,
+        prefillCanonicalExpressions[[prefillMissing]]]];
+    Do[pool[prefillCanonicalExpressions[[index]]] =
+        prefillResults[[index]],
+      {index, Length[prefillCanonicalExpressions]}];
+    prefillRoute = "Parallel";
+    prefillSeconds = N[AbsoluteTime[] - prefillStarted]];
 
   factorMatchQ[f_, g_] := Module[
     {algebraic = ! FreeQ[{f, g}, Power[_, _Rational]]},
@@ -2905,6 +3025,13 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
   statistics = <|"CompileSeconds" -> N[AbsoluteTime[] - started],
     "OperandCount" -> Length[operandTable],
     "JobCount" -> Length[jobs], "TermCount" -> termCount,
+    "InternRoute" -> prefillRoute,
+    "InternHelpers" -> If[prefillRoute === "Parallel",
+      prefillHelpers, 0],
+    "InternSourceOperandCount" -> Length[sourceOperands],
+    "InternCanonicalOperandCount" -> If[prefillRoute === "Parallel",
+      Length[prefillCanonicalExpressions], Length[operandTable]],
+    "InternSeconds" -> N[prefillSeconds],
     "FactorRegistrationCallCount" -> factorRegistrationCalls,
     "FactorExactInternHitCount" -> factorExactInternHits,
     "FactorCanonicalInternHitCount" -> factorCanonicalInternHits,
@@ -3047,7 +3174,12 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
    If[compileBundleQ,
      {bundle, internCache} = blockEquationDeferredCompileBundleWithCache[
        preparation, "Roots" -> bundleRoots,
-       "AuditMetadata" -> (output =!= "ChartOrBundle")]];
+       "AuditMetadata" -> (output =!= "ChartOrBundle"),
+       "Parallel" -> OptionValue["Parallel"],
+       "Helpers" -> OptionValue["Helpers"],
+       "BatchTimeout" -> OptionValue["BatchTimeout"],
+       "Progress" -> OptionValue["Progress"],
+       "Label" -> ToString[k] <> "_" <> ToString[j]]];
    If[compileBundleQ &&
        MemberQ[{"Bundle", "BundleOrMaterialized", "ChartOrBundle"}, output] &&
        Lookup[bundle, "Status", None] =!= "PreparedDeferredBundle",

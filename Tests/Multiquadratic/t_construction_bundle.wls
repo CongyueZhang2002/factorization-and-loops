@@ -435,6 +435,36 @@ changes nothing about the values (SameQ)",
     materializedPlain["Status"] === "OK" &&
     materializedSeeded["Values"] === materializedPlain["Values"]];
 
+(* The chartless compiler uses the same immutable canonical-operand worker
+   as materialization.  Injected dispatchers exercise scheduling and local
+   recovery without requiring a pool in this suite. *)
+bundleInternDispatcher[data_Association, batchList_List] := Map[
+  Function[batch, Map[
+    mq["blockEquationDeferredCanonicalOperandValue"][#,
+      Lookup[data, "PolynomialSymbols", Automatic]] &,
+    data["Expressions"][[batch]]]], batchList];
+bundleDeadInternDispatcher[data_Association, batchList_List] :=
+  ConstantArray[$Failed, Length[batchList]];
+{parallelSeedBundle, parallelSeedCache} = compileWithCache[
+  preparation, "Roots" -> {}, "Parallel" -> True, "Helpers" -> 3,
+  "InternDispatcher" -> bundleInternDispatcher, "Progress" -> False];
+FTAssert["(k) bundle parallel interning preserves deterministic content",
+  parallelSeedBundle["BundleFingerprint"] ===
+      seedBundle["BundleFingerprint"] &&
+    parallelSeedBundle["OperandTable"] === seedBundle["OperandTable"] &&
+    parallelSeedBundle["Jobs"] === seedBundle["Jobs"] &&
+    parallelSeedCache === seedCache &&
+    Lookup[parallelSeedBundle["Statistics"], "InternRoute", None] ===
+      "Parallel"];
+{deadSeedBundle, deadSeedCache} = compileWithCache[
+  preparation, "Roots" -> {}, "Parallel" -> True, "Helpers" -> 3,
+  "InternDispatcher" -> bundleDeadInternDispatcher,
+  "Progress" -> False];
+FTAssert["(k) failed bundle intern jobs are recomputed on the controller",
+  deadSeedBundle["BundleFingerprint"] === seedBundle["BundleFingerprint"] &&
+    deadSeedBundle["OperandTable"] === seedBundle["OperandTable"] &&
+    deadSeedCache === seedCache];
+
 (* ---- (l) exact factor interning -------------------------------------- *)
 internStatistics = seedBundle["Statistics"];
 FTAssert["(l) exact factor interning reports all four bounded counters",
