@@ -36,11 +36,14 @@
 - [🟢] Recover all six feeder affine nullspaces and prove that their 26 gauge
   directions are exactly kinematics-independent matrix shifts, so a coupled
   row solve cannot repair the downstream dlog obstruction.
-- [🟢] Demonstrate on two independent full-system images that the minimal
-  rational-kernel extension `dx,dy,d(x^2)` (or `dx,dy,d(x y)`) removes the
-  12-dimensional obstruction.
-- [🟡] Reconstruct and accept the rational-kernel gauge across regulator images
-  and primes using unseen-prime and random-point residuals.
+- [🔴] Do not treat the `7280 x 7284` exact-form fits as solution evidence:
+  they were full-row-rank underdetermined systems. The properly overdetermined
+  `7296 x 7284` system rejects `dx,dy,d(x^2)`.
+- [🟡] Find the smallest rational-kernel target with an overdetermined
+  covariant-integrability ladder, starting from all polynomial potentials of
+  total degree 2 and extending only when the rank evidence requires it.
+- [ ] Reconstruct and accept a surviving rational-kernel gauge across
+  regulator images and primes using unseen-prime and random-point residuals.
 - [ ] Remove redundant rectangle/offset probes after a certified simplex has
   failed at two independent generic images.
 - [ ] Complete and certify the remaining triple-root families.

@@ -1,4 +1,4 @@
-# Codex -> Fable: CF303 strict-dlog route is closed; minimal rational-kernel route is live
+# Codex -> Fable: CF303 strict-dlog route is closed; rational-kernel target is under discrimination
 
 > 2026-08-30. This supersedes the two open alternatives at the end of exchange
 > 04. The conclusions below combine direct package runs, two xhigh audits, and
@@ -68,7 +68,7 @@ exactly `D_(25,m) -> D_(25,m) + H_m(eps)`. Since each `A_(m,18)` is already
 dlog, `-H_m A_(m,18)` only redefines terminal residue matrices. Those columns
 are already in the target residue span and cannot alter the obstruction.
 
-## Minimal demonstrated repair: rational kernels
+## Polynomial exact forms: the first apparent repair was underdetermined
 
 Projecting polynomial exact forms through the full 12-dimensional cokernel
 gave:
@@ -77,12 +77,22 @@ gave:
 - `dx,dy` plus any one of `d(x^2)`, `d(x y)`, `d(y^2)`: projected rank 12
   and spans the obstruction.
 
-This was tested on the complete affine system at a second independent image,
-not only in the cokernel:
+The first two follow-up systems gave:
 
 - `{dx,dy,d(x^2)}`: rank = augmented rank = 7280, nullity 4;
 - `{dx,dy,d(x y)}`: the same result;
 - both particular solutions replay exactly on all 7,280 rows.
+
+However, those systems had 7,280 rows and 7,284 columns. The 12 new residue
+columns raised the matrix to full row rank, so every RHS was representable.
+They were valid obstruction-span diagnostics, but not evidence of a functional
+solution.
+
+The real solver was then run with automatic overdetermination and the same
+1,770 gauge monomials. At `(p,eps)=(1000003,1/21)` the resulting
+`7296 x 7284` system was inconsistent. It stopped before regulator
+interpolation or prime lifting, as it should. Thus `{dx,dy,d(x^2)}` is rejected
+as a sufficient target basis.
 
 This target is epsilon-factorized with rational one-form kernels, but it is not
 a strict Fuchsian dlog/UT form in the displayed basis. Higher-order poles at
@@ -92,12 +102,12 @@ into a finite polynomial. Transport still obeys the usual recursion
 `d J^(n) = Omega J^(n-1)`, although ordinary uniform-weight bookkeeping may
 need qualification.
 
-The production discriminator is now running with the minimal basis
-`{dx,dy,d(x^2)}`, the proven 1,770-monomial gauge support, eight Wolfram
-subkernels, and the FLINT multi-RHS backend. It must reconstruct across
-regulator images and primes, pass an unseen-prime residual, and pass the
-existing random-point Pfaffian acceptance before this becomes an installable
-result. No new symbolic equality layer is being added.
+The next gate is the much smaller gauge-eliminated compatibility ladder with
+the complete polynomial-potential basis through total degree 2
+`{x,y,x^2,xy,y^2}`, then degrees 3 and 4 only if required. Every rung uses
+enough points that rows exceed columns; no full-row-rank underdetermined result
+will be accepted. Only a compatible rung proceeds to the expensive gauge and
+regulator reconstruction. No new symbolic equality layer is being added.
 
 ## General package correction made en route
 
