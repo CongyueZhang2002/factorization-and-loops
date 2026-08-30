@@ -30,13 +30,20 @@ typedef struct
 
 typedef struct
 {
+    size_t term_offset;
+    size_t term_count;
+    uint64_t power;
+} mqse_factor_t;
+
+typedef struct
+{
     uint64_t active_mask;
     size_t local_rank;
     size_t active_indices[MQSE_MAX_ROOT_COUNT];
-    size_t numerator_offset;
-    size_t numerator_count;
-    size_t denominator_offset;
-    size_t denominator_count;
+    size_t numerator_factor_offset;
+    size_t numerator_factor_count;
+    size_t denominator_factor_offset;
+    size_t denominator_factor_count;
 } mqse_leaf_t;
 
 typedef struct
@@ -47,9 +54,13 @@ typedef struct
     size_t variable_count;
     size_t grade_count;
     size_t leaf_count;
+    size_t numerator_factor_count;
+    size_t denominator_factor_count;
     size_t numerator_term_count;
     size_t denominator_term_count;
     mqse_leaf_t * leaves;
+    mqse_factor_t * numerator_factors;
+    mqse_factor_t * denominator_factors;
     mqse_term_t * numerator_terms;
     mqse_term_t * denominator_terms;
     size_t maximum_exponents[MQSE_MAX_VARIABLE_COUNT];
@@ -76,7 +87,7 @@ typedef struct
 } mqse_worker_t;
 
 static const unsigned char plan_magic[8] =
-    {'M', 'Q', 'S', 'E', '1', 'P', '1', '\0'};
+    {'M', 'Q', 'S', 'E', '1', 'P', '2', '\0'};
 static const unsigned char points_magic[8] =
     {'M', 'Q', 'S', 'E', '1', 'Q', '1', '\0'};
 static const unsigned char output_magic[8] =
@@ -159,6 +170,8 @@ static unsigned int small_parity(size_t value)
 static void clear_plan(mqse_plan_t * plan)
 {
     free(plan->leaves);
+    free(plan->numerator_factors);
+    free(plan->denominator_factors);
     free(plan->numerator_terms);
     free(plan->denominator_terms);
     memset(plan, 0, sizeof(*plan));
@@ -192,12 +205,17 @@ static int read_plan(const char * path, mqse_plan_t * plan)
 {
     FILE * stream = NULL;
     unsigned char magic[8];
-    uint64_t prime_word, root_word, leaf_word, num_word, den_word;
+    uint64_t prime_word, root_word, leaf_word, num_factor_word;
+    uint64_t den_factor_word, num_term_word, den_term_word;
     uint64_t active_word, rank_word, leaf_num_word, leaf_den_word;
-    size_t leaf_index, term_index, root_index, numerator_seen = 0U;
-    size_t denominator_seen = 0U, next, variable_power_count;
+    uint64_t factor_power_word, factor_term_word;
+    size_t leaf_index, factor_index, term_index, root_index;
+    size_t numerator_factor_seen = 0U, denominator_factor_seen = 0U;
+    size_t numerator_term_seen = 0U, denominator_term_seen = 0U;
+    size_t next, variable_power_count;
     size_t power_count = 0U;
     mqse_leaf_t * leaf;
+    mqse_factor_t * factor;
 
     memset(plan, 0, sizeof(*plan));
     stream = fopen(path, "rb");
@@ -208,8 +226,10 @@ static int read_plan(const char * path, mqse_plan_t * plan)
         || !read_u64_le(stream, &prime_word)
         || !read_u64_le(stream, &root_word)
         || !read_u64_le(stream, &leaf_word)
-        || !read_u64_le(stream, &num_word)
-        || !read_u64_le(stream, &den_word)
+        || !read_u64_le(stream, &num_factor_word)
+        || !read_u64_le(stream, &den_factor_word)
+        || !read_u64_le(stream, &num_term_word)
+        || !read_u64_le(stream, &den_term_word)
         || sizeof(mp_limb_t) != sizeof(uint64_t)
         || prime_word < UINT64_C(5) || (prime_word & UINT64_C(1)) == 0U
         || !n_is_prime((mp_limb_t) prime_word)
@@ -217,8 +237,10 @@ static int read_plan(const char * path, mqse_plan_t * plan)
         || leaf_word == 0U
         || !u64_to_size(root_word, &plan->root_count)
         || !u64_to_size(leaf_word, &plan->leaf_count)
-        || !u64_to_size(num_word, &plan->numerator_term_count)
-        || !u64_to_size(den_word, &plan->denominator_term_count)) {
+        || !u64_to_size(num_factor_word, &plan->numerator_factor_count)
+        || !u64_to_size(den_factor_word, &plan->denominator_factor_count)
+        || !u64_to_size(num_term_word, &plan->numerator_term_count)
+        || !u64_to_size(den_term_word, &plan->denominator_term_count)) {
         fclose(stream);
         return 0;
     }
@@ -227,6 +249,10 @@ static int read_plan(const char * path, mqse_plan_t * plan)
     plan->variable_count = MQSE_SCALAR_COUNT + plan->root_count;
     plan->grade_count = ((size_t) 1U) << plan->root_count;
     if (!checked_mul_size(plan->leaf_count, sizeof(*plan->leaves), &next)
+        || !checked_mul_size(plan->numerator_factor_count,
+            sizeof(*plan->numerator_factors), &next)
+        || !checked_mul_size(plan->denominator_factor_count,
+            sizeof(*plan->denominator_factors), &next)
         || !checked_mul_size(plan->numerator_term_count,
             sizeof(*plan->numerator_terms), &next)
         || !checked_mul_size(plan->denominator_term_count,
@@ -236,6 +262,12 @@ static int read_plan(const char * path, mqse_plan_t * plan)
     }
     plan->leaves = (mqse_leaf_t *) calloc(plan->leaf_count,
         sizeof(*plan->leaves));
+    plan->numerator_factors = plan->numerator_factor_count == 0U ? NULL
+        : (mqse_factor_t *) calloc(plan->numerator_factor_count,
+            sizeof(*plan->numerator_factors));
+    plan->denominator_factors = plan->denominator_factor_count == 0U ? NULL
+        : (mqse_factor_t *) calloc(plan->denominator_factor_count,
+            sizeof(*plan->denominator_factors));
     plan->numerator_terms = plan->numerator_term_count == 0U ? NULL
         : (mqse_term_t *) calloc(plan->numerator_term_count,
             sizeof(*plan->numerator_terms));
@@ -243,6 +275,10 @@ static int read_plan(const char * path, mqse_plan_t * plan)
         : (mqse_term_t *) calloc(plan->denominator_term_count,
             sizeof(*plan->denominator_terms));
     if (plan->leaves == NULL
+        || (plan->numerator_factor_count != 0U
+            && plan->numerator_factors == NULL)
+        || (plan->denominator_factor_count != 0U
+            && plan->denominator_factors == NULL)
         || (plan->numerator_term_count != 0U
             && plan->numerator_terms == NULL)
         || (plan->denominator_term_count != 0U
@@ -261,48 +297,92 @@ static int read_plan(const char * path, mqse_plan_t * plan)
             || active_word >= (((uint64_t) 1U) << plan->root_count)
             || rank_word > root_word
             || small_popcount(active_word) != (unsigned int) rank_word
+            || leaf_num_word == 0U
             || leaf_den_word == 0U
             || !u64_to_size(rank_word, &leaf->local_rank)
-            || !u64_to_size(leaf_num_word, &leaf->numerator_count)
-            || !u64_to_size(leaf_den_word, &leaf->denominator_count)
-            || !checked_add_size(numerator_seen, leaf->numerator_count, &next)
-            || next > plan->numerator_term_count) {
+            || !u64_to_size(leaf_num_word, &leaf->numerator_factor_count)
+            || !u64_to_size(leaf_den_word, &leaf->denominator_factor_count)
+            || !checked_add_size(numerator_factor_seen,
+                leaf->numerator_factor_count, &next)
+            || next > plan->numerator_factor_count) {
             fclose(stream);
             clear_plan(plan);
             return 0;
         }
         leaf->active_mask = active_word;
-        leaf->numerator_offset = numerator_seen;
-        numerator_seen = next;
-        if (!checked_add_size(denominator_seen, leaf->denominator_count, &next)
-            || next > plan->denominator_term_count) {
+        leaf->numerator_factor_offset = numerator_factor_seen;
+        numerator_factor_seen = next;
+        if (!checked_add_size(denominator_factor_seen,
+                leaf->denominator_factor_count, &next)
+            || next > plan->denominator_factor_count) {
             fclose(stream);
             clear_plan(plan);
             return 0;
         }
-        leaf->denominator_offset = denominator_seen;
-        denominator_seen = next;
+        leaf->denominator_factor_offset = denominator_factor_seen;
+        denominator_factor_seen = next;
         term_index = 0U;
         for (root_index = 0U; root_index < plan->root_count; ++root_index)
             if ((active_word & (((uint64_t) 1U) << root_index)) != 0U)
                 leaf->active_indices[term_index++] = root_index;
-        for (term_index = 0U; term_index < leaf->numerator_count; ++term_index)
-            if (!read_term(stream, plan, leaf,
-                plan->numerator_terms + leaf->numerator_offset + term_index)) {
+
+        for (factor_index = 0U;
+             factor_index < leaf->numerator_factor_count; ++factor_index) {
+            factor = plan->numerator_factors
+                + leaf->numerator_factor_offset + factor_index;
+            if (!read_u64_le(stream, &factor_power_word)
+                || !read_u64_le(stream, &factor_term_word)
+                || factor_power_word == 0U
+                || !u64_to_size(factor_term_word, &factor->term_count)
+                || !checked_add_size(numerator_term_seen,
+                    factor->term_count, &next)
+                || next > plan->numerator_term_count) {
                 fclose(stream);
                 clear_plan(plan);
                 return 0;
             }
-        for (term_index = 0U; term_index < leaf->denominator_count; ++term_index)
-            if (!read_term(stream, plan, leaf,
-                plan->denominator_terms + leaf->denominator_offset + term_index)) {
+            factor->power = factor_power_word;
+            factor->term_offset = numerator_term_seen;
+            numerator_term_seen = next;
+            for (term_index = 0U; term_index < factor->term_count; ++term_index)
+                if (!read_term(stream, plan, leaf, plan->numerator_terms
+                    + factor->term_offset + term_index)) {
+                    fclose(stream);
+                    clear_plan(plan);
+                    return 0;
+                }
+        }
+        for (factor_index = 0U;
+             factor_index < leaf->denominator_factor_count; ++factor_index) {
+            factor = plan->denominator_factors
+                + leaf->denominator_factor_offset + factor_index;
+            if (!read_u64_le(stream, &factor_power_word)
+                || !read_u64_le(stream, &factor_term_word)
+                || factor_power_word == 0U || factor_term_word == 0U
+                || !u64_to_size(factor_term_word, &factor->term_count)
+                || !checked_add_size(denominator_term_seen,
+                    factor->term_count, &next)
+                || next > plan->denominator_term_count) {
                 fclose(stream);
                 clear_plan(plan);
                 return 0;
             }
+            factor->power = factor_power_word;
+            factor->term_offset = denominator_term_seen;
+            denominator_term_seen = next;
+            for (term_index = 0U; term_index < factor->term_count; ++term_index)
+                if (!read_term(stream, plan, leaf, plan->denominator_terms
+                    + factor->term_offset + term_index)) {
+                    fclose(stream);
+                    clear_plan(plan);
+                    return 0;
+                }
+        }
     }
-    if (numerator_seen != plan->numerator_term_count
-        || denominator_seen != plan->denominator_term_count
+    if (numerator_factor_seen != plan->numerator_factor_count
+        || denominator_factor_seen != plan->denominator_factor_count
+        || numerator_term_seen != plan->numerator_term_count
+        || denominator_term_seen != plan->denominator_term_count
         || fgetc(stream) != EOF || ferror(stream)) {
         fclose(stream);
         clear_plan(plan);
@@ -429,6 +509,40 @@ static mp_limb_t evaluate_polynomial(const mqse_plan_t * plan,
     return sum;
 }
 
+static mp_limb_t modular_power(const mqse_plan_t * plan, mp_limb_t base,
+    uint64_t exponent)
+{
+    mp_limb_t result = 1U;
+    while (exponent != 0U) {
+        if ((exponent & UINT64_C(1)) != 0U)
+            result = nmod_mul(result, base, plan->modulus);
+        exponent >>= 1U;
+        if (exponent != 0U)
+            base = nmod_mul(base, base, plan->modulus);
+    }
+    return result;
+}
+
+static mp_limb_t evaluate_product(const mqse_plan_t * plan,
+    const mqse_leaf_t * leaf, const mqse_factor_t * factors,
+    size_t factor_count, const mqse_term_t * terms, size_t branch,
+    const mp_limb_t * powers)
+{
+    size_t factor_index;
+    mp_limb_t value, product = 1U;
+    const mqse_factor_t * factor;
+
+    for (factor_index = 0U; factor_index < factor_count; ++factor_index) {
+        factor = factors + factor_index;
+        value = evaluate_polynomial(plan, leaf,
+            factor->term_count == 0U ? NULL : terms + factor->term_offset,
+            factor->term_count, branch, powers);
+        product = nmod_mul(product,
+            modular_power(plan, value, factor->power), plan->modulus);
+    }
+    return product;
+}
+
 static uint64_t evaluate_leaf(const mqse_plan_t * plan,
     const mqse_leaf_t * leaf, const mp_limb_t * point,
     const mp_limb_t * root_inverses, const mp_limb_t * powers,
@@ -436,18 +550,21 @@ static uint64_t evaluate_leaf(const mqse_plan_t * plan,
 {
     mp_limb_t branch_values[1U << MQSE_MAX_ROOT_COUNT];
     mp_limb_t numerator, denominator, denominator_inverse, sum, root_inverse;
-    const mqse_term_t * numerator_terms = leaf->numerator_count == 0U
-        ? NULL : plan->numerator_terms + leaf->numerator_offset;
+    const mqse_factor_t * numerator_factors = plan->numerator_factors
+        + leaf->numerator_factor_offset;
+    const mqse_factor_t * denominator_factors = plan->denominator_factors
+        + leaf->denominator_factor_offset;
     size_t branch_count = ((size_t) 1U) << leaf->local_rank;
     size_t branch, local_mask, bit, global_mask;
 
     (void) point;
     for (branch = 0U; branch < branch_count; ++branch) {
-        numerator = evaluate_polynomial(plan, leaf, numerator_terms,
-            leaf->numerator_count, branch, powers);
-        denominator = evaluate_polynomial(plan, leaf,
-            plan->denominator_terms + leaf->denominator_offset,
-            leaf->denominator_count, branch, powers);
+        numerator = evaluate_product(plan, leaf, numerator_factors,
+            leaf->numerator_factor_count, plan->numerator_terms, branch,
+            powers);
+        denominator = evaluate_product(plan, leaf, denominator_factors,
+            leaf->denominator_factor_count, plan->denominator_terms, branch,
+            powers);
         if (denominator == 0U)
             return UINT64_C(1);
         denominator_inverse = (mp_limb_t) n_invmod(denominator, plan->prime);

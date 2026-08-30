@@ -180,9 +180,11 @@ ClearAll[
   multiquadraticStripMergeGaugeDenominatorSourceData,
   multiquadraticStripMergeGaugeDenominatorSources,
   multiquadraticStripScreenCompilePolynomialExact,
+  multiquadraticStripScreenCompileExpandedPolynomialExact,
   multiquadraticStripScreenReducePolynomial,
   multiquadraticStripScreenCompilePolynomial,
   multiquadraticStripScreenCompileScalarExact,
+  multiquadraticStripScreenCompileFactoredScalarExact,
   multiquadraticStripScreenReduceScalar,
   multiquadraticStripScreenCompileScalar,
   multiquadraticStripScreenEvaluatePolynomial,
@@ -3024,6 +3026,47 @@ multiquadraticStripScreenCompilePolynomialExact[polynomial_,
 ];
 multiquadraticStripScreenCompilePolynomialExact[___] := $Failed;
 
+(* Fast path for an expression which is already an expanded sum of
+   monomials.  CoefficientRules calls Expand again and performs a general
+   polynomial conversion; on large deferred operands that dominated sparse
+   plan construction even though every existing Plus term was already a
+   monomial.  Parse that representation directly and merge only genuinely
+   duplicate exponent vectors. *)
+multiquadraticStripScreenCompileExpandedPolynomialExact[polynomial_,
+    allVariables_List] := Module[
+  {terms, coefficients, rules, exponents},
+  If[! TrueQ[PolynomialQ[polynomial, allVariables]], Return[$Failed]];
+  terms = If[Head[polynomial] === Plus, List @@ polynomial, {polynomial}];
+  (* Expand each existing additive term independently.  This distributes
+     small local factors such as x^n (4 x + y^2), but unlike Expand on the
+     whole deferred numerator it cannot form a cross product between the
+     numerator's separately compiled top-level factors. *)
+  terms = Expand[terms];
+  terms = Flatten[If[Head[#1] === Plus, List @@ #1, {#1}] & /@ terms];
+  (* Exponent threads over a list of monomials inside the kernel.  Together
+     with the all-rational coefficient test and the absence of nested Plus,
+     this rejects non-monomial or non-polynomial terms without a scalar
+     Wolfram-level parser loop. *)
+  If[! FreeQ[terms, _Plus], Return[$Failed]];
+  exponents = Transpose[Exponent[terms, #1] & /@ allVariables];
+  coefficients = terms /. Thread[allVariables -> 1];
+  If[! MatrixQ[exponents,
+        IntegerQ[#1] && NonNegative[#1] &] ||
+      ! VectorQ[coefficients,
+        IntegerQ[#1] || Head[#1] === Rational &], Return[$Failed]];
+  rules = Select[Normal[Merge[
+      MapThread[Rule, {exponents, coefficients}], Total]],
+    Last[#1] =!= 0 &];
+  If[rules === {},
+    Return[<|"Exponents" -> {}, "ExactCoefficients" -> {},
+      "MaximumExponents" -> ConstantArray[0, Length[allVariables]]|>]];
+  exponents = First /@ rules;
+  <|"Exponents" -> Developer`ToPackedArray[exponents],
+    "ExactCoefficients" -> Last /@ rules,
+    "MaximumExponents" -> Max /@ Transpose[exponents]|>
+];
+multiquadraticStripScreenCompileExpandedPolynomialExact[___] := $Failed;
+
 multiquadraticStripScreenReducePolynomial[exact_Association,
     prime_Integer] := Module[{coefficients},
   coefficients = multiquadraticStripModRational[#1, prime] & /@
@@ -3065,8 +3108,89 @@ multiquadraticStripScreenCompileScalarExact[expression_, roots_List,
 ];
 multiquadraticStripScreenCompileScalarExact[___] := $Failed;
 
+(* Deferred operands already carry an exact canonical quotient.  Recombining
+   its numerator factors with Together/Expand before finite-field evaluation
+   can manufacture a huge cross product which is absent from the source DAG.
+   Compile the existing top-level product factor by factor instead; evaluation
+   multiplies the factor values modulo p, so this is exactly the same rational
+   function without materializing that cross product.  This representation is
+   deliberately split-value-only; derivative screens keep the established
+   flat rational compiler. *)
+multiquadraticStripScreenCompileFactoredScalarExact[numerator_,
+    denominatorFactors_List, roots_List, rootSymbols_List,
+    variables_List] := Module[
+  {allVariables = Join[variables, rootSymbols], splitNumerator,
+   normalizeFactor, compileFactor, numeratorData, denominatorData,
+   maxima},
+  splitNumerator = If[Head[numerator] === Times, List @@ numerator,
+    {numerator}];
+  normalizeFactor[factor_, inheritedPower_Integer : 1] := Which[
+    MatchQ[factor, Power[_, exponent_Integer?Positive]],
+      {First[factor], inheritedPower Last[factor]},
+    True, {factor, inheritedPower}];
+  compileFactor[{factor_, power_Integer?Positive}] := Module[
+    {replaced, compiled},
+    replaced = If[roots === {}, factor,
+      Quiet[transportChartApplyRootBranches[factor, roots, rootSymbols]]];
+    If[replaced === $Failed ||
+        ! FreeQ[replaced,
+          Power[_, exponent_Rational /; ! IntegerQ[exponent]]] ||
+        ! FreeQ[replaced, DirectedInfinity | Indeterminate],
+      Return[$Failed]];
+    compiled = multiquadraticStripScreenCompileExpandedPolynomialExact[
+      replaced, allVariables];
+    If[compiled === $Failed,
+      compiled = multiquadraticStripScreenCompilePolynomialExact[
+        replaced, allVariables]];
+    If[compiled === $Failed, $Failed,
+      <|"Polynomial" -> compiled, "Power" -> power|>]
+  ];
+  numeratorData = compileFactor /@
+    (normalizeFactor /@ splitNumerator);
+  denominatorData = compileFactor /@
+    If[denominatorFactors === {}, {{1, 1}},
+      normalizeFactor[First[#1], Last[#1]] & /@ denominatorFactors];
+  If[MemberQ[numeratorData, $Failed] ||
+      MemberQ[denominatorData, $Failed] ||
+      AnyTrue[denominatorData,
+        Lookup[#1["Polynomial"], "ExactCoefficients", {}] === {} &],
+    Return[$Failed]];
+  maxima = Lookup[Join[numeratorData, denominatorData][[All, "Polynomial"]],
+    "MaximumExponents"];
+  <|"Representation" -> "SplitValueFactoredRationalV1",
+    "NumeratorFactors" -> numeratorData,
+    "DenominatorFactors" -> denominatorData,
+    "MaximumExponents" -> If[maxima === {},
+      ConstantArray[0, Length[allVariables]], Max /@ Transpose[maxima]]|>
+];
+multiquadraticStripScreenCompileFactoredScalarExact[___] := $Failed;
+
 multiquadraticStripScreenReduceScalar[exact_Association,
-    prime_Integer] := Module[{numerator, denominator},
+    prime_Integer] := Module[
+  {numerator, denominator, reduceFactor, numeratorFactors,
+   denominatorFactors},
+  If[Lookup[exact, "Representation", None] ===
+      "SplitValueFactoredRationalV1",
+    reduceFactor[factor_Association] := Module[{polynomial},
+      polynomial = multiquadraticStripScreenReducePolynomial[
+        Lookup[factor, "Polynomial", <||>], prime];
+      If[polynomial === $Failed, $Failed,
+        <|"Polynomial" -> polynomial,
+          "Power" -> Lookup[factor, "Power", $Failed]|>]];
+    numeratorFactors = reduceFactor /@
+      Lookup[exact, "NumeratorFactors", {}];
+    denominatorFactors = reduceFactor /@
+      Lookup[exact, "DenominatorFactors", {}];
+    If[MemberQ[numeratorFactors, $Failed] ||
+        MemberQ[denominatorFactors, $Failed] ||
+        denominatorFactors === {} ||
+        ! AllTrue[Join[numeratorFactors, denominatorFactors],
+          IntegerQ[#1["Power"]] && #1["Power"] > 0 &],
+      Return[$Failed]];
+    Return[<|"Representation" -> "SplitValueFactoredRationalV1",
+      "NumeratorFactors" -> numeratorFactors,
+      "DenominatorFactors" -> denominatorFactors,
+      "MaximumExponents" -> exact["MaximumExponents"]|>]];
   numerator = multiquadraticStripScreenReducePolynomial[
     Lookup[exact, "Numerator", <||>], prime];
   denominator = multiquadraticStripScreenReducePolynomial[
@@ -3136,7 +3260,18 @@ multiquadraticStripScreenEvaluatePolynomialValue[compiled_Association,
 
 multiquadraticStripScreenEvaluateRationalValue[compiled_Association,
     powerTables_List, prime_Integer] := Module[
-  {numerator, denominator},
+  {numerator, denominator, evaluateFactor},
+  If[Lookup[compiled, "Representation", None] ===
+      "SplitValueFactoredRationalV1",
+    evaluateFactor[factor_Association] := PowerMod[
+      multiquadraticStripScreenEvaluatePolynomialValue[
+        factor["Polynomial"], powerTables, prime], factor["Power"], prime];
+    numerator = Fold[Mod[#1 #2, prime] &, 1,
+      evaluateFactor /@ compiled["NumeratorFactors"]];
+    denominator = Fold[Mod[#1 #2, prime] &, 1,
+      evaluateFactor /@ compiled["DenominatorFactors"]];
+    If[denominator === 0, Return[$Failed]];
+    Return[Mod[numerator PowerMod[denominator, -1, prime], prime]]];
   numerator = multiquadraticStripScreenEvaluatePolynomialValue[
     compiled["Numerator"], powerTables, prime];
   denominator = multiquadraticStripScreenEvaluatePolynomialValue[
@@ -11925,7 +12060,8 @@ multiquadraticStripSplitSparseEvaluationPlan[provider_Association,
     prime_Integer] := Module[
   {startTime = AbsoluteTime[], cacheKey, cached, roots, scalarVariables,
    leaves = {}, buckets = <||>, register, entries, entryActive, entryMaps,
-   oneFormMap, bundle, operandMap = {}, coefficientMap = {}, compileSeconds,
+   registerAtLevel, oneFormMap, bundle, operandMap = {}, coefficientMap = {},
+   operandTable = {}, structuredOperands = <||>, compileLeaf, compileSeconds,
    compiled, compileInvocationCount = 0, compiledLeafCount, plan,
    occurrenceCount, exactCacheKey, exactCached, exactLeaves,
    exactPlanCacheHit = False, exactCompileSeconds = 0., leafIndex},
@@ -11972,27 +12108,49 @@ multiquadraticStripSplitSparseEvaluationPlan[provider_Association,
         index = Length[leaves];
         AssociateTo[buckets, bucketKey -> Append[candidates, index]]];
       index];
+    (* Active-root subsets are themselves lists, so MapThread at the scalar
+       level descends one dimension too far.  Ragged deferred-job term lists
+       make that especially visible: scalar coefficients are paired against
+       the elements of their root-index lists instead of against the lists.
+       Position-based pairing preserves the tensor/job structure exactly. *)
+    registerAtLevel[expressions_, active_, level_Integer] :=
+      MapIndexed[Function[{expression, position},
+        register[expression, Extract[active, position]]],
+        expressions, {level}];
     entries = provider["Entries"];
     entryActive = provider["ActiveRoots"];
-    entryMaps = Association[Table[key -> MapThread[register,
-        {entries[key], entryActive[key]}, 3], {key, Keys[entries]}]];
+    entryMaps = Association[Table[key -> registerAtLevel[
+        entries[key], entryActive[key], 3], {key, Keys[entries]}]];
     oneFormMap = If[provider["OneForms"] === {}, {},
-      MapThread[register, {provider["OneForms"],
-        provider["OneFormActiveRoots"]}, 2]];
+      registerAtLevel[provider["OneForms"],
+        provider["OneFormActiveRoots"], 2]];
     bundle = Lookup[provider, "DeferredBundle", None];
     If[AssociationQ[bundle],
-      operandMap = MapThread[register,
-        {provider["BundleOperandExpressions"],
-         provider["BundleOperandActiveRoots"]}];
-      coefficientMap = MapThread[register,
-        {provider["BundleCoefficientExpressions"],
-         provider["BundleCoefficientActiveRoots"]}, 2]];
+      operandMap = registerAtLevel[provider["BundleOperandExpressions"],
+        provider["BundleOperandActiveRoots"], 1];
+      coefficientMap = registerAtLevel[
+        provider["BundleCoefficientExpressions"],
+        provider["BundleCoefficientActiveRoots"], 2];
+      operandTable = Lookup[bundle, "OperandTable", {}];
+      If[Length[operandTable] === Length[operandMap],
+        Do[If[! KeyExistsQ[structuredOperands, operandMap[[index]]],
+          AssociateTo[structuredOperands,
+            operandMap[[index]] -> operandTable[[index]]]],
+          {index, Length[operandMap]}]]];
+    compileLeaf[leaf_Association, index_Integer] := Module[
+      {activeRoots = roots[[leaf["ActiveRoots"]]], rootSymbols},
+      rootSymbols = Take[$multiquadraticStripSplitRootSymbols,
+        Length[leaf["ActiveRoots"]]];
+      If[KeyExistsQ[structuredOperands, index],
+        multiquadraticStripScreenCompileFactoredScalarExact[
+          structuredOperands[index, "Numerator"],
+          structuredOperands[index, "DenominatorFactors"], activeRoots,
+          rootSymbols, scalarVariables],
+        multiquadraticStripScreenCompileScalarExact[leaf["Expression"],
+          activeRoots, rootSymbols, scalarVariables]]];
     {exactCompileSeconds, exactLeaves} = AbsoluteTiming[
       If[TrueQ[$multiquadraticStripSplitSparseCompilation],
-        Map[multiquadraticStripScreenCompileScalarExact[#1["Expression"],
-            roots[[#1["ActiveRoots"]]],
-            Take[$multiquadraticStripSplitRootSymbols,
-              Length[#1["ActiveRoots"]]], scalarVariables] &, leaves],
+        MapIndexed[compileLeaf[#1, First[#2]] &, leaves],
         ConstantArray[$Failed, Length[leaves]]]];
     multiquadraticStripCacheInsert[
       $multiquadraticStripSplitSparseExactPlanCache, exactCacheKey,
@@ -12071,8 +12229,8 @@ multiquadraticStripSplitSparseEvaluationPlanHotValidQ[___] := False;
 
 multiquadraticStripSplitSparseEvaluationPlanValidQ[plan_Association,
     provider_Association, prime_Integer] := Module[
-  {leaves, maps, entryMaps, match, entries, active, entryOK, oneFormOK,
-   bundle, operandOK, coefficientOK, leafOK},
+  {leaves, maps, entryMaps, match, matchAtLevel, entries, active, entryOK,
+   oneFormOK, bundle, operandOK, coefficientOK, leafOK},
   If[! multiquadraticStripProviderHotValidQ[provider] ||
       ! multiquadraticStripSplitSparseEvaluationPlanHotValidQ[plan,
         provider, prime], Return[False]];
@@ -12095,25 +12253,27 @@ multiquadraticStripSplitSparseEvaluationPlanValidQ[plan_Association,
     1 <= index <= Length[leaves] &&
     SameQ[leaves[[index, "Expression"]], expression] &&
     SameQ[leaves[[index, "ActiveRoots"]], activeIndices];
+  matchAtLevel[expressions_, activeRoots_, indices_, level_Integer] :=
+    TrueQ[And @@ Flatten[MapIndexed[Function[{expression, position},
+      match[expression, Extract[activeRoots, position],
+        Extract[indices, position]]], expressions, {level}]]];
   entries = provider["Entries"]; active = provider["ActiveRoots"];
   entryOK = And @@ Flatten[Table[
-    MapThread[match, {entries[key], active[key], entryMaps[key]}, 3],
+    matchAtLevel[entries[key], active[key], entryMaps[key], 3],
     {key, Keys[entries]}]];
   oneFormOK = If[provider["OneForms"] === {},
     Lookup[maps, "OneForms", $Failed] === {},
-    TrueQ[And @@ Flatten[MapThread[match,
-      {provider["OneForms"], provider["OneFormActiveRoots"],
-       Lookup[maps, "OneForms", $Failed]}, 2]]]];
+    matchAtLevel[provider["OneForms"], provider["OneFormActiveRoots"],
+      Lookup[maps, "OneForms", $Failed], 2]];
   bundle = Lookup[provider, "DeferredBundle", None];
   If[AssociationQ[bundle],
-    operandOK = TrueQ[And @@ Flatten[MapThread[match,
-      {provider["BundleOperandExpressions"],
-       provider["BundleOperandActiveRoots"],
-       Lookup[maps, "BundleOperands", $Failed]}]]];
-    coefficientOK = TrueQ[And @@ Flatten[MapThread[match,
-      {provider["BundleCoefficientExpressions"],
-       provider["BundleCoefficientActiveRoots"],
-       Lookup[maps, "BundleCoefficients", $Failed]}, 2]]],
+    operandOK = matchAtLevel[provider["BundleOperandExpressions"],
+      provider["BundleOperandActiveRoots"],
+      Lookup[maps, "BundleOperands", $Failed], 1];
+    coefficientOK = matchAtLevel[
+      provider["BundleCoefficientExpressions"],
+      provider["BundleCoefficientActiveRoots"],
+      Lookup[maps, "BundleCoefficients", $Failed], 2],
     operandOK = Lookup[maps, "BundleOperands", $Failed] === {};
     coefficientOK = Lookup[maps, "BundleCoefficients", $Failed] === {}];
   TrueQ[entryOK && oneFormOK && operandOK && coefficientOK &&
@@ -12159,8 +12319,9 @@ multiquadraticStripNativeSparseBinary[] := With[{file = FileNameJoin[{
 multiquadraticStripNativeSparseWritePlan[plan_Association,
     file_String] := Module[
   {stream = None, leaves = Lookup[plan, "Leaves", $Failed], prime,
-   rootCount, numeratorTerms, denominatorTerms, active, compiled,
-   writePolynomial, ok = False},
+   rootCount, numeratorFactors, denominatorFactors, numeratorTerms,
+   denominatorTerms, active, sideFactors, writePolynomial,
+   writeFactor, ok = False},
   If[! ListQ[leaves] || leaves === {} ||
       ! AllTrue[Lookup[leaves, "Compiled", {}], AssociationQ],
     Return[False]];
@@ -12169,30 +12330,50 @@ multiquadraticStripNativeSparseWritePlan[plan_Association,
   If[! PrimeQ[prime] || ! IntegerQ[rootCount] ||
       ! Between[rootCount, {0, $multiquadraticStripMaximumRootCount}],
     Return[False]];
-  numeratorTerms = Total[
-    Length[#1["Compiled", "Numerator", "Coefficients"]] & /@ leaves];
-  denominatorTerms = Total[
-    Length[#1["Compiled", "Denominator", "Coefficients"]] & /@ leaves];
+  sideFactors[compiled_Association, side_String] := If[
+    Lookup[compiled, "Representation", None] ===
+      "SplitValueFactoredRationalV1",
+    Lookup[compiled, side <> "Factors", $Failed],
+    {<|"Polynomial" -> Lookup[compiled, side, $Failed], "Power" -> 1|>}];
+  numeratorFactors = sideFactors[#1["Compiled"], "Numerator"] & /@ leaves;
+  denominatorFactors = sideFactors[#1["Compiled"], "Denominator"] & /@ leaves;
+  If[! MatchQ[numeratorFactors, {{__Association} ..}] ||
+      ! MatchQ[denominatorFactors, {{__Association} ..}] ||
+      ! AllTrue[Flatten[{numeratorFactors, denominatorFactors}],
+        MatchQ[#1, _Association] &&
+          AssociationQ[Lookup[#1, "Polynomial", None]] &&
+          IntegerQ[Lookup[#1, "Power", None]] && #1["Power"] > 0 &],
+    Return[False]];
+  numeratorTerms = Total[Length[#1["Polynomial", "Coefficients"]] & /@
+    Flatten[numeratorFactors]];
+  denominatorTerms = Total[Length[#1["Polynomial", "Coefficients"]] & /@
+    Flatten[denominatorFactors]];
   writePolynomial[polynomial_Association] := Module[{rows},
     rows = MapThread[Prepend,
       {polynomial["Exponents"], polynomial["Coefficients"]}];
     BinaryWrite[stream, Flatten[rows], "UnsignedInteger64",
       ByteOrdering -> -1]];
+  writeFactor[factor_Association] := (
+    BinaryWrite[stream, {factor["Power"],
+        Length[factor["Polynomial", "Coefficients"]]},
+      "UnsignedInteger64", ByteOrdering -> -1];
+    writePolynomial[factor["Polynomial"]]);
   Quiet[Check[
     stream = OpenWrite[file, BinaryFormat -> True];
-    BinaryWrite[stream, ToCharacterCode["MQSE1P1\000"],
+    BinaryWrite[stream, ToCharacterCode["MQSE1P2\000"],
       "UnsignedInteger8"];
-    BinaryWrite[stream, {prime, rootCount, Length[leaves], numeratorTerms,
+    BinaryWrite[stream, {prime, rootCount, Length[leaves],
+        Total[Length /@ numeratorFactors],
+        Total[Length /@ denominatorFactors], numeratorTerms,
         denominatorTerms}, "UnsignedInteger64", ByteOrdering -> -1];
     Do[
       active = leaves[[index, "ActiveRoots"]];
-      compiled = leaves[[index, "Compiled"]];
       BinaryWrite[stream, {Total[2^(active - 1)], Length[active],
-          Length[compiled["Numerator", "Coefficients"]],
-          Length[compiled["Denominator", "Coefficients"]]},
+          Length[numeratorFactors[[index]]],
+          Length[denominatorFactors[[index]]]},
         "UnsignedInteger64", ByteOrdering -> -1];
-      writePolynomial[compiled["Numerator"]];
-      writePolynomial[compiled["Denominator"]],
+      writeFactor /@ numeratorFactors[[index]];
+      writeFactor /@ denominatorFactors[[index]],
       {index, Length[leaves]}];
     Close[stream]; stream = None; ok = True,
     If[Head[stream] === OutputStream, Quiet[Close[stream]]]; ok = False]];

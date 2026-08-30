@@ -8,8 +8,8 @@
 #                             Codex xhigh audit 2026-08-23, PROTOCOL_CFFR1.md;
 #                             source SHA256 11f4d337ace94efad2d3736edd5094d7
 #                             091f5ce4f0ec5be9646a1bd52c5617cd)
-#   bin/flint_sparse_eval     MQSE1P1/MQSE1Q1/MQSE1X1 batched sparse rational
-#                             evaluator for multiquadratic split branches
+#   bin/flint_sparse_eval     MQSE1P2/MQSE1Q1/MQSE1X1 batched factored-sparse
+#                             rational evaluator for split branches
 #   bin/flint_row_assemble    MQRA1V1/MQRA1X1 multiquadratic row assembler
 #   bin/flint_regulator_interpolate
 #                             FFRI1V1/FFRI1X1 batched rational-in-regulator
