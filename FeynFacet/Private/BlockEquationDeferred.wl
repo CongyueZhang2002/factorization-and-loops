@@ -804,20 +804,14 @@ blockEquationDeferredActiveGradeCensus[___] :=
    numeric content folded in, denominator factor -> exponent}.  Keeping the
    arithmetic separate from the cache lets independent operands be evaluated
    by pool helpers after their deterministic IDs have been assigned. *)
-blockEquationDeferredCanonicalOperandValue[expression_] :=
-  Module[{q, numerator, denominator, factorList, content, factors},
-    q = Together[expression];
-    numerator = Numerator[q]; denominator = Denominator[q];
-    If[TrueQ[denominator === 1],
-      Return[{numerator, <||>}]];
-    factorList = FactorList[denominator];
-    content = Times @@ ((First[#]^Last[#]) & /@
-      Select[factorList, NumericQ[First[#]] &]);
-    factors = Association[
-      (First[#] -> Last[#]) & /@ Select[factorList, ! NumericQ[First[#]] &]];
-    {
-      If[TrueQ[content === 1], numerator, Cancel[numerator/content]],
-      factors}];
+blockEquationDeferredCanonicalOperandValue[expression_,
+    polynomialSymbols_: Automatic] :=
+  Module[{accelerated},
+    accelerated = Quiet[Check[
+      rationalMaterializationCanonicalValue[expression, polynomialSymbols],
+      $Failed]];
+    If[MatchQ[accelerated, {_, _Association}], Return[accelerated]];
+    rationalMaterializationTogetherValue[expression]];
 
 (* The mutable wrapper remains the single cache contract used by bundle
    compilation and serial callers. *)
@@ -1035,7 +1029,8 @@ blockEquationDeferredInternTask[dataFile_String, indices_List] :=
       Return[$Failed]];
     Map[Function[index, Quiet[Check[
         blockEquationDeferredCanonicalOperandValue[
-          data["Expressions"][[index]]], $Failed]]], indices]];
+          data["Expressions"][[index]],
+          Lookup[data, "PolynomialSymbols", Automatic]], $Failed]]], indices]];
 
 (* helper side: one task = one batch of independent target jobs.  The
    operand table and the job list are written ONCE per materialization
@@ -1276,7 +1271,7 @@ blockEquationDeferredMaterialize[preparation_Association,
   canonicalizeBatch[indices_List] := Map[
     Function[index, Quiet[Check[
       blockEquationDeferredCanonicalOperandValue[
-        canonicalExpressions[[index]]], $Failed]]], indices];
+        canonicalExpressions[[index]], symbols], $Failed]]], indices];
   internWaves = If[Total[canonicalBytes] >= 2^26 ||
       Max[Append[canonicalBytes, 0]] >= 2^23, 16, 4];
   canonicalBatches = If[canonicalExpressions === {}, {},
@@ -1321,7 +1316,8 @@ blockEquationDeferredMaterialize[preparation_Association,
       If[internDispatcher === Automatic,
         canonicalDataFile = taskBrokerDataFile[
           "bedintern_call_" <> StringReplace[CreateUUID[], "-" -> ""],
-          <|"Expressions" -> canonicalExpressions|>];
+          <|"Expressions" -> canonicalExpressions,
+            "PolynomialSymbols" -> symbols|>];
         canonicalCodes = Map[Function[batchIndex, StringJoin[
             "FeynFacet`Private`blockEquationDeferredInternTask[\"",
             canonicalDataFile, "\", ",
@@ -1336,7 +1332,8 @@ blockEquationDeferredMaterialize[preparation_Association,
         {batchIndex, canonicalLocalBatchIndices}];
       canonicalFarmed = If[internDispatcher === Automatic,
         taskBrokerCollect[canonicalHandle],
-        internDispatcher[<|"Expressions" -> canonicalExpressions|>,
+        internDispatcher[<|"Expressions" -> canonicalExpressions,
+            "PolynomialSymbols" -> symbols|>,
           canonicalBatches[[canonicalFarmedBatchIndices]]]]];
     internBatchSeconds = First[timing];
     Do[Module[{batchIndex = canonicalFarmedBatchIndices[[position]], value},
