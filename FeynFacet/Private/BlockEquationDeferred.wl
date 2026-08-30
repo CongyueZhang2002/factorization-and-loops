@@ -908,7 +908,8 @@ blockEquationDeferredMapleCanonicalOperandValue[expression_] := Module[
   mapleExpression = expression /. Power[base_, exponent_Rational /;
       Denominator[exponent] === 2] :> Module[{},
         position = FirstPosition[radicalBases,
-          candidate_ /; SameQ[candidate, base], Missing["NoRoot"]];
+          candidate_ /; SameQ[candidate, base], Missing["NoRoot"], {1},
+          Heads -> False];
         If[MissingQ[position], Power[base, exponent],
           rootImages[[First[position]]]^(2 exponent)]];
   restoreRules = Thread[rootImages -> (Sqrt /@ radicalBases)];
