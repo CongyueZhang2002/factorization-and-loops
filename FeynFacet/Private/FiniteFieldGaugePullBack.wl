@@ -24,6 +24,7 @@ ClearAll[
   finiteFieldGaugePullBackFitNumerators,
   finiteFieldGaugePullBackFitFibre,
   finiteFieldGaugePullBackPrime,
+  finiteFieldGaugePullBackPrimeTask,
   finiteFieldGaugePullBackLift,
   finiteFieldGaugePullBackDeadlineQ,
   finiteFieldGaugePullBackExpiredQ,
@@ -909,6 +910,25 @@ finiteFieldGaugePullBackPrime[___] :=
   finiteFieldGaugePullBackFailure[
     "FiniteFieldGaugePullBackPrimeArgumentsInvalid"];
 
+(* Helper-side follower-prime entry point.  The first good prime remains on
+   the mission kernel because it discovers the degree/support model.  This
+   task receives that immutable model and computes one independent later
+   prime; the mission admits results in the original prime order. *)
+finiteFieldGaugePullBackPrimeTask[dataFile_String, prime_Integer] := Module[
+  {payload, result},
+  payload = taskBrokerRead[dataFile];
+  If[! AssociationQ[payload] ||
+      Lookup[Lookup[payload, "Plan", <||>], "Status", None] =!=
+        "FiniteFieldGaugePullBackPlanV1" ||
+      ! MatchQ[Lookup[payload, "Options", None], {___Rule}],
+    Return[$Failed]];
+  result = finiteFieldGaugePullBackPrime[payload["Plan"], prime,
+    Sequence @@ payload["Options"]];
+  <|"Status" -> "FiniteFieldGaugePullBackPrimeTaskV1",
+    "Prime" -> prime, "Result" -> result|>
+];
+finiteFieldGaugePullBackPrimeTask[___] := $Failed;
+
 finiteFieldGaugePullBackLift[plan_Association,
     modularData_List] := Module[
   {primes, coordinateCount, combinedModulus, combined, liftedPairs,
@@ -1021,7 +1041,10 @@ finiteFieldGaugePullBackCommon[chartGauge_List,
     epsilon_Symbol, roots_List, OptionsPattern[]] := Module[
   {started = AbsoluteTime[], primes, minimumPrimeCount, maximumPrimeCount,
    deadline, verbose, plan, modularData = {}, first = None, record, lift,
-   selectedPrimes, terminal = None, lastModelRefusal = None, status},
+   selectedPrimes, terminal = None, lastModelRefusal = None,
+   primeOptions, computePrime, admitPrime, primeIndex = 1, helperCount,
+   wave, waveOptions, dataFile, helperPrimes, codes, handle, localRecord,
+   helperRecords, waveRecords, timeout, unwrapFollower},
   primes = DeleteDuplicates[OptionValue["Primes"]];
   minimumPrimeCount = OptionValue["MinimumPrimeCount"];
   maximumPrimeCount = OptionValue["MaximumPrimeCount"];
@@ -1043,55 +1066,52 @@ finiteFieldGaugePullBackCommon[chartGauge_List,
     chartVariables, coordinateImages, variables, epsilon, roots];
   If[Lookup[plan, "Status", None] =!= "FiniteFieldGaugePullBackPlanV1",
     Return[plan]];
-  Do[
-    If[finiteFieldGaugePullBackExpiredQ[deadline],
-      terminal = finiteFieldGaugePullBackFailure[
-        "FiniteFieldGaugePullBackDeadlineExpired",
-        <|"Stage" -> "PrimeLoop", "CompletedPrimes" -> Length[modularData],
-          "Seconds" -> N[AbsoluteTime[] - started]|>];
-      Break[]];
-    record = finiteFieldGaugePullBackPrime[plan, prime,
-      "MaximumKinematicTotalDegree" ->
-        OptionValue["MaximumKinematicTotalDegree"],
-      "MaximumEpsilonTotalDegree" ->
-        OptionValue["MaximumEpsilonTotalDegree"],
-      "HeldOutPointCount" -> OptionValue["HeldOutPointCount"],
-      "EpsilonHeldOutCount" -> OptionValue["EpsilonHeldOutCount"],
-      "DenominatorDegreeAggregation" ->
-        OptionValue["DenominatorDegreeAggregation"],
-      "MaximumDenominatorCandidates" ->
-        OptionValue["MaximumDenominatorCandidates"],
-      "ExpectedEpsilonDegrees" -> If[AssociationQ[first],
-        first["EpsilonDegreeProfile"], Automatic],
-      "ExpectedNumeratorBounds" -> If[AssociationQ[first],
-        first["NumeratorBounds"], Automatic],
-      "ExpectedDenominatorBounds" -> If[AssociationQ[first],
-        first["DenominatorBounds"], Automatic],
-      "ExpectedActiveOutputs" -> If[AssociationQ[first],
-        first["ActiveOutputs"], Automatic],
-      "ExpectedAnchors" -> If[AssociationQ[first],
-        first["Anchors"], Automatic],
-      "ExpectedNormalizationIndex" -> If[AssociationQ[first],
-        first["NormalizationIndex"], Automatic],
-      "Deadline" -> deadline, "Verbose" -> verbose];
-    If[Lookup[record, "Status", None] =!=
+  primeOptions[] := {
+    "MaximumKinematicTotalDegree" ->
+      OptionValue["MaximumKinematicTotalDegree"],
+    "MaximumEpsilonTotalDegree" ->
+      OptionValue["MaximumEpsilonTotalDegree"],
+    "HeldOutPointCount" -> OptionValue["HeldOutPointCount"],
+    "EpsilonHeldOutCount" -> OptionValue["EpsilonHeldOutCount"],
+    "DenominatorDegreeAggregation" ->
+      OptionValue["DenominatorDegreeAggregation"],
+    "MaximumDenominatorCandidates" ->
+      OptionValue["MaximumDenominatorCandidates"],
+    "ExpectedEpsilonDegrees" -> If[AssociationQ[first],
+      first["EpsilonDegreeProfile"], Automatic],
+    "ExpectedNumeratorBounds" -> If[AssociationQ[first],
+      first["NumeratorBounds"], Automatic],
+    "ExpectedDenominatorBounds" -> If[AssociationQ[first],
+      first["DenominatorBounds"], Automatic],
+    "ExpectedActiveOutputs" -> If[AssociationQ[first],
+      first["ActiveOutputs"], Automatic],
+    "ExpectedAnchors" -> If[AssociationQ[first],
+      first["Anchors"], Automatic],
+    "ExpectedNormalizationIndex" -> If[AssociationQ[first],
+      first["NormalizationIndex"], Automatic],
+    "Deadline" -> deadline, "Verbose" -> verbose};
+  computePrime[prime_Integer] := finiteFieldGaugePullBackPrime[
+    plan, prime, Sequence @@ primeOptions[]];
+  admitPrime[prime_Integer, candidate_] := Module[{candidateStatus},
+    If[Lookup[candidate, "Status", None] =!=
         "FiniteFieldGaugePullBackPrimeV1",
-      status = Lookup[record, "Status", None];
+      candidateStatus = Lookup[candidate, "Status", None];
       If[verbose, Print["[finite-field gauge pullback] rejected prime ",
-        prime, ": ", status]];
-      If[status === "FiniteFieldGaugePullBackDeadlineExpired",
-        terminal = record; Break[]];
-      If[status === "FiniteFieldGaugePullBackDenominatorFitSingular",
-        lastModelRefusal = record; Continue[]];
+        prime, ": ", candidateStatus]];
+      If[candidateStatus === "FiniteFieldGaugePullBackDeadlineExpired",
+        terminal = candidate; Return["Terminal"]];
+      If[candidateStatus ===
+          "FiniteFieldGaugePullBackDenominatorFitSingular",
+        lastModelRefusal = candidate; Return["Continue"]];
       If[MemberQ[{"FiniteFieldGaugePullBackSliceDegreeExceeded",
             "FiniteFieldGaugePullBackDenominatorModelInconsistent",
             "FiniteFieldGaugePullBackCommonDenominatorInsufficient",
             "FiniteFieldGaugePullBackNoReducedDenominatorModel"},
-          status],
-        terminal = record; Break[]];
-      Continue[]];
-    AppendTo[modularData, record];
-    If[first === None, first = record];
+          candidateStatus],
+        terminal = candidate; Return["Terminal"]];
+      Return["Continue"]];
+    AppendTo[modularData, candidate];
+    If[first === None, first = candidate];
     If[Length[modularData] >= minimumPrimeCount,
       lift = finiteFieldGaugePullBackLift[plan, modularData];
       If[Lookup[lift, "Status", None] ===
@@ -1104,8 +1124,72 @@ finiteFieldGaugePullBackCommon[chartGauge_List,
             "DenominatorTermCount", "BuildSeconds"}],
           "PrimeRecords" -> (KeyDrop[#, "Interpolations"] & /@
             modularData)|>];
-        Break[]]],
-    {prime, selectedPrimes}];
+        Return["Terminal"]]];
+    "Accepted"
+  ];
+  (* Model discovery is adaptive and therefore serial until the first good
+     prime.  Exceptional primes retain the historical skip/terminal policy. *)
+  While[primeIndex <= Length[selectedPrimes] && first === None &&
+      terminal === None,
+    If[finiteFieldGaugePullBackExpiredQ[deadline],
+      terminal = finiteFieldGaugePullBackFailure[
+        "FiniteFieldGaugePullBackDeadlineExpired",
+        <|"Stage" -> "PrimeLoop", "CompletedPrimes" -> Length[modularData],
+          "Seconds" -> N[AbsoluteTime[] - started]|>];
+      Break[]];
+    record = computePrime[selectedPrimes[[primeIndex]]];
+    admitPrime[selectedPrimes[[primeIndex]], record];
+    primeIndex++];
+  (* Once the model exists, later primes are independent.  Use waves of at
+     most three (one local, two helpers), then admit them in schedule order;
+     a lift at an earlier prefix discards only bounded speculative work. *)
+  unwrapFollower[wrapped_, prime_Integer, options_List] := If[
+    AssociationQ[wrapped] &&
+      Lookup[wrapped, "Status", None] ===
+        "FiniteFieldGaugePullBackPrimeTaskV1" &&
+      Lookup[wrapped, "Prime", None] === prime &&
+      AssociationQ[Lookup[wrapped, "Result", None]],
+    wrapped["Result"],
+    finiteFieldGaugePullBackPrime[plan, prime, Sequence @@ options]];
+  While[primeIndex <= Length[selectedPrimes] && terminal === None,
+    If[finiteFieldGaugePullBackExpiredQ[deadline],
+      terminal = finiteFieldGaugePullBackFailure[
+        "FiniteFieldGaugePullBackDeadlineExpired",
+        <|"Stage" -> "PrimeLoop", "CompletedPrimes" -> Length[modularData],
+          "Seconds" -> N[AbsoluteTime[] - started]|>];
+      Break[]];
+    helperCount = If[taskBrokerActiveQ[],
+      Min[2, taskBrokerFreeKernels[],
+        Length[selectedPrimes] - primeIndex], 0];
+    wave = Take[selectedPrimes[[primeIndex ;;]],
+      UpTo[1 + helperCount]];
+    waveOptions = primeOptions[];
+    If[helperCount > 0,
+      dataFile = taskBrokerDataFile[
+        "ffgpb_" <> StringReplace[CreateUUID[], "-" -> ""],
+        <|"Plan" -> plan, "Options" -> waveOptions|>];
+      helperPrimes = Rest[wave];
+      codes = Map[StringJoin[
+          "FeynFacet`Private`finiteFieldGaugePullBackPrimeTask[",
+          ToString[dataFile, InputForm], ", ", ToString[#], "]"] &,
+        helperPrimes];
+      timeout = If[NumericQ[deadline],
+        Max[1., deadline - AbsoluteTime[]], 7200];
+      handle = taskBrokerSubmit[codes, "Timeout" -> timeout,
+        "Label" -> "ffgpb"];
+      localRecord = finiteFieldGaugePullBackPrime[plan, First[wave],
+        Sequence @@ waveOptions];
+      helperRecords = taskBrokerCollect[handle];
+      waveRecords = Prepend[MapThread[
+        unwrapFollower[#1, #2, waveOptions] &,
+        {helperRecords, helperPrimes}], localRecord],
+      waveRecords = {finiteFieldGaugePullBackPrime[
+        plan, First[wave], Sequence @@ waveOptions]}];
+    Do[
+      admitPrime[wave[[position]], waveRecords[[position]]];
+      If[terminal =!= None, Break[]],
+      {position, Length[wave]}];
+    primeIndex += Length[wave]];
   If[AssociationQ[terminal], Return[terminal]];
   If[Length[modularData] < minimumPrimeCount,
     If[AssociationQ[lastModelRefusal], lastModelRefusal,
