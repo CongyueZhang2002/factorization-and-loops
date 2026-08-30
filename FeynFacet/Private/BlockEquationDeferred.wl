@@ -1284,8 +1284,15 @@ blockEquationDeferredMaterialize[preparation_Association,
     Do[canonicalResults[[canonicalBatches[[batchIndex]]]] =
         canonicalizeBatch[canonicalBatches[[batchIndex]]],
       {batchIndex, Length[canonicalBatches]}],
-    canonicalLocalBatchIndices = Range[internHelpers + 1,
-      Length[canonicalBatches], internHelpers + 1];
+    canonicalLocalBatchIndices = If[internWaves === 16,
+      (* Keep the controller's static share deliberately light.  Heavy
+         singletons stay in the fair queue, where a sibling family finishing
+         can immediately lend its helpers instead of exposing a local tail. *)
+      TakeSmallestBy[Range[Length[canonicalBatches]],
+        Total[canonicalBytes[[canonicalBatches[[#]]]]] &,
+        UpTo[Ceiling[Length[canonicalBatches]/(internHelpers + 1)]]],
+      Range[internHelpers + 1,
+        Length[canonicalBatches], internHelpers + 1]];
     canonicalFarmedBatchIndices = Complement[Range[Length[canonicalBatches]],
       canonicalLocalBatchIndices];
     canonicalDispatchedBatches = Length[canonicalFarmedBatchIndices];
