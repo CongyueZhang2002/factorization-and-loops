@@ -9692,15 +9692,16 @@ multiquadraticStripPlanDiscoverySolve[___] :=
   multiquadraticStripFailure["InvalidPlanDiscoverySolveArguments"];
 
 (* A support rung needs only consistency evidence, not a selected affine
-   representative.  A successful native response already supplies both
-   ranks.  On exit 5 CFFR1 intentionally writes no response, so one native
-   homogeneous image recovers rank(A); with one RHS column rank([A|b]) is
-   then exactly rank(A)+1.  The inconsistent verdict itself is never sent to
+   representative.  A successful native response supplies both ranks.  On
+   exit 5 CFFR1 has already established affine inconsistency; because there is
+   exactly one RHS column, rank([A|b])-rank(A) is then exactly one.  Absolute
+   ranks are deliberately left Missing instead of paying a second homogeneous
+   RREF solely for telemetry.  The inconsistent verdict is never sent to
    Wolfram. *)
 multiquadraticStripAffineConsistencyEvidence[matrix_?MatrixQ, right_List,
     prime_Integer, gaugeUnknownCount_Integer, residueUnknownCount_Integer,
     requested_, threads_Integer, minimumEntries_: Automatic] := Module[
-  {startTime = AbsoluteTime[], solution, homogeneous, rank, augmentedRank},
+  {startTime = AbsoluteTime[], solution},
   solution = multiquadraticStripPlanDiscoverySolve[matrix, right, prime,
     gaugeUnknownCount, residueUnknownCount, requested, threads,
     minimumEntries];
@@ -9719,19 +9720,11 @@ multiquadraticStripAffineConsistencyEvidence[matrix_?MatrixQ, right_List,
     Lookup[solution, "Status", None] === "InconsistentModularSystem" &&
         Lookup[solution, "PlanDiscoveryBackendUsed", None] ===
           "FLINTAffineRREF",
-      homogeneous = multiquadraticStripNativeAffineSolve[matrix,
-        ConstantArray[0, Length[right]], prime, gaugeUnknownCount,
-        residueUnknownCount, threads];
-      If[Lookup[homogeneous, "Status", None] =!=
-          "MultiquadraticAffineSolution",
-        Return[multiquadraticStripFailure[
-          "ProviderSupportNativeRankEvidenceFailed",
-          <|"InconsistentVerdict" -> solution,
-            "HomogeneousRankDetail" -> homogeneous|>]]];
-      rank = homogeneous["Rank"]; augmentedRank = rank + 1;
       <|"Status" -> "ProviderSupportImageInconsistent", "Prime" -> prime,
-        "Rank" -> rank, "AugmentedRank" -> augmentedRank,
+        "Rank" -> Missing["NotComputedForInconsistentImage"],
+        "AugmentedRank" -> Missing["NotComputedForInconsistentImage"],
         "Defect" -> 1, "MatrixDimensions" -> Dimensions[matrix],
+        "DefectEvidence" -> "SingleRightHandSideAffineInconsistency",
         "InconsistentVerdict" -> KeyDrop[solution,
           {"RequestFile", "ResponseFile"}],
         "PlanDiscoveryBackendRequested" ->

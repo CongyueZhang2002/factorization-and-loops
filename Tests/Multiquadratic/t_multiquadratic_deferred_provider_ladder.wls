@@ -71,14 +71,16 @@ FTAssert["DL2 the provider ladder adopts the first consistent higher rung",
     Lookup[ladder, "Status", None] ===
       "DeferredProviderSupportLadderAdopted" &&
     Lookup[ladder, "AdoptedDegreeOffset", None] === {1, 0}];
-FTAssert["DL3 both images carry exact rank-versus-augmented-rank evidence",
+FTAssert["DL3 both images carry exact one-RHS consistency evidence",
   Length[rungs] === 2 &&
     Lookup[rungs, "DegreeOffset", {}] === {{0, 0}, {1, 0}} &&
     Length[DeleteDuplicates[Lookup[rungs[[1]], "Images", {}][[All, 1]]]] === 2 &&
     Lookup[rungs[[1]], "Defects", {}] === {1, 1} &&
     Lookup[rungs[[2]], "Defects", {}] === {0, 0} &&
-    Lookup[rungs[[1]], "AugmentedRanks", {}] ===
-      Lookup[rungs[[1]], "Ranks", {}] + 1 &&
+    AllTrue[Lookup[rungs[[1]], "Ranks", {}], MissingQ] &&
+    AllTrue[Lookup[rungs[[1]], "AugmentedRanks", {}], MissingQ] &&
+    Lookup[Lookup[rungs[[1]], "ImageEvidence", {}], "DefectEvidence", {}] ===
+      ConstantArray["SingleRightHandSideAffineInconsistency", 2] &&
     Lookup[rungs[[2]], "AugmentedRanks", {}] ===
       Lookup[rungs[[2]], "Ranks", {}]];
 FTAssert["DL4 support-only reprepare reuses the authenticated provider",
@@ -90,9 +92,12 @@ FTAssert["DL4 support-only reprepare reuses the authenticated provider",
 FTAssert["DL5 the two successful pilots are not sampled or RREFed again",
   Lookup[ladder, "SuccessfulPilotReuseCount", 0] === 2 &&
     Lookup[reconstruction, "ReusedPilotImageCount", 0] === 2 &&
+    Lookup[reconstruction, "StructuralPilotCacheHitCount", -1] === 2 &&
+    Lookup[reconstruction, "StructuralPilotNewSampleCount", -1] === 0 &&
+    Lookup[reconstruction, "StructuralPilotNewFullAffineSolveCount", -1] === 0 &&
     Count[Lookup[reconstruction, "ImagePhaseRecords", {}],
       item_ /; StringContainsQ[Lookup[item, "SolvePath", ""],
-        "ProviderSupportPilot"]] >= 2 &&
+        "ProviderSupportPilot"]] === 1 &&
     Lookup[result, "PostReconstructionAffineSolveCount", -1] === 0];
 FTAssert["DL6 native backend telemetry reaches the terminal record",
   Lookup[reconstruction, "PlanDiscoveryBackendUsed", None] ===

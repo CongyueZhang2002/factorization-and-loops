@@ -254,9 +254,31 @@ inconsistent = consistencyEvidence[{{1, 0}, {0, 0}}, {1, 1}, prime,
   2, 0, Automatic, 2, 0];
 check["a native inconsistent verdict is preserved without Wolfram fallback",
   inconsistent["Status"] === "ProviderSupportImageInconsistent" &&
-    inconsistent["Rank"] === 1 && inconsistent["AugmentedRank"] === 2 &&
+    MissingQ[inconsistent["Rank"]] &&
+    MissingQ[inconsistent["AugmentedRank"]] &&
     inconsistent["Defect"] === 1 &&
+    inconsistent["DefectEvidence"] ===
+      "SingleRightHandSideAffineInconsistency" &&
     inconsistent["PlanDiscoveryBackendUsed"] === "FLINTAffineRREF"];
+
+nativeSolveCalls = 0;
+countedInconsistent = Internal`InheritedBlock[
+  {FeynFacet`Private`multiquadraticStripNativeAffineSolve},
+  Unprotect[FeynFacet`Private`multiquadraticStripNativeAffineSolve];
+  Clear[FeynFacet`Private`multiquadraticStripNativeAffineSolve];
+  FeynFacet`Private`multiquadraticStripNativeAffineSolve[___] :=
+    (nativeSolveCalls++;
+      <|"Status" -> "InconsistentModularSystem",
+        "Module" -> "MultiquadraticStripSolve"|>);
+  Protect[FeynFacet`Private`multiquadraticStripNativeAffineSolve];
+  consistencyEvidence[{{1, 0}, {0, 0}}, {1, 1}, prime,
+    2, 0, "FLINTAffineRREF", 2, 0]];
+check["one-RHS native inconsistency does not launch a homogeneous RREF",
+  nativeSolveCalls === 1 &&
+    countedInconsistent["Status"] === "ProviderSupportImageInconsistent" &&
+    countedInconsistent["Defect"] === 1 &&
+    countedInconsistent["DefectEvidence"] ===
+      "SingleRightHandSideAffineInconsistency"];
 
 (* Make one selected pilot row vanish, but move that exact row to a
    nonselected slot.  The planned core is singular while the full affine
