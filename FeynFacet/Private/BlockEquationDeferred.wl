@@ -126,6 +126,7 @@ ClearAll[
   blockEquationDeferredActiveGradeCensus,
   blockEquationDeferredCanonicalOperandValue,
   blockEquationDeferredCanonicalOperand,
+  blockEquationDeferredInternQueueOrder,
   blockEquationDeferredMaterialize,
   blockEquationDeferredSourceExpression,
   blockEquationDeferredForcing,
@@ -825,6 +826,17 @@ blockEquationDeferredCanonicalOperand[expression_, pool_Symbol] :=
   If[KeyExistsQ[pool, expression], pool[expression],
     pool[expression] = blockEquationDeferredCanonicalOperandValue[expression]];
 
+(* Longest-estimated singleton first.  Large rational-chart payloads have
+   measured 300--900 s Together/FactorList outliers beside subsecond work.
+   Keeping the controller's smallest share is not enough if the remaining
+   fair queue restores source-index order: a hard operand near the end then
+   starts only after dozens of cheap jobs.  ByteCount is already available,
+   correlates strongly with this cost class, and changes scheduling only. *)
+blockEquationDeferredInternQueueOrder[indices_List, batches_List,
+    bytes_List] := SortBy[indices, Function[index,
+  {-Total[bytes[[batches[[index]]]]], index}]];
+blockEquationDeferredInternQueueOrder[___] := {};
+
 (* ---- phase telemetry (Codex 2026-08-25 06:30, item A) --------------- *)
 
 (* MEASURED MOTIVATION.  The materializer returned its substage totals
@@ -1295,6 +1307,10 @@ blockEquationDeferredMaterialize[preparation_Association,
         Length[canonicalBatches], internHelpers + 1]];
     canonicalFarmedBatchIndices = Complement[Range[Length[canonicalBatches]],
       canonicalLocalBatchIndices];
+    If[internWaves === 16,
+      canonicalFarmedBatchIndices =
+        blockEquationDeferredInternQueueOrder[
+          canonicalFarmedBatchIndices, canonicalBatches, canonicalBytes]];
     canonicalDispatchedBatches = Length[canonicalFarmedBatchIndices];
     emit["intern-dispatch", <|"operands" -> Length[canonicalExpressions],
       "batches" -> Length[canonicalBatches],

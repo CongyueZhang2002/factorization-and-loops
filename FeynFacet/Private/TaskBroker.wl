@@ -31,6 +31,7 @@ ClearAll[
   taskBrokerPutAtomic, taskBrokerDataFile, taskBrokerRead, taskBrokerCached,
   taskBrokerFreeKernels, taskBrokerNewName, taskBrokerRun, taskBrokerSubmit,
   taskBrokerCancel, taskBrokerCollect, taskBrokerSampleBatch,
+  taskBrokerSampleWorkerLimit,
   taskBrokerSampleTask, taskBrokerCanonicaLadder, taskBrokerCanonicaTask,
   $taskBrokerInsideTask, $taskBrokerCache, $taskBrokerCounter,
   $taskBrokerNonce, $taskBrokerLog
@@ -314,12 +315,41 @@ taskBrokerSampleTask[recordFile_String, fingerprint_String, values_List, prime_I
   SampleEpsFormStripAffine[record, #, prime, Sequence @@ options,
     "Preparation" -> preparation, "ExpectedFingerprint" -> fingerprint] & /@ values];
 
+(* A fixed-core sample holds a dense modular matrix in Wolfram and another
+   native copy while FLINT solves it.  The peak scales quadratically with the
+   affine unknown count.  On the measured 11,764-unknown block, seven workers
+   consumed all 48 GiB and killed the controller; two workers remain safely
+   below the same machine's available-memory budget.  This cap is based only
+   on problem size and live available memory, so easy blocks retain the full
+   pool and a busy host automatically receives fewer workers. *)
+taskBrokerSampleWorkerLimit[sampleOptions_List, requested_Integer,
+    availableBytes_: Automatic] := Module[
+  {plan, unknowns, available, estimatedPeak, memoryLimit},
+  If[requested < 1, Return[1]];
+  plan = Lookup[sampleOptions, "EliminationPlan", None];
+  unknowns = If[AssociationQ[plan],
+    Lookup[plan, "UnknownCount", 0], 0];
+  If[! IntegerQ[unknowns] || unknowns < 1, Return[requested]];
+  available = Replace[availableBytes, Automatic :> Quiet[Check[
+      QuantityMagnitude[UnitConvert[
+        SystemInformation["Machine", "MemoryAvailable"], "Bytes"]],
+      Infinity]]];
+  If[! NumericQ[available] || available <= 0, Return[requested]];
+  (* 56 n^2 bytes fits the observed Wolfram matrix, square core, native
+     copy and solve workspace; 256 MiB covers fixed per-worker state. *)
+  estimatedPeak = 2^28 + 56 unknowns^2;
+  memoryLimit = Max[1, Floor[(3 available/5)/estimatedPeak]];
+  Min[requested, memoryLimit]
+];
+taskBrokerSampleWorkerLimit[___] := 1;
+
 (* mission side: replaces the ParallelMap over regulator values.  Any
    task that fails is recomputed locally, so the result is exactly what
    the serial path would have produced. *)
 taskBrokerSampleBatch[record_Association, values_List, prime_Integer, sampleOptions_List] :=
  Module[{fingerprint, recordFile, options, optionsFile, free, batches,
-   workerCount, threadsPerWorker, balancedOptions, codes, handle, local,
+   workerCount, requestedWorkers, threadsPerWorker, balancedOptions,
+   codes, handle, local,
    results, flat, missing},
   fingerprint = Replace[Lookup[sampleOptions, "ExpectedFingerprint", Automatic],
     Automatic :> finiteFieldStripFingerprint[record]];
@@ -327,7 +357,16 @@ taskBrokerSampleBatch[record_Association, values_List, prime_Integer, sampleOpti
   balancedOptions = sampleOptions /. Rule["BackendThreads",
       requested_Integer] :> Rule["BackendThreads",
         taskBrokerNativeThreadLimit[requested]];
-  free = Min[taskBrokerFreeKernels[], Length[values] - 1];
+  requestedWorkers = Min[taskBrokerFreeKernels[] + 1, Length[values]];
+  workerCount = taskBrokerSampleWorkerLimit[
+    sampleOptions, requestedWorkers];
+  If[TrueQ[$taskBrokerLog] && workerCount < requestedWorkers,
+    Print["[broker] sample worker memory cap: requested ",
+      requestedWorkers, ", using ", workerCount, ", unknowns ",
+      Lookup[Lookup[sampleOptions, "EliminationPlan", <||>],
+        "UnknownCount", Missing["NotAvailable"]]]];
+  free = Min[taskBrokerFreeKernels[], Length[values] - 1,
+    workerCount - 1];
   (* no helper free: compute locally rather than queue behind the others *)
   If[free < 1,
     Return[SampleEpsFormStripAffine[record, #, prime,

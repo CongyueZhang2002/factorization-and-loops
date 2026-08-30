@@ -185,6 +185,15 @@ FTTest`FTAssert["a family native quota is divided across all sample workers",
   Length[capturedSampleCodes] === 3 && capturedLocalThreads === 3 &&
     balancedHelperThreads === 3 && balancedSample === {1, 2, 3, 4}];
 
+FTTest`FTAssert["large affine samples are capped by available memory",
+  FeynFacet`Private`taskBrokerSampleWorkerLimit[
+    {"EliminationPlan" -> <|"UnknownCount" -> 11764|>}, 7,
+    32 2^30] === 2];
+FTTest`FTAssert["small affine samples retain the requested workers",
+  FeynFacet`Private`taskBrokerSampleWorkerLimit[
+    {"EliminationPlan" -> <|"UnknownCount" -> 2260|>}, 7,
+    32 2^30] === 7];
+
 Put[allocation[4, 3, 1], resourceFile];
 capturedLocalThreads = None;
 Block[{KernelPoolMission`$TaskBrokerResourceGroup = "CF300",

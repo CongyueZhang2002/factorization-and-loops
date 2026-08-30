@@ -108,6 +108,12 @@ If[Environment["FACET_AUTOMATED_FINITE_FIELD_TEST"] === "True",
 ];
 
 tests = <|
+  "DefaultDegreeOffsetPrefixAndExtension" ->
+    Take[FeynFacet`Private`finiteFieldStripDegreeOffsetLadder[4], 9] ===
+      {{0, 0}, {1, 0}, {0, 1}, {1, 1}, {2, 0}, {0, 2},
+       {2, 1}, {1, 2}, {2, 2}} &&
+    Last[FeynFacet`Private`finiteFieldStripDegreeOffsetLadder[4]] ===
+      {4, 4},
   "InterpolationAssociation" -> AssociationQ[actual],
   "NormalizationColumns" ->
     actual["NormalizationColumns"] === expected["NormalizationColumns"],

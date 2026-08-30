@@ -629,6 +629,9 @@ FTAssert["(j) the batch plan is a deterministic partition in target order",
    batchPlan[bytes, 4, 10^9] === batchPlan[bytes, 4, 10^9] &&
      Flatten[batchPlan[bytes, 4, 10^9]] === Range[8] &&
      Length[batchPlan[bytes, 4, 10^9]] === 4]];
+FTAssert["(j) large singleton canonicalizations queue largest estimate first",
+  FeynFacet`Private`blockEquationDeferredInternQueueOrder[
+    Range[4], List /@ Range[4], {10, 100, 100, 3}] === {2, 3, 1, 4}];
 FTAssert["(j) four costly targets occupy all three available workers",
   Length[batchPlan[ConstantArray[10, 4], 3, 10^9]] === 3 &&
     Sort[Length /@ batchPlan[

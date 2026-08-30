@@ -10,6 +10,7 @@ ClearAll[
   finiteFieldStripPrepare,
   finiteFieldStripSupport,
   finiteFieldStripSupportLadder,
+  finiteFieldStripDegreeOffsetLadder,
   finiteFieldStripPrimeForms,
   $finiteFieldStripPrimeFormCache,
   finiteFieldStripFingerprint,
@@ -70,7 +71,8 @@ ClearAll[
   finiteFieldStripBrokerMinimumSecondsParse,
   finiteFieldStripBrokerMinimumSeconds,
   $finiteFieldStripBrokerMinimumSecondsDefault,
-  $finiteFieldStripBrokerMinimumSecondsCache
+  $finiteFieldStripBrokerMinimumSecondsCache,
+  $finiteFieldLearningSupportChanged
 ];
 
 SampleEpsFormStripAffine::record =
@@ -103,6 +105,18 @@ finiteFieldStripRecordQ[record_] :=
     MatchQ[record["Variables"], {_, _}] &&
     SymbolQ[record["Regulator"]] &&
     epsFormStripShapeQ[record["Strip"]];
+
+(* Balanced bidegree shells.  The historical default was exactly the first
+   three shells (maximum coordinate 0, 1, 2); extending the same order to 4
+   leaves every easy block unchanged and admits chart gauges whose numerator
+   exceeds the denominator census by three or four powers in one variable. *)
+finiteFieldStripDegreeOffsetLadder[maximum_Integer?NonNegative] := Join[
+  {{0, 0}}, Flatten[Table[Join[
+    {{degree, 0}, {0, degree}},
+    Flatten[Table[{{degree, other}, {other, degree}},
+      {other, 1, degree - 1}], 1],
+    {{degree, degree}}], {degree, 1, maximum}], 1]];
+finiteFieldStripDegreeOffsetLadder[___] := {{0, 0}};
 
 finiteFieldStripEntryFactorList[entry_] := Module[{denominator},
   denominator = Denominator[Together[entry]];
@@ -913,6 +927,7 @@ finiteFieldStripCFFRDiscoverPlan[___] :=
   finiteFieldStripCFFRFailure["CFFRDiscoveryArgumentsInvalid"];
 
 $finiteFieldLearningPass = False;
+$finiteFieldLearningSupportChanged = False;
 $finiteFieldLastUnseenSample = <||>;
 
 Options[SampleEpsFormStripAffine] = {
@@ -2658,8 +2673,7 @@ Options[SolveEpsFormStripFiniteField] = {
     2147483587, 2147483629, 2147483647},
   "EpsilonSamples" -> ((#/(# + 20)) & /@ Range[32]),
   "NumeratorDegreeOffsets" ->
-    {{0, 0}, {1, 0}, {0, 1}, {1, 1}, {2, 0}, {0, 2},
-      {2, 1}, {1, 2}, {2, 2}},
+    finiteFieldStripDegreeOffsetLadder[4],
   "PointCount" -> Automatic,
   "KernelCount" -> Automatic,
   "ConstructionCount" -> 24,
@@ -2825,12 +2839,19 @@ SolveEpsFormStripFiniteField[record_Association,
      other regulator values (CF67 (9,1), 2026-08-22: "SamplesInvalid"
      after the shrink); the block is then repeated on the full support *)
   If[TrueQ[OptionValue["SupportLearning"]] && ! TrueQ[$finiteFieldLearningPass],
-    Module[{learned},
-      learned = Block[{$finiteFieldLearningPass = True},
-        SolveEpsFormStripFiniteField[record, opts]];
+    Module[{learned, supportChanged},
+      {learned, supportChanged} = Block[
+        {$finiteFieldLearningPass = True,
+         $finiteFieldLearningSupportChanged = False},
+        With[{result = SolveEpsFormStripFiniteField[record, opts]},
+          {result, TrueQ[$finiteFieldLearningSupportChanged]}]];
       (* a typed BudgetExhausted from the learning pass is a result, and
          is returned by this branch unchanged *)
       If[AssociationQ[learned], Return[learned]];
+      (* A failure before a smaller support was adopted is already the
+         full-support result.  Repeating the identical degree ladder cannot
+         change it; return it directly. *)
+      If[! TrueQ[supportChanged], Return[learned]];
       (* between support-learning cycles: the full-support repeat is a
          second complete solve, so it never starts past the deadline *)
       If[finiteFieldStripDeadlineExpiredQ[deadline],
@@ -3125,6 +3146,7 @@ SolveEpsFormStripFiniteField[record_Association,
             " monomials (", Round[AbsoluteTime[] - t0, 0.1], " s); rank ", learnedPlan["GenericRank"],
             ", nullity ", learnedPlan["Nullity"]];
           supportKind = learned; selectedShell = 0;
+          $finiteFieldLearningSupportChanged = True;
           supportOptions = {"Support" -> learned, "SupportShell" -> 0};
           eliminationPlan = learnedPlan; pilotSample = learnedPilot; degreeProbe = learnedPilot,
           log["Support learning: the ", Length[learned], "-monomial support was not consistent; keeping the ",
