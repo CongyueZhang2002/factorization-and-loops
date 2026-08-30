@@ -54,11 +54,26 @@
   fallback, not as work to do before the tractable structural bound is tried.
 - [🟡] Bank and modularly accept the genuine three-root CF259 `(27,9)` gauge.
   A clean 8-subkernel run resumed 17 banked strips and is solving only this
-  final block with the streamlined follower path.
+  final block with the streamlined follower path.  The support ladder adopted
+  `(3,3)` after 3,332.2 s; the reconstruction has nullity 69, uses 19 regulator
+  images per prime, and had accepted three primes by 13:49.  The fourth prime
+  is in progress.
 - [🟢] CF300 is complete; do not restart it during the CF259/CF303 endgame.
 - [🟡] Resolve CF303 `(25,18)`.  Fixed-divisor constant-residue dlog and the
-  degree-3/4 exact-potential ladders are closed.  The live bounded route is
-  the exact residue-spectrum/wedge audit followed by the degree-2
-  polynomial-residue E1 probe; a separate capped agent owns it.
+  degree-3/4 exact-potential ladders are closed.  The complete E1 system is
+  now proven inconsistent at a generic modular image (`rank 7528`, augmented
+  rank `7529`).  Broad `f09--f16` pole-shell solves are rejected because their
+  projections only saturate the old cokernel.  The bounded constructive route
+  is the complete-row variation-of-constants extension integral, whose feeder
+  identity passes at two independent generic images after reconstructing the
+  authoritative target from the accepted gauge.  The exact negative-proof
+  route is coefficient-space curvature reduction over `Q(eps)`.
+- [ ] Promote the already-native split-provider path to a tested 61-bit prime
+  schedule.  Row assembly and sparse channel evaluation already use FLINT
+  `nmod`, and a physical CF300 image measured 3.804 s at 61 bits versus 3.848 s
+  at 31 bits with exact rows/RHS.  The remaining work is a physical adaptive
+  interpolation/CRT/lift gate, not a new assembler.  Require at least 1.5x
+  complete-reconstruction improvement; leave the legacy compiled-channel
+  `<2^31` compatibility port off the triple-root critical path.
 - [ ] Complete and certify CF259, CF300, and CF303 with production modular
   per-block acceptance and separate final family certification.
