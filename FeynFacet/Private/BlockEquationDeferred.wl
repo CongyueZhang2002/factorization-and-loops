@@ -1188,6 +1188,17 @@ blockEquationDeferredInternTask[dataFile_String, indices_List] :=
           data["Expressions"][[index]],
           Lookup[data, "PolynomialSymbols", Automatic]], $Failed]]], indices]];
 
+(* Large singleton queues carry only the expressions used by that task.
+   This avoids loading and retaining the complete operand forest on every
+   helper while preserving the shared-file ABI above for ordinary batches. *)
+blockEquationDeferredInternTask[dataFile_String] :=
+  Module[{data = taskBrokerRead[dataFile]},
+    If[! AssociationQ[data] || ! ListQ[Lookup[data, "Expressions", None]],
+      Return[$Failed]];
+    Map[Quiet[Check[blockEquationDeferredCanonicalOperandValue[#,
+          Lookup[data, "PolynomialSymbols", Automatic]], $Failed]] &,
+      data["Expressions"]]];
+
 (* helper side: one task = one batch of independent target jobs.  The
    operand table and the job list are written ONCE per materialization
    and read once per helper kernel (taskBrokerRead memoizes by path and
@@ -1294,6 +1305,7 @@ blockEquationDeferredMaterialize[preparation_Association,
    canonicalLookup = <||>, canonicalExpressions = {},
    canonicalForOperand = {}, canonicalTable = {}, canonicalResults = {},
    canonicalBytes = {}, canonicalBatches = {}, canonicalDataFile,
+   canonicalPayloadFiles = {}, internPayloadMode = "Shared",
    canonicalCodes, canonicalHandle, canonicalFarmed,
    canonicalFarmedBatchIndices = {}, canonicalLocalBatchIndices = {},
    canonicalizeBatch, canonicalMissing = {},
@@ -1431,8 +1443,9 @@ blockEquationDeferredMaterialize[preparation_Association,
   internWaves = If[Total[canonicalBytes] >= 2^26 ||
       Max[Append[canonicalBytes, 0]] >= 2^23, 16, 4];
   canonicalBatches = If[canonicalExpressions === {}, {},
-    (* Large chart payloads have extreme per-operand Together/FactorList
-       tails: CF259/CF303 measured subsecond work beside 400--900 s work.
+    (* Large multiquadratic chart payloads have extreme per-operand
+       Together/FactorList tails: subsecond work can coexist with
+       several-minute work.
        A pair can therefore double the critical path, so large payloads use
        one immutable operand per task.  Small payloads retain four balanced
        waves and avoid needless queue traffic. *)
@@ -1462,23 +1475,38 @@ blockEquationDeferredMaterialize[preparation_Association,
       canonicalFarmedBatchIndices =
         blockEquationDeferredInternQueueOrder[
           canonicalFarmedBatchIndices, canonicalBatches, canonicalBytes]];
+    If[internDispatcher === Automatic && internWaves === 16,
+      internPayloadMode = "Sliced"];
     canonicalDispatchedBatches = Length[canonicalFarmedBatchIndices];
     emit["intern-dispatch", <|"operands" -> Length[canonicalExpressions],
       "batches" -> Length[canonicalBatches],
       "to helpers" -> canonicalDispatchedBatches,
       "helpers free" -> internHelpers,
+      "payload" -> internPayloadMode,
       "batch sizes" -> Length /@ canonicalBatches|>, True];
     timing = AbsoluteTiming[
       If[internDispatcher === Automatic,
-        canonicalDataFile = taskBrokerDataFile[
-          "bedintern_call_" <> StringReplace[CreateUUID[], "-" -> ""],
-          <|"Expressions" -> canonicalExpressions,
-            "PolynomialSymbols" -> symbols|>];
-        canonicalCodes = Map[Function[batchIndex, StringJoin[
-            "FeynFacet`Private`blockEquationDeferredInternTask[\"",
-            canonicalDataFile, "\", ",
-            ToString[canonicalBatches[[batchIndex]], InputForm], "]"]],
-          canonicalFarmedBatchIndices];
+        If[internPayloadMode === "Sliced",
+          canonicalPayloadFiles = Map[Function[batchIndex,
+            taskBrokerDataFile[
+              "bedintern_batch_" <>
+                StringReplace[CreateUUID[], "-" -> ""],
+              <|"Expressions" ->
+                  canonicalExpressions[[canonicalBatches[[batchIndex]]]],
+                "PolynomialSymbols" -> symbols|>]],
+            canonicalFarmedBatchIndices];
+          canonicalCodes = Map[StringJoin[
+              "FeynFacet`Private`blockEquationDeferredInternTask[\"",
+              #, "\"]"] &, canonicalPayloadFiles],
+          canonicalDataFile = taskBrokerDataFile[
+            "bedintern_call_" <> StringReplace[CreateUUID[], "-" -> ""],
+            <|"Expressions" -> canonicalExpressions,
+              "PolynomialSymbols" -> symbols|>];
+          canonicalCodes = Map[Function[batchIndex, StringJoin[
+              "FeynFacet`Private`blockEquationDeferredInternTask[\"",
+              canonicalDataFile, "\", ",
+              ToString[canonicalBatches[[batchIndex]], InputForm], "]"]],
+            canonicalFarmedBatchIndices]];
         canonicalHandle = taskBrokerSubmit[canonicalCodes,
           "Label" -> "bedintern" <> ToString[OptionValue["Label"]],
           "Timeout" -> OptionValue["BatchTimeout"]],
@@ -1673,6 +1701,7 @@ blockEquationDeferredMaterialize[preparation_Association,
       "InternSeconds" -> internSeconds,
       "InternRoute" -> internRoute,
       "InternHelpers" -> internHelpers,
+      "InternPayloadMode" -> internPayloadMode,
       "InternBatches" -> Length[canonicalBatches],
       "InternWaves" -> internWaves,
       "InternDispatchedBatches" -> canonicalDispatchedBatches,
