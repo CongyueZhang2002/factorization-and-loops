@@ -177,6 +177,7 @@ ClearAll[
   multiquadraticStripRowAlphabetLetters,
   multiquadraticStripCandidateLetters, multiquadraticStripNormDenominatorFactor,
   multiquadraticStripMergeGaugeDenominator,
+  multiquadraticStripMergeGaugeDenominatorSourceData,
   multiquadraticStripMergeGaugeDenominatorSources,
   multiquadraticStripScreenCompilePolynomialExact,
   multiquadraticStripScreenReducePolynomial,
@@ -2926,10 +2927,11 @@ multiquadraticStripMergeGaugeDenominator[base_, extra_, variables_List] :=
    the factor pairs instead: exponents ADD within the forcing product and take
    the MAXIMUM against the independent letter contribution, exactly as
    multiquadraticStripMergeGaugeDenominator does. *)
-multiquadraticStripMergeGaugeDenominatorSources[sources_List, extra_,
+multiquadraticStripMergeGaugeDenominatorSourceData[sources_List, extra_,
     variables_List] := Module[
   {factorPairs, canonicalize, sameFactorQ, sourceLists, sourcePairs,
-   extraPairs, canonicalSources, canonicalExtra, factors, power},
+   extraPairs, canonicalSources, canonicalExtra, factors, power,
+   factorPowers, denominator, degrees},
   If[! AllTrue[sources,
       MatchQ[#1, {_, exponent_Integer /; exponent >= 0}] &], Return[$Failed]];
   factorPairs[expression_, multiplier_Integer] := Module[{list},
@@ -2956,11 +2958,26 @@ multiquadraticStripMergeGaugeDenominatorSources[sources_List, extra_,
     Join[If[canonicalSources === {}, {}, canonicalSources[[All, 1]]],
       If[canonicalExtra === {}, {}, canonicalExtra[[All, 1]]]],
     sameFactorQ];
-  If[factors === {}, Return[1]];
   power[pairs_List, factor_] := Total[Last /@ Select[pairs,
     sameFactorQ[First[#1], factor] &]];
-  Times @@ Table[factor^Max[power[canonicalSources, factor],
-      power[canonicalExtra, factor]], {factor, factors}]
+  factorPowers = Table[{factor, Max[power[canonicalSources, factor],
+      power[canonicalExtra, factor]]}, {factor, factors}];
+  denominator = Times @@
+    (First[#1]^Last[#1] & /@ factorPowers);
+  degrees = Table[Total[(Last[#1] Exponent[First[#1], variable]) & /@
+      factorPowers], {variable, variables}];
+  <|"Status" -> "GaugeDenominatorSourceDataV1",
+    "GaugeDenominator" -> denominator,
+    "GaugeDenominatorDegrees" -> degrees,
+    "FactorPowers" -> factorPowers|>
+];
+multiquadraticStripMergeGaugeDenominatorSourceData[___] := $Failed;
+
+multiquadraticStripMergeGaugeDenominatorSources[sources_List, extra_,
+    variables_List] := Module[{data =
+      multiquadraticStripMergeGaugeDenominatorSourceData[
+        sources, extra, variables]},
+  If[AssociationQ[data], data["GaugeDenominator"], $Failed]
 ];
 multiquadraticStripMergeGaugeDenominatorSources[___] := $Failed;
 
@@ -5763,7 +5780,8 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
         proposalVerdict = multiquadraticStripPrepareCheckpointAccept[
           raw["Value"], substage, suppliedFingerprint, variables, epsilon];
         proposalQ = Lookup[proposalVerdict, "Status", None] === "Accepted" &&
-          MatchQ[Lookup[proposalVerdict, "Payload", None], {_, _}]]];
+          MatchQ[Lookup[proposalVerdict, "Payload", None],
+            {_, _} | {_, _, {_Integer, _Integer}}]]];
     readStatus = If[proposalQ, "AcceptedGaugeDenominatorProposal",
       Lookup[verdict, "Status", None]];
     AppendTo[checkpointRecords, <|"Substage" -> substage,
@@ -6003,10 +6021,15 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
     "prepare: gauge denominator checkpoint identity"];
   checkpointDenominator = checkpointRead["GaugeDenominator",
     denominatorCheckpointFingerprint];
-  If[MatchQ[checkpointDenominator, {_, _}],
+  If[MatchQ[checkpointDenominator,
+      {_, _} | {_, _, {_Integer, _Integer}}],
     multiquadraticStripStageMark["prepare: gauge denominator",
       <|"source" -> "Checkpoint"|>];
-    {gaugeDenominatorFactor, gaugeDenominator} = checkpointDenominator,
+    If[Length[checkpointDenominator] === 3,
+      {gaugeDenominatorFactor, gaugeDenominator, denominatorDegrees} =
+        checkpointDenominator,
+      {gaugeDenominatorFactor, gaugeDenominator} = checkpointDenominator;
+      denominatorDegrees = Missing["NotStored"]],
     checkpointDenominator = Missing["NoCheckpoint"];
     gaugeDenominatorFactor = Replace[OptionValue["GaugeDenominatorFactor"],
       Automatic :> If[MatchQ[letterRecords, {___Association}],
@@ -6038,7 +6061,7 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
               MatchQ[OptionValue["DegreeOffset"],
                 {_Integer?NonNegative, _Integer?NonNegative}],
             provisionalDegrees =
-              (Exponent[bundleGauge["GaugeDenominator"], #1] & /@ variables) +
+              bundleGauge["GaugeDenominatorDegrees"] +
                 OptionValue["DegreeOffset"];
             provisionalSupportCount = Times @@ (provisionalDegrees + 1);
             provisionalUnknownCount = (Times @@ coreDimensions) *
@@ -6083,10 +6106,13 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
                   bundleGauge["GaugeDenominator"],
                 "GaugeDenominator" ->
                   refinedBundleGauge["GaugeDenominator"],
+                "GaugeDenominatorDegrees" ->
+                  refinedBundleGauge["GaugeDenominatorDegrees"],
                 "ExactCancellationRefinement" ->
                   KeyDrop[refinedBundleGauge, "GaugeDenominator"],
                 "PreCancellationSampleEstimate" ->
                   provisionalSampleEstimate|>]]];
+          denominatorDegrees = bundleGauge["GaugeDenominatorDegrees"];
           bundleGauge["GaugeDenominator"],
           multiquadraticStripConservativeGaugeDenominator[strip, roots,
             letterRecords, variables]]]]];
@@ -6095,14 +6121,21 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
         Power[_, exponent_Rational /; Denominator[exponent] === 2]],
     Return[multiquadraticStripFailure["GaugeDenominatorFactorNotRational",
       <|"GaugeDenominatorFactor" -> gaugeDenominatorFactor|>]]];
-  If[MissingQ[checkpointDenominator],
-    checkpointWrite["GaugeDenominator", denominatorCheckpointFingerprint,
-      {gaugeDenominatorFactor, gaugeDenominator}]];
   If[TrueQ[gaugeDenominator === 0] ||
       ! FreeQ[gaugeDenominator,
         Power[_, exponent_Rational /; Denominator[exponent] === 2]],
     Return[multiquadraticStripFailure["GaugeDenominatorNotRational"]]];
-  denominatorDegrees = Exponent[gaugeDenominator, #1] & /@ variables;
+  If[! MatchQ[denominatorDegrees,
+      {_Integer?NonNegative, _Integer?NonNegative}],
+    multiquadraticStripStageStart[
+      "prepare: gauge denominator degrees"];
+    denominatorDegrees = Exponent[gaugeDenominator, #1] & /@ variables;
+    multiquadraticStripStageDone[
+      "prepare: gauge denominator degrees",
+      <|"degrees" -> denominatorDegrees|>]];
+  If[MissingQ[checkpointDenominator],
+    checkpointWrite["GaugeDenominator", denominatorCheckpointFingerprint,
+      {gaugeDenominatorFactor, gaugeDenominator, denominatorDegrees}]];
   degreeOffset = OptionValue["DegreeOffset"];
   If[! MatchQ[degreeOffset, {a_Integer, b_Integer} /; a >= 0 && b >= 0],
     Return[multiquadraticStripFailure["InvalidDegreeOffset"]]];
@@ -13311,7 +13344,7 @@ multiquadraticStripBundleGaugeDenominator[bundle_Association,
     variables : {_Symbol, _Symbol}, letterRecords_: {}] := Module[
   {startTime = AbsoluteTime[], validation, summary, factors, orbits, keyGroups,
    collapsedRecords, grouped, forcingSources, forcingFactor, letterFactor,
-   denominator, records},
+   mergeData, denominator, records},
   validation = blockEquationDeferredBundleValidate[bundle];
   If[Lookup[validation, "Status", None] =!= "BundleValid",
     Return[multiquadraticStripFailure["InvalidDeferredBundle",
@@ -13356,8 +13389,14 @@ multiquadraticStripBundleGaugeDenominator[bundle_Association,
     (First[#1]^Last[#1] & /@ forcingSources);
   letterFactor = If[MatchQ[letterRecords, {___Association}],
     multiquadraticStripNormDenominatorFactor[letterRecords, variables], 1];
-  denominator = multiquadraticStripMergeGaugeDenominatorSources[
+  mergeData = multiquadraticStripMergeGaugeDenominatorSourceData[
     forcingSources, letterFactor, variables];
+  If[! AssociationQ[mergeData] ||
+      Lookup[mergeData, "Status", None] =!=
+        "GaugeDenominatorSourceDataV1",
+    Return[multiquadraticStripFailure[
+      "BundleGaugeDenominatorFactorMergeFailed"]]];
+  denominator = mergeData["GaugeDenominator"];
   If[denominator === $Failed || TrueQ[denominator === 0] ||
       ! FreeQ[denominator,
         Power[_, exponent_Rational /; Denominator[exponent] === 2]],
@@ -13369,6 +13408,7 @@ multiquadraticStripBundleGaugeDenominator[bundle_Association,
     "DivisorRecords" -> records,
     "DivisorSummary" -> summary,
     "BundleFingerprint" -> bundle["BundleFingerprint"],
+    "GaugeDenominatorDegrees" -> mergeData["GaugeDenominatorDegrees"],
     "FactorCount" -> Length[factors], "OrbitCount" -> Length[orbits],
     "ProvenanceGroupCount" -> Length[keyGroups],
     "GroupedFactorCount" -> Length[grouped],
@@ -13514,6 +13554,8 @@ multiquadraticStripBundleRefinedGaugeDenominator[bundle_Association,
       "BundleRefinedGaugeDenominatorNotRational"]]];
   <|"Status" -> "BundleRefinedGaugeDenominatorV1",
     "GaugeDenominator" -> denominator,
+    "GaugeDenominatorDegrees" ->
+      (Exponent[denominator, #1] & /@ variables),
     "ForcingFactor" -> forcingFactor, "LetterFactor" -> letterFactor,
     "EntryCount" -> exactChannels["EntryCount"],
     "BrokerHelperCount" -> exactChannels["BrokerHelperCount"],
