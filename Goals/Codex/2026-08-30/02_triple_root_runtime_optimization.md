@@ -40,13 +40,25 @@
   with identical `E`, `C`, deferred forcing, and one-form channels.  Release,
   ASan/UBSan, five focused suites, and a real rank-three differential probe
   are green.
+- [🟢] Remove the repeated Wolfram all-original-row residual replay from
+  native constrained follower images.  CFFA4 already solves and verifies its
+  fixed core exactly; production acceptance remains the independent
+  fresh-point full provider residual after reconstruction.  On the real
+  CF259 `(27,9)` payload the deleted replay was still running after 10 min per
+  image, while the streamlined cold image completed in 122.17 s: 69.41 s
+  sampling, 33.13 s FLINT solve, and 0 s replay.  Commit `043bb2d` is pushed;
+  focused suites pass 26/0, 12/0, 18/0, and 12/0.
 - [ ] Add modular univariate denominator refinement only if a correctly
   propagated canonical bound is still too large on a real block.  Both Pro
   and the independent Codex review recommend this as the second-stage
   fallback, not as work to do before the tractable structural bound is tried.
-- [🟡] Bank and modularly accept the genuine three-root CF259 `(27,9)` gauge,
-  then continue its remaining sector-27 strips from checkpoints.
-- [🟡] Screen CF303 complete one-extra-pole quotient shells.  Full f7 and f8
-  shells are inconsistent at generic finite-field images; f9--f16 remain.
+- [🟡] Bank and modularly accept the genuine three-root CF259 `(27,9)` gauge.
+  A clean 8-subkernel run resumed 17 banked strips and is solving only this
+  final block with the streamlined follower path.
+- [🟢] CF300 is complete; do not restart it during the CF259/CF303 endgame.
+- [🟡] Resolve CF303 `(25,18)`.  Fixed-divisor constant-residue dlog and the
+  degree-3/4 exact-potential ladders are closed.  The live bounded route is
+  the exact residue-spectrum/wedge audit followed by the degree-2
+  polynomial-residue E1 probe; a separate capped agent owns it.
 - [ ] Complete and certify CF259, CF300, and CF303 with production modular
   per-block acceptance and separate final family certification.
