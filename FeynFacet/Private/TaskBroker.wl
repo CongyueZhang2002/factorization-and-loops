@@ -172,14 +172,15 @@ taskBrokerCached[key_, expr_] := Module[{value},
 (* Helper seats worth planning for.  A grouped family uses at least its
    pool-owned entitlement even when every subkernel is momentarily busy:
    submitting into the fair queue is what lets the pool reclaim borrowed
-   capacity for that family.  When more kernels are genuinely idle it may
-   also plan for those borrowable seats; the pool remains the authority that
-   redistributes them as other families enter or leave.  Ungrouped/legacy
+   capacity for that family.  It plans enough queued work for the pool's full
+   current helper capacity, so a sibling family finishing immediately exposes
+   useful work instead of a controller-sized static tail; the pool remains
+   the authority that distributes those seats fairly.  Ungrouped/legacy
    callers retain the live-free count.  Mission and pool-wide safety ceilings
    remain final bounds. *)
 taskBrokerFreeKernels[] := Module[
   {status, m, free, limitText, environmentLimit, missionLimit,
-   allocation, familyLimit, available},
+   allocation, familyLimit, helperCapacity, available},
   status = Quiet[Import[FileNameJoin[{taskBrokerDirectory[], "status.txt"}], "Text"]];
   m = If[StringQ[status], StringCases[status, "free: " ~~ n : DigitCharacter .. :> ToExpression[n]], {}];
   free = If[m === {}, 1, First[m]];
@@ -197,7 +198,10 @@ taskBrokerFreeKernels[] := Module[
     KernelPoolMission`$TaskBrokerMaxHelpers, Infinity];
   allocation = taskBrokerResourceAllocation[];
   familyLimit = Lookup[allocation, "HelperCeiling", Infinity];
-  available = If[IntegerQ[familyLimit], Max[free, familyLimit], free];
+  helperCapacity = Lookup[allocation, "HelperCapacity", 0];
+  available = If[IntegerQ[familyLimit],
+    Max[free, familyLimit,
+      If[IntegerQ[helperCapacity], helperCapacity, 0]], free];
   Min[available, environmentLimit, missionLimit]];
 
 (* FeynFacet is reloaded on persistent pool subkernels, resetting the local

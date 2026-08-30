@@ -133,8 +133,8 @@ dynamicGrant = Block[
    FeynFacet`Private`taskBrokerActiveFamilyCount[],
    FeynFacet`Private`taskBrokerNativeCoreQuota[],
    FeynFacet`Private`taskBrokerNativeThreadLimit[8]}];
-FTTest`FTAssert["idle helper seats remain borrowable beyond a family grant",
-  dynamicGrant === {5, 2, 8, 4}];
+FTTest`FTAssert["a family plans enough work for the dynamic helper capacity",
+  dynamicGrant === {6, 2, 8, 4}];
 
 Export[FileNameJoin[{directory, "status.txt"}],
   "KernelPool status test\nsubkernels: 8  busy: 8  free: 0\n", "Text"];
@@ -144,7 +144,7 @@ contendedGrant = Block[
   FeynFacet`Private`taskBrokerFreeKernels[]];
 FTTest`FTAssert[
   "a family queues against its grant when borrowed helpers occupy the pool",
-  contendedGrant === 2];
+  contendedGrant === 6];
 Export[FileNameJoin[{directory, "status.txt"}],
   "KernelPool status test\nsubkernels: 8  busy: 3  free: 5\n", "Text"];
 
@@ -156,7 +156,7 @@ rebalancedGrant = Block[
    FeynFacet`Private`taskBrokerNativeCoreQuota[],
    FeynFacet`Private`taskBrokerNativeThreadLimit[8]}];
 FTTest`FTAssert["a replaced allocation is observed without reloading the mission",
-  rebalancedGrant === {5, 12, 8}];
+  rebalancedGrant === {6, 12, 8}];
 
 Clear[brokerSampleSubmit, brokerSampleCollect, brokerSampleAffine,
   capturedSampleCodes, capturedLocalThreads];
