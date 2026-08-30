@@ -220,7 +220,9 @@ ClearAll[
      production caller and must not be ClearAll-ed from here, or a
      session that loaded the prototype first would lose it *)
   $multiquadraticStripRegulatorSamplePool,
-  multiquadraticStripRootOrder, multiquadraticStripRootCensus,
+  multiquadraticStripRootOrder,
+  multiquadraticStripRootCensusFromFrameCensus,
+  multiquadraticStripRootCensus,
   multiquadraticStripRootCensusWithBundle,
   multiquadraticStripCanonicalizeRadicals,
   multiquadraticStripReconstructRegulator,
@@ -4994,12 +4996,13 @@ multiquadraticStripRootOrder[frame_Association, variables : {_Symbol, _Symbol},
    a split point for roots that do not occur, and can push a genuine
    rank-3 block past the rank ceiling -- so the decision is taken on an
    exact level-1 match here, with the package census kept alongside as a
-   diagnostic.  Cannot be repaired in TransportCharts.wl in this pass
-   (no existing file is edited). *)
-multiquadraticStripRootCensus[strip_, allRoots_List] := Module[
-  {frameCensus, rootBases, radicals, matches, indices, unknown, denested,
+   diagnostic.  The in-frame dispatcher has already paid for that package
+   census; the helper below accepts that exact same-call result so the
+   multiquadratic solver need not scan a large strip twice. *)
+multiquadraticStripRootCensusFromFrameCensus[frameCensus_Association,
+    allRoots_List] := Module[
+  {rootBases, radicals, matches, indices, unknown, denested,
    denestedIndices},
-  frameCensus = transportChartRootIndices[strip, allRoots];
   rootBases = Together /@ (#1["Root"]^2 & /@ allRoots);
   radicals = Lookup[frameCensus, "RadicalBases", {}];
   matches[base_] := Flatten[Position[rootBases,
@@ -5047,6 +5050,12 @@ multiquadraticStripRootCensus[strip_, allRoots_List] := Module[
     "FrameCensusUnclassified" ->
       Lookup[frameCensus, "UnclassifiedRadicalBases", {}]|>
 ];
+multiquadraticStripRootCensusFromFrameCensus[___] :=
+  multiquadraticStripFailure["InvalidFrameRootCensusArguments"];
+
+multiquadraticStripRootCensus[strip_, allRoots_List] :=
+  multiquadraticStripRootCensusFromFrameCensus[
+    transportChartRootIndices[strip, allRoots], allRoots];
 
 (* Extend the visible-strip census by the authenticated root frame of a
    deferred forcing bundle.  The dense BBar slot is deliberately zero on that
@@ -5055,7 +5064,8 @@ multiquadraticStripRootCensus[strip_, allRoots_List] := Module[
    BlockEquationDeferred's stable frame builder, the same route used by the
    transport dispatcher; source indices remain provenance only. *)
 multiquadraticStripRootCensusWithBundle[strip_, allRoots_List,
-    variables : {_Symbol, _Symbol}, epsilon_Symbol, deferredBundle_] := Module[
+    variables : {_Symbol, _Symbol}, epsilon_Symbol, deferredBundle_,
+    frameCensus_: Automatic] := Module[
   {classification, validation, bundleRoots, bundleIndices, selectedIndices,
    stableFrame, requiredRootIndices},
   If[AssociationQ[deferredBundle],
@@ -5070,7 +5080,9 @@ multiquadraticStripRootCensusWithBundle[strip_, allRoots_List,
       Return[multiquadraticStripFailure["DeferredBundleFrameMismatch"]]],
     If[! MissingQ[deferredBundle] && deferredBundle =!= Automatic,
       Return[multiquadraticStripFailure["InvalidDeferredBundle"]]]];
-  classification = multiquadraticStripRootCensus[strip, allRoots];
+  classification = If[AssociationQ[frameCensus],
+    multiquadraticStripRootCensusFromFrameCensus[frameCensus, allRoots],
+    multiquadraticStripRootCensus[strip, allRoots]];
   If[! AssociationQ[deferredBundle],
     Return[Join[classification, <|"BundleRootIndices" -> {},
       "RequiredRootIndices" -> classification["RootIndices"]|>]]];
@@ -5444,11 +5456,13 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
    provisionalDegrees, provisionalSupportCount, provisionalUnknownCount,
    provisionalEquationsPerPoint, provisionalPointCount,
    provisionalSampleEstimate,
-   checkpointDirectory, checkpointMode, checkpointTag, checkpointRecords = {},
+   checkpointDirectory, checkpointMode, checkpointEnabledQ, checkpointTag,
+   checkpointRecords = {},
    checkpointRead, checkpointWrite, checkpointInputFingerprint,
    forcingCheckpointFingerprint, checkpointChannels,
    letterCheckpointFingerprint, checkpointLetters,
-   denominatorCheckpointFingerprint, checkpointDenominator,
+   denominatorCheckpointFingerprint, denominatorCheckpointNorms,
+   checkpointDenominator,
    deadline, prepareProgress, prepareBudget, prepareStop, prepareGuard,
    familyName, sectorId, lowerSectorId, startTime = AbsoluteTime[],
    pathStatisticsBefore = multiquadraticFieldPathStatistics[], pathStatistics},
@@ -5640,6 +5654,8 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
     Return[multiquadraticStripFailure["InvalidPrepareCheckpointOption",
       <|"CheckpointDirectory" -> checkpointDirectory,
         "CheckpointMode" -> checkpointMode|>]]];
+  checkpointEnabledQ = checkpointDirectory =!= None &&
+    checkpointMode =!= "None";
   checkpointTag = Replace[OptionValue["CheckpointTag"], Automatic :>
     StringJoin[Riffle[ToString /@ {Lookup[record, "Family", "family"],
       Lookup[record, "Sector", 0], Lookup[record, "LowerSector", 0]}, "_"]]];
@@ -5650,12 +5666,18 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
   (* the inputs EVERY substage of this preparation shares: this strip's
      canonical equation text, and the canonical root order.  A substage
      appends whatever else it consumed. *)
+  (* Production normally has persistence disabled.  In that case a
+     checkpoint identity has no consumer: checkpointRead and checkpointWrite
+     both return before looking at it.  Large algebraic metadata must not be
+     serialized merely to manufacture a key that will be discarded. *)
   checkpointInputFingerprint[substage_String, extra_] :=
-    multiquadraticStripFingerprint[{substage,
-      If[AssociationQ[coreCanonical],
-        Lookup[coreCanonical, {"EquationCanonical", "RootCanonicalSquares",
-          "RootCanonicalExpressions"}], $Failed],
-      coreDimensions, extra}];
+    If[checkpointDirectory === None || checkpointMode === "None",
+      Missing["CheckpointsDisabled"],
+      multiquadraticStripFingerprint[{substage,
+        If[AssociationQ[coreCanonical],
+          Lookup[coreCanonical, {"EquationCanonical", "RootCanonicalSquares",
+            "RootCanonicalExpressions"}], $Failed],
+        coreDimensions, extra}]];
   (* read: Missing if persistence is off, this substage has no file, or
      the file exists and does not authenticate -- and in the last case
      the refusal is RECORDED, so a poisoned checkpoint is visible in the
@@ -5750,8 +5772,9 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
      the seal inside it proves the channels are the decomposition of
      THIS forcing.  A mutated channel fails the inner seal even if the
      envelope is rebuilt around it. *)
-  forcingCheckpointFingerprint =
-    checkpointInputFingerprint["ForcingChannels", {}];
+  forcingCheckpointFingerprint = If[checkpointEnabledQ,
+    checkpointInputFingerprint["ForcingChannels", {}],
+    Missing["CheckpointsDisabled"]];
   checkpointChannels = If[coefficientProvider =!= "CompiledChannel" ||
       suppliedChannels["Status"] === "Accepted",
     Missing["ChannelsSupplied"],
@@ -5839,22 +5862,24 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
          strip, the root order, the letter-construction options and the
          row alphabet the record supplies -- the complete input of
          multiquadraticStripCandidateLetters. *)
-      letterCheckpointFingerprint = checkpointInputFingerprint[
-        "CandidateLetters",
-        {OptionValue["RegulatorSampleCount"],
-         OptionValue["RegulatorSamplePool"],
-         multiquadraticStripFingerprint[OptionValue["RowAlphabet"] /.
-           multiquadraticStripCanonicalRules[variables, epsilon]],
-         multiquadraticStripFingerprint[OptionValue["AdditionalLetters"] /.
-           multiquadraticStripCanonicalRules[variables, epsilon]],
-         multiquadraticStripFingerprint[OptionValue["AlgebraicLetters"] /.
-           multiquadraticStripCanonicalRules[variables, epsilon]],
-         OptionValue["MaximumNormFactors"],
-         OptionValue["MaximumNormExponent"],
-         Lookup[record, {"Sector", "LowerSector"}, None],
-         multiquadraticStripFingerprint[
-           Replace[Lookup[record, "StripSolvers", {}], Except[_List] :> {}] /.
-             multiquadraticStripCanonicalRules[variables, epsilon]]}];
+      letterCheckpointFingerprint = If[checkpointEnabledQ,
+        checkpointInputFingerprint[
+          "CandidateLetters",
+          {OptionValue["RegulatorSampleCount"],
+           OptionValue["RegulatorSamplePool"],
+           multiquadraticStripFingerprint[OptionValue["RowAlphabet"] /.
+             multiquadraticStripCanonicalRules[variables, epsilon]],
+           multiquadraticStripFingerprint[OptionValue["AdditionalLetters"] /.
+             multiquadraticStripCanonicalRules[variables, epsilon]],
+           multiquadraticStripFingerprint[OptionValue["AlgebraicLetters"] /.
+             multiquadraticStripCanonicalRules[variables, epsilon]],
+           OptionValue["MaximumNormFactors"],
+           OptionValue["MaximumNormExponent"],
+           Lookup[record, {"Sector", "LowerSector"}, None],
+           multiquadraticStripFingerprint[
+             Replace[Lookup[record, "StripSolvers", {}], Except[_List] :> {}] /.
+               multiquadraticStripCanonicalRules[variables, epsilon]]}],
+        Missing["CheckpointsDisabled"]];
       checkpointLetters = checkpointRead["CandidateLetters",
         letterCheckpointFingerprint];
       If[! MissingQ[checkpointLetters] &&
@@ -5906,18 +5931,31 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
   (* CHECKPOINT: the norm factorization of every algebraic letter plus
      the merge with the rational denominator.  Its inputs are the
      alphabet actually used and the two denominator options. *)
-  denominatorCheckpointFingerprint = checkpointInputFingerprint[
-    "GaugeDenominator",
-    {multiquadraticStripFingerprint[
-       If[MatchQ[letterRecords, {___Association}], letterRecords, {}] /.
+  denominatorCheckpointNorms = If[
+    MatchQ[letterRecords, {___Association}],
+    DeleteCases[
+      Lookup[#1, "Norm", Missing["NoNorm"]] & /@ letterRecords,
+      _Missing], {}];
+  multiquadraticStripStageStart[
+    "prepare: gauge denominator checkpoint identity",
+    <|"enabled" -> checkpointEnabledQ,
+      "norms" -> Length[denominatorCheckpointNorms]|>];
+  denominatorCheckpointFingerprint = If[checkpointEnabledQ,
+    checkpointInputFingerprint[
+      "GaugeDenominator",
+      {multiquadraticStripFingerprint[
+         denominatorCheckpointNorms /.
+           multiquadraticStripCanonicalRules[variables, epsilon]],
+       multiquadraticStripFingerprint[OptionValue["GaugeDenominatorFactor"] /.
          multiquadraticStripCanonicalRules[variables, epsilon]],
-     multiquadraticStripFingerprint[OptionValue["GaugeDenominatorFactor"] /.
-       multiquadraticStripCanonicalRules[variables, epsilon]],
-     multiquadraticStripFingerprint[OptionValue["GaugeDenominator"] /.
-       multiquadraticStripCanonicalRules[variables, epsilon]],
-     coefficientProvider,
-     If[AssociationQ[deferredBundle],
-       Lookup[deferredBundle, "BundleFingerprint", None], None]}];
+       multiquadraticStripFingerprint[OptionValue["GaugeDenominator"] /.
+         multiquadraticStripCanonicalRules[variables, epsilon]],
+       "GaugeDenominatorProposalV2",
+       If[AssociationQ[deferredBundle],
+         Lookup[deferredBundle, "BundleFingerprint", None], None]}],
+    Missing["CheckpointsDisabled"]];
+  multiquadraticStripStageDone[
+    "prepare: gauge denominator checkpoint identity"];
   checkpointDenominator = checkpointRead["GaugeDenominator",
     denominatorCheckpointFingerprint];
   If[MatchQ[checkpointDenominator, {_, _}],
@@ -15187,6 +15225,7 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
    regulatorValue, samplerOptions, deadline, budgetProgress,
    budgetExhausted, enrich, variables, epsilon, strip, allRoots, classification,
    deferredBundle, bundleIndices, requiredRootIndices, rootIndices, order,
+    suppliedRootClassification, trustedRootClassificationQ,
     screenRoots, letterRecords, letterData, screen,
     screenRegulatorValue, prepareOptions, gaugeScreen, gaugeLadder,
     deferredProviderLadder, ladderImages, ladderValues, rungBuilder,
@@ -15330,8 +15369,23 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
       MatchQ[strip, {_List, _List, _List}],
     allRoots = transportChartCurrentRoots[frame, variables];
     If[ListQ[allRoots],
+      suppliedRootClassification = OptionValue["RootClassification"];
+      trustedRootClassificationQ =
+        AssociationQ[suppliedRootClassification] &&
+        AssociationQ[deferredBundle] &&
+        AssociationQ[$blockEquationDeferredTrustedBundle] &&
+        Lookup[blockEquationDeferredBundleValidate[deferredBundle],
+          "Status", None] === "BundleValid" &&
+        AllTrue[{"RadicalBases", "UnclassifiedRadicalBases"},
+          KeyExistsQ[suppliedRootClassification, #1] &];
+      multiquadraticStripStageStart["outer root census",
+        <|"supplied" -> trustedRootClassificationQ|>];
       classification = multiquadraticStripRootCensusWithBundle[strip, allRoots,
-        variables, epsilon, deferredBundle];
+        variables, epsilon, deferredBundle,
+        If[trustedRootClassificationQ, suppliedRootClassification,
+          Automatic]];
+      multiquadraticStripStageDone["outer root census",
+        <|"source" -> If[trustedRootClassificationQ, "SameCall", "Fresh"]|>];
       If[! KeyExistsQ[classification, "UnclassifiedRadicalBases"],
         Return[classification]];
       (* the shared field canonicalizer, ahead of the alphabet and both
