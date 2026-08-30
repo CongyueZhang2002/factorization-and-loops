@@ -125,6 +125,7 @@ ClearAll[
   blockEquationDeferredEvaluate,
   blockEquationDeferredNonzeroCensus,
   blockEquationDeferredActiveGradeCensus,
+  blockEquationDeferredMapleCanonicalOperandValue,
   blockEquationDeferredCanonicalOperandValue,
   blockEquationDeferredCanonicalOperand,
   blockEquationDeferredInternQueueOrder,
@@ -877,17 +878,54 @@ blockEquationDeferredActiveGradeCensus[___] :=
 
 (* ---- exact materialization ------------------------------------------ *)
 
+(* Maple's algebraic Normal is dramatically better on the rare chartless
+   multiquadratic tail where the rational FLINT collector is inapplicable.
+   Measured on genuine CF259 (27,9) operands 75/76: Wolfram Together was still
+   running after 800 s; Maple took 5.2--5.5 s and the final Wolfram FactorList
+   0.85--0.89 s.  This is a fallback only after the existing cheap Wolfram
+   probe/rational collector refuses, and its exact expression then enters the
+   same canonical quotient contract as every other route. *)
+blockEquationDeferredMapleCanonicalOperandValue[expression_] := Module[
+  {scratch, key, timeout, normalized, pair},
+  If[FreeQ[expression,
+      Power[_, exponent_Rational /; ! IntegerQ[exponent]],
+      {0, Infinity}, Heads -> True], Return[$Failed]];
+  scratch = FileNameJoin[{$TemporaryDirectory, "FeynFacet",
+      "DeferredBundleMaple"}];
+  key = Hash[HoldComplete[expression], "SHA256", "HexString"];
+  timeout = With[{value = Environment["FACET_DEFERRED_MAPLE_SECONDS"]},
+    If[StringQ[value] && StringMatchQ[value, NumberString] &&
+        Quiet[Check[ToExpression[value] > 0, False]],
+      N[ToExpression[value]], 900.]];
+  normalized = Quiet[Check[epsFormStripMapleCanonicalize[{expression},
+      "MapleExecutable" -> "maple", "ScratchDirectory" -> scratch,
+      "CacheDirectory" -> FileNameJoin[{scratch, "cache"}],
+      "Tag" -> StringJoin["operand_", ToString[$ProcessID], "_",
+        StringTake[key, 12]], "TimeLimit" -> timeout,
+      "Verbose" -> False], $Failed]];
+  If[! AssociationQ[normalized] ||
+      Lookup[normalized, "Status", None] =!= "MapleCanonicalGaugeV1" ||
+      ! MatchQ[Lookup[normalized, "Result", None], {_}],
+    Return[$Failed]];
+  pair = Quiet[Check[rationalMaterializationCanonicalQuotientValue[
+      First[normalized["Result"]]], $Failed]];
+  If[MatchQ[pair, {_, _Association}], pair, $Failed]
+];
+blockEquationDeferredMapleCanonicalOperandValue[___] := $Failed;
+
 (* Pure canonicalization of one operand: {numerator with the denominator's
    numeric content folded in, denominator factor -> exponent}.  Keeping the
    arithmetic separate from the cache lets independent operands be evaluated
    by pool helpers after their deterministic IDs have been assigned. *)
 blockEquationDeferredCanonicalOperandValue[expression_,
     polynomialSymbols_: Automatic] :=
-  Module[{accelerated},
+  Module[{accelerated, algebraic},
     accelerated = Quiet[Check[
       rationalMaterializationCanonicalValue[expression, polynomialSymbols],
       $Failed]];
     If[MatchQ[accelerated, {_, _Association}], Return[accelerated]];
+    algebraic = blockEquationDeferredMapleCanonicalOperandValue[expression];
+    If[MatchQ[algebraic, {_, _Association}], Return[algebraic]];
     rationalMaterializationTogetherValue[expression]];
 
 (* The mutable wrapper remains the single cache contract used by bundle

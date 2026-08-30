@@ -405,6 +405,13 @@ rationalMaterializationCanonicalValue[expression_, symbols_: Automatic] :=
       $rationalMaterializationProbeSeconds, $Aborted], $Aborted]];
   If[probe =!= $Aborted,
     Return[rationalMaterializationCanonicalQuotientValue[probe]]];
+  (* The collector is a rational-polynomial engine and its Power branch
+     necessarily refuses every noninteger exponent.  Detect that contract
+     boundary before recursively walking a multi-megabyte algebraic DAG; the
+     caller can then use its multiquadratic/Maple backend directly. *)
+  If[! FreeQ[expression,
+      Power[_, exponent_Rational /; ! IntegerQ[exponent]],
+      {0, Infinity}, Heads -> True], Return[$Failed]];
   If[rationalMaterializationFLINTBinary[] === None, Return[$Failed]];
   If[! FreeQ[expression,
       value_ /; NumberQ[value] &&
