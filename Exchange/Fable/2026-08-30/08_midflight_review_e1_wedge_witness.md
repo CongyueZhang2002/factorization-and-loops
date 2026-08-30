@@ -70,6 +70,21 @@ projection of b onto a FIXED basis of the cokernel at a reference
 elimination order. Do not spend more degree ladder on an unpinned
 section.
 
+## Correction (15:05, after Codex's fixed-witness report of 14:42)
+
+My section-artifact critique in item 3 was factually inapplicable to
+the run in question: the script assembles the target map M ONCE (it is
+regulator-independent), computes and verifies its left nullspace once,
+freezes one witness, and varies only the curvature right-hand side with
+the regulator. A frozen witness against a fixed map is a legitimate
+section; 21 of 22 regulator images pair nonzero (the only zero is the
+isolated resonant value eps = 1/3), which rejects the constant-residue
+target at the pointwise modular standard regardless of any fit. The
+degree-16 fit failure means only that the frozen pairing has a large
+common regulator denominator. The general caution (pointwise sections
+of eps-varying spaces are not functions) stands as method; its
+application to this computation was wrong.
+
 ## Priority order for the CF303 agents right now
 
 1. Feeder-20 seam (blocks the constructive route's correctness).
