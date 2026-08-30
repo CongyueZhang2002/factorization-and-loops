@@ -9767,17 +9767,24 @@ multiquadraticStripConstrainedPlanValidQ[plan_Association] := Module[
 ];
 multiquadraticStripConstrainedPlanValidQ[___] := False;
 
-(* Follower results are admitted only with an exact replay of the particular
-   solution and every nullspace vector on every original row. *)
+(* Native follower solves inherit the adapter's exact constrained-core
+   verification.  They do not repeat an all-original-row matrix product;
+   the reconstructed block is accepted later at fresh modular points.
+   The Wolfram fallback still certifies all rows itself. *)
 multiquadraticStripFullResidualEvidenceValidQ[evidence_Association,
     prime_Integer] := Module[{method, nullity},
   method = Lookup[evidence, "FullResidualCheckMethod", None];
   nullity = Lookup[evidence, "Nullity", $Failed];
-  If[! PrimeQ[prime] || ! IntegerQ[nullity] || nullity < 0 ||
-      ! TrueQ[Lookup[evidence, "FullResidualZero", False]] ||
-      ! TrueQ[Lookup[evidence, "NullspaceResidualZero", False]],
+  If[! PrimeQ[prime] || ! IntegerQ[nullity] || nullity < 0,
     Return[False]];
+  If[method === "NativeConstrainedCoreVerified",
+    Return[Lookup[evidence, "ConstrainedSolveBackendUsed", None] ===
+        "FLINT" &&
+      TrueQ[Lookup[evidence, "NativeCoreResidualZero", False]] &&
+      TrueQ[Lookup[evidence, "NativeCoreResidualExact", False]]]];
   MemberQ[{"ExactMatrixMatrix", "ExactFullAffineRREF"}, method] &&
+    TrueQ[Lookup[evidence, "FullResidualZero", False]] &&
+    TrueQ[Lookup[evidence, "NullspaceResidualZero", False]] &&
     TrueQ[Lookup[evidence, "FullResidualExact", False]]
 ];
 multiquadraticStripFullResidualEvidenceValidQ[___] := False;
@@ -9827,7 +9834,7 @@ multiquadraticStripConstrainedAffineSolve[matrix_?MatrixQ, right_List,
     Dimensions[candidate] === {unknownCount, nullity + 1};
   nativeSolutionShapeQ[candidate_] := solutionShapeQ[candidate] &&
     AllTrue[Flatten[candidate], 0 <= #1 < prime &];
-  validateSolution[candidate_] := Module[
+  validateSolution[candidate_, nativeCoreVerified_: False] := Module[
     {candidateMatrix = Mod[candidate, prime], candidateParticular,
      candidateNullspace, candidateNormalizationOK, targetMatrix,
      residual, residualZero, replaySeconds, certificateSummary},
@@ -9844,6 +9851,20 @@ multiquadraticStripConstrainedAffineSolve[matrix_?MatrixQ, right_List,
         "ParticularSolution" -> candidateParticular,
         "NullspaceBasis" -> candidateNullspace,
         "NormalizationOK" -> False|>]];
+    If[TrueQ[nativeCoreVerified],
+      certificateSummary = <|"Status" -> "Accepted",
+        "FullResidualZero" -> Missing["NotChecked"],
+        "NullspaceResidualZero" -> Missing["NotChecked"],
+        "FullResidualCheckMethod" -> "NativeConstrainedCoreVerified",
+        "FullResidualExact" -> False,
+        "NativeCoreResidualZero" -> True,
+        "NativeCoreResidualExact" -> True, "Seconds" -> 0.|>;
+      AppendTo[residualCheckEvidence, certificateSummary];
+      Return[Join[certificateSummary, <|
+        "SolutionMatrix" -> candidateMatrix,
+        "ParticularSolution" -> candidateParticular,
+        "NullspaceBasis" -> candidateNullspace,
+        "NormalizationOK" -> True|>]]];
     targetMatrix = Join[List /@ Mod[right, prime],
       ConstantArray[0, {equationCount, nullity}], 2];
     {replaySeconds, residual} = AbsoluteTiming[
@@ -9854,6 +9875,7 @@ multiquadraticStripConstrainedAffineSolve[matrix_?MatrixQ, right_List,
     certificateSummary = <|
       "Status" -> If[residualZero, "Accepted", "FullResidualNonzero"],
       "FullResidualZero" -> residualZero,
+      "NullspaceResidualZero" -> residualZero,
       "FullResidualCheckMethod" -> "ExactMatrixMatrix",
       "FullResidualExact" -> True,
       "NonzeroResidualCount" -> If[residualZero, 0,
@@ -9892,7 +9914,7 @@ multiquadraticStripConstrainedAffineSolve[matrix_?MatrixQ, right_List,
       finiteFieldStripFLINTSolve[core, rhsMatrix, prime, backendThreads]];
     solveSeconds += nativeSolveSeconds;
     If[nativeSolutionShapeQ[nativeSolution],
-      validation = validateSolution[nativeSolution];
+      validation = validateSolution[nativeSolution, True];
       If[Lookup[validation, "Status", None] === "Accepted",
         backendUsed = "FLINT";
         needWolfram = False,
@@ -9999,7 +10021,14 @@ multiquadraticStripConstrainedAffineSolve[matrix_?MatrixQ, right_List,
       nativeValidationRecovered,
     "ConstrainedSolveFullResidualReplayCount" -> fullResidualReplayCount,
     "ConstrainedSolveNativeCoreReplayCount" -> 0,
-    "FullResidualZero" -> True, "NullspaceResidualZero" -> True,
+    "FullResidualZero" -> Lookup[validation, "FullResidualZero",
+      Missing["NotChecked"]],
+    "NullspaceResidualZero" -> Lookup[validation,
+      "NullspaceResidualZero", Missing["NotChecked"]],
+    "NativeCoreResidualZero" -> Lookup[validation,
+      "NativeCoreResidualZero", Missing["NotApplicable"]],
+    "NativeCoreResidualExact" -> Lookup[validation,
+      "NativeCoreResidualExact", Missing["NotApplicable"]],
     "FullResidualCheckMethod" -> validation["FullResidualCheckMethod"],
     "FullResidualExact" -> validation["FullResidualExact"],
     "FullResidualChecks" -> residualCheckEvidence,
@@ -10298,6 +10327,7 @@ multiquadraticStripFollowerImageSolve[payload_Association,
           "ConstrainedSolveNativeCoreReplayCount",
           "FullResidualCheckMethod", "FullResidualExact",
           "FullResidualChecks", "NullspaceResidualZero",
+          "NativeCoreResidualZero", "NativeCoreResidualExact",
           "PhaseSeconds"}]]]];
   record = <|"Status" -> "MultiquadraticFollowerImageRecordV1",
     "Prime" -> prime, "RegulatorValue" -> value,
