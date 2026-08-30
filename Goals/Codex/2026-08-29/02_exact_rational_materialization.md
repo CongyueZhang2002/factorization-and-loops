@@ -45,6 +45,10 @@
 - [🟢] Reject Maple as the primary route after its hard-operand tail exceeded
   120 s and 5.2 GiB, despite winning on one easier hard operand.
 
+- [🟢] Reserve equal helper shares while multiple families are active so
+  non-preemptible borrowed work cannot block a peer's next phase.  The same
+  live materialization fell from 302.4 s to 63.3 s.
+
 - [🟡] Resume the remaining triple-root families with this backend and record
   per-block materialization telemetry plus existing acceptance records.
 
@@ -52,4 +56,3 @@
   telemetry still makes materialization a dominant wall.  Reject a
   chart-specific implementation or substantial complexity for a marginal
   stage-level gain.
-
