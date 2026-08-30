@@ -1499,10 +1499,8 @@ multiquadraticStripLetterDLogDataInField[letter_, roots_List,
 (* Helper-side shard for the independent whole-forcing dlogs.  The payload
    is written in formal System` variables, exactly like the compile shard,
    so a helper's $Context cannot rebind chart symbols. *)
-multiquadraticStripDLogShardTask[dataFile_String, indices_List] := Module[
-  {payload, entries, roots, results},
-  payload = Quiet[CheckAbort[Get[dataFile], $Failed]];
-  If[! AssociationQ[payload], Return[$Failed]];
+multiquadraticStripDLogShardTask[payload_Association, indices_List] := Module[
+  {entries, roots, results},
   entries = Lookup[payload, "Entries", $Failed];
   roots = Lookup[payload, "Roots", $Failed];
   If[! ListQ[entries] || ! ListQ[roots] ||
@@ -1513,25 +1511,112 @@ multiquadraticStripDLogShardTask[dataFile_String, indices_List] := Module[
   If[! AllTrue[results, AssociationQ], $Failed,
     <|"Indices" -> indices, "Data" -> results|>]
 ];
+multiquadraticStripDLogShardTask[dataFile_String, indices_List] := Module[
+  {payload = Quiet[CheckAbort[taskBrokerRead[dataFile], $Failed]]},
+  If[AssociationQ[payload],
+    multiquadraticStripDLogShardTask[payload, indices], $Failed]
+];
 multiquadraticStripDLogShardTask[___] := $Failed;
 
-(* Ordered batch constructor.  kernelCount is a SUBKERNEL count: 1 is the
-   conservative serial path; 2..8 launch only the missing kernels and close
-   only those launched here.  A failed/malformed shard is recomputed locally,
-   so parallel transport can cost time but cannot change the candidate set. *)
+(* Ordered batch constructor.  kernelCount is a Wolfram-worker count: 1 is the
+   conservative serial path.  Under KernelPool the TaskBroker owns helpers;
+   outside it, 2..8 launch only the missing subkernels and close only those
+   launched here.  A failed/malformed shard is recomputed locally, so parallel
+   transport can cost time but cannot change the candidate set. *)
 multiquadraticStripConstructDLogBatch[letters_List, roots_List,
-    variables : {x_, y_}, kernelCount_Integer] := Module[
+    variables : {x_, y_}, kernelCount_Integer] :=
+  multiquadraticStripConstructDLogBatch[letters, roots, variables,
+    kernelCount, Infinity];
+multiquadraticStripConstructDLogBatch[letters_List, roots_List,
+    variables : {x_, y_}, kernelCount_Integer, deadline_] := Module[
   {count = Length[letters], requested, launched = {}, loadFile, rules,
    inverseRules, payload, dataFile = None, groups, shardResults, data,
    validShardQ, route = "Serial", seconds = 0., body, workerKernels,
-   workerIDs, kernelGroups, chunk, k},
+   workerIDs, kernelGroups, chunk, k, brokerFree = 0, helperCount = 0,
+   helperGroups, helperResults, localGroup, localResult, codes, handle = None,
+   timeout = 7200, startTime = AbsoluteTime[], invalidGroups = {},
+   budgetResult = None},
+  If[! multiquadraticStripDeadlineQ[deadline], Return[$Failed]];
+  If[multiquadraticStripDeadlineExpiredQ[deadline],
+    Return[multiquadraticStripBudgetExhausted["CandidateDLogs", 0., deadline,
+      <|"LetterCount" -> count, "CompletedShards" -> 0|>]]];
   requested = Min[8, Max[1, kernelCount], Max[1, count]];
   If[count === {}, Return[<|"Data" -> {}, "Route" -> route,
-      "Subkernels" -> 0, "Seconds" -> 0.|>]];
-  body[] := If[requested < 2 || ! TrueQ[$KernelID === 0],
+      "Subkernels" -> 0, "BrokerHelperCount" -> 0,
+      "Seconds" -> 0.|>]];
+  validShardQ[result_, group_] := AssociationQ[result] &&
+    Lookup[result, "Indices", None] === group &&
+    MatchQ[Lookup[result, "Data", None], {___Association}] &&
+    Length[result["Data"]] === Length[group];
+  body[] := Which[
+   requested < 2,
     {seconds, data} = AbsoluteTiming[
       multiquadraticStripLetterDLogDataInField[#1, roots, variables] & /@
         letters],
+
+   TrueQ[Quiet[Check[taskBrokerActiveQ[], False]]] &&
+       IntegerQ[brokerFree = Quiet[Check[taskBrokerFreeKernels[], 0]]] &&
+       brokerFree >= 1,
+    helperCount = Min[requested - 1, count - 1, brokerFree];
+    rules = Thread[variables -> {\[FormalX], \[FormalY]}];
+    inverseRules = Reverse /@ rules;
+    payload = <|"Entries" -> (letters /. rules),
+      "Roots" -> (roots /. rules)|>;
+    dataFile = taskBrokerDataFile[
+      "mqdlog_" <> StringReplace[CreateUUID[], "-" -> ""], payload];
+    If[! StringQ[dataFile],
+      {seconds, data} = AbsoluteTiming[
+        multiquadraticStripLetterDLogDataInField[#1, roots, variables] & /@
+          letters];
+      route = "SerialFallback",
+      (* The broker receives every helper shard before the mission kernel
+         starts its own share.  Its resource controller may then reassign
+         those queued seats when the active-family set changes. *)
+      groups = Table[Range[offset, count, helperCount + 1],
+        {offset, helperCount + 1}];
+      helperGroups = Take[groups, helperCount];
+      localGroup = Last[groups];
+      codes = Table[
+        "FeynFacet`Private`multiquadraticStripDLogShardTask[" <>
+          ToString[dataFile, InputForm] <> "," <>
+          ToString[group, InputForm] <> "]", {group, helperGroups}];
+      If[NumericQ[deadline],
+        timeout = Max[1, Min[timeout,
+          Ceiling[deadline - AbsoluteTime[]]]]];
+      {seconds, shardResults} = AbsoluteTiming[
+        handle = taskBrokerSubmit[codes, "Label" -> "mqdlog",
+          "Timeout" -> timeout];
+        localResult = multiquadraticStripDLogShardTask[payload, localGroup];
+        helperResults = taskBrokerCollect[handle];
+        If[! ListQ[helperResults] ||
+            Length[helperResults] =!= helperCount,
+          helperResults = ConstantArray[$Failed, helperCount]];
+        Append[helperResults, localResult]];
+      invalidGroups = Pick[groups,
+        MapThread[! validShardQ[#1, #2] &, {shardResults, groups}], True];
+      If[invalidGroups =!= {} &&
+          multiquadraticStripDeadlineExpiredQ[deadline],
+        budgetResult = multiquadraticStripBudgetExhausted[
+          "CandidateDLogs", AbsoluteTime[] - startTime, deadline,
+          <|"LetterCount" -> count,
+            "CompletedShards" -> Length[groups] - Length[invalidGroups],
+            "MissingShardIndices" -> Flatten[invalidGroups]|>],
+        data = ConstantArray[$Failed, count];
+        Do[
+          chunk = If[validShardQ[shardResults[[k]], groups[[k]]],
+            shardResults[[k, "Data"]] /. inverseRules,
+            multiquadraticStripLetterDLogDataInField[
+                letters[[#1]], roots, variables] & /@ groups[[k]]];
+          data[[groups[[k]]]] = chunk,
+          {k, Length[groups]}];
+        route = "TaskBrokerShards"]],
+
+   ! TrueQ[$KernelID === 0],
+    {seconds, data} = AbsoluteTiming[
+      multiquadraticStripLetterDLogDataInField[#1, roots, variables] & /@
+        letters],
+
+   True,
     If[Length[Kernels[]] < requested,
       launched = Quiet[Check[LaunchKernels[requested - Length[Kernels[]]], {}]]];
     If[Length[Kernels[]] < requested,
@@ -1578,10 +1663,6 @@ multiquadraticStripConstructDLogBatch[letters_List, roots_List,
             FeynFacet`Private`multiquadraticStripDLogShardTask[file,
               Lookup[assignments, $KernelID, {}]], workerKernels]],
         $Failed]]];
-      validShardQ[result_, group_] := AssociationQ[result] &&
-        Lookup[result, "Indices", None] === group &&
-        MatchQ[Lookup[result, "Data", None], {___Association}] &&
-        Length[result["Data"]] === Length[group];
       If[! ListQ[shardResults] ||
           Length[shardResults] =!= Length[groups],
         shardResults = ConstantArray[$Failed, Length[groups]]];
@@ -1595,17 +1676,22 @@ multiquadraticStripConstructDLogBatch[letters_List, roots_List,
         {k, Length[groups]}];
       route = "ParallelShards"]]];
   CheckAbort[body[],
+    If[AssociationQ[handle], Quiet[taskBrokerCancel[handle]]];
     If[StringQ[dataFile] && FileExistsQ[dataFile], Quiet[DeleteFile[dataFile]]];
     If[launched =!= {}, Quiet[CloseKernels[launched]]];
     Abort[]];
   If[StringQ[dataFile] && FileExistsQ[dataFile], Quiet[DeleteFile[dataFile]]];
   If[launched =!= {}, Quiet[CloseKernels[launched]]];
+  If[AssociationQ[budgetResult], Return[budgetResult]];
   If[! MatchQ[data, {___Association}] || Length[data] =!= count,
     {seconds, data} = AbsoluteTiming[
       multiquadraticStripLetterDLogDataInField[#1, roots, variables] & /@
         letters]; route = "SerialFallback"];
   <|"Data" -> data, "Route" -> route,
-    "Subkernels" -> If[route === "ParallelShards", requested, 0],
+    "Subkernels" -> Which[route === "ParallelShards", requested,
+      route === "TaskBrokerShards", helperCount, True, 0],
+    "BrokerHelperCount" -> If[route === "TaskBrokerShards",
+      helperCount, 0],
     "Seconds" -> seconds|>
 ];
 multiquadraticStripConstructDLogBatch[___] := $Failed;
@@ -2336,9 +2422,11 @@ Options[multiquadraticStripCandidateLetters] = {
   "AlgebraicLetters" -> Automatic,
   "MaximumNormFactors" -> 2,
   "MaximumNormExponent" -> 2,
-  (* 1 = serial; 2..8 = requested Wolfram subkernels.  Automatic uses
-     already-live subkernels but launches none. *)
-  "DLogKernels" -> Automatic
+  (* 1 = serial; 2..8 = requested Wolfram workers.  Automatic uses the
+     current TaskBroker helper allocation inside KernelPool, otherwise the
+     already-live subkernels (and launches none). *)
+  "DLogKernels" -> Automatic,
+  "Deadline" -> Infinity
 };
 
 (* The candidate one-form basis, rebuilt.  Five sources, each tagged:
@@ -2361,15 +2449,20 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
    verifiedBasisImages, diagnosticRecords, diagonalBatchRecords,
    diagonalBatchChannelForms, diagonalBatchSpans, diagonalSpanIndex = 0,
    regulatorRejected = 0,
-   dlogKernelRequest, dlogKernelCount, forcingEntries, derivedLetters,
+   dlogKernelRequest, dlogKernelCount, dlogDeadline, forcingEntries,
+   derivedLetters,
    derivedBatch, derivedData, forcingData, rationalData, algebraicData,
    algebraicLetters},
   pool = Replace[OptionValue["RegulatorSamplePool"],
     Automatic :> $multiquadraticStripRegulatorSamplePool];
   sampleCount = OptionValue["RegulatorSampleCount"];
+  dlogDeadline = OptionValue["Deadline"];
   dlogKernelRequest = OptionValue["DLogKernels"];
   dlogKernelCount = Replace[dlogKernelRequest,
-    Automatic :> Max[1, Min[8, Length[Kernels[]]]]];
+    Automatic :> If[TrueQ[Quiet[Check[taskBrokerActiveQ[], False]]],
+      With[{free = Quiet[Check[taskBrokerFreeKernels[], 0]]},
+        If[IntegerQ[free] && free >= 0, Max[1, Min[8, free + 1]], 1]],
+      Max[1, Min[8, Length[Kernels[]]]]]];
   If[! IntegerQ[sampleCount] || sampleCount < 1 || ! ListQ[pool] || pool === {},
     Return[multiquadraticStripFailure["InvalidRegulatorSampleRequest",
       <|"RegulatorSampleCount" -> sampleCount|>]]];
@@ -2377,6 +2470,9 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
     Return[multiquadraticStripFailure["InvalidDLogKernelCount",
       <|"DLogKernels" -> dlogKernelRequest,
         "Expected" -> "Automatic or an integer from 1 through 8"|>]]];
+  If[! multiquadraticStripDeadlineQ[dlogDeadline],
+    Return[multiquadraticStripFailure["InvalidDeadline",
+      <|"Deadline" -> dlogDeadline|>]]];
   multiquadraticStripStageStart["candidate letters: regulator samples"];
   samples = multiquadraticStripRegulatorSampleValues[bbar, variables, epsilon,
     sampleCount, pool];
@@ -2565,9 +2661,11 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
   algebraicLetters = Lookup[algebraic, "Letter", {}];
   derivedLetters = Join[forcingEntries, alphabet, algebraicLetters];
   derivedBatch = multiquadraticStripConstructDLogBatch[
-    derivedLetters, roots, variables, dlogKernelCount];
+    derivedLetters, roots, variables, dlogKernelCount, dlogDeadline];
   If[! AssociationQ[derivedBatch],
     Return[multiquadraticStripFailure["DerivedDLogConstructionFailed"]]];
+  If[Lookup[derivedBatch, "Status", None] === "BudgetExhausted",
+    Return[derivedBatch]];
   derivedData = Lookup[derivedBatch, "Data", {}];
   If[Length[derivedData] =!= Length[derivedLetters],
     Return[multiquadraticStripFailure["DerivedDLogConstructionFailed",
@@ -5697,7 +5795,8 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
           "AlgebraicLetters" -> OptionValue["AlgebraicLetters"],
           "MaximumNormFactors" -> OptionValue["MaximumNormFactors"],
           "MaximumNormExponent" -> OptionValue["MaximumNormExponent"],
-          "DLogKernels" -> OptionValue["DLogKernels"]];
+          "DLogKernels" -> OptionValue["DLogKernels"],
+          "Deadline" -> deadline];
         multiquadraticStripStageDone["prepare: candidate letters",
           <|"status" -> Lookup[letterRecords, "Status", None],
             "letters" -> Length[Lookup[letterRecords, "LetterRecords", {}]]|>]];
@@ -15158,7 +15257,8 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
       "AlgebraicLetters" -> OptionValue["AlgebraicLetters"],
       "MaximumNormFactors" -> OptionValue["MaximumNormFactors"],
       "MaximumNormExponent" -> OptionValue["MaximumNormExponent"],
-      "DLogKernels" -> OptionValue["DLogKernels"]];
+      "DLogKernels" -> OptionValue["DLogKernels"],
+      "Deadline" -> deadline];
     If[Lookup[letterData, "Status", None] =!= "MultiquadraticCandidateLettersV1",
       Return[If[AssociationQ[letterData], letterData,
         multiquadraticStripFailure["OneFormBasisFailed"]]]];
