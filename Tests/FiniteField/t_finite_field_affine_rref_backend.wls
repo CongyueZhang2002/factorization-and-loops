@@ -393,12 +393,13 @@ legacyArtifact = <|
   "RecordFingerprint" -> "same-record",
   "SelectedNumeratorDegreeOffset" -> {0, 0},
   "SelectedSupportShell" -> 0,
+  "GaugeSupport" -> sealed["GaugeSupport"],
   "GenericRank" -> sealed["GenericRank"],
   "NormalizationColumns" -> sealed["NormalizationColumns"],
   "EliminationPlanFingerprint" -> sealed["PlanFingerprint"],
   "BackendConfiguration" -> backendConfiguration2,
   "PlanDiscoveryBackend" -> "FLINTAffineRREF"|>;
-check["resumable prime identity ignores adapter nonce, rows and threads",
+check["resumable prime identity ignores every execution detail",
   planArtifactIdentity ===
       KeyTake[sealed, {"GenericRank", "NormalizationColumns"}] &&
     planArtifactIdentity ===
@@ -410,13 +411,18 @@ check["resumable prime identity ignores adapter nonce, rows and threads",
     FeynFacet`Private`finiteFieldStripBackendArtifactIdentity[
         backendConfiguration2] === backendArtifactIdentity &&
     FeynFacet`Private`finiteFieldStripModularArtifactValidQ[
-      legacyArtifact, "same-record", {0, 0}, 0,
-      planArtifactIdentity, backendArtifactIdentity,
-      "FLINTAffineRREF"] &&
+      Join[legacyArtifact, <|
+        "BackendArtifactIdentity" -> <|"ForeignBinary" -> True|>,
+        "PlanDiscoveryBackend" -> "Wolfram"|>],
+      "same-record", {0, 0}, 0, sealed["GaugeSupport"],
+      planArtifactIdentity] &&
     ! FeynFacet`Private`finiteFieldStripModularArtifactValidQ[
       Join[legacyArtifact, <|"NormalizationColumns" -> {}|>],
-      "same-record", {0, 0}, 0, planArtifactIdentity,
-      backendArtifactIdentity, "FLINTAffineRREF"]];
+      "same-record", {0, 0}, 0, sealed["GaugeSupport"],
+      planArtifactIdentity] &&
+    ! FeynFacet`Private`finiteFieldStripModularArtifactValidQ[
+      legacyArtifact, "same-record", {0, 0}, 0,
+      Reverse[sealed["GaugeSupport"]], planArtifactIdentity]];
 tamperedBinding = Module[{payload},
   payload = KeyDrop[Join[sealed,
     <|"AdapterBinarySHA256" -> StringRepeat["0", 64]|>],

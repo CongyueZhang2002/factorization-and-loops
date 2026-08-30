@@ -471,16 +471,15 @@ finiteFieldStripValidateEliminationPlan[plan_,
   <|"Status" -> "OK"|>
 ];
 
+(* A completed modular image is mathematical data.  Reuse is tied to the
+   connection, ansatz support and affine section; the backend, binary,
+   thread allocation and plan discoverer are execution provenance only. *)
 finiteFieldStripModularArtifactValidQ[artifact_, recordFingerprint_,
-    selectedOffset_, selectedShell_, planIdentity_,
-    backendIdentity_, planDiscoveryBackend_] := Module[
-  {artifactPlanIdentity, artifactBackendIdentity},
+    selectedOffset_, selectedShell_, gaugeSupport_, planIdentity_] := Module[
+  {artifactPlanIdentity},
   If[! AssociationQ[artifact], Return[False]];
   artifactPlanIdentity = Lookup[artifact, "EliminationPlanIdentity",
     KeyTake[artifact, {"GenericRank", "NormalizationColumns"}]];
-  artifactBackendIdentity = Lookup[artifact, "BackendArtifactIdentity",
-    finiteFieldStripBackendArtifactIdentity[
-      Lookup[artifact, "BackendConfiguration", <||>]]];
   TrueQ[
     Lookup[artifact, "RecordFingerprint", Missing[]] ===
       recordFingerprint &&
@@ -488,10 +487,8 @@ finiteFieldStripModularArtifactValidQ[artifact_, recordFingerprint_,
       selectedOffset &&
     Lookup[artifact, "SelectedSupportShell", "Rectangle"] ===
       selectedShell &&
-    SameQ[artifactPlanIdentity, planIdentity] &&
-    SameQ[artifactBackendIdentity, backendIdentity] &&
-    Lookup[artifact, "PlanDiscoveryBackend", Missing[]] ===
-      planDiscoveryBackend]
+    Lookup[artifact, "GaugeSupport", Missing[]] === gaugeSupport &&
+    SameQ[artifactPlanIdentity, planIdentity]]
 ];
 finiteFieldStripModularArtifactValidQ[___] := False;
 
@@ -3312,8 +3309,8 @@ SolveEpsFormStripFiniteField[record_Association,
       interpolation = FamilyArtifactRead[file];
       If[! finiteFieldStripModularArtifactValidQ[interpolation,
           recordFingerprint, selectedOffset, selectedShell,
-          eliminationPlanIdentity, backendArtifactIdentity,
-          planDiscoveryBackend],
+          Lookup[eliminationPlan, "GaugeSupport", None],
+          eliminationPlanIdentity],
         log["Stale modular interpolation for prime ", prime, " ignored (another record or ansatz)"];
         Quiet[DeleteFile[file]]]];
     If[StringQ[file] && FileExistsQ[file],
