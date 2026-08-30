@@ -5226,16 +5226,48 @@ multiquadraticStripCompileNormalizations[specifications_List, dimensions_List,
    (2026-08-25). *)
 multiquadraticStripCoreCanonicalData[record_Association, roots_List,
     variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
-  {rules, strip},
+  {rules, strip, deferredBundle, diagonalCanonical, equationCanonical,
+   bundleFingerprint, bundleValidation, deferredFastQ, deferredDimensions},
   rules = multiquadraticStripCanonicalRules[variables, epsilon];
   strip = Lookup[record, "Strip", $Failed];
   If[! MatchQ[strip, {_List, _List, _List}], Return[$Failed]];
+  deferredBundle = Lookup[record, "DeferredBundle",
+    Missing["NoDeferredBundle"]];
+  deferredDimensions = Quiet[Check[Dimensions[strip[[3, 1]]], $Failed]];
+  deferredFastQ = AssociationQ[deferredBundle] &&
+    MatchQ[deferredDimensions, {_Integer?Positive, _Integer?Positive}] &&
+    Dimensions[strip[[3]]] === Prepend[deferredDimensions, 2] &&
+    AllTrue[Flatten[strip[[3]]], SameQ[#1, 0] &] &&
+    Lookup[deferredBundle, "Dimensions", None] ===
+      Prepend[deferredDimensions, 2];
+  equationCanonical = If[deferredFastQ,
+    (* On the deferred route BBar is intentionally a zero shape placeholder;
+       its authenticated bundle is the forcing.  Re-running Together, Expand
+       and InputForm over every large diagonal entry took more than nine
+       minutes on CF259 (27,9), even with CompileCore -> False.  A strict
+       context-free structural seal of E/C plus the already-authenticated
+       bundle binds exactly the representation this call consumes.  An
+       equivalent rewrite can conservatively miss a cache/checkpoint, but it
+       cannot reuse one for different input. *)
+    bundleValidation = blockEquationDeferredBundleValidate[deferredBundle];
+    If[Lookup[bundleValidation, "Status", None] =!= "BundleValid",
+      Return[$Failed]];
+    bundleFingerprint = Lookup[deferredBundle, "BundleFingerprint", None];
+    diagonalCanonical = strip[[1 ;; 2]] /. rules;
+    If[! StringQ[bundleFingerprint] ||
+        ! multiquadraticStripContextFreeQ[diagonalCanonical],
+      Return[$Failed]];
+    "DeferredEquationStructuralV1:" <> Hash[
+      {"DeferredEquationStructuralV1", diagonalCanonical,
+       bundleFingerprint, Dimensions /@ strip},
+      "SHA256", "HexString"],
+    ToString[InputForm[Map[
+      multiquadraticStripCanonicalText[#1, rules] &, strip, {4}]]]];
   <|"RootCanonicalSquares" -> (multiquadraticStripCanonicalText[
       Lookup[#1, "RootSquare", $Failed], rules] & /@ roots),
     "RootCanonicalExpressions" -> (multiquadraticStripCanonicalText[
       Lookup[#1, "Root", $Failed], rules] & /@ roots),
-    "EquationCanonical" -> ToString[InputForm[Map[
-      multiquadraticStripCanonicalText[#1, rules] &, strip, {4}]]]|>
+    "EquationCanonical" -> equationCanonical|>
 ];
 multiquadraticStripCoreCanonicalData[___] := $Failed;
 
