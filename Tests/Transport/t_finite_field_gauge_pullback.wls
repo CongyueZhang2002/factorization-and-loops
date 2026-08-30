@@ -32,6 +32,26 @@ FTAssert["rank-zero finite-field pullback reconstructs the exact gauge",
     And @@ Flatten[MapThread[TrueQ[Together[#1 - #2] === 0] &,
       {rank0["Result"], expected0}, 2]]];
 
+(* A source denominator need not have a constant term.  Its rational model
+   is projective, so discovery must choose a nonzero denominator coordinate
+   rather than assuming one particular monomial can be fixed to one. *)
+denNoConstant = p (1 + q);
+gaugeNoConstant = {{(1 + eps p + q)/denNoConstant}};
+noConstant = FeynFacet`Private`transportChartFiniteFieldCanonicalGauge[
+  gaugeNoConstant, denNoConstant, {p, q}, {x, y}, {x, y}, eps, {},
+  "Primes" -> primes, "MinimumPrimeCount" -> 2,
+  "MaximumPrimeCount" -> 2,
+  "MaximumKinematicTotalDegree" -> 3,
+  "MaximumEpsilonTotalDegree" -> 3,
+  "SymbolicPreDispatchSeconds" -> 0,
+  "HeldOutPointCount" -> 3];
+expectedNoConstant = gaugeNoConstant /. {p -> x, q -> y};
+FTAssert["a denominator with zero constant term is normalized projectively",
+  Lookup[noConstant, "Status", None] ===
+      "FiniteFieldCanonicalGaugePrepared" &&
+    TrueQ[Together[noConstant["Result"][[1, 1]] -
+      expectedNoConstant[[1, 1]]] === 0]];
+
 symbolicSmall =
   FeynFacet`Private`transportChartFiniteFieldCanonicalGauge[
     gauge0, den0, {p, q}, {x, y}, {x, y}, eps, {},

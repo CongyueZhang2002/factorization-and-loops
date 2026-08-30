@@ -388,8 +388,11 @@ finiteFieldGaugePullBackSliceDegrees[___] :=
 finiteFieldGaugePullBackFitDenominator[points_List, values_List,
     anchors_List, numeratorSupport_List, denominatorSupport_List,
     prime_Integer, normalizationInput_: Automatic] := Module[
-  {numeratorCount, denominatorCount, anchorCount, unknownCount,
-   normalizations, fitAt, result, candidate, failures = {}},
+  {numeratorCount, denominatorCount, anchorCount, numeratorUnknownCount,
+   unknownCount, rows = {}, numeratorValues, denominatorValues, row,
+   matrix, rightHandSide, preference, native, response, verification,
+   nullspace, vector, denominatorCoefficients, normalization, scale,
+   backend = "WolframNullSpace"},
   numeratorCount = Length[numeratorSupport];
   denominatorCount = Length[denominatorSupport];
   anchorCount = Length[anchors];
@@ -398,78 +401,91 @@ finiteFieldGaugePullBackFitDenominator[points_List, values_List,
       denominatorCount < 1,
     Return[finiteFieldGaugePullBackFailure[
       "FiniteFieldGaugePullBackDenominatorFitInvalid"]]];
-  unknownCount = anchorCount numeratorCount + denominatorCount - 1;
-  normalizations = If[IntegerQ[normalizationInput],
-    {normalizationInput}, Join[{1}, Range[2, denominatorCount]]];
-  fitAt[normalization_] := Module[
-    {rest, rows = {}, rhs = {}, numeratorValues, denominatorValues,
-     normValues, row, constructionRows, constructionRhs, solution,
-     coefficients, denominatorCoefficients, trainingOK, rowIndices, fail},
-    fail[stage_String] := (AppendTo[failures, stage]; $Failed);
-    If[! Between[normalization, {1, denominatorCount}], Return[$Failed]];
-    rest = Delete[Range[denominatorCount], normalization];
-    Do[
-      numeratorValues = finiteFieldGaugePullBackMonomialValues[
-        numeratorSupport, points[[pointIndex]], prime];
-      denominatorValues = finiteFieldGaugePullBackMonomialValues[
-        denominatorSupport[[rest]], points[[pointIndex]], prime];
-      normValues = finiteFieldGaugePullBackMonomialValues[
-        {denominatorSupport[[normalization]]}, points[[pointIndex]],
-        prime][[1]];
-      Do[
-        row = ConstantArray[0, unknownCount];
-        row[[1 + (anchorIndex - 1) numeratorCount ;;
-            anchorIndex numeratorCount]] = numeratorValues;
-        If[rest =!= {},
-          row[[anchorCount numeratorCount + 1 ;; unknownCount]] =
-            Mod[-values[[pointIndex, anchors[[anchorIndex]]]]
-              denominatorValues, prime]];
-        AppendTo[rows, row];
-        AppendTo[rhs, Mod[values[[pointIndex, anchors[[anchorIndex]]]]
-          normValues, prime]],
-        {anchorIndex, anchorCount}],
-      {pointIndex, Length[points]}];
-    If[Length[rows] < unknownCount, Return[$Failed]];
-    rowIndices = finiteFieldStripIndependentRows[
-      Developer`ToPackedArray[rows], unknownCount, prime];
-    If[rowIndices === $Failed, Return[fail["Singular"]]];
-    constructionRows = Developer`ToPackedArray[rows[[rowIndices]]];
-    constructionRhs = Developer`ToPackedArray[
-      Transpose[{rhs[[rowIndices]]}]];
-    solution = finiteFieldStripFLINTSolve[
-      constructionRows, constructionRhs, prime, 8];
-    If[Dimensions[solution] =!= {unknownCount, 1},
-      Return[fail["SolveFailed"]]];
-    coefficients = Flatten[solution];
-    trainingOK = Mod[Developer`ToPackedArray[rows].coefficients - rhs,
-      prime] === ConstantArray[0, Length[rhs]];
-    If[! trainingOK, Return[fail["Inconsistent"]]];
-    denominatorCoefficients = Insert[
-      Drop[coefficients, anchorCount numeratorCount], 1, normalization];
-    <|"Status" -> "FiniteFieldGaugePullBackDenominatorFitV1",
-      "NormalizationIndex" -> normalization,
-      "Anchors" -> anchors,
-      "DenominatorCoefficients" -> denominatorCoefficients,
-      "AnchorNumeratorCoefficients" -> ArrayReshape[
-        Take[coefficients, anchorCount numeratorCount],
-        {anchorCount, numeratorCount}],
-      "UnknownCount" -> unknownCount|>
-  ];
-  (* Map would eagerly solve every possible denominator normalization before
-     SelectFirst inspects the results.  Stop at the first nonsingular
-     normalization: later choices describe the same projective denominator
-     and are fallback work, not independent candidates. *)
-  result = $Failed;
+  (* The rational relation is homogeneous:
+
+       N_a(x,y) - value_a(x,y) D(x,y) == 0
+
+     for every anchor a and sampled point.  The former implementation
+     deleted one coefficient, fixed it to one, and repeated the complete
+     row construction and native solve for every possible denominator
+     normalization.  A wrong 176-monomial model therefore paid as many as
+     176 identical-rank solves before it could be rejected.  One nullspace
+     computation finds the projective relation directly; only after that do
+     we choose and normalize a nonzero denominator coordinate. *)
+  numeratorUnknownCount = anchorCount numeratorCount;
+  unknownCount = numeratorUnknownCount + denominatorCount;
   Do[
-    candidate = fitAt[normalization];
-    If[AssociationQ[candidate] && Lookup[candidate, "Status", None] ===
-        "FiniteFieldGaugePullBackDenominatorFitV1",
-      result = candidate; Break[]],
-    {normalization, normalizations}];
-  If[result === $Failed,
-    finiteFieldGaugePullBackFailure[If[MemberQ[failures, "Inconsistent"],
-      "FiniteFieldGaugePullBackDenominatorModelInconsistent",
-      "FiniteFieldGaugePullBackDenominatorFitSingular"]], result]
+    numeratorValues = finiteFieldGaugePullBackMonomialValues[
+      numeratorSupport, points[[pointIndex]], prime];
+    denominatorValues = finiteFieldGaugePullBackMonomialValues[
+      denominatorSupport, points[[pointIndex]], prime];
+    Do[
+      row = ConstantArray[0, unknownCount];
+      row[[1 + (anchorIndex - 1) numeratorCount ;;
+          anchorIndex numeratorCount]] = numeratorValues;
+      row[[numeratorUnknownCount + 1 ;; unknownCount]] = Mod[
+        -values[[pointIndex, anchors[[anchorIndex]]]] denominatorValues,
+        prime];
+      AppendTo[rows, row],
+      {anchorIndex, anchorCount}],
+    {pointIndex, Length[points]}];
+  If[Length[rows] < unknownCount - 1,
+    Return[finiteFieldGaugePullBackFailure[
+      "FiniteFieldGaugePullBackDenominatorFitInvalid"]]];
+  matrix = Developer`ToPackedArray[rows];
+  rightHandSide = ConstantArray[0, Length[rows]];
+  (* Prefer a denominator coordinate as the adapter's normalization.  The
+     returned nullspace is still verified on every original row below. *)
+  preference = Join[Range[numeratorUnknownCount + 1, unknownCount],
+    Range[numeratorUnknownCount]];
+  native = Quiet[Check[finiteFieldStripCFFRRun[
+      matrix, rightHandSide, prime, preference, 8, Automatic], $Failed]];
+  If[AssociationQ[native] && Lookup[native, "Status", None] === "OK",
+    response = native["Response"];
+    verification = finiteFieldStripCFFRVerify[
+      matrix, rightHandSide, prime, response, Automatic];
+    If[Lookup[verification, "Status", None] === "OK",
+      nullspace = response["NullspaceBasis"];
+      backend = "FLINTAffineRREF",
+      nullspace = $Failed],
+    nullspace = $Failed];
+  If[nullspace === $Failed,
+    nullspace = Quiet[Check[NullSpace[matrix, Modulus -> prime], $Failed]]];
+  If[! ListQ[nullspace],
+    Return[finiteFieldGaugePullBackFailure[
+      "FiniteFieldGaugePullBackDenominatorFitSingular"]]];
+  Which[
+    nullspace === {},
+      Return[finiteFieldGaugePullBackFailure[
+        "FiniteFieldGaugePullBackDenominatorModelInconsistent"]],
+    Length[nullspace] =!= 1,
+      Return[finiteFieldGaugePullBackFailure[
+        "FiniteFieldGaugePullBackDenominatorFitSingular",
+        <|"RelationNullity" -> Length[nullspace]|>]]];
+  vector = First[nullspace];
+  denominatorCoefficients = Take[vector, -denominatorCount];
+  normalization = If[IntegerQ[normalizationInput], normalizationInput,
+    FirstCase[Range[denominatorCount],
+      index_ /; denominatorCoefficients[[index]] =!= 0,
+      Missing["NoDenominatorCoordinate"]]];
+  If[! IntegerQ[normalization] ||
+      ! Between[normalization, {1, denominatorCount}] ||
+      denominatorCoefficients[[normalization]] === 0,
+    Return[finiteFieldGaugePullBackFailure[
+      "FiniteFieldGaugePullBackDenominatorFitSingular"]]];
+  scale = PowerMod[denominatorCoefficients[[normalization]], -1, prime];
+  vector = Mod[scale vector, prime];
+  denominatorCoefficients = Take[vector, -denominatorCount];
+  <|"Status" -> "FiniteFieldGaugePullBackDenominatorFitV1",
+    "NormalizationIndex" -> normalization,
+    "Anchors" -> anchors,
+    "DenominatorCoefficients" -> denominatorCoefficients,
+    "AnchorNumeratorCoefficients" -> ArrayReshape[
+      Take[vector, numeratorUnknownCount],
+      {anchorCount, numeratorCount}],
+    "UnknownCount" -> unknownCount,
+    "RelationNullity" -> 1,
+    "Backend" -> backend|>
 ];
 finiteFieldGaugePullBackFitDenominator[___] :=
   finiteFieldGaugePullBackFailure[
@@ -1323,7 +1339,12 @@ transportChartFiniteFieldCanonicalGauge[chartGauge_List,
       If[Lookup[result, "Status", None] ===
           "FiniteFieldCanonicalGaugePrepared",
         accepted = result; acceptedCap = cap; Break[]];
-      If[! finiteFieldGaugePullBackModelRefusalQ[result],
+      (* A larger slice cap can repair only a slice interpolation that hit
+         that cap.  Once slice degrees were discovered, denominator-model
+         inconsistency is independent of the cap; retrying it at every rung
+         repeated the same 64-candidate scan at 36, 48, 72 and 96. *)
+      If[Lookup[result, "Status", None] =!=
+          "FiniteFieldGaugePullBackSliceDegreeExceeded",
         entryFailure = Join[result, <|"Entry" -> {row, column},
           "DegreeCaps" -> schedule,
           "EntryAttempts" -> attemptRecords|>];
