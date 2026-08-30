@@ -887,7 +887,8 @@ blockEquationDeferredActiveGradeCensus[___] :=
    same canonical quotient contract as every other route. *)
 blockEquationDeferredMapleCanonicalOperandValue[expression_] := Module[
   {scratch, key, timeout, normalized, pair, radicalBases, rootImages,
-   mapleExpression, position, restoreRules},
+   mapleExpression, position, restoreRules, restoredNumerator,
+   restoredEntries, numericContent, restoredFactors},
   radicalBases = DeleteDuplicates[Cases[Unevaluated[expression],
     Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
       base, {0, Infinity}, Heads -> True]];
@@ -902,7 +903,7 @@ blockEquationDeferredMapleCanonicalOperandValue[expression_] := Module[
      afterwards therefore preserves the source function without changing its
      generator spelling. *)
   rootImages = Table[Symbol[StringJoin[
-      "FeynFacetMapleRoot`facetBEDRoot", StringTake[key, 8], "x",
+      "FeynFacetMapleRoot`facetBEDRoot", key, "x",
       ToString[index]]], {index, Length[radicalBases]}];
   mapleExpression = expression /. Power[base_, exponent_Rational /;
       Denominator[exponent] === 2] :> Module[{},
@@ -928,8 +929,24 @@ blockEquationDeferredMapleCanonicalOperandValue[expression_] := Module[
   pair = Quiet[Check[rationalMaterializationCanonicalQuotientValue[
       First[normalized["Result"]]], $Failed]];
   If[! MatchQ[pair, {_, _Association}], Return[$Failed]];
-  {First[pair] /. restoreRules, Association @ Map[
-    (First[#1] /. restoreRules) -> Last[#1] &, Normal[Last[pair]]]}
+  restoredNumerator = First[pair] /. restoreRules;
+  restoredEntries = Map[
+    (First[#1] /. restoreRules) -> Last[#1] &, Normal[Last[pair]]];
+  (* Root restoration is not injective: distinct formal factors can become
+     identical after r_i^2 -> Delta_i.  Preserve their total valuation rather
+     than letting Association silently keep one rule.  A restored numeric
+     factor is denominator content and belongs in the numerator, matching the
+     canonical quotient contract. *)
+  If[AnyTrue[First /@ restoredEntries, TrueQ[#1 === 0] &],
+    Return[$Failed]];
+  numericContent = Times @@ Map[
+    Function[entry, First[entry]^Last[entry]],
+    Select[restoredEntries, NumericQ[First[#1]] &]];
+  restoredFactors = Select[
+    Merge[Select[restoredEntries, ! NumericQ[First[#1]] &], Total],
+    ! TrueQ[#1 === 0] &];
+  {If[TrueQ[numericContent === 1], restoredNumerator,
+     Cancel[restoredNumerator/numericContent]], restoredFactors}
 ];
 blockEquationDeferredMapleCanonicalOperandValue[___] := $Failed;
 
