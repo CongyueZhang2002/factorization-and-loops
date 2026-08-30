@@ -83,10 +83,15 @@ selected2 = KernelPoolResourcePolicy`KernelPoolResourceSelectHelper[
   <|"A" -> 1., "B" -> 10., "C" -> 20.|>];
 FTTest`FTAssert["least-recently-served breaks equal-load ties",
   selected2["Group"] === "B"];
-borrowed = KernelPoolResourcePolicy`KernelPoolResourceSelectHelper[
+reserved = KernelPoolResourcePolicy`KernelPoolResourceSelectHelper[
   {First[records]}, <|"A" -> 1|>, fairAllocation, <||>];
-FTTest`FTAssert["unused peer entitlement is work-conservingly borrowed",
-  borrowed["Group"] === "A"];
+FTTest`FTAssert["an active peer's unused entitlement is reserved for its next phase",
+  MatchQ[reserved, _Missing]];
+soleFamilyAllocation = allocate[{"A"}, 8, 16, <|"A" -> 7|>];
+soleFamilyNext = KernelPoolResourcePolicy`KernelPoolResourceSelectHelper[
+  {First[records]}, <|"A" -> 6|>, soleFamilyAllocation, <||>];
+FTTest`FTAssert["a sole family still fills every helper seat",
+  soleFamilyNext["Group"] === "A"];
 orphaned = KernelPoolResourcePolicy`KernelPoolResourceSelectHelper[
   {<|"File" -> "gone.wl", "Group" -> "FinishedFamily",
       "Date" -> 4.|>}, <||>, fairAllocation, <||>];

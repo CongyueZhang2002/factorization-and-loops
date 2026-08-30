@@ -45,9 +45,11 @@ KernelPoolResourceAllocate[groups_List, subkernelCapacity_Integer,
     "NativeCoreCapacity" -> nativeCoreCapacity, "ActiveFamilyCount" -> 0,
     "HelperCapacity" -> subkernelCapacity, "Groups" -> <||>|>]];
   helperCapacity = Max[0, subkernelCapacity - count];
-  (* Ceil is intentional: central fair dispatch enforces the physical total;
-     the extra fractional entitlement makes the queue work-conserving when a
-     peer has no helper work. *)
+  (* Ceil is intentional: central fair dispatch enforces the physical total
+     when the division has a remainder.  With multiple active families this
+     is a strict per-family ceiling.  Exact symbolic helper jobs are not
+     preemptible; lending every idle seat to one family produced a measured
+     257 s queue wait when its peer submitted work two seconds later. *)
   helperCeiling = If[helperCapacity === 0, 0,
     Ceiling[helperCapacity/count]];
   rotated = RotateLeft[ordered, Mod[offset, count]];
@@ -93,9 +95,12 @@ KernelPoolResourceSelectHelper[records_List, runningHelpers_Association,
           Lookup[groups, #1["Group"], <||>], "HelperCeiling", 0]},
       IntegerQ[ceiling] && ceiling > 0 &&
         Lookup[runningHelpers, group, 0] < ceiling] &];
-  (* If every group is at its fractional ceiling but a physical seat is free,
-     borrow it.  The next dispatch still chooses the least-served group. *)
-  candidates = If[underCeiling === {}, valid, underCeiling];
+  (* A sole family owns the complete helper capacity through its allocation.
+     With multiple families, never borrow above the published ceiling: an
+     already-running symbolic task cannot be reclaimed when a peer queues its
+     next phase. *)
+  If[underCeiling === {}, Return[Missing["AllGroupsAtHelperCeiling"]]];
+  candidates = underCeiling;
   score[record_] := With[{group = record["Group"]}, {
     Lookup[runningHelpers, group, 0],
     Lookup[lastDispatch, group, 0.],
