@@ -51,6 +51,19 @@ legacyOptionModular = Join[KeyDrop[modular,
 legacyOptionLifted = FeynFacet`ReconstructEpsFormStrip[
   legacyOptionRecord, {legacyOptionModular},
   "KernelCount" -> 1, "ExactCheck" -> False];
+explicitOptionModular = Join[legacyOptionModular, <|
+  "Prime" -> 1000033,
+  "Alphabet" -> {tx, ty, 1 + tx},
+  "GaugeDenominator" -> 1 + tx|>];
+mixedSchemaLifted = FeynFacet`ReconstructEpsFormStrip[
+  legacyOptionRecord, {legacyOptionModular, explicitOptionModular},
+  "KernelCount" -> 1, "ExactCheck" -> False];
+conflictingOptionModular = Join[explicitOptionModular, <|
+  "Prime" -> 1000037, "Alphabet" -> {tx, ty}|>];
+mixedSchemaConflict = Quiet[FeynFacet`ReconstructEpsFormStrip[
+  legacyOptionRecord, {legacyOptionModular, conflictingOptionModular},
+  "KernelCount" -> 1, "ExactCheck" -> False],
+  FeynFacet`ReconstructEpsFormStrip::data];
 
 checks = <|
   "AutomaticPreparation" -> AssociationQ[automatic],
@@ -71,7 +84,11 @@ checks = <|
     lifted["GaugeDenominatorDegrees"] === {1, 0},
   "LegacyLiftReplaysRecordAnsatz" -> AssociationQ[legacyOptionLifted] &&
     legacyOptionLifted["Alphabet"] === {tx, ty, 1 + tx} &&
-    legacyOptionLifted["GaugeDenominator"] === 1 + tx
+    legacyOptionLifted["GaugeDenominator"] === 1 + tx,
+  "CompatibleMixedSchemaLift" -> AssociationQ[mixedSchemaLifted] &&
+    mixedSchemaLifted["Alphabet"] === {tx, ty, 1 + tx} &&
+    mixedSchemaLifted["GaugeDenominator"] === 1 + tx,
+  "ConflictingMixedSchemaRejected" -> mixedSchemaConflict === $Failed
 |>; 
 
 Print[InputForm[checks]];

@@ -320,7 +320,9 @@ ReconstructEpsFormStrip[record_Association, modularData_List,
    gaugeDenominatorDegrees, dimensions, upperDimension, lowerDimension,
    gaugeUnknownCount, residueCount, alphabet, residueMatrices, gauge,
    columnIndex, result, verification, liftingSeconds, support, heldOutQ,
-   storedGaugeDenominators, storedAlphabets},
+   storedGaugeDenominators, storedAlphabets,
+   historicalGaugeDenominator, effectiveGaugeDenominators,
+   historicalAlphabet, effectiveAlphabets},
   If[! And @@ (KeyExistsQ[record, #] & /@
       {"Strip", "Variables", "Regulator"}) ||
       ! MatchQ[record["Variables"], {_, _}] ||
@@ -412,18 +414,19 @@ ReconstructEpsFormStrip[record_Association, modularData_List,
   (* New modular artifacts carry the mathematical ansatz that generated
      their coordinates.  In particular, a widened denominator or a
      precomputed/extra dlog basis cannot be reconstructed from the raw strip.
-     All-old artifacts retain the historical derivation; mixed or conflicting
-     records are refused rather than decoded with the wrong coordinate map. *)
+     All-old artifacts retain the historical derivation.  In a mixed set,
+     legacy artifacts inherit that same value, so an explicit new value is
+     accepted only when it agrees with the historical ansatz. *)
+  historicalGaugeDenominator =
+    epsFormFiniteFieldGaugeDenominator[bbar, variables] *
+      Lookup[record, "GaugeDenominatorFactor", 1];
   storedGaugeDenominators = Lookup[modularData, "GaugeDenominator",
     Missing["GaugeDenominator"]];
-  gaugeDenominator = Which[
-    AllTrue[storedGaugeDenominators, MissingQ],
-      epsFormFiniteFieldGaugeDenominator[bbar, variables] *
-        Lookup[record, "GaugeDenominatorFactor", 1],
-    AnyTrue[storedGaugeDenominators, MissingQ] ||
-        Length[DeleteDuplicates[storedGaugeDenominators]] =!= 1,
-      Message[ReconstructEpsFormStrip::data]; Return[$Failed],
-    True, First[storedGaugeDenominators]];
+  effectiveGaugeDenominators = Replace[storedGaugeDenominators,
+    _Missing -> historicalGaugeDenominator, {1}];
+  If[Length[DeleteDuplicates[effectiveGaugeDenominators]] =!= 1,
+    Message[ReconstructEpsFormStrip::data]; Return[$Failed]];
+  gaugeDenominator = First[effectiveGaugeDenominators];
   gaugeDenominatorDegrees = Exponent[gaugeDenominator, #] & /@ variables;
   dimensions = Dimensions[bbar[[1]]];
   {upperDimension, lowerDimension} = dimensions;
@@ -436,17 +439,17 @@ ReconstructEpsFormStrip[record_Association, modularData_List,
       Missing["GaugeSupport"]]]] =!= 1,
     Message[ReconstructEpsFormStrip::data]; Return[$Failed]];
   gaugeUnknownCount = upperDimension lowerDimension Length[support];
+  historicalAlphabet =
+    With[{base = epsFormStripAlphabet[strip, variables, epsilon]},
+      If[base === $Failed, $Failed,
+        DeleteDuplicates[Join[base,
+          Flatten[{Lookup[record, "ExtraLetters", {}]}]]]]];
   storedAlphabets = Lookup[modularData, "Alphabet", Missing["Alphabet"]];
-  alphabet = Which[
-    AllTrue[storedAlphabets, MissingQ],
-      With[{base = epsFormStripAlphabet[strip, variables, epsilon]},
-        If[base === $Failed, $Failed,
-          DeleteDuplicates[Join[base,
-            Flatten[{Lookup[record, "ExtraLetters", {}]}]]]]],
-    AnyTrue[storedAlphabets, MissingQ] ||
-        Length[DeleteDuplicates[storedAlphabets]] =!= 1,
-      Message[ReconstructEpsFormStrip::data]; Return[$Failed],
-    True, First[storedAlphabets]];
+  effectiveAlphabets = Replace[storedAlphabets,
+    _Missing -> historicalAlphabet, {1}];
+  If[Length[DeleteDuplicates[effectiveAlphabets]] =!= 1,
+    Message[ReconstructEpsFormStrip::data]; Return[$Failed]];
+  alphabet = First[effectiveAlphabets];
   If[alphabet === $Failed || ! ListQ[alphabet],
     Message[ReconstructEpsFormStrip::record]; Return[$Failed]];
   residueCount = Length[alphabet] upperDimension lowerDimension;
