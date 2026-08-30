@@ -27,9 +27,20 @@
 - [🟢] Complete the geometric polar-divisor census.  All 16 affine polar curves
   and the projective infinity component are absolutely irreducible, so there
   are no missing component-dlog directions.
-- [🟡] Choose and test the next mathematical target: change the preceding
-  diagonal normalization/basis, or admit general closed rational one-forms
-  beyond strict dlogs.
+- [🟢] Close the remaining strict-dlog target axes. Rational canonical diagonal
+  changes preserve existence; all simple-pole closed rational one-forms on the
+  projective divisor are already in the 16-dlog span; the full valuation and
+  infinity bounds are saturated.
+- [🟢] Confirm the gauge-eliminated obstruction for both 16 and 48 dlogs at two
+  configured and one fresh independent prime/regulator image.
+- [🟢] Recover all six feeder affine nullspaces and prove that their 26 gauge
+  directions are exactly kinematics-independent matrix shifts, so a coupled
+  row solve cannot repair the downstream dlog obstruction.
+- [🟢] Demonstrate on two independent full-system images that the minimal
+  rational-kernel extension `dx,dy,d(x^2)` (or `dx,dy,d(x y)`) removes the
+  12-dimensional obstruction.
+- [🟡] Reconstruct and accept the rational-kernel gauge across regulator images
+  and primes using unseen-prime and random-point residuals.
 - [ ] Remove redundant rectangle/offset probes after a certified simplex has
   failed at two independent generic images.
 - [ ] Complete and certify the remaining triple-root families.
