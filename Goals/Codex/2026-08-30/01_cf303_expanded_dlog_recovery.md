@@ -20,9 +20,16 @@
   dlog construction from 1,513.8 s to 157.5 s on the real block.
 - [🟢] Move constructed-dlog pair normalization and zero admission into the
   existing shards, and route large exact Jacobian pullbacks through helpers.
-- [🟡] Compare the optimized 7,272-column affine equation against an independent
-  reference assembly at a generic modular image.  If they agree, produce a
-  compact left-null obstruction witness; if they disagree, repair the assembly.
+- [🟢] Compare the optimized 7,272-column affine equation against the independent
+  raw-PDE oracle at three generic modular points.  All 24 rows and RHS entries
+  agree exactly; the compact full-system witness has `rank(A)=7268`,
+  `rank([A|b])=7269`, `y^T A=0`, and `y^T b!=0` modulo 2147483423.
+- [🟢] Complete the geometric polar-divisor census.  All 16 affine polar curves
+  and the projective infinity component are absolutely irreducible, so there
+  are no missing component-dlog directions.
+- [🟡] Choose and test the next mathematical target: change the preceding
+  diagonal normalization/basis, or admit general closed rational one-forms
+  beyond strict dlogs.
 - [ ] Remove redundant rectangle/offset probes after a certified simplex has
   failed at two independent generic images.
 - [ ] Complete and certify the remaining triple-root families.

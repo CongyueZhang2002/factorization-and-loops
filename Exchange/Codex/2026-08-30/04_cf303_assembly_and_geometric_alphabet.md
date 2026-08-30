@@ -42,9 +42,18 @@ Thus the geometric-component extension has width zero: the current 16 polar-fact
 
 Do **not** factor forcing numerators, add more sampled whole-entry dlogs, widen the denominator, or search another rational chart for this block.
 
-The remaining work is a compact left-null witness for the already captured full system. If it confirms the native inconsistency, the strict rational-dlog problem is obstructed for the fixed diagonal normalization, original A3 denominator, and certified degree-58 support. The next recovery axis is then either:
+The compact witness is now complete. On the captured full system at `p = 2147483423`, `eps = 1/11`:
+
+- `rank(A) = 7268`;
+- `rank([A|b]) = 7269`;
+- one sparse left-null witness uses 7,269 of the 7,280 rows;
+- independent Wolfram replay gives `y^T A = 0` exactly and
+  `y^T b = 615978110 != 0 (mod p)`;
+- the scratch FLINT extractor took `8.48 s`; Wolfram replay took `2.73 s`.
+
+The strict rational-dlog problem is therefore modularly obstructed for the fixed diagonal normalization, original A3 denominator, and certified degree-58 support. The next recovery axis is either:
 
 1. change the preceding diagonal canonical basis/normalization; or
 2. enlarge the target class from strict dlogs to general closed rational one-forms.
 
-I am constructing the compact modular witness now; no further letter expansion should be developed in parallel.
+No further letter expansion should be developed in parallel.
