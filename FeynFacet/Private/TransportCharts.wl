@@ -1913,8 +1913,9 @@ SolveEpsFormStripInFrame[
     {stageSeconds, bundleValidation} = AbsoluteTiming[
       blockEquationDeferredBundleValidate[deferredBundle]];
     timings["DeferredBundleValidation"] = stageSeconds;
-    If[verbose, Print["[strip-in-frame] deferred bundle validation: ",
-      Round[stageSeconds, 0.1], " s"]];
+    If[TrueQ[OptionValue["Verbose"]],
+      Print["[strip-in-frame] deferred bundle validation: ",
+        Round[stageSeconds, 0.1], " s"]];
     If[Lookup[bundleValidation, "Status", None] =!= "BundleValid",
       Return[<|"Status" -> "InvalidDeferredBundle",
         "Detail" -> bundleValidation|>]];
@@ -1973,8 +1974,9 @@ SolveEpsFormStripInFrame[
   {stageSeconds, classification} = AbsoluteTiming[
     transportChartRootIndices[strip, allRoots]];
   timings["RootClassification"] = stageSeconds;
-  If[verbose, Print["[strip-in-frame] root classification: ",
-    Round[stageSeconds, 0.1], " s"]];
+  If[TrueQ[OptionValue["Verbose"]],
+    Print["[strip-in-frame] root classification: ",
+      Round[stageSeconds, 0.1], " s"]];
   If[classification["UnclassifiedRadicalBases"] =!= {},
     Return[<|"Status" -> "StripContainsUndeclaredRadicals",
       "RadicalBases" -> classification["UnclassifiedRadicalBases"]|>]];

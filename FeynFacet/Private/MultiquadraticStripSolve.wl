@@ -177,6 +177,7 @@ ClearAll[
   multiquadraticStripRowAlphabetLetters,
   multiquadraticStripCandidateLetters, multiquadraticStripNormDenominatorFactor,
   multiquadraticStripMergeGaugeDenominator,
+  multiquadraticStripMergeGaugeDenominatorSources,
   multiquadraticStripScreenCompilePolynomialExact,
   multiquadraticStripScreenReducePolynomial,
   multiquadraticStripScreenCompilePolynomial,
@@ -2918,6 +2919,50 @@ multiquadraticStripMergeGaugeDenominator[base_, extra_, variables_List] :=
         power]],
     {factor, factors}]
 ];
+
+(* The deferred divisor census already supplies a product as distinct base /
+   exponent sources.  Factoring their complete product makes Together expand a
+   large intermediate before FactorList can recover the same factors.  Stream
+   the factor pairs instead: exponents ADD within the forcing product and take
+   the MAXIMUM against the independent letter contribution, exactly as
+   multiquadraticStripMergeGaugeDenominator does. *)
+multiquadraticStripMergeGaugeDenominatorSources[sources_List, extra_,
+    variables_List] := Module[
+  {factorPairs, canonicalize, sameFactorQ, sourceLists, sourcePairs,
+   extraPairs, canonicalSources, canonicalExtra, factors, power},
+  If[! AllTrue[sources,
+      MatchQ[#1, {_, exponent_Integer /; exponent >= 0}] &], Return[$Failed]];
+  factorPairs[expression_, multiplier_Integer] := Module[{list},
+    list = Quiet[FactorList[Together[expression]]];
+    If[! ListQ[list], Return[$Failed]];
+    {First[#1], multiplier Last[#1]} & /@ Rest[list]];
+  sourceLists = factorPairs[First[#1], Last[#1]] & /@ sources;
+  If[MemberQ[sourceLists, $Failed], Return[$Failed]];
+  sourcePairs = Flatten[sourceLists, 1];
+  extraPairs = factorPairs[extra, 1];
+  If[extraPairs === $Failed, Return[$Failed]];
+  sourcePairs = Select[sourcePairs,
+    ! FreeQ[First[#1], Alternatives @@ variables] &];
+  extraPairs = Select[extraPairs,
+    ! FreeQ[First[#1], Alternatives @@ variables] &];
+  canonicalize[pairs_List] := DeleteCases[
+    {multiquadraticStripCanonicalFactor[First[#1], variables], Last[#1]} & /@
+      pairs, {$Failed | 0, _}];
+  canonicalSources = canonicalize[sourcePairs];
+  canonicalExtra = canonicalize[extraPairs];
+  sameFactorQ[left_, right_] := SameQ[left, right] ||
+    TrueQ[Together[left - right] === 0];
+  factors = DeleteDuplicates[
+    Join[If[canonicalSources === {}, {}, canonicalSources[[All, 1]]],
+      If[canonicalExtra === {}, {}, canonicalExtra[[All, 1]]]],
+    sameFactorQ];
+  If[factors === {}, Return[1]];
+  power[pairs_List, factor_] := Total[Last /@ Select[pairs,
+    sameFactorQ[First[#1], factor] &]];
+  Times @@ Table[factor^Max[power[canonicalSources, factor],
+      power[canonicalExtra, factor]], {factor, factors}]
+];
+multiquadraticStripMergeGaugeDenominatorSources[___] := $Failed;
 
 (* ------------------------------------------------------------------ *)
 (* The residue-only integrability screen                                *)
@@ -5972,9 +6017,17 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
           multiquadraticRationalGaugeDenominator[channelForcing, variables],
           gaugeDenominatorFactor, variables],
         If[AssociationQ[deferredBundle],
+          multiquadraticStripStageStart[
+            "prepare: bundle gauge denominator"];
           bundleGauge = multiquadraticStripBundleGaugeDenominator[
             deferredBundle, variables,
             If[MatchQ[letterRecords, {___Association}], letterRecords, {}]];
+          multiquadraticStripStageDone[
+            "prepare: bundle gauge denominator",
+            <|"status" -> Lookup[bundleGauge, "Status", None],
+              "factors" -> Lookup[bundleGauge, "FactorCount", None],
+              "groups" -> Lookup[bundleGauge, "GroupedFactorCount", None],
+              "seconds" -> Lookup[bundleGauge, "Seconds", None]|>];
           If[Lookup[bundleGauge, "Status", None] =!=
               "BundleGaugeDenominatorV1", Return[bundleGauge, Module]];
           (* Refine only when the pre-cancellation rectangle would exceed
@@ -6045,7 +6098,7 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
   If[MissingQ[checkpointDenominator],
     checkpointWrite["GaugeDenominator", denominatorCheckpointFingerprint,
       {gaugeDenominatorFactor, gaugeDenominator}]];
-  If[TrueQ[Together[gaugeDenominator] === 0] ||
+  If[TrueQ[gaugeDenominator === 0] ||
       ! FreeQ[gaugeDenominator,
         Power[_, exponent_Rational /; Denominator[exponent] === 2]],
     Return[multiquadraticStripFailure["GaugeDenominatorNotRational"]]];
@@ -13256,8 +13309,9 @@ multiquadraticStripConservativeGaugeDenominator[___] := $Failed;
    order rather than multiplied repeatedly. *)
 multiquadraticStripBundleGaugeDenominator[bundle_Association,
     variables : {_Symbol, _Symbol}, letterRecords_: {}] := Module[
-  {validation, summary, factors, orbits, pairs, grouped, forcingFactor,
-   letterFactor, denominator, records},
+  {startTime = AbsoluteTime[], validation, summary, factors, orbits, keyGroups,
+   collapsedRecords, grouped, forcingSources, forcingFactor, letterFactor,
+   denominator, records},
   validation = blockEquationDeferredBundleValidate[bundle];
   If[Lookup[validation, "Status", None] =!= "BundleValid",
     Return[multiquadraticStripFailure["InvalidDeferredBundle",
@@ -13283,16 +13337,28 @@ multiquadraticStripBundleGaugeDenominator[bundle_Association,
         "OrbitIndex" -> Lookup[factor, "OrbitIndex", 0],
         "SourcePoleOrderUpperBound" -> order|>],
     {factor, factors}], Nothing];
-  pairs = Lookup[records, {"Base", "Exponent"}, {}];
-  grouped = Gather[pairs,
-    TrueQ[Quiet[Together[#1[[1]] - #2[[1]]]] === 0] &];
-  forcingFactor = If[grouped === {}, 1, Times @@ Table[
-    First[group][[1]]^Max[group[[All, 2]]], {group, grouped}]];
+  (* FactorIndex is unique for a rational divisor; algebraic conjugates that
+     share a norm already carry the same validated OrbitIndex.  Collapse those
+     guaranteed equalities by integer key before the semantic comparison.
+     Different orbits, and an orbit versus a rational factor, can still have
+     equal bases, so the final Together-Gather is retained on the much smaller
+     collapsed list. *)
+  keyGroups = GatherBy[records, If[#1["OrbitIndex"] > 0,
+      {"Orbit", #1["OrbitIndex"]}, {"Factor", #1["FactorIndex"]}] &];
+  collapsedRecords = Map[Function[group, Append[First[group],
+      "Exponent" -> Max[Lookup[group, "Exponent"]]]], keyGroups];
+  grouped = Gather[collapsedRecords,
+    TrueQ[Quiet[Together[#1["Base"] - #2["Base"]]] === 0] &];
+  forcingSources = Table[
+    {First[group]["Base"], Max[Lookup[group, "Exponent"]]},
+    {group, grouped}];
+  forcingFactor = Times @@
+    (First[#1]^Last[#1] & /@ forcingSources);
   letterFactor = If[MatchQ[letterRecords, {___Association}],
     multiquadraticStripNormDenominatorFactor[letterRecords, variables], 1];
-  denominator = multiquadraticStripMergeGaugeDenominator[
-    forcingFactor, letterFactor, variables];
-  If[denominator === $Failed || TrueQ[Quiet[Together[denominator]] === 0] ||
+  denominator = multiquadraticStripMergeGaugeDenominatorSources[
+    forcingSources, letterFactor, variables];
+  If[denominator === $Failed || TrueQ[denominator === 0] ||
       ! FreeQ[denominator,
         Power[_, exponent_Rational /; Denominator[exponent] === 2]],
     Return[multiquadraticStripFailure[
@@ -13302,7 +13368,11 @@ multiquadraticStripBundleGaugeDenominator[bundle_Association,
     "ForcingFactor" -> forcingFactor, "LetterFactor" -> letterFactor,
     "DivisorRecords" -> records,
     "DivisorSummary" -> summary,
-    "BundleFingerprint" -> bundle["BundleFingerprint"]|>
+    "BundleFingerprint" -> bundle["BundleFingerprint"],
+    "FactorCount" -> Length[factors], "OrbitCount" -> Length[orbits],
+    "ProvenanceGroupCount" -> Length[keyGroups],
+    "GroupedFactorCount" -> Length[grouped],
+    "Seconds" -> N[AbsoluteTime[] - startTime]|>
 ];
 multiquadraticStripBundleGaugeDenominator[___] :=
   multiquadraticStripFailure["InvalidBundleGaugeDenominatorArguments"];
