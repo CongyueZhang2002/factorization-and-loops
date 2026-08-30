@@ -46,7 +46,10 @@ pathological scan. All six prime artifacts remain. A fresh CF259+CF303
 production campaign is running in
 `/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-29_triple_root_pullback_v42`.
 
-One newly exposed follow-up: modular prime artifacts persist, but support
-discovery currently recomputes the 11,764-column elimination plan before it
-loads those artifacts. Plan-first resume should be added after the families
-finish; the healthy current RREF is being allowed to complete.
+One newly exposed follow-up: modular prime artifacts persist, but they retain
+only the plan fingerprint plus rank/normalization identity—not the independent
+row basis or complete sealed plan. Support discovery must therefore recompute
+the 11,764-column RREF. After the families finish, persist one full plan
+sidecar and accept it on resume only after fresh preparation/support identity
+checks and a constrained all-original-row modular sample. The healthy current
+RREF is being allowed to complete.
