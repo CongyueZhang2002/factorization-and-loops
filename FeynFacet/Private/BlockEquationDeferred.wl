@@ -121,6 +121,7 @@ ClearAll[
   blockEquationDeferredFingerprint,
   blockEquationDeferredPrepare,
   blockEquationDeferredModEvaluate,
+  blockEquationDeferredModEvaluateSheets,
   blockEquationDeferredEvaluate,
   blockEquationDeferredNonzeroCensus,
   blockEquationDeferredActiveGradeCensus,
@@ -428,6 +429,74 @@ blockEquationDeferredModEvaluate[expression_, scalarValues_Association,
     <|"Status" -> "OK", "Value" -> Mod[result, prime]|>]
 ];
 
+(* The active-grade router needs the same exact image on every one of the
+   2^r root-sign sheets.  Walking a large deferred operand separately on
+   every sheet made that routing probe eight symbolic-tree traversals at
+   rank three (CF259 (27,9): 132 s for the first accepted image).  Evaluate
+   the sheets as one short vector instead: scalar subexpressions stay scalar,
+   a root placeholder introduces its sign vector, and ordinary Plus/Times
+   then thread elementwise.  This changes only evaluation scheduling; each
+   component is exactly blockEquationDeferredModEvaluate on that sheet. *)
+blockEquationDeferredModEvaluateSheets[expression_,
+    scalarValues_Association, rootValuesBySheet_List, prime_Integer,
+    rootHead_: None] := Module[
+  {evaluate, tag = Unique["blockEquationDeferredEvaluateSheetsTag"], result,
+   sheetCount, rootCount, power},
+  If[rootValuesBySheet === {} ||
+      ! AllTrue[rootValuesBySheet, VectorQ[#1, IntegerQ] &] ||
+      ! SameQ @@ (Length /@ rootValuesBySheet),
+    Return[<|"Status" -> "InvalidRootSheetValues"|>]];
+  sheetCount = Length[rootValuesBySheet];
+  rootCount = Length[First[rootValuesBySheet]];
+  power[value_, exponent_Integer] := Module[{values = Flatten[{value}]},
+    If[AnyTrue[values, #1 === 0 &] && exponent < 0,
+      Throw[<|"Status" -> "SingularPoint"|>, tag]];
+    values = Quiet[Check[PowerMod[#1, exponent, prime] & /@ values,
+      $Failed]];
+    If[values === $Failed || MemberQ[values, $Failed],
+      Throw[<|"Status" -> "SingularPoint"|>, tag]];
+    If[ListQ[value], values, First[values]]];
+  result = Catch[
+    evaluate[node_] := Which[
+      IntegerQ[node], Mod[node, prime],
+      Head[node] === Rational,
+        Module[{denominator = Mod[Denominator[node], prime]},
+          If[denominator === 0,
+            Throw[<|"Status" -> "BadPrime",
+              "Denominator" -> Denominator[node]|>, tag]];
+          Mod[Numerator[node] PowerMod[denominator, -1, prime], prime]],
+      rootHead =!= None && MatchQ[node, rootHead[_Integer]],
+        With[{index = First[node]},
+          If[1 <= index <= rootCount,
+            rootValuesBySheet[[All, index]],
+            Throw[<|"Status" -> "InvalidRootPlaceholder",
+              "RootIndex" -> index|>, tag]]],
+      SymbolQ[node],
+        If[KeyExistsQ[scalarValues, node], evaluate[scalarValues[node]],
+          Throw[<|"Status" -> "UnassignedSymbol",
+            "Symbol" -> HoldForm[node]|>, tag]],
+      Head[node] === Plus,
+        Fold[Mod[#1 + evaluate[#2], prime] &, 0, List @@ node],
+      Head[node] === Times,
+        Fold[Mod[#1 evaluate[#2], prime] &, 1, List @@ node],
+      MatchQ[node, Power[_, _Integer]],
+        power[evaluate[First[node]], Last[node]],
+      MatchQ[node, Power[_, _Rational]],
+        Throw[<|"Status" -> "AlgebraicOperandUnsupported",
+          "RadicalBase" -> HoldForm[First[node]],
+          "Exponent" -> Last[node]|>, tag],
+      True,
+        Throw[<|"Status" -> "UnsupportedExpression",
+          "Expression" -> HoldForm[node]|>, tag]];
+    evaluate[expression], tag, #1 &];
+  If[AssociationQ[result], result,
+    result = Mod[result, prime];
+    If[! ListQ[result], result = ConstantArray[result, sheetCount]];
+    If[! VectorQ[result, IntegerQ] || Length[result] =!= sheetCount,
+      <|"Status" -> "InvalidSheetImage"|>,
+      <|"Status" -> "OK", "Value" -> result|>]]
+];
+
 (* One accepted point: the mod-p image of EVERY entry of the source.
    Returns a typed rejection instead of a value matrix if any term is
    not evaluable there. *)
@@ -568,9 +637,10 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
    activeGrades = {}, accepted = 0, attempts = 0, sampleRecords = {},
    primeIndex, prime, attempt, point, epsilonValue, parameterValues,
    scalarValues, deltaResults, deltaValues, rootValues, numericResults,
-   numericValues, numericRootValues, sheet, signs, signedRoots,
-   evaluationRoots, cache, evaluate, branch, branchImages, channels,
-   sampleGrades, failureStatus, rootIndices, evalTag, sampleTag},
+   numericValues, numericRootValues, sheet, sheetSigns,
+   rootValuesBySheet, cache, evaluate, branch, branchImages, recordImages,
+   channels,
+   sampleGrades, failureStatus, rootIndices, evalTag},
   If[Lookup[preparation, "Status", None] =!= "Prepared" ||
       ! MatchQ[Lookup[preparation, "Variables", None], {_Symbol, _Symbol}] ||
       ! SymbolQ[Lookup[preparation, "Regulator", None]] ||
@@ -672,6 +742,9 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
       "Coefficient" -> numericPlaceholder[term["Coefficient"]],
       "Operands" -> (numericPlaceholder /@ term["Operands"])|>],
       record]], termData]];
+  sheetSigns = Table[
+    Table[If[BitGet[sheet, index - 1] === 1, -1, 1],
+      {index, rank}], {sheet, 0, 2^rank - 1}];
 
   Do[
     prime = primes[[primeIndex]];
@@ -721,27 +794,31 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
         Return[<|"Status" -> "ActiveGradeCensusInconclusive",
           "Reason" -> "NumericSquareRootFailed"|>]];
 
-      branchImages = Catch[Table[
-        signs = Table[If[BitGet[sheet, index - 1] === 1, -1, 1],
-          {index, rank}];
-        signedRoots = Mod[signs rootValues, prime];
-        evaluationRoots = Join[signedRoots, numericRootValues];
-        cache = <||>;
-        evaluate[expression_] := If[KeyExistsQ[cache, expression],
-          cache[expression], cache[expression] =
-            blockEquationDeferredModEvaluate[expression, scalarValues,
-              evaluationRoots, prime, rootHead]];
-        branch = Catch[Table[Mod[Total[Map[Function[term, Module[
-              {factors, bad},
+      rootValuesBySheet = Map[
+        Join[Mod[#1 rootValues, prime], numericRootValues] &,
+        sheetSigns];
+      cache = <||>;
+      evaluate[expression_] := If[KeyExistsQ[cache, expression],
+        cache[expression], cache[expression] =
+          blockEquationDeferredModEvaluateSheets[expression, scalarValues,
+            rootValuesBySheet, prime, rootHead]];
+      recordImages = Catch[Table[
+        branch = Fold[Mod[#1 + #2, prime] &,
+          ConstantArray[0, 2^rank],
+          Map[Function[term, Module[{factors, bad},
               factors = evaluate /@ Prepend[term["Operands"],
                 term["Coefficient"]];
               bad = SelectFirst[factors,
                 Lookup[#1, "Status", None] =!= "OK" &, None];
               If[bad =!= None, Throw[bad, evalTag]];
               Times @@ (Lookup[#1, "Value", 0] & /@ factors)]],
-            record]], prime], {record, termData}], evalTag, #1 &];
-        If[AssociationQ[branch], Throw[branch, sampleTag]];
-        branch, {sheet, 0, 2^rank - 1}], sampleTag, #1 &];
+            record]];
+        If[! VectorQ[branch, IntegerQ] || Length[branch] =!= 2^rank,
+          Throw[<|"Status" -> "InvalidSheetImage"|>, evalTag]];
+        branch, {record, termData}], evalTag, #1 &];
+      If[AssociationQ[recordImages],
+        branchImages = recordImages,
+        branchImages = Transpose[recordImages]];
       If[AssociationQ[branchImages],
         failureStatus = Lookup[branchImages, "Status", "EvaluationFailed"];
         If[MemberQ[{"UnsupportedExpression", "UnassignedSymbol",
