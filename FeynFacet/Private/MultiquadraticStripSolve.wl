@@ -5383,6 +5383,11 @@ Options[multiquadraticStripPrepare] = {
   "CompileCore" -> Automatic,
   "NormalizationEquations" -> {},
   "RootIndices" -> Automatic,
+  (* Internal same-call reuse.  The top-level solver has already classified
+     the exact strip before building its alphabet; on an outer-authenticated
+     deferred bundle it passes that result here instead of scanning the same
+     very large E/C trees again.  Direct Prepare callers keep Automatic. *)
+  "RootClassification" -> Automatic,
   (* candidate letter construction; used only when "OneForms" is
      Automatic (or when "LetterRecords" carries a set built by the
      caller in the same call) *)
@@ -5434,6 +5439,7 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
    equationsPerPoint, normalizations, payload, fingerprint,
    coreEnabled, coreCanonical, coreDimensions, coreKey, coreConsumed = False,
    coefficientProvider, deferredBundle, bundleRootEmbedding, bundleGauge,
+   suppliedClassification, trustedClassificationQ,
    refinedBundleGauge,
    provisionalDegrees, provisionalSupportCount, provisionalUnknownCount,
    provisionalEquationsPerPoint, provisionalPointCount,
@@ -5514,8 +5520,18 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
   allRoots = transportChartCurrentRoots[frame, variables];
   If[! ListQ[allRoots],
     Return[multiquadraticStripFailure["AlgebraicFrameNotWellFormed"]]];
-  classification = multiquadraticStripRootCensusWithBundle[strip, allRoots,
-    variables, epsilon, deferredBundle];
+  suppliedClassification = OptionValue["RootClassification"];
+  trustedClassificationQ = AssociationQ[suppliedClassification] &&
+    AssociationQ[deferredBundle] &&
+    AssociationQ[$blockEquationDeferredTrustedBundle] &&
+    Lookup[blockEquationDeferredBundleValidate[deferredBundle],
+      "Status", None] === "BundleValid" &&
+    AllTrue[{"UnclassifiedRadicalBases", "RootIndices",
+      "BundleRootIndices", "RequiredRootIndices"},
+      KeyExistsQ[suppliedClassification, #1] &];
+  classification = If[trustedClassificationQ, suppliedClassification,
+    multiquadraticStripRootCensusWithBundle[strip, allRoots,
+      variables, epsilon, deferredBundle]];
   If[! KeyExistsQ[classification, "UnclassifiedRadicalBases"],
     Return[classification]];
   If[classification["UnclassifiedRadicalBases"] =!= {},
@@ -15511,6 +15527,8 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
        option and would otherwise leave prepare's own Automatic core on *)
     If[TrueQ[OptionValue["LegacyCompiler"]], {"CompileCore" -> False},
       {"CompileCore" -> OptionValue["CompileCore"]}],
+    If[AssociationQ[classification],
+      {"RootClassification" -> classification}, {}],
     (* the caller's deadline now reaches prepare, which since 2026-08-25
        checks it at its own interior boundaries *)
     {"Deadline" -> deadline,
@@ -15518,6 +15536,8 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
     FilterRules[DeleteCases[Flatten[{opts}],
       HoldPattern["LetterRecords" -> _] | HoldPattern["LetterRecords" :> _] |
       HoldPattern["CompileCore" -> _] | HoldPattern["CompileCore" :> _] |
+      HoldPattern["RootClassification" -> _] |
+      HoldPattern["RootClassification" :> _] |
       HoldPattern["CoefficientProvider" -> _] |
       HoldPattern["CoefficientProvider" :> _] |
       HoldPattern["Deadline" -> _] | HoldPattern["Deadline" :> _]],
