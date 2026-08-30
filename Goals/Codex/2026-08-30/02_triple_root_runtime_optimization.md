@@ -19,10 +19,20 @@
   reuse that acceptance only for the exact same `SameQ` association inside the
   synchronous multiquadratic call.  Mutated or different bundles still take
   the full validator.
-- [🟡] Replace the deferred zero-placeholder equation's unconditional
+- [🟢] Replace the deferred zero-placeholder equation's unconditional
   `Together`/`Expand`/`InputForm` pass with a versioned structural E/C seal plus
-  the authenticated forcing-bundle identity.  Focused suites pass; the real
-  CF259 `(27,9)` timing comparison is running.
+  the authenticated forcing-bundle identity.  On real CF259 `(27,9)`, the
+  later checkpoint identity fell from more than five minutes to 0.0 s.
+- [🟢] Separate source-spelling divisor provenance from mathematical pole
+  multiplicity.  The old census added negative-power occurrences across
+  different `Plus` branches; on CF259 `(27,9)` it reported pole orders up to
+  1204 even though canonical operand orders are at most 4.  Exact canonical
+  denominator propagation reduces the base gauge from 273,245,832 to 7,488
+  unknowns and bidegree `(12,17)`, so no exact-channel refinement is entered.
+- [ ] Add modular univariate denominator refinement only if a correctly
+  propagated canonical bound is still too large on a real block.  Both Pro
+  and the independent Codex review recommend this as the second-stage
+  fallback, not as work to do before the tractable structural bound is tried.
 - [🟡] Bank and modularly accept the genuine three-root CF259 `(27,9)` gauge,
   then continue its remaining sector-27 strips from checkpoints.
 - [🟡] Screen CF303 complete one-extra-pole quotient shells.  Full f7 and f8

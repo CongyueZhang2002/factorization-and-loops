@@ -158,6 +158,7 @@ ClearAll[
   blockEquationDeferredMaterializationCertificateValidate,
   blockEquationDeferredBundleValidate,
   blockEquationDeferredBundleEvaluate,
+  blockEquationDeferredCanonicalPoleValuation,
   blockEquationDeferredCompileBundle,
   blockEquationDeferredCompileBundleWithCache,
   $blockEquationDeferredTrustedBundle,
@@ -2746,6 +2747,17 @@ blockEquationDeferredBundleEvaluate[___] := <|"Status" -> "InvalidInput"|>;
 
 (* ---- the compiler (build-order steps 1-5) --------------------------- *)
 
+(* The canonical quotient is the exact operand.  Negative powers retained
+   from its source spelling are provenance only: occurrences in distinct
+   Plus branches must not be added as though they were multiplied. *)
+blockEquationDeferredCanonicalPoleValuation[routes_Association] :=
+  Module[{accumulated = <||>},
+    Do[accumulated[First[entry]] =
+        Lookup[accumulated, First[entry], 0] + Last[entry],
+      {entry, Lookup[routes, "CanonicalDenominator", {}]}];
+    accumulated];
+blockEquationDeferredCanonicalPoleValuation[___] := $Failed;
+
 (* The serial interning phase of the materializer, factored into a
    compiler that returns the immutable bundle INSTEAD of materializing:
    the same canonical-operand interning core
@@ -3046,12 +3058,8 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
                Function[{route, factorRules}, route -> Map[
                  Function[rule, {registerFactor[First[rule]], Last[rule]}],
                  factorRules]], routeMaps];
-             mergedValuation = Merge[
-               Map[Function[routeList, Module[{accumulated = <||>},
-                   Do[accumulated[First[entry]] =
-                       Lookup[accumulated, First[entry], 0] + Last[entry],
-                     {entry, routeList}];
-                   accumulated]], Values[factorRoutes]], Max];
+             mergedValuation =
+               blockEquationDeferredCanonicalPoleValuation[factorRoutes];
              pairs = SortBy[Normal[canonicalFactors],
                ToString[InputForm[First[#1]]] &];
              pairData = {First[#1], Last[#1]} & /@ pairs;

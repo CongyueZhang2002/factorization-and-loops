@@ -500,4 +500,11 @@ FTAssert["(l) interning preserves factor numbering and bundle content",
     seedBundle["Jobs"] === bundle["Jobs"] &&
     seedBundle["DivisorOccurrences"] === bundle["DivisorOccurrences"]];
 
+(* ---- (m) syntactic occurrences are not pole multiplicities --------- *)
+FTAssert["(m) adding Plus branches increases provenance, not pole order",
+  mq["blockEquationDeferredCanonicalPoleValuation"][<|
+    "CanonicalDenominator" -> {{7, 2}},
+    "ExplicitNegativePower" -> ConstantArray[{7, 1}, 30]|>] ===
+      <|7 -> 2|>];
+
 FTReport[];
