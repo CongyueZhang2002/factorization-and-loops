@@ -886,18 +886,36 @@ blockEquationDeferredActiveGradeCensus[___] :=
    probe/rational collector refuses, and its exact expression then enters the
    same canonical quotient contract as every other route. *)
 blockEquationDeferredMapleCanonicalOperandValue[expression_] := Module[
-  {scratch, key, timeout, normalized, pair},
-  If[FreeQ[expression,
-      Power[_, exponent_Rational /; ! IntegerQ[exponent]],
-      {0, Infinity}, Heads -> True], Return[$Failed]];
+  {scratch, key, timeout, normalized, pair, radicalBases, rootImages,
+   mapleExpression, position, restoreRules},
+  radicalBases = DeleteDuplicates[Cases[Unevaluated[expression],
+    Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
+      base, {0, Infinity}, Heads -> True]];
+  If[radicalBases === {}, Return[$Failed]];
   scratch = FileNameJoin[{$TemporaryDirectory, "FeynFacet",
       "DeferredBundleMaple"}];
   key = Hash[HoldComplete[expression], "SHA256", "HexString"];
+  (* Keep the declared square-root basis opaque to Maple.  Algebraic Normal
+     may otherwise rewrite r1 r2 as Sqrt[d1 d2], which is equal but outside
+     the bundle's declared frame.  Rational normalization in independent
+     placeholders is an exact formal identity; substituting the roots back
+     afterwards therefore preserves the source function without changing its
+     generator spelling. *)
+  rootImages = Table[Symbol[StringJoin[
+      "FeynFacetMapleRoot`facetBEDRoot", StringTake[key, 8], "x",
+      ToString[index]]], {index, Length[radicalBases]}];
+  mapleExpression = expression /. Power[base_, exponent_Rational /;
+      Denominator[exponent] === 2] :> Module[{},
+        position = FirstPosition[radicalBases,
+          candidate_ /; SameQ[candidate, base], Missing["NoRoot"]];
+        If[MissingQ[position], Power[base, exponent],
+          rootImages[[First[position]]]^(2 exponent)]];
+  restoreRules = Thread[rootImages -> (Sqrt /@ radicalBases)];
   timeout = With[{value = Environment["FACET_DEFERRED_MAPLE_SECONDS"]},
     If[StringQ[value] && StringMatchQ[value, NumberString] &&
         Quiet[Check[ToExpression[value] > 0, False]],
       N[ToExpression[value]], 900.]];
-  normalized = Quiet[Check[epsFormStripMapleCanonicalize[{expression},
+  normalized = Quiet[Check[epsFormStripMapleCanonicalize[{mapleExpression},
       "MapleExecutable" -> "maple", "ScratchDirectory" -> scratch,
       "CacheDirectory" -> FileNameJoin[{scratch, "cache"}],
       "Tag" -> StringJoin["operand_", ToString[$ProcessID], "_",
@@ -909,7 +927,9 @@ blockEquationDeferredMapleCanonicalOperandValue[expression_] := Module[
     Return[$Failed]];
   pair = Quiet[Check[rationalMaterializationCanonicalQuotientValue[
       First[normalized["Result"]]], $Failed]];
-  If[MatchQ[pair, {_, _Association}], pair, $Failed]
+  If[! MatchQ[pair, {_, _Association}], Return[$Failed]];
+  {First[pair] /. restoreRules, Association @ Map[
+    (First[#1] /. restoreRules) -> Last[#1] &, Normal[Last[pair]]]}
 ];
 blockEquationDeferredMapleCanonicalOperandValue[___] := $Failed;
 
