@@ -47,7 +47,7 @@
        A closed one-form with no verified potential stays
        non-installable. *)
 
-root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];
+root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 pass = 0; fail = 0;

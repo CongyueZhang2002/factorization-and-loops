@@ -15,8 +15,16 @@ batch = mq["multiquadraticStripConstructDLogBatch"];
 shard = mq["multiquadraticStripDLogShardTask"];
 candidate = mq["multiquadraticStripCandidateLetters"];
 dlogData = mq["multiquadraticStripLetterDLogDataInField"];
+pairKey = mq["multiquadraticStripPotentialPairKey"];
 letters = {x, y, 1 - x - y, x + y, x^2 + y, 1 + x y, x - 2 y};
 serial = batch[letters, {}, {x, y}, 1];
+check["constructed dlogs retain their canonical pair key and zero verdict",
+  And @@ MapThread[
+    StringQ[Lookup[#2, "PotentialPairKey", None]] &&
+      Lookup[#2, "PotentialPairKey", None] ===
+        pairKey[#1, #2["OneForm"], {x, y}, \[FormalE]] &&
+      Lookup[#2, "ChannelZeroQ", None] === False &,
+    {letters, serial["Data"]}]];
 
 runBroker[malformed_, deadlineSeconds_: 100] := Module[
   {file = FileNameJoin[{$TemporaryDirectory,

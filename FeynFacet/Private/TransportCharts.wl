@@ -394,7 +394,7 @@ transportChartParallelJacobianPullBack[image_, jacobian_, label_String,
   {started = AbsoluteTime[], imageDimensions, outputDimensions, indices,
    recipes, values, helpers, bytes, localIndex, helperIndices,
    helperBatches, batchLoads, targetBatch, dataFiles, codes, handle,
-   farmed, missing, timeout, route = "Serial"},
+   farmed, missing, timeout, parallel, route = "Serial"},
   imageDimensions = Dimensions[image];
   If[Length[imageDimensions] =!= 3 || First[imageDimensions] =!= 2 ||
       Dimensions[jacobian] =!= {2, 2},
@@ -416,11 +416,14 @@ transportChartParallelJacobianPullBack[image_, jacobian_, label_String,
       "Tasks" -> 0, "Seconds" -> 0.|>]];
   helpers = If[taskBrokerActiveQ[], taskBrokerFreeKernels[], 0];
   helpers = Min[helpers, Max[0, Length[recipes] - 1]];
+  bytes = Total[ByteCount /@ #1] & /@ recipes;
+  parallel = helpers >= 1 && blockEquationDeferredParallelRouteQ[] &&
+    (Length[recipes] >= 64 || Total[bytes] >= 2^20 ||
+      Max[Append[bytes, 0]] >= 2^18);
   values = ConstantArray[$Failed, Length[recipes]];
-  If[helpers < 1,
+  If[! TrueQ[parallel],
     values = transportChartJacobianTogetherRecipe /@ recipes,
     route = "Parallel";
-    bytes = Total[ByteCount /@ #1] & /@ recipes;
     localIndex = First[Ordering[bytes, -1]];
     helperIndices = DeleteCases[Range[Length[recipes]], localIndex];
     helperBatches = ConstantArray[{}, helpers];
@@ -1496,27 +1499,26 @@ transportChartPullBackDeferredPreparation[record_Association,
   If[survivingRadicals =!= {},
     Return[<|"Status" -> "DeferredPreparationChartStillAlgebraic",
       "RadicalBases" -> survivingRadicals|>]];
-  If[projectionRoots =!= {},
-    (* The four Jacobian combinations are independent exact rational
-       normalizations.  Serial Together spent more than four minutes after
-       CF259 {24,6}'s field projection; use the live helper allocation just
-       as the target materializer does. *)
-    jacobianPullBack = transportChartParallelJacobianPullBack[
-      image, data["Jacobian"], "chartforcing_" <> ToString[
-        Lookup[preparation, "Sector", "block"]] <> "_" <>
-        ToString[Lookup[preparation, "LowerSector", "source"]]];
-    If[Lookup[jacobianPullBack, "Status", None] =!= "OK",
-      Return[<|"Status" -> "DeferredPreparationJacobianPullBackFailed",
-        "Detail" -> KeyDrop[jacobianPullBack, "Result"]|>]];
-    pulled = jacobianPullBack["Result"];
+  (* The Jacobian combinations are independent exact rational
+     normalizations.  Their cost depends on the materialized expressions,
+     not on whether an inactive-root projection produced them, so the shared
+     helper applies its size admission uniformly and keeps easy inputs local. *)
+  jacobianPullBack = transportChartParallelJacobianPullBack[
+    image, data["Jacobian"], "chartforcing_" <> ToString[
+      Lookup[preparation, "Sector", "block"]] <> "_" <>
+      ToString[Lookup[preparation, "LowerSector", "source"]]];
+  If[Lookup[jacobianPullBack, "Status", None] =!= "OK",
+    Return[<|"Status" -> "DeferredPreparationJacobianPullBackFailed",
+      "Detail" -> KeyDrop[jacobianPullBack, "Result"]|>]];
+  pulled = jacobianPullBack["Result"];
+  If[AssociationQ[projectionRecord],
     projectionRecord = Join[projectionRecord, <|
-      "JacobianPullBack" -> KeyDrop[jacobianPullBack, "Result"]|>];
+      "JacobianPullBack" -> KeyDrop[jacobianPullBack, "Result"]|>]];
+  If[transportChartStageLogQ[],
     Print["[deferred-router] Jacobian pullback normalization: ",
       Round[Lookup[jacobianPullBack, "Seconds", 0.], 0.1],
       " s, route ", Lookup[jacobianPullBack, "Route", None],
-      ", helpers ", Lookup[jacobianPullBack, "Helpers", 0]],
-    pulled = masterTransportPullBackOneForm[
-      image[[1]], image[[2]], data["Jacobian"]]];
+      ", helpers ", Lookup[jacobianPullBack, "Helpers", 0]]];
   <|"Status" -> "OK", "OneForm" -> pulled,
     "Materialization" -> KeyDrop[materialized, "Values"],
     "InactiveRootProjection" -> projectionRecord|>

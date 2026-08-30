@@ -1452,7 +1452,8 @@ multiquadraticStripLetterOneForm[letter_, variables : {x_, y_}] := Module[
 multiquadraticStripLetterDLogDataInField[letter_, roots_List,
     variables : {x_, y_}] := Module[
   {channelData, letterChannels = Missing["NotRetained"], channels, form,
-   letterChannelKey, formChannelKey, letterExpressionKey},
+   letterChannelKey, formChannelKey, letterExpressionKey, potentialPairKey,
+   channelZeroQ},
   letterExpressionKey = multiquadraticStripExpressionTextKey[
     letter, variables];
   If[roots =!= {},
@@ -1471,17 +1472,31 @@ multiquadraticStripLetterDLogDataInField[letter_, roots_List,
           letterChannels, variables];
         formChannelKey = multiquadraticStripChannelTextKey[
           channels, variables];
+        potentialPairKey = multiquadraticStripPotentialPairKey[
+          letter, form, variables, \[FormalE]];
+        (* Both constructors end their channel arithmetic in Together, so an
+           exact zero channel is already the integer 0.  Record that verdict
+           here instead of normalizing the same channels again on admission. *)
+        channelZeroQ = AllTrue[Flatten[channels], SameQ[#1, 0] &];
         Return[<|"OneForm" -> form, "Channels" -> channels,
           "LetterChannels" -> letterChannels,
           "LetterChannelKey" -> letterChannelKey,
           "LetterExpressionKey" -> letterExpressionKey,
           "OneFormChannelKey" -> formChannelKey,
+          "PotentialPairKey" -> potentialPairKey,
+          "ChannelZeroQ" -> channelZeroQ,
           "Path" -> "GradeAlgebra"|>]]]];
   form = multiquadraticStripLetterOneForm[letter, variables];
   If[! MatchQ[form, {_, _}], Return[$Failed]];
   channels = If[roots === {}, List /@ form,
     Quiet[multiquadraticFieldDecompose[#1, roots] & /@ form]];
   letterChannels = If[roots === {}, {letter}, Missing["NotRetained"]];
+  potentialPairKey = multiquadraticStripPotentialPairKey[
+    letter, form, variables, \[FormalE]];
+  channelZeroQ = If[MatchQ[channels, {_List, _List}] &&
+      FreeQ[channels, $Failed],
+    AllTrue[Flatten[channels], SameQ[#1, 0] &],
+    Missing["NotRetained"]];
   <|"OneForm" -> form,
     "Channels" -> If[MatchQ[channels, {_List, _List}] &&
       FreeQ[channels, $Failed], channels, Missing["NotRetained"]],
@@ -1493,6 +1508,8 @@ multiquadraticStripLetterDLogDataInField[letter_, roots_List,
     "OneFormChannelKey" -> If[MatchQ[channels, {_List, _List}],
       multiquadraticStripChannelTextKey[channels, variables],
       Missing["NotRetained"]],
+    "PotentialPairKey" -> potentialPairKey,
+    "ChannelZeroQ" -> channelZeroQ,
     "Path" -> "MaterializedFallback"|>
 ];
 
@@ -2517,7 +2534,8 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
      letterChannels = Missing["NotRetained"], channelRepresentationQ,
      constructedChannelEvidenceQ, letterChannelKey = $Failed,
      letterExpressionKey = $Failed, potentialPairKey = $Failed,
-     suppliedFormChannelKey = $Failed},
+     suppliedFormChannelKey = $Failed,
+     constructedChannelZeroQ = Missing["NotRetained"], zeroQ},
     (* AN INSTALLED LETTER MUST BE EPSILON-INDEPENDENT (round-3 A2): a
        letter such as eps*x has the same kinematic dlog as x, so its
        one-form passes the filter above while the letter symbol does
@@ -2550,7 +2568,10 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
       letterExpressionKey = Lookup[dlogData,
         "LetterExpressionKey", $Failed];
       suppliedFormChannelKey = Lookup[dlogData,
-        "OneFormChannelKey", $Failed]];
+        "OneFormChannelKey", $Failed];
+      potentialPairKey = Lookup[dlogData, "PotentialPairKey", $Failed];
+      constructedChannelZeroQ = Lookup[dlogData, "ChannelZeroQ",
+        Missing["NotRetained"]]];
     If[oneForm === $Failed || ! MatchQ[oneForm, {_, _}], Return[Null]];
     channelRepresentationQ = MatchQ[channels, {_List, _List}] &&
       Dimensions[channels] === {2, 2^Length[roots]} &&
@@ -2564,8 +2585,12 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
       ListQ[letterChannels] &&
       Length[letterChannels] === 2^Length[roots] &&
       FreeQ[letterChannels, $Failed];
-    If[If[channelRepresentationQ, multiquadraticStripZeroQ[channels],
-        multiquadraticStripZeroQ[oneForm]], Return[Null]];
+    zeroQ = If[channelRepresentationQ && constructedQ &&
+        MatchQ[constructedChannelZeroQ, True | False],
+      constructedChannelZeroQ,
+      If[channelRepresentationQ, multiquadraticStripZeroQ[channels],
+        multiquadraticStripZeroQ[oneForm]]];
+    If[TrueQ[zeroQ], Return[Null]];
     (* THE regulator, not a symbol whose NAME starts with "eps" (round-2
        item 1, Codex review 1.6).  The spelling test was wrong in both
        directions: a production regulator named `ee` was invisible to it,
@@ -2598,8 +2623,9 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
         letterExpressionKey = multiquadraticStripExpressionTextKey[
           letter, variables]];
       If[! StringQ[letterExpressionKey], Return[Null]];
-      potentialPairKey = multiquadraticStripPotentialPairKey[
-        letter, oneForm, variables, epsilon];
+      If[! StringQ[potentialPairKey],
+        potentialPairKey = multiquadraticStripPotentialPairKey[
+          letter, oneForm, variables, epsilon]];
       If[! StringQ[potentialPairKey], Return[Null]];
       evidence = multiquadraticStripConstructedDLogEvidence[
         letterChannelKey, fkey, letterExpressionKey, potentialPairKey];
