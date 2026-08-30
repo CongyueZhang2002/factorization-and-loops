@@ -800,14 +800,17 @@ finiteFieldStripCFFRDirectory[directory_] := Which[
     With[{created = Quiet[Check[CreateDirectory[], $Failed]]},
       If[StringQ[created], {created, True}, {$Failed, False}]]];
 
-(* One adapter call.  Unique request/response file names, both deleted on
-   success and KEPT on failure (the failure record names them), thread
-   argument capped at the licence box's 8 P-cores.  Exit 5 is a verdict
-   on the image, not a defect, and is typed as such. *)
+(* One adapter call.  Unique request/response file names are deleted on
+   success and on exit 5: an inconsistent modular image is a mathematical
+   verdict, not a native-backend crash, and retaining its dense request can
+   cost hundreds of MB per support probe.  Files are kept only for an actual
+   adapter/protocol defect.  The thread argument is capped at the licence
+   box's 8 P-cores. *)
 finiteFieldStripCFFRRun[matrix_, rightHandSide_, prime_Integer,
     preference_List, threads_Integer, directory_] := Module[
   {hashes, resolved, owned, tag, requestFile, responseFile, request,
-   written, process, exitCode, parsed, threadArgument, result, cleanup},
+   written, process, exitCode, parsed, threadArgument, result, cleanup,
+   failure},
   hashes = finiteFieldStripCFFRAdapterHashes[];
   If[Lookup[hashes, "Status", None] =!= "OK", Return[hashes]];
   {resolved, owned} = finiteFieldStripCFFRDirectory[directory];
@@ -837,15 +840,19 @@ finiteFieldStripCFFRRun[matrix_, rightHandSide_, prime_Integer,
       ToString[threadArgument]}, threadArgument]], $Failed]];
   exitCode = If[AssociationQ[process], Lookup[process, "ExitCode", -1], -1];
   If[exitCode =!= 0,
-    Return[finiteFieldStripCFFRFailure[
+    failure = finiteFieldStripCFFRFailure[
       If[exitCode === 5, "InconsistentModularSystem",
         "CFFRAdapterExitNonzero"],
       <|"AdapterExitCode" -> exitCode,
         "AdapterStandardError" -> If[AssociationQ[process],
           Lookup[process, "StandardError", ""], ""],
-        "RequestFile" -> requestFile, "ResponseFile" -> responseFile,
+        "MatrixDimensions" -> Lookup[request, {"Rows", "Columns"}],
+        "RequestFile" -> If[exitCode === 5, Missing["Deleted"], requestFile],
+        "ResponseFile" -> If[exitCode === 5, Missing["Deleted"], responseFile],
         "RequestSHA256" -> written["RequestSHA256"],
-        "Nonce" -> request["Nonce"], "Threads" -> threadArgument|>]]];
+        "Nonce" -> request["Nonce"], "Threads" -> threadArgument|>];
+    If[exitCode === 5, cleanup[]];
+    Return[failure]];
   parsed = finiteFieldStripCFFRResponse[responseFile,
     Append[request, "AdapterExitCode" -> exitCode]];
   If[Lookup[parsed, "Status", None] =!= "OK",
@@ -2759,6 +2766,7 @@ SolveEpsFormStripFiniteField[record_Association,
    liftReason = "OK", backendDecision, backendConfiguration,
    planDiscoveryBackend, planDiscoveryDecision, nativeProbeQ = False,
    nativeProbeFailure,
+   cachedSimplexProbe = Missing["NotProbed"],
    eliminationPlanFingerprint = None,
    eliminationPlanIdentity = None, backendArtifactIdentity = None,
    solveStart = AbsoluteTime[], deadline, budgetStop = None,
@@ -2973,25 +2981,42 @@ SolveEpsFormStripFiniteField[record_Association,
       finiteFieldStripSupportLadder[preparation,
         preparation["DenominatorDegrees"] + offset, supportKind]];
     Module[{probeOf, probes = <||>, order, rectangleOK = False, ok,
-        failure},
-      probeOf[shell_] := (probeCount++; probes[shell] = SampleEpsFormStripAffine[
-        record, First[epsilonSamples], prime,
-        "PointCount" -> pointCount,
-        "NumeratorDegreeOffset" -> offset,
-        "Support" -> If[shell === "Rectangle", "Rectangle", supportKind],
-        "SupportShell" -> If[IntegerQ[shell], shell, 0],
-        "Backend" -> OptionValue["Backend"],
-        "BackendThreads" -> OptionValue["BackendThreads"],
-        "PlanDiscoveryBackend" -> planDiscoveryBackend,
-        "SolveAffineSystem" -> nativeProbeQ,
-        "DiscoverPlan" -> nativeProbeQ,
-        "Preparation" -> preparation,
-        "ExpectedFingerprint" -> preparation["Fingerprint"]];
+        failure, reused},
+      probeOf[shell_] := (reused = shell === 0 &&
+          supportKind === Automatic &&
+          TrueQ[Lookup[preparation["SupportCensus"], "CertifiedQ", False]] &&
+          AssociationQ[cachedSimplexProbe];
+        If[reused,
+          probes[shell] = cachedSimplexProbe,
+          probeCount++;
+          probes[shell] = SampleEpsFormStripAffine[
+            record, First[epsilonSamples], prime,
+            "PointCount" -> pointCount,
+            "NumeratorDegreeOffset" -> offset,
+            "Support" -> If[shell === "Rectangle", "Rectangle", supportKind],
+            "SupportShell" -> If[IntegerQ[shell], shell, 0],
+            "Backend" -> OptionValue["Backend"],
+            "BackendThreads" -> OptionValue["BackendThreads"],
+            "PlanDiscoveryBackend" -> planDiscoveryBackend,
+            "SolveAffineSystem" -> nativeProbeQ,
+            "DiscoverPlan" -> nativeProbeQ,
+            "Preparation" -> preparation,
+            "ExpectedFingerprint" -> preparation["Fingerprint"]];
+          If[shell === 0 && supportKind === Automatic &&
+              TrueQ[Lookup[preparation["SupportCensus"], "CertifiedQ", False]] &&
+              AssociationQ[probes[shell]],
+            cachedSimplexProbe = probes[shell]]];
         failure = nativeProbeFailure[probes[shell]];
         If[AssociationQ[failure], budgetStop = failure];
         ok = AssociationQ[probes[shell]] && TrueQ[probes[shell]["Consistent"]];
         log["Finite-field degree probe ", offset, " support shell ", shell,
-          If[ok, ": consistent", ": inconsistent"]];
+          If[ok, ": consistent", ": inconsistent"],
+          If[reused, " (reused certified simplex)", ""],
+          If[! ok && AssociationQ[Lookup[probes[shell],
+              "EliminationPlan", None]],
+            ", matrix " <> ToString[Lookup[
+              probes[shell]["EliminationPlan"], "MatrixDimensions",
+              Missing["NotReported"]]], ""]];
         ok);
       order = finiteFieldStripProbeOrder[shells];
       Do[
@@ -3019,6 +3044,56 @@ SolveEpsFormStripFiniteField[record_Association,
     If[budgetStop =!= None, Break[]];
     If[! MissingQ[selectedOffset], Break[]],
     {offset, degreeOffsets}];
+  (* A support ladder is discovered at one modular image.  An unlucky
+     prime/regulator/point tuple can be singular even when the generic
+     affine system is consistent.  Only after the entire ordinary ladder
+     fails, retry the certified simplex once at an independent image.  The
+     simplex is deliberately NOT replaced by the largest rectangle: neither
+     support contains the other.  A success becomes the pilot and moves that
+     prime/regulator to the front; a second inconsistency on the same
+     certified support is the generic failure signal. *)
+  If[MissingQ[selectedOffset] && budgetStop === None &&
+      supportKind === Automatic && supportStrategy === "SimplexFirst",
+    Module[{freshPrime, freshRegulator, freshSeed = 2645637,
+        freshProbe, failure, freshOffset = First[degreeOffsets]},
+      freshPrime = SelectFirst[Rest[loopPrimes], PrimeQ,
+        Missing["NoFreshPrime"]];
+      freshRegulator = SelectFirst[{1/11, 2/23, 3/29},
+        # =!= First[epsilonSamples] &, Missing["NoFreshRegulator"]];
+      If[IntegerQ[freshPrime] && ! MissingQ[freshRegulator],
+        probeCount++;
+        freshProbe = SampleEpsFormStripAffine[
+          record, freshRegulator, freshPrime,
+          "PointCount" -> pointCount,
+          "NumeratorDegreeOffset" -> freshOffset,
+          "Support" -> Automatic, "SupportShell" -> 0,
+          "Backend" -> OptionValue["Backend"],
+          "BackendThreads" -> OptionValue["BackendThreads"],
+          "PlanDiscoveryBackend" -> planDiscoveryBackend,
+          "SolveAffineSystem" -> nativeProbeQ,
+          "DiscoverPlan" -> nativeProbeQ,
+          "RandomSeed" -> freshSeed,
+          "ArtifactDirectory" -> artifactDirectory,
+          "Preparation" -> preparation,
+          "ExpectedFingerprint" -> preparation["Fingerprint"]];
+        failure = nativeProbeFailure[freshProbe];
+        If[AssociationQ[failure],
+          budgetStop = failure,
+          If[AssociationQ[freshProbe] && TrueQ[freshProbe["Consistent"]],
+            selectedOffset = freshOffset;
+            selectedShell = 0;
+            degreeProbe = freshProbe;
+            prime = freshPrime;
+            loopPrimes = Prepend[DeleteCases[loopPrimes, freshPrime],
+              freshPrime];
+            epsilonSamples = Prepend[
+              DeleteCases[epsilonSamples, freshRegulator], freshRegulator];
+            log["Independent support pilot recovered a consistent system at prime ",
+              freshPrime, ", regulator ", freshRegulator,
+              ", offset ", freshOffset, " certified simplex"],
+            log["Independent support pilot remained inconsistent at prime ",
+              freshPrime, ", regulator ", freshRegulator,
+              ", offset ", freshOffset, " certified simplex"]]]]]];
   (* Return inside Do only terminates the loop (Wolfram trap, CLAUDE.md):
      the census loops record the typed stop and return it here *)
   If[budgetStop =!= None, Return[budgetStop]];

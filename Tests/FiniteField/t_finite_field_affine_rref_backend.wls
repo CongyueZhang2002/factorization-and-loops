@@ -276,9 +276,10 @@ check["(e) exit 5 surfaces as InconsistentModularSystem",
   Lookup[inconsistentRun, "Status", None] ===
       "InconsistentModularSystem" &&
     inconsistentRun["AdapterExitCode"] === 5];
-check["(e) no response artifact is written, the request is kept",
-  ! FileExistsQ[inconsistentRun["ResponseFile"]] &&
-    FileExistsQ[inconsistentRun["RequestFile"]]];
+check["(e) a mathematical inconsistency retains dimensions, not a dense request",
+  inconsistentRun["MatrixDimensions"] === Dimensions[matrix] &&
+    MissingQ[inconsistentRun["ResponseFile"]] &&
+    MissingQ[inconsistentRun["RequestFile"]]];
 
 (* (f) and (g) run on two strip fixtures: the synthetic block above
    (nullity 0, and the two discoverers pick DIFFERENT independent row

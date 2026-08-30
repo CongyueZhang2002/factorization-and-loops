@@ -2064,7 +2064,9 @@ SolveEpsFormStripInFrame[
       MemberQ[{"NumericalResidual", "PendingPostPullBackResidual"},
         Lookup[candidate, "Certificate", None]]);
   solveRationalStrip = Function[{rationalStrip, rationalVariables},
-    Module[{candidate, directory, defaults, finiteOptions},
+    Module[{candidate, directory, defaults, finiteOptions,
+        rationalRecord, rationalFrame, fallbackOptions, fallback,
+        primaryFailure},
       (* "FiniteFieldFirst" -> True: no CANONICA/Maple ladder in the
          production loop (user decision 2026-08-22); the finite field
          solves the strip in the targeted chart directly *)
@@ -2102,7 +2104,44 @@ SolveEpsFormStripInFrame[
           <|"Strip" -> rationalStrip, "Variables" -> rationalVariables,
             "Regulator" -> epsilon|>, Sequence @@ finiteOptions];
       ];
-      candidate
+      If[innerSolvedQ[candidate] || candidate =!= $Failed ||
+          ! TrueQ[OptionValue["MultiquadraticDispatch"]] ||
+          transportChartDeadlineExpiredQ[deadline],
+        candidate,
+        (* A rational chart is a convenient representation, not a promise
+           that the smaller rational denominator ansatz contains a gauge.
+           When that ansatz is genuinely inconsistent, reuse the already
+           materialized chart strip in the package's conservative direct
+           solver at root rank zero.  This keeps the expensive chart
+           pullback and changes only the ansatz/solver; no source-frame
+           algebra or family-specific rule is introduced. *)
+        primaryFailure = <|"Status" -> "SolverReturnedFailed"|>;
+        If[verbose, Print[
+          "[strip-in-frame] rational solver declined the materialized strip; ",
+          "trying the conservative root-rank-zero solver"]];
+        rationalRecord = <|"Strip" -> rationalStrip,
+          "Variables" -> rationalVariables, "Regulator" -> epsilon|>;
+        rationalFrame = <|"Variables" -> rationalVariables,
+          "Subst" -> Thread[rationalVariables -> rationalVariables],
+          "Roots" -> {}|>;
+        (* Options tied to the source algebraic frame cannot be reused after
+           chart substitution.  Resource, reconstruction, deadline and
+           checkpoint options remain valid and are retained. *)
+        fallbackOptions = DeleteCases[multiquadraticOptions,
+          HoldPattern[("DeferredBundle" | "RootIndices" |
+            "AdditionalLetters" | "AlgebraicLetters" |
+            "GaugeDenominator" | "GaugeDenominatorFactor") -> _]];
+        fallback = solveEpsFormStripMultiquadratic[
+          rationalRecord, rationalFrame,
+          Sequence @@ DeleteDuplicatesBy[Join[fallbackOptions,
+            {"RootIndices" -> {}, "Deadline" -> deadline,
+             "Verbose" -> verbose}], First]];
+        If[AssociationQ[fallback],
+          Join[<|"PrimaryRationalFailure" -> primaryFailure,
+            "FallbackFrame" -> "MaterializedRationalChart"|>, fallback],
+          <|"Status" -> "RationalChartMultiquadraticFallbackUntyped",
+            "PrimaryRationalFailure" -> primaryFailure,
+            "FallbackResult" -> fallback|>]]
     ]
   ];
 
@@ -2259,7 +2298,8 @@ SolveEpsFormStripInFrame[
   timings["InnerSolve"] = stageSeconds;
   transportChartStageDone["inner solve",
     <|"seconds" -> stageSeconds,
-      "status" -> Lookup[inner, "Status", None]|>];
+      "status" -> If[AssociationQ[inner],
+        Lookup[inner, "Status", None], "SolverReturnedFailed"]|>];
   If[! innerSolvedQ[inner], Return[inner]];
   chartGauge = inner["Gauge"];
 

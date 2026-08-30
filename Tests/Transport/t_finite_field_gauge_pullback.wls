@@ -259,4 +259,31 @@ FTAssert["the in-frame mode uses the existing post-pullback residual",
       integration["Gauge"][[1, 1]] - Sqrt[lambda1],
       frame["Roots"]]]];
 
+(* A failed rational ansatz keeps the already-materialized chart and moves
+   only the solve to the conservative rank-zero engine.  Stub both seams so
+   this is a routing test, not a second finite-field campaign. *)
+fallbackCalled = False;
+fallbackIntegration = Block[{FeynFacet`SolveEpsFormStripFiniteField,
+    FeynFacet`Private`solveEpsFormStripMultiquadratic},
+  FeynFacet`SolveEpsFormStripFiniteField[___] := $Failed;
+  FeynFacet`Private`solveEpsFormStripMultiquadratic[
+      record_Association, fallbackFrame_Association, ___Rule] := Module[
+    {chartVars = record["Variables"]},
+    fallbackCalled = fallbackFrame["Roots"] === {} &&
+      fallbackFrame["Variables"] === chartVars;
+    <|"Status" -> "Solved", "Method" -> "InjectedConservativeRankZero",
+      "Gauge" -> {{chartVars[[1]] - chartVars[[2]]}},
+      "GaugeDenominator" -> 1, "Alphabet" -> {},
+      "ResidueMatrices" -> {}, "ExactDLog" -> True,
+      "Certificate" -> "ExactDLog"|>];
+  FeynFacet`SolveEpsFormStripInFrame[strip, {v, w}, eps, frame,
+    "FiniteFieldFirst" -> True, "Verbose" -> False]];
+FTAssert["a failed rational ansatz reuses the chart in the rank-zero solver",
+  TrueQ[fallbackCalled] &&
+    Lookup[fallbackIntegration, "Status", None] === "Solved" &&
+    StringContainsQ[Lookup[fallbackIntegration, "Method", ""],
+      "InjectedConservativeRankZero"] &&
+    Lookup[Lookup[fallbackIntegration, "InnerSolution", <||>],
+      "FallbackFrame", None] === "MaterializedRationalChart"];
+
 FTDone[];

@@ -20,11 +20,12 @@
 
    F2, chartless dispatch in the public solver.  On the audit's rank
    three {s,t} fixture with u = 1-s-t (no joint rational chart) the
-   PUBLIC SolveEpsFormStripInFrame must reach "ModularConsistent" with
-   root rank 3, eight grades and all eight sign branches certified with
-   zero residual, must never say "Solved", and must carry the
-   uninstallable contract "OneFormsNotCertified".  The recorded artifact
-   must round-trip through an explicit artifact context.  The historical
+   PUBLIC SolveEpsFormStripInFrame must reach the installable "Solved" ABI
+   with root rank 3, eight grades and all eight sign branches certified with
+   zero residual.  In production mode exact symbolic certification is
+   deferred to the family certificate, while fresh modular reconstruction
+   evidence and certified one-forms authorize installation.  The recorded
+   artifact must round-trip through an explicit artifact context.  The historical
    "NoRationalStripChart" answer survives ONLY where the engine refuses
    the input as outside its scope (then flagged "OutOfScope" with the
    engine's typed refusal attached) or where the dispatch is switched
@@ -142,19 +143,22 @@ publicResult = SolveEpsFormStripInFrame[strip, {s, t}, eta, frame,
   "FiniteFieldFirst" -> True, "FiniteFieldFallback" -> True,
   "Verbose" -> False];
 
-FTAssert["the public in-frame solver reaches modular consistency on a chartless triple-root strip",
+FTAssert["the public in-frame solver installs a chartless triple-root strip",
   AssociationQ[publicResult] &&
-    Lookup[publicResult, "Status", None] === "ModularConsistent"];
+    Lookup[publicResult, "Status", None] === "Solved"];
 
-FTAssert["the public dispatch never reports the strip as Solved",
-  Lookup[publicResult, "Status", None] =!= "Solved" &&
-    Lookup[publicResult, "SolutionContract", None] === "OneFormsNotCertified" &&
-    ! TrueQ[Lookup[publicResult, "ExactDLog", False]]];
+FTAssert["the public dispatch carries the installable certified-one-form contract",
+  Lookup[publicResult, "SolutionContract", None] ===
+      "InstallableMultiquadraticDLogV1" &&
+    TrueQ[Lookup[publicResult, "OneFormsCertified", False]] &&
+    Lookup[publicResult, "ExactDLog", None] ===
+      Missing["DeferredToFamilyCertificate"]];
 
 FTAssert["the dispatched result has root rank three and eight grades",
   Lookup[publicResult, "RootCount", None] === 3 &&
     Lookup[publicResult, "GradeCount", None] === 8 &&
-    Lookup[publicResult, "Method", None] === "DirectRootChannel"];
+    Lookup[publicResult, "Method", None] ===
+      "DirectMultiquadraticFiniteField"];
 
 FTAssert["every sign branch is present and has zero residual",
   Length[Lookup[publicResult, "BranchCertificate", {}]] === 8 &&
@@ -168,12 +172,17 @@ FTAssert["the dispatched result carries the frame's root census and the dispatch
     Lookup[publicResult, "RootIndices", None] === {1, 2, 3} &&
     Length[Lookup[publicResult, "RootSquares", {}]] === 3];
 
-FTAssert["the held-out prime and regulator value were both used",
-  IntegerQ[Lookup[publicResult, "HeldOutPrime", None]] &&
-    ! MemberQ[Lookup[publicResult, "SamplePrimes", {}],
-      Lookup[publicResult, "HeldOutPrime", None]] &&
-    ! MemberQ[Lookup[publicResult, "RegulatorValues", {}],
-      Lookup[publicResult, "HeldOutRegulatorValue", None]]];
+reconstructionEvidence = Lookup[publicResult,
+  "RegulatorReconstruction", <||>];
+FTAssert["fresh unseen-prime and held-out regulator evidence authorize installation",
+  Intersection[Lookup[reconstructionEvidence, "SamplePrimes", {}],
+      Lookup[reconstructionEvidence, "UnseenPrimes", {}]] === {} &&
+    Length[Lookup[reconstructionEvidence, "UnseenPrimes", {}]] >= 2 &&
+    AllTrue[Values[Lookup[reconstructionEvidence,
+        "HeldOutValidation", <||>]],
+      Lookup[#1, "ValidationCount", 0] > 0 &] &&
+    Lookup[reconstructionEvidence,
+      "FreshProviderPointwiseCheckCount", 0] > 0];
 
 (* the sector driver records exactly this, and reads it back in its own
    context: the context-free part of the record must survive *)
@@ -183,21 +192,21 @@ modularFile = FileNameJoin[{artifactDirectory, "PROBE_1_0_modular.wl"}];
 modularRecord = <|"Family" -> "PROBE", "Sector" -> 1, "LowerSector" -> 0,
   "Variables" -> {s, t}, "Regulator" -> eta, "Strip" -> strip,
   "Summary" -> <|"Method" -> "MultiquadraticModularCandidate",
-    "Status" -> "ModularConsistent", "Installed" -> False,
+    "Status" -> "Solved", "Installed" -> True,
     "RootCount" -> publicResult["RootCount"],
     "BranchCount" -> Length[publicResult["BranchCertificate"]],
-    "ABIFingerprint" -> publicResult["ABIFingerprint"]|>,
+    "ProviderFingerprint" -> publicResult["ProviderFingerprint"]|>,
   "Result" -> publicResult|>;
 artifactWrite[modularRecord, modularFile];
 hydrated = artifactLoadRaw[modularFile, "FeynFacet`DispatchTestArtifact`"];
 FTAssert["the recorded modular artifact round-trips in an explicit context",
   Lookup[hydrated, "Status", None] === "RawMultiquadraticArtifact" &&
     AssociationQ[hydrated["Value"]] &&
-    hydrated["Value"]["Summary"]["Status"] === "ModularConsistent" &&
-    hydrated["Value"]["Summary"]["Installed"] === False &&
-    hydrated["Value"]["Summary"]["ABIFingerprint"] ===
-      publicResult["ABIFingerprint"] &&
-    hydrated["Value"]["Result"]["Status"] === "ModularConsistent" &&
+    hydrated["Value"]["Summary"]["Status"] === "Solved" &&
+    hydrated["Value"]["Summary"]["Installed"] === True &&
+    hydrated["Value"]["Summary"]["ProviderFingerprint"] ===
+      publicResult["ProviderFingerprint"] &&
+    hydrated["Value"]["Result"]["Status"] === "Solved" &&
     Length[hydrated["Value"]["Result"]["BranchCertificate"]] === 8];
 Quiet[DeleteDirectory[artifactDirectory, DeleteContents -> True]];
 
@@ -325,11 +334,11 @@ FTAssert["the preparation record surfaces the channel-path telemetry",
       Sort[{"RootFreeFastPathCount", "AlgebraicPathCount", "ComposeCheckCount"}] &&
     forwardPreparation["ChannelPathStatistics"]["AlgebraicPathCount"] >= 1];
 
-FTAssert["the solve record surfaces the channel-path telemetry",
-  IntegerQ[Lookup[publicResult, "RootFreeFastPathCount", None]] &&
-    Lookup[publicResult, "RootFreeFastPathCount", 0] > 0 &&
-    AssociationQ[Lookup[publicResult, "ChannelPathStatistics", None]] &&
-    publicResult["ChannelPathStatistics"]["RootFreeFastPathCount"] ===
-      publicResult["RootFreeFastPathCount"]];
+FTAssert["the solve record surfaces reconstruction-path telemetry",
+  AssociationQ[reconstructionEvidence] &&
+    IntegerQ[Lookup[reconstructionEvidence,
+      "FreshProviderPointwiseCheckCount", None]] &&
+    Lookup[reconstructionEvidence,
+      "FreshProviderPointwiseCheckCount", 0] > 0];
 
 FTReport[];

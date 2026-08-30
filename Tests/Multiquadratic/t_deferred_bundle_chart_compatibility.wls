@@ -2,8 +2,9 @@
 (* Active-subfield pruning can leave a deferred forcing rational or
    chartable even though its family frame is multiquadratic.  The bundle is
    the real forcing while the Strip BBar slot is a zero shape placeholder.
-   These cases must reconstruct/pull the bundle before the rational solver;
-   only a root set without a joint chart belongs to the direct MQ engine. *)
+   These cases must reconstruct/pull the bundle before the rational solver.
+   A joint chart remains the primary route; the direct engine may be reused
+   at rank zero only after that rational ansatz returns no gauge. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];

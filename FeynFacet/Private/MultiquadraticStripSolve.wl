@@ -15949,6 +15949,13 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
       "RootSquares" -> preparation["RootSquares"],
       "RootCount" -> preparation["RootCount"],
       "GradeCount" -> preparation["GradeCount"],
+      (* The direct identity-frame installer does not need to expose this,
+         but a rational-chart fallback feeds the same solved gauge into the
+         package's finite-field inverse-map reconstruction.  Reuse the
+         denominator already certified by preparation instead of factoring
+         the reconstructed gauge again. *)
+      "GaugeDenominator" -> preparation["GaugeDenominator"],
+      "GaugeDenominatorDegrees" -> preparation["GaugeDenominatorDegrees"],
       "GaugeChannels" -> reconstruction["GaugeChannels"],
       "Residues" -> installable["ResidueMatrices"],
       "ActivePotentialCertification" -> KeyDrop[activeCertification,
