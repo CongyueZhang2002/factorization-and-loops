@@ -2066,7 +2066,11 @@ SolveEpsFormStripInFrame[
   solveRationalStrip = Function[{rationalStrip, rationalVariables},
     Module[{candidate, directory, defaults, finiteOptions,
         rationalRecord, rationalFrame, fallbackOptions, fallback,
-        primaryFailure},
+        primaryFailure, candidateOptions, letterData, letterRecords,
+        dlogRecords, expandedRecord, expandedOptions, expandedPrefix,
+        suppliedLetterRecords, suppliedOneForms, recordsCertifiedQ},
+      rationalRecord = <|"Strip" -> rationalStrip,
+        "Variables" -> rationalVariables, "Regulator" -> epsilon|>;
       (* "FiniteFieldFirst" -> True: no CANONICA/Maple ladder in the
          production loop (user decision 2026-08-22); the finite field
          solves the strip in the targeted chart directly *)
@@ -2101,47 +2105,109 @@ SolveEpsFormStripInFrame[
             DeleteCases[finiteOptions, HoldPattern["FinalCheck" -> _]],
             "FinalCheck" -> "PostPullBack"]];
         candidate = SolveEpsFormStripFiniteField[
-          <|"Strip" -> rationalStrip, "Variables" -> rationalVariables,
-            "Regulator" -> epsilon|>, Sequence @@ finiteOptions];
+          rationalRecord, Sequence @@ finiteOptions];
       ];
       If[innerSolvedQ[candidate] || candidate =!= $Failed ||
           ! TrueQ[OptionValue["MultiquadraticDispatch"]] ||
           transportChartDeadlineExpiredQ[deadline],
-        candidate,
-        (* A rational chart is a convenient representation, not a promise
-           that the smaller rational denominator ansatz contains a gauge.
-           When that ansatz is genuinely inconsistent, reuse the already
-           materialized chart strip in the package's conservative direct
-           solver at root rank zero.  This keeps the expensive chart
-           pullback and changes only the ansatz/solver; no source-frame
-           algebra or family-specific rule is introduced. *)
-        primaryFailure = <|"Status" -> "SolverReturnedFailed"|>;
-        If[verbose, Print[
-          "[strip-in-frame] rational solver declined the materialized strip; ",
-          "trying the conservative root-rank-zero solver"]];
-        rationalRecord = <|"Strip" -> rationalStrip,
-          "Variables" -> rationalVariables, "Regulator" -> epsilon|>;
-        rationalFrame = <|"Variables" -> rationalVariables,
-          "Subst" -> Thread[rationalVariables -> rationalVariables],
-          "Roots" -> {}|>;
-        (* Options tied to the source algebraic frame cannot be reused after
-           chart substitution.  Resource, reconstruction, deadline and
-           checkpoint options remain valid and are retained. *)
-        fallbackOptions = DeleteCases[multiquadraticOptions,
-          HoldPattern[("DeferredBundle" | "RootIndices" |
-            "AdditionalLetters" | "AlgebraicLetters" |
-            "GaugeDenominator" | "GaugeDenominatorFactor") -> _]];
-        fallback = solveEpsFormStripMultiquadratic[
-          rationalRecord, rationalFrame,
-          Sequence @@ DeleteDuplicatesBy[Join[fallbackOptions,
-            {"RootIndices" -> {}, "Deadline" -> deadline,
-             "Verbose" -> verbose}], First]];
-        If[AssociationQ[fallback],
-          Join[<|"PrimaryRationalFailure" -> primaryFailure,
-            "FallbackFrame" -> "MaterializedRationalChart"|>, fallback],
-          <|"Status" -> "RationalChartMultiquadraticFallbackUntyped",
+        Return[candidate, Module]];
+      primaryFailure = <|"Status" -> "SolverReturnedFailed"|>;
+      rationalFrame = <|"Variables" -> rationalVariables,
+        "Subst" -> Thread[rationalVariables -> rationalVariables],
+        "Roots" -> {}|>;
+      (* Options tied to the source algebraic frame cannot be reused after
+         chart substitution.  Resource, reconstruction, deadline and
+         checkpoint options remain valid and are retained. *)
+      fallbackOptions = DeleteCases[multiquadraticOptions,
+        HoldPattern[("DeferredBundle" | "RootIndices" |
+          "AdditionalLetters" | "AlgebraicLetters" |
+          "GaugeDenominator" | "GaugeDenominatorFactor") -> _]];
+      suppliedLetterRecords = FirstCase[fallbackOptions,
+        HoldPattern["LetterRecords" -> value_] :> value, Automatic];
+      suppliedOneForms = FirstCase[fallbackOptions,
+        HoldPattern["OneForms" -> value_] :> value, Automatic];
+
+      (* The conservative root-rank-zero route finds a broader exact dlog
+         span, but its one-extra-copy denominator inflated the system
+         from roughly 7k to 19k unknowns in the triggering hard block and
+         crossed the dense-memory gate.  Build that alphabet once, then first
+         retry the ordinary rational engine with its original A3 denominator. *)
+      letterRecords = Which[
+        MatchQ[suppliedLetterRecords, {___Association}],
+          suppliedLetterRecords,
+        suppliedOneForms =!= Automatic,
+          Automatic,
+        True,
+          candidateOptions = DeleteDuplicatesBy[Join[
+            FilterRules[fallbackOptions,
+              Options[multiquadraticStripCandidateLetters]],
+            {"Deadline" -> deadline}], First];
+          If[verbose, Print[
+            "[strip-in-frame] rational ansatz declined; deriving a broader ",
+            "rank-zero dlog basis before denominator widening"]];
+          letterData = multiquadraticStripCandidateLetters[rationalStrip, {},
+            rationalVariables, epsilon, rationalRecord,
+            Sequence @@ candidateOptions];
+          If[Lookup[letterData, "Status", None] =!=
+              "MultiquadraticCandidateLettersV1",
+            Return[If[AssociationQ[letterData],
+              Join[<|"PrimaryRationalFailure" -> primaryFailure|>, letterData],
+              <|"Status" -> "RationalChartCandidateLettersUntyped",
+                "PrimaryRationalFailure" -> primaryFailure,
+                "CandidateResult" -> letterData|>], Module]];
+          letterData["LetterRecords"]];
+      recordsCertifiedQ = MatchQ[letterRecords, {__Association}] &&
+        AllTrue[letterRecords,
+          ! MissingQ[Lookup[#1, "Letter", Missing["Letter"]]] &&
+            MatchQ[Lookup[#1, "OneForm", $Failed], {_, _}] &&
+            TrueQ[Lookup[Lookup[#1, "Potential", <||>],
+              "Verified", False]] &];
+      dlogRecords = If[recordsCertifiedQ,
+        KeyTake[#, {"Letter", "OneForm"}] & /@ letterRecords, {}];
+      If[finiteFieldQ &&
+          recordsCertifiedQ,
+        expandedRecord = Join[rationalRecord,
+          <|"DLogRecords" -> dlogRecords|>];
+        expandedPrefix = Replace[FirstCase[finiteOptions,
+            HoldPattern["ArtifactPrefix" -> value_] :> value, stripTag],
+          {value_String :> value <> "_dlog_basis",
+           _ :> stripTag <> "_dlog_basis"}];
+        expandedOptions = Prepend[
+          DeleteCases[finiteOptions, HoldPattern["ArtifactPrefix" -> _]],
+          "ArtifactPrefix" -> expandedPrefix];
+        candidate = SolveEpsFormStripFiniteField[expandedRecord,
+          Sequence @@ expandedOptions];
+        If[innerSolvedQ[candidate],
+          Return[Join[candidate, <|
             "PrimaryRationalFailure" -> primaryFailure,
-            "FallbackResult" -> fallback|>]]
+            "AlphabetRecovery" -> "RankZeroCandidateDLogs"|>], Module]];
+        (* A typed stop/failure is authoritative; only the ordinary solver's
+           historical untyped $Failed means this ansatz was exhausted. *)
+        If[candidate =!= $Failed ||
+            transportChartDeadlineExpiredQ[deadline],
+          Return[candidate, Module]]];
+
+      (* The richer alphabet with the small denominator was insufficient (or
+         not wholly dlog-certified).  Only now enter the existing conservative
+         denominator route, reusing the exact records already constructed. *)
+      If[verbose, Print[
+        "[strip-in-frame] broader dlog basis still declined; trying the ",
+        "conservative root-rank-zero denominator"]];
+      If[MatchQ[letterRecords, {___Association}],
+        fallbackOptions = Prepend[
+          DeleteCases[fallbackOptions, HoldPattern["LetterRecords" -> _]],
+          "LetterRecords" -> letterRecords]];
+      fallback = solveEpsFormStripMultiquadratic[
+        rationalRecord, rationalFrame,
+        Sequence @@ DeleteDuplicatesBy[Join[fallbackOptions,
+          {"RootIndices" -> {}, "Deadline" -> deadline,
+           "Verbose" -> verbose}], First]];
+      If[AssociationQ[fallback],
+        Join[<|"PrimaryRationalFailure" -> primaryFailure,
+          "FallbackFrame" -> "MaterializedRationalChart"|>, fallback],
+        <|"Status" -> "RationalChartMultiquadraticFallbackUntyped",
+          "PrimaryRationalFailure" -> primaryFailure,
+          "FallbackResult" -> fallback|>]
     ]
   ];
 

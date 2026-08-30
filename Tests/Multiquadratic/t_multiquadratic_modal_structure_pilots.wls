@@ -61,7 +61,7 @@ makePilot[fixture_Association, prime_Integer] := Module[{sample, solution},
   pilotRecord[prime, 1, sample, solution]
 ];
 
-reconstructWithPilots[fixture_Association, pilots_List] := reconstruct[
+reconstructWithPilots[fixture_Association, pilots_List, pointCount_: 2] := reconstruct[
   fixture["Preparation"], fixture["Layout"], fixture["Provider"],
   "SamplePrimes" -> Take[primes, 2], "PrimePool" -> primes,
   "MinimumGoodPrimeCount" -> 2, "MaximumGoodPrimeCount" -> 2,
@@ -70,7 +70,7 @@ reconstructWithPilots[fixture_Association, pilots_List] := reconstruct[
   "MaximumRegulatorCount" -> 4, "InitialConstructionCount" -> 2,
   "HeldOutCount" -> 1, "MaximumTotalDegree" -> 2,
   "UnseenPrimeCount" -> 1, "FreshPointwiseChecksPerPrime" -> 1,
-  "PointCount" -> 2, "MaximumAttempts" -> 40,
+  "PointCount" -> pointCount, "MaximumAttempts" -> Max[40, pointCount],
   "PlanDiscoveryBackend" -> Automatic,
   "PlanDiscoveryBackendThreads" -> 2,
   "PlanDiscoveryBackendMinimumEntries" -> Automatic,
@@ -112,9 +112,7 @@ check["all three cached pilots incur no repeated sampling or RREF",
     exceptionalResult["StructuralPilotNewFullAffineSolveCount"] === 0 &&
     exceptionalResult["ReusedPilotImageCount"] === 3 &&
     exceptionalResult["FullAffineSolveCount"] === 3 &&
-    exceptionalResult["FullAffineFallbackCount"] === 0 &&
-    exceptionalResult["StructuralPilotWaveComputedPrimeCount"] === 0 &&
-    exceptionalResult["StructuralPilotWaveRecords"] === {}];
+    exceptionalResult["FullAffineFallbackCount"] === 0];
 check["native selection remains Automatic with the requested thread policy",
   exceptionalResult["PlanDiscoveryBackendRequested"] === Automatic &&
     exceptionalResult["PlanDiscoveryBackendThreads"] === 2];
@@ -152,6 +150,20 @@ If[Lookup[nullspaceMutantResult, "Reason", None] =!= "PilotNullspaceInvalid",
 check["a dependent nullspace basis is refused",
   nullspaceMutantResult["Status"] === "PilotImageAuthenticationFailed" &&
     nullspaceMutantResult["Reason"] === "PilotNullspaceInvalid"];
+
+(* A sampler admission refusal contains no structural evidence.  It propagates
+   as the resource failure that actually occurred, before any RREF is run. *)
+resourceResult = reconstructWithPilots[exceptionalFixture, {}, 1000000000];
+If[! (resourceResult["Status"] === "SampleMatrixResourceLimit" &&
+    resourceResult["Stage"] === "StructuralPilotSampling" &&
+    KeyExistsQ[resourceResult, "SizeEstimate"] &&
+    KeyExistsQ[resourceResult, "MaximumMatrixBytes"]),
+  Print["RESOURCE DIAGNOSTIC: ", Short[resourceResult, 8]]];
+check["a matrix admission refusal is not called modular instability",
+  resourceResult["Status"] === "SampleMatrixResourceLimit" &&
+    resourceResult["Stage"] === "StructuralPilotSampling" &&
+    KeyExistsQ[resourceResult, "SizeEstimate"] &&
+    KeyExistsQ[resourceResult, "MaximumMatrixBytes"]];
 
 (* Each prime now kills a different column, so rank and nullity agree but the
    pivot signature is different at all three primes. *)

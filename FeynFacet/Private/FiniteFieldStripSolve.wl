@@ -1043,31 +1043,69 @@ finiteFieldStripDiscoverPlan[matrix_, rank_Integer, nullspace_List,
    and reused by every sample of every prime. The contents are exactly
    what the per-call code computed before; nothing in the acceptance
    changes. *)
-finiteFieldStripFingerprint[record_Association] := Hash[{
-  record["Strip"], record["Variables"],
-  SymbolName[record["Regulator"]],
-  Lookup[record, "GaugeDenominatorFactor", 1],
-  Lookup[record, "ExtraLetters", {}]}, "SHA256", "HexString"];
+finiteFieldStripFingerprint[record_Association] := Module[
+  {base, dlogRecords},
+  base = {record["Strip"], record["Variables"],
+    SymbolName[record["Regulator"]],
+    Lookup[record, "GaugeDenominatorFactor", 1],
+    Lookup[record, "ExtraLetters", {}]};
+  dlogRecords = Lookup[record, "DLogRecords", Automatic];
+  (* Preserve the historical key exactly when the new mathematical payload
+     is absent; old prime/plan artifacts remain reusable. *)
+  Hash[If[dlogRecords === Automatic, base,
+    Append[base, KeyTake[#, {"Letter", "OneForm"}] & /@ dlogRecords]],
+    "SHA256", "HexString"]
+];
 
 finiteFieldStripPrepare[record_Association] := Module[
   {start = AbsoluteTime[], variables, epsilon, e, c, bbar, dimensions,
    upperDimension, lowerDimension, alphabet, dlog, residueTriples,
    freeResidues, forcingConstant, forcingCoefficients, factorPairs,
    factors, factorPowers, gaugeFactorPowers, gaugeDenominator,
-   denominatorDegrees, symbolicForms, supportCensus},
+   denominatorDegrees, symbolicForms, supportCensus, dlogRecords,
+   extraLetters, derivedExtraLetters, dlogBasisRoute,
+   precomputedDLogCount = 0, derivedDLogCount = 0},
   variables = record["Variables"];
   epsilon = record["Regulator"];
   {e, c, bbar} = record["Strip"];
   dimensions = Dimensions[bbar[[1]]];
   {upperDimension, lowerDimension} = dimensions;
-  alphabet = epsFormStripAlphabet[record["Strip"], variables, epsilon];
-  If[alphabet === $Failed, Return[$Failed]];
-  (* record key "ExtraLetters": letters the block's own entries do not
-     show but a residue needs (EpsFormStripObstruction "MissingLetters") *)
-  alphabet = DeleteDuplicates[Join[alphabet, Lookup[record, "ExtraLetters", {}]]];
-  dlog = Table[
-    Together[D[Log[alphabet[[a]]], variables[[mu]]]],
-    {a, Length[alphabet]}, {mu, 2}];
+  dlogRecords = Lookup[record, "DLogRecords", Automatic];
+  extraLetters = Flatten[{Lookup[record, "ExtraLetters", {}]}];
+  If[dlogRecords === Automatic,
+    alphabet = epsFormStripAlphabet[record["Strip"], variables, epsilon];
+    If[alphabet === $Failed, Return[$Failed]];
+    (* record key "ExtraLetters": letters the block's own entries do not
+       show but a residue needs (EpsFormStripObstruction "MissingLetters") *)
+    alphabet = DeleteDuplicates[Join[alphabet, extraLetters]];
+    dlog = Table[
+      Together[D[Log[alphabet[[a]]], variables[[mu]]]],
+      {a, Length[alphabet]}, {mu, 2}];
+    dlogBasisRoute = "Derived";
+    derivedDLogCount = Length[alphabet],
+    (* A complete basis minted by the package's candidate-letter builder.
+       Its exact one-forms have already been constructed and paired with
+       their potentials; re-running D[Log[letter]]//Together here has cost
+       about 25 minutes on a hard 2-by-2 block.  The finite-field residual is
+       still the block's acceptance -- this seam only reuses representation. *)
+    If[! MatchQ[dlogRecords, {___Association}] ||
+        AnyTrue[dlogRecords,
+          ! KeyExistsQ[#1, "Letter"] || MissingQ[#1["Letter"]] ||
+            ! MatchQ[Lookup[#1, "OneForm", $Failed], {_, _}] &],
+      Return[$Failed]];
+    alphabet = Lookup[dlogRecords, "Letter", {}];
+    dlog = Lookup[dlogRecords, "OneForm", {}];
+    precomputedDLogCount = Length[alphabet];
+    derivedExtraLetters = Select[extraLetters,
+      Function[letter, ! MemberQ[alphabet, letter]]];
+    If[derivedExtraLetters =!= {},
+      alphabet = Join[alphabet, derivedExtraLetters];
+      dlog = Join[dlog, Table[
+        Together[D[Log[letter], variables[[mu]]]],
+        {letter, derivedExtraLetters}, {mu, 2}]]];
+    derivedDLogCount = Length[derivedExtraLetters];
+    dlogBasisRoute = If[derivedDLogCount === 0,
+      "Precomputed", "PrecomputedPlusDerived"]];
   residueTriples = Flatten[
     Table[{a, i, j}, {a, Length[alphabet]},
       {i, upperDimension}, {j, lowerDimension}], 2];
@@ -1169,6 +1207,9 @@ finiteFieldStripPrepare[record_Association] := Module[
     "GaugeDenominator" -> gaugeDenominator,
     "DenominatorDegrees" -> denominatorDegrees,
     "SupportCensus" -> supportCensus,
+    "DLogBasisRoute" -> dlogBasisRoute,
+    "PrecomputedDLogCount" -> precomputedDLogCount,
+    "DerivedDLogCount" -> derivedDLogCount,
     "PrepareSeconds" -> AbsoluteTime[] - start|>
 ];
 
@@ -1981,7 +2022,11 @@ finiteFieldStripCanonicalSamples[samples_List, prime_Integer,
       Length[DeleteDuplicates[Lookup[samples, "GaugeUnknownCount"]]] =!= 1 ||
       Length[DeleteDuplicates[Lookup[samples, "FreeResidueCount"]]] =!= 1 ||
       Length[DeleteDuplicates[Lookup[samples, "GaugeNumeratorDegrees"]]] =!= 1 ||
-      Length[DeleteDuplicates[Lookup[samples, "GaugeSupport", Missing["GaugeSupport"]]]] =!= 1,
+      Length[DeleteDuplicates[Lookup[samples, "GaugeSupport", Missing["GaugeSupport"]]]] =!= 1 ||
+      Length[DeleteDuplicates[Lookup[samples, "Alphabet",
+        Missing["Alphabet"]]]] =!= 1 ||
+      Length[DeleteDuplicates[Lookup[samples, "GaugeDenominator",
+        Missing["GaugeDenominator"]]]] =!= 1,
     Return[<|"Status" -> "SamplesInvalid"|>]];
   genericRank = Max[Lookup[samples, "Rank"]];
   genericSamples = Select[samples,
@@ -2018,7 +2063,8 @@ finiteFieldStripCanonicalSamples[samples_List, prime_Integer,
     "DiscardedSingularEpsilonValues" -> Lookup[
       Complement[samples, genericSamples, SameTest -> SameQ], "EpsilonValue"],
     "ReferenceSample" -> KeyTake[referenceSample,
-      {"GaugeUnknownCount", "FreeResidueCount", "GaugeNumeratorDegrees", "GaugeSupport"}]|>
+      {"GaugeUnknownCount", "FreeResidueCount", "GaugeNumeratorDegrees",
+       "GaugeSupport", "Alphabet", "GaugeDenominator"}]|>
 ];
 
 (* A2 (Codex round 2, standardized 2026-08-21): rational interpolation of
@@ -2460,6 +2506,10 @@ InterpolateEpsFormStripAffine[samples_List, prime_Integer,
         "GaugeNumeratorDegrees"]]] =!= 1 ||
       Length[DeleteDuplicates[Lookup[samples,
         "GaugeSupport", Missing["GaugeSupport"]]]] =!= 1 ||
+      Length[DeleteDuplicates[Lookup[samples,
+        "Alphabet", Missing["Alphabet"]]]] =!= 1 ||
+      Length[DeleteDuplicates[Lookup[samples,
+        "GaugeDenominator", Missing["GaugeDenominator"]]]] =!= 1 ||
       ! IntegerQ[constructionCount] || constructionCount <= 0 ||
       ! IntegerQ[maximumTotalDegree] || maximumTotalDegree < 0,
     Message[InterpolateEpsFormStripAffine::samples]; Return[$Failed]];
@@ -2527,6 +2577,9 @@ InterpolateEpsFormStripAffine[samples_List, prime_Integer,
     "FreeResidueCount" -> freeResidueCount,
     "GaugeNumeratorDegrees" -> gaugeNumeratorDegrees,
     "GaugeSupport" -> Lookup[referenceSample, "GaugeSupport", Missing["GaugeSupport"]],
+    "Alphabet" -> Lookup[referenceSample, "Alphabet", Missing["Alphabet"]],
+    "GaugeDenominator" -> Lookup[referenceSample, "GaugeDenominator",
+      Missing["GaugeDenominator"]],
     "InterpolationSeconds" -> seconds,
     "UnresolvedCoordinates" -> unresolved,
     "DegreeHistogram" -> Counts[

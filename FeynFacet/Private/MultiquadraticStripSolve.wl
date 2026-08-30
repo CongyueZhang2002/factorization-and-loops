@@ -13564,7 +13564,8 @@ multiquadraticStripReconstructRegulator[preparation_Association,
    structuralSignatures, structuralCandidatePrimes, structuralOrigin,
    modalStructuralCandidates, modalStructuralSignature = Automatic,
    modalReferenceEvidence, modalReferencePrime, modalReferenceValue,
-   isolatedStructuralEvidence, planDiscoveryTelemetry = <||>,
+   isolatedStructuralEvidence, structuralFailureDetails,
+   structuralFailureStatuses, planDiscoveryTelemetry = <||>,
    inputsValidated},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripReconstructRegulator]]]];
@@ -14066,6 +14067,16 @@ multiquadraticStripReconstructRegulator[preparation_Association,
         structuralPilotNewSampleCount++;
         If[Lookup[structuralSample, "Status", None] =!=
             "AssembledMultiquadraticSampleV1",
+          (* The dense-matrix admission bound depends only on this ansatz's
+             row/column counts.  Trying another prime or regulator cannot
+             turn an over-cap lower bound into an admissible sample, and zero
+             attempted RREFs must not be reported as unstable mathematics. *)
+          If[Lookup[structuralSample, "Status", None] ===
+              "SampleMatrixResourceLimit",
+            Return[Join[structuralSample, <|
+              "Stage" -> "StructuralPilotSampling",
+              "Prime" -> structuralPrime,
+              "RegulatorValue" -> structuralValue|>], Module]];
           AppendTo[exceptionalImages, <|"Prime" -> structuralPrime,
             "RegulatorValue" -> structuralValue,
             "Reason" -> "StructuralPilotSampleFailed",
@@ -14146,6 +14157,30 @@ multiquadraticStripReconstructRegulator[preparation_Association,
       modalStructuralSignature = First[modalStructuralCandidates]; Break[]],
     {structuralPrimeIndex, Min[3, Length[structuralCandidatePrimes]]}];
   If[modalStructuralSignature === Automatic,
+    structuralSignatures = Lookup[Select[structuralPilotEvidence,
+      Lookup[#1, "Status", None] === "StructuralPilotSignature" &],
+      "Signature", {}];
+    If[structuralSignatures === {},
+      structuralFailureDetails = Cases[exceptionalImages,
+        item_Association /; MemberQ[
+          {"StructuralPilotSampleFailed", "StructuralPilotSolveFailed"},
+          Lookup[item, "Reason", None]] :> Lookup[item, "Detail", Nothing]];
+      structuralFailureStatuses = Lookup[structuralFailureDetails,
+        "Status", Missing["Status"]];
+      If[structuralFailureDetails =!= {} &&
+          Length[DeleteDuplicates[structuralFailureStatuses]] === 1,
+        Return[Join[First[structuralFailureDetails], <|
+          "Stage" -> "StructuralPilot",
+          "StructuralPilotEvidence" -> structuralPilotEvidence|>]]];
+      Return[multiquadraticStripFailure["StructuralPilotUnavailable",
+        <|"StructuralPilotEvidence" -> structuralPilotEvidence,
+          "ExceptionalRegulatorImages" -> exceptionalImages|>]]];
+    If[Length[structuralSignatures] === 1,
+      Return[multiquadraticStripFailure["StructuralPilotQuorumUnavailable",
+        <|"StructuralPilotEvidence" -> structuralPilotEvidence,
+          "UsableStructuralPilotCount" -> 1,
+          "RequiredAgreementCount" -> 2,
+          "ExceptionalRegulatorImages" -> exceptionalImages|>]]];
     Return[multiquadraticStripFailure["ModularStructureUnstable",
       <|"StructuralPilotEvidence" -> structuralPilotEvidence,
         "DistinctPrimeCount" -> structuralPilotPrimeCount,
