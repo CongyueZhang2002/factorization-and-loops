@@ -1235,14 +1235,17 @@ Options[transportChartFiniteFieldCanonicalGauge] = Join[
    "SymbolicPreDispatchSeconds" -> 1.}];
 
 (* A tiny compact composition gets one bounded canonical Together attempt.
-   Otherwise widen one common modular model for the complete gauge; only an
-   incompatible-denominator refusal falls back to independently widened
-   entries.  No raw composition is ever returned. *)
+   Otherwise try the reduced common model, then a bounded common-multiple
+   model before independently widened entries.  The middle path is cheap
+   when the shared model missed by only a few degrees, and its refusal leaves
+   the existing per-entry fallback unchanged.  No raw composition is ever
+   returned. *)
 transportChartFiniteFieldCanonicalGauge[chartGauge_List,
     chartDenominator_, chartVariables : {_Symbol, _Symbol},
     coordinateImages : {_, _}, variables : {_Symbol, _Symbol},
     epsilon_Symbol, roots_List, OptionsPattern[]] := Module[
-  {started = AbsoluteTime[], baseCap, schedule, common, runCommon,
+  {started = AbsoluteTime[], baseCap, schedule, common, expandedCommon,
+   commonCap = None, expandedCandidateLimit, entrySchedule, runCommon,
    dimensions, entries, reconstructed, entryRecords = {}, result,
    attemptRecords, accepted, acceptedCap, entry, row, column,
    symbolicLimit, symbolicBudget, symbolicSeconds, symbolic,
@@ -1256,7 +1259,8 @@ transportChartFiniteFieldCanonicalGauge[chartGauge_List,
   If[! NumericQ[symbolicLimit] || symbolicLimit < 0,
     Return[finiteFieldGaugePullBackFailure[
       "FiniteFieldGaugePullBackOptionsInvalid"]]];
-  runCommon[gauge_, cap_Integer, aggregation_String] :=
+  runCommon[gauge_, cap_Integer, aggregation_String,
+      candidateLimit_: Automatic] :=
     finiteFieldGaugePullBackCommon[gauge, chartDenominator,
       chartVariables, coordinateImages, variables, epsilon, roots,
       "Primes" -> OptionValue["Primes"],
@@ -1268,8 +1272,8 @@ transportChartFiniteFieldCanonicalGauge[chartGauge_List,
       "HeldOutPointCount" -> OptionValue["HeldOutPointCount"],
       "EpsilonHeldOutCount" -> OptionValue["EpsilonHeldOutCount"],
       "DenominatorDegreeAggregation" -> aggregation,
-      "MaximumDenominatorCandidates" ->
-        OptionValue["MaximumDenominatorCandidates"],
+      "MaximumDenominatorCandidates" -> Replace[candidateLimit,
+        Automatic -> OptionValue["MaximumDenominatorCandidates"]],
       "Deadline" -> OptionValue["Deadline"],
       "Verbose" -> OptionValue["Verbose"]];
   validationPlan = finiteFieldGaugePullBackPlan[chartGauge,
@@ -1309,12 +1313,33 @@ transportChartFiniteFieldCanonicalGauge[chartGauge_List,
         "FiniteFieldCanonicalGaugePrepared",
       acceptedCap = cap; Break[]];
     If[Lookup[common, "Status", None] =!=
-        "FiniteFieldGaugePullBackSliceDegreeExceeded", Break[]],
+        "FiniteFieldGaugePullBackSliceDegreeExceeded",
+      commonCap = cap; Break[]],
     {cap, schedule}];
   If[IntegerQ[acceptedCap],
     Return[Join[common, <|"Model" -> "CommonDenominatorV1",
       "KinematicDegreeCap" -> acceptedCap|>]]];
   If[! finiteFieldGaugePullBackModelRefusalQ[common], Return[common]];
+  (* Slice discovery has already established that this cap contains every
+     output.  A common denominator can be slightly wider than the component-
+     wise maximum of the reduced output denominators.  Search only the first
+     eight product-ceiling candidates: CF259 (27,11) measured 207.3 s here
+     versus 717.0 s through four independent reconstructions.  A genuinely
+     wide least common multiple falls through after this bounded attempt. *)
+  If[IntegerQ[commonCap],
+    expandedCandidateLimit = Min[8,
+      OptionValue["MaximumDenominatorCandidates"]];
+    expandedCommon = runCommon[chartGauge, commonCap, "ProductCeiling",
+      expandedCandidateLimit];
+    If[Lookup[expandedCommon, "Status", None] ===
+        "FiniteFieldCanonicalGaugePrepared",
+      Return[Join[expandedCommon,
+        <|"Model" -> "ExpandedCommonDenominatorV1",
+          "KinematicDegreeCap" -> commonCap|>]]]];
+  (* Every entry is a subset of the already successful whole-gauge slice
+     census, so caps below commonCap cannot add information. *)
+  entrySchedule = If[IntegerQ[commonCap],
+    Select[schedule, # >= commonCap &], schedule];
   dimensions = Dimensions[chartGauge];
   entries = Flatten[chartGauge];
   reconstructed = ConstantArray[0, Length[entries]];
@@ -1346,15 +1371,15 @@ transportChartFiniteFieldCanonicalGauge[chartGauge_List,
       If[Lookup[result, "Status", None] =!=
           "FiniteFieldGaugePullBackSliceDegreeExceeded",
         entryFailure = Join[result, <|"Entry" -> {row, column},
-          "DegreeCaps" -> schedule,
+          "DegreeCaps" -> entrySchedule,
           "EntryAttempts" -> attemptRecords|>];
         Break[]],
-      {cap, schedule}];
+      {cap, entrySchedule}];
     If[AssociationQ[entryFailure], Break[]];
     If[! AssociationQ[accepted],
       entryFailure = finiteFieldGaugePullBackFailure[
         "FiniteFieldGaugePullBackReducedModelRefused",
-        <|"Entry" -> {row, column}, "DegreeCaps" -> schedule,
+        <|"Entry" -> {row, column}, "DegreeCaps" -> entrySchedule,
           "EntryAttempts" -> attemptRecords,
           "Detail" -> result|>];
       Break[]];

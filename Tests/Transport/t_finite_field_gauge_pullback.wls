@@ -96,6 +96,7 @@ perEntry = FeynFacet`Private`transportChartFiniteFieldCanonicalGauge[
   "MaximumPrimeCount" -> 2,
   "MaximumKinematicTotalDegree" -> 3,
   "MaximumEpsilonTotalDegree" -> 2,
+  "MaximumDenominatorCandidates" -> 1,
   "SymbolicPreDispatchSeconds" -> 0,
   "HeldOutPointCount" -> 3];
 expectedPerEntry = gaugePerEntry /. {p -> x, q -> y};
@@ -108,8 +109,8 @@ FTAssert["incompatible matrix denominators use canonical per-entry models",
 
 (* One algebraic entry can itself have quotient grades with distinct reduced
    denominators.  Their least common denominator is wider than the maximum
-   univariate grade degree, so the entry model must widen toward the product
-   ceiling and recompute its numerator support at that width. *)
+   univariate grade degree, so the bounded common-multiple model must widen
+   toward the product ceiling and recompute its numerator support there. *)
 rPerGrade = Sqrt[1 + y];
 rootsPerGrade = {
   <|"Root" -> rPerGrade, "RootSquare" -> 1 + y|>};
@@ -127,7 +128,8 @@ expectedPerGrade = gaugePerGrade /. {p -> x, q -> rPerGrade};
 FTAssert["one algebraic entry widens across incompatible grade denominators",
   Lookup[perGrade, "Status", None] ===
       "FiniteFieldCanonicalGaugePrepared" &&
-    Lookup[perGrade, "Model", None] === "PerEntryDenominatorsV1" &&
+    Lookup[perGrade, "Model", None] ===
+      "ExpandedCommonDenominatorV1" &&
     TrueQ[Together[perGrade["Result"][[1, 1]] -
       expectedPerGrade[[1, 1]]] === 0]];
 
