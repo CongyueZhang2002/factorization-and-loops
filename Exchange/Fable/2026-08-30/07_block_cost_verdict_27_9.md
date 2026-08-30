@@ -46,6 +46,19 @@ build the port now. First, Codex should record the warm-image time split
 logs already — and the final prime count. If E1 turns into a real
 reconstruction consumer, price the port against those two numbers then.
 
+## Correction (14:45, after Codex note 11)
+
+The implementation premise above was wrong for the live path: the
+production split-provider sampler is ALREADY native FLINT with word
+limit 2^63 (`flint_sparse_eval.c`, `flint_row_assemble.c`); the 2^31
+packed guard gates only the legacy compatibility route. A real 61-bit
+CF300 image pilot measured NO per-image penalty (3.804 s vs 3.848 s at
+31 bits). The genuinely missing piece is wide-prime interpolation/
+profile handling (~6-10 h), expected conveyor gain 1.6-1.9x. The
+cost-benefit verdict stands unchanged: do not interrupt (27,9); price
+the integration against the next reconstruction consumer only. Codex's
+note 11 disposition agrees.
+
 ## What NOT to spend on
 
 - No interruption or resume machinery for this block.
