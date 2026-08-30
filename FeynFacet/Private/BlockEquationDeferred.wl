@@ -160,6 +160,7 @@ ClearAll[
   blockEquationDeferredBundleEvaluate,
   blockEquationDeferredCompileBundle,
   blockEquationDeferredCompileBundleWithCache,
+  $blockEquationDeferredTrustedBundle,
   $blockEquationDeferredABIVersion,
   $blockEquationDeferredBundleSchema,
   $blockEquationDeferredMaterializationCertificateSchema
@@ -168,6 +169,7 @@ ClearAll[
 $blockEquationDeferredABIVersion = "BlockEquationDeferredV1";
 $blockEquationDeferredMaterializationCertificateSchema =
   "FeynFacetDeferredMaterializationCertificateV1";
+$blockEquationDeferredTrustedBundle = None;
 
 (* ---- route ---------------------------------------------------------- *)
 
@@ -2500,6 +2502,20 @@ blockEquationDeferredBundleValidate[bundle_Association] := Module[
    factors, orbits, factorCount, orbitCount, occurrences, jobIndex,
    termIndex, term, factorIndex, operandID, operandFailure, operandTag,
    occurrenceFailure, occurrenceTag},
+  (* SolveEpsFormStripInFrame performs this full validation once at its
+     public boundary.  Its synchronous multiquadratic call then scopes the
+     exact accepted association and its fingerprint here, so nested
+     prepare/provider/gauge consumers do not repeatedly traverse and re-hash
+     the same large immutable operand table.  A changed association with a
+     copied fingerprint misses SameQ and takes the full validator.  Outside
+     that dynamic scope every caller also takes the full validator. *)
+  If[AssociationQ[$blockEquationDeferredTrustedBundle] &&
+      StringQ[Lookup[$blockEquationDeferredTrustedBundle,
+        "Fingerprint", None]] &&
+      Lookup[bundle, "BundleFingerprint", None] ===
+        $blockEquationDeferredTrustedBundle["Fingerprint"] &&
+      SameQ[bundle, $blockEquationDeferredTrustedBundle["Bundle"]],
+    Return[<|"Status" -> "BundleValid"|>]];
   If[Lookup[bundle, "Schema", None] =!= $blockEquationDeferredBundleSchema ||
       Lookup[bundle, "Status", None] =!= "PreparedDeferredBundle" ||
       Lookup[bundle, "ABIVersion", None] =!=

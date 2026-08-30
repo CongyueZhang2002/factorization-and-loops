@@ -2276,12 +2276,18 @@ SolveEpsFormStripInFrame[
       <|"Variables" -> variables, "Regulator" -> epsilon, "Strip" -> strip|>,
       If[AssociationQ[deferredBundle],
         <|"DeferredBundle" -> deferredBundle|>, <||>]];
-    multiquadraticResult = solveEpsFormStripMultiquadratic[
-      bundleRecord,
-      frame,
-      Sequence @@ DeleteDuplicatesBy[
-        Join[multiquadraticOptions,
-          {"Deadline" -> deadline, "Verbose" -> TrueQ[verbose]}], First]];
+    multiquadraticResult = Block[
+      {$blockEquationDeferredTrustedBundle =
+        If[AssociationQ[deferredBundle],
+          <|"Bundle" -> deferredBundle,
+            "Fingerprint" -> Lookup[deferredBundle,
+              "BundleFingerprint", None]|>, None]},
+      solveEpsFormStripMultiquadratic[
+        bundleRecord,
+        frame,
+        Sequence @@ DeleteDuplicatesBy[
+          Join[multiquadraticOptions,
+            {"Deadline" -> deadline, "Verbose" -> TrueQ[verbose]}], First]]];
     If[! AssociationQ[multiquadraticResult],
       Return[<|"Status" -> "MultiquadraticDispatchNotTyped",
         "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
