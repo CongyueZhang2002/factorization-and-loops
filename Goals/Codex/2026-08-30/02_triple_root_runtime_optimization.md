@@ -29,6 +29,17 @@
   1204 even though canonical operand orders are at most 4.  Exact canonical
   denominator propagation reduces the base gauge from 273,245,832 to 7,488
   unknowns and bidegree `(12,17)`, so no exact-channel refinement is entered.
+- [🟢] Compile authenticated deferred operands as their existing exact
+  numerator/denominator factor products instead of expanding those products
+  into one sparse polynomial.  A guarded local-term compiler reduced the
+  largest real CF259 `(27,9)` operand from 168.6 s to 8.9 s (19.0x), while
+  exact modular comparison agrees with the source quotient.
+- [🟢] Extend the FLINT split-sparse evaluator to the factored `MQSE1P2`
+  protocol.  On the complete real 145-leaf CF259 plan, one point fell from
+  2.55 s in the Wolfram value evaluator to 0.34 s end to end (0.060 s native),
+  with identical `E`, `C`, deferred forcing, and one-form channels.  Release,
+  ASan/UBSan, five focused suites, and a real rank-three differential probe
+  are green.
 - [ ] Add modular univariate denominator refinement only if a correctly
   propagated canonical bound is still too large on a real block.  Both Pro
   and the independent Codex review recommend this as the second-stage
