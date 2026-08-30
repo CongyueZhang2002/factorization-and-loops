@@ -54,6 +54,10 @@ common = {"Primes" -> {1000003, 2147483423, 2147483477},
   "AdaptiveValidationMargin" -> 4, "Verbose" -> False};
 heldOut = FeynFacet`SolveEpsFormStripFiniteField[record, "RegulatorSampling" -> "HeldOut", Sequence @@ common];
 deterministic = FeynFacet`SolveEpsFormStripFiniteField[record, "RegulatorSampling" -> "Deterministic", Sequence @@ common];
+explicitSupport = If[AssociationQ[heldOut], heldOut["GaugeSupport"], {{0, 0}}];
+explicitSupportSolve = FeynFacet`SolveEpsFormStripFiniteField[record,
+  "RegulatorSampling" -> "HeldOut", "Support" -> explicitSupport,
+  "SupportLearning" -> False, Sequence @@ common];
 checks["HeldOutExact"] = AssociationQ[heldOut] && TrueQ[heldOut["ExactPfaffianResidualsZero"]];
 checks["HeldOutMode"] = AssociationQ[heldOut] && heldOut["CertificationMode"] === "HeldOut";
 checks["HeldOutFewerImages"] = AssociationQ[heldOut] && AssociationQ[deterministic] &&
@@ -61,6 +65,9 @@ checks["HeldOutFewerImages"] = AssociationQ[heldOut] && AssociationQ[determinist
 checks["HeldOutAgreesWithDeterministic"] = AssociationQ[heldOut] && AssociationQ[deterministic] &&
   Map[Together, heldOut["Gauge"], {2}] === Map[Together, deterministic["Gauge"], {2}] &&
   heldOut["ResidueMatrices"] === deterministic["ResidueMatrices"];
+checks["TopLevelExplicitSupportIsHonored"] =
+  AssociationQ[explicitSupportSolve] &&
+  explicitSupportSolve["GaugeSupport"] === explicitSupport;
 (* A4: the FLINT adapter, when built, must reproduce the Wolfram modular
    solution exactly; when absent the backend selection must say so *)
 If[FeynFacet`Private`finiteFieldStripFLINTBinary[] =!= None,

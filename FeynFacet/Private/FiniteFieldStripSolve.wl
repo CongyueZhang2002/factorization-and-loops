@@ -1250,7 +1250,7 @@ finiteFieldStripSupport[preparation_Association, numeratorDegrees_List,
    every shell before the rectangle and spent seven probes on an offset
    that no support could satisfy (CF254 (9,7), 2026-08-21). *)
 finiteFieldStripProbeOrder[shells_List] := Which[
-  shells === {"Rectangle"}, {"Rectangle"},
+  Length[shells] === 1, shells,
   Length[shells] === 2, shells,
   True, Join[{First[shells], "Rectangle"}, shells[[2 ;; -2]]]];
 
@@ -3027,8 +3027,15 @@ SolveEpsFormStripFiniteField[record_Association,
     (* between support-census candidates *)
     If[finiteFieldStripDeadlineExpiredQ[deadline],
       budgetStop = budgetExhausted["SupportCensus"]; Break[]];
-    shells = If[supportKind === "Rectangle" || ListQ[supportKind], {"Rectangle"},
-      finiteFieldStripSupportLadder[preparation,
+    (* An explicit monomial list is already the complete requested support,
+       not a request for the enclosing rectangle.  The old branch assigned
+       {"Rectangle"} here and then passed "Rectangle" to the sampler, so the
+       public "Support" -> {{px,py},...} option was silently ignored by the
+       top-level solver even though SampleEpsFormStripAffine honored it. *)
+    shells = Which[
+      ListQ[supportKind], {0},
+      supportKind === "Rectangle", {"Rectangle"},
+      True, finiteFieldStripSupportLadder[preparation,
         preparation["DenominatorDegrees"] + offset, supportKind]];
     Module[{probeOf, probes = <||>, order, rectangleOK = False, ok,
         failure, reused},
@@ -3043,7 +3050,10 @@ SolveEpsFormStripFiniteField[record_Association,
             record, First[epsilonSamples], prime,
             "PointCount" -> pointCount,
             "NumeratorDegreeOffset" -> offset,
-            "Support" -> If[shell === "Rectangle", "Rectangle", supportKind],
+            "Support" -> Which[
+              ListQ[supportKind], supportKind,
+              shell === "Rectangle", "Rectangle",
+              True, supportKind],
             "SupportShell" -> If[IntegerQ[shell], shell, 0],
             "Backend" -> OptionValue["Backend"],
             "BackendThreads" -> OptionValue["BackendThreads"],
