@@ -5520,6 +5520,8 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
   allRoots = transportChartCurrentRoots[frame, variables];
   If[! ListQ[allRoots],
     Return[multiquadraticStripFailure["AlgebraicFrameNotWellFormed"]]];
+  multiquadraticStripStageStart["prepare: root census",
+    <|"supplied" -> AssociationQ[OptionValue["RootClassification"]]|>];
   suppliedClassification = OptionValue["RootClassification"];
   trustedClassificationQ = AssociationQ[suppliedClassification] &&
     AssociationQ[deferredBundle] &&
@@ -5532,6 +5534,8 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
   classification = If[trustedClassificationQ, suppliedClassification,
     multiquadraticStripRootCensusWithBundle[strip, allRoots,
       variables, epsilon, deferredBundle]];
+  multiquadraticStripStageDone["prepare: root census",
+    <|"source" -> If[trustedClassificationQ, "SameCall", "Fresh"]|>];
   If[! KeyExistsQ[classification, "UnclassifiedRadicalBases"],
     Return[classification]];
   If[classification["UnclassifiedRadicalBases"] =!= {},
@@ -5573,7 +5577,10 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
   (* before the root order, which denests and square-class-matches every
      declared radical *)
   If[prepareGuard["RootOrder"], Return[prepareStop]];
+  multiquadraticStripStageStart["prepare: root order"];
   order = multiquadraticStripRootOrder[frame, variables, rootIndices, epsilon];
+  multiquadraticStripStageDone["prepare: root order",
+    <|"status" -> Lookup[order, "Status", None]|>];
   If[Lookup[order, "Status", None] =!= "StableRootOrder", Return[order]];
   roots = order["Roots"];
   coefficientProvider = Replace[OptionValue["CoefficientProvider"],
@@ -5614,8 +5621,12 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
      dimensions are VALIDATED further down exactly where they were
      validated at HEAD: a malformed strip simply fails to key the core
      and takes the fallback, so no failure status moved. *)
+  multiquadraticStripStageStart["prepare: equation identity",
+    <|"deferred" -> AssociationQ[deferredBundle]|>];
   coreCanonical = multiquadraticStripCoreCanonicalData[record, roots,
     variables, epsilon];
+  multiquadraticStripStageDone["prepare: equation identity",
+    <|"status" -> If[AssociationQ[coreCanonical], "Prepared", "Failed"]|>];
   coreDimensions = Quiet[Check[Dimensions[strip[[3, 1]]], $Failed]];
   (* ---- the intermediate-persistence layer of THIS preparation ------
      Resolved once, here, so that every substage below is one
