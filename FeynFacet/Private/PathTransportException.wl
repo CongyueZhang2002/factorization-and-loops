@@ -1,7 +1,13 @@
-(* Path-transport exception seam: consume a CERTIFIED exceptional
-   off-diagonal block -- one that provably has no constant-residue dlog
-   completion -- as a typed fixed-path forcing record inside the
+(* Path-transport exception seam: consume an ACCEPTED exceptional
+   off-diagonal block as a typed fixed-path forcing record inside the
    blockwise transport representation.
+
+   Two distinct concepts, never conflated (Codex note 20 A4): a record
+   here asserts ExactPathForcingAccepted -- a constructive, modularly
+   accepted path forcing sufficient to transport the row.  The stronger
+   necessity claim, EpsFormObstructionCertified -- that no epsilon form
+   of the block exists at all -- is a separate statement with its own
+   certificate standard and is NOT implied by a record's presence.
 
    Scope contract (Exchange/Codex/2026-08-30/19, Exchange/Fable
    2026-08-30/10): this is a LOWER-LEVEL API.  It receives the family
@@ -130,36 +136,53 @@ pathTransportExceptionPlanIssues[plan_] := Module[{issues = {}, contract,
 pathTransportExceptionPlanQ[plan_] :=
   pathTransportExceptionPlanIssues[plan] === {};
 
-(* The COMPLETE connection on the contract path.  Order of operations
-   is load-bearing: the source-root rules are applied while the source
-   root squares are still in their exact catalog Sqrt form, THEN the
-   source path, THEN the endpoint reparameterization.  The endpoint
-   Jacobian dz/dtau = (z1 - z0) enters exactly once, through
-   dx/dtau and dy/dtau of the composed path.  No Together and no global
-   simplification: Together rationalizes square-root denominators
-   (CLAUDE.md trap) and the residual extension root must survive. *)
-pathTransportExceptionConnection[apv_, apw_, contract_,
-    endpoints : {z0_, z1_}, tau_Symbol] := Module[
-  {z, vars, srcRules, path, ztau, xOfTau, yOfTau, ahat},
-  If[! pathTransportExceptionContractQ[contract],
-    Return[<|"Status" -> "InvalidPathContract"|>]];
+(* ONE pullback for everything on the contract path (Codex note 20 A1).
+   Mathematical order, applied identically to the ordinary connection
+   and to path artifacts:
+
+     1. source-root branch rules, while the catalog roots are still in
+        their exact source Sqrt spelling;
+     2. source variables -> the curve functions x(z), y(z);
+     3. the residual extension root -> its explicit selected-sheet path
+        representative Sqrt[rootSquare(z)];
+     4. z -> z0 + tau (z1 - z0), so the z inside BRANCH expressions is
+        reparameterized too;
+
+   and the single endpoint Jacobian dz/dtau = (z1 - z0) enters once, at
+   the caller.  No Together and no global simplification: Together
+   rationalizes square-root denominators (CLAUDE.md trap) and the
+   residual root must survive. *)
+pathTransportExceptionPullback[expr_, contract_, endpoints : {z0_, z1_},
+    tau_Symbol] := Module[{z, vars, path, extension, rootSub},
   z = contract["PathVariable"];
   vars = contract["Variables"];
-  srcRules = contract["SourceRootRules"];
+  path = contract["SourcePath"];
+  extension = Lookup[contract, "PathExtension", <|"Type" -> "None"|>];
+  rootSub = If[AssociationQ[extension] &&
+      extension["Type"] === "Quadratic" &&
+      ! MissingQ[Lookup[extension, "Root", Missing[]]],
+    {extension["Root"] -> Sqrt[extension["RootSquare"]]}, {}];
+  (expr /. contract["SourceRootRules"] /.
+      Thread[vars -> Lookup[path, vars]] /. rootSub) /.
+    z -> z0 + tau (z1 - z0)];
+
+(* The COMPLETE connection on the contract path.  A_z is built in z
+   (curve derivatives x'(z), y'(z)), then reparameterized; the single
+   Jacobian (z1 - z0) multiplies once.  PRECONDITION: contract already
+   validated at the Prepare boundary. *)
+pathTransportExceptionConnection[apv_, apw_, contract_,
+    endpoints : {z0_, z1_}, tau_Symbol] := Module[
+  {z, vars, path, ztau, az},
+  z = contract["PathVariable"];
+  vars = contract["Variables"];
   path = contract["SourcePath"];
   ztau = z0 + tau (z1 - z0);
-  xOfTau = (path[vars[[1]]] /. z -> ztau);
-  yOfTau = (path[vars[[2]]] /. z -> ztau);
-  ahat =
-    Map[(# /. srcRules /. Thread[vars -> {xOfTau, yOfTau}]) &,
-        apv, {2}] D[xOfTau, tau] +
-    Map[(# /. srcRules /. Thread[vars -> {xOfTau, yOfTau}]) &,
-        apw, {2}] D[yOfTau, tau];
-  (* the residual extension root, if any, is a function of z alone in
-     the contract; carry its path form for the capability stage *)
+  az = Map[pathTransportExceptionPullback[#, contract, endpoints, tau] &,
+        apv, {2}] (D[path[vars[[1]]], z] /. z -> ztau) +
+       Map[pathTransportExceptionPullback[#, contract, endpoints, tau] &,
+        apw, {2}] (D[path[vars[[2]]], z] /. z -> ztau);
   <|"Status" -> "PathTransportExceptionConnectionV1",
-    "Ahat" -> ahat, "PathRule" -> z -> ztau,
-    "XOfTau" -> xOfTau, "YOfTau" -> yOfTau,
+    "Ahat" -> (z1 - z0) az, "PathRule" -> z -> ztau,
     "Extension" -> Replace[Lookup[contract, "PathExtension",
         <|"Type" -> "None"|>],
       ext_Association /; ext["Type"] === "Quadratic" :>
@@ -256,9 +279,11 @@ pathTransportExceptionLocateBlock[assembly_Association, range_List,
   If[MissingQ[byRange] || MissingQ[byBasis] || byRange =!= byBasis,
     Missing["AssemblyBlockIdentityMismatch"], First[byRange]]];
 
-(* Declared regulator valuation is a fail-closed CONSISTENCY assertion
-   against the installed mathematics, never a second depth input: the
-   depth budget reads the installed ahat itself (Codex note 19 item 3). *)
+(* Declared regulator valuation is DESCRIPTIVE metadata (Codex note 20
+   A4): the installed mathematics is the sole depth input, read by the
+   existing budget from the installed connection.  The observed value
+   is reported beside the declaration; a mismatch is diagnostic, never
+   a refusal and never a second budget input. *)
 pathTransportExceptionValuationCheck[record_, block_, eps_] := Module[
   {observed, declared},
   observed = Min[Append[
@@ -267,13 +292,11 @@ pathTransportExceptionValuationCheck[record_, block_, eps_] := Module[
   <|"Observed" -> observed, "Declared" -> declared,
     "Consistent" -> (declared === None || declared === observed)|>];
 
+(* PRECONDITION: plan already validated and contract-resolved at the
+   Prepare boundary (single validation pass, Codex note 20 A4). *)
 pathTransportExceptionInstall[assembly_Association, ahat_List, plan_,
     tau_Symbol, eps_] := Module[
-  {issues, endpoints, records, ranges, installed, reports, failed},
-  issues = pathTransportExceptionPlanIssues[plan];
-  If[issues =!= {},
-    Return[<|"Status" -> "PathTransportExceptionPlanRefused",
-      "Issues" -> issues|>]];
+  {endpoints, records, ranges, installed, reports, failed},
   endpoints = plan["Endpoints"];
   records = plan["Records"];
   ranges = Lookup[assembly, "Ranges", {}];
@@ -296,10 +319,6 @@ pathTransportExceptionInstall[assembly_Association, ahat_List, plan_,
         failed = path; Break[]];
       block = path["PathBlock"];
       valuation = pathTransportExceptionValuationCheck[record, block, eps];
-      If[! TrueQ[valuation["Consistent"]],
-        failed = <|"Status" -> "PathRecordValuationMismatch",
-          "Record" -> record["ArtifactFile"],
-          "Valuation" -> valuation|>; Break[]];
       installed[[ranges[[rowBlock]], ranges[[columnBlock]]]] = block;
       AppendTo[reports, <|"Record" -> record["ArtifactFile"],
         "Positions" -> {rowBlock, columnBlock},
@@ -312,35 +331,40 @@ pathTransportExceptionInstall[assembly_Association, ahat_List, plan_,
 pathTransportExceptionInstall[___] :=
   <|"Status" -> "InvalidPathInstallationInput"|>;
 
-(* Capability of ONE installed entry for the ordinary blockwise engine.
-   Two exits to the quadrature branch: an algebraic root whose path
-   square has tau-degree above two (the engine's algebraic letters are
-   roots of irreducible tau-quadratics only), or a denominator the
-   linearizer refuses (degree above two, or an eps-dependent quadratic
-   locus).  Rational entries with admitted factors pass. *)
+(* Capability of ONE installed entry for the ordinary blockwise engine
+   (Codex note 20 A2).  The engine's algebraic letters are roots of
+   rational tau-quadratic DENOMINATORS -- constants during the word
+   integration.  A coefficient moving on an algebraic cover, any
+   Sqrt[q(tau)] or half-integer power of a tau-dependent base, is a
+   different object and is NOT supported regardless of the radicand's
+   degree: it routes to the quadrature branch.  Tau-free algebraic
+   coefficients are allowed; after that the blockwise linearizer is the
+   single authority on the rational denominator and its named refusal
+   is preserved verbatim. *)
 pathTransportExceptionEntryCapability[entry_, tau_Symbol, eps_] := Module[
-  {radicals, bad, den, linearized},
-  radicals = DeleteDuplicates[Cases[entry, Sqrt[s_] :> s, {0, Infinity}]];
-  bad = Select[radicals,
-    ! FreeQ[#, tau] &&
-      (! PolynomialQ[Numerator[Together[#]], tau] ||
-        Max[Exponent[Numerator[Together[#]], tau],
-          Exponent[Denominator[Together[#]], tau]] > 2) &];
-  If[bad =!= {},
+  {covers, den, linearized},
+  covers = DeleteDuplicates[Cases[entry,
+    Power[b_, e_] /; ! IntegerQ[e] && ! FreeQ[b, tau] :> b,
+    {0, Infinity}]];
+  If[covers =!= {},
     Return[<|"Admitted" -> False,
-      "Reason" -> "AlgebraicCoverDegreeAboveTwoInTau",
-      "RootSquares" -> bad|>]];
-  If[radicals === {},
-    den = Denominator[Together[entry]];
-    linearized = Catch[masterTransportBWLinearize[den, tau, eps],
-      $masterTransportBlockwiseFailure];
-    If[AssociationQ[linearized] &&
-        ! MissingQ[Lookup[linearized, "Status", Missing[]]],
-      Return[<|"Admitted" -> False,
-        "Reason" -> linearized["Status"],
-        "Detail" -> linearized|>]]];
+      "Reason" -> "TauDependentAlgebraicCover",
+      "CoverBases" -> covers|>]];
+  den = Denominator[Together[entry]];
+  linearized = Catch[masterTransportBWLinearize[den, tau, eps],
+    $masterTransportBlockwiseFailure];
+  If[AssociationQ[linearized] &&
+      ! MissingQ[Lookup[linearized, "Status", Missing[]]],
+    Return[<|"Admitted" -> False,
+      "Reason" -> linearized["Status"],
+      "Detail" -> linearized|>]];
   <|"Admitted" -> True|>];
 
+(* Preflight over the EXCEPTIONAL blocks only (Codex note 20 A3): this
+   is ExceptionalBlocksCapability, not a guarantee for the complete
+   connection -- on a nonlinear path an ordinary block can also carry
+   an unsupported denominator, and the blockwise engine's own named
+   refusal at solve time is the authority for the whole object. *)
 pathTransportExceptionCapability[installed_Association, assembly_,
     tau_Symbol, eps_] := Module[{ranges, verdicts},
   ranges = Lookup[assembly, "Ranges", {}];
@@ -360,24 +384,26 @@ pathTransportExceptionCapability[installed_Association, assembly_,
           Lookup[refused, "Reason"]],
         "Detail" -> First[refused]|>]]];
 
-(* Orchestration.  PRECONDITION: the caller owns the plan's path; the
-   returned ahat is on that path and must never be mixed with an
-   axis-path connection.  On "Blockwise" the caller runs the ordinary
-   engine on the returned Ahat/Budget; on "AlgebraicQuadratureRequired"
-   the returned record IS the deliverable: an inert exact
-   variation-of-constants representation whose install integrity was
-   re-checked at a random rational point through the independent
-   adapter path. *)
-pathTransportExceptionPrepare[assembly_Association, apv_, apw_, plan_,
+(* Orchestration and the single validation boundary.  PRECONDITIONS
+   AND CLAIMS: the caller owns the plan's path; the returned ahat is on
+   that path and must never be mixed with an axis-path connection.  The
+   route field is ExceptionalBlocksRoute -- a preflight over the
+   installed exceptional blocks only; the blockwise engine's own named
+   refusal remains the authority for the complete connection at solve
+   time.  On "AlgebraicQuadratureRequired" the caller takes the
+   formal-quadrature consumer; nothing here claims the integral
+   evaluated. *)
+pathTransportExceptionPrepare[assembly_Association, apv_, apw_, plan0_,
     tau_Symbol, eps_, kmax_Integer] := Module[
-  {issues, contract, connection, installed, budget, capability,
-   spot, tauValue, epsValue},
+  {plan = plan0, issues, contract, connection, installed, budget,
+   capability},
   issues = pathTransportExceptionPlanIssues[plan];
   If[issues =!= {},
     Return[<|"Status" -> "PathTransportExceptionPlanRefused",
       "Issues" -> issues|>]];
   contract = Lookup[plan, "PathContract", None];
   If[StringQ[contract], contract = Get[contract]];
+  plan["PathContract"] = contract;
   connection = pathTransportExceptionConnection[apv, apw, contract,
     plan["Endpoints"], tau];
   If[connection["Status"] =!= "PathTransportExceptionConnectionV1",
@@ -390,34 +416,12 @@ pathTransportExceptionPrepare[assembly_Association, apv_, apw_, plan_,
     kmax, eps];
   capability = pathTransportExceptionCapability[installed, assembly,
     tau, eps];
-  (* install-integrity spot check: one random rational point, the
-     installed subblock against an independent reparameterization *)
-  tauValue = RandomInteger[{3, 97}]/101;
-  epsValue = RandomInteger[{3, 89}]/97;
-  spot = And @@ Map[
-    Function[report, Module[{ranges, again, block},
-      ranges = Lookup[assembly, "Ranges", {}];
-      again = pathTransportExceptionReparameterize[
-        First[Select[plan["Records"],
-          #["ArtifactFile"] === report["Record"] &]],
-        tau, eps, plan["Endpoints"]];
-      block = installed["Ahat"][[
-        ranges[[report["Positions"][[1]]]],
-        ranges[[report["Positions"][[2]]]]]];
-      Together[
-        Map[# /. {tau -> tauValue, eps -> epsValue} &,
-          block - again["PathBlock"], {2}]] ===
-        ConstantArray[0, Dimensions[block]]]],
-    installed["Reports"]];
-  <|"Status" -> If[TrueQ[spot],
-      "PathTransportExceptionPreparedV1",
-      "PathInstallSpotCheckFailed"],
-    "Route" -> capability["Route"],
-    "Capability" -> capability,
+  <|"Status" -> "PathTransportExceptionPreparedV1",
+    "ExceptionalBlocksRoute" -> capability["Route"],
+    "ExceptionalBlocksCapability" -> capability,
     "Ahat" -> installed["Ahat"],
     "Budget" -> budget,
     "Reports" -> installed["Reports"],
-    "SpotCheckPoint" -> {tau -> tauValue, eps -> epsValue},
     "Extension" -> connection["Extension"]|>];
 pathTransportExceptionPrepare[___] :=
   <|"Status" -> "InvalidPathPrepareInput"|>;

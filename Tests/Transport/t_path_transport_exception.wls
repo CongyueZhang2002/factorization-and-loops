@@ -1,35 +1,34 @@
 #!/usr/bin/env wolframscript
 (* Path-transport exception seam (PathTransportException.wl).
 
-   Acceptance criteria, stated before any is run (Exchange/Codex
-   2026-08-30/19 revised list):
+   Acceptance criteria, stated before any is run (Codex note 20 Wave A):
 
-   A. A common-path contract pulls the complete toy connection AND the
-      exceptional block along exactly one curve, with the endpoint
-      Jacobian applied exactly once: for a forcing chosen as an exact
-      z-derivative, the installed entry must equal d/dtau of the known
-      antiderivative composed with the path -- true only if the single
-      (z1-z0) chain-rule factor is right.
-   B. Mixed record/contract identities refuse before assembly.
-   C. A negative regulator valuation is read from the INSTALLED
-      connection by the existing depth budget and propagates once
-      (Need on the lower block rises by exactly the valuation).
-   D. The rational toy passes the exact differentiate-back identity
-      through the seam (the recursion certificate in its one-block
-      closed form).
-   E. The simple quadratic toy (root square affine on the path)
-      verifies the branch derivative through ordinary D and is admitted
-      to the blockwise route; a cubic-cover toy is refused with
-      AlgebraicCoverDegreeAboveTwoInTau and routes to
-      AlgebraicQuadratureRequired.
-   F. The REAL CF303 records, where present on this machine, route by
-      their true content: the rational (25,18) artifact yields typed
-      per-entry verdicts; the (25,14) artifact MUST refuse into the
-      quadrature branch (genus-2 cover), never a word-decomposition
-      success.  Absent files SKIP (they are not repository inputs yet;
-      they move into Results/ when the family closes).
-   G. A declared record valuation inconsistent with the installed
-      mathematics fails closed. *)
+   A1. ONE pullback for the complete connection: on a toy contract with
+       a rationalized branch AND a residual extension root, the full
+       Ahat must contain neither the source variables, nor the contract
+       path variable, nor the bare root symbol -- and must contain the
+       explicit Sqrt of the root square composed with the path.  A
+       hand-computed entry pins the curve derivative and the single
+       endpoint Jacobian; the installed exceptional forcing, chosen as
+       an exact z-derivative, must equal d/dtau of its antiderivative
+       composed with the path.
+   A2. Capability matches the implemented engine:
+       1/(tau^2+3tau+1) admitted; Sqrt[2]/(tau-3) admitted (tau-free
+       radical); Sqrt[tau+5]/(tau+7) refused as
+       TauDependentAlgebraicCover regardless of radicand degree; a
+       degree-three rational denominator preserves the engine's named
+       refusal DenominatorDegreeAboveTwoInTau; the real (25,14)
+       artifact refuses as a tau-dependent cover.
+   A3. The route claim is scoped: the prepared result exposes
+       ExceptionalBlocksRoute, not a whole-connection guarantee.
+   A4. Declared record valuation is descriptive: an inconsistent
+       declaration does NOT refuse; the depth budget reads the
+       installed mathematics only (eps^-1 forcing raises the lower
+       block's Need from 2 to 3 either way).
+   B.  Mixed record/contract identities refuse before assembly.
+   F.  Real CF303 records (guarded SKIP when absent): (25,18)
+       reparameterizes with typed verdicts; (25,14) refuses into the
+       quadrature branch. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
@@ -39,29 +38,34 @@ pte = Symbol["FeynFacet`Private`" <> #] &;
 tmp = CreateDirectory[FileNameJoin[{$TemporaryDirectory,
   "t_path_transport_exception_" <> ToString[$ProcessID]}]];
 
-(* ---- toy fixtures ------------------------------------------------ *)
 toyZ = Global`toyPathZ; toyEps = Global`toyPathEps;
 toyX = Global`toyPathX; toyY = Global`toyPathY;
-toyR = Global`toyPathR;
+toyRR = Global`toyPathResidualRoot;
 tau = Global`toyPathTau;
 
+(* contract with one rationalized branch (Sqrt[P1] -> 1 + z) and one
+   residual root (Sqrt[P2] -> toyRR, toyRR^2 = z^3 + 2 on the path) *)
+toyP1 = toyX + toyY^2;
+toyP2 = 1 + toyX toyY;
 toyContract = <|"Status" -> "ExactParametricPathContractV1",
   "Family" -> "TOY", "HardSector" -> 2, "Chart" -> "ToyChart",
   "FrozenCoordinates" -> <||>, "Variables" -> {toyX, toyY},
   "PathVariable" -> toyZ,
   "SourcePath" -> <|toyX -> toyZ^2, toyY -> 1 - toyZ|>,
-  "SourceRootSquares" -> {}, "SourceRootBranches" -> {},
-  "SourceRootRules" -> {},
-  "PathExtension" -> <|"Type" -> "None"|>|>;
+  "SourceRootSquares" -> {toyP1, toyP2},
+  "SourceRootBranches" -> {1 + toyZ, toyRR},
+  "SourceRootRules" ->
+    {Sqrt[toyP1] -> 1 + toyZ, Sqrt[toyP2] -> toyRR},
+  "PathExtension" -> <|"Type" -> "Quadratic", "Root" -> toyRR,
+    "RootSquare" -> toyZ^3 + 2, "Representation" -> "ExplicitSqrt",
+    "BranchConvention" -> "toy principal sheet"|>|>;
 
-(* forcing = an exact z-derivative with an eps^-1 layer:
-   g(z) = 1/(z+2), f(z) = g'(z) (1/eps + 1) *)
 toyG[z_] := 1/(z + 2);
-toyForcing = {{D[toyG[toyZ], toyZ] (1/toyEps + 1)}};
 toyArtifactFile = FileNameJoin[{tmp, "toy_rational_artifact.wl"}];
 Put[<|"Status" -> "ToyPathForcingV1", "Family" -> "TOY",
   "HardSector" -> 2, "LowerSector" -> 1, "PathVariable" -> toyZ,
-  "Regulator" -> toyEps, "PathForcing" -> toyForcing|>,
+  "Regulator" -> toyEps,
+  "PathForcing" -> {{D[toyG[toyZ], toyZ] (1/toyEps + 1)}}|>,
   toyArtifactFile];
 
 toyRecord = <|"Status" -> "ExactPathTransportExceptionReadyV1",
@@ -80,10 +84,11 @@ toyRecord = <|"Status" -> "ExactPathTransportExceptionReadyV1",
   "PathExtension" -> <|"Type" -> "None"|>|>;
 
 toyAssembly = <|"Blocks" -> {{1}, {2}}, "Ranges" -> {{1}, {2}}|>;
-(* ordinary connection: diagonal eps-blocks, zero off-diagonal slot
-   that the installation overwrites *)
-toyApv = {{toyEps/(toyX + 2), 0}, {0, toyEps/(toyX + 3)}};
-toyApw = {{toyEps/(toyY + 2), 0}, {0, 0}};
+(* diagonal (1,1) carries the rationalized branch; diagonal (2,2)
+   carries the residual root; the (2,1) slot is overwritten by the
+   installation *)
+toyApv = {{toyEps Sqrt[toyP1], 0}, {0, toyEps/(toyX + 3)}};
+toyApw = {{0, 0}, {0, toyEps Sqrt[toyP2]}};
 toyEndpoints = {1/5, 4/5};
 toyPlan = <|"PathContract" -> toyContract, "Endpoints" -> toyEndpoints,
   "Records" -> {toyRecord}|>;
@@ -91,50 +96,50 @@ toyPlan = <|"PathContract" -> toyContract, "Endpoints" -> toyEndpoints,
 prepared = pte["pathTransportExceptionPrepare"][toyAssembly, toyApv,
   toyApw, toyPlan, tau, toyEps, 2];
 
-FTAssert["toy prepare returns the prepared status",
+FTAssert["prepare returns the prepared status",
   AssociationQ[prepared] &&
     prepared["Status"] === "PathTransportExceptionPreparedV1"];
-FTAssert["toy rational route is Blockwise",
-  prepared["Route"] === "Blockwise"];
 
-(* A: single Jacobian.  installed(2,1) must equal
-   d/dtau[ g(z(tau)) ] (1/eps + 1) exactly. *)
-Module[{ztau, expected, installed},
+(* A1: one curve for the COMPLETE connection *)
+Module[{ahat, ztau, expected},
+  ahat = prepared["Ahat"];
+  FTAssert["A1: no source variable survives the pullback",
+    FreeQ[ahat, toyX] && FreeQ[ahat, toyY]];
+  FTAssert["A1: no contract path variable survives the pullback",
+    FreeQ[ahat, toyZ]];
+  FTAssert["A1: no bare residual-root symbol survives the pullback",
+    FreeQ[ahat, toyRR]];
   ztau = toyEndpoints[[1]] + tau (toyEndpoints[[2]] - toyEndpoints[[1]]);
+  FTAssert["A1: residual root appears as Sqrt of its path square",
+    ! FreeQ[ahat[[2, 2]], Sqrt[ztau^3 + 2]]];
+  (* hand computation of the (1,1) entry: branch(z) x'(z) dz/dtau *)
+  expected = (toyEndpoints[[2]] - toyEndpoints[[1]]) *
+    toyEps (1 + ztau) (2 ztau);
+  FTAssert["A1: rationalized-branch entry matches the hand pullback",
+    Together[ahat[[1, 1]] - expected] === 0];
   expected = D[toyG[ztau], tau] (1/toyEps + 1);
-  installed = prepared["Ahat"][[2, 1]];
-  FTAssert["A: installed forcing = d/dtau of known antiderivative",
-    Together[installed - expected] === 0]];
+  FTAssert["A1: installed forcing = d/dtau of known antiderivative",
+    Together[ahat[[2, 1]] - expected] === 0]];
 
-(* D: differentiate-back through the seam in closed form: with the
-   (1,1) diagonal set to zero on the path there is no such toy here;
-   instead certify on the exact solution of the installed row at
-   eps-order -1: J2^(-1)(tau) = g(z(tau)) - g(z(0)) satisfies
-   dJ2/dtau = installed(2,1)|_(eps^-1) * J1 with J1 = 1. *)
-Module[{ztau, j2, id},
-  ztau = toyEndpoints[[1]] + tau (toyEndpoints[[2]] - toyEndpoints[[1]]);
-  j2 = toyG[ztau] - toyG[toyEndpoints[[1]]];
-  id = D[j2, tau] -
-    Coefficient[prepared["Ahat"][[2, 1]] toyEps, toyEps, 0];
-  FTAssert["D: exact differentiate-back at the eps^-1 layer",
-    Together[id] === 0]];
-
-(* C: depth budget reads the installed ahat: valuation -1 must raise
-   the lower block's Need from kmax to kmax + 1. *)
-FTAssert["C: negative valuation propagates once through the budget",
+(* A3 + A4: scoped route name; descriptive valuation; budget from the
+   installed mathematics *)
+FTAssert["A3: route is scoped to the exceptional blocks",
+  prepared["ExceptionalBlocksRoute"] === "Blockwise" &&
+    ! KeyExistsQ[prepared, "Route"]];
+FTAssert["A4: eps^-1 forcing raises the lower Need through the budget",
   prepared["Budget"]["Need"] === {3, 2}];
-
-(* G: a wrong declared valuation fails closed. *)
-Module[{badPlan, out},
-  badPlan = toyPlan;
-  badPlan["Records"] =
+Module[{declaredWrong, out},
+  declaredWrong = toyPlan;
+  declaredWrong["Records"] =
     {Append[toyRecord, "RegulatorValuation" -> 0]};
   out = pte["pathTransportExceptionPrepare"][toyAssembly, toyApv,
-    toyApw, badPlan, tau, toyEps, 2];
-  FTAssert["G: inconsistent declared valuation refuses",
-    out["Status"] === "PathRecordValuationMismatch"]];
+    toyApw, declaredWrong, tau, toyEps, 2];
+  FTAssert["A4: inconsistent declared valuation does not refuse",
+    out["Status"] === "PathTransportExceptionPreparedV1" &&
+      out["Budget"]["Need"] === {3, 2} &&
+      TrueQ[! out["Reports"][[1]]["Valuation"]["Consistent"]]]];
 
-(* B: mixed identity refuses before assembly. *)
+(* B: mixed identity refuses before assembly *)
 Module[{mixed, issues},
   mixed = toyPlan;
   mixed["Records"] = {ReplacePart[toyRecord,
@@ -143,74 +148,63 @@ Module[{mixed, issues},
   FTAssert["B: mixed chart refused before assembly",
     MemberQ[issues, "RecordContractPathMismatch"]]];
 
-(* E: quadratic toy, root square affine on the path -> admitted; the
-   branch derivative comes from ordinary D. *)
-Module[{qArtifactFile, qRecord, qContract, qPlan, qPrepared, qOnPath},
-  qArtifactFile = FileNameJoin[{tmp, "toy_quadratic_artifact.wl"}];
-  Put[<|"Status" -> "ToyQuadraticForcingV1", "Family" -> "TOY",
+(* A2: capability against the implemented engine, entry by entry *)
+Module[{cap},
+  cap = pte["pathTransportExceptionEntryCapability"];
+  FTAssert["A2: rational quadratic denominator admitted",
+    TrueQ[cap[1/(tau^2 + 3 tau + 1), tau, toyEps]["Admitted"]]];
+  FTAssert["A2: tau-free radical coefficient admitted",
+    TrueQ[cap[Sqrt[2]/(tau - 3), tau, toyEps]["Admitted"]]];
+  FTAssert["A2: Sqrt[tau+5]/(tau+7) refused as a tau-dependent cover",
+    Module[{v = cap[Sqrt[tau + 5]/(tau + 7), tau, toyEps]},
+      ! TrueQ[v["Admitted"]] &&
+        v["Reason"] === "TauDependentAlgebraicCover"]];
+  FTAssert["A2: inverse root refused as a tau-dependent cover",
+    Module[{v = cap[1/Sqrt[tau + 5], tau, toyEps]},
+      ! TrueQ[v["Admitted"]] &&
+        v["Reason"] === "TauDependentAlgebraicCover"]];
+  FTAssert["A2: degree-three denominator keeps the engine's named refusal",
+    Module[{v = cap[1/(tau^3 + 2), tau, toyEps]},
+      ! TrueQ[v["Admitted"]] &&
+        v["Reason"] === "DenominatorDegreeAboveTwoInTau"]]];
+
+(* branch derivative through ordinary D, no upvalues *)
+Module[{q},
+  q = (toyZ + 5) /. toyZ ->
+    toyEndpoints[[1]] + tau (toyEndpoints[[2]] - toyEndpoints[[1]]);
+  FTAssert["branch derivative = rootSquare'/(2 root) via ordinary D",
+    Together[D[Sqrt[q], tau] - D[q, tau]/(2 Sqrt[q])] === 0]];
+
+(* a quadratic-cover forcing routes the PLAN to the quadrature branch *)
+Module[{qArtifactFile, qRecord, qPlan, qPrepared},
+  qArtifactFile = FileNameJoin[{tmp, "toy_cover_artifact.wl"}];
+  Put[<|"Status" -> "ToyCoverForcingV1", "Family" -> "TOY",
     "HardSector" -> 2, "LowerSector" -> 1, "PathVariable" -> toyZ,
     "Regulator" -> toyEps,
-    "PathExtensionRoot" -> toyR,
+    "PathExtensionRoot" -> toyRR,
     "PathExtensionRootSquare" -> toyZ + 5,
-    "PathForcing" -> {{toyR/(toyZ + 7)}}|>, qArtifactFile];
-  qContract = Join[toyContract, <|"PathExtension" ->
-    <|"Type" -> "Quadratic", "Root" -> toyR,
-      "RootSquare" -> toyZ + 5, "Representation" -> "ExplicitSqrt",
-      "BranchConvention" -> "toy principal sheet"|>|>];
+    "PathForcing" -> {{toyRR/(toyZ + 7)}}|>, qArtifactFile];
   qRecord = Join[toyRecord, <|
     "Method" -> "ExactQuadraticPathTransportException",
-    "ArtifactStatus" -> "ToyQuadraticForcingV1",
+    "ArtifactStatus" -> "ToyCoverForcingV1",
     "ArtifactFile" -> qArtifactFile,
     "RegulatorValuation" -> 0,
-    "PathExtension" -> <|"Type" -> "Quadratic", "Root" -> toyR,
+    "PathExtension" -> <|"Type" -> "Quadratic", "Root" -> toyRR,
       "RootSquare" -> toyZ + 5, "Representation" -> "ExplicitSqrt",
       "BranchConvention" -> "toy principal sheet"|>|>];
   qRecord["Path"] = Append[qRecord["Path"],
-    "ArtifactIdentity" -> <|"Status" -> "ToyQuadraticForcingV1"|>];
-  qPlan = <|"PathContract" -> qContract, "Endpoints" -> toyEndpoints,
-    "Records" -> {qRecord}|>;
+    "ArtifactIdentity" -> <|"Status" -> "ToyCoverForcingV1"|>];
+  qPlan = <|"PathContract" -> Join[toyContract,
+      <|"PathExtension" -> qRecord["PathExtension"]|>],
+    "Endpoints" -> toyEndpoints, "Records" -> {qRecord}|>;
   qPrepared = pte["pathTransportExceptionPrepare"][toyAssembly, toyApv,
     toyApw, qPlan, tau, toyEps, 2];
-  FTAssert["E: affine-cover quadratic toy prepares",
-    qPrepared["Status"] === "PathTransportExceptionPreparedV1"];
-  FTAssert["E: affine-cover quadratic toy is admitted to Blockwise",
-    qPrepared["Route"] === "Blockwise"];
-  qOnPath = (toyZ + 5) /. toyZ ->
-    toyEndpoints[[1]] + tau (toyEndpoints[[2]] - toyEndpoints[[1]]);
-  FTAssert["E: branch derivative = rootSquare'/(2 root) via ordinary D",
-    Together[D[Sqrt[qOnPath], tau] -
-      D[qOnPath, tau]/(2 Sqrt[qOnPath])] === 0];
-  (* cubic cover -> refused into the quadrature branch *)
-  Module[{cArtifactFile, cRecord, cContract, cPlan, cPrepared},
-    cArtifactFile = FileNameJoin[{tmp, "toy_cubic_artifact.wl"}];
-    Put[<|"Status" -> "ToyCubicForcingV1", "Family" -> "TOY",
-      "HardSector" -> 2, "LowerSector" -> 1, "PathVariable" -> toyZ,
-      "Regulator" -> toyEps,
-      "PathExtensionRoot" -> toyR,
-      "PathExtensionRootSquare" -> toyZ^3 + 2,
-      "PathForcing" -> {{toyR/(toyZ + 7)}}|>, cArtifactFile];
-    cContract = Join[toyContract, <|"PathExtension" ->
-      <|"Type" -> "Quadratic", "Root" -> toyR,
-        "RootSquare" -> toyZ^3 + 2, "Representation" -> "ExplicitSqrt",
-        "BranchConvention" -> "toy principal sheet"|>|>];
-    cRecord = Join[qRecord, <|
-      "ArtifactStatus" -> "ToyCubicForcingV1",
-      "ArtifactFile" -> cArtifactFile,
-      "PathExtension" -> <|"Type" -> "Quadratic", "Root" -> toyR,
-        "RootSquare" -> toyZ^3 + 2, "Representation" -> "ExplicitSqrt",
-        "BranchConvention" -> "toy principal sheet"|>|>];
-    cRecord["Path"] = Append[cRecord["Path"],
-      "ArtifactIdentity" -> <|"Status" -> "ToyCubicForcingV1"|>];
-    cPlan = <|"PathContract" -> cContract, "Endpoints" -> toyEndpoints,
-      "Records" -> {cRecord}|>;
-    cPrepared = pte["pathTransportExceptionPrepare"][toyAssembly,
-      toyApv, toyApw, cPlan, tau, toyEps, 2];
-    FTAssert["E: cubic cover routes to AlgebraicQuadratureRequired",
-      cPrepared["Route"] === "AlgebraicQuadratureRequired" &&
-        MemberQ[cPrepared["Capability"]["Refusals"],
-          "AlgebraicCoverDegreeAboveTwoInTau"]]]];
+  FTAssert["A2: any tau-dependent cover routes the plan to quadrature",
+    qPrepared["ExceptionalBlocksRoute"] === "AlgebraicQuadratureRequired" &&
+      MemberQ[qPrepared["ExceptionalBlocksCapability"]["Refusals"],
+        "TauDependentAlgebraicCover"]]];
 
-(* F: real CF303 records, guarded SKIP when absent. *)
+(* F: real CF303 records, guarded SKIP when absent *)
 Module[{recDir, rec18, rec14, r18, r14, rep, entries, verdicts},
   recDir = "/home/maxzhang/factorization-and-loops-codex/Diagnostics/Artifacts";
   rec18 = FileNameJoin[{recDir, "cf303_25_18_exact_path_exception_record.wl"}];
@@ -241,7 +235,7 @@ Module[{recDir, rec18, rec14, r18, r14, rep, entries, verdicts},
       Global`realEps] & /@ entries;
     FTAssert["F: (25,14) refuses into the quadrature branch",
       AnyTrue[verdicts, ! TrueQ[#["Admitted"]] &&
-        #["Reason"] === "AlgebraicCoverDegreeAboveTwoInTau" &]]]];
+        #["Reason"] === "TauDependentAlgebraicCover" &]]]];
 
 DeleteDirectory[tmp, DeleteContents -> True];
 FTTest`FTReport[];
