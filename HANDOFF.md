@@ -1,4 +1,21 @@
-# Session transfer note — updated 2026-08-31 ~04:20 PDT (Fable)
+# Session transfer note — updated 2026-08-31 ~05:00 PDT (Fable)
+
+## MILESTONE (Codex note 18, ~05:00): both rank-three rows COMPLETE;
+## transport handed to Codex; Fable transport development STOPPED
+
+CF259 row 27: solved 26..1 (block 1 exact: shell-3 ansatz, 6-prime
+lift + held-out prime, zero defects), TransportReady.  CF303 row 25:
+solved 24..1 with FIVE typed integral-form exceptions {18,14,11,2,1}
+-- (25,1)'s 49-letter completion refused at two provider images
+(defect 1), a genuine alphabet-independent obstruction meeting the
+note-09 standard.  Checkpoints under
+Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/.
+Codex takes transport from the accepted modular-jet handoff; Fable
+stopped per their note 18 (ack: Exchange/Fable/2026-08-31/14) at
+commit 3737ba62 and holds idle.  Known open item on CODEX's side:
+MultiquadraticStripSolve.wl provider-sampler p mod 4 admission gate.
+
+# Superseded below — updated 2026-08-31 ~04:20 PDT (Fable)
 
 ## Overnight state (04:20): jet evaluator green; holding for Codex
 
