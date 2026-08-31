@@ -1,4 +1,36 @@
-# Session transfer note — updated 2026-08-27 02:58 PDT (Fable)
+# Session transfer note — updated 2026-08-31 ~00:30 PDT (Fable)
+
+## State (2026-08-31): CF303 row-25 path-transport seam + D1
+
+Module `FeynFacet/Private/PathTransportException.wl` (battery
+`Tests/Transport/t_path_transport_exception.wls`, 49 assertions):
+Waves A/B green through Codex note 29 (kernelMin quadrature floor,
+commit 3f24938); Wave E generic entry point
+`pathTransportExceptionTransport` wired (commit 09ca5a4) — dispatch to
+the blockwise engine or the terminal formal quadrature; four
+variable-length providers (25,{18,14,11,2}); contract-file
+BranchConvention harmonization requested from Codex
+(Exchange/Fable/2026-08-31/01). Real four-record plan benchmark on
+the live continuation state was running at handoff (phase times owed
+to Codex on completion; watchdog armed). Prepare's PhaseSeconds edit
+is UNCOMMITTED pending the battery rerun behind the license.
+
+D1 for (25,11) — notes 15/25 route — items 1-2 CLOSED
+(Exchange/Fable/2026-08-31/02): numerator divisors all inside the 15
+exact kinematic factors (…numerator_divisor_census.json, ExactV1);
+E/C polar factors all bound to known curves at two images
+(…ec_divisor_binding.json); union census = 18 distinct certified
+divisors incl. root2 = (s+1)^2 + t(s^2-6s+1)
+(…divisor_union_census.json, all in the codex tree
+Diagnostics/Artifacts + Runtime exact-lift dir). NEXT: the E1 ambient
+ladder on the COMPLETE 18-divisor span (the old rank0 ladder was
+exhausted on the production alphabet only — span-relative), two
+usable images per shell verdict (user rule: third image only replaces
+a bad one). Trap found: cf303_block18_native_path_degree.trim
+NORMALIZES mod the module-global PRIME — set rational.PRIME before
+every use in multi-prime code.
+
+# Superseded below — updated 2026-08-27 02:58 PDT (Fable)
 
 ## State (02:58): CODEX TAKES OVER. Read
 ## Exchange/Fable/2026-08-27/01_round3_state_and_handover.md — it is
