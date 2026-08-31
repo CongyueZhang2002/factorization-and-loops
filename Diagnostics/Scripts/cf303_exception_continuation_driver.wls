@@ -333,7 +333,8 @@ cf303TransportExceptionsQ[records_] := Module[
       ! DuplicateFreeQ[Lookup[records, "LowerSector", None]],
     Return[False]];
   exceptionSectors = Lookup[records, "LowerSector", None];
-  If[! MemberQ[{{18}, {18, 14}, {18, 14, 11}}, exceptionSectors],
+  If[! MemberQ[{{18}, {18, 14}, {18, 14, 11}, {18, 14, 11, 2}},
+      exceptionSectors],
     Return[False]];
   tail = Select[records, Lookup[#, "LowerSector", None] === 18 &];
   additional = Select[records, Lookup[#, "LowerSector", None] =!= 18 &];
@@ -346,7 +347,8 @@ cf303TransportExceptionsQ[records_] := Module[
 
 cf303TransportExceptionSources[records_List] :=
   KeyTake[#, {"LowerSector", "Method", "Manifest", "InputFile",
-      "BundleFingerprint", "Decision", "ClaimBoundary"}] & /@ records;
+      "BundleFingerprint", "Decision", "ArtifactFile", "ArtifactStatus",
+      "Acceptance", "BasisDerivationEvidence", "ClaimBoundary"}] & /@ records;
 cf303TransportExceptionSources[___] := {};
 
 cf303ExceptionCheckpointQ[checkpoint_, subSize_Integer?Positive,

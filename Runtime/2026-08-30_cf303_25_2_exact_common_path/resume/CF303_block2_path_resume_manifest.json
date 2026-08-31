@@ -1,0 +1,44 @@
+{
+  "status": "CF303Block2PathResumeReadyV1",
+  "acceptance": "ExactPathForcingAccepted",
+  "next_lower_sector": 1,
+  "accepted_exception_sequence": [
+    18,
+    14,
+    11,
+    2
+  ],
+  "resume_directory": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/resume",
+  "sector_state": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/resume/sector_state_CF303_standard.wl",
+  "sector_state_sha256": "8a7ae7cbf8bb304682a39fbb78a54e9459c1a857cf687c91ee5651a79cceb7ed",
+  "sector_state_source": "/home/maxzhang/factorization-and-loops-codex/Runtime/CF303_exception14_continuation_2026-08-30/sector_state_CF303_standard.wl",
+  "sector_state_source_sha256": "8a7ae7cbf8bb304682a39fbb78a54e9459c1a857cf687c91ee5651a79cceb7ed",
+  "updated_strip_checkpoint": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/resume/sector_CF303_standard/CF303_25_strip_state.wl",
+  "updated_strip_checkpoint_sha256": "8f1298dc79da8c23350899f57ff8a9835428307460048f0170883275fa1df5fe",
+  "source_strip_checkpoint": "/home/maxzhang/factorization-and-loops-codex/Runtime/CF303_exception14_continuation_2026-08-30/sector_CF303_standard/CF303_25_strip_state.wl",
+  "source_strip_checkpoint_sha256": "9a9aa8129e91566d7e5267900a402c91968549dbcfe7caca903408a80a2bf7f2",
+  "typed_exception_record": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/cf303_25_2_exact_path_exception_record.wl",
+  "typed_exception_record_sha256": "f9b7cc08371db245d4fb90cf32094761c628a77932683c1d120d91708c699e7c",
+  "path_artifact": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/cf303_25_2_exact_structured_path.wl",
+  "path_artifact_sha256": "064c19a7e95211696b83cab85e6471fc397ef4cf8549faaea33f72e6fe7dc1e5",
+  "append_script": "/home/maxzhang/factorization-and-loops-codex/Diagnostics/Scripts/cf303_append_block2_path_exception.wls",
+  "append_script_sha256": "35c335f80f0cec7137f9cbe389cb6d7c29fb3435e8695ec6a745466ec3646817",
+  "continuation_driver": "/home/maxzhang/factorization-and-loops-codex/Diagnostics/Scripts/cf303_exception_continuation_driver.wls",
+  "continuation_driver_sha256": "7115cd35e5ea3ea9fe45599462d65ce556021b2c94101c2bfaf60aee68bb0543",
+  "resume_command": "FACET_KERNEL_COUNT=2 FACET_MQ_NATIVE_THREADS=4 FACET_MQ_IMAGE_KERNEL_COUNT=2 FACET_NATIVE_CORE_COUNT=4 FACET_STRIP_ROUTE=FiniteFieldFirst taskset -c 4-7 wolframscript -file /home/maxzhang/factorization-and-loops-codex/Diagnostics/Scripts/cf303_exception_continuation_driver.wls CF303 /home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/resume 14400 standard 30 \"\" /home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical /home/maxzhang/factorization-and-loops/ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/ClassForms",
+  "resource_contract": {
+    "cpu_affinity": "4-7",
+    "native_threads_max": 4,
+    "wolfram_subkernels_max": 2
+  },
+  "validation": {
+    "state_copy_hash_equal": true,
+    "append_idempotence_checked": true,
+    "artifact_validation": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/cf303_25_2_exact_path_artifact_validation.wl",
+    "package_resume_validation": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/resume/CF303_block2_package_resume_validation.wl",
+    "basis_derivation": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/cf303_25_2_checkpoint_basis_derivation.json",
+    "modular_report": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/cf303_25_2_exact_path_report.json",
+    "unseen_prime_report": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/cf303_25_2_exact_path_unseen_prime.json"
+  },
+  "claim_boundary": "ready to resume the ordinary descending solver at block 1 with a typed exact fixed-path block-2 provider; no global no-eps-form claim"
+}

@@ -1,0 +1,170 @@
+{
+  "status": "CF303Block2ExactPathReadyV1",
+  "acceptance": "ExactPathForcingAccepted",
+  "family": "CF303",
+  "hard_sector": 25,
+  "lower_sector": 2,
+  "chart": "Kallen2Bilinear115",
+  "frozen_chart_u": 3,
+  "path_extension": "None",
+  "selected_branch": [
+    "a-p",
+    "1+3a"
+  ],
+  "source_contract": {
+    "source": "/home/maxzhang/factorization-and-loops-codex/Runtime/CF303_exception14_continuation_2026-08-30/sector_CF303_standard/CF303_25_2_input.wl",
+    "source_sha256": "db6c2e6aad6970dceb607fdbd62aa088dedd1f573f92a2f319580b664b90d7e7",
+    "root_order": [
+      "1 + 2*x + x^2 - 2*y + 2*x*y + y^2",
+      "1 - 4*x*y"
+    ],
+    "dimensions": [
+      2,
+      2,
+      1
+    ]
+  },
+  "lift_primes": [
+    2305843009213693951,
+    2305843009213693921,
+    2305843009213693907,
+    2305843009213693723,
+    2305843009213693693,
+    2305843009213693669,
+    2305843009213693613,
+    2305843009213693561
+  ],
+  "prime_bits": [
+    61,
+    61,
+    61,
+    61,
+    61,
+    61,
+    61,
+    61
+  ],
+  "combined_modulus_bits": 488,
+  "crt_confirmation_prime": 2305843009213693487,
+  "crt_confirmation_status": "Accepted",
+  "adaptive_lift_attempts": [
+    {
+      "prime_count": 4,
+      "combined_modulus_bits": 244,
+      "rational_reconstruction_failures": 76,
+      "lift_seconds": 0.05517102894373238
+    },
+    {
+      "prime_count": 8,
+      "combined_modulus_bits": 488,
+      "rational_reconstruction_failures": 0,
+      "lift_seconds": 0.11623589205555618
+    }
+  ],
+  "rational_reconstruction_failures": 0,
+  "max_reconstructed_numerator_bits": 131,
+  "max_reconstructed_denominator_bits": 71,
+  "degree_pattern": {
+    "1,1": {
+      "z_numerator": 59,
+      "z_denominator": 59,
+      "epsilon_numerator": 6,
+      "epsilon_denominator": 6
+    },
+    "2,1": {
+      "z_numerator": 60,
+      "z_denominator": 60,
+      "epsilon_numerator": 6,
+      "epsilon_denominator": 6
+    }
+  },
+  "numerator_grid_bidegree_cap": [
+    68,
+    8
+  ],
+  "disjoint_validation_pairs_per_prime": 16,
+  "parallel_and_adaptive_wall_seconds": 5.531884622992948,
+  "per_prime": [
+    {
+      "prime": 2305843009213693951,
+      "cpu_set": "4",
+      "native_threads": 1,
+      "native_seconds": 0.6924384909216315,
+      "native_parse_seconds": 0.012497099,
+      "native_evaluation_seconds": 0.671785742,
+      "max_rss_kb": 3588,
+      "reconstruction_seconds": 1.485393790062517
+    },
+    {
+      "prime": 2305843009213693921,
+      "cpu_set": "5",
+      "native_threads": 1,
+      "native_seconds": 0.6935129190096632,
+      "native_parse_seconds": 0.013265757,
+      "native_evaluation_seconds": 0.662712114,
+      "max_rss_kb": 3732,
+      "reconstruction_seconds": 1.4929449539631605
+    },
+    {
+      "prime": 2305843009213693907,
+      "cpu_set": "6",
+      "native_threads": 1,
+      "native_seconds": 0.7044126950204372,
+      "native_parse_seconds": 0.013593937,
+      "native_evaluation_seconds": 0.668772162,
+      "max_rss_kb": 3736,
+      "reconstruction_seconds": 1.5078467580024153
+    },
+    {
+      "prime": 2305843009213693723,
+      "cpu_set": "7",
+      "native_threads": 1,
+      "native_seconds": 0.6723293559625745,
+      "native_parse_seconds": 0.012573466,
+      "native_evaluation_seconds": 0.65749191,
+      "max_rss_kb": 3620,
+      "reconstruction_seconds": 1.3703091249335557
+    },
+    {
+      "prime": 2305843009213693693,
+      "cpu_set": "4",
+      "native_threads": 1,
+      "native_seconds": 0.6545809430535883,
+      "native_parse_seconds": 0.010405845,
+      "native_evaluation_seconds": 0.63952726,
+      "max_rss_kb": 3636,
+      "reconstruction_seconds": 1.4193044380517676
+    },
+    {
+      "prime": 2305843009213693669,
+      "cpu_set": "5",
+      "native_threads": 1,
+      "native_seconds": 0.6948543640319258,
+      "native_parse_seconds": 0.011370879,
+      "native_evaluation_seconds": 0.646586111,
+      "max_rss_kb": 3664,
+      "reconstruction_seconds": 1.4089391469024122
+    },
+    {
+      "prime": 2305843009213693613,
+      "cpu_set": "6",
+      "native_threads": 1,
+      "native_seconds": 0.6732075219042599,
+      "native_parse_seconds": 0.011887048,
+      "native_evaluation_seconds": 0.64559306,
+      "max_rss_kb": 3692,
+      "reconstruction_seconds": 1.4080190500244498
+    },
+    {
+      "prime": 2305843009213693561,
+      "cpu_set": "7",
+      "native_threads": 1,
+      "native_seconds": 0.6506591709330678,
+      "native_parse_seconds": 0.011553101,
+      "native_evaluation_seconds": 0.63720377,
+      "max_rss_kb": 3588,
+      "reconstruction_seconds": 1.4625202709576115
+    }
+  ],
+  "claim_boundary": "exact accepted-gauge forcing only on the fixed u=3 path; ExactPathForcingAccepted, not global no-eps-form"
+}

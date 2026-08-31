@@ -1,0 +1,28 @@
+{
+  "status": "CF303Block2CheckpointBasisDerivedV1",
+  "sector_state": "/home/maxzhang/factorization-and-loops-codex/Runtime/CF303_exception14_continuation_2026-08-30/sector_state_CF303_standard.wl",
+  "sector_state_sha256": "8a7ae7cbf8bb304682a39fbb78a54e9459c1a857cf687c91ee5651a79cceb7ed",
+  "strip_checkpoint": "/home/maxzhang/factorization-and-loops-codex/Runtime/CF303_exception14_continuation_2026-08-30/sector_CF303_standard/CF303_25_strip_state.wl",
+  "strip_checkpoint_sha256": "9a9aa8129e91566d7e5267900a402c91968549dbcfe7caca903408a80a2bf7f2",
+  "source_input": "/home/maxzhang/factorization-and-loops-codex/Runtime/CF303_exception14_continuation_2026-08-30/sector_CF303_standard/CF303_25_2_input.wl",
+  "source_input_sha256": "db6c2e6aad6970dceb607fdbd62aa088dedd1f573f92a2f319580b664b90d7e7",
+  "hard_sector": 25,
+  "lower_sector": 2,
+  "row_block_position": 25,
+  "column_block_position": 2,
+  "row_range": [
+    44,
+    45
+  ],
+  "column_range": [
+    2
+  ],
+  "row_block_basis": [
+    5,
+    6
+  ],
+  "column_block_basis": [
+    39
+  ],
+  "derivation": "matched DeferredPreparation RowIndices/ColumnIndices to the same-position Ranges/Blocks lists in the saved sector state"
+}

@@ -1,0 +1,134 @@
+{
+  "status": "CF303Block2ExactPathUnseenPrimeAcceptedV1",
+  "acceptance": "ExactPathForcingAccepted",
+  "prime": 2305843009213692199,
+  "prime_bits": 61,
+  "pairs": [
+    [
+      500,
+      101
+    ],
+    [
+      507,
+      104
+    ],
+    [
+      514,
+      107
+    ],
+    [
+      521,
+      110
+    ],
+    [
+      528,
+      113
+    ],
+    [
+      535,
+      116
+    ],
+    [
+      542,
+      119
+    ],
+    [
+      549,
+      122
+    ],
+    [
+      556,
+      125
+    ],
+    [
+      563,
+      128
+    ],
+    [
+      570,
+      131
+    ],
+    [
+      577,
+      134
+    ],
+    [
+      584,
+      137
+    ],
+    [
+      591,
+      140
+    ],
+    [
+      598,
+      143
+    ],
+    [
+      605,
+      146
+    ]
+  ],
+  "point_count": 16,
+  "radical_signs": [
+    [
+      1,
+      1
+    ],
+    [
+      -1,
+      1
+    ],
+    [
+      1,
+      -1
+    ],
+    [
+      -1,
+      -1
+    ]
+  ],
+  "sign_comparisons": 128,
+  "exact_path_comparisons": 32,
+  "differentiate_back_comparisons": 32,
+  "selected_sheet_header": {
+    "status": 0,
+    "prime": 2305843009213692199,
+    "rank": 2,
+    "base_count": 64,
+    "record_count": 4,
+    "term_count": 32,
+    "unique_expression_count": 36,
+    "dimension0": 2,
+    "dimension1": 2,
+    "dimension2": 1,
+    "parse_nanoseconds": 10381310,
+    "evaluation_nanoseconds": 23429904,
+    "threads": 4,
+    "mode": 1,
+    "deck_grade_count": 4
+  },
+  "full_grade_header": {
+    "status": 0,
+    "prime": 2305843009213692199,
+    "rank": 2,
+    "base_count": 16,
+    "grade_count": 4,
+    "record_count": 4,
+    "term_count": 32,
+    "unique_expression_count": 36,
+    "dimension0": 2,
+    "dimension1": 2,
+    "dimension2": 1,
+    "parse_nanoseconds": 19937058,
+    "evaluation_nanoseconds": 293561672
+  },
+  "selected_sheet_seconds": 0.03535570204257965,
+  "selected_sheet_max_rss_kb": 2072,
+  "full_grade_seconds": 0.3398771099746227,
+  "selected_sheet_stderr": "Status=OK Code=0 Records=4 Terms=32 Unique=36 SelectedImages=64 Threads=4 Mode=expression Detail=0:0 TotalSeconds=0.033893\nMAX_RSS_KB=2072",
+  "full_grade_stderr": "Status=OK Code=0 Records=4 Terms=32 Unique=36 Detail=0:0 TotalSeconds=0.314336\nMAX_RSS_KB=20188",
+  "source_sha256": "db6c2e6aad6970dceb607fdbd62aa088dedd1f573f92a2f319580b664b90d7e7",
+  "wall_seconds": 0.47119663399644196,
+  "claim_boundary": "unseen-prime fixed-path forcing and differentiate-back acceptance; not global no-eps-form"
+}
