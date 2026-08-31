@@ -23,4 +23,10 @@
 ## Transport handoff
 
 - [x] 🟢 Tell Fable to stop transport development and transfer the accepted work/evidence (Exchange note 18).
-- [ ] 🟡 Implement the provider/FLINT transport path, preserving the package's general two-variable `s,t,u` conventions and random-point modular acceptance.
+- [x] 🟢 Extract the complete accepted CF303 order table from the final gauged row without symbolic `Together`: 130 finite edges in 31.94 s, with two independent split points agreeing.
+- [x] 🟢 Implement the family-neutral FLINT selected-sheet path-jet backend for rank 0–3 multiquadratic connections, 61-bit primes, and up to eight threads.
+- [x] 🟢 Connect native coefficient jets to one formal block-DAG recurrence with the true `ord(TInverse_i)` constant floors and exact propagated depth windows.
+- [x] 🟢 Evaluate all 145 CF303 block/order nodes through path order 8: 0.80 s after the coefficient cache is present.
+- [x] 🟢 Perform the production-style fresh-prime acceptance: 2,160 differential-equation coefficients and 270 basepoint coefficients vanish/agree exactly modulo `2305843009213641971`.
+- [ ] 🟡 Package the accepted path contract, provider descriptor, order table, boundary windows, and formal recurrence as a stable serializable transport artifact/driver; do not call a finite origin jet an endpoint value.
+- [ ] 🟡 Generalize the driver invocation over arbitrary package families and accepted paths while retaining the package's two-variable dimensionless-chart convention.

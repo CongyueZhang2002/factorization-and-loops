@@ -945,7 +945,6 @@ ClearAll[pathTransportExceptionFormalLower,
   pathTransportExceptionFormalRender,
   pathTransportExceptionFormalRelease,
   pathTransportFormalConstant, pathTransportFormalLowerNode,
-  pathTransportFormalPropagatorNode,
   pathTransportExceptionFormalMemoized,
   $pathTransportExceptionFormalGraphs,
   $pathTransportExceptionFormalMemo];
@@ -1001,12 +1000,18 @@ Options[pathTransportExceptionFormalLower] = {
      consumes the upstream-accepted diagonal eps-form data (Codex
      note 10 item 4).  An explicit association <|i -> M_i|> bypasses
      the derivation entirely. *)
-  "DiagonalOrderOne" -> Automatic};
+  "DiagonalOrderOne" -> Automatic,
+  (* The independent boundary constants of block i begin at
+     n0 + ord(TInverse_i), not at the lowest order induced by incoming
+     negative-epsilon couplings.  Production supplies both windows from the
+     accepted diagonal transformations. *)
+  "KMinPerBlock" -> Automatic,
+  "ConstantTopPerBlock" -> Automatic};
 
 pathTransportExceptionFormalLower[prepared_Association,
     assembly_Association, tau_Symbol, eps_, OptionsPattern[]] := Module[
-  {ahat, ranges, nb, rmin, need, schedule, low, top, selected, exclude,
-   constant, extraction, diagonalOption, gid, blocks = <||>,
+  {ahat, ranges, nb, rmin, need, schedule, low, top, kmin, constantTop,
+   selected, exclude, constant, extraction, diagonalOption, gid, blocks = <||>,
    iOrders = <||>, refusal = None},
   If[Lookup[prepared, "Status", None] =!=
       "PathTransportExceptionPreparedV1",
@@ -1016,8 +1021,17 @@ pathTransportExceptionFormalLower[prepared_Association,
   nb = Length[assembly["Blocks"]];
   rmin = prepared["Budget"]["RMin"];
   need = prepared["Budget"]["Need"];
-  schedule = masterTransportBWSchedule[rmin,
-    ConstantArray[0, nb], need];
+  kmin = Replace[OptionValue["KMinPerBlock"],
+    Automatic :> ConstantArray[0, nb]];
+  constantTop = Replace[OptionValue["ConstantTopPerBlock"],
+    Automatic :> need];
+  If[! MatchQ[kmin, {___Integer}] || Length[kmin] =!= nb ||
+      ! MatchQ[constantTop, {___Integer}] || Length[constantTop] =!= nb ||
+      ! And @@ Thread[constantTop >= kmin],
+    Return[<|"Status" -> "InvalidFormalConstantWindows",
+      "KMinPerBlock" -> kmin,
+      "ConstantTopPerBlock" -> constantTop|>]];
+  schedule = masterTransportBWSchedule[rmin, kmin, need];
   low = schedule["Low"];
   top = schedule["Top"];
   exclude = OptionValue["ExcludeBlocks"];
@@ -1062,7 +1076,8 @@ pathTransportExceptionFormalLower[prepared_Association,
       If[refusal === None,
         kernelMin = If[feeders === {}, 0,
           Min[Table[rmin[[i, j]] + low[[j]], {j, feeders}]]];
-        requiredInverseOrder = Max[top[[i]] - kernelMin, top[[i]]];
+        requiredInverseOrder = Max[0, top[[i]] - kernelMin,
+          top[[i]] - kmin[[i]]];
         handles = Association @@ Table[
           j -> Which[
             AssociationQ[extraction] &&
@@ -1093,12 +1108,15 @@ pathTransportExceptionFormalLower[prepared_Association,
   $pathTransportExceptionFormalGraphs[gid] = <|
     "Blocks" -> blocks, "Selected" -> selected,
     "Low" -> low, "Top" -> top, "RMin" -> rmin,
+    "KMin" -> kmin, "ConstantTop" -> constantTop,
     "Tau" -> tau, "Regulator" -> eps,
     "ConstantHead" -> constant|>;
   <|"Status" -> "OKFormalLowerGraph",
     "GraphID" -> gid,
     "Blocks" -> selected,
     "Windows" -> <|"Low" -> low, "Top" -> top|>,
+    "ConstantWindows" -> <|"Low" -> kmin,
+      "Top" -> constantTop|>,
     "IOrders" -> iOrders,
     "ConstantHead" -> constant,
     "Certificate" -> <|
@@ -1137,6 +1155,7 @@ pathTransportExceptionFormalRender[graph_Association, i_Integer,
   If[MissingQ[data],
     Return[<|"Status" -> "FormalGraphNotRegistered", "GraphID" -> gid|>]];
   With[{tau = data["Tau"], low = data["Low"], top = data["Top"],
+      kmin = data["KMin"], constantTop = data["ConstantTop"],
       rmin = data["RMin"], constant = data["ConstantHead"],
       blocksData = data["Blocks"]},
     renderU[b_, a_] := memo[{gid, "U", b, a}, Module[{bd, var},
@@ -1179,11 +1198,13 @@ pathTransportExceptionFormalRender[graph_Association, i_Integer,
       Module[{bd = blocksData[b]},
         Sum[
           renderU[b, a] . (
-            Table[constant[b, order - a, c], {c, bd["Dimension"]}] +
+            If[kmin[[b]] <= order - a <= constantTop[[b]],
+              Table[constant[b, order - a, c], {c, bd["Dimension"]}],
+              ConstantArray[0, bd["Dimension"]]] +
             If[bd["Feeders"] =!= {} && order - a >= bd["KernelMin"],
               renderQ[b, order - a],
               ConstantArray[0, bd["Dimension"]]]),
-          {a, 0, Min[order - Min[low[[b]], bd["KernelMin"]],
+          {a, 0, Min[order - Min[kmin[[b]], bd["KernelMin"]],
             bd["RequiredInverseOrder"]]}]]];
     If[! KeyExistsQ[blocksData, i],
       Return[<|"Status" -> "BlockNotInFormalGraph", "Block" -> i|>]];
@@ -1359,7 +1380,8 @@ pathTransportExceptionFormalEvaluate[graph_Association,
     requests : {{_Integer, _Integer} ..}, OptionsPattern[]] := Module[
   {gid, data, p, t, sheet, constants, edgeOption, diagonalOption,
    store, localMemo, evalM, evalU, evalV, evalB, evalKernel, evalQ,
-   evalI, constantAt, zeroJet, idJet, matMul, matAdd, result},
+   evalI, constantAt, zeroJet, idJet, matMul,
+   validJetMatrixQ, result},
   gid = Lookup[graph, "GraphID", None];
   data = Lookup[$pathTransportExceptionFormalGraphs, Key[gid],
     Missing["GraphReleased"]];
@@ -1408,7 +1430,9 @@ pathTransportExceptionFormalEvaluate[graph_Association,
     Mod[Total[Table[pathTransportExceptionJetMul[a[[r, k]],
       b[[k, c]], p], {k, Length[b]}]], p],
     {r, Length[a]}, {c, Length[First[b]]}];
-  matAdd[a_, b_] := Mod[a + b, p];
+  validJetMatrixQ[matrix_, rows_Integer, columns_Integer] :=
+    Dimensions[matrix] === {rows, columns, t + 1} &&
+      AllTrue[Flatten[matrix], IntegerQ[#1] && 0 <= #1 < p &];
   constantAt[b_, order_, comp_] := Module[{value},
     value = Which[
       AssociationQ[constants], Lookup[constants,
@@ -1420,11 +1444,18 @@ pathTransportExceptionFormalEvaluate[graph_Association,
         "Block" -> b, "Order" -> order, "Component" -> comp]];
     Mod[value, p]];
   With[{tau = data["Tau"], low = data["Low"], top = data["Top"],
+      kmin = data["KMin"], constantTop = data["ConstantTop"],
       rmin = data["RMin"], blocksData = data["Blocks"]},
-    evalM[b_] := localMemo[{"M", b}, If[diagonalOption === Automatic,
+    evalM[b_] := localMemo[{"M", b}, Module[{value, dim},
+      dim = blocksData[b]["Dimension"];
+      value = If[diagonalOption === Automatic,
         Map[pathTransportExceptionJetOfExpression[#, tau, p, t,
           sheet] &, blocksData[b]["M"], {2}],
-        diagonalOption[b, t, p, sheet]]];
+        diagonalOption[b, t, p, sheet]];
+      If[! validJetMatrixQ[value, dim, dim],
+        pathTransportExceptionJetThrow["DiagonalSeriesInvalid",
+          "Block" -> b, "ObservedDimensions" -> Dimensions[value]]];
+      value]];
     evalU[b_, a_] := localMemo[{"U", b, a}, If[a === 0,
         idJet[blocksData[b]["Dimension"]],
         Map[pathTransportExceptionJetIntegrate[#, p] &,
@@ -1433,11 +1464,20 @@ pathTransportExceptionFormalEvaluate[graph_Association,
         idJet[blocksData[b]["Dimension"]],
         Mod[-Total[Table[matMul[evalV[b, a - k], evalU[b, k]],
           {k, 1, a}]], p]]];
-    evalB[b_, j_, order_] := localMemo[{"B", b, j, order}, If[edgeOption === Automatic,
-        Map[pathTransportExceptionJetOfExpression[#, tau, p, t,
-            sheet] &,
-          blocksData[b]["EdgeHandles"][j][order], {2}],
-        edgeOption[{b, j}, order, t, p, sheet]]];
+    evalB[b_, j_, order_] := localMemo[{"B", b, j, order},
+      Module[{value, rowDimension, columnDimension},
+        rowDimension = blocksData[b]["Dimension"];
+        columnDimension = blocksData[j]["Dimension"];
+        value = If[edgeOption === Automatic,
+          Map[pathTransportExceptionJetOfExpression[#, tau, p, t,
+              sheet] &,
+            blocksData[b]["EdgeHandles"][j][order], {2}],
+          edgeOption[{b, j}, order, t, p, sheet]];
+        If[! validJetMatrixQ[value, rowDimension, columnDimension],
+          pathTransportExceptionJetThrow["EdgeSeriesInvalid",
+            "Edge" -> {b, j}, "Order" -> order,
+            "ObservedDimensions" -> Dimensions[value]]];
+        value]];
     evalKernel[b_, order_] := localMemo[{"K", b, order}, Module[{bd = blocksData[b], acc},
         acc = Table[zeroJet, {bd["Dimension"]}];
         Do[
@@ -1461,14 +1501,16 @@ pathTransportExceptionFormalEvaluate[graph_Association,
         acc = Table[zeroJet, {bd["Dimension"]}];
         Do[
           Module[{vec},
-            vec = Table[PadRight[{constantAt[b, order - a, comp]},
-              t + 1], {comp, bd["Dimension"]}];
+            vec = If[kmin[[b]] <= order - a <= constantTop[[b]],
+              Table[PadRight[{constantAt[b, order - a, comp]},
+                t + 1], {comp, bd["Dimension"]}],
+              Table[zeroJet, {bd["Dimension"]}]];
             If[bd["Feeders"] =!= {} &&
                 order - a >= bd["KernelMin"],
               vec = Mod[vec + evalQ[b, order - a], p]];
             acc = Mod[acc + Flatten[
               matMul[evalU[b, a], Transpose[{vec}]], 1], p]],
-          {a, 0, Min[order - Min[low[[b]], bd["KernelMin"]],
+          {a, 0, Min[order - Min[kmin[[b]], bd["KernelMin"]],
             bd["RequiredInverseOrder"]]}];
         acc]];
     result = None;

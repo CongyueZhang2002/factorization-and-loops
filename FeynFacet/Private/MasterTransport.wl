@@ -2613,7 +2613,7 @@ masterTransportDepthBudget[assembly_, ahat_, kmax_Integer, eps_] := Module[
    expression-scan route above stays as the diagnostic/reference. *)
 masterTransportDepthBudgetFromTable[assembly_, rminTable_,
     kmax_Integer] := Module[
-  {nb, need, table},
+  {nb, need, table, invalidEdges},
   nb = Length[assembly["Blocks"]];
   If[Dimensions[rminTable] =!= {nb, nb},
     Return[<|"Status" -> "InvalidOrderTable",
@@ -2624,6 +2624,14 @@ masterTransportDepthBudgetFromTable[assembly_, rminTable_,
      note 14) *)
   table = Table[If[i > j, rminTable[[i, j]], Infinity],
     {i, nb}, {j, nb}];
+  invalidEdges = Select[Flatten[Table[{i, j}, {i, nb}, {j, i - 1}], 1],
+    With[{value = table[[#[[1]], #[[2]]]]},
+      value =!= Infinity && ! IntegerQ[value]] &];
+  If[invalidEdges =!= {},
+    Return[<|"Status" -> "InvalidOrderTable",
+      "InvalidEdges" -> invalidEdges,
+      "InvalidValues" ->
+        (table[[#[[1]], #[[2]]]] & /@ invalidEdges)|>]];
   need = ConstantArray[kmax, nb];
   Do[
     Do[

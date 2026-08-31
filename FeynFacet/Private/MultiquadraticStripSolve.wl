@@ -8906,6 +8906,7 @@ multiquadraticStripAssembleSample[layout_Association,
   If[! multiquadraticStripAssemblyLayoutEvaluationValidQ[layout] ||
       ! multiquadraticStripProviderEvaluationValidQ[provider] ||
       ! PrimeQ[prime] ||
+      (Lookup[provider, "RootCount", 0] > 0 && Mod[prime, 4] =!= 3) ||
       ! (3 < prime < $multiquadraticStripWordPrimeLimit),
     Return[multiquadraticStripFailure["InvalidProviderSampleInput"]]];
   If[layout["CoefficientABIFingerprint"] =!=
