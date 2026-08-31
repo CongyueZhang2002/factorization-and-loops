@@ -8,9 +8,12 @@ args = Rest[$ScriptCommandLine];
 root = "/home/maxzhang/factorization-and-loops";
 codexRoot = "/home/maxzhang/factorization-and-loops-codex";
 mode = If[Length[args] >= 1 && (MemberQ[{"downward", "shell3"}, args[[1]]] ||
-      StringMatchQ[args[[1]], "lift" ~~ NumberString]),
+      StringMatchQ[args[[1]], "lift" ~~ NumberString ~~ ("g" | "")]),
   args[[1]], "downward"];
 liftQ = StringStartsQ[mode, "lift"];
+guidedLiftQ = liftQ && StringEndsQ[mode, "g"];
+liftCount = If[liftQ, StringDrop[mode, {1, 4}] /.
+    value_String /; StringEndsQ[value, "g"] :> StringDrop[value, -1], ""];
 argumentOffset = If[mode === "downward" &&
     ! (Length[args] >= 1 && args[[1]] === "downward"), 0, 1];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
@@ -24,7 +27,8 @@ runtime = Which[
 modular = Get[FileNameJoin[{runtime, Switch[mode,
   "downward", "cf259_active_fixed_core_modular_vector_prime1.wl",
   "shell3", "cf259_shell3_fixed_core_modular_vector_prime1.wl",
-  _, "rational_lift_" <> StringDrop[mode, 4] <> "_plus_1.wl"]}]];
+  _, "rational_lift_" <> liftCount <> "_plus_1" <>
+    If[guidedLiftQ, "_guided", ""] <> ".wl"]}]];
 core = Get[FileNameJoin[{If[mode === "downward", runtime,
     FileNameJoin[{codexRoot, "Runtime",
       "2026-08-31_cf259_shell3_stacked_taylor_core"}]],
@@ -101,7 +105,7 @@ validationSeed = If[Length[args] >= argumentOffset + 2,
 {sampleSeconds, sample} = AbsoluteTiming[Block[
   {FeynFacet`Private`$multiquadraticStripTrustedProviderEvaluation = True,
    FeynFacet`Private`$multiquadraticStripTrustedLayoutEvaluation = True,
-   $ProcessorCount = 4},
+   $ProcessorCount = 8},
   FeynFacet`Private`multiquadraticStripAssembleSample[
     layout, provider, epsilonValue, prime, "PointCount" ->
       If[mode === "downward", Automatic, core["PointCount"]],

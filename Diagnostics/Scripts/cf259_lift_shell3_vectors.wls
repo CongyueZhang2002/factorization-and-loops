@@ -17,7 +17,7 @@ codexRoot = "/home/maxzhang/factorization-and-loops-codex";
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 primeValues = {2305843009213693951, 2305843009213693907,
   2305843009213693723, 2305843009213693487, 2305843009213693123,
-  2305843009213692199, 2305843009213691993};
+  2305843009213692199, 2305843009213691819};
 tags = "prime" <> ToString[#] & /@ Range[Length[primeValues]];
 If[trainingCount < 1 || trainingCount >= Length[primeValues], Exit[64]];
 vectorFile[1] := FileNameJoin[{codexRoot, "Runtime",

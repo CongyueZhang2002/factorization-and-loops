@@ -50,7 +50,8 @@ classification = Join[classification, <|
     "SourceIndex", {}]|>];
 stableOrder = FeynFacet`Private`multiquadraticStripRootOrder[
   frame, variables, Sort[classification["RequiredRootIndices"]], epsilon];
-If[Lookup[stableOrder, "Status", None] =!= "StableRootOrder", Exit[1]];
+If[Lookup[stableOrder, "Status", None] =!= "StableRootOrder",
+  Print["stable root order failed: ", InputForm[stableOrder]]; Exit[1]];
 directOptions = FeynFacet`Private`familyRowGaugeDirectAlphabetOptions[
   record["DeferredPreparation"]];
 candidate = FeynFacet`Private`multiquadraticStripCandidateLetters[
@@ -59,7 +60,9 @@ candidate = FeynFacet`Private`multiquadraticStripCandidateLetters[
   "AlgebraicLetters" -> directOptions["AlgebraicLetters"],
   "DLogKernels" -> 1, "Deadline" -> Infinity];
 If[Lookup[candidate, "Status", None] =!=
-    "MultiquadraticCandidateLettersV1", Exit[1]];
+    "MultiquadraticCandidateLettersV1",
+  Print["candidate letters failed: ", InputForm[KeyDrop[candidate,
+    {"LetterRecords", "OneForms"}]]]; Exit[1]];
 prepared = FeynFacet`Private`multiquadraticStripPrepare[record, frame,
   "RootClassification" -> classification,
   "CoefficientProvider" -> "SplitBranch", "CompileCore" -> False,
@@ -68,7 +71,8 @@ prepared = FeynFacet`Private`multiquadraticStripPrepare[record, frame,
   "GaugeDenominator" -> census["GaugeDenominator"],
   "Support" -> supportData["Shells"][3], "Deadline" -> Infinity];
 If[Lookup[prepared, "Status", None] =!= "PreparedMultiquadraticStripV1",
-  Exit[1]];
+  Print["strip preparation failed: ", InputForm[KeyDrop[prepared,
+    {"Record", "OneForms", "Roots", "Potentials"}]]]; Exit[1]];
 If[prepared["GaugeUnknownCount"] =!= plan["GaugeUnknownCount"] ||
     prepared["ResidueUnknownCount"] =!= plan["ResidueUnknownCount"],
   Print["fixed-plan layout width changed"]; Exit[2]];
@@ -100,7 +104,10 @@ assemble[value_] := Block[
 timed = Association@Table[value -> AbsoluteTiming[assemble[value]],
   {value, {1/7, 8/7}}];
 If[AnyTrue[Values[timed], Lookup[#[[2]], "Status", None] =!=
-    "AssembledMultiquadraticSampleV1" &], Exit[4]];
+    "AssembledMultiquadraticSampleV1" &],
+  Print["fixed-plan core sample failed: ", InputForm[AssociationMap[
+    KeyDrop[timed[#][[2]], {"Matrix", "RightHandSide", "RejectedPoints"}] &,
+    Keys[timed]]]]; Exit[4]];
 base = Developer`ToPackedArray[
   timed[1/7][[2, "Matrix"]][[rows, columns]]];
 slope = Developer`ToPackedArray[Mod[

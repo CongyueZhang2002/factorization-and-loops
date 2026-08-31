@@ -9,13 +9,15 @@ $HistoryLength = 0;
 args = Rest[$ScriptCommandLine];
 trainingCount = If[Length[args] >= 1, ToExpression[args[[1]]], 5];
 validationSeed = If[Length[args] >= 2, ToExpression[args[[2]]], 2026083481];
+reconstructionMethod = If[Length[args] >= 3, args[[3]], "balanced"];
 root = "/home/maxzhang/factorization-and-loops";
 codexRoot = "/home/maxzhang/factorization-and-loops-codex";
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 runtime = FileNameJoin[{codexRoot, "Runtime",
   "2026-08-31_cf259_shell3_multprime"}];
 liftFile = FileNameJoin[{runtime, "rational_lift_" <>
-  ToString[trainingCount] <> "_plus_1.wl"}];
+  ToString[trainingCount] <> "_plus_1" <>
+  If[reconstructionMethod === "guided", "_guided", ""] <> ".wl"}];
 acceptanceFile = FileNameJoin[{runtime,
   "fresh_modular_acceptance_seed" <> ToString[validationSeed] <> ".wl"}];
 If[! FileExistsQ[liftFile] || ! FileExistsQ[acceptanceFile],
