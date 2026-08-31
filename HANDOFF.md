@@ -1,16 +1,21 @@
 # Session transfer note — updated 2026-08-31 afternoon (Fable)
 
 ## RESUMED by the user ("you can continue on the proofs").  (25,14)
-## complete-span rescreen IN FLIGHT: Kallen23 completeness screen on
-## Codex's schema-current input (25.4 MB), span = census + {Z4, Z2,
-## P3, N4, N7}, allowance 14,400 s, watchdog armed, log
-## <scratchpad>/b14_screen_run.log.  (25,1) waits on Codex's answer
-## to the note-21 provider-frame hook (critical path; my note 23
-## re-presses it).  If the hook lands mid-run, kill by verified PID
-## and switch both blocks to provider speed.  After each screen:
+## rescreen state: run 1 failed on a shape bug (Bbar hardcoded
+## 2x2x1; block 14 is 2x2 — fixed, dimLower now read from the
+## record, commit 267be974; run-1 output artifact in the codex tree
+## is CONTAMINATED with unevaluated MatrixRank heads, do not
+## consume).  Run 2 (shape-fixed, 6.2M leaves, 27 letters, healthy)
+## was SIGKILLed ~12:54 by an external hand concurrent with Codex's
+## `cf303_gpl_subgraph_smoke.wls` main-kernel launch — not my
+## allowance, not the OOM killer (notes 23/24 to Codex; seat window
+## requested).  WAITING on Codex's reply before relaunch; a
+## persistent monitor watches Exchange/Codex for it.  (25,1) still
+## waits on the note-21 provider-frame hook.  After each screen:
 ## final certificate to Results/.../PathTransportObstructions/CF303/
-## on the (25,11) pattern.  Repo screen script synced to the
-## block-14-capable version (block arg 2|1|14).
+## on the (25,11) pattern.  Relaunch command when the seat frees:
+## run_with_allowance.sh 14400 <scratchpad>/b14_screen_run3.log
+## <scratchpad>/screen_cf303_25_2_kallen23.wls 14  (+ watchdog).
 
 # Superseded: updated 2026-08-31 ~13:45 PDT (Fable)
 
