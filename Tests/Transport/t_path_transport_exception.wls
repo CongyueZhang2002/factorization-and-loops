@@ -743,6 +743,25 @@ Module[{p = 2147483629, jet},
       "TauOrder" -> 4, "Prime" -> 3,
       "ConstantValues" -> constants], "Status", None] ===
       "TauOrderInsufficient"];
+  (* note 16: one batch shares one evaluation context and agrees with
+     the scalar results; an order the graph never claimed refuses *)
+  Module[{batch, allNodes},
+    allNodes = Flatten[Table[{i2, n2}, {i2, 3},
+      {n2, graph["Windows"]["Low"][[i2]],
+        graph["Windows"]["Top"][[i2]]}], 1];
+    batch = pte["pathTransportExceptionFormalEvaluate"][graph,
+      allNodes, "TauOrder" -> T, "Prime" -> p,
+      "ConstantValues" -> constants];
+    FTAssert["E9: batch evaluates all windows in one context",
+      batch["Status"] === "OKModularGraphSeriesBatch" &&
+        Sort[Keys[batch["Nodes"]]] === Sort[allNodes] &&
+        batch["Nodes"][{3, -1}]["Series"] ===
+          Lookup[jets, Key[{3, -1}]]["Series"]];
+    FTAssert["E9: order outside the window refuses by name",
+      Lookup[pte["pathTransportExceptionFormalEvaluate"][graph,
+        {{1, 5}}, "TauOrder" -> 2, "Prime" -> p,
+        "ConstantValues" -> constants], "Status", None] ===
+        "OrderOutsideGraphWindow"]];
   pte["pathTransportExceptionFormalRelease"][graph]]];
 
 (* E8: origin-regularity and sheet refusals of the jet primitive *)

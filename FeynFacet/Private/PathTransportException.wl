@@ -1348,8 +1348,15 @@ Options[pathTransportExceptionFormalEvaluate] = {
      for M_block; Automatic expands the stored small diagonal *)
   "DiagonalSeries" -> Automatic};
 
-pathTransportExceptionFormalEvaluate[graph_Association, i_Integer,
-    n_Integer, OptionsPattern[]] := Module[
+(* BATCH form (Codex note 16): every requested node is evaluated in
+   ONE local context, so shared U/V/B/kernel dependencies are computed
+   once and the cost is linear in the reachable graph size times
+   TauOrder.  The terminal consumer requests all windows in one batch.
+   A request outside the graph's recorded window refuses
+   OrderOutsideGraphWindow -- the graph never claimed that order and
+   constants must not be synthesized for it. *)
+pathTransportExceptionFormalEvaluate[graph_Association,
+    requests : {{_Integer, _Integer} ..}, OptionsPattern[]] := Module[
   {gid, data, p, t, sheet, constants, edgeOption, diagonalOption,
    store, localMemo, evalM, evalU, evalV, evalB, evalKernel, evalQ,
    evalI, constantAt, zeroJet, idJet, matMul, matAdd, result},
@@ -1363,6 +1370,23 @@ pathTransportExceptionFormalEvaluate[graph_Association, i_Integer,
   t = OptionValue["TauOrder"];
   If[! (IntegerQ[p] && p > 2 && PrimeQ[p] && IntegerQ[t] && t >= 0),
     Return[<|"Status" -> "InvalidModularEvaluationRequest"|>]];
+  (* window validation with a FUNCTION-scope refusal variable -- a
+     Return inside the per-request scope would be silently discarded
+     by Do (the trap this file documents) *)
+  result = None;
+  Do[
+    With[{b = request[[1]], order = request[[2]]},
+      Which[
+        result =!= None, Null,
+        ! KeyExistsQ[data["Blocks"], b],
+          result = <|"Status" -> "BlockNotInFormalGraph",
+            "Block" -> b|>,
+        ! (data["Low"][[b]] <= order <= data["Top"][[b]]),
+          result = <|"Status" -> "OrderOutsideGraphWindow",
+            "Block" -> b, "Order" -> order,
+            "Window" -> {data["Low"][[b]], data["Top"][[b]]}|>]],
+    {request, requests}];
+  If[result =!= None, Return[result]];
   sheet = OptionValue["SheetData"];
   constants = OptionValue["ConstantValues"];
   edgeOption = OptionValue["EdgeSeries"];
@@ -1447,24 +1471,47 @@ pathTransportExceptionFormalEvaluate[graph_Association, i_Integer,
           {a, 0, Min[order - Min[low[[b]], bd["KernelMin"]],
             bd["RequiredInverseOrder"]]}];
         acc]];
-    If[! KeyExistsQ[blocksData, i],
-      Return[<|"Status" -> "BlockNotInFormalGraph", "Block" -> i|>]];
-    result = Catch[evalI[i, n], $pathTransportExceptionJetTag];
-    If[AssociationQ[result] && KeyExistsQ[result, "Status"],
-      Return[Join[result, <|"Block" -> i, "OrderRequested" -> n|>]]];
-    <|"Status" -> "OKModularGraphSeries",
-      "Block" -> i, "Order" -> n,
-      "Series" -> result,
-      "SeriesCenter" -> 0, "BasePoint" -> 0,
-      "TruncationOrder" -> t, "Prime" -> p,
-      "Certificate" -> <|
-        "Statement" -> "An exact formal jet modulo tau^(T+1) of the \
-graph's variation-of-constants representation at the path origin, in \
-the plain monomial basis, on the sheet fixed by the supplied \
-basepoint root values.  Not an arbitrary-point integral value; \
-production acceptance compares constructed and direct systems as \
-jets at a fresh prime/sheet.",
-        "CheckLevel" -> masterTransportCheckLevel[],
-        "Evaluated" -> "OriginJet"|>|>]];
+    result = None;
+    Module[{nodes = <||>},
+      Do[
+        Module[{value},
+          value = Catch[evalI[request[[1]], request[[2]]],
+            $pathTransportExceptionJetTag];
+          If[AssociationQ[value] && KeyExistsQ[value, "Status"],
+            result = Join[value, <|"Block" -> request[[1]],
+              "OrderRequested" -> request[[2]]|>],
+            nodes[request] = <|"Status" -> "OKModularGraphSeries",
+              "Block" -> request[[1]], "Order" -> request[[2]],
+              "Series" -> value,
+              "SeriesCenter" -> 0, "BasePoint" -> 0,
+              "TruncationOrder" -> t, "Prime" -> p|>]];
+        If[result =!= None, Break[]],
+        {request, requests}];
+      If[result === None,
+        result = <|"Status" -> "OKModularGraphSeriesBatch",
+          "Nodes" -> nodes,
+          "SeriesCenter" -> 0, "BasePoint" -> 0,
+          "TruncationOrder" -> t, "Prime" -> p,
+          "Certificate" -> <|
+            "Statement" -> "Exact formal jets modulo tau^(T+1) of \
+the graph's variation-of-constants representation at the path \
+origin, in the plain monomial basis, on the sheet fixed by the \
+supplied basepoint root values; all requested nodes share one \
+evaluation context, so every (kind, block, order) dependency is \
+computed once.  Not arbitrary-point integral values; production \
+acceptance compares constructed and direct systems as jets at a \
+fresh prime/sheet.",
+            "CheckLevel" -> masterTransportCheckLevel[],
+            "Evaluated" -> "OriginJet"|>|>]];
+    result]];
+
+(* scalar form: a one-element batch (Codex note 16) *)
+pathTransportExceptionFormalEvaluate[graph_Association, i_Integer,
+    n_Integer, opts : OptionsPattern[]] := Module[{batch},
+  batch = pathTransportExceptionFormalEvaluate[graph, {{i, n}}, opts];
+  If[Lookup[batch, "Status", None] =!= "OKModularGraphSeriesBatch",
+    batch,
+    Join[batch["Nodes"][{i, n}],
+      <|"Certificate" -> batch["Certificate"]|>]]];
 pathTransportExceptionFormalEvaluate[___] :=
   <|"Status" -> "InvalidModularEvaluationInput"|>;
