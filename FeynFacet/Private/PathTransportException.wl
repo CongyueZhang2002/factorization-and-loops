@@ -153,16 +153,28 @@ pathTransportExceptionPlanQ[plan_] :=
    rationalizes square-root denominators (CLAUDE.md trap) and the
    residual root must survive. *)
 pathTransportExceptionPullback[expr_, contract_, endpoints : {z0_, z1_},
-    tau_Symbol] := Module[{z, vars, path, extension, rootSub},
+    tau_Symbol] := Module[{z, vars, path, extension, branchRules,
+    rootSub},
   z = contract["PathVariable"];
   vars = contract["Variables"];
   path = contract["SourcePath"];
   extension = Lookup[contract, "PathExtension", <|"Type" -> "None"|>];
+  (* EVERY half-integer power of a declared root square takes its
+     branch: the source entries spell radicals as Sqrt[P] and as
+     Power[P, -1/2] (and in principle P^(3/2)); a rules list covering
+     only the Sqrt spelling leaves inverse roots behind as a second,
+     independent sign ambiguity on the path -- found by the Wave-E
+     real-contract probe. *)
+  branchRules = Flatten[MapThread[
+    Function[{square, branch},
+      With[{sq = square, br = branch},
+        Power[sq, e_Rational] :> br^(2 e)]],
+    {contract["SourceRootSquares"], contract["SourceRootBranches"]}]];
   rootSub = If[AssociationQ[extension] &&
       extension["Type"] === "Quadratic" &&
       ! MissingQ[Lookup[extension, "Root", Missing[]]],
     {extension["Root"] -> Sqrt[extension["RootSquare"]]}, {}];
-  (expr /. contract["SourceRootRules"] /.
+  (expr /. branchRules /.
       Thread[vars -> Lookup[path, vars]] /. rootSub) /.
     z -> z0 + tau (z1 - z0)];
 
