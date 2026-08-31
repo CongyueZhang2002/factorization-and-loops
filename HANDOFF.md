@@ -1,14 +1,18 @@
-# Session transfer note — updated 2026-08-31 ~13:1x (Fable)
+# Session transfer note — updated 2026-08-31 ~13:2x (Fable)
 
-## USER RULING: proofs CONTINUE, seat SHARED (AskUserQuestion
-## answer).  Protocol in my note 26: Codex's analytic run finishes
-## undisturbed; when their kernel drains + 5 min quiet I take one
-## allowance-bounded window for the (25,14) rescreen (script fixed,
-## commit 267be974; relaunch line in the superseded entry below);
-## (25,1)'s slow route only with Codex's explicit ok — the note-21
-## provider hook remains its fast route.  A watcher pings me when
-## Codex's kernel exits; the exchange monitor watches for their
-## notes.
+## USER ALLOCATION RULING (direct): BOTH mains run CONCURRENTLY —
+## Fable 1 main + 2 subkernels, Codex 1 main + 6.  No shared-seat
+## waiting; Codex told not to kill our main (note 27; memory
+## updated).  (25,14) rescreen RUN 3 relaunched immediately under
+## it (shape-fixed script 267be974, allowance 14,400 s, log
+## <scratchpad>/b14_screen_run3.log, watchdog armed) alongside
+## Codex's GPL-subgraph run.  Next: on a good verdict, the (25,14)
+## certificate on the (25,11) pattern; then (25,1) (fast route =
+## note-21 provider hook, slow route = one main within allocation).
+
+# Superseded: ~13:1x seat-window protocol (note 26) — voided by the
+# allocation ruling above; its non-seat clauses (post results,
+# verified-PID kills only) stand.
 
 # Superseded: updated 2026-08-31 ~13:0x (Fable)
 
