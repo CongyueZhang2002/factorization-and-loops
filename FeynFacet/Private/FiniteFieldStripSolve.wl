@@ -1643,6 +1643,11 @@ SampleEpsFormStripAffine[
         OptionValue["ArtifactDirectory"], Automatic]];
     If[AssociationQ[nativePlanResult] &&
         Lookup[nativePlanResult, "Status", None] === "OK",
+      (* The sealed plan intentionally omits the image-specific affine
+         vectors.  Retain them before replacing the raw discovery result;
+         they are the valid solution of this first regulator image. *)
+      particularSolution = nativePlanResult["ParticularSolution"];
+      nullspaceBasis = nativePlanResult["NullspaceBasis"];
       sealedPlan = finiteFieldStripSealEliminationPlan[
         Join[KeyDrop[nativePlanResult,
             {"Binding", "PivotColumns", "FreeColumns",
@@ -1655,12 +1660,10 @@ SampleEpsFormStripAffine[
       nativePlanResult = sealedPlan;
       If[AssociationQ[sealedPlan] && Lookup[sealedPlan, "Status", None] === "OK",
         planResult = sealedPlan;
-        rank = nativePlanResult["GenericRank"];
+        rank = sealedPlan["GenericRank"];
         augmentedRank = rank;
         rankSeconds = 0.; augmentedRankSeconds = 0.;
         linearSolveSeconds = 0.; nullspaceSeconds = 0.;
-        particularSolution = nativePlanResult["ParticularSolution"];
-        nullspaceBasis = nativePlanResult["NullspaceBasis"];
         backendUsed = None;
         affineData = <|
           "LinearSolveSeconds" -> 0., "NullspaceSeconds" -> 0.,
