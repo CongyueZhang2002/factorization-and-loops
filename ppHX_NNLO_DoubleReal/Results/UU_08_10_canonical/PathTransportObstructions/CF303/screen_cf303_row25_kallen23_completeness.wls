@@ -18,9 +18,10 @@ priv = Symbol["FeynFacet`Private`" <> #] &;
 blockIndex = If[Length[$ScriptCommandLine] >= 2,
   ToExpression[$ScriptCommandLine[[2]]], 2];
 inputFile = FileNameJoin[{codexRoot, "Runtime",
-  If[blockIndex === 2,
-    "CF303_exception14_continuation_2026-08-30",
-    "2026-08-30_cf303_25_2_exact_common_path/resume"],
+  Switch[blockIndex,
+    2, "CF303_exception14_continuation_2026-08-30",
+    1, "2026-08-30_cf303_25_2_exact_common_path/resume",
+    14, "2026-08-31_cf303_25_14_schema_current"],
   "sector_CF303_standard",
   "CF303_25_" <> ToString[blockIndex] <> "_input.wl"}];
 record = Get[inputFile];
@@ -109,11 +110,17 @@ censusLetters = Cases[censusJSON["entries"],
   entry_Association /; ! KeyExistsQ[entry, "identical_to"] &&
     entry["terms"] =!= "homogenization_variable" :>
       letterPoly[entry["terms"]]];
-blockCurves = {
+sharedCurves = {
   -3 s^2 t^2 + s^2 + 8 s t^3 + 6 s t^2 - 12 s t + 2 s - 24 t^3 +
     33 t^2 - 12 t + 1,
   -s^2 + 4 s t + 4 s - 12 t + 5,
   -s^2 t - s^2 + 2 s t^2 + 2 s t - 6 t^2 + 3 t + 1};
+block14Curves = {
+  -2 s^2 t^2 + s^2 t + 2 s^2 + 4 s t^3 + 4 s t^2 - 4 s t - 4 s -
+    12 t^3 + 6 t^2 + 11,
+  -s^5 - 4 s^4 t^3 - 6 s^4 t^2 + s^4 + 8 s^3 t^4 + 32 s^3 t^3 + 36 s^3 t^2 - 24 s^3 t + 6 s^3 - 40 s^2 t^4 - 104 s^2 t^3 + 48 s^2 t^2 - 8 s^2 t + 2 s^2 + 88 s t^4 + 64 s t^3 - 132 s t^2 + 56 s t - 5 s - 120 t^4 + 204 t^3 - 138 t^2 + 40 t - 3};
+blockCurves = If[blockIndex === 14,
+  Join[sharedCurves, block14Curves], sharedCurves];
 allLetters = DeleteDuplicates[Join[censusLetters, blockCurves]];
 letterRecords = (<|"Letter" -> #,
    "OneForm" -> {D[#, t]/#, D[#, s]/#}|> &) /@ allLetters;
