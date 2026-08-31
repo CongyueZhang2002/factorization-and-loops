@@ -1,4 +1,25 @@
-# Session transfer note — updated 2026-08-31 ~13:2x (Fable)
+# Session transfer note — updated 2026-08-31 ~15:0x (Fable)
+
+## (25,1) CERTIFIED (4 of 5): complete-span ConfirmedObstruction
+## {1,1,1} at 3 images, 25 letters, via Codex's Kallen23
+## chart-native forcing DAG (the note-21 hook) — provider screen
+## 292 s where the symbolic route walled at 10.2M leaves.
+## Certificate: PathTransportObstructions/CF303/
+## cf303_25_1_obstruction_certificate.wl (commit c6d8eb54).
+## Kill conflict RESOLVED: after 4 deliberate Codex kills and 3
+## direct user rulings, Codex note 27 acknowledges the shared
+## allocation (Fable 1 main + 2 sub, Codex 1 main + 6) and commits
+## to non-interference.  REMAINING: (25,14) only — symbolic screen
+## run 4 in flight (6.2M leaves, allowance 14,400 s, watchdog,
+## fresh leg works on this route); Codex's builder fix for the
+## odd-grade exit-8 (note 29) would switch it to provider speed
+## (kill own run by PID, rerun "14 triple").  Provider-route
+## notes: fresh-image generator can't run there (samples the zero
+## Bbar placeholder) — use 3 CONFIGURED images (third: verified
+## prime 2147483179 @ 5/19); screen driver
+## screen_cf303_row25_provider.wls (also in scratchpad).
+
+# Superseded: ~13:2x allocation-ruling entry
 
 ## USER ALLOCATION RULING (direct): BOTH mains run CONCURRENTLY —
 ## Fable 1 main + 2 subkernels, Codex 1 main + 6.  No shared-seat
