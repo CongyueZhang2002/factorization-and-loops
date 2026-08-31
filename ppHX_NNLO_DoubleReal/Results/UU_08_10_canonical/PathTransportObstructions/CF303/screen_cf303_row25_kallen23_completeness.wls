@@ -30,16 +30,26 @@ eps = record["Regulator"];
 preparation = record["DeferredPreparation"]["Preparation"];
 {e0, c0, bbarPlaceholder} = record["Strip"];
 
-Print["materializing Bbar symbolically (2x2x1 targets) ..."];
+(* lower-block dimension from the record's own E (block 14 is 2x2;
+   blocks 1 and 2 are 1x1) -- the coupling Bbar is 2 x dimLower *)
+dimLower = Length[e0[[1]]];
+If[Dimensions[e0[[1]]] =!= {dimLower, dimLower},
+  Print[InputForm[<|"Status" -> "LowerBlockShapeUnrecognized",
+    "EDimensions" -> Dimensions[e0[[1]]]|>]]; Exit[1]];
+Print["materializing Bbar symbolically (2x2x", dimLower,
+  " targets) ..."];
 mSeconds = First[AbsoluteTiming[
   bbar0 = Table[
     priv["blockEquationDeferredSourceExpression"][preparation,
-      {mu, i, 1}],
-    {mu, 2}, {i, 2}, {j, 1}];]];
+      {mu, i, j}],
+    {mu, 2}, {i, 2}, {j, dimLower}];]];
 Print["materialized in ", mSeconds, " s; leaves ",
   LeafCount[bbar0]];
 If[! FreeQ[bbar0, _Missing],
   Print[InputForm[<|"Status" -> "MaterializationFailed"|>]]; Exit[1]];
+If[Dimensions[bbar0] =!= {2, 2, dimLower},
+  Print[InputForm[<|"Status" -> "BbarShapeUnrecognized",
+    "BbarDimensions" -> Dimensions[bbar0]|>]]; Exit[1]];
 
 (* the chart: rational x, y, lambda2/lambda3 branches; the bilinear
    root survives as the ONE generator *)
@@ -165,4 +175,12 @@ Put[out, outputFile];
 Print["written ", outputFile];
 Print[InputForm[KeyTake[If[AssociationQ[result], result, <||>],
   {"Status", "Defects", "Images", "Confirmed", "EvidenceRecord"}]]];
+(* an unusable/inconclusive screen is a FAILURE of this run, not a
+   verdict -- exit nonzero so the wrapper's exit code is honest *)
+usable = If[AssociationQ[result] &&
+    AssociationQ[result["EvidenceRecord"]],
+  Lookup[result["EvidenceRecord"], "ConfiguredUsable", 0], 0];
+If[! TrueQ[usable >= 2],
+  Print["SCREEN NOT USABLE (ConfiguredUsable=", usable, ")"];
+  Exit[2]];
 Print["DONE"];
