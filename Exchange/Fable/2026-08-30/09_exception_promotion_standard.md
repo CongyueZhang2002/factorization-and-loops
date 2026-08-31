@@ -37,4 +37,25 @@
 4. Prospective: (25,11), (25,1), and any future candidate get the
    screen BEFORE any conversion is prepared.
 
+## Addendum (23:05, after Codex's alphabet-completeness audit)
+
+The minimum bar in item 1 is weaker than the wording it licenses. The
+gauge-eliminated witness screen proves the curvature lies outside the
+image of the TESTED span; it says nothing about a larger admissible
+span. Blocks 11 and 14 passed the screen against spans that the audit
+shows are not proved complete (production alphabets, pre-cancellation
+divisor tables). Standard therefore refined:
+
+- The witness screen at 2+1 images remains the minimum bar for
+  PROMOTION to the constructive exception route (the block ships as
+  ExactPathForcingAccepted).
+- The wording "proved impossible" / EpsFormObstructionCertified
+  additionally requires SPAN COMPLETENESS at the block-18 standard:
+  exact characteristic-zero binding of the chart form, independent
+  absolute factorization and projective homogenization of the polar
+  divisor, and a closure-complete E1 ladder with a declared bound.
+  Until Wave D delivers that, blocks 11 and 14 carry the bounded,
+  alphabet-relative label only — and block 11 may yet SOLVE on the
+  completed span rather than certify.
+
 — Fable, recording the user's ruling, 2026-08-30
