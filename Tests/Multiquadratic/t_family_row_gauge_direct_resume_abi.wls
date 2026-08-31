@@ -12,9 +12,14 @@ variables = {x, y};
 family = "CFMQRESUME";
 sector = 2;
 ranges = {{1}, {2}};
-connection = ConstantArray[0, {2, 2, 2}];
-gauge = {{0}};
-form = ConstantArray[0, {2, 1, 1}];
+connection = {
+  {{eps x, 0}, {x^2, 2 eps x}},
+  {{eps y, 0}, {x y, 3 eps y}}};
+gauge = {{x + y}};
+(* Deliberately well-shaped and stale: it must remain telemetry only. *)
+form = {{{-999}}, {{-999}}};
+authoritativeRow = {{{-1 + x^2 + eps x (x + y)}},
+  {{-1 + x y + 2 eps y (x + y)}}};
 solvedBlocks = <|1 -> gauge|>;
 solvedForms = <|1 -> form|>;
 frame = <|"CoefficientField" -> "Multiquadratic"|>;
@@ -118,7 +123,10 @@ FTTest`FTAssert["resume trusts the accepted block without replay",
     solverCalls === 0];
 FTTest`FTAssert["caller-side form caches are not resume identity",
   SameQ[Lookup[baseline, "SolvedForms", None], solvedForms] &&
-    TrueQ[Lookup[baseline, "ActivateInstalledRow", False]]];
+    TrueQ[Lookup[baseline, "ActivateInstalledRow", False]] &&
+    And @@ (TrueQ[Together[#1] === 0] & /@
+      Flatten[baseline["InstalledRow"] - authoritativeRow]) &&
+    baseline["InstalledRow"] =!= form];
 
 mutantCheckpoint = ReplacePart[checkpoint,
   "StripSolvers" -> {executionMutant}];
@@ -154,10 +162,12 @@ FTTest`FTAssert["every banked block needs mathematical acceptance",
 malformedForms = ReplacePart[checkpoint,
   "SolvedForms" -> <|1 -> {{0}}|>];
 fallback = hydrate[malformedForms];
-FTTest`FTAssert["malformed optional forms select exact sparse propagation",
+FTTest`FTAssert["malformed optional forms cannot disable authoritative row reconstruction",
   Lookup[fallback, "Status", None] === "Verified" &&
     Lookup[fallback, "SolvedForms", None] === <||> &&
-    ! TrueQ[Lookup[fallback, "ActivateInstalledRow", True]]];
+    TrueQ[Lookup[fallback, "ActivateInstalledRow", False]] &&
+    And @@ (TrueQ[Together[#1] === 0] & /@
+      Flatten[fallback["InstalledRow"] - authoritativeRow])];
 
 If[DirectoryQ[temporary],
   Quiet[DeleteDirectory[temporary, DeleteContents -> True]]];

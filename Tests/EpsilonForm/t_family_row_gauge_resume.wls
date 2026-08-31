@@ -135,9 +135,13 @@ FTAssert["the exact banked gauge prefix must match the checkpoint",
 
 driver = Import[FileNameJoin[{root, "Scripts",
   "family_epsform_sector.wls"}], "Text"];
-FTAssert["the production driver does not replay solvers during resume",
+FTAssert["the production driver rebuilds the row from accepted gauge/current A without replay",
   ! StringContainsQ[driver, "familyRowGaugeHydrateResume["] &&
-    StringContainsQ[driver, "execution settings ignored"]];
+    StringContainsQ[driver, "execution settings ignored"] &&
+    StringContainsQ[driver,
+      "aP, blockRows[k], fromC[prevD], invariants"] &&
+    ! StringContainsQ[driver,
+      "solvedForms, solvedBlocks, subSize"]];
 
 If[DirectoryQ[temporary],
   Quiet[DeleteDirectory[temporary, DeleteContents -> True]]];

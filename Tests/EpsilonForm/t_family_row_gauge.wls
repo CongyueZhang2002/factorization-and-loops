@@ -286,24 +286,14 @@ FTTest`FTAssert["missing or misordered checkpoint summaries fail closed",
       {<|"Sector" -> 3, "LowerSector" -> 1|>},
       {{a, b}, {c, d}}, 3, {1, 2}]];
 
-installedForms = <|
-  1 -> {{{eps}, {2 eps}}, {{3 eps}, {4 eps}}},
-  2 -> {{{x, y}, {1 + x, 1 + y}},
-    {{2 x, 2 y}, {2 + x, 2 + y}}}|>;
-installedBlocks = <|1 -> {{a}, {b}}, 2 -> {{c, d}, {e, f}}|>;
-installedColumns = <|1 -> {1}, 2 -> {2, 3}|>;
 assembledInstalledRow =
   FeynFacet`Private`familyRowGaugeAssembleInstalledRow[
-    installedForms, installedBlocks, 2, 3, installedColumns];
-FTTest`FTAssert["a complete well-formed materialized row is assembled exactly",
-  assembledInstalledRow ===
-    {{{eps, x, y}, {2 eps, 1 + x, 1 + y}},
-      {{3 eps, 2 x, 2 y}, {4 eps, 2 + x, 2 + y}}}];
-corruptInstalledForms = installedForms;
-corruptInstalledForms[2] = {{{0}}};
-FTTest`FTAssert["a malformed materialized row fails closed to the sparse formula",
+    connection, rows, gauge, {x, y}];
+FTTest`FTAssert["the installable row is reconstructed from current A and D",
+  sameMatrixQ[assembledInstalledRow, installedRow]];
+FTTest`FTAssert["a malformed accepted gauge cannot materialize a row",
   FeynFacet`Private`familyRowGaugeAssembleInstalledRow[
-    corruptInstalledForms, installedBlocks, 2, 3, installedColumns] ===
+    connection, rows, {{0}}, {x, y}] ===
       Automatic];
 
 zeroResult = FeynFacet`Private`familyRowGaugeApply[

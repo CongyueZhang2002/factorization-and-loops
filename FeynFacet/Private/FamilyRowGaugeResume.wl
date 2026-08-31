@@ -259,7 +259,7 @@ familyRowGaugeHydrateResume[
    lowerBlockSizes, currentTruncation, expectedConnectionHash,
    currentConnectionHash, summaries, keys, familyIdentityQ,
    checkpointForms, reconstructedPrevD, forms, formsValidQ,
-   fullCoverageQ, lowerSize, blockColumns, installedRow = Automatic,
+   fullCoverageQ, installedRow = Automatic,
    acceptanceRecords},
 
   If[! MatchQ[ranges, {{__Integer} ..}] ||
@@ -341,10 +341,9 @@ familyRowGaugeHydrateResume[
     Return[<|"Status" -> "ResumeHydrationSolvedBlocksMismatch",
       "ActivateInstalledRow" -> False|>]];
 
-  (* SolvedForms is an optional acceleration derived from the accepted
-     blocks, not part of their identity.  Ignore the caller's cached copy
-     and use a well-formed checkpoint copy when present; otherwise sparse
-     row propagation remains exact. *)
+  (* SolvedForms is disposable telemetry derived from the accepted blocks,
+     never an installable authority.  Keep a well-formed checkpoint copy for
+     diagnostics, but reconstruct the row below from PrevD/current A. *)
   checkpointForms = Lookup[checkpoint, "SolvedForms", <||>];
   If[! AssociationQ[checkpointForms], checkpointForms = <||>];
   forms = checkpointForms;
@@ -354,11 +353,9 @@ familyRowGaugeHydrateResume[
   If[! formsValidQ, forms = <||>];
 
   fullCoverageQ = keys === Range[sector - 1];
-  lowerSize = First[ranges[[sector]]] - 1;
-  blockColumns = Association@Table[key -> ranges[[key]], {key, keys}];
-  If[fullCoverageQ && forms =!= <||>,
+  If[fullCoverageQ,
     installedRow = familyRowGaugeAssembleInstalledRow[
-      forms, solvedBlocks, rowSize, lowerSize, blockColumns]];
+      currentConnection, ranges[[sector]], reconstructedPrevD, variables]];
 
   acceptanceRecords = Map[
     <|"LowerSector" -> Lookup[#, "LowerSector", None],

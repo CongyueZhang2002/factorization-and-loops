@@ -178,32 +178,32 @@ familyRowGaugeCheckpointStripSolversQ[stripSolvers_, prevD_,
 ];
 familyRowGaugeCheckpointStripSolversQ[___] := False;
 
-(* Assemble a complete materialized row only when every solved block has a
-   well-formed one-form on an exact partition of the lower columns.  Any
-   missing or malformed checkpoint field falls back to the sparse gauge
-   formula; never partially install a saved row. *)
-familyRowGaugeAssembleInstalledRow[solvedForms_Association,
-    solvedBlocks_Association, rowSize_Integer?Positive,
-    lowerSize_Integer?NonNegative, blockColumns_Association] := Module[
-  {keys, columns, forms, blocks, validColumnsQ, validDimensionsQ, pair},
-  keys = Keys[solvedBlocks];
-  If[Sort[Keys[solvedForms]] =!= Sort[keys] ||
-      Sort[Keys[blockColumns]] =!= Sort[keys], Return[Automatic]];
-  columns = Lookup[blockColumns, keys];
-  validColumnsQ = AllTrue[columns,
-      VectorQ[#, IntegerQ] && Length[DeleteDuplicates[#]] === Length[#] &] &&
-    Sort[Flatten[columns]] === Range[lowerSize];
-  If[! validColumnsQ, Return[Automatic]];
-  forms = Lookup[solvedForms, keys];
-  blocks = Lookup[solvedBlocks, keys];
-  validDimensionsQ = And @@ MapThread[
-    Dimensions[#1] === {2, rowSize, Length[#3]} &&
-      Dimensions[#2] === {rowSize, Length[#3]} &,
-    {forms, blocks, columns}];
-  If[! validDimensionsQ, Return[Automatic]];
-  pair = ConstantArray[0, {2, rowSize, lowerSize}];
-  Do[pair[[All, All, columns[[i]]]] = forms[[i]], {i, Length[keys]}];
-  pair
+(* Materialize the current row from the accepted gauge and the current
+   connection -- the two mathematical objects that define it.  SolvedForms is
+   only a disposable cache and never enters this formula.  The raw exact sum
+   is intentional: production installs it once and defers later normalization. *)
+familyRowGaugeAssembleInstalledRow[connection : {_List, _List},
+    rowIndices : {__Integer}, gauge_List, variables : {_, _}] := Module[
+  {lowerColumns, rowSize, lowerSize, validSquare},
+  validSquare[m_] := MatrixQ[m] && Length[m] > 0 &&
+    Dimensions[m] === {Length[m], Length[m]};
+  If[! (validSquare /@ connection === {True, True}) ||
+      Dimensions[connection[[1]]] =!= Dimensions[connection[[2]]] ||
+      rowIndices =!= Range[First[rowIndices], Last[rowIndices]] ||
+      First[rowIndices] <= 1 || Last[rowIndices] > Length[connection[[1]]],
+    Return[Automatic]];
+  lowerColumns = Range[First[rowIndices] - 1];
+  rowSize = Length[rowIndices]; lowerSize = Length[lowerColumns];
+  If[Dimensions[gauge] =!= {rowSize, lowerSize} ||
+      ! AllTrue[Flatten[connection[[All, lowerColumns, rowIndices]]],
+        SameQ[#, 0] &],
+    Return[Automatic]];
+  Table[
+    connection[[mu, rowIndices, lowerColumns]] +
+      connection[[mu, rowIndices, rowIndices]] . gauge -
+      gauge . connection[[mu, lowerColumns, lowerColumns]] -
+      D[gauge, variables[[mu]]],
+    {mu, 2}]
 ];
 familyRowGaugeAssembleInstalledRow[___] := Automatic;
 

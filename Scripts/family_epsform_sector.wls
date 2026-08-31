@@ -1096,7 +1096,7 @@ Do[
     Module[{aP = aTrunc, sb = bounds[[1 ;; k]],
       subSize = bounds[[k, 2]] - bounds[[k, 1]] + 1,
       prevD, nextEq, e, c, bbar, nlow, solution, gauge, solvedBlocks,
-      blockColumns, checkpointData, solvedForms, solvedForm,
+      checkpointData, solvedForms, solvedForm,
       stripSolvers = {}, transformation, stripCheckpoint,
       checkpointValid, stripInputFile, extraLetters, obstruction,
       zeroForcingQ,
@@ -1159,9 +1159,8 @@ Do[
          gauge prefix, and one accepted strip record per banked block.  How a
          block was computed (backend, threads, caches or source revision) can
          neither strengthen nor invalidate that identity.  Saved dlog forms
-         are an optional acceleration; malformed or incomplete forms simply
-         leave the exact sparse row formula active until the mandatory final
-         family certificate. *)
+         are telemetry only; the installable row is rebuilt from the accepted
+         gauge and current connection below. *)
       If[checkpointValid && blockwiseRouteQ && Length[solvedBlocks] > 0,
         If[Sort[Keys[solvedForms]] =!= Sort[Keys[solvedBlocks]] ||
             ! AllTrue[Keys[solvedBlocks],
@@ -1660,13 +1659,11 @@ Do[
           stripCheckpointFile];
       ];
       rowGauge = solvedBlocks;
-      blockColumns = Association[Table[
-        m -> blockRows[m], {m, Keys[solvedBlocks]}]];
-      If[installedRow === Automatic,
-        installedRow =
-          FeynFacet`Private`familyRowGaugeAssembleInstalledRow[
-            solvedForms, solvedBlocks, subSize, First[blockRows[k]] - 1,
-            blockColumns]];
+      (* PrevD/current A, not a SolvedForms cache, define the mathematical
+         row.  Materialize that exact raw sum once; malformed or stale cached
+         forms can affect telemetry only. *)
+      installedRow = FeynFacet`Private`familyRowGaugeAssembleInstalledRow[
+        aP, blockRows[k], fromC[prevD], invariants];
       transformation = If[blockwiseRouteQ, None, canonicaInsertD[sb, prevD]];
       (* CANONICA's TransformDE (the transformed truncated connection,
          fully symbolic) fed only the per-sector TransformDlogToEpsForm,
