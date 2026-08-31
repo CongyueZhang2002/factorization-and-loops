@@ -4218,6 +4218,15 @@ Options[multiquadraticStripGaugeScreen] = {
   "CompileCacheBytes" -> Automatic
 };
 
+(* A large production screen with no candidate columns needs only the
+   affine-consistency verdict.  Paying twice for Wolfram MatrixRank and then
+   for a full left null space is useful for witness-guided letter discovery,
+   but it is pathological for a tens-of-millions-entry gate.  Above this
+   threshold reuse the authenticated CFFR1 affine backend already used by the
+   real solver.  Small screens and every explicit witness/candidate request
+   retain the historical Wolfram route and its left witness. *)
+$multiquadraticStripGaugeScreenNativeMinimumEntries = 10000000;
+
 multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
   Module[
   {gate, record, variables, epsilon, strip, e, c, bbar, roots, oneForms,
@@ -4241,7 +4250,9 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
    deadline, maximumUnknowns, maximumBytes, sizeEstimate, refusal,
    phaseTimings = <||>, compileSeconds, assemblySeconds, rankSeconds,
    leftNullSeconds = 0., expired = False, compileStatisticsBefore,
-   lettersCompiled = 0, letterIndex, candidateIndex, compileCacheBytes},
+   lettersCompiled = 0, letterIndex, candidateIndex, compileCacheBytes,
+   nativeRankQ = False, rankBackend = "Wolfram", rankThreads = 1,
+   rankEvidence = <||>, defectEvidence = None},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripGaugeScreen]]]];
   If[AssociationQ[gate], Return[gate]];
@@ -4557,12 +4568,49 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
         "PhaseTimings" -> <|"Compile" -> compileSeconds,
           "PointAssembly" -> assemblySeconds|>|>]]];
   rankSeconds = First[AbsoluteTiming[
-    rankA = MatrixRank[matrix, Modulus -> prime];
-    rankAugmented = MatrixRank[MapThread[Append, {matrix, rightVector}],
-      Modulus -> prime];]];
-  defect = rankAugmented - rankA;
-  wanted = Replace[OptionValue["LeftNullSpace"],
-    Automatic :> (defect > 0 || candidateCount > 0)];
+    nativeRankQ = candidateCount === 0 &&
+      OptionValue["LeftNullSpace"] =!= True &&
+      Times @@ Dimensions[matrix] >=
+        $multiquadraticStripGaugeScreenNativeMinimumEntries &&
+      StringQ[finiteFieldStripCFFRBinary[]] &&
+      FileExistsQ[finiteFieldStripCFFRBinary[]];
+    If[nativeRankQ,
+      rankThreads = taskBrokerNativeThreadLimit[8];
+      rankEvidence = multiquadraticStripAffineConsistencyEvidence[
+        matrix, rightVector, prime, gaugeUnknownCount,
+        residueUnknownCount, "FLINTAffineRREF", rankThreads, 0];
+      Switch[Lookup[rankEvidence, "Status", None],
+        "ProviderSupportImageConsistent",
+          rankA = rankEvidence["Rank"];
+          rankAugmented = rankEvidence["AugmentedRank"];
+          defect = 0;
+          rankBackend = "FLINTAffineRREF",
+        "ProviderSupportImageInconsistent",
+          rankA = Lookup[rankEvidence, "Rank",
+            Missing["NotComputedForNativeInconsistency"]];
+          rankAugmented = Lookup[rankEvidence, "AugmentedRank",
+            Missing["NotComputedForNativeInconsistency"]];
+          defect = Lookup[rankEvidence, "Defect", 1];
+          rankBackend = "FLINTAffineRREF",
+        _, nativeRankQ = False]];
+    If[! TrueQ[nativeRankQ],
+      rankA = MatrixRank[matrix, Modulus -> prime];
+      rankAugmented = MatrixRank[MapThread[Append, {matrix, rightVector}],
+        Modulus -> prime];
+      defect = rankAugmented - rankA;
+      rankBackend = "Wolfram"];
+    ]];
+  If[TrueQ[nativeRankQ],
+    defectEvidence = KeyTake[rankEvidence, {"Status", "DefectEvidence",
+      "InconsistentVerdict", "PlanDiscoveryBackendRequested",
+      "PlanDiscoveryBackendUsed", "PlanDiscoveryBackendThreads"}];
+    (* Drop a consistent native solution immediately: its particular/null
+       basis has served only to authenticate the rank verdict and must not
+       remain live through the later screen bookkeeping. *)
+    rankEvidence = <||>];
+  wanted = If[TrueQ[nativeRankQ], False,
+    Replace[OptionValue["LeftNullSpace"],
+      Automatic :> (defect > 0 || candidateCount > 0)]];
   (* POST-RANK BOUNDARY (2026-08-25).  The rank pair is the screen's
      verdict and it is now paid for; what remains -- the left null space
      of the transpose and one MatrixRank per candidate letter -- is a
@@ -4656,8 +4704,10 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
     "Sector" -> Lookup[record, "Sector", None],
     "LowerSector" -> Lookup[record, "LowerSector", None],
     "Defect" -> defect, "Rank" -> rankA, "AugmentedRank" -> rankAugmented,
-    "Nullity" -> unknownCount - rankA,
-    "LeftNullity" -> Length[matrix] - rankA,
+    "Nullity" -> If[IntegerQ[rankA], unknownCount - rankA,
+      Missing["NotComputedForNativeInconsistency"]],
+    "LeftNullity" -> If[IntegerQ[rankA], Length[matrix] - rankA,
+      Missing["NotComputedForNativeInconsistency"]],
     "MatrixDimensions" -> Dimensions[matrix],
     "UnknownCount" -> unknownCount,
     "GaugeUnknownCount" -> gaugeUnknownCount,
@@ -4666,7 +4716,8 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
     "RegulatorValue" -> regulatorValue, "PointCount" -> accepted,
     "AttemptCount" -> attempts, "RejectedPoints" -> rejected,
     "EquationsPerPoint" -> equationsPerPoint,
-    "Witness" -> witness,
+    "Witness" -> witness, "DefectEvidence" -> defectEvidence,
+    "RankBackend" -> rankBackend, "RankBackendThreads" -> rankThreads,
     "CandidateCount" -> candidateCount,
     "CandidateScores" -> candidateScores,
     "CandidateSubsetResults" -> subsetResults,
