@@ -139,6 +139,18 @@ FTAssert["A4t: table-route budget equals the reference scan on the toy",
         2, toyEps]["Need"]];
 FTAssert["A4t: exception edge carries the installed valuation, unscanned",
   prepared["Budget"]["RMin"][[2, 1]] === -1];
+(* note 11: an unresolved formal generator refuses by name -- opacity
+   can UNDER-budget when a root relation cancels a leading denominator
+   coefficient (1/(r^2 - Delta + eps): true order -1, opaque-generic
+   order 0); explicit radicals of the variables remain admissible *)
+Module[{table},
+  table = pte["pathTransportExceptionSourceOrderTable"][
+    toyAssembly,
+    {{0, 0}, {toyRR/(toyX + 2), 0}}, {{0, 0}, {0, 0}},
+    toyEps, {toyX, toyY}];
+  FTAssert["A4g: opaque algebraic generator refuses by name",
+    table["Status"] === "AlgebraicOrderTableNeedsGradeEvaluator" &&
+      table["Generators"] === {toyRR} && table["Edge"] === {2, 1}]];
 Module[{declaredWrong, out},
   declaredWrong = toyPlan;
   declaredWrong["Records"] =
@@ -578,12 +590,22 @@ Module[{assembly3, ahat3, rmin, needTable, prepared3, res, iOrd, mDiag,
     "Ahat" -> ahat3, "Budget" -> needTable|>;
   res = pte["pathTransportExceptionFormalLower"][prepared3, assembly3,
     tau, toyEps];
-  FTAssert["P1: formal lower solutions return OK with full windows",
-    res["Status"] === "OKFormalLowerSolutions" &&
+  FTAssert["P1: formal lower graph returns OK with full windows",
+    res["Status"] === "OKFormalLowerGraph" &&
       res["Windows"]["Low"] === {0, 0, -1} &&
       Sort[Keys[res["IOrders"]]] === {1, 2, 3} &&
       Sort[Keys[res["IOrders"][3]]] === {-1, 0, 1}];
-  iOrd = res["IOrders"];
+  (* note 10: IOrders holds inert indexed NODES, not expanded
+     expressions -- the graph grows with requested nodes only *)
+  FTAssert["P1: IOrders entries are inert indexed nodes",
+    MatchQ[res["IOrders"][3][-1],
+      Blank[pte["pathTransportFormalLowerNode"]]]];
+  (* resolve every node on demand for the brute check below *)
+  iOrd = Association @@ Table[
+    i -> Association @@ Table[
+      n -> pte["pathTransportExceptionFormalRender"][res, i, n],
+      {n, res["Windows"]["Low"][[i]], res["Windows"]["Top"][[i]]}],
+    {i, 3}];
   mDiag = {1/(tau + 2), tau, 1/(tau + 3)};
   bLow = <|{2, 1} -> <|0 -> tau|>, {3, 2} -> <|-1 -> 1/(tau + 1)|>|>;
   ok = True;
@@ -601,6 +623,19 @@ Module[{assembly3, ahat3, rmin, needTable, prepared3, res, iOrd, mDiag,
     {i, 3}];
   FTAssert["P1: brute differentiate-back closes for every block/order",
     ok];
+  (* P4: releasing the graph drops the registry and renders refuse *)
+  Module[{released},
+    released = pte["pathTransportExceptionFormalRelease"][res];
+    FTAssert["P4: release empties the graph registry for this id",
+      released["Status"] === "FormalGraphReleased" &&
+        ! KeyExistsQ[pte["$pathTransportExceptionFormalGraphs"],
+          res["GraphID"]] &&
+        Lookup[pte["pathTransportExceptionFormalRender"][res, 1, 0],
+          "Status", None] === "FormalGraphNotRegistered"]];
+  (* rebuild for the refusal fixtures below *)
+  res = pte["pathTransportExceptionFormalLower"][prepared3, assembly3,
+    tau, toyEps];
+  pte["pathTransportExceptionFormalRelease"][res];
   (* P2: a diagonal with a regulator-free part refuses by name *)
   Module[{bad = prepared3},
     bad["Ahat"] = ReplacePart[ahat3, {1, 1} -> 1/(tau + 2)];

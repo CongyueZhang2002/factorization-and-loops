@@ -423,7 +423,7 @@ pathTransportExceptionCapability[installed_Association, assembly_,
    source couplings, which for the hard row are also the largest
    source entries). *)
 pathTransportExceptionSourceOrderTable[assembly_, apv_, apw_, eps_,
-    skipEdges_List : {}] := Module[
+    variables : {__Symbol}, skipEdges_List : {}] := Module[
   {nb, ranges, blockOrder},
   nb = Length[assembly["Blocks"]];
   ranges = assembly["Ranges"];
@@ -432,8 +432,27 @@ pathTransportExceptionSourceOrderTable[assembly_, apv_, apw_, eps_,
       Flatten[apv[[ranges[[i]], ranges[[j]]]]],
       Flatten[apw[[ranges[[i]], ranges[[j]]]]]], 0];
     If[entries === {}, Return[Infinity]];
-    symbols = DeleteCases[DeleteDuplicates[Cases[entries,
-      s_Symbol, {0, Infinity}, Heads -> False]], eps];
+    (* ONLY the declared kinematic variables are specialized (Codex
+       note 10): a formal root/coefficient symbol given an independent
+       integer would destroy its defining algebraic relation and could
+       alter a regulator valuation.  And a formal generator left
+       OPAQUE is NOT sound either (Codex note 11): with r^2 = Delta,
+       1/(r^2 - Delta + eps) has true order -1 while the opaque
+       generic order is 0 -- a relation cancelling a leading
+       DENOMINATOR coefficient makes opacity UNDER-budget.  Explicit
+       radicals of the variables specialize consistently and are
+       fine; any remaining formal symbol beyond the declared
+       variables refuses by name, and the radical/grade evaluator is
+       the production route for such frames. *)
+    symbols = DeleteDuplicates[Cases[entries,
+      s_Symbol, {0, Infinity}, Heads -> False]];
+    Module[{generators = Complement[symbols,
+        variables, {eps}]},
+      If[generators =!= {},
+        Throw[<|"Status" -> "AlgebraicOrderTableNeedsGradeEvaluator",
+          "Edge" -> {i, j}, "Generators" -> generators|>,
+          pathTransportExceptionSourceOrderTable]]];
+    symbols = Intersection[symbols, variables];
     orders = Table[
       Module[{rules, specialized},
         (* SMALL INTEGER points, not fractions: a rational p/q raised
@@ -456,11 +475,13 @@ pathTransportExceptionSourceOrderTable[assembly_, apv_, apw_, eps_,
           specialized]],
       {point, 2}];
     Min[orders]];
-  Table[
-    If[i > j && ! MemberQ[skipEdges, {i, j}],
-      blockOrder[i, j],
-      Infinity],
-    {i, nb}, {j, nb}]];
+  Catch[
+    Table[
+      If[i > j && ! MemberQ[skipEdges, {i, j}],
+        blockOrder[i, j],
+        Infinity],
+      {i, nb}, {j, nb}],
+    pathTransportExceptionSourceOrderTable]];
 
 (* Orchestration and the single validation boundary.  PRECONDITIONS
    AND CLAIMS: the caller owns the plan's path; the returned ahat is on
@@ -494,21 +515,28 @@ pathTransportExceptionPrepare[assembly_Association, apv_, apw_, plan0_,
     Return[installed]];
   {tBudget, budget} = AbsoluteTiming[Module[{orderTable},
     orderTable = pathTransportExceptionSourceOrderTable[assembly,
-      apv, apw, eps,
+      apv, apw, eps, contract["Variables"],
       #["Positions"] & /@ installed["Reports"]];
     (* an accepted record REPLACED its whole block: the source
        coupling no longer exists at that edge, so the table entry is
        OVERWRITTEN -- not combined -- with the installed forcing's
        observed valuation (Codex note 07 item 2); nothing rescans the
        installed block *)
-    Do[
-      orderTable[[report["Positions"][[1]],
-        report["Positions"][[2]]]] =
-        report["Valuation"]["Observed"],
-      {report, installed["Reports"]}];
-    Append[masterTransportDepthBudgetFromTable[assembly, orderTable,
-        kmax],
-      "OrderTableRoute" -> "SourcePairPropagated"]]];
+    If[AssociationQ[orderTable],
+      (* typed refusal from the table builder (unresolved algebraic
+         generators, Codex note 11) -- propagated as Prepare's result *)
+      orderTable,
+      Do[
+        orderTable[[report["Positions"][[1]],
+          report["Positions"][[2]]]] =
+          report["Valuation"]["Observed"],
+        {report, installed["Reports"]}];
+      Append[masterTransportDepthBudgetFromTable[assembly, orderTable,
+          kmax],
+        "OrderTableRoute" -> "SourcePairPropagated"]]]];
+  If[Lookup[budget, "Status", None] ===
+      "AlgebraicOrderTableNeedsGradeEvaluator",
+    Return[budget]];
   {tCapability, capability} = AbsoluteTiming[
     pathTransportExceptionCapability[installed, assembly,
       tau, eps]];
@@ -896,37 +924,40 @@ pathTransportExceptionTransport[___] :=
    and production acceptance remains the fresh modular path-point
    comparison. *)
 
-ClearAll[pathTransportExceptionFormalPropagator,
-  pathTransportExceptionFormalLower, pathTransportFormalConstant];
+ClearAll[pathTransportExceptionFormalLower,
+  pathTransportExceptionFormalRender,
+  pathTransportExceptionFormalRelease,
+  pathTransportFormalConstant, pathTransportFormalLowerNode,
+  pathTransportFormalPropagatorNode,
+  pathTransportExceptionFormalMemoized,
+  $pathTransportExceptionFormalGraphs,
+  $pathTransportExceptionFormalMemo];
 
-(* the formal propagator tower of ONE diagonal block: requires the
-   strictly regulator-linear diagonal A = eps M (the pulled-back dlog
-   form); returns <|0 -> Id, 1 -> Integral[M], ..., nmax -> ...|> with
-   nested inert integrals *)
-pathTransportExceptionFormalPropagator[diagonal_List, tau_Symbol,
-    eps_, nmax_Integer] := Module[
-  {dim, m, residual, u, integrationVar},
-  dim = Length[diagonal];
-  m = Map[D[#, eps] &, diagonal, {2}];
-  If[! FreeQ[m, eps],
-    Return[<|"Status" -> "DiagonalNotEpsilonLinear",
-      "Reason" -> "RegulatorSurvivesDerivative"|>]];
-  residual = Together[diagonal - eps m];
-  If[residual =!= ConstantArray[0, {dim, dim}],
-    Return[<|"Status" -> "DiagonalNotEpsilonLinear",
-      "Reason" -> "ResidualAfterLinearPart"|>]];
-  u = <|0 -> IdentityMatrix[dim]|>;
-  integrationVar = Unique["pathTransportPropagatorVar"];
-  Do[
-    u[n] = Table[
-      With[{f = Function @@ {integrationVar,
-          (m . u[n - 1])[[r, c]] /. tau -> integrationVar}},
-        TransportQuadrature[f, tau, 0]],
-      {r, dim}, {c, dim}],
-    {n, 1, nmax}];
-  <|"Status" -> "OKFormalPropagator", "M" -> m, "U" -> u|>];
-pathTransportExceptionFormalPropagator[___] :=
-  <|"Status" -> "InvalidFormalPropagatorInput"|>;
+(* LAZY REPRESENTATION (Codex note 10; supersedes the eager assembly
+   of the first revision, whose nested quadrature trees would have
+   been the next symbolic-memory pathology at production block
+   counts).  The builder VALIDATES and records recurrence data only:
+   windows, feeders, kernel floors, the small diagonal M_i, and
+   per-edge coefficient-provider handles.  IOrders holds inert
+   indexed nodes pathTransportFormalLowerNode[gid, block, order];
+   nothing embeds an expanded matrix or nested quadrature tree, so
+   the object grows with the number of requested (block, order, edge)
+   nodes.  pathTransportExceptionFormalRender resolves a node into
+   the explicit formal expression on demand, memoized bottom-up; a
+   modular path-point evaluator plugs into the SAME graph through the
+   "OrderExtraction" handles (the native-backend seam). *)
+
+$pathTransportExceptionFormalGraphs = <||>;
+$pathTransportExceptionFormalMemo = <||>;
+
+(* compute stays HELD until first use; the assignment evaluates it
+   once and stores the value *)
+pathTransportExceptionFormalMemoized[key_, compute_] := Module[{held},
+  held = Lookup[$pathTransportExceptionFormalMemo, Key[key],
+    Missing["NotMemoized"]];
+  If[! MissingQ[held], held,
+    $pathTransportExceptionFormalMemo[key] = compute]];
+SetAttributes[pathTransportExceptionFormalMemoized, HoldRest];
 
 Options[pathTransportExceptionFormalLower] = {
   (* blocks to solve; Automatic = every block except ExcludeBlocks
@@ -937,18 +968,29 @@ Options[pathTransportExceptionFormalLower] = {
   (* head for the symbolic per-order constant vectors:
      head[block, order, component] *)
   "ConstantHead" -> pathTransportFormalConstant,
-  (* the per-order coefficient extraction of the coupling blocks; the
-     seam where a native/lazy backend plugs in without changing the
-     mathematics.  Automatic = SeriesCoefficient (exact, eager). *)
-  "OrderExtraction" -> Automatic};
+  (* per-edge coefficient providers: Automatic builds, per edge, a
+     handle h[order] extracting ONE regulator order of the coupling
+     block on demand (the renderer memoizes each requested order); a
+     native backend supplies its own handles through this option as
+     <|{i, j} -> handle|> without changing the mathematics.
+     BOUNDARY (Codex note 11): Automatic closes over the explicit
+     Ahat edge slices, so the aggregate graph can retain most of the
+     materialized connection -- it is the REFERENCE/DEVELOPMENT
+     provider, not the production memory route. *)
+  "OrderExtraction" -> Automatic,
+  (* the diagonal order-one connections M_i; Automatic derives each
+     from the small diagonal block by differentiation, with the exact
+     residual identity as a DEVELOPMENT diagnostic only -- production
+     consumes the upstream-accepted diagonal eps-form data (Codex
+     note 10 item 4).  An explicit association <|i -> M_i|> bypasses
+     the derivation entirely. *)
+  "DiagonalOrderOne" -> Automatic};
 
 pathTransportExceptionFormalLower[prepared_Association,
-    assembly_Association, tau_Symbol, eps_,
-    OptionsPattern[]] := Module[
+    assembly_Association, tau_Symbol, eps_, OptionsPattern[]] := Module[
   {ahat, ranges, nb, rmin, need, schedule, low, top, selected, exclude,
-   constant, extract, iOrders = <||>, propagators = <||>, dim, feeders,
-   diag, propagator, u, v, requiredInverseOrder, bOrders, kernelMin,
-   kernel, quadrature, integrationVar, refusal = None},
+   constant, extraction, diagonalOption, gid, blocks = <||>,
+   iOrders = <||>, refusal = None},
   If[Lookup[prepared, "Status", None] =!=
       "PathTransportExceptionPreparedV1",
     Return[<|"Status" -> "InvalidPreparedInput"|>]];
@@ -962,96 +1004,85 @@ pathTransportExceptionFormalLower[prepared_Association,
   low = schedule["Low"];
   top = schedule["Top"];
   exclude = OptionValue["ExcludeBlocks"];
-  selected = Replace[OptionValue["Blocks"],
-    Automatic :> Complement[Range[nb], exclude]];
+  selected = Sort[Replace[OptionValue["Blocks"],
+    Automatic :> Complement[Range[nb], exclude]]];
   constant = OptionValue["ConstantHead"];
-  extract = Replace[OptionValue["OrderExtraction"], Automatic :>
-    Function[{block, nminE, nmaxE},
-      pathTransportExceptionSeriesOrders[block, eps, nminE, nmaxE]]];
+  extraction = OptionValue["OrderExtraction"];
+  diagonalOption = OptionValue["DiagonalOrderOne"];
+  gid = Unique["pathTransportFormalGraph"];
   Do[
-    Module[{i = block},
-      feeders = Select[Range[i - 1],
-        rmin[[i, #]] =!= Infinity &];
+    Module[{i = block, feeders, dim, diag, m, kernelMin,
+      requiredInverseOrder, handles},
+      feeders = Select[Range[i - 1], rmin[[i, #]] =!= Infinity &];
       (* FIRST refusal wins: later blocks necessarily also refuse
          (their feeders are missing) and must not overwrite the
          root cause *)
-      If[refusal === None && ! SubsetQ[Keys[iOrders], feeders],
-        refusal = <|"Status" -> "MissingFeederSolution",
-          "Block" -> i,
-          "Missing" -> Complement[feeders, Keys[iOrders]]|>];
+      If[refusal === None && ! SubsetQ[Keys[blocks], feeders],
+        refusal = <|"Status" -> "MissingFeederSolution", "Block" -> i,
+          "Missing" -> Complement[feeders, Keys[blocks]]|>];
       If[refusal === None,
         dim = Length[ranges[[i]]];
-        diag = ahat[[ranges[[i]], ranges[[i]]]];
-        (* the inverse propagator must cover the deepest convolution:
-           top_i - kernelMin_i where kernelMin_i is the kernel's true
-           lowest order (note 29's floor, per feeder edge) *)
+        m = If[AssociationQ[diagonalOption],
+          Lookup[diagonalOption, i, Missing["NoDiagonalData"]],
+          Automatic];
+        If[m === Automatic,
+          diag = ahat[[ranges[[i]], ranges[[i]]]];
+          m = Map[D[#, eps] &, diag, {2}];
+          Which[
+            ! FreeQ[m, eps],
+              refusal = <|"Status" -> "DiagonalNotEpsilonLinear",
+                "Block" -> i,
+                "Reason" -> "RegulatorSurvivesDerivative"|>,
+            masterTransportCheckLevel[] =!= "Production" &&
+              Together[diag - eps m] =!=
+                ConstantArray[0, {dim, dim}],
+              refusal = <|"Status" -> "DiagonalNotEpsilonLinear",
+                "Block" -> i,
+                "Reason" -> "ResidualAfterLinearPart"|>]];
+        If[refusal === None && MissingQ[m],
+          refusal = <|"Status" -> "DiagonalDataMissing",
+            "Block" -> i|>]];
+      If[refusal === None,
         kernelMin = If[feeders === {}, 0,
           Min[Table[rmin[[i, j]] + low[[j]], {j, feeders}]]];
         requiredInverseOrder = Max[top[[i]] - kernelMin, top[[i]]];
-        propagator = pathTransportExceptionFormalPropagator[diag,
-          tau, eps, requiredInverseOrder];
-        If[propagator["Status"] =!= "OKFormalPropagator",
-          refusal = Join[propagator, <|"Block" -> i|>]]];
-      If[refusal === None,
-        u = propagator["U"];
-        propagators[i] = propagator;
-        v = pathTransportExceptionSeriesInverse[u,
-          requiredInverseOrder];
-        If[AssociationQ[v] && KeyExistsQ[v, "Status"],
-          refusal = Join[v, <|"Block" -> i|>]]];
-      If[refusal === None,
-        integrationVar = Unique["pathTransportLowerVar"];
-        If[feeders === {},
-          (* pure homogeneous block: I = U C *)
+        handles = Association @@ Table[
+          j -> Which[
+            AssociationQ[extraction] &&
+              KeyExistsQ[extraction, {i, j}],
+              extraction[{i, j}],
+            extraction === Automatic,
+              (* lazy default: ONE order of the edge block per call;
+                 the edge slice is shared structure, not a copy *)
+              With[{edge = ahat[[ranges[[i]], ranges[[j]]]],
+                  regulator = eps},
+                Function[order, Map[
+                  SeriesCoefficient[#, {regulator, 0, order}] &,
+                  edge, {2}]]],
+            True,
+              refusal = <|"Status" -> "MissingEdgeProvider",
+                "Edge" -> {i, j}|>; None],
+          {j, feeders}];
+        If[refusal === None,
+          blocks[i] = <|"Dimension" -> dim, "Feeders" -> feeders,
+            "M" -> m, "KernelMin" -> kernelMin,
+            "RequiredInverseOrder" -> requiredInverseOrder,
+            "EdgeHandles" -> handles|>;
           iOrders[i] = Association @@ Table[
-            n -> Sum[u[a] . Table[constant[i, n - a, c], {c, dim}],
-              {a, 0, Min[n - low[[i]], requiredInverseOrder]}],
-            {n, low[[i]], top[[i]]}],
-          (* forced block: kernel K = V Sum_j B_ij I_j, then
-             I = U (C + Integral[K]) with the same key-range
-             convolution and kernelMin floor as the terminal
-             consumer *)
-          bOrders = Association @@ Table[
-            j -> extract[ahat[[ranges[[i]], ranges[[j]]]],
-              rmin[[i, j]], top[[i]] - low[[j]]],
-            {j, feeders}];
-          kernel = Association @@ Table[
-            n -> Sum[
-              Lookup[v, a, ConstantArray[0, {dim, dim}]] .
-              Sum[
-                With[{c = n - a - b},
-                  If[KeyExistsQ[iOrders[j], c],
-                    Lookup[bOrders[j], b,
-                        ConstantArray[0, {dim, Length[ranges[[j]]]}]] .
-                      iOrders[j][c],
-                    ConstantArray[0, dim]]],
-                {j, feeders},
-                {b, Min[Table[rmin[[i, jj]], {jj, feeders}]],
-                  Max[Table[top[[i]] - low[[jj]], {jj, feeders}]]}],
-              {a, 0, requiredInverseOrder}],
-            {n, kernelMin, top[[i]]}];
-          quadrature = Association @@ Table[
-            n -> Table[
-              With[{f = Function @@ {integrationVar,
-                  kernel[n][[r]] /. tau -> integrationVar}},
-                TransportQuadrature[f, tau, 0]],
-              {r, dim}],
-            {n, kernelMin, top[[i]]}];
-          iOrders[i] = Association @@ Table[
-            n -> Sum[u[a] . (
-                Table[constant[i, n - a, c], {c, dim}] +
-                If[n - a >= kernelMin, quadrature[n - a],
-                  ConstantArray[0, dim]]),
-              {a, 0, Min[n - Min[low[[i]], kernelMin],
-                requiredInverseOrder]}],
-            {n, Min[low[[i]], kernelMin], top[[i]]}]]]],
-    {block, Sort[selected]}];
+            n -> pathTransportFormalLowerNode[gid, i, n],
+            {n, low[[i]], top[[i]]}]]]],
+    {block, selected}];
   If[refusal =!= None, Return[refusal, Module]];
-  <|"Status" -> "OKFormalLowerSolutions",
-    "Blocks" -> Sort[selected],
+  $pathTransportExceptionFormalGraphs[gid] = <|
+    "Blocks" -> blocks, "Selected" -> selected,
+    "Low" -> low, "Top" -> top, "RMin" -> rmin,
+    "Tau" -> tau, "Regulator" -> eps,
+    "ConstantHead" -> constant|>;
+  <|"Status" -> "OKFormalLowerGraph",
+    "GraphID" -> gid,
+    "Blocks" -> selected,
     "Windows" -> <|"Low" -> low, "Top" -> top|>,
     "IOrders" -> iOrders,
-    "Propagators" -> propagators,
     "ConstantHead" -> constant,
     "Certificate" -> <|
       "Statement" -> "Each block satisfies I_i = U_i (C_i + \
@@ -1061,7 +1092,95 @@ U V = 1 by convolution construction, and the regrouping uses no \
 property of the inhomogeneity.  No value, function class, or word \
 form is claimed; production acceptance is the fresh modular \
 path-point comparison.",
+      "Representation" -> "IndexedNodes",
       "CheckLevel" -> masterTransportCheckLevel[],
       "Evaluated" -> False|>|>];
 pathTransportExceptionFormalLower[___] :=
   <|"Status" -> "InvalidFormalLowerInput"|>;
+
+(* On-demand resolution of a node into the explicit formal expression
+   (the first revision's eager semantics, now memoized bottom-up per
+   graph).  U, V, per-order edge coefficients, kernels, quadratures
+   and lower solutions are each computed once per (graph, index).
+   BOUNDARY (Codex note 11): rendering deliberately recreates a full
+   nested formal expression -- a DEVELOPMENT/REFERENCE resolution for
+   tests and single-node inspection.  Production transport evaluates
+   the indexed graph bottom-up through native handles at a path point
+   and never renders a whole family. *)
+pathTransportExceptionFormalRender[graph_Association,
+    pathTransportFormalLowerNode[gid_, i_Integer, n_Integer]] :=
+  pathTransportExceptionFormalRender[graph, i, n];
+pathTransportExceptionFormalRender[graph_Association, i_Integer,
+    n_Integer] := Module[
+  {gid, data, renderU, renderV, renderB, renderKernel, renderQ,
+   renderI, memo = pathTransportExceptionFormalMemoized},
+  gid = Lookup[graph, "GraphID", None];
+  data = Lookup[$pathTransportExceptionFormalGraphs, Key[gid],
+    Missing["GraphReleased"]];
+  If[MissingQ[data],
+    Return[<|"Status" -> "FormalGraphNotRegistered", "GraphID" -> gid|>]];
+  With[{tau = data["Tau"], low = data["Low"], top = data["Top"],
+      rmin = data["RMin"], constant = data["ConstantHead"],
+      blocksData = data["Blocks"]},
+    renderU[b_, a_] := memo[{gid, "U", b, a}, Module[{bd, var},
+      bd = blocksData[b];
+      If[a === 0, IdentityMatrix[bd["Dimension"]],
+        var = Unique["pathTransportPropagatorVar"];
+        Table[
+          With[{f = Function @@ {var,
+              (bd["M"] . renderU[b, a - 1])[[r, c]] /. tau -> var}},
+            TransportQuadrature[f, tau, 0]],
+          {r, bd["Dimension"]}, {c, bd["Dimension"]}]]]];
+    renderV[b_, a_] := memo[{gid, "V", b, a}, Module[{bd},
+      bd = blocksData[b];
+      If[a === 0, IdentityMatrix[bd["Dimension"]],
+        -Sum[renderV[b, a - k] . renderU[b, k], {k, 1, a}]]]];
+    renderB[b_, j_, order_] := memo[{gid, "B", b, j, order},
+      blocksData[b]["EdgeHandles"][j][order]];
+    renderKernel[b_, order_] := memo[{gid, "K", b, order},
+      Module[{bd = blocksData[b]},
+        Sum[
+          renderV[b, a] .
+          Sum[
+            With[{c = order - a - beta},
+              If[low[[j]] <= c <= top[[j]],
+                renderB[b, j, beta] .
+                  pathTransportExceptionFormalRender[graph, j, c],
+                ConstantArray[0, bd["Dimension"]]]],
+            {j, bd["Feeders"]},
+            {beta, rmin[[b, j]], top[[b]] - low[[j]]}],
+          {a, 0, bd["RequiredInverseOrder"]}]]];
+    renderQ[b_, order_] := memo[{gid, "Q", b, order},
+      Module[{bd = blocksData[b], var},
+        var = Unique["pathTransportLowerVar"];
+        Table[
+          With[{f = Function @@ {var,
+              renderKernel[b, order][[r]] /. tau -> var}},
+            TransportQuadrature[f, tau, 0]],
+          {r, bd["Dimension"]}]]];
+    renderI[b_, order_] := memo[{gid, "I", b, order},
+      Module[{bd = blocksData[b]},
+        Sum[
+          renderU[b, a] . (
+            Table[constant[b, order - a, c], {c, bd["Dimension"]}] +
+            If[bd["Feeders"] =!= {} && order - a >= bd["KernelMin"],
+              renderQ[b, order - a],
+              ConstantArray[0, bd["Dimension"]]]),
+          {a, 0, Min[order - Min[low[[b]], bd["KernelMin"]],
+            bd["RequiredInverseOrder"]]}]]];
+    If[! KeyExistsQ[blocksData, i],
+      Return[<|"Status" -> "BlockNotInFormalGraph", "Block" -> i|>]];
+    renderI[i, n]]];
+pathTransportExceptionFormalRender[___] :=
+  <|"Status" -> "InvalidFormalRenderInput"|>;
+
+(* drop a graph's registry entry and every memoized rendering *)
+pathTransportExceptionFormalRelease[graph_Association] := Module[{gid},
+  gid = Lookup[graph, "GraphID", None];
+  $pathTransportExceptionFormalGraphs =
+    KeyDrop[$pathTransportExceptionFormalGraphs, gid];
+  $pathTransportExceptionFormalMemo = KeySelect[
+    $pathTransportExceptionFormalMemo, First[#] =!= gid &];
+  <|"Status" -> "FormalGraphReleased", "GraphID" -> gid|>];
+pathTransportExceptionFormalRelease[___] :=
+  <|"Status" -> "InvalidFormalReleaseInput"|>;
