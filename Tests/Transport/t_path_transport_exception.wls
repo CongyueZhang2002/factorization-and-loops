@@ -128,6 +128,17 @@ FTAssert["A3: route is scoped to the exceptional blocks",
     ! KeyExistsQ[prepared, "Route"]];
 FTAssert["A4: eps^-1 forcing raises the lower Need through the budget",
   prepared["Budget"]["Need"] === {3, 2}];
+(* note 07: Prepare budgets from the SOURCE-pair order table with the
+   exception edges overwritten by installed valuations -- on a toy
+   with no path cancellation it must EQUAL the reference expression
+   scan of the installed connection *)
+FTAssert["A4t: table-route budget equals the reference scan on the toy",
+  prepared["Budget"]["OrderTableRoute"] === "SourcePairPropagated" &&
+    prepared["Budget"]["Need"] ===
+      pte["masterTransportDepthBudget"][toyAssembly, prepared["Ahat"],
+        2, toyEps]["Need"]];
+FTAssert["A4t: exception edge carries the installed valuation, unscanned",
+  prepared["Budget"]["RMin"][[2, 1]] === -1];
 Module[{declaredWrong, out},
   declaredWrong = toyPlan;
   declaredWrong["Records"] =

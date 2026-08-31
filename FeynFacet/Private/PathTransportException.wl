@@ -34,7 +34,8 @@ ClearAll[
   pathTransportExceptionArtifact, pathTransportExceptionReparameterize,
   pathTransportExceptionLocateBlock, pathTransportExceptionInstall,
   pathTransportExceptionValuationCheck, pathTransportExceptionCapability,
-  pathTransportExceptionEntryCapability, pathTransportExceptionPrepare];
+  pathTransportExceptionEntryCapability,
+  pathTransportExceptionSourceOrderTable, pathTransportExceptionPrepare];
 
 (* Two accepted spellings of a quadratic extension: the contract form
    carries the root and its square directly; the record form of the
@@ -396,6 +397,63 @@ pathTransportExceptionCapability[installed_Association, assembly_,
           Lookup[refused, "Reason"]],
         "Detail" -> First[refused]|>]]];
 
+(* Block-pair regulator-order table from the SOURCE connection pair,
+   BEFORE the nonlinear path substitution (Codex note 07): the path
+   map and its Jacobian are regulator-free, so
+   Min[order(apv_ij), order(apw_ij)] bounds the pulled-back entry's
+   order from below -- a cancellation on the path can only raise the
+   true order, so this table may over-demand coefficients but can
+   never under-budget.
+
+   The per-entry order is taken by EXACT-RATIONAL EVALUATION at two
+   independent fixed-seed points of every non-regulator symbol -- the
+   project's standard cheap-guard class (user decision 2026-08-22) --
+   because a symbolic Together per source entry is itself the cost
+   this table exists to avoid (a first implementation with the full
+   symbolic scan exceeded 10 minutes on the real CF303 state; the
+   post-pullback rescan it replaces was 2512.7 s of a 2625.5 s
+   Prepare).  A specialization can only RAISE the observed order, on
+   the measure-zero locus where a leading coefficient vanishes at the
+   point; two independent points are min'd against that, a vanishing
+   denominator at a point yields Infinity for that point and defers
+   to the other, and an unlucky overestimate is caught fail-closed
+   downstream (masterTransportLaurentList refuses a valuation below
+   its window).  Edges in skipEdges are not scanned at all -- the
+   caller overwrites them (installed exception blocks replaced their
+   source couplings, which for the hard row are also the largest
+   source entries). *)
+pathTransportExceptionSourceOrderTable[assembly_, apv_, apw_, eps_,
+    skipEdges_List : {}] := Module[
+  {nb, ranges, blockOrder},
+  nb = Length[assembly["Blocks"]];
+  ranges = assembly["Ranges"];
+  blockOrder[i_, j_] := Module[{entries, symbols, orders},
+    entries = DeleteCases[Join[
+      Flatten[apv[[ranges[[i]], ranges[[j]]]]],
+      Flatten[apw[[ranges[[i]], ranges[[j]]]]]], 0];
+    If[entries === {}, Return[Infinity]];
+    symbols = DeleteCases[DeleteDuplicates[Cases[entries,
+      s_Symbol, {0, Infinity}, Heads -> False]], eps];
+    orders = Table[
+      Module[{rules, specialized},
+        rules = Thread[symbols ->
+          Table[Prime[500 + 37 point + 11 k]/
+            Prime[900 + 41 point + 13 k], {k, Length[symbols]}]];
+        specialized = Quiet[entries /. rules];
+        (* a denominator vanishing AT THE POINT makes that entry's
+           order unusable for this point only; defer to the other *)
+        Min[If[FreeQ[#, ComplexInfinity | Indeterminate |
+              DirectedInfinity[___]],
+            Quiet[masterTransportEpsOrder[#, eps]], Infinity] & /@
+          specialized]],
+      {point, 2}];
+    Min[orders]];
+  Table[
+    If[i > j && ! MemberQ[skipEdges, {i, j}],
+      blockOrder[i, j],
+      Infinity],
+    {i, nb}, {j, nb}]];
+
 (* Orchestration and the single validation boundary.  PRECONDITIONS
    AND CLAIMS: the caller owns the plan's path; the returned ahat is on
    that path and must never be mixed with an axis-path connection.  The
@@ -426,9 +484,23 @@ pathTransportExceptionPrepare[assembly_Association, apv_, apw_, plan0_,
       connection["Ahat"], plan, tau, eps]];
   If[installed["Status"] =!= "PathTransportExceptionInstalledV1",
     Return[installed]];
-  {tBudget, budget} = AbsoluteTiming[
-    masterTransportDepthBudget[assembly, installed["Ahat"],
-      kmax, eps]];
+  {tBudget, budget} = AbsoluteTiming[Module[{orderTable},
+    orderTable = pathTransportExceptionSourceOrderTable[assembly,
+      apv, apw, eps,
+      #["Positions"] & /@ installed["Reports"]];
+    (* an accepted record REPLACED its whole block: the source
+       coupling no longer exists at that edge, so the table entry is
+       OVERWRITTEN -- not combined -- with the installed forcing's
+       observed valuation (Codex note 07 item 2); nothing rescans the
+       installed block *)
+    Do[
+      orderTable[[report["Positions"][[1]],
+        report["Positions"][[2]]]] =
+        report["Valuation"]["Observed"],
+      {report, installed["Reports"]}];
+    Append[masterTransportDepthBudgetFromTable[assembly, orderTable,
+        kmax],
+      "OrderTableRoute" -> "SourcePairPropagated"]]];
   {tCapability, capability} = AbsoluteTiming[
     pathTransportExceptionCapability[installed, assembly,
       tau, eps]];

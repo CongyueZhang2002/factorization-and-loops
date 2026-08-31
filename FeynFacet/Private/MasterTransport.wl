@@ -261,6 +261,7 @@ ClearAll[
   masterTransportChartBlockSpec,
   masterTransportChartNotes,
   masterTransportDepthBudget,
+  masterTransportDepthBudgetFromTable,
   masterTransportEpsShift,
   masterTransportLaurentSupport,
   masterTransportLaurentSupportCompute,
@@ -2598,6 +2599,35 @@ masterTransportDepthBudget[assembly_, ahat_, kmax_Integer, eps_] := Module[
     {i, nb, 1, -1}];
   <|"Need" -> need, "RMin" -> rmin,
     "RMinGlobal" -> Min[Append[DeleteCases[Flatten[rmin], Infinity], 0]]|>
+];
+
+(* The recurrence alone, on a caller-supplied block-pair order table
+   (split out 2026-08-31, Codex note 07).  Table contract: strictly
+   lower-triangular minimum regulator orders, Infinity for absent
+   edges -- exactly what masterTransportDepthBudget builds by scanning
+   ahat.  A path-restricted connection can be gigabytes while its
+   per-entry orders are bounded conservatively by the SOURCE pair
+   before pullback (the path map and Jacobian are regulator-free, and
+   a cancellation can only RAISE the true order), so a table caller
+   may over-demand coefficients but can never under-budget.  The
+   expression-scan route above stays as the diagnostic/reference. *)
+masterTransportDepthBudgetFromTable[assembly_, rminTable_,
+    kmax_Integer] := Module[
+  {nb, need},
+  nb = Length[assembly["Blocks"]];
+  If[Dimensions[rminTable] =!= {nb, nb},
+    Return[<|"Status" -> "InvalidOrderTable",
+      "Dimensions" -> Dimensions[rminTable]|>]];
+  need = ConstantArray[kmax, nb];
+  Do[
+    Do[
+      If[j < i && rminTable[[i, j]] =!= Infinity,
+        need[[j]] = Max[need[[j]], need[[i]] - rminTable[[i, j]]]],
+      {j, nb}],
+    {i, nb, 1, -1}];
+  <|"Need" -> need, "RMin" -> rminTable,
+    "RMinGlobal" -> Min[Append[
+      DeleteCases[Flatten[rminTable], Infinity], 0]]|>
 ];
 
 (* (C3) The regrading shift D.  See the header for the derivation: a
