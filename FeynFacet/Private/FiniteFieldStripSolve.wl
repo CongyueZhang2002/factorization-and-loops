@@ -2745,6 +2745,11 @@ Options[SolveEpsFormStripFiniteField] = {
   "AdaptiveValidationMargin" -> 8,
   "Elimination" -> "Constrained",
   "Support" -> Automatic,
+  (* Prepared-record resumes may reuse the exact symbolic sampling data and
+     a sealed affine section.  Both are mathematical state; execution choices
+     such as backend and thread count remain free to change. *)
+  "Preparation" -> Automatic,
+  "EliminationPlan" -> Automatic,
   (* "SimplexFirst": every probe uses the certified total-degree simplex
      (shell 0) before the bidegree rectangle; "SparseFirst": the former
      rectangle-cut supports over the offset ladder, the full simplex
@@ -2820,6 +2825,7 @@ SolveEpsFormStripFiniteField[record_Association,
    planDiscoveryBackend, planDiscoveryDecision, nativeProbeQ = False,
    nativeProbeFailure,
    cachedSimplexProbe = Missing["NotProbed"],
+   suppliedPreparation, suppliedEliminationPlan,
    eliminationPlanFingerprint = None,
    eliminationPlanIdentity = None, backendArtifactIdentity = None,
    solveStart = AbsoluteTime[], deadline, budgetStop = None,
@@ -2874,8 +2880,21 @@ SolveEpsFormStripFiniteField[record_Association,
     Return[planDiscoveryDecision]];
   nativeProbeQ = planDiscoveryBackend === "FLINTAffineRREF" &&
     OptionValue["Elimination"] === "Constrained";
+  suppliedPreparation = OptionValue["Preparation"];
+  suppliedEliminationPlan = Replace[OptionValue["EliminationPlan"],
+    Automatic -> None];
+  If[! (suppliedEliminationPlan === None ||
+      AssociationQ[suppliedEliminationPlan]),
+    Return[<|"Status" -> "InvalidEliminationPlanResume"|>]];
+  If[AssociationQ[suppliedEliminationPlan] &&
+      TrueQ[OptionValue["SupportLearning"]],
+    Return[<|"Status" -> "EliminationPlanResumeRequiresFixedSupport"|>]];
   nativeProbeFailure[sample_] := Module[{plan, detail},
     If[! nativeProbeQ, Return[None]];
+    If[AssociationQ[suppliedEliminationPlan] && AssociationQ[sample] &&
+        Lookup[Lookup[sample, "PlanValidationStatus", <||>],
+          "Status", None] === "OK",
+      Return[None]];
     plan = If[AssociationQ[sample],
       Lookup[sample, "EliminationPlan", None], None];
     If[AssociationQ[plan] && MemberQ[{"OK", "InconsistentModularSystem"},
@@ -2990,6 +3009,9 @@ SolveEpsFormStripFiniteField[record_Association,
       "AdaptiveValidationMargin" -> adaptiveValidationMargin,
       "Elimination" -> OptionValue["Elimination"],
       "Support" -> OptionValue["Support"],
+      "Preparation" -> preparation,
+      "EliminationPlan" -> If[AssociationQ[eliminationPlan],
+        eliminationPlan, Automatic],
       "RegulatorSampling" -> "Deterministic",
       "Backend" -> OptionValue["Backend"],
       "BackendThreads" -> OptionValue["BackendThreads"],
@@ -3012,7 +3034,15 @@ SolveEpsFormStripFiniteField[record_Association,
   loopPrimes = Join[primes, Rest[reservePrimes]];
   reservePrimes = {First[reservePrimes]};
   prime = First[primes];
-  preparation = finiteFieldStripPrepare[record];
+  preparation = Which[
+    suppliedPreparation === Automatic,
+      finiteFieldStripPrepare[record],
+    AssociationQ[suppliedPreparation] &&
+        Lookup[suppliedPreparation, "Fingerprint", None] ===
+          finiteFieldStripFingerprint[record],
+      suppliedPreparation,
+    True,
+      Return[<|"Status" -> "PreparedResumeFingerprintMismatch"|>]];
   If[preparation === $Failed,
     Message[SolveEpsFormStripFiniteField::failed]; Return[$Failed]];
   log["Prepared strip sampling once in ",
@@ -3062,7 +3092,11 @@ SolveEpsFormStripFiniteField[record_Association,
             "BackendThreads" -> OptionValue["BackendThreads"],
             "PlanDiscoveryBackend" -> planDiscoveryBackend,
             "SolveAffineSystem" -> nativeProbeQ,
-            "DiscoverPlan" -> nativeProbeQ,
+            "DiscoverPlan" -> nativeProbeQ &&
+              ! AssociationQ[suppliedEliminationPlan],
+            "EliminationPlan" -> If[
+              AssociationQ[suppliedEliminationPlan],
+              suppliedEliminationPlan, None],
             "Preparation" -> preparation,
             "ExpectedFingerprint" -> preparation["Fingerprint"]];
           If[shell === 0 && supportKind === Automatic &&
@@ -3134,7 +3168,11 @@ SolveEpsFormStripFiniteField[record_Association,
           "BackendThreads" -> OptionValue["BackendThreads"],
           "PlanDiscoveryBackend" -> planDiscoveryBackend,
           "SolveAffineSystem" -> nativeProbeQ,
-          "DiscoverPlan" -> nativeProbeQ,
+          "DiscoverPlan" -> nativeProbeQ &&
+            ! AssociationQ[suppliedEliminationPlan],
+          "EliminationPlan" -> If[
+            AssociationQ[suppliedEliminationPlan],
+            suppliedEliminationPlan, None],
           "RandomSeed" -> freshSeed,
           "ArtifactDirectory" -> artifactDirectory,
           "Preparation" -> preparation,
@@ -3175,7 +3213,10 @@ SolveEpsFormStripFiniteField[record_Association,
         "BackendThreads" -> OptionValue["BackendThreads"],
         "PlanDiscoveryBackend" -> planDiscoveryBackend,
         "SolveAffineSystem" -> nativeProbeQ,
-        "DiscoverPlan" -> nativeProbeQ,
+        "DiscoverPlan" -> nativeProbeQ &&
+          ! AssociationQ[suppliedEliminationPlan],
+        "EliminationPlan" -> If[AssociationQ[suppliedEliminationPlan],
+          suppliedEliminationPlan, None],
         "Preparation" -> preparation, "ExpectedFingerprint" -> preparation["Fingerprint"]];
       failure = nativeProbeFailure[probe];
       If[AssociationQ[failure], Return[failure]];
@@ -3200,39 +3241,49 @@ SolveEpsFormStripFiniteField[record_Association,
   If[finiteFieldStripDeadlineExpiredQ[deadline],
     Return[budgetExhausted["EliminationPilot"]]];
   If[OptionValue["Elimination"] === "Constrained",
-    If[nativeProbeQ &&
-        AssociationQ[Lookup[degreeProbe, "EliminationPlan", None]] &&
-        Lookup[degreeProbe["EliminationPlan"], "Status", None] === "OK",
+    If[AssociationQ[suppliedEliminationPlan],
       pilotSample = degreeProbe;
       pilotSeconds = Total[Lookup[degreeProbe,
         {"SetupSeconds", "PreprocessingSeconds", "SamplingSeconds",
-         "PlanDiscoverySeconds"}, 0.]],
-      {pilotSeconds, pilotSample} = AbsoluteTiming[
-        SampleEpsFormStripAffine[
-          record, First[epsilonSamples], prime,
-          "PointCount" -> pointCount,
-          "NumeratorDegreeOffset" -> selectedOffset,
-          Sequence @@ supportOptions,
-          "Backend" -> "Wolfram",
-          "BackendThreads" -> OptionValue["BackendThreads"],
-          "PlanDiscoveryBackend" -> planDiscoveryBackend,
-          "SolveAffineSystem" -> True, "DiscoverPlan" -> True,
-          "ArtifactDirectory" -> artifactDirectory,
-          "Preparation" -> preparation,
-          "ExpectedFingerprint" -> preparation["Fingerprint"]]]];
-    If[AssociationQ[pilotSample] &&
-        AssociationQ[Lookup[pilotSample, "EliminationPlan", None]] &&
-        pilotSample["EliminationPlan"]["Status"] === "OK",
-      eliminationPlan = pilotSample["EliminationPlan"];
-      log["Constrained elimination plan: rank ",
+         "ConstrainedSolveSeconds"}, 0.]];
+      eliminationPlan = suppliedEliminationPlan;
+      log["Reused constrained elimination plan: rank ",
         eliminationPlan["GenericRank"], ", nullity ",
         eliminationPlan["Nullity"], ", normalization columns ",
         eliminationPlan["NormalizationColumns"]],
-      log["Constrained plan unavailable (",
-        If[AssociationQ[pilotSample],
-          Lookup[Lookup[pilotSample, "EliminationPlan", <||>],
-            "Status", "no pilot solution"], "pilot failed"],
-        "); continuing on the full elimination path"]];
+      If[nativeProbeQ &&
+          AssociationQ[Lookup[degreeProbe, "EliminationPlan", None]] &&
+          Lookup[degreeProbe["EliminationPlan"], "Status", None] === "OK",
+        pilotSample = degreeProbe;
+        pilotSeconds = Total[Lookup[degreeProbe,
+          {"SetupSeconds", "PreprocessingSeconds", "SamplingSeconds",
+           "PlanDiscoverySeconds"}, 0.]],
+        {pilotSeconds, pilotSample} = AbsoluteTiming[
+          SampleEpsFormStripAffine[
+            record, First[epsilonSamples], prime,
+            "PointCount" -> pointCount,
+            "NumeratorDegreeOffset" -> selectedOffset,
+            Sequence @@ supportOptions,
+            "Backend" -> "Wolfram",
+            "BackendThreads" -> OptionValue["BackendThreads"],
+            "PlanDiscoveryBackend" -> planDiscoveryBackend,
+            "SolveAffineSystem" -> True, "DiscoverPlan" -> True,
+            "ArtifactDirectory" -> artifactDirectory,
+            "Preparation" -> preparation,
+            "ExpectedFingerprint" -> preparation["Fingerprint"]]]];
+      If[AssociationQ[pilotSample] &&
+          AssociationQ[Lookup[pilotSample, "EliminationPlan", None]] &&
+          pilotSample["EliminationPlan"]["Status"] === "OK",
+        eliminationPlan = pilotSample["EliminationPlan"];
+        log["Constrained elimination plan: rank ",
+          eliminationPlan["GenericRank"], ", nullity ",
+          eliminationPlan["Nullity"], ", normalization columns ",
+          eliminationPlan["NormalizationColumns"]],
+        log["Constrained plan unavailable (",
+          If[AssociationQ[pilotSample],
+            Lookup[Lookup[pilotSample, "EliminationPlan", <||>],
+              "Status", "no pilot solution"], "pilot failed"],
+          "); continuing on the full elimination path"]]];
     (* Design/CFFR1Backend.md item 6: an explicit "FLINTAffineRREF"
        request NEVER falls back.  A missing plan there is the block's
        typed result, not a silent return to the Wolfram discoverer. *)

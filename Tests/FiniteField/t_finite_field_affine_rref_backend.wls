@@ -492,6 +492,24 @@ check["(g) a whole block solves through the native plan discovery",
     Lookup[nativeSolution, "PlanDiscoveryBackendUsed", None] ===
       "FLINTAffineRREF"];
 
+resumeOptions = DeleteCases[solveOptions,
+  HoldPattern[("NumeratorDegreeOffsets" | "ArtifactDirectory") -> _]];
+resumedSolution = FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
+  "PlanDiscoveryBackend" -> "FLINTAffineRREF",
+  "Preparation" -> preparation,
+  "EliminationPlan" -> syntheticSealed,
+  "Support" -> syntheticNativePilot["GaugeSupport"],
+  "SupportLearning" -> False,
+  "NumeratorDegreeOffsets" -> {{1, 0}},
+  "ArtifactDirectory" -> FileNameJoin[{scratch, "resume"}],
+  Sequence @@ resumeOptions];
+check["a prepared solve reuses its sealed affine section",
+  AssociationQ[resumedSolution] &&
+    TrueQ[resumedSolution["ExactPfaffianResidualsZero"]] &&
+    TrueQ[resumedSolution["DLogFormCertified"]] &&
+    Lookup[resumedSolution, "PlanDiscoveryBackendUsed", None] ===
+      "FLINTAffineRREF"];
+
 Quiet[DeleteDirectory[scratch, DeleteContents -> True]];
 Print["t_finite_field_affine_rref_backend: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];
