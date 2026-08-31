@@ -327,6 +327,64 @@ Module[{assembly2, m, ahat2, prepared2, u, iOrd, q, dlt, aOrd, bOrd,
     q["Status"] === "InsufficientLowerOrders" &&
       q["NeedLowerThrough"] === 1]];
 
+(* B1 (note 27): a lower solution starting at eps^-2 -- the kernel
+   convolution must run over the ACTUAL key ranges, and the brute
+   differentiate-back must still close *)
+Module[{assembly2, m, ahat2, prepared2, u, iOrd, q, dlt, aOrd, bOrd,
+   residual, ok},
+  assembly2 = <|"Blocks" -> {{1}, {2, 3}}, "Ranges" -> {{1}, {2, 3}}|>;
+  m = {{0, 1}, {1, 0}};
+  ahat2 = ConstantArray[0, {3, 3}];
+  ahat2[[2 ;; 3, 2 ;; 3]] = toyEps m;
+  ahat2[[2 ;; 3, 1 ;; 1]] = {{1/(tau + 2)}, {tau}};
+  prepared2 = <|"Ahat" -> ahat2, "Extension" -> <|"Type" -> "None"|>|>;
+  u = <|0 -> IdentityMatrix[2], 1 -> m tau, 2 -> (m . m) tau^2/2,
+    3 -> (m . m . m) tau^3/6|>;
+  iOrd = <|1 -> <|-2 -> {1}, -1 -> {tau}, 0 -> {tau^2}, 1 -> {tau^3}|>|>;
+  q = pte["pathTransportExceptionQuadrature"][prepared2, assembly2, 2,
+    u, iOrd, tau, toyEps, {-2, -1, 0, 1}];
+  FTAssert["B1: eps^-2 lower start returns OKFormalPathQuadrature",
+    q["Status"] === "OKFormalPathQuadrature" &&
+      q["LowerMinimumOrder"] === -2];
+  dlt = q["DeltaI"];
+  aOrd = <|1 -> m|>;
+  bOrd = <|0 -> {{1/(tau + 2)}, {tau}}|>;
+  ok = True;
+  Do[
+    residual = Map[D[#, tau] &, Lookup[dlt, n, {0, 0}]] -
+      Sum[Lookup[aOrd, a, ConstantArray[0, {2, 2}]] .
+        Lookup[dlt, n - a, {0, 0}], {a, 1, 1}] -
+      Sum[Lookup[bOrd, b, ConstantArray[0, {2, 1}]] .
+        Lookup[iOrd[1], n - b, {0}], {b, 0, 0}];
+    ok = ok && AllTrue[residual,
+      TrueQ[Together[Expand[#]] === 0] &],
+    {n, -2, 1}];
+  FTAssert["B1: brute differentiate-back closes from eps^-2 upward",
+    ok];
+  (* B2: a gap in the lower keys refuses by name *)
+  q = pte["pathTransportExceptionQuadrature"][prepared2, assembly2, 2,
+    u, <|1 -> <|-2 -> {1}, 0 -> {tau^2}, 1 -> {tau^3}|>|>,
+    tau, toyEps, {0, 1}];
+  FTAssert["B2: non-contiguous lower orders refuse by name",
+    q["Status"] === "LowerOrdersNotContiguous"];
+  (* B2: an uncovered propagator range refuses with the requirement *)
+  q = pte["pathTransportExceptionQuadrature"][prepared2, assembly2, 2,
+    <|0 -> IdentityMatrix[2], 1 -> m tau|>,
+    iOrd, tau, toyEps, {-2, -1, 0, 1}];
+  FTAssert["B2: insufficient propagator orders refuse with the need",
+    q["Status"] === "InsufficientPropagatorOrders" &&
+      q["RequiredThrough"] === 3];
+  (* B3: production defers the symbolic premise checks upstream *)
+  SetEnvironment["FACET_CHECK_LEVEL" -> "Production"];
+  q = pte["pathTransportExceptionQuadrature"][prepared2, assembly2, 2,
+    u, iOrd, tau, toyEps, {-2, -1, 0, 1}];
+  SetEnvironment["FACET_CHECK_LEVEL" -> "Development"];
+  FTAssert["B3: production run defers premises, no Together executed",
+    q["Status"] === "OKFormalPathQuadrature" &&
+      q["Certificate"]["CheckLevel"] === "Production" &&
+      q["Certificate"]["HomogeneousSeriesResidualZero"] ===
+        "DeferredToUpstreamAcceptance"]];
+
 (* T4, non-terminal hard block refuses by name *)
 Module[{assembly3, ahat3, prepared3, q},
   assembly3 = <|"Blocks" -> {{1}, {2}, {3}},

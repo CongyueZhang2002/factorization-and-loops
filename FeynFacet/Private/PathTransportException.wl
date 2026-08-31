@@ -498,9 +498,12 @@ pathTransportExceptionTerminalQ[ahat_, assembly_, hard_Integer] := Module[
       ahat[[ranges[[i]], ranges[[hard]]]]]], {} | {0}]]]];
 
 Options[pathTransportExceptionQuadrature] = {
-  (* exact sheet value of the residual root at the basepoint tau = 0
-     (a number or exact expression), or None when no extension: a prose
-     branch convention is documentation, not a branch implementation *)
+  (* Analytic-continuation DATUM: the exact value of the residual root
+     at the basepoint tau = 0, recorded for the LATER evaluator that
+     continues the selected sheet.  Passing it does not numerically
+     select a branch here -- the formal kernel keeps the explicit root
+     relation -- but a quadratic extension without this datum cannot be
+     evaluated downstream, so its absence refuses (Codex note 27 B4). *)
   "SheetValue" -> None};
 
 pathTransportExceptionQuadrature[prepared_Association,
@@ -508,9 +511,10 @@ pathTransportExceptionQuadrature[prepared_Association,
     iOrd_Association, tau_Symbol, eps_, orders : {__Integer},
     OptionsPattern[]] := Module[
   {ranges, ahat, extension, sheet, nmax, ah, bRows, lowerBlocks, bmin,
-   aOrders, bOrders, iOrders, needLower, vSeries, uvResidual,
-   homResidual, kernel, quadrature, delta, certificate, dim,
-   integrationVar, iOrdHard},
+   aMin, lowerMin, lowerMaxNeeded, requiredInverseOrder, aOrders,
+   bOrders, iOrders, vSeries, premisesChecked, uvResidual, homResidual,
+   kernel, quadrature, delta, certificate, dim, integrationVar,
+   iOrdHard, zeroMat, zeroVec, contiguousQ, refusal = None},
   ranges = assembly["Ranges"];
   ahat = prepared["Ahat"];
   extension = Lookup[prepared, "Extension", <|"Type" -> "None"|>];
@@ -522,6 +526,7 @@ pathTransportExceptionQuadrature[prepared_Association,
   If[! pathTransportExceptionTerminalQ[ahat, assembly, hard],
     Return[<|"Status" -> "NestedQuadratureRequired", "Hard" -> hard|>]];
   dim = Length[ranges[[hard]]];
+  zeroMat = ConstantArray[0, {dim, dim}];
   nmax = Max[orders];
   ah = ahat[[ranges[[hard]], ranges[[hard]]]];
   lowerBlocks = Select[Range[Length[ranges]],
@@ -529,53 +534,98 @@ pathTransportExceptionQuadrature[prepared_Association,
       ahat[[ranges[[hard]], ranges[[#]]]]]], {} | {0}] &];
   bRows = ahat[[ranges[[hard]],
     Flatten[ranges[[#]] & /@ lowerBlocks]]];
+  zeroVec = ConstantArray[0, Last[Dimensions[bRows]]];
   bmin = Min[Append[Flatten[Map[
-    masterTransportEpsOrder[#, eps] & , bRows, {2}]], 0]];
-  needLower = nmax - bmin;
-  (* lower solutions must reach nmax - bmin: the one depth statement,
-     read from the installed mathematics *)
-  If[! AllTrue[lowerBlocks, AssociationQ[Lookup[iOrd, #, None]] &&
-      Max[Keys[iOrd[#]]] >= needLower &],
-    Return[<|"Status" -> "InsufficientLowerOrders",
-      "NeedLowerThrough" -> needLower,
-      "ForcingMinimumOrder" -> bmin|>]];
-  aOrders = pathTransportExceptionSeriesOrders[ah, eps, Min[orders, 0],
-    nmax];
-  bOrders = pathTransportExceptionSeriesOrders[bRows, eps, bmin, nmax];
+    masterTransportEpsOrder[#, eps] &, bRows, {2}]], 0]];
+  aMin = Min[Append[Flatten[Map[
+    masterTransportEpsOrder[#, eps] &, ah, {2}]], 0]];
+  lowerMaxNeeded = nmax - bmin;
+  contiguousQ[keys_] := keys === Range[Min[keys], Max[keys]];
+
+  (* B1/B2: each lower solution declares a CONTIGUOUS Laurent interval;
+     below its own minimum the series is genuinely zero (that is what a
+     declared lowest order asserts), above its maximum it is UNCOMPUTED
+     and must refuse -- an absent order never silently means zero. *)
+  Do[
+    Module[{lower = Lookup[iOrd, j, None], keys},
+      Which[
+        ! AssociationQ[lower],
+          refusal = <|"Status" -> "InsufficientLowerOrders",
+            "MissingBlock" -> j,
+            "NeedLowerThrough" -> lowerMaxNeeded,
+            "ForcingMinimumOrder" -> bmin|>,
+        keys = Sort[Keys[lower]]; ! contiguousQ[keys],
+          refusal = <|"Status" -> "LowerOrdersNotContiguous",
+            "Block" -> j, "Keys" -> keys|>,
+        Max[keys] < lowerMaxNeeded,
+          refusal = <|"Status" -> "InsufficientLowerOrders",
+            "Block" -> j, "AvailableThrough" -> Max[keys],
+            "NeedLowerThrough" -> lowerMaxNeeded,
+            "ForcingMinimumOrder" -> bmin|>]],
+    {j, lowerBlocks}];
+  (* the refusal check sits at FUNCTION level: a Return inside the
+     per-block Module above would return from that inner Module and be
+     silently discarded -- the trap this file already documents *)
+  If[refusal =!= None, Return[refusal, Module]];
+  lowerMin = Min[Min[Keys[iOrd[#]]] & /@ lowerBlocks];
+  requiredInverseOrder = nmax - bmin - lowerMin;
+
+  (* B2: the propagator must cover the full contiguous inverse range;
+     explicit zero matrices are values, absence is not *)
+  If[! (contiguousQ[Sort[Keys[uSeries]]] &&
+      Min[Keys[uSeries]] <= 0 &&
+      Max[Keys[uSeries]] >= requiredInverseOrder),
+    Return[<|"Status" -> "InsufficientPropagatorOrders",
+      "RequiredThrough" -> requiredInverseOrder,
+      "Available" -> Sort[Keys[uSeries]]|>]];
+
+  aOrders = pathTransportExceptionSeriesOrders[ah, eps, aMin,
+    requiredInverseOrder];
+  bOrders = pathTransportExceptionSeriesOrders[bRows, eps, bmin,
+    nmax - lowerMin];
   iOrders = Association @@ Table[
-    n -> Join @@ Table[Lookup[iOrd[j], n, ConstantArray[0,
-      Length[ranges[[j]]]]], {j, lowerBlocks}],
-    {n, 0, needLower}];
-  vSeries = pathTransportExceptionSeriesInverse[uSeries, nmax - bmin];
+    n -> Join @@ Table[Lookup[iOrd[j], n,
+      ConstantArray[0, Length[ranges[[j]]]]], {j, lowerBlocks}],
+    {n, lowerMin, lowerMaxNeeded}];
+  vSeries = pathTransportExceptionSeriesInverse[uSeries,
+    requiredInverseOrder];
   If[AssociationQ[vSeries] && KeyExistsQ[vSeries, "Status"],
     Return[vSeries]];
-  (* checked premises of the certificate, per order, on THIS data:
-     U V = 1 and dU/dtau = (A U) by convolution *)
-  uvResidual = Table[
-    Sum[Lookup[uSeries, k, ConstantArray[0, {dim, dim}]] .
-      Lookup[vSeries, n - k, ConstantArray[0, {dim, dim}]], {k, 0, n}] -
-      If[n === 0, IdentityMatrix[dim], ConstantArray[0, {dim, dim}]],
-    {n, 0, nmax - bmin}];
-  uvResidual = AllTrue[Flatten[uvResidual],
-    TrueQ[Together[#] === 0] &];
-  homResidual = Table[
-    Map[D[#, tau] &, Lookup[uSeries, n, ConstantArray[0, {dim, dim}]],
-      {2}] - Sum[Lookup[aOrders, n - k, ConstantArray[0, {dim, dim}]] .
-        Lookup[uSeries, k, ConstantArray[0, {dim, dim}]], {k, 0, n}],
-    {n, 0, nmax - bmin}];
-  homResidual = AllTrue[Flatten[homResidual],
-    TrueQ[Together[#] === 0] &];
-  If[! TrueQ[homResidual],
-    Return[<|"Status" -> "HomogeneousSeriesResidualNonzero"|>]];
-  If[! TrueQ[uvResidual],
-    Return[<|"Status" -> "PropagatorInverseResidualNonzero"|>]];
-  (* kernel orders K^(n) = [V B I]^(n), no normalization anywhere *)
+
+  (* B3: the exact per-order premise residuals (dU/dtau = A U and
+     U V = 1 via Together) run in Development only.  Production
+     consumes the upstream accepted homogeneous-propagator record; its
+     acceptance boundary is the fresh modular path-point comparison of
+     the Wave-E seam, not repeated symbolic simplification here. *)
+  premisesChecked = masterTransportCheckLevel[] =!= "Production";
+  If[premisesChecked,
+    uvResidual = AllTrue[Flatten[Table[
+      Sum[uSeries[k] . Lookup[vSeries, n - k, zeroMat], {k, 0, n}] -
+        If[n === 0, IdentityMatrix[dim], zeroMat],
+      {n, 0, requiredInverseOrder}]], TrueQ[Together[#] === 0] &];
+    homResidual = AllTrue[Flatten[Table[
+      Map[D[#, tau] &, uSeries[n], {2}] -
+        Sum[Lookup[aOrders, n - k, zeroMat] . uSeries[k], {k, 0, n}],
+      {n, 0, requiredInverseOrder}]], TrueQ[Together[#] === 0] &];
+    If[! TrueQ[homResidual],
+      Return[<|"Status" -> "HomogeneousSeriesResidualNonzero"|>]];
+    If[! TrueQ[uvResidual],
+      Return[<|"Status" -> "PropagatorInverseResidualNonzero"|>]],
+    uvResidual = "DeferredToUpstreamAcceptance";
+    homResidual = "DeferredToUpstreamAcceptance"];
+
+  (* kernel orders K^(n) = [V B I]^(n): the convolution runs over the
+     ACTUAL declared key ranges, a + b + c = n with c allowed negative;
+     no bound assumes the lower series starts at eps^0 (note 27 B1) *)
   kernel = Association @@ Table[
-    n -> Sum[Lookup[vSeries, a, ConstantArray[0, {dim, dim}]] .
-        (Lookup[bOrders, b, ConstantArray[0, Dimensions[bRows]]] .
-         Lookup[iOrders, n - a - b, ConstantArray[0,
-           Length[First[iOrders]]]]),
-      {a, 0, n - bmin}, {b, bmin, n - a}],
+    n -> Sum[
+      With[{c = n - a - b},
+        If[KeyExistsQ[iOrders, c],
+          Lookup[vSeries, a, zeroMat] .
+            (Lookup[bOrders, b, ConstantArray[0, Dimensions[bRows]]] .
+             iOrders[c]),
+          ConstantArray[0, dim]]],
+      {a, 0, requiredInverseOrder}, {b, bmin, nmax - lowerMin}],
     {n, Min[orders], nmax}];
   integrationVar = Unique["pathTransportQuadratureVar"];
   quadrature = Association @@ Table[
@@ -589,9 +639,9 @@ pathTransportExceptionQuadrature[prepared_Association,
       {i, dim}],
     {n, Min[orders], nmax}];
   delta = Association @@ Table[
-    n -> Sum[Lookup[uSeries, a, ConstantArray[0, {dim, dim}]] .
-      Lookup[quadrature, n - a, ConstantArray[0, dim]],
-      {a, 0, n - Min[orders]}],
+    n -> Sum[uSeries[a] . Lookup[quadrature, n - a,
+        ConstantArray[0, dim]],
+      {a, 0, Min[n - Min[orders], requiredInverseOrder]}],
     {n, Min[orders], nmax}];
   iOrdHard = Lookup[iOrd, hard, None];
   certificate = <|
@@ -599,16 +649,17 @@ pathTransportExceptionQuadrature[prepared_Association,
 I_ord,j, order by order in the regulator; differentiating the \
 representation returns the inhomogeneous equation because (1) the \
 inert head differentiates to its integrand, (2) dU/dtau = A U per \
-order (checked above on this data), (3) U V = 1 per order (checked \
-above on this data); the regrouping uses no property of I_ord, so the \
-representation is correct for every inhomogeneity.",
+order, (3) U V = 1 per order; the regrouping uses no property of \
+I_ord, so the representation is correct for every inhomogeneity.",
+    "CheckLevel" -> masterTransportCheckLevel[],
     "HomogeneousSeriesResidualZero" -> homResidual,
     "PropagatorInverseResidualZero" -> uvResidual,
     "Evaluated" -> False|>;
   <|"Status" -> "OKFormalPathQuadrature",
     "Hard" -> hard, "Orders" -> orders,
     "ForcingMinimumOrder" -> bmin,
-    "LowerOrdersUsed" -> needLower,
+    "LowerMinimumOrder" -> lowerMin,
+    "LowerOrdersUsed" -> lowerMaxNeeded,
     "LowerBlocks" -> lowerBlocks,
     "Kernel" -> kernel,
     "DeltaI" -> delta,
@@ -617,10 +668,12 @@ representation is correct for every inhomogeneity.",
           ConstantArray[0, dim]] + Lookup[delta, n,
           ConstantArray[0, dim]],
         {n, Min[orders], nmax}], None],
-    "Sheet" -> sheet,
+    "SheetDatum" -> sheet,
     "Certificate" -> certificate,
     "Claim" -> "A formal path quadrature with per-order checked \
-premises.  No closed form, function class, or value of the integral \
-is claimed."|>];
+premises in Development and upstream-accepted premises in Production. \
+No closed form, function class, or value of the integral is claimed; \
+SheetDatum is the analytic-continuation record for a later \
+evaluator."|>];
 pathTransportExceptionQuadrature[___] :=
   <|"Status" -> "InvalidPathQuadratureInput"|>;
