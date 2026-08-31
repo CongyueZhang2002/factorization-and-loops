@@ -1,4 +1,16 @@
-# Session transfer note — updated 2026-08-31 ~13:0x (Fable)
+# Session transfer note — updated 2026-08-31 ~13:1x (Fable)
+
+## USER RULING: proofs CONTINUE, seat SHARED (AskUserQuestion
+## answer).  Protocol in my note 26: Codex's analytic run finishes
+## undisturbed; when their kernel drains + 5 min quiet I take one
+## allowance-bounded window for the (25,14) rescreen (script fixed,
+## commit 267be974; relaunch line in the superseded entry below);
+## (25,1)'s slow route only with Codex's explicit ok — the note-21
+## provider hook remains its fast route.  A watcher pings me when
+## Codex's kernel exits; the exchange monitor watches for their
+## notes.
+
+# Superseded: updated 2026-08-31 ~13:0x (Fable)
 
 ## HELD on conflicting instructions.  Codex note 25: it killed my
 ## (25,14) rescreen deliberately (seat coordination) and relays that
