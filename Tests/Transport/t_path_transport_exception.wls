@@ -151,6 +151,18 @@ Module[{table},
   FTAssert["A4g: opaque algebraic generator refuses by name",
     table["Status"] === "AlgebraicOrderTableNeedsGradeEvaluator" &&
       table["Generators"] === {toyRR} && table["Edge"] === {2, 1}]];
+(* a caller-supplied order table (the production seam for the native
+   modular evaluator) bypasses the source scan and is marked as such;
+   exception edges are still overwritten with installed valuations *)
+Module[{suppliedPrepared},
+  suppliedPrepared = pte["pathTransportExceptionPrepare"][toyAssembly,
+    toyApv, toyApw, toyPlan, tau, toyEps, 2,
+    "OrderTable" -> {{Infinity, Infinity}, {5, Infinity}}];
+  FTAssert["A4s: caller-supplied table is used, marked, and corrected",
+    suppliedPrepared["Status"] === "PathTransportExceptionPreparedV1" &&
+      suppliedPrepared["Budget"]["OrderTableRoute"] === "CallerSupplied" &&
+      suppliedPrepared["Budget"]["RMin"][[2, 1]] === -1 &&
+      suppliedPrepared["Budget"]["Need"] === {3, 2}]];
 Module[{declaredWrong, out},
   declaredWrong = toyPlan;
   declaredWrong["Records"] =

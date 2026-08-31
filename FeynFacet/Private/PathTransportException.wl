@@ -492,8 +492,18 @@ pathTransportExceptionSourceOrderTable[assembly_, apv_, apw_, eps_,
    time.  On "AlgebraicQuadratureRequired" the caller takes the
    formal-quadrature consumer; nothing here claims the integral
    evaluated. *)
+Options[pathTransportExceptionPrepare] = {
+  (* the block-pair regulator-order table; Automatic runs the cheap
+     two-point source scan (reference/development -- measured NOT
+     seconds-scale on the live CF303 state, 2026-08-31).  A caller
+     with a faster authority -- the native modular point/radical
+     evaluator across the provider seam -- supplies the matrix here.
+     Exception edges are ALWAYS overwritten with installed valuations
+     regardless of the source. *)
+  "OrderTable" -> Automatic};
+
 pathTransportExceptionPrepare[assembly_Association, apv_, apw_, plan0_,
-    tau_Symbol, eps_, kmax_Integer] := Module[
+    tau_Symbol, eps_, kmax_Integer, OptionsPattern[]] := Module[
   {plan = plan0, issues, contract, connection, installed, budget,
    capability, tConnection, tInstall, tBudget, tCapability},
   issues = pathTransportExceptionPlanIssues[plan];
@@ -513,10 +523,12 @@ pathTransportExceptionPrepare[assembly_Association, apv_, apw_, plan0_,
       connection["Ahat"], plan, tau, eps]];
   If[installed["Status"] =!= "PathTransportExceptionInstalledV1",
     Return[installed]];
-  {tBudget, budget} = AbsoluteTiming[Module[{orderTable},
-    orderTable = pathTransportExceptionSourceOrderTable[assembly,
-      apv, apw, eps, contract["Variables"],
-      #["Positions"] & /@ installed["Reports"]];
+  {tBudget, budget} = AbsoluteTiming[Module[{orderTable, supplied},
+    supplied = OptionValue["OrderTable"];
+    orderTable = If[ListQ[supplied], supplied,
+      pathTransportExceptionSourceOrderTable[assembly,
+        apv, apw, eps, contract["Variables"],
+        #["Positions"] & /@ installed["Reports"]]];
     (* an accepted record REPLACED its whole block: the source
        coupling no longer exists at that edge, so the table entry is
        OVERWRITTEN -- not combined -- with the installed forcing's
@@ -533,7 +545,8 @@ pathTransportExceptionPrepare[assembly_Association, apv_, apw_, plan0_,
         {report, installed["Reports"]}];
       Append[masterTransportDepthBudgetFromTable[assembly, orderTable,
           kmax],
-        "OrderTableRoute" -> "SourcePairPropagated"]]]];
+        "OrderTableRoute" -> If[ListQ[supplied], "CallerSupplied",
+          "SourcePairPropagated"]]]]];
   If[Lookup[budget, "Status", None] ===
       "AlgebraicOrderTableNeedsGradeEvaluator",
     Return[budget]];
@@ -847,14 +860,16 @@ Options[pathTransportExceptionTransport] = {
   "PropagatorSeries" -> None,
   "LowerOrders" -> None,
   "Orders" -> None,
-  "SheetValue" -> None};
+  "SheetValue" -> None,
+  (* passed through to Prepare (see its option text) *)
+  "OrderTable" -> Automatic};
 
 pathTransportExceptionTransport[assembly_Association, apv_, apw_,
     plan_, tau_Symbol, eps_, kmax_Integer, opts : OptionsPattern[]] :=
   Module[{prepared, records, rowIds, hard, u, iOrd, orders, missing,
     quadrature},
   prepared = pathTransportExceptionPrepare[assembly, apv, apw, plan,
-    tau, eps, kmax];
+    tau, eps, kmax, "OrderTable" -> OptionValue["OrderTable"]];
   If[prepared["Status"] =!= "PathTransportExceptionPreparedV1",
     Return[prepared]];
   records = plan["Records"];
