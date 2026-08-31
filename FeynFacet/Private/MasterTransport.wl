@@ -2613,21 +2613,27 @@ masterTransportDepthBudget[assembly_, ahat_, kmax_Integer, eps_] := Module[
    expression-scan route above stays as the diagnostic/reference. *)
 masterTransportDepthBudgetFromTable[assembly_, rminTable_,
     kmax_Integer] := Module[
-  {nb, need},
+  {nb, need, table},
   nb = Length[assembly["Blocks"]];
   If[Dimensions[rminTable] =!= {nb, nb},
     Return[<|"Status" -> "InvalidOrderTable",
       "Dimensions" -> Dimensions[rminTable]|>]];
+  (* only the strict lower triangle is meaningful; the diagonal and
+     upper triangle are forced to Infinity HERE so a caller-supplied
+     table cannot pollute RMinGlobal with irrelevant values (Codex
+     note 14) *)
+  table = Table[If[i > j, rminTable[[i, j]], Infinity],
+    {i, nb}, {j, nb}];
   need = ConstantArray[kmax, nb];
   Do[
     Do[
-      If[j < i && rminTable[[i, j]] =!= Infinity,
-        need[[j]] = Max[need[[j]], need[[i]] - rminTable[[i, j]]]],
+      If[j < i && table[[i, j]] =!= Infinity,
+        need[[j]] = Max[need[[j]], need[[i]] - table[[i, j]]]],
       {j, nb}],
     {i, nb, 1, -1}];
-  <|"Need" -> need, "RMin" -> rminTable,
+  <|"Need" -> need, "RMin" -> table,
     "RMinGlobal" -> Min[Append[
-      DeleteCases[Flatten[rminTable], Infinity], 0]]|>
+      DeleteCases[Flatten[table], Infinity], 0]]|>
 ];
 
 (* (C3) The regrading shift D.  See the header for the derivation: a

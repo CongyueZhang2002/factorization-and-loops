@@ -547,8 +547,10 @@ pathTransportExceptionPrepare[assembly_Association, apv_, apw_, plan0_,
           kmax],
         "OrderTableRoute" -> If[ListQ[supplied], "CallerSupplied",
           "SourcePairPropagated"]]]]];
-  If[Lookup[budget, "Status", None] ===
-      "AlgebraicOrderTableNeedsGradeEvaluator",
+  (* fail closed on ANY typed budget refusal (grade-evaluator need,
+     InvalidOrderTable from a malformed caller table, ...) -- nothing
+     with a Status key proceeds to PreparedV1 (Codex note 14) *)
+  If[Lookup[budget, "Status", None] =!= None,
     Return[budget]];
   {tCapability, capability} = AbsoluteTiming[
     pathTransportExceptionCapability[installed, assembly,
@@ -1199,3 +1201,270 @@ pathTransportExceptionFormalRelease[graph_Association] := Module[{gid},
   <|"Status" -> "FormalGraphReleased", "GraphID" -> gid|>];
 pathTransportExceptionFormalRelease[___] :=
   <|"Status" -> "InvalidFormalReleaseInput"|>;
+
+(* ==================================================================
+   Modular path-point evaluation of the formal lower graph (contract:
+   Fable note 11 as corrected by Codex note 14).  The result is an
+   exact formal JET modulo tau^(T+1) at the path origin in the plain
+   monomial basis -- OKModularGraphSeries with SeriesCenter -> 0,
+   BasePoint -> 0, TruncationOrder -> T -- never an arbitrary-point
+   integral value (finite-field truncation has no convergence
+   interpretation).  Production acceptance compares constructed and
+   direct differential systems as jets at a fresh prime/sheet.
+
+   The numeric memo is scoped to ONE evaluation call and discarded on
+   return, so opposite sheets, different boundary constants, or
+   different providers can never collide by construction.  An
+   ordinary Taylor basis needs a regular origin: a path denominator
+   vanishing at tau = 0 refuses PathOriginSingular, a residual root
+   with zero basepoint value refuses PathOriginRamified; the caller
+   picks a different admissible path, nothing is coerced. *)
+
+ClearAll[pathTransportExceptionJetOfExpression,
+  pathTransportExceptionFormalEvaluate,
+  $pathTransportExceptionJetTag];
+
+(* ---- scalar jet algebra mod p: a jet is the coefficient list
+   {c_0, ..., c_T}; helpers Throw typed refusals on the shared tag ---- *)
+
+pathTransportExceptionJetThrow[status_, detail___Rule] :=
+  Throw[<|"Status" -> status, detail|>, $pathTransportExceptionJetTag];
+
+pathTransportExceptionJetMul[a_List, b_List, p_Integer] := Module[
+  {t = Length[a] - 1},
+  Table[Mod[Sum[a[[k + 1]] b[[n - k + 1]], {k, 0, n}], p],
+    {n, 0, t}]];
+
+pathTransportExceptionJetInverse[a_List, p_Integer] := Module[
+  {t = Length[a] - 1, out, lead},
+  If[Mod[First[a], p] === 0,
+    pathTransportExceptionJetThrow["PathOriginSingular",
+      "Reason" -> "DenominatorVanishesAtOrigin"]];
+  lead = PowerMod[First[a], -1, p];
+  out = ConstantArray[0, t + 1]; out[[1]] = lead;
+  Do[
+    out[[n + 1]] = Mod[-lead Sum[a[[k + 1]] out[[n - k + 1]],
+      {k, 1, n}], p],
+    {n, 1, t}];
+  out];
+
+(* sqrt jet on the sheet fixed by the basepoint value s0 (s0^2 = a_0
+   mod p); s0 = 0 or a_0 = 0 is a ramified origin *)
+pathTransportExceptionJetSqrt[a_List, s0_Integer, p_Integer] := Module[
+  {t = Length[a] - 1, out, half},
+  If[Mod[First[a], p] === 0 || Mod[s0, p] === 0,
+    pathTransportExceptionJetThrow["PathOriginRamified",
+      "Reason" -> "RootSquareVanishesAtOrigin"]];
+  If[Mod[s0 s0 - First[a], p] =!= 0,
+    pathTransportExceptionJetThrow["SheetDatumInconsistent",
+      "BasePointSquare" -> Mod[First[a], p]]];
+  half = PowerMod[2 s0, -1, p];
+  out = ConstantArray[0, t + 1]; out[[1]] = Mod[s0, p];
+  Do[
+    out[[n + 1]] = Mod[half (a[[n + 1]] -
+      Sum[out[[k + 1]] out[[n - k + 1]], {k, 1, n - 1}]), p],
+    {n, 1, t}];
+  out];
+
+pathTransportExceptionJetIntegrate[a_List, p_Integer] := Module[
+  {t = Length[a] - 1},
+  Table[
+    If[n === 0, 0,
+      If[Mod[n, p] === 0,
+        pathTransportExceptionJetThrow["TauOrderInsufficient",
+          "Reason" -> "IntegrationStepDivisibleByPrime",
+          "Step" -> n]];
+      Mod[a[[n]] PowerMod[n, -1, p], p]],
+    {n, 0, t}]];
+
+(* ---- expression -> scalar jet (the reference/development route for
+   diagonals and fallback edge providers; the native EdgeSeries
+   handle bypasses this entirely) ---- *)
+
+pathTransportExceptionJetOfExpression[expr_, tau_Symbol, p_Integer,
+    t_Integer, sheet_] := Module[{jet},
+  jet[e_Integer] := PadRight[{Mod[e, p]}, t + 1];
+  jet[e_Rational] := If[Mod[Denominator[e], p] === 0,
+    pathTransportExceptionJetThrow["ModularDenominatorClash",
+      "Value" -> e],
+    PadRight[{Mod[Numerator[e] PowerMod[Denominator[e], -1, p], p]},
+      t + 1]];
+  jet[e_Symbol] := Which[
+    e === tau, PadRight[{0, 1}, t + 1],
+    True, pathTransportExceptionJetThrow["UnresolvedSymbolInJet",
+      "Symbol" -> e]];
+  jet[e_Plus] := Mod[Total[jet /@ List @@ e], p];
+  jet[e_Times] := Fold[pathTransportExceptionJetMul[#1, #2, p] &,
+    jet[First[e]], jet /@ Rest[List @@ e]];
+  jet[Power[b_, n_Integer]] := Which[
+    n === 0, PadRight[{1}, t + 1],
+    n > 0, Nest[pathTransportExceptionJetMul[#, jet[b], p] &,
+      jet[b], n - 1],
+    True, Nest[pathTransportExceptionJetMul[#,
+        pathTransportExceptionJetInverse[jet[b], p], p] &,
+      pathTransportExceptionJetInverse[jet[b], p], -n - 1]];
+  jet[Power[b_, q_Rational]] := Module[{s, s0},
+    If[Denominator[q] =!= 2,
+      pathTransportExceptionJetThrow["UnsupportedRadicalDegree",
+        "Exponent" -> q]];
+    s0 = Which[
+      AssociationQ[sheet], Lookup[sheet, Key[b],
+        Missing["NoSheetDatum"]],
+      sheet =!= None, sheet[b],
+      True, Missing["NoSheetDatum"]];
+    If[! IntegerQ[s0],
+      pathTransportExceptionJetThrow["SheetDatumRequired",
+        "Radicand" -> b]];
+    s = pathTransportExceptionJetSqrt[jet[b], s0, p];
+    (* integer power of the sqrt jet, negative allowed *)
+    Module[{m = Numerator[2 q]},
+      Which[
+        m > 0, Nest[pathTransportExceptionJetMul[#, s, p] &, s, m - 1],
+        m < 0, Module[{inv = pathTransportExceptionJetInverse[s, p]},
+          Nest[pathTransportExceptionJetMul[#, inv, p] &, inv,
+            -m - 1]],
+        True, PadRight[{1}, t + 1]]]];
+  jet[e_] := pathTransportExceptionJetThrow["UnsupportedJetHead",
+    "Head" -> Head[e]];
+  jet[expr]];
+
+(* ---- the graph walk: one call, one memo, discarded on return ---- *)
+
+Options[pathTransportExceptionFormalEvaluate] = {
+  "TauOrder" -> 8,
+  "Prime" -> None,
+  (* per-radicand basepoint root values mod p (association keyed by
+     the radicand expression, or a function radicand -> value) *)
+  "SheetData" -> None,
+  (* constants: a function f[block, order, component] -> value mod p,
+     or an association keyed {block, order, component}; a missing
+     value refuses ConstantsUnresolved *)
+  "ConstantValues" -> None,
+  (* THE NATIVE SEAM: h[{i, j}, order, T, p, sheet] -> matrix of jets
+     for the edge coefficient block; Automatic falls back to the
+     development extraction + jet expansion *)
+  "EdgeSeries" -> Automatic,
+  (* native diagonal handle h[block, T, p, sheet] -> matrix of jets
+     for M_block; Automatic expands the stored small diagonal *)
+  "DiagonalSeries" -> Automatic};
+
+pathTransportExceptionFormalEvaluate[graph_Association, i_Integer,
+    n_Integer, OptionsPattern[]] := Module[
+  {gid, data, p, t, sheet, constants, edgeOption, diagonalOption,
+   store, localMemo, evalM, evalU, evalV, evalB, evalKernel, evalQ,
+   evalI, constantAt, zeroJet, idJet, matMul, matAdd, result},
+  gid = Lookup[graph, "GraphID", None];
+  data = Lookup[$pathTransportExceptionFormalGraphs, Key[gid],
+    Missing["GraphReleased"]];
+  If[MissingQ[data],
+    Return[<|"Status" -> "FormalGraphNotRegistered",
+      "GraphID" -> gid|>]];
+  p = OptionValue["Prime"];
+  t = OptionValue["TauOrder"];
+  If[! (IntegerQ[p] && p > 2 && PrimeQ[p] && IntegerQ[t] && t >= 0),
+    Return[<|"Status" -> "InvalidModularEvaluationRequest"|>]];
+  sheet = OptionValue["SheetData"];
+  constants = OptionValue["ConstantValues"];
+  edgeOption = OptionValue["EdgeSeries"];
+  diagonalOption = OptionValue["DiagonalSeries"];
+  (* ONE evaluation context: local store, discarded on return (Codex
+     note 14) -- sheets, constants, and providers cannot collide
+     across calls by construction *)
+  store = <||>;
+  (* Lookup evaluates its default EAGERLY, so it cannot memoize a
+     recursive computation; localMemo holds the compute argument and
+     runs it only on a miss *)
+  SetAttributes[localMemo, HoldRest];
+  localMemo[key_, compute_] := If[KeyExistsQ[store, key],
+    store[key], store[key] = compute];
+  zeroJet = ConstantArray[0, t + 1];
+  idJet[dim_] := Table[If[r === c, PadRight[{1}, t + 1], zeroJet],
+    {r, dim}, {c, dim}];
+  matMul[a_, b_] := Table[
+    Mod[Total[Table[pathTransportExceptionJetMul[a[[r, k]],
+      b[[k, c]], p], {k, Length[b]}]], p],
+    {r, Length[a]}, {c, Length[First[b]]}];
+  matAdd[a_, b_] := Mod[a + b, p];
+  constantAt[b_, order_, comp_] := Module[{value},
+    value = Which[
+      AssociationQ[constants], Lookup[constants,
+        Key[{b, order, comp}], Missing["NoConstant"]],
+      constants =!= None, constants[b, order, comp],
+      True, Missing["NoConstant"]];
+    If[! IntegerQ[value],
+      pathTransportExceptionJetThrow["ConstantsUnresolved",
+        "Block" -> b, "Order" -> order, "Component" -> comp]];
+    Mod[value, p]];
+  With[{tau = data["Tau"], low = data["Low"], top = data["Top"],
+      rmin = data["RMin"], blocksData = data["Blocks"]},
+    evalM[b_] := localMemo[{"M", b}, If[diagonalOption === Automatic,
+        Map[pathTransportExceptionJetOfExpression[#, tau, p, t,
+          sheet] &, blocksData[b]["M"], {2}],
+        diagonalOption[b, t, p, sheet]]];
+    evalU[b_, a_] := localMemo[{"U", b, a}, If[a === 0,
+        idJet[blocksData[b]["Dimension"]],
+        Map[pathTransportExceptionJetIntegrate[#, p] &,
+          matMul[evalM[b], evalU[b, a - 1]], {2}]]];
+    evalV[b_, a_] := localMemo[{"V", b, a}, If[a === 0,
+        idJet[blocksData[b]["Dimension"]],
+        Mod[-Total[Table[matMul[evalV[b, a - k], evalU[b, k]],
+          {k, 1, a}]], p]]];
+    evalB[b_, j_, order_] := localMemo[{"B", b, j, order}, If[edgeOption === Automatic,
+        Map[pathTransportExceptionJetOfExpression[#, tau, p, t,
+            sheet] &,
+          blocksData[b]["EdgeHandles"][j][order], {2}],
+        edgeOption[{b, j}, order, t, p, sheet]]];
+    evalKernel[b_, order_] := localMemo[{"K", b, order}, Module[{bd = blocksData[b], acc},
+        acc = Table[zeroJet, {bd["Dimension"]}];
+        Do[
+          Module[{inner = Table[zeroJet, {bd["Dimension"]}]},
+            Do[
+              With[{c = order - a - beta},
+                If[low[[j]] <= c <= top[[j]],
+                  inner = Mod[inner + Flatten[
+                    matMul[evalB[b, j, beta],
+                      Transpose[{evalI[j, c]}]], 1], p]]],
+              {j, bd["Feeders"]},
+              {beta, rmin[[b, j]], top[[b]] - low[[j]]}];
+            acc = Mod[acc + Flatten[
+              matMul[evalV[b, a], Transpose[{inner}]], 1], p]],
+          {a, 0, bd["RequiredInverseOrder"]}];
+        acc]];
+    evalQ[b_, order_] := localMemo[{"Q", b, order},
+        Map[pathTransportExceptionJetIntegrate[#, p] &,
+          evalKernel[b, order]]];
+    evalI[b_, order_] := localMemo[{"I", b, order}, Module[{bd = blocksData[b], acc},
+        acc = Table[zeroJet, {bd["Dimension"]}];
+        Do[
+          Module[{vec},
+            vec = Table[PadRight[{constantAt[b, order - a, comp]},
+              t + 1], {comp, bd["Dimension"]}];
+            If[bd["Feeders"] =!= {} &&
+                order - a >= bd["KernelMin"],
+              vec = Mod[vec + evalQ[b, order - a], p]];
+            acc = Mod[acc + Flatten[
+              matMul[evalU[b, a], Transpose[{vec}]], 1], p]],
+          {a, 0, Min[order - Min[low[[b]], bd["KernelMin"]],
+            bd["RequiredInverseOrder"]]}];
+        acc]];
+    If[! KeyExistsQ[blocksData, i],
+      Return[<|"Status" -> "BlockNotInFormalGraph", "Block" -> i|>]];
+    result = Catch[evalI[i, n], $pathTransportExceptionJetTag];
+    If[AssociationQ[result] && KeyExistsQ[result, "Status"],
+      Return[Join[result, <|"Block" -> i, "OrderRequested" -> n|>]]];
+    <|"Status" -> "OKModularGraphSeries",
+      "Block" -> i, "Order" -> n,
+      "Series" -> result,
+      "SeriesCenter" -> 0, "BasePoint" -> 0,
+      "TruncationOrder" -> t, "Prime" -> p,
+      "Certificate" -> <|
+        "Statement" -> "An exact formal jet modulo tau^(T+1) of the \
+graph's variation-of-constants representation at the path origin, in \
+the plain monomial basis, on the sheet fixed by the supplied \
+basepoint root values.  Not an arbitrary-point integral value; \
+production acceptance compares constructed and direct systems as \
+jets at a fresh prime/sheet.",
+        "CheckLevel" -> masterTransportCheckLevel[],
+        "Evaluated" -> "OriginJet"|>|>]];
+pathTransportExceptionFormalEvaluate[___] :=
+  <|"Status" -> "InvalidModularEvaluationInput"|>;

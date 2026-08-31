@@ -661,5 +661,108 @@ Module[{assembly3, ahat3, rmin, needTable, prepared3, res, iOrd, mDiag,
   FTAssert["P3: missing feeder refuses with the dependency named",
     res["Status"] === "MissingFeederSolution" && res["Missing"] === {1}]];
 
+(* ====== note 14: modular origin-jet evaluation of the graph ======= *)
+
+(* E5: the jet-of-expression primitive against a hand series:
+   1/(tau+2) = 1/2 - tau/4 + tau^2/8 - ... mod p *)
+Module[{p = 2147483629, jet},
+  jet = pte["pathTransportExceptionJetOfExpression"][
+    1/(tau + 2), tau, p, 4, None];
+  FTAssert["E5: jet of 1/(tau+2) matches the hand series mod p",
+    jet === Table[Mod[(-1)^k PowerMod[2, -(k + 1), p], p], {k, 0, 4}]];
+
+(* E6: full graph evaluation on the three-block toy -- the jet-space
+   differentiate-back d/dtau I^(n) = m I^(n-1) + Sum_b B^(b) I^(n-b)
+   must close to truncation order T-1 for every block and order *)
+  Module[{assembly3, ahat3, rmin, needTable, prepared3, graph, T = 6,
+    constants, jets, mJet, bJet, dJet, ok, lhs, rhs},
+  assembly3 = <|"Blocks" -> {{1}, {2}, {3}},
+    "Ranges" -> {{1}, {2}, {3}}|>;
+  ahat3 = {{toyEps/(tau + 2), 0, 0},
+           {tau, toyEps tau, 0},
+           {0, 1/(toyEps (tau + 1)), toyEps/(tau + 3)}};
+  rmin = {{Infinity, Infinity, Infinity},
+          {0, Infinity, Infinity},
+          {Infinity, -1, Infinity}};
+  needTable = pte["masterTransportDepthBudgetFromTable"][assembly3,
+    rmin, 1];
+  prepared3 = <|"Status" -> "PathTransportExceptionPreparedV1",
+    "Ahat" -> ahat3, "Budget" -> needTable|>;
+  graph = pte["pathTransportExceptionFormalLower"][prepared3,
+    assembly3, tau, toyEps];
+  constants = Function[{b, k, c}, 100 b + 10 (k + 5) + c];
+  jets = Association @@ Flatten[Table[
+    {i, n} -> pte["pathTransportExceptionFormalEvaluate"][graph, i, n,
+      "TauOrder" -> T, "Prime" -> p,
+      "ConstantValues" -> constants],
+    {i, 3}, {n, graph["Windows"]["Low"][[i]],
+      graph["Windows"]["Top"][[i]]}]];
+  FTAssert["E6: every block/order evaluates to an origin jet",
+    AllTrue[Values[jets], #["Status"] === "OKModularGraphSeries" &&
+      #["SeriesCenter"] === 0 && #["TruncationOrder"] === T &]];
+  mJet = <|1 -> pte["pathTransportExceptionJetOfExpression"][
+      1/(tau + 2), tau, p, T, None],
+    2 -> pte["pathTransportExceptionJetOfExpression"][
+      tau, tau, p, T, None],
+    3 -> pte["pathTransportExceptionJetOfExpression"][
+      1/(tau + 3), tau, p, T, None]|>;
+  bJet = <|{2, 1, 0} -> pte["pathTransportExceptionJetOfExpression"][
+      tau, tau, p, T, None],
+    {3, 2, -1} -> pte["pathTransportExceptionJetOfExpression"][
+      1/(tau + 1), tau, p, T, None]|>;
+  dJet[j_] := Table[Mod[k j[[k + 1]], p], {k, 1, T}];
+  ok = True;
+  Do[
+    Module[{series, lower, feed},
+      series = Lookup[jets, Key[{i, n}]]["Series"][[1]];
+      lower = If[KeyExistsQ[jets, {i, n - 1}],
+        Lookup[jets, Key[{i, n - 1}]]["Series"][[1]],
+        ConstantArray[0, T + 1]];
+      lhs = dJet[series];
+      rhs = Take[pte["pathTransportExceptionJetMul"][mJet[i], lower,
+        p], T];
+      Do[
+        With[{c = n - key[[3]]},
+          If[key[[1]] === i && KeyExistsQ[jets, {key[[2]], c}],
+            rhs = Mod[rhs + Take[pte["pathTransportExceptionJetMul"][
+              bJet[key], Lookup[jets, Key[{key[[2]], c}]][
+                "Series"][[1]], p], T], p]]],
+        {key, Keys[bJet]}];
+      ok = ok && lhs === Mod[rhs, p]],
+    {i, 3}, {n, graph["Windows"]["Low"][[i]],
+      graph["Windows"]["Top"][[i]]}];
+  FTAssert["E6: jet differentiate-back closes for every block/order",
+    ok];
+  (* E7: typed refusals *)
+  FTAssert["E7: missing constants refuse by name",
+    Lookup[pte["pathTransportExceptionFormalEvaluate"][graph, 1, 0,
+      "TauOrder" -> 2, "Prime" -> p], "Status", None] ===
+      "ConstantsUnresolved"];
+  FTAssert["E7: tiny prime refuses TauOrderInsufficient",
+    Lookup[pte["pathTransportExceptionFormalEvaluate"][graph, 1, 1,
+      "TauOrder" -> 4, "Prime" -> 3,
+      "ConstantValues" -> constants], "Status", None] ===
+      "TauOrderInsufficient"];
+  pte["pathTransportExceptionFormalRelease"][graph]]];
+
+(* E8: origin-regularity and sheet refusals of the jet primitive *)
+Module[{p = 2147483629, catch},
+  catch[expr_, sheetData_] := Catch[
+    pte["pathTransportExceptionJetOfExpression"][expr, tau, p, 3,
+      sheetData],
+    pte["$pathTransportExceptionJetTag"]];
+  FTAssert["E8: origin pole refuses PathOriginSingular",
+    Lookup[catch[1/tau, None], "Status", None] ===
+      "PathOriginSingular"];
+  FTAssert["E8: ramified origin refuses PathOriginRamified",
+    Lookup[catch[Sqrt[tau], <|tau -> 0|>], "Status", None] ===
+      "PathOriginRamified"];
+  FTAssert["E8: missing sheet datum refuses by radicand",
+    Lookup[catch[Sqrt[tau + 4], None], "Status", None] ===
+      "SheetDatumRequired"];
+  FTAssert["E8: consistent sheet datum gives the sqrt jet",
+    catch[Sqrt[tau + 4], <|tau + 4 -> 2|>][[1 ;; 2]] ===
+      {2, Mod[PowerMod[4, -1, p], p]}]];
+
 DeleteDirectory[tmp, DeleteContents -> True];
 FTTest`FTReport[];
