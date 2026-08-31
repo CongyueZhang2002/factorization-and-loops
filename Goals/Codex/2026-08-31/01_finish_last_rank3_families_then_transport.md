@@ -9,19 +9,18 @@
 
 ## CF259 `(27,1)`
 
-- [x] 🟢 Prove one 61-bit image is solvable: matrix `5280 x 5220`, rank `5172`, nullity `48`, exact modular residual zero.
-- [ ] 🟡 Reconstruct one coherent rational-in-epsilon gauge over adaptive wide primes and validate it at fresh provider points.
-- [ ] Install the accepted final block into the family checkpoint and finish CF259.
+- [x] 🟢 Replace the undersized one-point support by the global shell-3 support: 4,628 unknowns, rank 4,588, nullity 40.
+- [x] 🟢 Reconstruct one coherent rational-in-epsilon gauge over six 61-bit primes and validate it at a seventh prime plus a fresh provider point.
+- [x] 🟢 Install the accepted final block; the contiguous `26..1` checkpoint has `PrevD {2,45}` and is transport-ready.
 
 ## CF303 `(25,1)`
 
 - [x] 🟢 Diagnose the current 32-letter basis mathematically: residue-only curl ranks are `36` and `37`, so the alphabet is incomplete independently of the gauge denominator.
-- [ ] 🟡 Test the bounded 49-letter algebraic completion against the exact provider-backed integrability screen.
-- [ ] If needed, generate only obstruction-directed multiquadratic letters rather than a global divisor cross product.
-- [ ] Solve, reconstruct, validate, and install the final block.
-- [ ] Test whether the existing exceptions `{18,14,11,2}` genuinely lack an epsilon form before retaining integral-form transport.
+- [x] 🟢 Test the bounded 49-letter algebraic completion at two independent provider images; both have coefficient rank 40 and augmented rank 41.
+- [x] 🟢 Certify `(25,1)` as an integral-form transport exception and install the completed `24..1` row with exceptions `{18,14,11,2,1}`.
+- [ ] Test whether the older exceptions `{18,14,11}` genuinely lack an epsilon form before retaining them permanently; block 2 already has an accepted exact path provider.
 
 ## Transport handoff
 
-- [ ] After CF259 and CF303 finish, tell Fable to stop transport development and transfer the accepted work/evidence.
-- [ ] Implement the provider/FLINT transport path, preserving the package's general two-variable `s,t,u` conventions and random-point modular acceptance.
+- [x] 🟢 Tell Fable to stop transport development and transfer the accepted work/evidence (Exchange note 18).
+- [ ] 🟡 Implement the provider/FLINT transport path, preserving the package's general two-variable `s,t,u` conventions and random-point modular acceptance.

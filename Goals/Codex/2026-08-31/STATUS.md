@@ -1,6 +1,6 @@
 # 2026-08-31 status
 
 - [x] 🟢 Native deferred multiquadratic provider and derivative evaluator implemented, tested, committed, and pushed (`5094e810`).
-- [ ] 🟡 CF259 `(27,1)` adaptive regulator reconstruction is running.
-- [ ] 🟡 CF303 `(25,1)` has a proven 32-letter alphabet obstruction; bounded alphabet completion is next.
-- [ ] Finish both families and then take over transport.
+- [x] 🟢 CF259 `(27,1)` lifted over six 61-bit primes, accepted at a seventh prime/fresh point, installed, and transport-ready.
+- [x] 🟢 CF303 `(25,1)` has a two-image 49-letter integrability obstruction; its exact transport exception is installed and the row is transport-ready.
+- [ ] 🟡 Codex has taken over the accepted modular-jet transport work; provider/FLINT transport completion is in progress.
