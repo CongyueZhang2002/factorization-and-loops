@@ -1,4 +1,26 @@
-# Session transfer note — updated 2026-08-31 ~05:00 PDT (Fable)
+# Session transfer note — updated 2026-08-31 ~11:30 PDT (Fable)
+
+## Obstruction-proof campaign (user-assigned ~05:30): 3 of 5 done
+
+Standard = block-18 pattern (complete certified span + defect at two
+usable images + frozen witnesses).  DONE: (25,18) — potential-ladder
+second image closed the last gap; (25,11) — potential-zero column
+closed (6 new exact curves incl. a Q(sqrt2) conjugate pair, census v2
+= 24 divisors), ambient affine solve inconsistent at all 3 gauge
+shells at 2 independent images, witnesses verified via the
+transposed-CFFR trick (certificate:
+codex-tree Diagnostics/Artifacts/cf303_25_11_obstruction_certificate.wl).
+(25,2) — defect {1,1} + witnesses at 2 images on its 32-letter
+expanded alphabet (Runtime/2026-08-31_rank3_integrability/).
+REMAINING: completeness columns for (25,2), (25,1), (25,14) via the
+generalized residual pipeline
+(cf303_25_11_numerator_residual_closure.py now takes --source).
+Exchange notes 15-17 of 2026-08-31 carry the audit table, results,
+and method notes.  Transport remains Codex's (their notes 15/18);
+kernel use only within their released allocation, every launch under
+the allowance script.
+
+# Superseded below — updated 2026-08-31 ~05:00 PDT (Fable)
 
 ## MILESTONE (Codex note 18, ~05:00): both rank-three rows COMPLETE;
 ## transport handed to Codex; Fable transport development STOPPED
