@@ -1,0 +1,884 @@
+{
+ "status": "CF303Block11DivisorUnionCensusV1",
+ "distinct_divisors": 24,
+ "identifications": {
+  "root1(a-t)": "Q3(deg3)",
+  "Delta3": "Q1(deg6)",
+  "s-1": "Q9(deg1)",
+  "s-3": "Q2(deg1)",
+  "s+1-2t": "Q4(deg1)",
+  "t": "Q7(deg1)",
+  "1-t": "Q6(deg1)"
+ },
+ "pending_irreducibility": [],
+ "entries": [
+  {
+   "name": "Q0(deg3)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 3,
+   "terms": {
+    "0,0": [
+     -2,
+     1
+    ],
+    "0,1": [
+     -2,
+     1
+    ],
+    "1,0": [
+     5,
+     1
+    ],
+    "1,1": [
+     -2,
+     1
+    ],
+    "1,2": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q1(deg6)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 6,
+   "terms": {
+    "0,0": [
+     1,
+     16
+    ],
+    "0,2": [
+     -1,
+     8
+    ],
+    "0,4": [
+     1,
+     16
+    ],
+    "1,0": [
+     -3,
+     2
+    ],
+    "1,1": [
+     -5,
+     2
+    ],
+    "1,2": [
+     -1,
+     2
+    ],
+    "1,3": [
+     1,
+     2
+    ],
+    "2,0": [
+     9,
+     1
+    ],
+    "2,1": [
+     6,
+     1
+    ],
+    "2,2": [
+     -3,
+     1
+    ],
+    "3,0": [
+     -33,
+     2
+    ],
+    "3,1": [
+     5,
+     2
+    ],
+    "3,2": [
+     5,
+     2
+    ],
+    "3,3": [
+     -1,
+     2
+    ],
+    "4,0": [
+     9,
+     1
+    ],
+    "4,1": [
+     -6,
+     1
+    ],
+    "4,2": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q2(deg1)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 1,
+   "terms": {
+    "0,0": [
+     -3,
+     1
+    ],
+    "0,1": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q3(deg3)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 3,
+   "terms": {
+    "0,0": [
+     3,
+     1
+    ],
+    "0,1": [
+     2,
+     1
+    ],
+    "0,2": [
+     -1,
+     1
+    ],
+    "1,0": [
+     -7,
+     1
+    ],
+    "1,1": [
+     2,
+     1
+    ],
+    "1,2": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q4(deg1)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 1,
+   "terms": {
+    "0,0": [
+     -1,
+     2
+    ],
+    "0,1": [
+     -1,
+     2
+    ],
+    "1,0": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q5(deg2)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 2,
+   "terms": {
+    "0,0": [
+     1,
+     1
+    ],
+    "0,1": [
+     1,
+     1
+    ],
+    "1,0": [
+     -3,
+     1
+    ],
+    "1,1": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q6(deg1)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 1,
+   "terms": {
+    "0,0": [
+     -1,
+     1
+    ],
+    "1,0": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q7(deg1)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 1,
+   "terms": {
+    "1,0": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q8(deg1)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 1,
+   "terms": {
+    "0,0": [
+     -1,
+     1
+    ],
+    "0,1": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q9(deg1)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 1,
+   "terms": {
+    "0,0": [
+     -1,
+     1
+    ],
+    "0,1": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q10(deg3)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 3,
+   "terms": {
+    "0,0": [
+     -3,
+     1
+    ],
+    "0,1": [
+     -2,
+     1
+    ],
+    "0,2": [
+     1,
+     1
+    ],
+    "1,0": [
+     5,
+     1
+    ],
+    "1,1": [
+     -2,
+     1
+    ],
+    "1,2": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q11(deg3)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 3,
+   "terms": {
+    "0,0": [
+     -3,
+     2
+    ],
+    "0,1": [
+     -1,
+     1
+    ],
+    "0,2": [
+     1,
+     2
+    ],
+    "1,0": [
+     4,
+     1
+    ],
+    "2,0": [
+     -3,
+     1
+    ],
+    "2,1": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q12(deg3)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 3,
+   "terms": {
+    "0,0": [
+     -1,
+     1
+    ],
+    "0,1": [
+     -2,
+     1
+    ],
+    "0,2": [
+     -1,
+     1
+    ],
+    "1,0": [
+     5,
+     1
+    ],
+    "1,1": [
+     -2,
+     1
+    ],
+    "1,2": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q13(deg3)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 3,
+   "terms": {
+    "0,0": [
+     -3,
+     4
+    ],
+    "0,1": [
+     -1,
+     2
+    ],
+    "0,2": [
+     1,
+     4
+    ],
+    "1,0": [
+     11,
+     4
+    ],
+    "1,1": [
+     1,
+     2
+    ],
+    "1,2": [
+     -1,
+     4
+    ],
+    "2,0": [
+     -3,
+     1
+    ],
+    "2,1": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Q14(deg3)",
+   "provenance": "kinematic_denominator",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 3,
+   "terms": {
+    "0,0": [
+     -1,
+     2
+    ],
+    "0,2": [
+     1,
+     2
+    ],
+    "1,0": [
+     3,
+     2
+    ],
+    "1,1": [
+     1,
+     1
+    ],
+    "1,2": [
+     -1,
+     2
+    ],
+    "2,0": [
+     -3,
+     1
+    ],
+    "2,1": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "root1(a-t)",
+   "provenance": "chart_curve",
+   "identical_to": "Q3(deg3)"
+  },
+  {
+   "name": "root2",
+   "provenance": "chart_curve",
+   "irreducibility": "DualCertifiedAbsolute",
+   "total_degree": 3,
+   "terms": {
+    "0,0": [
+     1,
+     1
+    ],
+    "0,1": [
+     2,
+     1
+    ],
+    "0,2": [
+     1,
+     1
+    ],
+    "1,0": [
+     1,
+     1
+    ],
+    "1,1": [
+     -6,
+     1
+    ],
+    "1,2": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Delta3",
+   "provenance": "chart_curve",
+   "identical_to": "Q1(deg6)"
+  },
+  {
+   "name": "s-1",
+   "provenance": "chart_curve",
+   "identical_to": "Q9(deg1)"
+  },
+  {
+   "name": "s+1",
+   "provenance": "chart_curve",
+   "irreducibility": "Linear",
+   "total_degree": 1,
+   "terms": {
+    "0,0": [
+     1,
+     1
+    ],
+    "0,1": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "s-3",
+   "provenance": "chart_curve",
+   "identical_to": "Q2(deg1)"
+  },
+  {
+   "name": "s+1-2t",
+   "provenance": "chart_curve",
+   "identical_to": "Q4(deg1)"
+  },
+  {
+   "name": "t",
+   "provenance": "chart_curve",
+   "identical_to": "Q7(deg1)"
+  },
+  {
+   "name": "1-t",
+   "provenance": "chart_curve",
+   "identical_to": "Q6(deg1)"
+  },
+  {
+   "name": "Z0(deg4)",
+   "provenance": "potential_zero_residual",
+   "residual_sources": [
+    "E,1,1:t"
+   ],
+   "irreducibility": "DualCertifiedAbsolute",
+   "minimal_polynomial": null,
+   "total_degree": 4,
+   "terms": {
+    "0,0": [
+     5,
+     24
+    ],
+    "0,1": [
+     5,
+     12
+    ],
+    "0,2": [
+     5,
+     24
+    ],
+    "1,0": [
+     -2,
+     1
+    ],
+    "1,1": [
+     -11,
+     6
+    ],
+    "1,2": [
+     1,
+     6
+    ],
+    "2,0": [
+     113,
+     24
+    ],
+    "2,1": [
+     7,
+     12
+    ],
+    "2,2": [
+     -11,
+     24
+    ],
+    "3,0": [
+     -3,
+     1
+    ],
+    "3,1": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Z1(deg2)",
+   "provenance": "potential_zero_residual",
+   "residual_sources": [
+    "E,1,1:s"
+   ],
+   "irreducibility": "DualCertifiedAbsolute",
+   "minimal_polynomial": null,
+   "total_degree": 2,
+   "terms": {
+    "0,0": [
+     17,
+     12
+    ],
+    "0,1": [
+     1,
+     1
+    ],
+    "0,2": [
+     -5,
+     12
+    ],
+    "1,0": [
+     -3,
+     1
+    ],
+    "1,1": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Z2(deg3)",
+   "provenance": "potential_zero_residual",
+   "residual_sources": [
+    "E,1,2:s",
+    "E,1,2:t"
+   ],
+   "irreducibility": "DualCertifiedAbsolute",
+   "minimal_polynomial": null,
+   "total_degree": 3,
+   "terms": {
+    "0,0": [
+     -15,
+     16
+    ],
+    "0,1": [
+     -5,
+     8
+    ],
+    "0,2": [
+     5,
+     16
+    ],
+    "1,0": [
+     51,
+     16
+    ],
+    "1,1": [
+     3,
+     8
+    ],
+    "1,2": [
+     -5,
+     16
+    ],
+    "2,0": [
+     -3,
+     1
+    ],
+    "2,1": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Z3(deg7)",
+   "provenance": "potential_zero_residual",
+   "residual_sources": [
+    "E,2,2:t"
+   ],
+   "irreducibility": "DualCertifiedAbsolute",
+   "minimal_polynomial": null,
+   "total_degree": 7,
+   "terms": {
+    "0,0": [
+     -3,
+     16
+    ],
+    "0,1": [
+     -1,
+     2
+    ],
+    "0,2": [
+     -3,
+     8
+    ],
+    "0,4": [
+     1,
+     16
+    ],
+    "1,0": [
+     -21,
+     16
+    ],
+    "1,1": [
+     -3,
+     1
+    ],
+    "1,2": [
+     -13,
+     8
+    ],
+    "1,3": [
+     1,
+     2
+    ],
+    "1,4": [
+     7,
+     16
+    ],
+    "2,0": [
+     225,
+     16
+    ],
+    "2,1": [
+     27,
+     2
+    ],
+    "2,2": [
+     -27,
+     8
+    ],
+    "2,3": [
+     -3,
+     1
+    ],
+    "2,4": [
+     -3,
+     16
+    ],
+    "3,0": [
+     -513,
+     16
+    ],
+    "3,1": [
+     -3,
+     2
+    ],
+    "3,2": [
+     87,
+     8
+    ],
+    "3,4": [
+     -5,
+     16
+    ],
+    "4,0": [
+     21,
+     1
+    ],
+    "4,1": [
+     -13,
+     1
+    ],
+    "4,2": [
+     -1,
+     1
+    ],
+    "4,3": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Z4(deg4)",
+   "provenance": "potential_zero_residual",
+   "residual_sources": [
+    "E,1,2:t",
+    "E,2,1:t"
+   ],
+   "irreducibility": "DualCertifiedConjugatePairQsqrt2",
+   "minimal_polynomial": "a^2-2a-7",
+   "total_degree": 4,
+   "terms": {
+    "0,0": [
+     -1,
+     1
+    ],
+    "0,1": [
+     -2,
+     1
+    ],
+    "0,2": [
+     -1,
+     1
+    ],
+    "1,0": [
+     6,
+     1
+    ],
+    "1,1": [
+     4,
+     1
+    ],
+    "1,2": [
+     -2,
+     1
+    ],
+    "2,0": [
+     -7,
+     1
+    ],
+    "2,1": [
+     2,
+     1
+    ],
+    "2,2": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "Z5(deg5)",
+   "provenance": "potential_zero_residual",
+   "residual_sources": [
+    "E,2,2:s"
+   ],
+   "irreducibility": "DualCertifiedAbsolute",
+   "minimal_polynomial": null,
+   "total_degree": 5,
+   "terms": {
+    "0,0": [
+     33,
+     4
+    ],
+    "0,1": [
+     29,
+     2
+    ],
+    "0,2": [
+     4,
+     1
+    ],
+    "0,3": [
+     -5,
+     2
+    ],
+    "0,4": [
+     -1,
+     4
+    ],
+    "1,0": [
+     -177,
+     4
+    ],
+    "1,1": [
+     -45,
+     2
+    ],
+    "1,2": [
+     20,
+     1
+    ],
+    "1,3": [
+     -3,
+     2
+    ],
+    "1,4": [
+     1,
+     4
+    ],
+    "2,0": [
+     57,
+     1
+    ],
+    "2,1": [
+     -37,
+     1
+    ],
+    "2,2": [
+     3,
+     1
+    ],
+    "2,3": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "name": "line_at_infinity",
+   "provenance": "projective_closure",
+   "irreducibility": "Linear",
+   "total_degree": 1,
+   "terms": "homogenization_variable"
+  }
+ ]
+}

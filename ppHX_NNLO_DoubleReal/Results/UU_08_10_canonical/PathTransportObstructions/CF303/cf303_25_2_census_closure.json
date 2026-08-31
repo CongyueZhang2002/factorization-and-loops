@@ -1,0 +1,829 @@
+{
+ "status": "CF303Block2CensusClosureV1",
+ "source": "/home/maxzhang/factorization-and-loops-codex/Runtime/CF303_exception14_continuation_2026-08-30/sector_CF303_standard/CF303_25_2_input.wl",
+ "primes": [
+  2147483423,
+  2147483399
+ ],
+ "epsilon_values": [
+  11,
+  7
+ ],
+ "components": {
+  "Bs,1:even": {
+   "t:num": {
+    "verdict": "NoResidual"
+   },
+   "t:den": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      2
+     ],
+     "0,2": [
+      -1,
+      2
+     ],
+     "1,0": [
+      3,
+      2
+     ],
+     "1,1": [
+      1,
+      1
+     ],
+     "1,2": [
+      -1,
+      2
+     ],
+     "2,0": [
+      -3,
+      1
+     ],
+     "2,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "s:num": {
+    "verdict": "NoResidual"
+   },
+   "s:den": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      2
+     ],
+     "0,2": [
+      -1,
+      2
+     ],
+     "1,0": [
+      3,
+      2
+     ],
+     "1,1": [
+      1,
+      1
+     ],
+     "1,2": [
+      -1,
+      2
+     ],
+     "2,0": [
+      -3,
+      1
+     ],
+     "2,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   }
+  },
+  "Bs,1:odd": {
+   "t:num": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      5,
+      4
+     ],
+     "0,1": [
+      1,
+      1
+     ],
+     "0,2": [
+      -1,
+      4
+     ],
+     "1,0": [
+      -3,
+      1
+     ],
+     "1,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "t:den": {
+    "verdict": "NoResidual"
+   },
+   "s:num": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      5,
+      4
+     ],
+     "0,1": [
+      1,
+      1
+     ],
+     "0,2": [
+      -1,
+      4
+     ],
+     "1,0": [
+      -3,
+      1
+     ],
+     "1,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "s:den": {
+    "verdict": "NoResidual"
+   }
+  },
+  "Bs,2:even": {
+   "t:num": {
+    "verdict": "NoResidual"
+   },
+   "t:den": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      2
+     ],
+     "0,2": [
+      -1,
+      2
+     ],
+     "1,0": [
+      3,
+      2
+     ],
+     "1,1": [
+      1,
+      1
+     ],
+     "1,2": [
+      -1,
+      2
+     ],
+     "2,0": [
+      -3,
+      1
+     ],
+     "2,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "s:num": {
+    "verdict": "NoResidual"
+   },
+   "s:den": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      2
+     ],
+     "0,2": [
+      -1,
+      2
+     ],
+     "1,0": [
+      3,
+      2
+     ],
+     "1,1": [
+      1,
+      1
+     ],
+     "1,2": [
+      -1,
+      2
+     ],
+     "2,0": [
+      -3,
+      1
+     ],
+     "2,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   }
+  },
+  "Bs,2:odd": {
+   "t:num": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      5,
+      4
+     ],
+     "0,1": [
+      1,
+      1
+     ],
+     "0,2": [
+      -1,
+      4
+     ],
+     "1,0": [
+      -3,
+      1
+     ],
+     "1,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "t:den": {
+    "verdict": "NoResidual"
+   },
+   "s:num": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      5,
+      4
+     ],
+     "0,1": [
+      1,
+      1
+     ],
+     "0,2": [
+      -1,
+      4
+     ],
+     "1,0": [
+      -3,
+      1
+     ],
+     "1,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "s:den": {
+    "verdict": "NoResidual"
+   }
+  },
+  "Bt,1:even": {
+   "t:num": {
+    "verdict": "NoResidual"
+   },
+   "t:den": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      2
+     ],
+     "0,2": [
+      -1,
+      2
+     ],
+     "1,0": [
+      3,
+      2
+     ],
+     "1,1": [
+      1,
+      1
+     ],
+     "1,2": [
+      -1,
+      2
+     ],
+     "2,0": [
+      -3,
+      1
+     ],
+     "2,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "s:num": {
+    "verdict": "NoResidual"
+   },
+   "s:den": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      2
+     ],
+     "0,2": [
+      -1,
+      2
+     ],
+     "1,0": [
+      3,
+      2
+     ],
+     "1,1": [
+      1,
+      1
+     ],
+     "1,2": [
+      -1,
+      2
+     ],
+     "2,0": [
+      -3,
+      1
+     ],
+     "2,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   }
+  },
+  "Bt,1:odd": {
+   "t:num": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      8
+     ],
+     "0,1": [
+      1,
+      4
+     ],
+     "0,2": [
+      1,
+      8
+     ],
+     "1,0": [
+      -3,
+      2
+     ],
+     "1,1": [
+      -3,
+      2
+     ],
+     "2,0": [
+      33,
+      8
+     ],
+     "2,1": [
+      3,
+      4
+     ],
+     "2,2": [
+      -3,
+      8
+     ],
+     "3,0": [
+      -3,
+      1
+     ],
+     "3,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "t:den": {
+    "verdict": "NoResidual"
+   },
+   "s:num": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      8
+     ],
+     "0,1": [
+      1,
+      4
+     ],
+     "0,2": [
+      1,
+      8
+     ],
+     "1,0": [
+      -3,
+      2
+     ],
+     "1,1": [
+      -3,
+      2
+     ],
+     "2,0": [
+      33,
+      8
+     ],
+     "2,1": [
+      3,
+      4
+     ],
+     "2,2": [
+      -3,
+      8
+     ],
+     "3,0": [
+      -3,
+      1
+     ],
+     "3,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "s:den": {
+    "verdict": "NoResidual"
+   }
+  },
+  "Bt,2:even": {
+   "t:num": {
+    "verdict": "NoResidual"
+   },
+   "t:den": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      2
+     ],
+     "0,2": [
+      -1,
+      2
+     ],
+     "1,0": [
+      3,
+      2
+     ],
+     "1,1": [
+      1,
+      1
+     ],
+     "1,2": [
+      -1,
+      2
+     ],
+     "2,0": [
+      -3,
+      1
+     ],
+     "2,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "s:num": {
+    "verdict": "NoResidual"
+   },
+   "s:den": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      2
+     ],
+     "0,2": [
+      -1,
+      2
+     ],
+     "1,0": [
+      3,
+      2
+     ],
+     "1,1": [
+      1,
+      1
+     ],
+     "1,2": [
+      -1,
+      2
+     ],
+     "2,0": [
+      -3,
+      1
+     ],
+     "2,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   }
+  },
+  "Bt,2:odd": {
+   "t:num": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      8
+     ],
+     "0,1": [
+      1,
+      4
+     ],
+     "0,2": [
+      1,
+      8
+     ],
+     "1,0": [
+      -3,
+      2
+     ],
+     "1,1": [
+      -3,
+      2
+     ],
+     "2,0": [
+      33,
+      8
+     ],
+     "2,1": [
+      3,
+      4
+     ],
+     "2,2": [
+      -3,
+      8
+     ],
+     "3,0": [
+      -3,
+      1
+     ],
+     "3,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "t:den": {
+    "verdict": "NoResidual"
+   },
+   "s:num": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      8
+     ],
+     "0,1": [
+      1,
+      4
+     ],
+     "0,2": [
+      1,
+      8
+     ],
+     "1,0": [
+      -3,
+      2
+     ],
+     "1,1": [
+      -3,
+      2
+     ],
+     "2,0": [
+      33,
+      8
+     ],
+     "2,1": [
+      3,
+      4
+     ],
+     "2,2": [
+      -3,
+      8
+     ],
+     "3,0": [
+      -3,
+      1
+     ],
+     "3,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "s:den": {
+    "verdict": "NoResidual"
+   }
+  },
+  "C": {
+   "t:num": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      1,
+      8
+     ],
+     "0,1": [
+      1,
+      4
+     ],
+     "0,2": [
+      1,
+      8
+     ],
+     "1,0": [
+      -3,
+      2
+     ],
+     "1,1": [
+      -3,
+      2
+     ],
+     "2,0": [
+      33,
+      8
+     ],
+     "2,1": [
+      3,
+      4
+     ],
+     "2,2": [
+      -3,
+      8
+     ],
+     "3,0": [
+      -3,
+      1
+     ],
+     "3,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "t:den": {
+    "verdict": "NoResidual"
+   },
+   "s:num": {
+    "verdict": "ExactResidualCurve",
+    "coefficient_failures": 0,
+    "terms": {
+     "0,0": [
+      5,
+      4
+     ],
+     "0,1": [
+      1,
+      1
+     ],
+     "0,2": [
+      -1,
+      4
+     ],
+     "1,0": [
+      -3,
+      1
+     ],
+     "1,1": [
+      1,
+      1
+     ]
+    },
+    "epsilon_stable": true
+   },
+   "s:den": {
+    "verdict": "NoResidual"
+   }
+  }
+ },
+ "multiplicities": {
+  "Bs,1:even": {
+   "Q1(deg6)": 2,
+   "Q4(deg1)": 2,
+   "Q5(deg2)": 2,
+   "Q6(deg1)": 1,
+   "Q7(deg1)": 1,
+   "Q10(deg3)": 3,
+   "Q11(deg3)": 3,
+   "Q12(deg3)": 4,
+   "Q14(deg3)": 4,
+   "Q2(deg1)": 2,
+   "Q8(deg1)": 2,
+   "s+1": 2
+  },
+  "Bs,1:odd": {
+   "Q1(deg6)": 1,
+   "Q4(deg1)": 1,
+   "Q5(deg2)": 1,
+   "Q2(deg1)": 1
+  },
+  "Bs,2:even": {
+   "Q1(deg6)": 2,
+   "Q4(deg1)": 2,
+   "Q5(deg2)": 2,
+   "Q6(deg1)": 1,
+   "Q7(deg1)": 1,
+   "Q10(deg3)": 3,
+   "Q11(deg3)": 3,
+   "Q12(deg3)": 4,
+   "Q14(deg3)": 4,
+   "Q2(deg1)": 2,
+   "Q8(deg1)": 2,
+   "s+1": 2
+  },
+  "Bs,2:odd": {
+   "Q1(deg6)": 1,
+   "Q4(deg1)": 1,
+   "Q5(deg2)": 1,
+   "Q2(deg1)": 1
+  },
+  "Bt,1:even": {
+   "Q1(deg6)": 2,
+   "Q4(deg1)": 2,
+   "Q5(deg2)": 2,
+   "Q6(deg1)": 2,
+   "Q7(deg1)": 2,
+   "Q10(deg3)": 3,
+   "Q11(deg3)": 3,
+   "Q12(deg3)": 4,
+   "Q14(deg3)": 4,
+   "Q2(deg1)": 1,
+   "Q8(deg1)": 1,
+   "s+1": 1
+  },
+  "Bt,1:odd": {
+   "Q1(deg6)": 1,
+   "Q4(deg1)": 1,
+   "Q5(deg2)": 1,
+   "Q6(deg1)": 1,
+   "Q7(deg1)": 1
+  },
+  "Bt,2:even": {
+   "Q1(deg6)": 2,
+   "Q4(deg1)": 2,
+   "Q5(deg2)": 2,
+   "Q6(deg1)": 2,
+   "Q7(deg1)": 2,
+   "Q10(deg3)": 3,
+   "Q11(deg3)": 3,
+   "Q12(deg3)": 4,
+   "Q14(deg3)": 4,
+   "Q2(deg1)": 1,
+   "Q8(deg1)": 1,
+   "s+1": 1
+  },
+  "Bt,2:odd": {
+   "Q1(deg6)": 1,
+   "Q4(deg1)": 1,
+   "Q5(deg2)": 1,
+   "Q6(deg1)": 1,
+   "Q7(deg1)": 1
+  },
+  "C": {
+   "Q4(deg1)": 1,
+   "Q5(deg2)": 1,
+   "Q6(deg1)": 1,
+   "Q7(deg1)": 1,
+   "Q2(deg1)": 1,
+   "Q8(deg1)": 1,
+   "s+1": 1
+  }
+ }
+}
