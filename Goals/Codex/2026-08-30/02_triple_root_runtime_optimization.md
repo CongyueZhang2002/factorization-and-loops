@@ -57,8 +57,9 @@
   acceptance.  `(27,8)` is also solved and banked.
 - [🟡] Finish CF259 from `(27,7)`.  Its preserved `KallenQ4a` preparation gives
   a consistent `12088 x 12076` sparse-first system with 3,003 monomials,
-  rank 12072 and nullity 4.  Reuse the preparation, redo and persist only the
-  one 13--15 minute FLINT plan discovery, then run fixed-plan followers.
+  rank 12072 and nullity 4.  The plan is persisted and six fixed-plan primes
+  are accepted; their 28-decimal-digit safe reconstruction height remains too
+  small, so prime seven is running and every completed prime is checkpointed.
 - [🟢] Repair native plan discovery so the first regulator image retains its
   particular solution and nullspace while the reusable plan remains sealed.
   Commit `fd525c1` is pushed; the focused backend suite passes 34/0.
@@ -76,12 +77,15 @@
   production 23-letter alphabet and `(25,11)` on the production 25-letter
   alphabet each have exact gauge-eliminated rank defects at two configured
   plus one fresh image; both satisfy the exception-promotion policy.
-- [🟡] Replace final-chart symbolic materialization with generic selected-sheet
-  finite-field reconstruction.  The real `(25,11)` baseline paid 6,011.9 s
-  for operand interning plus 2,446--2,651 s per exact target expansion.  The
-  complete one-prime modular reconstruction already takes 197.9 s cold with
-  256/256 disjoint comparisons; remaining work is generic 61-bit
-  multiprime CRT/rational lift and the existing `OneForm` consumer seam.
+- [🟢] Replace the CF303 `(25,11)` final-chart symbolic materialization with
+  selected-sheet finite-field reconstruction.  Sixteen 61-bit primes give a
+  976-bit lift with zero unresolved coefficients, followed by independent
+  unseen-prime path acceptance.  The exact typed path provider is banked.
+- [🟡] Generalize final-chart selected-sheet reconstruction beyond the accepted
+  `(25,11)` campaign.  The original real baseline paid 6,011.9 s for operand
+  interning plus 2,446--2,651 s per exact target expansion; the generic
+  package seam still needs promotion even though the physical block-11
+  campaign is complete.
 - [ ] Promote the already-native split-provider path to a tested 61-bit prime
   schedule.  Row assembly and sparse channel evaluation already use FLINT
   `nmod`, and a physical CF300 image measured 3.804 s at 61 bits versus 3.848 s

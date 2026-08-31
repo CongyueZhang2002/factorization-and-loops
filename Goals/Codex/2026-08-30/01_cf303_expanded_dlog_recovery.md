@@ -46,4 +46,16 @@
   regulator images and primes using unseen-prime and random-point residuals.
 - [ ] Remove redundant rectangle/offset probes after a certified simplex has
   failed at two independent generic images.
+- [🟢] Route large no-candidate full-gauge screens through the existing
+  CFFR1/FLINT affine backend while preserving the witness-producing Wolfram
+  route for small screens and `CandidateOneForms`.  Real CF303 `(25,2)`
+  completed two `6724 x 6692` images in 359.9 s; the old route had not
+  completed its first image after about 14 minutes.
+- [🟢] Stop after a confirmed obstruction on the conservative screen-first
+  superset instead of preparing and rescreening its narrower denominator and
+  support subsets.  `(25,2)` returned defects `{1,1}` at the two configured
+  images.
+- [🟡] Construct and independently validate the exact fixed-path provider for
+  CF303 `(25,2)` on the common `Kallen2Bilinear115`, `u=3` path, without
+  claiming a global E1 no-go.
 - [ ] Complete and certify the remaining triple-root families.

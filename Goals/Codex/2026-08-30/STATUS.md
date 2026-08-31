@@ -10,9 +10,13 @@
   parallel operand interning, root-preserving Maple tails, and single-boundary
   deferred-bundle authentication
 - [🟢] CF259 `(27,9)` and `(27,8)` accepted and banked
-- [🟡] CF259 `(27,7)` prepared-record resume and fixed-plan reconstruction
+- [🟡] CF259 `(27,7)` adaptive lift: six accepted persisted primes; prime seven
+  running
 - [🟡] CF303 overdetermined rational-kernel target search
 - [🟢] CF303 `(25,14)` and `(25,11)` three-image obstruction certificates
 - [🟡] Generic selected-sheet modular replacement for pathological exact chart
   materialization
+- [🟢] Large full-gauge screen FLINT routing and conservative-superset early
+  stop, validated on CF303 `(25,2)`
+- [🟡] CF303 `(25,2)` exact common-path provider and block-1 continuation
 - [ ] Remaining triple-root family certification
