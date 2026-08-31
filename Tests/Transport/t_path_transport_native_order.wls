@@ -115,6 +115,30 @@ FTAssert["one direct modular differential-equation acceptance closes",
       "NativeTransportFormalAcceptedV1" &&
     acceptance["ResidualCoefficientCount"] > 0 &&
     acceptance["BasepointCoefficientCount"] > 0];
+artifact = private["pathTransportNativeArtifactCreate"][graph, assembly,
+  contract, {1/5, 3/5}, <|"Kind" -> "ToyAcceptedConnectionV1"|>,
+  <|"ConstructionAcceptance" -> acceptance|>];
+artifactFile = CreateTemporary[];
+Put[artifact, artifactFile];
+artifactRoundTrip = Get[artifactFile];
+DeleteFile[artifactFile];
 private["pathTransportExceptionFormalRelease"][graph];
+reopenedGraph = private["pathTransportNativeArtifactOpen"][
+  artifactRoundTrip];
+reopenedEvaluation = private["pathTransportNativeFormalEvaluate"][
+  reopenedGraph, series, assembly, "ConstantValues" -> constants,
+  "TauOrder" -> 4];
+reopenedAcceptance = private["pathTransportNativeFormalAccept"][
+  reopenedGraph, reopenedEvaluation, series, assembly, constants];
+FTAssert["the provider-backed recurrence survives a disk round trip",
+  Lookup[artifactRoundTrip, "Status", None] ===
+      "NativeTransportFormalArtifactV1" &&
+    Lookup[reopenedGraph, "Status", None] === "OKFormalLowerGraph" &&
+    Lookup[reopenedAcceptance, "Status", None] ===
+      "NativeTransportFormalAcceptedV1"];
+FTAssert["a provider-only artifact cannot silently render placeholders",
+  Lookup[private["pathTransportExceptionFormalRender"][reopenedGraph,
+      1, 0], "Status", None] === "ProviderBackedGraphCannotRender"];
+private["pathTransportExceptionFormalRelease"][reopenedGraph];
 
 FTTest`FTReport[];

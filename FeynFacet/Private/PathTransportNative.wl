@@ -301,7 +301,9 @@ ClearAll[
   pathTransportNativeDiagonalSeries,
   pathTransportNativeFormalGraph,
   pathTransportNativeFormalEvaluate,
-  pathTransportNativeFormalAccept
+  pathTransportNativeFormalAccept,
+  pathTransportNativeArtifactCreate,
+  pathTransportNativeArtifactOpen
 ];
 
 pathTransportNativePathJetBinary[] := With[{file = FileNameJoin[{
@@ -775,6 +777,8 @@ pathTransportNativeFormalGraph[assembly_Association,
     "ConstantTopPerBlock" -> constantTop];
   If[Lookup[graph, "Status", None] =!= "OKFormalLowerGraph",
     Return[graph]];
+  $pathTransportExceptionFormalGraphs[graph["GraphID"],
+    "ProviderOnly"] = True;
   Join[graph, <|"ProviderRoute" -> "NativeTransportSeriesDataV1",
     "EdgeOrderWindows" -> edgeWindows,
     "RequiredCouplingOrders" -> requiredOrders|>]
@@ -937,3 +941,100 @@ pathTransportNativeFormalAccept[graph_Association,
 ];
 pathTransportNativeFormalAccept[___] :=
   <|"Status" -> "NativeTransportFormalAcceptanceInputInvalid"|>;
+
+(* A serializable artifact stores the recurrence itself, not its process-local
+   registry id and not expanded nested quadratures.  SourceDescriptor is
+   caller-owned provenance for rebuilding the accepted connection. *)
+pathTransportNativeArtifactCreate[graph_Association,
+    assembly_Association, contract_Association, endpoints : {_, _},
+    sourceDescriptor_Association, evidence_Association] := Module[
+  {gid, data, blockData},
+  gid = Lookup[graph, "GraphID", None];
+  data = Lookup[$pathTransportExceptionFormalGraphs, Key[gid],
+    Missing["GraphReleased"]];
+  If[Lookup[graph, "Status", None] =!= "OKFormalLowerGraph" ||
+      MissingQ[data] || ! pathTransportExceptionContractQ[contract] ||
+      ! MatchQ[Lookup[assembly, "Ranges", None],
+        {{__Integer?Positive} ..}] ||
+      Length[assembly["Ranges"]] =!=
+        Length[Lookup[assembly, "Blocks", {}]],
+    Return[<|"Status" -> "NativeTransportArtifactInputInvalid"|>]];
+  blockData = Map[KeyTake[#,
+      {"Dimension", "Feeders", "KernelMin", "RequiredInverseOrder"}] &,
+    data["Blocks"]];
+  <|"Status" -> "NativeTransportFormalArtifactV1",
+    "ArtifactVersion" -> 1,
+    "Assembly" -> KeyTake[assembly, {"Family", "Blocks", "Ranges"}],
+    "PathContract" -> contract, "Endpoints" -> endpoints,
+    "SourceDescriptor" -> sourceDescriptor,
+    "Recurrence" -> <|"Blocks" -> blockData,
+      "Selected" -> data["Selected"], "Low" -> data["Low"],
+      "Top" -> data["Top"], "RMin" -> data["RMin"],
+      "KMin" -> data["KMin"], "ConstantTop" -> data["ConstantTop"],
+      "Tau" -> data["Tau"], "Regulator" -> data["Regulator"],
+      "ConstantHead" -> data["ConstantHead"],
+      "EdgeOrderWindows" -> graph["EdgeOrderWindows"],
+      "RequiredCouplingOrders" -> graph["RequiredCouplingOrders"]|>,
+    "Evidence" -> evidence,
+    "Claim" -> "Serializable formal variation-of-constants recurrence on the declared path, up to independent boundary constants. Native coefficient providers instantiate it at exact finite-field images. A truncated origin jet is not an endpoint value."|>
+];
+pathTransportNativeArtifactCreate[___] :=
+  <|"Status" -> "NativeTransportArtifactInputInvalid"|>;
+
+pathTransportNativeArtifactOpen[artifact_Association] := Module[
+  {assembly, recurrence, ranges, nb, blocks, gid, graph},
+  assembly = Lookup[artifact, "Assembly", Missing["NoAssembly"]];
+  recurrence = Lookup[artifact, "Recurrence", Missing["NoRecurrence"]];
+  If[Lookup[artifact, "Status", None] =!=
+        "NativeTransportFormalArtifactV1" ||
+      Lookup[artifact, "ArtifactVersion", None] =!= 1 ||
+      ! AssociationQ[assembly] || ! AssociationQ[recurrence],
+    Return[<|"Status" -> "NativeTransportArtifactInvalid"|>]];
+  ranges = Lookup[assembly, "Ranges", Missing["NoRanges"]];
+  nb = Length[Lookup[assembly, "Blocks", {}]];
+  blocks = Lookup[recurrence, "Blocks", Missing["NoBlocks"]];
+  If[! MatchQ[ranges, {{__Integer?Positive} ..}] ||
+      Length[ranges] =!= nb || ! AssociationQ[blocks] ||
+      Sort[Keys[blocks]] =!= Range[nb] ||
+      ! AllTrue[Range[nb], Function[i,
+        Lookup[blocks[i], "Dimension", None] === Length[ranges[[i]]] &&
+          MatchQ[Lookup[blocks[i], "Feeders", None],
+            {___Integer?Positive}] &&
+          IntegerQ[Lookup[blocks[i], "KernelMin", None]] &&
+          IntegerQ[Lookup[blocks[i], "RequiredInverseOrder", None]]]],
+    Return[<|"Status" -> "NativeTransportArtifactShapeInvalid"|>]];
+  blocks = Map[Function[blockData, Join[blockData, <|
+      "M" -> ConstantArray[0,
+        {blockData["Dimension"], blockData["Dimension"]}],
+      "EdgeHandles" -> Association @@ Table[
+        feeder -> Function[order, $Failed],
+        {feeder, blockData["Feeders"]}]|>]], blocks];
+  gid = Unique["pathTransportFormalGraph"];
+  $pathTransportExceptionFormalGraphs[gid] = <|
+    "Blocks" -> blocks, "Selected" -> recurrence["Selected"],
+    "Low" -> recurrence["Low"], "Top" -> recurrence["Top"],
+    "RMin" -> recurrence["RMin"], "KMin" -> recurrence["KMin"],
+    "ConstantTop" -> recurrence["ConstantTop"],
+    "Tau" -> recurrence["Tau"],
+    "Regulator" -> recurrence["Regulator"],
+    "ConstantHead" -> recurrence["ConstantHead"],
+    "ProviderOnly" -> True|>;
+  graph = <|"Status" -> "OKFormalLowerGraph", "GraphID" -> gid,
+    "Blocks" -> recurrence["Selected"],
+    "Windows" -> <|"Low" -> recurrence["Low"],
+      "Top" -> recurrence["Top"]|>,
+    "ConstantWindows" -> <|"Low" -> recurrence["KMin"],
+      "Top" -> recurrence["ConstantTop"]|>,
+    "IOrders" -> Association @@ Table[i -> Association @@ Table[
+        order -> pathTransportFormalLowerNode[gid, i, order],
+        {order, recurrence["Low"][[i]], recurrence["Top"][[i]]}],
+      {i, recurrence["Selected"]}],
+    "ConstantHead" -> recurrence["ConstantHead"],
+    "ProviderRoute" -> "NativeTransportSeriesDataV1",
+    "EdgeOrderWindows" -> recurrence["EdgeOrderWindows"],
+    "RequiredCouplingOrders" -> recurrence["RequiredCouplingOrders"],
+    "Artifact" -> artifact|>;
+  graph
+];
+pathTransportNativeArtifactOpen[___] :=
+  <|"Status" -> "NativeTransportArtifactInvalid"|>;

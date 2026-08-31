@@ -1154,6 +1154,9 @@ pathTransportExceptionFormalRender[graph_Association, i_Integer,
     Missing["GraphReleased"]];
   If[MissingQ[data],
     Return[<|"Status" -> "FormalGraphNotRegistered", "GraphID" -> gid|>]];
+  If[TrueQ[Lookup[data, "ProviderOnly", False]],
+    Return[<|"Status" -> "ProviderBackedGraphCannotRender",
+      "GraphID" -> gid|>]];
   With[{tau = data["Tau"], low = data["Low"], top = data["Top"],
       kmin = data["KMin"], constantTop = data["ConstantTop"],
       rmin = data["RMin"], constant = data["ConstantHead"],
