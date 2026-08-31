@@ -52,12 +52,16 @@
   propagated canonical bound is still too large on a real block.  Both Pro
   and the independent Codex review recommend this as the second-stage
   fallback, not as work to do before the tractable structural bound is tried.
-- [🟡] Bank and modularly accept the genuine three-root CF259 `(27,9)` gauge.
-  A clean 8-subkernel run resumed 17 banked strips and is solving only this
-  final block with the streamlined follower path.  The support ladder adopted
-  `(3,3)` after 3,332.2 s; the reconstruction has nullity 69, uses 19 regulator
-  images per prime, and had accepted three primes by 13:49.  The fourth prime
-  is in progress.
+- [🟢] Bank and modularly accept CF259 `(27,9)`: five 61-bit primes, 305 CRT
+  bits, zero unresolved coefficients, and independent two-prime/six-image
+  acceptance.  `(27,8)` is also solved and banked.
+- [🟡] Finish CF259 from `(27,7)`.  Its preserved `KallenQ4a` preparation gives
+  a consistent `12088 x 12076` sparse-first system with 3,003 monomials,
+  rank 12072 and nullity 4.  Reuse the preparation, redo and persist only the
+  one 13--15 minute FLINT plan discovery, then run fixed-plan followers.
+- [🟢] Repair native plan discovery so the first regulator image retains its
+  particular solution and nullspace while the reusable plan remains sealed.
+  Commit `fd525c1` is pushed; the focused backend suite passes 34/0.
 - [🟢] CF300 is complete; do not restart it during the CF259/CF303 endgame.
 - [🟡] Resolve CF303 `(25,18)`.  Fixed-divisor constant-residue dlog and the
   degree-3/4 exact-potential ladders are closed.  The complete E1 system is
@@ -68,6 +72,16 @@
   identity passes at two independent generic images after reconstructing the
   authoritative target from the accepted gauge.  The exact negative-proof
   route is coefficient-space curvature reduction over `Q(eps)`.
+- [🟢] Certify the approved CF303 transport exceptions.  `(25,14)` on the
+  production 23-letter alphabet and `(25,11)` on the production 25-letter
+  alphabet each have exact gauge-eliminated rank defects at two configured
+  plus one fresh image; both satisfy the exception-promotion policy.
+- [🟡] Replace final-chart symbolic materialization with generic selected-sheet
+  finite-field reconstruction.  The real `(25,11)` baseline paid 6,011.9 s
+  for operand interning plus 2,446--2,651 s per exact target expansion.  The
+  complete one-prime modular reconstruction already takes 197.9 s cold with
+  256/256 disjoint comparisons; remaining work is generic 61-bit
+  multiprime CRT/rational lift and the existing `OneForm` consumer seam.
 - [ ] Promote the already-native split-provider path to a tested 61-bit prime
   schedule.  Row assembly and sparse channel evaluation already use FLINT
   `nmod`, and a physical CF300 image measured 3.804 s at 61 bits versus 3.848 s

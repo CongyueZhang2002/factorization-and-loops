@@ -9,7 +9,10 @@
 - [🟢] Triple-root runtime overhaul: bounded pullback, vectorized sign sheets,
   parallel operand interning, root-preserving Maple tails, and single-boundary
   deferred-bundle authentication
-- [🟡] CF259 `(27,9)` genuine three-root solve after removal of repeated
-  prepare/root-census canonicalization
+- [🟢] CF259 `(27,9)` and `(27,8)` accepted and banked
+- [🟡] CF259 `(27,7)` prepared-record resume and fixed-plan reconstruction
 - [🟡] CF303 overdetermined rational-kernel target search
+- [🟢] CF303 `(25,14)` and `(25,11)` three-image obstruction certificates
+- [🟡] Generic selected-sheet modular replacement for pathological exact chart
+  materialization
 - [ ] Remaining triple-root family certification
