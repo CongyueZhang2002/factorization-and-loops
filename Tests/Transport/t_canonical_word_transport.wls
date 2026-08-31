@@ -85,5 +85,38 @@ FTAssert["CW6 a non-dlog kernel requests the general-integrator fallback by name
   general["Status"] === "CompiledWordFallbackRequired" &&
     general["Reason"] === "NonDlogCoupling"];
 
+precompiled = FeynFacet`Private`masterTransportCanonicalWordSolve[
+  assembly, None, budget, kmin, 2, tau, eps,
+  "ConstantDepth" -> "PerBlockNeed", "ExactDepth" -> exact,
+  "PrecompiledCouplings" -> compiled["IR", "Couplings"],
+  "PrecompiledLetters" -> compiled["IR", "Letters"]];
+samePrecompiled = AllTrue[Flatten@Table[
+    TrueQ[Together[#] === 0] & /@
+      (compiled["Solution", "F"][k] -
+        precompiled["Solution", "F"][k]),
+    {k, orders}], TrueQ];
+FTAssert["CW7 an accepted residue provider bypasses symbolic Ahat decomposition without changing any GPL coefficient",
+  precompiled["Status"] === "OK" && samePrecompiled &&
+    precompiled["CouplingRoute"] === "PrecompiledResidueProvider"];
+
+chen = FeynFacet`Private`masterTransportCanonicalChenOperator[
+  assembly, compiled["IR", "Couplings"], compiled["IR", "Letters"],
+  <|"Low" -> exact["Lowest"], "Top" -> exact["NMax"]|>,
+  kmin, budget["Need"]];
+chenOrder2 = FeynFacet`Private`masterTransportCanonicalChenCoefficient[
+  chen, 2, "MaxTerms" -> 100];
+chenConstants = (TransportConstant @@ #) & /@ chen["BoundaryColumns"];
+chenF2 = Total[Map[
+    Function[term,
+      (Normal[term["Coefficient"]] . chenConstants) *
+        If[term["Word"] === {}, 1,
+          TransportWord[chen["Letters"][[term["Word"]]], tau]]],
+    chenOrder2["Terms"]]];
+FTAssert["CW8 the lazy Chen residue-product operator materializes a requested GPL coefficient exactly without constructing unrelated words",
+  chen["Status"] === "CanonicalGPLChenOperatorV1" &&
+    chenOrder2["Status"] === "OK" &&
+    AllTrue[compiled["Solution", "F"][2] - chenF2,
+      TrueQ[Together[#] === 0] &]];
+
 FeynFacet`Private`masterTransportSupportCacheClear[];
 FTReport[];

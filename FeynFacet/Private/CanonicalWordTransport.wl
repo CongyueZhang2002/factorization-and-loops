@@ -24,7 +24,10 @@ ClearAll[
   masterTransportCWCertificate,
   masterTransportCWExpandWord,
   masterTransportCWMaterializeIR,
-  masterTransportCWIdentityValuation
+  masterTransportCWIdentityValuation,
+  masterTransportCanonicalChenOperator,
+  masterTransportCanonicalChenWordCoefficient,
+  masterTransportCanonicalChenCoefficient
 ];
 
 masterTransportCWNonzeroSparseQ[m_SparseArray] :=
@@ -238,6 +241,8 @@ Options[masterTransportCanonicalWordSolve] = {
   "Certify" -> True,
   "CertificatePoints" -> 2,
   "CertificatePrime" -> 2305843009213641971,
+  "PrecompiledCouplings" -> Automatic,
+  "PrecompiledLetters" -> Automatic,
   "Materialize" -> True
 };
 
@@ -247,7 +252,8 @@ masterTransportCanonicalWordSolve[assembly_Association, ahat_,
   {start, verbose, maxWeight, nb, ranges, dimensions, rmin, need,
    exactDepth, schedule, low, top, qmax, perBlockWeight,
    rawCouplings, compiledCouplings, allLetters, letterTable, letterIndex,
-   letterRecord,
+   letterRecord, precompiledCouplings, precompiledLetters,
+   decompositionRoute, badDiagonal,
    failure, decompositionStart, decompositionSeconds,
    boundaryTriples, boundaryIndex, boundaryDimension,
    wordIndex, wordHead, wordTail, wordWeight, nextWordID, intern,
@@ -287,77 +293,106 @@ masterTransportCanonicalWordSolve[assembly_Association, ahat_,
       "Requested" -> Max[perBlockWeight], "Cap" -> maxWeight,
       "Schedule" -> schedule|>]];
 
-  (* Compile each required epsilon coefficient once.  The old engine
-     carries full symbolic constants during this pass; here the coupling
-     is independent of boundary data and becomes a sparse residue matrix. *)
+  (* Compile each required epsilon coefficient once, unless an accepted
+     provider has already supplied the same sparse residue representation.
+     The provider seam avoids recreating a symbolic A_tau merely so this
+     routine can decompose it again. *)
   decompositionStart = AbsoluteTime[];
-  rawCouplings = <||>;
-  allLetters = {};
-  failure = None;
-  Do[
-    If[i >= j && failure === None,
-      Module[{sub, nonzero, r0, r1, laurent, decomposed},
-        sub = ahat[[ranges[[i]], ranges[[j]]]];
-        nonzero = DeleteCases[Flatten[sub], 0];
-        If[nonzero =!= {},
-          r0 = rmin[[i, j]];
-          If[r0 === Infinity,
-            r0 = Min[masterTransportEpsOrder[#, eps] & /@ nonzero]];
-          r1 = top[[i]] - low[[j]];
-          If[r1 >= r0,
-            laurent = masterTransportLaurentMat[sub, {r0, r1}, eps];
-            If[laurent === $Failed,
-              failure = <|"Status" -> "LaurentFailed",
-                "Block" -> {i, j}|>,
-              Do[
-                If[! AllTrue[Flatten[laurent[[r - r0 + 1]]],
-                    TrueQ[# === 0] &],
-                  decomposed = masterTransportBWCouplingRep[
-                    laurent[[r - r0 + 1]], tau];
-                  If[decomposed["Kind"] =!= "Dlog",
-                    failure = <|"Status" -> "CompiledWordFallbackRequired",
-                      "Reason" -> "NonDlogCoupling", "Block" -> {i, j},
-                      "EpsOrder" -> r,
-                      "LegacyReason" -> decomposed["Reason"]|>,
-                    rawCouplings[{i, j, r}] = decomposed["Rep"];
-                    allLetters = Join[allLetters,
-                      decomposed["Letters"]]]],
-                {r, r0, r1}]]]]]],
-    {i, nb}, {j, i}];
-  If[failure =!= None,
-    Return[Join[failure, <|"Schedule" -> schedule,
-      "Seconds" -> AbsoluteTime[] - start|>]]];
-  With[{badDiagonal = Select[Keys[rawCouplings],
-      #[[1]] === #[[2]] && #[[3]] <= 0 &]},
+  precompiledCouplings = OptionValue["PrecompiledCouplings"];
+  precompiledLetters = OptionValue["PrecompiledLetters"];
+  If[AssociationQ[precompiledCouplings],
+    If[! ListQ[precompiledLetters],
+      Return[<|"Status" -> "PrecompiledLettersInvalid",
+        "Schedule" -> schedule|>]];
+    compiledCouplings = precompiledCouplings;
+    letterTable = precompiledLetters;
+    (* Distinctness and basepoint regularity belong to the accepted
+       provider artifact.  Re-proving them here by pairwise symbolic
+       radical simplification would reintroduce the bottleneck this seam
+       is meant to bypass. *)
+    letterRecord = <|"Distinct" -> True, "Collisions" -> {},
+      "NoneAtBasePoint" -> True, "Letters" -> letterTable,
+      "Count" -> Length[letterTable],
+      "Route" -> "PrecompiledProviderContract"|>;
+    badDiagonal = Flatten[Table[
+      If[pair[[1]] === pair[[2]],
+        {pair, #} & /@ Select[
+          Keys[Lookup[compiledCouplings, Key[pair], <||>]], # <= 0 &],
+        {}], {pair, Keys[compiledCouplings]}], 1];
+    If[badDiagonal =!= {},
+      Return[<|"Status" -> "DiagonalNotEpsForm",
+        "Block" -> First[badDiagonal][[1, 1]],
+        "Order" -> First[badDiagonal][[2]],
+        "Schedule" -> schedule|>]];
+    decompositionRoute = "PrecompiledResidueProvider",
+    rawCouplings = <||>;
+    allLetters = {};
+    failure = None;
+    Do[
+      If[i >= j && failure === None,
+        Module[{sub, nonzero, r0, r1, laurent, decomposed},
+          sub = ahat[[ranges[[i]], ranges[[j]]]];
+          nonzero = DeleteCases[Flatten[sub], 0];
+          If[nonzero =!= {},
+            r0 = rmin[[i, j]];
+            If[r0 === Infinity,
+              r0 = Min[masterTransportEpsOrder[#, eps] & /@ nonzero]];
+            r1 = top[[i]] - low[[j]];
+            If[r1 >= r0,
+              laurent = masterTransportLaurentMat[sub, {r0, r1}, eps];
+              If[laurent === $Failed,
+                failure = <|"Status" -> "LaurentFailed",
+                  "Block" -> {i, j}|>,
+                Do[
+                  If[! AllTrue[Flatten[laurent[[r - r0 + 1]]],
+                      TrueQ[# === 0] &],
+                    decomposed = masterTransportBWCouplingRep[
+                      laurent[[r - r0 + 1]], tau];
+                    If[decomposed["Kind"] =!= "Dlog",
+                      failure = <|"Status" -> "CompiledWordFallbackRequired",
+                        "Reason" -> "NonDlogCoupling", "Block" -> {i, j},
+                        "EpsOrder" -> r,
+                        "LegacyReason" -> decomposed["Reason"]|>,
+                      rawCouplings[{i, j, r}] = decomposed["Rep"];
+                      allLetters = Join[allLetters,
+                        decomposed["Letters"]]]],
+                  {r, r0, r1}]]]]]],
+      {i, nb}, {j, i}];
+    If[failure =!= None,
+      Return[Join[failure, <|"Schedule" -> schedule,
+        "Seconds" -> AbsoluteTime[] - start|>]]];
+    badDiagonal = Select[Keys[rawCouplings],
+      #[[1]] === #[[2]] && #[[3]] <= 0 &];
     If[badDiagonal =!= {},
       Return[<|"Status" -> "DiagonalNotEpsForm",
         "Block" -> First[badDiagonal][[1]],
         "Order" -> First[badDiagonal][[3]],
-        "Schedule" -> schedule|>]]];
-  masterTransportSupportCacheDropCoefficients[];
-
-  letterTable = DeleteDuplicates[masterTransportBWCanon /@ allLetters];
-  letterRecord = masterTransportBWLetterCheck[letterTable];
+        "Schedule" -> schedule|>]];
+    masterTransportSupportCacheDropCoefficients[];
+    letterTable = DeleteDuplicates[masterTransportBWCanon /@ allLetters];
+    letterRecord = masterTransportBWLetterCheck[letterTable];
+    letterIndex = AssociationThread[letterTable, Range[Length[letterTable]]];
+    compiledCouplings = <||>;
+    KeyValueMap[
+      Function[{edgeOrder, representation},
+        Module[{pair = edgeOrder[[{1, 2}]], order = edgeOrder[[3]],
+          byOrder, byLetter},
+          byLetter = Association @ KeyValueMap[
+            Function[{letter, residue},
+              Lookup[letterIndex, Key[masterTransportBWCanon[letter]]] ->
+                SparseArray[residue]],
+            representation];
+          byOrder = Lookup[compiledCouplings, Key[pair], <||>];
+          byOrder[order] = byLetter;
+          compiledCouplings[pair] = byOrder]],
+      rawCouplings];
+    decompositionRoute = "SymbolicPathDecomposition"];
   If[! (TrueQ[letterRecord["Distinct"]] &&
+      letterRecord["Count"] === Length[letterTable] &&
       TrueQ[letterRecord["NoneAtBasePoint"]]),
     Return[<|"Status" -> "LetterHypothesisFailed",
       "Letters" -> letterRecord, "Schedule" -> schedule,
       "Seconds" -> AbsoluteTime[] - start|>]];
-  letterIndex = AssociationThread[letterTable, Range[Length[letterTable]]];
-  compiledCouplings = <||>;
-  KeyValueMap[
-    Function[{edgeOrder, representation},
-      Module[{pair = edgeOrder[[{1, 2}]], order = edgeOrder[[3]],
-        byOrder, byLetter},
-        byLetter = Association @ KeyValueMap[
-          Function[{letter, residue},
-            Lookup[letterIndex, Key[masterTransportBWCanon[letter]]] ->
-              SparseArray[residue]],
-          representation];
-        byOrder = Lookup[compiledCouplings, Key[pair], <||>];
-        byOrder[order] = byLetter;
-        compiledCouplings[pair] = byOrder]],
-    rawCouplings];
   decompositionSeconds = AbsoluteTime[] - decompositionStart;
 
   (* Boundary columns replace symbolic TransportConstant expressions. *)
@@ -463,6 +498,7 @@ masterTransportCanonicalWordSolve[assembly_Association, ahat_,
       TrueQ[certificate["AllZero"]], "OK",
       True, "CompiledWordCertificateFailed"],
     "Route" -> "CompiledSparseWord",
+    "CouplingRoute" -> decompositionRoute,
     "Solution" -> <|"F" -> fVector,
       "Constants" -> Association@Flatten[Table[
         {i, q} -> Table[TransportConstant[i, q, a],
@@ -488,6 +524,140 @@ masterTransportCanonicalWordSolve[assembly_Association, ahat_,
     "IR" -> ir,
     "Maps" -> None,
     "Seconds" -> N[AbsoluteTime[] - start]|>
+];
+
+(* Lazy Chen operator for a genuinely epsilon-linear path connection.
+
+     dF = eps Sum_a R_a dlog(tau-a) F
+
+   is already the complete GPL solution: the coefficient of
+   G[a1,...,ak;tau] is R_a1 ... R_ak.  Storing the sparse R_a matrices
+   keeps that final formula polynomial in the input size; eagerly listing
+   every word is exponential and is reserved for requested rows/orders. *)
+masterTransportCanonicalChenOperator[assembly_Association,
+    compiledCouplings_Association, letters_List, schedule_Association,
+    kmin_List, constantTop_List, provider_: <||>] := Module[
+  {ranges, dimensions, nb, n, low, top, residues, failure = None,
+   localRules, globalRules, boundaryColumns, boundaryIndex,
+   boundarySelectors, activeRowsByOrder, nonzeroCoordinates},
+  ranges = assembly["Ranges"];
+  dimensions = Length /@ ranges;
+  nb = Length[ranges];
+  n = assembly["N"];
+  low = schedule["Low"];
+  top = schedule["Top"];
+  residues = ConstantArray[SparseArray[{}, {n, n}], Length[letters]];
+  KeyValueMap[
+    Function[{pair, byOrder},
+      If[Sort[Keys[byOrder]] =!= {1},
+        failure = <|"Status" -> "LazyChenFallbackRequired",
+          "Reason" -> "ConnectionNotEpsilonLinear", "Block" -> pair,
+          "Orders" -> Keys[byOrder]|>,
+        KeyValueMap[
+          Function[{letterID, localMatrix},
+            localRules = Select[ArrayRules[localMatrix],
+              MatchQ[First[#], {_Integer, _Integer}] &];
+            globalRules = ({
+                ranges[[pair[[1]], #[[1, 1]]]],
+                ranges[[pair[[2]], #[[1, 2]]]]} -> Last[#]) & /@
+              localRules;
+            residues[[letterID]] += SparseArray[globalRules, {n, n}]],
+          byOrder[1]]]],
+    compiledCouplings];
+  If[failure =!= None, Return[failure]];
+  boundaryColumns = Flatten[Table[
+    Table[{i, q, a}, {q, kmin[[i]], constantTop[[i]]},
+      {a, dimensions[[i]]}], {i, nb}], 2];
+  boundaryIndex = AssociationThread[
+    boundaryColumns, Range[Length[boundaryColumns]]];
+  boundarySelectors = Association@Table[
+    q -> SparseArray[Flatten[Table[
+        If[kmin[[i]] <= q <= constantTop[[i]],
+          Table[{ranges[[i, a]],
+              Lookup[boundaryIndex, Key[{i, q, a}]]} -> 1,
+            {a, dimensions[[i]]}], {}],
+        {i, nb}], 1], {n, Length[boundaryColumns]}],
+    {q, Min[kmin], Max[constantTop]}];
+  activeRowsByOrder = Association@Table[
+    order -> Flatten@MapThread[
+      Function[{rows, lo, hi}, If[lo <= order <= hi, rows, {}]],
+      {ranges, low, top}],
+    {order, Min[low], Max[top]}];
+  nonzeroCoordinates = Total[Length[#["NonzeroValues"]] & /@ residues];
+  <|"Status" -> "CanonicalGPLChenOperatorV1",
+    "Route" -> "LazySparseResidueProducts",
+    "Letters" -> letters, "Residues" -> residues,
+    "BoundaryColumns" -> boundaryColumns,
+    "BoundarySelectors" -> boundarySelectors,
+    "ActiveRowsByOrder" -> activeRowsByOrder,
+    "Ranges" -> ranges, "Dimensions" -> dimensions, "N" -> n,
+    "Low" -> low, "Top" -> top, "KMin" -> kmin,
+    "ConstantTop" -> constantTop,
+    (* A boundary coefficient can start below the target block's own
+       lowest requested order and feed it through off-diagonal residues.
+       The safe global word bound is therefore measured from the lowest
+       boundary order, not from each target block's Low entry. *)
+    "MaximumWeight" -> Max[top] - Min[kmin],
+    "NonzeroResidueCoordinates" -> nonzeroCoordinates,
+    "GPLConvention" ->
+      "G[{a1,...,ak};z]=Integral_0^z dt/(t-a1) G[{a2,...,ak};t]",
+    "CoefficientFormula" ->
+      "F_n=Sum_q Sum_{|w|=n-q} R_w B_q C G[w]",
+    "Provider" -> provider|>
+];
+
+masterTransportCanonicalChenWordCoefficient[operator_Association,
+    word_List, boundaryOrder_Integer, order_Integer,
+    rows_: All] := Module[
+  {n, boundaryDimension, selector, coefficient, active, mask},
+  n = operator["N"];
+  boundaryDimension = Length[operator["BoundaryColumns"]];
+  If[Length[word] =!= order - boundaryOrder,
+    Return[SparseArray[{}, {If[rows === All, n, Length[rows]],
+      boundaryDimension}]]];
+  selector = Lookup[operator["BoundarySelectors"], boundaryOrder, None];
+  If[selector === None,
+    Return[SparseArray[{}, {If[rows === All, n, Length[rows]],
+      boundaryDimension}]]];
+  coefficient = Fold[
+    operator["Residues"][[#2]] . #1 &, selector, Reverse[word]];
+  active = Lookup[operator["ActiveRowsByOrder"], order, {}];
+  mask = SparseArray[({#, #} -> 1) & /@ active, {n, n}];
+  coefficient = mask . coefficient;
+  If[rows === All, coefficient, coefficient[[rows, All]]]
+];
+
+Options[masterTransportCanonicalChenCoefficient] = {
+  "Rows" -> All, "MaxTerms" -> 10000
+};
+
+masterTransportCanonicalChenCoefficient[operator_Association,
+    order_Integer, OptionsPattern[]] := Module[
+  {rows, cap, letterCount, boundaryOrders, estimated, harvested, records},
+  rows = OptionValue["Rows"];
+  cap = OptionValue["MaxTerms"];
+  letterCount = Length[operator["Letters"]];
+  boundaryOrders = Select[Keys[operator["BoundarySelectors"]],
+    0 <= order - # <= operator["MaximumWeight"] &];
+  estimated = Total[letterCount^(order - #) & /@ boundaryOrders];
+  If[estimated > cap,
+    Return[<|"Status" -> "LazyExpansionRequired",
+      "Order" -> order, "EstimatedTerms" -> estimated,
+      "Cap" -> cap|>]];
+  harvested = Reap[
+    Do[
+      Do[
+        With[{matrix = masterTransportCanonicalChenWordCoefficient[
+            operator, word, q, order, rows]},
+          If[masterTransportCWNonzeroSparseQ[matrix],
+            Sow[<|"BoundaryOrder" -> q, "Word" -> word,
+              "Coefficient" -> matrix|>]]],
+        {word, Tuples[Range[letterCount], order - q]}],
+      {q, boundaryOrders}]][[2]];
+  records = If[harvested === {}, {}, First[harvested]];
+  <|"Status" -> "OK", "Order" -> order,
+    "Rows" -> rows, "Terms" -> records,
+    "TermCount" -> Length[records]|>
 ];
 
 End[];
