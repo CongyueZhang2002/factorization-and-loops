@@ -121,6 +121,19 @@ battery), a boolean failure tally reporting fail=1 for two reds, and
 the audit that a test "fix" strengthened rather than weakened its
 assertions (byte-compare against HEAD, count direction).
 
+## Lesson from the 2026-08-31 obstruction-campaign watches
+
+A watchdog's real catches this session (a 29-byte stub that a
+"no-holder and non-empty" done-test had blessed as drained) came from
+RE-READING THE SOURCE FILE rather than trusting its own checker; the
+same session produced two checker false-verdicts (a quoted-status
+regex against quote-stripped InputForm output, and that too-generous
+done-test). The durable pattern is the verification step, not the
+checkers: every terminal verdict must be confirmed by a direct read
+of the watched artifact before it is reported. Also record WHO
+terminated a run: exit 143 after the coordinator's own deliberate
+SIGTERM is a stand-down fact, not an anomaly.
+
 ## Lesson from the 2026-08-28 CF300 watch (rate-based idle test)
 
 The stall rule "silent longer than stall_minutes AND kernel idle (< 50
