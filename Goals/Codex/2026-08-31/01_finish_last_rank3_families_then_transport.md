@@ -18,7 +18,7 @@
 - [x] 🟢 Diagnose the current 32-letter basis mathematically: residue-only curl ranks are `36` and `37`, so the alphabet is incomplete independently of the gauge denominator.
 - [x] 🟢 Test the bounded 49-letter algebraic completion at two independent provider images; both have coefficient rank 40 and augmented rank 41.
 - [x] 🟢 Certify `(25,1)` as an integral-form transport exception and install the completed `24..1` row with exceptions `{18,14,11,2,1}`.
-- [ ] Test whether the older exceptions `{18,14,11}` genuinely lack an epsilon form before retaining them permanently; block 2 already has an accepted exact path provider.
+- [ ] 🟡 Test whether the older exceptions `{18,14,11}` genuinely lack an epsilon form before retaining them permanently.  Block 14 now has a confirmed two-image-plus-fresh alphabet-integrability obstruction, and block 2 already has an accepted exact path provider; blocks 18 and 11 remain.
 
 ## Transport handoff
 
@@ -31,3 +31,14 @@
 - [x] 🟢 Package the accepted path contract, provider descriptor, order table, boundary windows, and formal recurrence as a stable serializable artifact; its disk round trip reopens and passes the same modular recurrence acceptance.
 - [x] 🟢 Add the family-level driver that rebuilds the accepted source connection from the artifact, generates the native coefficient cache, evaluates the full recurrence, and performs its one direct modular acceptance.
 - [x] 🟢 Expose `TransportPathArtifactRun[artifact,p]` for arbitrary two-variable package families and accepted paths, with both direct-state and completed-row source descriptors; finite origin jets remain explicitly distinct from endpoint values.
+
+## Paper-level GPL and elliptic transport
+
+- [x] 🟢 Classify CF303 by function class with an explicit residual-sheet flip: blocks 15, 17, 21, and 25 carry the remaining algebraic sheet, while the maximal downward-closed rational GPL subsystem is 21 blocks (37 masters).  The 48 changed entries in blocks 15 and 17 have mixed even/odd parts, and their odd parts divided by the residual root are sheet-even.
+- [x] 🟢 Reject naive direct symbolic path compilation by measurement: 366 active entries, 356 unique entry pairs, and no completion after 600 s with six subkernels, versus about 405 s for the corrected two-dimensional baseline.
+- [x] 🟢 Reject parallel symbolic path materialization after a bounded 14-block test: assembly finished in 49--51 s, but the path stage still had not returned after 152 s and occupied about 19.5 GB across the main plus six subkernels.  The attempted worker queue was removed rather than retained as complexity without gain.
+- [x] 🟢 Replace symbolic-constant word recursion by a compiled sparse IR: shared letter IDs, interned word cons cells, sparse boundary columns, edge-local epsilon support bounds, and a modular recurrence certificate.
+- [x] 🟢 Move identity-gauge physical valuation before GPL materialization. On the real ten-block CF303 anchor, the 20.3 s symbolic rule substitution becomes effectively zero and total transport time falls from 31.53 s to 13.34 s.
+- [ ] 🟡 Recover one-dimensional dlog residue matrices for the corrected 21-block subsystem with the existing 61-bit FLINT deferred evaluator, bypassing symbolic `Ahat`/`Together`; the six-thread second-axis evaluation is 24.5 s at 24 path jets, and fresh-prime/different-segment reconstruction remains to be completed.
+- [ ] Emit the complete 21-block GPL word table, sparse residue matrices, gauges, and boundary vector as a paper-ready ancillary artifact.
+- [ ] Implement the quartic elliptic kernel alphabet and Hermite reduction beginning at block 15, propagate its extension through blocks 17 and 21, and feed the resulting mixed GPL/eMPL layers into block 25 without leaving unevaluated master integrals.

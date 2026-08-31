@@ -6,3 +6,6 @@
 - [x] 🟢 The rank-three FLINT path-jet provider, complete 25-block formal recurrence, and fresh-prime modular acceptance are working on the accepted CF303 row.
 - [x] 🟢 The CF303 recurrence is stored as a 17 KB serializable artifact and reopens into the native provider graph without retaining the 2.6 GB symbolic connection.
 - [x] 🟢 `TransportPathArtifactRun` is the general source-rebuild/driver entry point. The real CF303 artifact passed end to end at a third independent 61-bit prime in 69.45 s, while preserving the explicit distinction between a formal origin jet and an endpoint value.
+- [x] 🟢 The epsilon-form GPL engine now uses sparse boundary columns and interned word IDs, with modular recurrence certification and pre-materialization valuation; the CF303 ten-block analytic anchor improves from 31.53 s to 13.34 s.
+- [ ] 🟡 A residual-sheet parity probe corrected the split: the rational subsystem has 21 blocks / 37 masters, and its analytic residue matrices are being moved onto the existing native FLINT evaluator without constructing the multi-gigabyte symbolic path connection.
+- [ ] The four algebraic extension blocks (15, 17, 21, and 25) still need quartic-kernel Hermite reduction and mixed GPL/eMPL word emission.
