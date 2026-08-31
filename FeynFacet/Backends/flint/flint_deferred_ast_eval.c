@@ -11,11 +11,13 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <omp.h>
 
 /* Native backend for BlockEquationDeferredV1 point images.
 
    CLI:
-     flint_deferred_ast_eval INPUT.wl REQUEST.txt OUTPUT.bin [--derivatives]
+     flint_deferred_ast_eval INPUT.wl REQUEST.txt OUTPUT.bin
+                              [--derivatives] [--threads N]
 
    REQUEST is deliberately neutral and line oriented:
      DeferredASTRequestV1
@@ -1110,17 +1112,41 @@ int main(int argc, char **argv) {
     uint64_t dimensions[3] = {0, 0, 0};
     parser_t parser = {0};
     uint64_t *expression_values = NULL, *record_values = NULL, *channels = NULL;
-    size_t expression_index, record_index, image, base, grade, sheet, root_index,
-           component, components, image_stride, channel_stride;
+    size_t expression_index, record_index, image, root_index,
+           components, image_stride, channel_stride;
     uint64_t detail_index = 0, detail_offset = 0;
     double started = now_seconds(), parsed_at, evaluated_at;
-    int derivatives = argc == 5 && !strcmp(argv[4], "--derivatives");
-    if (!(argc == 4 || derivatives)) {
+    int derivatives = 0, threads = 1, argument;
+    if (argc < 4) {
         fprintf(stderr, "Status=%s Code=%d\n", status_name(ST_USAGE), ST_USAGE);
         return ST_USAGE;
     }
+    for (argument = 4; argument < argc; ++argument) {
+        if (!strcmp(argv[argument], "--derivatives")) {
+            if (derivatives) {
+                fprintf(stderr, "Status=%s Code=%d\n",
+                        status_name(ST_USAGE), ST_USAGE);
+                return ST_USAGE;
+            }
+            derivatives = 1;
+        } else if (!strcmp(argv[argument], "--threads") && argument + 1 < argc) {
+            char *end = NULL;
+            long parsed = strtol(argv[++argument], &end, 10);
+            if (!end || *end || parsed < 1 || parsed > 8) {
+                fprintf(stderr, "Status=%s Code=%d\n",
+                        status_name(ST_USAGE), ST_USAGE);
+                return ST_USAGE;
+            }
+            threads = (int)parsed;
+        } else {
+            fprintf(stderr, "Status=%s Code=%d\n", status_name(ST_USAGE), ST_USAGE);
+            return ST_USAGE;
+        }
+    }
     status = load_request(argv[2], &request);
     if (status != ST_OK) goto finish;
+    if ((size_t)threads > request.base_count)
+        threads = (int)request.base_count;
     fd = open(argv[1], O_RDONLY);
     if (fd < 0 || fstat(fd, &st)) { status = ST_INPUT_IO; goto finish; }
     data = mmap(NULL, (size_t)st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
@@ -1156,94 +1182,188 @@ int main(int argc, char **argv) {
                 detail_index = root_index + 1; detail_offset = image + 1; goto finish;
             }
     }
-    for (expression_index = 0; expression_index < expression_count; ++expression_index) {
+    if (threads == 1) {
+      for (expression_index = 0; expression_index < expression_count;
+           ++expression_index) {
         status = evaluate_span(&parser, expressions[expression_index].span, 1,
-            expression_values + expression_index * image_stride,
-            &detail_offset);
-        if (status != ST_OK) { detail_index = expression_index + 1; goto finish; }
+          expression_values + expression_index * image_stride,
+          &detail_offset);
+        if (status != ST_OK) {
+          detail_index = expression_index + 1; goto finish;
+        }
+      }
+    } else {
+      enum status_code parallel_status = ST_OK;
+      uint64_t parallel_index = 0, parallel_offset = 0;
+#pragma omp parallel num_threads(threads)
+      {
+        int thread_index = omp_get_thread_num();
+        int thread_count = omp_get_num_threads();
+        size_t base_begin = request.base_count * (size_t)thread_index /
+                            (size_t)thread_count;
+        size_t base_end = request.base_count * (size_t)(thread_index + 1) /
+                          (size_t)thread_count;
+        size_t image_begin = base_begin * request.grade_count;
+        size_t local_base_count = base_end - base_begin;
+        size_t local_image_count = local_base_count * request.grade_count;
+        size_t local_stride = components * local_image_count;
+        size_t local_expression_index, local_component, local_root;
+        request_t local_request = request;
+        parser_t worker = {0};
+        uint64_t *temporary = NULL;
+        local_request.base_count = local_base_count;
+        local_request.image_count = local_image_count;
+        local_request.vx = request.vx + image_begin;
+        local_request.vy = request.vy + image_begin;
+        local_request.ve = request.ve + image_begin;
+        for (local_root = 0; local_root < request.rank; ++local_root) {
+          local_request.delta[local_root] = request.delta[local_root] + image_begin;
+          local_request.root[local_root] = request.root[local_root] + image_begin;
+        }
+        worker.request = &local_request;
+        worker.derivatives = derivatives;
+        worker.prefix = malloc(local_image_count * sizeof(uint64_t));
+        temporary = malloc(local_stride * sizeof(uint64_t));
+        if (!worker.prefix || !temporary) {
+#pragma omp critical(deferred_ast_failure)
+          {
+            if (parallel_status == ST_OK) parallel_status = ST_RESOURCE_LIMIT;
+          }
+        }
+        for (local_expression_index = 0;
+             local_expression_index < expression_count;
+             ++local_expression_index) {
+          enum status_code local_status;
+          size_t local_offset = 0;
+          if (!worker.prefix || !temporary) continue;
+          local_status = evaluate_span(&worker,
+            expressions[local_expression_index].span, 1, temporary,
+            &local_offset);
+          if (local_status != ST_OK) {
+#pragma omp critical(deferred_ast_failure)
+            {
+              if (parallel_status == ST_OK ||
+                  local_expression_index + 1 < parallel_index) {
+                parallel_status = local_status;
+                parallel_index = local_expression_index + 1;
+                parallel_offset = local_offset;
+              }
+            }
+          } else {
+            for (local_component = 0; local_component < components;
+                 ++local_component)
+              memcpy(expression_values + local_expression_index * image_stride +
+                       local_component * request.image_count + image_begin,
+                     temporary + local_component * local_image_count,
+                     local_image_count * sizeof(uint64_t));
+          }
+        }
+        parser_destroy(&worker);
+        free(temporary);
+      }
+      if (parallel_status != ST_OK) {
+        status = parallel_status;
+        detail_index = parallel_index;
+        detail_offset = parallel_offset;
+        goto finish;
+      }
     }
+#pragma omp parallel for num_threads(threads) schedule(dynamic, 1)
     for (record_index = 0; record_index < record_count; ++record_index) {
-        size_t term_index;
+        size_t term_index, image_index;
         uint64_t *target = record_values + record_index * image_stride;
         for (term_index = 0; term_index < records[record_index].term_count; ++term_index) {
             term_t *term = &records[record_index].terms[term_index];
             uint64_t *coefficient = expression_values +
                                     term->coefficient * image_stride;
             size_t operand_index;
-            for (image = 0; image < request.image_count; ++image) {
-                uint64_t product = coefficient[image];
+            for (image_index = 0; image_index < request.image_count;
+                 ++image_index) {
+                uint64_t product = coefficient[image_index];
                 uint64_t derivative_x = derivatives ?
-                    coefficient[request.image_count + image] : 0;
+                    coefficient[request.image_count + image_index] : 0;
                 uint64_t derivative_y = derivatives ?
-                    coefficient[2U * request.image_count + image] : 0;
+                    coefficient[2U * request.image_count + image_index] : 0;
                 for (operand_index = 0; operand_index < term->operand_count;
                      ++operand_index) {
                     uint64_t *operand = expression_values +
                         term->operands[operand_index] * image_stride;
-                    uint64_t operand_value = operand[image];
+                    uint64_t operand_value = operand[image_index];
                     if (derivatives) {
                         derivative_x = addm(mulm(derivative_x, operand_value,
                             request.prime), mulm(product,
-                            operand[request.image_count + image], request.prime),
+                            operand[request.image_count + image_index],
+                            request.prime),
                             request.prime);
                         derivative_y = addm(mulm(derivative_y, operand_value,
                             request.prime), mulm(product,
-                            operand[2U * request.image_count + image],
+                            operand[2U * request.image_count + image_index],
                             request.prime), request.prime);
                     }
                     product = mulm(product, operand_value, request.prime);
                 }
-                target[image] = addm(target[image], product, request.prime);
+                target[image_index] = addm(target[image_index], product,
+                                           request.prime);
                 if (derivatives) {
-                    target[request.image_count + image] = addm(
-                        target[request.image_count + image], derivative_x,
+                    target[request.image_count + image_index] = addm(
+                        target[request.image_count + image_index], derivative_x,
                         request.prime);
-                    target[2U * request.image_count + image] = addm(
-                        target[2U * request.image_count + image], derivative_y,
+                    target[2U * request.image_count + image_index] = addm(
+                        target[2U * request.image_count + image_index],
+                        derivative_y,
                         request.prime);
                 }
             }
         }
     }
-    for (record_index = 0; record_index < record_count; ++record_index)
-        for (component = 0; component < components; ++component)
-          for (base = 0; base < request.base_count; ++base)
-            for (grade = 0; grade < request.grade_count; ++grade) {
+#pragma omp parallel for num_threads(threads) schedule(static)
+    for (record_index = 0; record_index < record_count; ++record_index) {
+      size_t component_index, base_index, grade_index, sheet_index, root;
+      for (component_index = 0; component_index < components;
+           ++component_index)
+        for (base_index = 0; base_index < request.base_count; ++base_index)
+          for (grade_index = 0; grade_index < request.grade_count;
+               ++grade_index) {
                 uint64_t sum = 0, denominator = request.grade_count,
                          *target = record_values + record_index * image_stride +
-                                   component * request.image_count;
-                for (sheet = 0; sheet < request.grade_count; ++sheet) {
-                    uint64_t value = target[base * request.grade_count + sheet];
-                    if (__builtin_parityll((unsigned long long)(sheet & grade)))
+                                   component_index * request.image_count;
+                for (sheet_index = 0; sheet_index < request.grade_count;
+                     ++sheet_index) {
+                    uint64_t value = target[
+                        base_index * request.grade_count + sheet_index];
+                    if (__builtin_parityll(
+                          (unsigned long long)(sheet_index & grade_index)))
                         sum = subm(sum, value, request.prime);
                     else sum = addm(sum, value, request.prime);
                 }
-                for (root_index = 0; root_index < request.rank; ++root_index)
-                    if (grade & ((size_t)1U << root_index))
+                for (root = 0; root < request.rank; ++root)
+                    if (grade_index & ((size_t)1U << root))
                         denominator = mulm(denominator,
-                            request.root[root_index][base * request.grade_count],
+                            request.root[root][
+                              base_index * request.grade_count],
                             request.prime);
                 channels[record_index * channel_stride +
-                         (component * request.base_count + base) *
-                         request.grade_count + grade] =
+                         (component_index * request.base_count + base_index) *
+                         request.grade_count + grade_index] =
                     mulm(sum, invm(denominator, request.prime), request.prime);
-            }
+          }
+    }
     evaluated_at = now_seconds();
     status = write_output(argv[3], ST_OK, &request, records, record_count,
         term_count, expression_count, dimensions, channels,
         (uint64_t)((parsed_at - started) * 1e9),
         (uint64_t)((evaluated_at - parsed_at) * 1e9), 0, 0, derivatives);
 finish:
-    if (status != ST_OK && (argc == 4 || derivatives)) {
+    if (status != ST_OK) {
         enum status_code written = write_output(argv[3], status,
             &request, NULL, 0, 0, 0, dimensions, NULL, 0, 0,
             detail_index, detail_offset, derivatives);
         if (written == ST_OUTPUT_IO) status = ST_OUTPUT_IO;
     }
     fprintf(stderr, "Status=%s Code=%d Records=%zu Terms=%zu Unique=%zu "
-        "Detail=%" PRIu64 ":%" PRIu64 " TotalSeconds=%.6f\n",
+        "Detail=%" PRIu64 ":%" PRIu64 " Threads=%d TotalSeconds=%.6f\n",
         status_name(status), status, record_count, term_count, expression_count,
-        detail_index, detail_offset, now_seconds() - started);
+        detail_index, detail_offset, threads, now_seconds() - started);
     parser_destroy(&parser);
     free(expression_values); free(record_values); free(channels);
     free(expressions); free_records(records, record_count);

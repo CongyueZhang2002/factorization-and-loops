@@ -13026,14 +13026,21 @@ multiquadraticStripNativeDeferredReadOutput[___] :=
     "InvalidNativeDeferredOutputArguments"];
 
 Options[multiquadraticStripNativeDeferredEvaluateBatch] = {
-  "Derivatives" -> False
+  "Derivatives" -> False,
+  "Threads" -> Automatic
 };
 multiquadraticStripNativeDeferredEvaluateBatch[provider_Association,
     preflights_List, opts : OptionsPattern[]] := Module[
   {started = AbsoluteTime[], binary, preparation, inputFile, directory = None,
    requestFile, outputFile, request, process, result, prime, derivatives,
-   command},
+   command, threads, actualThreads},
   derivatives = TrueQ[OptionValue["Derivatives"]];
+  threads = Replace[OptionValue["Threads"],
+    Automatic :> Clip[$ProcessorCount, {1, 8}]];
+  If[! IntegerQ[threads] || ! Between[threads, {1, 8}],
+    Return[multiquadraticStripFailure[
+      "InvalidNativeDeferredThreadCount", <|"Threads" -> threads|>]]];
+  actualThreads = Min[threads, Length[preflights]];
   binary = multiquadraticStripNativeDeferredBinary[];
   preparation = Lookup[provider, "DeferredPreparation", None];
   inputFile = Lookup[provider, "DeferredPreparationFile", None];
@@ -13060,7 +13067,8 @@ multiquadraticStripNativeDeferredEvaluateBatch[provider_Association,
     If[Lookup[request, "Status", None] =!=
         "MultiquadraticNativeDeferredRequestV1", request,
       command = Join[{binary, inputFile, requestFile, outputFile},
-        If[derivatives, {"--derivatives"}, {}]];
+        If[derivatives, {"--derivatives"}, {}],
+        {"--threads", ToString[actualThreads]}];
       process = RunProcess[command];
       If[! AssociationQ[process] || process["ExitCode"] =!= 0,
         multiquadraticStripFailure["NativeDeferredEvaluatorProcessFailed",
@@ -13073,7 +13081,8 @@ multiquadraticStripNativeDeferredEvaluateBatch[provider_Association,
     If[StringQ[directory] && DirectoryQ[directory],
       Quiet[DeleteDirectory[directory, DeleteContents -> True]]]];
   If[AssociationQ[result],
-    Append[result, "Seconds" -> N[AbsoluteTime[] - started]], result]
+    Join[result, <|"Threads" -> actualThreads,
+      "Seconds" -> N[AbsoluteTime[] - started]|>], result]
 ];
 multiquadraticStripNativeDeferredEvaluateBatch[___] :=
   multiquadraticStripFailure[

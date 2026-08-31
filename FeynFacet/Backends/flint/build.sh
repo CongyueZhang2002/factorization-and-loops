@@ -45,7 +45,7 @@ case "$mode" in
     cc -O3 -march=native $strict flint_row_assemble.c $libs -o bin/flint_row_assemble
     cc -O3 -march=native $strict -fopenmp flint_regulator_interpolate.c $libs -o bin/flint_regulator_interpolate
     cc -O3 -march=native $strict flint_mpoly_gcd.c $libs -o bin/flint_mpoly_gcd
-    cc -O3 -march=native $strict flint_deferred_ast_eval.c -o bin/flint_deferred_ast_eval
+    cc -O3 -march=native $strict -fopenmp flint_deferred_ast_eval.c -o bin/flint_deferred_ast_eval
     ;;
   sanitize)
     cc -O1 -g3 -fsanitize=address,undefined $strict flint_affine_rref.c $libs -o bin/flint_affine_rref_sanitize
@@ -53,7 +53,7 @@ case "$mode" in
     cc -O1 -g3 -fsanitize=address,undefined $strict flint_row_assemble.c $libs -o bin/flint_row_assemble_sanitize
     cc -O1 -g3 -fsanitize=address,undefined $strict -fopenmp flint_regulator_interpolate.c $libs -o bin/flint_regulator_interpolate_sanitize
     cc -O1 -g3 -fsanitize=address,undefined $strict flint_mpoly_gcd.c $libs -o bin/flint_mpoly_gcd_sanitize
-    cc -O1 -g3 -fsanitize=address,undefined $strict flint_deferred_ast_eval.c -o bin/flint_deferred_ast_eval_sanitize
+    cc -O1 -g3 -fsanitize=address,undefined $strict -fopenmp flint_deferred_ast_eval.c -o bin/flint_deferred_ast_eval_sanitize
     ;;
   *) echo "usage: build.sh [release|sanitize]" >&2; exit 64;;
 esac
