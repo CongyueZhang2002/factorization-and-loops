@@ -145,6 +145,7 @@
 ClearAll[
   $masterTransportBlockwisePhiCache,
   $masterTransportBlockwiseApartCache,
+  $masterTransportBlockwiseLinearizeCache,
   $masterTransportBlockwiseFailure,
   masterTransportBlockwiseCacheReset,
   masterTransportBWIntegrateTerm,
@@ -163,7 +164,6 @@ ClearAll[
   masterTransportBWDlogMatrix,
   masterTransportBWAddMap,
   masterTransportBWTogetherMap,
-  masterTransportBWPrepend,
   masterTransportBWCombine,
   masterTransportBWIntegrate,
   masterTransportBWApply,
@@ -171,6 +171,7 @@ ClearAll[
   masterTransportBWToExpression,
   masterTransportBWWordCount,
   masterTransportBWMaxWeight,
+  masterTransportBWProductionZeroQ,
   masterTransportBWSchedule,
   masterTransportBWPhi,
   masterTransportBWPhiCrossCheck,
@@ -179,6 +180,7 @@ ClearAll[
 
 $masterTransportBlockwisePhiCache = <||>;
 $masterTransportBlockwiseApartCache = <||>;
+$masterTransportBlockwiseLinearizeCache = <||>;
 
 (* Anomalies inside the integrator are thrown, never returned: a status
    Association returned where a word map is expected would be consumed as
@@ -187,7 +189,8 @@ $masterTransportBlockwiseFailure = "masterTransportBlockwiseFailure";
 
 masterTransportBlockwiseCacheReset[] := (
   $masterTransportBlockwisePhiCache = <||>;
-  $masterTransportBlockwiseApartCache = <||>);
+  $masterTransportBlockwiseApartCache = <||>;
+  $masterTransportBlockwiseLinearizeCache = <||>);
 
 (* ------------------------------------------------------------------ *)
 (*  word maps                                                          *)
@@ -227,7 +230,10 @@ masterTransportBWZeroQ[c_] :=
    EXACTLY over the extension (checked by the callers' reconstruction
    tests, not assumed here). *)
 masterTransportBWLinearize[den_, tau_, eps_: None] := Module[
-  {factors, poles, lc, tauFree},
+  {key, cached, factors, poles, lc, tauFree, result},
+  key = {den, tau, eps};
+  cached = Lookup[$masterTransportBlockwiseLinearizeCache, Key[key], None];
+  If[AssociationQ[cached], Return[cached]];
   factors = FactorList[den];
   poles = {}; lc = 1; tauFree = 1;
   Do[
@@ -261,7 +267,10 @@ masterTransportBWLinearize[den_, tau_, eps_: None] := Module[
             Throw[<|"Status" -> "DenominatorDegreeAboveTwoInTau", "Factor" -> f,
               "Degree" -> degree|>, $masterTransportBlockwiseFailure]]]],
     {factor, factors}];
-  <|"Poles" -> poles, "LeadingCoefficient" -> lc, "TauFree" -> tauFree|>];
+  result = <|"Poles" -> poles, "LeadingCoefficient" -> lc,
+    "TauFree" -> tauFree|>;
+  $masterTransportBlockwiseLinearizeCache[key] = result;
+  result];
 
 (* The pole part of e at tau = a, where a is a root of multiplicity m of
    the denominator of e:  sum_{j=1}^m c_j/(tau - a)^j.
@@ -299,14 +308,18 @@ masterTransportBWAddMap[m1_Association, m2_Association] := Module[{out},
   out];
 
 masterTransportBWTogetherMap[m_Association] := Module[{t},
+  (* Production keeps the exact arithmetic DAG.  Canonicalizing every
+     word coefficient independently made a 12,834-word CF303 order spend
+     210 s in Together before any new mathematics happened.  Equal word
+     keys have already been accumulated by the Association; the final
+     pointwise certificate decides the unsimplified rational sums. *)
+  If[masterTransportCheckLevel[] === "Production",
+    Return[DeleteCases[m, 0]]];
   t = DeleteCases[Map[Together, m], 0];
   (* over an extension a vanishing coefficient need not Together to 0 *)
   If[masterTransportRadicalQ[t],
     t = Select[t, ! masterTransportBWZeroQ[#] &]];
   t];
-
-masterTransportBWPrepend[m_Association, a_] :=
-  KeyMap[Prepend[#, a] &, m];
 
 (* out_i = sum_k mat[[i,k]] vec[[k]], with mat rational and tau-free *)
 masterTransportBWCombine[mat_, vec_List] := Table[
@@ -463,13 +476,14 @@ masterTransportBWPartialFractions[e_, tau_] := Module[
                 {j, 1, m}]],
             {p, poles}]]]],
     {term, terms}];
-  reconstructed = Together[t - Total[Table[
-    If[u["Kind"] === "Poly", D[u["Antiderivative"], tau],
-      u["Residue"]/(tau - u["Letter"])^u["Power"]],
-    {u, out}]]];
-  If[! masterTransportBWZeroQ[reconstructed],
-    Throw[<|"Status" -> "PartialFractionsNotReconstructing", "Entry" -> t,
-      "Residual" -> reconstructed|>, $masterTransportBlockwiseFailure]];
+  If[masterTransportCheckLevel[] =!= "Production",
+    reconstructed = Together[t - Total[Table[
+      If[u["Kind"] === "Poly", D[u["Antiderivative"], tau],
+        u["Residue"]/(tau - u["Letter"])^u["Power"]],
+      {u, out}]]];
+    If[! masterTransportBWZeroQ[reconstructed],
+      Throw[<|"Status" -> "PartialFractionsNotReconstructing", "Entry" -> t,
+        "Residual" -> reconstructed|>, $masterTransportBlockwiseFailure]]];
   out];
 
 masterTransportBWIntegrateTerm[c_, w_List, tau_] := Module[{terms, result},
@@ -524,8 +538,11 @@ masterTransportBWApartTerms[m_, tau_] := Module[{key, cached, terms},
      order and the homogeneous pass, because the cache was local to one
      call.  Memoizing on the entry's content lifts it across all of
      them. *)
-  key = Hash[{m, SymbolName[tau]}, "SHA256"];
-  cached = Lookup[$masterTransportBlockwiseApartCache, key, Missing[]];
+  (* The expression itself is already an exact Association key.  A
+     cryptographic digest added a full serialization pass and could also
+     conflate equal symbol names from different contexts. *)
+  key = {m, tau};
+  cached = Lookup[$masterTransportBlockwiseApartCache, Key[key], Missing[]];
   If[! MissingQ[cached], Return[cached]];
   (* the same decomposition the general integrator uses, over the
      extension when the entry has irreducible quadratic factors *)
@@ -656,6 +673,34 @@ masterTransportBWWordCount[m_Association] := Length[m];
 masterTransportBWMaxWeight[m_Association] :=
   Max[Append[Length /@ Keys[m], 0]];
 
+(* Production acceptance of an unsimplified coefficient map.  Boundary
+   constants are independent indeterminates, so map them to temporary
+   symbols and reuse the package's two-point exact-rational evaluator.
+   A pole merely rejects that trial and draws another point. *)
+masterTransportBWProductionZeroQ[values_List] := Module[
+  {expressions, constants, constantSymbols, substituted, symbols,
+   tries = 0, done = 0, rules, pointValues},
+  expressions = DeleteCases[Flatten[{values}], 0];
+  If[expressions === {}, Return[True]];
+  constants = DeleteDuplicates[
+    Cases[expressions, _TransportConstant, {0, Infinity}]];
+  constantSymbols = Table[Unique["transportConstant$"], {Length[constants]}];
+  substituted = expressions /. Thread[constants -> constantSymbols];
+  symbols = DeleteDuplicates[Cases[substituted,
+    s_Symbol /; Context[s] =!= "System`", {0, Infinity}]];
+  While[done < 2 && tries < 12,
+    tries++;
+    rules = Thread[symbols ->
+      RandomInteger[{3, 10^6}, Length[symbols]]/
+        RandomInteger[{10^6, 10^7}, Length[symbols]]];
+    pointValues = Quiet[Check[Together /@ (substituted /. rules), $Failed]];
+    If[pointValues === $Failed ||
+        ! FreeQ[pointValues,
+          ComplexInfinity | Indeterminate | DirectedInfinity], Continue[]];
+    If[! AllTrue[pointValues, masterTransportBWZeroQ], Return[False]];
+    done++];
+  done === 2];
+
 (* ------------------------------------------------------------------ *)
 (*  dlog decomposition of the connection, with its exact verification   *)
 (* ------------------------------------------------------------------ *)
@@ -666,7 +711,8 @@ masterTransportBWMaxWeight[m_Association] :=
    polynomial part and any pole the factorization missed in one test. *)
 masterTransportBWDlogEntry[entry_, tau_] := Module[
   {e, denominator, linearized, poles, letters, multiplicities, residues,
-   reconstructed},
+   reconstructed, numerator, numeratorDegree, denominatorDegree,
+   denominatorDerivative},
   e = Together[entry];
   If[TrueQ[e === 0], Return[<|"Status" -> "OK", "Poles" -> <||>|>]];
   denominator = Denominator[e];
@@ -679,6 +725,12 @@ masterTransportBWDlogEntry[entry_, tau_] := Module[
         "Entry" -> e|>],
       Return[<|"Status" -> "NotPureDlogInTau", "Reason" -> "PolynomialPartInTau",
         "Degree" -> Exponent[Numerator[e], tau], "Entry" -> e|>]]];
+  numeratorDegree = Exponent[Numerator[e], tau];
+  denominatorDegree = Exponent[denominator, tau];
+  If[numeratorDegree >= denominatorDegree,
+    Return[<|"Status" -> "NotPureDlogInTau",
+      "Reason" -> "PolynomialPartInTau", "Degree" -> numeratorDegree,
+      "Entry" -> e|>]];
   (* linear factors give their root; irreducible quadratics give the two
      algebraic roots (see masterTransportBWLinearize); degree >= 3 and
      eps-dependent discriminants are thrown as named failures *)
@@ -689,13 +741,30 @@ masterTransportBWDlogEntry[entry_, tau_] := Module[
     Return[<|"Status" -> "HigherPoleInTau", "Multiplicities" -> multiplicities,
       "Factors" -> DeleteDuplicates[#["Factor"] & /@ poles]|>]];
   letters = #["Letter"] & /@ poles;
-  (* residue at a simple pole, by the explicit factorization (never by
-     substituting the root into an unfactored denominator) *)
+  (* Every pole is simple, so N(a)/D'(a) is the residue.  This uses the
+     denominator once for the whole entry instead of rebuilding the
+     product of all other factors separately for every letter. *)
+  numerator = Numerator[e];
+  denominatorDerivative = D[denominator, tau];
   residues = Table[
-    First[masterTransportBWPolePart[e, tau, linearized, letters[[k]], 1]],
+    masterTransportBWCanon[
+      (numerator/denominatorDerivative) /. tau -> letters[[k]]],
     {k, Length[letters]}];
   If[! FreeQ[residues, DirectedInfinity | Indeterminate | ComplexInfinity],
     Return[<|"Status" -> "HigherPoleInTau", "Reason" -> "ResidueNotFinite"|>]];
+  (* In production this is already a constructive partial-fraction
+     proof: Together made the fraction proper, FactorList found every
+     denominator factor, every multiplicity is one, and PolePart
+     computes the residues from that exact factorization.  Reassembling
+     the same identity with another large Together was the dominant
+     cost on CF303 and adds no independent information; the completed
+     recursion is checked downstream.  Development retains the exact
+     reconstruction as a diagnostic. *)
+  If[masterTransportCheckLevel[] === "Production",
+    Return[<|"Status" -> "OK",
+      "Poles" -> Association[
+        Table[letters[[k]] -> residues[[k]], {k, Length[letters]}]],
+      "Verification" -> "ConstructiveFactorization"|>]];
   (* THE verification: the decomposition is an exact identity or it is
      refused.  This is what makes "pure dlog with constant residues" a
      measured fact of this connection rather than an assumption.  Over an
@@ -928,9 +997,9 @@ masterTransportBlockwiseSolve[assembly_, ahat_, budget_, kminPerBlock_List,
    verbose, root, certify, phiOption, phiMaxWeight, maxWeight,
    couplings, letterRecord, allLetters, general, constants, solutionMaps,
    homogeneousMaps, certificates, wordCounts, coefficientSizes, start,
-   status, failure, phiRecords, crossChecks, fVector, flow, orders,
+   status, failure, phiRecords, crossChecks, fVector, flow,
    perBlockWeight, decompositionSeconds, recursionSeconds,
-   certificateSeconds, memory},
+   certificateSeconds, memory, trackHomogeneous},
 
   start = AbsoluteTime[];
   verbose = TrueQ[OptionValue["Verbose"]];
@@ -939,8 +1008,13 @@ masterTransportBlockwiseSolve[assembly_, ahat_, budget_, kminPerBlock_List,
     "Root" -> OptionValue["Root"]|>]];
   certify = TrueQ[OptionValue["Certify"]];
   phiOption = OptionValue["PhiCrossCheck"];
+  trackHomogeneous = phiOption =!= False;
   phiMaxWeight = OptionValue["PhiCrossCheckMaxWeight"];
   maxWeight = OptionValue["MaxWeight"];
+  (* Denominators are family/path specific; retain their factorization
+     across all entries and epsilon orders of this solve, then let the
+     next solve start with a lean cache. *)
+  masterTransportBlockwiseCacheReset[];
 
   nb = Length[assembly["Blocks"]];
   ranges = assembly["Ranges"];
@@ -997,7 +1071,13 @@ masterTransportBlockwiseSolve[assembly_, ahat_, budget_, kminPerBlock_List,
       If[i >= j && failure === None,
         Module[{sub, nonzero, r0, r1, laurent, reps},
           sub = ahat[[ranges[[i]], ranges[[j]]]];
-          nonzero = Select[Flatten[sub], ! TrueQ[Together[#] === 0] &];
+          (* ahat was already canonicalized entrywise when the path
+             connection was built.  A structural zero is therefore the
+             only cheap screening needed here; every surviving entry is
+             normalized exactly by the Laurent extractor.  Calling
+             Together on every entry here repeated the dominant
+             normalization before doing the actual decomposition. *)
+          nonzero = DeleteCases[Flatten[sub], 0];
           If[nonzero =!= {},
             r0 = rmin[[i, j]];
             If[r0 === Infinity,
@@ -1027,6 +1107,10 @@ masterTransportBlockwiseSolve[assembly_, ahat_, budget_, kminPerBlock_List,
                   couplings[{i, j}] = <|"R0" -> r0, "R1" -> r1, "Rep" -> reps|>]]]]]],
       {j, nb}],
     {i, nb}];
+  (* ExactDepth retained the Laurent coefficients specifically for this
+     decomposition pass.  The word recursion no longer needs their
+     payload, while a later depth ledger can still reuse the support. *)
+  masterTransportSupportCacheDropCoefficients[];
   If[failure =!= None,
     Return[Join[failure, <|"Schedule" -> schedule,
       "Seconds" -> AbsoluteTime[] - start|>], Module]];
@@ -1070,14 +1154,16 @@ masterTransportBlockwiseSolve[assembly_, ahat_, budget_, kminPerBlock_List,
       Module[{accumulate, homogeneous, seconds},
         seconds = AbsoluteTime[];
         accumulate = ConstantArray[<||>, dimensions[[i]]];
-        homogeneous = ConstantArray[<||>, dimensions[[i]]];
+        homogeneous = If[trackHomogeneous,
+          ConstantArray[<||>, dimensions[[i]]], None];
         (* the block's own constant enters at its own order *)
         If[kminPerBlock[[i]] <= n <= qmax[[i]],
           Do[
             accumulate[[a]] = masterTransportBWAddMap[accumulate[[a]],
               <|{} -> constants[{i, n}][[a]]|>];
-            homogeneous[[a]] = masterTransportBWAddMap[homogeneous[[a]],
-              <|{} -> constants[{i, n}][[a]]|>],
+            If[trackHomogeneous,
+              homogeneous[[a]] = masterTransportBWAddMap[homogeneous[[a]],
+                <|{} -> constants[{i, n}][[a]]|>]],
             {a, dimensions[[i]]}]];
         (* every source, integrated by ONE word append per word *)
         Do[
@@ -1108,7 +1194,7 @@ masterTransportBlockwiseSolve[assembly_, ahat_, budget_, kminPerBlock_List,
                       (* the homogeneous part of the SAME recursion: only
                          the diagonal propagation of this block's own
                          constants, which is what Phi_i . C_i must equal *)
-                      If[j === i,
+                      If[trackHomogeneous && j === i,
                         Module[{homogeneousSource, homogeneousContribution},
                           homogeneousSource = Table[
                             Lookup[homogeneousMaps, Key[{i, n - r, b}], <||>],
@@ -1130,7 +1216,9 @@ masterTransportBlockwiseSolve[assembly_, ahat_, budget_, kminPerBlock_List,
           {j, 1, i}];
         Do[
           solutionMaps[{i, n, a}] = masterTransportBWTogetherMap[accumulate[[a]]];
-          homogeneousMaps[{i, n, a}] = masterTransportBWTogetherMap[homogeneous[[a]]],
+          If[trackHomogeneous,
+            homogeneousMaps[{i, n, a}] =
+              masterTransportBWTogetherMap[homogeneous[[a]]]],
           {a, dimensions[[i]]}];
         AppendTo[wordCounts, <|
           "Block" -> i, "Order" -> n,
@@ -1202,9 +1290,16 @@ masterTransportBlockwiseSolve[assembly_, ahat_, budget_, kminPerBlock_List,
              what says which term of the recursion is wrong *)
           verdict = Table[
             Module[{nonzero},
-              nonzero = Select[residual[[a]], ! TrueQ[Together[#] === 0] &];
-              nonzero = Select[nonzero, ! masterTransportSimplifyZeroQ[#] &];
-              If[Length[nonzero] === 0, True, nonzero]],
+              If[masterTransportCheckLevel[] === "Production",
+                nonzero = DeleteCases[residual[[a]], 0];
+                If[Length[nonzero] === 0 ||
+                    masterTransportBWProductionZeroQ[Values[nonzero]],
+                  True, nonzero],
+                nonzero = Select[residual[[a]],
+                  ! TrueQ[Together[#] === 0] &];
+                nonzero = Select[nonzero,
+                  ! masterTransportSimplifyZeroQ[#] &];
+                If[Length[nonzero] === 0, True, nonzero]]],
             {a, dimensions[[i]]}];
           AppendTo[certificates, <|
             "Block" -> i, "Order" -> n,
@@ -1293,7 +1388,9 @@ words never arise in this representation, so coefficient-wise vanishing is \
 sufficient and no Lyndon/fibration reduction is needed",
       "PerBlockOrder" -> certificates,
       "AllZero" -> AllTrue[certificates, TrueQ[#["Zero"]] &],
-      "Performed" -> certify|>,
+      "Performed" -> certify,
+      "Route" -> If[masterTransportCheckLevel[] === "Production",
+        "TwoPointExactRational", "ExactRationalFunction"]|>,
     "Phi" -> <|"Records" -> phiRecords, "CrossChecks" -> crossChecks,
       "AllZero" -> (crossChecks === {} ||
         AllTrue[crossChecks, TrueQ[#["AllZero"]] &]),

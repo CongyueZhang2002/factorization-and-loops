@@ -132,4 +132,34 @@ FTAssert["D9 transformed-block lower orders are remapped by physical rows and pr
        scheduled["Blockwise"]["Schedule"]["Low"], #] & /@
       {{1}, {2}, {3}}) === {0, -1, 2}];
 
+(* A downstream deficit edge can raise an upstream block's NMax above
+   every direct demand.  The support cap must be computed after that
+   propagation: edge 2<-1 below needs the coefficient at eps^9, even
+   though Max[direct demand]-Min[lowest] is only 8. *)
+capAssembly = <|
+  "Blocks" -> {{1}, {2}, {3}}, "Ranges" -> {{1}, {2}, {3}},
+  "Forms" -> ConstantArray[<|"Type" -> "EpsForm"|>, 3],
+  "TInverse" -> ConstantArray[{{1}}, 3]|>;
+capConnection = {
+  {ee, 0, 0},
+  {ee/(1 - ee), ee, 0},
+  {0, ee^-3, ee}};
+FeynFacet`Private`masterTransportSupportCacheClear[];
+capDepth = FeynFacet`Private`masterTransportExactDepth[
+  capAssembly, capConnection,
+  <|"Demands" -> {-3, -3, 4}, "KMin" -> {-2, 2, -1}|>, ee, True];
+
+FTAssert["D10 the Laurent-support cap covers orders raised indirectly by a downstream negative-epsilon edge",
+  capDepth["Lowest"] === {-2, -1, -4} &&
+    capDepth["NMax"] === {6, 7, 4} && capDepth["Cap"] === 9 &&
+    MemberQ[capDepth["Support"][{2, 1}], 9] &&
+    AssociationQ[Lookup[
+      FeynFacet`Private`$masterTransportSupportCache,
+      Key[{ee/(1 - ee), ee}], None]["Coefficients"]]];
+
+FTAssert["D11 Laurent support is expanded to the edge-local bound, so an easy edge does not pay the hardest edge's epsilon depth",
+  Lookup[capDepth["EdgeCaps"], Key[{2, 1}]] === 9 &&
+    Lookup[capDepth["EdgeCaps"], Key[{3, 2}]] === 5];
+FeynFacet`Private`masterTransportSupportCacheClear[];
+
 FTReport[];

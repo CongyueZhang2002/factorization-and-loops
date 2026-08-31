@@ -266,6 +266,7 @@ ClearAll[
   masterTransportLaurentSupport,
   masterTransportLaurentSupportCompute,
   masterTransportSupportCacheClear,
+  masterTransportSupportCacheDropCoefficients,
   masterTransportResolveBlockDemands,
   masterTransportExactDepth,
   masterTransportCheckableOrders,
@@ -757,12 +758,27 @@ masterTransportEpsOrder[e_, eps_] := Module[{x},
 (* Laurent coefficients of a RATIONAL function of eps over [r0, r1].
    Returns $Failed if the true valuation is below r0, because silently
    dropping a lower order is how an incomplete answer is manufactured. *)
-masterTransportLaurentList[e_, {r0_, r1_}, eps_] := Module[{x, order, series},
+masterTransportLaurentList[e_, {r0_, r1_}, eps_] := Module[
+  {x, order, series, cached, cachedCoefficients},
+  If[r1 < r0, Return[{}]];
+  (* ExactDepth has already expanded every active coupling when the
+     block-wise engine is requested.  Reuse those exact coefficients
+     instead of repeating Together + Series immediately afterwards. *)
+  cached = If[AssociationQ[$masterTransportSupportCache],
+    Lookup[$masterTransportSupportCache, Key[{e, eps}], None], None];
+  cachedCoefficients = If[AssociationQ[cached],
+    Lookup[cached, "Coefficients", None], None];
+  If[AssociationQ[cachedCoefficients] &&
+     (TrueQ[Lookup[cached, "Finite", False]] ||
+       Lookup[cached, "Cap", -Infinity] >= r1),
+    order = Lookup[cached, "Order", Infinity];
+    If[order === Infinity, Return[ConstantArray[0, r1 - r0 + 1]]];
+    If[order < r0, Return[$Failed]];
+    Return[Table[Lookup[cachedCoefficients, Key[r], 0], {r, r0, r1}]]];
   x = Together[e];
   If[x === 0, Return[ConstantArray[0, r1 - r0 + 1]]];
   order = masterTransportEpsOrder[x, eps];
   If[order < r0, Return[$Failed]];
-  If[r1 < r0, Return[{}]];
   series = Normal[Series[x, {eps, 0, r1}]];
   Table[Together[Coefficient[series, eps, r]], {r, r0, r1}]
 ];
@@ -808,13 +824,19 @@ masterTransportSCCBlocks[av_, aw_] := Module[{n, edges, graph},
   Sort[Sort /@ ConnectedComponents[Graph[Range[n], edges]]]
 ];
 
-masterTransportOrderBlocks[av_, aw_, blocks_] := Module[{nb, edges, order},
+masterTransportOrderBlocks[av_, aw_, blocks_] := Module[
+  {nb, edges, order, zeroBlock},
   nb = Length[blocks];
+  (* Pullback has already Together-normalized every entry.  In production
+     a structural-zero scan therefore recovers the DAG without repeating
+     a rational-function zero proof for every one of nb^2 block pairs. *)
+  zeroBlock[m_] := If[masterTransportCheckLevel[] === "Production",
+    AllTrue[Flatten[m], TrueQ[# === 0] &], masterTransportZeroMatQ[m]];
   edges = DeleteCases[
     Flatten @ Table[
       If[i =!= j &&
-         ! (masterTransportZeroMatQ[av[[blocks[[i]], blocks[[j]]]]] &&
-            masterTransportZeroMatQ[aw[[blocks[[i]], blocks[[j]]]]]),
+         ! (zeroBlock[av[[blocks[[i]], blocks[[j]]]]] &&
+            zeroBlock[aw[[blocks[[i]], blocks[[j]]]]]),
         j -> i, Null],
       {i, nb}, {j, nb}],
     Null];
@@ -1342,10 +1364,49 @@ masterTransportPointZeroQ[expr_, symbols_List, count_Integer: 2] := Module[
     tries++;
     point = Thread[symbols -> RandomInteger[{3, 10^6}, Length[symbols]]/
       RandomInteger[{10^6, 10^7}, Length[symbols]]];
-    values = Quiet[Check[flat /. point, $Failed]];
+    (* Substitute first, then normalize the now-small exact numbers.
+       Plain ==0 does not reduce relations among square roots and gave a
+       false SourceSystemNotFlat on the multiquadratic CF303 subsystem. *)
+    values = Quiet[Check[Together /@ (flat /. point), $Failed]];
     If[values === $Failed || ! FreeQ[values, ComplexInfinity | Indeterminate | DirectedInfinity],
       Continue[]];
-    If[! AllTrue[values, TrueQ[# == 0] &], Return[False]];
+    If[! AllTrue[values,
+        TrueQ[# === 0] ||
+          (masterTransportRadicalQ[#] &&
+            TrueQ[masterTransportRadicalZeroQ[#]]) &], Return[False]];
+    done++];
+  done >= count];
+
+(* Production curvature check: differentiate the entries once, but
+   substitute the point BEFORE matrix multiplication.  This avoids
+   constructing a giant symbolic A_v A_w - A_w A_v only to evaluate it
+   immediately afterwards. *)
+masterTransportPointFlatQ[av_, aw_, variables_List,
+    count_Integer: 2] := Module[
+  {symbols, davw, dawv, tries = 0, done = 0, point, avp, awp,
+   values},
+  symbols = DeleteDuplicates@Join[variables,
+    Cases[{av, aw}, s_Symbol /; Context[s] =!= "System`",
+      {0, Infinity}]];
+  davw = D[av, variables[[2]]];
+  dawv = D[aw, variables[[1]]];
+  While[done < count && tries < 6 count,
+    tries++;
+    point = Thread[symbols ->
+      RandomInteger[{3, 10^6}, Length[symbols]]/
+        RandomInteger[{10^6, 10^7}, Length[symbols]]];
+    values = Quiet[Check[
+      avp = av /. point; awp = aw /. point;
+      Flatten[Map[Together,
+        (davw /. point) - (dawv /. point) + avp . awp - awp . avp,
+        {2}]], $Failed]];
+    If[values === $Failed ||
+        ! FreeQ[values,
+          ComplexInfinity | Indeterminate | DirectedInfinity], Continue[]];
+    If[! AllTrue[values,
+        TrueQ[# === 0] ||
+          (masterTransportRadicalQ[#] &&
+            TrueQ[masterTransportRadicalZeroQ[#]]) &], Return[False]];
     done++];
   done >= count];
 
@@ -1363,7 +1424,8 @@ masterTransportAssemble[system_Association, eps_Symbol, variables_List,
    forms, tInverse, conjugated, certificate, triangular, diagonalOK,
    apv, apw, verbose, formDirectory, v, w, family, blockSpecification,
    inversePerBlock, directFlatnessCheck, algebraicConnectionQ,
-   checkLevel, productionQ, zeroMat},
+   checkLevel, productionQ, zeroMat, suppliedFlatness, suppliedFlatnessQ,
+   identityBlocks},
   verbose = TrueQ[OptionValue["Verbose"]];
   formDirectory = OptionValue["FormDirectory"];
   checkLevel = masterTransportCheckLevel[OptionValue["CheckLevel"]];
@@ -1376,6 +1438,10 @@ masterTransportAssemble[system_Association, eps_Symbol, variables_List,
   family = Lookup[system, "Family", "unnamed"];
   av = system["Av"];
   aw = system["Aw"];
+  suppliedFlatness = Lookup[system, "FlatnessCertificate", None];
+  suppliedFlatnessQ = AssociationQ[suppliedFlatness] &&
+    Lookup[suppliedFlatness, "Status", None] === "Accepted" &&
+    TrueQ[Lookup[suppliedFlatness, "SourceFlatness", False]];
   n = Length[av];
   blockSpecification = OptionValue["Blocks"];
   If[blockSpecification === Automatic,
@@ -1407,8 +1473,16 @@ masterTransportAssemble[system_Association, eps_Symbol, variables_List,
     TrueQ[masterTransportZeroQ[#]] &];
   certificate["BlockLowerTriangular"] = triangular;
   certificate["CheckLevel"] = checkLevel;
-  certificate["FlatnessOriginal"] = zeroMat[
-    D[av, w] - D[aw, v] + av . aw - aw . av];
+  certificate["FlatnessOriginal"] = If[suppliedFlatnessQ, True,
+    If[productionQ,
+      masterTransportPointFlatQ[av, aw, {v, w, eps}],
+      masterTransportZeroMatQ[
+        D[av, w] - D[aw, v] + av . aw - aw . av]]];
+  certificate["FlatnessOriginalRoute"] = If[suppliedFlatnessQ,
+    "CallerCertificate", If[productionQ,
+      "TwoPointExactRational", "ExactRationalFunction"]];
+  If[suppliedFlatnessQ,
+    certificate["FlatnessOriginalProvenance"] = suppliedFlatness];
 
   forms = Table[
     Module[{rows = blocks[[i]], sav, saw, resolved},
@@ -1428,6 +1502,10 @@ masterTransportAssemble[system_Association, eps_Symbol, variables_List,
     If[MissingQ[forms[[i]]["TInverse"]] || forms[[i]]["TInverse"] === Automatic,
       Map[Together, Inverse[forms[[i]]["T"]], {2}],
       forms[[i]]["TInverse"]],
+    {i, nb}];
+  identityBlocks = Table[
+    SameQ[forms[[i]]["T"], IdentityMatrix[Length[forms[[i]]["T"]]]] &&
+      SameQ[tInverse[[i]], IdentityMatrix[Length[tInverse[[i]]]]],
     {i, nb}];
   inversePerBlock = Table[
     If[forms[[i]]["Type"] === "ClosedFormSector",
@@ -1461,12 +1539,22 @@ masterTransportAssemble[system_Association, eps_Symbol, variables_List,
             dim = Length[ranges[[i]]];
             conjugated[{i, j}] = {ConstantArray[0, {dim, dim}],
               ConstantArray[0, {dim, dim}]},
-            blockV = tInverse[[i]] . pav[[ranges[[i]], ranges[[j]]]] . forms[[j]]["T"];
-            blockW = tInverse[[i]] . paw[[ranges[[i]], ranges[[j]]]] . forms[[j]]["T"];
-            If[i === j,
-              blockV = blockV - tInverse[[i]] . D[forms[[i]]["T"], v];
-              blockW = blockW - tInverse[[i]] . D[forms[[i]]["T"], w]];
-            conjugated[{i, j}] = {Map[Together, blockV, {2}], Map[Together, blockW, {2}]}]]],
+            If[TrueQ[identityBlocks[[i]]] &&
+                TrueQ[identityBlocks[[j]]],
+              (* The connection is already in the declared block frame;
+                 reuse the normalized pullback entries verbatim. *)
+              conjugated[{i, j}] = {
+                pav[[ranges[[i]], ranges[[j]]]],
+                paw[[ranges[[i]], ranges[[j]]]]},
+              blockV = tInverse[[i]] .
+                pav[[ranges[[i]], ranges[[j]]]] . forms[[j]]["T"];
+              blockW = tInverse[[i]] .
+                paw[[ranges[[i]], ranges[[j]]]] . forms[[j]]["T"];
+              If[i === j,
+                blockV = blockV - tInverse[[i]] . D[forms[[i]]["T"], v];
+                blockW = blockW - tInverse[[i]] . D[forms[[i]]["T"], w]];
+              conjugated[{i, j}] = {Map[Together, blockV, {2}],
+                Map[Together, blockW, {2}]}]]]],
       {j, nb}];
     (* one line per block ROW of the conjugation, which is the stretch
        that dominates a large family: nb(nb+1)/2 conjugated blocks, and
@@ -1940,6 +2028,38 @@ masterTransportPullBackOneForm[av_, aw_, jacobian_] := {
   Map[Together, av jacobian[[1, 1]] + aw jacobian[[2, 1]], {2}],
   Map[Together, av jacobian[[1, 2]] + aw jacobian[[2, 2]], {2}]};
 
+(* Substitute and normalize only nonzero connection entries.  When the
+   caller owns subkernels, largest entries enter the shared queue first;
+   otherwise the identical worker runs serially.  The helper never
+   launches kernels, so KernelPool remains the resource authority. *)
+masterTransportMapTogetherSubstitute[tensor_List, rules_List] := Module[
+  {dimensions, level, positions, entries, uniqueEntries, uniqueIndex,
+   entryIndices, order, sorted, transformed, uniqueValues, values, out},
+  dimensions = Dimensions[tensor];
+  level = Length[dimensions];
+  positions = Position[tensor, entry_ /; ! TrueQ[entry === 0], {level},
+    Heads -> False];
+  If[positions === {}, Return[ConstantArray[0, dimensions]]];
+  entries = Extract[tensor, positions];
+  (* Exact common-subexpression elimination.  Repeated connection entries
+     occur throughout sector assemblies; substituting and Together-ing the
+     same expression once per matrix position wastes the dominant stage. *)
+  uniqueEntries = DeleteDuplicates[entries];
+  uniqueIndex = AssociationThread[uniqueEntries,
+    Range[Length[uniqueEntries]]];
+  entryIndices = Lookup[uniqueIndex, Key[#]] & /@ entries;
+  order = Ordering[ByteCount /@ uniqueEntries, All, Greater];
+  sorted = uniqueEntries[[order]];
+  transformed = If[$KernelCount > 1 && Length[sorted] > 1,
+    ParallelMap[Together[# /. rules] &, sorted,
+      Method -> "FinestGrained", DistributedContexts -> None],
+    Together[# /. rules] & /@ sorted];
+  uniqueValues = transformed[[Ordering[order]]];
+  values = uniqueValues[[entryIndices]];
+  out = ConstantArray[0, dimensions];
+  MapThread[(out[[Sequence @@ #1]] = #2) &, {positions, values}];
+  out];
+
 Options[masterTransportPullBackSystem] = {
   "SourceVariables" -> Automatic,
   "FlatnessCheck" -> True
@@ -1967,18 +2087,17 @@ masterTransportPullBackSystem[system_Association, chart_,
   (* Refuse a non-flat source outright: the chain rule would produce a
      chart system whose own flatness check then fails for a reason that
      has nothing to do with the chart. *)
+  (* Production checks flatness once, after pullback, in the assembly
+     certificate.  Building the same 41x41 curvature before substitution
+     was a second full matrix-product pass and dominated CF303. *)
   flatSource = If[masterTransportCheckLevel[] === "Production",
-    masterTransportPointZeroQ[
-      D[av, sourceVariables[[2]]] - D[aw, sourceVariables[[1]]] +
-        av . aw - aw . av,
-      Join[sourceVariables[[{1, 2}]], DeleteDuplicates[Cases[{av, aw},
-        s_Symbol /; ! MemberQ[sourceVariables, s] && Context[s] =!= "System`", {0, Infinity}]]]],
+    Missing["DeferredToAssembly"],
     masterTransportZeroMatQ[
       D[av, sourceVariables[[2]]] - D[aw, sourceVariables[[1]]] +
         av . aw - aw . av]];
-  If[! TrueQ[flatSource], Return[<|"Status" -> "SourceSystemNotFlat"|>]];
-  avc = Map[Together, av /. data["Subst"], {2}];
-  awc = Map[Together, aw /. data["Subst"], {2}];
+  If[flatSource === False,
+    Return[<|"Status" -> "SourceSystemNotFlat"|>]];
+  {avc, awc} = masterTransportMapTogetherSubstitute[{av, aw}, data["Subst"]];
   surviving = Cases[{avc, awc},
     s_Symbol /; MemberQ[SymbolName /@ sourceVariables[[{1, 2}]], SymbolName[s]],
     {0, Infinity}, Heads -> True];
@@ -1996,6 +2115,8 @@ masterTransportPullBackSystem[system_Association, chart_,
     "Ax" -> ax, "Ay" -> ay, "Variables" -> {x, y}, "Chart" -> data,
     "Certificate" -> <|
       "SourceFlat" -> flatSource,
+      "SourceFlatRoute" -> If[MissingQ[flatSource],
+        "DeferredToAssemblyCertificate", "ExactRationalFunction"],
       "ChartFlat" -> flatChart,
       "ChartRational" -> True,
       "RootSquareConsistent" -> data["RootSquareConsistent"],
@@ -2744,28 +2865,49 @@ masterTransportEpsShift[assembly_, ahat_, eps_] := Module[
    serve a larger one, and a "Finite" record serves any cap. *)
 masterTransportSupportCacheClear[] := ($masterTransportSupportCache = <||>;);
 
-masterTransportLaurentSupport[e_, cap_Integer, eps_] := Module[
-  {cached, computed},
+(* Once the coupling decomposition has consumed the retained Laurent
+   coefficients, keep the much smaller support records warm for a later
+   depth ledger but release the coefficient payload before the GPL word
+   recursion starts growing. *)
+masterTransportSupportCacheDropCoefficients[] :=
+  If[AssociationQ[$masterTransportSupportCache],
+    $masterTransportSupportCache = Map[KeyDrop[#, "Coefficients"] &,
+      $masterTransportSupportCache]];
+
+masterTransportLaurentSupport[e_, cap_Integer, eps_,
+    retainCoefficients_: False] := Module[
+  {cached, computed, usable, reduced},
   If[! AssociationQ[$masterTransportSupportCache],
     $masterTransportSupportCache = <||>];
   cached = Lookup[$masterTransportSupportCache, Key[{e, eps}], None];
-  If[AssociationQ[cached] &&
-     (TrueQ[cached["Finite"]] || cached["Cap"] >= cap),
-    Return[If[TrueQ[cached["Finite"]] || cached["Cap"] === cap, cached,
-      Join[cached, <|"Orders" -> Select[cached["Orders"], # <= cap &],
-        "Cap" -> cap|>]]]];
-  computed = masterTransportLaurentSupportCompute[e, cap, eps];
+  usable = AssociationQ[cached] &&
+    (TrueQ[cached["Finite"]] || cached["Cap"] >= cap) &&
+    (! TrueQ[retainCoefficients] || KeyExistsQ[cached, "Coefficients"]);
+  If[usable,
+    If[TrueQ[cached["Finite"]] || cached["Cap"] === cap, Return[cached]];
+    reduced = Join[cached,
+      <|"Orders" -> Select[cached["Orders"], # <= cap &], "Cap" -> cap|>];
+    If[AssociationQ[Lookup[reduced, "Coefficients", None]],
+      reduced = Join[reduced, <|"Coefficients" ->
+        KeySelect[reduced["Coefficients"], # <= cap &]|>]];
+    Return[reduced]];
+  computed = masterTransportLaurentSupportCompute[e, cap, eps,
+    TrueQ[retainCoefficients]];
   If[Length[$masterTransportSupportCache] < 200000,
     $masterTransportSupportCache[{e, eps}] = computed];
   computed
 ];
 
-masterTransportLaurentSupportCompute[e_, cap_Integer, eps_] := Module[
-  {x, num, den, denLow, denHigh, ord, finite, top, orders, coefficients},
+masterTransportLaurentSupportCompute[e_, cap_Integer, eps_,
+    retainCoefficients_: False] := Module[
+  {x, num, den, denLow, denHigh, ord, finite, top, orders, coefficients,
+   coefficientAssociation, denominatorUnit},
   x = Together[e];
   If[x === 0,
-    Return[<|"Order" -> Infinity, "Orders" -> {}, "Finite" -> True,
-      "Truncated" -> False, "Cap" -> cap|>]];
+    Return[Join[
+      <|"Order" -> Infinity, "Orders" -> {}, "Finite" -> True,
+        "Truncated" -> False, "Cap" -> cap|>,
+      If[TrueQ[retainCoefficients], <|"Coefficients" -> <||>|>, <||>]]]];
   num = Numerator[x];
   den = Denominator[x];
   denLow = Exponent[den, eps, Min];
@@ -2776,21 +2918,38 @@ masterTransportLaurentSupportCompute[e_, cap_Integer, eps_] := Module[
     (* exact and cheap: the support is the numerator's own support,
        shifted.  No Series, no truncation. *)
     coefficients = CoefficientList[num, eps];
-    orders = Table[
-      If[TrueQ[Together[coefficients[[k]]] === 0], Nothing, k - 1 - denLow],
-      {k, Length[coefficients]}];
-    Return[<|"Order" -> ord, "Orders" -> orders, "Finite" -> True,
-      "Truncated" -> False, "Cap" -> cap|>]];
+    If[TrueQ[retainCoefficients],
+      denominatorUnit = Together[den/eps^denLow];
+      coefficientAssociation = Association@Table[
+        If[TrueQ[Together[coefficients[[k]]] === 0], Nothing,
+          (k - 1 - denLow) ->
+            Together[coefficients[[k]]/denominatorUnit]],
+        {k, Length[coefficients]}];
+      orders = Keys[coefficientAssociation],
+      orders = Table[
+        If[TrueQ[Together[coefficients[[k]]] === 0], Nothing,
+          k - 1 - denLow],
+        {k, Length[coefficients]}]];
+    Return[Join[
+      <|"Order" -> ord, "Orders" -> orders, "Finite" -> True,
+        "Truncated" -> False, "Cap" -> cap|>,
+      If[TrueQ[retainCoefficients],
+        <|"Coefficients" -> coefficientAssociation|>, <||>]]]];
   top = Max[cap, ord];
   coefficients = masterTransportLaurentList[x, {ord, top}, eps];
   If[coefficients === $Failed,
     Return[<|"Order" -> ord, "Orders" -> Range[ord, top], "Finite" -> False,
       "Truncated" -> True, "Cap" -> cap, "Route" -> "ConservativeFull"|>]];
-  orders = Table[
-    If[TrueQ[Together[coefficients[[k]]] === 0], Nothing, ord + k - 1],
+  coefficientAssociation = Association@Table[
+    If[TrueQ[Together[coefficients[[k]]] === 0], Nothing,
+      (ord + k - 1) -> coefficients[[k]]],
     {k, Length[coefficients]}];
-  <|"Order" -> ord, "Orders" -> orders, "Finite" -> False,
-    "Truncated" -> True, "Cap" -> cap|>
+  orders = Keys[coefficientAssociation];
+  Join[
+    <|"Order" -> ord, "Orders" -> orders, "Finite" -> False,
+      "Truncated" -> True, "Cap" -> cap|>,
+    If[TrueQ[retainCoefficients],
+      <|"Coefficients" -> coefficientAssociation|>, <||>]]
 ];
 
 (* A demand belongs to a mathematical block (the indicated rows of the
@@ -2836,9 +2995,11 @@ masterTransportResolveBlockDemands[demands_, declaredBlocks_, assembly_] :=
 (* demands: Automatic | a per-block list of demanded top orders |
    an Association with "Demands" and (optionally) "KMin".  KMin defaults
    to the module's kminPerBlock convention with physical valuation 0. *)
-masterTransportExactDepth[assembly_, ahat_, demands_, eps_] := Module[
+masterTransportExactDepth[assembly_, ahat_, demands_, eps_,
+    retainCoefficients_: False] := Module[
   {nb, ranges, spec, need, kmin, rmin, support, truncated, lowest, cap,
-   nmax, w, potentials, clamped, edges, blockSupport, i, j, n, best, r,
+   edgeCaps,
+   nmax, nmaxPre, w, potentials, clamped, edges, blockSupport, i, j, n, best, r,
    entries, closed},
   nb = Length[assembly["Blocks"]];
   ranges = assembly["Ranges"];
@@ -2878,29 +3039,41 @@ masterTransportExactDepth[assembly_, ahat_, demands_, eps_] := Module[
         {j, 1, i - 1}],
       kmin[[i]]]],
     {i, nb}];
-  (* the cap argued for above: an order r beyond max(need) - min(lowest)
-     can only feed a W_j below its block's lowest carried order *)
-  cap = Max[need] - Min[lowest];
   edges = Flatten[Table[If[i > j && rmin[[i, j]] =!= Infinity, {i, j}, Nothing],
     {i, nb}, {j, nb}], 1];
+  (* First propagate the demanded top orders with the exact edge
+     valuations.  The old cap Max[need]-Min[lowest] was too small when a
+     downstream negative-order edge raised an upstream block's NMax.
+     For edge i<-j the largest coefficient the recursion can read is
+     NMax_i-Lowest_j, so this is both the required support cap and the
+     exact coverage condition used by the block-wise coefficient cache. *)
+  nmaxPre = need;
+  Do[
+    Do[
+      If[j < i && rmin[[i, j]] =!= Infinity &&
+          nmaxPre[[i]] =!= -Infinity,
+        nmaxPre[[j]] = Max[nmaxPre[[j]], nmaxPre[[i]] - rmin[[i, j]]]],
+      {j, nb}],
+    {i, nb, 1, -1}];
+  edgeCaps = Association@Table[
+    e -> If[nmaxPre[[First[e]]] === -Infinity, 0,
+      nmaxPre[[First[e]]] - lowest[[Last[e]]]],
+    {e, edges}];
+  cap = Max[Append[Values[edgeCaps], 0]];
   support = <||>;
   truncated = <||>;
   Do[
     {i, j} = e;
     entries = Flatten[ahat[[ranges[[i]], ranges[[j]]]]];
-    blockSupport = masterTransportLaurentSupport[#, cap, eps] & /@ entries;
-    support[{i, j}] = Union @@ (#["Orders"] & /@ blockSupport);
+    blockSupport = masterTransportLaurentSupport[#, edgeCaps[e], eps,
+        retainCoefficients] & /@ entries;
+    support[{i, j}] = Select[
+      Union @@ (#["Orders"] & /@ blockSupport), # <= edgeCaps[e] &];
     truncated[{i, j}] = AnyTrue[blockSupport, TrueQ[#["Truncated"]] &],
     {e, edges}];
-  (* the top order each block must reach, propagated down the DAG with
-     the LOWEST coupling order (that is the one that reaches furthest up) *)
-  nmax = need;
-  Do[
-    Do[
-      If[j < i && rmin[[i, j]] =!= Infinity,
-        nmax[[j]] = Max[nmax[[j]], nmax[[i]] - Min[support[{i, j}]]]],
-      {j, nb}],
-    {i, nb, 1, -1}];
+  (* The same valuation propagation is the exact NMax recursion; support
+     was retained through precisely the largest order any edge can read. *)
+  nmax = nmaxPre;
   (* (C4b) the recursion itself *)
   w = <||>;
   Do[
@@ -2935,6 +3108,7 @@ masterTransportExactDepth[assembly_, ahat_, demands_, eps_] := Module[
     "Lowest" -> lowest,
     "NMax" -> nmax,
     "Cap" -> cap,
+    "EdgeCaps" -> edgeCaps,
     "EdgeOrderMin" -> rmin,
     "Support" -> support,
     "SupportTruncated" -> truncated,
@@ -4376,6 +4550,8 @@ TransportFamily[input_, opts : OptionsPattern[]] := Catch[
     wmax, backendResult, verification, regraded, solution, valuation,
     series, checkable, deCheck, elapsed, start, status, tinvOrder, nb,
     dimension, targetOrder, checkableRecord, rational, engine, blockwise,
+    compiledCandidate, compiledIdentityQ, compiledValuation,
+    materializedCompiled,
     basePointCandidates, pathTrials, pathChoice, deCheckRule, deChecked,
     stageSeconds},
 
@@ -4748,7 +4924,7 @@ needs nested quadrature"],
     exactDepth = If[depthRule === "Exact" || TrueQ[OptionValue["DepthReport"]],
       masterTransportExactDepth[assembly, ahat,
         <|"Demands" -> If[blockDemands === Automatic, budget["Need"], blockDemands],
-          "KMin" -> kminPerBlock|>, regulator],
+          "KMin" -> kminPerBlock|>, regulator, engine === "Blockwise"],
       Missing["NotComputed: set \"DepthReport\" -> True or \"DepthRule\" -> \"Exact\""]];
     If[blockDemands =!= Automatic,
       If[! AssociationQ[exactDepth] || Lookup[exactDepth, "Status", None] =!= "OK",
@@ -4849,15 +5025,39 @@ needs nested quadrature"],
        family differential equation -- is the same code on the same
        objects, which is what makes the two engines comparable entry by
        entry. *)
-    blockwise = masterTransportBlockwiseSolve[assembly, ahat, budget,
-      kminPerBlock, kmaxF, n0, tau, regulator, variables, base, target,
-      "Verbose" -> verbose, "Root" -> root, "MaxWeight" -> maxWeight,
-      "Certify" -> TrueQ[OptionValue["Verify"]],
-      "PhiCrossCheck" -> OptionValue["PhiCrossCheck"],
-      "PhiCrossCheckMaxWeight" -> OptionValue["PhiCrossCheckMaxWeight"],
-      "KeepMaps" -> TrueQ[OptionValue["KeepWordMaps"]],
-      "ConstantDepth" -> OptionValue["ConstantDepth"],
-      "ExactDepth" -> exactDepth];
+    (* When no independent Phi cross-check was requested, try the compiled
+       epsilon-form core first.  It keeps boundary data as sparse columns
+       and words as interned IDs, materializing symbols only once at the
+       output boundary.  A genuinely non-dlog coupling falls back by name
+       to the mature integration-by-parts engine; a failed compiled
+       certificate never falls back and is therefore not masked. *)
+    compiledIdentityQ = AllTrue[Range[nb],
+      SameQ[assembly["Forms"][[#]]["T"],
+          IdentityMatrix[Length[assembly["Ranges"][[#]]]]] &&
+        SameQ[assembly["TInverse"][[#]],
+          IdentityMatrix[Length[assembly["Ranges"][[#]]]]] &];
+    compiledCandidate = If[OptionValue["PhiCrossCheck"] === False,
+      masterTransportCanonicalWordSolve[assembly, ahat, budget,
+        kminPerBlock, kmaxF, tau, regulator,
+        "Verbose" -> verbose, "MaxWeight" -> maxWeight,
+        "Certify" -> TrueQ[OptionValue["Verify"]],
+        "Materialize" -> ! compiledIdentityQ,
+        "ConstantDepth" -> OptionValue["ConstantDepth"],
+        "ExactDepth" -> exactDepth],
+      None];
+    blockwise = If[AssociationQ[compiledCandidate] &&
+        Lookup[compiledCandidate, "Status", None] =!=
+          "CompiledWordFallbackRequired",
+      compiledCandidate,
+      masterTransportBlockwiseSolve[assembly, ahat, budget,
+        kminPerBlock, kmaxF, n0, tau, regulator, variables, base, target,
+        "Verbose" -> verbose, "Root" -> root, "MaxWeight" -> maxWeight,
+        "Certify" -> TrueQ[OptionValue["Verify"]],
+        "PhiCrossCheck" -> OptionValue["PhiCrossCheck"],
+        "PhiCrossCheckMaxWeight" -> OptionValue["PhiCrossCheckMaxWeight"],
+        "KeepMaps" -> TrueQ[OptionValue["KeepWordMaps"]],
+        "ConstantDepth" -> OptionValue["ConstantDepth"],
+        "ExactDepth" -> exactDepth]];
     If[! AssociationQ[blockwise] ||
         ! MemberQ[{"OK", "SolvedNotCertified", "RecursionCertificateFailed"},
           blockwise["Status"]],
@@ -5036,11 +5236,27 @@ beside them as a diagnostic)"|>];
 
     (* ------------------------------------------------ (C2) valuation --- *)
     masterTransportLog[verbose, "  imposing physical Laurent valuation"];
-    {stageSeconds, valuation} = AbsoluteTiming[
-      masterTransportValuation[assembly, solution, n0, base, target,
-        tau, variables, regulator, verbose]];
+    If[Lookup[blockwise, "Route", None] === "CompiledSparseWord" &&
+        TrueQ[compiledIdentityQ],
+      {stageSeconds, compiledValuation} = AbsoluteTiming[
+        masterTransportCWIdentityValuation[blockwise["IR"], n0]];
+      If[Lookup[compiledValuation, "Status", None] =!= "OK",
+        Return[Join[diagnostics,
+          <|"Status" -> "ValuationFailed",
+            "Valuation" -> KeyDrop[compiledValuation, "IR"],
+            "Assembly" -> assembly,
+            "Family" -> assembly["Family"]|>], Module]];
+      materializedCompiled = masterTransportCWMaterializeIR[
+        compiledValuation["IR"], tau, kmaxF];
+      solution = Join[solution, materializedCompiled];
+      valuation = Join[KeyDrop[compiledValuation, "IR"],
+        <|"Solution" -> solution|>],
+      {stageSeconds, valuation} = AbsoluteTiming[
+        masterTransportValuation[assembly, solution, n0, base, target,
+          tau, variables, regulator, verbose]]];
     masterTransportLog[verbose, "  physical Laurent valuation finished in ",
-      Round[stageSeconds, 0.1], " s"];
+      Round[stageSeconds, 0.1], " s (", Lookup[valuation, "Route", "Legacy"],
+      ")"];
     If[valuation["Status"] === "Inconsistent" || ! TrueQ[valuation["AssertionOK"]],
       Return[Join[diagnostics,
         <|"Status" -> "ValuationFailed", "Valuation" -> valuation,
@@ -5108,7 +5324,7 @@ beside them as a diagnostic)"|>];
       "N" -> dimension,
       "Engine" -> engine,
       "Blockwise" -> If[engine === "Blockwise",
-        KeyDrop[blockwise, "Solution"], None],
+        KeyDrop[blockwise, {"Solution", "IR"}], None],
       "Assembly" -> assembly,
       "Certificate" -> assembly["Certificate"],
       "Backend" -> backendResult["Backend"],
