@@ -132,7 +132,11 @@ done-test). The durable pattern is the verification step, not the
 checkers: every terminal verdict must be confirmed by a direct read
 of the watched artifact before it is reported. Also record WHO
 terminated a run: exit 143 after the coordinator's own deliberate
-SIGTERM is a stand-down fact, not an anomaly.
+SIGTERM is a stand-down fact, not an anomaly.  And archive a run's
+log only AFTER its wrapper exits: the allowance wrapper writes its
+kill/exit marker into the path it holds open, so a rename-before-exit
+leaves the ARCHIVED copy -- the artifact a later reader trusts --
+with no evidence of how the run ended (observed 2026-08-31).
 
 ## Lesson from the 2026-08-28 CF300 watch (rate-based idle test)
 
