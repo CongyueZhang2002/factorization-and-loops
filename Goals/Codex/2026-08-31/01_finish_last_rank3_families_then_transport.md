@@ -29,5 +29,5 @@
 - [x] 🟢 Evaluate all 145 CF303 block/order nodes through path order 8: 0.80 s after the coefficient cache is present.
 - [x] 🟢 Perform the production-style fresh-prime acceptance: 2,160 differential-equation coefficients and 270 basepoint coefficients vanish/agree exactly modulo `2305843009213641971`.
 - [x] 🟢 Package the accepted path contract, provider descriptor, order table, boundary windows, and formal recurrence as a stable serializable artifact; its disk round trip reopens and passes the same modular recurrence acceptance.
-- [ ] 🟡 Add the family-level driver that rebuilds a native coefficient cache from the artifact's accepted source descriptor; do not call a finite origin jet an endpoint value.
-- [ ] 🟡 Generalize the driver invocation over arbitrary package families and accepted paths while retaining the package's two-variable dimensionless-chart convention.
+- [x] 🟢 Add the family-level driver that rebuilds the accepted source connection from the artifact, generates the native coefficient cache, evaluates the full recurrence, and performs its one direct modular acceptance.
+- [x] 🟢 Expose `TransportPathArtifactRun[artifact,p]` for arbitrary two-variable package families and accepted paths, with both direct-state and completed-row source descriptors; finite origin jets remain explicitly distinct from endpoint values.

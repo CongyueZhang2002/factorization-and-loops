@@ -303,7 +303,9 @@ ClearAll[
   pathTransportNativeFormalEvaluate,
   pathTransportNativeFormalAccept,
   pathTransportNativeArtifactCreate,
-  pathTransportNativeArtifactOpen
+  pathTransportNativeArtifactOpen,
+  pathTransportNativeConnectionFromArtifact,
+  pathTransportNativeRunArtifact
 ];
 
 pathTransportNativePathJetBinary[] := With[{file = FileNameJoin[{
@@ -1038,3 +1040,173 @@ pathTransportNativeArtifactOpen[artifact_Association] := Module[
 ];
 pathTransportNativeArtifactOpen[___] :=
   <|"Status" -> "NativeTransportArtifactInvalid"|>;
+
+Options[pathTransportNativeConnectionFromArtifact] = {
+  "RepositoryRoot" -> Automatic,
+  "ScratchRoot" -> Automatic
+};
+
+pathTransportNativeConnectionFromArtifact[artifact_Association,
+    OptionsPattern[]] := Module[
+  {repositoryRoot, scratchRoot, descriptor, kind, stateRelative,
+   stateFile, state, field, connection, assembly, ranges, dimension,
+   checkpointRelative, checkpointFile, checkpoint, hardBlock,
+   lowerColumns, installedRow, variables, rowSeconds = 0.},
+  If[Lookup[artifact, "Status", None] =!=
+      "NativeTransportFormalArtifactV1",
+    Return[<|"Status" -> "NativeTransportSourceArtifactInvalid"|>]];
+  repositoryRoot = Replace[OptionValue["RepositoryRoot"],
+    Automatic :> DirectoryName[$feynFacetDirectory]];
+  scratchRoot = Replace[OptionValue["ScratchRoot"],
+    Automatic :> repositoryRoot <> "-codex"];
+  descriptor = Lookup[artifact, "SourceDescriptor", <||>];
+  kind = Lookup[descriptor, "Kind", None];
+  stateRelative = Lookup[descriptor, "ScratchRelativeStateFile",
+    Lookup[descriptor, "RepositoryRelativeStateFile", Missing["NoState"]]];
+  If[! StringQ[repositoryRoot] || ! StringQ[scratchRoot] ||
+      ! StringQ[stateRelative],
+    Return[<|"Status" -> "NativeTransportSourceDescriptorInvalid"|>]];
+  stateFile = FileNameJoin[{If[
+      KeyExistsQ[descriptor, "ScratchRelativeStateFile"], scratchRoot,
+      repositoryRoot], stateRelative}];
+  If[! FileExistsQ[stateFile],
+    Return[<|"Status" -> "NativeTransportSourceStateMissing",
+      "File" -> stateFile|>]];
+  state = Quiet[Check[Get[stateFile], $Failed]];
+  If[! AssociationQ[state],
+    Return[<|"Status" -> "NativeTransportSourceStateInvalid"|>]];
+  field = Lookup[descriptor, "ConnectionField", "A"];
+  connection = Lookup[state, field, Missing["NoConnection"]];
+  assembly = artifact["Assembly"];
+  ranges = assembly["Ranges"];
+  dimension = Total[Length /@ ranges];
+  If[Dimensions /@ connection =!= {{dimension, dimension},
+      {dimension, dimension}} ||
+      Lookup[state, "Ranges", ranges] =!= ranges,
+    Return[<|"Status" -> "NativeTransportSourceConnectionInvalid"|>]];
+  Which[
+    kind === "StateConnectionV1", Null,
+    kind === "AcceptedCompletedFamilyRowV1",
+      checkpointRelative = Lookup[descriptor,
+        "RepositoryRelativeCheckpointFile", Missing["NoCheckpoint"]];
+      hardBlock = Lookup[descriptor, "HardBlock", Missing["NoHardBlock"]];
+      If[! StringQ[checkpointRelative] || ! IntegerQ[hardBlock] ||
+          ! Between[hardBlock, {1, Length[ranges]}],
+        Return[<|"Status" -> "NativeTransportSourceDescriptorInvalid"|>]];
+      checkpointFile = FileNameJoin[{repositoryRoot, checkpointRelative}];
+      If[! FileExistsQ[checkpointFile],
+        Return[<|"Status" -> "NativeTransportSourceCheckpointMissing",
+          "File" -> checkpointFile|>]];
+      checkpoint = Quiet[Check[Get[checkpointFile], $Failed]];
+      variables = artifact["PathContract"]["Variables"];
+      If[! AssociationQ[checkpoint] ||
+          ! KeyExistsQ[checkpoint, "PrevD"],
+        Return[<|"Status" -> "NativeTransportSourceCheckpointInvalid"|>]];
+      {rowSeconds, installedRow} = AbsoluteTiming[
+        familyRowGaugeAssembleInstalledRow[connection,
+          ranges[[hardBlock]], checkpoint["PrevD"], variables]];
+      lowerColumns = Flatten[Take[ranges, hardBlock - 1]];
+      If[Dimensions[installedRow] =!=
+          {2, Length[ranges[[hardBlock]]], Length[lowerColumns]},
+        Return[<|"Status" -> "NativeTransportAcceptedRowInvalid",
+          "ObservedDimensions" -> Dimensions[installedRow]|>]];
+      connection[[All, ranges[[hardBlock]], lowerColumns]] = installedRow,
+    True,
+      Return[<|"Status" -> "NativeTransportSourceKindUnsupported",
+        "Kind" -> kind|>]];
+  <|"Status" -> "NativeTransportConnectionV1",
+    "Connection" -> connection,
+    "Variables" -> artifact["PathContract"]["Variables"],
+    "Regulator" -> artifact["Recurrence"]["Regulator"],
+    "RootSquares" -> artifact["PathContract"]["SourceRootSquares"],
+    "StateFile" -> stateFile, "RowAssemblySeconds" -> N[rowSeconds]|>
+];
+pathTransportNativeConnectionFromArtifact[___] :=
+  <|"Status" -> "NativeTransportSourceArtifactInvalid"|>;
+
+Options[pathTransportNativeRunArtifact] = {
+  "RepositoryRoot" -> Automatic,
+  "ScratchRoot" -> Automatic,
+  "EpsilonImageCount" -> 24,
+  "MaximumTotalDegree" -> 22,
+  "HeldOutCount" -> 3,
+  "Seed" -> 2026083111,
+  "SheetValue" -> Automatic,
+  "Threads" -> Automatic,
+  "ConstantValues" -> Automatic,
+  "TauOrder" -> 8
+};
+
+pathTransportNativeRunArtifact[artifact_Association, prime_Integer,
+    OptionsPattern[]] := Module[
+  {started = AbsoluteTime[], source, connection, contract, recurrence,
+   requestedOrders, tauOrder, seriesData, graph, constants, evaluation,
+   acceptance, result},
+  source = pathTransportNativeConnectionFromArtifact[artifact,
+    "RepositoryRoot" -> OptionValue["RepositoryRoot"],
+    "ScratchRoot" -> OptionValue["ScratchRoot"]];
+  If[Lookup[source, "Status", None] =!= "NativeTransportConnectionV1",
+    Return[source]];
+  connection = source["Connection"];
+  contract = artifact["PathContract"];
+  recurrence = artifact["Recurrence"];
+  requestedOrders = recurrence["RequiredCouplingOrders"];
+  tauOrder = OptionValue["TauOrder"];
+  seriesData = pathTransportNativeSeriesData[connection,
+    source["Variables"], source["Regulator"], source["RootSquares"],
+    contract, artifact["Endpoints"], recurrence["Tau"],
+    requestedOrders, prime, tauOrder,
+    "EpsilonImageCount" -> OptionValue["EpsilonImageCount"],
+    "MaximumTotalDegree" -> OptionValue["MaximumTotalDegree"],
+    "HeldOutCount" -> OptionValue["HeldOutCount"],
+    "Seed" -> OptionValue["Seed"],
+    "SheetValue" -> OptionValue["SheetValue"],
+    "Threads" -> OptionValue["Threads"]];
+  Clear[connection];
+  If[Lookup[seriesData, "Status", None] =!=
+      "NativeTransportSeriesDataV1", Return[seriesData]];
+  graph = pathTransportNativeArtifactOpen[artifact];
+  If[Lookup[graph, "Status", None] =!= "OKFormalLowerGraph",
+    Return[graph]];
+  constants = Replace[OptionValue["ConstantValues"], Automatic :>
+    With[{p = prime}, Function[Mod[
+      1000003 #1 + 1009 (#2 + 100) + #3, p]]]];
+  result = Internal`WithLocalSettings[Null,
+    evaluation = pathTransportNativeFormalEvaluate[graph, seriesData,
+      artifact["Assembly"], "ConstantValues" -> constants,
+      "TauOrder" -> tauOrder];
+    acceptance = pathTransportNativeFormalAccept[graph, evaluation,
+      seriesData, artifact["Assembly"], constants];
+    <|"Status" -> If[Lookup[acceptance, "Status", None] ===
+        "NativeTransportFormalAcceptedV1",
+      "NativeTransportArtifactRunAcceptedV1",
+      Lookup[acceptance, "Status", "NativeTransportArtifactRunFailed"]],
+      "Prime" -> prime, "TauOrder" -> tauOrder,
+      "SeriesData" -> seriesData, "Evaluation" -> evaluation,
+      "Acceptance" -> acceptance,
+      "Source" -> KeyDrop[source, "Connection"],
+      "Seconds" -> N[AbsoluteTime[] - started]|>,
+    pathTransportExceptionFormalRelease[graph]];
+  result
+];
+pathTransportNativeRunArtifact[___] :=
+  <|"Status" -> "NativeTransportArtifactRunInputInvalid"|>;
+
+Options[TransportPathArtifactRun] = Options[pathTransportNativeRunArtifact];
+
+TransportPathArtifactRun[file_String, prime_Integer,
+    opts : OptionsPattern[]] := Module[{artifact},
+  If[! FileExistsQ[file],
+    Return[<|"Status" -> "TransportPathArtifactFileMissing",
+      "File" -> file|>]];
+  artifact = Quiet[Check[Get[file], $Failed]];
+  If[! AssociationQ[artifact],
+    Return[<|"Status" -> "TransportPathArtifactFileInvalid",
+      "File" -> file|>]];
+  pathTransportNativeRunArtifact[artifact, prime, opts]
+];
+TransportPathArtifactRun[artifact_Association, prime_Integer,
+    opts : OptionsPattern[]] :=
+  pathTransportNativeRunArtifact[artifact, prime, opts];
+TransportPathArtifactRun[___] :=
+  <|"Status" -> "TransportPathArtifactRunInputInvalid"|>;

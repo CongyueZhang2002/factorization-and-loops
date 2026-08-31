@@ -115,8 +115,14 @@ FTAssert["one direct modular differential-equation acceptance closes",
       "NativeTransportFormalAcceptedV1" &&
     acceptance["ResidualCoefficientCount"] > 0 &&
     acceptance["BasepointCoefficientCount"] > 0];
+sourceRoot = CreateDirectory[];
+sourceRelative = "toy_state.wl";
+Put[<|"A" -> {ax, ay}, "Ranges" -> assembly["Ranges"]|>,
+  FileNameJoin[{sourceRoot, sourceRelative}]];
 artifact = private["pathTransportNativeArtifactCreate"][graph, assembly,
-  contract, {1/5, 3/5}, <|"Kind" -> "ToyAcceptedConnectionV1"|>,
+  contract, {1/5, 3/5}, <|"Kind" -> "StateConnectionV1",
+    "ScratchRelativeStateFile" -> sourceRelative,
+    "ConnectionField" -> "A"|>,
   <|"ConstructionAcceptance" -> acceptance|>];
 artifactFile = CreateTemporary[];
 Put[artifact, artifactFile];
@@ -140,5 +146,16 @@ FTAssert["a provider-only artifact cannot silently render placeholders",
   Lookup[private["pathTransportExceptionFormalRender"][reopenedGraph,
       1, 0], "Status", None] === "ProviderBackedGraphCannotRender"];
 private["pathTransportExceptionFormalRelease"][reopenedGraph];
+artifactRun = FeynFacet`TransportPathArtifactRun[
+  artifactRoundTrip, prime, "RepositoryRoot" -> root,
+  "ScratchRoot" -> sourceRoot, "EpsilonImageCount" -> 12,
+  "MaximumTotalDegree" -> 6, "HeldOutCount" -> 3,
+  "Threads" -> 2, "TauOrder" -> 4, "Seed" -> 271829];
+FTAssert["the family-neutral artifact driver rebuilds its source and runs",
+  Lookup[artifactRun, "Status", None] ===
+      "NativeTransportArtifactRunAcceptedV1" &&
+    Lookup[artifactRun["Acceptance"], "Status", None] ===
+      "NativeTransportFormalAcceptedV1"];
+DeleteDirectory[sourceRoot, DeleteContents -> True];
 
 FTTest`FTReport[];
