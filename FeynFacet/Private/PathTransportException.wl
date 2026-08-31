@@ -408,7 +408,7 @@ pathTransportExceptionCapability[installed_Association, assembly_,
 pathTransportExceptionPrepare[assembly_Association, apv_, apw_, plan0_,
     tau_Symbol, eps_, kmax_Integer] := Module[
   {plan = plan0, issues, contract, connection, installed, budget,
-   capability},
+   capability, tConnection, tInstall, tBudget, tCapability},
   issues = pathTransportExceptionPlanIssues[plan];
   If[issues =!= {},
     Return[<|"Status" -> "PathTransportExceptionPlanRefused",
@@ -416,25 +416,32 @@ pathTransportExceptionPrepare[assembly_Association, apv_, apw_, plan0_,
   contract = Lookup[plan, "PathContract", None];
   If[StringQ[contract], contract = Get[contract]];
   plan["PathContract"] = contract;
-  connection = pathTransportExceptionConnection[apv, apw, contract,
-    plan["Endpoints"], tau];
+  {tConnection, connection} = AbsoluteTiming[
+    pathTransportExceptionConnection[apv, apw, contract,
+      plan["Endpoints"], tau]];
   If[connection["Status"] =!= "PathTransportExceptionConnectionV1",
     Return[connection]];
-  installed = pathTransportExceptionInstall[assembly,
-    connection["Ahat"], plan, tau, eps];
+  {tInstall, installed} = AbsoluteTiming[
+    pathTransportExceptionInstall[assembly,
+      connection["Ahat"], plan, tau, eps]];
   If[installed["Status"] =!= "PathTransportExceptionInstalledV1",
     Return[installed]];
-  budget = masterTransportDepthBudget[assembly, installed["Ahat"],
-    kmax, eps];
-  capability = pathTransportExceptionCapability[installed, assembly,
-    tau, eps];
+  {tBudget, budget} = AbsoluteTiming[
+    masterTransportDepthBudget[assembly, installed["Ahat"],
+      kmax, eps]];
+  {tCapability, capability} = AbsoluteTiming[
+    pathTransportExceptionCapability[installed, assembly,
+      tau, eps]];
   <|"Status" -> "PathTransportExceptionPreparedV1",
     "ExceptionalBlocksRoute" -> capability["Route"],
     "ExceptionalBlocksCapability" -> capability,
     "Ahat" -> installed["Ahat"],
     "Budget" -> budget,
     "Reports" -> installed["Reports"],
-    "Extension" -> connection["Extension"]|>];
+    "Extension" -> connection["Extension"],
+    "PhaseSeconds" -> <|"Connection" -> tConnection,
+      "Install" -> tInstall, "Budget" -> tBudget,
+      "Capability" -> tCapability|>|>];
 pathTransportExceptionPrepare[___] :=
   <|"Status" -> "InvalidPathPrepareInput"|>;
 
