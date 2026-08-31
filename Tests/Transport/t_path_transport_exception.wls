@@ -237,5 +237,119 @@ Module[{recDir, rec18, rec14, r18, r14, rep, entries, verdicts},
       AnyTrue[verdicts, ! TrueQ[#["Admitted"]] &&
         #["Reason"] === "TauDependentAlgebraicCover" &]]]];
 
+(* ================= Wave B: formal quadrature consumer ============= *)
+
+(* T1, 1x1 terminal toy on the prepared plan: hard block 2, forcing
+   with an eps^-1 layer.  U is supplied exactly (abelian tower of the
+   pulled-back diagonal), and the BRUTE differentiate-back residual is
+   checked per order, independently of the module's internal premises. *)
+Module[{ztau, preparedB1, a1, u, iOrd, q, aOrd, bEntry, bOrd, dlt,
+   residual, ok},
+  ztau = toyEndpoints[[1]] + tau (toyEndpoints[[2]] - toyEndpoints[[1]]);
+  (* dedicated fixture: root-free diagonal so U has a closed dlog tower
+     (the main toy's (2,2) diagonal carries the residual root, which
+     has no elementary antiderivative to supply U from) *)
+  preparedB1 = pte["pathTransportExceptionPrepare"][toyAssembly,
+    {{0, 0}, {0, toyEps/(toyX + 3)}}, {{0, 0}, {0, 0}},
+    (* root-free fixture: a None-extension contract, else the consumer
+       rightly demands a sheet value for the declared quadratic cover *)
+    Join[toyPlan, <|"PathContract" -> Join[toyContract,
+      <|"PathExtension" -> <|"Type" -> "None"|>|>]|>],
+    tau, toyEps, 2];
+  a1 = Coefficient[preparedB1["Ahat"][[2, 2]], toyEps, 1];
+  FTAssert["B-T1: pulled-back diagonal is an exact dlog derivative",
+    Together[a1 - D[Log[ztau^2 + 3], tau]] === 0];
+  u = <|0 -> {{1}}, 1 -> {{Log[ztau^2 + 3] - Log[(1/5)^2 + 3]}}|>;
+  u[2] = {{u[1][[1, 1]]^2/2}};
+  iOrd = <|1 -> <|0 -> {1}, 1 -> {ztau}, 2 -> {ztau^2}|>|>;
+  q = pte["pathTransportExceptionQuadrature"][preparedB1, toyAssembly, 2,
+    u, iOrd, tau, toyEps, {-1, 0, 1}];
+  FTAssert["B-T1: status is OKFormalPathQuadrature",
+    q["Status"] === "OKFormalPathQuadrature"];
+  FTAssert["B-T1: forcing minimum order and lower depth agree",
+    q["ForcingMinimumOrder"] === -1 && q["LowerOrdersUsed"] === 2];
+  FTAssert["B-T1: certificate premises checked on this data",
+    TrueQ[q["Certificate"]["HomogeneousSeriesResidualZero"]] &&
+      TrueQ[q["Certificate"]["PropagatorInverseResidualZero"]]];
+  FTAssert["B-T1: the correction vanishes at the basepoint",
+    AllTrue[Flatten[Values[q["DeltaI"]]] /. tau -> 0,
+      TrueQ[Simplify[#] === 0] &]];
+  aOrd = <|1 -> a1|>;
+  bEntry = preparedB1["Ahat"][[2, 1]];
+  bOrd = <|-1 -> Coefficient[bEntry toyEps, toyEps, 0],
+    0 -> Coefficient[bEntry toyEps, toyEps, 1]|>;
+  dlt = q["DeltaI"];
+  ok = True;
+  Do[
+    residual = D[Lookup[dlt, n, {0}][[1]], tau] -
+      Sum[Lookup[aOrd, a, 0] Lookup[dlt, n - a, {0}][[1]], {a, 1, 1}] -
+      Sum[Lookup[bOrd, b, 0] Lookup[iOrd[1], n - b, {0}][[1]],
+        {b, -1, 0}];
+    ok = ok && TrueQ[Together[Expand[residual]] === 0],
+    {n, -1, 1}];
+  FTAssert["B-T1: brute differentiate-back residual is zero per order",
+    ok]];
+
+(* T2, 2x2 hard block with a noncommuting constant residue *)
+Module[{assembly2, m, ahat2, prepared2, u, iOrd, q, dlt, aOrd, bOrd,
+   residual, ok},
+  assembly2 = <|"Blocks" -> {{1}, {2, 3}}, "Ranges" -> {{1}, {2, 3}}|>;
+  m = {{0, 1}, {1, 0}};
+  ahat2 = ConstantArray[0, {3, 3}];
+  ahat2[[2 ;; 3, 2 ;; 3]] = toyEps m;
+  ahat2[[2 ;; 3, 1 ;; 1]] = {{1/(tau + 2)}, {tau}};
+  prepared2 = <|"Ahat" -> ahat2, "Extension" -> <|"Type" -> "None"|>|>;
+  u = <|0 -> IdentityMatrix[2], 1 -> m tau, 2 -> (m . m) tau^2/2|>;
+  iOrd = <|1 -> <|0 -> {1}, 1 -> {tau^2}|>|>;
+  q = pte["pathTransportExceptionQuadrature"][prepared2, assembly2, 2,
+    u, iOrd, tau, toyEps, {0, 1}];
+  FTAssert["B-T2: 2x2 status is OKFormalPathQuadrature",
+    q["Status"] === "OKFormalPathQuadrature"];
+  dlt = q["DeltaI"];
+  aOrd = <|1 -> m|>;
+  bOrd = <|0 -> {{1/(tau + 2)}, {tau}}|>;
+  ok = True;
+  Do[
+    residual = Map[D[#, tau] &, Lookup[dlt, n, {0, 0}]] -
+      Sum[Lookup[aOrd, a, ConstantArray[0, {2, 2}]] .
+        Lookup[dlt, n - a, {0, 0}], {a, 1, 1}] -
+      Sum[Lookup[bOrd, b, ConstantArray[0, {2, 1}]] .
+        Lookup[iOrd[1], n - b, {0}], {b, 0, 0}];
+    ok = ok && AllTrue[residual,
+      TrueQ[Together[Expand[#]] === 0] &],
+    {n, 0, 1}];
+  FTAssert["B-T2: 2x2 brute differentiate-back residual is zero",
+    ok];
+  (* insufficient lower depth refuses with the computed need *)
+  q = pte["pathTransportExceptionQuadrature"][prepared2, assembly2, 2,
+    u, <|1 -> <|0 -> {1}|>|>, tau, toyEps, {0, 1}];
+  FTAssert["B-T3: insufficient lower orders refuse with the need",
+    q["Status"] === "InsufficientLowerOrders" &&
+      q["NeedLowerThrough"] === 1]];
+
+(* T4, non-terminal hard block refuses by name *)
+Module[{assembly3, ahat3, prepared3, q},
+  assembly3 = <|"Blocks" -> {{1}, {2}, {3}},
+    "Ranges" -> {{1}, {2}, {3}}|>;
+  ahat3 = ConstantArray[0, {3, 3}];
+  ahat3[[2, 1]] = 1/(tau + 2);
+  ahat3[[3, 2]] = tau;   (* block 3 reads the hard block *)
+  prepared3 = <|"Ahat" -> ahat3, "Extension" -> <|"Type" -> "None"|>|>;
+  q = pte["pathTransportExceptionQuadrature"][prepared3, assembly3, 2,
+    <|0 -> {{1}}|>, <|1 -> <|0 -> {1}|>|>, tau, toyEps, {0}];
+  FTAssert["B-T4: non-terminal target refuses NestedQuadratureRequired",
+    q["Status"] === "NestedQuadratureRequired"]];
+
+(* T5, a quadratic extension without a sheet datum refuses: a prose
+   branch convention is not a branch implementation *)
+Module[{prepared5, q},
+  prepared5 = <|"Ahat" -> ConstantArray[0, {2, 2}],
+    "Extension" -> <|"Type" -> "Quadratic",
+      "BranchConvention" -> "prose only"|>|>;
+  q = pte["pathTransportExceptionQuadrature"][prepared5, toyAssembly, 2,
+    <|0 -> {{1}}|>, <|1 -> <|0 -> {1}|>|>, tau, toyEps, {0}];
+  FTAssert["B-T5: missing sheet datum refuses SheetDatumRequired",
+    q["Status"] === "SheetDatumRequired"]];
+
 DeleteDirectory[tmp, DeleteContents -> True];
 FTTest`FTReport[];
