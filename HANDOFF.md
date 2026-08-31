@@ -1,4 +1,20 @@
-# Session transfer note — updated 2026-08-31 ~15:0x (Fable)
+# Session transfer note — updated 2026-08-31 ~16:1x (Fable)
+
+## CAMPAIGN COMPLETE (5/5): the CF303 row-25 no-epsilon-form proof
+## campaign is CLOSED.  All five integral-form couplings certified
+## at the full standard (complete certified span + defect {1,1,1}
+## at 2+1 independent modular images): (25,18), (25,11), (25,2),
+## (25,1) [provider route, 292 s], (25,14) [symbolic route,
+## 3,955 s at 6.2M leaves, package fresh leg].  Certificates + all
+## screen evidence: Results/UU_08_10_canonical/
+## PathTransportObstructions/CF303/ (commits c6d8eb54, 5be04c67).
+## Codex informed (note 34); zero Fable kernels running; awaiting
+## next user assignment.  Codex's analytic lane continues (their
+## note 28: rational GPL subsystem = 21 blocks / 37 masters;
+## blocks 15/17/21/25 = algebraic/elliptic layers — now backed by
+## the row-25 proofs).
+
+# Superseded: ~15:0x entry
 
 ## (25,1) CERTIFIED (4 of 5): complete-span ConfirmedObstruction
 ## {1,1,1} at 3 images, 25 letters, via Codex's Kallen23
