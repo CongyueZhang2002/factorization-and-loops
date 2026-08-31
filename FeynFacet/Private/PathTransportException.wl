@@ -697,3 +697,80 @@ SheetDatum is the analytic-continuation record for a later \
 evaluator."|>];
 pathTransportExceptionQuadrature[___] :=
   <|"Status" -> "InvalidPathQuadratureInput"|>;
+
+(* ==================================================================
+   Wave E: the generic entry point for transport on a typed path plan
+   (Codex note 20, integration items 1-2).  One call owns the full
+   seam order:
+
+     1. validate the plan and assemble the COMPLETE connection on the
+        contract path (one pullback, one endpoint Jacobian);
+     2. install the accepted providers -- the record list is VARIABLE
+        LENGTH, all records sharing one hard-row identity;
+     3. compute one depth budget from the installed mathematics;
+     4. dispatch by the measured exceptional-blocks capability:
+        - "BlockwiseEngine": every installed entry is admitted; the
+          caller feeds the returned Ahat/Budget to
+          masterTransportBlockwiseSolve and owns the remaining depth
+          arithmetic (kminPerBlock, kmaxF, n0) exactly as in the
+          ordinary route -- it is NOT duplicated here, and the
+          engine's own named refusal at solve time stays the authority
+          for the complete connection;
+        - "AlgebraicQuadratureRequired": the terminal hard block takes
+          the formal quadrature consumer.  With "PropagatorSeries" and
+          "LowerOrders" supplied the quadrature runs in the same call;
+          otherwise the dispatch names exactly what is missing.
+
+   Seam order (caller contract, Codex note 24): the ordinary row gauge
+   is applied BEFORE the path forcing is formed -- the accepted
+   records already carry accepted-gauge forcings (Gauge ->
+   LiteralZero), so nothing here re-gauges.  No family names appear;
+   the hard block is located from the records' shared row identity. *)
+
+ClearAll[pathTransportExceptionTransport];
+Options[pathTransportExceptionTransport] = {
+  "PropagatorSeries" -> None,
+  "LowerOrders" -> None,
+  "Orders" -> None,
+  "SheetValue" -> None};
+
+pathTransportExceptionTransport[assembly_Association, apv_, apw_,
+    plan_, tau_Symbol, eps_, kmax_Integer, opts : OptionsPattern[]] :=
+  Module[{prepared, records, rowIds, hard, u, iOrd, orders, missing,
+    quadrature},
+  prepared = pathTransportExceptionPrepare[assembly, apv, apw, plan,
+    tau, eps, kmax];
+  If[prepared["Status"] =!= "PathTransportExceptionPreparedV1",
+    Return[prepared]];
+  records = plan["Records"];
+  rowIds = DeleteDuplicates[
+    {Lookup[#, "RowRange"], Lookup[#, "RowBlockBasis"]} & /@ records];
+  If[Length[rowIds] =!= 1,
+    Return[<|"Status" -> "MultipleHardRowsUnsupported",
+      "RowIdentities" -> rowIds|>]];
+  hard = pathTransportExceptionLocateBlock[assembly,
+    rowIds[[1, 1]], rowIds[[1, 2]]];
+  If[MissingQ[hard],
+    Return[<|"Status" -> "PathAssemblyBlockIdentityMismatch"|>]];
+  If[prepared["ExceptionalBlocksRoute"] === "Blockwise",
+    Return[Join[prepared, <|"Dispatch" -> "BlockwiseEngine",
+      "HardBlock" -> hard|>]]];
+  u = OptionValue["PropagatorSeries"];
+  iOrd = OptionValue["LowerOrders"];
+  orders = OptionValue["Orders"];
+  missing = Pick[{"PropagatorSeries", "LowerOrders", "Orders"},
+    {! AssociationQ[u], ! AssociationQ[iOrd],
+     ! MatchQ[orders, {__Integer}]}];
+  If[missing =!= {},
+    Return[Join[prepared, <|"Dispatch" -> "AwaitingTerminalData",
+      "HardBlock" -> hard, "Missing" -> missing|>]]];
+  quadrature = pathTransportExceptionQuadrature[prepared, assembly,
+    hard, u, iOrd, tau, eps, orders,
+    "SheetValue" -> OptionValue["SheetValue"]];
+  Join[prepared, <|"HardBlock" -> hard,
+    "Dispatch" -> If[Lookup[quadrature, "Status", None] ===
+        "OKFormalPathQuadrature",
+      "FormalQuadrature", "FormalQuadratureRefused"],
+    "Quadrature" -> quadrature|>]];
+pathTransportExceptionTransport[___] :=
+  <|"Status" -> "InvalidPathTransportInput"|>;

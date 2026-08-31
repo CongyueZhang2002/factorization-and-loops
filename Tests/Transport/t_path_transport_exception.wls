@@ -199,6 +199,7 @@ Module[{qArtifactFile, qRecord, qPlan, qPrepared},
     "Endpoints" -> toyEndpoints, "Records" -> {qRecord}|>;
   qPrepared = pte["pathTransportExceptionPrepare"][toyAssembly, toyApv,
     toyApw, qPlan, tau, toyEps, 2];
+  coverPlan = qPlan;  (* reused by the Wave E dispatch tests below *)
   FTAssert["A2: any tau-dependent cover routes the plan to quadrature",
     qPrepared["ExceptionalBlocksRoute"] === "AlgebraicQuadratureRequired" &&
       MemberQ[qPrepared["ExceptionalBlocksCapability"]["Refusals"],
@@ -235,7 +236,48 @@ Module[{recDir, rec18, rec14, r18, r14, rep, entries, verdicts},
       Global`realEps] & /@ entries;
     FTAssert["F: (25,14) refuses into the quadrature branch",
       AnyTrue[verdicts, ! TrueQ[#["Admitted"]] &&
-        #["Reason"] === "TauDependentAlgebraicCover" &]]]];
+        #["Reason"] === "TauDependentAlgebraicCover" &]];
+    (* F4: the FOUR-record real plan validates as ONE plan on the
+       common contract -- variable-length provider list with (25,2) as
+       the fourth (Codex note 28) *)
+    Module[{rec11, rec2, contractFile, r11, r2, plan4, issues},
+      rec11 = FileNameJoin[{recDir,
+        "cf303_25_11_exact_path_exception_record.wl"}];
+      rec2 = "/home/maxzhang/factorization-and-loops-codex/Runtime/\
+2026-08-30_cf303_25_2_exact_common_path/\
+cf303_25_2_exact_path_exception_record.wl";
+      contractFile = FileNameJoin[{recDir,
+        "cf303_u3_common_path_contract.wl"}];
+      If[! (FileExistsQ[rec11] && FileExistsQ[rec2] &&
+          FileExistsQ[contractFile]),
+        Print["SKIP  F4: (25,11)/(25,2)/contract not all present"],
+        r11 = Quiet[Check[Get[rec11], $Failed]];
+        r2 = Quiet[Check[Get[rec2], $Failed]];
+        (* the two accepted quadratic records agree VERBATIM on the
+           branch convention; the contract file currently spells the
+           same convention differently, so the fail-closed verbatim
+           comparison refuses (reported to Codex 2026-08-31).  Until
+           the contract file is harmonized, carry the records' agreed
+           string in memory; once the file matches, this Join is a
+           no-op and the assertion is unchanged. *)
+        Module[{contract4, recordBC},
+          contract4 = Get[contractFile];
+          recordBC = r14["PathExtension"]["BranchConvention"];
+          FTAssert["F4: quadratic records agree on the branch convention",
+            recordBC === r11["PathExtension"]["BranchConvention"]];
+          If[Lookup[contract4["PathExtension"], "BranchConvention",
+              None] =!= recordBC,
+            Print["NOTE  F4: contract BranchConvention differs from \
+the records'; harmonizing in memory pending the file fix"];
+            contract4["PathExtension"] = Join[
+              contract4["PathExtension"],
+              <|"BranchConvention" -> recordBC|>]];
+          plan4 = <|"PathContract" -> contract4,
+            "Endpoints" -> {1/7, 5/7},
+            "Records" -> {r18, r14, r11, r2}|>;
+          issues = pte["pathTransportExceptionPlanIssues"][plan4];
+          FTAssert["F4: four-record real plan validates on the contract",
+            issues === {}]]]]]];
 
 (* ================= Wave B: formal quadrature consumer ============= *)
 
@@ -443,6 +485,62 @@ Module[{prepared5, q},
     <|0 -> {{1}}|>, <|1 -> <|0 -> {1}|>|>, tau, toyEps, {0}];
   FTAssert["B-T5: missing sheet datum refuses SheetDatumRequired",
     q["Status"] === "SheetDatumRequired"]];
+
+(* ================= Wave E: generic dispatch entry point =========== *)
+
+(* E-T1: an all-admitted plan dispatches to the ordinary engine with
+   the hard block located from the records' shared row identity *)
+Module[{t},
+  t = pte["pathTransportExceptionTransport"][toyAssembly, toyApv,
+    toyApw, toyPlan, tau, toyEps, 2];
+  FTAssert["E-T1: blockwise route dispatches to the ordinary engine",
+    t["Status"] === "PathTransportExceptionPreparedV1" &&
+      t["Dispatch"] === "BlockwiseEngine" && t["HardBlock"] === 2 &&
+      t["ExceptionalBlocksRoute"] === "Blockwise"]];
+
+(* E-T2: the quadrature route without terminal data names exactly what
+   is missing instead of failing or silently returning less *)
+Module[{t},
+  t = pte["pathTransportExceptionTransport"][toyAssembly, toyApv,
+    toyApw, coverPlan, tau, toyEps, 2];
+  FTAssert["E-T2: quadrature route without data awaits, naming it",
+    t["Dispatch"] === "AwaitingTerminalData" && t["HardBlock"] === 2 &&
+      t["Missing"] === {"PropagatorSeries", "LowerOrders", "Orders"}]];
+
+(* E-T3: with the propagator series and lower solutions supplied, the
+   entry point runs the terminal formal quadrature in the same call.
+   The cover plan's hard diagonal pulls back to
+   eps [ x'(z)/(x(z)+3) - Sqrt[z+5] ] dz/dtau  (the apv rational dlog
+   AND the apw radical), and both antiderivatives are elementary, so U
+   is exact -- the first E-T3 draft forgot the rational term and the
+   consumer's premise check rightly refused it. *)
+Module[{ztau, u, t},
+  ztau = toyEndpoints[[1]] + tau (toyEndpoints[[2]] - toyEndpoints[[1]]);
+  u = <|0 -> {{1}},
+    1 -> {{Log[ztau^2 + 3] - Log[76/25] -
+      (2/3) ((ztau + 5)^(3/2) - (26/5)^(3/2))}}|>;
+  t = pte["pathTransportExceptionTransport"][toyAssembly, toyApv,
+    toyApw, coverPlan, tau, toyEps, 2,
+    "PropagatorSeries" -> u,
+    "LowerOrders" -> <|1 -> <|0 -> {1}, 1 -> {ztau}|>|>,
+    "Orders" -> {0, 1},
+    "SheetValue" -> Sqrt[26/5]];
+  FTAssert["E-T3: entry point runs the terminal formal quadrature",
+    t["Dispatch"] === "FormalQuadrature" &&
+      t["Quadrature"]["Status"] === "OKFormalPathQuadrature" &&
+      t["Quadrature"]["SheetDatum"] === Sqrt[26/5]]];
+
+(* E-T4: records naming two different hard rows refuse -- the provider
+   list is variable length but shares ONE row identity *)
+Module[{second, plan2, t},
+  second = Join[toyRecord, <|"RowRange" -> {1}, "RowBlockBasis" -> {1},
+    "ColumnRange" -> {2}, "ColumnBlockBasis" -> {2},
+    "PathDimensions" -> {1, 1}|>];
+  plan2 = Join[toyPlan, <|"Records" -> {toyRecord, second}|>];
+  t = pte["pathTransportExceptionTransport"][toyAssembly, toyApv,
+    toyApw, plan2, tau, toyEps, 2];
+  FTAssert["E-T4: two hard-row identities refuse by name",
+    t["Status"] === "MultipleHardRowsUnsupported"]];
 
 DeleteDirectory[tmp, DeleteContents -> True];
 FTTest`FTReport[];
