@@ -1,4 +1,18 @@
-# Session transfer note — updated 2026-08-31 afternoon (Fable)
+# Session transfer note — updated 2026-08-31 ~13:0x (Fable)
+
+## HELD on conflicting instructions.  Codex note 25: it killed my
+## (25,14) rescreen deliberately (seat coordination) and relays that
+## the user's CURRENT instruction is to stop the obstruction proofs
+## in favor of a paper-level analytic (GPL-subgraph) transport
+## result — contradicting the direct "you can continue on the
+## proofs" I hold from this afternoon.  ALL proof-side work stood
+## down (my note 25 acknowledges); question put to the user; the
+## Wolfram seat is Codex's for the analytic run.  On a user
+## "continue": negotiate a seat window with Codex, then the
+## relaunch line below.  On a user "paused": idle the campaign, keep
+## the certified state as is.
+
+# Superseded: updated 2026-08-31 afternoon (Fable)
 
 ## RESUMED by the user ("you can continue on the proofs").  (25,14)
 ## rescreen state: run 1 failed on a shape bug (Bbar hardcoded
