@@ -553,5 +553,66 @@ Module[{second, plan2, t},
   FTAssert["E-T4: two hard-row identities refuse by name",
     t["Status"] === "MultipleHardRowsUnsupported"]];
 
+(* ============ note 07: formal lower solutions over the DAG ========= *)
+
+(* P1: three 1x1 blocks, chain 1 -> 2 -> 3 with an eps^-1 coupling
+   into block 3.  Every I_i is formal (inert propagator towers and
+   quadratures); the BRUTE differentiate-back of the full equation
+   dI_i/dtau = eps M_i I_i + Sum_j B_ij I_j must close per order,
+   using only the inert head's derivative rule and Expand. *)
+Module[{assembly3, ahat3, rmin, needTable, prepared3, res, iOrd, mDiag,
+   bLow, ok, residual},
+  assembly3 = <|"Blocks" -> {{1}, {2}, {3}},
+    "Ranges" -> {{1}, {2}, {3}}|>;
+  ahat3 = {{toyEps/(tau + 2), 0, 0},
+           {tau, toyEps tau, 0},
+           {0, 1/(toyEps (tau + 1)), toyEps/(tau + 3)}};
+  rmin = {{Infinity, Infinity, Infinity},
+          {0, Infinity, Infinity},
+          {Infinity, -1, Infinity}};
+  needTable = pte["masterTransportDepthBudgetFromTable"][assembly3,
+    rmin, 1];
+  FTAssert["P1: table recurrence propagates the eps^-1 edge",
+    needTable["Need"] === {2, 2, 1}];
+  prepared3 = <|"Status" -> "PathTransportExceptionPreparedV1",
+    "Ahat" -> ahat3, "Budget" -> needTable|>;
+  res = pte["pathTransportExceptionFormalLower"][prepared3, assembly3,
+    tau, toyEps];
+  FTAssert["P1: formal lower solutions return OK with full windows",
+    res["Status"] === "OKFormalLowerSolutions" &&
+      res["Windows"]["Low"] === {0, 0, -1} &&
+      Sort[Keys[res["IOrders"]]] === {1, 2, 3} &&
+      Sort[Keys[res["IOrders"][3]]] === {-1, 0, 1}];
+  iOrd = res["IOrders"];
+  mDiag = {1/(tau + 2), tau, 1/(tau + 3)};
+  bLow = <|{2, 1} -> <|0 -> tau|>, {3, 2} -> <|-1 -> 1/(tau + 1)|>|>;
+  ok = True;
+  Do[
+    Do[
+      residual = D[Lookup[iOrd[i], n, {0}][[1]], tau] -
+        mDiag[[i]] Lookup[iOrd[i], n - 1, {0}][[1]] -
+        Sum[
+          Sum[Lookup[bLow[{i, j}], b, 0] *
+              Lookup[iOrd[j], n - b, {0}][[1]],
+            {b, -1, 0}],
+          {j, Select[{1, 2}, KeyExistsQ[bLow, {i, #}] &]}];
+      ok = ok && TrueQ[Expand[residual] === 0],
+      {n, res["Windows"]["Low"][[i]], res["Windows"]["Top"][[i]]}],
+    {i, 3}];
+  FTAssert["P1: brute differentiate-back closes for every block/order",
+    ok];
+  (* P2: a diagonal with a regulator-free part refuses by name *)
+  Module[{bad = prepared3},
+    bad["Ahat"] = ReplacePart[ahat3, {1, 1} -> 1/(tau + 2)];
+    res = pte["pathTransportExceptionFormalLower"][bad,
+      assembly3, tau, toyEps]];
+  FTAssert["P2: non-eps-linear diagonal refuses by name",
+    res["Status"] === "DiagonalNotEpsilonLinear" && res["Block"] === 1];
+  (* P3: excluding a feeder refuses with the missing dependency *)
+  res = pte["pathTransportExceptionFormalLower"][prepared3, assembly3,
+    tau, toyEps, "Blocks" -> {2, 3}];
+  FTAssert["P3: missing feeder refuses with the dependency named",
+    res["Status"] === "MissingFeederSolution" && res["Missing"] === {1}]];
+
 DeleteDirectory[tmp, DeleteContents -> True];
 FTTest`FTReport[];
