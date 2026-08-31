@@ -361,6 +361,41 @@ Module[{assembly2, m, ahat2, prepared2, u, iOrd, q, dlt, aOrd, bOrd,
     {n, -2, 1}];
   FTAssert["B1: brute differentiate-back closes from eps^-2 upward",
     ok];
+  (* note 29 item 2/4: a SUFFIX-only request {0, 1} against the same
+     declared lower interval starting at -2 must return the SAME
+     coefficients as the full call -- the kernel and quadrature are
+     built from kernelMin = bmin + lowerMin regardless of the
+     requested output window.  The inert quadrature heads carry
+     Unique[] formal variables, so both results are canonicalized by
+     renaming every Function slot to one symbol before comparing. *)
+  Module[{qs, qv, canon},
+    qs = pte["pathTransportExceptionQuadrature"][prepared2, assembly2,
+      2, u, iOrd, tau, toyEps, {0, 1}];
+    FTAssert["B1s: suffix request returns only the requested keys",
+      qs["Status"] === "OKFormalPathQuadrature" &&
+        Sort[Keys[qs["DeltaI"]]] === {0, 1} &&
+        qs["KernelMinimumOrder"] === -2];
+    (* HoldPattern: a bare Function[v_, b_] pattern trips Function's
+       own parameter validation message at match time *)
+    canon = # /. HoldPattern[Function[v_, b_]] :>
+        (Function @@ {qv, b /. v -> qv}) &;
+    FTAssert["B1s: suffix coefficients equal the full-call values",
+      AllTrue[Flatten[Table[
+        canon[qs["DeltaI"][n]] - canon[dlt[n]], {n, 0, 1}]],
+        TrueQ[Together[#] === 0] &]]];
+  (* note 29 item 5: an empty lower association is a typed refusal,
+     never a Min/Max evaluation on an empty key list *)
+  q = pte["pathTransportExceptionQuadrature"][prepared2, assembly2, 2,
+    u, <|1 -> <||>|>, tau, toyEps, {0, 1}];
+  FTAssert["B2e: empty lower association refuses by name",
+    q["Status"] === "InsufficientLowerOrders" &&
+      q["AvailableThrough"] === None];
+  (* note 29 item 5: a propagator with a negative key is refused --
+     the convolution bounds would silently ignore that coefficient *)
+  q = pte["pathTransportExceptionQuadrature"][prepared2, assembly2, 2,
+    Join[u, <|-1 -> m|>], iOrd, tau, toyEps, {0, 1}];
+  FTAssert["B2n: negative propagator key refuses by name",
+    q["Status"] === "InsufficientPropagatorOrders"];
   (* B2: a gap in the lower keys refuses by name *)
   q = pte["pathTransportExceptionQuadrature"][prepared2, assembly2, 2,
     u, <|1 -> <|-2 -> {1}, 0 -> {tau^2}, 1 -> {tau^3}|>|>,

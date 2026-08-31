@@ -513,8 +513,8 @@ pathTransportExceptionQuadrature[prepared_Association,
   {ranges, ahat, extension, sheet, nmax, ah, bRows, lowerBlocks, bmin,
    aMin, lowerMin, lowerMaxNeeded, requiredInverseOrder, aOrders,
    bOrders, iOrders, vSeries, premisesChecked, uvResidual, homResidual,
-   kernel, quadrature, delta, certificate, dim, integrationVar,
-   iOrdHard, zeroMat, zeroVec, contiguousQ, refusal = None},
+   kernelMin, kernel, quadrature, delta, certificate, dim,
+   integrationVar, iOrdHard, zeroMat, contiguousQ, refusal = None},
   ranges = assembly["Ranges"];
   ahat = prepared["Ahat"];
   extension = Lookup[prepared, "Extension", <|"Type" -> "None"|>];
@@ -534,7 +534,6 @@ pathTransportExceptionQuadrature[prepared_Association,
       ahat[[ranges[[hard]], ranges[[#]]]]]], {} | {0}] &];
   bRows = ahat[[ranges[[hard]],
     Flatten[ranges[[#]] & /@ lowerBlocks]]];
-  zeroVec = ConstantArray[0, Last[Dimensions[bRows]]];
   bmin = Min[Append[Flatten[Map[
     masterTransportEpsOrder[#, eps] &, bRows, {2}]], 0]];
   aMin = Min[Append[Flatten[Map[
@@ -554,6 +553,13 @@ pathTransportExceptionQuadrature[prepared_Association,
             "MissingBlock" -> j,
             "NeedLowerThrough" -> lowerMaxNeeded,
             "ForcingMinimumOrder" -> bmin|>,
+        (* an EMPTY association declares no interval at all; refuse
+           before any Min/Max touches its key list (note 29 item 5) *)
+        Length[lower] === 0,
+          refusal = <|"Status" -> "InsufficientLowerOrders",
+            "Block" -> j, "AvailableThrough" -> None,
+            "NeedLowerThrough" -> lowerMaxNeeded,
+            "ForcingMinimumOrder" -> bmin|>,
         keys = Sort[Keys[lower]]; ! contiguousQ[keys],
           refusal = <|"Status" -> "LowerOrdersNotContiguous",
             "Block" -> j, "Keys" -> keys|>,
@@ -570,11 +576,14 @@ pathTransportExceptionQuadrature[prepared_Association,
   lowerMin = Min[Min[Keys[iOrd[#]]] & /@ lowerBlocks];
   requiredInverseOrder = nmax - bmin - lowerMin;
 
-  (* B2: the propagator must cover the full contiguous inverse range;
-     explicit zero matrices are values, absence is not *)
-  If[! (contiguousQ[Sort[Keys[uSeries]]] &&
-      Min[Keys[uSeries]] <= 0 &&
-      Max[Keys[uSeries]] >= requiredInverseOrder),
+  (* B2: the propagator is mathematically a NONNEGATIVE series with
+     U^(0) = Id, so its keys must be exactly 0 .. max -- a negative key
+     would be silently ignored by the convolution bounds -- and max
+     must cover the full inverse range (note 29 item 5); explicit zero
+     matrices are values, absence is not *)
+  If[Length[uSeries] === 0 ||
+      Sort[Keys[uSeries]] =!= Range[0, Max[Keys[uSeries]]] ||
+      Max[Keys[uSeries]] < requiredInverseOrder,
     Return[<|"Status" -> "InsufficientPropagatorOrders",
       "RequiredThrough" -> requiredInverseOrder,
       "Available" -> Sort[Keys[uSeries]]|>]];
@@ -616,7 +625,15 @@ pathTransportExceptionQuadrature[prepared_Association,
 
   (* kernel orders K^(n) = [V B I]^(n): the convolution runs over the
      ACTUAL declared key ranges, a + b + c = n with c allowed negative;
-     no bound assumes the lower series starts at eps^0 (note 27 B1) *)
+     no bound assumes the lower series starts at eps^0 (note 27 B1).
+     The kernel's true lowest order is kernelMin = bmin + lowerMin (V
+     starts at order zero), and the kernel and its quadrature are built
+     from kernelMin REGARDLESS of which output orders the caller
+     requested: higher coefficients of U . Quadrature reach down to the
+     lowest quadrature orders through the propagator convolution, so a
+     suffix-only request built from Min[orders] would silently omit
+     those contributions (note 29 item 2). *)
+  kernelMin = bmin + lowerMin;
   kernel = Association @@ Table[
     n -> Sum[
       With[{c = n - a - b},
@@ -626,7 +643,7 @@ pathTransportExceptionQuadrature[prepared_Association,
              iOrders[c]),
           ConstantArray[0, dim]]],
       {a, 0, requiredInverseOrder}, {b, bmin, nmax - lowerMin}],
-    {n, Min[orders], nmax}];
+    {n, kernelMin, nmax}];
   integrationVar = Unique["pathTransportQuadratureVar"];
   quadrature = Association @@ Table[
     n -> Table[
@@ -637,11 +654,13 @@ pathTransportExceptionQuadrature[prepared_Association,
             "IntegrandStillDependsOnPathParameter"|>, Module]];
         TransportQuadrature[f, tau, 0]],
       {i, dim}],
-    {n, Min[orders], nmax}];
+    {n, kernelMin, nmax}];
+  (* returned keys stay restricted to the caller's requested interval;
+     below kernelMin the correction is genuinely zero *)
   delta = Association @@ Table[
-    n -> Sum[uSeries[a] . Lookup[quadrature, n - a,
-        ConstantArray[0, dim]],
-      {a, 0, Min[n - Min[orders], requiredInverseOrder]}],
+    n -> If[n < kernelMin, ConstantArray[0, dim],
+      Sum[uSeries[a] . quadrature[n - a],
+        {a, 0, Min[n - kernelMin, requiredInverseOrder]}]],
     {n, Min[orders], nmax}];
   iOrdHard = Lookup[iOrd, hard, None];
   certificate = <|
@@ -659,6 +678,7 @@ I_ord, so the representation is correct for every inhomogeneity.",
     "Hard" -> hard, "Orders" -> orders,
     "ForcingMinimumOrder" -> bmin,
     "LowerMinimumOrder" -> lowerMin,
+    "KernelMinimumOrder" -> kernelMin,
     "LowerOrdersUsed" -> lowerMaxNeeded,
     "LowerBlocks" -> lowerBlocks,
     "Kernel" -> kernel,
