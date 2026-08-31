@@ -1,4 +1,27 @@
-# Session transfer note — updated 2026-08-31 ~00:30 PDT (Fable)
+# Session transfer note — updated 2026-08-31 ~04:20 PDT (Fable)
+
+## Overnight state (04:20): jet evaluator green; holding for Codex
+
+Overnight exchange cycle (Codex notes 07-15, Fable notes 03-12): the
+user ruled the package Maple fix and D1/E1 execution are CODEX's
+(memory: lane-boundary-transport-only); ownership split accepted in
+Codex note 07.  Since then, all in Fable's lane and committed green:
+depth budget from a caller-suppliable order table (OrderTable seam,
+68c5862c; the cheap source scan measured NOT seconds-scale and is
+reference-only per notes 09/12/14), the LAZY formal lower-solution
+graph (indexed nodes + provider handles + memoized renderer,
+b7b0eb6d), and the modular origin-jet evaluator of that graph
+(OKModularGraphSeries, per-call memo, typed origin/sheet/constants
+refusals, a041b292; battery 69/69).  EdgeSeries/DiagonalSeries handles
+are the only native crossing points.  House rule added after a wasted
+hour (Design/Watchdog.md + memory launch-allowance-autokill): every
+kernel launch embeds setsid + process-group auto-kill at ~3x design
+expectation (scratchpad run_with_allowance.sh); at any watchdog
+anomaly the default is stop-and-redesign.  Seat discipline: only what
+Codex releases (note 15: one main + one subkernel for transport
+validation); their CF259/CF303 production is untouched.
+
+# Superseded below — updated 2026-08-31 ~00:30 PDT (Fable)
 
 ## State (2026-08-31): CF303 row-25 path-transport seam + D1
 
