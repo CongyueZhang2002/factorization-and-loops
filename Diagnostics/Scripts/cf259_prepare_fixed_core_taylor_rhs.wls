@@ -10,21 +10,26 @@ args = Rest[$ScriptCommandLine];
 mode = If[Length[args] >= 1, args[[1]], "downward"];
 order = If[Length[args] >= 2, ToExpression[args[[2]]], 2048];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-runtime = FileNameJoin[{codexRoot, "Runtime", Switch[mode,
-  "downward", "2026-08-31_cf259_downward_taylor_core",
-  "shell3", "2026-08-31_cf259_shell3_stacked_taylor_core",
-  _, Print["unknown mode: ", mode]; Exit[64]]}];
-rhsDirectory = If[mode === "shell3", FileNameJoin[{runtime, "rhs_images"}],
+runtime = Which[
+  mode === "downward", FileNameJoin[{codexRoot, "Runtime",
+    "2026-08-31_cf259_downward_taylor_core"}],
+  mode === "shell3", FileNameJoin[{codexRoot, "Runtime",
+    "2026-08-31_cf259_shell3_stacked_taylor_core"}],
+  StringStartsQ[mode, "prime"], FileNameJoin[{codexRoot, "Runtime",
+    "2026-08-31_cf259_shell3_multprime", mode}],
+  True, Print["unknown mode: ", mode]; Exit[64]];
+rhsDirectory = If[mode =!= "downward", FileNameJoin[{runtime, "rhs_images"}],
   FileNameJoin[{codexRoot, "Runtime",
     "2026-08-31_cf259_downward_taylor_rhs_images_fixedcore"}]];
-expectedStatus = If[mode === "shell3",
+expectedStatus = If[mode =!= "downward",
   "CF259Shell3StackedRHSImageV1", "CF259DownwardRHSImageV1"];
+expectedImageCount = If[StringStartsQ[mode, "prime"], 20, 42];
 core = Get[FileNameJoin[{runtime, "core_report.wl"}]];
 files = Sort[FileNames["rhs_*.wl", rhsDirectory]];
 images = Get /@ files;
 prime = core["Prime"];
 n = core["CoreDimension"];
-If[Length[images] =!= 42 || ! AllTrue[images,
+If[Length[images] =!= expectedImageCount || ! AllTrue[images,
     AssociationQ[#] && Lookup[#, "Status", None] ===
       expectedStatus && Lookup[#, "Prime", None] === prime &&
       Length[Lookup[#, "Values", {}]] === n &],

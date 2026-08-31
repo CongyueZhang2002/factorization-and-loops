@@ -9,13 +9,17 @@ codexRoot = "/home/maxzhang/factorization-and-loops-codex";
 args = Rest[$ScriptCommandLine];
 mode = If[Length[args] >= 1, args[[1]], "downward"];
 trainRequested = If[Length[args] >= 2, ToExpression[args[[2]]], 1900];
-runtime = FileNameJoin[{codexRoot, "Runtime", Switch[mode,
-  "downward", "2026-08-31_cf259_downward_taylor_core",
-  "shell3", "2026-08-31_cf259_shell3_stacked_taylor_core",
-  _, Print["unknown mode: ", mode]; Exit[64]]}];
+runtime = Which[
+  mode === "downward", FileNameJoin[{codexRoot, "Runtime",
+    "2026-08-31_cf259_downward_taylor_core"}],
+  mode === "shell3", FileNameJoin[{codexRoot, "Runtime",
+    "2026-08-31_cf259_shell3_stacked_taylor_core"}],
+  StringStartsQ[mode, "prime"], FileNameJoin[{codexRoot, "Runtime",
+    "2026-08-31_cf259_shell3_multprime", mode}],
+  True, Print["unknown mode: ", mode]; Exit[64]];
 core = Get[FileNameJoin[{runtime, "core_report.wl"}]];
 rhs = Get[FileNameJoin[{runtime, "core_rhs_interpolation.wl"}]];
-If[mode === "shell3",
+If[mode =!= "downward",
   activeCore = <|"ActiveCoreDimension" -> core["CoreDimension"],
     "ActiveOriginalColumns" -> core["CoreColumns"]|>;
   padeFile = FileNameJoin[{runtime, "core_solution_pade_order" <>
@@ -65,7 +69,7 @@ zero = <|"Numerator" -> {0}, "Denominator" -> {1},
 vector = ConstantArray[zero, unknownCount];
 vector[[activeOriginalColumns]] = items;
 degreeHistogram = Counts[Lookup[vector, "Degrees"]];
-report = <|"Status" -> If[mode === "shell3",
+report = <|"Status" -> If[mode =!= "downward",
     "CF259Shell3FixedCoreModularVectorV1",
     "CF259FixedCoreModularVectorV1"],
   "Prime" -> prime, "ExpansionPoint" -> center,
@@ -78,7 +82,7 @@ report = <|"Status" -> If[mode === "shell3",
   "MaximumDegrees" -> Max /@ Transpose[Replace[
     Lookup[vector, "Degrees"], -Infinity -> -1, {2}]],
   "Interpolations" -> vector|>;
-outputFile = FileNameJoin[{runtime, If[mode === "shell3",
+outputFile = FileNameJoin[{runtime, If[mode =!= "downward",
   "cf259_shell3_fixed_core_modular_vector_prime1.wl",
   "cf259_active_fixed_core_modular_vector_prime1.wl"]}];
 Put[report, outputFile];

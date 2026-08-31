@@ -1,27 +1,23 @@
 #!/usr/bin/env wolframscript
 
-(* Capture the shell-3 fixed-core RHS on exactly the seed rows selected by the
-   stacked core.  Seeds contributing no independent rows are not evaluated. *)
+(* Re-evaluate the accepted CF259 shell-3 row/column section at another
+   prime.  The structural plan was discovered once at prime 1; no repeated
+   RREF or support search is performed here. *)
 
 $HistoryLength = 0;
-root = "/home/maxzhang/factorization-and-loops";
-codexRoot = "/home/maxzhang/factorization-and-loops-codex";
 args = Rest[$ScriptCommandLine];
 If[Length[args] < 2,
-  Print["usage: cf259_shell3_stacked_rhs_capture.wls SHARD SHARDS [THREADS] [TAG] [IMAGECOUNT]"];
+  Print["usage: cf259_shell3_fixed_plan_core_capture.wls TAG PRIME [THREADS]"];
   Exit[64]];
-shard = ToExpression[args[[1]]];
-shards = ToExpression[args[[2]]];
+tag = args[[1]];
+prime = ToExpression[args[[2]]];
 threads = If[Length[args] >= 3, ToExpression[args[[3]]], 4];
-tag = If[Length[args] >= 4, args[[4]], "prime1"];
-imageCount = If[Length[args] >= 5, ToExpression[args[[5]]], 42];
+root = "/home/maxzhang/factorization-and-loops";
+codexRoot = "/home/maxzhang/factorization-and-loops-codex";
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-runtime = If[tag === "prime1",
-  FileNameJoin[{codexRoot, "Runtime",
-    "2026-08-31_cf259_shell3_stacked_taylor_core"}],
-  FileNameJoin[{codexRoot, "Runtime",
-    "2026-08-31_cf259_shell3_multprime", tag}]];
-core = Get[FileNameJoin[{runtime, "core_report.wl"}]];
+planRuntime = FileNameJoin[{codexRoot, "Runtime",
+  "2026-08-31_cf259_shell3_stacked_taylor_core"}];
+plan = Get[FileNameJoin[{planRuntime, "core_report.wl"}]];
 inputFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
   "UU_08_10_canonical", "FamilyEpsFormsSolving",
   "triple_root_2026-08-28_codex_clean", "CF259",
@@ -33,7 +29,8 @@ census = Get[FileNameJoin[{codexRoot, "Runtime",
 supportData = Get[FileNameJoin[{codexRoot, "Runtime",
   "2026-08-31_rank3_modular_pole_census",
   "cf259_denominator_support.wl"}]];
-variables = record["Variables"]; epsilon = record["Regulator"];
+variables = record["Variables"];
+epsilon = record["Regulator"];
 strip = record["Strip"];
 rawPreparation = record["DeferredPreparation"]["Preparation"];
 roots = (<|"Root" -> Sqrt[#1], "RootSquare" -> #1|> &) /@
@@ -53,6 +50,7 @@ classification = Join[classification, <|
     "SourceIndex", {}]|>];
 stableOrder = FeynFacet`Private`multiquadraticStripRootOrder[
   frame, variables, Sort[classification["RequiredRootIndices"]], epsilon];
+If[Lookup[stableOrder, "Status", None] =!= "StableRootOrder", Exit[1]];
 directOptions = FeynFacet`Private`familyRowGaugeDirectAlphabetOptions[
   record["DeferredPreparation"]];
 candidate = FeynFacet`Private`multiquadraticStripCandidateLetters[
@@ -60,6 +58,8 @@ candidate = FeynFacet`Private`multiquadraticStripCandidateLetters[
   "AdditionalLetters" -> directOptions["AdditionalLetters"],
   "AlgebraicLetters" -> directOptions["AlgebraicLetters"],
   "DLogKernels" -> 1, "Deadline" -> Infinity];
+If[Lookup[candidate, "Status", None] =!=
+    "MultiquadraticCandidateLettersV1", Exit[1]];
 prepared = FeynFacet`Private`multiquadraticStripPrepare[record, frame,
   "RootClassification" -> classification,
   "CoefficientProvider" -> "SplitBranch", "CompileCore" -> False,
@@ -69,6 +69,9 @@ prepared = FeynFacet`Private`multiquadraticStripPrepare[record, frame,
   "Support" -> supportData["Shells"][3], "Deadline" -> Infinity];
 If[Lookup[prepared, "Status", None] =!= "PreparedMultiquadraticStripV1",
   Exit[1]];
+If[prepared["GaugeUnknownCount"] =!= plan["GaugeUnknownCount"] ||
+    prepared["ResidueUnknownCount"] =!= plan["ResidueUnknownCount"],
+  Print["fixed-plan layout width changed"]; Exit[2]];
 layout = FeynFacet`Private`multiquadraticStripAssemblyLayout[prepared];
 providerRecord = KeyDrop[prepared["Record"],
   {"DeferredBundle", "DeferredPreparation", "DeferredPreparationFile"}];
@@ -81,56 +84,60 @@ provider = FeynFacet`Private`multiquadraticStripDirectProvider[
 provider = FeynFacet`Private`multiquadraticStripAttachDeferredPreparation[
   provider, rawPreparation, inputFile];
 
-prime = core["Prime"];
-seeds = core["Seeds"];
-rowsPerSeed = core["AdditionalSeedFullRowCount"];
-stackedRows = core["IndependentStackedRows"];
-rowSeed[row_] := Quotient[row - 1, rowsPerSeed] + 1;
-rowLocal[row_] := Mod[row - 1, rowsPerSeed] + 1;
-usedSeeds = Sort[DeleteDuplicates[rowSeed /@ stackedRows]];
-If[! SubsetQ[Range[Length[seeds]], usedSeeds], Exit[2]];
-epsilonValues = Take[DeleteDuplicates[Join[
-    FeynFacet`Private`$multiquadraticStripRegulatorScheduleDefault,
-    Range[1, 72]]], imageCount];
-indices = Select[Range[Length[epsilonValues]],
-  Mod[#1 - 1, shards] === shard - 1 &];
-outputDirectory = FileNameJoin[{runtime, "rhs_images"}];
-If[! DirectoryQ[outputDirectory], CreateDirectory[outputDirectory,
-  CreateIntermediateDirectories -> True]];
-putAtomic[value_, file_String] := Module[{temporary = file <> ".tmp." <>
-    ToString[$ProcessID]}, Put[value, temporary]; RenameFile[temporary, file,
-    OverwriteTarget -> True]];
-assemble[value_, seed_] := Block[
+seed = First[plan["Seeds"]];
+rows = plan["IndependentStackedRows"];
+columns = plan["CoreColumns"];
+If[Max[rows] > plan["AdditionalSeedFullRowCount"],
+  Print["fixed plan unexpectedly depends on another seed"]; Exit[3]];
+assemble[value_] := Block[
   {FeynFacet`Private`$multiquadraticStripTrustedProviderEvaluation = True,
    FeynFacet`Private`$multiquadraticStripTrustedLayoutEvaluation = True,
    $ProcessorCount = threads},
   FeynFacet`Private`multiquadraticStripAssembleSample[
-    layout, provider, value, prime, "PointCount" -> core["PointCount"],
+    layout, provider, value, prime, "PointCount" -> plan["PointCount"],
     "MaximumAttempts" -> Automatic, "RandomSeed" -> seed,
     "SplitPointsOnly" -> False]];
-
-Print["CF259 shell3 stacked RHS shard ", shard, "/", shards,
-  ": used seeds ", usedSeeds, ", images ", Length[indices]];
-Do[
-  value = epsilonValues[[index]];
-  outputFile = FileNameJoin[{outputDirectory,
-    "rhs_" <> IntegerString[index, 10, 3] <> ".wl"}];
-  If[FileExistsQ[outputFile], Continue[]];
-  {seconds, samples} = AbsoluteTiming[Association@Table[
-    seedIndex -> assemble[value, seeds[[seedIndex]]],
-    {seedIndex, usedSeeds}]];
-  If[AnyTrue[Values[samples], Lookup[#, "Status", None] =!=
-      "AssembledMultiquadraticSampleV1" &], Exit[3]];
-  values = Developer`ToPackedArray[Table[
-    samples[rowSeed[row]]["RightHandSide"][[rowLocal[row]]],
-    {row, stackedRows}]];
-  result = <|"Status" -> "CF259Shell3StackedRHSImageV1",
-    "ImageIndex" -> index, "RegulatorValue" -> value,
-    "EpsilonMod" -> FeynFacet`Private`multiquadraticStripModRational[
-      value, prime], "Prime" -> prime, "Values" -> values,
-    "UsedSeedIndices" -> usedSeeds, "SampleSeconds" -> N[seconds]|>;
-  putAtomic[result, outputFile];
-  Print["rhs ", index, " epsilon=", value, " saved in ", N[seconds], " s"];
-  Clear[samples, values, result];,
-  {index, indices}];
+timed = Association@Table[value -> AbsoluteTiming[assemble[value]],
+  {value, {1/7, 8/7}}];
+If[AnyTrue[Values[timed], Lookup[#[[2]], "Status", None] =!=
+    "AssembledMultiquadraticSampleV1" &], Exit[4]];
+base = Developer`ToPackedArray[
+  timed[1/7][[2, "Matrix"]][[rows, columns]]];
+slope = Developer`ToPackedArray[Mod[
+  timed[8/7][[2, "Matrix"]][[rows, columns]] - base, prime]];
+rights = Association@Table[value -> Developer`ToPackedArray[
+    timed[value][[2, "RightHandSide"]][[rows]]],
+  {value, {1/7, 8/7}}];
+outputDirectory = FileNameJoin[{codexRoot, "Runtime",
+  "2026-08-31_cf259_shell3_multprime", tag}];
+If[! DirectoryQ[outputDirectory], CreateDirectory[outputDirectory,
+  CreateIntermediateDirectories -> True]];
+writeMatrix[file_String, magic_String, matrix_] := Module[{stream},
+  stream = OpenWrite[file <> ".tmp", BinaryFormat -> True];
+  BinaryWrite[stream, ToCharacterCode[magic], "UnsignedInteger8"];
+  BinaryWrite[stream, {plan["CoreDimension"], plan["CoreDimension"], prime},
+    "UnsignedInteger64", ByteOrdering -> -1];
+  BinaryWrite[stream, Flatten[matrix], "UnsignedInteger64",
+    ByteOrdering -> -1];
+  Close[stream]; RenameFile[file <> ".tmp", file,
+    OverwriteTarget -> True]];
+baseFile = FileNameJoin[{outputDirectory, "core_base_eps1_7.bin"}];
+slopeFile = FileNameJoin[{outputDirectory, "core_epsilon_slope.bin"}];
+writeMatrix[baseFile, "CFK0B1\000", base];
+writeMatrix[slopeFile, "CFK0S1\000", slope];
+report = Join[KeyTake[plan, {"ExpansionPoint", "CoreDimension",
+    "SupportShell", "SupportCount", "PointCount", "GaugeUnknownCount",
+    "ResidueUnknownCount", "Seeds", "AdditionalSeedFullRowCount",
+    "IndependentStackedRows",
+    "CoreColumns", "NormalizationColumns", "GaugeNormalizationCount",
+    "ResidueNormalizationCount", "Rank", "Nullity"}],
+  <|"Status" -> "CF259Shell3FixedPlanCoreV1", "Prime" -> prime,
+    "PrimeTag" -> tag, "RightHandSides" -> rights,
+    "AssemblySeconds" -> AssociationMap[N[timed[#][[1]]] &,
+      {1/7, 8/7}], "BaseFile" -> baseFile, "SlopeFile" -> slopeFile|>];
+outputFile = FileNameJoin[{outputDirectory, "core_report.wl"}];
+Put[report, outputFile];
+Print[InputForm[KeyDrop[report, {"IndependentStackedRows", "CoreColumns",
+  "NormalizationColumns", "RightHandSides"}]]];
+Print["OUTPUT=", outputFile];
 Exit[0];

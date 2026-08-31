@@ -7,18 +7,28 @@ $HistoryLength = 0;
 args = Rest[$ScriptCommandLine];
 root = "/home/maxzhang/factorization-and-loops";
 codexRoot = "/home/maxzhang/factorization-and-loops-codex";
-mode = If[Length[args] >= 1 && MemberQ[{"downward", "shell3"}, args[[1]]],
+mode = If[Length[args] >= 1 && (MemberQ[{"downward", "shell3"}, args[[1]]] ||
+      StringMatchQ[args[[1]], "lift" ~~ NumberString]),
   args[[1]], "downward"];
+liftQ = StringStartsQ[mode, "lift"];
 argumentOffset = If[mode === "downward" &&
     ! (Length[args] >= 1 && args[[1]] === "downward"), 0, 1];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-runtime = FileNameJoin[{codexRoot, "Runtime", If[mode === "shell3",
-  "2026-08-31_cf259_shell3_stacked_taylor_core",
-  "2026-08-31_cf259_downward_taylor_core"]}];
-modular = Get[FileNameJoin[{runtime, If[mode === "shell3",
-  "cf259_shell3_fixed_core_modular_vector_prime1.wl",
-  "cf259_active_fixed_core_modular_vector_prime1.wl"]}]];
-core = Get[FileNameJoin[{runtime, "core_report.wl"}]];
+runtime = Which[
+  mode === "downward", FileNameJoin[{codexRoot, "Runtime",
+    "2026-08-31_cf259_downward_taylor_core"}],
+  mode === "shell3", FileNameJoin[{codexRoot, "Runtime",
+    "2026-08-31_cf259_shell3_stacked_taylor_core"}],
+  liftQ, FileNameJoin[{codexRoot, "Runtime",
+    "2026-08-31_cf259_shell3_multprime"}]];
+modular = Get[FileNameJoin[{runtime, Switch[mode,
+  "downward", "cf259_active_fixed_core_modular_vector_prime1.wl",
+  "shell3", "cf259_shell3_fixed_core_modular_vector_prime1.wl",
+  _, "rational_lift_" <> StringDrop[mode, 4] <> "_plus_1.wl"]}]];
+core = Get[FileNameJoin[{If[mode === "downward", runtime,
+    FileNameJoin[{codexRoot, "Runtime",
+      "2026-08-31_cf259_shell3_stacked_taylor_core"}]],
+  "core_report.wl"}]];
 inputFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
   "UU_08_10_canonical", "FamilyEpsFormsSolving",
   "triple_root_2026-08-28_codex_clean", "CF259",
@@ -67,7 +77,7 @@ prepared = FeynFacet`Private`multiquadraticStripPrepare[record, frame,
   "LetterRecords" -> candidate["LetterRecords"],
   "GaugeDenominatorFactor" -> 1,
   "GaugeDenominator" -> census["GaugeDenominator"],
-  "Support" -> supportData["Shells"][If[mode === "shell3", 3, 0]],
+  "Support" -> supportData["Shells"][If[mode === "downward", 0, 3]],
   "Deadline" -> Infinity];
 If[Lookup[prepared, "Status", None] =!= "PreparedMultiquadraticStripV1",
   Exit[1]];
@@ -83,7 +93,7 @@ provider = FeynFacet`Private`multiquadraticStripDirectProvider[
 provider = FeynFacet`Private`multiquadraticStripAttachDeferredPreparation[
   provider, rawPreparation, inputFile];
 
-prime = modular["Prime"];
+prime = If[liftQ, modular["ValidationPrime"], modular["Prime"]];
 epsilonValue = If[Length[args] >= argumentOffset + 1,
   ToExpression[args[[argumentOffset + 1]]], 41/43];
 validationSeed = If[Length[args] >= argumentOffset + 2,
@@ -94,7 +104,7 @@ validationSeed = If[Length[args] >= argumentOffset + 2,
    $ProcessorCount = 4},
   FeynFacet`Private`multiquadraticStripAssembleSample[
     layout, provider, epsilonValue, prime, "PointCount" ->
-      If[mode === "shell3", core["PointCount"], Automatic],
+      If[mode === "downward", Automatic, core["PointCount"]],
     "MaximumAttempts" -> Automatic, "RandomSeed" -> validationSeed,
     "SplitPointsOnly" -> False]]];
 If[Lookup[sample, "Status", None] =!=
@@ -105,11 +115,17 @@ evaluate[coefficients_List, point_Integer] := Fold[
   Mod[#1 point + #2, prime] &, 0, Reverse[coefficients]];
 t = Mod[modValue[epsilonValue] -
   modValue[modular["ExpansionPoint"]], prime];
+interpolations = If[liftQ, modular["LiftedInterpolations"],
+  modular["Interpolations"]];
 vector = Developer`ToPackedArray[Table[
-  item = modular["Interpolations"][[coordinate]];
-  denominator = evaluate[item["Denominator"], t];
+  item = interpolations[[coordinate]];
+  numeratorCoefficients = If[liftQ,
+    modValue /@ item["NumeratorCoefficients"], item["Numerator"]];
+  denominatorCoefficients = If[liftQ,
+    modValue /@ item["DenominatorCoefficients"], item["Denominator"]];
+  denominator = evaluate[denominatorCoefficients, t];
   If[denominator === 0, Print["validation point is a pole"]; Exit[3]];
-  Mod[evaluate[item["Numerator"], t]
+  Mod[evaluate[numeratorCoefficients, t]
     PowerMod[denominator, -1, prime], prime],
   {coordinate, modular["UnknownCount"]}]];
 
