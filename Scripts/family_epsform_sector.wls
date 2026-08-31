@@ -965,7 +965,7 @@ blockEquation[k_, j_, solved_Association] := Module[
     deferred = If[TrueQ[algebraicFrameQ] && ListQ[bundleRoots],
       FeynFacet`Private`blockEquationDeferredForcing[
         A, ranges, k, j, solved, invariants, ee,
-        "Output" -> "ChartOrBundle",
+        "Output" -> "ChartOrPreparation",
         "BundleRoots" -> bundleRoots],
       FeynFacet`Private`blockEquationDeferredForcing[
         A, ranges, k, j, solved, invariants, ee]];
@@ -981,6 +981,19 @@ blockEquation[k_, j_, solved_Association] := Module[
           "ProjectionRoots" -> If[ListQ[bundleRoots],
             bundleRoots[[Lookup[deferred["ChartDecision"],
               "ProjectionRootIndices", {}]]], {}]|>,
+        "ChartDecision" -> deferred["ChartDecision"],
+        "Census" -> deferred["Census"],
+        "ZeroForcingCandidateQ" -> False|>;
+      Return[{e, c, zeroPlaceholder}]];
+    If[AssociationQ[deferred] &&
+        Lookup[deferred, "Status", None] === "PreparedDirectDeferred",
+      zeroPlaceholder = ConstantArray[0, deferred["Dimensions"]];
+      $blockConstructionRecord = <|
+        "Route" -> "DeferredDirectPreparation",
+        "DeferredPreparation" -> <|
+          "Preparation" -> deferred["DeferredPreparation"],
+          "RootSquares" -> Lookup[deferred, "RootSquares",
+            Lookup[deferred["ChartDecision"], "RootSquares", {}]]|>,
         "ChartDecision" -> deferred["ChartDecision"],
         "Census" -> deferred["Census"],
         "ZeroForcingCandidateQ" -> False|>;
@@ -1350,12 +1363,24 @@ Do[
             "DeferredBundle", Missing["NoDeferredBundle"]];
           deferredPreparation = Lookup[$blockConstructionRecord,
             "DeferredPreparation", Automatic];
-          directAlphabetOptions = If[AssociationQ[deferredBundle],
-            FeynFacet`Private`familyRowGaugeDirectAlphabetOptions[
-              deferredBundle], Automatic];
-          If[AssociationQ[deferredBundle] &&
+          (* seam fix (Codex 2026-08-31 notes 02/04): the raw
+             chartless preparation gets its OWN conservative alphabet
+             payload -- structural pre-cancellation divisor bound from
+             the operand DAG, no bundle interning, no Maple -- so the
+             native deferred evaluator is selectable with a justified
+             nonempty ansatz.  An empty alphabet is not a shortcut. *)
+          directAlphabetOptions = Which[
+            AssociationQ[deferredBundle],
+              FeynFacet`Private`familyRowGaugeDirectAlphabetOptions[
+                deferredBundle],
+            AssociationQ[deferredPreparation],
+              FeynFacet`Private`familyRowGaugeDirectAlphabetOptions[
+                deferredPreparation],
+            True, Automatic];
+          If[(AssociationQ[deferredBundle] ||
+                AssociationQ[deferredPreparation]) &&
               directAlphabetOptions === $Failed,
-            log["  !! deferred bundle has no valid direct alphabet payload " <>
+            log["  !! deferred forcing has no valid direct alphabet payload " <>
               "for strip ", {k, nlow}];
             putAtomic[state, stateFile]; Exit[2]];
           (* BOUNDARY: the last driver-side check before any solver runs.
@@ -1396,14 +1421,30 @@ Do[
                    "CheckpointTag" -> family <> "_" <> ToString[k] <>
                      "_" <> ToString[nlow]},
                   If[AssociationQ[deferredBundle],
-                    Join[{"DeferredBundle" -> deferredBundle},
+                    Join[{"DeferredBundle" -> deferredBundle,
+                      "DeferredPreparationFile" -> stripInputFile},
                      Normal[directAlphabetOptions],
                      {
                      (* the raw strip carries only a shape placeholder for
                         BBar on this route; screening and certification use
-                        the provider's authenticated bundle images instead *)
+                        the preserved DAG's modular images instead *)
                      "IntegrabilityScreen" -> False,
-                     "ScreenFirst" -> False, "GaugeScreen" -> False}], {}]],
+                     "ScreenFirst" -> False, "GaugeScreen" -> False}], {}],
+                  (* seam fix (Codex 2026-08-31 notes 02/04): the RAW
+                     preparation route gets the same native plumbing --
+                     the input file naming the preserved DAG and the
+                     conservative alphabet payload -- so direct dispatch
+                     selects the native deferred evaluator instead of
+                     ignoring a valid preparation; bbar is the same
+                     zero-shape placeholder here, so the symbolic
+                     screens are likewise deferred to modular images *)
+                  If[AssociationQ[deferredPreparation] &&
+                      ! AssociationQ[deferredBundle],
+                    Join[{"DeferredPreparationFile" -> stripInputFile},
+                     Normal[directAlphabetOptions],
+                     {"IntegrabilityScreen" -> False,
+                      "ScreenFirst" -> False, "GaugeScreen" -> False}],
+                    {}]],
                 (* and so does the STRIP-CONSTRUCTION stage inside this
                    call -- the chart pullback, the gauge pullback and the
                    source-frame identity check (2026-08-24) *)

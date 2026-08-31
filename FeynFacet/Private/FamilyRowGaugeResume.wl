@@ -20,16 +20,119 @@ ClearAll[
    production dispatch receives the complete option payload. *)
 familyRowGaugeDirectAlphabetOptionsValidQ[payload_] :=
   AssociationQ[payload] &&
-    Sort[Keys[payload]] ===
-      Sort[{"AdditionalLetters", "AlgebraicLetters"}] &&
+    MemberQ[
+      Sort /@ {{"AdditionalLetters", "AlgebraicLetters"},
+        {"AdditionalLetters", "AlgebraicLetters", "GaugeDenominator"}},
+      Sort[Keys[payload]]] &&
     ListQ[payload["AdditionalLetters"]] &&
     (payload["AlgebraicLetters"] === Automatic ||
       ListQ[payload["AlgebraicLetters"]]) &&
+    (! KeyExistsQ[payload, "GaugeDenominator"] ||
+      (! TrueQ[payload["GaugeDenominator"] === 0] &&
+        FreeQ[payload["GaugeDenominator"],
+          Power[_, exponent_Rational /; Denominator[exponent] === 2]])) &&
     FreeQ[payload, Alternatives[_Missing, $Failed]];
 familyRowGaugeDirectAlphabetOptionsValidQ[___] := False;
 
 familyRowGaugeDirectAlphabetOptions[] := <|
   "AdditionalLetters" -> {}, "AlgebraicLetters" -> Automatic|>;
+
+(* Raw-preparation route (Codex 2026-08-31 notes 02/04, seam 3): the
+   chartless/native path must NOT pay DeferredBundle interning or a
+   Maple compile just to obtain an alphabet, and an empty alphabet is
+   not a shortcut -- it changes the mathematical ansatz.  The
+   conservative divisor set is read STRUCTURALLY from the raw operand
+   DAG: every negative-power base occurring in any operand (base terms
+   are connection entries, feed terms carry the accepted-gauge entries,
+   so the accepted-gauge denominators are included), with no Together
+   and no normalization.  This is a PRE-CANCELLATION upper bound --
+   the same certification class as the bundle's DivisorSummary.
+   Root-free polynomial bases are factored over Q natively and become
+   rational letters; radical-carrying bases are kept whole as
+   algebraic letters. *)
+familyRowGaugeDirectAlphabetOptions[wrapper_Association /;
+    AssociationQ[Lookup[wrapper, "Preparation", None]] &&
+    ! KeyExistsQ[wrapper, "DivisorSummary"]] := Module[
+  {preparation, records, terms, variables, radicalQ,
+   expandPair, pairKey, mergeSum, mergeMax, divisorPairs,
+   perTermPairs, maximumPairs, rational, algebraicLetters,
+   rationalSources,
+   mergeData, gaugeDenominator, payload},
+  preparation = wrapper["Preparation"];
+  If[Lookup[preparation, "Status", None] =!= "Prepared",
+    Return[$Failed]];
+  records = Lookup[preparation, "Records", {}];
+  variables = Lookup[preparation, "Variables", {}];
+  If[! MatchQ[records, {___Association}] ||
+      ! MatchQ[variables, {_Symbol, _Symbol}],
+    Return[$Failed]];
+  terms = Flatten[Lookup[records, "Terms", {}]];
+  If[! MatchQ[terms, {___Association}], Return[$Failed]];
+  radicalQ = ! FreeQ[#, Power[_, exponent_Rational]] &;
+  (* Rational products are split now; algebraic bases stay intact so their
+     declared-field orbit norm can be formed below. *)
+  expandPair[{base_, exponent_Integer}] :=
+    If[FreeQ[base, Alternatives @@ variables], {},
+      If[radicalQ[base], {{base, exponent, True}},
+        Module[{list = Quiet[Check[FactorList[base], $Failed]]},
+          If[! ListQ[list], {{base, exponent, False}},
+            ({First[#1], exponent Last[#1], False} & /@ Select[Rest[list],
+              ! FreeQ[First[#1], Alternatives @@ variables] &])]]]];
+  pairKey[item_] := {Last[item], ToString[InputForm[First[item]]]} ;
+  mergeSum[pairs_List] := Table[
+    {First[group][[1]], Total[group[[All, 2]]], First[group][[3]]},
+    {group, GatherBy[pairs, pairKey]}];
+  mergeMax[pairs_List] := Table[
+    {First[group][[1]], Max[group[[All, 2]]], First[group][[3]]},
+    {group, GatherBy[pairs, pairKey]}];
+  (* Structural denominator valuation: addition takes the per-factor maximum,
+     multiplication adds valuations, and an integer power scales them.  A
+     negative power contributes its base as a divisor and stops there.  This
+     avoids both Together and the incorrect occurrence-counting trap: the same
+     denominator printed in hundreds of summands still has pole order one. *)
+  divisorPairs[expression_Plus] := mergeMax[Flatten[
+    divisorPairs /@ (List @@ expression), 1]];
+  divisorPairs[expression_Times] := mergeSum[Flatten[
+    divisorPairs /@ (List @@ expression), 1]];
+  divisorPairs[Power[base_, exponent_Integer /; exponent < 0]] :=
+    expandPair[{base, -exponent}];
+  divisorPairs[Power[base_, exponent_Integer /; exponent > 0]] :=
+    ({First[#1], exponent #1[[2]], Last[#1]} &) /@ divisorPairs[base];
+  divisorPairs[_] := {};
+  (* A deferred forcing term is a product of its coefficient and operands;
+     target entries are sums of terms.  Therefore add within one term, then
+     take the maximum across every target/term. *)
+  perTermPairs = Table[mergeSum[Flatten[
+      divisorPairs /@ Join[{Lookup[term, "Coefficient", 1]},
+        Lookup[term, "Operands", {}]], 1]], {term, terms}];
+  maximumPairs = mergeMax[Flatten[perTermPairs, 1]];
+  rational = First /@ Select[maximumPairs, ! TrueQ[Last[#1]] &];
+  (* The candidate-letter batch already decomposes every supplied algebraic
+     divisor in parallel.  Carry p-1 with the letter so that batch can attach
+     its active-tower norm once and Prepare can raise it to the exact required
+     gauge power, including poles above two, without a serial symbolic pass. *)
+  algebraicLetters = Map[Function[pair, <|
+      "Letter" -> First[pair],
+      "GaugeNormPower" -> Max[0, pair[[2]] - 1],
+      "SourcePoleOrderUpperBound" -> pair[[2]]|>],
+    Select[maximumPairs, TrueQ[Last[#1]] &]];
+  rationalSources = ({First[#1], Max[0, #1[[2]] - 1]} &) /@
+    Select[maximumPairs, ! TrueQ[Last[#1]] && #1[[2]] > 1 &];
+  mergeData = multiquadraticStripMergeGaugeDenominatorSourceData[
+    rationalSources, 1, variables];
+  If[Lookup[mergeData, "Status", None] =!=
+      "GaugeDenominatorSourceDataV1", Return[$Failed]];
+  gaugeDenominator = mergeData["GaugeDenominator"];
+  (* Raw algebraic divisors EXTEND the alphabet.  They must not occupy the
+     AlgebraicLetters option, because that option replaces the automatically
+     generated norm-certified family rather than extending it. *)
+  payload = <|"AdditionalLetters" -> Join[
+      DeleteDuplicates[rational], algebraicLetters],
+    "AlgebraicLetters" -> Automatic,
+    "GaugeDenominator" -> gaugeDenominator|>;
+  If[familyRowGaugeDirectAlphabetOptionsValidQ[payload], payload,
+    $Failed]
+];
 familyRowGaugeDirectAlphabetOptions[bundle_Association] := Module[
   {summary, factors, orbits, rational, algebraic, payload, safeLookup},
   summary = Lookup[bundle, "DivisorSummary", Missing["NoDivisorSummary"]];

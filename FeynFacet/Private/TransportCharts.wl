@@ -2283,7 +2283,15 @@ SolveEpsFormStripInFrame[
     bundleRecord = Join[
       <|"Variables" -> variables, "Regulator" -> epsilon, "Strip" -> strip|>,
       If[AssociationQ[deferredBundle],
-        <|"DeferredBundle" -> deferredBundle|>, <||>]];
+        <|"DeferredBundle" -> deferredBundle|>, <||>],
+      (* seam fix (Codex 2026-08-31 notes 02/04): the VALIDATED raw
+         preparation travels to the engine so the native deferred-AST
+         evaluator can be selected -- with no DeferredBundle interning,
+         no Maple compile, and no materialization here.  The engine
+         reads record["DeferredPreparation"] and pairs it with the
+         "DeferredPreparationFile" option to form its native source. *)
+      If[AssociationQ[deferredPreparation],
+        <|"DeferredPreparation" -> deferredPreparation|>, <||>]];
     multiquadraticResult = Block[
       {$blockEquationDeferredTrustedBundle =
         If[AssociationQ[deferredBundle],

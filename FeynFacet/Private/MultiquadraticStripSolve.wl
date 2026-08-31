@@ -158,6 +158,7 @@ ClearAll[
   multiquadraticStripModRational,
   multiquadraticFieldInverse, multiquadraticFieldInverseTower,
   multiquadraticFieldInverseLinearSolve, $multiquadraticFieldInverseMethod,
+  multiquadraticStripActiveGradeNorm,
   multiquadraticFieldDecompose,
   multiquadraticFieldCompose, multiquadraticLiftLocalChannels,
   multiquadraticFieldPathStatistics, multiquadraticFieldResetPathStatistics,
@@ -290,6 +291,11 @@ ClearAll[
   multiquadraticStripNativeSparseBinary,
   multiquadraticStripNativeSparseWritePlan,
   multiquadraticStripNativeSparseEvaluateBatch,
+  multiquadraticStripNativeDeferredBinary,
+  multiquadraticStripNativeDeferredWriteRequest,
+  multiquadraticStripNativeDeferredReadOutput,
+  multiquadraticStripNativeDeferredEvaluateBatch,
+  multiquadraticStripAttachDeferredPreparation,
   multiquadraticStripNativePreflightBatch,
   multiquadraticStripNativeRowBinary,
   multiquadraticStripNativeRowAssembleBatch,
@@ -526,8 +532,15 @@ $multiquadraticStripWideDefaultPrimes =
   Take[$multiquadraticStripWidePrimePool, 2];
 multiquadraticStripWidePrimeScheduleQ[provider_Association] := Module[{plan},
   If[Lookup[provider, "Kind", None] =!= "SplitBranch" ||
-      ! StringQ[multiquadraticStripNativeSparseBinary[]] ||
       ! StringQ[multiquadraticStripNativeRowBinary[]], Return[False]];
+  (* Native deferred BBar never consumes the bundle's split plan.  Building
+     that plan here merely to choose the prime width would compile precisely
+     the forcing leaves the native DAG path bypasses.  Its evaluator and the
+     shared native row assembler are both 64-bit modular backends, so they
+     directly admit the wide schedule. *)
+  If[AssociationQ[Lookup[provider, "DeferredPreparation", None]],
+    Return[StringQ[multiquadraticStripNativeDeferredBinary[]]]];
+  If[! StringQ[multiquadraticStripNativeSparseBinary[]], Return[False]];
   (* Building this plan is not an extra production pass: the sampler needs
      the same provider/prime plan, and the established plan cache makes that
      later lookup free.  Wide Automatic is admitted only when every leaf can
@@ -982,6 +995,41 @@ multiquadraticFieldInverse[a_List, deltas_List] /;
     $Failed, inverse]
 ];
 multiquadraticFieldInverse[___] := $Failed;
+
+(* The minimal Galois-orbit norm of an already decomposed field element.
+   Inactive generators are projected out first, so a one-root letter in a
+   rank-three family receives its quadratic norm rather than that norm raised
+   to the fourth power.  The recursion is the norm half of the established
+   inverse tower: u + v r -> u^2 - delta v^2, one generator at a time. *)
+multiquadraticStripActiveGradeNorm[channels_List, deltas_List] := Module[
+  {rank = Length[deltas], activeIndices, localChannels, normTower, result},
+  If[Length[channels] =!= 2^rank, Return[$Failed]];
+  (* Field decomposition canonicalizes every zero channel to literal 0. *)
+  activeIndices = Select[Range[rank], Function[index,
+    AnyTrue[Range[0, Length[channels] - 1], Function[mask,
+      BitGet[mask, index - 1] === 1 &&
+        ! SameQ[channels[[mask + 1]], 0]]]]];
+  localChannels = Table[Module[{globalMask = Sum[
+        BitGet[localMask, bit - 1] 2^(activeIndices[[bit]] - 1),
+        {bit, Length[activeIndices]}]}, channels[[globalMask + 1]]],
+    {localMask, 0, 2^Length[activeIndices] - 1}];
+  normTower[values_List, squares_List] := Module[
+    {localRank = Length[squares], half, low, high, reduced},
+    If[Length[values] =!= 2^localRank, Return[$Failed]];
+    If[localRank === 0, Return[Together[First[values]]]];
+    half = 2^(localRank - 1);
+    low = Take[values, half]; high = Drop[values, half];
+    reduced = Together /@ (
+      multiquadraticMultiply[low, low, Most[squares]] -
+        Last[squares] multiquadraticMultiply[high, high, Most[squares]]);
+    normTower[reduced, Most[squares]]];
+  result = normTower[localChannels, deltas[[activeIndices]]];
+  If[result === $Failed ||
+      ! FreeQ[result,
+        Power[_, exponent_Rational /; Denominator[exponent] === 2]],
+    $Failed, Together[result]]
+];
+multiquadraticStripActiveGradeNorm[___] := $Failed;
 
 (* Root symbols are generated from the declared frame.  Rank three is the
    current resource ceiling, not part of the algebraic ABI. *)
@@ -2505,6 +2553,7 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
     roots_List, variables : {x_, y_}, epsilon_Symbol, record_Association,
     opts : OptionsPattern[]] := Module[
   {samples, pool, sampleCount, alphabet, algebraic, rowLetters, additional,
+   additionalLetters, additionalData,
    records = {}, channelByFormKey = <||>, form, rootSquares, entries, diagonal,
    rowSource, add, counts, rawCount, kindRank, priority,
    grouped, verifiedRecords, verifiedForms, verifiedChannelForms,
@@ -2535,6 +2584,17 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
   If[! multiquadraticStripDeadlineQ[dlogDeadline],
     Return[multiquadraticStripFailure["InvalidDeadline",
       <|"Deadline" -> dlogDeadline|>]]];
+  additional = Flatten[{OptionValue["AdditionalLetters"]}];
+  If[AnyTrue[additional, AssociationQ[#1] &&
+        (! KeyExistsQ[#1, "Letter"] ||
+          ! MatchQ[Lookup[#1, "GaugeNormPower", 1],
+            _Integer?NonNegative] ||
+          ! MatchQ[Lookup[#1, "SourcePoleOrderUpperBound", 1],
+            _Integer?Positive]) &],
+    Return[multiquadraticStripFailure[
+      "InvalidAdditionalLetterMetadata"]]];
+  additionalLetters = Map[
+    If[AssociationQ[#1], #1["Letter"], #1] &, additional];
   multiquadraticStripStageStart["candidate letters: regulator samples"];
   samples = multiquadraticStripRegulatorSampleValues[bbar, variables, epsilon,
     sampleCount, pool];
@@ -2563,7 +2623,6 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
       Replace[Lookup[record, "StripSolvers", {}], Except[_List] :> {}],
       Lookup[record, "Sector", None], Lookup[record, "LowerSector", None]]];
   rowLetters = Flatten[{rowSource}];
-  additional = Flatten[{OptionValue["AdditionalLetters"]}];
   (* accumulate RAW records, in a fixed order, with a text key per
      one-form.  Since round-3 A2 there is NO first-wins deduplication
      here: every valid record is collected, and a second phase below
@@ -2573,6 +2632,7 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
   add[kind_String, letterIn_, oneFormIn_, extra_Association] := Module[
     {fkey, letter = letterIn, oneForm = oneFormIn, stripped,
      extraOut = extra,
+     derivedNorm = Missing["NotDerived"],
      constructedQ = oneFormIn === Automatic || AssociationQ[oneFormIn],
      evidence, potential, certificate, dlogData,
      channels = Missing["NotRetained"],
@@ -2630,6 +2690,19 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
       ListQ[letterChannels] &&
       Length[letterChannels] === 2^Length[roots] &&
       FreeQ[letterChannels, $Failed];
+    (* Caller-supplied algebraic letters arrive without the Norm metadata that
+       the automatic A+-sqrt(delta) constructor carries.  Their exact letter
+       channels are already available here from the parallel dlog batch, so
+       derive the active-tower norm from those eight coefficients instead of
+       launching a second serial symbolic divisor pass. *)
+    If[constructedChannelEvidenceQ &&
+        MissingQ[Lookup[extraOut, "Norm", Missing["NoNorm"]]] &&
+        ! multiquadraticStripZeroQ[Rest[letterChannels]],
+      derivedNorm = multiquadraticStripActiveGradeNorm[letterChannels,
+        Together /@ rootSquares];
+      If[derivedNorm =!= $Failed,
+        extraOut = Join[extraOut, <|"Norm" -> derivedNorm,
+          "NormDerivedFromChannels" -> True|>]]];
     zeroQ = If[channelRepresentationQ && constructedQ &&
         MatchQ[constructedChannelZeroQ, True | False],
       constructedChannelZeroQ,
@@ -2730,7 +2803,8 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
      leaves most of a large alphabet on the main kernel.  These constructions
      are independent and obey the same exact grade-algebra ABI. *)
   algebraicLetters = Lookup[algebraic, "Letter", {}];
-  derivedLetters = Join[forcingEntries, alphabet, algebraicLetters];
+  derivedLetters = Join[forcingEntries, alphabet, algebraicLetters,
+    additionalLetters];
   derivedBatch = multiquadraticStripConstructDLogBatch[
     derivedLetters, roots, variables, dlogKernelCount, dlogDeadline];
   If[! AssociationQ[derivedBatch],
@@ -2745,8 +2819,11 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
   forcingData = Take[derivedData, Length[forcingEntries]];
   rationalData = Take[Drop[derivedData, Length[forcingEntries]],
     Length[alphabet]];
-  algebraicData = Drop[derivedData,
-    Length[forcingEntries] + Length[alphabet]];
+  algebraicData = Take[Drop[derivedData,
+      Length[forcingEntries] + Length[alphabet]],
+    Length[algebraicLetters]];
+  additionalData = Drop[derivedData,
+    Length[forcingEntries] + Length[alphabet] + Length[algebraicLetters]];
   MapThread[add["ForcingDLog", #1, #2, <||>] &,
     {forcingEntries, forcingData}];
   multiquadraticStripStageDone["candidate letters: forcing dlogs",
@@ -2774,8 +2851,13 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
     <|"row" -> Length[rowLetters], "supplied" -> Length[additional]|>];
   Do[add["RowAlphabet", letter, Automatic, <||>],
     {letter, rowLetters}];
-  Do[add["Supplied", letter, Automatic, <||>],
-    {letter, additional}];
+  MapThread[Function[{item, dlogItem},
+    If[AssociationQ[item],
+      add["Supplied", item["Letter"], dlogItem,
+        KeyTake[item,
+          {"GaugeNormPower", "SourcePoleOrderUpperBound"}]],
+      add["Supplied", item, dlogItem, <||>]]],
+    {additional, additionalData}];
   multiquadraticStripStageDone["candidate letters: inherited records",
     <|"records" -> Length[records]|>];
   rawCount = Length[records];
@@ -2908,16 +2990,21 @@ multiquadraticStripCandidateLetters[___] :=
    distinct irreducible factor of the norms enters once, to the highest
    power it reaches in any single norm. *)
 multiquadraticStripNormDenominatorFactor[letterRecords_List,
-    variables_List] := Module[{norms, factorPairs, canonicalPairs, factors},
-  norms = DeleteCases[Lookup[#1, "Norm", Missing["NoNorm"]] & /@
-    Select[letterRecords, AssociationQ], _Missing];
-  norms = Select[norms, ! TrueQ[Quiet[Together[#1]] === 0] &];
-  If[norms === {}, Return[1]];
-  factorPairs = Flatten[Map[Function[norm, Module[{list},
-    list = Quiet[Rest[FactorList[Expand[Together[norm]]]]];
+    variables_List] := Module[
+  {normRecords, factorPairs, canonicalPairs, factors},
+  normRecords = DeleteCases[Map[Function[record, Module[
+      {norm = Lookup[record, "Norm", Missing["NoNorm"]],
+       power = Lookup[record, "GaugeNormPower", 1]},
+      If[MissingQ[norm] || ! MatchQ[power, _Integer?NonNegative] ||
+          power === 0 || TrueQ[Quiet[Together[norm]] === 0], Nothing,
+        {norm, power}]]], Select[letterRecords, AssociationQ]], Nothing];
+  If[normRecords === {}, Return[1]];
+  factorPairs = Flatten[Map[Function[normRecord, Module[{list},
+    list = Quiet[FactorList[Expand[Together[First[normRecord]]]]];
     If[! ListQ[list], {},
-      Select[list, ! FreeQ[First[#1], Alternatives @@ variables] &]]]],
-    norms], 1];
+      ({First[#1], Last[#1] Last[normRecord]} & /@ Select[Rest[list],
+        ! FreeQ[First[#1], Alternatives @@ variables] &])]]],
+    normRecords], 1];
   If[factorPairs === {}, Return[1]];
   canonicalPairs = DeleteCases[
     {multiquadraticStripCanonicalFactor[First[#1], variables], Last[#1]} & /@
@@ -3451,6 +3538,7 @@ Options[multiquadraticStripIntegrabilityScreen] = {
   "MaximumAttempts" -> Automatic,
   "RandomSeed" -> 2026082401,
   "ScoreLetters" -> True,
+  "ForcingProvider" -> Automatic,
   "Deadline" -> Infinity,
   "MaximumUnknowns" -> Automatic,
   "MaximumBytes" -> Automatic,
@@ -3478,7 +3566,9 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
    lettersCompiled = 0, letterIndex, compileCacheBytes,
    startTime = AbsoluteTime[], phaseTimings = <||>, compileSeconds,
    assemblySeconds, rankSeconds, leftNullSeconds = 0., expired = False,
-   compileStatisticsBefore},
+   compileStatisticsBefore, forcingProvider, nativeForcingQ, preflight,
+   nativeForcing, bbarChannels, bbarDerivativeChannels, gradeMonomials,
+   composeChannels},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripIntegrabilityScreen]]]];
   If[AssociationQ[gate], Return[gate]];
@@ -3506,6 +3596,16 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
     Return[multiquadraticStripFailure["InvalidForcingDimensions"]]];
   {upper, lower} = Dimensions[bbar[[1]]];
   rank = Length[roots];
+  forcingProvider = OptionValue["ForcingProvider"];
+  nativeForcingQ = AssociationQ[forcingProvider] &&
+    multiquadraticStripProviderValidQ[forcingProvider] &&
+    Lookup[forcingProvider, "RootCount", None] === rank &&
+    Lookup[forcingProvider, "Variables", None] === variables &&
+    Lookup[forcingProvider, "Regulator", None] === epsilon &&
+    Lookup[forcingProvider, "Dimensions", None] === {upper, lower} &&
+    AssociationQ[Lookup[forcingProvider, "DeferredPreparation", None]];
+  If[forcingProvider =!= Automatic && ! nativeForcingQ,
+    Return[multiquadraticStripFailure["InvalidIntegrabilityForcingProvider"]]];
   If[rank > $multiquadraticStripMaximumRootCount,
     Return[multiquadraticStripFailure["UnsupportedRootRank"]]];
   prime = Replace[OptionValue["Prime"],
@@ -3564,7 +3664,8 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
     If[multiquadraticStripDeadlineExpiredQ[deadline], expired = True];
     cCompiled = If[expired, {}, Map[compileScalar, c, {3}]];
     If[multiquadraticStripDeadlineExpiredQ[deadline], expired = True];
-    bCompiled = If[expired, {}, Map[compileScalar, bbar, {3}]];
+    bCompiled = If[expired || nativeForcingQ, {},
+      Map[compileScalar, bbar, {3}]];
     letterCompiled = With[
       {forms = Lookup[letterRecords, "OneForm", {}]},
       Table[
@@ -3624,6 +3725,29 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
         rejected["RootImageNotARoot"] =
           Lookup[rejected, "RootImageNotARoot", 0] + 1;
         Continue[]];
+      If[nativeForcingQ,
+        preflight = multiquadraticStripProviderPreflight[
+          forcingProvider, regulatorValue, prime, point];
+        If[Lookup[preflight, "Status", None] =!=
+            "MultiquadraticProviderPreflightV1" ||
+            ! TrueQ[Lookup[preflight, "SplitPointQ", False]],
+          rejected["NativeForcingPreflight"] =
+            Lookup[rejected, "NativeForcingPreflight", 0] + 1;
+          Continue[]];
+        rootValues = preflight["RootValues"];
+        nativeForcing = multiquadraticStripNativeDeferredEvaluateBatch[
+          forcingProvider, {preflight}, "Derivatives" -> True];
+        If[Lookup[nativeForcing, "Status", None] =!=
+              "MultiquadraticNativeDeferredDerivativeBatchV1" ||
+            Length[Lookup[nativeForcing, "BBarBatch", {}]] =!= 1 ||
+            Take[Dimensions[Lookup[nativeForcing,
+                "BBarDerivativeBatch", {}]], UpTo[2]] =!= {2, 1},
+          rejected["NativeForcingEvaluation"] =
+            Lookup[rejected, "NativeForcingEvaluation", 0] + 1;
+          Continue[]];
+        bbarChannels = First[nativeForcing["BBarBatch"]];
+        bbarDerivativeChannels =
+          nativeForcing["BBarDerivativeBatch"][[All, 1]]];
       pointRows = {}; pointRight = {}; pointOK = True;
       Do[
         values = Join[point, Table[
@@ -3650,16 +3774,28 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
         matrixValue[block_] := Map[First[evaluate[#1]] &, block, {2}];
         matrixDerivative[block_, mu_] :=
           Map[Last[evaluate[#1]][[mu]] &, block, {2}];
+        gradeMonomials = Table[Product[
+          If[BitGet[grade - 1, a - 1] === 1, values[[2 + a]], 1],
+          {a, rank}], {grade, 2^rank}];
+        composeChannels[channelTensor_] := Map[
+          Mod[#1 . gradeMonomials, prime] &, channelTensor, {2}];
         If[Catch[
             ex = matrixValue[eCompiled[[1]]]; ey = matrixValue[eCompiled[[2]]];
             cx = matrixValue[cCompiled[[1]]]; cy = matrixValue[cCompiled[[2]]];
-            bx = matrixValue[bCompiled[[1]]]; by = matrixValue[bCompiled[[2]]];
+            If[nativeForcingQ,
+              bx = composeChannels[bbarChannels[[1]]];
+              by = composeChannels[bbarChannels[[2]]],
+              bx = matrixValue[bCompiled[[1]]];
+              by = matrixValue[bCompiled[[2]]]];
             dyex = matrixDerivative[eCompiled[[1]], 2];
             dxey = matrixDerivative[eCompiled[[2]], 1];
             dycx = matrixDerivative[cCompiled[[1]], 2];
             dxcy = matrixDerivative[cCompiled[[2]], 1];
-            dybx = matrixDerivative[bCompiled[[1]], 2];
-            dxby = matrixDerivative[bCompiled[[2]], 1];
+            If[nativeForcingQ,
+              dybx = composeChannels[bbarDerivativeChannels[[2, 1]]];
+              dxby = composeChannels[bbarDerivativeChannels[[1, 2]]],
+              dybx = matrixDerivative[bCompiled[[1]], 2];
+              dxby = matrixDerivative[bCompiled[[2]], 1]];
             oneFormValues = Table[
               {First[evaluate[letterCompiled[[k, 1]]]],
                First[evaluate[letterCompiled[[k, 2]]]]}, {k, letterCount}];
@@ -5738,7 +5874,8 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
    equationsPerPoint, normalizations, payload, fingerprint,
    coreEnabled, coreCanonical, coreDimensions, coreKey, coreConsumed = False,
    coefficientProvider, deferredBundle, bundleRootEmbedding, bundleGauge,
-   suppliedClassification, trustedClassificationQ,
+   deferredPreparationWrapper, deferredPreparation,
+   directPreparationQ, suppliedClassification, trustedClassificationQ,
    refinedBundleGauge,
    provisionalDegrees, provisionalSupportCount, provisionalUnknownCount,
    provisionalEquationsPerPoint, provisionalPointCount,
@@ -5818,6 +5955,27 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
      authenticate and join the root census before RootIndices is chosen. *)
   deferredBundle = Replace[OptionValue["DeferredBundle"], Automatic :>
     Lookup[record, "DeferredBundle", Missing["NoDeferredBundle"]]];
+  deferredPreparationWrapper = Lookup[record, "DeferredPreparation",
+    Missing["NoDeferredPreparation"]];
+  deferredPreparation = If[AssociationQ[deferredPreparationWrapper],
+    Lookup[deferredPreparationWrapper, "Preparation",
+      deferredPreparationWrapper], deferredPreparationWrapper];
+  (* The raw native route deliberately has no DeferredBundle: its immutable
+     BlockEquationDeferred preparation is the coefficient source.  The outer
+     solver has already unioned the wrapper's declared RootSquares with the
+     visible strip census.  Authenticate that same-call source by its small
+     structural seal so Prepare does not throw the union away and rescan the
+     zero BBar placeholder as a rank-one equation. *)
+  directPreparationQ = AssociationQ[deferredPreparationWrapper] &&
+    AssociationQ[deferredPreparation] &&
+    ListQ[Lookup[deferredPreparationWrapper, "RootSquares", $Failed]] &&
+    Lookup[deferredPreparation, "Status", None] === "Prepared" &&
+    Lookup[deferredPreparation, "ABIVersion", None] ===
+      $blockEquationDeferredABIVersion &&
+    Lookup[deferredPreparation, "Variables", None] === variables &&
+    Lookup[deferredPreparation, "Regulator", None] === epsilon &&
+    Lookup[deferredPreparation, "Dimensions", None] ===
+      Dimensions[strip[[3]]];
   allRoots = transportChartCurrentRoots[frame, variables];
   If[! ListQ[allRoots],
     Return[multiquadraticStripFailure["AlgebraicFrameNotWellFormed"]]];
@@ -5825,13 +5983,13 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
     <|"supplied" -> AssociationQ[OptionValue["RootClassification"]]|>];
   suppliedClassification = OptionValue["RootClassification"];
   trustedClassificationQ = AssociationQ[suppliedClassification] &&
-    AssociationQ[deferredBundle] &&
-    AssociationQ[$blockEquationDeferredTrustedBundle] &&
-    Lookup[blockEquationDeferredBundleValidate[deferredBundle],
-      "Status", None] === "BundleValid" &&
     AllTrue[{"UnclassifiedRadicalBases", "RootIndices",
       "BundleRootIndices", "RequiredRootIndices"},
-      KeyExistsQ[suppliedClassification, #1] &];
+      KeyExistsQ[suppliedClassification, #1] &] &&
+    ((AssociationQ[deferredBundle] &&
+        AssociationQ[$blockEquationDeferredTrustedBundle] &&
+        Lookup[blockEquationDeferredBundleValidate[deferredBundle],
+          "Status", None] === "BundleValid") || directPreparationQ);
   classification = If[trustedClassificationQ, suppliedClassification,
     multiquadraticStripRootCensusWithBundle[strip, allRoots,
       variables, epsilon, deferredBundle]];
@@ -5869,6 +6027,11 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
   If[AssociationQ[deferredBundle] && ! ContainsAll[rootIndices, bundleIndices],
     Return[multiquadraticStripFailure[
       "DeferredBundleRootCoverageIncomplete",
+      <|"RequiredRootIndices" -> bundleIndices,
+        "RootIndices" -> rootIndices|>]]];
+  If[directPreparationQ && ! ContainsAll[rootIndices, bundleIndices],
+    Return[multiquadraticStripFailure[
+      "DeferredPreparationRootCoverageIncomplete",
       <|"RequiredRootIndices" -> bundleIndices,
         "RootIndices" -> rootIndices|>]]];
   If[Length[rootIndices] > $multiquadraticStripMaximumRootCount,
@@ -6259,7 +6422,10 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
     gaugeDenominatorFactor = Replace[OptionValue["GaugeDenominatorFactor"],
       Automatic :> If[MatchQ[letterRecords, {___Association}],
         multiquadraticStripNormDenominatorFactor[letterRecords, variables], 1]];
-    gaugeDenominator = Replace[OptionValue["GaugeDenominator"],
+    gaugeDenominator = Replace[OptionValue["GaugeDenominator"], {
+      supplied_ /; supplied =!= Automatic :>
+        multiquadraticStripMergeGaugeDenominator[
+          supplied, gaugeDenominatorFactor, variables],
       Automatic :> If[coefficientProvider === "CompiledChannel",
         multiquadraticStripMergeGaugeDenominator[
           multiquadraticRationalGaugeDenominator[channelForcing, variables],
@@ -6340,7 +6506,7 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
           denominatorDegrees = bundleGauge["GaugeDenominatorDegrees"];
           bundleGauge["GaugeDenominator"],
           multiquadraticStripConservativeGaugeDenominator[strip, roots,
-            letterRecords, variables]]]]];
+            letterRecords, variables]]]}]];
   If[TrueQ[Together[gaugeDenominatorFactor] === 0] ||
       ! FreeQ[gaugeDenominatorFactor,
         Power[_, exponent_Rational /; Denominator[exponent] === 2]],
@@ -8724,7 +8890,15 @@ multiquadraticStripAssembleSample[layout_Association,
    nativePreflightBatchSeconds = 0.,
    nativePreflightCompileSeconds = 0.,
    nativePreflightEvaluationSeconds = 0.,
-   nativePreflightDecodeSeconds = 0., maximumMatrixBytes,
+   nativePreflightDecodeSeconds = 0.,
+   deferredNativeSourceQ = False, deferredNativeBatch,
+   deferredNativeBBarBatch = Automatic,
+   deferredNativeBatchAttemptCount = 0,
+   deferredNativeBatchSuccessCount = 0,
+   deferredNativeBatchFailureCount = 0,
+   deferredNativeBatchSeconds = 0.,
+   deferredNativeParseSeconds = 0.,
+   deferredNativeEvaluationSeconds = 0., maximumMatrixBytes,
    matrixEstimate, matrixAdmission},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripAssembleSample]]]];
@@ -8767,8 +8941,19 @@ multiquadraticStripAssembleSample[layout_Association,
   matrixAdmission = multiquadraticStripSampleAdmissionRefusal[
     matrixEstimate, maximumMatrixBytes];
   If[AssociationQ[matrixAdmission], Return[matrixAdmission]];
+  deferredNativeSourceQ =
+    AssociationQ[Lookup[provider, "DeferredPreparation", None]];
   If[provider["Kind"] === "SplitBranch",
-    Which[
+    If[deferredNativeSourceQ,
+      (* The ordinary split plan includes every deferred-bundle operand.
+         Native BBar makes those leaves dead work; E/C and one-forms take
+         the existing unplanned direct path until a filtered plan is shown
+         to pay on a physical block. *)
+      If[! MemberQ[{Automatic, None}, requestedSplitPlan],
+        Return[multiquadraticStripFailure[
+          "SplitSparseEvaluationPlanNotApplicable"]]];
+      splitPlan = Automatic,
+      Which[
       requestedSplitPlan === Automatic,
         {splitPlanBuildSeconds, splitPlan} = AbsoluteTiming[
           Block[{$multiquadraticStripTrustedProviderEvaluation = True},
@@ -8790,7 +8975,7 @@ multiquadraticStripAssembleSample[layout_Association,
         Return[multiquadraticStripFailure[
           "InvalidSplitSparseEvaluationPlan",
           <|"ProviderFingerprint" -> provider["ProviderFingerprint"],
-            "Prime" -> prime|>]]];
+            "Prime" -> prime|>]]]];
     If[splitPlan =!= Automatic &&
         Lookup[splitPlan, "CoefficientABIFingerprint", None] =!=
           layout["CoefficientABIFingerprint"],
@@ -8900,15 +9085,46 @@ multiquadraticStripAssembleSample[layout_Association,
               nativeBatchFallbackCount++],
             {batchIndex, Length[preflightBatch]}],
           nativeBatchFallbackCount++]];
+      deferredNativeBBarBatch = Automatic;
+      If[deferredNativeSourceQ,
+        deferredNativeBatchAttemptCount++;
+        deferredNativeBatch =
+          multiquadraticStripNativeDeferredEvaluateBatch[provider,
+            preflightBatch];
+        deferredNativeBatchSeconds += Lookup[deferredNativeBatch,
+          "Seconds", 0.];
+        coefficientSeconds += Lookup[deferredNativeBatch, "Seconds", 0.];
+        If[Lookup[deferredNativeBatch, "Status", None] ===
+              "MultiquadraticNativeDeferredBatchV1" &&
+            Length[Lookup[deferredNativeBatch, "BBarBatch", {}]] ===
+              Length[preflightBatch],
+          deferredNativeBatchSuccessCount++;
+          deferredNativeBBarBatch = deferredNativeBatch["BBarBatch"];
+          deferredNativeParseSeconds += Lookup[deferredNativeBatch,
+            "ParseSeconds", 0.];
+          deferredNativeEvaluationSeconds += Lookup[deferredNativeBatch,
+            "EvaluationSeconds", 0.],
+          deferredNativeBatchFailureCount++]];
       coefficientBatch = Table[
         preflight = preflightBatch[[batchIndex]];
         point = preflight["Point"];
         providerCalls++;
-        coefficients = If[ListQ[suppliedChannels[[batchIndex]]],
-          multiquadraticStripPlannedProviderChannels[provider, preflight,
-            splitPlan, suppliedChannels[[batchIndex]]],
-          multiquadraticStripProviderChannels[provider, epsilonValue, prime,
-            point, preflight, splitPlan]];
+        coefficients = If[deferredNativeSourceQ &&
+            ! ListQ[deferredNativeBBarBatch],
+          multiquadraticStripFailure[
+            "NativeDeferredForcingUnavailable",
+            <|"Point" -> point, "Prime" -> prime,
+              "RegulatorValue" -> epsilonValue,
+              "Detail" -> If[AssociationQ[deferredNativeBatch],
+                KeyDrop[deferredNativeBatch, "BBarBatch"],
+                deferredNativeBatch]|>],
+          If[ListQ[suppliedChannels[[batchIndex]]],
+            multiquadraticStripPlannedProviderChannels[provider, preflight,
+              splitPlan, suppliedChannels[[batchIndex]]],
+            multiquadraticStripProviderChannels[provider, epsilonValue,
+              prime, point, preflight, splitPlan,
+              If[deferredNativeSourceQ, "NativeDeferredAST",
+                Automatic]]]];
         coefficientSeconds += Lookup[coefficients, "Seconds", 0.];
         splitCompileAttempts += Lookup[coefficients,
           "SplitSparseCompileAttemptCount", 0];
@@ -8936,6 +9152,16 @@ multiquadraticStripAssembleSample[layout_Association,
           "SplitSparseDeferredBundleCompositionSeconds", 0.];
         largeEntryEvaluations += Lookup[coefficients,
           "LargeEntryEvaluationCount", 0];
+        If[deferredNativeSourceQ &&
+            Lookup[coefficients, "Status", None] ===
+              "MultiquadraticPointCoefficientsV1",
+          coefficients = Join[coefficients, <|
+            "BBar" -> deferredNativeBBarBatch[[batchIndex]],
+            "ForcingProvider" -> "NativeDeferredASTV1",
+            "NativeDeferredASTTermCount" ->
+              Lookup[deferredNativeBatch, "TermCount", 0],
+            "NativeDeferredASTUniqueExpressionCount" ->
+              Lookup[deferredNativeBatch, "UniqueExpressionCount", 0]|>]];
         coefficients,
         {batchIndex, Length[preflightBatch]}];
       suppliedPointResults = ConstantArray[Automatic,
@@ -9099,6 +9325,17 @@ multiquadraticStripAssembleSample[layout_Association,
     "NativePreflightEvaluationSeconds" ->
       nativePreflightEvaluationSeconds,
     "NativePreflightDecodeSeconds" -> nativePreflightDecodeSeconds,
+    "NativeDeferredSourceQ" -> deferredNativeSourceQ,
+    "NativeDeferredBatchAttemptCount" ->
+      deferredNativeBatchAttemptCount,
+    "NativeDeferredBatchSuccessCount" ->
+      deferredNativeBatchSuccessCount,
+    "NativeDeferredBatchFailureCount" ->
+      deferredNativeBatchFailureCount,
+    "NativeDeferredBatchSeconds" -> deferredNativeBatchSeconds,
+    "NativeDeferredParseSeconds" -> deferredNativeParseSeconds,
+    "NativeDeferredEvaluationSeconds" ->
+      deferredNativeEvaluationSeconds,
     "SplitSparseUniqueLeafEvaluationSeconds" ->
       splitUniqueLeafEvaluationSeconds,
     "SplitSparseOccurrenceGatherSeconds" -> splitOccurrenceGatherSeconds,
@@ -9115,6 +9352,7 @@ multiquadraticStripAssembleSample[layout_Association,
       "Normalization" -> normalizationSeconds,
       "SplitSparsePlanConstruction" -> splitPlanBuildSeconds,
       "SplitSparseNativeBatch" -> nativeBatchSeconds,
+      "NativeDeferredBatch" -> deferredNativeBatchSeconds,
       "NativeRowBatch" -> nativeRowBatchSeconds,
       "SplitSparseUniqueLeafEvaluation" ->
         splitUniqueLeafEvaluationSeconds,
@@ -12599,6 +12837,248 @@ multiquadraticStripNativeSparseEvaluateBatch[plan_Association,
 multiquadraticStripNativeSparseEvaluateBatch[___] :=
   multiquadraticStripFailure["InvalidNativeSparseBatchArguments"];
 
+(* A preserved BlockEquationDeferred preparation is already the arithmetic
+   DAG of the forcing.  Evaluate that DAG at every split point in one native
+   batch instead of first materializing and canonicalizing its whole rational
+   functions.  The provider still owns E, C, Q and the one-form basis; this
+   adapter replaces only BBar before the existing row assembler is called. *)
+multiquadraticStripNativeDeferredBinary[] := With[{file = FileNameJoin[{
+    $feynFacetDirectory, "Backends", "flint", "bin",
+    "flint_deferred_ast_eval"}]}, If[FileExistsQ[file], file, None]];
+
+multiquadraticStripAttachDeferredPreparation[provider_Association,
+    preparation_Association, inputFile_String] := Module[{seal},
+  (* The caller has just constructed the provider and the ordinary boundary
+     immediately below performs the one full validation.  Re-running the
+     bundle traversal here would make attachment itself duplicate the large
+     provider work; the immutable small seal is sufficient at this seam. *)
+  If[! multiquadraticStripProviderHotValidQ[provider] ||
+      ! FileExistsQ[inputFile] ||
+      Lookup[preparation, "Status", None] =!= "Prepared" ||
+      Lookup[preparation, "ABIVersion", None] =!=
+        $blockEquationDeferredABIVersion ||
+      Lookup[preparation, "Variables", None] =!= provider["Variables"] ||
+      Lookup[preparation, "Regulator", None] =!= provider["Regulator"] ||
+      Lookup[preparation, "Dimensions", None] =!=
+        Prepend[provider["Dimensions"], 2] ||
+      Lookup[preparation, "SourceFingerprint", None] =!=
+        provider["SourceFingerprint"],
+    Return[multiquadraticStripFailure[
+      "InvalidDeferredPreparationProvider"]]];
+  (* Never attach the large Records forest to a provider that is serialized
+     for every image.  Its existing source fingerprint and this small shape
+     seal identify the immutable file; no second full-payload hash is made. *)
+  seal = KeyTake[preparation, {"Status", "ABIVersion", "SourceFingerprint",
+    "Variables", "Regulator", "Dimensions"}];
+  Join[provider, <|"DeferredPreparation" -> seal,
+    "DeferredPreparationFile" -> inputFile|>]
+];
+multiquadraticStripAttachDeferredPreparation[___] :=
+  multiquadraticStripFailure[
+    "InvalidDeferredPreparationProviderArguments"];
+
+multiquadraticStripNativeDeferredWriteRequest[file_String,
+    provider_Association, preflights_List] := Module[
+  {variables, regulator, roots, prime, lines, rootLines, imageLines},
+  variables = Lookup[provider, "Variables", $Failed];
+  regulator = Lookup[provider, "Regulator", $Failed];
+  roots = Lookup[provider, "Roots", $Failed];
+  If[! MatchQ[variables, {_Symbol, _Symbol}] ||
+      ! MatchQ[regulator, _Symbol] ||
+      ! MatchQ[roots, {___Association}] || preflights === {},
+    Return[multiquadraticStripFailure[
+      "InvalidNativeDeferredRequestInput"]]];
+  prime = Lookup[First[preflights], "Prime", $Failed];
+  If[! PrimeQ[prime] || ! AllTrue[preflights,
+      Lookup[#1, "Status", None] ===
+          "MultiquadraticProviderPreflightV1" &&
+        Lookup[#1, "Prime", None] === prime &&
+        Lookup[#1, "ProviderFingerprint", None] ===
+          provider["ProviderFingerprint"] &&
+        Length[Lookup[#1, "RootSquares", {}]] === Length[roots] &&
+        Length[Lookup[#1, "RootValues", {}]] === Length[roots] &],
+    Return[multiquadraticStripFailure[
+      "InvalidNativeDeferredPreflightBatch", <|
+        "Statuses" -> Lookup[preflights, "Status", None],
+        "ObservedPrimes" -> Lookup[preflights, "Prime", None],
+        "ExpectedPrime" -> prime,
+        "ObservedProviderFingerprints" ->
+          Lookup[preflights, "ProviderFingerprint", None],
+        "ExpectedProviderFingerprint" ->
+          Lookup[provider, "ProviderFingerprint", None],
+        "RootSquareCounts" ->
+          (Length[Lookup[#1, "RootSquares", {}]] & /@ preflights),
+        "RootValueCounts" ->
+          (Length[Lookup[#1, "RootValues", {}]] & /@ preflights),
+        "ExpectedRootCount" -> Length[roots]|>]]];
+  rootLines = ("root " <> ToString[Lookup[#1, "RootSquare", $Failed],
+      InputForm, PageWidth -> Infinity]) & /@ roots;
+  imageLines = Function[preflight,
+      "image " <> StringRiffle[ToString /@ Join[
+        preflight["Point"], {preflight["EpsilonMod"]},
+        Flatten[Transpose[{preflight["RootSquares"],
+          preflight["RootValues"]}]]], " "]] /@ preflights;
+  lines = Join[{"DeferredASTRequestV1", "prime " <> ToString[prime],
+      "variables " <> StringRiffle[
+        SymbolName /@ Join[variables, {regulator}], " "],
+      "rank " <> ToString[Length[roots]]}, rootLines,
+    {"base_count " <> ToString[Length[preflights]]}, imageLines];
+  If[Quiet[Check[
+      Export[file, StringRiffle[lines, "\n"] <> "\n", "Text"]; True,
+      False]],
+    <|"Status" -> "MultiquadraticNativeDeferredRequestV1",
+      "Prime" -> prime, "BaseCount" -> Length[preflights],
+      "RootCount" -> Length[roots]|>,
+    multiquadraticStripFailure["NativeDeferredRequestWriteFailed"]]
+];
+multiquadraticStripNativeDeferredWriteRequest[___] :=
+  multiquadraticStripFailure[
+    "InvalidNativeDeferredRequestArguments"];
+
+Options[multiquadraticStripNativeDeferredReadOutput] = {
+  "Derivatives" -> False
+};
+multiquadraticStripNativeDeferredReadOutput[file_String,
+    provider_Association, expectedPrime_Integer,
+    expectedBaseCount_Integer, opts : OptionsPattern[]] := Module[
+  {stream = None, magic, status, header, prime, rank, baseCount, gradeCount,
+   recordCount, termCount, uniqueCount, dimensions, parseNanoseconds,
+   evaluationNanoseconds, targets, values, trailing, expectedDimensions,
+   expectedTargets, result, derivatives, componentCount, componentValues,
+   batch},
+  derivatives = TrueQ[OptionValue["Derivatives"]];
+  componentCount = If[derivatives, 3, 1];
+  result = Catch[Quiet[Check[
+    stream = OpenRead[file, BinaryFormat -> True];
+    magic = BinaryReadList[stream, "UnsignedInteger8", 8];
+    status = BinaryRead[stream, "UnsignedInteger64", ByteOrdering -> -1];
+    header = BinaryReadList[stream, "UnsignedInteger64", 12,
+      ByteOrdering -> -1];
+    If[magic =!= ToCharacterCode[
+          If[derivatives, "DAGO2V1\000", "DAGO1V1\000"]] ||
+        ! IntegerQ[status] || Length[header] =!= 12,
+      Throw[multiquadraticStripFailure[
+        "NativeDeferredOutputHeaderInvalid"]]];
+    If[status =!= 0,
+      Throw[multiquadraticStripFailure["NativeDeferredEvaluatorRefused",
+        <|"NativeStatusCode" -> status,
+          "DetailIndex" -> header[[8]],
+          "DetailOffset" -> header[[9]]|>]]];
+    {prime, rank, baseCount, gradeCount, recordCount, termCount,
+      uniqueCount} = Take[header, 7];
+    dimensions = header[[8 ;; 10]];
+    {parseNanoseconds, evaluationNanoseconds} = header[[11 ;; 12]];
+    expectedDimensions = Prepend[provider["Dimensions"], 2];
+    If[prime =!= expectedPrime || rank =!= provider["RootCount"] ||
+        gradeCount =!= provider["GradeCount"] ||
+        baseCount =!= expectedBaseCount ||
+        dimensions =!= expectedDimensions ||
+        recordCount =!= Times @@ expectedDimensions,
+      Throw[multiquadraticStripFailure[
+        "NativeDeferredOutputShapeMismatch",
+        <|"Observed" -> {prime, rank, baseCount, gradeCount, dimensions,
+            recordCount},
+          "Expected" -> {expectedPrime, provider["RootCount"],
+            expectedBaseCount, provider["GradeCount"], expectedDimensions,
+            Times @@ expectedDimensions}|>]]];
+    targets = ConstantArray[{}, recordCount];
+    values = ConstantArray[{}, recordCount];
+    Do[
+      targets[[index]] = BinaryReadList[stream, "UnsignedInteger64", 3,
+        ByteOrdering -> -1];
+      values[[index]] = BinaryReadList[stream, "UnsignedInteger64",
+        componentCount baseCount gradeCount, ByteOrdering -> -1],
+      {index, recordCount}];
+    trailing = BinaryRead[stream, "UnsignedInteger8"];
+    Close[stream]; stream = None;
+    expectedTargets = Flatten[Table[{mu, i, j},
+      {mu, expectedDimensions[[1]]}, {i, expectedDimensions[[2]]},
+      {j, expectedDimensions[[3]]}], 2];
+    If[targets =!= expectedTargets || trailing =!= EndOfFile ||
+        ! AllTrue[Flatten[values], IntegerQ[#1] && 0 <= #1 < prime &],
+      Throw[multiquadraticStripFailure[
+        "NativeDeferredOutputPayloadInvalid"]]];
+    componentValues = Table[
+      values[[All, (component - 1) baseCount gradeCount +
+        Range[baseCount gradeCount]]], {component, componentCount}];
+    batch[component_Integer] := Table[ArrayReshape[
+      componentValues[[component, All,
+        (base - 1) gradeCount + Range[gradeCount]]],
+      Append[dimensions, gradeCount]], {base, baseCount}];
+    Join[<|"Status" -> If[derivatives,
+          "MultiquadraticNativeDeferredDerivativeBatchV1",
+          "MultiquadraticNativeDeferredBatchV1"],
+      "Prime" -> prime, "RootCount" -> rank,
+      "GradeCount" -> gradeCount, "BaseCount" -> baseCount,
+      "Dimensions" -> dimensions, "RecordCount" -> recordCount,
+      "TermCount" -> termCount, "UniqueExpressionCount" -> uniqueCount,
+      "ParseSeconds" -> N[parseNanoseconds/10.^9],
+      "EvaluationSeconds" -> N[evaluationNanoseconds/10.^9],
+      "BBarBatch" -> batch[1]|>,
+      If[derivatives, <|"BBarDerivativeBatch" -> {batch[2], batch[3]}|>,
+        <||>]],
+    multiquadraticStripFailure["NativeDeferredOutputReadFailed"]]]];
+  If[Head[stream] === InputStream, Quiet[Close[stream]]];
+  result
+];
+multiquadraticStripNativeDeferredReadOutput[___] :=
+  multiquadraticStripFailure[
+    "InvalidNativeDeferredOutputArguments"];
+
+Options[multiquadraticStripNativeDeferredEvaluateBatch] = {
+  "Derivatives" -> False
+};
+multiquadraticStripNativeDeferredEvaluateBatch[provider_Association,
+    preflights_List, opts : OptionsPattern[]] := Module[
+  {started = AbsoluteTime[], binary, preparation, inputFile, directory = None,
+   requestFile, outputFile, request, process, result, prime, derivatives,
+   command},
+  derivatives = TrueQ[OptionValue["Derivatives"]];
+  binary = multiquadraticStripNativeDeferredBinary[];
+  preparation = Lookup[provider, "DeferredPreparation", None];
+  inputFile = Lookup[provider, "DeferredPreparationFile", None];
+  If[! StringQ[binary] || ! AssociationQ[preparation] ||
+      ! StringQ[inputFile] || ! FileExistsQ[inputFile] ||
+      Lookup[preparation, "Status", None] =!= "Prepared" ||
+      Lookup[preparation, "ABIVersion", None] =!=
+        $blockEquationDeferredABIVersion ||
+      Lookup[preparation, "SourceFingerprint", None] =!=
+        provider["SourceFingerprint"] || preflights === {},
+    Return[multiquadraticStripFailure[
+      "InvalidNativeDeferredBatchInput"]]];
+  prime = Lookup[First[preflights], "Prime", $Failed];
+  If[! PrimeQ[prime] ||
+      ! AllTrue[preflights, Lookup[#1, "Prime", None] === prime &],
+    Return[multiquadraticStripFailure[
+      "MixedNativeDeferredBatchPrimes"]]];
+  result = Internal`WithLocalSettings[
+    directory = CreateDirectory[];
+    requestFile = FileNameJoin[{directory, "request.txt"}];
+    outputFile = FileNameJoin[{directory, "output.bin"}];,
+    request = multiquadraticStripNativeDeferredWriteRequest[requestFile,
+      provider, preflights];
+    If[Lookup[request, "Status", None] =!=
+        "MultiquadraticNativeDeferredRequestV1", request,
+      command = Join[{binary, inputFile, requestFile, outputFile},
+        If[derivatives, {"--derivatives"}, {}]];
+      process = RunProcess[command];
+      If[! AssociationQ[process] || process["ExitCode"] =!= 0,
+        multiquadraticStripFailure["NativeDeferredEvaluatorProcessFailed",
+          <|"ExitCode" -> If[AssociationQ[process],
+              process["ExitCode"], None],
+            "StandardError" -> If[AssociationQ[process],
+              process["StandardError"], Missing["NoProcess"]]|>],
+        multiquadraticStripNativeDeferredReadOutput[outputFile, provider,
+          prime, Length[preflights], "Derivatives" -> derivatives]]],
+    If[StringQ[directory] && DirectoryQ[directory],
+      Quiet[DeleteDirectory[directory, DeleteContents -> True]]]];
+  If[AssociationQ[result],
+    Append[result, "Seconds" -> N[AbsoluteTime[] - started]], result]
+];
+multiquadraticStripNativeDeferredEvaluateBatch[___] :=
+  multiquadraticStripFailure[
+    "InvalidNativeDeferredBatchArguments"];
+
 (* The split-point census is the same finite-field problem on a much smaller
    root-free list: root squares, Q, d log Q and d log Delta.  Evaluate the
    complete candidate pool in one native call, then perform only the Legendre
@@ -13414,10 +13894,12 @@ multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
 
 multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
     prime_Integer, point : {_Integer, _Integer},
-    preflight_Association, splitPlan_: Automatic] := Module[
+    preflight_Association, splitPlan_: Automatic,
+    forcingMode_: Automatic] := Module[
   {startTime = AbsoluteTime[], roots, rank, kind, scalarRules, deltaValues,
     rootValues, evaluateEntry, values, oneFormValues, entryCount = 0,
     tag, evaluated, entryKeys, bundleChannels,
+    nativeDeferredForcingQ,
     splitCompileAttempts = 0, splitCompileCacheHits = 0,
     splitCompileCacheMisses = 0, splitSparseSuccesses = 0,
     splitSubstitutionFallbacks = 0, splitCompileSeconds = 0.,
@@ -13440,6 +13922,8 @@ multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
   roots = provider["Roots"];
   rank = provider["RootCount"];
   kind = provider["Kind"];
+  nativeDeferredForcingQ = forcingMode === "NativeDeferredAST" &&
+    AssociationQ[Lookup[provider, "DeferredPreparation", None]];
   If[splitPlan =!= Automatic,
     If[kind =!= "SplitBranch",
       Return[multiquadraticStripFailure[
@@ -13478,11 +13962,14 @@ multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
     result["Channels"]];
   evaluated = Catch[
     entryKeys = Keys[provider["Entries"]];
+    If[nativeDeferredForcingQ,
+      entryKeys = DeleteCases[entryKeys, "BBar"]];
     values = Association[Table[
       key -> MapThread[evaluateEntry, {provider["Entries"][key],
         provider["ActiveRoots"][key]}, 3],
       {key, entryKeys}]];
-    If[AssociationQ[Lookup[provider, "DeferredBundle", None]],
+    If[AssociationQ[Lookup[provider, "DeferredBundle", None]] &&
+        ! nativeDeferredForcingQ,
       bundleChannels = multiquadraticStripBundleProviderChannels[provider,
         preflight];
       If[Lookup[bundleChannels, "Status", None] =!=
@@ -13526,7 +14013,11 @@ multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
       "GaugeLogDerivatives" -> preflight["GaugeLogDerivatives"],
       "RootLogDerivatives" -> preflight["RootLogDerivatives"],
       "E" -> values["E"], "C" -> values["C"],
-      "BBar" -> values["BBar"], "OneForms" -> oneFormValues,
+      "BBar" -> If[nativeDeferredForcingQ,
+        Missing["NativeDeferredASTPending"], values["BBar"]],
+      "ForcingProvider" -> If[nativeDeferredForcingQ,
+        "NativeDeferredASTPending", kind],
+      "OneForms" -> oneFormValues,
       "CoefficientABIFingerprint" -> provider["CoefficientABIFingerprint"],
       "ProviderFingerprint" -> provider["ProviderFingerprint"],
       "DeferredBundleFingerprint" -> Lookup[provider,
@@ -15503,6 +15994,10 @@ multiquadraticStripClearCaches[] := (
    preparation without a special case. *)
 Options[solveEpsFormStripMultiquadratic] = DeleteDuplicatesBy[Join[
   Options[multiquadraticStripPrepare], {
+  (* The immutable strip input file that contains a bundle's preserved
+     BlockEquationDeferred DAG.  The native evaluator reads it directly;
+     the large Records forest is never copied into the provider. *)
+  "DeferredPreparationFile" -> Automatic,
   "SamplePrimes" -> Automatic,
   "RegulatorValues" -> Automatic,
   "HeldOutPrime" -> Automatic,
@@ -15648,7 +16143,8 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
    screenFirst, screenFirstAnsatz, screenFirstOffset,
    conservativeDenominator,
    startTime = AbsoluteTime[], gate, backendGate, verbose, log, preparation,
-   assembly, layout, provider, coefficientProvider, reconstructionEnabled,
+   assembly, layout, provider, providerRecord, coefficientProvider,
+   reconstructionEnabled,
    primes, widePrimeSchedule, regulatorValues, heldOutPrime, heldOutRegulatorValue,
    allPrimes, samples = <||>, solutions = <||>, sample, solution, signature,
    signatures = {}, lifts = <||>, exactChecks = <||>, heldOutSolution,
@@ -15656,7 +16152,12 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
    transformedSample, differential, liftedVector, unpacked, prime,
    regulatorValue, samplerOptions, deadline, budgetProgress,
    budgetExhausted, enrich, variables, epsilon, strip, allRoots, classification,
-   deferredBundle, bundleIndices, requiredRootIndices, rootIndices, order,
+   deferredBundle, deferredASTWrapper, deferredASTPreparation,
+   deferredASTInputFile, deferredASTSourceQ, deferredASTRootSquares,
+   deferredASTRootIndices, deferredASTSelectedIndices,
+   deferredASTStableFrame, slimDeferredLayout,
+   bundleIndices,
+   requiredRootIndices, rootIndices, order,
     suppliedRootClassification, trustedRootClassificationQ,
     screenRoots, letterRecords, letterData, screen,
     screenRegulatorValue, prepareOptions, gaugeScreen, gaugeLadder,
@@ -15794,6 +16295,25 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
   strip = Lookup[record, "Strip", $Failed];
   deferredBundle = Replace[OptionValue["DeferredBundle"], Automatic :>
     Lookup[record, "DeferredBundle", Missing["NoDeferredBundle"]]];
+  deferredASTWrapper = Lookup[record, "DeferredPreparation",
+    If[AssociationQ[deferredBundle],
+      Lookup[deferredBundle, "DeferredPreparation",
+        Missing["NoDeferredPreparation"]],
+      Missing["NoDeferredPreparation"]]];
+  deferredASTPreparation = If[AssociationQ[deferredASTWrapper],
+    Lookup[deferredASTWrapper, "Preparation", deferredASTWrapper],
+    deferredASTWrapper];
+  deferredASTInputFile = Replace[OptionValue["DeferredPreparationFile"],
+    Automatic :> Lookup[record, "DeferredPreparationFile",
+      Missing["NoDeferredPreparationFile"]]];
+  deferredASTSourceQ = AssociationQ[deferredASTPreparation] &&
+    StringQ[deferredASTInputFile];
+  slimDeferredLayout[candidate_] := If[deferredASTSourceQ &&
+      AssociationQ[candidate] && Lookup[candidate, "Status", None] ===
+        "MultiquadraticStripAssemblyLayoutV1",
+    Join[candidate, <|"Record" -> KeyDrop[candidate["Record"],
+      {"DeferredBundle", "DeferredPreparation",
+        "DeferredPreparationFile"}]|>], candidate];
   screenRoots = Missing["RootsNotResolved"];
   letterRecords = Missing["NotBuilt"];
   screen = <|"Status" -> "IntegrabilityScreenSkipped"|>;
@@ -15816,6 +16336,50 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
         variables, epsilon, deferredBundle,
         If[trustedRootClassificationQ, suppliedRootClassification,
           Automatic]];
+      (* The dense BBar is a zero-shape placeholder on the raw native route,
+         exactly as it is for a DeferredBundle.  Union the root squares bound
+         by the authenticated preparation wrapper before alphabet/grade
+         construction; otherwise the visible strip silently collapses a
+         genuine rank-3 forcing to the diagonal's rank-1 field. *)
+      If[deferredASTSourceQ && ! AssociationQ[deferredBundle],
+        deferredASTRootSquares = Lookup[deferredASTWrapper,
+          "RootSquares", Missing["NoRootSquares"]];
+        If[! ListQ[deferredASTRootSquares],
+          Return[multiquadraticStripFailure[
+            "DeferredPreparationRootFrameMissing"]]];
+        deferredASTRootIndices = Table[Module[{matches},
+            matches = Flatten[Position[allRoots,
+              candidate_ /; TrueQ[Quiet[Together[
+                    candidate["RootSquare"] - square]] === 0],
+              {1}, Heads -> False]];
+            If[Length[matches] =!= 1,
+              Return[multiquadraticStripFailure[
+                "DeferredPreparationRootFrameMismatch",
+                <|"RootSquare" -> square, "Matches" -> matches|>],
+                Module]];
+            First[matches]],
+          {square, deferredASTRootSquares}];
+        If[! VectorQ[deferredASTRootIndices, IntegerQ],
+          Return[FirstCase[deferredASTRootIndices,
+            failure_Association :> failure,
+            multiquadraticStripFailure[
+              "DeferredPreparationRootFrameMismatch"]]]];
+        deferredASTSelectedIndices = DeleteDuplicates[Join[
+          Lookup[classification, "RootIndices", {}],
+          deferredASTRootIndices]];
+        deferredASTStableFrame = blockEquationDeferredRootFrame[
+          KeyTake[#1, {"Root", "RootSquare"}] & /@
+            allRoots[[deferredASTSelectedIndices]], variables, epsilon];
+        If[Lookup[deferredASTStableFrame, "Status", None] =!=
+            "StableRootOrder",
+          Return[multiquadraticStripFailure[
+            "DeferredPreparationRootUnionInvalid",
+            <|"Detail" -> deferredASTStableFrame|>]]];
+        classification = Join[classification, <|
+          "BundleRootIndices" -> deferredASTRootIndices,
+          "RequiredRootIndices" ->
+            deferredASTSelectedIndices[[Lookup[
+              deferredASTStableFrame["Roots"], "SourceIndex", {}]]]|>]];
       multiquadraticStripStageDone["outer root census",
         <|"source" -> If[trustedRootClassificationQ, "SameCall", "Fresh"]|>];
       If[! KeyExistsQ[classification, "UnclassifiedRadicalBases"],
@@ -15840,6 +16404,8 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
           SubsetQ[rootIndices, Sort[DeleteDuplicates[Join[
             classification["RootIndices"], bundleIndices]]]] &&
           (! AssociationQ[deferredBundle] ||
+            ContainsAll[rootIndices, bundleIndices]) &&
+          (! deferredASTSourceQ || AssociationQ[deferredBundle] ||
             ContainsAll[rootIndices, bundleIndices]) &&
           Length[rootIndices] <= $multiquadraticStripMaximumRootCount,
         order = multiquadraticStripRootOrder[frame, variables, rootIndices,
@@ -16326,17 +16892,33 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
     layout = multiquadraticStripAssemblyLayout[preparation];
     provider = multiquadraticStripCompiledProvider[assembly],
     assembly = Missing["DirectProviderDoesNotCompileChannels"];
-    layout = multiquadraticStripAssemblyLayout[preparation];
+    (* Follower payloads need the row layout, not the large coefficient
+       source.  Keep the authenticated bundle in preparation/provenance,
+       while every serialized layout carries only the mathematical strip. *)
+    layout = slimDeferredLayout[
+      multiquadraticStripAssemblyLayout[preparation]];
     If[! multiquadraticStripAssemblyLayoutValidQ[layout],
       Return[enrich[layout]]];
-    provider = multiquadraticStripDirectProvider[preparation["Record"],
+    providerRecord = If[deferredASTSourceQ,
+      KeyDrop[preparation["Record"], {"DeferredBundle",
+        "DeferredPreparation", "DeferredPreparationFile"}],
+      preparation["Record"]];
+    provider = multiquadraticStripDirectProvider[providerRecord,
       preparation["Roots"], "Kind" -> coefficientProvider,
       "OneForms" -> preparation["OneForms"],
       "GaugeDenominator" -> preparation["GaugeDenominator"],
-      "DeferredBundle" -> Lookup[preparation, "DeferredBundle", Automatic],
+      "DeferredBundle" -> If[deferredASTSourceQ, None,
+        Lookup[preparation, "DeferredBundle", Automatic]],
       "CoefficientABIFingerprint" ->
         layout["CoefficientABIFingerprint"],
-      "SourceFingerprint" -> preparation["ABIFingerprint"]]];
+      "SourceFingerprint" -> If[deferredASTSourceQ &&
+          AssociationQ[deferredASTPreparation],
+        Lookup[deferredASTPreparation, "SourceFingerprint",
+          preparation["ABIFingerprint"]],
+        preparation["ABIFingerprint"]]];
+    If[deferredASTSourceQ,
+      provider = multiquadraticStripAttachDeferredPreparation[provider,
+        deferredASTPreparation, deferredASTInputFile]]];
   If[! multiquadraticStripAssemblyLayoutValidQ[layout] ||
       ! multiquadraticStripProviderValidQ[provider],
     Return[enrich[If[AssociationQ[provider], provider,
@@ -16400,7 +16982,8 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
       If[Lookup[nextPreparation, "Status", None] =!=
           "PreparedMultiquadraticStripV1",
         Return[nextPreparation, Module]];
-      nextLayout = multiquadraticStripAssemblyLayout[nextPreparation];
+      nextLayout = slimDeferredLayout[
+        multiquadraticStripAssemblyLayout[nextPreparation]];
       If[! multiquadraticStripAssemblyLayoutValidQ[nextLayout],
         Return[nextLayout, Module]];
       If[nextLayout["CoefficientABIFingerprint"] =!=

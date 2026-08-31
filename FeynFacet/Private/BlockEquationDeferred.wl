@@ -1924,7 +1924,9 @@ blockEquationDeferredDivisorMetadata[___] := <|"Status" -> "InvalidInput"|>;
        "Jobs" (aligned with TargetOrder; terms are
          {exactCoefficient, {operandID..}}),
        "DivisorOccurrences" (source target/term/operand provenance),
-       "DivisorSummary", "SourceFingerprint", "BundleFingerprint",
+       "DivisorSummary", "SourceFingerprint",
+       "DeferredPreparation" (non-fingerprinted native-evaluator metadata),
+       "BundleFingerprint",
        "Statistics"|>
 
    IMMUTABILITY.  The returned bundle is plain data: no delayed rules,
@@ -3267,6 +3269,12 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
     "DivisorOccurrences" -> occurrences,
     "DivisorSummary" -> summary,
     "SourceFingerprint" -> Lookup[preparation, "SourceFingerprint", None],
+    (* Acceleration metadata, deliberately outside BundleFingerprint: the
+       native modular evaluator reads this already-prepared raw DAG from the
+       immutable strip input file.  SourceFingerprint, which is fingerprinted
+       above, binds it to the same source equation without hashing Records a
+       second time. *)
+    "DeferredPreparation" -> <|"Preparation" -> preparation|>,
     "Statistics" -> statistics|>;
   {Append[bundle,
      "BundleFingerprint" -> blockEquationDeferredBundleFingerprint[bundle]],
@@ -3333,10 +3341,12 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
   Module[{preparation, triples, census, materialized, dimensions,
     forcing, values, output, bundleRoots, bundle, internCache,
     materializeFunction, materializeOptions, chartDecision = <||>,
-    chartFastQ = False, compileBundleQ},
+    chartFastQ = False, directPreparationQ = False,
+    directRootSquares = {}, compileBundleQ},
    output = OptionValue["Output"];
    If[! MemberQ[{"Bundle", "BundleAndMaterialized",
-       "BundleOrMaterialized", "ChartOrBundle"}, output],
+       "BundleOrMaterialized", "ChartOrBundle",
+       "ChartOrPreparation"}, output],
      Return[<|"Status" -> "InvalidOutputMode", "Output" -> output|>]];
    preparation = blockEquationDeferredPrepare[connection, ranges, k, j,
      solved, variables, regulator];
@@ -3350,12 +3360,13 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
       bundle only for SolveEpsFormStripInFrame to pull it into a rational
       chart immediately.  The probe below reads root support only; the chart
       solver performs the normal exact frame gates later. *)
-   If[output === "ChartOrBundle",
+   If[MemberQ[{"ChartOrBundle", "ChartOrPreparation"}, output],
      chartDecision = blockEquationDeferredChartDecision[
        connection, preparation, bundleRoots];
      chartFastQ = Lookup[chartDecision, "Status", None] === "OK" &&
        TrueQ[Lookup[chartDecision, "ChartAvailableQ", False]]];
-   If[output === "ChartOrBundle" && chartFastQ,
+   If[MemberQ[{"ChartOrBundle", "ChartOrPreparation"}, output] &&
+       chartFastQ,
      (* Do not factor or sum in the multiquadratic source frame.  The chart
         solver substitutes rational root images into this raw DAG first and
         materializes there.  The source-frame nonzero census is also skipped:
@@ -3368,26 +3379,55 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
        "Census" -> <|"Status" -> "SkippedForChart",
          "AcceptedSamples" -> 0, "NonzeroProvedQ" -> False|>,
        "ZeroForcingCandidateQ" -> False|>]];
+   (* ChartOrPreparation is the production contract: after the chart probe
+      declines, it always hands the declared raw field to the native solver.
+      Probe inconclusiveness is not permission to enter the legacy symbolic
+      bundle/Maple compiler.  The downstream frame gate either authenticates
+      these declared roots or returns a typed refusal. *)
+   directPreparationQ = output === "ChartOrPreparation" && ! chartFastQ;
+   If[directPreparationQ,
+     directRootSquares = Lookup[chartDecision, "RootSquares",
+       If[MatchQ[bundleRoots, {___Association}],
+         Lookup[bundleRoots, "RootSquare", {}], {}]];
+     If[! ListQ[directRootSquares],
+       Return[<|"Status" -> "DirectPreparationRootFrameUnavailable",
+         "ChartDecision" -> chartDecision|>]];
+     (* A chartless declared root frame is consumed pointwise by the native
+        deferred-AST provider.  Return the authenticated raw arithmetic DAG
+        before DeferredBundle interning: compiling a symbolic bundle here is
+        precisely the multi-gigabyte Maple operation this route replaces. *)
+     Return[<|"Status" -> "PreparedDirectDeferred",
+       "DeferredPreparation" -> preparation,
+       "Dimensions" -> preparation["Dimensions"],
+       "RootSquares" -> directRootSquares,
+       "ChartDecision" -> chartDecision,
+       "Census" -> <|"Status" -> "SkippedForNativeDirect",
+         "AcceptedSamples" -> 0, "NonzeroProvedQ" -> False|>,
+       "ZeroForcingCandidateQ" -> False|>]];
    triples = Replace[OptionValue["CensusTriples"], Automatic :>
      Flatten[Table[{censusPoint, censusRegulator, censusPrime},
        {censusPrime, {1000003, 1000033}},
        {censusPoint, {{7717, 9227}, {31627, 44417}}},
        {censusRegulator, {104729, 15485867}}], 2]];
    census = blockEquationDeferredNonzeroCensus[preparation, triples];
-   compileBundleQ = output =!= "ChartOrBundle" || ! chartFastQ;
+   compileBundleQ =
+     ! (MemberQ[{"ChartOrBundle", "ChartOrPreparation"}, output] &&
+       chartFastQ);
    bundle = Missing["BundleCompilationSkipped"];
    internCache = <||>;
    If[compileBundleQ,
      {bundle, internCache} = blockEquationDeferredCompileBundleWithCache[
        preparation, "Roots" -> bundleRoots,
-       "AuditMetadata" -> (output =!= "ChartOrBundle"),
+       "AuditMetadata" ->
+         ! MemberQ[{"ChartOrBundle", "ChartOrPreparation"}, output],
        "Parallel" -> OptionValue["Parallel"],
        "Helpers" -> OptionValue["Helpers"],
        "BatchTimeout" -> OptionValue["BatchTimeout"],
        "Progress" -> OptionValue["Progress"],
        "Label" -> ToString[k] <> "_" <> ToString[j]]];
    If[compileBundleQ &&
-       MemberQ[{"Bundle", "BundleOrMaterialized", "ChartOrBundle"}, output] &&
+       MemberQ[{"Bundle", "BundleOrMaterialized", "ChartOrBundle",
+         "ChartOrPreparation"}, output] &&
        Lookup[bundle, "Status", None] =!= "PreparedDeferredBundle",
      (* A typed bundle refusal is the result on either provider path.
         Falling through to materialization here would silently change the
@@ -3396,7 +3436,8 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
    If[output === "Bundle" ||
        (output === "BundleOrMaterialized" &&
          TrueQ[census["NonzeroProvedQ"]]) ||
-       (output === "ChartOrBundle" && ! chartFastQ),
+       (MemberQ[{"ChartOrBundle", "ChartOrPreparation"}, output] &&
+         ! chartFastQ),
      (* The unconditional early path, and the conditional provider path
         after one exact modular nonzero witness.  Neither invokes the
         materializer. *)
@@ -3406,7 +3447,16 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
        Lookup[bundle, "Statistics", <||>],
        <|"Census" -> census,
          "ZeroForcingCandidateQ" ->
-           ! TrueQ[census["NonzeroProvedQ"]]|>]]]];
+           ! TrueQ[census["NonzeroProvedQ"]],
+         (* ChartOrPreparation reaches this bundle path only after the
+            native route refused at classification (an inconclusive or
+            invalid chart decision); record why.  ChartOrBundle keeps
+            its original contract -- a chartless bundle there is not a
+            refusal (Codex note 02: the fallback record carries the
+            refusal reason). *)
+         "NativeRouteRefusal" -> If[output === "ChartOrPreparation",
+           Lookup[chartDecision, "Status", "ChartDecisionUnavailable"],
+           None]|>]]]];
    materializeFunction = Replace[OptionValue["MaterializeFunction"],
      Automatic :> blockEquationDeferredMaterialize];
    materializeOptions = {

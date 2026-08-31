@@ -1,0 +1,9 @@
+DeferredASTRequestV1
+prime 2305843009213693951
+variables x y eps
+rank 3
+root x
+root y
+root 1+x+y
+base_count 1
+image 4 4 7 4 2 4 2 9 3
