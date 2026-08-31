@@ -1,4 +1,15 @@
-# Session transfer note — updated 2026-08-31 ~11:30 PDT (Fable)
+# Session transfer note — updated 2026-08-31 ~13:45 PDT (Fable)
+
+## PAUSED by the user (~13:30, relayed via Codex note 24): the
+## obstruction campaign holds.  Certified: (25,18), (25,11), (25,2)
+## (complete span + defect at 2+1 images + witnesses).  (25,1) and
+## (25,14): defect certificates + closed curve sets committed
+## (Results/UU_08_10_canonical/PathTransportObstructions/CF303/);
+## only the complete-span rescreens remain — block-1 symbolic route
+## hit a compile wall at 10M leaves (provider-frame hook requested,
+## Fable note 21).  Do not restart until the user resumes.
+
+# Superseded: updated 2026-08-31 ~11:30 PDT (Fable)
 
 ## Obstruction-proof campaign (user-assigned ~05:30): 3 of 5 done
 
