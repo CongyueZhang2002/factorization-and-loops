@@ -1,5 +1,20 @@
 # The standing watchdog (house rule; standardized 2026-08-22)
 
+## Launch allowance and auto-kill (user directive 2026-08-31)
+
+Every launched run EMBEDS its own kill: the launcher starts the kernel
+with `setsid` (its own process group), and a timer inside the SAME
+launcher SIGKILLs the whole group (`kill -9 -- -$PID`) when a declared
+allowance expires. Size the allowance from the DESIGN expectation
+(about 3x the expected wall), never from hope. Rationale, paid for on
+2026-08-31: a coordinator cannot reliably kill an escaped kernel later
+(a busy WolframKernel ignores SIGTERM for an hour; SIGKILL from the
+coordinator can be permission-blocked), and the user will not do it.
+Corollary for the coordinator: at EVERY watchdog anomaly, the default
+action is to stop the run and redesign — "it should finish soon" is a
+trajectory guess, not evidence; a run that is off its design
+expectation has already answered the question its allowance asks.
+
 **Rule (user directive 2026-08-20, reaffirmed 2026-08-22 after a 10-minute
 loss):** whenever any compute of ours runs in the background — a campaign,
 a benchmark, a test batch, a single long solve — ONE Opus watchdog
