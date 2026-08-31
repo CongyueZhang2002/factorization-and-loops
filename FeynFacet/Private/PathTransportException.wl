@@ -436,9 +436,17 @@ pathTransportExceptionSourceOrderTable[assembly_, apv_, apw_, eps_,
       s_Symbol, {0, Infinity}, Heads -> False]], eps];
     orders = Table[
       Module[{rules, specialized},
+        (* SMALL INTEGER points, not fractions: a rational p/q raised
+           to the entries' polynomial degrees grows as q^degree and
+           the exact arithmetic dominated the whole Prepare (measured
+           2026-08-31: the fraction version tracked the 40-minute
+           symbolic scan it was built to replace).  Small integers
+           keep every power below ~100 digits; radicals of integers
+           stay opaque atoms under Together; the residual risk of
+           hitting a leading-coefficient zero is the same two-point,
+           fail-closed-downstream guard as before. *)
         rules = Thread[symbols ->
-          Table[Prime[500 + 37 point + 11 k]/
-            Prime[900 + 41 point + 13 k], {k, Length[symbols]}]];
+          Table[Prime[7 + 5 point + 3 k], {k, Length[symbols]}]];
         specialized = Quiet[entries /. rules];
         (* a denominator vanishing AT THE POINT makes that entry's
            order unusable for this point only; defer to the other *)
