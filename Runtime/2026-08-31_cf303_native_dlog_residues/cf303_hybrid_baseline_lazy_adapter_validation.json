@@ -1,0 +1,133 @@
+{
+  "status": "CF303HybridBaselineLazyAdapterAcceptedV1",
+  "family": "CF303",
+  "adapter": "/home/maxzhang/factorization-and-loops-codex/Diagnostics/Scripts/cf303_hybrid_baseline_lazy_circuit_adapter.wl",
+  "adapter_manifest": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_lazy_adapter_manifest.json",
+  "arithmetic_evidence": "two pre-existing q7 point images only",
+  "structural": {
+    "adapter_wolfram_delimiters_balanced": true,
+    "adapter_defines_builder": true,
+    "adapter_uses_unified_h_head": true,
+    "adapter_has_no_materialized_baseline_gauge_dependency": true,
+    "evaluator_python_ast_parses": true,
+    "evaluator_abi_synthetic_shape": true,
+    "source_rows_match": true,
+    "source_boundary_dimension": 287,
+    "final_boundary_dimension": 293,
+    "merged_entry_count": 90,
+    "merged_incoming_coordinate_count": 86,
+    "base_entry_count": 76,
+    "base_status_present": true,
+    "exception_primitive_targets": [
+      [
+        44,
+        2
+      ],
+      [
+        45,
+        2
+      ],
+      [
+        44,
+        12
+      ],
+      [
+        45,
+        12
+      ],
+      [
+        44,
+        21
+      ],
+      [
+        44,
+        22
+      ],
+      [
+        45,
+        21
+      ],
+      [
+        45,
+        22
+      ],
+      [
+        44,
+        29
+      ],
+      [
+        44,
+        30
+      ],
+      [
+        45,
+        29
+      ],
+      [
+        45,
+        30
+      ]
+    ],
+    "exception_targets_match_manifest": true,
+    "merged_exception_order_matches_manifest": true,
+    "block1_zero_placeholders": [
+      [
+        44,
+        1
+      ],
+      [
+        45,
+        1
+      ]
+    ],
+    "block1_placeholders_are_zero": true,
+    "exception_provider_count": 4,
+    "exception_providers_accepted": true,
+    "source_row1_targets": [
+      1
+    ],
+    "source_row1_invariant": true,
+    "source_support_graph_closure": [
+      1,
+      2,
+      12,
+      21,
+      22,
+      29,
+      30
+    ],
+    "support_graph_matches_manifest": true,
+    "cross_k_label_order_coordinate_pairs": 98,
+    "h_sparse_address_count": 112,
+    "physical_gauge_accepted": true,
+    "physical_gauge_orders": [
+      0,
+      1,
+      2
+    ]
+  },
+  "accepted_points": [
+    {
+      "p": [
+        3,
+        1
+      ],
+      "recurrence": 688,
+      "basepoint": 688,
+      "t25": 3080,
+      "nonzero_cross_k_vectors": 49
+    },
+    {
+      "p": [
+        239,
+        47
+      ],
+      "recurrence": 688,
+      "basepoint": 688,
+      "t25": 3080,
+      "nonzero_cross_k_vectors": 49
+    }
+  ],
+  "no_wolfram_or_maple_started": true,
+  "no_characteristic_zero_h_or_k_matrix_materialized": true
+}

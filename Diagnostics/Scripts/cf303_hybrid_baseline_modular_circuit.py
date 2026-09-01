@@ -40,6 +40,7 @@ SOURCE_ROWS = (
 )
 TARGET_ROWS = (44, 45)
 EXT_NONRESIDUE = 2
+ADAPTER_SUPPORT_MASTERS = (1, 2, 12, 21, 22, 29, 30)
 
 
 def load_module(name: str, path: Path):
@@ -931,7 +932,115 @@ def pair_equal(left, right, helper):
     return ext_equal(left[0], right[0], helper) and ext_equal(left[1], right[1], helper)
 
 
-def recurrence_point(inputs, p_value: Fraction, helper, elliptic):
+def serialize_rf(value: RationalFunction):
+    return {
+        "numerator": list(value.numerator),
+        "denominator": list(value.denominator),
+    }
+
+
+def serialize_ext(value):
+    return {
+        "base": serialize_rf(value[0]),
+        "omega": serialize_rf(value[1]),
+    }
+
+
+def serialize_pair(value):
+    return {
+        "rational": serialize_ext(value[0]),
+        "elliptic": serialize_ext(value[1]),
+    }
+
+
+def adapter_point_payload(p_value: Fraction, merged, cross_k_by_order, report):
+    """Expose only the narrow circuit seam used by the lazy Wolfram adapter.
+
+    The accepted incoming K leaves stay in their original transfer/census
+    providers.  This payload resolves the two objects newly created by the
+    sealed recurrence: merged H and the cross-Hermite K remainder.
+    """
+    support_positions = tuple(SOURCE_ROWS.index(master)
+                              for master in ADAPTER_SUPPORT_MASTERS)
+    unsupported = tuple(index for index in range(len(SOURCE_ROWS))
+                        if index not in support_positions)
+    for order in ORDERS:
+        for row in range(len(TARGET_ROWS)):
+            if any(not pair_zero(merged[order][row][column])
+                   for column in unsupported):
+                raise ArithmeticError("adapter H support escaped seven columns")
+            if any(not pair_zero(cross_k_by_order[order][row][column])
+                   for column in unsupported):
+                raise ArithmeticError("adapter cross-K support escaped seven columns")
+    if any(not pair_zero(cross_k_by_order[ORDERS[0]][row][column])
+           for row in range(len(TARGET_ROWS))
+           for column in support_positions):
+        raise ArithmeticError("adapter cross-K unexpectedly nonzero at order -3")
+
+    h_outputs = []
+    for order in ORDERS:
+        for row in range(len(TARGET_ROWS)):
+            for column in support_positions:
+                h_outputs.append({
+                    "order": order,
+                    "row": row + 1,
+                    "target_master": TARGET_ROWS[row],
+                    "column": column + 1,
+                    "source_master": SOURCE_ROWS[column],
+                    "pair": serialize_pair(merged[order][row][column]),
+                })
+
+    cross_outputs = []
+    for order in ORDERS[1:]:
+        for row in range(len(TARGET_ROWS)):
+            for column in support_positions:
+                cross_outputs.append({
+                    "order": order,
+                    "row": row + 1,
+                    "target_master": TARGET_ROWS[row],
+                    "column": column + 1,
+                    "source_master": SOURCE_ROWS[column],
+                    "pair": serialize_pair(cross_k_by_order[order][row][column]),
+                })
+
+    suffix = f"p{p_value.numerator}d{p_value.denominator}"
+    return {
+        "status": "CF303HybridBaselineLazyAdapterPointV1",
+        "abi_version": 1,
+        "prime": Q7,
+        "p": [p_value.numerator, p_value.denominator],
+        "field": {
+            "degree": 2,
+            "basis": ["1", "omega"],
+            "relation": f"omega^2={EXT_NONRESIDUE}",
+            "rational_function_variable": "u",
+            "polynomial_coefficients": "ascending",
+        },
+        "source_rows": list(SOURCE_ROWS),
+        "target_rows": list(TARGET_ROWS),
+        "h_orders": [ORDERS[0], ORDERS[-1]],
+        "cross_k_orders": [ORDERS[1], ORDERS[-1]],
+        "support_source_masters": list(ADAPTER_SUPPORT_MASTERS),
+        "h_output_count": len(h_outputs),
+        "cross_k_output_count": len(cross_outputs),
+        "h_outputs": h_outputs,
+        "cross_k_outputs": cross_outputs,
+        "accepted_point_evidence": str(
+            RUNTIME / f"cf303_hybrid_baseline_modular_q7_{suffix}.json"
+        ),
+        "accepted_comparisons": {
+            key: report[key] for key in (
+                "baseline_recurrence_comparisons",
+                "baseline_basepoint_comparisons",
+                "t25_h_scalar_channel_comparisons",
+                "t25_cross_k_scalar_channel_comparisons",
+            )
+        },
+    }
+
+
+def recurrence_point(inputs, p_value: Fraction, helper, elliptic,
+                     include_adapter_values=False):
     prime = Q7
     p_mod = p_value.numerator % prime * pow(p_value.denominator % prime, -1, prime) % prime
     resolution = json.loads(point_resolution_path(p_value).read_text())
@@ -1141,7 +1250,7 @@ def recurrence_point(inputs, p_value: Fraction, helper, elliptic):
     )
     if not status:
         raise ArithmeticError("point acceptance count mismatch")
-    return {
+    report = {
         "status": "CF303HybridBaselineModularCircuitPointAcceptedV1",
         "prime": prime, "p": [p_value.numerator, p_value.denominator],
         "path_value": path_value,
@@ -1182,6 +1291,11 @@ def recurrence_point(inputs, p_value: Fraction, helper, elliptic):
             "cross-Hermite K vector passed T25 at u=7."
         ),
     }
+    if include_adapter_values:
+        report["_adapter_point"] = adapter_point_payload(
+            p_value, merged, cross_k_by_order, report
+        )
+    return report
 
 
 def manifest(point_outputs: list[Path], reports: list[dict[str, Any]]):
@@ -1242,20 +1356,40 @@ def main() -> int:
     parser.add_argument("--p", type=Fraction)
     parser.add_argument("--all-q7", action="store_true")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--adapter-output", type=Path, help=(
+        "write the lazy-adapter H/cross-K point ABI; with no --output, "
+        "leave the accepted summary artifact untouched"
+    ))
     parser.add_argument("--manifest-output", type=Path, default=(
         RUNTIME / "cf303_hybrid_baseline_modular_circuit_manifest.json"
     ))
     args = parser.parse_args()
     points = [Fraction(3), Fraction(239, 47)] if args.all_q7 else [args.p or Fraction(3)]
+    if args.adapter_output and len(points) != 1:
+        parser.error("--adapter-output requires one --p point")
     helper = load_module("cf303_hybrid_rational_helper", RATIONAL_HELPER)
     elliptic = load_module("cf303_hybrid_elliptic_helper", ELLIPTIC_HELPER)
     inputs = parse_inputs()
     reports, outputs = [], []
     for point in points:
         started = time.perf_counter()
-        report = recurrence_point(inputs, point, helper, elliptic)
+        report = recurrence_point(
+            inputs, point, helper, elliptic,
+            include_adapter_values=args.adapter_output is not None,
+        )
+        adapter_point = report.pop("_adapter_point", None)
         report["timings"]["total"] = time.perf_counter() - started
         report["peak_rss_kib"] = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if args.adapter_output:
+            args.adapter_output.write_text(json.dumps(adapter_point, indent=2) + "\n")
+            print(json.dumps({
+                "status": adapter_point["status"],
+                "p": adapter_point["p"],
+                "output": str(args.adapter_output),
+            }), flush=True)
+        if args.adapter_output and args.output is None:
+            reports.append(report)
+            continue
         output = args.output if len(points) == 1 and args.output else RUNTIME / (
             f"cf303_hybrid_baseline_modular_q7_p{point.numerator}d{point.denominator}.json"
         )

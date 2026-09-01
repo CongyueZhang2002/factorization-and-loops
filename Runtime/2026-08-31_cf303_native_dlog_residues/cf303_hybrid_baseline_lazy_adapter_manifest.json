@@ -1,0 +1,68 @@
+{
+  "status": "CF303HybridBaselineLazyAdapterManifestV1",
+  "family": "CF303",
+  "block": 25,
+  "source_master_count": 43,
+  "target_rows": [44, 45],
+  "boundary_dimension": 293,
+  "h_orders": [-3, 4],
+  "cross_k_orders": [-2, 4],
+  "physical_gauge_orders": [0, 1, 2],
+  "support": {
+    "exception_source_masters": [2, 12, 21, 22, 29, 30],
+    "h_source_masters": [1, 2, 12, 21, 22, 29, 30],
+    "cross_k_source_masters": [1, 2, 12, 21, 22, 29, 30],
+    "cross_k_coordinates_per_order": 14,
+    "cross_k_order_minus3_is_zero": true
+  },
+  "exact_leaf_provenance": {
+    "source_operator": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_elliptic_operator_15_17_21.wl",
+    "base_transfer_76": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_general_elliptic_transfer.wl",
+    "merged_transfer": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline90_transfer.maple",
+    "source_and_target_dlog_forms": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_path_dlog_gauge_inputs.maple",
+    "physical_gauge": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_physical_gauge.wl",
+    "block1_circuit": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_full_exact_circuit.json",
+    "block1_elliptic_source": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_exact_elliptic_source.json",
+    "block1_point_resolver": "/home/maxzhang/factorization-and-loops-codex/Diagnostics/Scripts/cf303_block1_circuit_point_resolver.py",
+    "baseline_circuit_manifest": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_modular_circuit_manifest.json"
+  },
+  "exception_k_leaves": [
+    {"entry_index": 77, "block": 2, "source_entry_index": 1, "target": [44, 2], "provider": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_2_elliptic_layer_census.maple"},
+    {"entry_index": 78, "block": 2, "source_entry_index": 2, "target": [45, 2], "provider": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_2_elliptic_layer_census.maple"},
+    {"entry_index": 79, "block": 11, "source_entry_index": 1, "target": [44, 12], "provider": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_11_elliptic_layer_census.maple"},
+    {"entry_index": 80, "block": 11, "source_entry_index": 2, "target": [45, 12], "provider": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_11_elliptic_layer_census.maple"},
+    {"entry_index": 81, "block": 14, "source_entry_index": 1, "target": [44, 21], "provider": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_14_elliptic_layer_census.maple"},
+    {"entry_index": 82, "block": 14, "source_entry_index": 2, "target": [44, 22], "provider": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_14_elliptic_layer_census.maple"},
+    {"entry_index": 83, "block": 14, "source_entry_index": 3, "target": [45, 21], "provider": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_14_elliptic_layer_census.maple"},
+    {"entry_index": 84, "block": 14, "source_entry_index": 4, "target": [45, 22], "provider": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_14_elliptic_layer_census.maple"},
+    {"entry_index": 85, "block": 18, "source_entry_index": 1, "target": [44, 29], "provider": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_18_elliptic_layer_census.maple"},
+    {"entry_index": 86, "block": 18, "source_entry_index": 2, "target": [44, 30], "provider": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_18_elliptic_layer_census.maple"},
+    {"entry_index": 87, "block": 18, "source_entry_index": 3, "target": [45, 29], "provider": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_18_elliptic_layer_census.maple"},
+    {"entry_index": 88, "block": 18, "source_entry_index": 4, "target": [45, 30], "provider": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_18_elliptic_layer_census.maple"}
+  ],
+  "lazy_label_counts": {
+    "exception_k": 96,
+    "baseline_cross_k": 98,
+    "block1_delta_k": 32,
+    "total_added": 226
+  },
+  "evaluator_abi": {
+    "version": 1,
+    "command": "python3 Diagnostics/Scripts/cf303_hybrid_baseline_modular_circuit.py --p NUM/DEN --adapter-output OUTPUT.json",
+    "point_status": "CF303HybridBaselineLazyAdapterPointV1",
+    "field": "F_q2 with omega^2=2",
+    "h_head": "CF303HybridBaselineH[order,targetMaster,sourceMaster,channel,p,u]",
+    "cross_k_label": ["CF303HybridBaselineCrossK", "order", "targetMaster", "sourceMaster"],
+    "accepted_incoming_leaf_resolution": "Read merged EntryRecords[entryIndex].letterTerms and extract only the requested epsilon order/word.",
+    "polynomial_coefficient_order": "ascending"
+  },
+  "accepted_point_evidence": [
+    "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_modular_q7_p3d1.json",
+    "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_modular_q7_p239d47.json"
+  ],
+  "adapter_point_payloads": [
+    "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_lazy_adapter_q7_p3d1.json",
+    "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_lazy_adapter_q7_p239d47.json"
+  ],
+  "representation": "Exact input leaves plus sealed recurrence nodes; only narrow sparse circuit addresses enter the weighted-Chen operator."
+}
