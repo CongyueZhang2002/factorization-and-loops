@@ -1,0 +1,55 @@
+{
+  "status": "CF303HybridBaselineDeferredExactCircuitAcceptedV1",
+  "family": "CF303",
+  "block": 25,
+  "source_master_count": 43,
+  "target_rows": [
+    44,
+    45
+  ],
+  "orders": [
+    -3,
+    4
+  ],
+  "physical_gauge_orders": [
+    0,
+    1,
+    2
+  ],
+  "modular_evaluator_field": "F_q2 with omega^2=2",
+  "t25_validation_path_value": 7,
+  "incoming_coordinate_count": 86,
+  "nonzero_incoming_primitive_leaf_count": 12,
+  "exact_leaf_provenance": {
+    "base_transfer_76_plus_exceptions_12_plus_zero_block1_2": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline90_transfer.maple",
+    "source_and_target_dlog_forms": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_path_dlog_gauge_inputs.maple",
+    "physical_gauge_T25": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_physical_gauge.wl",
+    "block1_point_resolver_pattern": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_circuit_resolved_q2305843009213693693_pNUMdDEN.json"
+  },
+  "sealed_operations": [
+    "Add",
+    "Multiply",
+    "Derivative",
+    "DeterministicRationalHermite",
+    "DeterministicQuarticHermite",
+    "NormalizeHAtBasePoint",
+    "AcceptedIncomingRemainderLeaf",
+    "CrossHermiteRemainder",
+    "T25Convolution"
+  ],
+  "recurrence": "K_n=B_n+D.H_(n-1)-H_(n-1).S-dH_n; H(1/2)=0",
+  "representation": "Original exact leaves plus sealed arithmetic/Hermite nodes; modular point images are evaluator evidence, not the exact object.",
+  "evaluator": "/home/maxzhang/factorization-and-loops-codex/Diagnostics/Scripts/cf303_hybrid_baseline_modular_circuit.py",
+  "accepted_point_outputs": [
+    "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_modular_q7_p3d1.json",
+    "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_modular_q7_p239d47.json"
+  ],
+  "acceptance_totals": {
+    "points": 2,
+    "baseline_recurrence_comparisons": 1376,
+    "baseline_basepoint_comparisons": 1376,
+    "t25_scalar_channel_comparisons": 6160,
+    "t25_h_scalar_channel_comparisons": 4816,
+    "t25_cross_k_scalar_channel_comparisons": 1344
+  }
+}

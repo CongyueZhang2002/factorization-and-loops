@@ -7,19 +7,24 @@ composite-input manifest.  It does not run the 88-entry baseline recurrence,
 build `F=G+H.L`, or apply `T25`, and it must not be cited as an accepted
 operator.
 
-The replacement components are implemented through the final lazy adapter,
-but the all-at-once characteristic-zero baseline recurrence is not viable.
-The exact Maple run was stopped for memory safety before serialization, so no
-baseline `H/K` artifact and no accepted final operator were produced:
+The all-at-once characteristic-zero baseline recurrence is not viable, but
+its deferred exact-circuit replacement is now implemented and accepted.  The
+accepted object is
+`cf303_hybrid_baseline_modular_circuit_manifest.json`; it keeps the original
+exact leaves and sealed Hermite/recurrence operations rather than expanded
+`H/K` matrices.  It is not a materialized GPL/eMPL paper result.
+
+The completed route is:
 
 1. merge the exact 76-entry transfer and the accepted block 2/11/14/18
    censuses (12 entries), then add two explicit zero block-1 placeholders;
-2. attempted the unchanged exact finite path-gauge recurrence on that
-   90-shaped baseline;
-3. add the separately accepted block-1 `delta H/delta K` circuit in column 1;
-4. build lazy `G`, `F=G+H.L`, and `I=T25.F` coefficient accessors;
-5. the additive merge and physical-gauge replay remain blocked on replacing
-   step 2 with the deferred modular circuit described below.
+2. encode the complete `2x43`, orders `-3..4` recurrence as sealed exact
+   arithmetic/Hermite nodes;
+3. specialize the leaves first and execute the circuit over the minimal q7
+   split field (`F_q` or `F_q2`), never expanding characteristic-zero `H/K`;
+4. add the separately accepted block-1 `delta H/delta K` circuit in column 1;
+5. replay the merged `H` and every demanded new cross-Hermite `K` vector
+   through `T25` orders `0..2`.
 
 ## Mathematical split
 
@@ -88,32 +93,52 @@ It happened before the output files were opened, so neither
 exists.  The exact chronology and KiB samples are preserved in
 `cf303_hybrid_baseline_exact_failure_telemetry.json`.
 
-## Modular replacement
+## Modular replacement — accepted
 
-Do not rerun or try to reconstruct the expanded characteristic-zero `H/K`
-matrices.  Extend the already accepted block-1 circuit ABI to the 88-entry
-baseline:
+`cf303_hybrid_baseline_modular_circuit.py` implements the replacement without
+starting Wolfram or Maple:
 
-1. keep the exact 76-entry transfer, the four accepted exception censuses,
-   exact `D/S`, and `T25` as provenance-bearing leaves;
-2. seal the recurrence operations—addition, multiplication, derivative,
-   deterministic Hermite primitive/remainder, and `H(1/2)=0`—as exact circuit
-   nodes without expanding their outputs;
-3. at evaluation time, specialize the leaves first at `(q,p)` and execute the
-   complete sparse `2x43`, orders `-3..4` recurrence with the existing 64-bit
-   modular rational/quartic Hermite machinery;
-4. merge the two accepted block-1 circuit entries additively, and keep the
-   GPL/E4 kernels lazy through the existing physical-word accessor;
-5. accept by direct point replay at q7, `p=3` and `p=239/47`: 688 recurrence
-   coordinates and 688 basepoint values per point, followed by `T25` orders
-   `0..2` and target orders `-4..2`.
+- the exact 76-entry transfer, four accepted exception censuses, `D/S`, and
+  `T25` remain provenance-bearing leaves;
+- the twelve very large nonzero exception primitives are parsed while their
+  integer and `p` coefficients are reduced modulo q, so the expanded rational
+  coefficients never exist in characteristic zero;
+- source-letter `D/S` leaves are first added at their matrix coordinate.  At
+  `p=239/47` their roots do not all split over q, so the evaluator uses the
+  minimal `F_q2=F_q[omega]/(omega^2-2)` image.  Hermite reduction is linear in
+  its two base-field components;
+- the only new cross support is 14 coordinates at each order `-2..4` (zero at
+  `-3`).  Each point performs 98 rational cross reductions, zero elliptic
+  cross reductions, and produces 49 nonzero cross-`K` vectors.  Maximum `H`
+  numerator/denominator degrees are 38/37;
+- the incoming accepted residue leaves stay lazy.  The newly computed cross
+  remainders are retained as `K` circuit nodes and replayed through `T25`, not
+  discarded after constructing `H`.
 
-The exact deliverable is the provenance-sealed arithmetic circuit.  The
-finite-field images are its evaluator and acceptance evidence, not a modular
-oracle substituted for an exact object.  This route moves the cancellations
-and Hermite reductions before coefficient growth, reuses the measured block-1
-point engine (16 outputs in 0.30 seconds at one fixed point), and avoids both
-the 36-GiB exact intermediate and cross-prime lifting of expanded `H/K`.
+Acceptance at each of q7 `p=3` and `p=239/47` is:
+
+- 688/688 recurrence coordinates;
+- 688/688 `H(1/2)=0` coordinates;
+- 2,408 merged-`H` T25 scalar-channel comparisons;
+- 672 demanded cross-`K` T25 scalar-channel comparisons.
+
+The two-point totals are therefore 1,376 recurrence, 1,376 basepoint, and
+6,160 T25 comparisons.  The exact object is the provenance-sealed circuit;
+these images are its evaluator and acceptance evidence, not a modular oracle
+substituted for an exact result.
+
+Measured internal phase times were:
+
+| p image | D/S specialization | primitive specialization | recurrence | total |
+| --- | ---: | ---: | ---: | ---: |
+| `3` | 21.08 s | 5.32 s | 4.05 s | 31.43 s |
+| `239/47` | 27.36 s | 6.06 s | 4.32 s | 38.77 s |
+
+The final two-point command took 76.03 s wall and peaked at 128,452 KiB RSS.
+The only material remaining bottleneck is exact `D/S` parsing and conjugate-
+root specialization; the actual eight-order recurrence is about four seconds
+per image.  This replaces the terminated four-hour, 36-GiB exact run and
+requires no cross-prime lift of expanded `H/K`.
 
 ## Stale-artifact quarantine
 
@@ -129,5 +154,9 @@ used as evidence for the 90-entry result.
 - `Diagnostics/Scripts/cf303_block1_circuit_point_resolver.py`
 - `Diagnostics/Scripts/cf303_hybrid_circuit_path_gauge_adapter.wl`
 - `Diagnostics/Scripts/cf303_build_final_hybrid_circuit_operator.wls`
+- `Diagnostics/Scripts/cf303_hybrid_baseline_modular_circuit.py`
+- `Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_modular_q7_p3d1.json`
+- `Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_modular_q7_p239d47.json`
+- `Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_modular_circuit_manifest.json`
 
 No package source is modified.

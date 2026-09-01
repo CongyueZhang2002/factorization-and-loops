@@ -1,0 +1,30 @@
+CF303 hybrid baseline modular q7 p=239/47 attempt 1
+Command: /usr/bin/time -v python3 Diagnostics/Scripts/cf303_hybrid_baseline_modular_circuit.py --p 239/47 --output /tmp/cf303_hybrid_baseline_modular_p239d47.json
+
+All eight recurrence orders completed before the local merge failure:
+order -3 cross_nonzero=0 seconds=0.07086319604422897
+order -2 cross_nonzero=14 seconds=0.44375019893050194
+order -1 cross_nonzero=14 seconds=0.5955203119665384
+order 0 cross_nonzero=14 seconds=0.6033539860509336
+order 1 cross_nonzero=14 seconds=0.615142293041572
+order 2 cross_nonzero=14 seconds=0.6239007940748706
+order 3 cross_nonzero=14 seconds=0.5980505630141124
+order 4 cross_nonzero=14 seconds=0.6071843130048364
+
+Traceback tail:
+  File "Diagnostics/Scripts/cf303_hybrid_baseline_modular_circuit.py", line 1047, in recurrence_point
+    merged[order][row][0][0].add(block1_h[(order, row)], helper),
+AttributeError: 'tuple' object has no attribute 'add'
+
+Diagnosis: after the F_q2 refactor, the rational curve channel is an
+extension pair (base RF, omega RF).  The block-1 base-field H merge addressed
+the extension pair as though it were one RF.  No recurrence/basepoint result
+failed; the exception occurred only when adding the already accepted block-1
+H after all eight baseline orders.
+
+/usr/bin/time -v:
+User time (seconds): 39.00
+System time (seconds): 0.06
+Elapsed wall time: 0:38.78
+Maximum resident set size (kbytes): 128532
+Exit status: 1

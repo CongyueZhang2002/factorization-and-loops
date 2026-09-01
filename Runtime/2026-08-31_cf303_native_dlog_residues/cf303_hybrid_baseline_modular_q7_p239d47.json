@@ -1,0 +1,53 @@
+{
+  "status": "CF303HybridBaselineModularCircuitPointAcceptedV1",
+  "prime": 2305843009213693693,
+  "p": [
+    239,
+    47
+  ],
+  "path_value": 7,
+  "baseline_recurrence_comparisons": 688,
+  "baseline_basepoint_comparisons": 688,
+  "t25_h_scalar_channel_comparisons": 2408,
+  "t25_cross_k_scalar_channel_comparisons": 672,
+  "t25_scalar_channel_comparisons": 3080,
+  "nonzero_cross_k_vectors": 49,
+  "coefficient_field": "F_q2 with omega^2=2",
+  "rational_cross_reductions": 98,
+  "elliptic_cross_reductions": 0,
+  "cross_nonzero_by_order": {
+    "-3": 0,
+    "-2": 14,
+    "-1": 14,
+    "0": 14,
+    "1": 14,
+    "2": 14,
+    "3": 14,
+    "4": 14
+  },
+  "block1_outputs_merged": 16,
+  "primitive_nonzero_exact_leaves": 12,
+  "timings": {
+    "diagonal_specialization": 27.364014277933165,
+    "incoming_primitive_specialization": 6.058323555975221,
+    "physical_gauge_specialization": 0.007096298970282078,
+    "recurrence": 4.315036214073189,
+    "orders": {
+      "-3": 0.07560741889756173,
+      "-2": 0.4699072310468182,
+      "-1": 0.6371194699313492,
+      "0": 0.6594043659279123,
+      "1": 0.6191283121006563,
+      "2": 0.612978694960475,
+      "3": 0.606948961969465,
+      "4": 0.6335143919568509
+    },
+    "total": 38.77490331104491
+  },
+  "degree_summary": {
+    "maximum_h_numerator": 38,
+    "maximum_h_denominator": 37
+  },
+  "acceptance": "Every baseline recurrence and basepoint coordinate passed exactly in the split F_q/F_q2 image; merged H and every demanded new cross-Hermite K vector passed T25 at u=7.",
+  "peak_rss_kib": 128452
+}
