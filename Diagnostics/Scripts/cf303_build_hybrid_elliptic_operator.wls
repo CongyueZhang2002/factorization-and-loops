@@ -140,12 +140,13 @@ Do[
     "ProviderFile" -> layerFiles[layerNumber]|>],
   {layerNumber, requestedLayers}];
 
-(* The final block-25 incoming forms have epsilon valuation -2.  Therefore a
+(* The complete final block-25 incoming forms have epsilon valuation -3.
+   Therefore a
    complete target coefficient through order 2 can use a source coefficient,
-   including its empty-word boundary datum, through order 2-(-2)=4.  Raising
+   including its empty-word boundary datum, through order 2-(-3)=5.  Raising
    these lazy bounds adds selectors only; it does not enumerate words. *)
 finalTargetTop = 2;
-minimumIncomingOrder = -2;
+minimumIncomingOrder = -3;
 requiredSourceTop = finalTargetTop - minimumIncomingOrder;
 top = Max[#, requiredSourceTop] & /@ top;
 constantTop = Max[#, requiredSourceTop] & /@ constantTop;
