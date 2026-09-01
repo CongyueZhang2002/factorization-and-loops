@@ -11,4 +11,4 @@
 - [x] 🟢 Exact factor splitting yields 21 GPL letters and 99 sparse couplings; the package now consumes this provider directly and builds the exact 37-master lazy Chen operator in 0.010 s, avoiding a 1.89-billion-candidate eager order-5 expansion.
 - [x] 🟢 The 37 rational source masters now have an exact GPL solution through `eps^2`, including the source gauge, physical boundary embedding, path contract and a paper-facing ancillary.  Constant-residue factorization completes the full 111-job census in 208.998 s, versus an unfinished symbolic run after 1,800 s.
 - [x] 🟢 The GPL provider endpoint-name bug is fixed: `uTarget` is a legal Wolfram symbol, all 18 factor identities revalidate, and the final 21-letter artifact contains no pattern expressions.
-- [ ] The four algebraic extension blocks (15, 17, 21, and 25) still need quartic-kernel Hermite reduction and mixed GPL/eMPL word emission.
+- [ ] 🟡 The quartic reducer and terminating mixed GPL/eMPL integration-by-parts engine are now working.  One physical master-5 depth-two word is accepted with exact zero residual; blocks 15, 17, 21, and 25 still need full propagation and final `E4/Z4` export.
