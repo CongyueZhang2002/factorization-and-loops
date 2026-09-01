@@ -420,6 +420,7 @@ fprintf(fd,"status := %a:\n",finalStatus):
 fprintf(fd,"family := \"CF303\":\n"):
 fprintf(fd,"block := 25:\n"):
 fprintf(fd,"curve := %a:\n",curve):
+fprintf(fd,"variable := %a:\n",u):
 fprintf(fd,"basePoint := %a:\n",basePoint):
 fprintf(fd,"window := %a:\n",[windowLow,windowHigh]):
 fprintf(fd,"sourceRows := %a:\n",sourceRows):
@@ -445,6 +446,7 @@ wolframText := cat(
   "  \"Family\" -> \"CF303\",\n",
   "  \"Block\" -> 25,\n",
   "  \"Curve\" -> ",wlExpr(curve),",\n",
+  "  \"Variable\" -> ",wlExpr(u),",\n",
   "  \"BasePoint\" -> ",wlExpr(basePoint),",\n",
   "  \"Window\" -> ",wlExpr([windowLow,windowHigh]),",\n",
   "  \"SourceRows\" -> ",wlExpr(sourceRows),",\n",

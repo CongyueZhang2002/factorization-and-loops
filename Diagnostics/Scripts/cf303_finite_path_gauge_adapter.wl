@@ -98,29 +98,36 @@ cf303BuildPathGaugeSyntheticTransfer[originalTransfer_Association,
 
 (* HByOrder records use original master row labels.  Compile each H_n into
    its two sparse 2x43 coefficient matrices, preserving sourceRows order. *)
-cf303PathGaugeCompileH[pathGauge_Association] := Module[
+cf303PathGaugeCompileH[pathGauge_Association,
+    endpointVariable_: Automatic] := Module[
   {sourceRows = pathGauge["SourceRows"],
    targetRows = pathGauge["TargetRows"], sourceLocation, targetLocation,
-   dimensions, baseSheetRule, compileSide},
+   dimensions, nativeVariable, outputVariable, variableRule,
+   baseSheetRule, compileSide},
   sourceLocation = AssociationThread[sourceRows, Range[Length[sourceRows]]];
   targetLocation = AssociationThread[targetRows, Range[Length[targetRows]]];
   dimensions = {Length[targetRows], Length[sourceRows]};
+  nativeVariable = Lookup[pathGauge, "Variable", u];
+  outputVariable = Replace[endpointVariable, Automatic -> nativeVariable];
+  variableRule = nativeVariable -> outputVariable;
   (* Maple uses Y0 for the fixed sheet value at the base point when it
      normalizes H_n(base)=0.  Keep that constant explicit in the Wolfram
      result instead of leaking an otherwise undefined serializer symbol. *)
   baseSheetRule = Y0 -> CF303Y[pathGauge["BasePoint"]];
   compileSide[records_, side_] := SparseArray[
     ({Lookup[targetLocation, #[[1]]], Lookup[sourceLocation, #[[2]]]} ->
-        (#[[3, side]] /. baseSheetRule) &) /@ records, dimensions];
+        (#[[3, side]] /. baseSheetRule /. variableRule) &) /@ records,
+    dimensions];
   Association@Map[Function[orderRecord,
     orderRecord[[1]] -> {
       compileSide[orderRecord[[2]], 1],
       compileSide[orderRecord[[2]], 2]}], pathGauge["HByOrder"]]
 ];
 
-cf303PathGaugeCompilePhysicalGauge[physicalGauge_Association] :=
+cf303PathGaugeCompilePhysicalGauge[physicalGauge_Association,
+    nativeVariable_, outputVariable_] :=
   Association@Map[Function[orderRecord, With[
-    {matrix = orderRecord[[2]]},
+    {matrix = orderRecord[[2]] /. nativeVariable -> outputVariable},
     orderRecord[[1]] -> {
       SparseArray[matrix[[All, All, 1]]],
       SparseArray[matrix[[All, All, 2]]]}]],
@@ -149,8 +156,9 @@ cf303BuildFinitePathGaugeAdapter[sourceArtifact_Association,
   If[gOperator["Status"] =!=
       "CF303Final45LazyEllipticOperatorAcceptedV1",
     Return[gOperator]];
-  hByOrder = cf303PathGaugeCompileH[pathGauge];
-  physicalByOrder = cf303PathGaugeCompilePhysicalGauge[physicalGauge];
+  hByOrder = cf303PathGaugeCompileH[pathGauge, variable];
+  physicalByOrder = cf303PathGaugeCompilePhysicalGauge[physicalGauge,
+    Lookup[pathGauge, "Variable", u], variable];
   status = If[Sort[Keys[hByOrder]] === Range @@ pathGauge["Window"] &&
       Sort[Keys[physicalByOrder]] === physicalGauge["Orders"],
     "CF303FinitePathGaugeAdapterAcceptedV1",
@@ -168,7 +176,8 @@ cf303BuildFinitePathGaugeAdapter[sourceArtifact_Association,
     "HOrders" -> Sort[Keys[hByOrder]],
     "PhysicalGaugeByOrderPairs" -> physicalByOrder,
     "PhysicalGaugeOrders" -> Sort[Keys[physicalByOrder]],
-    "Curve" -> pathGauge["Curve"],
+    "Curve" -> (pathGauge["Curve"] /.
+      Lookup[pathGauge, "Variable", u] -> variable),
     "Variable" -> variable,
     "PairConvention" -> "{A,B} represents A+B CF303Y[u]",
     "CanonicalRelation" -> "F25=G25+H.L",
