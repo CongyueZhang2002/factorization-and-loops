@@ -2,9 +2,10 @@
 """Lift reduced CF303 exception data in epsilon at fixed (q,p).
 
 Nineteen independently resumable selected-sheet scalar images are produced.
-Up to four four-thread native requests are active, respecting a sixteen-core
-budget.  The first seventeen epsilon values construct each scalar coefficient;
-the final two are held out from interpolation and validate the lift.
+The bounded image pool may redistribute its sixteen cores between a full bulk
+wave and the final partial wave.  The first seventeen epsilon values construct
+each scalar coefficient; the final two are held out from interpolation and
+validate the lift.
 """
 
 from __future__ import annotations
@@ -127,12 +128,14 @@ def main() -> int:
     parser.add_argument("--u-heldout", type=int, default=4)
     parser.add_argument("--workers", type=int, choices=range(1, 17), default=2)
     parser.add_argument("--threads-per-request", type=int, default=4)
+    parser.add_argument("--adaptive-image-pool", action="store_true")
     parser.add_argument(
         "--output", type=Path,
         default=OUTPUT_ROOT / "cf303_block1_fixed_p_epsilon_lift.json",
     )
     args = parser.parse_args()
-    if args.workers * args.threads_per_request > 16:
+    core_budget = args.workers * args.threads_per_request
+    if core_budget > 16:
         raise ValueError("worker/thread allocation exceeds sixteen cores")
     if args.epsilon_count <= args.epsilon_heldout:
         raise ValueError("epsilon lift needs construction and held-out images")
@@ -147,11 +150,12 @@ def main() -> int:
     image_directory.mkdir(parents=True, exist_ok=True)
 
     started = time.perf_counter()
-    def evaluate(epsilon: int):
+    def evaluate(item: tuple[int, int]):
+        epsilon, threads = item
         result = run_image(
             block=args.block, prime=args.prime, p_value=args.p,
             epsilon=epsilon, train=args.u_train, heldout=args.u_heldout,
-            threads=args.threads_per_request, directory=image_directory,
+            threads=threads, directory=image_directory,
         )
         print(
             f"EPSILON {epsilon} cached={result['cached']} "
@@ -160,10 +164,25 @@ def main() -> int:
         )
         return epsilon, result
 
-    with concurrent.futures.ThreadPoolExecutor(
-        max_workers=args.workers
-    ) as executor:
-        images = dict(executor.map(evaluate, epsilon_values))
+    if args.adaptive_image_pool:
+        pending = list(epsilon_values)
+        batches: list[tuple[list[int], int]] = []
+        while len(pending) > core_budget:
+            batches.append((pending[:core_budget], 1))
+            pending = pending[core_budget:]
+        if pending:
+            batches.append((pending, min(4, core_budget // len(pending))))
+    else:
+        batches = [(epsilon_values, args.threads_per_request)]
+    images: dict[int, dict[str, Any]] = {}
+    for batch, threads in batches:
+        batch_workers = min(len(batch), core_budget // threads)
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=batch_workers
+        ) as executor:
+            images.update(executor.map(
+                evaluate, ((epsilon, threads) for epsilon in batch)
+            ))
     image_wall = time.perf_counter() - started
     records = {epsilon: images[epsilon]["record"] for epsilon in epsilon_values}
 
@@ -276,9 +295,8 @@ def main() -> int:
         "u_train": args.u_train, "u_heldout": args.u_heldout,
         "workers": args.workers,
         "threads_per_request": args.threads_per_request,
-        "maximum_active_native_threads": (
-            args.workers * args.threads_per_request
-        ),
+        "adaptive_image_pool": args.adaptive_image_pool,
+        "maximum_active_native_threads": core_budget,
         "channel_layouts": layouts,
         "stable_monic_denominators": stable_denominators,
         "lifted_coordinate_count": len(lifted_coordinates),

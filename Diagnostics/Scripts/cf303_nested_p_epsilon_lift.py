@@ -69,7 +69,7 @@ def acquire_fixed_p_lift(
     *, block: int, prime: int, p_value: Fraction,
     epsilon_start: int, epsilon_count: int, epsilon_heldout: int,
     u_train: int, u_heldout: int, workers: int, threads: int,
-    directory: Path,
+    adaptive_image_pool: bool, directory: Path,
 ) -> dict[str, Any]:
     target = directory / (
         f"block{block}_q{prime}_p{fraction_label(p_value)}.json"
@@ -94,6 +94,8 @@ def acquire_fixed_p_lift(
         "--workers", str(workers), "--threads-per-request", str(threads),
         "--output", str(target),
     ]
+    if adaptive_image_pool:
+        command.append("--adaptive-image-pool")
     started = time.perf_counter()
     process = subprocess.run(
         command, cwd=ROOT, capture_output=True, text=True, check=False,
@@ -184,6 +186,7 @@ def main() -> int:
     parser.add_argument("--u-heldout", type=int, default=4)
     parser.add_argument("--workers", type=int, choices=range(1, 17), default=2)
     parser.add_argument("--threads-per-request", type=int, default=4)
+    parser.add_argument("--adaptive-image-pool", action="store_true")
     parser.add_argument("--discovery-workers", type=int, choices=range(1, 9), default=8)
     parser.add_argument("--ffri-threads", type=int, choices=range(1, 9), default=8)
     parser.add_argument("--prepare-only-p-count", type=int)
@@ -242,6 +245,7 @@ def main() -> int:
             epsilon_heldout=args.epsilon_heldout,
             u_train=args.u_train, u_heldout=args.u_heldout,
             workers=args.workers, threads=args.threads_per_request,
+            adaptive_image_pool=args.adaptive_image_pool,
             directory=per_p_directory,
         )
         images[p_value] = result
@@ -444,6 +448,7 @@ def main() -> int:
         "lift_backend": lift_backend,
         "p_summaries": p_summaries,
         "maximum_active_native_threads": args.workers * args.threads_per_request,
+        "adaptive_image_pool": args.adaptive_image_pool,
         "timings": {
             "campaign_wall": time.perf_counter() - campaign_started,
             "cold_nested_image_estimate": cold_seconds,
