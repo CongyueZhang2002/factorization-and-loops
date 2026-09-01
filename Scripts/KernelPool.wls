@@ -25,7 +25,7 @@ poolDir = If[Length[args] >= 1, args[[1]],
   "/tmp/claude-1000/-home-maxzhang/97c0fce7-1578-4630-a481-38730c7f8b9d/scratchpad/kernelpool"];
 nWanted = If[Length[args] >= 2, ToExpression[args[[2]]], 8];
 preload = If[Length[args] >= 3, ToExpression[args[[3]]], True];
-root = "/home/maxzhang/factorization-and-loops";
+root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];
 
 sub[d_] := FileNameJoin[{poolDir, d}];
 Do[If[! DirectoryQ[sub[d]], CreateDirectory[sub[d], CreateIntermediateDirectories -> True]],
@@ -64,7 +64,8 @@ kernelSetup[ks_List] := If[ks =!= {}, ParallelEvaluate[(Off[OptionValue::optnf];
    Protect[Exit, Quit];), ks]];
 kernelPreload[ks_List] := If[ks =!= {} && TrueQ[preload],
    ParallelEvaluate[If[Names["FeynFacet`TransportFamily"] === {},
-     Quiet[Get["/home/maxzhang/factorization-and-loops/Addon/Load/LoadFACET.wl"], General::shdw]], ks]];
+     Quiet[Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}],
+       General::shdw]], ks]];
 kernelDefs[ks_List] := If[ks =!= {}, With[{f = poolRunFile}, ParallelEvaluate[Get[f], ks]]];
 kernelSetup[Kernels[]];
 If[TrueQ[preload],

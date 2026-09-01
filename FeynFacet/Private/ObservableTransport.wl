@@ -22,6 +22,8 @@ ClearAll[
   observableTransportIndependentRows,
   observableTransportMaximalIndependentRows,
   observableTransportMaximalIndependentExtensionRows,
+  observableTransportCovariantRows,
+  observableTransportCovariantRowsTask,
   observableTransportCovariantRowClosure,
   observableTransportRowBasis,
   observableTransportColumnBasis,
@@ -463,6 +465,55 @@ observableTransportMaximalIndependentExtensionRows[basis_, additions_,
     First@MaximalBy[candidates, Length]]
 ];
 
+observableTransportCovariantRowsTask[file_String, indices_List] := Module[
+  {data, basis, connection, variable},
+  data = taskBrokerRead[file];
+  If[! AssociationQ[data], Return[$Failed, Module]];
+  {basis, connection, variable} =
+    Lookup[data, {"Basis", "Connection", "Variable"}, $Failed];
+  If[! MatrixQ[basis] || ! MatrixQ[connection] ||
+      ! MatchQ[variable, _Symbol], Return[$Failed, Module]];
+  basis = Normal[basis[[indices]]];
+  D[basis, variable] + basis . Normal[connection]
+];
+
+(* A family mission cannot launch nested subkernels.  For a sufficiently
+   large closure step, lend its independent row batches to the free kernels
+   of the existing flat task broker; small steps retain the direct path. *)
+observableTransportCovariantRows[basis_, connection_, variable_Symbol] :=
+ Module[{normalBasis = Normal[basis], normalConnection = Normal[connection],
+   dimensions, rowCount, columnCount, helperCount, chunks, payloadFile,
+   codes, handle, results, local},
+  dimensions = Dimensions[normalBasis];
+  If[Length[dimensions] =!= 2, Return[$Failed, Module]];
+  {rowCount, columnCount} = dimensions;
+  local[indices_List] := D[normalBasis[[indices]], variable] +
+    normalBasis[[indices]] . normalConnection;
+  helperCount = If[TrueQ[taskBrokerActiveQ[]] &&
+      rowCount columnCount >= 4096,
+    Min[Quiet[Check[taskBrokerFreeKernels[], 0]],
+      Max[0, Quotient[rowCount, 8] - 1]], 0];
+  If[helperCount < 1, Return[local[Range[rowCount]], Module]];
+  chunks = Partition[Range[rowCount],
+    UpTo[Ceiling[rowCount/(helperCount + 1)]]];
+  payloadFile = taskBrokerDataFile[
+    "observable_covariant_" <> ToString[$ProcessID] <> "_" <>
+      StringReplace[CreateUUID[], "-" -> ""],
+    <|"Basis" -> normalBasis, "Connection" -> normalConnection,
+      "Variable" -> variable|>];
+  codes = ("FeynFacet`Private`observableTransportCovariantRowsTask[" <>
+      ToString[payloadFile, InputForm] <> "," <>
+      ToString[#, InputForm] <> "]") & /@ Most[chunks];
+  handle = taskBrokerSubmit[codes, "Label" -> "observableCovariant"];
+  results = Append[taskBrokerCollect[handle], local[Last[chunks]]];
+  results = MapThread[
+    If[MatrixQ[#1] && Dimensions[#1] === {Length[#2], columnCount},
+      #1, local[#2]] &,
+    {results, chunks}];
+  Quiet[DeleteFile[payloadFile]];
+  Join @@ results
+];
+
 (* Close a row space under D_variable + A without constructing its nullspace
    or reconstructing a rational change of row basis.  Every retained basis row
    is an actual generated row.  Rank samples propose the finite basis; fresh
@@ -525,8 +576,11 @@ observableTransportCovariantRowClosure[rows_, connection_, variable_,
   ];
   Do[
     currentRank = Length[basis];
-    covariant = D[Normal[basis], variable] +
-      Normal[basis] . Normal[connection];
+    covariant = observableTransportCovariantRows[
+      basis, connection, variable];
+    If[! MatrixQ[covariant],
+      Return[<|"Status" -> "CovariantClosureConstructionFailed",
+        "Step" -> step|>, Module]];
     candidate = Join[basis, covariant];
     nextPivots = observableTransportMaximalIndependentExtensionRows[
       basis, covariant, samples];
@@ -588,7 +642,8 @@ observableTransportColumnBasis[m_, rules_List] := Module[{basis},
 
 observableTransportKernel[m_] := Module[{dimension, vectors},
   dimension = If[MatrixQ[m], Dimensions[m][[2]], 0];
-  If[Length[m] === 0, Return[IdentityMatrix[dimension]]];
+  If[Length[m] === 0,
+    Return[If[dimension === 0, {}, IdentityMatrix[dimension]]]];
   vectors = NullSpace[m];
   If[vectors === {}, ConstantArray[0, {dimension, 0}], Transpose[vectors]]
 ];
@@ -596,7 +651,8 @@ observableTransportKernel[m_] := Module[{dimension, vectors},
 observableTransportBoundaryEmbedding[kernel_, boundarySlots_List,
     newBoundarySlots_List, extendedPositions_Association,
     extendedCount_Integer] := Module[{columns, rules},
-  columns = If[MatrixQ[kernel], Dimensions[kernel][[2]], 0];
+  columns = If[boundarySlots === {}, 0,
+    If[MatrixQ[kernel], Dimensions[kernel][[2]], 0]];
   rules = Reap[
     Do[
       With[{stateRow = extendedPositions[observableTransportSlotKey[
@@ -1080,7 +1136,8 @@ BuildObservableTransport[record_Association, demand_Association,
    secondClosureStabilizationMethod, secondRankSamples,
    tDemandLaurent, demandedRows, physicalLabels,
    physicalDemand, physicalOrder, component,
-   demandedMap, certifiedDLog, residueRecord, firstKernelRecord,
+   demandedMap, familyCertificate, certifiedDLog, residueRecord,
+   firstKernelRecord,
    liftedResidues,
    pathActiveLetters, firstKernelIndices, firstKernelMethod,
    maximumWeight, wordRecord, wordRepresentation, materializedWordLimit,
@@ -1395,14 +1452,13 @@ BuildObservableTransport[record_Association, demand_Association,
     secondClosureInitialSpanMethod = "NotRequired";
     secondClosureStabilizationCertificate = Missing["NotRequired"];
     secondClosureStabilizationMethod = "NotRequired";
-    boundaryKernel = If[constraintRank === 0,
-      IdentityMatrix[Length[boundarySlots]],
-      observableTransportKernel[constraintMatrix]];
-    If[! MatrixQ[boundaryKernel] ||
-        Dimensions[boundaryKernel][[1]] =!= Length[boundarySlots] ||
-        (! observableTransportZeroMatrixQ[constraintMatrix] &&
-          ! observableTransportZeroMatrixQ[
-            constraintMatrix . boundaryKernel]),
+    boundaryKernel = observableTransportKernel[constraintMatrix];
+    If[Length[boundarySlots] > 0 &&
+        (! MatrixQ[boundaryKernel] ||
+         Dimensions[boundaryKernel][[1]] =!= Length[boundarySlots] ||
+         (! observableTransportZeroMatrixQ[constraintMatrix] &&
+           ! observableTransportZeroMatrixQ[
+             constraintMatrix . boundaryKernel])),
       Return[<|"Status" -> "BoundaryKernelIdentityFailed"|>, Module]
     ];
     transportBoundary = observableTransportBoundaryEmbedding[
@@ -1498,7 +1554,13 @@ BuildObservableTransport[record_Association, demand_Association,
       "SlotCount" -> Length[extendedSlots]|>, Module]
   ];
 
-  certifiedDLog = Lookup[record, "DLog", <||>];
+  familyCertificate = Lookup[record, "EpsilonFormCertificate", <||>];
+  certifiedDLog = SelectFirst[
+    {Lookup[record, "DLog", <||>],
+     If[AssociationQ[familyCertificate] &&
+         TrueQ[Lookup[familyCertificate, "Exact", False]],
+       Lookup[familyCertificate, "DLog", <||>], <||>]},
+    AssociationQ[#] && TrueQ[Lookup[#, "Valid", False]] &, <||>];
   residueRecord = Which[
     coefficientField === "Multiquadratic", $Failed,
     AssociationQ[certifiedDLog] &&

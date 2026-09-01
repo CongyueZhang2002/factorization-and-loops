@@ -33,6 +33,7 @@ campaign_table="$output_root/campaign.tsv"
 status_directory="$output_root/.campaign-status"
 mkdir -p "$status_directory"
 export POOL="$pool_root"
+export FACET_TASK_BROKER="$pool_root"
 export FACET_KERNEL_COUNT=1
 export FACET_CPU_LIST="$cpu_list"
 
@@ -41,7 +42,7 @@ if ! { [[ -f "$pool_root/pool.pid" ]] &&
   rm -f "$pool_root/control/stop" "$pool_root/control/stopnow"
   taskset -c "$cpu_list" nohup env FACET_KERNEL_COUNT=1 \
     wolframscript -file "$repository_root/Scripts/KernelPool.wls" \
-    "$pool_root" "$kernel_count" False > "$pool_root/pool.log" 2>&1 &
+    "$pool_root" "$kernel_count" True > "$pool_root/pool.log" 2>&1 &
   ready=0
   for _ in $(seq 1 120); do
     if grep -q 'serving; queue=' "$pool_root/pool.log" 2>/dev/null; then
@@ -80,29 +81,34 @@ while IFS=$'\t' read -r raw_family raw_epsilon_form \
     "$status_directory/${family}.tsv"
 done < "$manifest"
 
-printf '[transport-pool] %s: one main + %s subkernels on CPUs %s; families %s\n' \
+max_families=$(( kernel_count > 2 ? kernel_count - 2 : 1 ))
+[[ -n "${FACET_MAX_FAMILIES:-}" ]] && max_families="$FACET_MAX_FAMILIES"
+if ! [[ "$max_families" =~ ^[1-9][0-9]*$ ]] ||
+    (( max_families > kernel_count )); then
+  printf 'FACET_MAX_FAMILIES must be between 1 and %d\n' "$kernel_count"
+  exit 64
+fi
+
+printf '[transport-pool] %s: one main + %s subkernels on CPUs %s; families %s; family slots %s; helper seats %s\n' \
   "$(date --iso-8601=seconds)" "$kernel_count" "$cpu_list" \
-  "${#families[@]}" | tee -a "$campaign_log"
+  "${#families[@]}" "$max_families" "$((kernel_count - max_families))" |
+  tee -a "$campaign_log"
 
-for index in "${!families[@]}"; do
-  IFS=$'\t' read -r epsilon_form differential_system valuations card \
-    <<< "${rows[$index]}"
-  arguments=("$epsilon_form" "$differential_system" "$valuations" \
-    "${outputs[$index]}")
-  [[ -n "${card:-}" ]] && arguments+=("$card")
-  "$repository_root/Scripts/kpsubmit.sh" "${missions[$index]}" \
-    "$repository_root/Scripts/family_observable_transport_pool_mission.wls" \
-    "${arguments[@]}" >/dev/null
-  ln -sfn "$pool_root/logs/${missions[$index]}.log" \
-    "$output_root/${families[$index]}.log"
-done
-
-printf 'family\tresult\texit_code\toutput\n' > "$campaign_table"
-incomplete=0
-for index in "${!families[@]}"; do
+run_family() {
+  local index="$1" family mission output epsilon_form differential_system
+  local valuations card code arguments
   family="${families[$index]}"
   mission="${missions[$index]}"
   output="${outputs[$index]}"
+  IFS=$'\t' read -r epsilon_form differential_system valuations card \
+    <<< "${rows[$index]}"
+  arguments=("$epsilon_form" "$differential_system" "$valuations" \
+    "$output")
+  [[ -n "${card:-}" ]] && arguments+=("$card")
+  "$repository_root/Scripts/kpsubmit.sh" "$mission" \
+    "$repository_root/Scripts/family_observable_transport_pool_mission.wls" \
+    "${arguments[@]}" >/dev/null
+  ln -sfn "$pool_root/logs/${mission}.log" "$output_root/${family}.log"
   wait_file="$output_root/${family}.pool-status"
   if "$repository_root/Scripts/kpwait.sh" "$mission" 86400 > \
       "$wait_file" 2>&1; then
@@ -112,11 +118,45 @@ for index in "${!families[@]}"; do
       "$family" "$(date --iso-8601=seconds)" | tee -a "$campaign_log"
   else
     code=$?
-    incomplete=$((incomplete + 1))
     printf '%s\tincomplete\t%d\t%s\n' "$family" "$code" "$output" > \
       "$status_directory/${family}.tsv"
     printf '[transport-pool] %s incomplete code %d %s\n' \
       "$family" "$code" "$(date --iso-8601=seconds)" | tee -a "$campaign_log"
+  fi
+}
+
+# Keep the easy-first manifest order, but reserve two pool seats for the
+# established task broker.  As the queue drains, every unoccupied family slot
+# automatically becomes another helper available to the remaining families.
+next_index=0
+running=""
+family_count="${#families[@]}"
+while true; do
+  live=""
+  active=0
+  for pid in $running; do
+    if kill -0 "$pid" 2>/dev/null; then
+      live="$live $pid"
+      active=$((active + 1))
+    fi
+  done
+  running="$live"
+  while (( active < max_families && next_index < family_count )); do
+    run_family "$next_index" &
+    running="$running $!"
+    next_index=$((next_index + 1))
+    active=$((active + 1))
+  done
+  (( active == 0 && next_index == family_count )) && break
+  /bin/sleep 1
+done
+
+printf 'family\tresult\texit_code\toutput\n' > "$campaign_table"
+incomplete=0
+for index in "${!families[@]}"; do
+  family="${families[$index]}"
+  if [[ "$(cut -f2 "$status_directory/${family}.tsv")" != "exact" ]]; then
+    incomplete=$((incomplete + 1))
   fi
   cat "$status_directory/${family}.tsv" >> "$campaign_table"
 done
