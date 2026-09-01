@@ -164,7 +164,6 @@ def validate_point(manifest, full, pilot, point: Fraction, deck_path: Path):
         "prime": Q7, "p": [point.numerator, point.denominator],
         "recurrence_identities": identity_count,
         "basepoint_identities": basepoint_count,
-        "elliptic_identities": 16,
         "maximum_h_u_degree": maximum_h_degree,
         "maximum_k_u_degree": maximum_k_degree,
     }
@@ -221,15 +220,19 @@ def main() -> int:
                    for point, deck in Q7_DECKS]
     validation_seconds = time.perf_counter() - started
     operator = {
-        "status": "CF303Hybrid90CircuitPathGaugeOperatorAcceptedV1",
+        "status": "CF303Hybrid90CompositeInputManifestV1",
         "family": "CF303", "master_count": 45,
         "target_rows": [44, 45], "entry_count": len(entries),
         "baseline_entry_count": 88, "block1_entry_count": 2,
         "incoming_orders": [-3, 4], "target_orders": [-4, 2],
-        "canonical_relation": "F25=G25+H.L",
-        "physical_relation": "I25=T25.F25",
+        "pending_canonical_relation": "F25=G25+H.L",
+        "pending_physical_relation": "I25=T25.F25",
         "boundary_convention": "H(u=1/2)=0",
-        "representation": "CompositeExactReferencesWithLazyArithmeticCircuitV1",
+        "representation": "CompositeExactInputReferencesWithBlock1CircuitV1",
+        "operator_status": (
+            "PROVISIONAL: the 88-entry baseline recurrence, lazy G/F merge, "
+            "and T25 physical convolution are not performed by this manifest."
+        ),
         "entries": entries,
         "block1_circuit": str(CIRCUIT),
         "block1_elliptic_source": str(ELLIPTIC),
@@ -241,7 +244,7 @@ def main() -> int:
             "elliptic": "E4Factor/E4Pole with Yc symbolic",
         },
         "validation": {
-            "status": "Accepted",
+            "status": "Block1OnlyAccepted",
             "q7_points": validations,
             "recurrence_window": [-3, 4],
             "exact_elliptic_profile_comparisons":
@@ -251,7 +254,7 @@ def main() -> int:
     JSON_OUTPUT.write_text(json.dumps(operator, indent=2) + "\n")
     WL_OUTPUT.write_text(f'Import["{JSON_OUTPUT}", "RawJSON"]\n')
     report = {
-        "status": "CF303Hybrid90CircuitPathGaugeValidationAcceptedV1",
+        "status": "CF303Hybrid90CompositeInputManifestValidatedV1",
         "operator": str(JSON_OUTPUT), "wolfram_wrapper": str(WL_OUTPUT),
         "entry_count": 90, "component_counts": {
             "base": 76, "exception2": 2, "exception11": 2,
@@ -264,13 +267,15 @@ def main() -> int:
         "basepoint_comparisons": sum(
             value["basepoint_identities"] for value in validations
         ),
-        "elliptic_recurrence_relations": sum(
-            value["elliptic_identities"] for value in validations
-        ),
+        "exact_elliptic_profile_comparisons":
+            elliptic["fresh_comparison_count"],
+        "baseline_recurrence_status": "NOT_RUN",
+        "lazy_gf_merge_status": "NOT_BUILT",
+        "physical_convolution_status": "NOT_APPLIED",
         "validation_seconds": validation_seconds,
         "claim": (
-            "The 90 entries are an executable composite of exact references. "
-            "The block-1 lazy circuit passes the complete -3..4 recurrence "
+            "This is a 90-entry composite input manifest, not a final operator. "
+            "Only the block-1 lazy circuit passes the complete -3..4 recurrence "
             "and basepoint identities at two fresh q7 p points."
         ),
     }

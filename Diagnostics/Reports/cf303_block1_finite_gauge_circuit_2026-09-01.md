@@ -79,15 +79,17 @@ production acceptance.
 
 ## Hybrid operator assembly
 
-`cf303_build_hybrid_circuit_operator.py` composes the 76-entry transfer, the
-accepted reduced census artifacts for exception blocks 2/11/14/18
-(2+2+4+4 entries), and the two block-1 circuit entries into an executable
-90-entry composite operator.  It emits JSON plus a small Wolfram import
-wrapper; coefficients remain lazy circuit references.
+`cf303_build_hybrid_circuit_operator.py` composes references to the 76-entry
+transfer, the accepted reduced census artifacts for exception blocks
+2/11/14/18 (2+2+4+4 entries), and the two block-1 circuit entries into a
+provisional 90-entry input manifest.  It is not yet a path-gauge or physical
+operator: the 88-entry baseline recurrence, lazy `G/F` merge, and `T25`
+convolution are deliberately reported as not run/not built/not applied.
 
 At q7 and both `p=3` and `p=239/47`, the full -3..4 block-1 deck passes 32/32
-rational recurrence identities, 32/32 basepoint identities, and 32 elliptic
-relations.  The assembled artifacts are:
+rational recurrence identities and 32/32 basepoint identities.  Separately,
+the exact elliptic-source profiles pass 476/476 coefficient comparisons.  The
+provisional manifest artifacts are:
 
 - `Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid90_circuit_path_gauge_operator.json`
 - `Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid90_circuit_path_gauge_operator.wl`

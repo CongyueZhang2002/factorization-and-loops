@@ -1,0 +1,46 @@
+{
+  "status": "CF303Hybrid90CompositeInputManifestValidatedV1",
+  "operator": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid90_circuit_path_gauge_operator.json",
+  "wolfram_wrapper": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid90_circuit_path_gauge_operator.wl",
+  "entry_count": 90,
+  "component_counts": {
+    "base": 76,
+    "exception2": 2,
+    "exception11": 2,
+    "exception14": 4,
+    "exception18": 4,
+    "block1": 2
+  },
+  "q7": [
+    {
+      "prime": 2305843009213693693,
+      "p": [
+        3,
+        1
+      ],
+      "recurrence_identities": 16,
+      "basepoint_identities": 16,
+      "maximum_h_u_degree": 40,
+      "maximum_k_u_degree": 23
+    },
+    {
+      "prime": 2305843009213693693,
+      "p": [
+        239,
+        47
+      ],
+      "recurrence_identities": 16,
+      "basepoint_identities": 16,
+      "maximum_h_u_degree": 40,
+      "maximum_k_u_degree": 23
+    }
+  ],
+  "rational_recurrence_comparisons": 32,
+  "basepoint_comparisons": 32,
+  "exact_elliptic_profile_comparisons": 476,
+  "baseline_recurrence_status": "NOT_RUN",
+  "lazy_gf_merge_status": "NOT_BUILT",
+  "physical_convolution_status": "NOT_APPLIED",
+  "validation_seconds": 7.107821579906158,
+  "claim": "This is a 90-entry composite input manifest, not a final operator. Only the block-1 lazy circuit passes the complete -3..4 recurrence and basepoint identities at two fresh q7 p points."
+}
