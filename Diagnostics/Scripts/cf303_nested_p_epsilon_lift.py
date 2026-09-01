@@ -2,8 +2,8 @@
 """Resumable nested (p, epsilon) lift of reduced CF303 block-1 data.
 
 For each generic p value, the existing fixed-p epsilon lift produces 17
-construction plus two held-out epsilon images under the same bounded 2x4
-native pool.  The resulting monic epsilon profiles and stable u-denominators
+construction plus two held-out epsilon images under the same bounded worker
+pool.  The resulting monic epsilon profiles and stable u-denominators
 are flattened and lifted in p.  The first prime discovers p degrees once with
 the simple reference interpolator; later primes reuse those degree pairs in a
 single FFRI1 fixed-profile request with complete held-out p images.
@@ -182,7 +182,7 @@ def main() -> int:
     parser.add_argument("--epsilon-heldout", type=int, default=2)
     parser.add_argument("--u-train", type=int, default=125)
     parser.add_argument("--u-heldout", type=int, default=4)
-    parser.add_argument("--workers", type=int, choices=(1, 2), default=2)
+    parser.add_argument("--workers", type=int, choices=range(1, 5), default=2)
     parser.add_argument("--threads-per-request", type=int, default=4)
     parser.add_argument("--discovery-workers", type=int, choices=range(1, 9), default=8)
     parser.add_argument("--ffri-threads", type=int, choices=range(1, 9), default=8)
@@ -192,8 +192,8 @@ def main() -> int:
         default=OUTPUT_ROOT / "cf303_block1_nested_p_epsilon_lift.json",
     )
     args = parser.parse_args()
-    if args.workers * args.threads_per_request > 8:
-        raise ValueError("native worker allocation exceeds eight cores")
+    if args.workers * args.threads_per_request > 16:
+        raise ValueError("native worker allocation exceeds sixteen cores")
     if args.prepare_only_p_count is not None and args.prepare_only_p_count < 1:
         raise ValueError("prepare-only p count must be positive")
 

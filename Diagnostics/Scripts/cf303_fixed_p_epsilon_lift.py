@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Lift reduced CF303 exception data in epsilon at fixed (q,p).
 
-Fifteen independently resumable selected-sheet scalar images are produced.
-At most two four-thread native requests are active, respecting an eight-core
-budget.  The first thirteen epsilon values construct each scalar coefficient;
+Nineteen independently resumable selected-sheet scalar images are produced.
+Up to four four-thread native requests are active, respecting a sixteen-core
+budget.  The first seventeen epsilon values construct each scalar coefficient;
 the final two are held out from interpolation and validate the lift.
 """
 
@@ -125,15 +125,15 @@ def main() -> int:
     parser.add_argument("--epsilon-heldout", type=int, default=2)
     parser.add_argument("--u-train", type=int, default=125)
     parser.add_argument("--u-heldout", type=int, default=4)
-    parser.add_argument("--workers", type=int, choices=(1, 2), default=2)
+    parser.add_argument("--workers", type=int, choices=range(1, 5), default=2)
     parser.add_argument("--threads-per-request", type=int, default=4)
     parser.add_argument(
         "--output", type=Path,
         default=OUTPUT_ROOT / "cf303_block1_fixed_p_epsilon_lift.json",
     )
     args = parser.parse_args()
-    if args.workers * args.threads_per_request > 8:
-        raise ValueError("worker/thread allocation exceeds eight cores")
+    if args.workers * args.threads_per_request > 16:
+        raise ValueError("worker/thread allocation exceeds sixteen cores")
     if args.epsilon_count <= args.epsilon_heldout:
         raise ValueError("epsilon lift needs construction and held-out images")
     epsilon_values = list(
