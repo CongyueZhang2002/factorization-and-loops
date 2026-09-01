@@ -20,6 +20,8 @@ ClearAll[
   observableTransportEpsilonOrder,
   observableTransportLaurentMatrices,
   observableTransportIndependentRows,
+  observableTransportIndependentRowsTask,
+  observableTransportIndependentRowsAtSamples,
   observableTransportMaximalIndependentRows,
   observableTransportMaximalIndependentExtensionRows,
   observableTransportCovariantRows,
@@ -440,10 +442,50 @@ observableTransportIndependentRows[m_, rules_List] := Module[
   DeleteDuplicates[pivots]
 ];
 
+observableTransportIndependentRowsTask[file_String, indices_List] := Module[
+  {data},
+  data = taskBrokerRead[file];
+  If[! AssociationQ[data], Return[$Failed, Module]];
+  observableTransportIndependentRows[data["Matrix"],
+      data["Samples"][[#]]] & /@ indices
+];
+
+(* Rank samples are independent but each can be memory-heavy.  Borrow one
+   helper per family here; later row-slice phases may safely use the full
+   family grant. *)
+observableTransportIndependentRowsAtSamples[m_, samples_List] := Module[
+  {dimensions, helperCount, chunks, payloadFile, codes, handle, results,
+   local},
+  dimensions = Quiet[Check[Dimensions[m], {}]];
+  local[indices_List] :=
+    (observableTransportIndependentRows[m, samples[[#]]] &) /@ indices;
+  helperCount = If[Length[samples] > 1 && Length[dimensions] === 2 &&
+      Times @@ dimensions >= 4096 && TrueQ[taskBrokerActiveQ[]],
+    Min[Quiet[Check[taskBrokerFreeKernels[], 0]], 1], 0];
+  If[helperCount < 1,
+    Return[local[Range[Length[samples]]], Module]];
+  chunks = Partition[Range[Length[samples]],
+    UpTo[Ceiling[Length[samples]/(helperCount + 1)]]];
+  payloadFile = taskBrokerDataFile[
+    "observable_rank_" <> ToString[$ProcessID] <> "_" <>
+      StringReplace[CreateUUID[], "-" -> ""],
+    <|"Matrix" -> m, "Samples" -> samples|>];
+  codes = ("FeynFacet`Private`observableTransportIndependentRowsTask[" <>
+      ToString[payloadFile, InputForm] <> "," <>
+      ToString[#, InputForm] <> "]") & /@ Most[chunks];
+  handle = taskBrokerSubmit[codes, "Label" -> "observableRank"];
+  results = Append[taskBrokerCollect[handle], local[Last[chunks]]];
+  results = MapThread[
+    If[ListQ[#1] && Length[#1] === Length[#2], #1, local[#2]] &,
+    {results, chunks}];
+  Quiet[DeleteFile[payloadFile]];
+  Flatten[results, 1]
+];
+
 observableTransportMaximalIndependentRows[m_, samples_List] := Module[
   {candidates},
   candidates = DeleteCases[
-    observableTransportIndependentRows[m, #] & /@ samples, $Failed];
+    observableTransportIndependentRowsAtSamples[m, samples], $Failed];
   If[candidates === {}, $Failed,
     First@MaximalBy[candidates, Length]]
 ];
@@ -452,15 +494,13 @@ observableTransportMaximalIndependentRows[m_, samples_List] := Module[
    for a sample-dependent pivot.  Losing a prefix row here can silently lose
    an original forbidden constraint at an exceptional rank sample. *)
 observableTransportMaximalIndependentExtensionRows[basis_, additions_,
-    samples_List] := Module[{prefixLength, candidate, candidates},
+    samples_List] := Module[{prefixLength, candidate, candidates, pivots},
   prefixLength = Length[basis];
   candidate = Join[basis, additions];
-  candidates = DeleteCases[Table[
-    With[{pivots = observableTransportIndependentRows[candidate, rules]},
-      If[pivots === $Failed ||
-          ! AllTrue[Range[prefixLength], MemberQ[pivots, #] &],
-        Nothing, pivots]],
-    {rules, samples}], Nothing];
+  pivots = observableTransportIndependentRowsAtSamples[candidate, samples];
+  candidates = Select[pivots, Function[value,
+    value =!= $Failed &&
+      AllTrue[Range[prefixLength], MemberQ[value, #] &]]];
   If[candidates === {}, $Failed,
     First@MaximalBy[candidates, Length]]
 ];
