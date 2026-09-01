@@ -76,3 +76,19 @@ python3 Diagnostics/Scripts/cf303_block1_full_exact_circuit.py
 
 No package source was modified and no symbolic Wolfram equality was used for
 production acceptance.
+
+## Hybrid operator assembly
+
+`cf303_build_hybrid_circuit_operator.py` composes the 76-entry transfer, the
+accepted reduced census artifacts for exception blocks 2/11/14/18
+(2+2+4+4 entries), and the two block-1 circuit entries into an executable
+90-entry composite operator.  It emits JSON plus a small Wolfram import
+wrapper; coefficients remain lazy circuit references.
+
+At q7 and both `p=3` and `p=239/47`, the full -3..4 block-1 deck passes 32/32
+rational recurrence identities, 32/32 basepoint identities, and 32 elliptic
+relations.  The assembled artifacts are:
+
+- `Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid90_circuit_path_gauge_operator.json`
+- `Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid90_circuit_path_gauge_operator.wl`
+- `Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid90_circuit_path_gauge_validation.json`
