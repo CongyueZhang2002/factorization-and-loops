@@ -65,6 +65,28 @@ SPECS = {
         1,
         (2, 2, 1),
     ),
+    11: BlockSpec(
+        11,
+        ROOT / (
+            "Runtime/CF303_exception14_continuation_2026-08-30/"
+            "sector_CF303_standard/CF303_25_11_input.wl"
+        ),
+        (DELTA2, DELTA1),
+        (1, 0),
+        1,
+        (2, 2, 1),
+    ),
+    14: BlockSpec(
+        14,
+        ROOT / (
+            "Runtime/2026-08-31_cf303_25_14_schema_current/"
+            "sector_CF303_standard/CF303_25_14_input.wl"
+        ),
+        (DELTA1, DELTA2, DELTA3),
+        (0, 1, 2),
+        0,
+        (2, 2, 2),
+    ),
 }
 
 
@@ -342,7 +364,7 @@ def evaluate_sheet_pair(native, helper, spec: BlockSpec, prime: int, p_value: Fr
             with cache_file.open("rb") as stream:
                 cached = pickle.load(stream)
             if (
-                cached.get("status") == "CF303AlgebraicSheetPairCacheV1"
+                cached.get("status") == "CF303AlgebraicSheetPairCacheV2"
                 and cached.get("source") == str(spec.source)
                 and cached.get("source_size") == spec.source.stat().st_size
             ):
@@ -390,10 +412,7 @@ def evaluate_sheet_pair(native, helper, spec: BlockSpec, prime: int, p_value: Fr
     inverse_two = pow(2, -1, prime)
     plus_data, plus_records = records_by_sign[1]
     minus_data, minus_records = records_by_sign[-1]
-    p_image = helper.direct_u_path_data(
-        native, prime, 1, p_value, center, residual_root=False
-    )  # only used to bind the same modular p through a harmless path object
-    del p_image
+    residual_path_index = spec.path_root_indices[spec.residual_request_index]
     p_mod = p_value.numerator % prime * pow(p_value.denominator % prime, -1, prime) % prime
     u_jet = [center.numerator % prime * pow(center.denominator % prime, -1, prime) % prime,
              1] + [0] * (order - 1)
@@ -403,32 +422,45 @@ def evaluate_sheet_pair(native, helper, spec: BlockSpec, prime: int, p_value: Fr
         prime,
     )
     elliptic_scale = native.jet_mul(
-        dcurve, plus_data.deltas[0][:order], prime, order
+        dcurve, plus_data.deltas[residual_path_index][:order], prime, order
     )
     channels = {}
     for row in range(1, spec.dimensions[1] + 1):
-        plus = native.jet_add(
-            native.jet_mul(plus_data.dx, plus_records[(1, row, 1)], prime, order),
-            native.jet_mul(plus_data.dy, plus_records[(2, row, 1)], prime, order),
-            prime,
-        )
-        minus = native.jet_add(
-            native.jet_mul(minus_data.dx, minus_records[(1, row, 1)], prime, order),
-            native.jet_mul(minus_data.dy, minus_records[(2, row, 1)], prime, order),
-            prime,
-        )
-        even = [(left + right) * inverse_two % prime for left, right in zip(plus, minus)]
-        odd_times_rho = [
-            (left - right) * inverse_two % prime for left, right in zip(plus, minus)
-        ]
-        odd_coefficient = native.jet_mul(
-            odd_times_rho,
-            native.jet_inv(plus_data.roots[0][:order], prime),
-            prime, order,
-        )
-        elliptic = native.jet_mul(odd_coefficient, elliptic_scale, prime, order)
-        channels[(row, "rational")] = even
-        channels[(row, "elliptic")] = elliptic
+        for column in range(1, spec.dimensions[2] + 1):
+            plus = native.jet_add(
+                native.jet_mul(plus_data.dx,
+                               plus_records[(1, row, column)], prime, order),
+                native.jet_mul(plus_data.dy,
+                               plus_records[(2, row, column)], prime, order),
+                prime,
+            )
+            minus = native.jet_add(
+                native.jet_mul(minus_data.dx,
+                               minus_records[(1, row, column)], prime, order),
+                native.jet_mul(minus_data.dy,
+                               minus_records[(2, row, column)], prime, order),
+                prime,
+            )
+            even = [
+                (left + right) * inverse_two % prime
+                for left, right in zip(plus, minus)
+            ]
+            odd_times_rho = [
+                (left - right) * inverse_two % prime
+                for left, right in zip(plus, minus)
+            ]
+            odd_coefficient = native.jet_mul(
+                odd_times_rho,
+                native.jet_inv(
+                    plus_data.roots[residual_path_index][:order], prime
+                ),
+                prime, order,
+            )
+            elliptic = native.jet_mul(
+                odd_coefficient, elliptic_scale, prime, order
+            )
+            channels[(row, column, "rational")] = even
+            channels[(row, column, "elliptic")] = elliptic
     result = {
         "channels": channels,
         "headers": headers,
@@ -440,7 +472,7 @@ def evaluate_sheet_pair(native, helper, spec: BlockSpec, prime: int, p_value: Fr
         with temporary.open("wb") as stream:
             pickle.dump(
                 {
-                    "status": "CF303AlgebraicSheetPairCacheV1",
+                    "status": "CF303AlgebraicSheetPairCacheV2",
                     "source": str(spec.source),
                     "source_size": spec.source.stat().st_size,
                     "result": result,
@@ -584,12 +616,16 @@ def main() -> int:
         reconstruction_error = None
         try:
             for row in range(1, spec.dimensions[1] + 1):
-                for channel in ("rational", "elliptic"):
-                    candidate[(row, channel)] = helper.reconstruct_multicenter(
-                        [(center, full_results[center][(row, channel)])
-                        for center in construction_centers],
-                        numerator_cap, denominator_cap, args.prime,
-                    )
+                for column in range(1, spec.dimensions[2] + 1):
+                    for channel in ("rational", "elliptic"):
+                        candidate[(row, column, channel)] = (
+                            helper.reconstruct_multicenter(
+                                [(center, full_results[center][
+                                    (row, column, channel)])
+                                 for center in construction_centers],
+                                numerator_cap, denominator_cap, args.prime,
+                            )
+                        )
         except ArithmeticError as error:
             reconstruction_error = str(error)
         reconstruction_seconds += time.perf_counter() - started
@@ -636,7 +672,7 @@ def main() -> int:
         validations = {}
         if reconstruction_error is None:
             for key, profile in candidate.items():
-                validations[f"{key[0]},{key[1]}"] = helper.validates_at_center(
+                validations[f"{key[0]},{key[1]},{key[2]}"] = helper.validates_at_center(
                     profile["numerator"], profile["denominator"],
                     validation_center, validation_channels[key], args.prime,
                 )
@@ -680,7 +716,7 @@ def main() -> int:
     reduction_started = time.perf_counter()
     reductions = {}
     for key, profile in reconstructed.items():
-        if key[1] == "rational":
+        if key[2] == "rational":
             reduction = helper.rational_hermite(
                 profile["numerator"], profile["denominator"], args.prime
             )
@@ -691,7 +727,7 @@ def main() -> int:
             )
         if not reduction["verified"]:
             raise RuntimeError(f"Hermite identity failed for {key}")
-        reductions[f"{key[0]},{key[1]}"] = {
+        reductions[f"{key[0]},{key[1]},{key[2]}"] = {
             "profile": {
                 name: value for name, value in profile.items()
                 if name not in {"numerator", "denominator"}

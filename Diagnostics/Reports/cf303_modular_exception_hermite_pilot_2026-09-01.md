@@ -101,3 +101,27 @@ The next backend improvement is batching several epsilon images in one DAPJ
 request.  DAPJ parallelizes over epsilon images; one-epsilon jobs correctly use
 one native thread, while independent center/sheet jobs are distributed over a
 bounded worker pool.  No symbolic fallback is required.
+
+## Scalar sampler supersedes the jet sampler
+
+The final pilot replaces the quadratic-cost path jets by a single packed
+scalar batch.  For block 1, 128 construction points and 8 held-out points are
+sent through `deferred_ast_selected_eval`; the residual plus/minus sheets are
+the only supplied images.  Rational interpolation recovers the same four
+functions and then calls the unchanged modular Hermite reducers.
+
+- selected physical images: `272`
+- native wall: `1.518 s` on four bounded worker threads
+- rational interpolation: `0.193 s`
+- rational plus elliptic Hermite: `0.047 s`
+- full external wall: `1.81 s`
+- peak RSS: `33.9 MB`
+- all four reductions exactly equal the accepted jet-pilot coefficient arrays
+- all-sheet DAGO reference: `5.251 s` native, with six of eight grades unused
+- optimized parallel jet estimate: `28.82 s`
+
+The selected scalar sampler is therefore the production default.  It is about
+sixteen times faster than the already optimized parallel jet plan, around
+sixty-two times faster than the serial jet work, and more than three orders of
+magnitude faster than the observed symbolic block-1 compile.  The jet route is
+retained only as an independent reference for new curve models.
