@@ -35,6 +35,7 @@ extern "C" __global__ __launch_bounds__(128) void ff31_eval(
     const uint32_t *__restrict__ offsets,
     const uint32_t *__restrict__ ops,
     const uint32_t *__restrict__ args,
+    const uint32_t *__restrict__ constants,
     const uint32_t *__restrict__ inputs,
     uint32_t *__restrict__ output,
     uint32_t *__restrict__ status,
@@ -53,7 +54,8 @@ extern "C" __global__ __launch_bounds__(128) void ff31_eval(
         uint32_t op = ops[pc], arg = args[pc];
         if (op == CONST || op == INPUT) {
             if (sp == 32) { atomicOr(status, 2U); return; }
-            stack[sp++] = op == CONST ? arg : inputs[arg * image_count + image];
+            stack[sp++] = op == CONST ? constants[arg]
+                                      : inputs[arg * image_count + image];
             continue;
         }
         if (!sp) { atomicOr(status, 2U); return; }
@@ -73,7 +75,34 @@ extern "C" __global__ __launch_bounds__(128) void ff31_eval(
         }
     }
     if (sp != 1) { atomicOr(status, 2U); return; }
-    output[linear] = stack[0];
+    output[program * image_count + image] = stack[0];
+}
+
+extern "C" __global__ __launch_bounds__(128) void ff31_assemble(
+    const uint32_t *__restrict__ record_offsets,
+    const uint32_t *__restrict__ term_offsets,
+    const uint32_t *__restrict__ factors,
+    const uint32_t *__restrict__ expressions,
+    uint32_t *__restrict__ output,
+    uint32_t record_count,
+    uint32_t image_count,
+    uint32_t prime,
+    uint32_t nprime) {
+    uint32_t linear = blockIdx.x * blockDim.x + threadIdx.x;
+    if (linear >= record_count * image_count) return;
+    uint32_t record = linear / image_count;
+    uint32_t image = linear % image_count;
+    uint32_t total = 0;
+    for (uint32_t term = record_offsets[record];
+         term < record_offsets[record + 1]; ++term) {
+        uint32_t first = term_offsets[term];
+        uint32_t product = expressions[factors[first] * image_count + image];
+        for (uint32_t factor = first + 1; factor < term_offsets[term + 1]; ++factor)
+            product = mont(product,
+                expressions[factors[factor] * image_count + image], prime, nprime);
+        total = addm(total, product, prime);
+    }
+    output[linear] = total;
 }
 
 extern "C" __global__ __launch_bounds__(128) void ff31_channels(

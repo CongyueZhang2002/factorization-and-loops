@@ -7,7 +7,7 @@ import tempfile
 
 from deferred_gpu import (
     Request, authenticate_roots, canonical_channels, compile_preparation, cpu_program,
-    gpu_evaluate, nprime32, parse_request,
+    gpu_evaluate, mont_mul, nprime32, parse_request,
 )
 
 
@@ -73,12 +73,35 @@ def synthetic_batch() -> None:
         programs = compile_preparation(input_path, request)
     p, np, rmod = request.prime, nprime32(request.prime), (1 << 32) % request.prime
     mont_inputs = [[value * rmod % p for value in channel] for channel in request.inputs]
-    raw = array("I")
+    mont_constants = [value % p * rmod % p for value in programs.constants]
+    expression_values = array("I")
     instructions = list(zip(programs.ops, programs.args))
-    for program in range(len(programs.targets)):
+    for program in range(programs.unique_expression_count):
         code = instructions[programs.offsets[program]:programs.offsets[program + 1]]
         for image in range(request.image_count):
-            raw.append(cpu_program(code, mont_inputs, image, p, np, rmod))
+            expression_values.append(
+                cpu_program(code, mont_inputs, image, p, np, rmod, mont_constants)
+            )
+    raw = array("I")
+    for record in range(len(programs.targets)):
+        for image in range(request.image_count):
+            total = 0
+            for term in range(programs.record_offsets[record],
+                              programs.record_offsets[record + 1]):
+                first = programs.term_offsets[term]
+                product = expression_values[
+                    programs.factors[first] * request.image_count + image
+                ]
+                for factor in range(first + 1, programs.term_offsets[term + 1]):
+                    product = mont_mul(
+                        product,
+                        expression_values[
+                            programs.factors[factor] * request.image_count + image
+                        ],
+                        p, np,
+                    )
+                total = (total + product) % p
+            raw.append(total)
     cpu = [value for row in canonical_channels(raw, request) for value in row]
     gpu, timings = gpu_evaluate(request, programs, 2048)
     if gpu.tolist() != cpu:

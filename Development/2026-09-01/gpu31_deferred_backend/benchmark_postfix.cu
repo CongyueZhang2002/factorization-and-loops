@@ -30,6 +30,7 @@ static uint32_t host_power(uint32_t a, uint32_t exponent) {
 }
 
 static void host_eval_batch(const uint32_t *ops, const uint32_t *args,
+                            const uint32_t *constants,
                             uint32_t begin, uint32_t end,
                             const uint32_t *inputs, uint32_t image_count,
                             uint32_t *output, uint32_t *stack,
@@ -39,7 +40,7 @@ static void host_eval_batch(const uint32_t *ops, const uint32_t *args,
         uint32_t op = ops[pc], arg = args[pc];
         if (op == CONST) {
             uint32_t *slot = stack + sp++ * image_count;
-            for (uint32_t i = 0; i < image_count; ++i) slot[i] = arg;
+            for (uint32_t i = 0; i < image_count; ++i) slot[i] = constants[arg];
         } else if (op == INPUT) {
             std::memcpy(stack + sp++ * image_count, inputs + arg * image_count,
                         4 * image_count);
@@ -87,15 +88,19 @@ int main(int argc, char **argv) {
     uint32_t rounds = argc > 3 ? std::strtoul(argv[3], nullptr, 10) : 4;
     if (!programs || !images || !rounds || uint64_t(programs) * images > 2000000)
         return 3;
-    std::vector<uint32_t> offsets(1, 0), ops, args, inputs(6ULL * images);
+    std::vector<uint32_t> offsets(1, 0), ops, args, constants,
+                          inputs(6ULL * images);
     auto emit = [&](uint32_t op, uint32_t arg = 0) { ops.push_back(op); args.push_back(arg); };
+    auto emit_const = [&](uint32_t value) {
+        emit(CONST, constants.size()); constants.push_back(value);
+    };
     for (uint32_t program = 0; program < programs; ++program) {
-        emit(INPUT, 0); emit(CONST, uint64_t(program + 1) * R31 % P31); emit(ADD);
+        emit(INPUT, 0); emit_const(uint64_t(program + 1) * R31 % P31); emit(ADD);
         for (uint32_t r = 0; r < rounds; ++r) {
             emit(INPUT, 1); emit(MUL); emit(INPUT, 2); emit(ADD);
             emit(POW, 2 + r % 4);
             emit(INPUT, 3 + r % 3); emit(INV); emit(MUL);
-            emit(CONST, uint64_t(17 + program + r) * R31 % P31); emit(ADD);
+            emit_const(uint64_t(17 + program + r) * R31 % P31); emit(ADD);
         }
         offsets.push_back(ops.size());
     }
@@ -111,7 +116,7 @@ int main(int argc, char **argv) {
     std::vector<uint32_t> cpu_stack(32ULL * images), prefix(images);
     auto cpu0 = std::chrono::steady_clock::now();
     for (uint32_t program = 0; program < programs; ++program)
-        host_eval_batch(ops.data(), args.data(), offsets[program],
+        host_eval_batch(ops.data(), args.data(), constants.data(), offsets[program],
                         offsets[program + 1], inputs.data(), images,
                         expected.data() + program * images,
                         cpu_stack.data(), prefix.data());
@@ -120,24 +125,27 @@ int main(int argc, char **argv) {
     auto init0 = std::chrono::steady_clock::now();
     check(cudaFree(nullptr), "CUDA context");
     auto init1 = std::chrono::steady_clock::now();
-    uint32_t *d_offsets, *d_ops, *d_args, *d_inputs, *d_output, *d_status;
+    uint32_t *d_offsets, *d_ops, *d_args, *d_constants, *d_inputs, *d_output,
+             *d_status;
     auto gpu0 = std::chrono::steady_clock::now();
     check(cudaMalloc(&d_offsets, 4 * offsets.size()), "offset allocation");
     check(cudaMalloc(&d_ops, 4 * ops.size()), "op allocation");
     check(cudaMalloc(&d_args, 4 * args.size()), "arg allocation");
+    check(cudaMalloc(&d_constants, 4 * constants.size()), "constant allocation");
     check(cudaMalloc(&d_inputs, 4 * inputs.size()), "input allocation");
     check(cudaMalloc(&d_output, 4 * count), "output allocation");
     check(cudaMalloc(&d_status, 4), "status allocation");
     check(cudaMemcpy(d_offsets, offsets.data(), 4 * offsets.size(), cudaMemcpyHostToDevice), "offset copy");
     check(cudaMemcpy(d_ops, ops.data(), 4 * ops.size(), cudaMemcpyHostToDevice), "op copy");
     check(cudaMemcpy(d_args, args.data(), 4 * args.size(), cudaMemcpyHostToDevice), "arg copy");
+    check(cudaMemcpy(d_constants, constants.data(), 4 * constants.size(), cudaMemcpyHostToDevice), "constant copy");
     check(cudaMemcpy(d_inputs, inputs.data(), 4 * inputs.size(), cudaMemcpyHostToDevice), "input copy");
     check(cudaMemset(d_status, 0, 4), "status clear");
     cudaEvent_t start, stop;
     check(cudaEventCreate(&start), "event create"); check(cudaEventCreate(&stop), "event create");
     check(cudaEventRecord(start), "event start");
     ff31_eval<<<(count + 127) / 128, 128>>>(
-        d_offsets, d_ops, d_args, d_inputs, d_output, d_status,
+        d_offsets, d_ops, d_args, d_constants, d_inputs, d_output, d_status,
         0, programs, images, P31, NP31, R31);
     check(cudaEventRecord(stop), "event stop"); check(cudaEventSynchronize(stop), "kernel");
     float kernel_ms = 0; check(cudaEventElapsedTime(&kernel_ms, start, stop), "event time");
@@ -145,7 +153,8 @@ int main(int argc, char **argv) {
     check(cudaMemcpy(observed.data(), d_output, 4 * count, cudaMemcpyDeviceToHost), "output copy");
     check(cudaMemcpy(&status, d_status, 4, cudaMemcpyDeviceToHost), "status copy");
     cudaEventDestroy(start); cudaEventDestroy(stop);
-    cudaFree(d_offsets); cudaFree(d_ops); cudaFree(d_args); cudaFree(d_inputs);
+    cudaFree(d_offsets); cudaFree(d_ops); cudaFree(d_args); cudaFree(d_constants);
+    cudaFree(d_inputs);
     cudaFree(d_output); cudaFree(d_status);
     auto gpu1 = std::chrono::steady_clock::now();
     if (status) { std::fprintf(stderr, "GPU status=%u\n", status); return 4; }

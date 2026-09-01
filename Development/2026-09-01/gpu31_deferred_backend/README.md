@@ -22,10 +22,29 @@ Exact evaluator use:
 ./deferred_gpu.py INPUT.wl REQUEST.txt OUTPUT.bin
 ```
 
+For repeated primes/images of the same preparation, keep the CUDA context and
+prime-neutral bytecode alive:
+
+```sh
+./gpu_worker.py
+{"id":1,"input":"/abs/input.wl","request":"/abs/request.txt","output":"/abs/out.bin"}
+{"command":"quit"}
+```
+
+The worker reads and writes one JSON object per line. It keeps the two most
+recent preparations by default (`--cache-entries` changes the bound), while
+each request still authenticates its supplied root sheets. Outputs are written
+atomically.
+
 The default launch chunk is at most 1,000,000 `(program,image)` threads. The
 conservative accounting assumes the full 128-byte postfix stack is local
 memory, keeping tests well below 512 MiB. `ptxas` actually reports an 8-byte
 stack frame for `ff31_eval` on `sm_120`.
+
+Programs evaluate every distinct coefficient/operand once, assemble the terms
+on the GPU, then perform sheet canonicalization. Integer constants live in a
+separate prime-neutral table and are reduced only when a request is submitted,
+so a cached program is reusable across 31-bit primes.
 
 ## Neutral bytecode
 

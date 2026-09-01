@@ -138,8 +138,10 @@ def normalized(text: str) -> str:
 
 
 class ExpressionCompiler:
-    def __init__(self, text: str, request: Request, allow_sqrt: bool = True):
+    def __init__(self, text: str, request: Request, allow_sqrt: bool = True,
+                 constant_indices: dict[int, int] | None = None):
         self.text, self.request, self.allow_sqrt = text, request, allow_sqrt
+        self.constant_indices = constant_indices
         self.i = 0
         self.code: list[tuple[int, int]] = []
         self.rmod = (1 << 32) % request.prime
@@ -224,8 +226,16 @@ class ExpressionCompiler:
             start = self.i
             while self.i < len(self.text) and self.text[self.i].isdigit():
                 self.i += 1
-            value = int(self.text[start:self.i]) % self.request.prime
-            self.code.append((CONST, value * self.rmod % self.request.prime))
+            value = int(self.text[start:self.i])
+            if self.constant_indices is None:
+                value = value % self.request.prime * self.rmod % self.request.prime
+            else:
+                known = self.constant_indices.get(value)
+                if known is None:
+                    known = len(self.constant_indices)
+                    self.constant_indices[value] = known
+                value = known
+            self.code.append((CONST, value))
         else:
             start = self.i
             while self.i < len(self.text) and (
@@ -435,6 +445,10 @@ class Programs:
     offsets: array
     ops: array
     args: array
+    record_offsets: array
+    term_offsets: array
+    factors: array
+    constants: tuple[int, ...]
     targets: list[tuple[int, int, int]]
     dimensions: tuple[int, int, int]
     term_count: int
@@ -454,7 +468,25 @@ def compile_preparation(path: Path, request: Request) -> Programs:
     if not record_spans:
         raise ValueError("empty Records")
     offsets, ops, args = array("I", [0]), array("I"), array("I")
-    targets, term_count, unique = [], 0, set()
+    record_offsets, term_offsets, factors = (
+        array("I", [0]), array("I", [0]), array("I")
+    )
+    targets, term_count, expression_indices, constant_indices = [], 0, {}, {}
+
+    def intern(expression: str) -> int:
+        key = normalized(expression)
+        known = expression_indices.get(key)
+        if known is not None:
+            return known
+        index = len(expression_indices)
+        expression_indices[key] = index
+        for op, arg in ExpressionCompiler(
+                expression, request, constant_indices=constant_indices).compile():
+            ops.append(op)
+            args.append(arg)
+        offsets.append(len(ops))
+        return index
+
     for record_span in record_spans:
         record = association(text, record_span)
         target = tuple(int(slice_value(text, item))
@@ -463,41 +495,16 @@ def compile_preparation(path: Path, request: Request) -> Programs:
             raise ValueError("Target must have three positive indices")
         targets.append(target)
         terms = list_spans(text, record["Terms"])
-        first = True
         for term_span in terms:
             term = association(text, term_span)
             expressions = [slice_value(text, term["Coefficient"])]
             expressions += [slice_value(text, item)
                             for item in list_spans(text, term["Operands"])]
-            for expression_index, expression in enumerate(expressions):
-                unique.add(normalized(expression))
-                code = ExpressionCompiler(expression, request).compile()
-                for op, arg in code:
-                    ops.append(op)
-                    args.append(arg)
-                if expression_index:
-                    ops.append(MUL)
-                    args.append(0)
-            if not first:
-                ops.append(ADD)
-                args.append(0)
-            first = False
+            for expression in expressions:
+                factors.append(intern(expression))
+            term_offsets.append(len(factors))
             term_count += 1
-        if first:
-            ops.append(CONST)
-            args.append(0)
-        depth = peak = 0
-        for op in ops[offsets[-1]:]:
-            if op in (CONST, INPUT):
-                depth += 1
-                peak = max(peak, depth)
-            elif op in (ADD, SUB, MUL):
-                depth -= 1
-            if depth < 1:
-                raise ValueError("invalid assembled record stack")
-        if depth != 1 or peak > MAX_STACK:
-            raise ValueError(f"assembled record stack depth {peak} exceeds {MAX_STACK}")
-        offsets.append(len(ops))
+        record_offsets.append(term_count)
     dimensions = tuple(max(target[axis] for target in targets) for axis in range(3))
     if len(targets) != dimensions[0] * dimensions[1] * dimensions[2]:
         raise ValueError("Targets do not form a complete rectangle")
@@ -508,15 +515,20 @@ def compile_preparation(path: Path, request: Request) -> Programs:
                 expected.append((a, b, c))
     if targets != expected:
         raise ValueError("Targets are not in lexicographic ABI order")
-    return Programs(offsets, ops, args, targets, dimensions, term_count, len(unique))
+    return Programs(
+        offsets, ops, args, record_offsets, term_offsets, factors,
+        tuple(constant_indices),
+        targets, dimensions, term_count, len(expression_indices),
+    )
 
 
 def cpu_program(code: list[tuple[int, int]], inputs: list[list[int]], image: int,
-                p: int, np: int, one: int) -> int:
+                p: int, np: int, one: int,
+                constants: list[int] | array | None = None) -> int:
     stack: list[int] = []
     for op, arg in code:
         if op == CONST:
-            stack.append(arg)
+            stack.append(arg if constants is None else constants[arg])
         elif op == INPUT:
             stack.append(inputs[arg][image])
         elif op == ADD:
@@ -568,75 +580,127 @@ def authenticate_roots(request: Request) -> None:
                 raise ValueError(f"root square {root_index + 1} mismatches image {image + 1}")
 
 
-def gpu_evaluate(request: Request, programs: Programs,
+class GPUBackend:
+    def __init__(self) -> None:
+        started = time.perf_counter()
+        kernel_path = Path(__file__).with_name("postfix_kernels.ptx")
+        if not kernel_path.exists():
+            raise FileNotFoundError("postfix_kernels.ptx is absent; run make -j1")
+        self.cuda = Driver(kernel_path.read_text())
+        self.startup_s = time.perf_counter() - started
+        self.kernel = self.cuda.function("ff31_eval")
+        self.assembly_kernel = self.cuda.function("ff31_assemble")
+        self.channel_kernel = self.cuda.function("ff31_channels")
+
+    def evaluate(self, request: Request, programs: Programs,
                  max_batch_threads: int = 1_000_000):
-    if not 1 <= max_batch_threads <= 2_000_000:
-        raise ValueError("max_batch_threads must be in 1..2,000,000")
-    p, np = request.prime, nprime32(request.prime)
-    rmod = (1 << 32) % p
-    flat_inputs = array("I", (
-        value * rmod % p for channel in request.inputs for value in channel
-    ))
-    result = array("I")
-    timings = {"jit_s": 0.0, "upload_s": 0.0, "kernel_s": 0.0, "download_s": 0.0}
-    started = time.perf_counter()
-    kernel_path = Path(__file__).with_name("postfix_kernels.ptx")
-    if not kernel_path.exists():
-        raise FileNotFoundError("postfix_kernels.ptx is absent; run make -j1")
-    with Driver(kernel_path.read_text()) as cuda:
-        timings["jit_s"] = time.perf_counter() - started
-        upload_at = time.perf_counter()
-        d_offsets = cuda.upload(programs.offsets)
-        d_ops = cuda.upload(programs.ops)
-        d_args = cuda.upload(programs.args)
-        d_inputs = cuda.upload(flat_inputs)
-        status = array("I", [0])
-        d_status = cuda.upload(status)
-        timings["upload_s"] = time.perf_counter() - upload_at
-        kernel = cuda.function("ff31_eval")
-        channel_kernel = cuda.function("ff31_channels")
-        per_batch = max(1, max_batch_threads // request.image_count)
-        for start in range(0, len(programs.targets), per_batch):
-            batch = min(per_batch, len(programs.targets) - start)
-            count = batch * request.image_count
-            host_out = array("I", [0]) * count
-            d_out = cuda.alloc(4 * count)
-            d_channels = cuda.alloc(4 * count)
+        if not 1 <= max_batch_threads <= 2_000_000:
+            raise ValueError("max_batch_threads must be in 1..2,000,000")
+        p, np = request.prime, nprime32(request.prime)
+        rmod = (1 << 32) % p
+        flat_inputs = array("I", (
+            value * rmod % p for channel in request.inputs for value in channel
+        ))
+        constants = array("I", (
+            value % p * rmod % p for value in programs.constants
+        ))
+        expression_count = programs.unique_expression_count
+        record_count = len(programs.targets)
+        expression_threads = expression_count * request.image_count
+        record_threads = record_count * request.image_count
+        if expression_threads > 100_000_000:
+            raise ValueError(
+                "expression image table exceeds the 100,000,000-value limit"
+            )
+        result = array("I", [0]) * record_threads
+        timings = {
+            "jit_s": 0.0, "upload_s": 0.0,
+            "kernel_s": 0.0, "download_s": 0.0,
+        }
+        cuda = self.cuda
+        mark = cuda.allocation_mark()
+
+        def upload(values: array) -> int:
+            return cuda.upload(values if values else array("I", [0]))
+
+        try:
+            upload_at = time.perf_counter()
+            d_offsets = upload(programs.offsets)
+            d_ops = upload(programs.ops)
+            d_args = upload(programs.args)
+            d_constants = upload(constants)
+            d_record_offsets = upload(programs.record_offsets)
+            d_term_offsets = upload(programs.term_offsets)
+            d_factors = upload(programs.factors)
+            d_inputs = upload(flat_inputs)
+            status = array("I", [0])
+            d_status = upload(status)
+            d_expressions = cuda.alloc(max(4, 4 * expression_threads))
+            d_records = cuda.alloc(4 * record_threads)
+            d_channels = cuda.alloc(4 * record_threads)
+            timings["upload_s"] = time.perf_counter() - upload_at
+            per_batch = max(1, max_batch_threads // request.image_count)
             at = time.perf_counter()
-            cuda.launch(kernel, count, [
-                (U64, d_offsets), (U64, d_ops), (U64, d_args),
-                (U64, d_inputs), (U64, d_out), (U64, d_status),
-                (U32, start), (U32, batch), (U32, request.image_count),
-                (U32, p), (U32, np), (U32, rmod),
+            for start in range(0, expression_count, per_batch):
+                batch = min(per_batch, expression_count - start)
+                count = batch * request.image_count
+                cuda.launch(self.kernel, count, [
+                    (U64, d_offsets), (U64, d_ops), (U64, d_args),
+                    (U64, d_constants), (U64, d_inputs),
+                    (U64, d_expressions), (U64, d_status),
+                    (U32, start), (U32, batch), (U32, request.image_count),
+                    (U32, p), (U32, np), (U32, rmod),
+                ])
+            cuda.launch(self.assembly_kernel, record_threads, [
+                (U64, d_record_offsets), (U64, d_term_offsets),
+                (U64, d_factors), (U64, d_expressions), (U64, d_records),
+                (U32, record_count), (U32, request.image_count),
+                (U32, p), (U32, np),
             ])
-            cuda.launch(channel_kernel, count, [
-                (U64, d_out), (U64, d_inputs), (U64, d_channels),
-                (U32, batch), (U32, request.base_count),
+            cuda.launch(self.channel_kernel, record_threads, [
+                (U64, d_records), (U64, d_inputs), (U64, d_channels),
+                (U32, record_count), (U32, request.base_count),
                 (U32, len(request.roots)), (U32, request.grade_count),
                 (U32, p), (U32, np), (U32, rmod),
                 (U32, request.grade_count * rmod % p),
             ])
             cuda.synchronize()
-            timings["kernel_s"] += time.perf_counter() - at
+            timings["kernel_s"] = time.perf_counter() - at
             at = time.perf_counter()
-            cuda.download(d_channels, host_out)
-            timings["download_s"] += time.perf_counter() - at
-            cuda.free(d_out)
-            cuda.free(d_channels)
-            result.extend(host_out)
-        cuda.download(d_status, status)
-        device_name = cuda.name
-    if status[0]:
-        raise ZeroDivisionError(f"GPU evaluator status bits {status[0]}")
-    timings["device"] = device_name
-    timings["gpu_bytes_max"] = (
-        4 * (len(programs.offsets) + len(programs.ops) + len(programs.args)
-             + len(flat_inputs) + 1 + 2 * min(max_batch_threads,
-                                              len(programs.targets) * request.image_count))
-        + 128 * min(max_batch_threads,
-                    len(programs.targets) * request.image_count)
-    )
-    return result, timings
+            cuda.download(d_channels, result)
+            timings["download_s"] = time.perf_counter() - at
+            cuda.download(d_status, status)
+            if status[0]:
+                raise ZeroDivisionError(f"GPU evaluator status bits {status[0]}")
+        finally:
+            cuda.release_since(mark)
+        timings["device"] = cuda.name
+        timings["gpu_bytes_max"] = (
+            4 * (len(programs.offsets) + len(programs.ops) + len(programs.args)
+                 + len(constants) + len(programs.record_offsets)
+                 + len(programs.term_offsets) + len(programs.factors)
+                 + len(flat_inputs) + 1 + expression_threads
+                 + 2 * record_threads)
+            + 128 * min(max_batch_threads, expression_threads)
+        )
+        return result, timings
+
+    def close(self) -> None:
+        self.cuda.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+
+def gpu_evaluate(request: Request, programs: Programs,
+                 max_batch_threads: int = 1_000_000):
+    with GPUBackend() as backend:
+        result, timings = backend.evaluate(request, programs, max_batch_threads)
+        timings["jit_s"] = backend.startup_s
+        return result, timings
 
 
 def canonical_channels(raw: array, request: Request) -> list[list[int]]:

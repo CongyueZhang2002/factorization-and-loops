@@ -21,12 +21,16 @@
 - preserved rank-0 two-image TSV;
 - preserved rank-3/eight-sheet TSV with all radical grades;
 - a synthetic 31-bit-prime batch with 32 records, 32 explicit sheet images,
-  1,184 postfix instructions and 1,024 canonical output values, compared
+  877 distinct-expression postfix instructions and 1,024 canonical output values, compared
   exactly against the independent CPU postfix/channel reference.
 
 The standalone Montgomery smoke also compared every GPU value exactly with a
 CPU reference after independently checking Montgomery multiplication against
 ordinary `% p` arithmetic.
+
+A 100-request persistent-context loop reproduced the preserved rank-three
+fixture on every request and returned to zero live device allocations after
+each one.
 
 ## Measurements
 
@@ -63,13 +67,12 @@ twice as many 31-bit primes).
   scripts. It can be integrated below any producer that emits the neutral ABI.
 - GPU canonicalization is implemented, including all eight rank-3 sheets and
   root denominators; it is not merely raw sheet evaluation.
-- This prototype compiles complete record programs. It does not yet retain the
-  CPU backend's unique-expression DAG reuse, so repeated operands can be
-  evaluated more than once. A production adapter should choose between record
-  programs and cached DAG slots from a reuse census.
+- The GPU evaluates every unique expression once, then assembles the record
+  terms and canonical root channels in two small device kernels. A bounded
+  persistent worker reuses the prime-neutral program across prime requests.
 - CUDA errors currently report aggregate singular/bytecode status. Production
-  integration should add record/image diagnostics and a persistent worker or
-  module cache.
+  integration should add record/image diagnostics if failures occur on real
+  campaigns.
 - The results predict no max-core win for small/light records. Around the
   16-round synthetic complexity the GPU reaches parity with an ideal 16-core
   CPU even after the two-prime penalty; at 32 rounds it is about 1.43x ahead.
@@ -86,14 +89,15 @@ radicals. Its Wolfram text uses declared half-integer powers such as
 declared signed root and rejects undeclared fractional powers. An independent
 two-sheet test covers both `Delta^(3/2)` and `Delta^(-3/2)`.
 
-| records | terms | distinct source expressions | postfix instructions | host compile | CUDA JIT | CUDA kernels | total GPU evaluation |
-|---:|---:|---:|---:|---:|---:|---:|---:|
-| 8 | 98 | 79 | 4,566,359 | 28.463 s | 315.190 ms | 514.585 ms | 0.861 s |
+| mode | records | terms | distinct expressions | instructions | preparation | evaluation | kernels |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| cold persistent worker | 8 | 98 | 79 | 4,005,416 | 27.696 s | 448.605 ms | 403.789 ms |
+| warm same preparation | 8 | 98 | 79 | 4,005,416 | 0.512 ms | 417.930 ms | 383.175 ms |
 
-This is a useful GPU-sized payload, but it changes the next optimization
-priority: parsing and recompiling 4.57 million repeated instructions for every
-prime costs far more than evaluation. Production work should first cache a
-prime-neutral compiled template and preserve the existing unique-expression
-DAG (79 expressions here), then keep one CUDA context alive across primes.
-Blindly adding more GPU launch machinery before those two changes would only
-optimize the sub-second part.
+This is a useful GPU-sized payload. The evaluator now preserves the existing
+unique-expression DAG, stores constants in a prime-neutral table and keeps one
+CUDA context plus a bounded preparation cache alive. The second request avoided
+all 27.7 seconds of parsing/compilation; its complete evaluation took 0.418
+seconds. Cold and warm DAGO mathematical payloads were byte-identical (their
+timing fields differ). A pair of 31-bit primes therefore costs roughly 0.84
+seconds after one family-level compile on this payload.

@@ -89,6 +89,13 @@ class Driver:
             self._check(self.lib.cuMemFree_v2(pointer), "cuMemFree")
             self._allocations.discard(pointer)
 
+    def allocation_mark(self) -> frozenset[int]:
+        return frozenset(self._allocations)
+
+    def release_since(self, mark: frozenset[int]) -> None:
+        for pointer in list(self._allocations.difference(mark)):
+            self.free(pointer)
+
     @staticmethod
     def _host_address(buffer) -> int:
         return C.addressof(C.c_char.from_buffer(buffer))
