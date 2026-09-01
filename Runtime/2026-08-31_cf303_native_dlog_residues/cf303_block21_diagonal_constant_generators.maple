@@ -1,0 +1,14 @@
+status := "CF303DiagonalConstantGeneratorsAcceptedV1":
+block := 21:
+diagonalRows := [37, 38]:
+activeLabels := [["GPLFactor", 4*p^2-u^2-4*p, 1], ["GPLFactor", 4*p^3-8*p^2+2*p*u+u^2+4*p, 0], ["GPLFactor", 4*p^3-8*p^2+2*p*u+u^2+4*p, 1], ["GPLPole", 0], ["GPLPole", -2], ["GPLPole", 2/(p-2)*p^2-4/(p-2)*p+2/(p-2)], ["GPLPole", -2*p]]:
+residueMatrices := [[[-8, 0], [0, -8]], [[-4*p, -4*p], [-2*p, -2*p]], [[-4, -4], [-2, -2]], [[-2, 0], [1, 1]], [[-2, 0], [1, 1]], [[0, 2], [0, -4]], [[0, 2], [0, -4]]]:
+residueScalars := [8, 2*p, 2, 1, 1, 2, 2]:
+normalizedResidues := [[[-1, 0], [0, -1]], [[-2, -2], [-1, -1]], [[-2, -2], [-1, -1]], [[-2, 0], [1, 1]], [[-2, 0], [1, 1]], [[0, 1], [0, -2]], [[0, 1], [0, -2]]]:
+generatorOrigins := [[1, 0], [2, 0], [4, 0]]:
+generatorMatrices := [[[-1, 0], [0, -1]], [[-2, -2], [-1, -1]], [[-2, 0], [1, 1]]]:
+generatorCoordinatesByResidue := [[1, 0, 0], [0, 1, 0], [0, 1, 0], [0, 0, 1], [0, 0, 1], [2, -1/2, -1/2], [2, -1/2, -1/2]]:
+generatorCompositeKernels := [[[8, 1], [4, 6], [4, 7]], [[2*p, 2], [2, 3], [-1, 6], [-1, 7]], [[1, 4], [1, 5], [-1, 6], [-1, 7]]]:
+counts := ["ActiveDiagonalForms", 7, "FieldSpanRank", 3, "PolynomialCoefficientMatrices", 7, "ConstantGeneratorRank", 3]:
+epsilonLinear := true:
+verified := true:

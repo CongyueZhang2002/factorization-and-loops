@@ -1,12 +1,14 @@
 status := "CF303DiagonalConstantGeneratorsAcceptedV1":
 block := 17:
 diagonalRows := [28]:
-activeLabels := [["GPLPole", -2], ["GPLPole", -2*p^2+2*p], ["GPLPole", 0], ["GPLFactor", 4*p^3-p*u^2-4*p^2+u^2+2*u, 0], ["GPLFactor", 4*p^3-p*u^2-4*p^2+u^2+2*u, 1]]:
-residueMatrices := [[[-2]], [[-2]], [[-2]], [[8]], [[8-8*p]]]:
-residueScalars := [-2, -2, -2, 8, 8-8*p]:
+activeLabels := [["GPLFactor", 4*p^3-p*u^2-4*p^2+u^2+2*u, 0], ["GPLFactor", 4*p^3-p*u^2-4*p^2+u^2+2*u, 1], ["GPLPole", 0], ["GPLPole", -2*p^2+2*p], ["GPLPole", -2]]:
+residueMatrices := [[[8]], [[8-8*p]], [[-2]], [[-2]], [[-2]]]:
+residueScalars := [8, 8-8*p, -2, -2, -2]:
 normalizedResidues := [[[1]], [[1]], [[1]], [[1]], [[1]]]:
 generatorOrigins := [[1, 0]]:
 generatorMatrices := [[[1]]]:
+generatorCoordinatesByResidue := [[1], [1], [1], [1], [1]]:
+generatorCompositeKernels := [[[8, 1], [8-8*p, 2], [-2, 3], [-2, 4], [-2, 5]]]:
 counts := ["ActiveDiagonalForms", 5, "FieldSpanRank", 1, "PolynomialCoefficientMatrices", 5, "ConstantGeneratorRank", 1]:
 epsilonLinear := true:
 verified := true:
