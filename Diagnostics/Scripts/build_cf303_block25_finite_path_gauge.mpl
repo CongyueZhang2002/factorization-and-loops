@@ -103,10 +103,39 @@ accumulateFunctionForm := proc(current,functionPair,formPair,sign)
       +functionPair[2]*P4*formPair[1])]:
 end proc:
 
+baseCurve := normal(subs(u=basePoint,P4)):
+
+# H(basePoint)=0 introduces the fixed sheet value Y0.  Reduce its powers at
+# once with Y0^2=P4(basePoint); otherwise the seven linear gauge orders can
+# accumulate a needlessly high-degree polynomial in the same quadratic
+# constant even though no larger field is present.
+baseSheetReduce := proc(sourceExpression)
+  global Y0,baseCurve;
+  local rationalExpression,numeratorExpression,denominatorExpression,
+    reducedNumerator,reducedDenominator,n0,n1,d0,d1,quadraticNorm;
+  if not has(sourceExpression,Y0) then return normal(sourceExpression) end if:
+  rationalExpression := normal(sourceExpression):
+  numeratorExpression := numer(rationalExpression):
+  denominatorExpression := denom(rationalExpression):
+  reducedNumerator := rem(numeratorExpression,Y0^2-baseCurve,Y0):
+  reducedDenominator := rem(denominatorExpression,Y0^2-baseCurve,Y0):
+  n0 := coeff(reducedNumerator,Y0,0):
+  n1 := coeff(reducedNumerator,Y0,1):
+  d0 := coeff(reducedDenominator,Y0,0):
+  d1 := coeff(reducedDenominator,Y0,1):
+  quadraticNorm := normal(d0^2-d1^2*baseCurve):
+  if quadraticNorm=0 then error "base-sheet denominator has zero norm" end if:
+  return normal(((n0*d0-n1*d1*baseCurve)
+      +(n1*d0-n0*d1)*Y0)/quadraticNorm):
+end proc:
+
 normalizeAtBase := proc(functionPair)
-  local value;
-  value := baseValue(functionPair):
-  return pairAdd(functionPair,[-value,0]):
+  local normalizedPair,value;
+  normalizedPair := [baseSheetReduce(functionPair[1]),
+    baseSheetReduce(functionPair[2])]:
+  value := baseSheetReduce(baseValue(normalizedPair)):
+  return [baseSheetReduce(normalizedPair[1]-value),
+    baseSheetReduce(normalizedPair[2])]:
 end proc:
 
 laurentWindow := proc(expression)
@@ -185,9 +214,10 @@ end proc:
 
 addResidue := proc(epsilonOrder,descriptor,row,column,coefficient)
   global residueTable,u;
-  local letterIndex,old,updated;
+  local letterIndex,old,updated,reducedCoefficient;
   if coefficient=0 then return NULL end if:
-  if has(coefficient,u) then
+  reducedCoefficient := baseSheetReduce(coefficient):
+  if has(reducedCoefficient,u) then
     error "a Hermite remainder coefficient still depends on the path variable";
   end if:
   letterIndex := internLetter(descriptor):
@@ -196,7 +226,7 @@ addResidue := proc(epsilonOrder,descriptor,row,column,coefficient)
   else
     old := 0
   end if:
-  updated := normal(old+coefficient):
+  updated := baseSheetReduce(old+reducedCoefficient):
   residueTable[epsilonOrder,letterIndex,row,column] := updated:
   return NULL:
 end proc:
