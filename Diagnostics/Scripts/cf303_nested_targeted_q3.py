@@ -708,17 +708,18 @@ def main() -> int:
     p_mod = [
         candidate.reduce_fraction(value, args.prime) for value in p_values
     ]
+    target_by_key = {tuple(profile["key"]): profile for profile in targets}
     per_p_maps = {
         p_value: {
             tuple(item["key"]): int(item["value"])
             for item in records[p_value]["target_values"]
+            if tuple(item["key"]) in target_by_key
         }
         for p_value in p_values
     }
     reference_keys = set(per_p_maps[p_values[0]])
     if any(set(mapping) != reference_keys for mapping in per_p_maps.values()):
         raise RuntimeError("targeted fixed-p key layout changed")
-    target_by_key = {tuple(profile["key"]): profile for profile in targets}
     if set(target_by_key) != reference_keys:
         raise RuntimeError("targeted q3 profile layout mismatch")
 
