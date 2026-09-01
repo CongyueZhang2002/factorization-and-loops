@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Bounded exact tests against preserved TSVs and an independent CPU batch."""
+
+from array import array
+from pathlib import Path
+import tempfile
+
+from deferred_gpu import (
+    authenticate_roots, canonical_channels, compile_preparation, cpu_program,
+    gpu_evaluate, nprime32, parse_request,
+)
+
+
+HERE = Path(__file__).resolve().parent
+FIXTURES = HERE.parents[2] / "Diagnostics" / "Fixtures"
+
+
+def expected(path: Path) -> list[int]:
+    values = []
+    for line in path.read_text().splitlines():
+        if line and not line.startswith("#"):
+            values.extend(map(int, line.split("\t")[3:]))
+    return values
+
+
+def fixture(input_name: str, request_name: str) -> None:
+    request = parse_request(FIXTURES / f"{request_name}_request.txt")
+    authenticate_roots(request)
+    programs = compile_preparation(FIXTURES / f"{input_name}_input.wl", request)
+    observed, _ = gpu_evaluate(request, programs, 1024)
+    wanted = expected(FIXTURES / f"{request_name}_expected.tsv")
+    if observed.tolist() != wanted:
+        raise AssertionError(f"{request_name}: {observed.tolist()} != {wanted}")
+    print(f"PASS fixture={request_name} values={len(wanted)}")
+
+
+def synthetic_batch() -> None:
+    p = 2147483423
+    bases = [(2, 5, 3), (3, 7, 4), (4, 9, 5), (6, 8, 7)]
+    request_lines = [
+        "DeferredASTRequestV1", f"prime {p}", "variables x y eps", "rank 3",
+        "root x^2", "root y^2", "root (x+y)^2", f"base_count {len(bases)}",
+    ]
+    for x, y, eps in bases:
+        request_lines.append(
+            f"image {x} {y} {eps} {x*x%p} {x} {y*y%p} {y} "
+            f"{(x+y)*(x+y)%p} {(x+y)%p}"
+        )
+    records = []
+    for index in range(1, 33):
+        records.append(
+            '<|"Target" -> {1,1,' + str(index) + '}, "Terms" -> {'
+            '<|"Coefficient" -> -((x+' + str(index) + ')^3+y*eps-'
+            'Sqrt[x^2]*Sqrt[y^2])/(1+eps^2), '
+            '"Operands" -> {(x-y)^(-1),1+Sqrt[(x+y)^2]}|>,'
+            '<|"Coefficient" -> ' + str(2 * index + 1) + ', '
+            '"Operands" -> {Sqrt[x^2]+Sqrt[y^2]+Sqrt[(x+y)^2]}|>'
+            '}|>'
+        )
+    preparation = (
+        '<|"DeferredPreparation" -> <|"Preparation" -> <|'
+        '"Status" -> "Prepared", "ABIVersion" -> "BlockEquationDeferredV1", '
+        '"Records" -> {' + ",".join(records) + '}|>|>|>\n'
+    )
+    with tempfile.TemporaryDirectory(prefix="gpu31-deferred-test-") as directory:
+        request_path = Path(directory) / "request.txt"
+        input_path = Path(directory) / "input.wl"
+        request_path.write_text("\n".join(request_lines) + "\n")
+        input_path.write_text(preparation)
+        request = parse_request(request_path)
+        authenticate_roots(request)
+        programs = compile_preparation(input_path, request)
+    p, np, rmod = request.prime, nprime32(request.prime), (1 << 32) % request.prime
+    mont_inputs = [[value * rmod % p for value in channel] for channel in request.inputs]
+    raw = array("I")
+    instructions = list(zip(programs.ops, programs.args))
+    for program in range(len(programs.targets)):
+        code = instructions[programs.offsets[program]:programs.offsets[program + 1]]
+        for image in range(request.image_count):
+            raw.append(cpu_program(code, mont_inputs, image, p, np, rmod))
+    cpu = [value for row in canonical_channels(raw, request) for value in row]
+    gpu, timings = gpu_evaluate(request, programs, 2048)
+    if gpu.tolist() != cpu:
+        mismatch = next(i for i, (a, b) in enumerate(zip(gpu, cpu)) if a != b)
+        raise AssertionError(f"synthetic mismatch {mismatch}: {gpu[mismatch]} != {cpu[mismatch]}")
+    print(
+        f"PASS synthetic records={len(programs.targets)} images={request.image_count} "
+        f"instructions={len(programs.ops)} values={len(gpu)} "
+        f"kernel_ms={timings['kernel_s'] * 1e3:.3f}"
+    )
+
+
+def main() -> None:
+    fixture("deferred_ast_rank0_smoke", "deferred_ast_rank0_smoke")
+    fixture("deferred_ast_rank0_smoke", "deferred_ast_rank0_dynamic")
+    fixture("deferred_ast_rank3_smoke", "deferred_ast_rank3_smoke")
+    synthetic_batch()
+
+
+if __name__ == "__main__":
+    main()
