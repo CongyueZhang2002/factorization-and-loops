@@ -27,6 +27,18 @@ if [[ ! -f "$manifest" ]]; then
   exit 66
 fi
 
+# Wolfram's TSV exporter quotes string fields. Decode only the outer TSV
+# quotes here; never pass them through as part of a family name or path.
+decode_tsv_field() {
+  local value="${1:-}"
+  if (( ${#value} >= 2 )) &&
+      [[ "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
+    value="${value:1:${#value}-2}"
+    value="${value//\"\"/\"}"
+  fi
+  printf '%s' "$value"
+}
+
 mkdir -p "$output_root"
 campaign_log="$output_root/campaign.log"
 campaign_table="$output_root/campaign.tsv"
@@ -71,10 +83,15 @@ run_family() {
 # all shared status/log writes; workers only write their family log and one
 # atomic-sized status row.  Slots are refilled as soon as any family exits.
 rows=()
-while IFS= read -r row; do
-  family="${row%%$'\t'*}"
+while IFS=$'\t' read -r raw_family raw_epsilon_form \
+    raw_differential_system raw_valuations raw_card; do
+  family="$(decode_tsv_field "$raw_family")"
   [[ -z "$family" || "$family" == \#* || "$family" == "family" ]] && continue
-  rows+=("$row")
+  epsilon_form="$(decode_tsv_field "$raw_epsilon_form")"
+  differential_system="$(decode_tsv_field "$raw_differential_system")"
+  valuations="$(decode_tsv_field "$raw_valuations")"
+  card="$(decode_tsv_field "${raw_card:-}")"
+  rows+=("$family"$'\t'"$epsilon_form"$'\t'"$differential_system"$'\t'"$valuations"$'\t'"$card")
 done < "$manifest"
 
 declare -A running_family=()
