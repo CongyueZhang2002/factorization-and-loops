@@ -1,4 +1,90 @@
-# Session transfer note — updated 2026-08-31 ~16:1x (Fable)
+# Session transfer note — updated 2026-09-01 ~02:2x (Fable; full session handoff, user opening a new conversation)
+
+## State of my lane: obstruction campaign CLOSED, currently IDLE
+
+- CF303 row-25 no-epsilon-form campaign COMPLETE 5/5 at the full
+  standard: (25,18), (25,11), (25,2), (25,1) [provider route,
+  292 s], (25,14) [symbolic route, 3,955 s].  Certificates + all
+  screen evidence: Results/UU_08_10_canonical/
+  PathTransportObstructions/CF303/ (commits c6d8eb54, 5be04c67).
+- ZERO Fable compute running.  The Exchange/Codex monitor and all
+  watchdogs of this session DIE with it — a new session must
+  re-arm its own exchange watch if it wants Codex-note wakeups.
+- The allowance launcher is now durable: Scripts/
+  run_with_allowance.sh (usage: ALLOWANCE LOG SCRIPT [args...];
+  CORES env overrides the P-core pin).  Rule in Design/Watchdog.md:
+  every launch under it + Opus watchdog in the SAME turn.
+- Ported Codex's ParallelSubmit binding fix into our
+  Scripts/KernelPool.wls (17ab59ec); their claim-directory protocol
+  change deliberately NOT ported (watchdog prompts reference
+  running/<name>.kernel; migrate docs together if adopting).
+
+## Codex lane (as of ~02:00; read their notes 2026-08-31/25..33 and
+## 2026-09-01/01 + my replies 25..36, 09-01/01 for the full arc)
+
+- CF303 rational subsystem (21 blocks / 37 masters): exact GPL
+  solution rotated to PHYSICAL source masters through eps^2, up to
+  boundary constants; external Pro review GO; commit 2aa3b7cb.
+- CF303 elliptic layers (blocks 15/17/21/25): all close over ONE
+  quartic curve; entries are dlog kernels over 33 quartic GPL/eMPL
+  letters with residues RATIONAL IN EPSILON (valuation -2) — this
+  does NOT contradict our certificates (no constant-residue
+  eps-factorized form on the certified span); the precise boundary
+  is my note 35 and Codex agreed in their note 33.
+- CF303 completion is NOT yet claimable: Codex's premature note-32
+  "complete" was retracted (their note 33) with a 4-item checklist:
+  (1) all 14 exception forcings (lower blocks 1,2,11,14,18) in one
+  accepted 90-entry block-25 deck, (2) exact primitives absorbed by
+  the finite path gauge, (3) canonical F25 assembled then I25 =
+  T25.F25, (4) compact physical artifact.  At last observation:
+  blocks 2/14/11 accepted, block 18 reducing, block 1 mid modular
+  (p,eps) Hermite lift (first 61-bit prime pass done, second
+  running; pilot report cf303_modular_exception_hermite_pilot_
+  2026-09-01.md — 88-93x vs symbolic, per-stage costs measured).
+- Their reusable observable-transport optimization (lazy exact
+  operators; CF230 3.4 s / 2.2 MB vs 2,989 s / 509 MB) is REVIEWED
+  AND ACCEPTED by me (my 09-01 note 01): all five correctness
+  fixes verified in the committed code, acceptance vocabulary keeps
+  the modular/exact distinction.
+- CLAIM DISCIPLINE (user-driven, twice burned): verify any Codex
+  "complete" against its own checklist AND backing report before
+  relaying to the user; corrections must land on the exchange
+  channel, not silent in-place edits.
+
+## User rulings this session (also in memory files)
+
+- Proofs continued over Codex's pause relay; kernel allocation:
+  Fable 1 main + 2 subkernels, Codex 1 main + 6, mains CONCURRENT
+  (no sole seat).  After 4 deliberate Codex kills, their note 27
+  commits to non-interference — it held for all later runs.
+- Final-format decision: hybrid — GPLs where eps-form exists,
+  E4/Z4 eMPLs on the quartic for the four algebraic blocks, series
+  evaluator as numerics backbone; acceptance bar = every function
+  evaluable by existing public code (GiNaC class).  No bespoke
+  integrals.
+- GPU (RTX 5080 present, idle): NOT for the current tail; revisit
+  once at the phenomenology stage with measured evaluation counts.
+
+## Open items, in priority order
+
+1. STAGE 3 BOUNDARY CONSTANTS = the critical path to numbers for
+   ALL families (3 periods ledger-Exact; 17-period tier open).
+   Also gates the only remaining end-to-end validation: point-wise
+   comparison against sector decomposition/AMFlow.
+2. Family sweep: 73/90 transported; 17 open = 5 timeouts
+   (CF48/52/231/265/305 — MY proposed overnight rerun batch was
+   NEVER LAUNCHED, still awaiting the user's explicit go), 9
+   PathDenominatorsNotLinear (Codex solver lane; their new lazy
+   operator machinery may crack these cheaply), 3 triple-root
+   (CF303 nearly done; CF259/CF300 need the same GPL application —
+   Codex lane).
+3. Watch for Codex's genuine CF303 completion note (against the
+   note-33 checklist) and review it before relaying.
+4. Optional uniformity: a formal certificate file for (25,2) on
+   the (25,11)/(25,1)/(25,14) pattern (its evidence is committed;
+   only the unified .wl summary is missing).
+
+# Superseded: ~16:1x entry (campaign completion)
 
 ## CAMPAIGN COMPLETE (5/5): the CF303 row-25 no-epsilon-form proof
 ## campaign is CLOSED.  All five integral-form couplings certified
