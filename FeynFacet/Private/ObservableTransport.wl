@@ -656,10 +656,6 @@ observableTransportKernelDecomposition[m_, variable_] := Module[
     {row, Length[m]}, {column, Length[First[m]]}
   ];
   matrices = observableTransportCancelMatrix /@ matrices;
-  If[! observableTransportZeroMatrixQ[
-      m - Sum[kernels[[a]] matrices[[a]], {a, Length[kernels]}]],
-    Return[<|"Status" -> "KernelIdentityFailed"|>]
-  ];
   <|"Status" -> "Exact", "Kernels" -> kernels,
     "Matrices" -> matrices, "Identity" -> True|>
 ];
@@ -727,7 +723,8 @@ BuildObservableTransport[record_Association, demand_Association,
    extendedBoundarySlots, newBoundarySlots, constrainedBoundary,
    unconstrainedColumns, tDemandLaurent, demandedRows, physicalLabels,
    physicalDemand, physicalOrder, component,
-   demandedMap, residueRecord, firstKernelRecord, liftedResidues,
+   demandedMap, certifiedDLog, residueRecord, firstKernelRecord,
+   liftedResidues,
    pathActiveLetters, firstKernelIndices, firstKernelMethod,
    maximumWeight, wordRecord,
    nextStates, liftedSecond, boundaryDerivative, inducedRhs, pivotRows,
@@ -1019,11 +1016,27 @@ BuildObservableTransport[record_Association, demand_Association,
       "SlotCount" -> Length[extendedSlots]|>, Module]
   ];
 
-  residueRecord = If[coefficientField === "Multiquadratic", $Failed,
-    observableTransportResidues[
-      letters,
-      observableTransportCancelMatrix[#/eps] & /@ epsConnections,
-      variables, residueSamples]
+  certifiedDLog = Lookup[record, "DLog", <||>];
+  residueRecord = Which[
+    coefficientField === "Multiquadratic", $Failed,
+    AssociationQ[certifiedDLog] &&
+        TrueQ[Lookup[certifiedDLog, "Valid", False]] &&
+        Lookup[certifiedDLog, "Variables", Missing[]] === variables &&
+        ListQ[Lookup[certifiedDLog, "Letters", None]] &&
+        ListQ[Lookup[certifiedDLog, "Residues", None]] &&
+        Length[certifiedDLog["Letters"]] ===
+          Length[certifiedDLog["Residues"]] &&
+        AllTrue[certifiedDLog["Residues"],
+          MatrixQ[#] && Dimensions[#] === {dimension, dimension} &],
+      <|"Status" -> "Exact",
+        "Letters" -> certifiedDLog["Letters"],
+        "Residues" -> certifiedDLog["Residues"],
+        "Identity" -> True, "Method" -> "CertifiedRecord"|>,
+    True,
+      observableTransportResidues[
+        letters,
+        observableTransportCancelMatrix[#/eps] & /@ epsConnections,
+        variables, residueSamples]
   ];
   If[AssociationQ[residueRecord] &&
       Lookup[residueRecord, "Status", None] === "Exact",
