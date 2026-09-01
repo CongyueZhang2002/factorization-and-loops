@@ -321,10 +321,8 @@ addSolutionTerm := proc(current,coefficientPair,word)
   return select(term -> not pairZero(term[1]),result):
 end proc:
 
-integrateFormWord := proc(formPair,word)
-  local reduction,primitive,remainder,result,entry,head,tail,product,
-    recursive,j;
-  reduction := reduceForm(formPair):
+integrateReducedFormWord := proc(reduction,word)
+  local primitive,remainder,result,entry,head,tail,product,recursive,j;
   primitive := reduction[1]:
   remainder := reduction[2]:
   result := []:
@@ -351,6 +349,10 @@ integrateFormWord := proc(formPair,word)
       recursive[j][2]):
   end do:
   return result:
+end proc:
+
+integrateFormWord := proc(formPair,word)
+  return integrateReducedFormWord(reduceForm(formPair),word):
 end proc:
 
 differentiateSolution := proc(solution)

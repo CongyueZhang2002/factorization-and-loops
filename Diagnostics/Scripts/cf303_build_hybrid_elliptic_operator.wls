@@ -140,6 +140,16 @@ Do[
     "ProviderFile" -> layerFiles[layerNumber]|>],
   {layerNumber, requestedLayers}];
 
+(* The final block-25 incoming forms have epsilon valuation -2.  Therefore a
+   complete target coefficient through order 2 can use a source coefficient,
+   including its empty-word boundary datum, through order 2-(-2)=4.  Raising
+   these lazy bounds adds selectors only; it does not enumerate words. *)
+finalTargetTop = 2;
+minimumIncomingOrder = -2;
+requiredSourceTop = finalTargetTop - minimumIncomingOrder;
+top = Max[#, requiredSourceTop] & /@ top;
+constantTop = Max[#, requiredSourceTop] & /@ constantTop;
+
 assembly = <|"Family" -> "CF303HybridElliptic",
   "Blocks" -> ranges, "Ranges" -> ranges, "N" -> n|>;
 schedule = <|"Low" -> low, "Top" -> top|>;
@@ -179,6 +189,10 @@ artifact = <|
   "RationalMasterCount" -> Total[provider["Dimensions"]],
   "ExtensionMasterCount" -> n - Total[provider["Dimensions"]],
   "Curve" -> (layers[15]["Curve"] /. u -> z),
+  "RequiredSourceTop" -> requiredSourceTop,
+  "RequiredSourceTopDerivation" -> <|
+    "FinalTargetTop" -> finalTargetTop,
+    "MinimumIncomingOrder" -> minimumIncomingOrder|>,
   "Path" -> <|"Variable" -> z, "Base" -> 1/2,
     "Endpoint" -> uFinal|>,
   "LayerSummaries" -> layerSummaries,

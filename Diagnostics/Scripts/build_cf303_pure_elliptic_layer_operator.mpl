@@ -16,6 +16,8 @@ outputMaple := cat(outputRoot,"/cf303_block",requestedBlock,
   "_pure_elliptic_operator.maple"):
 outputWolfram := cat(outputRoot,"/cf303_block",requestedBlock,
   "_pure_elliptic_operator.wl"):
+compressionFile := cat(outputRoot,"/cf303_block",requestedBlock,
+  "_diagonal_constant_generators.maple"):
 read inputFile:
 
 uniquePreserve := proc(values)
@@ -103,6 +105,31 @@ for rowIndex from 1 to dimension do
     end if:
   end do:
 end do:
+
+# Replace the matrix-unit fallback with the minimal constant matrix span.
+# This is a true alphabet reduction for repeated homogeneous words: the
+# scalar p-dependence is moved into three (block 21) or one (block 17)
+# composite one-forms while the matrices remain constant.
+read compressionFile:
+compressionStatus := status:
+compressionVerified := verified:
+compressedLabels := activeLabels:
+compressedMatrices := generatorMatrices:
+compressedKernelCoordinates := generatorCompositeKernels:
+compressedOrigins := generatorOrigins:
+if compressionStatus<>"CF303DiagonalConstantGeneratorsAcceptedV1"
+    or not compressionVerified then
+  printf("REFUSED: diagonal constant-generator compression is not accepted\n"):
+  quit:
+end if:
+generatorMatrices := compressedMatrices:
+constantCompositeKernels := [seq([
+  seq([compressedKernelCoordinates[generatorIndex][termIndex][1],
+    letterID(compressedLabels[
+      compressedKernelCoordinates[generatorIndex][termIndex][2]])],
+    termIndex=1..nops(compressedKernelCoordinates[generatorIndex]))],
+  generatorIndex=1..nops(compressedKernelCoordinates))]:
+generatorCoordinates := compressedOrigins:
 
 if requestedBlock=17 then
   schedule := ["Low",-1,"Top",4,"KMin",0,"ConstantTop",2]:

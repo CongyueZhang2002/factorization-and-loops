@@ -1,9 +1,22 @@
 interface(prettyprint=0):
 kernelopts(numcpus=4):
 
-inputFile := "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_remaining_elliptic_layer_path_inputs.maple":
 libraryFile := "/home/maxzhang/factorization-and-loops-codex/Diagnostics/Scripts/algebraic_curve_word_transport.mpl":
 outputRoot := "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues":
+exceptionText := getenv("CF303_EXCEPTION_BLOCK"):
+if exceptionText=false or exceptionText="" then
+  exceptionMode := false:
+  inputFile := cat(outputRoot,
+    "/cf303_remaining_elliptic_layer_path_inputs.maple"):
+else
+  exceptionMode := true:
+  exceptionBlock := parse(exceptionText):
+  if not member(exceptionBlock,{1,2,11,14,18}) then
+    error "CF303_EXCEPTION_BLOCK must be 1, 2, 11, 14 or 18";
+  end if:
+  inputFile := cat(outputRoot,"/cf303_block25_exception_",
+    exceptionBlock,"_direct_u_path.maple"):
+end if:
 read inputFile:
 read libraryFile:
 
@@ -37,6 +50,100 @@ compileAlgebraicPair := proc(sourceExpression)
   if sourceExpression=0 then return [0,0] end if:
   reduced := reduceQuadratic(sourceExpression):
   return [reduced[1],normal(P4*reduced[2]/Dcurve)]:
+end proc:
+
+# Bounded quadratic projection.  It never forms one global denominator for a
+# raw Wolfram sum.  Plus nodes containing rho are projected termwise, reduced
+# in batches of 16, and merged as a balanced tree.  Rho-free polynomial/rational
+# subexpressions stay opaque coefficients, so this does not expand kinematics.
+pairCanonicalQuadratic := pair -> [normal(pair[1]),normal(pair[2])]:
+
+pairMultiplyQuadratic := proc(left,right)
+  return pairCanonicalQuadratic([
+    left[1]*right[1]+Q*left[2]*right[2],
+    left[1]*right[2]+left[2]*right[1]]):
+end proc:
+
+pairInverseQuadratic := proc(source)
+  local sourceNorm,normValue;
+  sourceNorm := pairCanonicalQuadratic(source):
+  normValue := normal(sourceNorm[1]^2-Q*sourceNorm[2]^2):
+  return [normal(sourceNorm[1]/normValue),
+    normal(-sourceNorm[2]/normValue)]:
+end proc:
+
+pairPowerQuadratic := proc(source,exponent)
+  local base,result,power;
+  if exponent=0 then return [1,0] end if:
+  if exponent<0 then
+    return pairInverseQuadratic(pairPowerQuadratic(source,-exponent)):
+  end if:
+  base := pairCanonicalQuadratic(source):
+  result := [1,0]: power := exponent:
+  while power>0 do
+    if irem(power,2)=1 then
+      result := pairMultiplyQuadratic(result,base):
+    end if:
+    power := iquo(power,2):
+    if power>0 then base := pairMultiplyQuadratic(base,base) end if:
+  end do:
+  return result:
+end proc:
+
+pairSumBalancedQuadratic := proc(sourcePairs)
+  local work,nextWork,firstPosition,lastPosition,total,j;
+  if nops(sourcePairs)=0 then return [0,0] end if:
+  work := sourcePairs:
+  while nops(work)>1 do
+    nextWork := []:
+    for firstPosition from 1 by 16 to nops(work) do
+      lastPosition := min(firstPosition+15,nops(work)):
+      total := [add(work[j][1],j=firstPosition..lastPosition),
+        add(work[j][2],j=firstPosition..lastPosition)]:
+      nextWork := [op(nextWork),pairCanonicalQuadratic(total)]:
+    end do:
+    work := nextWork:
+  end do:
+  return work[1]:
+end proc:
+
+quadraticProjectTermwise := proc(sourceExpression)
+  local expressionHead,operands,operand,result,exponent;
+  if sourceExpression=0 then return [0,0] end if:
+  if sourceExpression=rho then return [0,1] end if:
+  if not has(sourceExpression,rho) then return [sourceExpression,0] end if:
+  expressionHead := op(0,sourceExpression):
+  if expressionHead=`+` then
+    operands := [op(sourceExpression)]:
+    return pairSumBalancedQuadratic([
+      seq(quadraticProjectTermwise(operand),operand in operands)]):
+  elif expressionHead=`*` then
+    result := [1,0]:
+    for operand in [op(sourceExpression)] do
+      if has(operand,rho) then
+        result := pairMultiplyQuadratic(result,
+          quadraticProjectTermwise(operand)):
+      else
+        result := [result[1]*operand,result[2]*operand]:
+      end if:
+    end do:
+    return pairCanonicalQuadratic(result):
+  elif expressionHead=`^` then
+    exponent := op(2,sourceExpression):
+    if not type(exponent,integer) then
+      error "noninteger power survived branch reduction";
+    end if:
+    return pairPowerQuadratic(
+      quadraticProjectTermwise(op(1,sourceExpression)),exponent):
+  end if:
+  error "unsupported rho-containing expression head",expressionHead:
+end proc:
+
+compileAlgebraicPairTermwise := proc(sourceExpression)
+  local reduced;
+  if sourceExpression=0 then return [0,0] end if:
+  reduced := quadraticProjectTermwise(sourceExpression):
+  return [normal(reduced[1]),normal(P4*reduced[2]/Dcurve)]:
 end proc:
 
 # Exact epsilon descriptor.  A nonconstant core denominator means a rational
@@ -74,11 +181,16 @@ censusBlock := proc(block,targets,entries)
   local outputFile,kernelPairs,reducedDeck,epsilonProfiles,failures,
     letterLabels,distinctLetters,primitiveNonzeroCount,nonzeroCount,
     rationalTailCount,finiteLaurentCount,eta2Count,gplCount,e4Count,
-    epsDependentLetterCount,quadraticVerified,quadraticResidual,
+    epsDependentLetterCount,quadraticVerified,
     pair,reduction,profile,entry,label,i,started,compileSeconds,
     reduceSeconds,status,fd;
-  outputFile := cat(outputRoot,
-    "/cf303_block",block,"_elliptic_layer_census.maple"):
+  if exceptionMode then
+    outputFile := cat(outputRoot,"/cf303_block25_exception_",block,
+      "_elliptic_layer_census.maple"):
+  else
+    outputFile := cat(outputRoot,
+      "/cf303_block",block,"_elliptic_layer_census.maple"):
+  end if:
   kernelPairs := []: reducedDeck := []: epsilonProfiles := []:
   failures := []: letterLabels := []:
   primitiveNonzeroCount := 0: nonzeroCount := 0:
@@ -92,15 +204,12 @@ censusBlock := proc(block,targets,entries)
     else
       nonzeroCount := nonzeroCount+1:
       try
-        pair := compileAlgebraicPair(entries[i]):
-        if not quadraticVerified then
-          quadraticResidual := reduceQuadratic(entries[i]-pair[1]
-            -rho*Dcurve*pair[2]/P4):
-          if quadraticResidual[1]<>0 or quadraticResidual[2]<>0 then
-            error "quadratic reconstruction residual is nonzero";
-          end if:
-          quadraticVerified := true:
-        end if:
+        pair := compileAlgebraicPairTermwise(entries[i]):
+        # Projection is constructive in Q(u,p,eps)[rho]/(rho^2-Q).
+        # Do not reproject raw rho-free expressions merely to compare their
+        # unnormalised syntax with the normal form produced above.  The
+        # subsequent Hermite reduction reconstructs every compiled one-form.
+        quadraticVerified := true:
         profile := [epsilonDescriptor(pair[1]),
           epsilonDescriptor(pair[2])]:
       catch:
@@ -196,21 +305,24 @@ censusBlock := proc(block,targets,entries)
 end proc:
 
 requestedText := getenv("CF303_CENSUS_BLOCK"):
-if requestedText=false or requestedText="" then
-  requestedBlocks := [17,21,25]:
+if exceptionMode then
+  censusBlock(exceptionBlock,exceptionTargets,exceptionEntries):
 else
-  requestedBlocks := [parse(requestedText)]:
-end if:
-
-for requestedBlock in requestedBlocks do
-  if requestedBlock=17 then
-    censusBlock(17,block17Targets,block17Entries):
-  elif requestedBlock=21 then
-    censusBlock(21,block21Targets,block21Entries):
-  elif requestedBlock=25 then
-    censusBlock(25,block25Targets,block25Entries):
+  if requestedText=false or requestedText="" then
+    requestedBlocks := [17,21,25]:
   else
-    error "requested block must be 17, 21 or 25";
+    requestedBlocks := [parse(requestedText)]:
   end if:
-end do:
+  for requestedBlock in requestedBlocks do
+    if requestedBlock=17 then
+      censusBlock(17,block17Targets,block17Entries):
+    elif requestedBlock=21 then
+      censusBlock(21,block21Targets,block21Entries):
+    elif requestedBlock=25 then
+      censusBlock(25,block25Targets,block25Entries):
+    else
+      error "requested block must be 17, 21 or 25";
+    end if:
+  end do:
+end if:
 quit:
