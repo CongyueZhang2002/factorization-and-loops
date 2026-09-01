@@ -20,8 +20,11 @@ adapterFile = FileNameJoin[{scratch, "Diagnostics", "Scripts",
 outputFile = FileNameJoin[{runtime,
   "cf303_final45_physical_word_table.wl"}];
 requestedText = Environment["CF303_FINAL_ORDERS"];
+(* Low orders are the safe explicit default.  The operator itself is exact
+   through order 2; higher explicit tables are generated only when named,
+   because observed word counts already grow 10,193,2955 through order -2. *)
 requestedOrders = If[StringQ[requestedText] && requestedText =!= "",
-  ToExpression /@ StringSplit[requestedText, ","], Range[-4, 2]];
+  ToExpression /@ StringSplit[requestedText, ","], Range[-4, -2]];
 capText = Environment["CF303_MAX_INTERNAL_WORDS"];
 wordCap = If[StringQ[capText] && capText =!= "",
   ToExpression[capText], 200000];
