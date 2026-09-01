@@ -118,5 +118,60 @@ FTAssert["CW8 the lazy Chen residue-product operator materializes a requested GP
     AllTrue[compiled["Solution", "F"][2] - chenF2,
       TrueQ[Together[#] === 0] &]];
 
+scalarAssembly = <|"Family" -> "SourceGaugeToy", "Blocks" -> {{1}},
+  "Ranges" -> {{1}}, "N" -> 1|>;
+scalarCouplings = <|{1, 1} -> <|1 -> <|
+  1 -> SparseArray[{{1, 1} -> 2}, {1, 1}]|>|>|>;
+scalarChen = FeynFacet`Private`masterTransportCanonicalChenOperator[
+  scalarAssembly, scalarCouplings, {7},
+  <|"Low" -> {0}, "Top" -> {0}|>, {0}, {0}];
+scalarSource = FeynFacet`Private`masterTransportCanonicalSourceOperator[
+  scalarChen,
+  <|-1 -> SparseArray[{{1, 1} -> 1}, {1, 1}]|>,
+  <|1 -> SparseArray[{{1, 1} -> 1}, {1, 1}]|>,
+  {{0, 1}}];
+scalarSource0 =
+  FeynFacet`Private`masterTransportCanonicalSourceCoefficient[
+    scalarSource, 0];
+scalarSource2 =
+  FeynFacet`Private`masterTransportCanonicalSourceCoefficient[
+    scalarSource, 2];
+maskedCanonical2 =
+  FeynFacet`Private`masterTransportCanonicalChenWordCoefficient[
+    scalarChen, {1, 1}, 0, 2];
+FTAssert["CW9 source-gauge composition uses raw residues beyond the earlier canonical demand mask",
+  scalarSource2["Status"] === "OK" &&
+    scalarSource2["TermCount"] === 1 &&
+    scalarSource2["Terms"][[1, "Word"]] === {1, 1} &&
+    Normal[scalarSource2["Terms"][[1, "Coefficient"]]] === {{4}} &&
+    ! FeynFacet`Private`masterTransportCWNonzeroSparseQ[maskedCanonical2]];
+scalarSourceExpression =
+  FeynFacet`Private`masterTransportCanonicalSourceExpression[
+    scalarSource, scalarSource0, tau];
+FTAssert["CW10 a physical source-boundary embedding reproduces the source datum at the base point",
+  scalarSourceExpression["Status"] === "OK" &&
+    scalarSourceExpression["Expression"] ===
+      {FeynFacet`Private`SourceBoundaryConstant[0, 1]}];
+
+layeredSource =
+  FeynFacet`Private`masterTransportCanonicalSourceOperator[
+    scalarChen,
+    <|-1 -> SparseArray[{{1, 1} -> 1}, {1, 1}]|>,
+    <|0 -> SparseArray[{{1, 1} -> 3}, {1, 1}],
+      1 -> SparseArray[{{1, 1} -> 5}, {1, 1}],
+      2 -> SparseArray[{{1, 1} -> 7}, {1, 1}]|>,
+    {{0, 1}}];
+layeredSource1 =
+  FeynFacet`Private`masterTransportCanonicalSourceCoefficient[
+    layeredSource, 1];
+FTAssert["CW11 one residue-prefix tree serves every compatible boundary order without changing the coefficients",
+  layeredSource1["Status"] === "OK" &&
+    layeredSource1["TraversalRoute"] ===
+      "GaugeFactoredConstantResidues" &&
+    layeredSource1["VisitedPrefixes"] === 2 &&
+    layeredSource1["Terms"][[All, "Word"]] === {{}, {1}, {1, 1}} &&
+    (Normal[#1["Coefficient"]] & /@ layeredSource1["Terms"]) ===
+      {{{7}}, {{10}}, {{12}}}];
+
 FeynFacet`Private`masterTransportSupportCacheClear[];
 FTReport[];

@@ -19,6 +19,7 @@ Begin["FeynFacet`Private`"];
 ClearAll[
   masterTransportCanonicalWordSolve,
   masterTransportCWNonzeroSparseQ,
+  masterTransportCWFactorSparseRows,
   masterTransportCWMaterialize,
   masterTransportCWModZeroQ,
   masterTransportCWCertificate,
@@ -27,13 +28,36 @@ ClearAll[
   masterTransportCWIdentityValuation,
   masterTransportCanonicalChenOperator,
   masterTransportCanonicalChenWordCoefficient,
-  masterTransportCanonicalChenCoefficient
+  masterTransportCanonicalChenCoefficient,
+  masterTransportCanonicalSourceOperator,
+  masterTransportCanonicalSourceCoefficient,
+  masterTransportCanonicalSourceExpression,
+  SourceBoundaryConstant
 ];
 
 masterTransportCWNonzeroSparseQ[m_SparseArray] :=
   Length[m["NonzeroValues"]] > 0;
 masterTransportCWNonzeroSparseQ[m_] :=
   AnyTrue[Flatten[m], ! TrueQ[# === 0] &];
+
+(* Write a sparse row slice G exactly as L.C, assigning one formal row of C
+   to each nonzero entry of G.  When the Chen residues are rational
+   constants, C can traverse the complete word tree without dragging the
+   symbolic gauge entries through every prefix; L is reinserted only for a
+   surviving output word. *)
+masterTransportCWFactorSparseRows[m_SparseArray] := Module[
+  {dimensions, rules, count, leftRules, rightRules},
+  dimensions = Dimensions[m];
+  rules = Select[ArrayRules[m],
+    MatchQ[First[#1], {_Integer, _Integer}] && Last[#1] =!= 0 &];
+  count = Length[rules];
+  leftRules = MapIndexed[Function[{rule, index},
+    {First[rule][[1]], First[index]} -> Last[rule]], rules];
+  rightRules = MapIndexed[Function[{rule, index},
+    {First[index], First[rule][[2]]} -> 1], rules];
+  {SparseArray[leftRules, {dimensions[[1]], count}],
+    SparseArray[rightRules, {count, dimensions[[2]]}]}
+];
 
 masterTransportCWMaterialize[state_Association, dimension_Integer,
     boundaryConstants_List, expandWord_, tau_] := Module[
@@ -658,6 +682,200 @@ masterTransportCanonicalChenCoefficient[operator_Association,
   <|"Status" -> "OK", "Order" -> order,
     "Rows" -> rows, "Terms" -> records,
     "TermCount" -> Length[records]|>
+];
+
+(* Compose the canonical Chen operator with an already expanded source
+   gauge and boundary embedding.  Keeping these Laurent coefficients as
+   provider data is intentional: a family may obtain them symbolically,
+   with Maple, or by modular reconstruction without changing this engine.
+
+     I_n = Sum_{r+q+|w|=n} T_r R_w H_q b G[w].
+
+   Unlike the canonical-demand accessor above, this traversal must not use
+   ActiveRowsByOrder: a negative-order source gauge can require canonical
+   coefficients beyond the schedule that originally built the provider. *)
+masterTransportCanonicalSourceOperator[chen_Association,
+    gaugeByOrder_Association, boundaryByOrder_Association,
+    boundaryColumns_List, provider_: <||>] := Module[
+  {n, sourceDimension, boundaryDimension, gaugeOrders, boundaryOrders,
+   gauges, boundaries, badGauge, badBoundary},
+  If[Lookup[chen, "Status", None] =!= "CanonicalGPLChenOperatorV1",
+    Return[<|"Status" -> "CanonicalSourceOperatorInputInvalid",
+      "Reason" -> "ChenOperatorInvalid"|>]];
+  n = chen["N"];
+  gaugeOrders = Sort[Select[Keys[gaugeByOrder], IntegerQ]];
+  boundaryOrders = Sort[Select[Keys[boundaryByOrder], IntegerQ]];
+  If[gaugeOrders === {} || boundaryOrders === {},
+    Return[<|"Status" -> "CanonicalSourceOperatorInputInvalid",
+      "Reason" -> "LaurentProviderEmpty"|>]];
+  gauges = AssociationMap[SparseArray[gaugeByOrder[#1]] &, gaugeOrders];
+  boundaries = AssociationMap[
+    SparseArray[boundaryByOrder[#1]] &, boundaryOrders];
+  sourceDimension = First[Dimensions[First[Values[gauges]]]];
+  boundaryDimension = Last[Dimensions[First[Values[boundaries]]]];
+  badGauge = Select[gaugeOrders,
+    Dimensions[gauges[#1]] =!= {sourceDimension, n} &];
+  badBoundary = Select[boundaryOrders,
+    Dimensions[boundaries[#1]] =!= {n, boundaryDimension} &];
+  If[badGauge =!= {} || badBoundary =!= {} ||
+      Length[boundaryColumns] =!= boundaryDimension,
+    Return[<|"Status" -> "CanonicalSourceOperatorInputInvalid",
+      "Reason" -> "LaurentProviderShapeMismatch",
+      "BadGaugeOrders" -> badGauge,
+      "BadBoundaryOrders" -> badBoundary|>]];
+  <|"Status" -> "CanonicalGPLSourceOperatorV1",
+    "Route" -> "LazySourceGaugeResidueProducts",
+    "ChenOperator" -> chen,
+    "GaugeByOrder" -> gauges,
+    "BoundaryByOrder" -> boundaries,
+    "GaugeOrders" -> gaugeOrders,
+    "BoundaryOrders" -> boundaryOrders,
+    "BoundaryColumns" -> boundaryColumns,
+    "SourceDimension" -> sourceDimension,
+    "CanonicalDimension" -> n,
+    "BoundaryDimension" -> boundaryDimension,
+    "CoefficientFormula" ->
+      "I_n=Sum_{r+q+|w|=n} T_r R_w H_q b G[w]",
+    "Provider" -> provider|>
+];
+
+Options[masterTransportCanonicalSourceCoefficient] = {
+  "Rows" -> All,
+  "MaxTerms" -> 100000,
+  "MaxVisitedPrefixes" -> 1000000
+};
+
+masterTransportCanonicalSourceCoefficient[source_Association,
+    order_Integer, OptionsPattern[]] := Module[
+  {rows, maxTerms, maxVisited, chen, letters, residues, gauges,
+   boundaries, gaugeOrders, boundaryOrders, sourceDimension,
+   constantResiduesQ, traversalRoute,
+   terms = <||>, visited = 0,
+   capTag = Unique["CanonicalSourceCap"], outcome, addTerm,
+   eligibleBoundaryOrders, maxWeight, boundaryOrder, start, leftFactor,
+   factored, states, next, product, coefficient, newWord, existing,
+   records},
+  If[Lookup[source, "Status", None] =!= "CanonicalGPLSourceOperatorV1",
+    Return[<|"Status" -> "CanonicalSourceCoefficientInputInvalid"|>]];
+  sourceDimension = source["SourceDimension"];
+  rows = Replace[OptionValue["Rows"], All :> Range[sourceDimension]];
+  maxTerms = OptionValue["MaxTerms"];
+  maxVisited = OptionValue["MaxVisitedPrefixes"];
+  If[! MatchQ[rows, {__Integer}] ||
+      ! AllTrue[rows, Between[#1, {1, sourceDimension}] &] ||
+      ! IntegerQ[maxTerms] || maxTerms <= 0 ||
+      ! IntegerQ[maxVisited] || maxVisited <= 0,
+    Return[<|"Status" -> "CanonicalSourceCoefficientInputInvalid"|>]];
+  chen = source["ChenOperator"];
+  letters = chen["Letters"];
+  residues = chen["Residues"];
+  constantResiduesQ = AllTrue[
+    Flatten[(#1["NonzeroValues"] &) /@ residues],
+    MatchQ[#1, _Integer | _Rational] &];
+  traversalRoute = If[constantResiduesQ,
+    "GaugeFactoredConstantResidues", "DirectSymbolicResidues"];
+  gauges = source["GaugeByOrder"];
+  boundaries = source["BoundaryByOrder"];
+  gaugeOrders = source["GaugeOrders"];
+  boundaryOrders = source["BoundaryOrders"];
+  addTerm[currentWord_, matrix_] := Module[{old},
+    If[! masterTransportCWNonzeroSparseQ[matrix], Return[Null]];
+    old = Lookup[terms, Key[currentWord], None];
+    terms[currentWord] = If[old === None, matrix,
+      SparseArray[old + matrix]];
+    If[Length[terms] > maxTerms, Throw["TermCap", capTag]]];
+  outcome = Catch[
+    Do[
+      eligibleBoundaryOrders = Select[boundaryOrders,
+        order - gaugeOrder - #1 >= 0 &];
+      If[eligibleBoundaryOrders === {}, Continue[]];
+      maxWeight = Max[order - gaugeOrder - #1 & /@
+        eligibleBoundaryOrders];
+      start = gauges[gaugeOrder][[rows, All]];
+      If[! masterTransportCWNonzeroSparseQ[start], Continue[]];
+      If[constantResiduesQ,
+        factored = masterTransportCWFactorSparseRows[start];
+        leftFactor = factored[[1]];
+        start = factored[[2]],
+        leftFactor = None];
+      states = <|{} -> start|>;
+      Do[
+        boundaryOrder = order - gaugeOrder - weight;
+        If[KeyExistsQ[boundaries, boundaryOrder],
+          KeyValueMap[
+            Function[{prefix, matrix},
+              coefficient = If[constantResiduesQ,
+                leftFactor . (matrix . boundaries[boundaryOrder]),
+                matrix . boundaries[boundaryOrder]];
+              addTerm[prefix, SparseArray[coefficient]]], states]];
+        If[weight === maxWeight || states === <||>, Break[]];
+        next = <||>;
+        KeyValueMap[
+          Function[{prefix, matrix},
+            Do[
+              product = SparseArray[matrix . residues[[letterID]]];
+              If[masterTransportCWNonzeroSparseQ[product],
+                newWord = Append[prefix, letterID];
+                existing = Lookup[next, Key[newWord], None];
+                next[newWord] = If[existing === None, product,
+                  SparseArray[existing + product]];
+                visited++;
+                If[visited > maxVisited,
+                  Throw["VisitedPrefixCap", capTag]]],
+              {letterID, Length[letters]}]],
+          states];
+        states = next,
+        {weight, 0, maxWeight}],
+      {gaugeOrder, gaugeOrders}];
+    "OK", capTag];
+  If[outcome =!= "OK",
+    Return[<|"Status" -> "LazyExpansionRequired",
+      "Reason" -> outcome, "Order" -> order,
+      "VisitedPrefixes" -> visited,
+      "TermCountBeforeRefusal" -> Length[terms],
+      "TraversalRoute" -> traversalRoute,
+      "MaxTerms" -> maxTerms,
+      "MaxVisitedPrefixes" -> maxVisited|>]];
+  records = KeyValueMap[
+    <|"Word" -> #1, "Coefficient" -> #2|> &, terms];
+  records = SortBy[records, {Length[#1["Word"]], #1["Word"]} &];
+  <|"Status" -> "OK", "Order" -> order, "Rows" -> rows,
+    "Terms" -> records, "TermCount" -> Length[records],
+    "VisitedPrefixes" -> visited,
+    "TraversalRoute" -> traversalRoute,
+    "BoundaryColumns" -> source["BoundaryColumns"]|>
+];
+
+Options[masterTransportCanonicalSourceExpression] = {
+  "BoundarySymbols" -> Automatic
+};
+
+masterTransportCanonicalSourceExpression[source_Association,
+    coefficient_Association, tau_Symbol, OptionsPattern[]] := Module[
+  {symbols, columns, letters, rows, vectors},
+  If[Lookup[source, "Status", None] =!= "CanonicalGPLSourceOperatorV1" ||
+      Lookup[coefficient, "Status", None] =!= "OK",
+    Return[<|"Status" -> "CanonicalSourceExpressionInputInvalid"|>]];
+  columns = source["BoundaryColumns"];
+  symbols = Replace[OptionValue["BoundarySymbols"], Automatic :>
+    Map[If[ListQ[#1], Apply[SourceBoundaryConstant, #1],
+      SourceBoundaryConstant[#1]] &, columns]];
+  If[Length[symbols] =!= Length[columns],
+    Return[<|"Status" -> "CanonicalSourceExpressionInputInvalid",
+      "Reason" -> "BoundarySymbolCountMismatch"|>]];
+  letters = source["ChenOperator", "Letters"];
+  rows = coefficient["Rows"];
+  vectors = If[coefficient["Terms"] === {},
+    ConstantArray[0, Length[rows]],
+    Total[Map[
+      Function[term,
+        (Normal[term["Coefficient"]] . symbols) *
+          If[term["Word"] === {}, 1,
+            TransportWord[letters[[term["Word"]]], tau]]],
+      coefficient["Terms"]]]];
+  <|"Status" -> "OK", "Order" -> coefficient["Order"],
+    "Rows" -> rows, "Expression" -> vectors,
+    "BoundarySymbols" -> symbols|>
 ];
 
 End[];
