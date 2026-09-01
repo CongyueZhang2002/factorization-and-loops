@@ -191,13 +191,14 @@ epsilonDescriptor := proc(sourceExpression)
   return ["FiniteLaurent",support]:
 end proc:
 
-censusBlock := proc(block,targets,entries)
+censusBlock := proc(block,targets)
+  global activeEntries;
   local outputFile,kernelPairs,reducedDeck,epsilonProfiles,failures,
     letterLabels,distinctLetters,primitiveNonzeroCount,nonzeroCount,
     rationalTailCount,finiteLaurentCount,eta2Count,gplCount,e4Count,
     epsDependentLetterCount,quadraticVerified,
     pair,reduction,profile,entry,label,i,started,compileSeconds,
-    workEntries,
+    workEntries,entryCount,
     reduceSeconds,status,fd;
   if exceptionMode then
     outputFile := cat(outputRoot,"/cf303_block25_exception_",block,
@@ -206,7 +207,14 @@ censusBlock := proc(block,targets,entries)
     outputFile := cat(outputRoot,
       "/cf303_block",block,"_elliptic_layer_census.maple"):
   end if:
-  workEntries := entries:
+  # The caller transfers ownership through activeEntries and clears the
+  # original imported deck before entering this procedure.  Consequently
+  # replacing workEntries[i] below drops the final reference to that raw
+  # expression instead of leaving it retained by a formal list parameter.
+  workEntries := activeEntries:
+  activeEntries := []:
+  entryCount := nops(workEntries):
+  gc():
   kernelPairs := []: reducedDeck := []: epsilonProfiles := []:
   failures := []: letterLabels := []:
   primitiveNonzeroCount := 0: nonzeroCount := 0:
@@ -214,7 +222,7 @@ censusBlock := proc(block,targets,entries)
   quadraticVerified := false:
 
   started := time():
-  for i from 1 to nops(workEntries) do
+  for i from 1 to entryCount do
     if workEntries[i]=0 then
       pair := [0,0]: profile := [["Zero"],["Zero"]]:
     else
@@ -250,8 +258,8 @@ censusBlock := proc(block,targets,entries)
         profile[2][1]="FiniteLaurent" then
       finiteLaurentCount := finiteLaurentCount+1:
     end if:
-    if i mod 10=0 or i=nops(workEntries) then
-      printf("BLOCK %d COMPILE %d/%d %.3f\n",block,i,nops(workEntries),
+    if i mod 10=0 or i=entryCount then
+      printf("BLOCK %d COMPILE %d/%d %.3f\n",block,i,entryCount,
         time()-started):
     end if:
   end do:
@@ -310,7 +318,7 @@ censusBlock := proc(block,targets,entries)
   fprintf(fd,"reducedKernelDeck := %a:\n",reducedDeck):
   fprintf(fd,"distinctLetters := %a:\n",distinctLetters):
   fprintf(fd,"failures := %a:\n",failures):
-  fprintf(fd,"counts := %a:\n",["Entries",nops(entries),
+  fprintf(fd,"counts := %a:\n",["Entries",entryCount,
     "Nonzero",nonzeroCount,"PrimitiveNonzero",primitiveNonzeroCount,
     "LetterOccurrences",nops(letterLabels),
     "DistinctLetters",nops(distinctLetters),"GPL",gplCount,"E4",e4Count,
@@ -321,7 +329,7 @@ censusBlock := proc(block,targets,entries)
     "Reduce",reduceSeconds]):
   fclose(fd):
   printf("BLOCK %d DONE status=%s entries=%d nonzero=%d primitive=%d letters=%d distinct=%d gpl=%d e4=%d eta2=%d epsletters=%d finiteeps=%d rationaltail=%d compile=%.3f reduce=%.3f output=%s\n",
-    block,status,nops(entries),nonzeroCount,primitiveNonzeroCount,
+    block,status,entryCount,nonzeroCount,primitiveNonzeroCount,
     nops(letterLabels),nops(distinctLetters),gplCount,e4Count,eta2Count,
     epsDependentLetterCount,finiteLaurentCount,rationalTailCount,
     compileSeconds,reduceSeconds,outputFile):
@@ -330,7 +338,10 @@ end proc:
 
 requestedText := getenv("CF303_CENSUS_BLOCK"):
 if exceptionMode then
-  censusBlock(exceptionBlock,exceptionTargets,exceptionEntries):
+  activeEntries := exceptionEntries:
+  exceptionEntries := []:
+  gc():
+  censusBlock(exceptionBlock,exceptionTargets):
 else
   if requestedText=false or requestedText="" then
     requestedBlocks := [17,21,25]:
@@ -339,11 +350,20 @@ else
   end if:
   for requestedBlock in requestedBlocks do
     if requestedBlock=17 then
-      censusBlock(17,block17Targets,block17Entries):
+      activeEntries := block17Entries:
+      block17Entries := []:
+      gc():
+      censusBlock(17,block17Targets):
     elif requestedBlock=21 then
-      censusBlock(21,block21Targets,block21Entries):
+      activeEntries := block21Entries:
+      block21Entries := []:
+      gc():
+      censusBlock(21,block21Targets):
     elif requestedBlock=25 then
-      censusBlock(25,block25Targets,block25Entries):
+      activeEntries := block25Entries:
+      block25Entries := []:
+      gc():
+      censusBlock(25,block25Targets):
     else
       error "requested block must be 17, 21 or 25";
     end if:
