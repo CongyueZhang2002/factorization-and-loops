@@ -7,7 +7,8 @@ Module[
    valuationsFile, outputFile, cardFile, loadAssociation, writeAtomic,
    exactTransportQ, existing, epsilonForm, differentialSystem, valuations,
    card, hardFunctionOrders, safetyOrders, masterValuation, path, demand,
-   start, result, missionTag},
+   start, result, alternateRecord, alternatePath, alternateResult,
+   missionTag},
 
   missionTag = Unique["ObservableTransportMissionExit$"];
   Catch[
@@ -104,6 +105,23 @@ Module[
   result = FeynFacet`BuildObservableTransport[
     epsilonForm, demand,
     "Verbose" -> TrueQ[Lookup[card, "Verbose", False]]
+  ];
+  If[Lookup[result, "Status", None] === "BoundarySubspaceNotInvariant",
+    alternateRecord = Join[epsilonForm,
+      <|"Variables" -> Reverse[epsilonForm["Variables"]]|>];
+    alternatePath = FeynFacet`FindObservableTransportPath[alternateRecord];
+    If[AssociationQ[alternatePath] &&
+        Lookup[alternatePath, "Status", None] === "ExactPathData",
+      Print["Primary path boundary subspace is not invariant; retrying " <>
+        "once with the variable order reversed"];
+      demand = Join[demand, <|"Path" -> alternatePath|>];
+      alternateResult = FeynFacet`BuildObservableTransport[
+        epsilonForm, demand,
+        "Verbose" -> TrueQ[Lookup[card, "Verbose", False]]
+      ];
+      result = Join[alternateResult,
+        <|"PrimaryPathStatus" -> "BoundarySubspaceNotInvariant"|>]
+    ]
   ];
   If[! exactTransportQ[result],
     Print["Observable transport failed: ",

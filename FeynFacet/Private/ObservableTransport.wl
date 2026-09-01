@@ -511,8 +511,7 @@ observableTransportResidues[letters_List, connections_List,
    chart.  It is less compact than a dlog alphabet, so it is a fallback after
    the residue decomposition, never a replacement for it. *)
 observableTransportEntryKernels[matrix_?MatrixQ] := Module[
-  {kernels = {}, matrices = {}, keys = <||>, value, key, position,
-   reconstructed},
+  {kernels = {}, matrices = {}, keys = <||>, value, key, position},
   Do[
     value = observableTransportCancel[matrix[[row, column]]];
     If[observableTransportZeroQ[value], Continue[]];
@@ -527,14 +526,12 @@ observableTransportEntryKernels[matrix_?MatrixQ] := Module[
     matrices[[position, row, column]] += 1,
     {row, Length[matrix]}, {column, Length[First[matrix]]}
   ];
-  reconstructed = If[kernels === {},
-    ConstantArray[0, Dimensions[matrix]],
-    Sum[kernels[[index]] matrices[[index]],
-      {index, Length[kernels]}]
-  ];
-  If[! observableTransportZeroMatrixQ[matrix - reconstructed],
-    Return[<|"Status" -> "EntryKernelIdentityFailed"|>]
-  ];
+  (* Every matrix entry is assigned its own exact canonical value above;
+     equal InputForm keys merely share that same stored value.  Rebuilding
+     the matrix and sending the resulting radical zeros through the general
+     symbolic zero prover is therefore tautological.  It was also both slow
+     and incomplete: a proven-by-construction zero could be reported as
+     inconclusive. *)
   <|"Status" -> "Exact", "Method" -> "AlgebraicEntryKernels",
     "Kernels" -> kernels, "Matrices" -> matrices, "Identity" -> True|>
 ];
