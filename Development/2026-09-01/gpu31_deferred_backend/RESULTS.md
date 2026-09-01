@@ -76,3 +76,24 @@ twice as many 31-bit primes).
   Thus long three-root canonicalizations are credible GPU candidates, while
   short transports should remain on the already-running CPU route until a real
   payload census confirms enough work per launch.
+
+## CF303-derived payload probe
+
+The 25.4 MB block-25/14 deferred preparation was compiled against three
+rank-three base images (24 sheets) and evaluated without expanding the
+radicals. Its Wolfram text uses declared half-integer powers such as
+`Delta^(3/2)`; the parser now lowers these exactly to powers of the matching
+declared signed root and rejects undeclared fractional powers. An independent
+two-sheet test covers both `Delta^(3/2)` and `Delta^(-3/2)`.
+
+| records | terms | distinct source expressions | postfix instructions | host compile | CUDA JIT | CUDA kernels | total GPU evaluation |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 8 | 98 | 79 | 4,566,359 | 28.463 s | 315.190 ms | 514.585 ms | 0.861 s |
+
+This is a useful GPU-sized payload, but it changes the next optimization
+priority: parsing and recompiling 4.57 million repeated instructions for every
+prime costs far more than evaluation. Production work should first cache a
+prime-neutral compiled template and preserve the existing unique-expression
+DAG (79 expressions here), then keep one CUDA context alive across primes.
+Blindly adding more GPU launch machinery before those two changes would only
+optimize the sub-second part.

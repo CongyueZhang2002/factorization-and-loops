@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 
 from deferred_gpu import (
-    authenticate_roots, canonical_channels, compile_preparation, cpu_program,
+    Request, authenticate_roots, canonical_channels, compile_preparation, cpu_program,
     gpu_evaluate, nprime32, parse_request,
 )
 
@@ -51,7 +51,8 @@ def synthetic_batch() -> None:
         records.append(
             '<|"Target" -> {1,1,' + str(index) + '}, "Terms" -> {'
             '<|"Coefficient" -> -((x+' + str(index) + ')^3+y*eps-'
-            'Sqrt[x^2]*Sqrt[y^2])/(1+eps^2), '
+            'Sqrt[x^2]*Sqrt[y^2]+((x+y)^2)^(3/2)+((x+y)^2)^(-3/2))/'
+            '(1+eps^2), '
             '"Operands" -> {(x-y)^(-1),1+Sqrt[(x+y)^2]}|>,'
             '<|"Coefficient" -> ' + str(2 * index + 1) + ', '
             '"Operands" -> {Sqrt[x^2]+Sqrt[y^2]+Sqrt[(x+y)^2]}|>'
@@ -90,10 +91,40 @@ def synthetic_batch() -> None:
     )
 
 
+def half_integer_declared_root() -> None:
+    p = 2147483423
+    preparation = (
+        '<|"DeferredPreparation" -> <|"Preparation" -> <|'
+        '"Status" -> "Prepared", "ABIVersion" -> "BlockEquationDeferredV1", '
+        '"Records" -> {'
+        '<|"Target" -> {1,1,1}, "Terms" -> {'
+        '<|"Coefficient" -> (x^2)^(3/2), "Operands" -> {1}|>}|>,'
+        '<|"Target" -> {1,1,2}, "Terms" -> {'
+        '<|"Coefficient" -> (x^2)^(-3/2), "Operands" -> {1}|>}|>'
+        '}|>|>|>\n'
+    )
+    with tempfile.TemporaryDirectory(prefix="gpu31-half-power-test-") as directory:
+        input_path = Path(directory) / "input.wl"
+        input_path.write_text(preparation)
+        request = Request(
+            p, ("x", "y", "eps"), ("x^2",), 1, 2,
+            [[3, 3], [5, 5], [7, 7], [3, p - 3]],
+            [[9, 9]], [[3]],
+        )
+        authenticate_roots(request)
+        programs = compile_preparation(input_path, request)
+    observed, _ = gpu_evaluate(request, programs, 32)
+    wanted = [0, 9, 0, pow(3, -4, p)]
+    if observed.tolist() != wanted:
+        raise AssertionError(f"half powers: {observed.tolist()} != {wanted}")
+    print(f"PASS half_integer_declared_root values={len(wanted)}")
+
+
 def main() -> None:
     fixture("deferred_ast_rank0_smoke", "deferred_ast_rank0_smoke")
     fixture("deferred_ast_rank0_smoke", "deferred_ast_rank0_dynamic")
     fixture("deferred_ast_rank3_smoke", "deferred_ast_rank3_smoke")
+    half_integer_declared_root()
     synthetic_batch()
 
 

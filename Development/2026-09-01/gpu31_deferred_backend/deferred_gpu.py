@@ -212,6 +212,7 @@ class ExpressionCompiler:
             self.skip()
         if self.i >= len(self.text):
             raise ValueError("missing primary")
+        base_start, base_code_start = self.i, len(self.code)
         if self.text[self.i] == "(":
             self.i += 1
             self.sum()
@@ -258,6 +259,7 @@ class ExpressionCompiler:
                 if tail not in tails:
                     raise ValueError(f"unsupported symbol {symbol!r}")
                 self.code.append((INPUT, tails.index(tail)))
+        base_end = self.i
         self.skip()
         if self.i < len(self.text) and self.text[self.i] == "^":
             self.i += 1
@@ -277,12 +279,44 @@ class ExpressionCompiler:
             if start == self.i:
                 raise ValueError("integer exponent required")
             exponent = int(self.text[start:self.i])
+            self.skip()
+            denominator = 1
+            if self.i < len(self.text) and self.text[self.i] == "/":
+                self.i += 1
+                self.skip()
+                denominator_start = self.i
+                while self.i < len(self.text) and self.text[self.i].isdigit():
+                    self.i += 1
+                if denominator_start == self.i:
+                    raise ValueError("exponent denominator required")
+                denominator = int(self.text[denominator_start:self.i])
+                self.skip()
+            if denominator == 2 and exponent & 1:
+                if not self.allow_sqrt:
+                    raise ValueError("half-integer exponent is not allowed here")
+                wanted = normalized(self.text[base_start:base_end])
+                if wanted.startswith("(") and wanted.endswith(")"):
+                    wanted = wanted[1:-1]
+                try:
+                    root_index = [normalized(root) for root in self.request.roots].index(wanted)
+                except ValueError as error:
+                    raise ValueError(
+                        "half-integer exponent requires a declared root square"
+                    ) from error
+                del self.code[base_code_start:]
+                self.code.append((INPUT, 3 + root_index))
+            elif denominator == 2:
+                exponent //= 2
+            elif denominator != 1:
+                raise ValueError("only integer and declared half-integer powers are supported")
             if exponent > 0xFFFFFFFF:
                 raise ValueError("GPU31 exponent exceeds 32 bits")
-            self.skip()
             if parenthesized:
                 if self.i >= len(self.text) or self.text[self.i] != ")":
-                    raise ValueError("missing exponent parenthesis")
+                    excerpt = self.text[max(0, self.i - 40):self.i + 80]
+                    raise ValueError(
+                        f"missing exponent parenthesis at byte {self.i}: {excerpt!r}"
+                    )
                 self.i += 1
             if exponent_sign < 0 and exponent:
                 self.code.append((INV, 0))
