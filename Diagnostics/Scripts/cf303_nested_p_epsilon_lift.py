@@ -182,7 +182,7 @@ def main() -> int:
     parser.add_argument("--epsilon-heldout", type=int, default=2)
     parser.add_argument("--u-train", type=int, default=125)
     parser.add_argument("--u-heldout", type=int, default=4)
-    parser.add_argument("--workers", type=int, choices=range(1, 5), default=2)
+    parser.add_argument("--workers", type=int, choices=range(1, 17), default=2)
     parser.add_argument("--threads-per-request", type=int, default=4)
     parser.add_argument("--discovery-workers", type=int, choices=range(1, 9), default=8)
     parser.add_argument("--ffri-threads", type=int, choices=range(1, 9), default=8)
