@@ -104,33 +104,58 @@ pairPowerQuadratic := proc(source,exponent)
   return result:
 end proc:
 
-pairSumBalancedQuadratic := proc(sourcePairs)
-  local work,nextWork,firstPosition,lastPosition,total,j;
-  if nops(sourcePairs)=0 then return [0,0] end if:
-  work := sourcePairs:
-  while nops(work)>1 do
-    nextWork := []:
-    for firstPosition from 1 by 16 to nops(work) do
-      lastPosition := min(firstPosition+15,nops(work)):
-      total := [add(work[j][1],j=firstPosition..lastPosition),
-        add(work[j][2],j=firstPosition..lastPosition)]:
-      nextWork := [op(nextWork),pairCanonicalQuadratic(total)]:
-    end do:
-    work := nextWork:
+pairSumExpressionQuadratic := proc(sourceExpression)
+  local termCount,position,batchCount,batch,projected,levels,occupied,
+    level,carry,result;
+  termCount := nops(sourceExpression):
+  if termCount=0 then return [0,0] end if:
+  levels := Array(1..64):
+  occupied := Array(1..64):
+  for level from 1 to 64 do
+    levels[level] := [0,0]:
+    occupied[level] := false:
   end do:
-  return work[1]:
+  batch := [0,0]:
+  batchCount := 0:
+  for position from 1 to termCount do
+    projected := quadraticProjectTermwise(op(position,sourceExpression)):
+    batch := [batch[1]+projected[1],batch[2]+projected[2]]:
+    batchCount := batchCount+1:
+    if batchCount=16 or position=termCount then
+      carry := pairCanonicalQuadratic(batch):
+      level := 1:
+      while occupied[level] do
+        carry := pairCanonicalQuadratic([
+          levels[level][1]+carry[1],levels[level][2]+carry[2]]):
+        levels[level] := [0,0]:
+        occupied[level] := false:
+        level := level+1:
+        if level>64 then error "quadratic sum exceeded 64 carry levels" end if:
+      end do:
+      levels[level] := carry:
+      occupied[level] := true:
+      batch := [0,0]:
+      batchCount := 0:
+    end if:
+  end do:
+  result := [0,0]:
+  for level from 1 to 64 do
+    if occupied[level] then
+      result := pairCanonicalQuadratic([
+        result[1]+levels[level][1],result[2]+levels[level][2]]):
+    end if:
+  end do:
+  return result:
 end proc:
 
 quadraticProjectTermwise := proc(sourceExpression)
-  local expressionHead,operands,operand,result,exponent;
+  local expressionHead,operand,result,exponent;
   if sourceExpression=0 then return [0,0] end if:
   if sourceExpression=rho then return [0,1] end if:
   if not has(sourceExpression,rho) then return [sourceExpression,0] end if:
   expressionHead := op(0,sourceExpression):
   if expressionHead=`+` then
-    operands := [op(sourceExpression)]:
-    return pairSumBalancedQuadratic([
-      seq(quadraticProjectTermwise(operand),operand in operands)]):
+    return pairSumExpressionQuadratic(sourceExpression):
   elif expressionHead=`*` then
     result := [1,0]:
     for operand in [op(sourceExpression)] do
