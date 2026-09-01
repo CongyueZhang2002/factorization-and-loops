@@ -42,14 +42,12 @@ writeAtomic[value_, file_] := Module[{directory, temporary},
   RenameFile[temporary, file, OverwriteTarget -> True]
 ];
 
-exactTransportQ[value_] := AssociationQ[value] &&
-  Lookup[value, "Status", None] === "ExactObservableTransport" &&
-  AssociationQ[Lookup[value, "Certificates", None]] &&
-  And @@ (TrueQ /@ Values[value["Certificates"]]);
+acceptedTransportQ[value_] :=
+  TrueQ[FeynFacet`AcceptedObservableTransportQ[value]];
 
 If[FileExistsQ[outputFile],
   existing = Quiet[Check[Get[outputFile], $Failed]];
-  If[exactTransportQ[existing],
+  If[acceptedTransportQ[existing],
     Print[Lookup[existing, "Family", "family"],
       " exact observable transport already exists"];
     Exit[0]
@@ -71,6 +69,18 @@ hardFunctionOrders = Lookup[card, "HardFunctionOrders", {0}];
 safetyOrders = Lookup[card, "SafetyOrders", 1];
 masterValuation = Lookup[card, "MasterValuation", 0];
 path = Lookup[card, "Path", Automatic];
+wordRepresentation = Lookup[card, "WordRepresentation", Automatic];
+materializedWordLimit = Lookup[card, "MaterializedWordLimit", 4096];
+coordinateBackend = Lookup[card, "CoordinateBackend", Automatic];
+coordinateCacheDirectory = Lookup[card, "CoordinateCacheDirectory",
+  outputFile <> ".coordinates"];
+reconstructionThreads = Lookup[card, "ReconstructionThreads",
+  Quiet[Check[ToExpression[
+    Replace[Environment["FACET_TRANSPORT_RECONSTRUCTION_THREADS"],
+      Except[_String] | "" -> "1"]], 1]]];
+validationPrimeCount = Lookup[card, "ValidationPrimeCount", 2];
+validationPointsPerPrime = Lookup[card,
+  "ValidationPointsPerPrime", 1];
 
 demand = FeynFacet`BuildObservableTransportDemand[
   epsilonForm,
@@ -88,8 +98,36 @@ If[Lookup[demand, "Status", None] =!= "ExactObservableDemand",
 
 start = AbsoluteTime[];
 result = FeynFacet`BuildObservableTransport[epsilonForm, demand,
+  "WordRepresentation" -> wordRepresentation,
+  "MaterializedWordLimit" -> materializedWordLimit,
+  "CoordinateBackend" -> coordinateBackend,
+  "CoordinateCacheDirectory" -> coordinateCacheDirectory,
+  "ReconstructionThreads" -> reconstructionThreads,
+  "ValidationPrimeCount" -> validationPrimeCount,
+  "ValidationPointsPerPrime" -> validationPointsPerPrime,
   "Verbose" -> TrueQ[Lookup[card, "Verbose", False]]];
-If[! exactTransportQ[result],
+If[Lookup[result, "Status", None] === "BoundarySubspaceNotInvariant",
+  alternateRecord = Join[epsilonForm,
+    <|"Variables" -> Reverse[epsilonForm["Variables"]]|>];
+  alternatePath = FeynFacet`FindObservableTransportPath[alternateRecord];
+  If[AssociationQ[alternatePath] &&
+      Lookup[alternatePath, "Status", None] === "ExactPathData",
+    Print["Primary path boundary subspace is not invariant; retrying " <>
+      "once with the variable order reversed"];
+    demand = Join[demand, <|"Path" -> alternatePath|>];
+    result = Join[FeynFacet`BuildObservableTransport[epsilonForm, demand,
+      "WordRepresentation" -> wordRepresentation,
+      "MaterializedWordLimit" -> materializedWordLimit,
+      "CoordinateBackend" -> coordinateBackend,
+      "CoordinateCacheDirectory" -> coordinateCacheDirectory,
+      "ReconstructionThreads" -> reconstructionThreads,
+      "ValidationPrimeCount" -> validationPrimeCount,
+      "ValidationPointsPerPrime" -> validationPointsPerPrime,
+      "Verbose" -> TrueQ[Lookup[card, "Verbose", False]]],
+      <|"PrimaryPathStatus" -> "BoundarySubspaceNotInvariant"|>]
+  ]
+];
+If[! acceptedTransportQ[result],
   Print["Observable transport failed: ",
     InputForm[KeyTake[result, {"Status", "Certificates"}]]];
   Exit[1]
@@ -107,7 +145,7 @@ result = Join[result, <|
 |>];
 writeAtomic[result, outputFile];
 
-Print[result["Family"], " exact observable transport: ",
+Print[result["Family"], " observable transport (", result["Status"], "): ",
   Length[result["PhysicalDemandPairs"]], " demanded (order,row) pairs, ",
   result["BoundaryCoordinates"], " boundary coordinates, maximum weight ",
   result["MaximumWeight"], ", ",

@@ -255,7 +255,16 @@ FindObservableTransportPath::usage =
   "FindObservableTransportPath[familyEpsForm] selects the first deterministic rational base and target sample at which every polynomial dlog letter of an exact family epsilon form is finite and nonzero. It fixes no physical branch; the polynomial dlog map remains the primary analytic record.";
 
 BuildObservableTransport::usage =
-  "BuildObservableTransport[familyEpsForm,demand] constructs only the iterated-integral maps that can contribute to the requested epsilon-order/master-row pairs. familyEpsForm is an exactly certified whole-family epsilon-form record. demand declares PhysicalDemandPairs (or the older Cartesian PhysicalRows and PhysicalOrders form), PhysicalValuation and Path. The routine first imposes the vanishing Laurent coefficients of the physical masters, derives the exact allowed boundary subspace, keeps its constants factored, and then propagates only nonzero projected dlog words. Every returned kernel, residue decomposition and differential invariant is checked symbolically.";
+  "BuildObservableTransport[familyEpsForm,demand] constructs only the iterated-integral maps that can contribute to the requested epsilon-order/master-row pairs. familyEpsForm is an exactly certified whole-family epsilon-form record. demand declares PhysicalDemandPairs (or the older Cartesian PhysicalRows and PhysicalOrders form), PhysicalValuation and Path. Small systems may retain materialized word maps. Large systems store the exact demanded map, sparse operator chain and constant base embedding without enumerating words; first- and second-direction constraint closures are accepted at fresh finite-field points. The optional CompactAutomaton representation reconstructs rational quotient coordinates when explicitly requested.";
+
+AcceptedObservableTransportQ::usage =
+  "AcceptedObservableTransportQ[result] checks the required named exact certificates and, according to the representation and boundary method, every fresh modular closure, ambient-invariance and quotient-coordinate certificate. It keeps probabilistic structural acceptance distinct from an exact symbolic identity.";
+
+ObservableTransportWordMap::usage =
+  "ObservableTransportWordMap[result,firstWord,secondWord] returns one demanded matrix-valued word from a materialized record, the exact lazy operator chain, or the optional compact quotient automaton. Lazy evaluation preserves the ordered product D R_word B K_word N_base and performs no global rational canonicalization.";
+
+ReconstructObservableTransportWordMaps::usage =
+  "ReconstructObservableTransportWordMaps[result,{{firstWord,secondWord},...}] materializes only the requested rational word maps, reconstructs all their final entries as one traced multi-right-hand-side Ratracer problem, and accepts the result at fresh modular points with the independent FLINT solver. Intermediate gauges and nullspaces are not reconstructed.";
 
 AssembleCutContributions::usage =
   "AssembleCutContributions[{result1, ...}] combines coefficient results of one process on a shared canonical family namespace. Each contribution enters with the exact weight IdenticalParticleSymmetryFactor[setup] times (-1) per outgoing ghost-antighost pair, realizing the Slavnov-Taylor completion of -g gluon polarization sums.";
@@ -353,6 +362,12 @@ SyntaxInformation[GenerateDiagram] = {"ArgumentsPattern" -> {_}};
 SyntaxInformation[DimensionalShift] = {"ArgumentsPattern" -> {_, _, _, _.}};
 SyntaxInformation[BuildObservableTransport] =
   {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
+SyntaxInformation[AcceptedObservableTransportQ] =
+  {"ArgumentsPattern" -> {_}};
+SyntaxInformation[ObservableTransportWordMap] =
+  {"ArgumentsPattern" -> {_, _, _}};
+SyntaxInformation[ReconstructObservableTransportWordMaps] =
+  {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
 SyntaxInformation[ComposeTransportChartExtension] =
   {"ArgumentsPattern" -> {_, _, _, _}};
 SyntaxInformation[BuildAlgebraicTransportFrame] =
@@ -393,7 +408,7 @@ $feynFacetPrivateFiles = FileNameJoin[{$feynFacetPrivateDirectory, #}] & /@ {
     "CoefficientStore.wl", "Reconstruction.wl",
     "CanonicalBlocks.wl", "EpsFormStrip.wl", "BlockEquationDeferred.wl",
     "FiniteFieldEpsForm.wl",
-    "FiniteFieldStripSolve.wl", "EpsFormStripObstruction.wl", "FamilyRegulatorFactor.wl", "FamilyRowGauge.wl", "FamilyCertificateModular.wl", "ObservableTransport.wl",
+    "FiniteFieldStripSolve.wl", "EpsFormStripObstruction.wl", "FamilyRegulatorFactor.wl", "FamilyRowGauge.wl", "FamilyCertificateModular.wl", "ObservableTransport.wl", "ObservableTransportFiniteField.wl",
     "MasterTransport.wl", "BlockwiseTransport.wl",
     "TransportCharts.wl", "FamilyRowGaugeResume.wl",
     "MultiquadraticAlgebra.wl", "MultiquadraticStripSolve.wl",

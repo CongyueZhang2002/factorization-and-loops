@@ -5,8 +5,11 @@
 Module[
   {repositoryRoot, arguments, epsilonFormFile, differentialSystemFile,
    valuationsFile, outputFile, cardFile, loadAssociation, writeAtomic,
-   exactTransportQ, existing, epsilonForm, differentialSystem, valuations,
+   acceptedTransportQ, existing, epsilonForm, differentialSystem, valuations,
    card, hardFunctionOrders, safetyOrders, masterValuation, path, demand,
+   wordRepresentation, materializedWordLimit, coordinateBackend,
+   coordinateCacheDirectory, reconstructionThreads, validationPrimeCount,
+   validationPointsPerPrime,
    start, result, alternateRecord, alternatePath, alternateResult,
    missionTag},
 
@@ -54,14 +57,12 @@ Module[
     RenameFile[temporary, file, OverwriteTarget -> True]
   ];
 
-  exactTransportQ[value_] := AssociationQ[value] &&
-    Lookup[value, "Status", None] === "ExactObservableTransport" &&
-    AssociationQ[Lookup[value, "Certificates", None]] &&
-    And @@ (TrueQ /@ Values[value["Certificates"]]);
+  acceptedTransportQ[value_] :=
+    TrueQ[FeynFacet`AcceptedObservableTransportQ[value]];
 
   If[FileExistsQ[outputFile],
     existing = Quiet[Check[Get[outputFile], $Failed]];
-    If[exactTransportQ[existing],
+    If[acceptedTransportQ[existing],
       Print[Lookup[existing, "Family", "family"],
         " exact observable transport already exists"];
       Throw[Null, missionTag]
@@ -86,6 +87,15 @@ Module[
   safetyOrders = Lookup[card, "SafetyOrders", 1];
   masterValuation = Lookup[card, "MasterValuation", 0];
   path = Lookup[card, "Path", Automatic];
+  wordRepresentation = Lookup[card, "WordRepresentation", Automatic];
+  materializedWordLimit = Lookup[card, "MaterializedWordLimit", 4096];
+  coordinateBackend = Lookup[card, "CoordinateBackend", Automatic];
+  coordinateCacheDirectory = Lookup[card, "CoordinateCacheDirectory",
+    outputFile <> ".coordinates"];
+  reconstructionThreads = Lookup[card, "ReconstructionThreads", 1];
+  validationPrimeCount = Lookup[card, "ValidationPrimeCount", 2];
+  validationPointsPerPrime = Lookup[card,
+    "ValidationPointsPerPrime", 1];
 
   demand = FeynFacet`BuildObservableTransportDemand[
     epsilonForm,
@@ -104,6 +114,13 @@ Module[
   start = AbsoluteTime[];
   result = FeynFacet`BuildObservableTransport[
     epsilonForm, demand,
+    "WordRepresentation" -> wordRepresentation,
+    "MaterializedWordLimit" -> materializedWordLimit,
+    "CoordinateBackend" -> coordinateBackend,
+    "CoordinateCacheDirectory" -> coordinateCacheDirectory,
+    "ReconstructionThreads" -> reconstructionThreads,
+    "ValidationPrimeCount" -> validationPrimeCount,
+    "ValidationPointsPerPrime" -> validationPointsPerPrime,
     "Verbose" -> TrueQ[Lookup[card, "Verbose", False]]
   ];
   If[Lookup[result, "Status", None] === "BoundarySubspaceNotInvariant",
@@ -117,13 +134,20 @@ Module[
       demand = Join[demand, <|"Path" -> alternatePath|>];
       alternateResult = FeynFacet`BuildObservableTransport[
         epsilonForm, demand,
+        "WordRepresentation" -> wordRepresentation,
+        "MaterializedWordLimit" -> materializedWordLimit,
+        "CoordinateBackend" -> coordinateBackend,
+        "CoordinateCacheDirectory" -> coordinateCacheDirectory,
+        "ReconstructionThreads" -> reconstructionThreads,
+        "ValidationPrimeCount" -> validationPrimeCount,
+        "ValidationPointsPerPrime" -> validationPointsPerPrime,
         "Verbose" -> TrueQ[Lookup[card, "Verbose", False]]
       ];
       result = Join[alternateResult,
         <|"PrimaryPathStatus" -> "BoundarySubspaceNotInvariant"|>]
     ]
   ];
-  If[! exactTransportQ[result],
+  If[! acceptedTransportQ[result],
     Print["Observable transport failed: ",
       InputForm[KeyTake[result, {"Status", "Certificates"}]]];
     Throw[$Failed, missionTag]
@@ -141,7 +165,8 @@ Module[
   |>];
   writeAtomic[result, outputFile];
 
-  Print[result["Family"], " exact observable transport: ",
+  Print[result["Family"], " observable transport (", result["Status"],
+    "): ",
     Length[result["PhysicalDemandPairs"]], " demanded (order,row) pairs, ",
     result["BoundaryCoordinates"], " boundary coordinates, maximum weight ",
     result["MaximumWeight"], ", ", Round[result["TotalSeconds"], 0.01],

@@ -35,6 +35,20 @@ demand = <|
   "Path" -> path
 |>;
 transport = BuildObservableTransport[record, demand];
+constrainedDemand = <|
+  "PhysicalRows" -> {1},
+  "PhysicalOrders" -> {2, 3},
+  "PhysicalValuation" -> 2,
+  "Path" -> path
+|>;
+constrainedTransport = BuildObservableTransport[record, constrainedDemand];
+If[Lookup[constrainedTransport, "Status", None] =!=
+    "ModularlyVerifiedObservableTransport",
+  Print["Constrained algebraic diagnostic: ",
+    InputForm[KeyTake[constrainedTransport,
+      {"Status", "Prime", "Point", "BranchMask", "SpaceRank",
+       "JoinedRank", "CoefficientField", "Accepted", "Required",
+       "RejectedReasons", "RootSquares"}]]]];
 
 FTAssert["the algebraic family record is admitted only after exact certificates",
   ExactFamilyEpsilonFormQ[record]];
@@ -51,5 +65,10 @@ FTAssert["the second zero connection is represented without spurious kernels",
     transport["SecondSegmentKernels"] === {}];
 FTAssert["all demand-driven transport identities are exact",
   And @@ (TrueQ /@ Values[transport["Certificates"]])];
+FTAssert["constrained algebraic closure is certified at split finite-field points",
+  AssociationQ[constrainedTransport] &&
+    constrainedTransport["Status"] ===
+      "ModularlyVerifiedObservableTransport" &&
+    AcceptedObservableTransportQ[constrainedTransport]];
 
 FTReport[];
