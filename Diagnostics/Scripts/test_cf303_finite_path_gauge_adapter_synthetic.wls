@@ -23,7 +23,7 @@ path = <|
   "LetterRecords" -> {
     {{"GPLPole", 0}, {1/u, 0}}, {{"E4Omega0"}, {0, 1}}},
   "TransformedResidueRecords" -> {
-    {-2, 1, {{44, 1, a}, {45, 2, b}}},
+    {-2, 1, {{44, 1, a + Y0}, {45, 2, b}}},
     {0, 2, {{44, 1, c}}}},
   "HByOrder" -> {
     {-2, {{44, 1, {h01 + u + Y0, h11}},
@@ -37,10 +37,13 @@ assert[Length[synthetic["EntryRecords"]] === 6,
   "four diagonal records retained"];
 assert[Sort[synthetic["EntryRecords"][[;; 2, 1]]] ===
     {{44, 1}, {45, 2}}, "source coordinates retained"];
+assert[FreeQ[synthetic["EntryRecords"], Y0] &&
+    ! FreeQ[synthetic["EntryRecords"], Yc[1/2]],
+  "base-sheet constant translated in transformed residues"];
 
 hCompiled = cf303PathGaugeCompileH[path, z];
 assert[Normal[hCompiled[-2][[1]]] ===
-    {{0, h01 + z + CF303Y[1/2]}, {h02, 0}},
+    {{0, h01 + z + Yc[1/2]}, {h02, 0}},
   "sourceRows ordering in H rational side"];
 assert[Normal[hCompiled[-2][[2]]] === {{0, h11}, {h12, 0}},
   "sourceRows ordering in H curve side"];

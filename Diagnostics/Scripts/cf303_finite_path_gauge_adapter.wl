@@ -51,7 +51,8 @@ cf303PathGaugePairLeftMultiply[{leftR_, leftY_},
 cf303BuildPathGaugeSyntheticTransfer[originalTransfer_Association,
     pathGauge_Association, eps_Symbol] := Module[
   {targetRows, sourceRows, letterRecords, contributions, grouped,
-   offRecords, diagonalRecords, profile, terms, orders, coordinate},
+   offRecords, diagonalRecords, profile, terms, orders, coordinate,
+   baseSheetRule},
 
   If[originalTransfer["Status"] =!=
         "CF303Block25GeneralEllipticTransferAcceptedV1" ||
@@ -61,12 +62,15 @@ cf303BuildPathGaugeSyntheticTransfer[originalTransfer_Association,
   targetRows = pathGauge["TargetRows"];
   sourceRows = pathGauge["SourceRows"];
   letterRecords = pathGauge["LetterRecords"];
+  baseSheetRule = Y0 -> Yc[pathGauge["BasePoint"]];
 
   contributions = Flatten[Map[
     Function[residueRecord, With[
       {order = residueRecord[[1]],
        descriptor = letterRecords[[residueRecord[[2]]]]},
-      ({#[[{1, 2}]], {#[[3]] eps^order, descriptor}, order} &) /@
+      ({#[[{1, 2}]],
+          {(#[[3]] /. baseSheetRule) eps^order,
+            descriptor /. baseSheetRule}, order} &) /@
         residueRecord[[3]]]],
     pathGauge["TransformedResidueRecords"]], 1];
   If[contributions === {},
@@ -113,7 +117,7 @@ cf303PathGaugeCompileH[pathGauge_Association,
   (* Maple uses Y0 for the fixed sheet value at the base point when it
      normalizes H_n(base)=0.  Keep that constant explicit in the Wolfram
      result instead of leaking an otherwise undefined serializer symbol. *)
-  baseSheetRule = Y0 -> CF303Y[pathGauge["BasePoint"]];
+  baseSheetRule = Y0 -> Yc[pathGauge["BasePoint"]];
   compileSide[records_, side_] := SparseArray[
     ({Lookup[targetLocation, #[[1]]], Lookup[sourceLocation, #[[2]]]} ->
         (#[[3, side]] /. baseSheetRule /. variableRule) &) /@ records,
