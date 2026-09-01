@@ -1,0 +1,43 @@
+{
+  "status": "CF303HybridBaselineExactPathGaugeTerminatedForMemoryV1",
+  "family": "CF303",
+  "block": 25,
+  "command": "python3 Diagnostics/Scripts/cf303_run_hybrid_baseline_path_gauge.py --run",
+  "wrapper_wall_seconds": 14298,
+  "kernel_elapsed_at_last_sample": "03:46:41",
+  "last_kernel_pid": 2121448,
+  "termination": {
+    "kind": "CoordinatorMemorySafetyStop",
+    "reason": "late exact Maple recurrence allocation accelerated while available memory fell below 10 GiB",
+    "maple_frontend_result": "fatal error, lost connection to kernel",
+    "maple_exit_status": 5,
+    "wrapper_exit_status": 1,
+    "oom_kill": false,
+    "partial_output_present": false
+  },
+  "memory_samples": [
+    {"kernel_elapsed": "01:15:18", "rss_gb_reported": 7.34, "peak_gb_reported": 9.15, "note": "healthy early recurrence monitor sample"},
+    {"kernel_elapsed": "02:47:55", "rss_kib": 23251652, "peak_kib": 23957292, "note": "late plateau begins"},
+    {"kernel_elapsed": "03:31:00", "rss_kib": 23253068, "peak_kib": 23957292, "note": "plateau remained stable"},
+    {"kernel_elapsed": "03:40:57", "rss_kib": 25545848, "peak_kib": 25895348, "mem_available_kib": 21630072},
+    {"kernel_elapsed": "03:42:12", "rss_kib": 26892380, "peak_kib": 27598896, "mem_available_kib": 20276076},
+    {"kernel_elapsed": "03:44:31", "rss_kib": 28289948, "peak_kib": 29377124, "mem_available_kib": 18873348},
+    {"kernel_elapsed": "03:46:16", "rss_kib": 36862092, "peak_kib": 37896776, "mem_available_kib": 10281940},
+    {"kernel_elapsed": "03:46:41", "rss_kib": 37735520, "peak_kib": 38027848, "mem_available_kib": 9401784}
+  ],
+  "outputs": {
+    "generated_maple_program": "Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_finite_path_gauge_generated.mpl",
+    "expected_maple_artifact": "Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_finite_path_gauge.maple",
+    "expected_wolfram_artifact": "Runtime/2026-08-31_cf303_native_dlog_residues/cf303_hybrid_baseline_finite_path_gauge.wl",
+    "expected_artifacts_written": false
+  },
+  "interpretation": "This is an execution-resource failure before serialization, not a failed recurrence identity or a mathematical obstruction. No exact baseline H/K result was accepted.",
+  "recommended_replacement": {
+    "representation": "DeferredExactFinitePathGaugeCircuitV1",
+    "definition": "Keep the exact 76-entry transfer, four accepted exception censuses, exact D/S source operator and T25 gauge as provenance-bearing leaves. Seal Add, Multiply, derivative, deterministic Hermite primitive/remainder, H(base)=0 normalization and T25 convolution as circuit nodes; do not expand characteristic-zero H/K matrices.",
+    "execution": "Specialize exact leaves first at a requested (q,p), then execute the complete 2x43, orders -3..4 recurrence with sparse 64-bit modular rational/quartic Hermite arithmetic. Reuse the accepted block-1 point evaluator conventions and merge its two circuit entries additively.",
+    "acceptance": "At each of q7 p=3 and p=239/47, replay all 688 recurrence coordinates and 688 basepoint values, then T25 orders 0..2 and target orders -4..2. A second disjoint prime is needed only if required by the existing probabilistic acceptance policy.",
+    "exactness_contract": "The exact object is the provenance-sealed arithmetic circuit; modular images are its evaluator and acceptance evidence, not a modular-oracle-only final result.",
+    "why_preferred": "It performs cancellations and Hermite reduction after finite-field specialization, avoids the observed 36-GiB expanded exact intermediate, and requires neither cross-prime reconstruction of expanded H/K coefficients nor another exact Maple recurrence."
+  }
+}
