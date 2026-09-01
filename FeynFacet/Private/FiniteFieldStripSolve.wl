@@ -474,7 +474,8 @@ finiteFieldStripFLINTSolve[core_, rhs_, prime_Integer, threads_Integer] := Modul
     BinaryWrite[stream, Flatten[Normal[core]], "UnsignedInteger64", ByteOrdering -> -1];
     BinaryWrite[stream, Flatten[Normal[rhs]], "UnsignedInteger64", ByteOrdering -> -1];
     Close[stream];
-    process = RunProcess[{binary, input, output, ToString[Clip[threads, {1, 4}]]}];
+    process = RunProcess[taskBrokerNativeCommand[
+      {binary, input, output, ToString[Clip[threads, {1, 4}]]}, threads]];
     If[! AssociationQ[process] || process["ExitCode"] =!= 0, Throw[$Failed, "flint"]];
     stream = OpenRead[output, BinaryFormat -> True];
     magic = BinaryReadList[stream, "UnsignedInteger8", 8];
@@ -791,8 +792,9 @@ finiteFieldStripCFFRRun[matrix_, rightHandSide_, prime_Integer,
     Return[Join[written, <|"RequestFile" -> requestFile,
       "ResponseFile" -> responseFile|>]]];
   threadArgument = Max[1, Min[threads, 8]];
-  process = Quiet[Check[RunProcess[{hashes["AdapterBinary"], requestFile,
-    responseFile, ToString[threadArgument]}], $Failed]];
+  process = Quiet[Check[RunProcess[taskBrokerNativeCommand[
+    {hashes["AdapterBinary"], requestFile, responseFile,
+      ToString[threadArgument]}, threadArgument]], $Failed]];
   exitCode = If[AssociationQ[process], Lookup[process, "ExitCode", -1], -1];
   If[exitCode =!= 0,
     Return[finiteFieldStripCFFRFailure[

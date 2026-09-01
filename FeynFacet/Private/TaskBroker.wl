@@ -26,6 +26,10 @@
 
 ClearAll[
   taskBrokerDirectory, taskBrokerActiveQ, taskBrokerPoolAliveQ,
+  taskBrokerResourceGroup, taskBrokerResourceOwner,
+  taskBrokerResourceAllocation, taskBrokerActiveFamilyCount,
+  taskBrokerNativeCoreQuota, taskBrokerNativeThreadLimit,
+  taskBrokerNativeCommand,
   taskBrokerPutAtomic, taskBrokerDataFile, taskBrokerRead, taskBrokerCached,
   taskBrokerFreeKernels, taskBrokerNewName, taskBrokerRun, taskBrokerSubmit,
   taskBrokerCollect, taskBrokerSampleBatch,
@@ -51,6 +55,91 @@ taskBrokerPoolAliveQ[] := With[{d = taskBrokerDirectory[]},
 
 (* usable from a mission: a pool exists, is alive, and we are not a task *)
 taskBrokerActiveQ[] := ! TrueQ[$taskBrokerInsideTask] && taskBrokerPoolAliveQ[];
+
+taskBrokerResourceGroup[] := Module[{scoped, inherited},
+  scoped = If[ValueQ[KernelPoolMission`$TaskBrokerResourceGroup],
+    KernelPoolMission`$TaskBrokerResourceGroup, None];
+  inherited = Environment["FACET_RESOURCE_GROUP"];
+  Which[
+    StringQ[scoped] && StringMatchQ[scoped,
+      RegularExpression["[A-Za-z0-9][A-Za-z0-9._-]{0,179}"]], scoped,
+    StringQ[inherited] && StringMatchQ[inherited,
+      RegularExpression["[A-Za-z0-9][A-Za-z0-9._-]{0,179}"]], inherited,
+    True, "ungrouped"]
+];
+
+taskBrokerResourceOwner[] := Module[{scoped, inherited},
+  scoped = If[ValueQ[KernelPoolMission`$TaskBrokerResourceOwner],
+    KernelPoolMission`$TaskBrokerResourceOwner, None];
+  inherited = Environment["FACET_RESOURCE_OWNER"];
+  Which[
+    StringQ[scoped] && StringMatchQ[scoped,
+      RegularExpression["[A-Za-z0-9][A-Za-z0-9._-]{0,179}"]], scoped,
+    StringQ[inherited] && StringMatchQ[inherited,
+      RegularExpression["[A-Za-z0-9][A-Za-z0-9._-]{0,179}"]], inherited,
+    True, "ungrouped"]
+];
+
+taskBrokerResourceAllocation[] := Module[
+  {directory = taskBrokerDirectory[], file, allocation, groups, record},
+  If[directory === None, Return[<||>]];
+  file = FileNameJoin[{directory, "resource_allocations.wl"}];
+  If[! FileExistsQ[file], Return[<||>]];
+  allocation = Quiet[Check[Get[file], $Failed]];
+  If[! AssociationQ[allocation] ||
+      Lookup[allocation, "Schema", None] =!=
+        "KernelPoolResourceAllocationV1", Return[<||>]];
+  groups = Lookup[allocation, "Groups", <||>];
+  If[! AssociationQ[groups], Return[<||>]];
+  record = Lookup[groups, taskBrokerResourceGroup[], <||>];
+  If[! AssociationQ[record] ||
+      ! IntegerQ[Lookup[record, "HelperCeiling", None]] ||
+      Lookup[record, "HelperCeiling", -1] < 0 ||
+      ! IntegerQ[Lookup[record, "NativeCoreQuota", None]] ||
+      Lookup[record, "NativeCoreQuota", 0] < 1 ||
+      ! IntegerQ[Lookup[record, "NativeThreadsPerWorker", None]] ||
+      ! Between[Lookup[record, "NativeThreadsPerWorker", 0], {1, 8}],
+    Return[<||>]];
+  Join[KeyTake[allocation, {"ActiveFamilyCount", "HelperCapacity",
+      "SubkernelCapacity", "NativeCoreCapacity"}], record]
+];
+
+taskBrokerActiveFamilyCount[] := Max[1, Lookup[
+  taskBrokerResourceAllocation[], "ActiveFamilyCount", 1]];
+
+taskBrokerNativeCoreQuota[] := Module[{allocation, processors},
+  allocation = taskBrokerResourceAllocation[];
+  If[IntegerQ[Lookup[allocation, "NativeCoreQuota", None]],
+    Return[Max[1, allocation["NativeCoreQuota"]]]];
+  processors = Quiet[Check[$ProcessorCount, 1]];
+  If[IntegerQ[processors] && processors > 0, processors, 1]
+];
+
+taskBrokerNativeThreadLimit[requested_Integer] := Module[{limit},
+  If[! Between[requested, {1, 8}], Return[requested]];
+  limit = Lookup[taskBrokerResourceAllocation[],
+    "NativeThreadsPerWorker", requested];
+  If[IntegerQ[limit] && Between[limit, {1, 8}],
+    Min[requested, limit], requested]
+];
+taskBrokerNativeThreadLimit[value_] := value;
+
+taskBrokerNativeCommand[command_List, requested_Integer] := Module[
+  {effective, adjusted, directory, root, wrapper},
+  If[command === {} || ! AllTrue[command, StringQ] ||
+      ! Between[requested, {1, 8}], Return[command]];
+  effective = taskBrokerNativeThreadLimit[requested];
+  adjusted = ReplacePart[command, -1 -> ToString[effective]];
+  directory = taskBrokerDirectory[];
+  If[directory === None || ! taskBrokerPoolAliveQ[], Return[adjusted]];
+  root = Quiet[Check[
+    DirectoryName[DirectoryName[$feynFacetPrivateDirectory]], None]];
+  If[! StringQ[root], Return[adjusted]];
+  wrapper = FileNameJoin[{root, "Scripts", "native_core_lease.sh"}];
+  If[! FileExistsQ[wrapper], Return[adjusted]];
+  Join[{wrapper, directory, ToString[effective], "--"}, adjusted]
+];
+taskBrokerNativeCommand[command_, _] := command;
 
 taskBrokerPutAtomic[expr_, file_String] := (
   Put[expr, file <> ".tmp"];
@@ -82,7 +171,8 @@ taskBrokerCached[key_, expr_] := Module[{value},
    its own ceiling with FACET_TASK_BROKER_MAX_HELPERS; this lets several
    independent algorithms share one flat pool without nested kernels. *)
 taskBrokerFreeKernels[] := Module[
-  {status, m, free, limitText, environmentLimit, missionLimit},
+  {status, m, free, limitText, environmentLimit, missionLimit,
+   allocation, familyLimit, helperCapacity, available},
   status = Quiet[Import[FileNameJoin[{taskBrokerDirectory[], "status.txt"}], "Text"]];
   m = If[StringQ[status], StringCases[status, "free: " ~~ n : DigitCharacter .. :> ToExpression[n]], {}];
   free = If[m === {}, 1, First[m]];
@@ -98,7 +188,13 @@ taskBrokerFreeKernels[] := Module[
       IntegerQ[KernelPoolMission`$TaskBrokerMaxHelpers] &&
       KernelPoolMission`$TaskBrokerMaxHelpers >= 0,
     KernelPoolMission`$TaskBrokerMaxHelpers, Infinity];
-  Min[free, environmentLimit, missionLimit]];
+  allocation = taskBrokerResourceAllocation[];
+  familyLimit = Lookup[allocation, "HelperCeiling", Infinity];
+  helperCapacity = Lookup[allocation, "HelperCapacity", 0];
+  available = If[IntegerQ[familyLimit],
+    Max[free, familyLimit,
+      If[IntegerQ[helperCapacity], helperCapacity, 0]], free];
+  Min[available, environmentLimit, missionLimit]];
 
 (* FeynFacet is reloaded on persistent pool subkernels, resetting the local
    counter while the PID stays fixed.  A per-load filesystem-safe nonce keeps
@@ -122,8 +218,13 @@ taskBrokerRun[codes_List, opts : OptionsPattern[]] :=
 Options[taskBrokerSubmit] = Options[taskBrokerRun];
 taskBrokerSubmit[codes_List, OptionsPattern[]] := Module[
   {dir = taskBrokerDirectory[], names, files, resultDir, resultFiles, t0 = AbsoluteTime[],
-   timeout = OptionValue["Timeout"], label = OptionValue["Label"]},
+   timeout = OptionValue["Timeout"], label = OptionValue["Label"],
+   resourceGroup, resourceOwner, resourceLiteral, resourceOwnerLiteral},
   If[dir === None, Return[<|"Directory" -> None, "Codes" -> codes|>]];
+  resourceGroup = taskBrokerResourceGroup[];
+  resourceOwner = taskBrokerResourceOwner[];
+  resourceLiteral = ToString[resourceGroup, InputForm];
+  resourceOwnerLiteral = ToString[resourceOwner, InputForm];
   resultDir = FileNameJoin[{dir, "data", "results"}];
   If[! DirectoryQ[resultDir], Quiet[CreateDirectory[resultDir, CreateIntermediateDirectories -> True]]];
   names = Table[taskBrokerNewName[label], {Length[codes]}];
@@ -131,10 +232,16 @@ taskBrokerSubmit[codes_List, OptionsPattern[]] := Module[
   files = MapThread[Function[{name, code, resultFile},
     Module[{q = FileNameJoin[{dir, "queue", name <> ".wl"}], text},
       text = StringJoin["(* broker task ", name, " *)\n",
-        "Module[{taskResult}, FeynFacet`Private`$taskBrokerInsideTask = True;\n",
+        "(* FACET_RESOURCE group=", resourceGroup, " role=helper owner=",
+        resourceOwner, " *)\n",
+        "Block[{KernelPoolMission`$TaskBrokerResourceGroup = ",
+        resourceLiteral, ", KernelPoolMission`$TaskBrokerResourceRole = \"helper\", ",
+        "KernelPoolMission`$TaskBrokerResourceOwner = ",
+        resourceOwnerLiteral, "},\n",
+        " Module[{taskResult}, FeynFacet`Private`$taskBrokerInsideTask = True;\n",
         "  taskResult = Quiet[Check[", code, ", $Failed]];\n",
         "  FeynFacet`Private`$taskBrokerInsideTask = False;\n",
-        "  FeynFacet`Private`taskBrokerPutAtomic[taskResult, \"", resultFile, "\"]; Null]\n"];
+        "  FeynFacet`Private`taskBrokerPutAtomic[taskResult, \"", resultFile, "\"]; Null]]\n"];
       Export[q <> ".tmp", text, "Text"];
       RenameFile[q <> ".tmp", q, OverwriteTarget -> True]; q]],
     {names, codes, resultFiles}];

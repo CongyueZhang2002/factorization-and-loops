@@ -105,7 +105,9 @@ run_family() {
   arguments=("$epsilon_form" "$differential_system" "$valuations" \
     "$output")
   [[ -n "${card:-}" ]] && arguments+=("$card")
-  "$repository_root/Scripts/kpsubmit.sh" "$mission" \
+  FACET_RESOURCE_GROUP="$family" FACET_RESOURCE_ROLE=family \
+    FACET_RESOURCE_OWNER="${run_tag}_${family}" \
+    "$repository_root/Scripts/kpsubmit.sh" "$mission" \
     "$repository_root/Scripts/family_observable_transport_pool_mission.wls" \
     "${arguments[@]}" >/dev/null
   ln -sfn "$pool_root/logs/${mission}.log" "$output_root/${family}.log"

@@ -26,13 +26,33 @@ poolDir = If[Length[args] >= 1, args[[1]],
 nWanted = If[Length[args] >= 2, ToExpression[args[[2]]], 8];
 preload = If[Length[args] >= 3, ToExpression[args[[3]]], True];
 root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];
+resourcePolicyFile = FileNameJoin[{root, "Scripts",
+    "KernelPoolResourcePolicy.wl"}];
+If[! FileExistsQ[resourcePolicyFile] ||
+    Quiet[Check[Get[resourcePolicyFile]; True, False]] =!= True,
+  WriteString["stdout", "KernelPool resource policy could not be loaded\n"];
+  Exit[2]];
+nativeCoreCapacity = Module[{value = Environment["FACET_NATIVE_CORE_COUNT"]},
+  If[StringQ[value] && StringMatchQ[value, DigitCharacter ..] &&
+      FromDigits[value] >= 1, FromDigits[value], Max[1, nWanted]]];
 
 sub[d_] := FileNameJoin[{poolDir, d}];
 Do[If[! DirectoryQ[sub[d]], CreateDirectory[sub[d], CreateIntermediateDirectories -> True]],
   {d, {"queue", "running", "done", "failed", "logs", "control"}}];
 Export[sub["pool.pid"], ToString[$ProcessID], "Text"];
+SetEnvironment["FACET_TASK_BROKER" -> poolDir];
 log[msg___] := (WriteString["stdout", DateString["ISODateTime"], " POOL ", StringJoin[ToString /@ {msg}], "\n"]);
 putAtomic[expr_, file_] := Module[{tmp = file <> ".tmp"}, Put[expr, tmp]; RenameFile[tmp, file, OverwriteTarget -> True]];
+putAtomic[nativeCoreCapacity,
+  FileNameJoin[{sub["control"], "native_cores"}]];
+
+currentNativeCoreCapacity[] := Module[{file, text},
+  file = FileNameJoin[{sub["control"], "native_cores"}];
+  text = Quiet[Check[Import[file, "Text"], ""]];
+  text = If[StringQ[text], StringTrim[text], ""];
+  If[StringMatchQ[text, DigitCharacter ..] && FromDigits[text] >= 1,
+    FromDigits[text], nativeCoreCapacity]
+];
 
 Needs["Parallel`Developer`"];
 (* NB: Parallel`Developer` exports the Protected state symbols running/queued/finished -- never use them as variables. *)
@@ -64,7 +84,7 @@ kernelSetup[ks_List] := If[ks =!= {}, ParallelEvaluate[(Off[OptionValue::optnf];
    Protect[Exit, Quit];), ks]];
 kernelPreload[ks_List] := If[ks =!= {} && TrueQ[preload],
    ParallelEvaluate[If[Names["FeynFacet`TransportFamily"] === {},
-     Quiet[Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}],
+     Quiet[Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]],
        General::shdw]], ks]];
 kernelDefs[ks_List] := If[ks =!= {}, With[{f = poolRunFile}, ParallelEvaluate[Get[f], ks]]];
 kernelSetup[Kernels[]];
@@ -233,6 +253,66 @@ requeues = <||>;   (* name -> number of KERNELLOST requeues *)
 requeueGenerations = <||>;   (* preserve logical identity across a KERNELLOST filesystem requeue *)
 maxEnvelopeBytes = 65536;
 allowedEnvelopeKeys = {"Mission", "Attempt", "Status", "HadMessages", "Wall", "Kernel"};
+resourceGroups = {};
+resourceEpoch = 0;
+lastHelperDispatch = <||>;
+
+missionResourceRecord[file_String] := Module[{text, metadata, date},
+  text = Quiet[Check[Import[file, "Text"], ""]];
+  metadata = KernelPoolResourcePolicy`KernelPoolResourceMetadata[text];
+  date = Quiet[Check[AbsoluteTime[FileDate[file]], 0.]];
+  Join[<|"File" -> file, "Date" -> date|>, metadata]
+];
+
+activeResourceGroups[] := Sort[DeleteDuplicates[Lookup[
+  Select[Values[poolJobs], AssociationQ[#] &&
+      Lookup[#, "Role", None] === "family" &&
+      StringQ[Lookup[#, "Group", None]] &&
+      Lookup[#, "Group", None] =!= "ungrouped" &], "Group", {}]]];
+
+runningResourceCounts[role_: All] := Counts[Lookup[
+  Select[Values[poolJobs], AssociationQ[#] &&
+      StringQ[Lookup[#, "Group", None]] &&
+      Lookup[#, "Group", None] =!= "ungrouped" &&
+      (role === All || Lookup[#, "Role", None] === role) &],
+  "Group", {}]];
+
+resourceSnapshot[] := Module[{groups, running},
+  groups = activeResourceGroups[];
+  If[groups =!= resourceGroups,
+    resourceGroups = groups;
+    resourceEpoch++];
+  running = runningResourceCounts[];
+  KernelPoolResourcePolicy`KernelPoolResourceAllocate[
+    groups, Length[Kernels[]], currentNativeCoreCapacity[], running,
+    resourceEpoch]
+];
+
+writeResourceAllocations[] := Module[{allocation = resourceSnapshot[]},
+  If[AssociationQ[allocation],
+    putAtomic[allocation, sub["resource_allocations.wl"]]];
+  allocation
+];
+
+selectNextMission[records_List] := Module[
+  {primary, helpers, allocation, selected},
+  If[records === {}, Return[Missing["QueueEmpty"]]];
+  primary = Select[records,
+    Lookup[#, "Role", "mission"] =!= "helper" &];
+  If[primary =!= {}, Return[First@SortBy[primary,
+    {Lookup[#, "Date", 0.] &, Lookup[#, "File", ""] &}]]];
+  helpers = Select[records,
+    Lookup[#, "Role", None] === "helper" &];
+  allocation = resourceSnapshot[];
+  selected = KernelPoolResourcePolicy`KernelPoolResourceSelectHelper[
+    helpers, runningResourceCounts["helper"], allocation,
+    lastHelperDispatch];
+  If[AssociationQ[selected], selected,
+    SelectFirst[SortBy[helpers,
+      {Lookup[#, "Date", 0.] &, Lookup[#, "File", ""] &}],
+      Lookup[#, "Group", None] === "ungrouped" &,
+      Missing["NoEligibleMission"]]]
+];
 
 deleteClaim[name_String] := Module[
   {claim = FileNameJoin[{sub["running"], "claims", name <> ".wl"}]},
@@ -307,15 +387,30 @@ Do[Module[{name = FileBaseName[f], lg, ok, dest},
    Quiet@DeleteFile[FileNameJoin[{sub["running"], name <> ".kernel.result"}]];
    log["recovered stale running mission ", name, " -> ", If[ok, "done (log says OK)", "failed (POOLRESTART)"]]],
   {f, FileNames["*.wl", sub["running"]]}];
-writeStatus[] := Module[{lines},
+writeStatus[] := Module[{lines, allocation, resourceLines},
+  allocation = writeResourceAllocations[];
+  resourceLines = If[AssociationQ[allocation], KeyValueMap[
+    Function[{group, grant}, StringJoin["  allocation ", group,
+      " helpers<=", ToString[grant["HelperCeiling"]],
+      " native=", ToString[grant["NativeCoreQuota"]],
+      " workers=", ToString[grant["RunningWorkers"]],
+      " threads/worker=", ToString[grant["NativeThreadsPerWorker"]]]],
+    Lookup[allocation, "Groups", <||>]], {}];
   lines = Join[
     {"KernelPool status " <> DateString["ISODateTime"],
      "pool dir: " <> poolDir,
      "subkernels: " <> ToString[Length[Kernels[]]] <> "  busy: " <> ToString[Length[poolJobs]] <>
        "  free: " <> ToString[Length[Kernels[]] - Length[poolJobs]],
      "queued: " <> ToString[Length[FileNames["*.wl", sub["queue"]]]] <>
-       "  done: " <> ToString[doneCount] <> "  failed: " <> ToString[failCount]},
-    Table["  running " <> k <> "  elapsed " <> ToString[Round[AbsoluteTime[] - poolJobs[k]["Start"]]] <> " s",
+       "  done: " <> ToString[doneCount] <> "  failed: " <> ToString[failCount],
+     "active families: " <> ToString[Lookup[allocation,
+       "ActiveFamilyCount", 0]] <> "  native cores: " <>
+       ToString[Lookup[allocation, "NativeCoreCapacity",
+         nativeCoreCapacity]]}, resourceLines,
+    Table["  running " <> k <> " group=" <>
+      ToString[Lookup[poolJobs[k], "Group", None]] <> " role=" <>
+      ToString[Lookup[poolJobs[k], "Role", "mission"]] <> " elapsed " <>
+      ToString[Round[AbsoluteTime[] - poolJobs[k]["Start"]]] <> " s",
       {k, Keys[poolJobs]}]];
   Export[sub["status.txt"], StringRiffle[lines, "\n"] <> "\n", "Text"]];
 
@@ -475,20 +570,33 @@ While[True,
   If[Length[Kernels[]] < nWanted && ! stopping, topUpKernels[]];
   (* dispatch *)
   If[! stopping,
-    Do[If[Length[poolJobs] < Length[Kernels[]],
-       Module[{name = FileBaseName[q], rf, lf, kf, eid, generation},
-         rf = FileNameJoin[{sub["running"], name <> ".wl"}];
-         lf = FileNameJoin[{sub["logs"], name <> ".log"}];
-         kf = FileNameJoin[{sub["running"], name <> ".kernel"}];
-         generation = If[KeyExistsQ[requeueGenerations, name],
-           requeueGenerations[name], CreateUUID[]];
-         requeueGenerations = KeyDrop[requeueGenerations, name];
-         RenameFile[q, rf, OverwriteTarget -> True];
-         eid = submitAttempt[name, generation, rf, lf, kf];
-         poolJobs[name] = <|"EIDs" -> {eid}, "Generation" -> generation,
-           "File" -> rf, "Start" -> AbsoluteTime[]|>;
-         log["dispatched ", name, " (", Length[poolJobs], "/", Length[Kernels[]], " busy)"]]],
-      {q, SortBy[FileNames["*.wl", sub["queue"]], FileDate]}]];
+    Module[{records, selected, q, name, rf, lf, kf, eid, generation},
+      records = missionResourceRecord /@ FileNames["*.wl", sub["queue"]];
+      While[Length[poolJobs] < Length[Kernels[]] && records =!= {},
+        selected = selectNextMission[records];
+        If[! AssociationQ[selected], Break[]];
+        q = selected["File"];
+        name = FileBaseName[q];
+        rf = FileNameJoin[{sub["running"], name <> ".wl"}];
+        lf = FileNameJoin[{sub["logs"], name <> ".log"}];
+        kf = FileNameJoin[{sub["running"], name <> ".kernel"}];
+        generation = If[KeyExistsQ[requeueGenerations, name],
+          requeueGenerations[name], CreateUUID[]];
+        requeueGenerations = KeyDrop[requeueGenerations, name];
+        RenameFile[q, rf, OverwriteTarget -> True];
+        eid = submitAttempt[name, generation, rf, lf, kf];
+        poolJobs[name] = Join[<|"EIDs" -> {eid},
+          "Generation" -> generation, "File" -> rf,
+          "Start" -> AbsoluteTime[]|>,
+          KeyTake[selected, {"Group", "Role", "Owner"}]];
+        If[Lookup[selected, "Role", None] === "helper" &&
+            StringQ[Lookup[selected, "Group", None]],
+          lastHelperDispatch[selected["Group"]] = AbsoluteTime[]];
+        records = Select[records, Lookup[#, "File", None] =!= q &];
+        log["dispatched ", name, " group ", selected["Group"],
+          " role ", selected["Role"], " (", Length[poolJobs], "/",
+          Length[Kernels[]], " busy)"]]]];
+  writeResourceAllocations[];
   (* ParallelSubmit only queues; pump once after admission so a replacement
      reaches the kernel freed by the completion drained above in this pass. *)
   Quiet[Parallel`Developer`QueueRun[]];
