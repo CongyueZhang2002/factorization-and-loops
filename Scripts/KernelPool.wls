@@ -539,8 +539,11 @@ While[True,
          log["mission ", name, ": never started after ", n, " resubmits; filed NEVERSTARTED"];
          finish[name, <|"Mission" -> name, "Status" -> "NEVERSTARTED", "Wall" -> AbsoluteTime[] - j["Start"]|>],
          log["mission ", name, ": not started after ", Round[age], " s; resubmitting (", n + 1, "/", maxResubmits, ")"];
-         poolJobs[name] = Join[j, <|"EID" -> With[{rf = j["File"], lf = FileNameJoin[{sub["logs"], name <> ".log"}], kf = kf},
-             ParallelSubmit[poolRun[rf, lf, kf]]], "LastSubmit" -> AbsoluteTime[], "Resubmits" -> n + 1|>]]]],
+         (* distinct With-local names (Codex 2026-09-01 broker fix): binding
+            rf/lf/kf to themselves collided with the enclosing names and a
+            live dispatch substituted file strings onto With LHS slots *)
+         poolJobs[name] = Join[j, <|"EID" -> With[{missionFile = j["File"], missionLog = FileNameJoin[{sub["logs"], name <> ".log"}], kernelFile = kf},
+             ParallelSubmit[poolRun[missionFile, missionLog, kernelFile]]], "LastSubmit" -> AbsoluteTime[], "Resubmits" -> n + 1|>]]]],
     {name, Keys[poolJobs]}];
   (* kernel loss detection: fewer kernels than expected and no cancel in flight *)
   If[Length[Kernels[]] < nWanted && ! stopping, topUpKernels[]];
@@ -564,8 +567,8 @@ While[True,
         Quiet[DeleteFile[FileNameJoin[{sub["running"], "claims",
           name <> ".wl"}]]];
         RenameFile[q, rf, OverwriteTarget -> True];
-        eid = With[{rf = rf, lf = lf, kf = kf},
-          ParallelSubmit[poolRun[rf, lf, kf]]];
+        eid = With[{missionFile = rf, missionLog = lf, kernelFile = kf},
+          ParallelSubmit[poolRun[missionFile, missionLog, kernelFile]]];
         poolJobs[name] = Join[<|"EID" -> eid, "File" -> rf,
           "Start" -> AbsoluteTime[]|>,
           KeyTake[selected, {"Group", "Role", "Owner"}]];
