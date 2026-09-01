@@ -125,3 +125,27 @@ sixteen times faster than the already optimized parallel jet plan, around
 sixty-two times faster than the serial jet work, and more than three orders of
 magnitude faster than the observed symbolic block-1 compile.  The jet route is
 retained only as an independent reference for new curve models.
+
+## Fixed-p epsilon lift
+
+The reduced-output lift was run at the same 61-bit prime and `p=4/11`.
+Fifteen images were the initial estimate, but their thirteen construction
+values could not determine the highest-degree coordinate.  Persisted images
+made the correction cheap: four new epsilon values were added without
+repeating any earlier native work.
+
+- epsilon images: `19 = 17 construction + 2 held out`
+- largest reconstructed epsilon total degree: `16`
+- lifted reduced scalar coordinates: `148`
+- every primitive/remainder denominator is monic and identical across all
+  epsilon images
+- every primitive numerator, remainder numerator, and elliptic cohomology
+  coordinate passes both complete held-out reduced images
+- bounded pool: at most two selected requests, four threads each
+- cold two-worker estimate from measured image phases: `16.89 s`
+- epsilon rational reconstruction after images: `0.151 s`
+- output: `cf303_block1_fixed_p_epsilon_lift.json`
+
+Thus the required epsilon budget is now measured rather than guessed.  The
+lift validates reduced modular data directly; it performs no symbolic
+identity or post-hoc expression simplification.

@@ -443,7 +443,13 @@ def main() -> int:
     hermite_seconds = time.perf_counter() - started
 
     jet_reference_match = None
-    if args.block == 1 and JET_REFERENCE.exists():
+    if (
+        args.block == 1
+        and args.prime == 2_305_843_009_213_691_819
+        and args.p == Fraction(4, 11)
+        and args.epsilon == 11
+        and JET_REFERENCE.exists()
+    ):
         jet_reference = json.loads(JET_REFERENCE.read_text())
         reference_channels = jet_reference.get("channels", {})
         comparisons = []
