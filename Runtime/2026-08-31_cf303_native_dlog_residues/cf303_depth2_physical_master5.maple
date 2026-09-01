@@ -1,0 +1,14 @@
+status := "CF303DepthTwoPhysicalMaster5AcceptedV1":
+acceptanceConditions := [true, true, true, true]:
+physicalMaster := 5:
+physicalOrder := -1:
+boundaryConstant := C23[0]:
+curve := 16*p^6-8*p^4*u^2+p^2*u^4+16*p^3*u^2-4*p*u^4-32*p^4+48*p^3*u-24*p^2*u^2-12*p*u^3+4*u^4-64*p^2*u+16*p*u^2+8*u^3+16*p^2+16*p*u+4*u^2:
+basePoint := 1/2:
+targetWord := [["E4Pole", -2*p^2+2*p], ["GPLPole", -2*p^2+2*p]]:
+gaugeSupports := [[[0, 1], []], [[0, 1], []], [[0, 1, 2], []], [[0, 1, 2], []]]:
+T11Order0 := [-1/8*(4*p^2-u^2-4*p)^4/(u+2)^2/u^2/(2*p^3-4*p^2+p*u+2*p-u)^2/p^2, 0]:
+T12Order0 := [1/16*(4*p^3-3*p*u^2-8*p^2-4*p*u+4*p-2*u)*(4*p^2-u^2-4*p)^4/(8*p^5-2*p^3*u^2-24*p^4+4*p^3*u+2*p^2*u^2-p*u^3+24*p^3-12*p^2*u-8*p^2+8*p*u-2*u^2)/(u+2)^2/u^2/(-1+p)/(2*p^3-4*p^2+p*u+2*p-u)/p^2, 0]:
+canonicalCoefficients := [[-12*(p^2-p-1)*p^4/(p-2)/Yc(-2*p^2+2*p), 0], [-8*(p^2-p-1)*p^4/(p-2)/Yc(-2*p^2+2*p), 0]]:
+physicalCoefficient := [2*(p^2-p-1)*p^2*(4*p^2-u^2-4*p)^4/(-1+p)/u^2/(u+2)^2/(8*p^5-2*p^3*u^2-24*p^4+4*p^3*u+2*p^2*u^2-p*u^3+24*p^3-12*p^2*u-8*p^2+8*p*u-2*u^2)/Yc(-2*p^2+2*p)/(p-2), 0]:
+coefficientConvention := "[r(u),s(u)] means r(u)+s(u)Y(u); multiply by C23[0] and the stored targetWord based at u=1/2":
