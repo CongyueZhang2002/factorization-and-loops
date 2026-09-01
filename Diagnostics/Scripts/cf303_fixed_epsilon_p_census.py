@@ -461,9 +461,14 @@ def main() -> int:
                 missing_profiles = [
                     key for key in coordinate_keys if key not in fixed_profile_map
                 ]
-                if missing_profiles:
+                extra_profiles = [
+                    key for key in fixed_profile_map if key not in coordinate_values
+                ]
+                if missing_profiles or extra_profiles:
                     raise RuntimeError(
-                        f"fixed-profile layout mismatch: {missing_profiles[:4]}"
+                        "fixed-profile layout mismatch: "
+                        f"missing={missing_profiles[:4]}, "
+                        f"extra={extra_profiles[:4]}"
                     )
                 fixed_profiles = [
                     fixed_profile_map[key] for key in coordinate_keys
