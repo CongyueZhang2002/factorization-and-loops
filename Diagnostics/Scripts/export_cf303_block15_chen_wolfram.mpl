@@ -3,49 +3,12 @@ kernelopts(numcpus=6):
 operatorFile := "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block15_lazy_chen_operator.maple":
 compressedFile := "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block15_compressed_residue_basis.maple":
 constantFile := "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block15_constant_generators.maple":
+serializerFile := "/home/maxzhang/factorization-and-loops-codex/Diagnostics/Scripts/maple_wolfram_serializer.mpl":
 outputFile := "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block15_lazy_chen_operator.wl":
 read operatorFile:
 read compressedFile:
 read constantFile:
-with(StringTools):
-
-# Minimal expression-tree serializer.  It does not parse printed Maple text,
-# so nested signs, powers, and the inert marked-sheet value Yc(c) retain their
-# exact structure in Wolfram Language.
-wlExpr := proc(value)
-  local childValues,headString,numeratorValue,denominatorValue;
-  if type(value,string) then
-    return cat("\"",SubstituteAll(value,"\"","\\\""),"\""):
-  elif type(value,integer) then
-    return sprintf("%a",value):
-  elif type(value,rational) then
-    numeratorValue := numer(value):
-    denominatorValue := denom(value):
-    return cat("(",wlExpr(numeratorValue),")/(",
-      wlExpr(denominatorValue),")"):
-  elif type(value,list) then
-    return cat("{",Join(map(wlExpr,value),", "),"}"):
-  elif type(value,`+`) then
-    childValues := [op(value)]:
-    return cat("(",Join(map(wlExpr,childValues)," + "),")"):
-  elif type(value,`*`) then
-    childValues := [op(value)]:
-    return cat("(",Join(map(wlExpr,childValues)," * "),")"):
-  elif type(value,`^`) then
-    return cat("(",wlExpr(op(1,value)),")^(",
-      wlExpr(op(2,value)),")"):
-  elif type(value,function) then
-    headString := convert(op(0,value),string):
-    childValues := [op(value)]:
-    return cat(headString,"[",Join(map(wlExpr,childValues),", "),"]"):
-  elif type(value,name) then
-    if value=true then return "True"
-    elif value=false then return "False"
-    else return convert(value,string)
-    end if:
-  end if:
-  error "unsupported Maple expression type in Wolfram exporter",value:
-end proc:
+read serializerFile:
 
 residueRules := [seq([record[1],record[2],record[3],record[4]],
   record in residueRecords)]:
