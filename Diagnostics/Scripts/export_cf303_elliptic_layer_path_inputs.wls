@@ -68,6 +68,10 @@ pullbackForm[form_] := Module[{raw},
 
 Print["PHASE exact targeted pullback"];
 {pullbackSeconds, pulled} = AbsoluteTiming[
+  block15FeederBlocks = {1, 6, 9, 11, 12, 14};
+  block15FullColumns = Flatten[ranges[[Join[block15FeederBlocks, {15}]]]];
+  block15Full = pullbackForm[
+    state["A"][[All, ranges[[15]], block15FullColumns]]];
   block15Diagonal = pullbackForm[
     state["A"][[All, ranges[[15]], ranges[[15]]]]];
   row25FromBlock15 = pullbackForm[solvedForms[15]]];
@@ -81,11 +85,17 @@ If[residualRadicals =!= {},
 
 block15Targets = Flatten[Table[{row, column},
   {row, ranges[[15]]}, {column, ranges[[15]]}], 1];
+block15FullTargets = Flatten[Table[{row, column},
+  {row, ranges[[15]]}, {column, block15FullColumns}], 1];
 row25Targets = Flatten[Table[{row, column},
   {row, ranges[[25]]}, {column, ranges[[15]]}], 1];
 block15Entries = Extract[block15Diagonal,
   ({First[#1] - First[ranges[[15]]] + 1,
       Last[#1] - First[ranges[[15]]] + 1} &) /@ block15Targets];
+block15FullEntries = Extract[block15Full,
+  ({First[#1] - First[ranges[[15]]] + 1,
+      First@FirstPosition[block15FullColumns, Last[#1]]} &) /@
+    block15FullTargets];
 row25Entries = Extract[row25FromBlock15,
   ({First[#1] - First[ranges[[25]]] + 1,
       Last[#1] - First[ranges[[15]]] + 1} &) /@ row25Targets];
@@ -98,6 +108,10 @@ mapleTargets[list_] := "[" <> StringRiffle[
   ("[" <> StringRiffle[ToString /@ #1, ","] <> "]") & /@ list,
   ","] <> "]";
 text = StringRiffle[{
+  "block15FeederBlocks := " <> mapleList[block15FeederBlocks] <> ":",
+  "block15FullColumns := " <> mapleList[block15FullColumns] <> ":",
+  "block15FullTargets := " <> mapleTargets[block15FullTargets] <> ":",
+  "block15FullEntries := " <> mapleList[block15FullEntries] <> ":",
   "block15Targets := " <> mapleTargets[block15Targets] <> ":",
   "block15Entries := " <> mapleList[block15Entries] <> ":",
   "row25Targets := " <> mapleTargets[row25Targets] <> ":",
@@ -109,9 +123,13 @@ metadata = <|
   "StateFile" -> stateFile, "CheckpointFile" -> checkpointFile,
   "Row25Block15Route" -> "AcceptedSolvedForms[15]",
   "SubkernelCount" -> Length[Kernels[]],
+  "Block15FeederBlocks" -> block15FeederBlocks,
+  "Block15FullColumns" -> block15FullColumns,
+  "Block15FullTargets" -> block15FullTargets,
   "Block15Targets" -> block15Targets,
   "Row25Targets" -> row25Targets,
   "Block15LeafCounts" -> (LeafCount /@ block15Entries),
+  "Block15FullLeafCounts" -> (LeafCount /@ block15FullEntries),
   "Row25LeafCounts" -> (LeafCount /@ row25Entries),
   "ResidualRadicands" -> residualRadicals,
   "PhaseSeconds" -> <|"Load" -> loadSeconds,
