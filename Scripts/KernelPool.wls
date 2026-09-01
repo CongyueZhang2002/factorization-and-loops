@@ -74,26 +74,42 @@ If[TrueQ[preload],
   log["preload done in ", Round[AbsoluteTime[] - t0], " s"]];
 
 (* the wrapper that runs one mission on a subkernel; ALL output goes to the mission log *)
-poolRun[file_String, logFile_String, kernelFile_String] := Module[
+poolRun[file_String, logFile_String, kernelFile_String, attempt_String] := Module[
   {s, r, t0 = AbsoluteTime[], status, missionText, missionParseContext,
    missionGlobalBefore, missionNewGlobal, missionParsed,
-   missionParseFailed, missionParseCleanup, nMsg0, hadMessages},
-  (* CLAIM the mission atomically-enough: a mission that was resubmitted after it never
+   missionParseFailed, missionParseCleanup, nMsg0, hadMessages,
+   complete, envelope, exitCode, claim, claimWon},
+  (* Completion records cross WSTP, so they are deliberately bounded
+     metadata only.  Mission return values belong in mission-owned output
+     files; they must never be serialized through the broker link.  The
+     same compact record is written before the marker as a crash fallback. *)
+  complete[rec_Association] := Module[
+    {tmp = kernelFile <> ".result." <> attempt <> ".tmp"},
+    Put[rec, tmp];
+    RenameFile[tmp, kernelFile <> ".result", OverwriteTarget -> True];
+    Export[kernelFile <> ".done", "done", "Text"];
+    rec];
+  (* CLAIM the mission atomically: a mission that was resubmitted after it never
      started (measured 2026-08-17 01:47-01:52: three dispatched evaluations never ran --
      no kernel file, no log, slot counted busy) may later be started by the stale
-     ParallelSubmit as well; the first kernel to write the kernel file wins and any
+     ParallelSubmit as well; the first kernel to create the claim directory wins and any
      later starter returns at once without touching the mission. *)
-  (* the claim outlives the mission (a tiny file under running/claims/,
+  (* the claim outlives the mission (a tiny directory under running/claims/,
      never deleted): when a fresh_* kernel is closed, Parallel Tools may
      re-run its orphaned evaluation elsewhere, and the kernel file alone
      (deleted at finish) no longer stops that late start from rotating
      the finished log into a FILEGONE stub (measured 03:56) *)
-  If[FileExistsQ[kernelFile] ||
-      FileExistsQ[FileNameJoin[{DirectoryName[kernelFile], "claims", FileNameTake[file]}]],
-    Return[<|"Mission" -> FileNameTake[file], "Status" -> "DUPLICATE",
-      "Kernel" -> $KernelID, "Wall" -> 0.|>]];
+  claim = FileNameJoin[{DirectoryName[kernelFile], "claims", FileNameTake[file]}];
+  If[FileExistsQ[kernelFile] || FileExistsQ[claim] || DirectoryQ[claim],
+    Return[<|"Mission" -> FileNameTake[file], "Attempt" -> attempt,
+      "Status" -> "DUPLICATE", "Kernel" -> $KernelID, "Wall" -> 0.|>]];
   Quiet[CreateDirectory[FileNameJoin[{DirectoryName[kernelFile], "claims"}]]];
-  Export[FileNameJoin[{DirectoryName[kernelFile], "claims", FileNameTake[file]}], ToString[$KernelID], "Text"];
+  claimWon = Quiet[Check[CreateDirectory[claim]; True, False]];
+  If[! TrueQ[claimWon],
+    Return[<|"Mission" -> FileNameTake[file], "Attempt" -> attempt,
+      "Status" -> "DUPLICATE", "Kernel" -> $KernelID, "Wall" -> 0.|>]];
+  Export[FileNameJoin[{claim, "owner"}],
+    attempt <> " " <> ToString[$KernelID], "Text"];
   Export[kernelFile, ToString[$KernelID], "Text"];
   (* APPEND-ONLY LOGS (measured 2026-08-18: a cancel/re-dispatch race re-ran
      mission name sprobe4_CF48 and OpenWrite erased its 2,338 s calculation
@@ -108,9 +124,9 @@ poolRun[file_String, logFile_String, kernelFile_String] := Module[
       While[FileExistsQ[dest], k++; dest = logFile <> "." <> stamp <> "-" <> ToString[k]];
       ok = Quiet[Check[RenameFile[logFile, dest]; FileExistsQ[dest] && ! FileExistsQ[logFile], False]];
       If[! TrueQ[ok],
-        Export[kernelFile <> ".done", "done", "Text"];
-        Return[<|"Mission" -> FileNameTake[file], "Status" -> "LOGPRESERVEFAIL",
-          "Kernel" -> $KernelID, "Wall" -> 0.|>]]]];
+        Return[complete[<|"Mission" -> FileNameTake[file],
+          "Attempt" -> attempt, "Status" -> "LOGPRESERVEFAIL",
+          "Kernel" -> $KernelID, "Wall" -> 0.|>]]]]];
   s = OpenWrite[logFile];
   WriteString[s, "MISSION ", FileNameTake[file], " kernel ", $KernelID, " start ", DateString["ISODateTime"], "\n"];
   status = "OK"; nMsg0 = Length[$MessageList];
@@ -130,9 +146,9 @@ poolRun[file_String, logFile_String, kernelFile_String] := Module[
     WriteString[s, "MISSION FILE GONE (cancellation/re-dispatch race); nothing was executed\n"];
     WriteString[s, "MISSION end ", DateString["ISODateTime"], " wall 0 s status FILEGONE\n"];
     Close[s];
-    Export[kernelFile <> ".done", "done", "Text"];
-    Return[<|"Mission" -> FileNameTake[file], "Status" -> "FILEGONE",
-      "Kernel" -> $KernelID, "Wall" -> 0.|>]];
+    Return[complete[<|"Mission" -> FileNameTake[file],
+      "Attempt" -> attempt, "Status" -> "FILEGONE",
+      "Kernel" -> $KernelID, "Wall" -> 0.|>]]];
   (* HoldComplete prevents evaluation, not symbol interning.  A wrapper
      validation must therefore parse in a disposable context with only
      System` visible.  Also remove any newly interned, explicitly-qualified
@@ -159,9 +175,9 @@ poolRun[file_String, logFile_String, kernelFile_String] := Module[
     WriteString[s, "MISSION PARSE FAILURE -- script did not parse; nothing was executed\n"];
     WriteString[s, "MISSION end ", DateString["ISODateTime"], " wall 0 s status PARSEFAIL\n"];
     Close[s];
-    Export[kernelFile <> ".done", "done", "Text"];
-    Return[<|"Mission" -> FileNameTake[file], "Status" -> "PARSEFAIL",
-      "Kernel" -> $KernelID, "Wall" -> 0.|>]];
+    Return[complete[<|"Mission" -> FileNameTake[file],
+      "Attempt" -> attempt, "Status" -> "PARSEFAIL",
+      "Kernel" -> $KernelID, "Wall" -> 0.|>]]];
   (* WriteString["stdout", ...] bypasses $Output (measured: the tests' log[] helper vanished into
      pool.log); redirect the "stdout" stream name to the mission log for the mission's duration.
      Status follows the RETURN VALUE / exit code, never the mere presence of messages (measured
@@ -188,31 +204,93 @@ poolRun[file_String, logFile_String, kernelFile_String] := Module[
   If[MatchQ[r, {"KernelPoolReturnEscape", _}],
     status = "FAILED"; r = r[[2]]];
   hadMessages = Length[$MessageList] > nMsg0;
-  If[MatchQ[r, {"EXIT", _}], status = If[r[[2]] === 0, "OK", "EXIT" <> ToString[r[[2]]]]; r = r[[2]]];
+  If[MatchQ[r, {"EXIT", _}],
+    exitCode = r[[2]];
+    status = Which[
+      exitCode === 0, "OK",
+      IntegerQ[exitCode] && Abs[exitCode] <= 999999999,
+        "EXIT" <> ToString[exitCode],
+      True, "EXITINVALID"];
+    r = exitCode];
   If[r === $Failed && status === "OK", status = "FAILED"];
   If[r === $Aborted && status === "OK", status = "ABORTED"];
+  r =.; exitCode =.;   (* release mission values before constructing the WSTP envelope *)
   WriteString[s, "MISSION end ", DateString["ISODateTime"], " wall ", Round[AbsoluteTime[] - t0, 0.1], " s status ", status, "\n"];
   Close[s];
-  (* A fresh_* result is also written before the completion marker.  The
-     server now drains the EvaluationObject with WaitAll after seeing the
-     marker and only then closes the kernel.  The former wrapper blocked
-     forever here; closing that live EvaluationObject made Parallel Tools
-     requeue an orphan, and after one test wave later missions stayed
-     NEVERSTARTED despite idle kernels (reproduced 2026-08-23). *)
-  If[StringStartsQ[FileNameTake[file], "fresh_"],
-    Put[<|"Mission" -> FileNameTake[file], "Status" -> status, "HadMessages" -> hadMessages,
-        "Wall" -> AbsoluteTime[] - t0, "Kernel" -> $KernelID, "Result" -> If[ByteCount[r] < 20000, r, Short[r]]|>,
-      kernelFile <> ".result"]];
-  Export[kernelFile <> ".done", "done", "Text"];   (* completion marker; the server collects on it *)
-  <|"Mission" -> FileNameTake[file], "Status" -> status, "HadMessages" -> hadMessages, "Wall" -> AbsoluteTime[] - t0,
-    "Kernel" -> $KernelID, "Result" -> If[ByteCount[r] < 20000, r, Short[r]]|>];
+  envelope = <|"Mission" -> FileNameTake[file], "Attempt" -> attempt,
+    "Status" -> status, "HadMessages" -> hadMessages,
+    "Wall" -> AbsoluteTime[] - t0, "Kernel" -> $KernelID|>;
+  complete[envelope]];
 Save[poolRunFile, poolRun];   (* definition file for kernels; avoids DistributeDefinitions on busy kernels *)
 kernelDefs[Kernels[]];
 
 pids = kernelPids[];
 log["subkernel PIDs: ", pids];
-poolJobs = <||>;   (* name -> <|"EID"->eid, "File"->runningFile, "Start"->t|> *)
+poolJobs = <||>;   (* name -> active logical mission, including every EID submitted for it *)
+poolEIDs = {};     (* all EvaluationObjects not yet drained, including stale/cancelled attempts *)
 requeues = <||>;   (* name -> number of KERNELLOST requeues *)
+requeueGenerations = <||>;   (* preserve logical identity across a KERNELLOST filesystem requeue *)
+maxEnvelopeBytes = 65536;
+allowedEnvelopeKeys = {"Mission", "Attempt", "Status", "HadMessages", "Wall", "Kernel"};
+
+deleteClaim[name_String] := Module[
+  {claim = FileNameJoin[{sub["running"], "claims", name <> ".wl"}]},
+  Which[
+    DirectoryQ[claim], Quiet[DeleteDirectory[claim, DeleteContents -> True]],
+    FileExistsQ[claim], Quiet[DeleteFile[claim]],
+    True, Null]];
+
+submitAttempt[name_String, generation_String, rf_String, lf_String, kf_String] := Module[
+  {attempt = CreateUUID[], eid},
+  eid = With[{missionFile = rf, missionLog = lf, kernelFile = kf,
+      attemptToken = attempt},
+    ParallelSubmit[poolRun[missionFile, missionLog, kernelFile,
+      attemptToken]]];
+  AppendTo[poolEIDs, <|"EID" -> eid, "Name" -> name,
+    "Generation" -> generation, "Attempt" -> attempt,
+    "File" -> rf, "KernelFile" -> kf|>];
+  eid];
+
+receivedEIDQ[rec_Association] :=
+  TrueQ[Quiet[Check[rec["EID"]["State"] === "received", False]]];
+
+pendingAttemptQ[name_String, generation_String] := AnyTrue[poolEIDs,
+  Lookup[#, "Name", None] === name &&
+    Lookup[#, "Generation", None] === generation &];
+
+drainOneEID[] := Module[{eids, next, res, eid, remaining, pos, rec},
+  eids = Lookup[poolEIDs, "EID", {}];
+  next = Quiet[Check[WaitNext[eids], $Failed]];
+  If[! ListQ[next] || Length[next] =!= 3, Return[$Failed]];
+  {res, eid, remaining} = next;
+  pos = FirstPosition[eids, x_ /; SameQ[x, eid]];
+  If[MissingQ[pos] || Length[remaining] =!= Length[eids] - 1,
+    Return[$Failed]];
+  rec = Extract[poolEIDs, pos];
+  poolEIDs = Delete[poolEIDs, pos];
+  {rec, res}];
+
+compactEnvelopeQ[res_, rec_Association] := AssociationQ[res] &&
+  ByteCount[res] <= maxEnvelopeBytes &&
+  Complement[Keys[res], allowedEnvelopeKeys] === {} &&
+  And @@ (KeyExistsQ[res, #] & /@ {"Mission", "Attempt", "Status", "Wall", "Kernel"}) &&
+  res["Mission"] === FileNameTake[rec["File"]] &&
+  res["Attempt"] === rec["Attempt"] &&
+  StringQ[res["Status"]] && StringLength[res["Status"]] <= 64 &&
+  MatchQ[res["Wall"], _Integer | _Real | _Rational] &&
+  IntegerQ[res["Kernel"]] &&
+  (! KeyExistsQ[res, "HadMessages"] || BooleanQ[res["HadMessages"]]);
+
+completionEnvelope[rec_Association, res_] := Module[{sidecar = $Failed, kf},
+  If[compactEnvelopeQ[res, rec] && Lookup[res, "Status", None] =!= "DUPLICATE",
+    Return[res]];
+  kf = rec["KernelFile"];
+  If[FileExistsQ[kf <> ".done"] && FileExistsQ[kf <> ".result"],
+    sidecar = Quiet[Check[Get[kf <> ".result"], $Failed]]];
+  Which[
+    compactEnvelopeQ[sidecar, rec], sidecar,
+    compactEnvelopeQ[res, rec], res,
+    True, $Failed]];
 doneCount = 0; failCount = 0;
 (* startup recovery: missions left in running/ by a previous (crashed/hung) server *)
 Do[Module[{name = FileBaseName[f], lg, ok, dest},
@@ -225,6 +303,7 @@ Do[Module[{name = FileBaseName[f], lg, ok, dest},
      FileNameJoin[{dest, name <> ".status"}]];
    Quiet@DeleteFile[FileNameJoin[{sub["running"], name <> ".kernel"}]];
    Quiet@DeleteFile[FileNameJoin[{sub["running"], name <> ".kernel.done"}]];
+   Quiet@DeleteFile[FileNameJoin[{sub["running"], name <> ".kernel.result"}]];
    log["recovered stale running mission ", name, " -> ", If[ok, "done (log says OK)", "failed (POOLRESTART)"]]],
   {f, FileNames["*.wl", sub["running"]]}];
 writeStatus[] := Module[{lines},
@@ -254,13 +333,43 @@ finish[name_, res_] := Module[{ok, dest, kf, kid, k},
     If[k =!= {}, Quiet@CloseKernels[k]; lastRelaunchTry = 0;
       log["fresh mission ", name, ": subkernel ", kid, " closed for relaunch"]]];
   Quiet@RenameFile[poolJobs[name]["File"], FileNameJoin[{dest, name <> ".wl"}], OverwriteTarget -> True];
-  putAtomic[If[AssociationQ[res], res, <|"Mission" -> name, "Status" -> "KERNELLOST", "Result" -> res|>],
+  putAtomic[If[AssociationQ[res], res,
+      <|"Mission" -> name, "Status" -> "KERNELLOST", "Wall" -> 0.|>],
     FileNameJoin[{dest, name <> ".status"}]];
   Quiet@DeleteFile[FileNameJoin[{sub["running"], name <> ".kernel"}]];
   Quiet@DeleteFile[FileNameJoin[{sub["running"], name <> ".kernel.done"}]];
   Quiet@DeleteFile[FileNameJoin[{sub["running"], name <> ".kernel.result"}]];
   log["finished ", name, " -> ", If[ok, "done", "failed"], " (", If[AssociationQ[res], Round[res["Wall"], 0.1], "?"], " s)"];
   poolJobs = KeyDrop[poolJobs, name]];
+
+handleCompletion[rec_Association, raw_] := Module[
+  {name = rec["Name"], generation = rec["Generation"], envelope,
+   status, more, failure},
+  (* A completion from a cancelled mission or an older same-name mission
+     is drained but can never move the currently active mission. *)
+  If[! KeyExistsQ[poolJobs, name] ||
+      Lookup[poolJobs[name], "Generation", None] =!= generation,
+    log["drained stale attempt ", rec["Attempt"], " for ", name];
+    Return[Null]];
+  envelope = completionEnvelope[rec, raw];
+  more = pendingAttemptQ[name, generation];
+  If[envelope === $Failed,
+    If[more,
+      log["attempt ", rec["Attempt"], " for ", name,
+        " returned a malformed/oversized envelope; another attempt remains"],
+      failure = <|"Mission" -> FileNameTake[rec["File"]],
+        "Attempt" -> rec["Attempt"], "Status" -> "BROKERPROTO",
+        "Wall" -> AbsoluteTime[] - poolJobs[name]["Start"], "Kernel" -> -1|>;
+      log["attempt ", rec["Attempt"], " for ", name,
+        " returned a malformed/oversized envelope; failing closed"];
+      finish[name, failure]];
+    Return[Null]];
+  status = envelope["Status"];
+  If[MemberQ[{"DUPLICATE", "FILEGONE"}, status] && more,
+    log["drained ", status, " attempt ", rec["Attempt"], " for ", name,
+      "; another attempt remains"];
+    Return[Null]];
+  finish[name, envelope]];
 
 (* Cancel policy (measured 2026-08-16 23:31): an OS SIGINT to a subkernel does NOT abort its
    evaluation -- the subkernel emits MenuPacket[1, Interrupt] which the Parallel Tools master
@@ -310,30 +419,34 @@ While[True,
        k = Select[Kernels[], KernelID[#] === kid &]; If[k =!= {}, Quiet@CloseKernels[k]];
        finish[name, <|"Mission" -> name, "Status" -> "CANCELLED", "Wall" -> AbsoluteTime[] - j["Start"]|>]]],
     {name, Keys[poolJobs]}];
-  (* collect finished: the wrapper's completion marker is the signal (ProcessState semantics
-     proved unreliable across contexts); a mission whose subkernel vanished is reported lost *)
-  QueueRun[];
-  Do[Module[{eid = poolJobs[name]["EID"], res, kf, kid},
+  (* Nonblocking scheduler pump, then dequeue only EvaluationObjects whose
+     public state says their small result envelope has already been received.
+     This keeps control polling responsive and makes the returned EID -- not
+     a racy filesystem marker -- authoritative. *)
+  Quiet[Parallel`Developer`QueueRun[]];
+  While[AnyTrue[poolEIDs, receivedEIDQ],
+    Module[{drained = drainOneEID[]},
+      If[drained === $Failed,
+        log["failed to drain a received EvaluationObject; leaving it tracked"];
+        Break[]];
+      handleCompletion[drained[[1]], drained[[2]]]]];
+  (* A mission whose subkernel vanished is reported lost/requeued.  Its EID
+     stays in poolEIDs: Parallel Tools may retry it, and every retry result
+     must still be drained exactly once. *)
+  Do[Module[{kf, kid},
      kf = FileNameJoin[{sub["running"], name <> ".kernel"}];
-     Which[
-       FileExistsQ[kf <> ".done"],
-         (* The marker is written immediately before poolRun returns.
-            Drain the EvaluationObject first so CloseKernels cannot leave
-            an orphan for the scheduler to requeue.  The sidecar is only
-            a crash fallback. *)
-         res = Quiet[Check[WaitAll[eid], $Failed]];
-         If[! AssociationQ[res] && FileExistsQ[kf <> ".result"],
-           res = Quiet[Check[Get[kf <> ".result"], $Failed]]];
-         Quiet@DeleteFile[kf <> ".done"]; Quiet@DeleteFile[kf <> ".result"]; finish[name, res],
-       FileExistsQ[kf] && (kid = ToExpression[Import[kf, "Text"]]; IntegerQ[kid] && ! MemberQ[KernelID /@ Kernels[], kid]),
+     If[FileExistsQ[kf] &&
+        (kid = ToExpression[Import[kf, "Text"]];
+         IntegerQ[kid] && ! MemberQ[KernelID /@ Kernels[], kid]),
          (* the kernel vanished under the mission: REQUEUE it (the log is
             preserved by the append-only rule; a second loss files it) *)
          Module[{n = Lookup[requeues, name, 0]},
            If[n < 2,
              requeues[name] = n + 1;
+             requeueGenerations[name] = poolJobs[name]["Generation"];
              log["mission ", name, ": its subkernel ", kid, " is gone; requeued (", n + 1, "/2)"];
              Quiet@RenameFile[poolJobs[name]["File"], FileNameJoin[{sub["queue"], name <> ".wl"}], OverwriteTarget -> True];
-             Quiet@DeleteFile[FileNameJoin[{sub["running"], "claims", name <> ".wl"}]];
+             deleteClaim[name];
              Quiet@DeleteFile[kf]; Quiet@DeleteFile[kf <> ".done"]; Quiet@DeleteFile[kf <> ".result"];
              poolJobs = KeyDrop[poolJobs, name],
              log["mission ", name, ": its subkernel ", kid, " is gone (twice); filed KERNELLOST"];
@@ -343,7 +456,7 @@ While[True,
      not begun after neverStartedAfter seconds -- no kernel file -- is RESUBMITTED (new
      evaluation, same files; the wrapper's claim check makes a late start of the stale
      evaluation harmless); after maxResubmits it is filed NEVERSTARTED. *)
-  Do[Module[{j = poolJobs[name], kf, age, n},
+  Do[Module[{j = poolJobs[name], kf, age, n, eid},
      kf = FileNameJoin[{sub["running"], name <> ".kernel"}];
      age = AbsoluteTime[] - Lookup[j, "LastSubmit", j["Start"]];
      n = Lookup[j, "Resubmits", 0];
@@ -352,25 +465,35 @@ While[True,
          log["mission ", name, ": never started after ", n, " resubmits; filed NEVERSTARTED"];
          finish[name, <|"Mission" -> name, "Status" -> "NEVERSTARTED", "Wall" -> AbsoluteTime[] - j["Start"]|>],
          log["mission ", name, ": not started after ", Round[age], " s; resubmitting (", n + 1, "/", maxResubmits, ")"];
-         poolJobs[name] = Join[j, <|"EID" -> With[{rf = j["File"], lf = FileNameJoin[{sub["logs"], name <> ".log"}], kf = kf},
-             ParallelSubmit[poolRun[rf, lf, kf]]], "LastSubmit" -> AbsoluteTime[], "Resubmits" -> n + 1|>]]]],
+         eid = submitAttempt[name, j["Generation"], j["File"],
+           FileNameJoin[{sub["logs"], name <> ".log"}], kf];
+         poolJobs[name] = Join[j, <|"EIDs" -> Append[Lookup[j, "EIDs", {}], eid],
+           "LastSubmit" -> AbsoluteTime[], "Resubmits" -> n + 1|>]]]],
     {name, Keys[poolJobs]}];
   (* kernel loss detection: fewer kernels than expected and no cancel in flight *)
   If[Length[Kernels[]] < nWanted && ! stopping, topUpKernels[]];
   (* dispatch *)
   If[! stopping,
     Do[If[Length[poolJobs] < Length[Kernels[]],
-       Module[{name = FileBaseName[q], rf, lf, kf, eid},
+       Module[{name = FileBaseName[q], rf, lf, kf, eid, generation},
          rf = FileNameJoin[{sub["running"], name <> ".wl"}];
          lf = FileNameJoin[{sub["logs"], name <> ".log"}];
          kf = FileNameJoin[{sub["running"], name <> ".kernel"}];
+         generation = If[KeyExistsQ[requeueGenerations, name],
+           requeueGenerations[name], CreateUUID[]];
+         requeueGenerations = KeyDrop[requeueGenerations, name];
          RenameFile[q, rf, OverwriteTarget -> True];
-         eid = With[{rf = rf, lf = lf, kf = kf}, ParallelSubmit[poolRun[rf, lf, kf]]];
-         poolJobs[name] = <|"EID" -> eid, "File" -> rf, "Start" -> AbsoluteTime[]|>;
+         eid = submitAttempt[name, generation, rf, lf, kf];
+         poolJobs[name] = <|"EIDs" -> {eid}, "Generation" -> generation,
+           "File" -> rf, "Start" -> AbsoluteTime[]|>;
          log["dispatched ", name, " (", Length[poolJobs], "/", Length[Kernels[]], " busy)"]]],
       {q, SortBy[FileNames["*.wl", sub["queue"]], FileDate]}]];
+  (* ParallelSubmit only queues; pump once after admission so a replacement
+     reaches the kernel freed by the completion drained above in this pass. *)
+  Quiet[Parallel`Developer`QueueRun[]];
   writeStatus[];
-  If[stopping && Length[poolJobs] == 0, log["stop: queue drained, shutting down"]; Break[]];
+  If[stopping && Length[poolJobs] == 0 && Length[poolEIDs] == 0,
+    log["stop: queue and EvaluationObjects drained, shutting down"]; Break[]];
   (* 1 s loop (was 3 s): the task broker's round trip is paid per sample
      batch, measured 2026-08-22 on CF254 (9,7) -- 6 s of a 21 s batch *)
   Pause[1]];
