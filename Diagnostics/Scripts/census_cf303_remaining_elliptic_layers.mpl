@@ -18,6 +18,20 @@ else
     exceptionBlock,"_direct_u_path.maple"):
 end if:
 read inputFile:
+exceptionEntryText := getenv("CF303_EXCEPTION_ENTRY"):
+if exceptionMode and exceptionEntryText<>false and exceptionEntryText<>"" then
+  exceptionEntry := parse(exceptionEntryText):
+  if not type(exceptionEntry,posint) or
+      exceptionEntry>nops(exceptionEntries) then
+    error "CF303_EXCEPTION_ENTRY is outside the exception deck";
+  end if:
+  exceptionTargets := [exceptionTargets[exceptionEntry]]:
+  exceptionEntries := [exceptionEntries[exceptionEntry]]:
+  exceptionOutputSuffix := cat("_entry",exceptionEntry):
+  gc():
+else
+  exceptionOutputSuffix := "":
+end if:
 read libraryFile:
 
 Dcurve := 4*p^2-4*p-u^2:
@@ -183,14 +197,16 @@ censusBlock := proc(block,targets,entries)
     rationalTailCount,finiteLaurentCount,eta2Count,gplCount,e4Count,
     epsDependentLetterCount,quadraticVerified,
     pair,reduction,profile,entry,label,i,started,compileSeconds,
+    workEntries,
     reduceSeconds,status,fd;
   if exceptionMode then
     outputFile := cat(outputRoot,"/cf303_block25_exception_",block,
-      "_elliptic_layer_census.maple"):
+      "_elliptic_layer_census",exceptionOutputSuffix,".maple"):
   else
     outputFile := cat(outputRoot,
       "/cf303_block",block,"_elliptic_layer_census.maple"):
   end if:
+  workEntries := entries:
   kernelPairs := []: reducedDeck := []: epsilonProfiles := []:
   failures := []: letterLabels := []:
   primitiveNonzeroCount := 0: nonzeroCount := 0:
@@ -198,13 +214,13 @@ censusBlock := proc(block,targets,entries)
   quadraticVerified := false:
 
   started := time():
-  for i from 1 to nops(entries) do
-    if entries[i]=0 then
+  for i from 1 to nops(workEntries) do
+    if workEntries[i]=0 then
       pair := [0,0]: profile := [["Zero"],["Zero"]]:
     else
       nonzeroCount := nonzeroCount+1:
       try
-        pair := compileAlgebraicPairTermwise(entries[i]):
+        pair := compileAlgebraicPairTermwise(workEntries[i]):
         # Projection is constructive in Q(u,p,eps)[rho]/(rho^2-Q).
         # Do not reproject raw rho-free expressions merely to compare their
         # unnormalised syntax with the normal form produced above.  The
@@ -219,6 +235,14 @@ censusBlock := proc(block,targets,entries)
     end if:
     kernelPairs := [op(kernelPairs),pair]:
     epsilonProfiles := [op(epsilonProfiles),profile]:
+    # The compiled algebraic pair is the only representation used below.
+    # In the exceptional direct-u decks the raw expression can contain tens
+    # of millions of leaves, so retaining it throughout Hermite reduction
+    # needlessly keeps a second large expression graph alive.  Entry-sharded
+    # runs benefit immediately, while ordinary multi-entry runs release each
+    # raw entry as soon as its pair has been captured.
+    workEntries := subsop(i=0,workEntries):
+    if exceptionMode then gc() end if:
     if profile[1][1]="RationalTail" or
         profile[2][1]="RationalTail" then
       rationalTailCount := rationalTailCount+1:
@@ -226,8 +250,8 @@ censusBlock := proc(block,targets,entries)
         profile[2][1]="FiniteLaurent" then
       finiteLaurentCount := finiteLaurentCount+1:
     end if:
-    if i mod 10=0 or i=nops(entries) then
-      printf("BLOCK %d COMPILE %d/%d %.3f\n",block,i,nops(entries),
+    if i mod 10=0 or i=nops(workEntries) then
+      printf("BLOCK %d COMPILE %d/%d %.3f\n",block,i,nops(workEntries),
         time()-started):
     end if:
   end do:
