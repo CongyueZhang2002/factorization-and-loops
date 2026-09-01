@@ -149,3 +149,41 @@ repeating any earlier native work.
 Thus the required epsilon budget is now measured rather than guessed.  The
 lift validates reduced modular data directly; it performs no symbolic
 identity or post-hoc expression simplification.
+
+## Fixed-epsilon p census and production replay
+
+At `epsilon=11`, the same reduced coefficient table was lifted in the path
+parameter `p`.  The one-time degree discovery used 139 generic images, split
+as 135 construction and four complete held-outs.  Across all four rational or
+elliptic channels this gives 288 monic-denominator, numerator, remainder, and
+cohomology coordinates.  The largest rational total degree in `p` is `127`.
+The simple Python Euclidean discovery took `15.083 s`; it is retained only for
+establishing degree profiles once.
+
+The initial scalar schedule `u=2,3,...` was unsuitable for a p census: 61 of
+200 attempted p values collided systematically with moving divisors such as
+`u +/- 2 p` and made the native evaluator reject the whole image.  The sampler
+now uses a deterministic, full-period, large affine progression in the field,
+keyed by `(prime,p,epsilon)`.  The known path/root regularity tests are
+unchanged.  Six formerly rejected values (`p=3,4,5,6,8,10`) all pass under the
+new schedule, and the full replay has zero singular-image rejections.  Only
+`p=4` has a legitimate reduced-layout degree drop; it is excluded from the
+generic lift rather than treated as a failure.
+
+After discovery, production uses FFRI1 fixed-profile mode, not its expensive
+all-splits discovery mode.  On the 139 generic cached images, one sample-major
+FLINT request fits all 288 coordinates and checks all four held-out images:
+
+- FLINT fixed-profile wall: `0.0275 s` with eight threads
+- Python all-coordinate discovery wall: `15.083 s`
+- interpolation speedup: about `549x`
+- all 288 fixed-profile coefficient arrays equal the discovery artifact exactly
+- cold selected-scalar two-worker estimate: `114.34 s`
+- p degree: `127`; images: `135 construction + 4 held out`
+
+The fixed degree pairs are reusable at other 61-bit primes; a source-prime
+match is intentionally not required.  Block, epsilon, and reduced-layout
+identity must agree, while the target-prime fit and its held-out images decide
+acceptance.  The artifacts are
+`cf303_block1_fixed_epsilon_p_census.json` (one-time discovery) and
+`cf303_block1_fixed_epsilon_p_census_fixed_replay.json` (production replay).

@@ -129,13 +129,32 @@ def direct_u_point(prime: int, p_value: Fraction, u_value: int,
 
 
 def eligible_points(prime: int, p_value: Fraction, epsilon: int, count: int):
+    """Return reproducible generic path points, not small consecutive integers.
+
+    The old ``u=2,3,...`` schedule systematically met moving divisors such as
+    ``u +/- 2 p`` when the p-census used small integer p.  Those were reported
+    by the native evaluator as singular *whole images* even though almost every
+    other field point was regular.  A full-period affine progression keeps the
+    schedule deterministic while making that coincidence generic rather than
+    systematic.  The direct path/root tests below remain the acceptance gate.
+    """
+    p = p_value.numerator % prime * inv(p_value.denominator, prime) % prime
+    seed = (prime // 7 + 104_729 * p + 13_007 * (epsilon % prime)
+            + 1_000_003) % prime
+    step = (prime // 11 + 1_009 * p + 9_176 * (epsilon % prime)
+            + 1_000_033) % prime
+    if step == 0:
+        step = 1
     points = []
-    candidate = 2
+    offset = 0
     while len(points) < count:
+        candidate = (seed + offset * step) % prime
+        offset += 1
+        if candidate == 0:
+            continue
         image = direct_u_point(prime, p_value, candidate, epsilon)
         if image is not None:
             points.append(image)
-        candidate += 1
     return points
 
 
@@ -471,6 +490,7 @@ def main() -> int:
         "block": [25, args.block], "prime": args.prime,
         "p": [args.p.numerator, args.p.denominator], "epsilon": args.epsilon,
         "train_points": args.train, "heldout_points": args.heldout,
+        "point_schedule": "large_affine_p_keyed_v1",
         "threads": args.threads,
         "backend": args.backend, "parallel_mode": args.parallel_mode,
         "eligible_points": len(points),
