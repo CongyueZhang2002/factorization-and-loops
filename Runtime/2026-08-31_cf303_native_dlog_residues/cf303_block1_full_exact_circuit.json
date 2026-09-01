@@ -1,0 +1,2055 @@
+{
+  "status": "CF303Block1CompleteExactArithmeticCircuitV1",
+  "block": [
+    25,
+    1
+  ],
+  "orders": [
+    -3,
+    -2,
+    -1,
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "rows": [
+    1,
+    2
+  ],
+  "abi": {
+    "arithmetic_ops": [
+      "Add",
+      "Mul",
+      "Inv"
+    ],
+    "sealed_op": "FixedRationalHermiteSplit",
+    "source_leaf_compiler": {
+      "exact_input": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/resume/sector_CF303_standard/CF303_25_1_input.wl",
+      "executable": "/home/maxzhang/factorization-and-loops-codex/Diagnostics/Scripts/cf303_scalar_modular_algebraic_hermite_pilot.py",
+      "selected_backend": "/home/maxzhang/factorization-and-loops-codex/Diagnostics/Scripts/deferred_ast_selected_eval",
+      "root_order": [
+        "Delta2",
+        "Delta1",
+        "Delta3"
+      ],
+      "residual_sheet": "Delta1",
+      "rational_projection": "(value(+sqrt(Delta1))+value(-sqrt(Delta1)))/2",
+      "laurent_rule": "coefficient of eps^n at eps=0, n=-3..4"
+    },
+    "source_u_budget": {
+      "row1_primitive": {
+        "numerator_degree": 40,
+        "denominator_degree": 39
+      },
+      "row2_primitive": {
+        "numerator_degree": 38,
+        "denominator_degree": 37
+      },
+      "remainder": {
+        "numerator_degree": 22,
+        "denominator_degree": 23
+      }
+    },
+    "hermite_convention": {
+      "identity": "omega = d_u primitive + remainder",
+      "normalization": "primitive(u=1/2)=0",
+      "remainder_denominator": "monic square-free",
+      "algorithm": "gcd(denominator,d_denominator/du) repeated-part elimination",
+      "executable": "/home/maxzhang/factorization-and-loops-codex/Diagnostics/Scripts/cf303_modular_hermite_pilot.py"
+    },
+    "kernel_factor_budget": {
+      "maximum_factor_degree": 23,
+      "maximum_GPLFactor_power": 22,
+      "root_expansion": "deferred to existing GPLFactor->GPLPole map"
+    },
+    "circuit_evaluator": "/home/maxzhang/factorization-and-loops-codex/Diagnostics/Scripts/cf303_block1_full_exact_circuit.py"
+  },
+  "nodes": [
+    {
+      "id": 0,
+      "kind": "leaf",
+      "type": "ExactDeferredInput",
+      "path": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-30_cf303_25_2_exact_common_path/resume/sector_CF303_standard/CF303_25_1_input.wl"
+    },
+    {
+      "id": 1,
+      "kind": "leaf",
+      "type": "ExactPathFactors",
+      "value": {
+        "k": "4*p*(1-p)",
+        "a": "(k-2*u)/(u^2+k)",
+        "x": "-a*p",
+        "y": "(1-a)*(1-p)",
+        "root_delta2": "a-p",
+        "root_delta3": "1+u*a",
+        "residual_root": "sqrt(1-2*x+x^2+2*y+2*x*y+y^2)",
+        "rational_projection": "(plus+minus)/2"
+      }
+    },
+    {
+      "id": 2,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": -3,
+      "row": 1,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 3,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": -3,
+      "row": 2,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 4,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": -2,
+      "row": 1,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 5,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": -2,
+      "row": 2,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 6,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": -1,
+      "row": 1,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 7,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": -1,
+      "row": 2,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 8,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": 0,
+      "row": 1,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 9,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": 0,
+      "row": 2,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 10,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": 1,
+      "row": 1,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 11,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": 1,
+      "row": 2,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 12,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": 2,
+      "row": 1,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 13,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": 2,
+      "row": 2,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 14,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": 3,
+      "row": 1,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 15,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": 3,
+      "row": 2,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 16,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": 4,
+      "row": 1,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 17,
+      "kind": "leaf",
+      "type": "HermiteSourceComponent",
+      "source": 0,
+      "path_map": 1,
+      "order": 4,
+      "row": 2,
+      "channel": "rational",
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 18,
+      "kind": "leaf",
+      "type": "ExactRational",
+      "source": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_finite_gauge_inputs.json",
+      "selector": [
+        "d",
+        1,
+        1
+      ]
+    },
+    {
+      "id": 19,
+      "kind": "leaf",
+      "type": "ExactRational",
+      "source": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_finite_gauge_inputs.json",
+      "selector": [
+        "d",
+        1,
+        2
+      ]
+    },
+    {
+      "id": 20,
+      "kind": "leaf",
+      "type": "ExactRational",
+      "source": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_finite_gauge_inputs.json",
+      "selector": [
+        "d",
+        2,
+        1
+      ]
+    },
+    {
+      "id": 21,
+      "kind": "leaf",
+      "type": "ExactRational",
+      "source": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_finite_gauge_inputs.json",
+      "selector": [
+        "d",
+        2,
+        2
+      ]
+    },
+    {
+      "id": 22,
+      "kind": "leaf",
+      "type": "ExactRational",
+      "source": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_finite_gauge_inputs.json",
+      "selector": [
+        "s11"
+      ]
+    },
+    {
+      "id": 23,
+      "kind": "leaf",
+      "type": "ExactInteger",
+      "value": -1
+    },
+    {
+      "id": 24,
+      "kind": "leaf",
+      "type": "CompositeBaselineInputs",
+      "base_76": {
+        "path": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_general_elliptic_transfer.wl",
+        "entry_count": 76
+      },
+      "exception_inputs": [
+        {
+          "block": 2,
+          "path": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_2_elliptic_layer_census.maple",
+          "entry_count": 2
+        },
+        {
+          "block": 11,
+          "path": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_11_elliptic_layer_census.maple",
+          "entry_count": 2
+        },
+        {
+          "block": 14,
+          "path": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_14_elliptic_layer_census.maple",
+          "entry_count": 4
+        },
+        {
+          "block": 18,
+          "path": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block25_exception_18_elliptic_layer_census.maple",
+          "entry_count": 4
+        }
+      ],
+      "exception_status": "CF303EllipticLayerCensusAcceptedV1",
+      "composite_entry_count": 88,
+      "assembly_status": "The 76-entry base and four disjoint exception components remain separate exact/census artifacts; this node is their composite view."
+    },
+    {
+      "id": 25,
+      "kind": "leaf",
+      "type": "ExactBlock1EllipticSource",
+      "path": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_exact_elliptic_source.json",
+      "status": "CF303Block1ExactEllipticSourceAcceptedV1",
+      "primitive": "identically zero",
+      "y0_constant": "zero",
+      "output": "exact remainder/cohomology E4Factor/E4Pole channel"
+    },
+    {
+      "id": 26,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        18,
+        [
+          2,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 27,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        19,
+        [
+          3,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 28,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        [
+          2,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 29,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        28
+      ]
+    },
+    {
+      "id": 30,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        26,
+        27,
+        29
+      ]
+    },
+    {
+      "id": 31,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 30,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 32,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          4,
+          "primitive"
+        ],
+        [
+          31,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 33,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          4,
+          "remainder"
+        ],
+        [
+          31,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 34,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        20,
+        [
+          2,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 35,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        21,
+        [
+          3,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 36,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        [
+          3,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 37,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        36
+      ]
+    },
+    {
+      "id": 38,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        34,
+        35,
+        37
+      ]
+    },
+    {
+      "id": 39,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 38,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 40,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          5,
+          "primitive"
+        ],
+        [
+          39,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 41,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          5,
+          "remainder"
+        ],
+        [
+          39,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 42,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        18,
+        32
+      ]
+    },
+    {
+      "id": 43,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        19,
+        40
+      ]
+    },
+    {
+      "id": 44,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        32
+      ]
+    },
+    {
+      "id": 45,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        44
+      ]
+    },
+    {
+      "id": 46,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        42,
+        43,
+        45
+      ]
+    },
+    {
+      "id": 47,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 46,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 48,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          6,
+          "primitive"
+        ],
+        [
+          47,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 49,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          6,
+          "remainder"
+        ],
+        [
+          47,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 50,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        20,
+        32
+      ]
+    },
+    {
+      "id": 51,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        21,
+        40
+      ]
+    },
+    {
+      "id": 52,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        40
+      ]
+    },
+    {
+      "id": 53,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        52
+      ]
+    },
+    {
+      "id": 54,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        50,
+        51,
+        53
+      ]
+    },
+    {
+      "id": 55,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 54,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 56,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          7,
+          "primitive"
+        ],
+        [
+          55,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 57,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          7,
+          "remainder"
+        ],
+        [
+          55,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 58,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        18,
+        48
+      ]
+    },
+    {
+      "id": 59,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        19,
+        56
+      ]
+    },
+    {
+      "id": 60,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        48
+      ]
+    },
+    {
+      "id": 61,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        60
+      ]
+    },
+    {
+      "id": 62,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        58,
+        59,
+        61
+      ]
+    },
+    {
+      "id": 63,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 62,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 64,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          8,
+          "primitive"
+        ],
+        [
+          63,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 65,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          8,
+          "remainder"
+        ],
+        [
+          63,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 66,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        20,
+        48
+      ]
+    },
+    {
+      "id": 67,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        21,
+        56
+      ]
+    },
+    {
+      "id": 68,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        56
+      ]
+    },
+    {
+      "id": 69,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        68
+      ]
+    },
+    {
+      "id": 70,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        66,
+        67,
+        69
+      ]
+    },
+    {
+      "id": 71,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 70,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 72,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          9,
+          "primitive"
+        ],
+        [
+          71,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 73,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          9,
+          "remainder"
+        ],
+        [
+          71,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 74,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        18,
+        64
+      ]
+    },
+    {
+      "id": 75,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        19,
+        72
+      ]
+    },
+    {
+      "id": 76,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        64
+      ]
+    },
+    {
+      "id": 77,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        76
+      ]
+    },
+    {
+      "id": 78,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        74,
+        75,
+        77
+      ]
+    },
+    {
+      "id": 79,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 78,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 80,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          10,
+          "primitive"
+        ],
+        [
+          79,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 81,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          10,
+          "remainder"
+        ],
+        [
+          79,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 82,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        20,
+        64
+      ]
+    },
+    {
+      "id": 83,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        21,
+        72
+      ]
+    },
+    {
+      "id": 84,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        72
+      ]
+    },
+    {
+      "id": 85,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        84
+      ]
+    },
+    {
+      "id": 86,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        82,
+        83,
+        85
+      ]
+    },
+    {
+      "id": 87,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 86,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 88,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          11,
+          "primitive"
+        ],
+        [
+          87,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 89,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          11,
+          "remainder"
+        ],
+        [
+          87,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 90,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        18,
+        80
+      ]
+    },
+    {
+      "id": 91,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        19,
+        88
+      ]
+    },
+    {
+      "id": 92,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        80
+      ]
+    },
+    {
+      "id": 93,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        92
+      ]
+    },
+    {
+      "id": 94,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        90,
+        91,
+        93
+      ]
+    },
+    {
+      "id": 95,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 94,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 96,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          12,
+          "primitive"
+        ],
+        [
+          95,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 97,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          12,
+          "remainder"
+        ],
+        [
+          95,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 98,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        20,
+        80
+      ]
+    },
+    {
+      "id": 99,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        21,
+        88
+      ]
+    },
+    {
+      "id": 100,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        88
+      ]
+    },
+    {
+      "id": 101,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        100
+      ]
+    },
+    {
+      "id": 102,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        98,
+        99,
+        101
+      ]
+    },
+    {
+      "id": 103,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 102,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 104,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          13,
+          "primitive"
+        ],
+        [
+          103,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 105,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          13,
+          "remainder"
+        ],
+        [
+          103,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 106,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        18,
+        96
+      ]
+    },
+    {
+      "id": 107,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        19,
+        104
+      ]
+    },
+    {
+      "id": 108,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        96
+      ]
+    },
+    {
+      "id": 109,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        108
+      ]
+    },
+    {
+      "id": 110,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        106,
+        107,
+        109
+      ]
+    },
+    {
+      "id": 111,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 110,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 112,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          14,
+          "primitive"
+        ],
+        [
+          111,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 113,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          14,
+          "remainder"
+        ],
+        [
+          111,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 114,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        20,
+        96
+      ]
+    },
+    {
+      "id": 115,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        21,
+        104
+      ]
+    },
+    {
+      "id": 116,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        104
+      ]
+    },
+    {
+      "id": 117,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        116
+      ]
+    },
+    {
+      "id": 118,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        114,
+        115,
+        117
+      ]
+    },
+    {
+      "id": 119,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 118,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 120,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          15,
+          "primitive"
+        ],
+        [
+          119,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 121,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          15,
+          "remainder"
+        ],
+        [
+          119,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 122,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        18,
+        112
+      ]
+    },
+    {
+      "id": 123,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        19,
+        120
+      ]
+    },
+    {
+      "id": 124,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        112
+      ]
+    },
+    {
+      "id": 125,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        124
+      ]
+    },
+    {
+      "id": 126,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        122,
+        123,
+        125
+      ]
+    },
+    {
+      "id": 127,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 126,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 128,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          16,
+          "primitive"
+        ],
+        [
+          127,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 129,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          16,
+          "remainder"
+        ],
+        [
+          127,
+          "remainder"
+        ]
+      ]
+    },
+    {
+      "id": 130,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        20,
+        112
+      ]
+    },
+    {
+      "id": 131,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        21,
+        120
+      ]
+    },
+    {
+      "id": 132,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        22,
+        120
+      ]
+    },
+    {
+      "id": 133,
+      "kind": "op",
+      "op": "Mul",
+      "args": [
+        23,
+        132
+      ]
+    },
+    {
+      "id": 134,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        130,
+        131,
+        133
+      ]
+    },
+    {
+      "id": 135,
+      "kind": "op",
+      "op": "FixedRationalHermiteSplit",
+      "arg": 134,
+      "normalize_base": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": 136,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          17,
+          "primitive"
+        ],
+        [
+          135,
+          "primitive"
+        ]
+      ]
+    },
+    {
+      "id": 137,
+      "kind": "op",
+      "op": "Add",
+      "args": [
+        [
+          17,
+          "remainder"
+        ],
+        [
+          135,
+          "remainder"
+        ]
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "order": -3,
+      "row": 1,
+      "delta_h": [
+        2,
+        "primitive"
+      ],
+      "delta_k": [
+        2,
+        "remainder"
+      ],
+      "elliptic": [
+        25,
+        -3,
+        1
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          [
+            2,
+            "remainder"
+          ],
+          "numerator_coefficients"
+        ],
+        "factor": [
+          [
+            2,
+            "remainder"
+          ],
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": -3,
+      "row": 2,
+      "delta_h": [
+        3,
+        "primitive"
+      ],
+      "delta_k": [
+        3,
+        "remainder"
+      ],
+      "elliptic": [
+        25,
+        -3,
+        2
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          [
+            3,
+            "remainder"
+          ],
+          "numerator_coefficients"
+        ],
+        "factor": [
+          [
+            3,
+            "remainder"
+          ],
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": -2,
+      "row": 1,
+      "delta_h": 32,
+      "delta_k": 33,
+      "elliptic": [
+        25,
+        -2,
+        1
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          33,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          33,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": -2,
+      "row": 2,
+      "delta_h": 40,
+      "delta_k": 41,
+      "elliptic": [
+        25,
+        -2,
+        2
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          41,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          41,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": -1,
+      "row": 1,
+      "delta_h": 48,
+      "delta_k": 49,
+      "elliptic": [
+        25,
+        -1,
+        1
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          49,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          49,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": -1,
+      "row": 2,
+      "delta_h": 56,
+      "delta_k": 57,
+      "elliptic": [
+        25,
+        -1,
+        2
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          57,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          57,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": 0,
+      "row": 1,
+      "delta_h": 64,
+      "delta_k": 65,
+      "elliptic": [
+        25,
+        0,
+        1
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          65,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          65,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": 0,
+      "row": 2,
+      "delta_h": 72,
+      "delta_k": 73,
+      "elliptic": [
+        25,
+        0,
+        2
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          73,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          73,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": 1,
+      "row": 1,
+      "delta_h": 80,
+      "delta_k": 81,
+      "elliptic": [
+        25,
+        1,
+        1
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          81,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          81,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": 1,
+      "row": 2,
+      "delta_h": 88,
+      "delta_k": 89,
+      "elliptic": [
+        25,
+        1,
+        2
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          89,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          89,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": 2,
+      "row": 1,
+      "delta_h": 96,
+      "delta_k": 97,
+      "elliptic": [
+        25,
+        2,
+        1
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          97,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          97,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": 2,
+      "row": 2,
+      "delta_h": 104,
+      "delta_k": 105,
+      "elliptic": [
+        25,
+        2,
+        2
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          105,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          105,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": 3,
+      "row": 1,
+      "delta_h": 112,
+      "delta_k": 113,
+      "elliptic": [
+        25,
+        3,
+        1
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          113,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          113,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": 3,
+      "row": 2,
+      "delta_h": 120,
+      "delta_k": 121,
+      "elliptic": [
+        25,
+        3,
+        2
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          121,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          121,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": 4,
+      "row": 1,
+      "delta_h": 128,
+      "delta_k": 129,
+      "elliptic": [
+        25,
+        4,
+        1
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          129,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          129,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    },
+    {
+      "order": 4,
+      "row": 2,
+      "delta_h": 136,
+      "delta_k": 137,
+      "elliptic": [
+        25,
+        4,
+        2
+      ],
+      "kernel": {
+        "convention": "GPLFactor",
+        "formula": "Sum_i numerator[i] GPLFactor[denominator,i]",
+        "coefficient_vector": [
+          137,
+          "numerator_coefficients"
+        ],
+        "factor": [
+          137,
+          "denominator_polynomial"
+        ],
+        "physical_expansion": "Use existing GPLFactor->GPLPole root expansion only when a physical word is requested; do not expand roots here."
+      }
+    }
+  ],
+  "accepted_baseline": 24,
+  "assembly_contract": "Use the 88-entry composite baseline (76 base plus disjoint blocks 2/11/14/18), then append the two block-1 entries from this circuit. Their rational deltaH/deltaK is the arithmetic DAG; their exact elliptic H and Y0 are zero and K is supplied by the elliptic leaf.",
+  "exact_source_bytes": 32517228,
+  "build_seconds": 0.0005685579963028431
+}

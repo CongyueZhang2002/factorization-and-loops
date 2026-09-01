@@ -1,0 +1,100 @@
+{
+  "status": "CF303Block1CompleteExactArithmeticCircuitValidatedV1",
+  "circuit": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_full_exact_circuit.json",
+  "node_count": 138,
+  "output_record_count": 16,
+  "validation": [
+    {
+      "prime": 2305843009213691819,
+      "p": [
+        3,
+        1
+      ],
+      "record_count": 16,
+      "coefficient_comparisons": 1878,
+      "circuit_evaluation_seconds": 0.37220366997644305
+    },
+    {
+      "prime": 2305843009213641971,
+      "p": [
+        3,
+        1
+      ],
+      "record_count": 16,
+      "coefficient_comparisons": 1878,
+      "circuit_evaluation_seconds": 0.3525921229738742
+    },
+    {
+      "prime": 2305843009213693951,
+      "p": [
+        3,
+        1
+      ],
+      "record_count": 16,
+      "coefficient_comparisons": 1878,
+      "circuit_evaluation_seconds": 0.35411910503171384
+    },
+    {
+      "prime": 2305843009213693921,
+      "p": [
+        3,
+        1
+      ],
+      "record_count": 16,
+      "coefficient_comparisons": 1878,
+      "circuit_evaluation_seconds": 0.34762283810414374
+    },
+    {
+      "prime": 2305843009213693907,
+      "p": [
+        3,
+        1
+      ],
+      "record_count": 16,
+      "coefficient_comparisons": 1878,
+      "circuit_evaluation_seconds": 0.3527682370040566
+    },
+    {
+      "prime": 2305843009213693723,
+      "p": [
+        3,
+        1
+      ],
+      "record_count": 16,
+      "coefficient_comparisons": 1878,
+      "circuit_evaluation_seconds": 0.31858441105578095
+    },
+    {
+      "prime": 2305843009213693693,
+      "p": [
+        3,
+        1
+      ],
+      "record_count": 16,
+      "coefficient_comparisons": 1878,
+      "circuit_evaluation_seconds": 0.31212737201713026
+    },
+    {
+      "prime": 2305843009213693693,
+      "p": [
+        239,
+        47
+      ],
+      "record_count": 16,
+      "coefficient_comparisons": 1878,
+      "circuit_evaluation_seconds": 0.35079915495589375,
+      "raw_source_lift": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_circuit_q7_p239d47_fixed_epsilon.json"
+    }
+  ],
+  "total_coefficient_comparisons": 15024,
+  "q1_gpl_kernel_terms": 318,
+  "q1_gpl_kernel_sample": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_full_circuit_q1_p3_gpl_kernels.json",
+  "q7_deck": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/block1_modular_laurent_decks/cf303_block1_laurent_deck_q2305843009213693693.json",
+  "elliptic_source": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_exact_elliptic_source.json",
+  "elliptic_fresh_comparisons": 476,
+  "elliptic_primitive_identically_zero": true,
+  "composite_baseline_entries": 88,
+  "entries_after_block1": 90,
+  "full_row_representation": "composite exact references; not monolithic",
+  "assembly_contract": "Use the 88-entry composite baseline (76 base plus disjoint blocks 2/11/14/18), then append the two block-1 entries from this circuit. Their rational deltaH/deltaK is the arithmetic DAG; their exact elliptic H and Y0 are zero and K is supplied by the elliptic leaf."
+}

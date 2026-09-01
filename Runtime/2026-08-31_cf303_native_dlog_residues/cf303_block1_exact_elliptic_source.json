@@ -1,0 +1,7979 @@
+{
+  "status": "CF303Block1ExactEllipticSourceAcceptedV1",
+  "block": [
+    25,
+    1
+  ],
+  "profile_count": 238,
+  "exact_profiles": [
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          23,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          25,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          205,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "denominator",
+        5
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          11,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "denominator",
+        6
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          357,
+          8
+        ],
+        [
+          119,
+          4
+        ],
+        [
+          -119,
+          8
+        ],
+        [
+          119,
+          24
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          267,
+          16
+        ],
+        [
+          89,
+          8
+        ],
+        [
+          -89,
+          16
+        ],
+        [
+          89,
+          48
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -10941,
+          16
+        ],
+        [
+          -3647,
+          8
+        ],
+        [
+          3647,
+          16
+        ],
+        [
+          -3647,
+          48
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -5265,
+          16
+        ],
+        [
+          -1755,
+          8
+        ],
+        [
+          1755,
+          16
+        ],
+        [
+          -585,
+          16
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          53451,
+          16
+        ],
+        [
+          17817,
+          8
+        ],
+        [
+          -17817,
+          16
+        ],
+        [
+          5939,
+          16
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "numerator",
+        5
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          6399,
+          8
+        ],
+        [
+          2133,
+          4
+        ],
+        [
+          -2133,
+          8
+        ],
+        [
+          711,
+          8
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "numerator",
+        6
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -4779,
+          1
+        ],
+        [
+          -3186,
+          1
+        ],
+        [
+          1593,
+          1
+        ],
+        [
+          -531,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          23,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          25,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          205,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "denominator",
+        5
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          11,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "denominator",
+        6
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          -119,
+          24
+        ],
+        [
+          119,
+          48
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          -89,
+          48
+        ],
+        [
+          89,
+          96
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          3647,
+          48
+        ],
+        [
+          -3647,
+          96
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          585,
+          16
+        ],
+        [
+          -585,
+          32
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          -5939,
+          16
+        ],
+        [
+          5939,
+          32
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "numerator",
+        5
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          -711,
+          8
+        ],
+        [
+          711,
+          16
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "numerator",
+        6
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          531,
+          1
+        ],
+        [
+          -531,
+          2
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        2,
+        "denominator",
+        0
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "cohomology_coefficients",
+        2,
+        "numerator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "primitive_numerator",
+        0,
+        "denominator",
+        0
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "primitive_numerator",
+        0,
+        "numerator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          23,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          25,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          205,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "denominator",
+        5
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          11,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "denominator",
+        6
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          1904,
+          3
+        ],
+        [
+          -3808,
+          3
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          3808,
+          3
+        ],
+        [
+          -1904,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          712,
+          3
+        ],
+        [
+          -1424,
+          3
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          1424,
+          3
+        ],
+        [
+          -712,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -29176,
+          3
+        ],
+        [
+          58352,
+          3
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -58352,
+          3
+        ],
+        [
+          29176,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -4680,
+          1
+        ],
+        [
+          9360,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -9360,
+          1
+        ],
+        [
+          4680,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          47512,
+          1
+        ],
+        [
+          -95024,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          95024,
+          1
+        ],
+        [
+          -47512,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "numerator",
+        5
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          11376,
+          1
+        ],
+        [
+          -22752,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          22752,
+          1
+        ],
+        [
+          -11376,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        0,
+        "numerator",
+        6
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -67968,
+          1
+        ],
+        [
+          135936,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -135936,
+          1
+        ],
+        [
+          67968,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          23,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          25,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          205,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "denominator",
+        5
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          11,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "denominator",
+        6
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          238,
+          1
+        ],
+        [
+          -238,
+          1
+        ],
+        [
+          -238,
+          1
+        ],
+        [
+          -1190,
+          3
+        ],
+        [
+          3808,
+          3
+        ],
+        [
+          -1904,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          89,
+          1
+        ],
+        [
+          -89,
+          1
+        ],
+        [
+          -89,
+          1
+        ],
+        [
+          -445,
+          3
+        ],
+        [
+          1424,
+          3
+        ],
+        [
+          -712,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -3647,
+          1
+        ],
+        [
+          3647,
+          1
+        ],
+        [
+          3647,
+          1
+        ],
+        [
+          18235,
+          3
+        ],
+        [
+          -58352,
+          3
+        ],
+        [
+          29176,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -1755,
+          1
+        ],
+        [
+          1755,
+          1
+        ],
+        [
+          1755,
+          1
+        ],
+        [
+          2925,
+          1
+        ],
+        [
+          -9360,
+          1
+        ],
+        [
+          4680,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          17817,
+          1
+        ],
+        [
+          -17817,
+          1
+        ],
+        [
+          -17817,
+          1
+        ],
+        [
+          -29695,
+          1
+        ],
+        [
+          95024,
+          1
+        ],
+        [
+          -47512,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "numerator",
+        5
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          4266,
+          1
+        ],
+        [
+          -4266,
+          1
+        ],
+        [
+          -4266,
+          1
+        ],
+        [
+          -7110,
+          1
+        ],
+        [
+          22752,
+          1
+        ],
+        [
+          -11376,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        1,
+        "numerator",
+        6
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -25488,
+          1
+        ],
+        [
+          25488,
+          1
+        ],
+        [
+          25488,
+          1
+        ],
+        [
+          42480,
+          1
+        ],
+        [
+          -135936,
+          1
+        ],
+        [
+          67968,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          23,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          25,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          205,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "denominator",
+        5
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          11,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "denominator",
+        6
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          -595,
+          3
+        ],
+        [
+          714,
+          1
+        ],
+        [
+          -4403,
+          3
+        ],
+        [
+          4165,
+          3
+        ],
+        [
+          -1309,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          -445,
+          6
+        ],
+        [
+          267,
+          1
+        ],
+        [
+          -3293,
+          6
+        ],
+        [
+          3115,
+          6
+        ],
+        [
+          -979,
+          6
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          18235,
+          6
+        ],
+        [
+          -10941,
+          1
+        ],
+        [
+          134939,
+          6
+        ],
+        [
+          -127645,
+          6
+        ],
+        [
+          40117,
+          6
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          2925,
+          2
+        ],
+        [
+          -5265,
+          1
+        ],
+        [
+          21645,
+          2
+        ],
+        [
+          -20475,
+          2
+        ],
+        [
+          6435,
+          2
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          -29695,
+          2
+        ],
+        [
+          53451,
+          1
+        ],
+        [
+          -219743,
+          2
+        ],
+        [
+          207865,
+          2
+        ],
+        [
+          -65329,
+          2
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "numerator",
+        5
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          -3555,
+          1
+        ],
+        [
+          12798,
+          1
+        ],
+        [
+          -26307,
+          1
+        ],
+        [
+          24885,
+          1
+        ],
+        [
+          -7821,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        2,
+        "numerator",
+        6
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          21240,
+          1
+        ],
+        [
+          -76464,
+          1
+        ],
+        [
+          157176,
+          1
+        ],
+        [
+          -148680,
+          1
+        ],
+        [
+          46728,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          23,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          25,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          205,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "denominator",
+        5
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          11,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "denominator",
+        6
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          -1190,
+          3
+        ],
+        [
+          833,
+          1
+        ],
+        [
+          -2261,
+          3
+        ],
+        [
+          595,
+          3
+        ],
+        [
+          119,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          -445,
+          3
+        ],
+        [
+          623,
+          2
+        ],
+        [
+          -1691,
+          6
+        ],
+        [
+          445,
+          6
+        ],
+        [
+          89,
+          2
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          18235,
+          3
+        ],
+        [
+          -25529,
+          2
+        ],
+        [
+          69293,
+          6
+        ],
+        [
+          -18235,
+          6
+        ],
+        [
+          -3647,
+          2
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          2925,
+          1
+        ],
+        [
+          -12285,
+          2
+        ],
+        [
+          11115,
+          2
+        ],
+        [
+          -2925,
+          2
+        ],
+        [
+          -1755,
+          2
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          -29695,
+          1
+        ],
+        [
+          124719,
+          2
+        ],
+        [
+          -112841,
+          2
+        ],
+        [
+          29695,
+          2
+        ],
+        [
+          17817,
+          2
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "numerator",
+        5
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          -7110,
+          1
+        ],
+        [
+          14931,
+          1
+        ],
+        [
+          -13509,
+          1
+        ],
+        [
+          3555,
+          1
+        ],
+        [
+          2133,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        3,
+        "numerator",
+        6
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          42480,
+          1
+        ],
+        [
+          -89208,
+          1
+        ],
+        [
+          80712,
+          1
+        ],
+        [
+          -21240,
+          1
+        ],
+        [
+          -12744,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          23,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          25,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          205,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "denominator",
+        5
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          11,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "denominator",
+        6
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          595,
+          12
+        ],
+        [
+          -2737,
+          12
+        ],
+        [
+          357,
+          4
+        ],
+        [
+          833,
+          6
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          445,
+          24
+        ],
+        [
+          -2047,
+          24
+        ],
+        [
+          267,
+          8
+        ],
+        [
+          623,
+          12
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -18235,
+          24
+        ],
+        [
+          83881,
+          24
+        ],
+        [
+          -10941,
+          8
+        ],
+        [
+          -25529,
+          12
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -2925,
+          8
+        ],
+        [
+          13455,
+          8
+        ],
+        [
+          -5265,
+          8
+        ],
+        [
+          -4095,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          29695,
+          8
+        ],
+        [
+          -136597,
+          8
+        ],
+        [
+          53451,
+          8
+        ],
+        [
+          41573,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "numerator",
+        5
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          3555,
+          4
+        ],
+        [
+          -16353,
+          4
+        ],
+        [
+          6399,
+          4
+        ],
+        [
+          4977,
+          2
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        4,
+        "numerator",
+        6
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -5310,
+          1
+        ],
+        [
+          24426,
+          1
+        ],
+        [
+          -9558,
+          1
+        ],
+        [
+          -14868,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          23,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          25,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          205,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "denominator",
+        5
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          11,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "denominator",
+        6
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          833,
+          24
+        ],
+        [
+          357,
+          8
+        ],
+        [
+          -119,
+          4
+        ],
+        [
+          119,
+          12
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          623,
+          48
+        ],
+        [
+          267,
+          16
+        ],
+        [
+          -89,
+          8
+        ],
+        [
+          89,
+          24
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -25529,
+          48
+        ],
+        [
+          -10941,
+          16
+        ],
+        [
+          3647,
+          8
+        ],
+        [
+          -3647,
+          24
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -4095,
+          16
+        ],
+        [
+          -5265,
+          16
+        ],
+        [
+          1755,
+          8
+        ],
+        [
+          -585,
+          8
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          41573,
+          16
+        ],
+        [
+          53451,
+          16
+        ],
+        [
+          -17817,
+          8
+        ],
+        [
+          5939,
+          8
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "numerator",
+        5
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          4977,
+          8
+        ],
+        [
+          6399,
+          8
+        ],
+        [
+          -2133,
+          4
+        ],
+        [
+          711,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        5,
+        "numerator",
+        6
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -3717,
+          1
+        ],
+        [
+          -4779,
+          1
+        ],
+        [
+          3186,
+          1
+        ],
+        [
+          -1062,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          23,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          25,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          205,
+          72
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "denominator",
+        5
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          11,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "denominator",
+        6
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          -119,
+          24
+        ],
+        [
+          119,
+          48
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          -89,
+          48
+        ],
+        [
+          89,
+          96
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          3647,
+          48
+        ],
+        [
+          -3647,
+          96
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          585,
+          16
+        ],
+        [
+          -585,
+          32
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          -5939,
+          16
+        ],
+        [
+          5939,
+          32
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "numerator",
+        5
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          -711,
+          8
+        ],
+        [
+          711,
+          16
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "1,1,elliptic",
+        "remainder_numerator",
+        6,
+        "numerator",
+        6
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          531,
+          1
+        ],
+        [
+          -531,
+          2
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          17,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          5,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -15,
+          2
+        ],
+        [
+          -5,
+          1
+        ],
+        [
+          5,
+          2
+        ],
+        [
+          -5,
+          6
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          153,
+          4
+        ],
+        [
+          51,
+          2
+        ],
+        [
+          -51,
+          4
+        ],
+        [
+          17,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -33,
+          1
+        ],
+        [
+          -22,
+          1
+        ],
+        [
+          11,
+          1
+        ],
+        [
+          -11,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -297,
+          4
+        ],
+        [
+          -99,
+          2
+        ],
+        [
+          99,
+          4
+        ],
+        [
+          -33,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        0,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          189,
+          2
+        ],
+        [
+          63,
+          1
+        ],
+        [
+          -63,
+          2
+        ],
+        [
+          21,
+          2
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          17,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          5,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          5,
+          6
+        ],
+        [
+          -5,
+          12
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          -17,
+          4
+        ],
+        [
+          17,
+          8
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          11,
+          3
+        ],
+        [
+          -11,
+          6
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          33,
+          4
+        ],
+        [
+          -33,
+          8
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        1,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          -21,
+          2
+        ],
+        [
+          21,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        2,
+        "denominator",
+        0
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "cohomology_coefficients",
+        2,
+        "numerator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "primitive_numerator",
+        0,
+        "denominator",
+        0
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "primitive_numerator",
+        0,
+        "numerator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        0,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        0,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        0,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          17,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        0,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          5,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        0,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        0,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -320,
+          3
+        ],
+        [
+          640,
+          3
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -640,
+          3
+        ],
+        [
+          320,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        0,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          544,
+          1
+        ],
+        [
+          -1088,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          1088,
+          1
+        ],
+        [
+          -544,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        0,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -1408,
+          3
+        ],
+        [
+          2816,
+          3
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -2816,
+          3
+        ],
+        [
+          1408,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        0,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -1056,
+          1
+        ],
+        [
+          2112,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -2112,
+          1
+        ],
+        [
+          1056,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        0,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          1344,
+          1
+        ],
+        [
+          -2688,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          2688,
+          1
+        ],
+        [
+          -1344,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        1,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        1,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        1,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          17,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        1,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          5,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        1,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        1,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -40,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          40,
+          1
+        ],
+        [
+          200,
+          3
+        ],
+        [
+          -640,
+          3
+        ],
+        [
+          320,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        1,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          204,
+          1
+        ],
+        [
+          -204,
+          1
+        ],
+        [
+          -204,
+          1
+        ],
+        [
+          -340,
+          1
+        ],
+        [
+          1088,
+          1
+        ],
+        [
+          -544,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        1,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -176,
+          1
+        ],
+        [
+          176,
+          1
+        ],
+        [
+          176,
+          1
+        ],
+        [
+          880,
+          3
+        ],
+        [
+          -2816,
+          3
+        ],
+        [
+          1408,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        1,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -396,
+          1
+        ],
+        [
+          396,
+          1
+        ],
+        [
+          396,
+          1
+        ],
+        [
+          660,
+          1
+        ],
+        [
+          -2112,
+          1
+        ],
+        [
+          1056,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        1,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 7,
+      "denominator_degree": 0,
+      "total_degree": 7,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          504,
+          1
+        ],
+        [
+          -504,
+          1
+        ],
+        [
+          -504,
+          1
+        ],
+        [
+          -840,
+          1
+        ],
+        [
+          2688,
+          1
+        ],
+        [
+          -1344,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        2,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        2,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        2,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          17,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        2,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          5,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        2,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        2,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          100,
+          3
+        ],
+        [
+          -120,
+          1
+        ],
+        [
+          740,
+          3
+        ],
+        [
+          -700,
+          3
+        ],
+        [
+          220,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        2,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          -170,
+          1
+        ],
+        [
+          612,
+          1
+        ],
+        [
+          -1258,
+          1
+        ],
+        [
+          1190,
+          1
+        ],
+        [
+          -374,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        2,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          440,
+          3
+        ],
+        [
+          -528,
+          1
+        ],
+        [
+          3256,
+          3
+        ],
+        [
+          -3080,
+          3
+        ],
+        [
+          968,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        2,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          330,
+          1
+        ],
+        [
+          -1188,
+          1
+        ],
+        [
+          2442,
+          1
+        ],
+        [
+          -2310,
+          1
+        ],
+        [
+          726,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        2,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          -420,
+          1
+        ],
+        [
+          1512,
+          1
+        ],
+        [
+          -3108,
+          1
+        ],
+        [
+          2940,
+          1
+        ],
+        [
+          -924,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        3,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        3,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        3,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          17,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        3,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          5,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        3,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        3,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          200,
+          3
+        ],
+        [
+          -140,
+          1
+        ],
+        [
+          380,
+          3
+        ],
+        [
+          -100,
+          3
+        ],
+        [
+          -20,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        3,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          -340,
+          1
+        ],
+        [
+          714,
+          1
+        ],
+        [
+          -646,
+          1
+        ],
+        [
+          170,
+          1
+        ],
+        [
+          102,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        3,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          880,
+          3
+        ],
+        [
+          -616,
+          1
+        ],
+        [
+          1672,
+          3
+        ],
+        [
+          -440,
+          3
+        ],
+        [
+          -88,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        3,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          660,
+          1
+        ],
+        [
+          -1386,
+          1
+        ],
+        [
+          1254,
+          1
+        ],
+        [
+          -330,
+          1
+        ],
+        [
+          -198,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        3,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 5,
+      "denominator_degree": 0,
+      "total_degree": 5,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          -840,
+          1
+        ],
+        [
+          1764,
+          1
+        ],
+        [
+          -1596,
+          1
+        ],
+        [
+          420,
+          1
+        ],
+        [
+          252,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        4,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        4,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        4,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          17,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        4,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          5,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        4,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        4,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -25,
+          3
+        ],
+        [
+          115,
+          3
+        ],
+        [
+          -15,
+          1
+        ],
+        [
+          -70,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        4,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          85,
+          2
+        ],
+        [
+          -391,
+          2
+        ],
+        [
+          153,
+          2
+        ],
+        [
+          119,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        4,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -110,
+          3
+        ],
+        [
+          506,
+          3
+        ],
+        [
+          -66,
+          1
+        ],
+        [
+          -308,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        4,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -165,
+          2
+        ],
+        [
+          759,
+          2
+        ],
+        [
+          -297,
+          2
+        ],
+        [
+          -231,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        4,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          105,
+          1
+        ],
+        [
+          -483,
+          1
+        ],
+        [
+          189,
+          1
+        ],
+        [
+          294,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        5,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        5,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        5,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          17,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        5,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          5,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        5,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        5,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -35,
+          6
+        ],
+        [
+          -15,
+          2
+        ],
+        [
+          5,
+          1
+        ],
+        [
+          -5,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        5,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          119,
+          4
+        ],
+        [
+          153,
+          4
+        ],
+        [
+          -51,
+          2
+        ],
+        [
+          17,
+          2
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        5,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -77,
+          3
+        ],
+        [
+          -33,
+          1
+        ],
+        [
+          22,
+          1
+        ],
+        [
+          -22,
+          3
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        5,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          -231,
+          4
+        ],
+        [
+          -297,
+          4
+        ],
+        [
+          99,
+          2
+        ],
+        [
+          -33,
+          2
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        5,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 3,
+      "denominator_degree": 0,
+      "total_degree": 3,
+      "numerator": [
+        [
+          147,
+          2
+        ],
+        [
+          189,
+          2
+        ],
+        [
+          -63,
+          1
+        ],
+        [
+          21,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        6,
+        "denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        6,
+        "denominator",
+        1
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          18
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        6,
+        "denominator",
+        2
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          17,
+          36
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        6,
+        "denominator",
+        3
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          5,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        6,
+        "denominator",
+        4
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        6,
+        "numerator",
+        0
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          5,
+          6
+        ],
+        [
+          -5,
+          12
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        6,
+        "numerator",
+        1
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          -17,
+          4
+        ],
+        [
+          17,
+          8
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        6,
+        "numerator",
+        2
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          11,
+          3
+        ],
+        [
+          -11,
+          6
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        6,
+        "numerator",
+        3
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          33,
+          4
+        ],
+        [
+          -33,
+          8
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "epsilon_profile",
+        "2,1,elliptic",
+        "remainder_numerator",
+        6,
+        "numerator",
+        4
+      ],
+      "numerator_degree": 1,
+      "denominator_degree": 0,
+      "total_degree": 1,
+      "numerator": [
+        [
+          -21,
+          2
+        ],
+        [
+          21,
+          4
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "1,1,elliptic",
+        "primitive_denominator",
+        0
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "1,1,elliptic",
+        "remainder_denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "1,1,elliptic",
+        "remainder_denominator",
+        1
+      ],
+      "numerator_degree": 4,
+      "denominator_degree": 0,
+      "total_degree": 4,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -16,
+          1
+        ],
+        [
+          32,
+          1
+        ],
+        [
+          -16,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "1,1,elliptic",
+        "remainder_denominator",
+        2
+      ],
+      "numerator_degree": 4,
+      "denominator_degree": 0,
+      "total_degree": 4,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          8,
+          1
+        ],
+        [
+          -16,
+          1
+        ],
+        [
+          16,
+          1
+        ],
+        [
+          -8,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "1,1,elliptic",
+        "remainder_denominator",
+        3
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "1,1,elliptic",
+        "remainder_denominator",
+        4
+      ],
+      "numerator_degree": 2,
+      "denominator_degree": 0,
+      "total_degree": 2,
+      "numerator": [
+        [
+          2,
+          1
+        ],
+        [
+          -2,
+          1
+        ],
+        [
+          2,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "1,1,elliptic",
+        "remainder_denominator",
+        5
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "2,1,elliptic",
+        "primitive_denominator",
+        0
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "2,1,elliptic",
+        "remainder_denominator",
+        0
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "2,1,elliptic",
+        "remainder_denominator",
+        1
+      ],
+      "numerator_degree": 4,
+      "denominator_degree": 0,
+      "total_degree": 4,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          -16,
+          1
+        ],
+        [
+          32,
+          1
+        ],
+        [
+          -16,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "2,1,elliptic",
+        "remainder_denominator",
+        2
+      ],
+      "numerator_degree": 4,
+      "denominator_degree": 0,
+      "total_degree": 4,
+      "numerator": [
+        [
+          0,
+          1
+        ],
+        [
+          8,
+          1
+        ],
+        [
+          -16,
+          1
+        ],
+        [
+          16,
+          1
+        ],
+        [
+          -8,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "2,1,elliptic",
+        "remainder_denominator",
+        3
+      ],
+      "numerator_degree": -1,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          0,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "2,1,elliptic",
+        "remainder_denominator",
+        4
+      ],
+      "numerator_degree": 2,
+      "denominator_degree": 0,
+      "total_degree": 2,
+      "numerator": [
+        [
+          2,
+          1
+        ],
+        [
+          -2,
+          1
+        ],
+        [
+          2,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "key": [
+        "u_denominator",
+        "2,1,elliptic",
+        "remainder_denominator",
+        5
+      ],
+      "numerator_degree": 0,
+      "denominator_degree": 0,
+      "total_degree": 0,
+      "numerator": [
+        [
+          1,
+          1
+        ]
+      ],
+      "denominator": [
+        [
+          1,
+          1
+        ]
+      ]
+    }
+  ],
+  "elliptic_primitive_identically_zero": true,
+  "path_gauge_consequence": "D and S11 are rational, so rational/elliptic channels decouple. With every incoming elliptic primitive zero, H_n^elliptic and the Y0 base constant are zero for n=-3..4; K_n^elliptic is the exact source elliptic remainder/cohomology channel.",
+  "outputs": [
+    {
+      "order": -3,
+      "row": 1,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "1,1,elliptic",
+        "epsilon_laurent_order": -3,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": -3,
+      "row": 2,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "2,1,elliptic",
+        "epsilon_laurent_order": -3,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": -2,
+      "row": 1,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "1,1,elliptic",
+        "epsilon_laurent_order": -2,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": -2,
+      "row": 2,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "2,1,elliptic",
+        "epsilon_laurent_order": -2,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": -1,
+      "row": 1,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "1,1,elliptic",
+        "epsilon_laurent_order": -1,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": -1,
+      "row": 2,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "2,1,elliptic",
+        "epsilon_laurent_order": -1,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": 0,
+      "row": 1,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "1,1,elliptic",
+        "epsilon_laurent_order": 0,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": 0,
+      "row": 2,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "2,1,elliptic",
+        "epsilon_laurent_order": 0,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": 1,
+      "row": 1,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "1,1,elliptic",
+        "epsilon_laurent_order": 1,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": 1,
+      "row": 2,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "2,1,elliptic",
+        "epsilon_laurent_order": 1,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": 2,
+      "row": 1,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "1,1,elliptic",
+        "epsilon_laurent_order": 2,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": 2,
+      "row": 2,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "2,1,elliptic",
+        "epsilon_laurent_order": 2,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": 3,
+      "row": 1,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "1,1,elliptic",
+        "epsilon_laurent_order": 3,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": 3,
+      "row": 2,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "2,1,elliptic",
+        "epsilon_laurent_order": 3,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": 4,
+      "row": 1,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "1,1,elliptic",
+        "epsilon_laurent_order": 4,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    },
+    {
+      "order": 4,
+      "row": 2,
+      "h_elliptic": "Zero",
+      "y0_constant": "Zero",
+      "k_elliptic": {
+        "source": "exact_profiles",
+        "channel": "2,1,elliptic",
+        "epsilon_laurent_order": 4,
+        "components": [
+          "remainder_numerator",
+          "cohomology_coefficients"
+        ],
+        "kernel_convention": "E4Factor/E4Pole with Yc kept symbolic"
+      }
+    }
+  ],
+  "fresh_validation": [
+    {
+      "prime": 2305843009213693693,
+      "p": [
+        3,
+        1
+      ],
+      "comparisons": 238,
+      "raw_source_lift": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_circuit_q7_p3_fixed_epsilon.json",
+      "mismatches": 0
+    },
+    {
+      "prime": 2305843009213693693,
+      "p": [
+        239,
+        47
+      ],
+      "comparisons": 238,
+      "raw_source_lift": "/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_block1_circuit_q7_p239d47_fixed_epsilon.json",
+      "mismatches": 0
+    }
+  ],
+  "fresh_comparison_count": 476,
+  "candidate_statistics": {
+    "modulus_bits": 122,
+    "shared_scale_profile_count": 2540
+  }
+}
