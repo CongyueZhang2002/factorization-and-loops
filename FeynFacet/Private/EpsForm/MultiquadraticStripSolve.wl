@@ -5804,6 +5804,13 @@ multiquadraticStripABIPayload[record_Association, roots_List,
 
 Options[multiquadraticStripPrepare] = {
   "OneForms" -> Automatic,
+  (* the BASE gauge denominator (Automatic: derived from the forcing and the
+     letters).  A supplied value is canonicalized by
+     multiquadraticStripMergeGaugeDenominator (unit leading coefficient per
+     factor, factors free of the chart variables dropped) and is then
+     ENLARGED by the GaugeDenominatorFactor below unless that is pinned to 1;
+     a planted or pinned ansatz must pass "GaugeDenominatorFactor" -> 1
+     (t_multiquadratic_installed_family_chain, 2026-09-02). *)
   "GaugeDenominator" -> Automatic,
   (* 2026-08-24: an extra polynomial factor of the gauge denominator, in
      the style of the rational engine's denominator options.  Automatic

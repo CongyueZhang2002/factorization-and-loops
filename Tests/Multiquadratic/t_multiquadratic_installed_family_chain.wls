@@ -70,7 +70,14 @@ solved = solve[stripRecord, frame,
   "PlanDiscoveryBackend" -> "Wolfram",
   "RowAlphabet" -> {}, "AdditionalLetters" -> {},
   "AlgebraicLetters" -> letters,
-  "GaugeDenominator" -> gaugeDenominator, "Support" -> {{0, 0}},
+  (* GaugeDenominator is the BASE denominator: with the default
+     GaugeDenominatorFactor -> Automatic the preparation multiplies it by
+     the norms of the algebraic letters, and the constant support cannot
+     represent the planted gauge over that enlarged denominator (the
+     32x20 ansatz is then inconsistent at every prime, reported as
+     NoUsableStructuralPilot).  The factor is pinned to 1 here. *)
+  "GaugeDenominator" -> gaugeDenominator, "GaugeDenominatorFactor" -> 1,
+  "Support" -> {{0, 0}},
   "RegulatorSampleCount" -> 3, "DLogKernels" -> 1,
   "IntegrabilityScreen" -> False, "ScreenFirst" -> False,
   "GaugeScreen" -> False, "RegulatorReconstruction" -> True,
@@ -83,6 +90,9 @@ solved = solve[stripRecord, frame,
 If[Lookup[solved, "Status", None] =!= "Solved",
   Print["SOLVER DIAGNOSTIC: ", Short[solved, 12]]];
 
+check["C1 the prepared gauge denominator is the planted base denominator",
+  TrueQ[Together[Lookup[solved, "GaugeDenominator", $Failed] -
+      gaugeDenominator] === 0]];
 check["C1 the rank-three provider reconstruction is authenticated Solved",
   Lookup[solved, "Status", None] === "Solved" &&
     Lookup[solved, "SolutionContract", None] ===

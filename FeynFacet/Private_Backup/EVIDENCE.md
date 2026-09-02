@@ -77,6 +77,4 @@ Kept deliberately: `masterTransportLoadLibra` and the Libra balance slice of `Di
 
 ### Round 3 (2026-09-02 afternoon): tests
 
-| File | Moved from | Evidence |
-|---|---|---|
-| `Tests/t_multiquadratic_installed_family_chain.wls` | `Tests/Multiquadratic/` | Work-in-progress contract from Codex's WIP checkpoint 612c35ee; never green in any recorded run (baseline EXIT1 after 456 s, round-2 pool EXIT1 after 1166 s): C1 requires the SplitBranch provider to reconstruct a planted rank-three (eight-grade) strip, and the solver's structural pilot finds no usable image at any of its three primes (`RegulatorReconstructionIncomplete`, `NoUsableStructuralPilot`), so C2-C6 never run. Kept here as the specification of the installable rank-three chain; restore it when the solver reaches that contract (open item in the plan). |
+`t_multiquadratic_installed_family_chain.wls` was moved here at 12:55 as a never-green WIP contract and RESTORED at 13:20: Codex showed it had passed 14/14 four times before and that the red verdict came from the automatic gauge-denominator factor enlarging the planted base denominator; the test now pins `"GaugeDenominatorFactor" -> 1`. Nothing from round 3 stays in the backup.
