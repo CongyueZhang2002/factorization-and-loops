@@ -444,6 +444,10 @@ observableTransportFFCompileAlgebraicMatrix[m_, variables_List,
         "Dimensions" -> Dimensions[template],
         "RootSymbols" -> rootSymbols,
         "RootSquareCompiler" -> rootSquareCompiler,
+        (* the numeric radical constants of the normalized matrix, found
+           once here so that the samplers need no scan per call *)
+        "RadicalConstants" -> DeleteDuplicates[Cases[compiled,
+          {"SquareRootConstant", c_Integer} :> c, Infinity]],
         "CompiledMatrix" -> compiled|>]
   ];
   roots = observableTransportFFAlgebraicRoots[{}, declaredSquares];
@@ -515,8 +519,7 @@ observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
      ({"SquareRootConstant", s} nodes) must be residues at the prime, or
      every point fails inside the matrix evaluation and the attempt is
      charged to "MatrixPole" (review risk R1, 2026-09-02) *)
-  radicalConstants = DeleteDuplicates[Cases[compiledMatrix,
-    {"SquareRootConstant", s_Integer} :> s, Infinity]];
+  radicalConstants = Lookup[compiledMatrix, "RadicalConstants", {}];
   proposal[rules_List, sampleIndex_Integer] := Module[
     {point, deltaValues, rootValues, image, reduced, pivots, prime,
      rejections = <|"PrimeNotThreeModFour" -> 0, "PointNotReducible" -> 0,
@@ -735,8 +738,7 @@ observableTransportFFAlgebraicCovariantIndependentRowsAtSamples[
   roots = compiled["Roots"];
   rootCompiler = compiled["RootSquareCompiler"];
   rootCount = Length[roots];
-  radicalConstants = DeleteDuplicates[Cases[compiled,
-    {"SquareRootConstant", s_Integer} :> s, Infinity]];
+  radicalConstants = Lookup[compiled["Basis"], "RadicalConstants", {}];
   proposal[rules_List, sampleIndex_Integer] := Module[
     {point, deltaValues, rootValues, images, joined, reduced, pivots, prime},
     If[Sort[First /@ rules] =!= Sort[variables], Return[$Failed]];

@@ -1,49 +1,58 @@
-(* Regression test for the pool's DUPLICATE-verdict defect (overhaul
-   2026-09-02, bug B2 of Design/PrivateOverhaul_2026-09-01.md).
+#!/usr/bin/env wolframscript
+(* Regression test for B2 (2026-09-02): the KernelPool server filed a
+   passed mission under duplicates/ with Wall 0 because its own re-dispatch
+   of a never-started mission drained as DUPLICATE while the first
+   evaluation had written an OK result sidecar (baseline batch attempt 1,
+   03:16-03:21: a passing 261 s test vanished from done/).
 
-   Failure mode: a mission's kernel is closed right after the scheduler
-   handed it the evaluation; Parallel Tools re-runs the orphaned
-   evaluation elsewhere, that re-run claims the mission and finishes
-   (writing the result sidecar and the completion marker), and the
-   server's own re-dispatch returns DUPLICATE from the claim check.  The
-   server drained ITS evaluation object, saw DUPLICATE, and filed the
-   mission under duplicates/ with Wall 0 -- a passing 261 s test vanished
-   from done/ (baseline batch attempt 1, 03:16-03:21).
+   The verdict logic now lives in ONE function of Scripts/KernelPool.wls,
+   poolVerdictFromDrain[drained, sidecarFile], evaluated here VERBATIM from
+   the source (the pool script cannot be loaded without starting a server,
+   and a planted claim cannot reproduce the race: the dispatcher's
+   stale-record hygiene deletes claims before every dispatch).
 
-   Deterministic reproduction: the state the resurrected run leaves
-   behind is placed by hand BEFORE the mission is dispatched -- a claim
-   file, an OK result sidecar and the completion marker for the mission
-   name.  The server dispatches the mission, its wrapper finds the claim
-   and returns DUPLICATE, the server sees the marker and drains the
-   DUPLICATE.  Acceptance criterion: the mission is filed under done/
-   with the sidecar's Status OK and Wall, and nothing is filed under
-   duplicates/.  The pre-fix server files a DUPLICATE record instead.
-   Live one-shot: a 1-subkernel pool, one prepared mission, one control. *)
+   Acceptance criteria:
+   (a) a drained DUPLICATE with an OK sidecar yields the sidecar record
+       (Status OK, its Wall);
+   (b) a drained OK record is the verdict even when a sidecar exists;
+   (c) a drained non-record ($Failed) falls back to the sidecar;
+   (d) a drained DUPLICATE without a sidecar stays DUPLICATE;
+   (e) the source still routes the collected mission through this function. *)
+
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
-pass = 0; fail = 0;
-check[label_, ok_] := (If[TrueQ[ok], pass++; Print["OK   ", label], fail++; Print["FAIL ", label]]);
-pool = FileNameJoin[{$TemporaryDirectory, "kp_duplicate_test_" <> ToString[$ProcessID]}];
-target = FileNameJoin[{pool, "target_ok.wls"}];
-CreateDirectory[FileNameJoin[{pool, "running", "claims"}], CreateIntermediateDirectories -> True];
-Export[target, "Print[\"plain ok\"];\n", "Text"];
-run[cmd_] := RunProcess[{"/bin/bash", "-c", cmd}];
-launch = run["cd " <> root <> " && (taskset -c 10-17 nohup wolframscript -file Scripts/KernelPool.wls " <> pool <> " 1 False > " <> pool <> "/pool.log 2>&1 &) ; for i in $(seq 1 60); do grep -q 'serving; queue=' " <> pool <> "/pool.log 2>/dev/null && exit 0; sleep 2; done; exit 1"];
-check["pool came up", launch["ExitCode"] === 0];
-(* the resurrected run's leftovers for mission dup_probe: claim, OK sidecar, marker *)
-kernelFile = FileNameJoin[{pool, "running", "dup_probe.kernel"}];
-Export[FileNameJoin[{pool, "running", "claims", "dup_probe.wl"}], "999", "Text"];
-Put[<|"Mission" -> "dup_probe.wl", "Status" -> "OK", "HadMessages" -> False,
-    "Wall" -> 261.7, "Kernel" -> 999, "Result" -> 0|>, kernelFile <> ".result"];
-Export[kernelFile <> ".done", "done", "Text"];
-run["cd " <> root <> " && POOL=" <> pool <> " Scripts/kpsubmit.sh dup_probe " <> target <> " > /dev/null 2>&1; POOL=" <> pool <> " Scripts/kpsubmit.sh ctl_probe " <> target <> " > /dev/null 2>&1"];
-wait1 = run["cd " <> root <> " && POOL=" <> pool <> " Scripts/kpwait.sh dup_probe 300 2>/dev/null"];
-wait2 = run["cd " <> root <> " && POOL=" <> pool <> " Scripts/kpwait.sh ctl_probe 300 2>/dev/null"];
-doneStatus = Quiet[Check[Get[FileNameJoin[{pool, "done", "dup_probe.status"}]], $Failed]];
-duplicates = FileNames["*", FileNameJoin[{pool, "duplicates"}]];
-check["mission filed under done/ with the sidecar's OK verdict",
-  AssociationQ[doneStatus] && doneStatus["Status"] === "OK" && doneStatus["Wall"] == 261.7];
-check["nothing filed under duplicates/", duplicates === {}];
-check["control mission still OK", StringContainsQ[wait2["StandardOutput"], "\"Status\" -> \"OK\""]];
-run["touch " <> pool <> "/control/stopnow; sleep 5"];
-Print["t_kernelpool_duplicate_verdict: ", pass, " OK, ", fail, " FAIL"];
-Exit[If[fail === 0, 0, 1]];
+Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
+
+source = Import[FileNameJoin[{root, "Scripts", "KernelPool.wls"}], "Text"];
+start = StringPosition[source, "poolVerdictFromDrain[drained_, sidecarFile_String] :="];
+FTAssert["the verdict function is defined once in the pool source", Length[start] === 1];
+body = StringTake[source, {start[[1, 1]], -1}];
+endPos = StringPosition[body, "\n  res];\n"];
+definition = StringTake[body, {1, endPos[[1, 2]]}];
+Begin["KPVerdictTest`"];
+ToExpression[definition];
+End[];
+verdict = KPVerdictTest`poolVerdictFromDrain;
+FTAssert["the definition evaluated from the source",
+  Length[DownValues[KPVerdictTest`poolVerdictFromDrain]] === 1];
+
+dir = CreateDirectory[];
+sidecar = FileNameJoin[{dir, "dup_probe.kernel.result"}];
+okRecord = <|"Mission" -> "dup_probe.wl", "Status" -> "OK", "HadMessages" -> False,
+  "Wall" -> 261.7, "Kernel" -> 3, "Result" -> 0|>;
+Put[okRecord, sidecar];
+duplicate = <|"Mission" -> "dup_probe.wl", "Status" -> "DUPLICATE", "Kernel" -> 5, "Wall" -> 0.|>;
+drainedOK = <|"Mission" -> "dup_probe.wl", "Status" -> "OK", "Wall" -> 12.5, "Kernel" -> 5, "Result" -> 0|>;
+
+FTAssert["(a) DUPLICATE with an OK sidecar yields the sidecar verdict",
+  verdict[duplicate, sidecar] === okRecord];
+FTAssert["(b) a drained OK record stays the verdict when a sidecar exists",
+  verdict[drainedOK, sidecar] === drainedOK];
+FTAssert["(c) a drained non-record falls back to the sidecar",
+  verdict[$Failed, sidecar] === okRecord];
+DeleteFile[sidecar];
+FTAssert["(d) DUPLICATE without a sidecar stays DUPLICATE",
+  verdict[duplicate, sidecar] === duplicate];
+FTAssert["(e) the server collects through the verdict function",
+  StringContainsQ[source, "res = poolVerdictFromDrain[Quiet[Check[WaitAll[eid], $Failed]], kf <> \".result\"];"]];
+DeleteDirectory[dir, DeleteContents -> True];
+FTReport[];

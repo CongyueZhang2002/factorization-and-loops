@@ -59,7 +59,6 @@ standalone_only() {
     t_family_regulator_factor_in_frame|t_radical_denesting|\
     t_canonica_scheduler|t_canonical_pipeline|t_pair_queue_schedule|\
     t_kernelpool_return_marker|t_kernelpool_resource_policy|\
-    t_kernelpool_duplicate_verdict|\
     t_multiquadratic_gauge_ladder|t_multiquadratic_gauge_screen|\
     t_multiquadratic_letters) return 0 ;;
     *) return 1 ;;

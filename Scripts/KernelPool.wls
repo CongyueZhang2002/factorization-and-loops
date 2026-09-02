@@ -113,6 +113,19 @@ If[TrueQ[preload],
   log["preload done in ", Round[AbsoluteTime[] - t0], " s"]];
 
 (* the wrapper that runs one mission on a subkernel; ALL output goes to the mission log *)
+(* The verdict of a collected mission (B2, 2026-09-02): the drained
+   EvaluationObject is the verdict unless it is not a record or says
+   DUPLICATE -- then another evaluation owned the claim and wrote the
+   sidecar, and the sidecar is the verdict.  A DUPLICATE without a sidecar
+   stays DUPLICATE (the claim mechanism working).  Kept as one function so
+   Tests/Infrastructure/t_kernelpool_duplicate_verdict.wls can evaluate it
+   verbatim from this source without launching a pool. *)
+poolVerdictFromDrain[drained_, sidecarFile_String] := Module[{res = drained},
+  If[(! AssociationQ[res] || Lookup[res, "Status", None] === "DUPLICATE") &&
+      FileExistsQ[sidecarFile],
+    res = Quiet[Check[Get[sidecarFile], $Failed]]];
+  res];
+
 poolRun[file_String, logFile_String, kernelFile_String] := Module[
   {s, r, t0 = AbsoluteTime[], status, missionText, missionParseContext,
    missionOwnValued, missionOwnBefore, missionLeaked,
@@ -546,13 +559,7 @@ While[True,
             Drain the EvaluationObject first so CloseKernels cannot leave
             an orphan for the scheduler to requeue.  The sidecar is only
             a crash fallback. *)
-         res = Quiet[Check[WaitAll[eid], $Failed]];
-         (* a DUPLICATE from the drained object means another evaluation
-            owned the claim and wrote the sidecar: that is the verdict *)
-         If[(! AssociationQ[res] ||
-               Lookup[res, "Status", None] === "DUPLICATE") &&
-             FileExistsQ[kf <> ".result"],
-           res = Quiet[Check[Get[kf <> ".result"], $Failed]]];
+         res = poolVerdictFromDrain[Quiet[Check[WaitAll[eid], $Failed]], kf <> ".result"];
          Quiet@DeleteFile[kf <> ".done"]; Quiet@DeleteFile[kf <> ".result"]; finish[name, res],
        FileExistsQ[kf] && (kid = ToExpression[Import[kf, "Text"]]; IntegerQ[kid] && ! MemberQ[KernelID /@ Kernels[], kid]),
          (* the kernel vanished under the mission: REQUEUE it (the log is
