@@ -155,7 +155,7 @@ BuildObservableTransportManifest[
     manifestFile_String, OptionsPattern[]] := Module[
   {directories, differentialFiles, familyFromFile, candidates,
    candidateRows, grouped, selected = <||>, rejected = <||>,
-   duplicates = <||>, missing, family, records, exactRecords,
+   duplicates = <||>, missing, family, records, certifiedRecords,
    card, reportFile, rows, report, differentialPattern, epsFormPattern,
    familySortKey},
   directories = ExpandFileName /@ epsilonFormDirectories;
@@ -196,18 +196,19 @@ BuildObservableTransportManifest[
         record = Quiet[Check[Get[file], $Failed]];
         <|"Family" -> name, "Priority" -> priority,
           "File" -> ExpandFileName[file],
+          "Certified" -> CertifiedFamilyEpsilonFormQ[record],
           "Exact" -> ExactFamilyEpsilonFormQ[record]|>]
     ]];
   grouped = GroupBy[candidateRows, #Family &];
   Do[
     records = SortBy[Lookup[grouped, family, {}],
       {#Priority &, #File &}];
-    exactRecords = Select[records, TrueQ[#Exact] &];
-    If[exactRecords === {},
+    certifiedRecords = Select[records, TrueQ[#Certified] &];
+    If[certifiedRecords === {},
       If[records =!= {}, AssociateTo[rejected, family -> records]],
-      AssociateTo[selected, family -> First[exactRecords]];
-      If[Length[exactRecords] > 1,
-        AssociateTo[duplicates, family -> Rest[exactRecords]]]],
+      AssociateTo[selected, family -> First[certifiedRecords]];
+      If[Length[certifiedRecords] > 1,
+        AssociateTo[duplicates, family -> Rest[certifiedRecords]]]],
     {family, Keys[differentialFiles]}];
   missing = Select[Keys[differentialFiles], ! KeyExistsQ[selected, #] &];
   card = OptionValue["Card"];
@@ -222,14 +223,14 @@ BuildObservableTransportManifest[
       "card"}];
   observableTransportWriteAtomic[rows, manifestFile, "TSV"];
   report = <|
-    "Status" -> If[missing === {}, "CompleteExactInventory",
-      "IncompleteExactInventory"],
+    "Status" -> If[missing === {}, "CompleteCertifiedInventory",
+      "IncompleteCertifiedInventory"],
     "DifferentialFamilyCount" -> Length[differentialFiles],
-    "ExactFamilyCount" -> Length[selected],
+    "CertifiedFamilyCount" -> Length[selected],
     "MissingFamilies" -> SortBy[missing, familySortKey],
     "Selected" -> selected,
     "RejectedCandidates" -> rejected,
-    "AdditionalExactCandidates" -> duplicates,
+    "AdditionalCertifiedCandidates" -> duplicates,
     "Manifest" -> ExpandFileName[manifestFile]
   |>;
   reportFile = Replace[OptionValue["ReportFile"],
@@ -1252,7 +1253,7 @@ BuildObservableTransport[record_Association, demand_Association,
    liftedSecond, boundaryDerivative, inducedRhs, pivotRows, pivotSquare,
    secondEvolutionConnection, inducedResidual, kernelRecord,
    secondActiveLetters,
-   secondRecord, verbose, start, recordExactQ, stabilized,
+   secondRecord, verbose, start, recordExactQ, recordCertifiedQ, stabilized,
    coefficientField, gaugeConstants, gaugeConstantRules, resultStatus,
    probabilisticCertificates, structuralProbabilisticCertificates,
    algebraicRootRecords},
@@ -1261,8 +1262,9 @@ BuildObservableTransport[record_Association, demand_Association,
   verbose = TrueQ[OptionValue["Verbose"]];
   status = Lookup[record, "Status", Missing[]];
   recordExactQ = ExactFamilyEpsilonFormQ[record];
-  If[! recordExactQ,
-    Return[<|"Status" -> "FamilyEpsilonFormNotExactlyCertified",
+  recordCertifiedQ = CertifiedFamilyEpsilonFormQ[record];
+  If[! recordCertifiedQ,
+    Return[<|"Status" -> "FamilyEpsilonFormNotCertified",
       "RecordStatus" -> status|>, Module]
   ];
 
@@ -2010,7 +2012,8 @@ BuildObservableTransport[record_Association, demand_Association,
     "TwoSegmentWordMaps" -> secondRecord["Maps"],
     "TwoSegmentMapCountsByWeight" -> secondRecord["MapCountsByWeight"],
     "Certificates" -> <|
-      "FamilyEpsilonFormExact" -> True,
+      "FamilyEpsilonFormCertified" -> True,
+      "FamilyEpsilonFormExact" -> recordExactQ,
       "BoundaryBaseKernel" -> True,
       "FirstKernelIdentity" -> True,
       "BoundaryEvolution" -> True,
@@ -2034,9 +2037,11 @@ AcceptedObservableTransportQ[result_] := Module[
   If[! AssociationQ[result], Return[False]];
   status = Lookup[result, "Status", None];
   certificates = Lookup[result, "Certificates", <||>];
-  requiredExact = {"FamilyEpsilonFormExact", "BoundaryBaseKernel",
-    "FirstKernelIdentity", "BoundaryEvolution", "SecondKernelIdentity"};
+  requiredExact = {"BoundaryBaseKernel", "FirstKernelIdentity",
+    "BoundaryEvolution", "SecondKernelIdentity"};
   If[! AssociationQ[certificates] ||
+      ! (TrueQ[Lookup[certificates, "FamilyEpsilonFormCertified", False]] ||
+        TrueQ[Lookup[certificates, "FamilyEpsilonFormExact", False]]) ||
       ! AllTrue[requiredExact,
         KeyExistsQ[certificates, #] && TrueQ[certificates[#]] &],
     Return[False]];

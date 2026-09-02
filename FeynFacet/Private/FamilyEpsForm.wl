@@ -17,7 +17,9 @@
    the usage messages FeynFacet.m defines before loading this file
    (found 2026-08-21). Clear still drops their definitions, so re-Get of
    this file stays clean. *)
-Clear[FamilyArtifactRead, FamilyArtifactWrite, FamilyEpsilonFormRecord, CertifyFamilyEpsilonForm, ExactFamilyEpsilonFormQ];
+Clear[FamilyArtifactRead, FamilyArtifactWrite, FamilyEpsilonFormRecord,
+  CertifyFamilyEpsilonForm, ExactFamilyEpsilonFormQ,
+  CertifiedFamilyEpsilonFormQ];
 ClearAll[
   familyEpsFormDiagonalBlocks,
   familyEpsFormLegacyChart,
@@ -559,3 +561,39 @@ ExactFamilyEpsilonFormQ[record_Association] := Module[
 ];
 
 ExactFamilyEpsilonFormQ[_] := False;
+
+CertifiedFamilyEpsilonFormQ[record_Association] := Module[
+  {status, certificate, modular, requiredChecks},
+  If[ExactFamilyEpsilonFormQ[record], Return[True]];
+  status = Lookup[record, "Status", Missing[]];
+  certificate = Lookup[record, "EpsilonFormCertificate", <||>];
+  modular = Lookup[certificate, "Modular", <||>];
+  requiredChecks = {
+    "EpsFactored", "DLog", "BlockLowerTriangular",
+    "TransformationInverse", "GaugeIdentity", "SourceFlatness",
+    "Flatness", "ChartIdentity"
+  };
+  status === "CertifiedEpsilonForm" &&
+    AssociationQ[certificate] && AssociationQ[modular] &&
+    Lookup[certificate, "Version", 0] >= 1 &&
+    TrueQ[Lookup[certificate, "Certified", False]] &&
+    ! TrueQ[Lookup[certificate, "Exact", True]] &&
+    TrueQ[Lookup[certificate, "Probabilistic", False]] &&
+    Lookup[certificate, "CertificationLevel", None] ===
+      "HighConfidenceFiniteField" &&
+    Lookup[certificate, "CoefficientField", None] ===
+      "Multiquadratic" &&
+    Lookup[modular, "Status", None] ===
+      "CertifiedMultiquadraticFamily" &&
+    Lookup[modular, "CoefficientField", None] === "Multiquadratic" &&
+    TrueQ[Lookup[modular, "Probabilistic", False]] &&
+    TrueQ[Lookup[record, "GateVerdict", False]] &&
+    TrueQ[Lookup[record, "GaugeIdentity", False]] &&
+    TrueQ[Lookup[record, "Flatness", False]] &&
+    TrueQ[Lookup[record, "TTotalInvertible", False]] &&
+    AssociationQ[Lookup[record, "Checks", None]] &&
+    And @@ (TrueQ[Lookup[record["Checks"], #, False]] & /@
+      requiredChecks)
+];
+
+CertifiedFamilyEpsilonFormQ[_] := False;

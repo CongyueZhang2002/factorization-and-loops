@@ -210,7 +210,10 @@ InstallEpsFormStripSolution::usage =
   "InstallEpsFormStripSolution[checkpoint,record,solution,sector,lowerSector] appends one exactly verified strip gauge to a descending sector checkpoint after checking dimensions and strip order; the regulator-free alphabet and kinematics-free residues are recomputed from the solution, so a lift that is not a dlog form cannot be installed.";
 
 ExactFamilyEpsilonFormQ::usage =
-  "ExactFamilyEpsilonFormQ[record] returns True only when a whole-family epsilon-form record carries explicit exact certificates for epsilon factorization, an invertible transformation, the complete gauge identity, and flatness. It recognizes both sector-CANONICA records and Libra records without changing their analytic content.";
+  "ExactFamilyEpsilonFormQ[record] returns True only when a whole-family epsilon-form record carries characteristic-zero exact certificates for epsilon factorization, an invertible transformation, the complete gauge identity, and flatness. It recognizes both sector-CANONICA records and Libra records without changing their analytic content.";
+
+CertifiedFamilyEpsilonFormQ::usage =
+  "CertifiedFamilyEpsilonFormQ[record] returns True for every record accepted by ExactFamilyEpsilonFormQ and also for a standardized multiquadratic whole-family record that passed the high-confidence all-sign-sheet finite-field certificate.";
 
 CertifyFamilyEpsilonForm::usage =
   "CertifyFamilyEpsilonForm[record,system] recomputes the exact whole-family epsilon-form certificate from the differential system and the stored transformation. It verifies the chart identities, source and transformed flatness, both transformation inverses, the complete gauge identity, epsilon factorization, and constant-residue dlog reconstruction. It returns a standardized record and never accepts an older stored verdict in place of these calculations.";
@@ -340,6 +343,8 @@ SyntaxInformation[SolveEpsFormStripFiniteField] =
 SyntaxInformation[InstallEpsFormStripSolution] =
   {"ArgumentsPattern" -> {_, _, _, _, _}};
 SyntaxInformation[ExactFamilyEpsilonFormQ] = {"ArgumentsPattern" -> {_}};
+SyntaxInformation[CertifiedFamilyEpsilonFormQ] =
+  {"ArgumentsPattern" -> {_}};
 SyntaxInformation[CertifyFamilyEpsilonForm] =
   {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
 SyntaxInformation[BuildObservableTransportManifest] =
