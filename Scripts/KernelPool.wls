@@ -215,8 +215,13 @@ poolRun[file_String, logFile_String, kernelFile_String] := Module[
      mission, every Global` name that GAINED an own value is unset; function
      definitions and the $-prefixed package globals are left alone;
      FACET_POOL_ISOLATION=0 in the pool's environment disables it. *)
-  missionOwnValued := Select[System`Names["Global`*"],
-    ! StringStartsQ[#, "Global`$"] &&
+  (* Names[] returns bare names while Global` is on $ContextPath and
+     qualified ones otherwise (measured: a mission that reset $ContextPath
+     made the next probe see "Global`q4"); qualify before touching anything
+     so the unset hits Global` and never a same-named symbol elsewhere. *)
+  missionOwnValued := Select[
+    (If[StringContainsQ[#, "`"], #, "Global`" <> #] &) /@ System`Names["Global`*"],
+    StringStartsQ[#, "Global`"] && ! StringStartsQ[#, "Global`$"] &&
       System`ToExpression[#, InputForm, System`OwnValues] =!= {} &];
   missionOwnBefore = missionOwnValued;
   r = Block[{$Output = {s}, $Messages = {s}},
