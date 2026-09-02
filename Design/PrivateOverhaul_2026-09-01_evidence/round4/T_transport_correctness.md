@@ -122,10 +122,11 @@ certificate; their typed status is `TransportEpsilonValuationsUncertified`
 and the production transport now refuses them until
 `observableTransportCertifyEpsilonValuationsFile[file]` has been run
 (one load, three p-adic trials, atomic replace; no transport rerun).
-CF259 probe (`scratchpad/round4/T/cf259_certify.wls`, writes in place
-only if the certificate is tight, i.e. reproduces Codex's TMin -3 and
-27 block bounds exactly, and only after verifying the backup below):
-PENDING.
+CF259: certified in place on 2026-09-02 14:28 (run 5 below): the
+certificate is tight, i.e. the exact orders at three random rational
+points reproduce Codex's TMin -3 and 27 block bounds; the record's
+typed status is now `TransportEpsilonValuationsCertified` and the
+production transport accepts it.
 
 Original preserved (coordinator's request, copied with `cp -p` at 13:56
 before any write, both files identical at that moment):
@@ -134,7 +135,7 @@ before any write, both files identical at that moment):
 |---|---|
 | `.../CF259/transport_inputs_2026-09-02/family_epsform_CF259_compact_valuations.wl` (before certification, 47,649,635 bytes, mtime 2026-09-02 03:43) | `a470ed037e3538241034804a0c8e4c63ff189f045a71632d81b4cf56b27cb86d` |
 | `.../CF259/transport_inputs_2026-09-02/family_epsform_CF259_compact_valuations.wl.before_certificate_2026-09-02.wl` (the copy) | `a470ed037e3538241034804a0c8e4c63ff189f045a71632d81b4cf56b27cb86d` |
-| the certified record at the first path (after the write) | PENDING |
+| the certified record at the first path (after the write, 14:28:40, 47,651,636 bytes) | `d591dc6f957d039cc03b1fe909b92925e5c158a918c3414c7e760e07924e762f` |
 
 ## 2. Radical constants in both fresh-prime selectors
 
@@ -257,7 +258,7 @@ because nothing is long; the header comment records the measurement.
 | CF259 in-place certification probe, run 3 (symbol route, rule-per-radicand preparation) | KILLED by the 300 s cap (exit 137) after load 3.4 s and fingerprint 0.7 s, no further stage line; no write. Diagnosis: the preparation's `ReplaceAll` carried one rule per distinct radicand (Wolfram tries every rule at every node); replaced by one rule with a hash lookup, then measured stage by stage (next row) | 14:06:23-14:11:42 |
 | CF259 preparation/trial diagnostic of the p-adic route (`scratchpad/round4/T/cf259_prep_diag.wls`) | load 3.5 s; 205,698 radical occurrences, 3 distinct radicands (the declared squares); preparation 6.2 s; point substitution of TTotal 0.7 s (1.1 MB after substitution); trial `PrecisionExhausted` at p^64 in 2.9 s -- a hidden exact zero appears as p-adic noise: the p-adic route is abandoned | 14 s (14:13:26-14:13:43) |
 | CF259 probe run 4 (exact univariate route, `RootReduce` as the zero test, 120 s cap) | KILLED at the cap after load and status (exit 137); no write | 14:20:37-14:22:43 |
-| CF259 probe run 5 (the ONE run allowed by the coordinator at 14:23: instrumented, exact route with the syntactic zero test, 300 s cap; certifies and writes in place only if one point finishes under 65 s and the certificate is tight with the backup verified) | PENDING | |
+| CF259 probe run 5 (the ONE run allowed by the coordinator at 14:23: instrumented, exact route with the syntactic zero test, 300 s cap; `scratchpad/round4/T/cf259_certify_instrumented.wls`, log `cf259_certify_run5.log`) | `TransportEpsilonValuationsCertified`, TIGHT: three exact trials at {34/303, 49/85}, {87/317, 2/11}, {134/351, 149/295} (46 s, 33 s, 66 s) each give TMin -3 and BlockLower {0,2,3,0,0,1,2,3,2,0,0,0,0,0,1,2,0,2,0,3,0,2,2,0,0,0,0}, equal to Codex's `ExactAlgebraicPointValuation` claim; certifier 146 s; backup verified (SHA-256 equal) before the atomic write (2.5 s, 47,651,636 bytes); re-read status `TransportEpsilonValuationsCertified` | 199 s (14:25:22-14:28:45), exit 0 |
 
 Not run: `t_observable_transport_compact_ordering`,
 `_final_reconstruction`, `_integration_load`, `t_finite_field_gauge_pullback`,
@@ -304,15 +305,22 @@ the time of writing.
 
 ## CF259 record status (honest statement)
 
-`family_epsform_CF259_compact_valuations.wl` is UNCERTIFIED: its typed
-status is `TransportEpsilonValuationsUncertified` (TMin -3 carried
-without a certificate), and the production transport now refuses it
-with exactly that status until `observableTransportCertifyEpsilonValuationsFile`
-has certified it in place. The accepted CF259 transport of 2026-09-02
-(`observable_transport_CF259.wl`, 564 s run) predates the certificate
-and was built from these uncertified valuations; it is credible but its
-valuation premise is not bound, which is what Codex's point 1 said. The
-original record is preserved unchanged (SHA-256 above).
+`family_epsform_CF259_compact_valuations.wl` is CERTIFIED as of
+14:28:40: `TransportEpsilonValuations` now carries a tight
+`RationalPointEpsilonValuationCertificate` (three exact trials, TMin -3,
+27 block bounds equal to Codex's claim, fingerprint bound to the
+record's TTotal/TTotalInverse/Ranges); its typed status is
+`TransportEpsilonValuationsCertified` and `BuildObservableTransport`
+accepts it. The original is preserved unchanged next to it (SHA-256
+above). Consequence stated plainly: the accepted CF259 transport result
+of 2026-09-02 (`observable_transport_CF259.wl`, 564 s run) was built
+from these same values before they were certified; the values are now
+proven tight, so its valuation premise holds, but the stored result
+object predates the certificate fields and `AcceptedObservableTransportQ`
+on it now answers False (it requires `TransportEpsilonValuationsBound`
+and the bound certificate). A rerun of the transport on the certified
+record (about 10 min) would produce an accepted object; not done (user
+rule: no CF259 rerun in this round).
 
 ## Next speed-ups for the certificate (not done)
 
