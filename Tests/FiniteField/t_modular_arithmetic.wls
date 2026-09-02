@@ -68,6 +68,10 @@ Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
    asy ~200 of them plus a bare x, SubTropica exports line): a bare
    lowercase name such as image, lift or crt would otherwise bind to
    whichever package exported it first. *)
+(* The switch is undone before the report: on a reused pool subkernel a
+   leaked $Context/$ContextPath changes where every later mission's bare
+   symbols land (measured 2026-09-02, overhaul B11). *)
+ftModularSavedContexts = {$Context, $ContextPath};
 $ContextPath = {"FTTest`", "System`"};
 $Context = "FTModularArithmeticTest`";
 
@@ -462,4 +466,5 @@ FTAssert["a different random seed gives a different draw, and the filters still 
      Length[excluded] === 4 && DuplicateFreeQ[excluded] &&
      FreeQ[excluded, Alternatives @@ randomA]]];
 
+{$Context, $ContextPath} = ftModularSavedContexts;
 FTReport[];
