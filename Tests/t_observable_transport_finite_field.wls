@@ -150,9 +150,8 @@ FTAssert["compiled root tangents reproduce symbolic derivatives on every sheet",
   tripleCompiledDualSheets[[All, 1]] === tripleReferenceSheets &&
     tripleCompiledDualSheets[[All, 2]] ===
       tripleReferenceDerivativeSheets];
-FTAssert["template compilation retains the undeclared-root census fallback",
-  AssociationQ[tripleDiscovered] &&
-    Length[tripleDiscovered["Roots"]] === 3];
+FTAssert["template compilation requires the complete declared-root list",
+  tripleDiscovered === $Failed];
 
 covariantBasis = {{Sqrt[1 + u], 0}};
 covariantClosedConnection = ConstantArray[0, {2, 2}];

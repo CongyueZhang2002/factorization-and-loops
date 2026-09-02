@@ -29,7 +29,10 @@ record = <|
     "Letters" -> {1 + Sqrt[1 - x]},
     "Residues" -> {{{1}}},
     "ConstantResidues" -> True|>,
-  "ChartRecord" -> <|"CoefficientField" -> "Multiquadratic"|>,
+  "ChartRecord" -> <|"CoefficientField" -> "Multiquadratic",
+    "Variables" -> {x, y}, "Subst" -> {x -> x, y -> y},
+    "Roots" -> {<|"Root" -> Sqrt[1 - x],
+      "RootSquare" -> 1 - x|>}|>,
   "GateVerdict" -> True,
   "GaugeIdentity" -> True,
   "Flatness" -> True,
@@ -75,7 +78,10 @@ certifiedRecord = <|
   "EpsFormX" -> eps {{-1/(1 - x)}},
   "EpsFormY" -> eps {{0}},
   "Letters" -> {1 - x},
-  "ChartRecord" -> <|"CoefficientField" -> "Multiquadratic"|>,
+  "ChartRecord" -> <|"CoefficientField" -> "Multiquadratic",
+    "Variables" -> {x, y}, "Subst" -> {x -> x, y -> y},
+    "Roots" -> {<|"Root" -> Sqrt[1 - x],
+      "RootSquare" -> 1 - x|>}|>,
   "GateVerdict" -> True,
   "GaugeIdentity" -> True,
   "Flatness" -> True,
@@ -111,6 +117,38 @@ certifiedRecord = <|
 certifiedTransport = BuildObservableTransport[certifiedRecord, demand,
   "BoundaryEvolution" -> "AmbientBasePoint",
   "WordRepresentation" -> "OperatorAutomaton"];
+computedDLog = Join[record["DLog"], <|
+  "Status" -> "ComputedDLogResidues",
+  "Purpose" -> "ObservableTransportInput",
+  "CoefficientField" -> "Multiquadratic",
+  "IdentityMethod" -> "FiniteFieldPointwise",
+  "PointwiseReplay" -> True,
+  "FreshPrimeValidation" -> True,
+  "AllRootSheetsEvaluated" -> True,
+  "ResiduesVerifiedAtAllPrimes" -> True,
+  "CRTPrimes" -> {2147483647},
+  "FreshValidationPrime" -> 2147483587|>];
+computedRecord = Join[
+  KeyDrop[record, {"EpsFormX", "EpsFormY", "DLog"}],
+  <|"Status" -> "TransportReadyEpsilonConnection",
+    "EpsFormRepresentation" -> "ConstantResidueDLog",
+    "DLog" -> computedDLog,
+    "TransportEpsilonValuations" -> <|
+      "TMin" -> 1, "BlockLower" -> {-1}|>,
+    "BlockAssemblyEvidence" -> <|"CompletePairCoverage" -> True|>|>];
+computedTransport = BuildObservableTransport[computedRecord, demand,
+  "BoundaryEvolution" -> "AmbientBasePoint",
+  "WordRepresentation" -> "OperatorAutomaton"];
+computedWithoutValuations = BuildObservableTransport[
+  KeyDrop[computedRecord, "TransportEpsilonValuations"], demand,
+  "BoundaryEvolution" -> "AmbientBasePoint",
+  "WordRepresentation" -> "OperatorAutomaton"];
+If[Lookup[computedTransport, "Status", None] =!=
+    "ModularlyVerifiedObservableTransport",
+  Print["Computed-dlog diagnostic: ",
+    InputForm[KeyTake[computedTransport,
+      {"Status", "Step", "FamilyInputRoute", "Certificates",
+       "ProbabilisticCertificates"}]]]];
 tamperedDLogEvidence = Join[
   certifiedTransport["ProbabilisticCertificates"]["FamilyDLogResidues"],
   <|"ResiduesVerifiedAtAllPrimes" -> False|>];
@@ -168,6 +206,20 @@ FTAssert["certified residue transport remains exact matrix arithmetic",
       "ModularlyVerifiedWordMap" &&
     TrueQ[ObservableTransportWordMap[
       certifiedTransport, {}, {}]["MatrixArithmeticExact"]]];
+FTAssert["computed dlog input transports without materialized epsilon matrices",
+  computedTransport["Status"] ===
+      "ModularlyVerifiedObservableTransport" &&
+    computedTransport["FamilyInputRoute"] === "ComputedDLog" &&
+    computedTransport["TransportEpsilonValuationSource"] ===
+      "FamilyRecord" &&
+    computedTransport["TransportEpsilonValuations"] === <|
+      "TMin" -> 1, "BlockLower" -> {-1}|> &&
+    computedTransport["FirstSegmentKernelMethod"] ===
+      "CertifiedDLogResidues" &&
+    AcceptedObservableTransportQ[computedTransport]];
+FTAssert["computed dlog production never falls back to a symbolic gauge scan",
+  computedWithoutValuations["Status"] ===
+    "TransportEpsilonValuationsRequired"];
 FTAssert["tampered residue evidence is rejected fail closed",
   ! AcceptedObservableTransportQ[tamperedTransport]];
 

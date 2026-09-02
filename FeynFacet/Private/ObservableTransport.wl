@@ -696,6 +696,9 @@ observableTransportCovariantRowClosure[rows_, connection_, variable_,
     covariantCompiled = If[rootSquares === {}, $Failed,
       Quiet[Check[observableTransportFFCompileAlgebraicCovariant[
         basis, connection, variables, rootSquares], $Failed]]];
+    If[rootSquares =!= {} && ! AssociationQ[covariantCompiled],
+      Return[<|"Status" -> "AlgebraicCovariantCompilerFailed",
+        "Step" -> step|>, Module]];
     If[AssociationQ[covariantCompiled],
       pivotCandidates = Select[
         observableTransportFFAlgebraicCovariantIndependentRowsAtSamples[
@@ -704,7 +707,9 @@ observableTransportCovariantRowClosure[rows_, connection_, variable_,
           AllTrue[Range[currentRank], MemberQ[value, #] &]]];
       If[pivotCandidates =!= {},
         nextPivots = First@MaximalBy[pivotCandidates, Length];
-        modularCovariant = True]];
+        modularCovariant = True,
+        Return[<|"Status" -> "AlgebraicCovariantRankProposalFailed",
+          "Step" -> step|>, Module]]];
     If[! TrueQ[modularCovariant],
       covariant = observableTransportCovariantRows[
         basis, connection, variable];
@@ -732,6 +737,9 @@ observableTransportCovariantRowClosure[rows_, connection_, variable_,
           "ValidationPointsPerPrime" -> pointsPerPrime],
         certify[basis, covariant]];
       If[stabilizationCertificate === $Failed,
+        If[rootSquares =!= {},
+          Return[<|"Status" -> "AlgebraicCovariantCertificateUnavailable",
+            "Step" -> step|>, Module]];
         covariant = observableTransportCovariantRows[
           basis, connection, variable];
         If[! MatrixQ[covariant],
@@ -1235,7 +1243,7 @@ BuildObservableTransport[record_Association, demand_Association,
    physicalOrders, valuation,
    path, firstVariable, secondVariable, firstBase, secondBase,
    firstTargetSample, tau, rankSamples, automatonRankSamples,
-   residueSamples, tmin,
+   residueSamples, valuationRecord, valuationSource, tmin,
    blockLower, rowLower, blockOfRow, pathRules, tangent,
    firstConnection, secondConnection, propagatedLower, stateRowLower,
    flow, forbiddenFHigh, forbiddenPhysicalOrders, slots, positions,
@@ -1270,7 +1278,10 @@ BuildObservableTransport[record_Association, demand_Association,
    liftedSecond, boundaryDerivative, inducedRhs, pivotRows, pivotSquare,
    secondEvolutionConnection, inducedResidual, kernelRecord,
    secondActiveLetters,
-   secondRecord, verbose, start, recordExactQ, recordCertifiedQ, stabilized,
+   secondRecord, verbose, start, recordExactQ, recordCertifiedQ,
+   recordTransportReadyQ, computedDLogQ, epsFormRepresentation,
+   compactDLogActiveIndices, compactDLogConnection,
+   compactResidueSupport, firstSupport, stabilized,
    coefficientField, gaugeConstants, gaugeConstantRules, resultStatus,
    probabilisticCertificates, structuralProbabilisticCertificates,
    algebraicRootRecords},
@@ -1278,13 +1289,6 @@ BuildObservableTransport[record_Association, demand_Association,
   start = AbsoluteTime[];
   verbose = TrueQ[OptionValue["Verbose"]];
   status = Lookup[record, "Status", Missing[]];
-  recordExactQ = ExactFamilyEpsilonFormQ[record];
-  recordCertifiedQ = CertifiedFamilyEpsilonFormQ[record];
-  If[! recordCertifiedQ,
-    Return[<|"Status" -> "FamilyEpsilonFormNotCertified",
-      "RecordStatus" -> status|>, Module]
-  ];
-
   variables = Lookup[record, "Variables", Missing[]];
   eps = Lookup[record, "Regulator", Missing[]];
   If[! MatchQ[variables, {_Symbol, _Symbol}] || ! MatchQ[eps, _Symbol],
@@ -1294,19 +1298,60 @@ BuildObservableTransport[record_Association, demand_Association,
   ranges = Lookup[record, "Ranges", Missing[]];
   tTotal = Lookup[record, "TTotal", Missing[]];
   tInverse = Lookup[record, "TTotalInverse", Missing[]];
+  letters = Lookup[record, "Letters", Missing[]];
+  recordDLog = Lookup[record, "DLog", <||>];
+  epsFormRepresentation = Lookup[record, "EpsFormRepresentation", "ExplicitMatrices"];
+  coefficientField = Lookup[Lookup[record, "ChartRecord", <||>],
+    "CoefficientField", Missing["CoefficientField"]];
+  If[! MemberQ[{"Rational", "Multiquadratic"}, coefficientField],
+    Return[<|"Status" -> "ObservableTransportCoefficientFieldMissingOrInvalid",
+      "CoefficientField" -> coefficientField|>, Module]
+  ];
+  computedDLogQ[value_] := AssociationQ[value] &&
+    Lookup[value, "Status", None] === "ComputedDLogResidues" &&
+    TrueQ[Lookup[value, "Valid", False]] &&
+    Lookup[value, "Purpose", None] === "ObservableTransportInput" &&
+    Lookup[value, "Variables", Missing[]] === variables &&
+    Lookup[value, "Regulator", Missing[]] === eps &&
+    Lookup[value, "Dimension", Missing[]] === dimension &&
+    Lookup[value, "CoefficientField", Missing[]] === coefficientField &&
+    ListQ[Lookup[value, "Letters", None]] &&
+    ListQ[Lookup[value, "Residues", None]] &&
+    Length[value["Letters"]] === Length[value["Residues"]] &&
+    AllTrue[value["Residues"],
+      MatrixQ[#] && Dimensions[#] === {dimension, dimension} &] &&
+    TrueQ[Lookup[value, "ConstantResidues", False]] &&
+    TrueQ[Lookup[value, "PointwiseReplay", False]] &&
+    TrueQ[Lookup[value, "FreshPrimeValidation", False]];
+  recordExactQ = ExactFamilyEpsilonFormQ[record];
+  recordCertifiedQ = CertifiedFamilyEpsilonFormQ[record];
+  recordTransportReadyQ =
+    status === "TransportReadyEpsilonConnection" &&
+    epsFormRepresentation === "ConstantResidueDLog" &&
+    TrueQ[Lookup[Lookup[record, "BlockAssemblyEvidence", <||>],
+      "CompletePairCoverage", False]] && computedDLogQ[recordDLog];
+  If[! (recordCertifiedQ || recordExactQ || recordTransportReadyQ),
+    Return[<|"Status" -> "FamilyEpsilonFormInputNotReady",
+      "RecordStatus" -> status,
+      "ComputedDLogReady" -> computedDLogQ[recordDLog]|>, Module]
+  ];
   epsConnections = {
     Lookup[record, "EpsFormX", Missing[]],
     Lookup[record, "EpsFormY", Missing[]]
   };
-  letters = Lookup[record, "Letters", Missing[]];
-  coefficientField = Lookup[Lookup[record, "ChartRecord", <||>],
-    "CoefficientField", "Rational"];
   algebraicRootRecords = If[coefficientField === "Multiquadratic",
     Quiet[Check[transportChartCurrentRoots[
-      Lookup[record, "ChartRecord", <||>], variables], {}]], {}];
-  If[! ListQ[algebraicRootRecords], algebraicRootRecords = {}];
+      Lookup[record, "ChartRecord", <||>], variables], $Failed]], {}];
+  If[coefficientField === "Multiquadratic" &&
+      (! ListQ[algebraicRootRecords] || algebraicRootRecords === {}),
+    Return[<|"Status" -> "MultiquadraticRootFrameUnavailable"|>, Module]
+  ];
+  If[! AllTrue[epsConnections, MatrixQ] && recordTransportReadyQ,
+    letters = recordDLog["Letters"]
+  ];
   If[! ListQ[ranges] || ! MatrixQ[tTotal] || ! MatrixQ[tInverse] ||
-      ! AllTrue[epsConnections, MatrixQ] || ! ListQ[letters],
+      (! recordTransportReadyQ && ! AllTrue[epsConnections, MatrixQ]) ||
+      ! ListQ[letters],
     Return[<|"Status" -> "IncompleteFamilyEpsilonFormRecord"|>, Module]
   ];
   (* Some historical canonicalizers left Mathematica-generated integration
@@ -1315,7 +1360,10 @@ BuildObservableTransport[record_Association, demand_Association,
      Fix them deterministically before transport; record the choice so the
      associated boundary-coordinate convention is explicit. *)
   gaugeConstants = SortBy[DeleteDuplicates[Cases[
-    {tTotal, tInverse, epsConnections, letters},
+    {tTotal, tInverse,
+      If[recordTransportReadyQ,
+        {recordDLog["Letters"], recordDLog["Residues"]},
+        epsConnections], letters},
     HoldPattern[System`C[_Integer]], Infinity]], ToString[#, InputForm] &];
   gaugeConstantRules = Replace[OptionValue["GaugeConstantRules"], {
     Automatic -> Thread[gaugeConstants -> Range[Length[gaugeConstants]]],
@@ -1330,9 +1378,52 @@ BuildObservableTransport[record_Association, demand_Association,
   If[gaugeConstantRules =!= {},
     tTotal = tTotal /. gaugeConstantRules;
     tInverse = tInverse /. gaugeConstantRules;
-    epsConnections = epsConnections /. gaugeConstantRules;
+    If[recordTransportReadyQ,
+      recordDLog = Join[recordDLog, <|
+        "Letters" -> (recordDLog["Letters"] /. gaugeConstantRules),
+        "Residues" -> (recordDLog["Residues"] /.
+          gaugeConstantRules)|>],
+      epsConnections = epsConnections /. gaugeConstantRules];
     letters = letters /. gaugeConstantRules
   ];
+
+  (* A constant-residue dlog record is already the computational form needed
+     by transport.  Construct only the directional connection that a later
+     closure actually consumes; never rematerialize both full two-variable
+     epsilon-form matrices. *)
+  compactDLogActiveIndices[direction_] := Select[
+    Range[Length[recordDLog["Residues"]]],
+    ! observableTransportStructuralZeroMatrixQ[
+        recordDLog["Residues"][[#]]] &&
+      ! observableTransportZeroQ[
+        D[recordDLog["Letters"][[#]], direction]] &];
+  compactDLogConnection[direction_, rules_, scale_] := Module[
+    {indices, kernels},
+    indices = compactDLogActiveIndices[direction];
+    If[indices === {},
+      Return[ConstantArray[0, {dimension, dimension}], Module]];
+    (* Preserve declared radical representatives literally.  Cancel may
+       extract square factors and thereby change the registered root frame. *)
+    kernels = If[coefficientField === "Multiquadratic",
+      (((D[#, direction]/# /. rules) scale) &) /@
+        recordDLog["Letters"][[indices]],
+      (observableTransportCancel[
+          (D[#, direction]/# /. rules) scale] &) /@
+        recordDLog["Letters"][[indices]]];
+    Total[MapThread[#1 Normal[#2] &,
+      {kernels, recordDLog["Residues"][[indices]]}]]
+  ];
+  compactResidueSupport[direction_] := Module[{indices, positions},
+    indices = compactDLogActiveIndices[direction];
+    positions = DeleteDuplicates@Flatten[
+      (Position[Normal[#], value_ /; ! TrueQ[value === 0], {2},
+          Heads -> False] &) /@
+        recordDLog["Residues"][[indices]], 1];
+    SparseArray[If[positions === {}, {}, Thread[positions -> 1]],
+      {dimension, dimension}]
+  ];
+  If[verbose, Print["Observable transport input preparation: ",
+    Round[AbsoluteTime[] - start, 0.1], " s"]];
 
   physicalDemandPairs = Lookup[demand, "PhysicalDemandPairs", Automatic];
   If[physicalDemandPairs === Automatic,
@@ -1392,16 +1483,29 @@ BuildObservableTransport[record_Association, demand_Association,
       {1/7, 1/11}, {2/7, 2/11}, {3/7, 3/11}, {4/7, 5/11},
       {5/7, 7/11}, {1/5, 2/9}, {2/5, 4/9}
     }];
-
-  tmin = Min[0, Sequence @@ DeleteCases[
-      observableTransportEpsilonOrder[#, eps] & /@ Flatten[tTotal],
-      Infinity]];
-  blockLower = Table[
-    With[{orders = DeleteCases[
-        observableTransportEpsilonOrder[#, eps] & /@
-          Flatten[tInverse[[ranges[[block]], All]]], Infinity]},
-      If[orders === {}, 0, Min[orders]]],
-    {block, Length[ranges]}];
+  valuationRecord = Lookup[record, "TransportEpsilonValuations",
+    Missing["NotAvailable"]];
+  If[AssociationQ[valuationRecord] &&
+      IntegerQ[Lookup[valuationRecord, "TMin", Missing[]]] &&
+      VectorQ[Lookup[valuationRecord, "BlockLower", Missing[]], IntegerQ] &&
+      Length[valuationRecord["BlockLower"]] === Length[ranges],
+    tmin = valuationRecord["TMin"];
+    blockLower = valuationRecord["BlockLower"];
+    valuationSource = "FamilyRecord",
+    If[recordTransportReadyQ,
+      Return[<|"Status" -> "TransportEpsilonValuationsRequired"|>,
+        Module]];
+    tmin = Min[0, Sequence @@ DeleteCases[
+        observableTransportEpsilonOrder[#, eps] & /@ Flatten[tTotal],
+        Infinity]];
+    blockLower = Table[
+      With[{orders = DeleteCases[
+          observableTransportEpsilonOrder[#, eps] & /@
+            Flatten[tInverse[[ranges[[block]], All]]], Infinity]},
+        If[orders === {}, 0, Min[orders]]],
+      {block, Length[ranges]}];
+    valuationSource = "ComputedFromGauge"
+  ];
   rowLower = ConstantArray[Missing["NotCovered"], dimension];
   blockOfRow = ConstantArray[0, dimension];
   Do[
@@ -1411,12 +1515,17 @@ BuildObservableTransport[record_Association, demand_Association,
   If[! FreeQ[rowLower, _Missing] || MemberQ[blockOfRow, 0],
     Return[<|"Status" -> "BlockRangesDoNotCoverFamily"|>, Module]
   ];
+  If[verbose, Print["Observable transport epsilon valuations: ",
+    Round[AbsoluteTime[] - start, 0.1], " s cumulative; source ",
+    valuationSource]];
 
   pathRules = {
     firstVariable -> firstBase + tau (firstTargetSample - firstBase)
   };
   tangent = firstTargetSample - firstBase;
-  firstConnection = If[coefficientField === "Multiquadratic",
+  firstSupport = If[recordTransportReadyQ,
+    compactResidueSupport[firstVariable],
+    firstConnection = If[coefficientField === "Multiquadratic",
     (* The certified epsilon form is already an exact dlog connection.
        Specializing eps -> 1 extracts its epsilon-independent coefficient
        without first creating syntactically uncancelled expr/eps entries.
@@ -1429,8 +1538,9 @@ BuildObservableTransport[record_Association, demand_Association,
       (epsConnections[[
           FirstPosition[variables, firstVariable][[1]]]]/eps /.
         pathRules) tangent]
+    ]
   ];
-  If[! FreeQ[firstConnection, eps],
+  If[! FreeQ[firstSupport, eps],
     Return[<|"Status" -> "ConnectionIsNotEpsilonForm"|>, Module]
   ];
 
@@ -1439,7 +1549,7 @@ BuildObservableTransport[record_Association, demand_Association,
     stabilized = False;
     Do[
       If[source < target && ! observableTransportStructuralZeroMatrixQ[
-          firstConnection[[ranges[[target]], ranges[[source]]]]],
+          firstSupport[[ranges[[target]], ranges[[source]]]]],
         propagatedLower[[target]] = Min[propagatedLower[[target]],
           propagatedLower[[source]] + 1]
       ],
@@ -1464,8 +1574,8 @@ BuildObservableTransport[record_Association, demand_Association,
          boundaryPositions[observableTransportSlotKey[slot]]} -> 1,
       {slot, boundarySlots}],
     {Length[slots], Length[boundarySlots]}];
-  lifted = First@observableTransportLiftResidues[{firstConnection}, slots];
-
+  If[verbose, Print["Observable transport structural support: ",
+    Round[AbsoluteTime[] - start, 0.1], " s cumulative"]];
   (* Both physical maps use the same Laurent expansion of TTotal.  Build
      the union of their order ranges once; the former two-pass route could
      repeat the dominant symbolic series work almost verbatim. *)
@@ -1473,6 +1583,8 @@ BuildObservableTransport[record_Association, demand_Association,
     Max[physicalOrders] - flow];
   tLaurent = observableTransportLaurentMatrices[tTotal, eps,
     {tmin, tLaurentHigh}];
+  If[verbose, Print["Observable transport Laurent extraction: ",
+    Round[AbsoluteTime[] - start, 0.1], " s cumulative"]];
   forbiddenRows = {};
   forbiddenLabels = {};
   Do[
@@ -1510,6 +1622,10 @@ BuildObservableTransport[record_Association, demand_Association,
     closureInitialSpanMethod = "NoConstraints";
     closureStabilizationCertificate = Missing["NotRequired"];
     closureStabilizationMethod = "NoConstraints",
+    firstConnection = If[recordTransportReadyQ,
+      compactDLogConnection[firstVariable, pathRules, tangent],
+      firstSupport];
+    lifted = First@observableTransportLiftResidues[{firstConnection}, slots];
     closureSteps = Replace[OptionValue["ClosureSteps"],
       Automatic -> Length[slots]];
     closureRecord = observableTransportCovariantRowClosure[
@@ -1625,9 +1741,12 @@ BuildObservableTransport[record_Association, demand_Association,
       {boundaryRow, Length[boundarySlots]}],
       {Length[boundarySlots], Length[extendedSlots]}];
     extendedConstraintMatrix = constraintMatrix . boundarySelector;
-    ambientSecondConnection = epsConnections[[FirstPosition[
-          variables, secondVariable][[1]]]] /.
-      {eps -> 1, firstVariable -> firstBase};
+    ambientSecondConnection = If[recordTransportReadyQ,
+      compactDLogConnection[secondVariable,
+        {firstVariable -> firstBase}, 1],
+      epsConnections[[FirstPosition[
+            variables, secondVariable][[1]]]] /.
+        {eps -> 1, firstVariable -> firstBase}];
     ambientLiftedSecond = First@observableTransportLiftResidues[
       {ambientSecondConnection}, extendedSlots];
     secondRankSamples =
@@ -1732,6 +1851,11 @@ BuildObservableTransport[record_Association, demand_Association,
   residueDLogSource = None;
   residueProbabilistic = False;
   certifiedDLog = Which[
+    recordTransportReadyQ && computedDLogQ[recordDLog] &&
+        usableDLogQ[recordDLog],
+      residueDLogSource = "ComputedFiniteFieldDLog";
+      residueProbabilistic = True;
+      recordDLog,
     recordExactQ && usableDLogQ[recordDLog],
       residueDLogSource = "ExactRecord";
       recordDLog,
@@ -1773,8 +1897,7 @@ BuildObservableTransport[record_Association, demand_Association,
   residueRecordUsableQ[value_] := AssociationQ[value] &&
     MemberQ[{"Exact", "CertifiedFiniteField"},
       Lookup[value, "Status", None]];
-  residueRecord = Which[
-    usableDLogQ[certifiedDLog],
+  residueRecord = If[usableDLogQ[certifiedDLog],
       <|"Status" -> If[residueProbabilistic,
           "CertifiedFiniteField", "Exact"],
         "Letters" -> certifiedDLog["Letters"],
@@ -1784,16 +1907,10 @@ BuildObservableTransport[record_Association, demand_Association,
         "IdentityCertified" -> True,
         "Probabilistic" -> residueProbabilistic,
         "Method" -> residueDLogSource|>,
-    coefficientField === "Multiquadratic", $Failed,
-    True,
-      observableTransportResidues[
-        letters,
-        observableTransportCancelMatrix[#/eps] & /@ epsConnections,
-        variables, residueSamples]
+      $Failed
   ];
-  (* Production transport has no entrywise-symbolic kernel fallback.  A
-     missing certified dlog decomposition is an input/certification failure,
-     not permission to switch algorithms silently. *)
+  (* Production transport has no symbolic residue or entry-kernel fallback.
+     A missing dlog decomposition is an input/computation failure. *)
   If[! residueRecordUsableQ[residueRecord],
     Return[<|
       "Status" -> If[coefficientField === "Multiquadratic",
@@ -1958,34 +2075,54 @@ BuildObservableTransport[record_Association, demand_Association,
         ambientInvarianceCertificate]];
   If[residueProbabilistic,
     AssociateTo[structuralProbabilisticCertificates,
-      "FamilyDLogResidues" -> <|
-        "Status" -> "CertifiedDLogResidues",
-        "Accepted" -> True,
-        "Exact" -> False,
-        "Probabilistic" -> True,
-        "Source" -> "EpsilonFormCertificate",
-        "CertificationLevel" ->
-          Lookup[familyCertificate, "CertificationLevel", Missing[]],
-        "CoefficientField" ->
-          Lookup[familyCertificate, "CoefficientField", Missing[]],
-        "IdentityMethod" ->
-          Lookup[familyCertificate, "IdentityMethod", Missing[]],
-        "Method" -> Lookup[familyCertificate["Modular"],
-          "Method", Missing[]],
-        "FreshLiftValidation" -> TrueQ[Lookup[
-          familyCertificate["Modular"], "FreshLiftValidation", False]],
-        "AllRootSheetsChecked" -> TrueQ[Lookup[
-          familyCertificate["Modular"], "AllRootSheetsChecked", False]],
-        "ConstantResidues" ->
-          TrueQ[Lookup[certifiedDLog, "ConstantResidues", False]],
-        "ResiduesVerifiedAtAllPrimes" -> TrueQ[Lookup[
-          certifiedDLog, "ResiduesVerifiedAtAllPrimes", False]],
-        "LetterCount" -> Length[certifiedDLog["Letters"]],
-        "ResidueCount" -> Length[certifiedDLog["Residues"]],
-        "IdentityPoints" -> (KeyTake[#,
-            {"Prime", "TrainingPoints", "ValidationPoints", "DLogRank",
-             "AllSheetsPerPoint"}] & /@
-          Lookup[familyCertificate, "IdentityPoints", {}])|>]];
+      "FamilyDLogResidues" -> If[
+        residueDLogSource === "ComputedFiniteFieldDLog",
+        <|"Status" -> "ComputedDLogResidues", "Accepted" -> True,
+          "Exact" -> False, "Probabilistic" -> True,
+          "Source" -> "DLogComputation",
+          "CoefficientField" -> Lookup[certifiedDLog,
+            "CoefficientField", Missing[]],
+          "IdentityMethod" -> Lookup[certifiedDLog,
+            "IdentityMethod", Missing[]],
+          "Backend" -> Lookup[certifiedDLog, "Backend", Missing[]],
+          "FreshPrimeValidation" -> TrueQ[Lookup[certifiedDLog,
+            "FreshPrimeValidation", False]],
+          "AllRootSheetsEvaluated" -> TrueQ[Lookup[certifiedDLog,
+            "AllRootSheetsEvaluated", False]],
+          "ConstantResidues" -> TrueQ[Lookup[certifiedDLog,
+            "ConstantResidues", False]],
+          "ResiduesVerifiedAtAllPrimes" -> TrueQ[Lookup[certifiedDLog,
+            "ResiduesVerifiedAtAllPrimes", False]],
+          "CRTPrimes" -> Lookup[certifiedDLog, "CRTPrimes", {}],
+          "FreshValidationPrime" -> Lookup[certifiedDLog,
+            "FreshValidationPrime", Missing[]],
+          "LetterCount" -> Length[certifiedDLog["Letters"]],
+          "ResidueCount" -> Length[certifiedDLog["Residues"]]|>,
+        <|"Status" -> "CertifiedDLogResidues", "Accepted" -> True,
+          "Exact" -> False, "Probabilistic" -> True,
+          "Source" -> "EpsilonFormCertificate",
+          "CertificationLevel" -> Lookup[familyCertificate,
+            "CertificationLevel", Missing[]],
+          "CoefficientField" -> Lookup[familyCertificate,
+            "CoefficientField", Missing[]],
+          "IdentityMethod" -> Lookup[familyCertificate,
+            "IdentityMethod", Missing[]],
+          "Method" -> Lookup[familyCertificate["Modular"],
+            "Method", Missing[]],
+          "FreshLiftValidation" -> TrueQ[Lookup[
+            familyCertificate["Modular"], "FreshLiftValidation", False]],
+          "AllRootSheetsChecked" -> TrueQ[Lookup[
+            familyCertificate["Modular"], "AllRootSheetsChecked", False]],
+          "ConstantResidues" -> TrueQ[Lookup[certifiedDLog,
+            "ConstantResidues", False]],
+          "ResiduesVerifiedAtAllPrimes" -> TrueQ[Lookup[
+            certifiedDLog, "ResiduesVerifiedAtAllPrimes", False]],
+          "LetterCount" -> Length[certifiedDLog["Letters"]],
+          "ResidueCount" -> Length[certifiedDLog["Residues"]],
+          "IdentityPoints" -> (KeyTake[#,
+              {"Prime", "TrainingPoints", "ValidationPoints", "DLogRank",
+               "AllSheetsPerPoint"}] & /@
+            Lookup[familyCertificate, "IdentityPoints", {}])|>]]];
   materializedWordLimit = OptionValue["MaterializedWordLimit"];
   If[! IntegerQ[materializedWordLimit] || materializedWordLimit < 1,
     Return[<|"Status" -> "InvalidMaterializedWordLimit"|>, Module]
@@ -2120,6 +2257,9 @@ BuildObservableTransport[record_Association, demand_Association,
     "BoundaryEvolutionMethod" -> boundaryEvolution,
     "BoundaryConstraintLeafCount" -> constraintLeafCount,
     "GaugeConstantRules" -> gaugeConstantRules,
+    "TransportEpsilonValuationSource" -> valuationSource,
+    "TransportEpsilonValuations" -> <|
+      "TMin" -> tmin, "BlockLower" -> blockLower|>,
     "BoundaryCoordinates" -> Dimensions[baseBoundaryEmbedding][[2]],
     "ConstraintRank" -> constraintRank,
     "DualClosureRankHistory" -> closureHistory,
@@ -2158,9 +2298,16 @@ BuildObservableTransport[record_Association, demand_Association,
       "MovingBoundaryCoordinates", "ExtendedLaurentSlots"],
     "TwoSegmentWordMaps" -> secondRecord["Maps"],
     "TwoSegmentMapCountsByWeight" -> secondRecord["MapCountsByWeight"],
+    "FamilyInputRoute" -> Which[
+      recordExactQ, "Exact",
+      recordCertifiedQ, "Certified",
+      recordTransportReadyQ, "ComputedDLog",
+      True, "Invalid"],
     "Certificates" -> <|
-      "FamilyEpsilonFormCertified" -> True,
+      "FamilyEpsilonFormCertified" -> recordCertifiedQ,
       "FamilyEpsilonFormExact" -> recordExactQ,
+      "FamilyInputAccepted" ->
+        (recordCertifiedQ || recordExactQ || recordTransportReadyQ),
       "BoundaryBaseKernel" -> True,
       "FirstKernelIdentity" ->
         TrueQ[Lookup[firstKernelRecord, "Identity", False]],
@@ -2199,8 +2346,7 @@ AcceptedObservableTransportQ[result_] := Module[
   requiredExact = {"BoundaryBaseKernel", "FirstKernelIdentity",
     "BoundaryEvolution", "SecondKernelIdentity"};
   If[! AssociationQ[certificates] ||
-      ! (TrueQ[Lookup[certificates, "FamilyEpsilonFormCertified", False]] ||
-        TrueQ[Lookup[certificates, "FamilyEpsilonFormExact", False]]) ||
+      ! TrueQ[Lookup[certificates, "FamilyInputAccepted", False]] ||
       ! AllTrue[requiredExact,
         KeyExistsQ[certificates, #] && TrueQ[certificates[#]] &],
     Return[False]];
@@ -2238,26 +2384,35 @@ AcceptedObservableTransportQ[result_] := Module[
     ListQ[Lookup[certificate, "AcceptedTrials", None]] &&
     Lookup[certificate, "AcceptedTrials", {}] =!= {};
   dlogCertificateQ[certificate_] := AssociationQ[certificate] &&
-    Lookup[certificate, "Status", None] === "CertifiedDLogResidues" &&
     TrueQ[Lookup[certificate, "Accepted", False]] &&
     TrueQ[Lookup[certificate, "Probabilistic", False]] &&
     TrueQ[Lookup[certificate, "Exact", True] === False] &&
-    Lookup[certificate, "CertificationLevel", None] ===
-      "HighConfidenceFiniteField" &&
     Lookup[certificate, "CoefficientField", None] === "Multiquadratic" &&
-    Lookup[certificate, "IdentityMethod", None] === "Modular" &&
-    Lookup[certificate, "Method", None] ===
-      "AllSignSheetsAtFreshSplitPoints" &&
-    TrueQ[Lookup[certificate, "FreshLiftValidation", False]] &&
-    TrueQ[Lookup[certificate, "AllRootSheetsChecked", False]] &&
     TrueQ[Lookup[certificate, "ConstantResidues", False]] &&
     TrueQ[Lookup[certificate, "ResiduesVerifiedAtAllPrimes", False]] &&
     IntegerQ[Lookup[certificate, "LetterCount", Missing[]]] &&
     Lookup[certificate, "LetterCount", -1] >= 0 &&
     Lookup[certificate, "LetterCount", 0] ===
-      Lookup[certificate, "ResidueCount", -1] &&
-    ListQ[Lookup[certificate, "IdentityPoints", None]] &&
-    Lookup[certificate, "IdentityPoints", {}] =!= {};
+      Lookup[certificate, "ResidueCount", -1] && Which[
+      Lookup[certificate, "Status", None] === "ComputedDLogResidues",
+        Lookup[certificate, "IdentityMethod", None] ===
+          "FiniteFieldPointwise" &&
+        TrueQ[Lookup[certificate, "FreshPrimeValidation", False]] &&
+        TrueQ[Lookup[certificate, "AllRootSheetsEvaluated", False]] &&
+        ListQ[Lookup[certificate, "CRTPrimes", None]] &&
+        Lookup[certificate, "CRTPrimes", {}] =!= {} &&
+        IntegerQ[Lookup[certificate, "FreshValidationPrime", Missing[]]],
+      Lookup[certificate, "Status", None] === "CertifiedDLogResidues",
+        Lookup[certificate, "CertificationLevel", None] ===
+          "HighConfidenceFiniteField" &&
+        Lookup[certificate, "IdentityMethod", None] === "Modular" &&
+        Lookup[certificate, "Method", None] ===
+          "AllSignSheetsAtFreshSplitPoints" &&
+        TrueQ[Lookup[certificate, "FreshLiftValidation", False]] &&
+        TrueQ[Lookup[certificate, "AllRootSheetsChecked", False]] &&
+        ListQ[Lookup[certificate, "IdentityPoints", None]] &&
+        Lookup[certificate, "IdentityPoints", {}] =!= {},
+      True, False];
   operatorAutomatonQ[value_] := Module[
     {maximumWeight, initial, firstAlphabet, firstMatrices, firstBoundary,
      secondAlphabet, secondMatrices, finalEmbedding, firstDimension,

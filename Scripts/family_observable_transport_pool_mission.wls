@@ -10,7 +10,8 @@ Module[
    wordRepresentation, materializedWordLimit, coordinateBackend,
    coordinateCacheDirectory, reconstructionThreads, validationPrimeCount,
    validationPointsPerPrime,
-   start, result, alternateRecord, alternatePath, alternateResult,
+   start, loadStart, epsilonLoadSeconds, differentialLoadSeconds,
+   valuationLoadSeconds, result, alternateRecord, alternatePath, alternateResult,
    missionTag},
 
   missionTag = Unique["ObservableTransportMissionExit$"];
@@ -69,12 +70,18 @@ Module[
     ]
   ];
 
+  loadStart = AbsoluteTime[];
   epsilonForm = loadAssociation[epsilonFormFile, "Epsilon-form record"];
+  epsilonLoadSeconds = AbsoluteTime[] - loadStart;
   If[epsilonForm === $Failed, Throw[$Failed, missionTag]];
+  loadStart = AbsoluteTime[];
   differentialSystem =
     loadAssociation[differentialSystemFile, "Differential system"];
+  differentialLoadSeconds = AbsoluteTime[] - loadStart;
   If[differentialSystem === $Failed, Throw[$Failed, missionTag]];
+  loadStart = AbsoluteTime[];
   valuations = Quiet[Check[Get[valuationsFile], $Failed]];
+  valuationLoadSeconds = AbsoluteTime[] - loadStart;
   If[! ListQ[valuations],
     Print["Valuation record is not a List: ", valuationsFile];
     Throw[$Failed, missionTag]
@@ -83,6 +90,11 @@ Module[
   card = If[cardFile === None, <||>,
     loadAssociation[cardFile, "Observable-transport card"]];
   If[card === $Failed, Throw[$Failed, missionTag]];
+  If[TrueQ[Lookup[card, "Verbose", False]], Print[
+    "Observable transport input loads: epsilon form ",
+    Round[epsilonLoadSeconds, 0.1], " s; differential system ",
+    Round[differentialLoadSeconds, 0.1], " s; valuations ",
+    Round[valuationLoadSeconds, 0.1], " s"]];
   hardFunctionOrders = Lookup[card, "HardFunctionOrders", {0}];
   safetyOrders = Lookup[card, "SafetyOrders", 1];
   masterValuation = Lookup[card, "MasterValuation", 0];
