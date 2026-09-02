@@ -17,11 +17,11 @@
      Transport       stage 2: assembly, word engines, exception seam,
                      observable transport *)
 {
-  "Core" -> {"Core.wl", "MultiquadraticAlgebra.wl", "RationalMaterialization.wl"},
+  "Core" -> {"Core.wl", "ModularArithmetic.wl", "MultiquadraticAlgebra.wl", "RationalMaterialization.wl"},
   "Process" -> {"Process.wl", "Topologies.wl", "CanonicalFamilies.wl", "DimensionalShift.wl", "Collinear.wl"},
   "Reduction" -> {"Reduction.wl", "StreamingKira.wl", "MasterIntegralAmFlow.wl", "Simplification.wl", "Assembly.wl", "CoefficientStore.wl", "Reconstruction.wl"},
   "Infrastructure" -> {"TaskBroker.wl"},
   "Geometry" -> {"TransportCharts.wl"},
   "EpsForm" -> {"CanonicalBlocks.wl", "EpsFormStrip.wl", "BlockEquationDeferred.wl", "FiniteFieldEpsForm.wl", "FiniteFieldStripSolve.wl", "EpsFormStripObstruction.wl", "FamilyRegulatorFactor.wl", "FamilyRowGauge.wl", "FamilyRowGaugeResume.wl", "FamilyCertificateModular.wl", "MultiquadraticStripSolve.wl", "MultiquadraticInstallation.wl", "FiniteFieldGaugePullBack.wl", "LibraEpsForm.wl", "FamilyEpsForm.wl", "DiagonalBlockEpsForm.wl"},
-  "Transport" -> {"MasterTransport.wl", "BlockwiseTransport.wl", "CanonicalWordTransport.wl", "PathTransportException.wl", "PathTransportNative.wl", "ObservableTransport.wl", "ObservableTransportFiniteField.wl"},
+  "Transport" -> {"MasterTransport.wl", "BlockwiseTransport.wl", "CanonicalWordTransport.wl", "PathTransportException.wl", "PathTransportNative.wl", "ObservableTransport.wl", "ObservableTransportFiniteField.wl"}
 }

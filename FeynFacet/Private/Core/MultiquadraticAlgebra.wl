@@ -157,20 +157,20 @@ multiquadraticProjectConjugates[values_List, rootValues_List, modulus_: 0] /;
     ]
   ];
 
+(* one implementation (Core/ModularArithmetic.wl, overhaul 2026-09-02) *)
 multiquadraticSplitPointQ[point : {_, _}, radicands_List, vars : {_, _},
-    p_Integer?Positive] :=
-  Module[{values = Mod[radicands /. Thread[vars -> point], p]},
-    AllTrue[values, # != 0 && JacobiSymbol[#, p] == 1 &]
-  ];
+    p_Integer?Positive] := TrueQ[modularSplitPointQ[point, radicands, vars, p]];
 
 (* p = 3 (mod 4) only; the returned representative is the raw
    exponentiation, NOT the smaller of the two roots.  The sign
    representative is part of the ABI: see the differential test
    against FamilyRowGaugeFiniteField.wl, which normalizes instead. *)
-multiquadraticSquareRoots[values_List, p_Integer?Positive] /; Mod[p, 4] == 3 :=
-  Module[{roots = PowerMod[Mod[values, p], Quotient[p + 1, 4], p]},
-    If[Mod[roots^2 - values, p] === ConstantArray[0, Length[values]], roots, $Failed]
-  ];
+(* one implementation (Core/ModularArithmetic.wl, overhaul 2026-09-02):
+   the former definition existed only for p == 3 (mod 4); every odd prime
+   is now admissible (Tonelli-Shanks for p == 1 (mod 4)), which removes
+   the class of wasted split-point searches recorded on 2026-08-31 *)
+multiquadraticSquareRoots[values_List, p_Integer?Positive] :=
+  modularSquareRoots[values, p];
 
 multiquadraticGradeClosure[seeds_List, generators_List] :=
   FixedPoint[

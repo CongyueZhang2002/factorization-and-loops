@@ -1,11 +1,12 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-artifactRoot = FileNameJoin[{DirectoryName[root], "FACET", "Codex", "General"}];
+(* fixtures live in the repository (copied 2026-09-02 from the frozen legacy
+   tree ~/FACET; the former sibling-directory path failed in any worktree) *)
+artifactRoot = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+  "UU_08_10_canonical", "FamilyEpsForms", "Fixtures_2026-08-19"}];
 
-libraRecord = Get[FileNameJoin[{artifactRoot,
-  "LibraTwoRoot_20260819", "family_epsform_CF226.wl"}]];
-sectorRecord = Get[FileNameJoin[{artifactRoot,
-  "CF254Standardized_20260819", "family_epsform_CF254.wl"}]];
+libraRecord = Get[FileNameJoin[{artifactRoot, "family_epsform_CF226.wl"}]];
+sectorRecord = Get[FileNameJoin[{artifactRoot, "family_epsform_CF254.wl"}]];
 invalidRecord = ReplacePart[sectorRecord, "Flatness" -> False];
 
 tests = <|

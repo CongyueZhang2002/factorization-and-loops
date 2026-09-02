@@ -31,6 +31,7 @@ ClearAll[
   observableTransportEpsJetMul,
   observableTransportEpsJetPow,
   $observableTransportLaurentMethod,
+  $observableTransportLaurentCanonicalize,
   observableTransportIndependentRows,
   observableTransportIndependentRowsTask,
   observableTransportIndependentRowsAtSamples,
@@ -59,6 +60,9 @@ ClearAll[
   observableTransportSourceFrameQ,
   observableTransportRecordChart,
   observableTransportCoefficientField,
+  observableTransportPointAdmissibleQ,
+  observableTransportAdmissibleSamples,
+  $observableTransportSampleFractions,
   observableTransportBlockLowerQ
 ];
 
@@ -113,6 +117,35 @@ observableTransportCoefficientField[record_Association] := Module[
   If[radicalQ, Missing["CoefficientField"], "Rational"]
 ];
 observableTransportCoefficientField[___] := Missing["CoefficientField"];
+
+(* Admissible sample points for rank and residue sampling (overhaul
+   2026-09-02, goal 9).  The fixed default samples are fine for rational
+   families, but an algebraic (multiquadratic) record can have a letter
+   or a declared root square that vanishes at one of them, and every
+   finite-field trial at that point is then rejected (CF259 probe 1:
+   SingularConstraintRankSample).  A sample is admissible when every
+   letter and every root square is a nonzero rational at the point.
+   Samples are drawn from a fixed fraction grid, so the choice is
+   deterministic and family-neutral; the caller keeps the defaults when
+   they are admissible. *)
+observableTransportPointAdmissibleQ[letters_List, rootSquares_List, rules_List] :=
+  AllTrue[Join[letters, rootSquares], Function[expression,
+    Module[{value = Quiet[Check[Together[expression /. rules], $Failed]]},
+      value =!= $Failed && NumericQ[value] && TrueQ[value != 0] &&
+        FreeQ[value, Indeterminate | ComplexInfinity | DirectedInfinity[_]]]]];
+
+observableTransportAdmissibleSamples[letters_List, rootSquares_List,
+    pointFunction_, candidates_List, count_Integer] := Module[{chosen = {}},
+  Do[
+    If[Length[chosen] >= count, Break[]];
+    If[observableTransportPointAdmissibleQ[letters, rootSquares,
+        pointFunction[candidate]],
+      AppendTo[chosen, candidate]],
+    {candidate, candidates}];
+  chosen
+];
+$observableTransportSampleFractions = {2/5, 3/5, 4/7, 3/11, 4/13, 2/9,
+  5/13, 3/8, 5/11, 7/16, 4/9, 5/12, 7/15, 6/17, 8/19, 9/23, 5/14, 7/18};
 
 observableTransportRecordChart[record_Association, Automatic] := Module[
   {chartRecord = Lookup[record, "ChartRecord", Missing["NotAvailable"]],
@@ -478,7 +511,7 @@ observableTransportEpsilonOrder[x_, eps_] :=
    entry alone, so the result is the same function of the input on every
    route.  $observableTransportLaurentMethod selects "Jet" (default) or
    "SeriesCoefficient" (the former route, kept for comparison). *)
-$observableTransportLaurentMethod = "Jet";
+$observableTransportLaurentMethod = "SeriesCoefficient";   (* measured 2026-09-02 05:05: the jet route WITH per-coefficient canonicalization was slower than SeriesCoefficient on CF259 (stopped after 21 min vs ~10 min); the jet stays available as an option, see the plan *)
 
 observableTransportEpsJetTrim[p_List] := Module[{q = p},
   While[Length[q] > 1 && TrueQ[Last[q] === 0], q = Most[q]];
@@ -564,8 +597,17 @@ observableTransportLaurentEntryJet[e_, eps_, {low_Integer, high_Integer}] :=
   If[coefficients === $Failed,
     Table[observableTransportCancel[SeriesCoefficient[e, {eps, 0, order}]],
       {order, low, high}],
-    observableTransportCancel /@ coefficients]
+    If[TrueQ[$observableTransportLaurentCanonicalize],
+      observableTransportCancel /@ coefficients,
+      (* uncanonical coefficients: exact expressions built from the entry's
+         own subexpressions (shared, not expanded); the consumers evaluate
+         them at points or compile them, and cancel the final matrices *)
+      coefficients]]
 ];
+(* Whether the jet route canonicalizes every coefficient with
+   Cancel[Together[...]] (True: the former route's output form) or leaves
+   them as exact uncanonical expressions (False: measured option). *)
+$observableTransportLaurentCanonicalize = True;
 
 observableTransportLaurentRows[matrix_, eps_, {low_Integer, high_Integer},
     indices_List] := If[$observableTransportLaurentMethod === "Jet",
@@ -1661,6 +1703,39 @@ BuildObservableTransport[record_Association, demand_Association,
     firstVariable -> firstBase + tau (firstTargetSample - firstBase)
   };
   tangent = firstTargetSample - firstBase;
+  (* algebraic records: keep the default rank/residue samples only where
+     every letter and root square is a nonzero rational; otherwise draw
+     admissible ones from the fraction grid (see observableTransportAdmissibleSamples) *)
+  If[coefficientField === "Multiquadratic" && OptionValue["RankSamples"] === Automatic,
+    Module[{rootSquaresHere = Lookup[algebraicRootRecords, "RootSquare", {}],
+        lettersHere = Replace[letters, Except[_List] -> {}],
+        rankPoint, admissibleRank, residueAdmissible, candidatesRank},
+      rankPoint = Function[sample, Join[{firstVariable -> (firstBase + tau tangent) /. sample},
+        Select[sample, First[#] === secondVariable &]]];
+      admissibleRank = Select[rankSamples,
+        observableTransportPointAdmissibleQ[lettersHere, rootSquaresHere, rankPoint[#]] &];
+      If[Length[admissibleRank] < Length[rankSamples],
+        candidatesRank = Flatten[Table[{tau -> t, secondVariable -> c},
+          {t, $observableTransportSampleFractions}, {c, $observableTransportSampleFractions}], 1];
+        admissibleRank = observableTransportAdmissibleSamples[lettersHere, rootSquaresHere,
+          rankPoint, candidatesRank, Length[rankSamples]];
+        If[verbose, Print["Observable transport rank samples replaced for the algebraic record: ",
+          Length[admissibleRank], " admissible of ", Length[candidatesRank], " candidates"]];
+        If[Length[admissibleRank] === Length[rankSamples], rankSamples = admissibleRank]];
+      automatonRankSamples = {
+        {firstVariable -> firstBase, secondVariable -> secondBase},
+        Join[{firstVariable -> firstTargetSample}, First[rankSamples]],
+        Join[{firstVariable -> (firstBase + firstTargetSample)/2}, Last[rankSamples]]};
+      residueAdmissible = Select[residueSamples,
+        observableTransportPointAdmissibleQ[lettersHere, rootSquaresHere, Thread[variables -> #]] &];
+      If[Length[residueAdmissible] < Length[residueSamples],
+        residueAdmissible = observableTransportAdmissibleSamples[lettersHere, rootSquaresHere,
+          Thread[variables -> #] &,
+          Flatten[Table[{a, b}, {a, $observableTransportSampleFractions}, {b, $observableTransportSampleFractions}], 1],
+          Length[residueSamples]];
+        If[verbose, Print["Observable transport residue samples replaced for the algebraic record: ",
+          Length[residueAdmissible]]];
+        If[Length[residueAdmissible] === Length[residueSamples], residueSamples = residueAdmissible]]]];
   firstSupport = If[recordTransportReadyQ,
     compactResidueSupport[firstVariable],
     firstConnection = If[coefficientField === "Multiquadratic",

@@ -58,7 +58,7 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Begin["FeynFacet`Private`"];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "ModularArithmetic.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "Private", "Core", "ModularArithmetic.wl"}]];
 End[];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 
@@ -160,9 +160,14 @@ FTAssert["asymmetric bounds {500, 9} recover 437/7 mod 10007, where the symmetri
   ratRec[asymA, 10007, {500, 9}] === 437/7 &&
    Floor[Sqrt[(10007 - 1)/2]] === 70 && ratRec[asymA, 10007] =!= 437/7 &&
    ratRec[asymA, 10007] === bruteRR[asymA, 10007, 70, 70]];
-FTAssert["an ambiguous request (2 nBound dBound >= m) and a too-small denominator bound are refused",
+(* {5000, 1} is NOT a refusal case: with denominator bound 1 the unique
+   preimage is the integer residue itself, 437 * 7^-1 == 1492 (mod 10007),
+   which lies inside |n| <= 5000; the original assertion expected $Failed
+   there and was wrong (found on the first run, 2026-09-02 04:43). *)
+FTAssert["an ambiguous request (2 nBound dBound >= m) is refused, a unit denominator bound returns the integer preimage, and a too-small denominator bound is refused",
   ratRec[asymA, 10007, {500, 20}] === $Failed &&
-   ratRec[asymA, 10007, {5000, 1}] === $Failed &&
+   ratRec[asymA, 10007, {5000, 1}] === Mod[437 PowerMod[7, -1, 10007], 10007] &&
+   Mod[437 PowerMod[7, -1, 10007], 10007] <= 5000 &&
    ratRec[asymA, 10007, {500, 6}] === $Failed];
 FTAssert["exhaustive agreement of the asymmetric form at every residue mod 1009, bounds {30, 8}",
   AllTrue[Range[0, 1008],

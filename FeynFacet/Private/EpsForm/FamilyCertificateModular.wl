@@ -112,11 +112,9 @@ familyCertLetters[epsilonForm_List, variables_List, regulator_Symbol] := Module[
   factors = Select[factors, ! FreeQ[#, Alternatives @@ variables] &];
   DeleteDuplicates[factors, PossibleZeroQ[#1 - #2] || PossibleZeroQ[#1 + #2] &]];
 
-familyCertRationalReconstruct[a_Integer, m_Integer] := Module[{bound = Floor[Sqrt[(m - 1)/2]], r0, r1, t0 = 0, t1 = 1, q},
-  {r0, r1} = {m, Mod[a, m]};
-  If[r1 === 0, Return[0]];
-  While[r1 > bound, q = Quotient[r0, r1]; {r0, r1} = {r1, r0 - q r1}; {t0, t1} = {t1, t0 - q t1}];
-  If[t1 === 0 || Abs[t1] > bound || ! CoprimeQ[r1, t1], $Failed, r1/t1]];
+(* one implementation (Core/ModularArithmetic.wl, overhaul 2026-09-02):
+   Wang reconstruction with the symmetric bound Floor[Sqrt[(m-1)/2]] *)
+familyCertRationalReconstruct[a_Integer, m_Integer] := modularRationalReconstruct[a, m];
 
 (* ---- degree algebra on {numerator degree, denominator degree} ---- *)
 familyCertDegMul[a_, b_] := a + b;
@@ -535,12 +533,10 @@ familyCertMQModRational[value_, prime_Integer] := Module[{q, numerator, denomina
 (* The certificate samples primes p == 3 mod 4, so a quadratic-residue
    square root is one modular exponentiation.  Zero is excluded: otherwise
    two sign embeddings coalesce and the point does not test every grade. *)
-familyCertMQSquareRoot[value_Integer, prime_Integer] := Module[{a = Mod[value, prime], root},
-  If[a === 0 || Mod[prime, 4] =!= 3 ||
-      PowerMod[a, Quotient[prime - 1, 2], prime] =!= 1, Return[$Failed]];
-  root = PowerMod[a, Quotient[prime + 1, 4], prime];
-  If[Mod[root^2 - a, prime] === 0, root, $Failed]
-];
+(* one implementation (Core/ModularArithmetic.wl): a zero radicand was
+   refused here and still is; every odd prime is now admissible *)
+familyCertMQSquareRoot[value_Integer, prime_Integer] :=
+  If[Mod[value, prime] === 0, $Failed, modularSquareRoot[value, prime]];
 
 (* Prepare all scalar expressions once.  The root frame is the same
    canonical, square-class-independent frame used by the deferred equation

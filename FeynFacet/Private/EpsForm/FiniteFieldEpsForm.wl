@@ -102,34 +102,14 @@ NormalizeEpsFormAffineSample[
   |>
 ];
 
+(* one implementation (Core/ModularArithmetic.wl, overhaul 2026-09-02) *)
 epsFormFiniteFieldRationalReconstruct[value_Integer, modulus_Integer] :=
- Module[{a, bound, r0, r1, t0 = 0, t1 = 1, quotient,
-   numerator, denominator},
-  a = Mod[value, modulus];
-  If[a === 0, Return[0]];
-  bound = Floor[Sqrt[(modulus - 1)/2]];
-  {r0, r1} = {modulus, a};
-  While[r1 > bound,
-    quotient = Quotient[r0, r1];
-    {r0, r1} = {r1, r0 - quotient r1};
-    {t0, t1} = {t1, t0 - quotient t1}];
-  {numerator, denominator} = {r1, t1};
-  If[denominator < 0,
-    {numerator, denominator} = {-numerator, -denominator}];
-  If[denominator === 0 || Abs[numerator] > bound ||
-      denominator > bound || CoprimeQ[numerator, denominator] =!= True ||
-      Mod[numerator - a denominator, modulus] =!= 0,
-    $Failed,
-    numerator/denominator]
-];
+  modularRationalReconstruct[value, modulus];
 
+(* one implementation (Core/ModularArithmetic.wl): coordinate-wise CRT of
+   the lists padded to the requested length *)
 epsFormFiniteFieldCombineLists[lists_List, length_Integer,
-    moduli_List] := Table[
-  ChineseRemainder[
-    (PadRight[#, length][[index]] &) /@ lists,
-    moduli],
-  {index, length}
-];
+    moduli_List] := modularCRT[PadRight[#, length] & /@ lists, moduli];
 
 epsFormFiniteFieldCombineCoordinate[data_List, moduli_List] := Module[
   {degrees, numeratorLength, denominatorLength},
