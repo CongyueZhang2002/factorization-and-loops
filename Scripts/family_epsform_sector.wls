@@ -760,6 +760,8 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
         (* graded-algebra route only (2026-08-25): the evidence the
            recorded eps-factorization rests on *)
         "GradedRank" -> Lookup[factor, "Rank", Missing["NotGraded"]],
+        "GradedRootFrame" -> Lookup[factor, "GradedRootFrame",
+          Missing["NotGraded"]],
         "ActiveGrades" -> Lookup[factor, "ActiveGrades", Missing["NotGraded"]],
         "ExactEpsFactorization" -> Lookup[factor, "ExactEpsFactorization", Missing["NotGraded"]],
         "CompositionSpotCheck" -> Lookup[factor, "CompositionSpotCheck", Missing["NotGraded"]],
