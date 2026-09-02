@@ -31,6 +31,9 @@ ClearAll[
   observableTransportFFAlgebraicIndependentRowsAtSamples,
   observableTransportFFCompileAlgebraicCovariant,
   observableTransportFFAlgebraicCovariantImages,
+  observableTransportFFAlgebraicCovariantSheetTrial,
+  observableTransportFFAlgebraicCovariantSheetTask,
+  observableTransportFFAlgebraicCovariantSheetTrials,
   observableTransportFFAlgebraicCovariantIndependentRowsAtSamples,
   observableTransportModularAlgebraicCovariantSubspaceInclusion,
   observableTransportFFSelectMatrixTrials,
@@ -491,6 +494,109 @@ observableTransportFFAlgebraicCovariantImages[compiled_Association,
   {basisPair[[1]], covariantImage}
 ];
 
+(* Validate one sign sheet of nabla B subset B.  The CFFR1 adapter returns
+   the ordered pivot columns of Transpose[Join[B,nabla B]]; they are exactly
+   the original row indices.  Range[r] therefore proves at once that the r
+   basis rows are independent and that no covariant row extends their span.
+   The native path is an automatic acceleration only: an unavailable or
+   refused adapter falls back to the same modular Wolfram elimination. *)
+observableTransportFFAlgebraicCovariantSheetTrial[
+    compiled_Association, variable_Symbol, point_List,
+    rootValues_List, mask_Integer, prime_Integer] := Module[
+  {rootCount, signs, images, matrix, rowCount, run, verification,
+   reduced, pivots = $Failed, spaceRank, joinedRank,
+   backend = "Wolfram"},
+  rootCount = Length[compiled["Roots"]];
+  signs = Table[If[BitGet[mask, index - 1] === 1, -1, 1],
+    {index, rootCount}];
+  images = observableTransportFFAlgebraicCovariantImages[
+    compiled, variable, point, rootValues, signs, prime];
+  If[images === $Failed,
+    Return[<|"Status" -> "SheetEvaluationFailed",
+      "BranchMask" -> mask|>, Module]];
+  rowCount = First[Dimensions[images[[1]]]];
+  matrix = Transpose[Join @@ images];
+  If[finiteFieldStripCFFRBinary[] =!= None,
+    run = finiteFieldStripCFFRRun[matrix,
+      ConstantArray[0, Length[matrix]], prime,
+      Range[Dimensions[matrix][[2]]], 1, Automatic];
+    If[Lookup[run, "Status", None] === "OK",
+      verification = finiteFieldStripCFFRVerify[matrix,
+        ConstantArray[0, Length[matrix]], prime, run["Response"],
+        Automatic];
+      If[Lookup[verification, "Status", None] === "OK",
+        pivots = run["Response"]["PivotColumns"];
+        backend = "FLINTAffineRREF"]]
+  ];
+  If[pivots === $Failed,
+    reduced = Quiet[Check[RowReduce[matrix, Modulus -> prime], $Failed]];
+    If[reduced === $Failed,
+      Return[<|"Status" -> "SheetEliminationFailed",
+        "BranchMask" -> mask|>, Module]];
+    pivots = DeleteDuplicates@DeleteMissing[(Replace[
+        FirstPosition[#, value_ /; value =!= 0,
+          Missing["ZeroRow"], {1}, Heads -> False],
+        {position_Integer} :> position] &) /@ reduced]
+  ];
+  spaceRank = Count[pivots,
+    position_Integer /; position <= rowCount];
+  joinedRank = Length[pivots];
+  <|"Status" -> If[pivots === Range[rowCount],
+      "AcceptedSheet", "RejectedSheet"],
+    "BranchMask" -> mask, "Backend" -> backend,
+    "SpaceRank" -> spaceRank, "JoinedRank" -> joinedRank,
+    "PivotRows" -> pivots|>
+];
+
+observableTransportFFAlgebraicCovariantSheetTask[file_String,
+    variable_Symbol, point_List, rootValues_List, masks_List,
+    prime_Integer] := Module[{compiled = taskBrokerRead[file]},
+  If[! AssociationQ[compiled], Return[$Failed, Module]];
+  observableTransportFFAlgebraicCovariantSheetTrial[
+    compiled, variable, point, rootValues, #, prime] & /@ masks
+];
+
+(* A three-root acceptance point supplies eight independent sign sheets.
+   Farm those sheets to the free kernels of the existing flat pool; one
+   compiled payload is written once and each helper returns only bounded
+   rank metadata.  The mission kernel evaluates its own final chunk while
+   helpers work, and transparently retries any lost helper chunk locally. *)
+observableTransportFFAlgebraicCovariantSheetTrials[
+    compiled_Association, variable_Symbol, point_List,
+    rootValues_List, prime_Integer] := Module[
+  {masks, helperCount, chunks, payloadFile, codes, handle, results,
+   local},
+  masks = Range[0, 2^Length[compiled["Roots"]] - 1];
+  local[indices_List] :=
+    observableTransportFFAlgebraicCovariantSheetTrial[
+      compiled, variable, point, rootValues, #, prime] & /@ indices;
+  helperCount = If[Length[masks] > 1 && TrueQ[taskBrokerActiveQ[]],
+    Min[Quiet[Check[taskBrokerFreeKernels[], 0]],
+      Length[masks] - 1], 0];
+  If[helperCount < 1, Return[local[masks], Module]];
+  chunks = Partition[masks,
+    UpTo[Ceiling[Length[masks]/(helperCount + 1)]]];
+  payloadFile = taskBrokerDataFile[
+    "observable_covariant_sheets_" <> ToString[$ProcessID] <> "_" <>
+      StringReplace[CreateUUID[], "-" -> ""], compiled];
+  codes = ("FeynFacet`Private`" <>
+      "observableTransportFFAlgebraicCovariantSheetTask[" <>
+      ToString[payloadFile, InputForm] <> "," <>
+      ToString[variable, InputForm] <> "," <>
+      ToString[point, InputForm] <> "," <>
+      ToString[rootValues, InputForm] <> "," <>
+      ToString[#, InputForm] <> "," <>
+      ToString[prime, InputForm] <> "]") & /@ Most[chunks];
+  handle = taskBrokerSubmit[codes,
+    "Label" -> "observableCovariantSheets"];
+  results = Append[taskBrokerCollect[handle], local[Last[chunks]]];
+  results = MapThread[
+    If[ListQ[#1] && Length[#1] === Length[#2], #1, local[#2]] &,
+    {results, chunks}];
+  Quiet[DeleteFile[payloadFile]];
+  Flatten[results, 1]
+];
+
 (* Propose extension rows from B and nabla B images without constructing the
    symbolic matrix nabla B.  The returned indices refer to Join[B,nabla B],
    exactly as in the established symbolic proposal. *)
@@ -829,8 +935,7 @@ observableTransportModularAlgebraicCovariantSubspaceInclusion[
    constantRootSquares, constantRootCompiler, constantRootValues,
    primeAttemptLimit, accepted = {}, rejected = {}, attemptsPerPrime,
    acceptedForPrime, candidatePoints, point, deltaValues, rootValues,
-   signs, mask, images, reduced, pivots, spaceRank, joinedRank,
-   branchFailed},
+   sheetTrials, badSheet, branchFailed},
   basisDimensions = Lookup[compiled["Basis"], "Dimensions", {}];
   connectionDimensions = Lookup[
     compiled["Connection"], "Dimensions", {}];
@@ -912,37 +1017,28 @@ observableTransportModularAlgebraicCovariantSubspaceInclusion[
         AppendTo[rejected, <|"Prime" -> prime, "Point" -> point,
           "Reason" -> "SquareRootFailure"|>]; Continue[]];
       branchFailed = False;
-      Do[
-        signs = Table[If[BitGet[mask, index - 1] === 1, -1, 1],
-          {index, rootCount}];
-        images = observableTransportFFAlgebraicCovariantImages[
-          compiled, variable, point, rootValues, signs, prime];
-        If[images === $Failed,
-          branchFailed = True; Break[]];
-        (* With B ordered before nabla B, one RREF of the transposed joined
-           image proves both required statements: B has full row rank and
-           every covariant row lies in rowspace(B).  The former two-rank
-           test performed essentially the same elimination twice on every
-           prime, point and sign sheet. *)
-        reduced = Quiet[Check[RowReduce[Transpose[Join @@ images],
-          Modulus -> prime], $Failed]];
-        If[reduced === $Failed,
-          branchFailed = True; Break[]];
-        pivots = DeleteDuplicates@DeleteMissing[(Replace[
-            FirstPosition[#, value_ /; value =!= 0,
-              Missing["ZeroRow"], {1}, Heads -> False],
-            {position_Integer} :> position] &) /@ reduced];
-        spaceRank = Count[pivots,
-          position_Integer /; position <= First[basisDimensions]];
-        joinedRank = Length[pivots];
-        If[pivots =!= Range[First[basisDimensions]],
-          Return[observableTransportFFFailure[
-            "FreshModularSubspaceInclusionRejected", <|
-              "CoefficientField" -> "Multiquadratic", "Prime" -> prime,
-              "Point" -> point, "BranchMask" -> mask,
-              "SpaceRank" -> spaceRank, "JoinedRank" -> joinedRank,
-              "PivotRows" -> pivots|>], Module]],
-        {mask, 0, branchCount - 1}];
+      sheetTrials =
+        observableTransportFFAlgebraicCovariantSheetTrials[
+          compiled, variable, point, rootValues, prime];
+      If[! ListQ[sheetTrials] || Length[sheetTrials] =!= branchCount,
+        branchFailed = True,
+        badSheet = SelectFirst[sheetTrials,
+          Lookup[#, "Status", None] =!= "AcceptedSheet" &,
+          Missing["NoBadSheet"]];
+        If[! MissingQ[badSheet],
+          If[Lookup[badSheet, "Status", None] === "RejectedSheet",
+            Return[observableTransportFFFailure[
+              "FreshModularSubspaceInclusionRejected", <|
+                "CoefficientField" -> "Multiquadratic",
+                "Prime" -> prime, "Point" -> point,
+                "BranchMask" -> badSheet["BranchMask"],
+                "SpaceRank" -> badSheet["SpaceRank"],
+                "JoinedRank" -> badSheet["JoinedRank"],
+                "PivotRows" -> badSheet["PivotRows"],
+                "Backend" -> badSheet["Backend"]|>], Module],
+            branchFailed = True]
+        ]
+      ];
       If[branchFailed,
         AppendTo[rejected, <|"Prime" -> prime, "Point" -> point,
           "Reason" -> "BranchEvaluationFailed"|>]; Continue[]];
