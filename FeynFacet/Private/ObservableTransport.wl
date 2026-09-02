@@ -18,7 +18,6 @@ ClearAll[
   observableTransportColumnBasis,
   observableTransportKernel,
   observableTransportResidues,
-  observableTransportEntryKernels,
   observableTransportRecordRegularQ,
   observableTransportLiftResidues,
   observableTransportWordMaps,
@@ -504,41 +503,6 @@ observableTransportResidues[letters_List, connections_List,
     "Residues" -> residues,
     "Identity" -> True
   |>
-];
-
-(* An epsilon-form over an algebraic field need not admit one global
-   rational chart.  Ordered integration nevertheless only needs a scalar
-   kernel basis and constant matrices.  Taking each distinct nonzero matrix
-   entry as a kernel is finite, exact, and independent of any rationalizing
-   chart.  It is less compact than a dlog alphabet, so it is a fallback after
-   the residue decomposition, never a replacement for it. *)
-observableTransportEntryKernels[matrix_?MatrixQ] := Module[
-  {kernels = {}, matrices = {}, keys = <||>, value, key, position,
-   reconstructed},
-  Do[
-    value = observableTransportCancel[matrix[[row, column]]];
-    If[observableTransportZeroQ[value], Continue[]];
-    key = ToString[Unevaluated[value], InputForm];
-    position = Lookup[keys, key, Missing["NewKernel"]];
-    If[MissingQ[position],
-      AppendTo[kernels, value];
-      AppendTo[matrices, ConstantArray[0, Dimensions[matrix]]];
-      position = Length[kernels];
-      AssociateTo[keys, key -> position]
-    ];
-    matrices[[position, row, column]] += 1,
-    {row, Length[matrix]}, {column, Length[First[matrix]]}
-  ];
-  reconstructed = If[kernels === {},
-    ConstantArray[0, Dimensions[matrix]],
-    Sum[kernels[[index]] matrices[[index]],
-      {index, Length[kernels]}]
-  ];
-  If[! observableTransportZeroMatrixQ[matrix - reconstructed],
-    Return[<|"Status" -> "EntryKernelIdentityFailed"|>]
-  ];
-  <|"Status" -> "Exact", "Method" -> "AlgebraicEntryKernels",
-    "Kernels" -> kernels, "Matrices" -> matrices, "Identity" -> True|>
 ];
 
 observableTransportLiftResidues[residues_List, slots_List] := Module[
@@ -1030,28 +994,27 @@ BuildObservableTransport[record_Association, demand_Association,
       observableTransportCancelMatrix[#/eps] & /@ epsConnections,
       variables, residueSamples]
   ];
-  If[AssociationQ[residueRecord] &&
-      Lookup[residueRecord, "Status", None] === "Exact",
-    pathActiveLetters = Select[Range[Length[residueRecord["Letters"]]],
-      ! observableTransportZeroQ[
-        D[residueRecord["Letters"][[#]], firstVariable]] &];
-    firstKernelRecord = <|"Status" -> "Exact",
-      "Method" -> "DLogResidues",
-      "Kernels" -> (observableTransportCancel[
-          (D[#, firstVariable]/# /. pathRules) tangent] & /@
-        residueRecord["Letters"][[pathActiveLetters]]),
-      "Matrices" -> residueRecord["Residues"][[pathActiveLetters]],
-      "Identity" -> True|>;
-    firstKernelIndices = pathActiveLetters;
-    firstKernelMethod = "DLogResidues",
-    firstKernelRecord = observableTransportEntryKernels[firstConnection];
-    If[Lookup[firstKernelRecord, "Status", None] =!= "Exact",
-      Return[firstKernelRecord, Module]
-    ];
-    firstKernelIndices = Range[Length[firstKernelRecord["Kernels"]]];
-    pathActiveLetters = {};
-    firstKernelMethod = firstKernelRecord["Method"]
+  (* Production transport never falls back to entrywise symbolic kernels.
+     Missing dlog residues are an explicit input/certification failure. *)
+  If[! AssociationQ[residueRecord] ||
+      Lookup[residueRecord, "Status", None] =!= "Exact",
+    Return[<|
+      "Status" -> If[coefficientField === "Multiquadratic",
+        "MultiquadraticDLogResiduesRequired", "DLogResiduesRequired"],
+      "Reason" -> "NoProductionSymbolicFallback"|>, Module]
   ];
+  pathActiveLetters = Select[Range[Length[residueRecord["Letters"]]],
+    ! observableTransportZeroQ[
+      D[residueRecord["Letters"][[#]], firstVariable]] &];
+  firstKernelRecord = <|"Status" -> "Exact",
+    "Method" -> "DLogResidues",
+    "Kernels" -> (observableTransportCancel[
+        (D[#, firstVariable]/# /. pathRules) tangent] & /@
+      residueRecord["Letters"][[pathActiveLetters]]),
+    "Matrices" -> residueRecord["Residues"][[pathActiveLetters]],
+    "Identity" -> True|>;
+  firstKernelIndices = pathActiveLetters;
+  firstKernelMethod = "DLogResidues";
   liftedResidues = observableTransportLiftResidues[
     firstKernelRecord["Matrices"], extendedSlots];
   maximumWeight = Replace[OptionValue["MaximumWeight"],
@@ -1087,7 +1050,8 @@ BuildObservableTransport[record_Association, demand_Association,
     Return[<|"Status" -> "BoundarySubspaceNotInvariant"|>, Module]
   ];
   kernelRecord = If[coefficientField === "Multiquadratic",
-    observableTransportEntryKernels[inducedConnection],
+    <|"Status" -> "MultiquadraticDLogResiduesRequired",
+      "Reason" -> "NoProductionSymbolicFallback"|>,
     observableTransportKernelDecomposition[
       inducedConnection, secondVariable]
   ];
