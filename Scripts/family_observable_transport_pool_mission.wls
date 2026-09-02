@@ -92,7 +92,10 @@ Module[
   coordinateBackend = Lookup[card, "CoordinateBackend", Automatic];
   coordinateCacheDirectory = Lookup[card, "CoordinateCacheDirectory",
     outputFile <> ".coordinates"];
-  reconstructionThreads = Lookup[card, "ReconstructionThreads", 1];
+  reconstructionThreads = Lookup[card, "ReconstructionThreads",
+    Quiet[Check[ToExpression[
+      Replace[Environment["FACET_TRANSPORT_RECONSTRUCTION_THREADS"],
+        Except[_String] | "" -> "1"]], 1]]];
   validationPrimeCount = Lookup[card, "ValidationPrimeCount", 2];
   validationPointsPerPrime = Lookup[card,
     "ValidationPointsPerPrime", 1];
