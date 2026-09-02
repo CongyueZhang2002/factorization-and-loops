@@ -989,11 +989,31 @@ transportChartRootBranchScale[base_, rootSquare_] := Module[{ratio, scale},
 ];
 
 transportChartApplyRootBranches[expr_, roots_List, images_List] := Module[
-  {scale},
+  {scale, match, fastQ},
   (* one Together per distinct (radicand, root) pair, not one per
      occurrence: the same radical appears in most entries of a connection *)
   scale[base_, index_] := scale[base, index] =
     transportChartRootBranchScale[base, roots[[index]]["RootSquare"]];
+  (* Formal generators and finite-field images contain no radicals of their
+     own.  In that overwhelmingly common path, find the first matching root
+     while visiting each source node once.  The former Fold revisited a large
+     rank-k matrix k times.  Algebraic chart images retain the sequential
+     Fold below because a root introduced by one image may itself need a
+     later branch substitution. *)
+  fastQ = FreeQ[images,
+    Power[_, exponent_Rational /; Denominator[exponent] === 2]];
+  If[TrueQ[fastQ],
+    match[base_] := match[base] = Module[{factor},
+      Do[
+        factor = scale[base, index];
+        If[factor =!= None, Return[{index, factor}, Module]],
+        {index, Length[roots]}];
+      None];
+    Return[expr /. Power[base_, exponent_Rational] :>
+      Module[{matched = If[Denominator[exponent] === 2,
+          match[base], None]},
+        If[matched === None, Power[base, exponent],
+          (matched[[2]] images[[matched[[1]]]])^(2 exponent)]], Module]];
   Fold[Function[{current, index},
     current /. Power[base_, exponent_Rational] :>
       Module[{factor = If[Denominator[exponent] === 2,
