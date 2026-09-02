@@ -611,7 +611,12 @@ familyCertMQPrepare[objects_Association, roots_List,
       scale rootSymbols[[index]]]];
   canonicalObjects = AssociationThread[Keys[normalObjects],
     canonical["Expression"]];
-  polynomializeEntry[entry_] := polynomializeEntry[entry] = Module[{direct},
+  (* Large symbolic entries must not become DownValue keys.  On CF259 the
+     structural hashing and retained keys inflated a 471 MB artifact to more
+     than 10 GB before the first prime trial.  Atomic entries cover the common
+     repeated zero/constant case without a cache. *)
+  polynomializeEntry[entry_?AtomQ] := entry;
+  polynomializeEntry[entry_] := Module[{direct},
     direct = entry /.
         Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
           With[{image = rootImage[base]},
