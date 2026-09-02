@@ -29,8 +29,7 @@
 
 ClearAll[
   pathTransportExceptionContractQ, pathTransportExceptionRecordQ,
-  pathTransportExceptionExtensionQ, pathTransportExceptionPlanIssues,
-  pathTransportExceptionPlanQ, pathTransportExceptionConnection,
+  pathTransportExceptionExtensionQ, pathTransportExceptionPlanIssues, pathTransportExceptionConnection,
   pathTransportExceptionArtifact, pathTransportExceptionReparameterize,
   pathTransportExceptionLocateBlock, pathTransportExceptionInstall,
   pathTransportExceptionValuationCheck, pathTransportExceptionCapability,

@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* Exact identities of the neutral multiquadratic algebra
-   (FeynFacet/Private/MultiquadraticAlgebra.wl, 2026-08-23).
+   (FeynFacet/Private/Core/MultiquadraticAlgebra.wl, 2026-08-23).
 
    Acceptance criteria, all exact and all stated before the run:
      - for every rank 0..3 the channel product equals the product of

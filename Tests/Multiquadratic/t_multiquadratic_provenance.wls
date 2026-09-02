@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* The 2026-08-25 HARDENING WAVE provenance work in
-   FeynFacet/Private/MultiquadraticStripSolve.wl.  Every section here is
+   FeynFacet/Private/EpsForm/MultiquadraticStripSolve.wl.  Every section here is
    one of Codex's P1 merge blockers from
    Exchange/Codex/2026-08-25/07_optimization_review_1430.md, and every one
    of them is ADVERSARIAL: it presents

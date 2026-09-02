@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* Synthetic solvable multiquadratic blocks, ranks 0 to 3, for
-   FeynFacet/Private/MultiquadraticStripSolve.wl (2026-08-23).
+   FeynFacet/Private/EpsForm/MultiquadraticStripSolve.wl (2026-08-23).
 
    Construction, in the style of Tests/FiniteField/t_finite_field_adversarial.wls:
    every block is BUILT from a known gauge and known residues.  The

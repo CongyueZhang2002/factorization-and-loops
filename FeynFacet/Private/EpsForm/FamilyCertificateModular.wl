@@ -31,7 +31,7 @@ ClearAll[
   familyCertDegMul, familyCertDegDeriv, familyCertDegAdd, familyCertDegCompose, familyCertBounds,
   familyCertCharacteristicZeroPoint, familyCertificateModular
   , familyCertMQFailure, familyCertMQModRational, familyCertMQSquareRoot,
-  familyCertMQPrepare, familyCertMQEvaluateMatrix, familyCertMQIndependentColumns,
+  familyCertMQPrepare, familyCertMQIndependentColumns,
   familyCertMQAuthenticateRegulatorRootFrames,
   familyCertMQPivotSignature, familyCertMQSelectModalPivotTrials,
   familyCertMQTrial, familyCertMQReconstructResidues,

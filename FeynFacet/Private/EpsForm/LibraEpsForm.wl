@@ -13,16 +13,8 @@
    this file stays clean. *)
 Clear[LibraFamilyEpsForm];
 ClearAll[
-  libraEpsFormLog,
-  libraEpsFormPrepareAssembly,
   libraEpsFormLoadBackend,
-  libraEpsFormFermatCompatibleQ,
-  libraEpsFormTimed,
-  libraEpsFormZeroQ,
-  libraEpsFormEpsFactoredQ,
-  libraEpsFormPoleFactors,
-  libraEpsFormDLogData,
-  libraEpsFormSpecializeFactorOut
+  libraEpsFormFermatCompatibleQ
 ];
 
 LibraFamilyEpsForm::system =
@@ -47,7 +39,7 @@ Options[LibraFamilyEpsForm] = {
   "Verbose" -> False
 };
 
-SetAttributes[libraEpsFormTimed, HoldFirst];
+SetAttributes[HoldFirst];
 
 libraEpsFormFermatCompatibleQ[expr_] := FreeQ[expr,
   _Root | _AlgebraicNumber |

@@ -1,17 +1,23 @@
 (* One core implementation of the finite-field primitives that the
    package currently rebuilds file by file (2026-09-02).
 
-   Consumers today: FiniteFieldEpsForm.wl
-   (epsFormFiniteFieldRationalReconstruct, ...CombineLists,
-   ...CombineCoordinate, ...ImageQ), FamilyCertificateModular.wl
-   (familyCertRationalReconstruct, familyCertMQSquareRoot),
-   MultiquadraticAlgebra.wl (multiquadraticSquareRoots,
-   multiquadraticSplitPointQ), PathTransportNative.wl
-   (pathTransportNativeSplitPoints), DiagonalBlockEpsForm.wl
-   (diagonalBlockLiftFunction) and the prime schedules of
-   FiniteFieldStripSolve.wl.  This file reproduces their semantics
-   exactly where they agree and states, at each definition, the one
-   place where they do not.
+   Wired consumers (2026-09-02, after the review's note N2):
+   FiniteFieldEpsForm.wl (epsFormFiniteFieldRationalReconstruct,
+   ...CombineLists, ...ImageQ, and ...CombineCoordinate /
+   DiagonalBlockEpsForm.wl's diagonalBlockLiftFunction through them),
+   FamilyCertificateModular.wl (familyCertRationalReconstruct,
+   familyCertMQSquareRoot), MultiquadraticAlgebra.wl
+   (multiquadraticSquareRoots, multiquadraticSplitPointQ),
+   ObservableTransportFiniteField.wl (modularSquareRoot for the
+   numeric radical constants).
+   NOT yet wired (deliberately, see the overhaul plan): the split-point
+   sampler of PathTransportNative.wl and the prime schedules of
+   FiniteFieldStripSolve.wl keep their own bodies; modularLift,
+   modularResidueQ, modularSplitPoints and modularPrimes are the
+   reference API for them, exercised by
+   Tests/FiniteField/t_modular_arithmetic.wls only.  This file
+   reproduces the consumers' semantics exactly where they agree and
+   states, at each definition, the one place where they do not.
 
    Every failure is TYPED: $Failed, or an Association carrying
    "Status".  Nothing here prints, and no expected failure reaches a

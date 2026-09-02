@@ -4469,7 +4469,7 @@ Options[TransportFamily] = {
   (* "Monolithic" (default) builds ONE path-ordered exponential of the
      whole conjugated connection and regrades it; "Blockwise" constructs
      the solution recursively on the block DAG instead
-     (FeynFacet/Private/BlockwiseTransport.wl), which is the same
+     (FeynFacet/Private/Transport/BlockwiseTransport.wl), which is the same
      mathematics with the union-alphabet word combinatorics removed.
      Everything around the transport -- assembly and its five-part
      certificate, depth arithmetic, valuation constraints, the per-order

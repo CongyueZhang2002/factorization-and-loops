@@ -63,7 +63,6 @@ ClearAll[
   finiteFieldStripModularArtifactValidQ,
   finiteFieldStripFLINTSolve,
   finiteFieldStripPutAtomic,
-  finiteFieldStripArtifactTag,
   finiteFieldStripDeadlineQ,
   finiteFieldStripDeadlineExpiredQ,
   finiteFieldStripBudgetExhausted,

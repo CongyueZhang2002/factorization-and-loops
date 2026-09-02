@@ -75,7 +75,6 @@ ClearAll[
   canonicalBlocksBucketKey,
   canonicalBlocksRowInvariants,
   canonicalBlocksOrbitCandidates,
-  canonicalBlocksOrbitAct,
   canonicalBlocksOrbitKey,
   canonicalBlocksMatchOrbit,
   canonicalBlocksContentAddress,

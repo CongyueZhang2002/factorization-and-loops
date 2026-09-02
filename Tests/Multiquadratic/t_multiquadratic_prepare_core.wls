@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* The 2026-08-25 preparation work in
-   FeynFacet/Private/MultiquadraticStripSolve.wl:
+   FeynFacet/Private/EpsForm/MultiquadraticStripSolve.wl:
 
      - prepare CONSUMES the sealed compile core instead of decomposing the
        forcing independently (so E, C and BBar are decomposed once for

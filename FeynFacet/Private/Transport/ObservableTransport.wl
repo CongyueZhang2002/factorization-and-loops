@@ -40,8 +40,6 @@ ClearAll[
   observableTransportCovariantRows,
   observableTransportCovariantRowsTask,
   observableTransportCovariantRowClosure,
-  observableTransportRowBasis,
-  observableTransportColumnBasis,
   observableTransportKernel,
   observableTransportBoundaryEmbedding,
   observableTransportResidues,

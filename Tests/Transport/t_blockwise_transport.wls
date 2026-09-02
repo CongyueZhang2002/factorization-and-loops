@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* Stage 2, block-wise transport engine
-   (FeynFacet/Private/BlockwiseTransport.wl, reached as
+   (FeynFacet/Private/Transport/BlockwiseTransport.wl, reached as
    TransportFamily[..., "Engine" -> "Blockwise"]).
 
    Acceptance criteria, stated before any of them is run.

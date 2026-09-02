@@ -19,7 +19,7 @@ scripts and string-constructed names).
 | Backup file | Symbols moved | Evidence | Replacement / stub |
 |---|---|---|---|
 | `EpsFormStrip.wl` | `SolveEpsFormStrip` (definition; `Options` kept), `epsFormStripExactPotentialGauge`, `epsFormStripRunCanonica` (~315 lines) | production entry `SolveEpsFormStripInFrame` is called with `"FiniteFieldFirst" -> True` by `Scripts/family_epsform_sector.wls:1399`; only `FACET_STRIP_ROUTE=Legacy` reached the ladder; `t_construction_budget` replaces it by a stand-in; route_split.py: 4 route-only symbols | typed `RouteRetired` stub; in-frame default `FiniteFieldFirst -> True` |
-| `TaskBroker.wl` | `taskBrokerCanonicaLadder` (~33 lines) | only caller was the moved ladder | none |
+| `TaskBroker.wl` | `taskBrokerCanonicaLadder` (~33 lines) | only caller was the moved ladder | none -- MOVED BACK 2026-09-02 06:08 (t_task_broker_limit drives it); the backup file is a placeholder |
 | `LibraEpsForm.wl` | `LibraFamilyEpsForm` (definition; `Options` kept) and 8 helpers (~348 lines) | no script; one test (moved to `Tests/`); loader helpers kept for `FamilyRegulatorFactor` | typed `RouteRetired` stub |
 | `TransportCharts.wl` | `transportChartMapleCanonicalGauge` (~23 lines) | `GaugePullBackMode` default is `"Exact"`; no script selects `"MapleCanonical"`; one test (moved) | typed `RouteRetired` stub; caller returns `StripGaugeMapleCanonicalizationFailed` |
 | `Core.wl` | 7 legacy sparse-reduction helpers (~72 lines) | zero references anywhere (reachability.py, string-constructed names included) | none |

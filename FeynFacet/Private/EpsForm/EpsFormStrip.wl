@@ -23,7 +23,6 @@ ClearAll[
   epsFormStripShapeQ,
   epsFormStripAlphabet,
   epsFormStripExactDLogQ,
-  epsFormStripExactPotentialGauge,
   epsFormStripBuildResidueCompatibility,
   epsFormStripRationalLinearEquations,
   epsFormStripMonicPolynomial,

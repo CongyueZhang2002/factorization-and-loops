@@ -133,12 +133,12 @@ epsFormFiniteFieldCombineCoordinate[data_List, moduli_List] := Module[
   |>
 ];
 
+(* one implementation (Core/ModularArithmetic.wl, review note N2): the
+   same statement at a prime modulus; at a composite CRT modulus the
+   shared version tests the unit condition with CoprimeQ instead of
+   calling PowerMod on a non-unit *)
 epsFormFiniteFieldImageQ[integer_Integer, rational_, modulus_Integer] :=
- Module[{denominator = Mod[Denominator[rational], modulus]},
-  denominator =!= 0 &&
-    Mod[Numerator[rational] PowerMod[denominator, -1, modulus],
-      modulus] === Mod[integer, modulus]
-];
+  TrueQ[modularImageQ[integer, rational, modulus]];
 
 epsFormFiniteFieldGaugeDenominator[bbar_List, variables_List] := Module[
   {factorPairs, factors, powers},

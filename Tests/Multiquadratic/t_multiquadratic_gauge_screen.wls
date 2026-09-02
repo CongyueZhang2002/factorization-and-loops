@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* The FULL-GAUGE per-image screen and the witness-guided mixed-grade
-   letter discovery of FeynFacet/Private/MultiquadraticStripSolve.wl
+   letter discovery of FeynFacet/Private/EpsForm/MultiquadraticStripSolve.wl
    (2026-08-25).
 
    The residue-only integrability screen (Tests/Multiquadratic/t_multiquadratic_letters.wls)

@@ -1,3 +1,9 @@
+(* RETIRED ROUTE (overhaul 2026-09-02): FeynFacet`LibraFamilyEpsForm answers
+   <|"Status" -> "RouteRetired", ...|> (the implementation is kept, unloaded,
+   in FeynFacet/Private_Backup/LibraEpsForm.wl).  This worker only ever
+   served that route; its DownValues guard below cannot tell the stub from
+   the implementation (review note N5), so a run now records the retired
+   status as the family's failure record instead of an eps-form. *)
 (* Data adapter from the NNLO family records to LibraFamilyEpsForm. *)
 
 ClearAll[FACETBatch`RunLibraFamilyEpsForm];

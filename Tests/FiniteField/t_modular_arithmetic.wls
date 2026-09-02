@@ -1,5 +1,5 @@
 #!/usr/bin/env wolframscript
-(* The shared finite-field primitives of FeynFacet/Private/ModularArithmetic.wl.
+(* The shared finite-field primitives of FeynFacet/Private/Core/ModularArithmetic.wl.
 
    Acceptance criteria, all stated before the run and all checked
    against INDEPENDENT values (a brute-force search over the
