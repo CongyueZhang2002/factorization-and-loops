@@ -12,7 +12,7 @@ Module[{repo, runtime, affine, schur, prime, images, records, gaugeCount,
     Get[FileNameJoin[{repo, "Addon", "Load", "LoadFACET.wl"}]]];
   Block[{$Context = "FeynFacet`Private`",
       $ContextPath = {"System`", "FeynFacet`", "FeynFacet`Private`"}},
-    Get[FileNameJoin[{repo, "FeynFacet", "Private",
+    Get[FileNameJoin[{repo, "FeynFacet", "Private", "EpsForm",
       "FiniteFieldStripSolve.wl"}]]];
   affine = Import[FileNameJoin[{runtime,
     "cf300_p31_affine25_capture.wxf"}], "WXF"];

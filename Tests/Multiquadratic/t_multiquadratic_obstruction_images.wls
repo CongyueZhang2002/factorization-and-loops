@@ -246,7 +246,7 @@ report["O9 contract note", Lookup[driven, "ContractNote", None]];
 (* O10: no surviving theorem-level wording                              *)
 (* ------------------------------------------------------------------ *)
 
-source = Import[FileNameJoin[{root, "FeynFacet", "Private",
+source = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
   "MultiquadraticStripSolve.wl"}], "Text"];
 stripComments[text_String] := Module[{characters, depth = 0, out = {}, k = 1,
     n},

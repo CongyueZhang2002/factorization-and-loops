@@ -372,18 +372,6 @@ canonicalBlocksOrbitCandidates[target_, source_] :=
     Select[Tuples[allowed], DuplicateFreeQ]
   ];
 
-(* The group element (swap, q) acting on a raw block: relabel the
-   variables if asked, then conjugate the basis.  Row i of the result is
-   row q[[i]] of the source. *)
-canonicalBlocksOrbitAct[{av_, aw_}, swapQ_, permutation_, variables_] :=
-  Module[{pair},
-    pair = If[TrueQ[swapQ],
-      canonicalBlocksSwapPair[{av, aw}, variables],
-      {av, aw}];
-    {pair[[1]][[permutation, permutation]],
-      pair[[2]][[permutation, permutation]]}
-  ];
-
 (* The content address of a class: the least element of the orbit of the
    normalized pair.  Full enumeration is exact and the honest thing to
    do; a dimension above the cap is refused rather than approximated,

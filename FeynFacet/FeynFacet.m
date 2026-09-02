@@ -127,7 +127,7 @@ TransportPathArtifactRun::usage =
   "TransportPathArtifactRun[artifact,p] reopens a serializable provider-backed path-transport artifact, rebuilds its accepted family connection through the artifact's source descriptor, evaluates the formal variation-of-constants recurrence as exact origin jets modulo the prime p, and checks the complete block differential equation and basepoint constants coefficient by coefficient. artifact may be an Association or a .wl file. The result is a formal solution up to boundary constants on the declared path; a finite origin jet is never reported as an endpoint value. \"ConstantValues\" supplies modular boundary constants, while Automatic uses deterministic generic values for certification.";
 
 LibraFamilyEpsForm::usage =
-  "LibraFamilyEpsForm[system,chart] constructs an exact whole-family epsilon-form after the caller supplies a rational two-variable chart. It pulls the system and every certified diagonal-block form into the chart, assembles the block-lower-triangular connection, alternates Libra Fuchsify and FactorOut in the two chart variables, and returns TTotal, the two epsilon-form connection matrices, and exact certificates for dlog form, flatness, invertibility, and the gauge identity against the original connection. chart may be None for a rational source frame. The function contains no process-specific chart lookup, kinematic chamber, or branch choice.";
+  "LibraFamilyEpsForm is RETIRED (overhaul 2026-09-02): the whole-family Libra construction is kept, unloaded, in FeynFacet/Private_Backup/LibraEpsForm.wl. Calls return <|\"Status\" -> \"RouteRetired\", ...|>. The family completion runs through Scripts/family_epsform_sector.wls, FactorFamilyRegulatorDependence and CertifyFamilyEpsilonForm.";
 
 TransportStatus::usage =
   "TransportStatus[result] prints one greppable line per certificate, per regrading budget and per block of a TransportFamily result, for a watchdog running in a second kernel. It returns the lines and prints them unless \"Print\" -> False.";
@@ -178,7 +178,7 @@ SolveResidueRationalGauge::usage =
   "SolveResidueRationalGauge[{e,c,bbar},{x,y},eps] constructs the exact residue-compatible inhomogeneous system for one off-diagonal differential-equation strip. It first uses Maple IntegrableConnections and then, if needed, an exact rational ansatz built from the strip letters; a gauge is returned only after symbolic checks in both variables.";
 
 SolveEpsFormStrip::usage =
-  "SolveEpsFormStrip[{e,c,bbar},{x,y},eps] recognizes an existing dlog strip, otherwise searches CANONICA numerator degrees 0,1,2,3 with 120 seconds per degree and no more than eight kernels, and invokes the exact Maple routes only when none gives a checked dlog gauge. Options change the degrees, time limits, denominator ansatz, scratch directory, and Maple paths.";
+  "SolveEpsFormStrip is RETIRED (overhaul 2026-09-02): the CANONICA degree ladder and Maple residue solver it implemented are kept, unloaded, in FeynFacet/Private_Backup/EpsFormStrip.wl. Calls return <|\"Status\" -> \"RouteRetired\", ...|>. Use SolveEpsFormStripInFrame (finite-field route). Options[SolveEpsFormStrip] remains the option set the in-frame solver filters.";
 
 NormalizeEpsFormAffineSample::usage =
   "NormalizeEpsFormAffineSample[sample,columns,p] fixes an affine finite-field solution so that its selected nullspace-coordinate block is the identity and its particular solution vanishes in those coordinates. It returns the normalized particular vector and nullspace basis modulo the prime p.";
@@ -262,6 +262,15 @@ FindObservableTransportPath::usage =
 
 BuildObservableTransport::usage =
   "BuildObservableTransport[familyEpsForm,demand] constructs only the iterated-integral maps that can contribute to the requested epsilon-order/master-row pairs. familyEpsForm is an exactly certified whole-family epsilon-form record. demand declares PhysicalDemandPairs (or the older Cartesian PhysicalRows and PhysicalOrders form), PhysicalValuation and Path. The routine first imposes the vanishing Laurent coefficients of the physical masters, derives the exact allowed boundary subspace, keeps its constants factored, and then propagates only nonzero projected dlog words. Every returned kernel, residue decomposition and differential invariant is checked symbolically.";
+
+AcceptedObservableTransportQ::usage =
+  "AcceptedObservableTransportQ[result] checks the required named exact certificates and, according to the representation and boundary method, every fresh modular closure, ambient-invariance and quotient-coordinate certificate. It keeps probabilistic structural acceptance distinct from an exact symbolic identity.";
+
+ObservableTransportWordMap::usage =
+  "ObservableTransportWordMap[result,firstWord,secondWord] returns one demanded matrix-valued word from a materialized record, the exact lazy operator chain, or the optional compact quotient automaton. Lazy evaluation preserves the ordered product D R_word B K_word N_base and performs no global rational canonicalization.";
+
+ReconstructObservableTransportWordMaps::usage =
+  "ReconstructObservableTransportWordMaps[result,{{firstWord,secondWord},...}] materializes only the requested rational word maps, reconstructs all their final entries as one traced multi-right-hand-side Ratracer problem, and accepts the result at fresh modular points with the independent FLINT solver. Intermediate gauges and nullspaces are not reconstructed.";
 
 AssembleCutContributions::usage =
   "AssembleCutContributions[{result1, ...}] combines coefficient results of one process on a shared canonical family namespace. Each contribution enters with the exact weight IdenticalParticleSymmetryFactor[setup] times (-1) per outgoing ghost-antighost pair, realizing the Slavnov-Taylor completion of -g gluon polarization sums.";
@@ -393,27 +402,22 @@ $feynFacetAddonRoot = If[StringQ[Global`$FACETAddonRoot], Global`$FACETAddonRoot
 $feynFacetLoader = If[StringQ[Global`$FACETLoader], Global`$FACETLoader,
   FileNameJoin[{$feynFacetAddonRoot, "Addon", "Load", "LoadFACET.wl"}]];
 $feynFacetPrivateDirectory = FileNameJoin[{$feynFacetDirectory, "Private"}];
-$feynFacetPrivateFiles = FileNameJoin[{$feynFacetPrivateDirectory, #}] & /@ {
-    "Core.wl", "Process.wl", "Topologies.wl", "CanonicalFamilies.wl",
-    "DimensionalShift.wl", "Collinear.wl", "Reduction.wl",
-    "StreamingKira.wl",
-    "MasterIntegralAmFlow.wl", "Simplification.wl", "Assembly.wl",
-    "CoefficientStore.wl", "Reconstruction.wl",
-    "CanonicalBlocks.wl", "EpsFormStrip.wl",
-    "RationalMaterialization.wl", "BlockEquationDeferred.wl",
-    "FiniteFieldEpsForm.wl",
-    "FiniteFieldStripSolve.wl", "EpsFormStripObstruction.wl", "FamilyRegulatorFactor.wl", "FamilyRowGauge.wl", "FamilyCertificateModular.wl", "ObservableTransport.wl",
-    "MasterTransport.wl", "BlockwiseTransport.wl",
-    "CanonicalWordTransport.wl",
-    "PathTransportException.wl",
-    "TransportCharts.wl", "FamilyRowGaugeResume.wl",
-    "MultiquadraticAlgebra.wl", "MultiquadraticStripSolve.wl",
-    "PathTransportNative.wl",
-    "FiniteFieldGaugePullBack.wl",
-    "MultiquadraticInstallation.wl",
-    "LibraEpsForm.wl", "FamilyEpsForm.wl",
-    "DiagonalBlockEpsForm.wl", "TaskBroker.wl"
-};
+(* Load order and layer structure (overhaul 2026-09-02): the manifest
+   Private/LoadOrder.wl lists the layers in load order and the files of
+   each layer; a layer may reference only itself and lower layers.  The
+   package refuses to load if the manifest is missing or malformed, or
+   if a listed file is absent.  Files under Private_Backup/ are never
+   loaded (superseded code kept with its evidence). *)
+$feynFacetLoadOrderFile = FileNameJoin[{$feynFacetPrivateDirectory, "LoadOrder.wl"}];
+$feynFacetLoadOrder = If[FileExistsQ[$feynFacetLoadOrderFile],
+  Get[$feynFacetLoadOrderFile], $Failed];
+If[! MatchQ[$feynFacetLoadOrder, {(_String -> {___String}) ..}],
+  Print["FeynFacet: load-order manifest missing or malformed: ", $feynFacetLoadOrderFile];
+  Abort[]
+];
+$feynFacetPrivateFiles = Flatten[Function[{layer, files},
+    FileNameJoin[{$feynFacetPrivateDirectory, layer, #}] & /@ files] @@@
+  $feynFacetLoadOrder];
 $feynFacetSourceFiles = Join[
   {ExpandFileName[$InputFileName], FileNameJoin[{$feynFacetDirectory, "Distributions.wl"}]},
   $feynFacetPrivateFiles

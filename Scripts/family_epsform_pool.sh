@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Family eps-form completion on ONE main kernel + N subkernels (N is the
 # option), several families at once, each family parallelized through the
-# pool's task broker (FeynFacet/Private/TaskBroker.wl):
+# pool's task broker (FeynFacet/Private/Infrastructure/TaskBroker.wl):
 #   - the KernelPool is our one main kernel; every family runs as a pool
 #     mission on one subkernel (family_epsform_sector.wls);
 #   - inside a strip, the finite-field sample batches and the CANONICA

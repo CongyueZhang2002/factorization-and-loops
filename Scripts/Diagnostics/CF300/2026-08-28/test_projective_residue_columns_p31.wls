@@ -14,7 +14,7 @@ Module[{repo, runtime, capture, prime, records, fixedColumns,
     Get[FileNameJoin[{repo, "Addon", "Load", "LoadFACET.wl"}]]];
   Block[{$Context = "FeynFacet`Private`",
       $ContextPath = {"System`", "FeynFacet`", "FeynFacet`Private`"}},
-    Get[FileNameJoin[{repo, "FeynFacet", "Private",
+    Get[FileNameJoin[{repo, "FeynFacet", "Private", "EpsForm",
       "FiniteFieldStripSolve.wl"}]]];
   capture = Import[FileNameJoin[{runtime,
     "cf300_aligned_schur_p31_76_checkpoint.wxf"}], "WXF"];

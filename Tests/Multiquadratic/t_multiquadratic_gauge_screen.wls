@@ -593,7 +593,7 @@ check["S5 a consistent first image ends the screen (fast path preserved)",
 
 (* S6: the contract language of the top level says what a confirmed
    defect is and what it is not *)
-solveSource = Import[FileNameJoin[{root, "FeynFacet", "Private",
+solveSource = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
   "MultiquadraticStripSolve.wl"}], "Text"];
 check["S6 the solution contract calls a confirmed defect a high-confidence \
 modular obstruction, not a Q(eps) theorem",

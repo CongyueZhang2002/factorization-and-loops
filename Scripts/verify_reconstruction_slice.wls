@@ -15,7 +15,7 @@
    variable stays symbolic.
 
    Since 2026-08-13 the check itself lives in the package
-   (FeynFacet/Private/Reconstruction.wl, also reachable as the
+   (FeynFacet/Private/Reduction/Reconstruction.wl, also reachable as the
    "VerifySlices" option of FeynFacet`ReconstructCoefficients); this
    script is the CLI over it and keeps the arguments it always had.
 

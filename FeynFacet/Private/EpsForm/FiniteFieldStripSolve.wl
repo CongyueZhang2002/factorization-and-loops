@@ -154,7 +154,7 @@ $finiteFieldStripCFFRAdapterHashCache = <||>;
    cached under the binary's path, and re-checked on every discovery: a
    binary replaced mid-session is a typed failure, never a plan that
    silently belongs to another executable. *)
-finiteFieldStripCFFRAdapterHashes[] := Module[{binary, source, current},
+finiteFieldStripCFFRAdapterHashes[] := Module[{binary, source, current, stamp, cached},
   binary = finiteFieldStripCFFRBinary[];
   source = finiteFieldStripCFFRSource[];
   If[! StringQ[binary] || ! FileExistsQ[binary],
@@ -163,16 +163,29 @@ finiteFieldStripCFFRAdapterHashes[] := Module[{binary, source, current},
   If[! StringQ[source] || ! FileExistsQ[source],
     Return[finiteFieldStripCFFRFailure["CFFRAdapterSourceUnavailable",
       <|"AdapterSource" -> If[StringQ[source], source, None]|>]]];
+  (* Overhaul 2026-09-02 (certification audit item 5): the code re-read
+     and re-hashed the binary and the source on EVERY call (once per
+     sample), while the comment promised once per session.  The hashes
+     are now computed once and re-verified only when the files' size or
+     modification date changes; a changed hash is still the typed
+     failure it always was. *)
+  stamp = <|"AdapterBinary" -> binary, "AdapterSource" -> source,
+    "BinaryBytes" -> FileByteCount[binary],
+    "BinaryDate" -> FileDate[binary, "Modification"],
+    "SourceBytes" -> FileByteCount[source],
+    "SourceDate" -> FileDate[source, "Modification"]|>;
+  cached = Lookup[$finiteFieldStripCFFRAdapterHashCache, binary, None];
+  If[AssociationQ[cached] && Lookup[cached, "Stamp", None] === stamp,
+    Return[Join[<|"Status" -> "OK"|>, cached["Hashes"]]]];
   current = <|"AdapterBinary" -> binary, "AdapterSource" -> source,
     "AdapterBinarySHA256" -> FileHash[binary, "SHA256", "HexString"],
     "AdapterSourceSHA256" -> FileHash[source, "SHA256", "HexString"]|>;
-  If[KeyExistsQ[$finiteFieldStripCFFRAdapterHashCache, binary],
-    If[$finiteFieldStripCFFRAdapterHashCache[binary] =!= current,
-      Return[finiteFieldStripCFFRFailure["CFFRAdapterHashChanged",
-        <|"CachedAdapterHashes" ->
-            $finiteFieldStripCFFRAdapterHashCache[binary],
-          "CurrentAdapterHashes" -> current|>]]],
-    $finiteFieldStripCFFRAdapterHashCache[binary] = current];
+  If[AssociationQ[cached] && cached["Hashes"] =!= current,
+    Return[finiteFieldStripCFFRFailure["CFFRAdapterHashChanged",
+      <|"CachedAdapterHashes" -> cached["Hashes"],
+        "CurrentAdapterHashes" -> current|>]]];
+  $finiteFieldStripCFFRAdapterHashCache[binary] =
+    <|"Stamp" -> stamp, "Hashes" -> current|>;
   Join[<|"Status" -> "OK"|>, current]
 ];
 
@@ -376,9 +389,11 @@ finiteFieldStripCFFRPlanBindingValidQ[plan_Association] := Module[
     StringMatchQ[value, RegularExpression["[0-9a-f]{64}"]];
   nonce = Lookup[plan, "Nonce", None];
   threads = Lookup[plan, "Threads", None];
-  cached = Lookup[$finiteFieldStripCFFRAdapterHashCache,
+  (* the session cache stores <|"Stamp", "Hashes"|> per binary
+     (overhaul 2026-09-02); the binding check compares the hashes *)
+  cached = Lookup[Lookup[$finiteFieldStripCFFRAdapterHashCache,
     Replace[finiteFieldStripCFFRBinary[], None -> Missing["NoAdapter"]],
-    <||>];
+    <||>], "Hashes", <||>];
   TrueQ[
     Lookup[plan, "Protocol", None] === "CFFR1" &&
     hexQ[Lookup[plan, "AdapterSourceSHA256", None]] &&
@@ -2596,10 +2611,6 @@ finiteFieldStripPutAtomic[expression_, file_String] := Module[
   Put[expression, temporary];
   RenameFile[temporary, file, OverwriteTarget -> True]
 ];
-
-finiteFieldStripArtifactTag[value_] := StringReplace[
-  ToString[value, InputForm],
-  {"/" -> "_", "-" -> "m", " " -> ""}];
 
 (* A2 certificate: the lifted solution vector (gauge numerator
    coefficients over the support, then residues), reduced at a regulator

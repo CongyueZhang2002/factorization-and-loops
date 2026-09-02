@@ -4,7 +4,7 @@ root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Block[{$Context = "FeynFacet`Private`",
     $ContextPath = {"System`", "FeynFacet`", "FeynFacet`Private`"}},
-  Get[FileNameJoin[{root, "FeynFacet", "Private",
+  Get[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
     "FiniteFieldStripSolve.wl"}]]];
 
 pass = 0; fail = 0;

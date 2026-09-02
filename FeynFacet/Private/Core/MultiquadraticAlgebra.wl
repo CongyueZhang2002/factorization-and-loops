@@ -24,6 +24,7 @@
 Begin["FeynFacet`Private`"];
 
 ClearAll[
+  $multiquadraticAlgebraABIFingerprintCache,
   multiquadraticBasisMasks, multiquadraticMaskFactor,
   multiquadraticParity, multiquadraticHadamardMatrix,
   multiquadraticCharacteristicNormalize, multiquadraticIntegerDataQ,
@@ -206,14 +207,24 @@ multiquadraticAlgebraProbe[] := Module[
     {rank, 0, $multiquadraticAlgebraProbeRank}]
 ];
 
-multiquadraticAlgebraABIFingerprint[] := Module[{probe, symbols},
+(* The fingerprint is a constant of the loaded package: it is computed once
+   and memoized (overhaul 2026-09-02, certification audit item 1).  It used
+   to run the symbolic probe and a full InputForm on EVERY call, and it is
+   called from the validity predicates that run per sample and per prime.
+   A failed probe is not memoized, so a context problem stays visible. *)
+$multiquadraticAlgebraABIFingerprintCache = None;
+multiquadraticAlgebraABIFingerprint[] := Module[{probe, symbols, value},
+  If[StringQ[$multiquadraticAlgebraABIFingerprintCache],
+    Return[$multiquadraticAlgebraABIFingerprintCache]];
   probe = multiquadraticAlgebraProbe[];
   symbols = DeleteDuplicates[Cases[probe, symbol_Symbol :> symbol,
     {0, Infinity}, Heads -> True]];
   (* a fingerprint whose text depends on the reader's context is not an
      ABI (package bug handoff 2026-08-23, pool defect 3) *)
   If[! AllTrue[symbols, Context[#] === "System`" &], Return[$Failed]];
-  Hash[ToString[InputForm[probe]], "SHA256", "HexString"]
+  value = Hash[ToString[InputForm[probe]], "SHA256", "HexString"];
+  $multiquadraticAlgebraABIFingerprintCache = value;
+  value
 ];
 
 End[];

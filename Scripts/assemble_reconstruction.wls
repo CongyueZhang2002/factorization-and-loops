@@ -20,7 +20,7 @@
 
    Since 2026-08-13 the parser, the marker resolution and the
    signature-weighted assembly live in the package
-   (FeynFacet/Private/Reconstruction.wl); this script is the CLI over
+   (FeynFacet/Private/Reduction/Reconstruction.wl); this script is the CLI over
    them and keeps the arguments it always had.
 
    Usage:

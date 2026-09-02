@@ -1,3 +1,45 @@
+# Session transfer note — 2026-09-02 (overnight package overhaul; Fable)
+
+Read `Design/PrivateOverhaul_2026-09-01.md` first: it is the living plan
+with done / running / not-done / decisions-for-the-user, the bug list,
+the benchmark table and the CF259 state. This note is the short version.
+
+## What changed
+
+- `FeynFacet/Private/` restructured into seven layer folders with the
+  load-order manifest `Private/LoadOrder.wl` (`Design/PrivateLayers_2026-09-02.md`).
+- Superseded code moved to `FeynFacet/Private_Backup/` (never loaded),
+  each move with evidence in `Private_Backup/EVIDENCE.md`; retired public
+  entries answer `RouteRetired`.
+- The accepted lazy-operator observable transport (Codex branch) was
+  adopted into this tree (`Transport/ObservableTransport.wl`,
+  `ObservableTransportFiniteField.wl`, pool mission and campaign
+  scripts, eight tests); a regression in its last revision (records
+  without `ChartRecord` refused) is fixed.
+- New `Core/ModularArithmetic.wl`: one implementation of the finite-field
+  primitives (goal 2); call-site migration status in the plan.
+- Laurent extraction of the transport is an exact epsilon-jet (goal 6);
+  rank-sampling failures carry diagnostics and can dump their state.
+- Pool and driver fixes (B1-B4 in the plan): kernel-launching tests are
+  standalone-only; requeued missions are no longer filed DUPLICATE; the
+  pool and its tools take their root/paths from the file location or
+  `FACET_SCRATCHPAD`, never from a hard-coded session path.
+- Certification audit applied in part (goal 10): memoized ABI
+  fingerprint, cached adapter hashes; the rest listed in the plan.
+
+## CF259 (goal 11)
+
+Inputs (assembled eps-form, native dlog residues, compact transport-ready
+record with Codex's transport valuations, path card) are under
+`Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/transport_inputs_2026-09-02/`.
+State: (filled in at the end of the session -- see the plan's CF259 rows).
+
+## Rules that changed
+
+- Test batches in reuse mode; two main kernels is the licence limit with
+  the pool up; sequence standalone jobs.
+- Lane split with Codex dissolved; the Codex tree is reference only.
+
 # HANDOFF — orientation and workflow walkthrough
 
 Rewritten 2026-09-01 as a general guide; the running session log that

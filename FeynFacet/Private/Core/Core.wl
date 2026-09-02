@@ -344,27 +344,6 @@ remainingDeclaredMomenta[expression_, momenta_List] := Select[
   ! FreeQ[HoldComplete[expression], #] &
 ];
 
-protectedAnalyticObjects[expression_] := Module[{walk},
-  walk[value_?AtomQ] := {};
-  walk[value_Plus] := Flatten[walk /@ List @@ value];
-  walk[value_Times] := Flatten[walk /@ List @@ value];
-  walk[Power[base_, power_Integer]] := walk[base];
-  walk[value_] := {value};
-  DeleteDuplicates[walk[expression], SameQ]
-];
-
-atomizeProtectedAnalyticObjects[expression_] := Module[
-  {protected, atoms},
-  protected = protectedAnalyticObjects[expression];
-  atoms = Table[Unique["analytic$"], Length[protected]];
-  <|
-    "Expression" -> expression,
-    "Atoms" -> atoms,
-    "Forward" -> Dispatch[Thread[protected -> atoms]],
-    "Backward" -> Dispatch[Thread[atoms -> protected]]
-  |>
-];
-
 topLevelFactors[expr_] := If[Head[expr] === Times, List @@ expr, {expr}];
 
 commonFactorMultiset[lists : {__List}] := Module[{commonCounts},
@@ -373,20 +352,6 @@ commonFactorMultiset[lists : {__List}] := Module[{commonCounts},
 ];
 
 removeFactorOnce[list_List, factor_] := DeleteCases[list, factor, {1}, 1];
-
-removeFactorMultiset[list_List, factors_List] :=
-  Fold[removeFactorOnce, list, factors];
-
-structuralCommonFactor[expressions_List] := Module[
-  {factorLists, shared},
-  If[expressions === {}, Return[{1, {}}]];
-  factorLists = topLevelFactors /@ expressions;
-  shared = commonFactorMultiset[factorLists];
-  {
-    Times @@ shared,
-    Times @@@ (removeFactorMultiset[#, shared] & /@ factorLists)
-  }
-];
 
 
 CommonFactorSafe[expr_, loopMomenta_List : {}] := Module[
@@ -546,11 +511,6 @@ linearCanonicalize[data_?linearIntegralSumStructureQ] := <|
   "Remainder" -> data["Remainder"]
 |>;
 
-linearMapCoefficients[data_?linearIntegralSumStructureQ, function_] := <|
-  "Terms" -> Map[function, data["Terms"]],
-  "Remainder" -> function[data["Remainder"]]
-|>;
-
 linearScale[data_?linearIntegralSumQ, factor_] :=
   linearCanonicalize @ <|
     "Terms" -> Map[factor # &, data["Terms"]],
@@ -585,27 +545,6 @@ linearMapIntegrals[data_?linearIntegralSumQ, rules_] := Module[{terms, result},
   |>;
   If[linearIntegralSumQ[result], result,
     Failure["InvalidIntegralMap", <||>]
-  ]
-];
-
-compileSparseReduction[
-    targets_List,
-    rules_,
-    coefficientFunction_: Identity
-  ] := Module[{images},
-  images = AssociationMap[
-    Function[target,
-      With[{image = linearIntegralSum[Replace[target, rules, {0}]]},
-        If[FailureQ[image], image,
-          linearMapCoefficients[image, coefficientFunction]
-        ]
-      ]
-    ],
-    targets
-  ];
-  If[AnyTrue[Values[images], FailureQ],
-    Failure["InvalidReductionImage", <||>],
-    images
   ]
 ];
 
@@ -663,16 +602,5 @@ linearComposeReduction[
   |>;
   If[linearIntegralSumStructureQ[result], result,
     Failure["InvalidLinearIntegralSum", <||>]
-  ]
-];
-
-linearApplyReduction[data_?linearIntegralSumQ, rules_, reverseRules_] := Module[
-  {reduction},
-  reduction = compileSparseReduction[
-    Keys[data["Terms"]],
-    Dispatch[(rules /. reverseRules)]
-  ];
-  If[FailureQ[reduction], reduction,
-    linearComposeReduction[data /. reverseRules, reduction]
   ]
 ];

@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
-POOL="${POOL:-/tmp/claude-1000/-home-maxzhang/97c0fce7-1578-4630-a481-38730c7f8b9d/scratchpad/kernelpool}"
+POOL="${POOL:-${FACET_SCRATCHPAD:+$FACET_SCRATCHPAD/kernelpool}}"; [[ -z "$POOL" ]] && { echo "kpstatus: set POOL=<pooldir> (or FACET_SCRATCHPAD)" >&2; exit 64; }
 cat "$POOL/status.txt" 2>/dev/null || echo "no status (pool not running?)"

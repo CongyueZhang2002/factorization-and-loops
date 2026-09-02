@@ -13,7 +13,10 @@
 # The mission runs on a free subkernel via Get; its Print/Message output goes to <pool>/logs/<name>.log;
 # on completion <pool>/done/<name>.status (or failed/) holds the result record.
 set -euo pipefail
-POOL="${POOL:-/tmp/claude-1000/-home-maxzhang/97c0fce7-1578-4630-a481-38730c7f8b9d/scratchpad/kernelpool}"
+# The pool directory is never a hard-coded session path (overhaul 2026-09-02):
+# POOL, else $FACET_SCRATCHPAD/kernelpool, else refuse.
+POOL="${POOL:-${FACET_SCRATCHPAD:+$FACET_SCRATCHPAD/kernelpool}}"
+if [[ -z "$POOL" ]]; then echo "kpsubmit: set POOL=<pooldir> (or FACET_SCRATCHPAD)" >&2; exit 64; fi
 if (( $# < 2 )); then
   echo "Usage: kpsubmit.sh <name> <script.wls|.wl> [args...]" >&2
   exit 64

@@ -288,12 +288,12 @@ reported, not asserted"];
   check["(D4) the CPU-list fallback on this machine is unchanged (0..15)",
     FeynFacet`Private`facetCPUList[] === StringRiffle[ToString /@ Range[0, 15], ","]]];
 check["(D4) CanonicalizeClasses no longer writes into Directory[]",
-  Module[{source = Import[FileNameJoin[{root, "FeynFacet", "Private",
+  Module[{source = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
       "CanonicalBlocks.wl"}], "Text"]},
     StringFreeQ[source, "Directory[], \"CanonicalClassForms\""] &&
       StringContainsQ[source, "$TemporaryDirectory"]]];
 check["(D4) MasterTransport refuses a base point on a letter zero",
-  Module[{source = Import[FileNameJoin[{root, "FeynFacet", "Private",
+  Module[{source = Import[FileNameJoin[{root, "FeynFacet", "Private", "Transport",
       "MasterTransport.wl"}], "Text"]},
     StringContainsQ[source, "\"BasePointOnLetterZero\""] &&
       StringContainsQ[source, "Lookup[monic, \"Denominators\", {}]"]]];

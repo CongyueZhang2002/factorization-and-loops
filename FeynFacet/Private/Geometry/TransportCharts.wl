@@ -488,29 +488,6 @@ Options[transportChartMapleCanonicalGauge] = {
   "Verbose" -> False
 };
 
-transportChartMapleCanonicalGauge[before_List,
-    variables : {_Symbol, _Symbol}, epsilon_Symbol, roots_List,
-    OptionsPattern[]] := Module[
-  {started = AbsoluteTime[], normalized, after},
-  normalized = epsFormStripMapleCanonicalize[before,
-    "MapleExecutable" -> OptionValue["MapleExecutable"],
-    "ScratchDirectory" -> OptionValue["ScratchDirectory"],
-    "CacheDirectory" -> OptionValue["CacheDirectory"],
-    "Tag" -> OptionValue["Tag"], "TimeLimit" -> OptionValue["TimeLimit"],
-    "Runner" -> OptionValue["Runner"], "Verbose" -> OptionValue["Verbose"]];
-  If[Lookup[normalized, "Status", None] =!= "MapleCanonicalGaugeV1",
-    Return[<|"Status" -> "MapleGaugeCanonicalizationFailed",
-      "Detail" -> normalized|>]];
-  after = normalized["Result"];
-  If[Dimensions[after] =!= Dimensions[before],
-    Return[<|"Status" -> "MapleGaugeCanonicalShapeMismatch"|>]];
-  <|"Status" -> "MapleCanonicalGaugePrepared", "Result" -> after,
-    "Normalizer" -> KeyDrop[normalized, "Result"],
-    "Seconds" -> N[AbsoluteTime[] - started]|>
-];
-transportChartMapleCanonicalGauge[___] :=
-  <|"Status" -> "MapleGaugeCanonicalizationInvalidInput"|>;
-
 transportChartLogSuccessTimings[timings_Association, chartName_,
     verboseQ_] := If[
   TrueQ[verboseQ] || AbsoluteTime[] - $transportChartLastSuccessLogTime >=
@@ -1770,7 +1747,7 @@ transportChartBudgetExhausted[substage_String, elapsed_, deadline_,
 Options[SolveEpsFormStripInFrame] = Join[
   Options[SolveEpsFormStrip], {
     "FiniteFieldFallback" -> True,
-    "FiniteFieldFirst" -> False,
+    "FiniteFieldFirst" -> True,   (* production default since 2026-09-02; the CANONICA/Maple ladder is retired *)
     "FiniteFieldOptions" -> {},
     "MultiquadraticDispatch" -> True,
     "MultiquadraticOptions" -> {},
@@ -3240,3 +3217,11 @@ masterTransportComposeTwoVariableRecord[recordChart_Association,
       "Images" -> Map[Together, fresh /. First[verified]],
       "Candidates" -> Length[candidates], "Verified" -> Length[verified],
       "Route" -> route|>]];
+
+(* Retired route (overhaul 2026-09-02, goal 1): the Maple canonical gauge
+   normalizer behind GaugePullBackMode -> "MapleCanonical" lives in
+   FeynFacet/Private_Backup/TransportCharts.wl and is not loaded; the
+   modes "Exact" (default) and "FiniteFieldReconstruct" remain. *)
+transportChartMapleCanonicalGauge[___] := <|"Status" -> "RouteRetired",
+  "Route" -> "GaugePullBackMode -> MapleCanonical",
+  "Code" -> "FeynFacet/Private_Backup/TransportCharts.wl"|>;

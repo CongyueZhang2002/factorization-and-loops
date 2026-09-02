@@ -23,11 +23,13 @@
    the PID in pool.pid or via control/stop. *)
 
 args = Rest[$ScriptCommandLine];
-poolDir = If[Length[args] >= 1, args[[1]],
-  "/tmp/claude-1000/-home-maxzhang/97c0fce7-1578-4630-a481-38730c7f8b9d/scratchpad/kernelpool"];
+poolDir = Which[Length[args] >= 1, args[[1]],
+  StringQ[Environment["FACET_SCRATCHPAD"]],
+    FileNameJoin[{Environment["FACET_SCRATCHPAD"], "kernelpool"}],
+  True, (WriteString["stdout", "KernelPool: give the pool directory as the first argument or set FACET_SCRATCHPAD\n"]; Exit[64])];
 nWanted = If[Length[args] >= 2, ToExpression[args[[2]]], 8];
 preload = If[Length[args] >= 3, ToExpression[args[[3]]], True];
-root = "/home/maxzhang/factorization-and-loops";
+root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];  (* repository root from this file; overhaul 2026-09-02 *)
 resourcePolicyFile = FileNameJoin[{root, "Scripts",
     "KernelPoolResourcePolicy.wl"}];
 If[! FileExistsQ[resourcePolicyFile] ||
@@ -236,10 +238,18 @@ poolRun[file_String, logFile_String, kernelFile_String] := Module[
      forever here; closing that live EvaluationObject made Parallel Tools
      requeue an orphan, and after one test wave later missions stayed
      NEVERSTARTED despite idle kernels (reproduced 2026-08-23). *)
-  If[StringStartsQ[FileNameTake[file], "fresh_"],
-    Put[<|"Mission" -> FileNameTake[file], "Status" -> status, "HadMessages" -> hadMessages,
-        "Wall" -> AbsoluteTime[] - t0, "Kernel" -> $KernelID, "Result" -> If[ByteCount[r] < 20000, r, Short[r]]|>,
-      kernelFile <> ".result"]];
+  (* The sidecar is written for EVERY mission (2026-09-02): it is the
+     verdict of the evaluation that owned the claim and did the work.  A
+     kernel closed while the scheduler had already handed it the next
+     evaluation leaves an orphan that Parallel Tools re-runs elsewhere; the
+     server requeues the mission, the re-run claims and completes, and the
+     server's own re-dispatch then returns DUPLICATE -- which was filed as
+     the mission's verdict (baseline batch 03:16-03:21: a passing 261 s
+     test recorded as DUPLICATE, wall 0).  The server now prefers this
+     sidecar whenever its drained EvaluationObject reports DUPLICATE. *)
+  Put[<|"Mission" -> FileNameTake[file], "Status" -> status, "HadMessages" -> hadMessages,
+      "Wall" -> AbsoluteTime[] - t0, "Kernel" -> $KernelID, "Result" -> If[ByteCount[r] < 20000, r, Short[r]]|>,
+    kernelFile <> ".result"];
   Export[kernelFile <> ".done", "done", "Text"];   (* completion marker; the server collects on it *)
   <|"Mission" -> FileNameTake[file], "Status" -> status, "HadMessages" -> hadMessages, "Wall" -> AbsoluteTime[] - t0,
     "Kernel" -> $KernelID, "Result" -> If[ByteCount[r] < 20000, r, Short[r]]|>];
@@ -509,7 +519,11 @@ While[True,
             an orphan for the scheduler to requeue.  The sidecar is only
             a crash fallback. *)
          res = Quiet[Check[WaitAll[eid], $Failed]];
-         If[! AssociationQ[res] && FileExistsQ[kf <> ".result"],
+         (* a DUPLICATE from the drained object means another evaluation
+            owned the claim and wrote the sidecar: that is the verdict *)
+         If[(! AssociationQ[res] ||
+               Lookup[res, "Status", None] === "DUPLICATE") &&
+             FileExistsQ[kf <> ".result"],
            res = Quiet[Check[Get[kf <> ".result"], $Failed]]];
          Quiet@DeleteFile[kf <> ".done"]; Quiet@DeleteFile[kf <> ".result"]; finish[name, res],
        FileExistsQ[kf] && (kid = ToExpression[Import[kf, "Text"]]; IntegerQ[kid] && ! MemberQ[KernelID /@ Kernels[], kid]),

@@ -32,8 +32,8 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "MultiquadraticAlgebra.wl"}]];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "MultiquadraticStripSolve.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "Private", "Core", "MultiquadraticAlgebra.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm", "MultiquadraticStripSolve.wl"}]];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -178,7 +178,7 @@ check["ABI fingerprint does not depend on the reader's context",
     Block[{$Context = "FeynFacet`MultiquadraticProbe`",
         $ContextPath = {"System`", "FeynFacet`MultiquadraticProbe`"}},
       abiFingerprint[]] === firstFingerprint];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "MultiquadraticAlgebra.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "Private", "Core", "MultiquadraticAlgebra.wl"}]];
 check["ABI fingerprint is stable across two loads of the module",
   abiFingerprint[] === firstFingerprint];
 check["the strip module records the same algebra ABI fingerprint",

@@ -2,7 +2,7 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "TaskBroker.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "Private", "Infrastructure", "TaskBroker.wl"}]];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 
 directory = CreateDirectory[];

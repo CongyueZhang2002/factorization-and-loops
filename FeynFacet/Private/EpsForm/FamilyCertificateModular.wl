@@ -687,14 +687,6 @@ familyCertMQPrepare[objects_Association, roots_List,
     "DenestedRadicals" -> Lookup[canonical, "Rewritten", 0]|>
 ];
 
-(* eval is supplied by familyCertMQTrial and memoized there for one sheet;
-   repeated zeroes, diagonal entries and repeated residues are evaluated
-   once rather than once per matrix occurrence. *)
-familyCertMQEvaluateMatrix[matrix_List, eval_] := Module[{value},
-  value = Map[eval, matrix, {2}];
-  If[FreeQ[value, $Failed], value, $Failed]
-];
-
 (* A redundant supplied alphabet is harmless.  Select a deterministic
    independent column subset instead of rejecting a correct dlog form merely
    because two supplied letters have the same logarithmic differential. *)

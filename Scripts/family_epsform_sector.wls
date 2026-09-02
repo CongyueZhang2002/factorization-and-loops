@@ -121,6 +121,12 @@ checkLevel = Module[{value = Environment["FACET_CHECK_LEVEL"]},
 productionQ = checkLevel === "Production";
 stripRoute = Module[{value = Environment["FACET_STRIP_ROUTE"]},
   If[StringQ[value] && value === "Legacy", "Legacy", "FiniteFieldFirst"]];
+(* Overhaul 2026-09-02: the CANONICA/Maple strip ladder (SolveEpsFormStrip)
+   is retired to FeynFacet/Private_Backup; the Legacy route would now run on
+   RouteRetired records.  Refuse it loudly instead of silently degrading. *)
+If[stripRoute === "Legacy",
+  Print["[sector-epsform] !! FACET_STRIP_ROUTE=Legacy is retired (2026-09-02): the CANONICA/Maple strip ladder lives in FeynFacet/Private_Backup and is not loaded; use the default FiniteFieldFirst route"];
+  Exit[64]];
 kernelCount = Module[{value = Environment["FACET_KERNEL_COUNT"]},
   If[StringQ[value] && StringLength[value] > 0,
     Min[8, Max[1, ToExpression[value]]],
@@ -507,7 +513,12 @@ If[AssociationQ[cachedState] &&
       cachedState = Missing["LegacyCheckpointIdentityFailed"]],
     cachedState = Missing["LegacyCheckpointIncomplete"]]
 ];
-loadCanonica[]; resolveCanonica[];
+(* Overhaul 2026-09-02: CANONICA is needed only by the retired Legacy
+   route (NextEquationD / InsertDIntoIdentity / TransformDE are called
+   only when ! blockwiseRouteQ).  On the production FiniteFieldFirst route
+   it is no longer loaded, which also keeps its Global` shadowing of
+   x, y, eps (CLAUDE.md trap) out of the mission kernel. *)
+If[! blockwiseRouteQ, loadCanonica[]; resolveCanonica[]];
 nSectors = Length[ranges]; nMasters = Length[A0[[1]]];
 bounds = Table[{First[ranges[[i]]], Last[ranges[[i]]]}, {i, nSectors}];
 invariants = {xx, yy};
@@ -933,7 +944,7 @@ blockRows[m_] := ranges[[m]];
      block CF259 (21,18), and 2+ h between blocks of the 28x28 / 37x37
      truncations (two watchdog confirmations).
 
-   - the DEFERRED route (FeynFacet/Private/BlockEquationDeferred.wl,
+   - the DEFERRED route (FeynFacet/Private/EpsForm/BlockEquationDeferred.wl,
      Codex Q5 points 1-4, 6 and 8) keeps a sparse tagged term DAG whose
      terms reference the source entries, never forms
      Together[Total[terms]], proves entries nonzero by a modular census,

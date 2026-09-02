@@ -9,6 +9,40 @@ assistant's workspace — never write there.
 
 ## START HERE
 
+**State advanced on 2026-09-02 (package overhaul, user-assigned; the
+running record is `Design/PrivateOverhaul_2026-09-01.md` -- read it
+before anything below, several older rules in this file are superseded
+by it):**
+
+- `FeynFacet/Private/` is organized in seven layer folders (`Core`,
+  `Process`, `Reduction`, `Infrastructure`, `Geometry`, `EpsForm`,
+  `Transport`); the load order is the manifest
+  `FeynFacet/Private/LoadOrder.wl` (`Design/PrivateLayers_2026-09-02.md`).
+  Superseded code lives, never loaded, in `FeynFacet/Private_Backup/`
+  with its evidence (`EVIDENCE.md`); the CANONICA/Maple strip ladder
+  (`SolveEpsFormStrip`), the whole-family Libra route
+  (`LibraFamilyEpsForm`) and the Maple canonical gauge mode are retired
+  and answer `<|"Status" -> "RouteRetired", ...|>`.
+- Production transport is the observable transport
+  (`BuildObservableTransport`, `FeynFacet/Private/Transport/ObservableTransport.wl`
+  + `ObservableTransportFiniteField.wl`, adopted from Codex's
+  `codex/day-rank3-validation`); the 88 ordinary families' accepted
+  transports are under
+  `Results/UU_08_10_canonical/ObservableTransport_2026-09-01_codex/`.
+  The Libra path-ordered engines of `TransportFamily` are the August
+  sweep route (decision U1 in the plan).
+- Test batches: `REUSE=1 Scripts/run_tests_pool.sh <pool> 8` (pooled
+  screening on reused subkernels, then standalone confirmation of every
+  non-OK result); kernel-launching tests are standalone-only. The
+  licence admits the pool main plus ONE more main kernel: sequence
+  standalone jobs (`bench/seatqueue.sh` pattern), never launch a third.
+- The lane split with Codex is dissolved (user, 2026-09-02); the Codex
+  tree is reference material.
+- Finite-field primitives (primes, modular square roots, split points,
+  CRT, rational reconstruction, lift-and-verify) have ONE implementation:
+  `FeynFacet/Private/Core/ModularArithmetic.wl`; do not add another.
+
+
 **Session transfer note: `HANDOFF.md` (repo root) — volatile state,
 open decisions and next steps, newest first. Read it before this file.**
 
@@ -276,7 +310,7 @@ cross-checked results. Rules:
 
 ## Key paths
 
-- `FeynFacet/` — the package (`Private/` holds the stage modules).
+- `FeynFacet/` — the package (`Private/<Layer>/` holds the modules, `Private/LoadOrder.wl` the load order, `Private_Backup/` retired code).
 - `Tests/` + `run_tests.sh` — the suite; keep it green.
 - `Scripts/` — campaign drivers (`KernelPool.wls` + `kpsubmit.sh`/
   `kpwait.sh`/`kpstatus.sh` = the persistent kernel pool every kernel

@@ -43,10 +43,17 @@ current_pool_pid() {
 # preceding Global`/package state changes their inputs before the assertions
 # begin.  Keep them off reused subkernels until an isolation regression proves
 # that the whole kernel state, not merely newly parsed symbols, is restored.
+# Tests that launch their own subkernels, Kira workers or a nested
+# KernelPool cannot run on a pool subkernel (LaunchKernels::subnopar) and,
+# when they start a nested pool, exhaust the licence seats of the running
+# pool (measured 2026-09-02 03:18: relaunch refusals, requeues, DUPLICATE
+# verdicts).  They run standalone after the pool stops.
 standalone_only() {
   case "$1" in
     t_chart_transport|t_transport_chart_extension|t_kallen_q4_chart|\
-    t_family_regulator_factor_in_frame|t_radical_denesting) return 0 ;;
+    t_family_regulator_factor_in_frame|t_radical_denesting|\
+    t_canonica_scheduler|t_canonical_pipeline|t_pair_queue_schedule|\
+    t_kernelpool_return_marker|t_kernelpool_resource_policy) return 0 ;;
     *) return 1 ;;
   esac
 }

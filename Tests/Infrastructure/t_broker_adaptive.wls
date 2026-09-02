@@ -590,7 +590,7 @@ check["a malformed variable resolves to the built-in default",
    option still wins over it.  Reloading the private file is exactly how
    FeynFacet.m binds that default. *)
 loadPrivate[] := (BeginPackage["FeynFacet`"]; Begin["`Private`"];
-  Quiet[Get[FileNameJoin[{root, "FeynFacet", "Private", "FiniteFieldStripSolve.wl"}]],
+  Quiet[Get[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm", "FiniteFieldStripSolve.wl"}]],
     General::shdw];
   End[]; Quiet[EndPackage[], General::shdw];);
 SetEnvironment["FACET_BROKER_MINIMUM_SECONDS" -> "2.5"];

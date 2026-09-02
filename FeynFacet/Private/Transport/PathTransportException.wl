@@ -134,9 +134,6 @@ pathTransportExceptionPlanIssues[plan_] := Module[{issues = {}, contract,
       {record, records}]];
   DeleteDuplicates[issues]];
 
-pathTransportExceptionPlanQ[plan_] :=
-  pathTransportExceptionPlanIssues[plan] === {};
-
 (* ONE pullback for everything on the contract path (Codex note 20 A1).
    Mathematical order, applied identically to the ordinary connection
    and to path artifacts:

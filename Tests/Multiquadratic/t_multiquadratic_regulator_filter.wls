@@ -121,7 +121,7 @@ symbol is replaced by an ordinary one",
 
 (* ---- R5: no surviving spelling test in the loaded source ---- *)
 
-source = Import[FileNameJoin[{root, "FeynFacet", "Private",
+source = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
   "MultiquadraticStripSolve.wl"}], "Text"];
 (* comments are stripped so the note ABOUT the defect does not count *)
 stripComments[text_String] := Module[{characters, depth = 0, out = {}, k = 1,

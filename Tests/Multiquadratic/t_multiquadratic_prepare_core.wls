@@ -43,8 +43,8 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "MultiquadraticAlgebra.wl"}]];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "MultiquadraticStripSolve.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "Private", "Core", "MultiquadraticAlgebra.wl"}]];
+Get[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm", "MultiquadraticStripSolve.wl"}]];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -394,7 +394,7 @@ check["O5c the compiler's own core cache is still ON by default",
       TrueQ[Lookup[Lookup[asm, "CompileStatistics", <||>], "CompileCore",
         False]]]];
 
-solveSource = Import[FileNameJoin[{root, "FeynFacet", "Private",
+solveSource = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
   "MultiquadraticStripSolve.wl"}], "Text"];
 check["O4 the top level forwards the compile-architecture options to the \
 compiler",

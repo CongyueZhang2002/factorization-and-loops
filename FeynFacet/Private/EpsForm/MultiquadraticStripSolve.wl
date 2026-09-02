@@ -384,12 +384,6 @@ multiquadraticFieldPathStatistics[] := <|
   "AlgebraicPathCount" -> $multiquadraticFieldAlgebraicPathCount,
   "ComposeCheckCount" -> $multiquadraticFieldComposeCheckCount|>;
 
-multiquadraticFieldResetPathStatistics[] := (
-  $multiquadraticFieldRootFreeFastPathCount = 0;
-  $multiquadraticFieldAlgebraicPathCount = 0;
-  $multiquadraticFieldComposeCheckCount = 0;
-  multiquadraticFieldPathStatistics[]);
-
 (* The difference of two statistics snapshots, for a record field. *)
 multiquadraticFieldPathStatisticsDelta[before_Association, after_Association] :=
   Association[KeyValueMap[#1 -> #2 - Lookup[before, #1, 0] &, after]];
@@ -8730,20 +8724,6 @@ multiquadraticStripAssemblePointInternal[assembly_Association,
   Join[assembled,
     <|"AssemblySeconds" -> N[AbsoluteTime[] - startTime]|>]
 ], "MultiquadraticStripAssemblyFailure"];
-
-multiquadraticStripAssemblePoint[assembly_Association,
-    epsilonForms_Association, prime_Integer,
-    point : {_Integer, _Integer}] := Module[{result},
-  If[! multiquadraticStripCompiledValidQ[assembly] || ! PrimeQ[prime] ||
-      ! (3 < prime < 2^31),
-    Return[multiquadraticStripFailure["InvalidPointAssemblyInput"]]];
-  result = multiquadraticStripAssemblePointInternal[assembly, epsilonForms,
-    prime, point];
-  If[AssociationQ[result], result,
-    multiquadraticStripFailure["PointAssemblyDidNotReturnAssociation"]]
-];
-multiquadraticStripAssemblePoint[___] :=
-  multiquadraticStripFailure["InvalidPointAssemblyArguments"];
 
 multiquadraticStripNormalizationRows[assembly_Association, epsilonValue_,
     prime_Integer] := Module[

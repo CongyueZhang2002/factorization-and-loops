@@ -29,7 +29,7 @@ Module[{repo, runtime, fixtureFile, pilotSampleFile, pilotSchurFile,
     Get[FileNameJoin[{repo, "Addon", "Load", "LoadFACET.wl"}]]];
   Block[{$Context = "FeynFacet`Private`",
       $ContextPath = {"System`", "FeynFacet`", "FeynFacet`Private`"}},
-    Get[FileNameJoin[{repo, "FeynFacet", "Private",
+    Get[FileNameJoin[{repo, "FeynFacet", "Private", "EpsForm",
       "FiniteFieldStripSolve.wl"}]];
     Get["/home/maxzhang/factorization-and-loops-codex/Runtime/MultiquadraticStripSolve_affine25_capture_20260827.wl"]];
   fixture = Import[fixtureFile, "WXF"];
