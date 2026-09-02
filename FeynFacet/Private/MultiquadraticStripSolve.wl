@@ -296,6 +296,12 @@ ClearAll[
   multiquadraticStripNativeDeferredReadOutput,
   multiquadraticStripNativeDeferredEvaluateBatch,
   multiquadraticStripAttachDeferredPreparation,
+  multiquadraticStripChartForcingProvider,
+  multiquadraticStripChartForcingProviderValidQ,
+  multiquadraticStripChartForcingProviderHotValidQ,
+  multiquadraticStripChartForcingPreflight,
+  multiquadraticStripChartForcingFoldTensor,
+  multiquadraticStripNativeDeferredChartEvaluateBatch,
   multiquadraticStripNativePreflightBatch,
   multiquadraticStripNativeRowBinary,
   multiquadraticStripNativeRowAssembleBatch,
@@ -3566,9 +3572,10 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
    lettersCompiled = 0, letterIndex, compileCacheBytes,
    startTime = AbsoluteTime[], phaseTimings = <||>, compileSeconds,
    assemblySeconds, rankSeconds, leftNullSeconds = 0., expired = False,
-   compileStatisticsBefore, forcingProvider, nativeForcingQ, preflight,
-   nativeForcing, bbarChannels, bbarDerivativeChannels, gradeMonomials,
-   composeChannels},
+   compileStatisticsBefore, forcingProvider, nativeForcingQ,
+   sameFrameNativeForcingQ, chartNativeForcingQ, preflight, chartPreflight,
+   nativeForcing, bbarChannels, bbarDerivativeChannels, bbarCurlChannels,
+   forcingExteriorDerivative, gradeMonomials, composeChannels},
   gate = multiquadraticStripProductionOptionGate[{opts},
     Keys[Association[Options[multiquadraticStripIntegrabilityScreen]]]];
   If[AssociationQ[gate], Return[gate]];
@@ -3597,13 +3604,21 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
   {upper, lower} = Dimensions[bbar[[1]]];
   rank = Length[roots];
   forcingProvider = OptionValue["ForcingProvider"];
-  nativeForcingQ = AssociationQ[forcingProvider] &&
+  sameFrameNativeForcingQ = AssociationQ[forcingProvider] &&
     multiquadraticStripProviderValidQ[forcingProvider] &&
     Lookup[forcingProvider, "RootCount", None] === rank &&
     Lookup[forcingProvider, "Variables", None] === variables &&
     Lookup[forcingProvider, "Regulator", None] === epsilon &&
     Lookup[forcingProvider, "Dimensions", None] === {upper, lower} &&
     AssociationQ[Lookup[forcingProvider, "DeferredPreparation", None]];
+  chartNativeForcingQ = AssociationQ[forcingProvider] &&
+    multiquadraticStripChartForcingProviderValidQ[forcingProvider] &&
+    Lookup[forcingProvider, "RootCount", None] === rank &&
+    Lookup[forcingProvider, "Variables", None] === variables &&
+    Lookup[forcingProvider, "Regulator", None] === epsilon &&
+    Lookup[forcingProvider, "Dimensions", None] === {upper, lower} &&
+    Lookup[forcingProvider, "Roots", None] === roots;
+  nativeForcingQ = sameFrameNativeForcingQ || chartNativeForcingQ;
   If[forcingProvider =!= Automatic && ! nativeForcingQ,
     Return[multiquadraticStripFailure["InvalidIntegrabilityForcingProvider"]]];
   If[rank > $multiquadraticStripMaximumRootCount,
@@ -3726,28 +3741,51 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
           Lookup[rejected, "RootImageNotARoot", 0] + 1;
         Continue[]];
       If[nativeForcingQ,
-        preflight = multiquadraticStripProviderPreflight[
-          forcingProvider, regulatorValue, prime, point];
-        If[Lookup[preflight, "Status", None] =!=
-            "MultiquadraticProviderPreflightV1" ||
-            ! TrueQ[Lookup[preflight, "SplitPointQ", False]],
-          rejected["NativeForcingPreflight"] =
-            Lookup[rejected, "NativeForcingPreflight", 0] + 1;
-          Continue[]];
-        rootValues = preflight["RootValues"];
-        nativeForcing = multiquadraticStripNativeDeferredEvaluateBatch[
-          forcingProvider, {preflight}, "Derivatives" -> True];
-        If[Lookup[nativeForcing, "Status", None] =!=
-              "MultiquadraticNativeDeferredDerivativeBatchV1" ||
-            Length[Lookup[nativeForcing, "BBarBatch", {}]] =!= 1 ||
-            Take[Dimensions[Lookup[nativeForcing,
-                "BBarDerivativeBatch", {}]], UpTo[2]] =!= {2, 1},
-          rejected["NativeForcingEvaluation"] =
-            Lookup[rejected, "NativeForcingEvaluation", 0] + 1;
-          Continue[]];
-        bbarChannels = First[nativeForcing["BBarBatch"]];
-        bbarDerivativeChannels =
-          nativeForcing["BBarDerivativeBatch"][[All, 1]]];
+        If[chartNativeForcingQ,
+          chartPreflight = multiquadraticStripChartForcingPreflight[
+            forcingProvider, regulatorValue, prime, point, rootValues];
+          If[Lookup[chartPreflight, "Status", None] =!=
+              "MultiquadraticChartForcingPreflightV1",
+            rejected["NativeForcingPreflight"] =
+              Lookup[rejected, "NativeForcingPreflight", 0] + 1;
+            Continue[]];
+          nativeForcing =
+            multiquadraticStripNativeDeferredChartEvaluateBatch[
+              forcingProvider, {chartPreflight}];
+          If[Lookup[nativeForcing, "Status", None] =!=
+                "MultiquadraticNativeDeferredChartBatchV1" ||
+              Length[Lookup[nativeForcing, "BBarBatch", {}]] =!= 1 ||
+              Length[Lookup[nativeForcing, "BBarCurlBatch", {}]] =!= 1,
+            rejected["NativeForcingEvaluation"] =
+              Lookup[rejected, "NativeForcingEvaluation", 0] + 1;
+            Continue[]];
+          bbarChannels = First[nativeForcing["BBarBatch"]];
+          bbarCurlChannels = First[nativeForcing["BBarCurlBatch"]],
+          preflight = multiquadraticStripProviderPreflight[
+            forcingProvider, regulatorValue, prime, point];
+          If[Lookup[preflight, "Status", None] =!=
+              "MultiquadraticProviderPreflightV1" ||
+              ! TrueQ[Lookup[preflight, "SplitPointQ", False]],
+            rejected["NativeForcingPreflight"] =
+              Lookup[rejected, "NativeForcingPreflight", 0] + 1;
+            Continue[]];
+          rootValues = preflight["RootValues"];
+          nativeForcing = multiquadraticStripNativeDeferredEvaluateBatch[
+            forcingProvider, {preflight}, "Derivatives" -> True];
+          If[Lookup[nativeForcing, "Status", None] =!=
+                "MultiquadraticNativeDeferredDerivativeBatchV1" ||
+              Length[Lookup[nativeForcing, "BBarBatch", {}]] =!= 1 ||
+              Take[Dimensions[Lookup[nativeForcing,
+                  "BBarDerivativeBatch", {}]], UpTo[2]] =!= {2, 1},
+            rejected["NativeForcingEvaluation"] =
+              Lookup[rejected, "NativeForcingEvaluation", 0] + 1;
+            Continue[]];
+          bbarChannels = First[nativeForcing["BBarBatch"]];
+          bbarDerivativeChannels =
+            nativeForcing["BBarDerivativeBatch"][[All, 1]];
+          bbarCurlChannels = Mod[
+            bbarDerivativeChannels[[2, 1]] -
+              bbarDerivativeChannels[[1, 2]], prime]]];
       pointRows = {}; pointRight = {}; pointOK = True;
       Do[
         values = Join[point, Table[
@@ -3792,10 +3830,10 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
             dycx = matrixDerivative[cCompiled[[1]], 2];
             dxcy = matrixDerivative[cCompiled[[2]], 1];
             If[nativeForcingQ,
-              dybx = composeChannels[bbarDerivativeChannels[[2, 1]]];
-              dxby = composeChannels[bbarDerivativeChannels[[1, 2]]],
+              forcingExteriorDerivative = composeChannels[bbarCurlChannels],
               dybx = matrixDerivative[bCompiled[[1]], 2];
-              dxby = matrixDerivative[bCompiled[[2]], 1]];
+              dxby = matrixDerivative[bCompiled[[2]], 1];
+              forcingExteriorDerivative = Mod[dybx - dxby, prime]];
             oneFormValues = Table[
               {First[evaluate[letterCompiled[[k, 1]]]],
                First[evaluate[letterCompiled[[k, 2]]]]}, {k, letterCount}];
@@ -3806,7 +3844,7 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
         If[! (AllTrue[Flatten[curvatureE], #1 === 0 &] &&
             AllTrue[Flatten[curvatureC], #1 === 0 &]),
           notFlat = True; pointOK = False; Break[]];
-        forcingCurl = Mod[dybx - dxby +
+        forcingCurl = Mod[forcingExteriorDerivative +
           epsilonMod (ex . by - ey . bx + bx . cy - by . cx), prime];
         Do[
           AppendTo[pointRight, forcingCurl[[i, j]]];
@@ -13088,6 +13126,377 @@ multiquadraticStripNativeDeferredEvaluateBatch[provider_Association,
 multiquadraticStripNativeDeferredEvaluateBatch[___] :=
   multiquadraticStripFailure[
     "InvalidNativeDeferredBatchArguments"];
+
+(* A deferred forcing may remain in its source variables even when the
+   integrability screen is run in a rational chart.  This wrapper records the
+   small exact frame map and one image, in the target multiquadratic field, for
+   every source radical.  The large preserved DAG remains untouched. *)
+multiquadraticStripChartForcingProvider[sourceProvider_Association,
+    targetRoots_List, chartData_Association,
+    sourceRootImages_List] := Module[
+  {sourceVariables, targetVariables, regulator, sourceRoots, substitution,
+   substitutionValues, suppliedJacobian, jacobian, jacobianDet,
+   pulledSourceSquares, rootImageChannels, rootIdentities, fingerprint,
+   chartSeal},
+  If[! multiquadraticStripProviderValidQ[sourceProvider] ||
+      ! AssociationQ[Lookup[sourceProvider, "DeferredPreparation", None]] ||
+      ! StringQ[Lookup[sourceProvider, "DeferredPreparationFile", None]] ||
+      ! FileExistsQ[sourceProvider["DeferredPreparationFile"]] ||
+      ! MatchQ[targetRoots, {___Association}] ||
+      Length[targetRoots] > $multiquadraticStripMaximumRootCount,
+    Return[multiquadraticStripFailure[
+      "InvalidChartForcingSourceProvider"]]];
+  sourceVariables = Lookup[sourceProvider, "Variables", $Failed];
+  targetVariables = Lookup[chartData, "Variables", $Failed];
+  regulator = Lookup[sourceProvider, "Regulator", $Failed];
+  sourceRoots = Lookup[sourceProvider, "Roots", $Failed];
+  substitution = Lookup[chartData, "Subst", $Failed];
+  suppliedJacobian = Lookup[chartData, "Jacobian", Automatic];
+  If[! MatchQ[sourceVariables, {_Symbol, _Symbol}] ||
+      ! MatchQ[targetVariables, {_Symbol, _Symbol}] ||
+      ! MatchQ[regulator, _Symbol] ||
+      ! MatchQ[sourceRoots, {___Association}] ||
+      Length[sourceRoots] =!= Length[sourceRootImages] ||
+      ! MatchQ[substitution, {_Rule, _Rule}] ||
+      First /@ substitution =!= sourceVariables ||
+      ! AllTrue[targetRoots,
+        KeyExistsQ[#1, "Root"] && KeyExistsQ[#1, "RootSquare"] &],
+    Return[multiquadraticStripFailure[
+      "InvalidChartForcingFrame"]]];
+  substitutionValues = Last /@ substitution;
+  If[! FreeQ[{substitutionValues, sourceRootImages}, regulator],
+    Return[multiquadraticStripFailure[
+      "RegulatorDependentChartForcingFrame"]]];
+  jacobian = Quiet[Check[Map[Together, Table[
+      D[substitutionValues[[i]], targetVariables[[a]]],
+      {i, 2}, {a, 2}], {2}], $Failed]];
+  If[! MatchQ[jacobian, {{_, _}, {_, _}}] ||
+      (suppliedJacobian =!= Automatic &&
+        (! MatchQ[suppliedJacobian, {{_, _}, {_, _}}] ||
+          ! AllTrue[Flatten[jacobian - suppliedJacobian],
+            TrueQ[Quiet[Check[Together[#1], $Failed]] === 0] &])),
+    Return[multiquadraticStripFailure[
+      "ChartForcingJacobianMismatch"]]];
+  jacobianDet = Quiet[Check[Together[Det[jacobian]], $Failed]];
+  If[jacobianDet === $Failed || TrueQ[jacobianDet === 0],
+    Return[multiquadraticStripFailure[
+      "ChartForcingJacobianDegenerate"]]];
+  pulledSourceSquares = Quiet[Check[
+    Together /@ (Lookup[sourceRoots, "RootSquare", $Failed] /.
+      substitution), $Failed]];
+  If[pulledSourceSquares === $Failed ||
+      ! FreeQ[pulledSourceSquares, $Failed],
+    Return[multiquadraticStripFailure[
+      "ChartForcingRootSquarePullBackFailed"]]];
+  rootIdentities = MapThread[TrueQ[Quiet[Check[
+        Together[#1^2 - #2], $Failed]] === 0] &,
+    {sourceRootImages, pulledSourceSquares}];
+  If[! AllTrue[rootIdentities, TrueQ],
+    Return[multiquadraticStripFailure[
+      "ChartForcingRootImageMismatch",
+      <|"RootIdentities" -> rootIdentities|>]]];
+  rootImageChannels = Map[
+    multiquadraticFieldDecompose[#1, targetRoots] &,
+    sourceRootImages];
+  If[! ListQ[rootImageChannels] ||
+      Length[rootImageChannels] =!= Length[sourceRoots] ||
+      ! AllTrue[rootImageChannels,
+        ListQ[#1] && Length[#1] === 2^Length[targetRoots] &] ||
+      ! FreeQ[rootImageChannels, $Failed],
+    Return[multiquadraticStripFailure[
+      "ChartForcingRootImageFieldMismatch"]]];
+  chartSeal = <|"Status" -> "OK", "Variables" -> targetVariables,
+    "SourceVariables" -> sourceVariables, "Subst" -> substitution,
+    "Jacobian" -> jacobian, "JacobianDet" -> jacobianDet|>;
+  fingerprint = multiquadraticStripFingerprint[{
+    "NativeDeferredChart", sourceProvider["ProviderFingerprint"],
+    targetRoots, chartSeal, sourceRootImages, rootImageChannels}];
+  <|"Status" -> "MultiquadraticChartForcingProviderV1",
+    "Kind" -> "NativeDeferredChart", "SourceProvider" -> sourceProvider,
+    "Variables" -> targetVariables, "Regulator" -> regulator,
+    "Roots" -> targetRoots, "RootCount" -> Length[targetRoots],
+    "GradeCount" -> 2^Length[targetRoots],
+    "Dimensions" -> sourceProvider["Dimensions"],
+    "ChartData" -> chartSeal, "SourceRootImages" -> sourceRootImages,
+    "SourceRootImageChannels" -> rootImageChannels,
+    "ProviderFingerprint" -> fingerprint|>
+];
+multiquadraticStripChartForcingProvider[___] :=
+  multiquadraticStripFailure[
+    "InvalidChartForcingProviderArguments"];
+
+multiquadraticStripChartForcingProviderValidQ[provider_Association] := Module[
+  {expected, sourceProvider, chartData, targetRoots, sourceRootImages, keys},
+  If[Lookup[provider, "Status", None] =!=
+        "MultiquadraticChartForcingProviderV1" ||
+      Lookup[provider, "Kind", None] =!= "NativeDeferredChart",
+    Return[False]];
+  sourceProvider = Lookup[provider, "SourceProvider", $Failed];
+  chartData = Lookup[provider, "ChartData", $Failed];
+  targetRoots = Lookup[provider, "Roots", $Failed];
+  sourceRootImages = Lookup[provider, "SourceRootImages", $Failed];
+  If[! AssociationQ[sourceProvider] || ! AssociationQ[chartData] ||
+      ! ListQ[targetRoots] || ! ListQ[sourceRootImages], Return[False]];
+  expected = multiquadraticStripChartForcingProvider[sourceProvider,
+    targetRoots, chartData, sourceRootImages];
+  If[Lookup[expected, "Status", None] =!=
+      "MultiquadraticChartForcingProviderV1", Return[False]];
+  keys = {"Status", "Kind", "Variables", "Regulator", "Roots",
+    "RootCount", "GradeCount", "Dimensions", "ChartData",
+    "SourceRootImages", "SourceRootImageChannels",
+    "ProviderFingerprint"};
+  TrueQ[KeyTake[provider, keys] === KeyTake[expected, keys]]
+];
+multiquadraticStripChartForcingProviderValidQ[___] := False;
+
+(* The screen validates the full wrapper once.  Point evaluation subsequently
+   checks only this immutable small seal; the source evaluator retains its own
+   authenticated preparation and request checks. *)
+multiquadraticStripChartForcingProviderHotValidQ[provider_Association] :=
+ Module[{sourceProvider, roots, sourceRoots, channels, chartData, fingerprint},
+  sourceProvider = Lookup[provider, "SourceProvider", $Failed];
+  roots = Lookup[provider, "Roots", $Failed];
+  sourceRoots = If[AssociationQ[sourceProvider],
+    Lookup[sourceProvider, "Roots", $Failed], $Failed];
+  channels = Lookup[provider, "SourceRootImageChannels", $Failed];
+  chartData = Lookup[provider, "ChartData", $Failed];
+  If[Lookup[provider, "Status", None] =!=
+        "MultiquadraticChartForcingProviderV1" ||
+      Lookup[provider, "Kind", None] =!= "NativeDeferredChart" ||
+      ! multiquadraticStripProviderHotValidQ[sourceProvider] ||
+      ! AssociationQ[Lookup[sourceProvider, "DeferredPreparation", None]] ||
+      ! StringQ[Lookup[sourceProvider, "DeferredPreparationFile", None]] ||
+      ! FileExistsQ[sourceProvider["DeferredPreparationFile"]] ||
+      ! ListQ[roots] || ! ListQ[sourceRoots] ||
+      Lookup[provider, "RootCount", -1] =!= Length[roots] ||
+      Lookup[provider, "GradeCount", -1] =!= 2^Length[roots] ||
+      Lookup[provider, "Dimensions", None] =!=
+        Lookup[sourceProvider, "Dimensions", Missing["NoDimensions"]] ||
+      ! AssociationQ[chartData] ||
+      Lookup[chartData, "Variables", None] =!=
+        Lookup[provider, "Variables", Missing["NoVariables"]] ||
+      ! MatchQ[channels, {___List}] ||
+      Length[channels] =!= Length[sourceRoots] ||
+      ! AllTrue[channels, Length[#1] === 2^Length[roots] &],
+    Return[False]];
+  fingerprint = multiquadraticStripFingerprint[{
+    "NativeDeferredChart", sourceProvider["ProviderFingerprint"], roots,
+    chartData, provider["SourceRootImages"], channels}];
+  TrueQ[fingerprint === Lookup[provider, "ProviderFingerprint", None]]
+];
+multiquadraticStripChartForcingProviderHotValidQ[___] := False;
+
+multiquadraticStripChartForcingPreflight[provider_Association, epsilonValue_,
+    prime_Integer, targetPoint : {_Integer, _Integer},
+    targetRootValues_List] := Module[
+  {startTime = AbsoluteTime[], sourceProvider, targetVariables, regulator,
+   targetRoots, sourceRoots, chartData, epsilonMod, scalarRules,
+   evaluateScalar, sourcePoint, jacobian, jacobianDet, targetDeltaValues,
+   sourceRootImageChannels, sourceRootImageChannelValues,
+   targetSheetMonomials, sourceRootSheetValues, sourcePreflight,
+   sourceRootSquares, failure},
+  failure[status_String, data_: <||>] := multiquadraticStripFailure[status,
+    Join[<|"ProviderFingerprint" -> Lookup[provider,
+        "ProviderFingerprint", Missing["NoProviderFingerprint"]],
+      "Prime" -> prime, "RegulatorValue" -> epsilonValue,
+      "Point" -> Mod[targetPoint, prime],
+      "PreflightSeconds" -> N[AbsoluteTime[] - startTime]|>, data]];
+  If[! multiquadraticStripChartForcingProviderHotValidQ[provider] ||
+      ! PrimeQ[prime] || ! (3 < prime < $multiquadraticStripWordPrimeLimit),
+    Return[failure["InvalidChartForcingPreflightInput"]]];
+  sourceProvider = provider["SourceProvider"];
+  targetVariables = provider["Variables"];
+  regulator = provider["Regulator"];
+  targetRoots = provider["Roots"];
+  sourceRoots = sourceProvider["Roots"];
+  chartData = provider["ChartData"];
+  epsilonMod = multiquadraticStripModRational[epsilonValue, prime];
+  If[epsilonMod === $Failed || epsilonMod === 0 ||
+      Length[targetRootValues] =!= Length[targetRoots] ||
+      ! VectorQ[targetRootValues, IntegerQ] ||
+      MemberQ[Mod[targetRootValues, prime], 0],
+    Return[failure["InvalidChartForcingTargetImage"]]];
+  scalarRules = Join[
+    AssociationThread[targetVariables, Mod[targetPoint, prime]],
+    <|regulator -> epsilonMod|>];
+  evaluateScalar[expression_] := Module[{evaluated},
+    evaluated = multiquadraticStripModularGradeEvaluate[expression,
+      scalarRules, {}, {}, prime];
+    If[Lookup[evaluated, "Status", None] =!= "OK" ||
+        Length[Lookup[evaluated, "Channels", {}]] =!= 1,
+      $Failed, First[evaluated["Channels"]]]];
+  sourcePoint = evaluateScalar /@ (Last /@ chartData["Subst"]);
+  jacobian = Map[evaluateScalar, chartData["Jacobian"], {2}];
+  jacobianDet = evaluateScalar[chartData["JacobianDet"]];
+  targetDeltaValues = evaluateScalar /@ Lookup[targetRoots,
+    "RootSquare", {}];
+  If[! VectorQ[sourcePoint, IntegerQ] ||
+      ! MatrixQ[jacobian, IntegerQ] || Dimensions[jacobian] =!= {2, 2} ||
+      ! IntegerQ[jacobianDet] || jacobianDet === 0 ||
+      Mod[Det[jacobian] - jacobianDet, prime] =!= 0 ||
+      ! VectorQ[targetDeltaValues, IntegerQ] ||
+      Length[targetDeltaValues] =!= Length[targetRoots] ||
+      ! AllTrue[Range[Length[targetRoots]],
+        Mod[targetRootValues[[#1]]^2 - targetDeltaValues[[#1]], prime] ===
+          0 &],
+    Return[failure["ChartForcingFrameImageSingular"]]];
+  sourceRootImageChannels = provider["SourceRootImageChannels"];
+  sourceRootImageChannelValues =
+    Map[evaluateScalar, sourceRootImageChannels, {2}];
+  If[! MatrixQ[sourceRootImageChannelValues, IntegerQ] ||
+      Dimensions[sourceRootImageChannelValues] =!=
+        {Length[sourceRoots], 2^Length[targetRoots]},
+    Return[failure["ChartForcingRootImageEvaluationFailed"]]];
+  targetSheetMonomials = Table[
+    Table[Product[
+      If[BitGet[grade - 1, a - 1] === 1,
+        Mod[If[BitGet[mask, a - 1] === 1, -1, 1]
+          targetRootValues[[a]], prime], 1],
+      {a, Length[targetRoots]}],
+      {grade, 1, 2^Length[targetRoots]}],
+    {mask, 0, 2^Length[targetRoots] - 1}];
+  sourceRootSheetValues = Mod[
+    targetSheetMonomials . Transpose[sourceRootImageChannelValues], prime];
+  If[! MatrixQ[sourceRootSheetValues, IntegerQ] ||
+      MemberQ[Flatten[sourceRootSheetValues], 0],
+    Return[failure["ChartForcingSourceRootImageDegenerate"]]];
+  sourcePreflight = multiquadraticStripProviderPreflight[sourceProvider,
+    epsilonValue, prime, sourcePoint];
+  If[Lookup[sourcePreflight, "Status", None] =!=
+      "MultiquadraticProviderPreflightV1",
+    Return[failure["ChartForcingSourcePreflightFailed",
+      <|"Detail" -> sourcePreflight|>]]];
+  sourceRootSquares = Lookup[sourcePreflight, "RootSquares", {}];
+  If[Length[sourceRootSquares] =!= Length[sourceRoots] ||
+      ! AllTrue[Range[Length[sourceRoots]], Mod[
+          sourceRootSheetValues[[1, #1]]^2 - sourceRootSquares[[#1]],
+          prime] === 0 &],
+    Return[failure["ChartForcingSourceRootAuthenticationFailed"]]];
+  sourcePreflight = Join[sourcePreflight, <|
+    "RootValues" -> First[sourceRootSheetValues], "SplitPointQ" -> True|>];
+  <|"Status" -> "MultiquadraticChartForcingPreflightV1",
+    "ProviderFingerprint" -> provider["ProviderFingerprint"],
+    "Prime" -> prime, "RegulatorValue" -> epsilonValue,
+    "EpsilonMod" -> epsilonMod, "Point" -> Mod[targetPoint, prime],
+    "TargetRootValues" -> Mod[targetRootValues, prime],
+    "SourceRootSheetValues" -> sourceRootSheetValues,
+    "SourcePreflight" -> sourcePreflight,
+    "Jacobian" -> Mod[jacobian, prime],
+    "JacobianDet" -> Mod[jacobianDet, prime],
+    "PreflightSeconds" -> N[AbsoluteTime[] - startTime]|>
+];
+multiquadraticStripChartForcingPreflight[___] :=
+  multiquadraticStripFailure[
+    "InvalidChartForcingPreflightArguments"];
+
+(* Fold a source-grade tensor onto the target grade basis by evaluating the
+   source basis on each target sheet and applying the target Walsh projector.
+   This handles rationalized roots, retained roots and products of retained
+   roots uniformly; no hard-coded embedding of grade bits is needed. *)
+multiquadraticStripChartForcingFoldTensor[tensor_,
+    sourceRootSheetValues_List, targetRootValues_List,
+    prime_Integer] := Module[
+  {targetGradeCount, sourceRank, sourceGradeCount, dimensions, mapLevel,
+   sourceSheetMonomials, fold, result},
+  targetGradeCount = 2^Length[targetRootValues];
+  If[Length[sourceRootSheetValues] =!= targetGradeCount ||
+      ! MatrixQ[sourceRootSheetValues, IntegerQ] ||
+      ! PrimeQ[prime] || MemberQ[Mod[targetRootValues, prime], 0],
+    Return[$Failed]];
+  sourceRank = If[sourceRootSheetValues === {}, 0,
+    Length[First[sourceRootSheetValues]]];
+  sourceGradeCount = 2^sourceRank;
+  dimensions = Dimensions[tensor];
+  If[dimensions === {} || Last[dimensions] =!= sourceGradeCount,
+    Return[$Failed]];
+  sourceSheetMonomials = Table[
+    Table[Product[If[BitGet[grade - 1, a - 1] === 1,
+        sourceRootSheetValues[[sheet, a]], 1], {a, sourceRank}],
+      {grade, 1, sourceGradeCount}],
+    {sheet, targetGradeCount}];
+  fold[channelVector_List] := multiquadraticProjectConjugates[
+    Mod[sourceSheetMonomials . channelVector, prime],
+    Mod[targetRootValues, prime], prime];
+  mapLevel = Length[dimensions] - 1;
+  result = Map[fold, tensor, {mapLevel}];
+  If[FreeQ[result, $Failed] &&
+      Dimensions[result] === ReplacePart[dimensions, -1 -> targetGradeCount],
+    Mod[result, prime], $Failed]
+];
+multiquadraticStripChartForcingFoldTensor[___] := $Failed;
+
+Options[multiquadraticStripNativeDeferredChartEvaluateBatch] = {
+  "Threads" -> Automatic
+};
+multiquadraticStripNativeDeferredChartEvaluateBatch[
+    provider_Association, preflights_List,
+    opts : OptionsPattern[]] := Module[
+  {startTime = AbsoluteTime[], sourceProvider, prime, sourcePreflights,
+   threads, native, bbarBatch = {}, curlBatch = {}, base, sourceBBar,
+   sourceDerivatives, foldedBBar, sourceCurl, foldedCurl, jacobian,
+   jacobianDet, chartBBar},
+  If[! multiquadraticStripChartForcingProviderHotValidQ[provider] ||
+      preflights === {} || ! AllTrue[preflights,
+        Lookup[#1, "Status", None] ===
+            "MultiquadraticChartForcingPreflightV1" &&
+          Lookup[#1, "ProviderFingerprint", None] ===
+            provider["ProviderFingerprint"] &],
+    Return[multiquadraticStripFailure[
+      "InvalidNativeDeferredChartBatchInput"]]];
+  prime = Lookup[First[preflights], "Prime", $Failed];
+  If[! PrimeQ[prime] || ! AllTrue[preflights,
+      Lookup[#1, "Prime", None] === prime &],
+    Return[multiquadraticStripFailure[
+      "MixedNativeDeferredChartBatchPrimes"]]];
+  threads = OptionValue["Threads"];
+  sourceProvider = provider["SourceProvider"];
+  sourcePreflights = Lookup[preflights, "SourcePreflight", {}];
+  native = multiquadraticStripNativeDeferredEvaluateBatch[sourceProvider,
+    sourcePreflights, "Derivatives" -> True, "Threads" -> threads];
+  If[Lookup[native, "Status", None] =!=
+      "MultiquadraticNativeDeferredDerivativeBatchV1",
+    Return[multiquadraticStripFailure[
+      "NativeDeferredChartSourceEvaluationFailed",
+      <|"Detail" -> native|>]]];
+  Do[
+    sourceBBar = native["BBarBatch"][[base]];
+    sourceDerivatives = native["BBarDerivativeBatch"][[All, base]];
+    foldedBBar = multiquadraticStripChartForcingFoldTensor[sourceBBar,
+      preflights[[base, "SourceRootSheetValues"]],
+      preflights[[base, "TargetRootValues"]], prime];
+    sourceCurl = Mod[sourceDerivatives[[2, 1]] -
+      sourceDerivatives[[1, 2]], prime];
+    foldedCurl = multiquadraticStripChartForcingFoldTensor[sourceCurl,
+      preflights[[base, "SourceRootSheetValues"]],
+      preflights[[base, "TargetRootValues"]], prime];
+    If[foldedBBar === $Failed || foldedCurl === $Failed,
+      Return[multiquadraticStripFailure[
+        "NativeDeferredChartGradeFoldFailed",
+        <|"BaseIndex" -> base|>]]];
+    jacobian = preflights[[base, "Jacobian"]];
+    jacobianDet = preflights[[base, "JacobianDet"]];
+    chartBBar = {
+      Mod[jacobian[[1, 1]] foldedBBar[[1]] +
+        jacobian[[2, 1]] foldedBBar[[2]], prime],
+      Mod[jacobian[[1, 2]] foldedBBar[[1]] +
+        jacobian[[2, 2]] foldedBBar[[2]], prime]};
+    AppendTo[bbarBatch, chartBBar];
+    AppendTo[curlBatch, Mod[jacobianDet foldedCurl, prime]],
+    {base, Length[preflights]}];
+  <|"Status" -> "MultiquadraticNativeDeferredChartBatchV1",
+    "Prime" -> prime, "RootCount" -> provider["RootCount"],
+    "GradeCount" -> provider["GradeCount"],
+    "BaseCount" -> Length[preflights],
+    "Dimensions" -> Prepend[provider["Dimensions"], 2],
+    "BBarBatch" -> bbarBatch, "BBarCurlBatch" -> curlBatch,
+    "SourceRootCount" -> sourceProvider["RootCount"],
+    "SourceNative" -> KeyDrop[native,
+      {"BBarBatch", "BBarDerivativeBatch"}],
+    "Seconds" -> N[AbsoluteTime[] - startTime]|>
+];
+multiquadraticStripNativeDeferredChartEvaluateBatch[___] :=
+  multiquadraticStripFailure[
+    "InvalidNativeDeferredChartBatchArguments"];
 
 (* The split-point census is the same finite-field problem on a much smaller
    root-free list: root squares, Q, d log Q and d log Delta.  Evaluate the
