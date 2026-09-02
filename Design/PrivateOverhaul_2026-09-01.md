@@ -761,6 +761,16 @@ Phase 3 (M step 1 at 14:27, step 2 run by the main session at 14:30 after the La
 
 Sequencing: the moves start when T and G have finished editing (a move under a live editor loses edits); Transport last, after the merge of `round4-laurent`. Verification: load check, the manifest-reading tests (six multiquadratic tests, `t_modular_arithmetic`), the source-scan tests, one test per moved group, definition-head multiset before/after.
 
+## Round 6 (16:45, user: "do all the 3 open"; at most two Fable agents, Opus watchers)
+
+- `main` pushed to `origin/main` (89c0479d..bff72ee3, 31 commits) at 16:49; pushed again at the end of the round.
+- Seat launcher hardened (`scratchpad/bench/seat_run.sh`, copy in `Scripts/seat_run.sh`): the release line is written on every exit path, including a wrapper killed by signal (the 14:03 seat-B accounting gap); refuses a missing `-file` script (exit 66) instead of wolframscript's silent exit 0.
+- T: retire the Jet Laurent route to `Private_Backup/ObservableTransportJet.wl` with its test and evidence (`"Jet"` answers `RouteRetired`), then ONE CF259 transport run through the new route on the certified record, into `.../CF259/observable_transport_2026-09-02_certified/`, accepted-predicate check and SameQ comparison with the 05:51 artifact.
+- G: `SolveEpsFormStripInFrame` moved into `EpsForm/Strip/`, Geometry listed before EpsForm, upward-reference scan re-run, design notes updated to the true graph.
+- Opus watchdog resumed for the period.
+
+Results: filled in as the agents report.
+
 ## Deliberately not done
 
 - N1. Splitting the chart catalog into a separate data file: the records
