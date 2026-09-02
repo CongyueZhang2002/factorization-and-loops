@@ -120,6 +120,14 @@ fi
 export POOL="$pool"; unset FACET_TASK_BROKER FACET_CHECK_LEVEL; export FACET_KERNEL_COUNT=1
 mkdir -p "$pool"
 
+# A driver copy run from outside the tree derives the wrong root and would
+# report a vacuous "failed: 0" (watchdog finding 2026-09-02); an empty test
+# set is an error, never a clean run.
+if (( ${#test_files[@]} == 0 )); then
+  echo "run_tests_pool.sh: no tests found under $root/Tests (root is derived from this script's location)" >&2
+  exit 65
+fi
+
 pool_test_files=()
 standalone_test_files=()
 for test_file in "${test_files[@]}"; do
