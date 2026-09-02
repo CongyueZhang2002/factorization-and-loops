@@ -211,11 +211,16 @@ multiquadraticAlgebraProbe[] := Module[
    and memoized (overhaul 2026-09-02, certification audit item 1).  It used
    to run the symbolic probe and a full InputForm on EVERY call, and it is
    called from the validity predicates that run per sample and per prime.
-   A failed probe is not memoized, so a context problem stays visible. *)
+   A failed probe is not memoized, so a context problem stays visible.
+   The memo is keyed by $ContextPath (review risk R5, 2026-09-02): the
+   probe's text depends on the reader's context, and a package loaded
+   later in the session (CANONICA, Libra) changes the path, so the
+   fingerprint is recomputed for every new path rather than reused. *)
 $multiquadraticAlgebraABIFingerprintCache = None;
 multiquadraticAlgebraABIFingerprint[] := Module[{probe, symbols, value},
-  If[StringQ[$multiquadraticAlgebraABIFingerprintCache],
-    Return[$multiquadraticAlgebraABIFingerprintCache]];
+  If[MatchQ[$multiquadraticAlgebraABIFingerprintCache, {_List, _String}] &&
+      $multiquadraticAlgebraABIFingerprintCache[[1]] === $ContextPath,
+    Return[$multiquadraticAlgebraABIFingerprintCache[[2]]]];
   probe = multiquadraticAlgebraProbe[];
   symbols = DeleteDuplicates[Cases[probe, symbol_Symbol :> symbol,
     {0, Infinity}, Heads -> True]];
@@ -223,7 +228,7 @@ multiquadraticAlgebraABIFingerprint[] := Module[{probe, symbols, value},
      ABI (package bug handoff 2026-08-23, pool defect 3) *)
   If[! AllTrue[symbols, Context[#] === "System`" &], Return[$Failed]];
   value = Hash[ToString[InputForm[probe]], "SHA256", "HexString"];
-  $multiquadraticAlgebraABIFingerprintCache = value;
+  $multiquadraticAlgebraABIFingerprintCache = {$ContextPath, value};
   value
 ];
 

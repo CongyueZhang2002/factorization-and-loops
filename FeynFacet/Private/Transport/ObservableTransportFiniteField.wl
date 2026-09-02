@@ -386,14 +386,25 @@ observableTransportFFSquareFreeSplit[c_] /; MatchQ[c, _Integer | _Rational] && c
     {f, FactorInteger[a b]}];
   {k/b, sf}
 ];
+(* Review risks R2/R3 (2026-09-02): a radical whose square IS a declared
+   square (ratio 1) is left on its own root symbol -- rescaling it onto a
+   proportional declared square would move it under that square's sheet
+   sign; and a ratio too large to factor in bounded time is not rescaled
+   (the compiler then refuses the radical as before, a typed failure). *)
+$observableTransportFFRadicalScaleDigitLimit = 30;
 observableTransportFFNormalizeRadicals[expr_, rootRecords_List] := Module[
-  {squares = Lookup[rootRecords, "RootSquare", {}], scale},
-  scale[base_] := scale[base] = Module[{ratio, found = None},
-    Do[If[! TrueQ[Together[q] === 0],
-        ratio = Quiet[Check[Together[base/q], $Failed]];
-        If[MatchQ[ratio, _Integer | _Rational] && TrueQ[ratio > 0] &&
-            ratio =!= 1, found = {ratio, q}; Break[]]],
-      {q, squares}];
+  {squares = Lookup[rootRecords, "RootSquare", {}], scale, ratios},
+  scale[base_] := scale[base] = Module[{found = None},
+    ratios = (Quiet[Check[Together[base/#], $Failed]] &) /@
+      Select[squares, ! TrueQ[Together[#] === 0] &];
+    If[MemberQ[ratios, 1], Return[None, Module]];
+    Do[If[MatchQ[ratios[[k]], _Integer | _Rational] && TrueQ[ratios[[k]] > 0] &&
+          Max[IntegerLength[Numerator[ratios[[k]]]],
+            IntegerLength[Denominator[ratios[[k]]]]] <=
+            $observableTransportFFRadicalScaleDigitLimit,
+        found = {ratios[[k]], Select[squares, ! TrueQ[Together[#] === 0] &][[k]]};
+        Break[]],
+      {k, Length[ratios]}];
     found];
   expr /. Power[base_, e_Rational /; Denominator[e] === 2] :>
     With[{f = scale[base]},
@@ -476,7 +487,7 @@ observableTransportFFAlgebraicCompiledMatrixValueWithDerivative[
 observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
     samples_List, declaredSquares_List] := Module[
   {dimensions, compiledMatrix, roots, rootSquares, rootCompiler, rootCount,
-   maximumAttempts = 128, proposal},
+   maximumAttempts = 128, proposal, radicalConstants},
   dimensions = Quiet[Check[Dimensions[m], {}]];
   If[Length[dimensions] =!= 2 ||
       ! MatchQ[variables, {_Symbol ..}],
@@ -500,9 +511,16 @@ observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
     $observableTransportFFRankDiagnostics =
       <|"Reason" -> "RootSquareCompileFailed", "RootSquares" -> rootSquares|>;
     Return[ConstantArray[$Failed, Length[samples]]]];
+  (* numeric radical constants introduced by the radical normalization
+     ({"SquareRootConstant", s} nodes) must be residues at the prime, or
+     every point fails inside the matrix evaluation and the attempt is
+     charged to "MatrixPole" (review risk R1, 2026-09-02) *)
+  radicalConstants = DeleteDuplicates[Cases[compiledMatrix,
+    {"SquareRootConstant", s_Integer} :> s, Infinity]];
   proposal[rules_List, sampleIndex_Integer] := Module[
     {point, deltaValues, rootValues, image, reduced, pivots, prime,
      rejections = <|"PrimeNotThreeModFour" -> 0, "PointNotReducible" -> 0,
+       "NumericRadicalNonResidue" -> 0,
        "RootSquareZeroOrNonResidue" -> 0, "SquareRootFailed" -> 0,
        "MatrixPole" -> 0, "RowReduceFailed" -> 0|>},
     If[Sort[First /@ rules] =!= Sort[variables],
@@ -517,6 +535,9 @@ observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
         If[Mod[prime, 4] =!= 3 ||
             prime === $observableTransportFFTracePrime,
           rejections["PrimeNotThreeModFour"]++; Continue[]];
+        If[! AllTrue[radicalConstants,
+            Mod[#, prime] =!= 0 && JacobiSymbol[Mod[#, prime], prime] === 1 &],
+          rejections["NumericRadicalNonResidue"]++; Continue[]];
         point = multiquadraticStripModRational[#, prime] & /@
           (variables /. rules);
         If[MemberQ[point, $Failed],
@@ -707,13 +728,15 @@ observableTransportFFAlgebraicCovariantIndependentRowsAtSamples[
     compiled_Association, variable_Symbol, variables_List,
     samples_List] := Module[
   {dimensions, roots, rootCompiler, rootCount,
-   maximumAttempts = 128, proposal},
+   maximumAttempts = 128, proposal, radicalConstants},
   dimensions = Lookup[compiled["Basis"], "Dimensions", {}];
   If[Length[dimensions] =!= 2,
     Return[ConstantArray[$Failed, Length[samples]]]];
   roots = compiled["Roots"];
   rootCompiler = compiled["RootSquareCompiler"];
   rootCount = Length[roots];
+  radicalConstants = DeleteDuplicates[Cases[compiled,
+    {"SquareRootConstant", s_Integer} :> s, Infinity]];
   proposal[rules_List, sampleIndex_Integer] := Module[
     {point, deltaValues, rootValues, images, joined, reduced, pivots, prime},
     If[Sort[First /@ rules] =!= Sort[variables], Return[$Failed]];
@@ -724,6 +747,9 @@ observableTransportFFAlgebraicCovariantIndependentRowsAtSamples[
         prime = RandomPrime[{2^30, 2^31 - 1}];
         If[Mod[prime, 4] =!= 3 ||
             prime === $observableTransportFFTracePrime, Continue[]];
+        If[! AllTrue[radicalConstants,
+            Mod[#, prime] =!= 0 && JacobiSymbol[Mod[#, prime], prime] === 1 &],
+          Continue[]];
         point = multiquadraticStripModRational[#, prime] & /@
           (variables /. rules);
         If[MemberQ[point, $Failed], Continue[]];

@@ -107,9 +107,15 @@ epsFormFiniteFieldRationalReconstruct[value_Integer, modulus_Integer] :=
   modularRationalReconstruct[value, modulus];
 
 (* one implementation (Core/ModularArithmetic.wl): coordinate-wise CRT of
-   the lists padded to the requested length *)
+   the lists padded to the requested length.  Shape contract of the
+   original kept: ALWAYS a list of `length` entries; a failed combination
+   is a list of $Failed so the callers' FreeQ checks fire (review risk R4,
+   2026-09-02). *)
 epsFormFiniteFieldCombineLists[lists_List, length_Integer,
-    moduli_List] := modularCRT[PadRight[#, length] & /@ lists, moduli];
+    moduli_List] := With[
+  {combined = modularCRT[PadRight[#, length] & /@ lists, moduli]},
+  If[ListQ[combined] && Length[combined] === length, combined,
+    ConstantArray[$Failed, length]]];
 
 epsFormFiniteFieldCombineCoordinate[data_List, moduli_List] := Module[
   {degrees, numeratorLength, denominatorLength},
