@@ -890,14 +890,25 @@ Do[
       requestedSolverConfiguration, solverConfiguration,
       modularBranches, modularArtifact, modularSummary,
       constructionStart, constructionTimings, constructionSeconds,
-      constructionCheck, resumeWithoutHydrationQ, prevDSource},
+      constructionCheck, resumeWithoutHydrationQ, prevDSource,
+      stripCheckpointBinaryFile},
       stripCheckpointFile = FileNameJoin[{scratch,
         family <> "_" <> ToString[k] <> "_strip_state.wl"}];
-      stripCheckpoint = If[FileExistsQ[stripCheckpointFile],
-        (* This checkpoint is written by this driver with Global` x, y and
-           eps.  Re-normalizing it performs two full symbolic traversals and
-           can inflate a few-megabyte file to gigabytes in memory. *)
-        Get[stripCheckpointFile], Missing["NotFound"]];
+      stripCheckpointBinaryFile = stripCheckpointFile <> ".wxf";
+      stripCheckpoint = Which[
+        FileExistsQ[stripCheckpointBinaryFile],
+          log["  loading binary strip checkpoint ",
+            stripCheckpointBinaryFile];
+          Quiet[Check[Import[stripCheckpointBinaryFile, "WXF"], $Failed]],
+        FileExistsQ[stripCheckpointFile],
+          (* This checkpoint is written by this driver with Global` x, y and
+             eps.  Re-normalizing it performs two full symbolic traversals and
+             can inflate a few-megabyte file to gigabytes in memory. *)
+          Get[stripCheckpointFile],
+        True, Missing["NotFound"]];
+      If[stripCheckpoint === $Failed && FileExistsQ[stripCheckpointFile],
+        log["  binary checkpoint unreadable; falling back to text"];
+        stripCheckpoint = Get[stripCheckpointFile]];
       (* a checkpoint is valid only for the connection it was built on
          (the truncated regulator factorization changes it; CF265 sector
          18, 2026-08-22) *)
