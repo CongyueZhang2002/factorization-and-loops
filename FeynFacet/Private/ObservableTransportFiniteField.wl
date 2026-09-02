@@ -19,13 +19,20 @@ ClearAll[
   observableTransportFFCompile,
   observableTransportFFCompileMatrix,
   observableTransportFFEvaluateExpressions,
+  observableTransportFFEvaluateExpressionsWithDerivative,
   observableTransportFFValue,
   observableTransportFFMatrixValue,
+  observableTransportFFMatrixValueWithDerivative,
   observableTransportFFAlgebraicRoots,
   observableTransportFFAlgebraicMatrixValue,
   observableTransportFFCompileAlgebraicMatrix,
   observableTransportFFAlgebraicCompiledMatrixValue,
+  observableTransportFFAlgebraicCompiledMatrixValueWithDerivative,
   observableTransportFFAlgebraicIndependentRowsAtSamples,
+  observableTransportFFCompileAlgebraicCovariant,
+  observableTransportFFAlgebraicCovariantImages,
+  observableTransportFFAlgebraicCovariantIndependentRowsAtSamples,
+  observableTransportModularAlgebraicCovariantSubspaceInclusion,
   observableTransportFFSelectMatrixTrials,
   observableTransportFFFreshTrialPool,
   observableTransportFFAliasData,
@@ -54,6 +61,9 @@ Options[observableTransportModularSubspaceInclusion] = {
 };
 
 Options[observableTransportModularAlgebraicSubspaceInclusion] =
+  Options[observableTransportModularSubspaceInclusion];
+
+Options[observableTransportModularAlgebraicCovariantSubspaceInclusion] =
   Options[observableTransportModularSubspaceInclusion];
 
 observableTransportFFFailure[status_String, data_Association : <||>] :=
@@ -198,6 +208,50 @@ observableTransportFFEvaluateExpressions[compiledExpressions_List,
   evaluate /@ compiledExpressions
 ];
 
+(* Forward-mode differentiation on the same compiled DAG.  A tangent is
+   supplied for every compiled variable, so formal roots can carry the exact
+   finite-field derivative Delta'/(2 r) without constructing D[expression]
+   symbolically. *)
+observableTransportFFEvaluateExpressionsWithDerivative[
+    compiledExpressions_List, point_List, tangent_List,
+    prime_Integer] := Module[{evaluate, evaluateRaw, product},
+  product[left : {_, _}, right : {_, _}] := {
+    Mod[left[[1]] right[[1]], prime],
+    Mod[left[[2]] right[[1]] + left[[1]] right[[2]], prime]};
+  evaluate[node_] := evaluate[node] = evaluateRaw[node];
+  evaluateRaw[{"Integer", value_Integer}] := {Mod[value, prime], 0};
+  evaluateRaw[{"Rational", numerator_Integer, denominator_Integer}] :=
+    With[{d = Mod[denominator, prime]},
+      If[d === 0, $Failed,
+        {Mod[numerator PowerMod[d, -1, prime], prime], 0}]];
+  evaluateRaw[{"Variable", position_Integer}] /;
+      1 <= position <= Length[point] :=
+    {point[[position]], tangent[[position]]};
+  evaluateRaw[{"Plus", children_List}] := With[
+    {values = evaluate /@ children},
+    If[MemberQ[values, $Failed], $Failed,
+      Mod[Total[values], prime]]];
+  evaluateRaw[{"Times", children_List}] := Fold[
+    If[#1 === $Failed, $Failed,
+      With[{right = evaluate[#2]},
+        If[right === $Failed, $Failed, product[#1, right]]]] &,
+    {1, 0}, children];
+  evaluateRaw[{"Power", child_, exponent_Integer}] := Module[
+    {base = evaluate[child], value, derivative},
+    If[base === $Failed || (base[[1]] === 0 && exponent < 0),
+      Return[$Failed, Module]];
+    value = Quiet[Check[PowerMod[base[[1]], exponent, prime], $Failed]];
+    If[value === $Failed, Return[$Failed, Module]];
+    derivative = If[exponent === 0, 0,
+      Quiet[Check[Mod[exponent base[[2]]
+        PowerMod[base[[1]], exponent - 1, prime], prime], $Failed]]];
+    If[derivative === $Failed, $Failed, {value, derivative}]
+  ];
+  evaluateRaw[_] := $Failed;
+  With[{values = evaluate /@ compiledExpressions},
+    If[MemberQ[values, $Failed], $Failed, values]]
+];
+
 observableTransportFFValue[compiled_, point_List, prime_Integer] :=
   First[observableTransportFFEvaluateExpressions[
     {compiled}, point, prime]];
@@ -215,6 +269,22 @@ observableTransportFFMatrixValue[compiled_List, point_List,
     values[[(row - 1) dimensions[[2]] + column]],
     {row, dimensions[[1]]}, {column, dimensions[[2]]}];
   If[FreeQ[value, $Failed], value, $Failed]
+];
+
+observableTransportFFMatrixValueWithDerivative[compiled_List, point_List,
+    tangent_List, prime_Integer] := Module[
+  {dimensions, entries, pairs, values, derivatives},
+  dimensions = Dimensions[compiled, 2];
+  If[Length[dimensions] =!= 2, Return[$Failed]];
+  entries = Catenate[compiled];
+  pairs = observableTransportFFEvaluateExpressionsWithDerivative[
+    entries, point, tangent, prime];
+  If[pairs === $Failed, Return[$Failed]];
+  values = Table[pairs[[(row - 1) dimensions[[2]] + column, 1]],
+    {row, dimensions[[1]]}, {column, dimensions[[2]]}];
+  derivatives = Table[pairs[[(row - 1) dimensions[[2]] + column, 2]],
+    {row, dimensions[[1]]}, {column, dimensions[[2]]}];
+  {values, derivatives}
 ];
 
 (* Complete a declared root list with any radical square classes visible in
@@ -252,16 +322,23 @@ observableTransportFFAlgebraicMatrixValue[m_, variables_List,
 observableTransportFFCompileAlgebraicMatrix[m_, variables_List,
     declaredSquares_List] := Module[{compile, roots, result},
   compile[rootRecords_List] := Module[
-    {rootSymbols, template, compiled},
+    {rootSymbols, rootSquareCompiler, template, compiled},
     rootSymbols = Table[Unique["observableTransportRoot"],
       {Length[rootRecords]}];
+    rootSquareCompiler = observableTransportFFCompileExpressions[
+      Lookup[rootRecords, "RootSquare", {}], variables];
+    If[MemberQ[rootSquareCompiler, $Failed], Return[$Failed, Module]];
     template = Quiet[Check[transportChartApplyRootBranches[
       Normal[m], rootRecords, rootSymbols], $Failed]];
     If[template === $Failed, Return[$Failed, Module]];
     compiled = observableTransportFFCompileMatrix[
       template, Join[variables, rootSymbols]];
     If[compiled === $Failed, $Failed,
-      <|"Roots" -> rootRecords, "CompiledMatrix" -> compiled|>]
+      <|"Roots" -> rootRecords, "Variables" -> variables,
+        "Dimensions" -> Dimensions[template],
+        "RootSymbols" -> rootSymbols,
+        "RootSquareCompiler" -> rootSquareCompiler,
+        "CompiledMatrix" -> compiled|>]
   ];
   roots = observableTransportFFAlgebraicRoots[{}, declaredSquares];
   result = compile[roots];
@@ -275,6 +352,27 @@ observableTransportFFAlgebraicCompiledMatrixValue[
     prime_Integer] := observableTransportFFMatrixValue[
   compiled["CompiledMatrix"],
   Join[point, Mod[signs rootValues, prime]], prime];
+
+observableTransportFFAlgebraicCompiledMatrixValueWithDerivative[
+    compiled_Association, variable_Symbol, point_List,
+    rootValues_List, signs_List, prime_Integer] := Module[
+  {variables = compiled["Variables"], position, baseTangent, rootPairs,
+   signedRoots, rootDerivatives},
+  position = FirstPosition[variables, variable, Missing["NotFound"]];
+  If[MissingQ[position], Return[$Failed, Module]];
+  baseTangent = UnitVector[Length[variables], First[position]];
+  rootPairs = observableTransportFFEvaluateExpressionsWithDerivative[
+    compiled["RootSquareCompiler"], point, baseTangent, prime];
+  If[rootPairs === $Failed, Return[$Failed, Module]];
+  signedRoots = Mod[signs rootValues, prime];
+  If[MemberQ[signedRoots, 0], Return[$Failed, Module]];
+  rootDerivatives = MapThread[
+    Mod[#1[[2]] PowerMod[Mod[2 #2, prime], -1, prime], prime] &,
+    {rootPairs, signedRoots}];
+  observableTransportFFMatrixValueWithDerivative[
+    compiled["CompiledMatrix"], Join[point, signedRoots],
+    Join[baseTangent, rootDerivatives], prime]
+];
 
 (* Rank samples guide the symbolic closure but do not certify it.  Evaluating
    a multiquadratic matrix exactly at a rational point leaves algebraic
@@ -343,6 +441,111 @@ observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
     $Failed
   ];
   MapIndexed[proposal[#1, First[#2]] &, samples]
+];
+
+(* Compile B and A together so they use one root ordering and one shared
+   operation-tree census.  Evaluation keeps them separate: only B needs a
+   tangent, while A needs values alone. *)
+observableTransportFFCompileAlgebraicCovariant[basis_, connection_,
+    variables_List, declaredSquares_List] := Module[
+  {basisDimensions, connectionDimensions, compiled, basisRows},
+  basisDimensions = Quiet[Check[Dimensions[basis], {}]];
+  connectionDimensions = Quiet[Check[Dimensions[connection], {}]];
+  If[Length[basisDimensions] =!= 2 ||
+      connectionDimensions =!= {Last[basisDimensions], Last[basisDimensions]},
+    Return[$Failed, Module]];
+  basisRows = First[basisDimensions];
+  compiled = observableTransportFFCompileAlgebraicMatrix[
+    Join[Normal[basis], Normal[connection]], variables, declaredSquares];
+  If[! AssociationQ[compiled], Return[$Failed, Module]];
+  <|"Basis" -> Join[compiled, <|"Dimensions" -> basisDimensions,
+      "CompiledMatrix" -> Take[
+        compiled["CompiledMatrix"], basisRows]|>],
+    "Connection" -> Join[compiled, <|
+      "Dimensions" -> connectionDimensions,
+      "CompiledMatrix" -> Drop[
+        compiled["CompiledMatrix"], basisRows]|>],
+    "Roots" -> compiled["Roots"],
+    "RootSquareCompiler" -> compiled["RootSquareCompiler"]|>
+];
+
+observableTransportFFAlgebraicCovariantImages[compiled_Association,
+    variable_Symbol, point_List, rootValues_List, signs_List,
+    prime_Integer] := Module[{basisPair, connectionImage, covariantImage},
+  basisPair =
+    observableTransportFFAlgebraicCompiledMatrixValueWithDerivative[
+      compiled["Basis"], variable, point, rootValues, signs, prime];
+  connectionImage = observableTransportFFAlgebraicCompiledMatrixValue[
+    compiled["Connection"], point, rootValues, signs, prime];
+  If[basisPair === $Failed || connectionImage === $Failed,
+    Return[$Failed, Module]];
+  covariantImage = Mod[
+    basisPair[[2]] + basisPair[[1]] . connectionImage, prime];
+  {basisPair[[1]], covariantImage}
+];
+
+(* Propose extension rows from B and nabla B images without constructing the
+   symbolic matrix nabla B.  The returned indices refer to Join[B,nabla B],
+   exactly as in the established symbolic proposal. *)
+observableTransportFFAlgebraicCovariantIndependentRowsAtSamples[
+    compiled_Association, variable_Symbol, variables_List,
+    samples_List] := Module[
+  {dimensions, roots, rootCompiler, rootCount,
+   maximumAttempts = 128, proposal},
+  dimensions = Lookup[compiled["Basis"], "Dimensions", {}];
+  If[Length[dimensions] =!= 2,
+    Return[ConstantArray[$Failed, Length[samples]]]];
+  roots = compiled["Roots"];
+  rootCompiler = compiled["RootSquareCompiler"];
+  rootCount = Length[roots];
+  proposal[rules_List, sampleIndex_Integer] := Module[
+    {point, deltaValues, rootValues, images, joined, reduced, pivots, prime},
+    If[Sort[First /@ rules] =!= Sort[variables], Return[$Failed]];
+    BlockRandom[
+      SeedRandom[86417 + 1009 dimensions[[1]] +
+        9176 dimensions[[2]] + sampleIndex];
+      Do[
+        prime = RandomPrime[{2^30, 2^31 - 1}];
+        If[Mod[prime, 4] =!= 3 ||
+            prime === $observableTransportFFTracePrime, Continue[]];
+        point = multiquadraticStripModRational[#, prime] & /@
+          (variables /. rules);
+        If[MemberQ[point, $Failed], Continue[]];
+        deltaValues = observableTransportFFEvaluateExpressions[
+          rootCompiler, point, prime];
+        If[MemberQ[deltaValues, $Failed | 0] ||
+            ! AllTrue[deltaValues, JacobiSymbol[#, prime] === 1 &],
+          Continue[]];
+        rootValues = multiquadraticSquareRoots[deltaValues, prime];
+        If[rootValues === $Failed, Continue[]];
+        images = observableTransportFFAlgebraicCovariantImages[
+          compiled, variable, point, rootValues,
+          ConstantArray[1, rootCount], prime];
+        If[images === $Failed, Continue[]];
+        joined = Join @@ images;
+        reduced = Quiet[Check[
+          RowReduce[Transpose[joined], Modulus -> prime], $Failed]];
+        If[reduced === $Failed, Continue[]];
+        pivots = DeleteMissing[(Replace[
+            FirstPosition[#, value_ /; value =!= 0,
+              Missing["ZeroRow"], {1}, Heads -> False],
+            {position_Integer} :> position] &) /@ reduced];
+        Return[DeleteDuplicates[pivots], Module],
+        {maximumAttempts}]
+    ];
+    $Failed
+  ];
+  MapIndexed[proposal[#1, First[#2]] &, samples]
+];
+
+observableTransportFFAlgebraicCovariantIndependentRowsAtSamples[
+    basis_, connection_, variable_Symbol, variables_List, samples_List,
+    declaredSquares_List] := Module[{compiled},
+  compiled = observableTransportFFCompileAlgebraicCovariant[
+    basis, connection, variables, declaredSquares];
+  If[! AssociationQ[compiled], ConstantArray[$Failed, Length[samples]],
+    observableTransportFFAlgebraicCovariantIndependentRowsAtSamples[
+      compiled, variable, variables, samples]]
 ];
 
 (* Verify row-space inclusion directly at fresh finite-field points.  This is
@@ -606,6 +809,157 @@ observableTransportModularAlgebraicSubspaceInclusion[space_, candidates_,
     "Accepted" -> True, "Probabilistic" -> True, "Exact" -> False,
     "CoefficientField" -> "Multiquadratic", "RootCount" -> rootCount,
     "AcceptedTrials" -> accepted, "RejectedTrials" -> rejected|>
+];
+
+(* Certify nabla B subset B from modular images of B, D B and A.  This is the
+   same fresh-point/all-embedding acceptance as the materialized algebraic
+   certificate, but unused symbolic rows of nabla B are never constructed. *)
+observableTransportModularAlgebraicCovariantSubspaceInclusion[
+    compiled_Association, variable_Symbol, variables_List,
+    OptionsPattern[]] := Module[
+  {basisDimensions, connectionDimensions, primeCount, pointsPerPrime, seed,
+   roots, rootSquares, rootCompiler, rootCount, branchCount, primes,
+   constantRootSquares, constantRootCompiler, constantRootValues,
+   primeAttemptLimit, accepted = {}, rejected = {}, attemptsPerPrime,
+   acceptedForPrime, candidatePoints, point, deltaValues, rootValues,
+   signs, mask, images, spaceRank, joinedRank, branchFailed},
+  basisDimensions = Lookup[compiled["Basis"], "Dimensions", {}];
+  connectionDimensions = Lookup[
+    compiled["Connection"], "Dimensions", {}];
+  If[Length[basisDimensions] =!= 2 ||
+      connectionDimensions =!= {Last[basisDimensions],
+        Last[basisDimensions]} ||
+      ! MatchQ[variables, {_Symbol ..}] ||
+      ! Between[Length[variables], {1, 2}] ||
+      ! MemberQ[variables, variable],
+    Return[observableTransportFFFailure[
+      "ModularAlgebraicCovariantInputsInvalid"]]];
+  primeCount = OptionValue["ValidationPrimeCount"];
+  pointsPerPrime = OptionValue["ValidationPointsPerPrime"];
+  seed = Replace[OptionValue["ValidationSeed"],
+    Automatic :> RandomInteger[{1, 2^31 - 1}]];
+  If[! IntegerQ[primeCount] || primeCount < 1 ||
+      ! IntegerQ[pointsPerPrime] || pointsPerPrime < 1 ||
+      ! IntegerQ[seed],
+    Return[observableTransportFFFailure[
+      "ModularAlgebraicCovariantOptionsInvalid"]]];
+  roots = compiled["Roots"];
+  rootSquares = Lookup[roots, "RootSquare", {}];
+  rootCompiler = compiled["RootSquareCompiler"];
+  rootCount = Length[roots];
+  If[! ListQ[rootCompiler] || MemberQ[rootCompiler, $Failed],
+    Return[observableTransportFFFailure[
+      "AlgebraicRootSquaresNotRational"]]];
+  constantRootSquares = Select[rootSquares,
+    FreeQ[#, Alternatives @@ variables] &];
+  constantRootCompiler = observableTransportFFCompileExpressions[
+    constantRootSquares, variables];
+  If[MemberQ[constantRootCompiler, $Failed],
+    Return[observableTransportFFFailure[
+      "AlgebraicRootSquaresNotRational"]]];
+  branchCount = 2^rootCount;
+  attemptsPerPrime = Max[64, 16 branchCount pointsPerPrime];
+  primeAttemptLimit = Max[1000, 200 primeCount 2^Length[
+    constantRootSquares]];
+  primes = BlockRandom[Module[{selected = {}, prime, primeAttempts = 0},
+    SeedRandom[seed];
+    While[Length[selected] < primeCount &&
+        primeAttempts < primeAttemptLimit,
+      primeAttempts++;
+      prime = RandomPrime[{2^30, 2^31 - 1}];
+      If[Mod[prime, 4] =!= 3 ||
+          MemberQ[Join[{$observableTransportFFTracePrime}, selected],
+            prime], Continue[]];
+      constantRootValues = observableTransportFFEvaluateExpressions[
+        constantRootCompiler, ConstantArray[0, Length[variables]], prime];
+      If[FreeQ[constantRootValues, $Failed | 0] &&
+          AllTrue[constantRootValues,
+            JacobiSymbol[#, prime] === 1 &],
+        AppendTo[selected, prime]]];
+    selected]];
+  If[Length[primes] < primeCount,
+    Return[observableTransportFFFailure[
+      "InsufficientSplitValidationPrimes", <|
+        "AcceptedPrimeCount" -> Length[primes],
+        "RequiredPrimeCount" -> primeCount,
+        "PrimeAttemptLimit" -> primeAttemptLimit,
+        "ConstantRootSquares" -> constantRootSquares|>]]];
+  Do[
+    acceptedForPrime = 0;
+    candidatePoints = BlockRandom[
+      SeedRandom[Mod[seed + prime, 2^31 - 1]];
+      Table[RandomInteger[{2, prime - 2}, Length[variables]],
+        {attemptsPerPrime}]];
+    Do[
+      If[acceptedForPrime >= pointsPerPrime, Break[]];
+      point = candidatePoint;
+      deltaValues = observableTransportFFEvaluateExpressions[
+        rootCompiler, point, prime];
+      If[MemberQ[deltaValues, $Failed | 0] ||
+          ! AllTrue[deltaValues, JacobiSymbol[#, prime] === 1 &],
+        AppendTo[rejected, <|"Prime" -> prime, "Point" -> point,
+          "Reason" -> "NonsplitOrSingularRootImage"|>]; Continue[]];
+      rootValues = multiquadraticSquareRoots[deltaValues, prime];
+      If[rootValues === $Failed,
+        AppendTo[rejected, <|"Prime" -> prime, "Point" -> point,
+          "Reason" -> "SquareRootFailure"|>]; Continue[]];
+      branchFailed = False;
+      Do[
+        signs = Table[If[BitGet[mask, index - 1] === 1, -1, 1],
+          {index, rootCount}];
+        images = observableTransportFFAlgebraicCovariantImages[
+          compiled, variable, point, rootValues, signs, prime];
+        If[images === $Failed,
+          branchFailed = True; Break[]];
+        spaceRank = Quiet[Check[MatrixRank[images[[1]],
+          Modulus -> prime], $Failed]];
+        joinedRank = Quiet[Check[MatrixRank[Join @@ images,
+          Modulus -> prime], $Failed]];
+        If[spaceRank === $Failed || joinedRank === $Failed,
+          branchFailed = True; Break[]];
+        If[joinedRank =!= spaceRank,
+          Return[observableTransportFFFailure[
+            "FreshModularSubspaceInclusionRejected", <|
+              "CoefficientField" -> "Multiquadratic", "Prime" -> prime,
+              "Point" -> point, "BranchMask" -> mask,
+              "SpaceRank" -> spaceRank,
+              "JoinedRank" -> joinedRank|>], Module]],
+        {mask, 0, branchCount - 1}];
+      If[branchFailed,
+        AppendTo[rejected, <|"Prime" -> prime, "Point" -> point,
+          "Reason" -> "BranchEvaluationFailed"|>]; Continue[]];
+      AppendTo[accepted, <|"Prime" -> prime, "Point" -> point,
+        "RootCount" -> rootCount, "BranchesChecked" -> branchCount|>];
+      acceptedForPrime++,
+      {candidatePoint, candidatePoints}];
+    If[acceptedForPrime < pointsPerPrime,
+      Return[observableTransportFFFailure[
+        "InsufficientFreshModularAlgebraicPoints", <|
+          "Prime" -> prime, "Accepted" -> acceptedForPrime,
+          "Required" -> pointsPerPrime,
+          "RootSquares" -> rootSquares,
+          "RejectedReasons" -> Counts[Lookup[
+            Select[rejected, Lookup[#, "Prime", None] === prime &],
+            "Reason", "Unknown"]]|>], Module]],
+    {prime, primes}];
+  <|"Status" -> "FreshModularSubspaceInclusionAccepted",
+    "Accepted" -> True, "Probabilistic" -> True, "Exact" -> False,
+    "CoefficientField" -> "Multiquadratic", "RootCount" -> rootCount,
+    "AcceptedTrials" -> accepted, "RejectedTrials" -> rejected|>
+];
+
+observableTransportModularAlgebraicCovariantSubspaceInclusion[
+    basis_, connection_, variable_Symbol, variables_List,
+    declaredSquares_List, OptionsPattern[]] := Module[{compiled},
+  compiled = observableTransportFFCompileAlgebraicCovariant[
+    basis, connection, variables, declaredSquares];
+  If[! AssociationQ[compiled], $Failed,
+    observableTransportModularAlgebraicCovariantSubspaceInclusion[
+      compiled, variable, variables,
+      "ValidationPrimeCount" -> OptionValue["ValidationPrimeCount"],
+      "ValidationPointsPerPrime" ->
+        OptionValue["ValidationPointsPerPrime"],
+      "ValidationSeed" -> OptionValue["ValidationSeed"]]]
 ];
 
 (* A bounded reserve of points is generated up front, so a very large result

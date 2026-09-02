@@ -641,6 +641,7 @@ observableTransportCovariantRowClosure[rows_, connection_, variable_,
    initialSpanCertificate = Missing["Structural"],
    stabilizationCertificate = Missing["FullRank"],
    initialSpanMethod, stabilizationMethod, covariant, candidate,
+   covariantCompiled, modularCovariant, pivotCandidates, selectedRows,
    nextPivots, currentRank, nextRank, step, certify},
   certify[space_, candidates_] := If[
     transportChartRadicalBases[{space, candidates}] === {},
@@ -692,14 +693,28 @@ observableTransportCovariantRowClosure[rows_, connection_, variable_,
   ];
   Do[
     currentRank = Length[basis];
-    covariant = observableTransportCovariantRows[
-      basis, connection, variable];
-    If[! MatrixQ[covariant],
-      Return[<|"Status" -> "CovariantClosureConstructionFailed",
-        "Step" -> step|>, Module]];
-    candidate = Join[basis, covariant];
-    nextPivots = observableTransportMaximalIndependentExtensionRows[
-      basis, covariant, samples, rootSquares];
+    modularCovariant = False;
+    covariantCompiled = If[rootSquares === {}, $Failed,
+      Quiet[Check[observableTransportFFCompileAlgebraicCovariant[
+        basis, connection, variables, rootSquares], $Failed]]];
+    If[AssociationQ[covariantCompiled],
+      pivotCandidates = Select[
+        observableTransportFFAlgebraicCovariantIndependentRowsAtSamples[
+          covariantCompiled, variable, variables, samples],
+        Function[value, value =!= $Failed &&
+          AllTrue[Range[currentRank], MemberQ[value, #] &]]];
+      If[pivotCandidates =!= {},
+        nextPivots = First@MaximalBy[pivotCandidates, Length];
+        modularCovariant = True]];
+    If[! TrueQ[modularCovariant],
+      covariant = observableTransportCovariantRows[
+        basis, connection, variable];
+      If[! MatrixQ[covariant],
+        Return[<|"Status" -> "CovariantClosureConstructionFailed",
+          "Step" -> step|>, Module]];
+      candidate = Join[basis, covariant];
+      nextPivots = observableTransportMaximalIndependentExtensionRows[
+        basis, covariant, samples, rootSquares]];
     If[nextPivots === $Failed,
       Return[<|"Status" -> "CovariantClosureRankSampleFailed",
         "Step" -> step|>, Module]];
@@ -711,7 +726,19 @@ observableTransportCovariantRowClosure[rows_, connection_, variable_,
     If[TrueQ[verbose], Print["Observable covariant closure step ", step,
       ": rank ", currentRank, " -> ", nextRank]];
     If[nextRank === currentRank,
-      stabilizationCertificate = certify[basis, covariant];
+      stabilizationCertificate = If[TrueQ[modularCovariant],
+        observableTransportModularAlgebraicCovariantSubspaceInclusion[
+          covariantCompiled, variable, variables,
+          "ValidationPrimeCount" -> primeCount,
+          "ValidationPointsPerPrime" -> pointsPerPrime],
+        certify[basis, covariant]];
+      If[stabilizationCertificate === $Failed,
+        covariant = observableTransportCovariantRows[
+          basis, connection, variable];
+        If[! MatrixQ[covariant],
+          Return[<|"Status" -> "CovariantClosureConstructionFailed",
+            "Step" -> step|>, Module]];
+        stabilizationCertificate = certify[basis, covariant]];
       If[! AssociationQ[stabilizationCertificate] ||
           Lookup[stabilizationCertificate, "Status", None] =!=
             "FreshModularSubspaceInclusionAccepted",
@@ -728,7 +755,15 @@ observableTransportCovariantRowClosure[rows_, connection_, variable_,
         "InitialSpanCertificate" -> initialSpanCertificate,
         "StabilizationCertificate" -> stabilizationCertificate|>, Module]
     ];
-    basis = candidate[[nextPivots]];
+    If[TrueQ[modularCovariant],
+      selectedRows = Select[nextPivots, # > currentRank &] - currentRank;
+      covariant = observableTransportCovariantRows[
+        basis[[selectedRows]], connection, variable];
+      If[! MatrixQ[covariant],
+        Return[<|"Status" -> "CovariantClosureConstructionFailed",
+          "Step" -> step|>, Module]];
+      basis = Join[basis, covariant],
+      basis = candidate[[nextPivots]]];
     AppendTo[rankHistory, nextRank];
     If[nextRank === stateDimension,
       stabilizationMethod = "FullRank";

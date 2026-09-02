@@ -129,12 +129,66 @@ tripleReferenceSheets = Table[With[
       tripleTemplateMatrix, {u, v}, triplePoint, tripleCompiled["Roots"],
       tripleRootValues, sheetSigns, triplePrime]],
   {mask, 0, 7}];
+tripleCompiledDualSheets = Table[With[
+    {sheetSigns = Table[
+      If[BitGet[mask, index - 1] === 1, -1, 1], {index, 3}]},
+    FeynFacet`Private`observableTransportFFAlgebraicCompiledMatrixValueWithDerivative[
+      tripleCompiled, u, triplePoint, tripleRootValues, sheetSigns,
+      triplePrime]],
+  {mask, 0, 7}];
+tripleReferenceDerivativeSheets = Table[With[
+    {sheetSigns = Table[
+      If[BitGet[mask, index - 1] === 1, -1, 1], {index, 3}]},
+    FeynFacet`Private`observableTransportFFAlgebraicMatrixValue[
+      D[tripleTemplateMatrix, u], {u, v}, triplePoint,
+      tripleCompiled["Roots"], tripleRootValues, sheetSigns, triplePrime]],
+  {mask, 0, 7}];
 FTAssert["compiled formal-root templates reproduce every sign sheet",
   AssociationQ[tripleCompiled] && Length[tripleCompiled["Roots"]] === 3 &&
     tripleCompiledSheets === tripleReferenceSheets];
+FTAssert["compiled root tangents reproduce symbolic derivatives on every sheet",
+  tripleCompiledDualSheets[[All, 1]] === tripleReferenceSheets &&
+    tripleCompiledDualSheets[[All, 2]] ===
+      tripleReferenceDerivativeSheets];
 FTAssert["template compilation retains the undeclared-root census fallback",
   AssociationQ[tripleDiscovered] &&
     Length[tripleDiscovered["Roots"]] === 3];
+
+covariantBasis = {{Sqrt[1 + u], 0}};
+covariantClosedConnection = ConstantArray[0, {2, 2}];
+covariantOpenConnection = {{0, 1}, {0, 0}};
+covariantCompiled =
+  FeynFacet`Private`observableTransportFFCompileAlgebraicCovariant[
+    covariantBasis, covariantClosedConnection, {u, v}, tripleRootSquares];
+covariantPivots =
+  FeynFacet`Private`observableTransportFFAlgebraicCovariantIndependentRowsAtSamples[
+    covariantBasis, covariantOpenConnection, u, {u, v},
+    {{u -> 3, v -> 5}, {u -> 8, v -> 7}}, tripleRootSquares];
+covariantIncluded =
+  FeynFacet`Private`observableTransportModularAlgebraicCovariantSubspaceInclusion[
+    covariantCompiled, u, {u, v},
+    "ValidationPrimeCount" -> 2, "ValidationPointsPerPrime" -> 1,
+    "ValidationSeed" -> 1015];
+covariantExcluded =
+  FeynFacet`Private`observableTransportModularAlgebraicCovariantSubspaceInclusion[
+    covariantBasis, covariantOpenConnection, u, {u, v}, tripleRootSquares,
+    "ValidationPrimeCount" -> 2, "ValidationPointsPerPrime" -> 1,
+    "ValidationSeed" -> 1016];
+covariantClosure = FeynFacet`Private`observableTransportCovariantRowClosure[
+  covariantBasis, covariantOpenConnection, u, {u, v},
+  {{u -> 3, v -> 5}, {u -> 8, v -> 7}}, 2, 2, 1, False,
+  tripleRootSquares];
+FTAssert["modular covariant images find a genuine extension",
+  AllTrue[covariantPivots, # === {1, 2} &] &&
+    Lookup[covariantClosure, "RankHistory", {}] === {1, 2}];
+FTAssert["covariant stabilization uses all root embeddings",
+  Lookup[covariantIncluded, "Status", None] ===
+      "FreshModularSubspaceInclusionAccepted" &&
+    AllTrue[Lookup[covariantIncluded, "AcceptedTrials", {}],
+      Lookup[#, "BranchesChecked", 0] === 8 &]];
+FTAssert["covariant images reject a non-invariant row space",
+  Lookup[covariantExcluded, "Status", None] ===
+    "FreshModularSubspaceInclusionRejected"];
 
 tripleIncluded =
   FeynFacet`Private`observableTransportModularAlgebraicSubspaceInclusion[
