@@ -829,7 +829,8 @@ observableTransportModularAlgebraicCovariantSubspaceInclusion[
    constantRootSquares, constantRootCompiler, constantRootValues,
    primeAttemptLimit, accepted = {}, rejected = {}, attemptsPerPrime,
    acceptedForPrime, candidatePoints, point, deltaValues, rootValues,
-   signs, mask, images, spaceRank, joinedRank, branchFailed},
+   signs, mask, images, reduced, pivots, spaceRank, joinedRank,
+   branchFailed},
   basisDimensions = Lookup[compiled["Basis"], "Dimensions", {}];
   connectionDimensions = Lookup[
     compiled["Connection"], "Dimensions", {}];
@@ -918,19 +919,29 @@ observableTransportModularAlgebraicCovariantSubspaceInclusion[
           compiled, variable, point, rootValues, signs, prime];
         If[images === $Failed,
           branchFailed = True; Break[]];
-        spaceRank = Quiet[Check[MatrixRank[images[[1]],
+        (* With B ordered before nabla B, one RREF of the transposed joined
+           image proves both required statements: B has full row rank and
+           every covariant row lies in rowspace(B).  The former two-rank
+           test performed essentially the same elimination twice on every
+           prime, point and sign sheet. *)
+        reduced = Quiet[Check[RowReduce[Transpose[Join @@ images],
           Modulus -> prime], $Failed]];
-        joinedRank = Quiet[Check[MatrixRank[Join @@ images,
-          Modulus -> prime], $Failed]];
-        If[spaceRank === $Failed || joinedRank === $Failed,
+        If[reduced === $Failed,
           branchFailed = True; Break[]];
-        If[joinedRank =!= spaceRank,
+        pivots = DeleteDuplicates@DeleteMissing[(Replace[
+            FirstPosition[#, value_ /; value =!= 0,
+              Missing["ZeroRow"], {1}, Heads -> False],
+            {position_Integer} :> position] &) /@ reduced];
+        spaceRank = Count[pivots,
+          position_Integer /; position <= First[basisDimensions]];
+        joinedRank = Length[pivots];
+        If[pivots =!= Range[First[basisDimensions]],
           Return[observableTransportFFFailure[
             "FreshModularSubspaceInclusionRejected", <|
               "CoefficientField" -> "Multiquadratic", "Prime" -> prime,
               "Point" -> point, "BranchMask" -> mask,
-              "SpaceRank" -> spaceRank,
-              "JoinedRank" -> joinedRank|>], Module]],
+              "SpaceRank" -> spaceRank, "JoinedRank" -> joinedRank,
+              "PivotRows" -> pivots|>], Module]],
         {mask, 0, branchCount - 1}];
       If[branchFailed,
         AppendTo[rejected, <|"Prime" -> prime, "Point" -> point,
