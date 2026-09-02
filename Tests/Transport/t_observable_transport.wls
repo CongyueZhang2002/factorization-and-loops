@@ -65,8 +65,8 @@ tests = <|
      the index set depends on the record's letter order, so it is
      computed here rather than pinned to one fixture's numbering *)
   "ActiveLetters" -> actual["FirstSegmentActiveLetters"] ===
-    Select[Range[Length[actual["Letters"]]],
-      ! TrueQ[Together[D[actual["Letters"][[#]], v]] === 0] &],
+    Select[Range[Length[actual["DLogLetters"]]],
+      ! TrueQ[Together[D[actual["DLogLetters"][[#]], v]] === 0] &],
   "MapCounts" -> actual["FirstSegmentMapCountsByWeight"] ===
     {1, 3, 9, 21, 0, 0},
   "ExactMapAgreement" -> mapAgreement,

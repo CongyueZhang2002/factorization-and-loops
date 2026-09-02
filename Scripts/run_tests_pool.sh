@@ -48,12 +48,20 @@ current_pool_pid() {
 # when they start a nested pool, exhaust the licence seats of the running
 # pool (measured 2026-09-02 03:18: relaunch refusals, requeues, DUPLICATE
 # verdicts).  They run standalone after the pool stops.
+# The three multiquadratic tests listed last ran more than 105 minutes
+# on REUSED subkernels without a line of output (2026-09-02 baseline batch,
+# suspected loss of a trusted fast path through leftover kernel state)
+# while their own comments measure the intended route in seconds; fresh
+# standalone runs measure them honestly.
 standalone_only() {
   case "$1" in
     t_chart_transport|t_transport_chart_extension|t_kallen_q4_chart|\
     t_family_regulator_factor_in_frame|t_radical_denesting|\
     t_canonica_scheduler|t_canonical_pipeline|t_pair_queue_schedule|\
-    t_kernelpool_return_marker|t_kernelpool_resource_policy) return 0 ;;
+    t_kernelpool_return_marker|t_kernelpool_resource_policy|\
+    t_kernelpool_duplicate_verdict|\
+    t_multiquadratic_gauge_ladder|t_multiquadratic_gauge_screen|\
+    t_multiquadratic_letters) return 0 ;;
     *) return 1 ;;
   esac
 }

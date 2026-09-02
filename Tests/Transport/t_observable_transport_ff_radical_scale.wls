@@ -30,7 +30,12 @@ FTAssert["those entries equal Sqrt[q1], 1/Sqrt[q1], Sqrt[5] Sqrt[q2] and y Sqrt[
     m - {{Sqrt[q1], 1/Sqrt[q1]}, {Sqrt[5] Sqrt[q2], y Sqrt[q1] Sqrt[q2]}}])];
 compiled = FeynFacet`Private`observableTransportFFCompileAlgebraicMatrix[m, {y}, squares];
 FTAssert["the specialized matrix compiles", AssociationQ[compiled]];
-p = 2147483647;
+(* a 31-bit prime p == 3 (mod 4) in which 5 is a quadratic residue: for
+   2^31 - 1 itself (5 | p) = (p | 5) = (2 | 5) = -1, so no split point
+   exists there -- the first draft of this test tripped over exactly that *)
+p = SelectFirst[Table[NextPrime[2^31, -k], {k, 1, 60}],
+  Mod[#, 4] === 3 && JacobiSymbol[5, #] === 1 &];
+FTAssert["a test prime with (5|p) = 1 exists below 2^31", IntegerQ[p]];
 img[r_] := Mod[Numerator[r] PowerMod[Denominator[r], -1, p], p];
 (* a point where both squares and the constant 5 are quadratic residues *)
 y0 = SelectFirst[Range[1234567, 1234567 + 400],
@@ -51,9 +56,10 @@ sheetsOK = And @@ Table[
 FTAssert["compiled values satisfy the radical identities on all four sheets", sheetsOK];
 der = FeynFacet`Private`observableTransportFFAlgebraicCompiledMatrixValueWithDerivative[compiled, y, {y0}, {r1, r2}, {1, 1}, p];
 (* d/dy Sqrt[q1] = y/Sqrt[q1]; d/dy 1/Sqrt[q1] = -y/q1^(3/2) *)
+(* the derivative evaluator returns {values, derivatives}, two matrices *)
 FTAssert["derivative evaluator: d/dy Sqrt[q1] = y/Sqrt[q1] and d/dy (1/Sqrt[q1]) = -y q1^(-3/2) mod p",
-  ListQ[der] && Mod[der[[1, 1, 2]] r1 - y0, p] === 0 &&
-    Mod[der[[1, 2, 2]] PowerMod[r1, 3, p] + y0, p] === 0];
+  ListQ[der] && Mod[der[[2, 1, 1]] r1 - y0, p] === 0 &&
+    Mod[der[[2, 1, 2]] PowerMod[r1, 3, p] + y0, p] === 0];
 pivots = FeynFacet`Private`observableTransportFFAlgebraicIndependentRowsAtSamples[m, {y}, {{y -> 3/11}, {y -> 4/13}}, squares];
 FTAssert["the production rank sampler returns pivots for the specialized matrix", MatchQ[pivots, {{__Integer}, {__Integer}}]];
 bad = {{Sqrt[1 + y^3], y}};
