@@ -32,13 +32,48 @@ the benchmark table and the CF259 state. This note is the short version.
 Inputs (assembled eps-form, native dlog residues, compact transport-ready
 record with Codex's transport valuations, path card) are under
 `Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/transport_inputs_2026-09-02/`.
-State: (filled in at the end of the session -- see the plan's CF259 rows).
+State: TRANSPORTED on the overhaul branch (probe 5, 05:51, 564 s):
+`Results/.../CF259/observable_transport_2026-09-02/observable_transport_CF259.wl`,
+status ModularlyVerifiedObservableTransport, 20 demanded (order,row)
+pairs, 167 boundary coordinates, maximum weight 5, operator-automaton
+representation (demanded maps materialize through
+ReconstructObservableTransportWordMaps with fresh modular acceptance).
+The four earlier probes failed at the rank-sampling step because the
+finite-field compiler did not accept rescaled declared radicals (B8 in
+the plan); the fix and its test are on the branch. The Laurent
+extraction (439 s of 564 s) is the remaining hot spot.
+
+## Acceptance batches and what they found
+
+Both trees ran the full suite through their own KernelPool in reuse mode
+(baseline = main at 2d73f71f, overhaul = this branch); the pooled phase is
+a screen, every pooled failure is confirmed in a fresh standalone kernel.
+The pooled comparison shows no regression, two tests fixed
+(t_algebraic_observable_transport, t_reconstruction_nlo) and nine new
+tests green. The first comparison (06:05) showed twelve regressions with
+one root cause each, all fixed the same night and recorded as B9-B13 in
+the plan: the strip solver located its own source by a flat `Private/`
+path (B9, now `feynFacetPrivateFile[]` from the manifest); a broker helper
+was moved to backup although a test drives it (B10); reused subkernels
+carried leaked Global values (B11, the pool now unsets them after each
+mission); the finite-field route stores timings and provenance hashes
+inside its result (B12, the construction-budget test compares without
+them); `FeynCalc`Names` shadows `System`Names` in every script parsed
+after LoadFACET (B13). Standalone confirmations: see the plan's
+acceptance section for the final tables (RESULTS PENDING at the time of
+this note; the confirmation queue log is `bench/seatqueue_confirm.log`
+in the session scratchpad).
 
 ## Rules that changed
 
 - Test batches in reuse mode; two main kernels is the licence limit with
   the pool up; sequence standalone jobs.
 - Lane split with Codex dissolved; the Codex tree is reference only.
+- Scripts and tests write `System`Names`, never bare `Names` (B13).
+- Run a batch driver from a scratch COPY: editing a running bash script
+  killed the overhaul driver's standalone phase (bash reads incrementally).
+- Test symbols get descriptive names; the pool unsets leaked Global
+  values between missions (`FACET_POOL_ISOLATION=0` disables it).
 
 # HANDOFF — orientation and workflow walkthrough
 
