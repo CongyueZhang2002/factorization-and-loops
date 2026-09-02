@@ -47,22 +47,42 @@ extraction (439 s of 564 s) is the remaining hot spot.
 
 Both trees ran the full suite through their own KernelPool in reuse mode
 (baseline = main at 2d73f71f, overhaul = this branch); the pooled phase is
-a screen, every pooled failure is confirmed in a fresh standalone kernel.
-The pooled comparison shows no regression, two tests fixed
-(t_algebraic_observable_transport, t_reconstruction_nlo) and nine new
-tests green. The first comparison (06:05) showed twelve regressions with
-one root cause each, all fixed the same night and recorded as B9-B13 in
-the plan: the strip solver located its own source by a flat `Private/`
-path (B9, now `feynFacetPrivateFile[]` from the manifest); a broker helper
-was moved to backup although a test drives it (B10); reused subkernels
-carried leaked Global values (B11, the pool now unsets them after each
-mission); the finite-field route stores timings and provenance hashes
-inside its result (B12, the construction-budget test compares without
-them); `FeynCalc`Names` shadows `System`Names` in every script parsed
-after LoadFACET (B13). Standalone confirmations: see the plan's
-acceptance section for the final tables (RESULTS PENDING at the time of
-this note; the confirmation queue log is `bench/seatqueue_confirm.log`
-in the session scratchpad).
+a screen, every pooled failure was confirmed in a fresh standalone kernel
+(the branch's confirmations through a sequential seat queue after its
+driver died, 06:37). Final merged verdict over the 146 baseline rows plus 9 new tests: 118
+identical (green on both, or the same verdict), 1 fixed by the overhaul
+(t_algebraic_observable_transport), 9 new tests green (t_modular_arithmetic,
+the seven adopted observable-transport tests, the rewritten pool verdict
+test), 2 retired with their routes (t_libra_family_eps_form,
+t_maple_canonical_gauge, now under Private_Backup/), 9 red on BOTH trees
+with the same failing assertions
+(t_multiquadratic_installation, _end_to_end_install,
+_installed_family_chain, _obstruction_driver, _regulator_reconstruction,
+_strip_solve, t_exact_depth, t_master_transport, t_streaming_kira_import),
+3 without a verdict on either tree (t_multiquadratic_gauge_ladder /
+_gauge_screen / _letters hit the 30-minute cap on the baseline; their
+compile route is ~7900 s). No regression. The first comparison (06:05) had
+shown twelve regressions with one root cause each, all fixed the same
+night and recorded as B9-B14 in the plan: the strip solver located its own
+source by a flat `Private/` path (B9), a broker helper was moved to backup
+although a test drives it (B10), reused subkernels carried leaked Global
+values (B11), the finite-field route stores timings and provenance hashes
+inside its result (B12), `FeynCalc`Names` shadows `System`Names` (B13),
+the multiquadratic certifier starved its prime budget on inadmissible
+primes (B14, a pre-existing flaky design). An adversarial review of the
+diff found four defects (D1: my layer order emptied SolveEpsFormStripInFrame's
+inherited options; D2, D3, D4) and six risks; all defects and five risks
+are fixed, the rest is in the plan's not-done list. Evidence:
+`Design/PrivateOverhaul_2026-09-01_evidence/`.
+
+## Merge state
+
+The branch `overhaul` (17 checkpoints on top of 2d73f71f) was fast-forwarded
+into `main` at the end of the session after the acceptance above; the
+plan file is `Design/PrivateOverhaul_2026-09-01.md` (bugs B1-B14, review
+findings D1-D4 and R1-R6, benchmarks, not-done list N1-N9, decisions for
+the user U1-U4). If the merge commit is not on `main`, the branch is
+complete and mergeable with `git merge --ff-only overhaul`.
 
 ## Rules that changed
 

@@ -1,0 +1,5 @@
+2026-09-02T08:28:57	load	OK	2.117	170	commit=1dd66dc0
+2026-09-02T08:28:59	ot_CF27	ModularlyVerifiedObservableTransport	1.315	184	pairs=6 weight=5 boundary=28
+2026-09-02T08:29:05	ot_CF230	ModularlyVerifiedObservableTransport	5.702	285	pairs=12 weight=5 boundary=49
+2026-09-02T08:29:52	ot_CF385	ModularlyVerifiedObservableTransport	47.531	1194	pairs=8 weight=5 boundary=153
+2026-09-02T08:29:54	dbe_synthetic	Certified	1.796	1194	
