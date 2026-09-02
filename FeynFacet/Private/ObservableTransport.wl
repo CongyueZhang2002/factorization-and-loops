@@ -1292,7 +1292,9 @@ BuildObservableTransport[record_Association, demand_Association,
    secondClosureStabilizationMethod, secondRankSamples,
    tDemandLaurent, demandedRows, physicalLabels,
    physicalDemand, physicalOrder, component,
-   demandedMap, familyCertificate, certifiedDLog, residueRecord,
+   demandedMap, familyCertificate, recordDLog, certificateDLog,
+   certifiedDLog, residueDLogSource, residueProbabilistic,
+   residueRecord, residueRecordUsableQ, usableDLogQ,
    firstKernelRecord,
    liftedResidues,
    pathActiveLetters, firstKernelIndices, firstKernelMethod,
@@ -1747,47 +1749,109 @@ BuildObservableTransport[record_Association, demand_Association,
   ];
 
   familyCertificate = Lookup[record, "EpsilonFormCertificate", <||>];
-  certifiedDLog = SelectFirst[
-    {Lookup[record, "DLog", <||>],
-     If[AssociationQ[familyCertificate] &&
-         TrueQ[Lookup[familyCertificate, "Exact", False]],
-       Lookup[familyCertificate, "DLog", <||>], <||>]},
-    AssociationQ[#] && TrueQ[Lookup[#, "Valid", False]] &, <||>];
+  recordDLog = Lookup[record, "DLog", <||>];
+  certificateDLog = Lookup[familyCertificate, "DLog", <||>];
+  usableDLogQ[value_] := AssociationQ[value] &&
+    TrueQ[Lookup[value, "Valid", False]] &&
+    Lookup[value, "Variables", Missing[]] === variables &&
+    Lookup[value, "Regulator", Missing[]] === eps &&
+    Lookup[value, "Dimension", Missing[]] === dimension &&
+    ListQ[Lookup[value, "Letters", None]] &&
+    ListQ[Lookup[value, "Residues", None]] &&
+    Length[value["Letters"]] === Length[value["Residues"]] &&
+    AllTrue[value["Residues"],
+      MatrixQ[#] && Dimensions[#] === {dimension, dimension} &] &&
+    TrueQ[Lookup[value, "ConstantResidues", False]];
+  residueDLogSource = None;
+  residueProbabilistic = False;
+  certifiedDLog = Which[
+    recordExactQ && usableDLogQ[recordDLog],
+      residueDLogSource = "ExactRecord";
+      recordDLog,
+    recordExactQ && usableDLogQ[certificateDLog],
+      residueDLogSource = "ExactCertificate";
+      certificateDLog,
+    coefficientField === "Multiquadratic" && recordCertifiedQ &&
+        ! recordExactQ && AssociationQ[familyCertificate] &&
+        TrueQ[Lookup[familyCertificate, "Certified", False]] &&
+        TrueQ[Lookup[familyCertificate, "Exact", True] === False] &&
+        TrueQ[Lookup[familyCertificate, "Probabilistic", False]] &&
+        Lookup[familyCertificate, "CertificationLevel", None] ===
+          "HighConfidenceFiniteField" &&
+        Lookup[familyCertificate, "CoefficientField", None] ===
+          "Multiquadratic" &&
+        Lookup[familyCertificate, "IdentityMethod", None] === "Modular" &&
+        AssociationQ[Lookup[familyCertificate, "Modular", <||>]] &&
+        Lookup[familyCertificate["Modular"], "Status", None] ===
+          "CertifiedMultiquadraticFamily" &&
+        Lookup[familyCertificate["Modular"], "Method", None] ===
+          "AllSignSheetsAtFreshSplitPoints" &&
+        TrueQ[Lookup[familyCertificate["Modular"],
+          "AllRootSheetsChecked", False]] &&
+        TrueQ[Lookup[familyCertificate["Modular"],
+          "FreshLiftValidation", False]] &&
+        TrueQ[Lookup[familyCertificate["Modular"],
+          "ConstantResidues", False]] &&
+        TrueQ[Lookup[familyCertificate["Modular"],
+          "ResiduesVerifiedAtAllPrimes", False]] &&
+        usableDLogQ[certificateDLog] &&
+        TrueQ[Lookup[certificateDLog,
+          "ResiduesVerifiedAtAllPrimes", False]],
+      residueDLogSource = "HighConfidenceFiniteField";
+      residueProbabilistic = True;
+      certificateDLog,
+    True,
+      <||>
+  ];
+  residueRecordUsableQ[value_] := AssociationQ[value] &&
+    MemberQ[{"Exact", "CertifiedFiniteField"},
+      Lookup[value, "Status", None]];
   residueRecord = Which[
-    coefficientField === "Multiquadratic", $Failed,
-    AssociationQ[certifiedDLog] &&
-        TrueQ[Lookup[certifiedDLog, "Valid", False]] &&
-        Lookup[certifiedDLog, "Variables", Missing[]] === variables &&
-        ListQ[Lookup[certifiedDLog, "Letters", None]] &&
-        ListQ[Lookup[certifiedDLog, "Residues", None]] &&
-        Length[certifiedDLog["Letters"]] ===
-          Length[certifiedDLog["Residues"]] &&
-        AllTrue[certifiedDLog["Residues"],
-          MatrixQ[#] && Dimensions[#] === {dimension, dimension} &],
-      <|"Status" -> "Exact",
+    usableDLogQ[certifiedDLog],
+      <|"Status" -> If[residueProbabilistic,
+          "CertifiedFiniteField", "Exact"],
         "Letters" -> certifiedDLog["Letters"],
         "Residues" -> certifiedDLog["Residues"],
-        "Identity" -> True, "Method" -> "CertifiedRecord"|>,
+        "Identity" -> True,
+        "IdentityExact" -> ! residueProbabilistic,
+        "IdentityCertified" -> True,
+        "Probabilistic" -> residueProbabilistic,
+        "Method" -> residueDLogSource|>,
+    coefficientField === "Multiquadratic", $Failed,
     True,
       observableTransportResidues[
         letters,
         observableTransportCancelMatrix[#/eps] & /@ epsConnections,
         variables, residueSamples]
   ];
-  If[AssociationQ[residueRecord] &&
-      Lookup[residueRecord, "Status", None] === "Exact",
+  If[coefficientField === "Multiquadratic" &&
+      ! residueRecordUsableQ[residueRecord],
+    Return[<|
+      "Status" -> "MultiquadraticDLogResiduesRequired",
+      "Reason" -> "SymbolicEntryKernelFallbackDisabled",
+      "FamilyEpsilonFormCertified" -> recordCertifiedQ,
+      "FamilyEpsilonFormExact" -> recordExactQ,
+      "RecordDLogUsable" -> usableDLogQ[recordDLog],
+      "CertificateDLogUsable" -> usableDLogQ[certificateDLog]|>, Module]
+  ];
+  If[residueRecordUsableQ[residueRecord],
     pathActiveLetters = Select[Range[Length[residueRecord["Letters"]]],
       ! observableTransportZeroQ[
         D[residueRecord["Letters"][[#]], firstVariable]] &];
-    firstKernelRecord = <|"Status" -> "Exact",
-      "Method" -> "DLogResidues",
+    firstKernelRecord = <|
+      "Status" -> residueRecord["Status"],
+      "Method" -> If[residueProbabilistic,
+        "CertifiedDLogResidues", "DLogResidues"],
       "Kernels" -> (observableTransportCancel[
           (D[#, firstVariable]/# /. pathRules) tangent] & /@
         residueRecord["Letters"][[pathActiveLetters]]),
       "Matrices" -> residueRecord["Residues"][[pathActiveLetters]],
-      "Identity" -> True|>;
+      "Identity" -> True,
+      "IdentityExact" -> ! residueProbabilistic,
+      "IdentityCertified" -> True,
+      "Probabilistic" -> residueProbabilistic|>;
     firstKernelIndices = pathActiveLetters;
-    firstKernelMethod = "DLogResidues",
+    firstKernelMethod = firstKernelRecord["Method"],
     firstKernelRecord = observableTransportEntryKernels[firstConnection];
     If[Lookup[firstKernelRecord, "Status", None] =!= "Exact",
       Return[firstKernelRecord, Module]
@@ -1805,8 +1869,7 @@ BuildObservableTransport[record_Association, demand_Association,
   ];
 
   If[boundaryEvolution === "AmbientBasePoint" &&
-      AssociationQ[residueRecord] &&
-      Lookup[residueRecord, "Status", None] === "Exact",
+      residueRecordUsableQ[residueRecord],
     (* The certified residues supply the transport kernels below.  Retain the
        unsplit connection only for the finite-field invariance test; no
        entrywise Apart/Together decomposition is performed. *)
@@ -1848,13 +1911,14 @@ BuildObservableTransport[record_Association, demand_Association,
   secondActiveLetters = {};
   kernelRecord = Which[
     boundaryEvolution === "AmbientBasePoint" &&
-        AssociationQ[residueRecord] &&
-        Lookup[residueRecord, "Status", None] === "Exact",
+        residueRecordUsableQ[residueRecord],
       secondActiveLetters = Select[
         Range[Length[residueRecord["Letters"]]],
         ! observableTransportZeroQ[
           D[residueRecord["Letters"][[#]], secondVariable]] &];
-      <|"Status" -> "Exact", "Method" -> "CertifiedDLogResidues",
+      <|"Status" -> residueRecord["Status"],
+        "Method" -> If[residueProbabilistic,
+          "CertifiedDLogResidues", "DLogResidues"],
         "Kernels" -> (observableTransportCancel[
             D[#, secondVariable]/# /.
               firstVariable -> firstBase] & /@
@@ -1862,14 +1926,18 @@ BuildObservableTransport[record_Association, demand_Association,
         "Matrices" -> observableTransportLiftResidues[
           residueRecord["Residues"][[secondActiveLetters]],
           extendedSlots],
-        "Identity" -> True|>,
+        "Identity" -> True,
+        "IdentityExact" -> ! residueProbabilistic,
+        "IdentityCertified" -> True,
+        "Probabilistic" -> residueProbabilistic|>,
     coefficientField === "Multiquadratic",
-      observableTransportEntryKernels[secondEvolutionConnection],
+      <|"Status" -> "MultiquadraticDLogResiduesRequired",
+        "Reason" -> "SymbolicEntryKernelFallbackDisabled"|>,
     True,
       observableTransportKernelDecomposition[
         secondEvolutionConnection, secondVariable]
   ];
-  If[Lookup[kernelRecord, "Status", None] =!= "Exact",
+  If[! residueRecordUsableQ[kernelRecord],
     Return[kernelRecord, Module]
   ];
   ambientInvarianceCertificate = Missing["NotRequired"];
@@ -1918,6 +1986,36 @@ BuildObservableTransport[record_Association, demand_Association,
     AssociateTo[structuralProbabilisticCertificates,
       "AmbientBoundaryInvariance" ->
         ambientInvarianceCertificate]];
+  If[residueProbabilistic,
+    AssociateTo[structuralProbabilisticCertificates,
+      "FamilyDLogResidues" -> <|
+        "Status" -> "CertifiedDLogResidues",
+        "Accepted" -> True,
+        "Exact" -> False,
+        "Probabilistic" -> True,
+        "Source" -> "EpsilonFormCertificate",
+        "CertificationLevel" ->
+          Lookup[familyCertificate, "CertificationLevel", Missing[]],
+        "CoefficientField" ->
+          Lookup[familyCertificate, "CoefficientField", Missing[]],
+        "IdentityMethod" ->
+          Lookup[familyCertificate, "IdentityMethod", Missing[]],
+        "Method" -> Lookup[familyCertificate["Modular"],
+          "Method", Missing[]],
+        "FreshLiftValidation" -> TrueQ[Lookup[
+          familyCertificate["Modular"], "FreshLiftValidation", False]],
+        "AllRootSheetsChecked" -> TrueQ[Lookup[
+          familyCertificate["Modular"], "AllRootSheetsChecked", False]],
+        "ConstantResidues" ->
+          TrueQ[Lookup[certifiedDLog, "ConstantResidues", False]],
+        "ResiduesVerifiedAtAllPrimes" -> TrueQ[Lookup[
+          certifiedDLog, "ResiduesVerifiedAtAllPrimes", False]],
+        "LetterCount" -> Length[certifiedDLog["Letters"]],
+        "ResidueCount" -> Length[certifiedDLog["Residues"]],
+        "IdentityPoints" -> (KeyTake[#,
+            {"Prime", "TrainingPoints", "ValidationPoints", "DLogRank",
+             "AllSheetsPerPoint"}] & /@
+          Lookup[familyCertificate, "IdentityPoints", {}])|>]];
   materializedWordLimit = OptionValue["MaterializedWordLimit"];
   If[! IntegerQ[materializedWordLimit] || materializedWordLimit < 1,
     Return[<|"Status" -> "InvalidMaterializedWordLimit"|>, Module]
@@ -2094,9 +2192,20 @@ BuildObservableTransport[record_Association, demand_Association,
       "FamilyEpsilonFormCertified" -> True,
       "FamilyEpsilonFormExact" -> recordExactQ,
       "BoundaryBaseKernel" -> True,
-      "FirstKernelIdentity" -> True,
+      "FirstKernelIdentity" ->
+        TrueQ[Lookup[firstKernelRecord, "Identity", False]],
+      "FirstKernelIdentityExact" -> TrueQ[Lookup[firstKernelRecord,
+        "IdentityExact",
+        Lookup[firstKernelRecord, "Status", None] === "Exact"]],
+      "FirstKernelIdentityCertified" -> TrueQ[Lookup[firstKernelRecord,
+        "IdentityCertified", Lookup[firstKernelRecord, "Identity", False]]],
       "BoundaryEvolution" -> True,
-      "SecondKernelIdentity" -> True|>,
+      "SecondKernelIdentity" ->
+        TrueQ[Lookup[kernelRecord, "Identity", False]],
+      "SecondKernelIdentityExact" -> TrueQ[Lookup[kernelRecord,
+        "IdentityExact", Lookup[kernelRecord, "Status", None] === "Exact"]],
+      "SecondKernelIdentityCertified" -> TrueQ[Lookup[kernelRecord,
+        "IdentityCertified", Lookup[kernelRecord, "Identity", False]]]|>,
     "ProbabilisticCertificates" -> probabilisticCertificates,
     "MaximumWeight" -> maximumWeight,
     "Seconds" -> AbsoluteTime[] - start
@@ -2110,9 +2219,10 @@ AcceptedObservableTransportQ[result_] := Module[
   {status, certificates, probabilistic, systems, requiredExact,
    representation, boundaryMethod, constraintRank, coordinateRequired,
    ambientRequired, structuralRequired, coordinateAccepted, ambientAccepted,
-   structuralAccepted, structuralRequirements, automaton,
+   structuralAccepted, structuralRequirements, dlogRequired, dlogAccepted,
+   firstKernelIdentityExact, secondKernelIdentityExact, automaton,
    coordinateCertificateQ, ambientCertificateQ, operatorAutomatonQ,
-   compactAutomatonQ, materializedWordsQ},
+   dlogCertificateQ, compactAutomatonQ, materializedWordsQ},
   If[! AssociationQ[result], Return[False]];
   status = Lookup[result, "Status", None];
   certificates = Lookup[result, "Certificates", <||>];
@@ -2157,6 +2267,27 @@ AcceptedObservableTransportQ[result_] := Module[
     TrueQ[Lookup[certificate, "Exact", True] === False] &&
     ListQ[Lookup[certificate, "AcceptedTrials", None]] &&
     Lookup[certificate, "AcceptedTrials", {}] =!= {};
+  dlogCertificateQ[certificate_] := AssociationQ[certificate] &&
+    Lookup[certificate, "Status", None] === "CertifiedDLogResidues" &&
+    TrueQ[Lookup[certificate, "Accepted", False]] &&
+    TrueQ[Lookup[certificate, "Probabilistic", False]] &&
+    TrueQ[Lookup[certificate, "Exact", True] === False] &&
+    Lookup[certificate, "CertificationLevel", None] ===
+      "HighConfidenceFiniteField" &&
+    Lookup[certificate, "CoefficientField", None] === "Multiquadratic" &&
+    Lookup[certificate, "IdentityMethod", None] === "Modular" &&
+    Lookup[certificate, "Method", None] ===
+      "AllSignSheetsAtFreshSplitPoints" &&
+    TrueQ[Lookup[certificate, "FreshLiftValidation", False]] &&
+    TrueQ[Lookup[certificate, "AllRootSheetsChecked", False]] &&
+    TrueQ[Lookup[certificate, "ConstantResidues", False]] &&
+    TrueQ[Lookup[certificate, "ResiduesVerifiedAtAllPrimes", False]] &&
+    IntegerQ[Lookup[certificate, "LetterCount", Missing[]]] &&
+    Lookup[certificate, "LetterCount", -1] >= 0 &&
+    Lookup[certificate, "LetterCount", 0] ===
+      Lookup[certificate, "ResidueCount", -1] &&
+    ListQ[Lookup[certificate, "IdentityPoints", None]] &&
+    Lookup[certificate, "IdentityPoints", {}] =!= {};
   operatorAutomatonQ[value_] := Module[
     {maximumWeight, initial, firstAlphabet, firstMatrices, firstBoundary,
      secondAlphabet, secondMatrices, finalEmbedding, firstDimension,
@@ -2261,9 +2392,18 @@ AcceptedObservableTransportQ[result_] := Module[
       "SecondBoundaryClosureStabilization"}};
   structuralRequired = AnyTrue[structuralRequirements,
     Lookup[result, First[#], None] === "FreshModular" &];
+  firstKernelIdentityExact = TrueQ[Lookup[certificates,
+    "FirstKernelIdentityExact",
+    Lookup[certificates, "FirstKernelIdentity", False]]];
+  secondKernelIdentityExact = TrueQ[Lookup[certificates,
+    "SecondKernelIdentityExact",
+    Lookup[certificates, "SecondKernelIdentity", False]]];
+  dlogRequired = ! firstKernelIdentityExact || ! secondKernelIdentityExact;
   If[status === "ExactObservableTransport",
-    Return[! coordinateRequired && ! ambientRequired &&
-      ! structuralRequired]];
+    Return[TrueQ[Lookup[certificates,
+        "FamilyEpsilonFormExact", False]] &&
+      ! coordinateRequired && ! ambientRequired &&
+      ! structuralRequired && ! dlogRequired]];
   If[status =!= "ModularlyVerifiedObservableTransport", Return[False]];
   probabilistic = Lookup[result, "ProbabilisticCertificates", <||>];
   If[! AssociationQ[probabilistic], Return[False]];
@@ -2281,8 +2421,17 @@ AcceptedObservableTransportQ[result_] := Module[
     Lookup[result, First[#], None] =!= "FreshModular" ||
       ambientCertificateQ[Lookup[probabilistic,
         Last[#], Missing[]]] &];
+  dlogAccepted = ! dlogRequired ||
+    (TrueQ[Lookup[certificates,
+        "FirstKernelIdentityCertified", False]] &&
+      TrueQ[Lookup[certificates,
+        "SecondKernelIdentityCertified", False]] &&
+      dlogCertificateQ[Lookup[probabilistic,
+        "FamilyDLogResidues", Missing[]]]);
   coordinateAccepted && ambientAccepted && structuralAccepted &&
-    (coordinateRequired || ambientRequired || structuralRequired)
+    dlogAccepted &&
+    (coordinateRequired || ambientRequired || structuralRequired ||
+      dlogRequired)
 ];
 
 ObservableTransportWordMap[result_Association, firstWord_List,
