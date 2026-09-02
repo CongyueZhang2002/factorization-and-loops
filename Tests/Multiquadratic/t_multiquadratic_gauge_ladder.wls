@@ -57,6 +57,13 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
+(* Long-route sections run only on request (user decision 2026-09-02: the
+   suite's verification must be small and fast; the real CF300 (12,9)
+   block takes the compile route, ~7900 s in a fresh kernel).  Set
+   FACET_TEST_LONG=1 to run them; by default they are reported as skipped
+   and the synthetic sections carry the contract. *)
+longTestsQ = Environment["FACET_TEST_LONG"] === "1";
+
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
   fail++; Print["FAIL ", label]];
@@ -319,6 +326,7 @@ check["L6 a consistent screen leaves the solve on its default path",
     driverGood["GaugeScreenLadder"]["Status"] === "GaugeScreenLadderNotRun"];
 report["L6 default-path seconds", Round[driverGoodSeconds, 0.01]];
 
+If[longTestsQ,
 (* ------------------------------------------------------------------ *)
 (* L7: the real CF300 (12,9) descriptor                                 *)
 (* ------------------------------------------------------------------ *)
@@ -397,6 +405,9 @@ If[FileExistsQ[stripFile] && FileExistsQ[stateFile] &&
     realRungs];
  report["L7 MEASURED ladder seconds", Round[realLadderSeconds, 0.1]],
  check["L7 the CF300 (12,9) ladder ran", False]];
+
+,
+  Print["L7 skipped: set FACET_TEST_LONG=1 to run the real CF300 (12,9) block"]];
 
 Print["t_multiquadratic_gauge_ladder: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];

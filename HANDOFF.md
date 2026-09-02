@@ -70,6 +70,21 @@ maintained, optimizable route (user ruling). Acceptance of round 2:
 fresh-kernel smoke queue on the affected tests, then the full suite; see
 the plan's "Round 2" section for the tables.
 
+## Verification policy (user ruling, 2026-09-02 12:15)
+
+Verification must be small and fast: after a change, run the small tests
+of the touched code in fresh kernels, 8-way, as `fresh_<test>` missions of
+the KernelPool (each relaunches one subkernel), never the driver's serial
+standalone phase, and never the whole suite as an acceptance ritual. The
+long integration tests are a defect of the tests: the real-block sections
+of the three multiquadratic gauge tests now run only with
+FACET_TEST_LONG=1, and the plan's "Test cost audit" lists the next
+fixtures to shrink (the Kira-store rebuild of
+t_physical_variable_coefficients first). Round 2 was accepted on the
+smoke queue of the affected tests plus fresh-kernel checks of the pooled
+failures; the three long solver tests were cancelled rather than waited
+for.
+
 ## Acceptance batches and what they found
 
 Both trees ran the full suite through their own KernelPool in reuse mode

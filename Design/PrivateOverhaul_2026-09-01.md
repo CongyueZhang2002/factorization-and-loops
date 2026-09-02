@@ -661,6 +661,33 @@ synthetic block 1.78 s.
 Acceptance of round 2: the load check and the affected tests run in fresh kernels on the seat
 queue first, then the full suite; results are appended below.
 
+## Test cost audit (12:20, user ruling: verification must be small and fast)
+
+Measured on the baseline batch (pooled walls, standalone confirmations): 159 rows, 670
+kernel-minutes in total; the 29 tests above 90 s account for 646 of those minutes (96%). The top of
+the list: t_multiquadratic_gauge_screen / _gauge_ladder / _letters (compile route on the real CF300
+(12,9) block, 6185 s pooled and capped at 30 min standalone), t_physical_variable_coefficients
+(3081 s: rebuilds a Kira store), t_multiquadratic_regulator_filter (2509 s),
+t_multiquadratic_obstruction_images (1899 s), t_construction_dag (1578 s),
+t_multiquadratic_installed_family_chain (800 s), t_multiquadratic_providers (542 s),
+t_epsform_obstruction (390 s), t_multiquadratic_dispatch (230 s), t_finite_field_eps_form (191 s),
+t_exact_depth (190 s), t_family_certificate_modular (188 s), t_package_generality (170 s).
+
+Done now: the real-block sections of t_multiquadratic_gauge_ladder (L7) and
+t_multiquadratic_gauge_screen (G11-G13) run only with FACET_TEST_LONG=1; by default they print a
+skipped line and the synthetic sections carry the contract (the same for t_multiquadratic_letters
+where its synthetic tail is independent of the fixture). Rule (memory `test-cost-discipline`): after a
+change, run the small tests of the touched code in fresh kernels 8-way through the pool's fresh_
+missions; never the serial standalone phase; cap verification at tens of minutes.
+
+Next work items (new code, not test runs): (1) t_physical_variable_coefficients reads a stored,
+frozen Kira store instead of rebuilding one (51 min -> seconds); (2) frozen SMALL fixtures for the
+multiquadratic integration tests (regulator_filter, obstruction_images, installed_family_chain,
+providers, dispatch): a 2x2 or 3x3 strip with one root instead of the CF300 (12,9) block;
+(3) t_construction_dag and t_epsform_obstruction: cap the DAG size / obstruction order in the
+default mode, full size under FACET_TEST_LONG=1; (4) the driver's standalone phase runs the
+screened tests through fresh_ missions 8-way instead of serially.
+
 ## Deliberately not done
 
 - N1. Splitting the chart catalog into a separate data file: the records
@@ -726,6 +753,7 @@ queue first, then the full suite; results are appended below.
   is tonight because it would re-key existing artifacts.
 
 ## Log
+- 11:42 (round 2) t_multiquadratic_constrained_affine_plan 27/27 after the propagation. The full-batch pool of 11:38 launched ZERO of eight subkernels (`LinkConnect::linkc`, then "no subkernels; exiting") while an orphaned WolframKernel of the 11:38 attempt (parent gone, 1 s CPU) was still alive; the driver sat idle on the dead pool. Orphan and driver killed by verified PID; subkernel launch probed in a bare kernel before relaunching. Third kernel-start irregularity of the morning (two stalled mains, one failed subkernel launch); the pool's own guard (exit when no subkernel comes up) worked.
 - 11:40 (round 2) t_finite_field_eps_form green on the rerun (all booleans True). The constrained-plan failures traced to the Freivalds projection count living only inside the residual-check evidence, not in the top-level solve record the evidence predicate reads; propagated, rerun running. Full suite launched on the KernelPool (8 subkernels, REUSE mode, driver run from a scratch copy with the repository root pinned -- the first attempt found no tests because the copy derived its root from its own location). Two kernels today started but never loaded (4 s CPU after minutes); both killed by verified PID and re-run; cause not established (licence/link start-up), recorded here for the next reader. Round-2 checkpoint committed on main.
 - 11:30 (round 2) smoke queue B drained (39 jobs, watchdog: no refusal, no stall). After the CANONICA-alphabet replacement and the test migrations every rerun is green: t_construction_budget 40/40 (fingerprint intact), t_finite_field_affine_rref_backend 35/35, t_broker_adaptive 40/40, t_family_row_gauge 39/39, t_generality_renamed_variables 53/53, t_radical_denesting 36/36, t_kallen_q4_chart 60/60, t_package_generality 25/25, t_canonical_blocks 13/13, plus t_hard_class_epsforms 24/24, t_family_certificate_multiquadratic 28/28, t_multiquadratic_persistence 53/53, t_multiquadratic_provenance 69/69, t_modular_arithmetic 61/61, t_multiquadratic_algebra 75/75 and the boolean-style tests exit 0. Open: t_multiquadratic_constrained_affine_plan (2 U2 assertions; diagnostic running), t_finite_field_eps_form (rerun running). t_eps_form_strip turned out to drive the Maple residue-gauge route (SolveResidueRationalGauge) -- retired with its test per N3.
 - 11:00 (round 2) the retirement edits went through a fresh-kernel load check after one syntax slip (my usage-message rewrite left the tail of the old TransportFamily usage dangling in FeynFacet.m; the watchdog caught it, fixed, re-checked: Options 26, stubs answer RouteRetired, validator True/False on the good/bad forms, timings record, ABI version). Two more slips fixed the same hour: the new `"Below"` option of modularPrimes had not been registered (reserve primes returned $Failed; re-registered, 3 reserve primes identical to the old schedule), and my restore of canonicalBlocksChartParameter copied 300 lines of the ladder back into the live module (returned to the backup; the live file defines the chooser only). Smoke queue B (26 affected tests + benchmark) running; t_canonical_blocks 13/13 with the CANONICA-free validator, t_generality_renamed_variables and t_construction_budget migrated to the retired-route contracts and re-queued.

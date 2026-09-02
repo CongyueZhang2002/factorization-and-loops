@@ -95,6 +95,13 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+
+(* Long-route sections run only on request (user decision 2026-09-02: the
+   suite's verification must be small and fast; the real CF300 (12,9)
+   block takes the compile route, ~7900 s in a fresh kernel).  Set
+   FACET_TEST_LONG=1 to run them; by default they are reported as skipped
+   and the synthetic sections carry the contract. *)
+longTestsQ = Environment["FACET_TEST_LONG"] === "1";
 (* the mixed-grade letter generator (G6-G9) has no production caller and
    was moved to Prototypes/ on 2026-08-26 (Codex review 4.2); this suite
    is its only exercise and loads it explicitly, inside the private
@@ -305,6 +312,7 @@ report["G10 emitted letters",
   {#1["Divisor"], #1["GradeSupport"], Factor[#1["Norm"]]} & /@
     mixed["LetterRecords"]];
 
+If[longTestsQ,
 (* ------------------------------------------------------------------ *)
 (* G11-G13: the screen and the discovery on the real block CF300 (12,9) *)
 (* ------------------------------------------------------------------ *)
@@ -472,6 +480,9 @@ If[FileExistsQ[stripFile] && FileExistsQ[channelFile] &&
      ToString[Length[realCensus]] <> " census factors"]],
  check["G11 the CF300 (12,9) screen ran", False]];
 
+
+,
+  Print["G11-G13 skipped: set FACET_TEST_LONG=1 to run the real CF300 (12,9) block"]];
 (* ------------------------------------------------------------------ *)
 (* S1-S4: THE EXCEPTIONAL-REGULATOR FALSE OBSTRUCTION                   *)
 (* (Codex 04:30 P1: a single regulator image is not an exact generic    *)

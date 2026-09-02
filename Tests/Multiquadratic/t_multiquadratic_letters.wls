@@ -70,6 +70,12 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
+(* Long-route sections run only on request (user decision 2026-09-02): the
+   real CF300 (12,9) block takes the compile route (~7900 s in a fresh
+   kernel).  FACET_TEST_LONG=1 runs them; by default they are reported as
+   skipped and the synthetic sections C10/C11 carry the contract. *)
+longTestsQ = Environment["FACET_TEST_LONG"] === "1";
+
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
   fail++; Print["FAIL ", label]];
@@ -91,6 +97,7 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
    "multiquadraticRationalGaugeDenominator",
    "transportChartCurrentRoots"};
 
+If[longTestsQ,
 (* ------------------------------------------------------------------ *)
 (* The CF300 (12,9) fixture                                             *)
 (* ------------------------------------------------------------------ *)
@@ -270,6 +277,9 @@ report["C12 base / factor / merged / product degrees",
    Exponent[Together[factor], #1] & /@ variables, mergedDegrees,
    productDegrees}];
 
+
+,
+  Print["C1-C12 (real CF300 (12,9) block) skipped: set FACET_TEST_LONG=1 to run them"]];
 (* ------------------------------------------------------------------ *)
 (* C10 / C11: synthetic blocks with a known answer                      *)
 (* ------------------------------------------------------------------ *)
