@@ -12,6 +12,12 @@ double-real channel: 347 master integrals, reduced to 91 family
 systems of coupled first-order differential equations in two
 dimensionless variables (v, w) with dimensional regulator eps.
 
+**Overall state in one line:** most of the calculation is done —
+stage 1 is complete, stage 2 is complete for the large majority of
+families including the hardest one (CF303, carried through its
+elliptic layer up to boundary constants); stage 3 (boundary
+constants) is the open frontier, stage 4 not yet started.
+
 ## The workflow, stage by stage
 
 **Stage 1 — canonicalization.** Decompose each family's DE system into
