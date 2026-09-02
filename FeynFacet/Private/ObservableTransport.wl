@@ -1399,9 +1399,20 @@ BuildObservableTransport[record_Association, demand_Association,
     firstVariable -> firstBase + tau (firstTargetSample - firstBase)
   };
   tangent = firstTargetSample - firstBase;
-  firstConnection = observableTransportCancelMatrix[
-    (epsConnections[[FirstPosition[variables, firstVariable][[1]]]]/eps /.
-       pathRules) tangent];
+  firstConnection = If[coefficientField === "Multiquadratic",
+    (* The certified epsilon form is already an exact dlog connection.
+       Specializing eps -> 1 extracts its epsilon-independent coefficient
+       without first creating syntactically uncancelled expr/eps entries.
+       Later kernel extraction still canonicalizes each used scalar. *)
+    Normal[ReplaceAll[
+        ReplaceAll[epsConnections[[
+          FirstPosition[variables, firstVariable][[1]]]], eps -> 1],
+        pathRules] tangent],
+    observableTransportCancelMatrix[
+      (epsConnections[[
+          FirstPosition[variables, firstVariable][[1]]]]/eps /.
+        pathRules) tangent]
+  ];
   If[! FreeQ[firstConnection, eps],
     Return[<|"Status" -> "ConnectionIsNotEpsilonForm"|>, Module]
   ];

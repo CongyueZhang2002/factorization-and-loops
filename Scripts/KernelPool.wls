@@ -21,8 +21,10 @@
    the PID in pool.pid or via control/stop. *)
 
 args = Rest[$ScriptCommandLine];
-poolDir = If[Length[args] >= 1, args[[1]],
-  "/tmp/claude-1000/-home-maxzhang/97c0fce7-1578-4630-a481-38730c7f8b9d/scratchpad/kernelpool"];
+(* Missions may change Directory[]; every broker path must therefore be
+   anchored before the first mission is dispatched. *)
+poolDir = ExpandFileName[If[Length[args] >= 1, args[[1]],
+  "/tmp/claude-1000/-home-maxzhang/97c0fce7-1578-4630-a481-38730c7f8b9d/scratchpad/kernelpool"]];
 nWanted = If[Length[args] >= 2, ToExpression[args[[2]]], 8];
 preload = If[Length[args] >= 3, ToExpression[args[[3]]], True];
 root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];

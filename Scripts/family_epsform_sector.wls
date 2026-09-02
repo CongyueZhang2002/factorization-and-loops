@@ -24,18 +24,10 @@
           [sectorBudget=1800] [tag] [directSectorBudget=30] [chartFile]
           [familyDataDirectory] [classFormDirectory] *)
 $HistoryLength = 0;
-(* This driver's own identity.  The package hashes only its own Private
-   sources; a driver that participates in a strip solve declares itself
-   through the solver configuration's "DriverProvenance" (generality pass
-   2026-08-23, B2).  $InputFileName is captured NOW: inside a later
-   function body it is no longer the script. *)
+(* $InputFileName is captured now: inside a later function body it is no
+   longer the script. *)
 driverFile = ExpandFileName[$InputFileName];
 driverProvenance = <|FileNameTake[driverFile] -> driverFile|>;
-(* the writer's identity for the strip-input seal (2026-08-25): a seal is
-   only as good as the knowledge of which code wrote it *)
-$sectorDriverSourceSHA256 = If[FileExistsQ[driverFile],
-  FileHash[driverFile, "SHA256", "HexString"],
-  Missing["SourceFileUnavailable"]];
 root = ParentDirectory[DirectoryName[driverFile]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 (* pool subkernels keep state: clear the Global` symbols CANONICA and earlier
@@ -312,11 +304,12 @@ stripConstructionStop[substage_String, start_, strip_List,
   "Resumable" -> True,
   "Strip" -> strip,
   "ConstructionTimings" -> stageTimings|>;
-chartFingerprint = Hash[
-  KeyTake[chart, {"Name", "Variables", "Subst", "Roots", "Parents"}],
-  "SHA256", "HexString"];
+(* Keep the small exact chart identity itself.  A digest adds no
+   mathematical protection and forces avoidable serialization. *)
+chartFingerprint =
+  KeyTake[chart, {"Name", "Variables", "Subst", "Roots", "Parents"}];
 If[AssociationQ[cachedState] &&
-    ! MissingQ[Lookup[cachedState, "ChartFingerprint", Missing[]]] &&
+    AssociationQ[Lookup[cachedState, "ChartFingerprint", None]] &&
     cachedState["ChartFingerprint"] =!= chartFingerprint,
   log["cached sector state belongs to a different chart; " <>
     "starting from the exact input system"];
@@ -477,6 +470,7 @@ state = If[AssociationQ[cachedState], (log["resuming"]; cachedState),
     "ChartFingerprint" -> chartFingerprint,
     "S" -> IdentityMatrix[nMasters], "SInverse" -> IdentityMatrix[nMasters],
     "A" -> A0, "StripSolvers" -> {}, "SectorCertificates" -> {}|>];
+state["ChartFingerprint"] = chartFingerprint;
 If[! KeyExistsQ[state, "TDiagonal"] && ListQ[freshDiagonal],
   state["TDiagonal"] = freshDiagonal[[1]];
   state["TDiagonalInverse"] = freshDiagonal[[2]]];
@@ -896,16 +890,18 @@ Do[
       requestedSolverConfiguration, solverConfiguration,
       modularBranches, modularArtifact, modularSummary,
       constructionStart, constructionTimings, constructionSeconds,
-      constructionCheck},
+      constructionCheck, resumeWithoutHydrationQ, prevDSource},
       stripCheckpointFile = FileNameJoin[{scratch,
         family <> "_" <> ToString[k] <> "_strip_state.wl"}];
       stripCheckpoint = If[FileExistsQ[stripCheckpointFile],
-        readArtifact[stripCheckpointFile], Missing["NotFound"]];
+        (* This checkpoint is written by this driver with Global` x, y and
+           eps.  Re-normalizing it performs two full symbolic traversals and
+           can inflate a few-megabyte file to gigabytes in memory. *)
+        Get[stripCheckpointFile], Missing["NotFound"]];
       (* a checkpoint is valid only for the connection it was built on
          (the truncated regulator factorization changes it; CF265 sector
          18, 2026-08-22) *)
       checkpointValid = AssociationQ[stripCheckpoint] &&
-        Lookup[stripCheckpoint, "ConnectionHash", None] === Hash[aP, "SHA256", "HexString"] &&
         Lookup[stripCheckpoint, "Sector", Missing[]] === k &&
         Lookup[stripCheckpoint, "SubSize", Missing[]] === subSize &&
         Lookup[stripCheckpoint, "Truncation", Missing[]] === nk &&
@@ -917,23 +913,38 @@ Do[
           Lookup[stripCheckpoint, "PrevD", None], k,
           Length /@ (blockRows /@ Range[k - 1])];
       If[AssociationQ[stripCheckpoint] && ! checkpointValid,
-        log["  strip checkpoint of sector ", k, " ignored (built on another connection)"]];
+        log["  strip checkpoint of sector ", k,
+          " ignored (incompatible sector shape)"]];
+      resumeWithoutHydrationQ = checkpointValid &&
+        Environment["FACET_RESUME_HYDRATION"] === "False";
       If[checkpointValid,
-        checkpointData = FeynFacet`Private`familyRowGaugeDecodeCheckpoint[
-          stripCheckpoint, ee, CANONICA`eps];
-        prevD = checkpointData["PrevD"];
         stripSolvers = Lookup[stripCheckpoint, "StripSolvers", {}];
-        solvedForms = checkpointData["SolvedForms"];
+        If[resumeWithoutHydrationQ,
+          (* A production resume consumes the source-frame row gauge and
+             defers acceptance to the family certificate.  Keep it in that
+             frame; converting to CANONICA`eps and immediately back while
+             slicing a complete checkpoint is two multi-gigabyte walks. *)
+          prevDSource = Lookup[stripCheckpoint, "PrevD"];
+          prevD = prevDSource;
+          solvedForms = <||>,
+          checkpointData =
+            FeynFacet`Private`familyRowGaugeDecodeCheckpoint[
+              stripCheckpoint, ee, CANONICA`eps];
+          prevD = checkpointData["PrevD"];
+          prevDSource = fromC[prevD];
+          solvedForms = checkpointData["SolvedForms"]];
         log["  resuming ", Length[stripSolvers],
           " checked strips in sector ", k],
-        prevD = Table[{}, {subSize}]; solvedForms = <||>];
+        prevD = Table[{}, {subSize}]; prevDSource = prevD;
+        solvedForms = <||>];
       (* solved blocks of this row, j -> D_{kj}, recovered from the
          checkpoint's prevD (blocks are prepended: the first solved is
          j = k - 1) *)
       solvedBlocks = Module[{len = Length[prevD[[1]]], assoc = <||>, m = k - 1, col},
         col = len;
         While[col > 0 && m >= 1,
-          assoc[m] = fromC[prevD][[All, col - Length[blockRows[m]] + 1 ;; col]];
+          assoc[m] = prevDSource[[All,
+            col - Length[blockRows[m]] + 1 ;; col]];
           col -= Length[blockRows[m]]; m--];
         assoc];
       (* Every blockwise resume replays all recovered blocks from exact-
@@ -1024,6 +1035,9 @@ Do[
         If[stripDeadlineExpiredQ[sectorDeadline],
           Throw[stripConstructionStop[substage, constructionStart,
             {k, nlow}, constructionTimings], "StripConstructionBudget"]];
+      If[resumeWithoutHydrationQ &&
+          Length[prevD[[1]]] + subSize =!= nk,
+        prevD = toC[prevDSource]];
       While[Length[prevD[[1]]] + subSize =!= nk,
         (* ---- strip CONSTRUCTION stage, deadline-checked ---- *)
         solution = Catch[
@@ -1073,44 +1087,6 @@ Do[
             "LowerSector" -> nlow, "Variables" -> invariants,
             "Regulator" -> ee, "Strip" -> {e, c, bbar}|>,
           stripInputFile]]];
-        (* THE STRIP-INPUT SEAL (2026-08-25, Codex 14:30 integrity layer,
-           step 1 of 4).  A resume currently re-derives the whole symbolic
-           block equation for every banked strip just to prove the input
-           on disk is the one the current connection implies.  That proof
-           is a cheap digest comparison IF the digests were recorded when
-           the input was written, which is what this does: the connection
-           the strip was built on, its position, the solved-block prefix
-           it was built from, the writer's schema, and the exact strip.
-
-           It is a SIDECAR, not a new key of the input record: the input
-           record's own hash travels in resume replay records and in
-           existing banked artifacts, and an extra key would change it
-           for every strip already on disk.  An absent sidecar therefore
-           means "written before this seal existed" and costs nothing.
-
-           Steps 2-4 landed on 2026-08-25 in FamilyRowGaugeResume.wl:
-           the seal carries its own FINGERPRINT (schema V2) and a resume
-           recomputes it from the hydrated record; two independent
-           held-out modular images of the block-equation relation are
-           evaluated; a mismatch at an admissible image is a typed
-           ResumeRejected naming that image.  The exact reconstruction
-           remains the DEFAULT companion ("ResumeGate" ->
-           "ModularThenExact"); "Modular" is the opt-in mode that skips
-           it once the seal authenticates and both images agree.
-
-           The record is built by the package
-           (familyRowGaugeStripInputSeal), not assembled here, so the
-           writer and the reader cannot drift apart in the field order
-           the fingerprint is taken over. *)
-        First[AbsoluteTiming[putAtomic[
-          FeynFacet`Private`familyRowGaugeStripInputSeal[
-            family, k, nlow, nk,
-            Hash[aP, "SHA256", "HexString"], solvedBlocks,
-            Hash[{e, c, bbar}, "SHA256", "HexString"],
-            Hash[{invariants, ee}, "SHA256", "HexString"],
-            $sectorDriverSourceSHA256],
-          StringReplace[stripInputFile,
-            "_input.wl" -> "_input_seal.wl"]]]];
         constructionTimings["StripInputWrite"] = constructionSeconds;
         If[Environment["FACET_RECORD_STRIP_ONLY"] === "True",
           log["  recorded strip ", {k, nlow}, " at ", stripInputFile];
@@ -1432,7 +1408,6 @@ Do[
                 "AlgebraicFrame" -> algebraicFrameQ,
                 "Truncation" -> nk, "SubSize" -> subSize,
                 "Dimensions" -> Dimensions[First[bbar]],
-                "ConnectionHash" -> Hash[aP, "SHA256", "HexString"],
                 "StripCheckpointFile" -> stripCheckpointFile|>,
               "SolverConfiguration" -> If[blockwiseRouteQ,
                 requestedSolverConfiguration,
@@ -1501,7 +1476,6 @@ Do[
         putAtomic[
           <|"Sector" -> k, "SubSize" -> subSize,
             "Truncation" -> nk, "PrevD" -> fromC[prevD],
-            "ConnectionHash" -> Hash[aP, "SHA256", "HexString"],
             "StripSolvers" -> stripSolvers,
             "SolvedForms" -> fromC[solvedForms]|>,
           stripCheckpointFile];
