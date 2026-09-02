@@ -407,10 +407,11 @@ BuildAlgebraicTransportFrame[rootSquares_List,
     "ChartCertificate" -> certificate|>]
 ];
 
-transportChartRadicalBases[expr_] := DeleteDuplicates[Cases[
-  Unevaluated[expr],
-  Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
-    Together[base], {0, Infinity}, Heads -> True]];
+transportChartRadicalBases[expr_] := DeleteDuplicates[Together /@
+  DeleteDuplicates[Cases[
+    Unevaluated[expr],
+    Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
+      base, {0, Infinity}, Heads -> True]]];
 
 (* ------------------------------------------------------------------ *)
 (*  Square classes and the denesting of nested radical bases            *)

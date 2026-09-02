@@ -23,6 +23,7 @@ ClearAll[
   observableTransportFFMatrixValue,
   observableTransportFFAlgebraicRoots,
   observableTransportFFAlgebraicMatrixValue,
+  observableTransportFFAlgebraicIndependentRowsAtSamples,
   observableTransportFFSelectMatrixTrials,
   observableTransportFFFreshTrialPool,
   observableTransportFFAliasData,
@@ -237,6 +238,68 @@ observableTransportFFAlgebraicMatrixValue[m_, variables_List,
   values = Map[multiquadraticStripModRational[
       # /. Thread[variables -> point], prime] &, branched, {2}];
   If[MatrixQ[values, IntegerQ], values, $Failed]
+];
+
+(* Rank samples guide the symbolic closure but do not certify it.  Evaluating
+   a multiquadratic matrix exactly at a rational point leaves algebraic
+   numbers in every entry, making even a small RowReduce pathologically
+   expensive.  Select the same pivot convention in one split finite-field
+   image instead; the closure's existing fresh all-branch modular inclusion
+   remains the acceptance test. *)
+observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
+    samples_List, declaredSquares_List] := Module[
+  {dimensions, roots, rootSquares, rootCompiler, rootCount,
+   maximumAttempts = 128, proposal},
+  dimensions = Quiet[Check[Dimensions[m], {}]];
+  If[Length[dimensions] =!= 2 ||
+      ! MatchQ[variables, {_Symbol ..}],
+    Return[ConstantArray[$Failed, Length[samples]]]];
+  roots = observableTransportFFAlgebraicRoots[m, declaredSquares];
+  rootSquares = Lookup[roots, "RootSquare", {}];
+  rootCount = Length[roots];
+  If[rootCount === 0,
+    Return[ConstantArray[$Failed, Length[samples]]]];
+  rootCompiler = observableTransportFFCompileExpressions[
+    rootSquares, variables];
+  If[MemberQ[rootCompiler, $Failed],
+    Return[ConstantArray[$Failed, Length[samples]]]];
+  proposal[rules_List, sampleIndex_Integer] := Module[
+    {point, deltaValues, rootValues, image, reduced, pivots, prime},
+    If[Sort[First /@ rules] =!= Sort[variables], Return[$Failed]];
+    BlockRandom[
+      SeedRandom[97531 + 1009 dimensions[[1]] +
+        9176 dimensions[[2]] + sampleIndex];
+      Do[
+        prime = RandomPrime[{2^30, 2^31 - 1}];
+        If[Mod[prime, 4] =!= 3 ||
+            prime === $observableTransportFFTracePrime, Continue[]];
+        point = multiquadraticStripModRational[#, prime] & /@
+          (variables /. rules);
+        If[MemberQ[point, $Failed], Continue[]];
+        deltaValues = observableTransportFFEvaluateExpressions[
+          rootCompiler, point, prime];
+        If[MemberQ[deltaValues, $Failed | 0] ||
+            ! AllTrue[deltaValues, JacobiSymbol[#, prime] === 1 &],
+          Continue[]];
+        rootValues = multiquadraticSquareRoots[deltaValues, prime];
+        If[rootValues === $Failed, Continue[]];
+        image = observableTransportFFAlgebraicMatrixValue[
+          m, variables, point, roots, rootValues,
+          ConstantArray[1, rootCount], prime];
+        If[image === $Failed, Continue[]];
+        reduced = Quiet[Check[
+          RowReduce[Transpose[image], Modulus -> prime], $Failed]];
+        If[reduced === $Failed, Continue[]];
+        pivots = DeleteMissing[(Replace[
+            FirstPosition[#, value_ /; value =!= 0,
+              Missing["ZeroRow"], {1}, Heads -> False],
+            {position_Integer} :> position] &) /@ reduced];
+        Return[DeleteDuplicates[pivots], Module],
+        {maximumAttempts}]
+    ];
+    $Failed
+  ];
+  MapIndexed[proposal[#1, First[#2]] &, samples]
 ];
 
 (* Verify row-space inclusion directly at fresh finite-field points.  This is

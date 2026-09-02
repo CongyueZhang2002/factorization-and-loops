@@ -514,18 +514,25 @@ observableTransportIndependentRowsTask[file_String, indices_List] := Module[
       data["Samples"][[#]]] & /@ indices
 ];
 
-(* Rank samples are independent but each can be memory-heavy.  Borrow one
-   helper per family here; later row-slice phases may safely use the full
-   family grant. *)
-observableTransportIndependentRowsAtSamples[m_, samples_List] := Module[
+(* Multiquadratic rank proposals use cheap local modular images below.  Exact
+   rational samples remain independent and can be memory-heavy, so borrow at
+   most one helper per additional sample within the dynamic family grant. *)
+observableTransportIndependentRowsAtSamples[m_, samples_List,
+    rootSquares_List : {}] := Module[
   {dimensions, helperCount, chunks, payloadFile, codes, handle, results,
-   local},
+   local, variables},
   dimensions = Quiet[Check[Dimensions[m], {}]];
+  variables = DeleteDuplicates[Cases[samples,
+    HoldPattern[(variable_Symbol -> _)] :> variable, Infinity]];
+  If[rootSquares =!= {},
+    Return[observableTransportFFAlgebraicIndependentRowsAtSamples[
+      m, variables, samples, rootSquares], Module]];
   local[indices_List] :=
     (observableTransportIndependentRows[m, samples[[#]]] &) /@ indices;
   helperCount = If[Length[samples] > 1 && Length[dimensions] === 2 &&
       Times @@ dimensions >= 4096 && TrueQ[taskBrokerActiveQ[]],
-    Min[Quiet[Check[taskBrokerFreeKernels[], 0]], 1], 0];
+    Min[Quiet[Check[taskBrokerFreeKernels[], 0]],
+      Length[samples] - 1], 0];
   If[helperCount < 1,
     Return[local[Range[Length[samples]]], Module]];
   chunks = Partition[Range[Length[samples]],
@@ -546,10 +553,12 @@ observableTransportIndependentRowsAtSamples[m_, samples_List] := Module[
   Flatten[results, 1]
 ];
 
-observableTransportMaximalIndependentRows[m_, samples_List] := Module[
+observableTransportMaximalIndependentRows[m_, samples_List,
+    rootSquares_List : {}] := Module[
   {candidates},
   candidates = DeleteCases[
-    observableTransportIndependentRowsAtSamples[m, samples], $Failed];
+    observableTransportIndependentRowsAtSamples[
+      m, samples, rootSquares], $Failed];
   If[candidates === {}, $Failed,
     First@MaximalBy[candidates, Length]]
 ];
@@ -558,10 +567,12 @@ observableTransportMaximalIndependentRows[m_, samples_List] := Module[
    for a sample-dependent pivot.  Losing a prefix row here can silently lose
    an original forbidden constraint at an exceptional rank sample. *)
 observableTransportMaximalIndependentExtensionRows[basis_, additions_,
-    samples_List] := Module[{prefixLength, candidate, candidates, pivots},
+    samples_List, rootSquares_List : {}] := Module[
+  {prefixLength, candidate, candidates, pivots},
   prefixLength = Length[basis];
   candidate = Join[basis, additions];
-  pivots = observableTransportIndependentRowsAtSamples[candidate, samples];
+  pivots = observableTransportIndependentRowsAtSamples[
+    candidate, samples, rootSquares];
   candidates = Select[pivots, Function[value,
     value =!= $Failed &&
       AllTrue[Range[prefixLength], MemberQ[value, #] &]]];
@@ -653,7 +664,8 @@ observableTransportCovariantRowClosure[rows_, connection_, variable_,
       "StabilizationMethod" -> "NoRows",
       "InitialSpanCertificate" -> initialSpanCertificate,
       "StabilizationCertificate" -> stabilizationCertificate|>, Module]];
-  pivots = observableTransportMaximalIndependentRows[rows, samples];
+  pivots = observableTransportMaximalIndependentRows[
+    rows, samples, rootSquares];
   If[pivots === $Failed,
     Return[<|"Status" -> "CovariantClosureRankSampleFailed"|>, Module]];
   basis = rows[[pivots]];
@@ -687,7 +699,7 @@ observableTransportCovariantRowClosure[rows_, connection_, variable_,
         "Step" -> step|>, Module]];
     candidate = Join[basis, covariant];
     nextPivots = observableTransportMaximalIndependentExtensionRows[
-      basis, covariant, samples];
+      basis, covariant, samples, rootSquares];
     If[nextPivots === $Failed,
       Return[<|"Status" -> "CovariantClosureRankSampleFailed",
         "Step" -> step|>, Module]];
@@ -1527,7 +1539,9 @@ BuildObservableTransport[record_Association, demand_Association,
   If[Length[constraintMatrix] > 0,
     constraintPivots = observableTransportMaximalIndependentRows[
       constraintMatrix,
-      ({secondVariable -> (secondVariable /. #)} &) /@ rankSamples];
+      ({secondVariable -> (secondVariable /. #)} &) /@ rankSamples,
+      (Lookup[algebraicRootRecords, "RootSquare", {}] /.
+        firstVariable -> firstBase)];
     If[constraintPivots === $Failed,
       Return[<|"Status" -> "SingularConstraintRankSample"|>, Module]
     ];
