@@ -13,7 +13,7 @@ Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 x = Symbol["Global`x"]; y = Symbol["Global`y"]; eps = Symbol["Global`eps"];
 r1 = Sqrt[1 - 4 x y]; r2 = Sqrt[x^2 + 4 y];
-m = {
+jetMatrix = {
   {(2 - 9 eps + 9 eps^2)/(2 eps^2), 0, (x + y r1)/(eps (1 - 2 eps) (x - y))},
   {(-2 + 13 eps - 27 eps^2 + 18 eps^3) r2/(2 eps^3 (x + y)), x y/(1 - x),
     ((1 + eps) (r1 - x) + (r1 + x) (1 - eps))/(eps^2 (1 + x eps))},
@@ -25,8 +25,8 @@ jetRows[mat_] := Block[{FeynFacet`Private`$observableTransportLaurentMethod = "J
   FeynFacet`Private`observableTransportLaurentRows[mat, eps, orders, Range[Length[mat]]]];
 seriesRows[mat_] := Block[{FeynFacet`Private`$observableTransportLaurentMethod = "SeriesCoefficient"},
   FeynFacet`Private`observableTransportLaurentRows[mat, eps, orders, Range[Length[mat]]]];
-{jetSeconds, jet} = AbsoluteTiming[jetRows[m]];
-{seriesSeconds, series} = AbsoluteTiming[seriesRows[m]];
+{jetSeconds, jet} = AbsoluteTiming[jetRows[jetMatrix]];
+{seriesSeconds, series} = AbsoluteTiming[seriesRows[jetMatrix]];
 Print["jet ", Round[jetSeconds, 0.001], " s; SeriesCoefficient ", Round[seriesSeconds, 0.001], " s"];
 FTAssert["both routes return every requested order", Keys[jet] === Range @@ orders && Keys[series] === Range @@ orders];
 zeroQ[e_] := TrueQ[RootReduce[Together[e]] === 0];

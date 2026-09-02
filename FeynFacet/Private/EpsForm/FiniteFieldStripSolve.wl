@@ -269,9 +269,8 @@ finiteFieldStripBackendConfiguration[requested_, threads_] := Module[
   decision = finiteFieldStripBackendDecision[requested, threads, 0];
   If[Lookup[decision, "Status", None] =!= "OK", Return[decision]];
   binary = finiteFieldStripFLINTBinary[];
-  source = FileNameJoin[{$feynFacetPrivateDirectory,
-    "FiniteFieldStripSolve.wl"}];
-  If[! FileExistsQ[source],
+  source = feynFacetPrivateFile["FiniteFieldStripSolve.wl"];
+  If[! StringQ[source] || ! FileExistsQ[source],
     Return[<|"Status" -> "BackendSourceUnavailable"|>]];
   payload = <|
     "Schema" -> "FeynFacetFiniteFieldFixedCoreBackendConfiguration",

@@ -206,6 +206,18 @@ poolRun[file_String, logFile_String, kernelFile_String] := Module[
      Status follows the RETURN VALUE / exit code, never the mere presence of messages (measured
      2026-08-16: a Check-based rule filed five completed missions as failed); messages are
      recorded separately as "HadMessages". *)
+  (* Mission isolation (2026-09-02, overhaul B11): a mission that assigns a
+     VALUE to a Global` symbol (a test's `p = prime`, `m = matrix`, `q = expr`)
+     leaves it in the reused subkernel, and a later mission that treats the
+     same name as an indeterminate (Kira coefficients in m, q, ...) evaluates
+     nonsense (measured: t_physical_variable_coefficients failed with 1/0 on
+     a subkernel that had run the adopted transport tests).  After the
+     mission, every Global` name that GAINED an own value is unset; function
+     definitions and the $-prefixed package globals are left alone. *)
+  missionOwnValued := Select[System`Names["Global`*"],
+    ! StringStartsQ[#, "Global`$"] &&
+      System`ToExpression[#, InputForm, System`OwnValues] =!= {} &];
+  missionOwnBefore = missionOwnValued;
   r = Block[{$Output = {s}, $Messages = {s}},
     Internal`InheritedBlock[{WriteString},
     Unprotect[WriteString];
@@ -230,6 +242,11 @@ poolRun[file_String, logFile_String, kernelFile_String] := Module[
   If[MatchQ[r, {"EXIT", _}], status = If[r[[2]] === 0, "OK", "EXIT" <> ToString[r[[2]]]]; r = r[[2]]];
   If[r === $Failed && status === "OK", status = "FAILED"];
   If[r === $Aborted && status === "OK", status = "ABORTED"];
+  missionLeaked = Complement[missionOwnValued, missionOwnBefore];
+  If[missionLeaked =!= {},
+    Scan[System`ToExpression[#, InputForm, System`Unset] &, missionLeaked];
+    WriteString[s, "MISSION isolation: unset ", Length[missionLeaked],
+      " leaked Global` values ", StringRiffle[StringDrop[#, 7] & /@ Take[missionLeaked, UpTo[12]], ", "], "\n"]];
   WriteString[s, "MISSION end ", DateString["ISODateTime"], " wall ", Round[AbsoluteTime[] - t0, 0.1], " s status ", status, "\n"];
   Close[s];
   (* A fresh_* result is also written before the completion marker.  The

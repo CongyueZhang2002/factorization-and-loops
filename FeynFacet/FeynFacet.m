@@ -127,7 +127,7 @@ TransportPathArtifactRun::usage =
   "TransportPathArtifactRun[artifact,p] reopens a serializable provider-backed path-transport artifact, rebuilds its accepted family connection through the artifact's source descriptor, evaluates the formal variation-of-constants recurrence as exact origin jets modulo the prime p, and checks the complete block differential equation and basepoint constants coefficient by coefficient. artifact may be an Association or a .wl file. The result is a formal solution up to boundary constants on the declared path; a finite origin jet is never reported as an endpoint value. \"ConstantValues\" supplies modular boundary constants, while Automatic uses deterministic generic values for certification.";
 
 LibraFamilyEpsForm::usage =
-  "LibraFamilyEpsForm is RETIRED (overhaul 2026-09-02): the whole-family Libra construction is kept, unloaded, in FeynFacet/Private_Backup/LibraEpsForm.wl. Calls return <|\"Status\" -> \"RouteRetired\", ...|>. The family completion runs through Scripts/family_epsform_sector.wls, FactorFamilyRegulatorDependence and CertifyFamilyEpsilonForm.";
+  "LibraFamilyEpsForm is RETIRED (overhaul 2026-09-02): the whole-family Libra construction is kept, unloaded, in FeynFacet/Private_Backup/LibraEpsForm.wl. Calls return <|\"Status\" -> \"RouteRetired\", ...|>. The family completion runs through Scripts/the per-sector eps-form driver script under Scripts/, FactorFamilyRegulatorDependence and CertifyFamilyEpsilonForm.";
 
 TransportStatus::usage =
   "TransportStatus[result] prints one greppable line per certificate, per regrading budget and per block of a TransportFamily result, for a watchdog running in a second kernel. It returns the lines and prints them unless \"Print\" -> False.";
@@ -418,6 +418,13 @@ If[! MatchQ[$feynFacetLoadOrder, {(_String -> {___String}) ..}],
 $feynFacetPrivateFiles = Flatten[Function[{layer, files},
     FileNameJoin[{$feynFacetPrivateDirectory, layer, #}] & /@ files] @@@
   $feynFacetLoadOrder];
+(* Module files are addressed by their manifest name, never by a path that
+   assumes the flat pre-2026-09-02 layout: feynFacetPrivateFile["X.wl"]
+   returns the full path of the module X.wl in whichever layer holds it
+   ($Failed if the manifest does not list it). *)
+$feynFacetPrivateFileIndex = Association[
+  Function[{layer, files}, (# -> FileNameJoin[{$feynFacetPrivateDirectory, layer, #}]) & /@ files] @@@ $feynFacetLoadOrder];
+FeynFacet`Private`feynFacetPrivateFile[name_String] := Lookup[$feynFacetPrivateFileIndex, name, $Failed];
 $feynFacetSourceFiles = Join[
   {ExpandFileName[$InputFileName], FileNameJoin[{$feynFacetDirectory, "Distributions.wl"}]},
   $feynFacetPrivateFiles

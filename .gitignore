@@ -133,3 +133,8 @@ ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_roo
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/t_broker_adaptive_hermetic_2026-08-26.log
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/round2_final_gate_2026-08-26.log
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/round2_final_gate_summary.tsv
+
+# test scratch written beside the tests by the finite-field strip solver (2026-09-02)
+Tests/**/ScratchDirectory/
+# FLINT adapter build output
+FeynFacet/Backends/flint/bin/

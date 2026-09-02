@@ -101,5 +101,5 @@ libraEpsFormLoadBackend[requested_] := Module[
    followed by FactorFamilyRegulatorDependence and CertifyFamilyEpsilonForm. *)
 LibraFamilyEpsForm[___] := <|"Status" -> "RouteRetired",
   "Route" -> "LibraFamilyEpsForm",
-  "Replacement" -> "family_epsform_sector.wls + FactorFamilyRegulatorDependence",
+  "Replacement" -> "the per-sector eps-form driver script (Scripts/) + FactorFamilyRegulatorDependence",
   "Code" -> "FeynFacet/Private_Backup/LibraEpsForm.wl"|>;

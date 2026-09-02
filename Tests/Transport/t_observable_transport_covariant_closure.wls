@@ -26,12 +26,12 @@ containment = If[
 
 eps = Symbol["Global`closureEpsilon"];
 y = Symbol["Global`closureY"];
-q = x - 1/4 + y - 1/2;
+closureQ = x - 1/4 + y - 1/2;
 rankRecord = <|
   "Status" -> "ExactEpsilonForm", "Family" -> "RankSampleToy",
   "Variables" -> {x, y}, "Regulator" -> eps, "Dim" -> 1,
-  "Ranges" -> {{1}}, "TTotal" -> {{q}},
-  "TTotalInverse" -> {{1/q}}, "EpsFormX" -> eps {{0}},
+  "Ranges" -> {{1}}, "TTotal" -> {{closureQ}},
+  "TTotalInverse" -> {{1/closureQ}}, "EpsFormX" -> eps {{0}},
   "EpsFormY" -> eps {{0}}, "Letters" -> {},
   "ChartRecord" -> <|"CoefficientField" -> "Rational"|>,
   "GateVerdict" -> True, "GaugeIdentity" -> True, "Flatness" -> True,

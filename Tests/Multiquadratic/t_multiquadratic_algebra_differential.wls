@@ -192,13 +192,17 @@ Do[
         AllTrue[consumerValues, # <= Quotient[p, 2] &]];
   ],
   {trial, 2}];
-(* the pinned residual divergence: no neutral square root at p == 1 (mod 4) *)
-check["p == 1 (mod 4) has no neutral entry point and keeps Tonelli--Shanks",
-  Mod[101, 4] === 1 && ! ListQ[squareRoots[{5}, 101]] &&
-    Head[squareRoots[{5}, 101]] === FeynFacet`Private`multiquadraticSquareRoots &&
+(* the residual divergence closed by the overhaul (2026-09-02): the neutral
+   entry point and the consumer share ONE modular square root
+   (Private/Core/ModularArithmetic.wl, Tonelli--Shanks for p == 1 (mod 4)),
+   so p == 1 (mod 4) is served instead of refused *)
+check["p == 1 (mod 4) is served by the shared modular square root",
+  Mod[101, 4] === 1 && ListQ[squareRoots[{5}, 101]] &&
+    Mod[First[squareRoots[{5}, 101]]^2, 101] === 5 &&
     Mod[consumerSquareRoot[5, 101]^2, 101] === 5 &&
     consumerSquareRoot[5, 101] <= Quotient[101, 2] &&
-    definitionCount["familyRowGaugeFFTonelliShanks"] > 0];
+    consumerSquareRoot[5, 101] === Min[#, 101 - #] &[First[squareRoots[{5}, 101]]] &&
+    definitionCount["modularTonelliShanks"] > 0];
 
 (* ---- dependence screen ---- *)
 check["both reject the rank-two square class {x, y, x y}",

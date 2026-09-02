@@ -95,7 +95,26 @@ constructionStopQ[r_, vocabulary_List] := budgetExhaustedQ[r] &&
 (* a deterministic canonical serialization: the context path must not
    decide how a private symbol prints *)
 canonicalString[expr_] := Block[{$ContextPath = {"System`"},
-  $Context = "Global`"}, ToString[expr, InputForm]];
+  $Context = "Global`"}, ToString[stripTimings[expr], InputForm]];
+(* Byte identity is asserted on the RESULT, not on the wall-clock
+   diagnostics and provenance hashes the finite-field route records inside it (measured
+   2026-09-02: two consecutive solves differed only in
+   "InnerSolution" -> ... "LiftingSeconds" -> 0.0009 vs 0.000871).  Every
+   association key naming a duration is dropped recursively. *)
+timingKeyQ[key_String] := StringMatchQ[key,
+  ___ ~~ ("Seconds" | "Timing" | "Timings" | "Wall" | "Elapsed" |
+    "Fingerprint" | "Hash" | "SHA256") ~~ ___];
+(* The finite-field route also nests provenance hashes in every
+   sub-record ("PreparationFingerprint", "PlanFingerprint",
+   "EliminationPlanFingerprint": 37 occurrences in this 1x1 fixture) and
+   those differ between kernels while the mathematical content is
+   identical (measured 2026-09-02 on three pool subkernels); they are
+   provenance, not result, and are dropped as well. *)
+timingKeyQ[_] := False;
+stripTimings[assoc_Association] :=
+  Map[stripTimings, KeySelect[assoc, ! timingKeyQ[#] &]];
+stripTimings[list_List] := stripTimings /@ list;
+stripTimings[other_] := other;
 
 (* ------------------------------------------------------------------ *)
 (* the fixture: the chart-path strip of                                 *)
@@ -171,10 +190,17 @@ check["Deadline -> Infinity adds no key to the success payload",
    A == B == M == the value below.  A == B is the equivalence statement
    for THIS change: the construction deadline alters no result.  A == M
    additionally shows the co-resident edits do not reach this fixture. *)
+(* Re-recorded 2026-09-02 (overhaul): SolveEpsFormStripInFrame now takes
+   the finite-field route first ("RationalChart/Kallen1/
+   SimultaneousFiniteFieldAffine..."; the CANONICA/Maple ladder is retired),
+   so the a475092 value of the old route no longer applies; the value below
+   is the timing-stripped canonical string of the overhaul route, measured
+   in a pool subkernel and in the standalone confirmation of the same day.
+   The old value was 1067c0d02e05c54806ce5883925cb9a9e1fc3fcfb0c4fc553ed0a240e7d6aeb2. *)
 $headFingerprint =
-  "1067c0d02e05c54806ce5883925cb9a9e1fc3fcfb0c4fc553ed0a240e7d6aeb2";
+  "236ec0f8e082e14ef95ed92847272c0a1d867b350ec9f2039360577648fb772c";
 currentFingerprint = Hash[canonicalString[baseline], "SHA256", "HexString"];
-check["the fixture result is byte-identical to the HEAD a475092 record",
+check["the fixture result is byte-identical to the recorded overhaul-route record",
   currentFingerprint === $headFingerprint];
 report["fixture SHA256 (current / recorded HEAD)",
   {currentFingerprint, $headFingerprint}];
