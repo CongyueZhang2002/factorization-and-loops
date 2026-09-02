@@ -898,7 +898,7 @@ blockRows[m_] := ranges[[m]];
      block CF259 (21,18), and 2+ h between blocks of the 28x28 / 37x37
      truncations (two watchdog confirmations).
 
-   - the DEFERRED route (FeynFacet/Private/EpsForm/BlockEquationDeferred.wl,
+   - the DEFERRED route (FeynFacet/Private/EpsForm/Blocks/BlockEquationDeferred.wl,
      Codex Q5 points 1-4, 6 and 8) keeps a sparse tagged term DAG whose
      terms reference the source entries, never forms
      Together[Total[terms]], proves entries nonzero by a modular census,

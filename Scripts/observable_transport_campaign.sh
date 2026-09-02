@@ -1,4 +1,15 @@
 #!/usr/bin/env bash
+# STANDALONE observable-transport campaign driver: one family per
+# wolframscript process (each its own main kernel, no KernelPool, no
+# task broker), FACET_TRANSPORT_JOBS families at a time.
+#
+# NOT the canonical driver.  The canonical multi-family driver is
+# observable_transport_kernelpool_campaign.sh (one pool main + N
+# subkernels, round 4 decision 2026-09-02).  Use THIS script only when
+# no KernelPool can run (another main kernel already holds the second
+# licence seat, or a machine without the pool tooling) or for one family
+# at a time; with FACET_TRANSPORT_JOBS > 1 it starts several main kernels
+# and on the shared licence that collides with any running pool.
 set -u
 
 if (( $# != 2 )); then

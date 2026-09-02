@@ -122,8 +122,9 @@ symbol is replaced by an ordinary one",
 
 (* ---- R5: no surviving spelling test in the loaded source ---- *)
 
-source = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
-  "MultiquadraticStripSolve.wl"}], "Text"];
+source = StringJoin[Import[FeynFacet`Private`feynFacetPrivateFile[#], "Text"] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &]];  (* all eight solver files *)
 (* comments are stripped so the note ABOUT the defect does not count *)
 executable = FTTest`FTStripComments[source];
 check["R5 no symbol-NAME regulator test survives in the executable source",

@@ -15,9 +15,17 @@ specialized material is grouped by purpose:
   `family_epsform_sector.wls` (finite-field route; the CANONICA/Maple driver is under Backup/)
 - Certification: `certify_family_epsform_campaign.wls`,
   `certify_family_epsform_parallel.wls`, `certify_family_epsform_record.wls`
-- Observable and master transport: `complete_observable_transport.sh`,
-  `observable_transport_campaign.sh`, `family_observable_transport.wls`,
-  `complete_master_transport.sh`
+- Observable and master transport: `complete_observable_transport.sh`
+  (manifest + rounds; dispatches the standalone driver),
+  `observable_transport_kernelpool_campaign.sh` (CANONICAL multi-family
+  driver: one pool main + N subkernels, mission
+  `family_observable_transport_pool_mission.wls`),
+  `observable_transport_campaign.sh` (standalone: one wolframscript per
+  family, no pool -- only when no KernelPool can run or for one family),
+  `family_observable_transport.wls`, `complete_master_transport.sh`
+  (eps-form completion followed by the observable transport; the name
+  predates the retirement of the Libra `TransportFamily` route, which it
+  never calls)
 - Shared persistent kernel pool: `KernelPool.wls`, `kpsubmit.sh`, `kpwait.sh`,
   `kpstatus.sh`, `watchdog_register.sh`
 - Test pool: `run_tests_pool.sh`

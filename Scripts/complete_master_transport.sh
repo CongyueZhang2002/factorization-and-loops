@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# Two-stage master pipeline: (1) complete_family_epsforms.sh, (2)
+# complete_observable_transport.sh.  "master transport" here names the
+# pipeline that delivers the transported masters, NOT the retired Libra
+# path-ordered route (TransportFamily answers RouteRetired since round 2,
+# 2026-09-02): stage (2) is the observable transport, so this wrapper
+# stays live (checked round 4, 2026-09-02).
 set -eu
 
 usage() {

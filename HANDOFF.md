@@ -4,6 +4,32 @@ Read `Design/PrivateOverhaul_2026-09-01.md` first: it is the living plan
 with done / running / not-done / decisions-for-the-user, the bug list,
 the benchmark table and the CF259 state. This note is the short version.
 
+## Current status (2026-09-02 13:30, one block; everything below it is history)
+
+- Package: seven layer folders under `FeynFacet/Private/` with the manifest
+  `Private/LoadOrder.wl`; superseded code in `Private_Backup/` with evidence.
+  The layer graph is NOT yet acyclic (EpsForm calls Transport helpers);
+  round 4 moves the shared helpers down and documents the true graph.
+- Stage 1 (eps-forms): `DiagonalBlockEpsForm` with the Libra balance slice
+  and the finite-field strip solvers; CANONICA and Maple routes retired.
+- Stage 2 (transport): `BuildObservableTransport` is the only production
+  route. Laurent extraction runs on `"SeriesCoefficient"`; the symbolic
+  epsilon-jet route is present but NOT the default (it did not finish in
+  21 minutes on CF259). A modular jet route (uncanonical DAGs evaluated
+  modulo primes) is being built in round 4.
+- CF259: transported (564 s, status ModularlyVerifiedObservableTransport,
+  20 demanded pairs, 167 boundary coordinates). Credible but provisional:
+  the transport epsilon valuations (TMin, block bounds) were accepted on
+  type checks only; round 4 binds them to a modular certificate. CF300 and
+  CF303 are not transported.
+- Tests: 12 retired, 8 fixed in round 3 (the long ones were quadratic test
+  code, not physics); verification policy: small targeted tests through
+  the two licensed kernel seats, no full-suite runs, kill pathological
+  runs and fix the cause.
+- Codex's 2026-09-02 assessment (`Exchange/Codex/2026-09-02/`): every
+  point accepted; round 4 (agents T, M, G, L) works them, see the plan.
+- `main` is ahead of `origin/main`; pushing needs the user's decision.
+
 ## What changed
 
 - `FeynFacet/Private/` restructured into seven layer folders with the
@@ -18,7 +44,8 @@ the benchmark table and the CF259 state. This note is the short version.
   without `ChartRecord` refused) is fixed.
 - New `Core/ModularArithmetic.wl`: one implementation of the finite-field
   primitives (goal 2); call-site migration status in the plan.
-- Laurent extraction of the transport is an exact epsilon-jet (goal 6);
+- Laurent extraction: an exact epsilon-jet route was written (goal 6) but
+  production stays on SeriesCoefficient (see Current status);
   rank-sampling failures carry diagnostics and can dump their state.
 - Pool and driver fixes (B1-B4 in the plan): kernel-launching tests are
   standalone-only; requeued missions are no longer filed DUPLICATE; the
@@ -32,7 +59,9 @@ the benchmark table and the CF259 state. This note is the short version.
 Inputs (assembled eps-form, native dlog residues, compact transport-ready
 record with Codex's transport valuations, path card) are under
 `Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/transport_inputs_2026-09-02/`.
-State: TRANSPORTED on the overhaul branch (probe 5, 05:51, 564 s):
+State: TRANSPORTED on the overhaul branch (probe 5, 05:51, 564 s), credible
+but provisional until the valuation certificate of round 4 binds TMin and
+the block bounds to the record:
 `Results/.../CF259/observable_transport_2026-09-02/observable_transport_CF259.wl`,
 status ModularlyVerifiedObservableTransport, 20 demanded (order,row)
 pairs, 167 boundary coordinates, maximum weight 5, operator-automaton

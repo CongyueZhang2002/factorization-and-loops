@@ -4,7 +4,8 @@ Private_Backup/<same name> (appending, with a provenance header), leaving the
 rest of the file intact.  Statements moved: every top-level statement whose
 head is one of the symbols (definitions, Options[sym] = ..., sym = ...).
 ClearAll lists are left untouched (a listed name without a definition is
-harmless).  Usage: move_to_backup.py <worktree> <Private/File.wl> <evidence text> sym1 sym2 ...
+harmless).  Usage: move_to_backup.py <worktree> <Private/<layer>/[<sub>/]File.wl> <evidence text> sym1 sym2 ...
+(nested layer paths accepted since round 5, 2026-09-02; the backup keeps the bare file name)
 Prints the moved statement count and line count; --dry-run only reports."""
 import sys,os,re
 W=sys.argv[1]; rel=sys.argv[2]; evidence=sys.argv[3]; syms=[a for a in sys.argv[4:] if not a.startswith("--")]; dry="--dry-run" in sys.argv; keepopts="--keep-options" in sys.argv
@@ -64,7 +65,7 @@ missing=set(syms)-set(head(s) for s in moved)
 if missing: print("  no top-level statement found for:", sorted(missing))
 if dry: sys.exit(0)
 os.makedirs(os.path.dirname(dst),exist_ok=True)
-header=f"\n(* ==== moved from Private/{os.path.basename(rel)} on 2026-09-02 (overhaul goal 1) ====\n   Evidence: {evidence}\n   Symbols: {', '.join(sorted(set(head(s) for s in moved)))}\n   This file is never loaded by FeynFacet.m. *)\n"
+header=f"\n(* ==== moved from {rel} on 2026-09-02 (overhaul goal 1) ====\n   Evidence: {evidence}\n   Symbols: {', '.join(sorted(set(head(s) for s in moved)))}\n   This file is never loaded by FeynFacet.m. *)\n"
 with open(dst,"a",encoding="utf-8") as f: f.write(header+"".join(moved)+"\n")
 open(src,"w",encoding="utf-8").write("".join(kept))
 print(f"  written {dst}; source rewritten")

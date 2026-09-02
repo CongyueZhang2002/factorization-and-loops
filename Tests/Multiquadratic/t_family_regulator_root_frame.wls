@@ -76,8 +76,7 @@ check["whole-family certification resolves its Automatic ceiling from the graded
       Options[FeynFacet`CertifyFamilyEpsilonForm]) === Automatic &&
     evidence5["MaximumRank"] === 5];
 
-source = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
-  "FamilyRegulatorFactor.wl"}], "Text"];
+source = Import[FeynFacet`Private`feynFacetPrivateFile["FamilyRegulatorFactor.wl"], "Text"];
 check["the implementation contains no fixed rootA through rootE locals",
   AllTrue[{"rootA", "rootB", "rootC", "rootD", "rootE"},
     ! StringContainsQ[source, #] &]];

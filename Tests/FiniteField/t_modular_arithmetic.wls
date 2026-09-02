@@ -1,5 +1,5 @@
 #!/usr/bin/env wolframscript
-(* The shared finite-field primitives of FeynFacet/Private/Core/ModularArithmetic.wl.
+(* The shared finite-field primitives of FeynFacet/Private/Core/Modular/ModularArithmetic.wl.
 
    Acceptance criteria, all stated before the run and all checked
    against INDEPENDENT values (a brute-force search over the
@@ -52,13 +52,19 @@
        "Exclude", "Residue3Mod4" and "Avoid", and is deterministic in
        "Random" -> seed.
 
-   The module is loaded directly: it is not registered in FeynFacet.m
-   yet. *)
+   ModularArithmetic.wl is loaded by the package (Core layer); the test
+   re-reads it directly, and also reads the diagnostic split-point
+   sampler Scripts/Diagnostics/ModularSplitPoints.wl (modularSplitPointQ,
+   modularSplitPoints, modularEvaluateAt: no production caller since
+   round 4, 2026-09-02 -- production tests split points with
+   modularResidueQ on the solver's own reduced radicands), which
+   sections F exercise. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 Begin["FeynFacet`Private`"];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "Core", "ModularArithmetic.wl"}]];
+Get[FeynFacet`Private`feynFacetPrivateFile["ModularArithmetic.wl"]];
+Get[FileNameJoin[{root, "Scripts", "Diagnostics", "ModularSplitPoints.wl"}]];
 End[];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 
@@ -70,8 +76,13 @@ Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
    whichever package exported it first. *)
 (* The switch is undone before the report: on a reused pool subkernel a
    leaked $Context/$ContextPath changes where every later mission's bare
-   symbols land (measured 2026-09-02, overhaul B11). *)
-ftModularSavedContexts = {$Context, $ContextPath};
+   symbols land (measured 2026-09-02, overhaul B11).  The saved pair is
+   held in a FULLY QUALIFIED symbol: a bare name written here resolves in
+   the current context (Global`), while the same bare name at the restore
+   line below would resolve in FTModularArithmeticTest`, where it is
+   unset -- Set::shape, restoration silently skipped, 61/61 still
+   reported (Codex review 2026-09-02).  The restore is asserted. *)
+Global`ftModularSavedContexts = {$Context, $ContextPath};
 $ContextPath = {"FTTest`", "System`"};
 $Context = "FTModularArithmeticTest`";
 
@@ -470,5 +481,15 @@ FTAssert["a different random seed gives a different draw, and the filters still 
      Length[excluded] === 4 && DuplicateFreeQ[excluded] &&
      FreeQ[excluded, Alternatives @@ randomA]]];
 
-{$Context, $ContextPath} = ftModularSavedContexts;
-FTReport[];
+(* ==================================================================
+   H. the context switch is undone (a leaked switch poisons a reused
+      pool subkernel; the earlier bare-symbol restore never ran)
+   ================================================================== *)
+
+{$Context, $ContextPath} = Global`ftModularSavedContexts;
+FTTest`FTAssert["$Context and $ContextPath are restored to their pre-test values (Global` current, FTTest` visible)",
+  $Context === "Global`" &&
+   {$Context, $ContextPath} === Global`ftModularSavedContexts &&
+   MemberQ[$ContextPath, "FTTest`"] &&
+   ! MemberQ[$ContextPath, "FTModularArithmeticTest`"]];
+FTTest`FTReport[];

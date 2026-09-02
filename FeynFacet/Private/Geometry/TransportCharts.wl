@@ -51,20 +51,12 @@ Clear[TransportChartCatalog, TransportChartVerify, ComposeTransportChartExtensio
 ClearAll[
   masterTransportChartByName,
   masterTransportComposeTwoVariableRecord,
+  masterTransportRecordCoordinateMap,
   transportChartRationalExpressionQ,
   transportChartLoadRationalizeRoots,
   transportChartExtensionCandidates,
   transportFamilyChartEntryKind,
   transportFamilyChartAlias,
-  transportChartNumericSquareClass,
-  transportChartSquareSplit,
-  transportChartExactSquareRoot,
-  transportChartSquareClassData,
-  transportChartDenestRadicalBase,
-  transportChartDenestSign,
-  transportChartCanonicalizeDenestedRadicals,
-  transportChartDeclaredRadicalGenerators,
-  transportChartAlgebraicZeroQ,
   transportChartCanonicalizeFrameImages,
   transportChartDeadlineQ,
   transportChartDeadlineExpiredQ,
@@ -478,16 +470,6 @@ transportChartParallelJacobianPullBack[image_, jacobian_, label_String,
 transportChartParallelJacobianPullBack[___] :=
   <|"Status" -> "InvalidParallelJacobianPullBackInput"|>;
 
-Options[transportChartMapleCanonicalGauge] = {
-  "MapleExecutable" -> "maple",
-  "ScratchDirectory" -> Automatic,
-  "CacheDirectory" -> Automatic,
-  "Tag" -> "chart_gauge",
-  "TimeLimit" -> 1800,
-  "Runner" -> Automatic,
-  "Verbose" -> False
-};
-
 transportChartLogSuccessTimings[timings_Association, chartName_,
     verboseQ_] := If[
   TrueQ[verboseQ] || AbsoluteTime[] - $transportChartLastSuccessLogTime >=
@@ -789,422 +771,6 @@ BuildAlgebraicTransportFrame[rootSquares_List,
     "ChartCertificate" -> certificate|>]
 ];
 
-transportChartRadicalBases[expr_] := Module[{raw},
-  (* A large connection repeats the same declared roots hundreds of
-     thousands of times.  Normalize each distinct syntactic radicand once,
-     not once per occurrence, then merge algebraically identical images. *)
-  raw = DeleteDuplicates[Cases[Unevaluated[expr],
-    Power[base_, exponent_Rational /; Denominator[exponent] === 2] :>
-      base, {0, Infinity}, Heads -> True]];
-  DeleteDuplicates[Together /@ raw]
-];
-
-(* ------------------------------------------------------------------ *)
-(*  Square classes and the denesting of nested radical bases            *)
-(* ------------------------------------------------------------------ *)
-(* WHY (2026-08-24, CF303).  The syntactic matcher below classifies a
-   radical only when its radicand IS a declared root square.  The CF303
-   family connection carries radicands that are declared squares times a
-   NESTED radical, e.g.
-
-     q2 (u + v Sqrt[q1]),  u = 1+2x+x^2+2xy+y^2, v = 1+x+y,
-
-   and bare numeric radicands (Sqrt[2]).  Both live in the declared
-   multiquadratic field: with w^2 = u^2 - v^2 q1 = (2y)^2 exactly,
-   u + w = (1+x+y)^2, hence 2 (u + v Sqrt[q1]) = ((1+x+y) + Sqrt[q1])^2
-   and the radicand's square class is 2 q2 -- declared root 2 times the
-   numeric class 2, no new field extension.  Refusing such a connection
-   as "undeclared radicals" was a matcher limitation, not a mathematical
-   obstruction.  The classification is exact throughout (Fermat
-   denesting); only the global SIGN of a rewrite is fixed numerically,
-   in transportChartDenestSign, and the identity rewrite^2 == base is
-   checked exactly and is sign-independent. *)
-
-(* Sqrt[p/q] = Sqrt[p q]/q, so the square class of a rational number is
-   the squarefree part of numerator*denominator.  The sign is kept: a
-   negative class means the radical is imaginary, which is data, not an
-   error. *)
-transportChartNumericSquareClass[value_] := Module[{r, sign, n, d},
-  r = Together[value];
-  If[! MatchQ[r, _Integer | _Rational], Return[$Failed]];
-  If[r === 0, Return[0]];
-  sign = Sign[r]; r = Abs[r];
-  n = Numerator[r]; d = Denominator[r];
-  sign Times @@ (First[#]^Mod[Last[#], 2] & /@ FactorInteger[n d])];
-
-(* g = class h^2 with class squarefree: the squarefree rational content
-   times every irreducible factor of odd multiplicity, once. *)
-transportChartSquareSplit[g_] := Module[
-  {expression, list, numeric, polynomials, sign, n, d, k, m, class, h},
-  expression = Together[g];
-  If[TrueQ[expression === 0], Return[{0, 0}]];
-  list = FactorList[expression];
-  numeric = Times @@ (First[#]^Last[#] & /@ Select[list, NumericQ[First[#]] &]);
-  If[! MatchQ[numeric, _Integer | _Rational], Return[$Failed]];
-  polynomials = Select[list, ! NumericQ[First[#]] &];
-  sign = Sign[numeric];
-  n = Numerator[Abs[numeric]]; d = Denominator[Abs[numeric]];
-  k = transportChartNumericSquareClass[Abs[numeric]];
-  m = Sqrt[(n d)/k];
-  If[! IntegerQ[m], Return[$Failed]];
-  class = sign k Times @@ (First[#]^Mod[Last[#], 2] & /@ polynomials);
-  h = (m/d) Times @@
-    (First[#]^Quotient[Last[#] - Mod[Last[#], 2], 2] & /@ polynomials);
-  {Together[class], Together[h]}];
-
-(* the exact square root of a rational function, or $Failed *)
-transportChartExactSquareRoot[g_] := Module[{split},
-  split = transportChartSquareSplit[g];
-  If[split === $Failed, Return[$Failed]];
-  If[TrueQ[Together[First[split] - 1] === 0] &&
-      TrueQ[Together[Last[split]^2 - g] === 0],
-    Together[Last[split]], $Failed]];
-
-(* expr == NumericClass Product[declared squares] Factor^2, verified
-   exactly, or a typed refusal naming the factors that match no declared
-   square.  Matching is sign- and numeric-multiple-insensitive: a factor
-   equal to a rational multiple of a declared square contributes that
-   root index and moves the multiple into the numeric class. *)
-transportChartSquareClassData[expr_, rootBases_List] := Module[
-  {class, h, split, list, numeric = 1, indices = {}, unmatched = {}, whole,
-   numericClass, mu, factor},
-  split = transportChartSquareSplit[expr];
-  If[split === $Failed,
-    Return[<|"Status" -> "NonRationalSquareClassContent"|>]];
-  {class, h} = split;
-  If[class === 0, Return[<|"Status" -> "ZeroSquareClass"|>]];
-  (* the whole class first: a declared square may be reducible *)
-  whole = SelectFirst[Range[Length[rootBases]],
-    Module[{ratio = Together[class/rootBases[[#]]]},
-      MatchQ[ratio, _Integer | _Rational] && ratio =!= 0] &, 0];
-  If[whole > 0,
-    indices = {whole}; numeric = Together[class/rootBases[[whole]]],
-    list = FactorList[class];
-    Do[Module[{f = First[entry], e = Last[entry], match},
-      Which[
-        NumericQ[f], numeric *= f^e,
-        EvenQ[e], Null,
-        True,
-          match = SelectFirst[Range[Length[rootBases]],
-            Module[{ratio = Together[f/rootBases[[#]]]},
-              MatchQ[ratio, _Integer | _Rational] && ratio =!= 0] &, 0];
-          If[match > 0,
-            AppendTo[indices, match];
-            numeric *= Together[f/rootBases[[match]]]^e,
-            AppendTo[unmatched, f^e]]]],
-      {entry, list}]];
-  If[unmatched =!= {},
-    Return[<|"Status" -> "UnmatchedSquareClassFactors",
-      "Unmatched" -> unmatched|>]];
-  numericClass = transportChartNumericSquareClass[numeric];
-  If[numericClass === $Failed,
-    Return[<|"Status" -> "NonRationalSquareClassContent"|>]];
-  mu = Sqrt[Together[numeric/numericClass]];
-  If[! MatchQ[mu, _Integer | _Rational],
-    Return[<|"Status" -> "NonRationalSquareClassContent"|>]];
-  factor = Together[mu h];
-  indices = Sort[DeleteDuplicates[indices]];
-  If[! TrueQ[Together[
-      numericClass Times @@ rootBases[[indices]] factor^2 - expr] === 0],
-    Return[<|"Status" -> "SquareClassIdentityFailed"|>]];
-  <|"Status" -> "OK", "RootIndices" -> indices,
-    "NumericClass" -> numericClass, "Factor" -> factor|>];
-
-(* Denest ONE radical base against the declared root set.  Returns
-     <|"Status" -> "Denested", "RootIndices" -> {...} (the square class),
-       "NumericClass" -> c, "Residual" -> 1, "InnerRootIndices" -> {...}
-       (declared roots that survive INSIDE the rewrite),
-       "Rewrite" -> expression in declared radicals, up to a global sign,
-       "SquareIdentity" -> True, "Witness" -> <|"u","v","w","Square"|>|>
-   or one of the typed refusals "NotDenestable" (with a "Reason") and
-   "NestedMultiRootRadical".  The variables are the chart variables of
-   the frame; the algorithm itself is variable-agnostic and treats any
-   other symbol (the regulator, say) as a parameter of the coefficient
-   field. *)
-transportChartDenestRadicalBase[base_, roots_List, variables_List] := Module[
-  {rootBases, symbols, substitute, reduceRules, reduce, toRatio, zeroQ,
-   ratio, num, den, normal, list, numeric, sign, n, d, k, m, hPoly, rFree,
-   fRaw, fPart, present, index, u, v, discriminant, w, branch, g, c, h, split,
-   alpha, beta, verified, solved, classExpr, classData, rootImages, rewrite,
-   witness, check},
-  If[! MatchQ[variables, {___Symbol}],
-    Return[<|"Status" -> "NotDenestable", "Reason" -> "InvalidVariables"|>]];
-  rootBases = Together /@ (#["Root"]^2 & /@ roots);
-
-  (* (i) a purely numeric radicand is chart independent *)
-  If[NumericQ[base] && FreeQ[base, _Complex],
-    k = transportChartNumericSquareClass[base];
-    If[k === $Failed, Return[<|"Status" -> "NotDenestable",
-      "Reason" -> "NonRationalNumericRadicand"|>]];
-    Return[<|"Status" -> "Denested", "RootIndices" -> {},
-      "NumericClass" -> k, "Residual" -> 1, "InnerRootIndices" -> {},
-      "Rewrite" -> Sqrt[Together[base/k]] Sqrt[k], "SquareIdentity" -> True,
-      "Witness" -> <|"Kind" -> "Numeric", "u" -> base, "v" -> 0, "w" -> 0,
-        "Square" -> Together[base/k]|>|>]];
-
-  (* (ii) declared radicals become polynomial generators r_i, r_i^2 = q_i *)
-  symbols = Table[Unique["FeynFacet`Private`denestRoot"], {Length[rootBases]}];
-  substitute[expression_] := expression /.
-    Power[b_, e_Rational /; Denominator[e] === 2] :>
-      Module[{position = FirstPosition[rootBases,
-          q_ /; TrueQ[Together[b - q] === 0], Missing["NoRoot"], {1},
-          Heads -> False]},
-        If[MissingQ[position], Power[b, e], symbols[[First[position]]]^(2 e)]];
-  reduceRules = Table[With[{s = symbols[[i]], q = rootBases[[i]]},
-      s^e_Integer /; e >= 2 :> q^Quotient[e, 2] s^Mod[e, 2]],
-    {i, Length[symbols]}];
-  reduce[p_] := FixedPoint[Expand[# /. reduceRules] &, Expand[p]];
-  (* {numerator, denominator} with the generators cleared from the
-     denominator by conjugation and every generator power reduced.
-     Numeric radicals (the class constants our own rewrite introduces)
-     ride along as exact constants; an undeclared SYMBOLIC radical is
-     refused before this is reached. *)
-  toRatio[expression_] := Module[{c0, nu, de, i},
-    c0 = Together[substitute[expression]];
-    nu = reduce[Numerator[c0]]; de = reduce[Denominator[c0]];
-    Do[If[! FreeQ[de, symbols[[i]]],
-        Module[{conjugate = reduce[de /. symbols[[i]] -> -symbols[[i]]]},
-          nu = reduce[nu conjugate]; de = reduce[de conjugate]]],
-      {i, Length[symbols]}];
-    If[! FreeQ[de, Alternatives @@ symbols], $Failed, {nu, de}]];
-  zeroQ[e1_, e2_] := Module[{a = toRatio[e1], b = toRatio[e2]},
-    a =!= $Failed && b =!= $Failed &&
-      TrueQ[Together[reduce[a[[1]] b[[2]] - b[[1]] a[[2]]]] === 0]];
-
-  If[! FreeQ[substitute[base], Power[_, e_Rational /; Denominator[e] =!= 1]],
-    Return[<|"Status" -> "NotDenestable",
-      "Reason" -> "UndeclaredInnerRadical"|>]];
-  ratio = toRatio[base];
-  If[ratio === $Failed,
-    Return[<|"Status" -> "NotDenestable",
-      "Reason" -> "RootDenominatorNotCleared"|>]];
-  {num, den} = ratio;
-  (* Sqrt[num/den] = Sqrt[num den]/den *)
-  normal = reduce[num den];
-  If[TrueQ[normal === 0],
-    Return[<|"Status" -> "NotDenestable", "Reason" -> "ZeroRadicand"|>]];
-
-  (* (iii) split off the generator-free factors *)
-  list = FactorList[normal];
-  numeric = Times @@ (First[#]^Last[#] & /@ Select[list, NumericQ[First[#]] &]);
-  If[! MatchQ[numeric, _Integer | _Rational],
-    Return[<|"Status" -> "NotDenestable", "Reason" -> "NonRationalContent"|>]];
-  sign = Sign[numeric]; n = Numerator[Abs[numeric]]; d = Denominator[Abs[numeric]];
-  k = transportChartNumericSquareClass[Abs[numeric]];
-  m = Sqrt[(n d)/k]/d;
-  hPoly = m Times @@ (First[#]^Quotient[Last[#], 2] & /@
-    Select[list, ! NumericQ[First[#]] &]);
-  rFree = Times @@ (First[#]^Mod[Last[#], 2] & /@ Select[list,
-    ! NumericQ[First[#]] && FreeQ[First[#], Alternatives @@ symbols] &]);
-  fRaw = Times @@ (First[#]^Mod[Last[#], 2] & /@ Select[list,
-    ! NumericQ[First[#]] && ! FreeQ[First[#], Alternatives @@ symbols] &]);
-  fPart = reduce[fRaw];
-  If[FreeQ[fPart, Alternatives @@ symbols],
-    rFree = Together[rFree fPart]; fPart = 1];
-
-  If[TrueQ[fPart === 1],
-    (* (iv) no residual radical: a plain square class *)
-    classExpr = Together[sign k rFree];
-    classData = transportChartSquareClassData[classExpr, rootBases];
-    If[Lookup[classData, "Status", None] =!= "OK",
-      Return[<|"Status" -> "NotDenestable",
-        "Reason" -> "UnclassifiedSquareClass", "Detail" -> classData|>]];
-    rootImages = Sqrt /@ rootBases[[classData["RootIndices"]]];
-    rewrite = Together[hPoly classData["Factor"]/den] *
-      Sqrt[classData["NumericClass"]] Times @@ rootImages;
-    witness = <|"Kind" -> "SquareClass", "u" -> classExpr, "v" -> 0, "w" -> 0,
-      "Square" -> Together[hPoly^2]|>;
-    index = 0,
-    (* (v) a residual radical: Fermat denesting of u + v r *)
-    present = Select[Range[Length[symbols]], ! FreeQ[fPart, symbols[[#]]] &];
-    If[Length[present] =!= 1,
-      Return[<|"Status" -> "NestedMultiRootRadical",
-        "InnerRootIndices" -> present|>]];
-    index = First[present];
-    If[Exponent[fPart, symbols[[index]]] =!= 1,
-      Return[<|"Status" -> "NotDenestable", "Reason" -> "ResidualNotLinear"|>]];
-    u = Together[Coefficient[fPart, symbols[[index]], 0]];
-    v = Together[Coefficient[fPart, symbols[[index]], 1]];
-    discriminant = Together[u^2 - v^2 rootBases[[index]]];
-    w = transportChartExactSquareRoot[discriminant];
-    If[w === $Failed,
-      Return[<|"Status" -> "NotDenestable",
-        "Reason" -> "DiscriminantNotASquare"|>]];
-    (* Both Fermat branches can denest; their c differ by a declared
-       square, which IS a square of Q(x,y)[r]/(r^2 - q), so the square
-       class is defined only modulo that square and both rewrites are
-       exact.  The branch whose class uses the FEWEST declared roots is
-       taken: it keeps the chart demand minimal. *)
-    verified = {}; solved = {};
-    Do[
-      g = Together[branch/2];
-      If[TrueQ[g === 0], Continue[]];
-      split = transportChartSquareSplit[g];
-      If[split === $Failed, Continue[]];
-      {c, h} = split;
-      alpha = Together[c h];
-      If[TrueQ[alpha === 0], Continue[]];
-      beta = Together[c v/(2 alpha)];
-      If[TrueQ[Together[alpha^2 + beta^2 rootBases[[index]] - c u] === 0] &&
-          TrueQ[Together[2 alpha beta - c v] === 0],
-        Module[{candidateClass = Together[sign k rFree c], candidateData},
-          candidateData = transportChartSquareClassData[candidateClass, rootBases];
-          AppendTo[verified, <|"Class" -> candidateClass, "Data" -> candidateData,
-            "Coefficient" -> c, "Alpha" -> alpha, "Beta" -> beta|>];
-          If[Lookup[candidateData, "Status", None] === "OK",
-            AppendTo[solved, Last[verified]]]]],
-      {branch, {Together[u + w], Together[u - w]}}];
-    If[verified === {},
-      Return[<|"Status" -> "NotDenestable", "Reason" -> "NoDenestingBranch"|>]];
-    If[solved === {},
-      Return[<|"Status" -> "NotDenestable",
-        "Reason" -> "UnclassifiedSquareClass",
-        "Detail" -> First[verified]["Data"]|>]];
-    solved = First[SortBy[solved,
-      {Length[#["Data"]["RootIndices"]] &, LeafCount[#["Class"]] &}]];
-    c = solved["Coefficient"]; alpha = solved["Alpha"]; beta = solved["Beta"];
-    classExpr = solved["Class"]; classData = solved["Data"];
-    rootImages = Sqrt /@ rootBases[[classData["RootIndices"]]];
-    rewrite = Together[hPoly classData["Factor"] *
-        (alpha + beta Sqrt[rootBases[[index]]])/(c den)] *
-      Sqrt[classData["NumericClass"]] Times @@ rootImages;
-    witness = <|"Kind" -> "Fermat", "u" -> u, "v" -> v, "w" -> w,
-      "Square" -> Together[c fPart /.
-        symbols[[index]] -> Sqrt[rootBases[[index]]]],
-      "Alpha" -> alpha, "Beta" -> beta, "Coefficient" -> c,
-      "InnerRootIndex" -> index|>];
-
-  rewrite = rewrite /. Thread[symbols -> (Sqrt /@ rootBases)];
-  (* the decisive exact identity, independent of the global sign *)
-  check = zeroQ[rewrite^2, base];
-  If[! TrueQ[check],
-    Return[<|"Status" -> "NotDenestable", "Reason" -> "RewriteIdentityFailed",
-      "Rewrite" -> rewrite|>]];
-
-  <|"Status" -> "Denested", "RootIndices" -> classData["RootIndices"],
-    "NumericClass" -> classData["NumericClass"], "Residual" -> 1,
-    "InnerRootIndices" -> If[index === 0, {}, {index}],
-    "Rewrite" -> rewrite, "SquareIdentity" -> check, "Witness" -> witness|>];
-
-(* The exact identity rewrite^2 == base fixes a rewrite up to a global
-   sign; the sign is fixed by numeric evaluation at rational points of
-   the chart region where EVERY declared square is positive.  The points
-   must agree, otherwise the answer is the typed "DenestSignAmbiguous".
-   This is the only numeric step of the denesting layer. *)
-transportChartDenestSign[base_, rewrite_, roots_List,
-    variables : {__Symbol}, pointCount_Integer: 2] := Module[
-  {rootBases, candidates, signs = {}, used = {}, tolerance = 10^-20,
-   precision = 30},
-  rootBases = Together /@ (#["Root"]^2 & /@ roots);
-  candidates = Table[Thread[variables ->
-      PadRight[{Prime[k + 2]/Prime[k + 12], Prime[2 k + 3]/Prime[2 k + 17]},
-        Length[variables], 1/(k + 3)]], {k, 1, 60}];
-  Do[
-    Module[{squares, value, lhs, rhs},
-      squares = Quiet[N[rootBases /. point, precision]];
-      If[! AllTrue[squares, MatchQ[#, _Real] && # > 0 &], Continue[]];
-      value = Quiet[N[base /. point, precision]];
-      rhs = Quiet[N[rewrite /. point, precision]];
-      If[! FreeQ[{value, rhs}, Indeterminate | _DirectedInfinity], Continue[]];
-      If[! (NumericQ[value] && NumericQ[rhs]), Continue[]];
-      If[Abs[value] < 10^-10, Continue[]];
-      lhs = Sqrt[value];
-      Which[
-        Abs[lhs - rhs] <= tolerance Max[1, Abs[lhs]],
-          AppendTo[signs, 1]; AppendTo[used, point],
-        Abs[lhs + rhs] <= tolerance Max[1, Abs[lhs]],
-          AppendTo[signs, -1]; AppendTo[used, point],
-        True, AppendTo[signs, 0]; AppendTo[used, point]]];
-    If[Length[signs] >= pointCount, Break[]],
-    {point, candidates}];
-  If[Length[signs] < pointCount || MemberQ[signs, 0] ||
-      Length[DeleteDuplicates[signs]] =!= 1,
-    Return[<|"Status" -> "DenestSignAmbiguous", "Signs" -> signs,
-      "Points" -> used|>]];
-  <|"Status" -> "OK", "Sign" -> First[signs], "Points" -> used,
-    "Precision" -> precision, "Tolerance" -> tolerance|>];
-
-(* Rewrite every denested SYMBOLIC radical of an expression in terms of
-   the declared radicals (numeric radicands are already constants of the
-   coefficient field and are left alone).  The classification is exact;
-   each rewrite carries its numerically fixed global sign. *)
-transportChartCanonicalizeDenestedRadicals[expr_, roots_List,
-    variables : {__Symbol}, denested_Association] := Module[
-  {records, rewrites, failures = {}, lookup, canonical, count = 0},
-  records = KeySelect[denested, ! NumericQ[#] &];
-  If[records === <||>,
-    Return[<|"Status" -> "OK", "Expression" -> expr, "Rewrites" -> <||>,
-      "Rewritten" -> 0|>]];
-  rewrites = Association @ KeyValueMap[Function[{base, record},
-    Module[{signData},
-      If[! TrueQ[Lookup[record, "SquareIdentity", False]],
-        AppendTo[failures, <|"Base" -> base,
-          "Reason" -> "DenestIdentityNotVerified"|>]; Nothing,
-        signData = transportChartDenestSign[base,
-          Lookup[record, "Rewrite", 0], roots, variables];
-        If[Lookup[signData, "Status", None] =!= "OK",
-          AppendTo[failures, <|"Base" -> base,
-            "Reason" -> "DenestSignAmbiguous", "Detail" -> signData|>]; Nothing,
-          base -> <|"Rewrite" -> Together[signData["Sign"] record["Rewrite"]],
-            "Sign" -> signData["Sign"], "SignPoints" -> signData["Points"],
-            "RootIndices" -> Lookup[record, "RootIndices", {}],
-            "NumericClass" -> Lookup[record, "NumericClass", 1],
-            "Witness" -> Lookup[record, "Witness", <||>]|>]]]],
-    records];
-  If[failures =!= {},
-    Return[<|"Status" -> "DenestSignAmbiguous", "Failures" -> failures|>]];
-  lookup[b_] := lookup[b] = SelectFirst[Keys[rewrites],
-    TrueQ[Together[b - #] === 0] &, None];
-  canonical = expr /.
-    Power[b_ /; ! NumericQ[b], e_Rational /; Denominator[e] === 2] :>
-      With[{match = lookup[b]},
-        If[match === None, Power[b, e], count++; rewrites[match]["Rewrite"]^(2 e)]];
-  <|"Status" -> "OK", "Expression" -> canonical, "Rewrites" -> rewrites,
-    "Rewritten" -> count|>];
-
-transportChartRootIndices[expr_, roots_List] := Module[
-  {rootBases, radicals, matches, indices, unknown, denested, denestedBases,
-   numericClasses, variables},
-  rootBases = Together /@ (#["Root"]^2 & /@ roots);
-  radicals = transportChartRadicalBases[expr];
-  (* level 1 only, no heads: an all-level Position tests SUBexpressions of
-     each root square, so a radical equal to a subexpression of another
-     square contributed flattened position specs as bogus root indices
-     (Sqrt[x] against {x, y, 1+x+y} classified as rank 3; found by the
-     multiquadratic port's census differential, 2026-08-23) *)
-  matches[base_] := Flatten[Position[rootBases, candidate_ /;
-    TrueQ[Together[base - candidate] === 0], {1}, Heads -> False]];
-  (* Root grade masks are an artifact ABI: discovery order can change
-     when an algebraically identical expression is reordered.  Keep the
-     declared frame order so channel 2^i always names the same root. *)
-  indices = Sort[DeleteDuplicates[Flatten[matches /@ radicals]]];
-  unknown = Select[radicals, matches[#] === {} &];
-  (* 2026-08-24: a radicand that is not itself a declared square may
-     still lie in the declared field (nested or numeric).  Such a base is
-     denested exactly, contributes the declared roots of its square class
-     AND the declared roots surviving inside its rewrite, and leaves the
-     unclassified list.  Discovery order is untouched and the declared
-     frame order still fixes the grade mask, so recorded masks stay
-     valid; the index set can only GAIN correctly classified entries. *)
-  variables = DeleteDuplicates[Flatten[Variables /@ rootBases]];
-  variables = Select[variables, MatchQ[#, _Symbol] &];
-  denested = Association @ Map[
-    Function[base, base -> transportChartDenestRadicalBase[base, roots, variables]],
-    unknown];
-  denestedBases = Select[denested,
-    Lookup[#, "Status", None] === "Denested" &];
-  indices = Sort[DeleteDuplicates[Join[indices,
-    Flatten[Lookup[Values[denestedBases], "RootIndices", {}]],
-    Flatten[Lookup[Values[denestedBases], "InnerRootIndices", {}]]]]];
-  numericClasses = DeleteDuplicates[DeleteCases[
-    Flatten[Lookup[Values[denestedBases], "NumericClass", {}]], 1]];
-  unknown = Select[unknown, ! KeyExistsQ[denestedBases, #] &];
-  <|"RootIndices" -> indices, "RadicalBases" -> radicals,
-    "UnclassifiedRadicalBases" -> unknown,
-    "NumericRadicalClasses" -> numericClasses,
-    "DenestedRadicalBases" -> denestedBases|>
-];
-
 FamilyAlgebraicRootCensus[assembly_Association, frame_Association] := Module[
   {roots, zeroBlockQ, blocks, ranges,
    connection, records, unmatched},
@@ -1281,33 +847,6 @@ TransportRootSetChart[rootSquares_List,
 
 TransportRootSetChart[rootSquares_List] := TransportRootSetChart[
   rootSquares, {$transportChartV, $transportChartW}];
-
-transportChartRekey[chart_Association, sourceVariables : {_Symbol, _Symbol},
-    chartVariables : {_Symbol, _Symbol}] := Module[
-  {oldSubstitution, oldSource, oldVariables, sourceRules, variableRules,
-   substitution, roots},
-  oldSubstitution = Lookup[chart, "Subst", $Failed];
-  oldVariables = Lookup[chart, "Variables", $Failed];
-  If[! MatchQ[oldSubstitution, {_Rule, _Rule}] ||
-      ! MatchQ[oldVariables, {_Symbol, _Symbol}],
-    Return[<|"Status" -> "ChartNotWellFormed"|>]];
-  oldSource = First /@ oldSubstitution;
-  sourceRules = Thread[oldSource -> sourceVariables];
-  variableRules = Thread[oldVariables -> chartVariables];
-  substitution = Map[
-    Function[rule, (First[rule] /. sourceRules) ->
-      Together[Last[rule] /. variableRules]], oldSubstitution];
-  roots = Map[
-    <|"Root" -> Together[#["Root"] /. variableRules],
-      "RootSquare" -> Together[#["RootSquare"] /. sourceRules]|> &,
-    Lookup[chart, "Roots", {}]];
-  Join[<|"Name" -> Lookup[chart, "Name", "Chart"] <> "Rekeyed",
-    "Kind" -> "TwoVariable", "CoefficientField" -> "Rational",
-    "Variables" -> chartVariables, "Subst" -> substitution,
-    "Root" -> If[roots === {}, None, roots[[1]]["Root"]],
-    "RootSquare" -> If[roots === {}, None, roots[[1]]["RootSquare"]],
-    "Roots" -> roots|>, KeyTake[chart, {"InverseByRoots"}]]
-];
 
 (* Order matters (measured 2026-08-24 on the 27x27 CF303 truncation; the
    same trap and the same cure as in FactorFamilyRegulatorDependenceInFrame).
@@ -1503,170 +1042,6 @@ transportChartPullBackDeferredPreparation[record_Association,
 transportChartPullBackDeferredPreparation[___] :=
   <|"Status" -> "DeferredPreparationChartInputInvalid"|>;
 
-transportChartCurrentRoots[frame_Association,
-    variables : {_Symbol, _Symbol}] := Module[
-  {frameVariables, substitution, variableRules},
-  frameVariables = Lookup[frame, "Variables", $Failed];
-  substitution = Lookup[frame, "Subst", $Failed];
-  If[! MatchQ[frameVariables, {_Symbol, _Symbol}] ||
-      ! MatchQ[substitution, {_Rule, _Rule}], Return[$Failed]];
-  variableRules = Thread[frameVariables -> variables];
-  Map[
-    <|"Root" -> Together[#["Root"] /. variableRules],
-      "RootSquare" -> Together[(#["RootSquare"] /. substitution) /.
-        variableRules]|> &,
-    Lookup[frame, "Roots", {}]]
-];
-
-(* The radicand carried by an expression need not be the declared root
-   square itself: the kernel AUTOMATICALLY pulls a rational square factor
-   out of a radical (Sqrt[N/4] evaluates to Sqrt[N]/2, Sqrt[4 N] to
-   2 Sqrt[N]), so after a chart pullback the surviving base is c^2 times
-   the pulled-back root square for some positive rational c.  MEASURED
-   2026-08-24 on the CF259 rows 1..16 truncation in KallenQ4a: the two
-   bases were exactly 4 and 16 times the declared squares (the chart's
-   own root images carry denominators 2 t and 4 t), the branch rule
-   matched neither, and FactorFamilyRegulatorDependenceInFrame refused a
-   correct chart with "ChartStillAlgebraic".  Matching up to the square
-   class of a positive RATIONAL NUMBER is exact -- base == c^2 Q gives
-   (c image)^2 == c^2 Q == base -- and is a strict generalization: c is 1
-   for every chart whose pullback needs no such factor, which is what the
-   catalog's older charts produce.  Symbolic square factors are NOT
-   admitted: the kernel never extracts one (the sign of a symbol is
-   unknown), so a symbolic ratio means the base is a different quadratic
-   and must stay untouched. *)
-transportChartRootBranchScale[base_, rootSquare_] := Module[{ratio, scale},
-  (* The common case is a literal declared radicand.  Avoid invoking
-     Together on every occurrence merely to rediscover structural equality;
-     the algebraic comparison below remains the general fallback. *)
-  If[SameQ[base, rootSquare], Return[1]];
-  If[TrueQ[Together[base - rootSquare] === 0], Return[1]];
-  If[TrueQ[Together[rootSquare] === 0], Return[None]];
-  ratio = Together[base/rootSquare];
-  If[! MatchQ[ratio, _Integer | _Rational] || ! TrueQ[ratio > 0],
-    Return[None]];
-  scale = Sqrt[ratio];
-  If[MatchQ[scale, _Integer | _Rational], scale, None]
-];
-
-transportChartApplyRootBranches[expr_, roots_List, images_List] := Module[
-  {scale},
-  (* one Together per distinct (radicand, root) pair, not one per
-     occurrence: the same radical appears in most entries of a connection *)
-  scale[base_, index_] := scale[base, index] =
-    transportChartRootBranchScale[base, roots[[index]]["RootSquare"]];
-  Fold[Function[{current, index},
-    current /. Power[base_, exponent_Rational] :>
-      Module[{factor = If[Denominator[exponent] === 2,
-          scale[base, index], None]},
-        If[factor === None, Power[base, exponent],
-          (factor images[[index]])^(2 exponent)]]],
-    expr, Range[Length[roots]]]];
-
-(* ------------------------------------------------------------------ *)
-(*  Canonical comparison over the declared multiquadratic field        *)
-(* ------------------------------------------------------------------ *)
-(* WHY (2026-08-25, CF303 off-diagonal block {17,12}).  Every acceptance
-   test of the in-frame strip construction below reduced to
-   Together[lhs - rhs] === 0.  Together is canonical on RATIONAL entries
-   only; on entries that still carry a radical it compares two
-   non-canonical forms, so an exactly equal pair is reported UNEQUAL --
-   the documented trap of this repository.  MEASURED that night: the
-   {17,12} gauge round trip rejected all four branch choices although the
-   objects were exactly equal, because one coordinate-map image carried a
-   NESTED radical the branch substitution above cannot match (it matches
-   only rational-square multiples of a declared root square), so radicals
-   survived into the comparison.  A generic rational 1x1 gauge reproduced
-   the rejection, which is what proves the defect is in the comparison
-   layer and not in any solved object.
-
-   The test below is exact: every radical is matched against the declared
-   root set (same square-class rule the branch substitution uses) and
-   against the numeric square classes, each match becomes a generator
-   r with r^2 = q, the generators are cleared from the denominator by
-   conjugation and the numerator is reduced as a polynomial.  This is the
-   same reduction transportChartDenestRadicalBase uses internally.
-
-   It is STRICTER than the Together test, never weaker: a genuinely
-   unequal pair has a nonzero reduced numerator (the declared squares are
-   independent generators of the frame -- a dependency among them could
-   only make the test reject more, never accept more), and a radical that
-   is NOT in the declared field returns $Failed so the caller refuses
-   with a TYPED status instead of reading a false negative as failure. *)
-
-transportChartDeclaredRadicalGenerators[expr_, roots_List] := Module[
-  {rootBases, radicals, records, unmatched = {}},
-  rootBases = Together /@ Lookup[roots, "RootSquare", {}];
-  radicals = transportChartRadicalBases[expr];
-  records = Map[Function[base, Module[{index = 0, scale = None, split},
-      Do[scale = transportChartRootBranchScale[base, rootBases[[i]]];
-         If[scale =!= None, index = i; Break[]], {i, Length[rootBases]}];
-      Which[
-        index > 0,
-          (* base == scale^2 q, so Sqrt[base] == scale r: the same rule
-             transportChartApplyRootBranches substitutes with *)
-          base -> <|"Kind" -> "Declared", "Index" -> index,
-            "Class" -> rootBases[[index]], "Factor" -> scale|>,
-        MatchQ[Together[base], _Integer | _Rational],
-          split = transportChartSquareSplit[base];
-          If[split === $Failed || First[split] === 0,
-            AppendTo[unmatched, base]; Nothing,
-            base -> <|"Kind" -> "Numeric", "Index" -> 0,
-              "Class" -> First[split], "Factor" -> Last[split]|>],
-        True, AppendTo[unmatched, base]; Nothing]]],
-    radicals];
-  If[unmatched =!= {},
-    Return[<|"Status" -> "UndeclaredRadicalBases", "Unmatched" -> unmatched|>]];
-  (* one generator per square CLASS, compared exactly: a syntactic
-     DeleteDuplicates would give the same class two generators and the
-     reduction would then not be canonical *)
-  <|"Status" -> "OK", "Records" -> Association[records],
-    "Classes" -> Fold[
-      Function[{accumulated, class},
-        If[AnyTrue[accumulated, TrueQ[Together[class - #] === 0] &],
-          accumulated, Append[accumulated, class]]],
-      {}, #["Class"] & /@ Values[Association[records]]]|>];
-
-(* True / False / $Failed.  $Failed means "not decidable in the declared
-   field" and is NEVER a synonym for False. *)
-transportChartAlgebraicZeroQ[expr_, roots_List] := Module[
-  {together, generatorData, records, classes, symbols, classIndex,
-   substitute, reduceRules, reduce, converted, nu, de, i},
-  together = Together[expr];
-  If[FreeQ[together, Power[_, _Rational]],
-    Return[TrueQ[together === 0]]];
-  generatorData = transportChartDeclaredRadicalGenerators[together, roots];
-  If[Lookup[generatorData, "Status", None] =!= "OK", Return[$Failed]];
-  records = generatorData["Records"];
-  classes = generatorData["Classes"];
-  If[classes === {}, Return[TrueQ[together === 0]]];
-  symbols = Table[Unique["FeynFacet`Private`fieldRoot"], {Length[classes]}];
-  classIndex[class_] := classIndex[class] = SelectFirst[
-    Range[Length[classes]], TrueQ[Together[classes[[#]] - class] === 0] &, 0];
-  substitute[expression_] := expression /.
-    Power[b_, e_Rational /; Denominator[e] === 2] :>
-      Module[{record = SelectFirst[Keys[records],
-          TrueQ[Together[b - #] === 0] &, None], k},
-        If[record === None, Power[b, e],
-          k = classIndex[records[record]["Class"]];
-          If[k === 0, Power[b, e],
-            (records[record]["Factor"] symbols[[k]])^(2 e)]]];
-  reduceRules = Table[With[{s = symbols[[i]], q = classes[[i]]},
-      s^e_Integer /; e >= 2 :> q^Quotient[e, 2] s^Mod[e, 2]],
-    {i, Length[symbols]}];
-  reduce[p_] := FixedPoint[Expand[# /. reduceRules] &, Expand[p]];
-  converted = Together[substitute[together]];
-  If[! FreeQ[converted, Power[_, _Rational]], Return[$Failed]];
-  nu = reduce[Numerator[converted]]; de = reduce[Denominator[converted]];
-  (* clear the generators from the denominator by conjugation *)
-  Do[If[! FreeQ[de, symbols[[i]]],
-      Module[{conjugate = reduce[de /. symbols[[i]] -> -symbols[[i]]]},
-        nu = reduce[nu conjugate]; de = reduce[de conjugate]]],
-    {i, Length[symbols]}];
-  If[! FreeQ[de, Alternatives @@ symbols], Return[$Failed]];
-  If[TrueQ[Together[de] === 0], Return[$Failed]];
-  TrueQ[Together[reduce[nu]] === 0]];
-
 (* Rewrite the images of a chart/frame map so that every radical they
    carry is a DECLARED one: the nested and numeric radicands Solve emits
    when it inverts a joint chart are denested exactly against the frame's
@@ -1753,21 +1128,18 @@ Options[SolveEpsFormStripInFrame] = Join[
     "MultiquadraticOptions" -> {},
     "DeferredPreparation" -> Automatic,
     "DeferredMaterializationCertificate" -> Automatic,
-    (* Existing callers retain the package's exact Together route.
-       "MapleCanonical" is the explicit external-normalizer route: Maple
-       returns an entrywise algebraic normal form, but the package accepts it
-       only after exact multiquadratic equality and four modular images, then
-       runs the historical exact frame gates below. *)
+    (* "Exact" (default): the package's exact Together pull-back of the
+       chart gauge, then the historical exact frame gates below.
+       "FiniteFieldReconstruct": reconstruct the reduced source-frame gauge
+       from modular evaluations of the live compact chart gauge; it never
+       materializes chartGauge /. inverseMap and is accepted by the
+       post-pullback modular strip residual.  These two are the live
+       allowed set; the Maple canonical mode ("MapleCanonical") is
+       retired (overhaul 2026-09-02) and refused by name in the option
+       gate -- its stub transportChartMapleCanonicalGauge stays only so
+       that records naming it remain readable. *)
     "GaugePullBackMode" -> "Exact",
-    (* Reconstruct the reduced source-frame gauge from modular evaluations
-       of the live compact chart gauge.  This mode never materializes
-       chartGauge /. inverseMap and is accepted by the same post-pullback
-       modular strip residual as MapleCanonical. *)
     "GaugePullBackFiniteFieldOptions" -> {},
-    (* Optional shared, persistent store for entrywise Maple normal forms.
-       The package remains layout-agnostic; campaign drivers choose a
-       directory common to the families they run together. *)
-    "MapleCanonicalCacheDirectory" -> Automatic,
     (* absolute AbsoluteTime[] value; Infinity = unbounded (the default,
        so every existing caller is unchanged).  It bounds the
        construction stage of this function AND is handed to whichever
@@ -1847,9 +1219,9 @@ SolveEpsFormStripInFrame[
    materializationCertificate, materializationValidation,
    deferredForcingMaterializedQ,
    selectedIndices, stableFrame, bundleRecord,
-   gaugePullBackMode, mapleCanonicalQ, finiteFieldCanonicalQ,
-   productionCanonicalQ, mapleGauge, finiteFieldGauge,
-   finiteFieldGaugeOptions, preNormalizationGauge,
+   gaugePullBackMode, finiteFieldCanonicalQ,
+   productionCanonicalQ, finiteFieldGauge,
+   finiteFieldGaugeOptions,
    postPullBackCheckQ, postPullBackCandidates, postPullBackVerification,
    postPullBackGauge, sourceGaugeRadicalFreeQ,
    constructionStart = AbsoluteTime[], deadline, timings = <||>, innerSeparated,
@@ -1865,14 +1237,15 @@ SolveEpsFormStripInFrame[
     Return[<|"Status" -> "InvalidDeadline", "Deadline" -> deadline,
       "Expected" -> "an absolute AbsoluteTime[] value, or Infinity"|>]];
   gaugePullBackMode = OptionValue["GaugePullBackMode"];
-  If[! MemberQ[{"Exact", "MapleCanonical", "FiniteFieldReconstruct"},
-      gaugePullBackMode],
+  (* the retired "MapleCanonical" is not in this set: it is refused here
+     like any unknown name (round 4, 2026-09-02) *)
+  If[! MemberQ[{"Exact", "FiniteFieldReconstruct"}, gaugePullBackMode],
     Return[<|"Status" -> "InvalidGaugePullBackMode",
-      "Allowed" -> {"Exact", "MapleCanonical", "FiniteFieldReconstruct"},
+      "Allowed" -> {"Exact", "FiniteFieldReconstruct"},
       "Actual" -> gaugePullBackMode|>]];
-  mapleCanonicalQ = gaugePullBackMode === "MapleCanonical";
   finiteFieldCanonicalQ = gaugePullBackMode === "FiniteFieldReconstruct";
-  productionCanonicalQ = mapleCanonicalQ || finiteFieldCanonicalQ;
+  (* the one remaining production (post-pullback-residual) mode *)
+  productionCanonicalQ = finiteFieldCanonicalQ;
   finiteFieldGaugeOptions = OptionValue["GaugePullBackFiniteFieldOptions"];
   If[! MatchQ[finiteFieldGaugeOptions, {___Rule}],
     Return[<|"Status" -> "InvalidGaugePullBackFiniteFieldOptions"|>]];
@@ -2460,28 +1833,6 @@ SolveEpsFormStripInFrame[
       "route" -> Lookup[coordinateMap, "CompositionRoute", None]|>];
 
   Which[
-   mapleCanonicalQ,
-    preNormalizationGauge = chartGauge /. coordinateMap["Map"];
-    If[! FreeQ[preNormalizationGauge, Alternatives @@ chartVariables],
-      Return[<|"Status" -> "MapleGaugeCarriesChartVariables",
-        "ChartVariables" -> chartVariables|>]];
-    mapleGauge = transportChartMapleCanonicalGauge[
-      preNormalizationGauge, variables, epsilon, allRoots,
-      "MapleExecutable" -> OptionValue["MapleExecutable"],
-      "ScratchDirectory" -> scratchDirectory,
-      "CacheDirectory" ->
-        OptionValue["MapleCanonicalCacheDirectory"],
-      "Tag" -> ToString[stripTag] <> "_chart_gauge",
-      "TimeLimit" -> OptionValue["MapleTimeLimit"],
-      "Verbose" -> verbose];
-    If[Lookup[mapleGauge, "Status", None] =!=
-        "MapleCanonicalGaugePrepared",
-      Return[<|"Status" -> "StripGaugeMapleCanonicalizationFailed",
-        "Detail" -> KeyDrop[mapleGauge, "Result"]|>]];
-    sourceGauge = mapleGauge["Result"];
-    substageSeconds = mapleGauge["Seconds"];
-    parallelTogether = <|"Route" -> "MapleCanonical",
-      "Helpers" -> 0|>,
    finiteFieldCanonicalQ,
     finiteFieldGauge = transportChartFiniteFieldCanonicalGauge[
       chartGauge, Lookup[inner, "GaugeDenominator", $Failed],
@@ -2520,7 +1871,7 @@ SolveEpsFormStripInFrame[
     <|"seconds" -> N[substageSeconds], "letters" -> Length[sourceAlphabet]|>];
 
   (* In production the one block residual is deliberately run HERE, on the
-     Maple-normalized gauge that will actually be installed.  Trying every
+     reconstructed gauge that will actually be installed.  Trying every
      chart-root sheet also fixes the unique branch.  This replaces (rather
      than duplicates) the inner solver's final residual; the latter returned
      PendingPostPullBackResidual above. *)
@@ -2546,8 +1897,7 @@ SolveEpsFormStripInFrame[
       TrueQ[Lookup[Lookup[#1, "Verification", <||>],
         "DLogFormCertified", False]] &];
     If[postPullBackCandidates === {},
-      Return[<|"Status" -> If[mapleCanonicalQ,
-          "PostMapleResidualFailed", "PostFiniteFieldResidualFailed"],
+      Return[<|"Status" -> "PostFiniteFieldResidualFailed",
         "PassingBranchCount" -> 0,
         "BranchCount" -> Length[signChoices]|>]];
     acceptedSigns = {
@@ -2564,8 +1914,7 @@ SolveEpsFormStripInFrame[
     timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
     transportChartStageDone["acceptance: gauge pull-back",
       <|"seconds" -> timings["GaugePullBack"],
-        "route" -> If[mapleCanonicalQ,
-          "MapleCanonical", "FiniteFieldReconstruct"],
+        "route" -> "FiniteFieldReconstruct",
         "branchSigns" -> First[acceptedSigns],
         "familyCertificate" -> "Required"|>];
     transportChartLogSuccessTimings[timings, chart["Name"], verbose];
@@ -2593,9 +1942,7 @@ SolveEpsFormStripInFrame[
         "UnseenPrime" -> Lookup[inner, "UnseenPrime", None],
         "NumericalPfaffianResidualsZero" -> Lookup[inner,
           "NumericalPfaffianResidualsZero", Missing["NotRun"]],
-        "Normalizer" -> KeyDrop[
-          If[mapleCanonicalQ, mapleGauge, finiteFieldGauge],
-          "Result"]|>|>]];
+        "Normalizer" -> KeyDrop[finiteFieldGauge, "Result"]|>|>]];
 
   signChoices = Tuples[{1, -1}, Length[usedRoots]];
   (* Together is canonical on rational entries only.  When the branch
@@ -3246,10 +2593,214 @@ masterTransportComposeTwoVariableRecord[recordChart_Association,
       "Candidates" -> Length[candidates], "Verified" -> Length[verified],
       "Route" -> route|>]];
 
+(* Moved here verbatim from Transport/MasterTransport.wl (layer pass,
+   2026-09-02): the record-to-chart coordinate map composes a class
+   record's own chart with the target chart, which needs
+   masterTransportComposeTwoVariableRecord above.  Its callers are
+   SolveEpsFormStripInFrame (this file) and the class-form pullback in
+   MasterTransport.wl (Transport, loaded later). *)
+
+(* The record's own coordinates as rational functions of the chart
+   variables, plus the exact identity that licenses the composition.
+   Three frames, one uniform answer {m1(x,y), m2(x,y)}:
+
+     rational frame       {f, g}                       (identity check)
+     target chart         {x, y}                       (Subst must match)
+     single-conic chart   {f, tmap} or {tmap, f}       (linear root solve,
+                                                        then the exact
+                                                        chart identity) *)
+masterTransportRecordCoordinateMap[record_Association, data_Association,
+    conicRoute_] := Module[
+  {sourceVariables, chartVariables, sourceNames, chartNames, recVariables,
+   recNames, recChart, recSubst, f, g, fixed, parameter, fixedIndex,
+   conicSubst, conicRoot, rootPulled, a, b, candidates, accepted, other,
+   otherName, identity},
+  sourceVariables = data["SourceVariables"];
+  chartVariables = data["Variables"];
+  sourceNames = SymbolName /@ sourceVariables;
+  chartNames = SymbolName /@ chartVariables;
+  {f, g} = Last /@ data["Subst"];
+  recVariables = Lookup[record, "Variables", sourceVariables];
+  (* --- frame 4: a ONE-VARIABLE root record (class 115: Variables {u},
+         Chart <|"Definition" -> u^2 == 1 - 4 v w, ...|>).  Its T depends
+         on u alone; in a target chart that rationalizes the same
+         quadratic, u is the chart's rational root (either sign) and the
+         identity root^2 == RootSquare o Subst licenses the map. ---------- *)
+  If[MatchQ[recVariables, {_Symbol}] && AssociationQ[Lookup[record, "Chart", None]] &&
+     MatchQ[Lookup[record["Chart"], "Definition", None], _Equal],
+    Module[{u, definition, square, roots, tf, tg, matching},
+      u = recVariables[[1]];
+      definition = record["Chart"]["Definition"];
+      (* Definition is u^2 == Q(v,w) or Q(v,w) == u^2 *)
+      square = Which[
+        TrueQ[Together[First[definition] - u^2] === 0], Last[definition],
+        TrueQ[Together[Last[definition] - u^2] === 0], First[definition],
+        True, $Failed];
+      If[square === $Failed,
+        Return[<|"Status" -> "ClassFormOneVariableDefinitionNotSquare"|>]];
+      {tf, tg} = Last /@ data["Subst"];
+      roots = Lookup[data, "Roots", {}];
+      matching = Select[roots, TrueQ[Together[#["RootSquare"] - square] === 0] &&
+        TrueQ[Together[#["Root"]^2 - (square /. {sourceVariables[[1]] -> tf,
+          sourceVariables[[2]] -> tg})] === 0] &];
+      If[matching === {},
+        Return[<|"Status" -> "ClassFormOneVariableRootNotRationalized",
+          "Definition" -> definition|>]];
+      Return[<|"Status" -> "OK", "Frame" -> "OneVariableRoot",
+        "Map" -> {u -> First[matching]["Root"]},
+        "Images" -> {First[matching]["Root"]},
+        "CompositionIdentity" ->
+          "target root^2 equals the record's Definition square pulled back \
+through the target Subst (exact); the record's single variable is that root",
+        "CompositionExact" -> True|>]]];
+  If[! MatchQ[recVariables, {_Symbol, _Symbol}],
+    Return[<|"Status" -> "ClassFormVariablesInvalid"|>]];
+  recNames = SymbolName /@ recVariables;
+  recChart = Lookup[record, "Chart", None];
+  If[MissingQ[recChart], recChart = None];
+  (* a bare rule list is accepted as a chart substitution, which is how
+     the hard-class artifacts store it *)
+  recSubst = Which[
+    AssociationQ[recChart], Lookup[recChart, "Subst", None],
+    MatchQ[recChart, {_Rule, _Rule}], recChart,
+    True, None];
+
+  (* --- frame 1: rational, Variables {v,w} and no chart -------------- *)
+  If[recNames === sourceNames && (recChart === None || recChart === Null),
+    Return[<|"Status" -> "OK", "Frame" -> "Rational",
+      "Map" -> {recVariables[[1]] -> f, recVariables[[2]] -> g},
+      "Images" -> {f, g},
+      "CompositionIdentity" -> "by construction (record frame = source frame)",
+      "CompositionExact" -> True|>]];
+
+  (* --- frame 2: already the target chart ---------------------------- *)
+  If[recNames === chartNames,
+    If[! MatchQ[recSubst, {_Rule, _Rule}],
+      Return[<|"Status" -> "ClassFormChartMissingSubstitution"|>]];
+    (* the stored chart must be THE target chart, entry by entry and
+       exactly; a record in a different two-variable chart is a different
+       frame and is refused rather than used *)
+    identity = And @@ Table[
+      Module[{nm = SymbolName[First[recSubst[[i]]]], target},
+        target = Which[
+          nm === sourceNames[[1]], f,
+          nm === sourceNames[[2]], g,
+          True, $Failed];
+        target =!= $Failed &&
+          TrueQ[Together[Last[recSubst[[i]]] - target] === 0]],
+      {i, Length[recSubst]}];
+    If[TrueQ[identity],
+      Return[<|"Status" -> "OK", "Frame" -> "TargetChart",
+        "Map" -> {recVariables[[1]] -> chartVariables[[1]],
+                  recVariables[[2]] -> chartVariables[[2]]},
+        "Images" -> chartVariables,
+        "CompositionIdentity" ->
+          "stored Subst equals the target chart Subst (exact)",
+        "CompositionExact" -> True|>]]];
+
+  (* --- frame 2b: a DIFFERENT two-variable chart that the target chart
+         composes with rationally (a joint chart of TransportCharts.wl
+         rationalizes the record's root, or the record's chart is the
+         target's parent).  The record's variables are solved for with
+         the target's rational root and the result is accepted only if
+         the record's Subst reproduces the target Subst EXACTLY. ------ *)
+  If[MatchQ[recSubst, {_Rule, _Rule}] && AssociationQ[recChart] &&
+     Lookup[recChart, "Kind", "TwoVariable"] === "TwoVariable" &&
+     ! KeyExistsQ[recChart, "Fixed"],
+    Module[{composed},
+      composed = masterTransportComposeTwoVariableRecord[
+        Join[recChart, <|"Variables" -> recVariables, "Subst" -> recSubst|>],
+        data, sourceVariables];
+      If[AssociationQ[composed] && composed["Status"] === "OK",
+        Return[<|"Status" -> "OK", "Frame" -> "TwoVariableComposition",
+          "Map" -> composed["Map"], "Images" -> composed["Images"],
+          "CompositionRoute" -> Lookup[composed, "Route", "Solve"],
+          "CompositionIdentity" ->
+            "record Subst at the solved record variables equals the target \
+chart Subst (exact); record variables obtained from the target's rational \
+root of the record's RootSquare",
+          "CompositionExact" -> True|>],
+        Return[<|"Status" -> "ClassFormChartIsADifferentChart",
+          "Composition" -> composed|>]]]];
+
+  (* --- frame 3: single-conic chart ---------------------------------- *)
+  If[AssociationQ[recChart] && ! MissingQ[Lookup[recChart, "Fixed", Missing[]]] &&
+      ! MissingQ[Lookup[recChart, "Root", Missing[]]],
+    If[conicRoute === False,
+      Return[<|"Status" -> "ClassFormConicChartRefused"|>]];
+    fixed = recChart["Fixed"];
+    fixedIndex = Position[recNames, SymbolName[fixed]];
+    If[Length[fixedIndex] =!= 1,
+      Return[<|"Status" -> "ClassFormConicFixedVariableNotFound"|>]];
+    fixedIndex = fixedIndex[[1, 1]];
+    parameter = recVariables[[3 - fixedIndex]];
+    other = If[SymbolName[fixed] === sourceNames[[1]], sourceVariables[[2]],
+      sourceVariables[[1]]];
+    otherName = SymbolName[other];
+    conicSubst = Lookup[recChart, "Subst", None];
+    If[! MatchQ[conicSubst, _Rule],
+      Return[<|"Status" -> "ClassFormConicSubstitutionInvalid"|>]];
+    If[SymbolName[First[conicSubst]] =!= otherName,
+      Return[<|"Status" -> "ClassFormConicSubstitutionInvalid"|>]];
+    If[data["Root"] === None && Lookup[data, "Roots", {}] === {},
+      Return[<|"Status" -> "ClassFormConicChartNotPullable",
+        "Reason" -> "the target chart declares no rational Root"|>]];
+    (* the conic Root is the algebraic function the target chart
+       rationalizes; equate and solve LINEARLY for the conic parameter *)
+    conicRoot = Together[recChart["Root"] /.
+      {sourceVariables[[1]] -> f, sourceVariables[[2]] -> g}];
+    conicRoot = Together[conicRoot /. If[SymbolName[fixed] === sourceNames[[1]],
+      fixed -> f, fixed -> g]];
+    If[! PolynomialQ[conicRoot, parameter] ||
+       Exponent[conicRoot, parameter] =!= 1,
+      Return[<|"Status" -> "ClassFormConicChartNotPullable",
+        "Reason" -> "the conic Root is not linear in the chart parameter"|>]];
+    a = Together[Coefficient[conicRoot, parameter, 1]];
+    b = Together[conicRoot - a parameter];
+    If[TrueQ[a === 0],
+      Return[<|"Status" -> "ClassFormConicChartNotPullable",
+        "Reason" -> "the conic Root does not involve the chart parameter"|>]];
+    (* every root the target chart declares is tried, both signs: a joint
+       chart rationalizes several quadratics and the record does not say
+       which one it needs -- the exact identity below decides *)
+    candidates = DeleteDuplicates[Flatten[Table[
+      Together[(sign r - b)/a],
+      {r, DeleteDuplicates[Join[
+        If[data["Root"] === None, {}, {data["Root"]}],
+        (#["Root"] & /@ Lookup[data, "Roots", {}])]]},
+      {sign, {1, -1}}]]];
+    accepted = Select[candidates,
+      TrueQ[Together[(Last[conicSubst] /.
+        {parameter -> #, fixed -> If[SymbolName[fixed] === sourceNames[[1]], f, g]}) -
+        If[otherName === sourceNames[[2]], g, f]] === 0] &];
+    If[accepted === {},
+      Return[<|"Status" -> "ClassFormConicChartNotPullable",
+        "Reason" -> "neither root branch reproduces the target chart substitution",
+        "Candidates" -> candidates|>]];
+    Return[<|"Status" -> "OK", "Frame" -> "SingleConicChart",
+      "Map" -> {fixed -> If[SymbolName[fixed] === sourceNames[[1]], f, g],
+                parameter -> First[accepted]},
+      "Images" -> If[fixedIndex === 1,
+        {If[SymbolName[fixed] === sourceNames[[1]], f, g], First[accepted]},
+        {First[accepted], If[SymbolName[fixed] === sourceNames[[1]], f, g]}],
+      "Parameter" -> parameter,
+      "ParameterMap" -> First[accepted],
+      "Branch" -> If[First[accepted] === First[candidates], "+", "-"],
+      "CompositionIdentity" ->
+        "conic Subst at the solved parameter equals the target chart Subst (exact)",
+      "CompositionExact" -> True|>]];
+
+  <|"Status" -> "ClassFormFrameUnknown", "RecordVariables" -> recNames|>
+];
+
 (* Retired route (overhaul 2026-09-02, goal 1): the Maple canonical gauge
    normalizer behind GaugePullBackMode -> "MapleCanonical" lives in
    FeynFacet/Private_Backup/TransportCharts.wl and is not loaded; the
-   modes "Exact" (default) and "FiniteFieldReconstruct" remain. *)
+   modes "Exact" (default) and "FiniteFieldReconstruct" remain, and since
+   round 4 (2026-09-02) the option gate of SolveEpsFormStripInFrame no
+   longer admits "MapleCanonical" at all.  This stub is kept so that a
+   stored record whose provenance names the mode stays readable and a
+   direct call is answered by name, never by an unevaluated symbol. *)
 transportChartMapleCanonicalGauge[___] := <|"Status" -> "RouteRetired",
   "Route" -> "GaugePullBackMode -> MapleCanonical",
   "Code" -> "FeynFacet/Private_Backup/TransportCharts.wl"|>;

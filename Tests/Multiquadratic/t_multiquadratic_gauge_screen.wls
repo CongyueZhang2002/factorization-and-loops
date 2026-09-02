@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* The FULL-GAUGE per-image screen and the witness-guided mixed-grade
-   letter discovery of FeynFacet/Private/EpsForm/MultiquadraticStripSolve.wl
+   letter discovery of FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticStripSolve.wl
    (2026-08-25).
 
    The residue-only integrability screen (Tests/Multiquadratic/t_multiquadratic_letters.wls)
@@ -604,8 +604,9 @@ check["S5 a consistent first image ends the screen (fast path preserved)",
 
 (* S6: the contract language of the top level says what a confirmed
    defect is and what it is not *)
-solveSource = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
-  "MultiquadraticStripSolve.wl"}], "Text"];
+solveSource = StringJoin[Import[FeynFacet`Private`feynFacetPrivateFile[#], "Text"] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &]];  (* all eight solver files *)
 check["S6 the solution contract calls a confirmed defect a high-confidence \
 modular obstruction, not a Q(eps) theorem",
   StringContainsQ[solveSource,

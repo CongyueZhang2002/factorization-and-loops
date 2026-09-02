@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* The SCREEN-VALIDATED DEGREE-OFFSET LADDER of
-   FeynFacet/Private/EpsForm/MultiquadraticStripSolve.wl (2026-08-25).
+   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticStripSolve.wl (2026-08-25).
 
    CF300 (12,9) needs a gauge numerator three degrees above its
    denominator ("DegreeOffset" -> {3,3}); at the default {0,0} the

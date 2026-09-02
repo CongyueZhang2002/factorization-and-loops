@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* Alphabet construction and the residue-only integrability screen of
-   FeynFacet/Private/EpsForm/MultiquadraticStripSolve.wl (2026-08-24).
+   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticStripSolve.wl (2026-08-24).
 
    The fixture is the real off-diagonal block CF300 (12,9), read from the
    repository by a repository-relative path

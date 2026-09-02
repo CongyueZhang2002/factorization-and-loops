@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* FamilyArtifactRead: the mandatory context-guarded artifact reader
-   (FeynFacet/Private/EpsForm/FamilyEpsForm.wl), rebased 2026-08-23 on the
+   (FeynFacet/Private/EpsForm/Family/FamilyEpsForm.wl), rebased 2026-08-23 on the
    hydration pattern of MultiquadraticStripSolve.wl (port-agent defect
    J: Quiet[Check[Get[file], $Failed]] discards a valid artifact after
    any benign message, and the context guard hardcoded Global`).

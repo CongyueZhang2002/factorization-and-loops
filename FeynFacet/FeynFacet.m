@@ -157,7 +157,7 @@ TransportRootSetChart::usage =
   "TransportRootSetChart[rootSquares] returns the least complicated catalog chart that rationalizes every declared quadratic in rootSquares, None for an empty set, or Missing[\"NoRationalChart\",...] when no catalog chart exists. TransportRootSetChart[rootSquares,{a,b}] first identifies a,b with the catalog variables, so the lookup does not depend on symbol names. Equality of quadratics is checked exactly. The chart returned is written in the catalog's own source and chart variables; FeynFacet`Private`transportChartRekey[chart,{a,b},{s,t}] is the rename path that rewrites it with a,b as source variables and s,t as chart variables, and is what the DiagonalBlockEpsForm catalog retry uses.";
 
 SolveEpsFormStripInFrame::usage =
-  "SolveEpsFormStripInFrame[{E,C,B},{v,w},eps,frame] identifies the square roots occurring in one off-diagonal strip, chooses the least complicated exact catalog chart containing those roots, solves the rational strip with SolveEpsFormStrip, and pulls the dlog gauge back to the original algebraic frame. It returns a gauge only after exact chart composition, branch-consistent round-trip, and transformed-one-form identities are satisfied. Epsilon factorization remains the subsequent whole-sector step. When the root set has no joint rational chart, the strip is dispatched to the direct multiquadratic engine (\"MultiquadraticDispatch\" -> True, the default; \"MultiquadraticOptions\" are passed to it). That engine returns \"Solved\" only after one rational-in-regulator gauge is reconstructed, its active dlog potentials are certified, and independent fresh provider residuals pass; otherwise it returns a typed incomplete or \"ModularConsistent\" result which the caller must not install. \"NoRationalStripChart\" is returned only when the engine itself refuses the input as outside its scope, and then carries \"MultiquadraticDispatch\" -> \"OutOfScope\" with the engine's typed refusal under \"MultiquadraticRefusal\". \"Deadline\" (an absolute AbsoluteTime[] value; Infinity, the default, is unbounded) bounds strip construction cooperatively and is handed on to the selected solver unless its option bundle already carries an explicit \"Deadline\". On expiry it returns a typed resumable \"BudgetExhausted\" record rather than $Aborted, $Failed, or an exception.";
+  "SolveEpsFormStripInFrame[{E,C,B},{v,w},eps,frame] identifies the square roots occurring in one off-diagonal strip, chooses the least complicated exact catalog chart containing those roots, solves the rational strip with SolveEpsFormStrip, and pulls the dlog gauge back to the original algebraic frame. It returns a gauge only after exact chart composition, branch-consistent round-trip, and transformed-one-form identities are satisfied. Epsilon factorization remains the subsequent whole-sector step. When the root set has no joint rational chart, the strip is dispatched to the direct multiquadratic engine (\"MultiquadraticDispatch\" -> True, the default; \"MultiquadraticOptions\" are passed to it). That engine returns \"Solved\" only after one rational-in-regulator gauge is reconstructed, its active dlog potentials are certified, and independent fresh provider residuals pass; otherwise it returns a typed incomplete or \"ModularConsistent\" result which the caller must not install. \"NoRationalStripChart\" is returned only when the engine itself refuses the input as outside its scope, and then carries \"MultiquadraticDispatch\" -> \"OutOfScope\" with the engine's typed refusal under \"MultiquadraticRefusal\". \"Deadline\" (an absolute AbsoluteTime[] value; Infinity, the default, is unbounded) bounds strip construction cooperatively and is handed on to the selected solver unless its option bundle already carries an explicit \"Deadline\". On expiry it returns a typed resumable \"BudgetExhausted\" record rather than $Aborted, $Failed, or an exception. \"GaugePullBackMode\" is \"Exact\" (default) or \"FiniteFieldReconstruct\"; any other name, including the retired \"MapleCanonical\" (Maple canonical gauge, overhaul 2026-09-02), is refused typed as \"InvalidGaugePullBackMode\".";
 
 ComposeTransportChartExtension::usage =
   "ComposeTransportChartExtension[baseChart,rootSquare,extensionRules,newVariables] composes an existing exact two-variable chart with a rational parametrization of one additional square root. extensionRules must map both variables of baseChart and the pulled-back square root to rational functions of newVariables. The result is returned only when all inherited root identities, the new root identity, the parent map, and the Jacobian are verified exactly.";
@@ -265,6 +265,9 @@ BuildObservableTransport::usage =
 
 AcceptedObservableTransportQ::usage =
   "AcceptedObservableTransportQ[result] checks the required named exact certificates and, according to the representation and boundary method, every fresh modular closure, ambient-invariance and quotient-coordinate certificate. It keeps probabilistic structural acceptance distinct from an exact symbolic identity.";
+
+CertifyTransportEpsilonValuations::usage =
+  "CertifyTransportEpsilonValuations[record] certifies the TransportEpsilonValuations (TMin, BlockLower) of a transport-ready family epsilon-form record by three independent p-adic trials at fresh primes and random rational kinematic points, and returns <|\"Status\" -> \"TransportEpsilonValuationsCertified\", \"Record\" -> the record with the certificate attached, \"Tight\" -> ..., \"Certificate\" -> ...|>; a record without valuations gets them derived from the trials; a claim above the observed orders or an ill-formed record is refused typed (\"TransportEpsilonValuationsTooHigh\", \"TransportEpsilonValuationsInvalid\", \"IncompleteFamilyEpsilonFormRecord\", ...). CertifyTransportEpsilonValuations[file] certifies the record stored in file in place (atomic replace; options \"Write\" -> False for a dry run, \"OutputFile\" for a copy) and returns the certificate status without the record; an already certified file reports \"AlreadyCertified\" -> True. BuildObservableTransport uses a record's valuations only when this certificate is present and bound to the record.";
 
 ObservableTransportWordMap::usage =
   "ObservableTransportWordMap[result,firstWord,secondWord] returns one demanded matrix-valued word from a materialized record, the exact lazy operator chain, or the optional compact quotient automaton. Lazy evaluation preserves the ordered product D R_word B K_word N_base and performs no global rational canonicalization.";
@@ -415,15 +418,30 @@ If[! MatchQ[$feynFacetLoadOrder, {(_String -> {___String}) ..}],
   Print["FeynFacet: load-order manifest missing or malformed: ", $feynFacetLoadOrderFile];
   Abort[]
 ];
+(* A manifest entry is a path relative to its layer directory: "TaskBroker.wl"
+   (a file directly in the layer) or "Modular/ModularArithmetic.wl" (a file
+   in a sub-folder of the layer; round 5 of the overhaul, 2026-09-02).  The
+   bare file name must be unique across the whole manifest, so that a
+   module can be addressed by its name alone; a duplicate is a typed
+   refusal to load. *)
 $feynFacetPrivateFiles = Flatten[Function[{layer, files},
     FileNameJoin[{$feynFacetPrivateDirectory, layer, #}] & /@ files] @@@
   $feynFacetLoadOrder];
-(* Module files are addressed by their manifest name, never by a path that
-   assumes the flat pre-2026-09-02 layout: feynFacetPrivateFile["X.wl"]
-   returns the full path of the module X.wl in whichever layer holds it
-   ($Failed if the manifest does not list it). *)
-$feynFacetPrivateFileIndex = Association[
-  Function[{layer, files}, (# -> FileNameJoin[{$feynFacetPrivateDirectory, layer, #}]) & /@ files] @@@ $feynFacetLoadOrder];
+$feynFacetPrivateModuleNames = Flatten[FileNameTake /@ Last[#] & /@ $feynFacetLoadOrder];
+If[! DuplicateFreeQ[$feynFacetPrivateModuleNames],
+  Print["FeynFacet: duplicate module names in the load-order manifest: ",
+    Select[Tally[$feynFacetPrivateModuleNames], Last[#] > 1 &][[All, 1]]];
+  Abort[]
+];
+(* Module files are addressed by their manifest spelling OR by their bare
+   name, never by a path that assumes a particular folder layout:
+   feynFacetPrivateFile["ModularArithmetic.wl"] and
+   feynFacetPrivateFile["Modular/ModularArithmetic.wl"] both return the full
+   path of that module ($Failed if the manifest does not list it). *)
+$feynFacetPrivateFileIndex = Association[Flatten[
+  Function[{layer, files},
+    With[{path = FileNameJoin[{$feynFacetPrivateDirectory, layer, #}]},
+      {# -> path, FileNameTake[#] -> path}] & /@ files] @@@ $feynFacetLoadOrder]];
 FeynFacet`Private`feynFacetPrivateFile[name_String] := Lookup[$feynFacetPrivateFileIndex, name, $Failed];
 $feynFacetSourceFiles = Join[
   {ExpandFileName[$InputFileName], FileNameJoin[{$feynFacetDirectory, "Distributions.wl"}]},

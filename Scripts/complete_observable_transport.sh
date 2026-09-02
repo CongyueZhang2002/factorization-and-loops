@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+# Demand-driven observable-transport completion: builds the manifest
+# from the certified epsilon forms, then runs the campaign for up to
+# FACET_TRANSPORT_ROUNDS rounds.  It dispatches the STANDALONE campaign
+# driver (observable_transport_campaign.sh, one wolframscript per family);
+# the canonical multi-family driver is
+# observable_transport_kernelpool_campaign.sh <manifest> <out> <pool-root>,
+# which this wrapper does not call because it needs a pool root and
+# starts a KernelPool -- run it directly on the manifest this script
+# writes ($output_root/observable_transport_manifest.tsv) when a pool
+# is wanted (round 4 note, 2026-09-02).
 set -u
 
 if (( $# < 4 )); then

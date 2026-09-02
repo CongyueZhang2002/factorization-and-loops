@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* The 2026-08-25 HARDENING WAVE provenance work in
-   FeynFacet/Private/EpsForm/MultiquadraticStripSolve.wl.  Every section here is
+   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticStripSolve.wl.  Every section here is
    one of Codex's P1 merge blockers from
    Exchange/Codex/2026-08-25/07_optimization_review_1430.md, and every one
    of them is ADVERSARIAL: it presents
@@ -58,8 +58,12 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "Core", "MultiquadraticAlgebra.wl"}]];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm", "MultiquadraticStripSolve.wl"}]];
+Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
+(* the strip solver is eight files since round 4 (2026-09-02); the manifest
+   names them in load order *)
+Get[FeynFacet`Private`feynFacetPrivateFile[#]] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],

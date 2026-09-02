@@ -247,8 +247,9 @@ report["O9 contract note", Lookup[driven, "ContractNote", None]];
 (* O10: no surviving theorem-level wording                              *)
 (* ------------------------------------------------------------------ *)
 
-source = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
-  "MultiquadraticStripSolve.wl"}], "Text"];
+source = StringJoin[Import[FeynFacet`Private`feynFacetPrivateFile[#], "Text"] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &]];  (* all eight solver files *)
 executable = FTTest`FTStripComments[source];
 check["O10 no theorem-level contract name survives in the executable source",
   ! StringContainsQ[executable, "NoGaugeExistsWith"]];

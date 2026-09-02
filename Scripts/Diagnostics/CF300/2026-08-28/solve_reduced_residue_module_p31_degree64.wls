@@ -26,8 +26,7 @@ Module[{repo, runtime, affineCapture, schurCapture, frameInterpolation,
     Get[FileNameJoin[{repo, "Addon", "Load", "LoadFACET.wl"}]]];
   Block[{$Context = "FeynFacet`Private`",
       $ContextPath = {"System`", "FeynFacet`", "FeynFacet`Private`"}},
-    Get[FileNameJoin[{repo, "FeynFacet", "Private", "EpsForm",
-      "FiniteFieldStripSolve.wl"}]]];
+    Get[FeynFacet`Private`feynFacetPrivateFile["FiniteFieldStripSolve.wl"]]];
 
   affineCapture = Import[FileNameJoin[{runtime,
     "cf300_p31_affine25_capture.wxf"}], "WXF"];

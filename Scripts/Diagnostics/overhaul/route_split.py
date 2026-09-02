@@ -30,8 +30,15 @@ def statements(code):
         if c==";" and depth==0: st.append("".join(buf));buf=[]
     if buf: st.append("".join(buf))
     return st
+def private_files():
+    """every module under Private/ (any depth: Private/<layer>/[<sub>/]<File>.wl, round 5 2026-09-02), as paths relative to Private/"""
+    out=[]
+    for dp,_,fs in os.walk(PRIV):
+        for fn in fs:
+            if fn.endswith(".wl") and fn!="LoadOrder.wl": out.append(os.path.relpath(os.path.join(dp,fn),PRIV))
+    return sorted(out)
 graph=collections.defaultdict(set); deffile={}; deflines=collections.Counter()
-for f in sorted(os.listdir(PRIV)):
+for f in private_files():
     if not f.endswith(".wl"): continue
     code=strip(open(os.path.join(PRIV,f),encoding="utf-8",errors="replace").read())
     for s in statements(code):
@@ -51,7 +58,7 @@ for d in ("Scripts","Addon/Load"):
             if fn.endswith((".wl",".wls",".sh")):
                 t=open(os.path.join(dp,fn),errors="replace").read()
                 roots|=set(IDENT.findall(t))&symbols
-for f in sorted(os.listdir(PRIV)):
+for f in private_files():
     if f.endswith(".wl"):
         src=strip(open(os.path.join(PRIV,f),encoding="utf-8",errors="replace").read(),keep_strings=True)
         roots|=set(IDENT.findall(" ".join(STR.findall(src))))&symbols

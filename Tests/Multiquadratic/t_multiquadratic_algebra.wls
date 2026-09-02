@@ -32,8 +32,12 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "Core", "MultiquadraticAlgebra.wl"}]];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm", "MultiquadraticStripSolve.wl"}]];
+Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
+(* the strip solver is eight files since round 4 (2026-09-02); the manifest
+   names them in load order *)
+Get[FeynFacet`Private`feynFacetPrivateFile[#]] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -150,14 +154,20 @@ check["active rank is the F2 rank of the grade masks",
     activeRank[{1, 2, 4}, 3] === 3 && activeRank[{1, 2, 3}, 3] === 2 &&
     activeRank[{3, 5, 6}, 3] === 2];
 
-(* the split-point predicate is the shared modularSplitPointQ
-   (Core/ModularArithmetic.wl); the former multiquadraticSplitPointQ alias
-   had no caller and lives in Private_Backup (2026-09-02, N8) *)
+(* the split-point test at every production site is the shared
+   modularResidueQ (Core/ModularArithmetic.wl) on the solver's reduced
+   radicands: a NONZERO quadratic residue for every root square.  The
+   former multiquadraticSplitPointQ alias had no caller and lives in
+   Private_Backup (2026-09-02, N8); the sampler modularSplitPointQ /
+   modularSplitPoints has no production caller and lives in
+   Scripts/Diagnostics/ModularSplitPoints.wl (round 4, 2026-09-02). *)
 check["split point test accepts a point with all radicands square",
-  TrueQ[mq["modularSplitPointQ"][{2, 3}, {x, y, x y}, {x, y}, 23]] === (JacobiSymbol[2, 23] == 1 &&
-    JacobiSymbol[3, 23] == 1 && JacobiSymbol[6, 23] == 1)];
+  AllTrue[Mod[{2, 3, 2 3}, 23], TrueQ[mq["modularResidueQ"][#, 23]] &] ===
+    (JacobiSymbol[2, 23] == 1 && JacobiSymbol[3, 23] == 1 &&
+      JacobiSymbol[6, 23] == 1)];
 check["split point test rejects a vanishing radicand",
-  TrueQ[mq["modularSplitPointQ"][{0, 3}, {x, y}, {x, y}, 23]] === False];
+  mq["modularResidueQ"][0, 23] === False &&
+    AllTrue[Mod[{0, 3}, 23], TrueQ[mq["modularResidueQ"][#, 23]] &] === False];
 check["modular square roots invert squaring for p = 3 mod 4",
   Module[{values = {4, 9, 25}, p = 103, r},
     r = squareRoots[values, p];
@@ -181,7 +191,7 @@ check["ABI fingerprint does not depend on the reader's context",
     Block[{$Context = "FeynFacet`MultiquadraticProbe`",
         $ContextPath = {"System`", "FeynFacet`MultiquadraticProbe`"}},
       abiFingerprint[]] === firstFingerprint];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "Core", "MultiquadraticAlgebra.wl"}]];
+Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
 check["ABI fingerprint is stable across two loads of the module",
   abiFingerprint[] === firstFingerprint];
 check["the strip module records the same algebra ABI fingerprint",

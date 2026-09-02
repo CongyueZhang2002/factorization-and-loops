@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
 (* The 2026-08-25 preparation work in
-   FeynFacet/Private/EpsForm/MultiquadraticStripSolve.wl:
+   FeynFacet/Private/EpsForm/Multiquadratic/MultiquadraticStripSolve.wl:
 
      - prepare CONSUMES the sealed compile core instead of decomposing the
        forcing independently (so E, C and BBar are decomposed once for
@@ -43,8 +43,12 @@
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "Core", "MultiquadraticAlgebra.wl"}]];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm", "MultiquadraticStripSolve.wl"}]];
+Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
+(* the strip solver is eight files since round 4 (2026-09-02); the manifest
+   names them in load order *)
+Get[FeynFacet`Private`feynFacetPrivateFile[#]] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &];
 
 pass = 0; fail = 0;
 check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
@@ -394,8 +398,9 @@ check["O5c the compiler's own core cache is still ON by default",
       TrueQ[Lookup[Lookup[asm, "CompileStatistics", <||>], "CompileCore",
         False]]]];
 
-solveSource = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
-  "MultiquadraticStripSolve.wl"}], "Text"];
+solveSource = StringJoin[Import[FeynFacet`Private`feynFacetPrivateFile[#], "Text"] & /@
+  Select[Lookup[Get[FileNameJoin[{root, "FeynFacet", "Private", "LoadOrder.wl"}]],
+    "EpsForm"], StringStartsQ[FileNameTake[#], "MultiquadraticStrip"] &]];  (* all eight solver files *)
 check["O4 the top level forwards the compile-architecture options to the \
 compiler",
   StringContainsQ[solveSource,

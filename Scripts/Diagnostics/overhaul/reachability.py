@@ -64,7 +64,14 @@ def statements(code):
         i+=1
     if buf: st.append("".join(buf))
     return [s for s in st if s.strip()]
-files=sorted(f for f in os.listdir(PRIV) if f.endswith(".wl"))
+def private_files():
+    """every module under Private/ (any depth: Private/<layer>/[<sub>/]<File>.wl, round 5 2026-09-02), as paths relative to Private/"""
+    out=[]
+    for dp,_,fs in os.walk(PRIV):
+        for fn in fs:
+            if fn.endswith(".wl") and fn!="LoadOrder.wl": out.append(os.path.relpath(os.path.join(dp,fn),PRIV))
+    return sorted(out)
+files=private_files()
 defs=collections.defaultdict(set); body_refs=collections.defaultdict(set); defline={}
 code_by_file={}
 for f in files:

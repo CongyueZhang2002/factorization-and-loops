@@ -26,8 +26,7 @@ Module[{repo, runtime, fixtureFile, sourceFile, adapter, inputCheckpoint,
     Get[FileNameJoin[{repo, "Addon", "Load", "LoadFACET.wl"}]]];
   Block[{$Context = "FeynFacet`Private`",
       $ContextPath = {"System`", "FeynFacet`", "FeynFacet`Private`"}},
-    Get[FileNameJoin[{repo, "FeynFacet", "Private", "EpsForm",
-      "FiniteFieldStripSolve.wl"}]];
+    Get[FeynFacet`Private`feynFacetPrivateFile["FiniteFieldStripSolve.wl"]];
     Get[sourceFile]];
   fixture = Import[fixtureFile, "WXF"];
   layout = fixture["Layout"];

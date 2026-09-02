@@ -32,6 +32,9 @@ ClearAll[
   observableTransportEpsJetPow,
   $observableTransportLaurentMethod,
   $observableTransportLaurentCanonicalize,
+  $observableTransportLaurentDiagnostics,
+  observableTransportLaurentEntrySeries,
+  observableTransportLaurentRowHighs,
   observableTransportIndependentRows,
   observableTransportIndependentRowsTask,
   observableTransportIndependentRowsAtSamples,
@@ -61,7 +64,20 @@ ClearAll[
   observableTransportPointAdmissibleQ,
   observableTransportAdmissibleSamples,
   $observableTransportSampleFractions,
-  observableTransportBlockLowerQ
+  observableTransportBlockLowerQ,
+  observableTransportCoefficientFieldDeclared,
+  observableTransportRadicalFieldNames,
+  observableTransportEpsilonValuationFingerprint,
+  observableTransportCanonicalRadicals,
+  observableTransportAlgebraicZeroQ,
+  observableTransportEpsilonOrderAtPoint,
+  observableTransportExactPointValuations,
+  observableTransportCertifyEpsilonValuations,
+  observableTransportCertifyEpsilonValuationsFile,
+  observableTransportEpsilonValuationCertificateShapeQ,
+  observableTransportEpsilonValuationStatus,
+  observableTransportEpsilonValuationCertificateBoundQ,
+  $observableTransportValuationTrialCount
 ];
 
 observableTransportCancel[x_] := Quiet[Cancel[Together[x]]];
@@ -87,32 +103,67 @@ observableTransportSourceFrameQ[value_] := Module[
   MemberQ[{"sourcevw", "sourcevwx", "sourcevwy", "source"}, name]
 ];
 
-(* Coefficient field of a family record (overhaul 2026-09-02).  The
-   2026-09-02 02:43 revision read it only from record["ChartRecord"] and
-   refused every record without that key -- including the certified
-   ordinary-family records under FamilyEpsFormsCertified/, which carry the
-   field in their EpsilonFormCertificate instead (the 88-family run of
-   2026-09-01 consumed exactly those files).  Resolution order: the chart
-   record, the certificate, then "Rational" for a record whose letters and
-   transformation are free of radicals; a radical record without a
-   declared field is refused. *)
-observableTransportCoefficientField[record_Association] := Module[
+(* Coefficient field of a family record (overhaul 2026-09-02; round 4,
+   Codex review: "coefficient-field fallback is incomplete").
+   Resolution order: an explicit declaration -- the record's own
+   "CoefficientField", the chart record, the epsilon-form certificate --
+   and, only for records that are NOT transport-ready, a legacy
+   inference over EVERY computational field (letters, TTotal,
+   TTotalInverse, the epsilon-form matrices, the dlog letters and
+   residues, the chart roots): "Rational" when all are free of radicals,
+   otherwise Missing["CoefficientFieldRequired", fields] naming the
+   radical fields.  A transport-ready record (compact dlog
+   representation, never materialized as full matrices) must declare its
+   field: Missing["CoefficientFieldDeclarationRequired"].  History: the
+   02:43 revision read the field only from record["ChartRecord"] and
+   refused the certified ordinary-family records, which carry it in
+   their certificate; the 08:38 revision inferred from Letters and
+   TTotal alone, so a radical in TTotalInverse or a residue made a
+   record "Rational". *)
+observableTransportCoefficientFieldDeclared[record_Association] := Module[
   {chartRecord = Lookup[record, "ChartRecord", <||>],
    certificate = Lookup[record, "EpsilonFormCertificate", <||>],
-   declared, radicalQ},
-  declared = Which[
-    AssociationQ[chartRecord] && MemberQ[{"Rational", "Multiquadratic"},
-      Lookup[chartRecord, "CoefficientField", None]],
+   fields = {"Rational", "Multiquadratic"}},
+  Which[
+    MemberQ[fields, Lookup[record, "CoefficientField", None]],
+      record["CoefficientField"],
+    AssociationQ[chartRecord] &&
+      MemberQ[fields, Lookup[chartRecord, "CoefficientField", None]],
       chartRecord["CoefficientField"],
-    AssociationQ[certificate] && MemberQ[{"Rational", "Multiquadratic"},
-      Lookup[certificate, "CoefficientField", None]],
+    AssociationQ[certificate] &&
+      MemberQ[fields, Lookup[certificate, "CoefficientField", None]],
       certificate["CoefficientField"],
-    True, None];
+    True, None]
+];
+
+(* Names of the computational fields of a record that carry a radical
+   (Power[_, _Rational] or Sqrt); the legacy inference inspects all. *)
+observableTransportRadicalFieldNames[record_Association] := Module[
+  {dlog = Lookup[record, "DLog", <||>],
+   chartRecord = Lookup[record, "ChartRecord", <||>], candidates},
+  candidates = {
+    "Letters" -> Lookup[record, "Letters", {}],
+    "TTotal" -> Lookup[record, "TTotal", {}],
+    "TTotalInverse" -> Lookup[record, "TTotalInverse", {}],
+    "EpsFormX" -> Lookup[record, "EpsFormX", {}],
+    "EpsFormY" -> Lookup[record, "EpsFormY", {}],
+    "DLog/Letters" -> If[AssociationQ[dlog], Lookup[dlog, "Letters", {}], {}],
+    "DLog/Residues" -> If[AssociationQ[dlog], Lookup[dlog, "Residues", {}], {}],
+    "ChartRecord/Roots" -> If[AssociationQ[chartRecord],
+      Lookup[chartRecord, "Roots", {}], {}]};
+  First /@ Select[candidates,
+    ! FreeQ[Last[#], Power[_, _Rational] | Sqrt[_]] &]
+];
+
+observableTransportCoefficientField[record_Association] := Module[
+  {declared = observableTransportCoefficientFieldDeclared[record],
+   radicalFields},
   If[declared =!= None, Return[declared]];
-  radicalQ = ! FreeQ[{Lookup[record, "Letters", {}],
-      Lookup[record, "TTotal", {}]},
-    Power[_, _Rational] | Sqrt[_]];
-  If[radicalQ, Missing["CoefficientField"], "Rational"]
+  If[Lookup[record, "Status", None] === "TransportReadyEpsilonConnection",
+    Return[Missing["CoefficientFieldDeclarationRequired"]]];
+  radicalFields = observableTransportRadicalFieldNames[record];
+  If[radicalFields === {}, "Rational",
+    Missing["CoefficientFieldRequired", radicalFields]]
 ];
 observableTransportCoefficientField[___] := Missing["CoefficientField"];
 
@@ -144,6 +195,408 @@ observableTransportAdmissibleSamples[letters_List, rootSquares_List,
 ];
 $observableTransportSampleFractions = {2/5, 3/5, 4/7, 3/11, 4/13, 2/9,
   5/13, 3/8, 5/11, 7/16, 4/9, 5/12, 7/15, 6/17, 8/19, 9/23, 5/14, 7/18};
+
+(* ---------------------------------------------------------------------
+   Transport epsilon-valuation certificate (round 4, 2026-09-02; Codex
+   review, correctness point 1: "transport epsilon valuations are trusted
+   rather than certified").
+
+   A transport-ready record carries TMin (the minimum epsilon order of
+   TTotal) and BlockLower (per block, the minimum epsilon order of the
+   rows of TTotalInverse); they fix the Laurent range and the physical
+   convolution, and a value that is too HIGH omits a real leading
+   coefficient.  The certificate is bound to the record and computed
+   EXACTLY at random rational kinematic points: after the point is
+   substituted every entry is a rational function of eps alone whose
+   coefficients are algebraic numbers (numeric radicals); its order is
+   ord(numerator) - ord(denominator) at eps = 0, read off the coefficient
+   lists of Together's fraction (a common factor changes neither order),
+   the first nonzero coefficient decided exactly (RootReduce).  No prime,
+   no lifting, no series: two earlier designs (p-adic roots) failed on
+   CF259 -- merged numeric radicands needed 7-13 residue conditions per
+   trial, and hidden exact zeros of entries appear as p-adic noise at any
+   finite precision (probe runs 1 and 3, 13:58 and 14:11).
+   A specialization can only RAISE an order (a leading coefficient may
+   vanish at the point), so the observed minima are upper bounds of the
+   true ones and equal them off a proper subvariety; a claim above the
+   observation is refused, a claim at or below it is accepted (a lower
+   claim is conservative: it only adds zero coefficients).  Three
+   independent points must agree.  No symbolic valuation scan is
+   performed.  The certificate stores a fingerprint of the record's
+   TTotal, TTotalInverse and Ranges (structural Hash, whose value is
+   version-dependent: $VersionNumber is recorded, and a mismatch is a
+   typed refusal, never a silent re-trust). *)
+
+$observableTransportValuationTrialCount = 3;
+
+observableTransportEpsilonValuationFingerprint[record_Association] := <|
+  "Version" -> 1,
+  "Dimension" -> Length[Lookup[record, "TTotal", {}]],
+  "Ranges" -> Lookup[record, "Ranges", Missing["Ranges"]],
+  "Variables" -> ToString[Lookup[record, "Variables", Missing[]], InputForm],
+  "Regulator" -> ToString[Lookup[record, "Regulator", Missing[]], InputForm],
+  "TTotalHash" -> Hash[Normal[Lookup[record, "TTotal", Missing["TTotal"]]]],
+  "TTotalInverseHash" ->
+    Hash[Normal[Lookup[record, "TTotalInverse", Missing["TTotalInverse"]]]],
+  "HashVersion" -> $VersionNumber|>;
+
+(* Numeric radicals in canonical form: Power[r, n/2] with r a nonzero
+   rational becomes rational * Sqrt[s]^(0 or 1) with s a square-free
+   positive integer (I for a negative r).  With the radicands square-free,
+   {Sqrt[s]} is linearly independent over Q(I), which makes the exact zero
+   test below a decision, not a heuristic. *)
+observableTransportCanonicalRadicals[expression_] := expression //.
+  Power[r_ /; MatchQ[r, _Integer | _Rational] && r =!= 0,
+      q_Rational /; Denominator[q] === 2] :>
+    With[{split = observableTransportFFSquareFreeSplit[Abs[r]],
+        n = Numerator[q]},
+      (If[r < 0, I, 1] split[[1]])^n split[[2]]^((n - 1)/2) Sqrt[split[[2]]]];
+
+(* Exact zero test of an algebraic number.  In canonical form the number
+   is a Q(I)-linear combination of Sqrt[s] with s square-free positive
+   integers; those are linearly independent, so after Expand (which
+   collects equal radical monomials) the number is zero iff it is
+   syntactically zero, and a nonempty sum of such monomials is nonzero.
+   Anything outside that grammar (a radical left in a denominator, a
+   nested radical) goes to RootReduce; a non-numeric coefficient is
+   $Failed, never a guess.  RootReduce as the primary test was measured
+   too slow on CF259 (probe run 4, killed at the 120 s cap). *)
+observableTransportAlgebraicZeroQ[value_] := Module[{canonical, monomialQ},
+  If[value === 0, Return[True]];
+  If[MatchQ[value, _Integer | _Rational | _Complex], Return[False]];
+  If[! NumericQ[value], Return[$Failed]];
+  canonical = observableTransportCanonicalRadicals[Expand[
+    observableTransportCanonicalRadicals[value]]];
+  If[canonical === 0, Return[True]];
+  monomialQ[term_] := MatchQ[term,
+    _Integer | _Rational | _Complex |
+    Power[s_Integer /; s > 1 && SquareFreeQ[s], 1/2] |
+    Times[_Integer | _Rational | _Complex,
+      Power[s_Integer /; s > 1 && SquareFreeQ[s], 1/2]]];
+  If[If[Head[canonical] === Plus, AllTrue[List @@ canonical, monomialQ],
+      monomialQ[canonical]],
+    Return[False]];
+  With[{reduced = Quiet[Check[RootReduce[canonical], $Failed]]},
+    If[reduced === $Failed, $Failed, reduced === 0]]
+];
+
+(* Order in eps at eps = 0 of a univariate rational function with
+   algebraic-number coefficients: Infinity for an identically vanishing
+   function, ComplexInfinity for a vanishing denominator, $Failed when a
+   coefficient could not be decided. *)
+observableTransportEpsilonOrderAtPoint[expression_, eps_Symbol] := Module[
+  {fraction, order},
+  If[expression === 0, Return[Infinity]];
+  fraction = Together[observableTransportCanonicalRadicals[expression]];
+  If[fraction === 0, Return[Infinity]];
+  order[polynomial_] := Module[
+    {coefficients = CoefficientList[polynomial, eps], k = 0, zeroQ},
+    While[k < Length[coefficients],
+      zeroQ = observableTransportAlgebraicZeroQ[coefficients[[k + 1]]];
+      If[zeroQ === $Failed, Return[$Failed, Module]];
+      If[! zeroQ, Break[]];
+      k++];
+    If[k === Length[coefficients], Infinity, k]];
+  With[{n = order[Numerator[fraction]], d = order[Denominator[fraction]]},
+    Which[
+      n === $Failed || d === $Failed, $Failed,
+      d === Infinity, ComplexInfinity,
+      n === Infinity, Infinity,
+      True, n - d]]
+];
+
+(* One trial: TMin and BlockLower of the record's gauge observed at one
+   rational point.  Same conventions as the exact gauge scan of
+   BuildObservableTransport, except that TMin is the true minimum (the
+   scan caps it at 0, a conservative choice that the acceptance rule
+   admits). *)
+observableTransportExactPointValuations[tTotal_, tInverse_, ranges_List,
+    variables_List, eps_Symbol, point_List] := Module[
+  {start = AbsoluteTime[], failure, rules, entriesT, entriesI, ordersT,
+   ordersI, columns, tmin, blockLower},
+  failure[status_, extra_: <||>] := Join[<|"Status" -> status,
+    "Point" -> point|>, extra];
+  entriesT = Flatten[Normal[tTotal]];
+  entriesI = Flatten[Normal[tInverse]];
+  columns = Length[First[Normal[tInverse]]];
+  If[! FreeQ[{entriesT, entriesI},
+      Power[a_ /; ! FreeQ[a, eps], e_ /; ! IntegerQ[e]]],
+    Return[failure["EpsilonUnderRadicalOrSymbolicPower"]]];
+  If[! FreeQ[{entriesT, entriesI}, Power[_, e_ /; ! FreeQ[e, eps]]],
+    Return[failure["EpsilonInExponent"]]];
+  rules = Thread[variables -> point];
+  entriesT = entriesT /. rules;
+  entriesI = entriesI /. rules;
+  If[! FreeQ[{entriesT, entriesI},
+      ComplexInfinity | Indeterminate | DirectedInfinity[___]],
+    Return[failure["PointSingular"]]];
+  If[! FreeQ[{entriesT, entriesI}, Alternatives @@ variables],
+    Return[failure["PointSubstitutionIncomplete"]]];
+  ordersT = observableTransportEpsilonOrderAtPoint[#, eps] & /@ entriesT;
+  ordersI = observableTransportEpsilonOrderAtPoint[#, eps] & /@ entriesI;
+  If[MemberQ[ordersT, $Failed] || MemberQ[ordersI, $Failed],
+    Return[failure["CoefficientZeroTestUndecided"]]];
+  If[MemberQ[ordersT, ComplexInfinity] || MemberQ[ordersI, ComplexInfinity],
+    Return[failure["PointSingular"]]];
+  If[DeleteCases[ordersT, Infinity] === {},
+    Return[failure["TransformationVanishesAtPoint"]]];
+  tmin = Min[DeleteCases[ordersT, Infinity]];
+  ordersI = Partition[ordersI, columns];
+  blockLower = Table[
+    With[{orders = DeleteCases[
+        Flatten[ordersI[[ranges[[block]], All]]], Infinity]},
+      If[orders === {}, 0, Min[orders]]],
+    {block, Length[ranges]}];
+  <|"Status" -> "ExactPointValuationsEvaluated",
+    "Point" -> point, "TMin" -> tmin, "BlockLower" -> blockLower,
+    "Seconds" -> N[AbsoluteTime[] - start]|>
+];
+
+Options[observableTransportCertifyEpsilonValuations] = {
+  "Trials" -> Automatic,
+  "Seed" -> 20260902,
+  "Valuations" -> Automatic,
+  "MaximumAttempts" -> 24
+};
+
+(* Certify the record's TransportEpsilonValuations (or, when the record
+   has none and "Valuations" is Automatic, DERIVE them from the trials).
+   Returns <|"Status" -> "TransportEpsilonValuationsCertified",
+   "Record" -> record with the certificate attached, ...|> or a typed
+   failure.  Meant to run once, at compact-record construction
+   (Scripts/compact_family_dlog_record.wls) or in place on an existing
+   record (observableTransportCertifyEpsilonValuationsFile). *)
+observableTransportCertifyEpsilonValuations[record_Association,
+    OptionsPattern[]] := Module[
+  {start = AbsoluteTime[], variables, eps, tTotal, tInverse, ranges,
+   letters, dlog, rootSquares, claimed, claimedTMin, claimedBlockLower,
+   trialCount, seed, maximumAttempts, trials = {}, rejected = {},
+   attempts = 0, point, trial, observedTMin, observedBlockLower, tight,
+   certificate, valuations, fingerprint},
+  variables = Lookup[record, "Variables", Missing[]];
+  eps = Lookup[record, "Regulator", Missing[]];
+  tTotal = Lookup[record, "TTotal", Missing[]];
+  tInverse = Lookup[record, "TTotalInverse", Missing[]];
+  ranges = Lookup[record, "Ranges", Missing[]];
+  If[! MatchQ[variables, {_Symbol, _Symbol}] || ! MatchQ[eps, _Symbol] ||
+      ! MatrixQ[tTotal] || ! MatrixQ[tInverse] || ! ListQ[ranges] ||
+      Dimensions[tTotal] =!= Dimensions[tInverse] ||
+      Sort[Flatten[ranges]] =!= Range[Length[tTotal]],
+    Return[<|"Status" -> "IncompleteFamilyEpsilonFormRecord"|>]];
+  dlog = Lookup[record, "DLog", <||>];
+  letters = Replace[Lookup[record, "Letters", Missing[]], Except[_List] :>
+    If[AssociationQ[dlog], Replace[Lookup[dlog, "Letters", {}],
+      Except[_List] -> {}], {}]];
+  (* the declared root squares in the CURRENT variables, as the transport
+     itself resolves them; a chart without roots contributes none *)
+  rootSquares = Quiet[Check[transportChartCurrentRoots[
+    Lookup[record, "ChartRecord", <||>], variables], $Failed]];
+  rootSquares = Replace[rootSquares,
+    {roots : {__Association} :> Lookup[roots, "RootSquare", {}], _ -> {}}];
+  rootSquares = Select[rootSquares, ! FreeQ[#, Alternatives @@ variables] &];
+  trialCount = Replace[OptionValue["Trials"],
+    Automatic -> $observableTransportValuationTrialCount];
+  seed = OptionValue["Seed"];
+  maximumAttempts = OptionValue["MaximumAttempts"];
+  If[! IntegerQ[trialCount] || trialCount < 2 || ! IntegerQ[seed] ||
+      ! IntegerQ[maximumAttempts] || maximumAttempts < trialCount,
+    Return[<|"Status" -> "TransportEpsilonValuationOptionsInvalid"|>]];
+  claimed = Replace[OptionValue["Valuations"],
+    Automatic :> Lookup[record, "TransportEpsilonValuations", None]];
+  If[MissingQ[claimed], claimed = None];
+  If[claimed =!= None &&
+      ! (AssociationQ[claimed] &&
+        IntegerQ[Lookup[claimed, "TMin", Missing[]]] &&
+        VectorQ[Lookup[claimed, "BlockLower", Missing[]], IntegerQ] &&
+        Length[claimed["BlockLower"]] === Length[ranges]),
+    Return[<|"Status" -> "TransportEpsilonValuationsInvalid",
+      "Valuations" -> claimed, "BlockCount" -> Length[ranges]|>]];
+  BlockRandom[
+    SeedRandom[seed];
+    While[Length[trials] < trialCount && attempts < maximumAttempts,
+      attempts++;
+      point = Table[RandomInteger[{1, 199}]/RandomInteger[{200, 397}],
+        {Length[variables]}];
+      If[MemberQ[Lookup[trials, "Point", {}], point] ||
+          ! observableTransportPointAdmissibleQ[letters, rootSquares,
+            Thread[variables -> point]],
+        AppendTo[rejected, <|"Status" -> "PointNotAdmissible",
+          "Point" -> point|>]; Continue[]];
+      trial = observableTransportExactPointValuations[tTotal, tInverse,
+        ranges, variables, eps, point];
+      If[Lookup[trial, "Status", None] =!= "ExactPointValuationsEvaluated",
+        AppendTo[rejected, trial]; Continue[]];
+      AppendTo[trials, trial]]];
+  If[Length[trials] < trialCount,
+    Return[<|"Status" -> "TransportEpsilonValuationTrialsInsufficient",
+      "Accepted" -> Length[trials], "Required" -> trialCount,
+      "Attempts" -> attempts, "RejectedTrials" -> rejected|>]];
+  observedTMin = DeleteDuplicates[Lookup[trials, "TMin"]];
+  observedBlockLower = DeleteDuplicates[Lookup[trials, "BlockLower"]];
+  If[Length[observedTMin] =!= 1 || Length[observedBlockLower] =!= 1,
+    Return[<|"Status" -> "TransportEpsilonValuationTrialsDisagree",
+      "Trials" -> trials|>]];
+  observedTMin = First[observedTMin];
+  observedBlockLower = First[observedBlockLower];
+  If[claimed === None,
+    claimedTMin = observedTMin; claimedBlockLower = observedBlockLower,
+    claimedTMin = claimed["TMin"]; claimedBlockLower = claimed["BlockLower"];
+    If[claimedTMin > observedTMin ||
+        AnyTrue[claimedBlockLower - observedBlockLower, # > 0 &],
+      Return[<|"Status" -> "TransportEpsilonValuationsTooHigh",
+        "ClaimedTMin" -> claimedTMin, "ObservedTMin" -> observedTMin,
+        "ClaimedBlockLower" -> claimedBlockLower,
+        "ObservedBlockLower" -> observedBlockLower,
+        "Trials" -> trials|>]]];
+  tight = claimedTMin === observedTMin &&
+    claimedBlockLower === observedBlockLower;
+  fingerprint = observableTransportEpsilonValuationFingerprint[record];
+  certificate = <|
+    "Status" -> "RationalPointEpsilonValuationCertificate",
+    "Version" -> 1,
+    "Accepted" -> True, "Probabilistic" -> True, "Exact" -> False,
+    "Method" -> "ExactUnivariateOrderAtRandomRationalPoints",
+    "TMin" -> claimedTMin, "BlockLower" -> claimedBlockLower,
+    "ObservedTMin" -> observedTMin,
+    "ObservedBlockLower" -> observedBlockLower,
+    "Tight" -> tight,
+    "Trials" -> trials, "RejectedTrials" -> rejected,
+    "Seed" -> seed,
+    "RootSquares" -> rootSquares,
+    "Fingerprint" -> fingerprint,
+    "Seconds" -> N[AbsoluteTime[] - start]|>;
+  valuations = Join[If[AssociationQ[claimed], claimed, <||>], <|
+    "TMin" -> claimedTMin, "BlockLower" -> claimedBlockLower,
+    "Certificate" -> certificate|>];
+  <|"Status" -> "TransportEpsilonValuationsCertified",
+    "Tight" -> tight,
+    "Valuations" -> valuations,
+    "Certificate" -> certificate,
+    "Record" -> Join[record, <|"TransportEpsilonValuations" -> valuations|>],
+    "Seconds" -> N[AbsoluteTime[] - start]|>
+];
+
+(* Shape and arithmetic of a certificate for the claimed valuations:
+   flags, at least two trials at distinct points that agree with the
+   recorded observation, claim never above the observation. *)
+observableTransportEpsilonValuationCertificateShapeQ[certificate_,
+    tmin_, blockLower_] := AssociationQ[certificate] &&
+  Lookup[certificate, "Status", None] ===
+    "RationalPointEpsilonValuationCertificate" &&
+  TrueQ[Lookup[certificate, "Accepted", False]] &&
+  TrueQ[Lookup[certificate, "Probabilistic", False]] &&
+  TrueQ[Lookup[certificate, "Exact", True] === False] &&
+  IntegerQ[tmin] && VectorQ[blockLower, IntegerQ] &&
+  Lookup[certificate, "TMin", Missing[]] === tmin &&
+  Lookup[certificate, "BlockLower", Missing[]] === blockLower &&
+  IntegerQ[Lookup[certificate, "ObservedTMin", Missing[]]] &&
+  VectorQ[Lookup[certificate, "ObservedBlockLower", Missing[]], IntegerQ] &&
+  Length[certificate["ObservedBlockLower"]] === Length[blockLower] &&
+  tmin <= certificate["ObservedTMin"] &&
+  AllTrue[blockLower - certificate["ObservedBlockLower"], # <= 0 &] &&
+  MatchQ[Lookup[certificate, "Trials", None], {__Association}] &&
+  Length[certificate["Trials"]] >= 2 &&
+  AllTrue[certificate["Trials"],
+    Lookup[#, "Status", None] === "ExactPointValuationsEvaluated" &&
+      VectorQ[Lookup[#, "Point", Missing[]],
+        MatchQ[#, _Integer | _Rational] &] &&
+      Lookup[#, "TMin", Missing[]] === certificate["ObservedTMin"] &&
+      Lookup[#, "BlockLower", Missing[]] ===
+        certificate["ObservedBlockLower"] &] &&
+  DuplicateFreeQ[Lookup[certificate["Trials"], "Point"]] &&
+  AssociationQ[Lookup[certificate, "Fingerprint", None]];
+
+(* Typed status of a record's transport epsilon valuations. *)
+observableTransportEpsilonValuationStatus[record_Association] := Module[
+  {valuations, certificate, ranges, fingerprint, stored},
+  valuations = Lookup[record, "TransportEpsilonValuations",
+    Missing["NotAvailable"]];
+  If[MissingQ[valuations],
+    Return[<|"Status" -> "TransportEpsilonValuationsNotAvailable"|>]];
+  ranges = Lookup[record, "Ranges", {}];
+  If[! AssociationQ[valuations] ||
+      ! IntegerQ[Lookup[valuations, "TMin", Missing[]]] ||
+      ! VectorQ[Lookup[valuations, "BlockLower", Missing[]], IntegerQ] ||
+      ! ListQ[ranges] ||
+      Length[valuations["BlockLower"]] =!= Length[ranges],
+    Return[<|"Status" -> "TransportEpsilonValuationsInvalid",
+      "Valuations" -> valuations, "BlockCount" -> Length[ranges]|>]];
+  certificate = Lookup[valuations, "Certificate", Missing["Uncertified"]];
+  If[! AssociationQ[certificate],
+    Return[<|"Status" -> "TransportEpsilonValuationsUncertified",
+      "TMin" -> valuations["TMin"],
+      "Remedy" -> "observableTransportCertifyEpsilonValuations"|>]];
+  If[! observableTransportEpsilonValuationCertificateShapeQ[certificate,
+      valuations["TMin"], valuations["BlockLower"]],
+    Return[<|"Status" -> "TransportEpsilonValuationCertificateInvalid",
+      "TMin" -> valuations["TMin"], "BlockLower" -> valuations["BlockLower"],
+      "CertificateTMin" -> Lookup[certificate, "TMin", Missing[]],
+      "CertificateObservedTMin" ->
+        Lookup[certificate, "ObservedTMin", Missing[]]|>]];
+  fingerprint = observableTransportEpsilonValuationFingerprint[record];
+  stored = certificate["Fingerprint"];
+  If[stored =!= fingerprint,
+    Return[<|"Status" -> "TransportEpsilonValuationCertificateMismatch",
+      "StoredFingerprint" -> stored, "RecordFingerprint" -> fingerprint|>]];
+  <|"Status" -> "TransportEpsilonValuationsCertified",
+    "TMin" -> valuations["TMin"], "BlockLower" -> valuations["BlockLower"],
+    "Tight" -> TrueQ[Lookup[certificate, "Tight", False]],
+    "Certificate" -> certificate|>
+];
+
+(* The result-level binding checked by AcceptedObservableTransportQ: the
+   valuations the transport USED are the ones its certificate names. *)
+observableTransportEpsilonValuationCertificateBoundQ[source_, certificate_,
+    valuations_] := AssociationQ[valuations] && AssociationQ[certificate] &&
+  IntegerQ[Lookup[valuations, "TMin", Missing[]]] &&
+  VectorQ[Lookup[valuations, "BlockLower", Missing[]], IntegerQ] &&
+  Which[
+    source === "FamilyRecord",
+      observableTransportEpsilonValuationCertificateShapeQ[certificate,
+        valuations["TMin"], valuations["BlockLower"]] &&
+      TrueQ[Lookup[certificate, "FingerprintVerified", False]],
+    source === "ComputedFromGauge",
+      Lookup[certificate, "Status", None] === "ExactGaugeValuationScan" &&
+      TrueQ[Lookup[certificate, "Accepted", False]] &&
+      TrueQ[Lookup[certificate, "Exact", False]] &&
+      Lookup[certificate, "Probabilistic", True] === False &&
+      Lookup[certificate, "TMin", Missing[]] === valuations["TMin"] &&
+      Lookup[certificate, "BlockLower", Missing[]] === valuations["BlockLower"],
+    True, False];
+
+Options[observableTransportCertifyEpsilonValuationsFile] = Join[
+  Options[observableTransportCertifyEpsilonValuations],
+  {"OutputFile" -> Automatic, "Write" -> True}];
+
+(* Certify a record on disk in place (atomic replace; "OutputFile" for a
+   copy, "Write" -> False for a dry run).  Reads through the
+   context-guarded FamilyArtifactRead like every other artifact reader. *)
+observableTransportCertifyEpsilonValuationsFile[file_String,
+    opts : OptionsPattern[]] := Module[
+  {start = AbsoluteTime[], record, status, result, output},
+  If[! FileExistsQ[file],
+    Return[<|"Status" -> "FamilyRecordFileMissing", "File" -> file|>]];
+  record = FamilyArtifactRead[file];
+  If[! AssociationQ[record],
+    Return[<|"Status" -> "FamilyRecordUnreadable", "File" -> file|>]];
+  status = observableTransportEpsilonValuationStatus[record];
+  If[status["Status"] === "TransportEpsilonValuationsCertified",
+    Return[Join[status, <|"File" -> file, "AlreadyCertified" -> True,
+      "Seconds" -> N[AbsoluteTime[] - start]|>]]];
+  result = observableTransportCertifyEpsilonValuations[record,
+    Sequence @@ FilterRules[{opts},
+      Options[observableTransportCertifyEpsilonValuations]]];
+  If[Lookup[result, "Status", None] =!= "TransportEpsilonValuationsCertified",
+    Return[Join[result, <|"File" -> file, "PriorStatus" -> status["Status"],
+      "Seconds" -> N[AbsoluteTime[] - start]|>]]];
+  output = Replace[OptionValue["OutputFile"], Automatic -> file];
+  If[TrueQ[OptionValue["Write"]],
+    observableTransportWriteAtomic[result["Record"], output]];
+  Join[KeyDrop[result, {"Record", "Valuations"}], <|
+    "File" -> file, "OutputFile" -> If[TrueQ[OptionValue["Write"]], output, None],
+    "PriorStatus" -> status["Status"],
+    "Seconds" -> N[AbsoluteTime[] - start]|>]
+];
 
 observableTransportRecordChart[record_Association, Automatic] := Module[
   {chartRecord = Lookup[record, "ChartRecord", Missing["NotAvailable"]],
@@ -375,8 +828,13 @@ FindObservableTransportPath[record_Association, OptionsPattern[]] := Module[
   If[! MatchQ[candidates, {{_, _, _} ..}],
     Return[<|"Status" -> "InvalidPathCandidates"|>]
   ];
-  coefficientField = Replace[observableTransportCoefficientField[record],
-    _Missing -> "Rational"];
+  (* round 4: a record whose field cannot be resolved is refused here,
+     not silently treated as rational *)
+  coefficientField = observableTransportCoefficientField[record];
+  If[MissingQ[coefficientField],
+    Return[<|"Status" -> "CoefficientFieldRequired",
+      "CoefficientField" -> coefficientField|>]
+  ];
   admissibleQ = If[coefficientField === "Multiquadratic",
     Function[point,
       observableTransportRecordRegularQ[record,
@@ -495,21 +953,38 @@ observableTransportEpsilonOrder[x_, eps_] :=
   masterTransportEpsOrder[x, eps];
 
 (* Laurent coefficients of a matrix of rational functions of eps whose
-   coefficients live in an algebraic function field (overhaul 2026-09-02,
-   goal 6).  The former route called SeriesCoefficient on every entry and
-   order; on the CF259 compact record (47 x 47, rank-3 radicals) that stage
-   took about ten minutes (probe 1, 03:44).  The jet route compiles each
-   entry ONCE into numerator and denominator polynomials in eps whose
-   coefficients are opaque eps-free subexpressions, reads the valuation
-   off the leading coefficients, and obtains every requested order from
-   the exact division recurrence -- no series expansion of algebraic
-   expressions.  Each coefficient is then canonicalized exactly as before
-   (Cancel[Together[...]]).  An entry the compiler does not cover (eps under
-   a radical or a symbolic power) falls back to SeriesCoefficient for that
-   entry alone, so the result is the same function of the input on every
-   route.  $observableTransportLaurentMethod selects "Jet" (default) or
-   "SeriesCoefficient" (the former route, kept for comparison). *)
-$observableTransportLaurentMethod = "SeriesCoefficient";   (* measured 2026-09-02 05:05: the jet route WITH per-coefficient canonicalization was slower than SeriesCoefficient on CF259 (stopped after 21 min vs ~10 min); the jet stays available as an option, see the plan *)
+   coefficients live in an algebraic function field.  Three routes share
+   one contract: an Association order -> matrix of coefficients, every
+   coefficient canonicalized with Cancel[Together].
+
+   "Series" (default since round 4, 2026-09-02, agent L): ONE Series call
+   per entry, to the highest order that entry's row is read at, the
+   coefficients read off the SeriesData.  Measured on real CF259 entries
+   (Design/PrivateOverhaul_2026-09-01_evidence/round4/L_modular_laurent_route.md):
+   the canonical coefficients are IDENTICAL (SameQ) to the former route's,
+   at 1.4x (500 KB entries) to 30x (10 KB entries) lower cost -- the former
+   route recomputed the series once per order and then paid a far more
+   expensive Cancel[Together] on SeriesCoefficient's bulkier output.  An
+   entry outside the SeriesData contract (Puiseux exponents, a
+   non-SeriesData result) takes the SeriesCoefficient route for that entry
+   alone, so every route is the same function of the input.  Rows are
+   expanded only as far as the transport reads them (a demanded component
+   to its highest demanded order, every other component to the forbidden
+   range, see observableTransportLaurentRowHighs); orders above a row's
+   cap are stored as 0 and never read -- both consumers assert that.
+
+   "SeriesCoefficient": the former route (SeriesCoefficient per entry and
+   order), kept for comparison.
+
+   "Jet" (2026-09-02 04:05; rejected): compile each entry once into an
+   eps-polynomial numerator/denominator with opaque coefficients and run
+   the division recurrence.  Measured slower than SeriesCoefficient on
+   CF259 (stopped after 21 min), and the compile itself does not finish in
+   30 s on a 12 KB entry that is a nested sum of quotients (CF259 entry
+   (42,20)): the common-denominator cross-multiplication of nested
+   quotients grows multiplicatively with the nesting depth.  Kept only for
+   its unit test; not a production option. *)
+$observableTransportLaurentMethod = "Series";
 
 observableTransportEpsJetTrim[p_List] := Module[{q = p},
   While[Length[q] > 1 && TrueQ[Last[q] === 0], q = Most[q]];
@@ -607,44 +1082,130 @@ observableTransportLaurentEntryJet[e_, eps_, {low_Integer, high_Integer}] :=
    them as exact uncanonical expressions (False: measured option). *)
 $observableTransportLaurentCanonicalize = True;
 
+(* One Series call per entry (route "Series").  Returns the coefficient
+   list for orders low..high, or $Failed when the SeriesData contract is
+   not met (the caller then uses SeriesCoefficient for that entry).  The
+   transport's valuation record asserts that no entry has a pole below
+   `low`; an entry that has one is counted in
+   $observableTransportLaurentDiagnostics["ValuationBelowRange"] and the
+   transport refuses the record (fail closed) where the former route
+   silently truncated. *)
+$observableTransportLaurentDiagnostics = <||>;
+observableTransportLaurentEntrySeries[e_, eps_, {low_Integer, high_Integer}] :=
+ Module[{series, coefficients, nmin, nmax},
+  If[high < low, Return[{}]];
+  If[TrueQ[e === 0], Return[ConstantArray[0, high - low + 1]]];
+  If[FreeQ[e, eps],
+    Return[Table[If[order === 0, observableTransportCancel[e], 0],
+      {order, low, high}]]];
+  series = Quiet[Check[Series[e, {eps, 0, high}], $Failed]];
+  If[Head[series] =!= SeriesData || series[[1]] =!= eps ||
+      series[[2]] =!= 0 || series[[6]] =!= 1,
+    Return[$Failed]];
+  (* Part with a list spec keeps the SeriesData head: read the three
+     fields one at a time *)
+  coefficients = series[[3]]; nmin = series[[4]]; nmax = series[[5]];
+  (* orders below nmax are known (listed or zero); an order at or above
+     the truncation is not, and cannot occur for the rational class this
+     route serves: fall back rather than guess *)
+  If[nmax <= high, Return[$Failed]];
+  If[coefficients =!= {} && nmin < low,
+    $observableTransportLaurentDiagnostics["ValuationBelowRange"] =
+      Lookup[$observableTransportLaurentDiagnostics,
+        "ValuationBelowRange", 0] + 1];
+  Table[observableTransportCancel[
+      If[nmin <= order <= nmin + Length[coefficients] - 1,
+        coefficients[[order - nmin + 1]], 0]],
+    {order, low, high}]
+];
+
+(* Highest order at which the transport reads each component of the
+   Laurent tensor: the forbidden map reads every component at orders up to
+   valuation - 1 - flow, the demanded map reads a demanded component up to
+   its highest demanded order - flow. *)
+observableTransportLaurentRowHighs[dimension_Integer, valuation_Integer,
+    flow_Integer, physicalDemandPairs_List] := Table[
+  Max[valuation - 1 - flow,
+    Max[Cases[physicalDemandPairs, {order_, component} :> order - flow]]],
+  {component, dimension}];
+
 observableTransportLaurentRows[matrix_, eps_, {low_Integer, high_Integer},
-    indices_List] := If[$observableTransportLaurentMethod === "Jet",
-  Module[{jets},
-    (* one compilation per entry; all orders at once *)
-    jets = Map[observableTransportLaurentEntryJet[#, eps, {low, high}] &,
-      Normal[matrix[[indices]]], {2}];
-    Association@Table[order -> jets[[All, All, order - low + 1]],
-      {order, low, high}]],
-  Association@Table[
-    order -> Map[
-      observableTransportCancel[SeriesCoefficient[#, {eps, 0, order}]] &,
-      matrix[[indices]], {2}],
+    indices_List, rowHighs_: Automatic] := Module[
+  {caps, rows, entryCoefficients},
+  caps = If[rowHighs === Automatic, ConstantArray[high, Length[indices]],
+    Min[high, #] & /@ rowHighs[[indices]]];
+  Which[
+   $observableTransportLaurentMethod === "Jet",
+    (* one compilation per entry; all orders at once; caps ignored *)
+    rows = Map[observableTransportLaurentEntryJet[#, eps, {low, high}] &,
+      Normal[matrix[[indices]]], {2}],
+   $observableTransportLaurentMethod === "Series",
+    entryCoefficients[entry_, cap_] := Module[{coefficients},
+      If[cap < low, Return[ConstantArray[0, high - low + 1], Module]];
+      coefficients = observableTransportLaurentEntrySeries[entry, eps,
+        {low, cap}];
+      If[coefficients === $Failed,
+        $observableTransportLaurentDiagnostics["SeriesFallbackCount"] =
+          Lookup[$observableTransportLaurentDiagnostics,
+            "SeriesFallbackCount", 0] + 1;
+        coefficients = Table[observableTransportCancel[
+          SeriesCoefficient[entry, {eps, 0, order}]], {order, low, cap}]];
+      (* orders above the row's cap are placeholders, never read *)
+      PadRight[coefficients, high - low + 1, 0]];
+    rows = MapThread[Function[{row, cap},
+        Map[entryCoefficients[#, cap] &, Normal[matrix[[row]]]]],
+      {indices, caps}],
+   True,
+    (* the former route, per entry and order, up to the row's cap *)
+    rows = MapThread[Function[{row, cap},
+        Map[Function[entry, PadRight[Table[observableTransportCancel[
+            SeriesCoefficient[entry, {eps, 0, order}]], {order, low, cap}],
+          high - low + 1, 0]], Normal[matrix[[row]]]]],
+      {indices, caps}]
+  ];
+  Association@Table[order -> rows[[All, All, order - low + 1]],
     {order, low, high}]
 ];
 
 observableTransportLaurentMatricesTask[file_String,
     indices_List] := Module[
-  {data = FamilyArtifactRead[file], matrix, eps, orderRange},
+  {data = FamilyArtifactRead[file], matrix, eps, orderRange, rowHighs,
+   coefficients},
   If[! AssociationQ[data], Return[$Failed, Module]];
   {matrix, eps, orderRange} =
     Lookup[data, {"Matrix", "Epsilon", "OrderRange"}, $Failed];
+  rowHighs = Lookup[data, "RowHighs", Automatic];
   If[! MatrixQ[matrix] || eps === $Failed ||
       ! MatchQ[orderRange, {_Integer, _Integer}],
     Return[$Failed, Module]];
-  observableTransportLaurentRows[matrix, eps, orderRange, indices]
+  $observableTransportLaurentDiagnostics = <||>;
+  coefficients = observableTransportLaurentRows[matrix, eps, orderRange,
+    indices, rowHighs];
+  <|"Coefficients" -> coefficients,
+    "Diagnostics" -> $observableTransportLaurentDiagnostics|>
 ];
 
 observableTransportLaurentMatrices[m_, eps_,
-    orderRange : {low_Integer, high_Integer}] := Module[
+    orderRange : {low_Integer, high_Integer}, rowHighs_: Automatic] := Module[
   {matrix = Normal[m], dimensions, helperCount, chunks, payloadFile,
-   codes, handle, local, results},
+   codes, handle, local, results, mergeDiagnostics},
+  $observableTransportLaurentDiagnostics = <||>;
   dimensions = Quiet[Check[Dimensions[matrix], {}]];
   If[Length[dimensions] =!= 2,
     Return[Association@Table[order -> Map[
       observableTransportCancel[SeriesCoefficient[#, {eps, 0, order}]] &,
       matrix, {2}], {order, low, high}], Module]];
+  If[rowHighs =!= Automatic &&
+      ! (VectorQ[rowHighs, IntegerQ] && Length[rowHighs] === dimensions[[1]]),
+    Return[$Failed, Module]];
   local[indices_List] :=
-    observableTransportLaurentRows[matrix, eps, orderRange, indices];
+    observableTransportLaurentRows[matrix, eps, orderRange, indices,
+      rowHighs];
+  (* helper kernels report their own counters; sum them into ours *)
+  mergeDiagnostics[diagnostics_Association] := KeyValueMap[
+    ($observableTransportLaurentDiagnostics[#1] =
+      Lookup[$observableTransportLaurentDiagnostics, #1, 0] + #2) &,
+    diagnostics];
   helperCount = If[dimensions[[1]] > 1 &&
       Times @@ dimensions Max[1, high - low + 1] >= 2048 &&
       TrueQ[taskBrokerActiveQ[]],
@@ -658,18 +1219,25 @@ observableTransportLaurentMatrices[m_, eps_,
     "observable_laurent_" <> ToString[$ProcessID] <> "_" <>
       StringReplace[CreateUUID[], "-" -> ""],
     <|"Matrix" -> matrix, "Epsilon" -> eps,
-      "OrderRange" -> orderRange|>];
+      "OrderRange" -> orderRange, "RowHighs" -> rowHighs|>];
   codes = ("FeynFacet`Private`observableTransportLaurentMatricesTask[" <>
       ToString[payloadFile, InputForm] <> "," <>
       ToString[#, InputForm] <> "]") & /@ Most[chunks];
   handle = taskBrokerSubmit[codes, "Label" -> "observableLaurent"];
-  results = Append[taskBrokerCollect[handle], local[Last[chunks]]];
+  (* the local chunk counts its diagnostics in this kernel directly, so
+     it is wrapped with an empty record *)
+  results = Append[taskBrokerCollect[handle],
+    <|"Coefficients" -> local[Last[chunks]], "Diagnostics" -> <||>|>];
   results = MapThread[Function[{result, chunk},
-    If[AssociationQ[result] && Sort[Keys[result]] === Range[low, high] &&
-        AllTrue[Values[result], Function[value,
+    If[AssociationQ[result] &&
+        AssociationQ[Lookup[result, "Coefficients", None]] &&
+        Sort[Keys[result["Coefficients"]]] === Range[low, high] &&
+        AllTrue[Values[result["Coefficients"]], Function[value,
           MatrixQ[value] &&
             Dimensions[value] === {Length[chunk], dimensions[[2]]}]],
-      result, local[chunk]]], {results, chunks}];
+      mergeDiagnostics[Lookup[result, "Diagnostics", <||>]];
+      result["Coefficients"],
+      local[chunk]]], {results, chunks}];
   Quiet[DeleteFile[payloadFile]];
   Association@Table[
     order -> Join @@ (Lookup[#, order] & /@ results),
@@ -843,6 +1411,12 @@ observableTransportCovariantRowClosure[rows_, connection_, variable_,
       "ValidationPrimeCount" -> primeCount,
       "ValidationPointsPerPrime" -> pointsPerPrime]];
   dimensions = Quiet[Check[Dimensions[rows], {}]];
+  (* round 4 (2026-09-02): SparseArray[{}, {0, n}] evaluates to the plain
+     list {} -- a zero-row matrix has no second dimension -- so an empty
+     row set (a record without forbidden constraints, AmbientBasePoint
+     branch) takes its state dimension from the connection *)
+  If[Length[rows] === 0 && MatchQ[Dimensions[connection], {n_, n_}],
+    dimensions = {0, First[Dimensions[connection]]}];
   If[Length[dimensions] =!= 2 ||
       Dimensions[connection] =!= {Last[dimensions], Last[dimensions]},
     Return[<|"Status" -> "CovariantClosureInputsInvalid"|>, Module]];
@@ -1422,7 +1996,8 @@ BuildObservableTransport[record_Association, demand_Association,
    physicalOrders, valuation,
    path, firstVariable, secondVariable, firstBase, secondBase,
    firstTargetSample, tau, rankSamples, automatonRankSamples,
-   residueSamples, valuationRecord, valuationSource, tmin,
+   residueSamples, valuationRecord, valuationSource, valuationStatus,
+   valuationCertificate, sampleExhaustion, tmin,
    blockLower, rowLower, blockOfRow, pathRules, tangent,
    firstConnection, secondConnection, propagatedLower, stateRowLower,
    flow, forbiddenFHigh, forbiddenPhysicalOrders, slots, positions,
@@ -1444,7 +2019,8 @@ BuildObservableTransport[record_Association, demand_Association,
    secondClosureInitialSpanCertificate, secondClosureInitialSpanMethod,
    secondClosureStabilizationCertificate,
    secondClosureStabilizationMethod, secondRankSamples,
-   tDemandLaurent, demandedRows, physicalLabels,
+   tDemandLaurent, demandedRows, physicalLabels, rowHighs, laurentOrder,
+   laurentOverrun,
    physicalDemand, physicalOrder, component,
    demandedMap, familyCertificate, recordDLog, certificateDLog,
    certifiedDLog, residueDLogSource, residueProbabilistic,
@@ -1661,15 +2237,29 @@ BuildObservableTransport[record_Association, demand_Association,
       {1/7, 1/11}, {2/7, 2/11}, {3/7, 3/11}, {4/7, 5/11},
       {5/7, 7/11}, {1/5, 2/9}, {2/5, 4/9}
     }];
+  (* Round 4 (Codex review, correctness point 1): valuations carried by
+     the record are used only when they are CERTIFIED -- bound to this
+     record's TTotal, TTotalInverse and Ranges by the fingerprint of the
+     modular certificate (observableTransportCertifyEpsilonValuations)
+     and never above the observed minimum orders.  Uncertified,
+     malformed or mismatched valuations are refused with the typed
+     status of observableTransportEpsilonValuationStatus, and the accept
+     predicate requires the certificate again on the result.  A record
+     without valuations keeps the exact gauge scan (not a transport-ready
+     record, which never materializes the full gauge). *)
   valuationRecord = Lookup[record, "TransportEpsilonValuations",
     Missing["NotAvailable"]];
-  If[AssociationQ[valuationRecord] &&
-      IntegerQ[Lookup[valuationRecord, "TMin", Missing[]]] &&
-      VectorQ[Lookup[valuationRecord, "BlockLower", Missing[]], IntegerQ] &&
-      Length[valuationRecord["BlockLower"]] === Length[ranges],
+  If[! MissingQ[valuationRecord],
+    valuationStatus = observableTransportEpsilonValuationStatus[record];
+    If[Lookup[valuationStatus, "Status", None] =!=
+        "TransportEpsilonValuationsCertified",
+      Return[Join[valuationStatus,
+        <|"Family" -> Lookup[record, "Family", Missing[]]|>], Module]];
     tmin = valuationRecord["TMin"];
     blockLower = valuationRecord["BlockLower"];
-    valuationSource = "FamilyRecord",
+    valuationSource = "FamilyRecord";
+    valuationCertificate = Join[valuationStatus["Certificate"],
+      <|"FingerprintVerified" -> True|>],
     If[recordTransportReadyQ,
       Return[<|"Status" -> "TransportEpsilonValuationsRequired"|>,
         Module]];
@@ -1682,7 +2272,10 @@ BuildObservableTransport[record_Association, demand_Association,
             Flatten[tInverse[[ranges[[block]], All]]], Infinity]},
         If[orders === {}, 0, Min[orders]]],
       {block, Length[ranges]}];
-    valuationSource = "ComputedFromGauge"
+    valuationSource = "ComputedFromGauge";
+    valuationCertificate = <|"Status" -> "ExactGaugeValuationScan",
+      "Accepted" -> True, "Exact" -> True, "Probabilistic" -> False,
+      "TMin" -> tmin, "BlockLower" -> blockLower|>
   ];
   rowLower = ConstantArray[Missing["NotCovered"], dimension];
   blockOfRow = ConstantArray[0, dimension];
@@ -1703,11 +2296,16 @@ BuildObservableTransport[record_Association, demand_Association,
   tangent = firstTargetSample - firstBase;
   (* algebraic records: keep the default rank/residue samples only where
      every letter and root square is a nonzero rational; otherwise draw
-     admissible ones from the fraction grid (see observableTransportAdmissibleSamples) *)
+     admissible ones from the fraction grid (observableTransportAdmissibleSamples).
+     Round 4 (Codex review): when the grid cannot supply the full count,
+     the run stops with a typed exhaustion status -- the former code kept
+     the original samples, some of them proved inadmissible. *)
+  sampleExhaustion = None;
   If[coefficientField === "Multiquadratic" && OptionValue["RankSamples"] === Automatic,
     Module[{rootSquaresHere = Lookup[algebraicRootRecords, "RootSquare", {}],
         lettersHere = Replace[letters, Except[_List] -> {}],
-        rankPoint, admissibleRank, residueAdmissible, candidatesRank},
+        rankPoint, admissibleRank, residueAdmissible, candidatesRank,
+        candidatesResidue},
       rankPoint = Function[sample, Join[{firstVariable -> (firstBase + tau tangent) /. sample},
         Select[sample, First[#] === secondVariable &]]];
       admissibleRank = Select[rankSamples,
@@ -1719,21 +2317,40 @@ BuildObservableTransport[record_Association, demand_Association,
           rankPoint, candidatesRank, Length[rankSamples]];
         If[verbose, Print["Observable transport rank samples replaced for the algebraic record: ",
           Length[admissibleRank], " admissible of ", Length[candidatesRank], " candidates"]];
-        If[Length[admissibleRank] === Length[rankSamples], rankSamples = admissibleRank]];
-      automatonRankSamples = {
-        {firstVariable -> firstBase, secondVariable -> secondBase},
-        Join[{firstVariable -> firstTargetSample}, First[rankSamples]],
-        Join[{firstVariable -> (firstBase + firstTargetSample)/2}, Last[rankSamples]]};
-      residueAdmissible = Select[residueSamples,
-        observableTransportPointAdmissibleQ[lettersHere, rootSquaresHere, Thread[variables -> #]] &];
-      If[Length[residueAdmissible] < Length[residueSamples],
-        residueAdmissible = observableTransportAdmissibleSamples[lettersHere, rootSquaresHere,
-          Thread[variables -> #] &,
-          Flatten[Table[{a, b}, {a, $observableTransportSampleFractions}, {b, $observableTransportSampleFractions}], 1],
-          Length[residueSamples]];
-        If[verbose, Print["Observable transport residue samples replaced for the algebraic record: ",
-          Length[residueAdmissible]]];
-        If[Length[residueAdmissible] === Length[residueSamples], residueSamples = residueAdmissible]]]];
+        If[Length[admissibleRank] < Length[rankSamples],
+          sampleExhaustion = <|"Status" -> "AdmissibleSamplesExhausted",
+            "SampleKind" -> "Rank", "Requested" -> Length[rankSamples],
+            "Available" -> Length[admissibleRank],
+            "Candidates" -> Length[candidatesRank]|>,
+          rankSamples = admissibleRank]];
+      If[sampleExhaustion === None,
+        automatonRankSamples = {
+          {firstVariable -> firstBase, secondVariable -> secondBase},
+          Join[{firstVariable -> firstTargetSample}, First[rankSamples]],
+          Join[{firstVariable -> (firstBase + firstTargetSample)/2}, Last[rankSamples]]};
+        residueAdmissible = Select[residueSamples,
+          observableTransportPointAdmissibleQ[lettersHere, rootSquaresHere, Thread[variables -> #]] &];
+        If[Length[residueAdmissible] < Length[residueSamples],
+          candidatesResidue = Flatten[Table[{a, b},
+            {a, $observableTransportSampleFractions}, {b, $observableTransportSampleFractions}], 1];
+          residueAdmissible = observableTransportAdmissibleSamples[lettersHere, rootSquaresHere,
+            Thread[variables -> #] &, candidatesResidue, Length[residueSamples]];
+          If[verbose, Print["Observable transport residue samples replaced for the algebraic record: ",
+            Length[residueAdmissible]]];
+          If[Length[residueAdmissible] < Length[residueSamples],
+            sampleExhaustion = <|"Status" -> "AdmissibleSamplesExhausted",
+              "SampleKind" -> "Residue", "Requested" -> Length[residueSamples],
+              "Available" -> Length[residueAdmissible],
+              "Candidates" -> Length[candidatesResidue]|>,
+            residueSamples = residueAdmissible]]]]];
+  If[sampleExhaustion =!= None,
+    Return[Join[sampleExhaustion, <|
+      "Family" -> Lookup[record, "Family", Missing[]],
+      "CoefficientField" -> coefficientField,
+      "LetterCount" -> Length[Replace[letters, Except[_List] -> {}]],
+      "RootSquareCount" -> Length[Lookup[algebraicRootRecords, "RootSquare", {}]]|>],
+      Module]
+  ];
   firstSupport = If[recordTransportReadyQ,
     compactResidueSupport[firstVariable],
     firstConnection = If[coefficientField === "Multiquadratic",
@@ -1792,15 +2409,39 @@ BuildObservableTransport[record_Association, demand_Association,
      repeat the dominant symbolic series work almost verbatim. *)
   tLaurentHigh = Max[Max[0, valuation - 1 - flow],
     Max[physicalOrders] - flow];
+  (* Round 4 (2026-09-02): each component is expanded only to the order
+     the two consumers below read it at (observableTransportLaurentRowHighs);
+     the placeholders above a row's cap are never read, and both consumers
+     assert that (laurentOverrun). *)
+  rowHighs = observableTransportLaurentRowHighs[dimension, valuation, flow,
+    physicalDemandPairs];
   tLaurent = observableTransportLaurentMatrices[tTotal, eps,
-    {tmin, tLaurentHigh}];
+    {tmin, tLaurentHigh}, rowHighs];
+  If[! AssociationQ[tLaurent],
+    Return[<|"Status" -> "LaurentExtractionFailed"|>, Module]];
+  If[Lookup[$observableTransportLaurentDiagnostics,
+      "ValuationBelowRange", 0] > 0,
+    (* the record's TMin is not the minimum valuation of TTotal: the
+       transport would silently lose orders, so it is refused *)
+    Return[<|"Status" -> "LaurentValuationBelowRecord",
+      "TMin" -> tmin, "ValuationSource" -> valuationSource,
+      "EntryCount" -> $observableTransportLaurentDiagnostics[
+        "ValuationBelowRange"]|>, Module]];
   If[verbose, Print["Observable transport Laurent extraction: ",
-    Round[AbsoluteTime[] - start, 0.1], " s cumulative"]];
+    Round[AbsoluteTime[] - start, 0.1], " s cumulative; method ",
+    $observableTransportLaurentMethod, "; orders ", {tmin, tLaurentHigh},
+    "; row caps ", Counts[Clip[rowHighs, {tmin - 1, tLaurentHigh}]],
+    "; SeriesCoefficient fallbacks ",
+    Lookup[$observableTransportLaurentDiagnostics, "SeriesFallbackCount", 0]]];
+  laurentOverrun = Missing["None"];
   forbiddenRows = {};
   forbiddenLabels = {};
   Do[
     With[{row = Table[
-        Lookup[tLaurent, physicalOrder - slot[[1]],
+        laurentOrder = physicalOrder - slot[[1]];
+        If[laurentOrder > rowHighs[[component]] && MissingQ[laurentOverrun],
+          laurentOverrun = {physicalOrder, component, slot}];
+        Lookup[tLaurent, laurentOrder,
           ConstantArray[0, {dimension, dimension}]][[component, slot[[2]]]],
         {slot, slots}]},
       If[! AllTrue[row, observableTransportZeroQ],
@@ -1808,6 +2449,9 @@ BuildObservableTransport[record_Association, demand_Association,
         AppendTo[forbiddenLabels, {physicalOrder, component}]
       ]],
     {physicalOrder, forbiddenPhysicalOrders}, {component, dimension}];
+  If[! MissingQ[laurentOverrun],
+    Return[<|"Status" -> "LaurentOrderNotExtracted",
+      "Consumer" -> "ForbiddenMap", "Detail" -> laurentOverrun|>, Module]];
   (* The forbidden observable is propagated along the first path.  Keeping
      the target first variable here would make D[frontier,tau] vanish and
      would leave a target-dependent object mislabeled as a base constraint. *)
@@ -1816,7 +2460,8 @@ BuildObservableTransport[record_Association, demand_Association,
     Normal[forbiddenRows] /. pathRules];
   If[verbose, Print["Observable transport forbidden map: ",
     Dimensions[forbiddenMap], "; slots ", Length[slots],
-    "; boundary slots ", Length[boundarySlots]]];
+    "; boundary slots ", Length[boundarySlots], "; ",
+    Round[AbsoluteTime[] - start, 0.1], " s cumulative"]];
   If[forbiddenRows =!= {} &&
       (! MatrixQ[forbiddenMap] ||
        Dimensions[forbiddenMap][[2]] =!= Length[slots]),
@@ -1860,7 +2505,8 @@ BuildObservableTransport[record_Association, demand_Association,
     closureStabilizationMethod =
       closureRecord["StabilizationMethod"];
     If[verbose, Print["Observable transport first covariant closure: ",
-      closureHistory]];
+      closureHistory, "; ", Round[AbsoluteTime[] - start, 0.1],
+      " s cumulative"]];
     constraintMatrix = observableTransportCancelMatrix[
       (basis /. tau -> 0) . embedding];
     constraintRank = Length[basis]
@@ -1925,7 +2571,9 @@ BuildObservableTransport[record_Association, demand_Association,
   ];
   If[verbose, Print["Observable transport boundary evolution: ",
     boundaryEvolution, "; constraint leaves ", constraintLeafCount,
-    "; moving-kernel limit ", movingKernelLeafLimit]];
+    "; moving-kernel limit ", movingKernelLeafLimit, "; constraint rank ",
+    constraintRank, "; ", Round[AbsoluteTime[] - start, 0.1],
+    " s cumulative"]];
 
   extendedFHigh = Max[physicalOrders] - tmin;
   extendedSlots = Flatten[Table[
@@ -1971,7 +2619,13 @@ BuildObservableTransport[record_Association, demand_Association,
           boundarySlots[[boundaryRow]]]]} -> 1,
       {boundaryRow, Length[boundarySlots]}],
       {Length[boundarySlots], Length[extendedSlots]}];
-    extendedConstraintMatrix = constraintMatrix . boundarySelector;
+    (* round 4 (2026-09-02): a record without forbidden constraints
+       reaches this branch with an EMPTY constraint matrix ({}: a
+       zero-row SparseArray is just {}), and Dot of {} with the selector
+       fails (Dot::dotsh); the empty case is carried explicitly here,
+       in the base constraint below and in the closure *)
+    extendedConstraintMatrix = If[Length[constraintMatrix] === 0, {},
+      constraintMatrix . boundarySelector];
     ambientSecondConnection = If[recordTransportReadyQ,
       compactDLogConnection[secondVariable,
         {firstVariable -> firstBase}, 1],
@@ -2009,8 +2663,9 @@ BuildObservableTransport[record_Association, demand_Association,
       "Observable transport base constraint cancellation start: ",
       Dimensions[extendedConstraintMatrix]]];
     baseStageStart = AbsoluteTime[];
-    baseConstraintMatrix = observableTransportCancelMatrix[
-      Normal[extendedConstraintMatrix] /. secondVariable -> secondBase];
+    baseConstraintMatrix = If[Length[extendedConstraintMatrix] === 0, {},
+      observableTransportCancelMatrix[
+        Normal[extendedConstraintMatrix] /. secondVariable -> secondBase]];
     If[verbose, Print[
       "Observable transport base constraint cancellation: ",
       Round[AbsoluteTime[] - baseStageStart, 0.1], " s"]];
@@ -2024,8 +2679,9 @@ BuildObservableTransport[record_Association, demand_Association,
     baseStageStart = AbsoluteTime[];
     If[! MatrixQ[baseBoundaryKernel] ||
         Dimensions[baseBoundaryKernel][[1]] =!= Length[extendedSlots] ||
-        ! observableTransportZeroMatrixQ[
-          baseConstraintMatrix . baseBoundaryKernel],
+        (Length[baseConstraintMatrix] > 0 &&
+          ! observableTransportZeroMatrixQ[
+            baseConstraintMatrix . baseBoundaryKernel]),
       Return[<|"Status" -> "BoundaryBaseKernelIdentityFailed"|>, Module]
     ];
     If[verbose, Print["Observable transport base kernel replay: ",
@@ -2044,7 +2700,10 @@ BuildObservableTransport[record_Association, demand_Association,
   Do[
     {physicalOrder, component} = physicalDemand;
     With[{row = Table[
-        Lookup[tDemandLaurent, physicalOrder - slot[[1]],
+        laurentOrder = physicalOrder - slot[[1]];
+        If[laurentOrder > rowHighs[[component]] && MissingQ[laurentOverrun],
+          laurentOverrun = {physicalOrder, component, slot}];
+        Lookup[tDemandLaurent, laurentOrder,
           ConstantArray[0, {dimension, dimension}]][[component, slot[[2]]]],
         {slot, extendedSlots}]},
       If[! AllTrue[row, observableTransportZeroQ],
@@ -2052,12 +2711,16 @@ BuildObservableTransport[record_Association, demand_Association,
         AppendTo[physicalLabels, {physicalOrder, component}]
       ]],
     {physicalDemand, physicalDemandPairs}];
+  If[! MissingQ[laurentOverrun],
+    Return[<|"Status" -> "LaurentOrderNotExtracted",
+      "Consumer" -> "DemandedMap", "Detail" -> laurentOverrun|>, Module]];
   demandedMap = If[demandedRows === {},
     SparseArray[{}, {0, Length[extendedSlots]}], demandedRows];
   If[verbose, Print["Observable transport demanded map: ",
     Dimensions[demandedMap], "; extended slots ", Length[extendedSlots],
     "; transport boundary ", Dimensions[transportBoundary],
-    "; base coordinates ", Dimensions[baseBoundaryEmbedding][[2]]]];
+    "; base coordinates ", Dimensions[baseBoundaryEmbedding][[2]], "; ",
+    Round[AbsoluteTime[] - start, 0.1], " s cumulative"]];
   If[! MatrixQ[demandedMap] ||
       Dimensions[demandedMap][[2]] =!= Length[extendedSlots],
     Return[<|"Status" -> "DemandedMapNotRectangular",
@@ -2491,6 +3154,7 @@ BuildObservableTransport[record_Association, demand_Association,
     "TransportEpsilonValuationSource" -> valuationSource,
     "TransportEpsilonValuations" -> <|
       "TMin" -> tmin, "BlockLower" -> blockLower|>,
+    "TransportEpsilonValuationCertificate" -> valuationCertificate,
     "BoundaryCoordinates" -> Dimensions[baseBoundaryEmbedding][[2]],
     "ConstraintRank" -> constraintRank,
     "DualClosureRankHistory" -> closureHistory,
@@ -2539,6 +3203,10 @@ BuildObservableTransport[record_Association, demand_Association,
       "FamilyEpsilonFormExact" -> recordExactQ,
       "FamilyInputAccepted" ->
         (recordCertifiedQ || recordExactQ || recordTransportReadyQ),
+      "TransportEpsilonValuationsBound" ->
+        observableTransportEpsilonValuationCertificateBoundQ[
+          valuationSource, valuationCertificate,
+          <|"TMin" -> tmin, "BlockLower" -> blockLower|>],
       "BoundaryBaseKernel" -> True,
       "FirstKernelIdentity" ->
         TrueQ[Lookup[firstKernelRecord, "Identity", False]],
@@ -2575,11 +3243,21 @@ AcceptedObservableTransportQ[result_] := Module[
   status = Lookup[result, "Status", None];
   certificates = Lookup[result, "Certificates", <||>];
   requiredExact = {"BoundaryBaseKernel", "FirstKernelIdentity",
-    "BoundaryEvolution", "SecondKernelIdentity"};
+    "BoundaryEvolution", "SecondKernelIdentity",
+    "TransportEpsilonValuationsBound"};
   If[! AssociationQ[certificates] ||
       ! TrueQ[Lookup[certificates, "FamilyInputAccepted", False]] ||
       ! AllTrue[requiredExact,
         KeyExistsQ[certificates, #] && TrueQ[certificates[#]] &],
+    Return[False]];
+  (* round 4: the epsilon valuations the transport used must be the ones
+     its certificate names -- the record's modular certificate (fingerprint
+     verified) or the exact gauge scan; a result without the certificate
+     is refused *)
+  If[! observableTransportEpsilonValuationCertificateBoundQ[
+      Lookup[result, "TransportEpsilonValuationSource", None],
+      Lookup[result, "TransportEpsilonValuationCertificate", Missing[]],
+      Lookup[result, "TransportEpsilonValuations", Missing[]]],
     Return[False]];
   representation = Lookup[result, "WordRepresentation", None];
   boundaryMethod = Lookup[result, "BoundaryEvolutionMethod", None];
@@ -3027,3 +3705,10 @@ ReconstructObservableTransportWordMaps[result_Association,
 
 ReconstructObservableTransportWordMaps[___] :=
   <|"Status" -> "ObservableWordBatchInputsNotWellFormed"|>;
+
+(* Public entry to the epsilon-valuation certifier (round 4, 2026-09-02):
+   one-line wrappers only; the machinery is observableTransportCertifyEpsilonValuations
+   and its file variant above. *)
+CertifyTransportEpsilonValuations[record_Association, opts___] := observableTransportCertifyEpsilonValuations[record, opts];
+CertifyTransportEpsilonValuations[file_String, opts___] := observableTransportCertifyEpsilonValuationsFile[file, opts];
+CertifyTransportEpsilonValuations[___] := <|"Status" -> "TransportEpsilonValuationInputNotWellFormed"|>;

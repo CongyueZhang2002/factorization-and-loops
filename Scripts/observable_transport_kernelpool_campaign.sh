@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+# CANONICAL observable-transport campaign driver (round 4, 2026-09-02).
+# One Wolfram main kernel plus N pool subkernels: every family is a
+# KernelPool mission (family_observable_transport_pool_mission.wls), the
+# task broker farms a family's parallel pieces to the free helpers, and
+# two helper seats stay reserved for the broker.  Use this driver for
+# any multi-family campaign on this machine: it is the one that respects
+# the two-main-kernel licence (the pool main is the ONE main it starts).
+# The standalone driver observable_transport_campaign.sh (one wolframscript
+# per family, no pool) exists for a box without a pool or for a single
+# family; do not run both at once.
 # Exact observable transports through one Wolfram main plus N subkernels.
 set -u
 
