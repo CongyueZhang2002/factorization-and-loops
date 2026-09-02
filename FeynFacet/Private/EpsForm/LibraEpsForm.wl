@@ -39,7 +39,6 @@ Options[LibraFamilyEpsForm] = {
   "Verbose" -> False
 };
 
-SetAttributes[HoldFirst];
 
 libraEpsFormFermatCompatibleQ[expr_] := FreeQ[expr,
   _Root | _AlgebraicNumber |
