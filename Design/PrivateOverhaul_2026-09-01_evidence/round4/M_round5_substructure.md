@@ -197,4 +197,31 @@ running.  Transport (phase 3) untouched, waiting for the coordinator's message.
 
 ## Phase 3: Transport
 
-Waits for the coordinator's message (after the `round4-laurent` merge).
+Unlocked after the merge of L's branch and the checkpoint commit 57bd613d, with the constraint
+that `ObservableTransport.wl` moves last (T may still edit it).
+
+### Step 1 (14:27): MasterTransport.wl and ObservableTransportFiniteField.wl
+- `git mv` (staged): `Transport/MasterTransport.wl` -> `Transport/Assembly/MasterTransport.wl`,
+  `Transport/ObservableTransportFiniteField.wl` -> `Transport/Observable/ObservableTransportFiniteField.wl`.
+- Manifest: `"Transport" -> {"Assembly/MasterTransport.wl", "ObservableTransport.wl",
+  "Observable/ObservableTransportFiniteField.wl"}` (a bare entry between two relative ones, as
+  allowed); the header's SUB-FOLDERS block gained `Transport/Assembly` and
+  `Transport/Observable` lines.
+- Consumers: `Tests/Transport/t_observable_transport_finite_field.wls:6` (the only code path;
+  it named `ObservableTransportFiniteField.wl`) now `Get`s
+  `FeynFacet`Private`feynFacetPrivateFile["ObservableTransportFiniteField.wl"]` after
+  `LoadFACET`; `Scripts/HardClassToolkit.wl:41` (prose) updated to `Transport/Assembly/`.  No
+  Scripts file loads a Transport module by literal path.
+- Verification: load check (`scratchpad/round4/M/r5/load_check_p3.wls`, seat, 3 s) --
+  `masterTransportLoadLibra` and `TransportFamilyInChart` (Assembly/MasterTransport.wl) and
+  `BuildObservableTransport` live, both spellings answer for both moved files, the bare entry
+  `ObservableTransport.wl` still resolves, 48 unique module names, every manifest file exists,
+  `Options[SolveEpsFormStripInFrame]` 25, `Options[BuildObservableTransport]` 16;
+  `Tests/Transport/t_observable_transport_finite_field.wls` (direct `Get` of the moved
+  finite-field compiler through `feynFacetPrivateFile`, cap 300): **18 assertions, 0 failed**,
+  4 s.  (One of my five probe names, `observableTransportFiniteFieldCompile`, does not exist in
+  that file -- probe error, not a load failure; the test exercises the file directly.)
+
+### Step 2: ObservableTransport.wl -- waits for "move ObservableTransport.wl"
+Staged as `scratchpad/round4/M/r5/phase3_step2.sh` (git mv, manifest entry, load check with a
+head from each Observable file, the finite-field test once).

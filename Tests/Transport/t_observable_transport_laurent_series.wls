@@ -161,6 +161,15 @@ If[FileExistsQ[cf230File] && FileExistsQ[de230File],
 (* 5. a record whose TMin is above an entry's true valuation is refused *)
 badToy = Join[toy, <|"TransportEpsilonValuations" -> <|"TMin" -> 0, "BlockLower" -> {0}|>, "TTotal" -> {{1/eps}}, "TTotalInverse" -> {{eps}}|>];
 badResult = FeynFacet`BuildObservableTransport[badToy, toyDemand, "BoundaryEvolution" -> "AmbientBasePoint"];
-FTAssert["a record whose TMin exceeds an entry's valuation is refused with LaurentValuationBelowRecord",
-  Lookup[badResult, "Status", None] === "LaurentValuationBelowRecord"];
+(* Since round 4 (agent T) a record's valuations must carry a certificate,
+   and the certifier refuses a claim above the observed order; an
+   uncertified or over-claimed record is therefore refused by that gate
+   before the Laurent stage runs.  The Laurent-stage guard
+   LaurentValuationBelowRecord is defence in depth behind it.  Either
+   typed refusal is the contract; a silent drop of the order is not. *)
+Print["stale-TMin record status: ", Lookup[badResult, "Status", None]];
+FTAssert["a record whose TMin exceeds an entry's valuation is refused typed (certificate gate or Laurent guard), never transported",
+  MemberQ[{"LaurentValuationBelowRecord", "TransportEpsilonValuationsUncertified",
+      "TransportEpsilonValuationsTooHigh", "TransportEpsilonValuationCertificateInvalid"},
+    Lookup[badResult, "Status", None]]];
 FTReport[];

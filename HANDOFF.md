@@ -4,30 +4,37 @@ Read `Design/PrivateOverhaul_2026-09-01.md` first: it is the living plan
 with done / running / not-done / decisions-for-the-user, the bug list,
 the benchmark table and the CF259 state. This note is the short version.
 
-## Current status (2026-09-02 13:30, one block; everything below it is history)
+## Current status (2026-09-02 14:40, one block; everything below it is history)
 
-- Package: seven layer folders under `FeynFacet/Private/` with the manifest
-  `Private/LoadOrder.wl`; superseded code in `Private_Backup/` with evidence.
-  The layer graph is NOT yet acyclic (EpsForm calls Transport helpers);
-  round 4 moves the shared helpers down and documents the true graph.
+- Package: seven layer folders under `FeynFacet/Private/`, each with
+  sub-folders by responsibility (round 5), manifest `Private/LoadOrder.wl`
+  with layer-relative entries, `feynFacetPrivateFile` for module paths;
+  superseded code in `Private_Backup/` with evidence. Round 4 moved 55
+  upward cross-layer calls down; the few remaining ones are named in the
+  manifest header and `Design/GeometryDeclaration_2026-09-02.md`.
 - Stage 1 (eps-forms): `DiagonalBlockEpsForm` with the Libra balance slice
   and the finite-field strip solvers; CANONICA and Maple routes retired.
 - Stage 2 (transport): `BuildObservableTransport` is the only production
-  route. Laurent extraction runs on `"SeriesCoefficient"`; the symbolic
-  epsilon-jet route is present but NOT the default (it did not finish in
-  21 minutes on CF259). A modular jet route (uncanonical DAGs evaluated
-  modulo primes) is being built in round 4.
-- CF259: transported (564 s, status ModularlyVerifiedObservableTransport,
-  20 demanded pairs, 167 boundary coordinates). Credible but provisional:
-  the transport epsilon valuations (TMin, block bounds) were accepted on
-  type checks only; round 4 binds them to a modular certificate. CF300 and
-  CF303 are not transported.
+  route. Laurent extraction is one `Series` per entry with per-row order
+  caps (`"Series"`, round 4 agent L): identical canonical coefficients,
+  CF259 265 s instead of 564 s. The jet route is kept selectable but is
+  pathological on nested-quotient entries (candidate for the backup).
+  Codex's modular-only closure was costed and not built (report L).
+- Transport-ready records must carry a certificate of their epsilon
+  valuations (`CertifyTransportEpsilonValuations`; produced by
+  `Scripts/compact_family_dlog_record.wls`); the transport refuses an
+  uncertified record typed. The stored CF259 record predates the
+  certificate; certifying it is open (the certifier exceeds its cap on
+  that 47 x 47 record; the fix is a numeric-point Series per entry).
+- CF259: transported (accepted artifact of 05:51; reproduced SameQ in
+  265 s by the new route). CF300 and CF303 are not transported.
 - Tests: 12 retired, 8 fixed in round 3 (the long ones were quadratic test
   code, not physics); verification policy: small targeted tests through
   the two licensed kernel seats, no full-suite runs, kill pathological
   runs and fix the cause.
 - Codex's 2026-09-02 assessment (`Exchange/Codex/2026-09-02/`): every
-  point accepted; round 4 (agents T, M, G, L) works them, see the plan.
+  point worked through in round 4 (agents T, M, G, L; reports under the
+  plan's evidence folder `round4/`).
 - `main` is ahead of `origin/main`; pushing needs the user's decision.
 
 ## What changed

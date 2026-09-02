@@ -255,12 +255,81 @@ because nothing is long; the header comment records the measurement.
 | CF259 in-place certification probe, run 1 (first radical design) | `TransportEpsilonValuationTrialsInsufficient`: 24 of 24 attempts `RadicandNotResidue` -- the design rooted the prime factors of the merged numeric radicands (7-13 residue conditions per trial); no write | 171 s (13:55:11-13:58:05) |
 | CF259 in-place certification probe, run 2 (symbol route) | died at kernel start (`LinkConnect::linkc`, no code executed); processes killed by PID 3391005/3391014/3391015 | 14:03:09-14:05:5x |
 | CF259 in-place certification probe, run 3 (symbol route, rule-per-radicand preparation) | KILLED by the 300 s cap (exit 137) after load 3.4 s and fingerprint 0.7 s, no further stage line; no write. Diagnosis: the preparation's `ReplaceAll` carried one rule per distinct radicand (Wolfram tries every rule at every node); replaced by one rule with a hash lookup, then measured stage by stage (next row) | 14:06:23-14:11:42 |
-| CF259 preparation/trial diagnostic (`scratchpad/round4/T/cf259_prep_diag.wls`) | PENDING | |
+| CF259 preparation/trial diagnostic of the p-adic route (`scratchpad/round4/T/cf259_prep_diag.wls`) | load 3.5 s; 205,698 radical occurrences, 3 distinct radicands (the declared squares); preparation 6.2 s; point substitution of TTotal 0.7 s (1.1 MB after substitution); trial `PrecisionExhausted` at p^64 in 2.9 s -- a hidden exact zero appears as p-adic noise: the p-adic route is abandoned | 14 s (14:13:26-14:13:43) |
+| CF259 probe run 4 (exact univariate route, `RootReduce` as the zero test, 120 s cap) | KILLED at the cap after load and status (exit 137); no write | 14:20:37-14:22:43 |
+| CF259 probe run 5 (the ONE run allowed by the coordinator at 14:23: instrumented, exact route with the syntactic zero test, 300 s cap; certifies and writes in place only if one point finishes under 65 s and the certificate is tight with the backup verified) | PENDING | |
 
 Not run: `t_observable_transport_compact_ordering`,
 `_final_reconstruction`, `_integration_load`, `t_finite_field_gauge_pullback`,
 `t_transport_chart_extension` (not exercised by the changes beyond the
 package load), the CF259 transport itself (user rule: no rerun).
+
+## Stage profile of the exact route on CF259 (written 14:25, before the single allowed run)
+
+Measured: load 3.5 s; substitution of the point into `TTotal` 0.7 s (the
+417 nonzero entries collapse from 107 MB in memory to 1.1 MB); on agent
+L's fixture of 8 real `TTotal` entries up to 87 KB, `Together` at most
+0.04 s and the full order (canonical radicals, `Together`,
+`CoefficientList`, syntactic zero test) at most 0.054 s per entry, and
+`RootReduce` of the leading coefficients 0.01 s -- so on `TTotal` the
+per-point cost is about 417 x 0.05 s = 20 s and neither substitution nor
+radical handling nor `Together` dominates there. Not measured before run
+5: the 420 `TTotalInverse` entries, which are three times larger (299 MB
+in memory) and were not in the fixture; run 4 (killed at 120 s with
+`RootReduce` as the primary zero test) said that they, or `RootReduce`
+on coefficients with more radicals than the fixture's, dominate.
+
+Run 5 (instrumented, syntactic zero test primary), measured on the full
+record at the point {34/303, 49/85}: load 3.4 s; substitution of the
+point into `TTotal` 1.0 s (33.7 MB after substitution) and into
+`TTotalInverse` 2.6 s (102 MB, largest entries 3.6 MB); orders of all
+2209 `TTotal` entries 8.0 s, of which one entry (2163, 27 KB) took
+2.3 s and everything else at most 0.05 s; orders of the 2209
+`TTotalInverse` entries 28.8 s, of which the first 2000 took 3 s and
+the last 200 -- the largest entries, up to 3.6 MB after substitution --
+about 2.3 s each (`Together` plus the zero tests on those); one point
+36.9 s in total, with TMin -3 and the 27 block bounds EQUAL to Codex's
+`ExactAlgebraicPointValuation` values at the first point. The dominating
+stage is therefore the order computation on the ~200 largest inverse
+entries (the entry count times their size), not the substitution and
+not the radical handling; `RootReduce` as the primary zero test (run 4)
+multiplied that by more than three. Three points cost about 110 s.
+
+File location note: during this work agent G moved
+`ObservableTransportFiniteField.wl` to
+`FeynFacet/Private/Transport/Observable/` (`git mv`, edits intact,
+`LoadOrder.wl` updated); `ObservableTransport.wl` is still at
+`FeynFacet/Private/Transport/`. Line numbers above refer to the files at
+the time of writing.
+
+## CF259 record status (honest statement)
+
+`family_epsform_CF259_compact_valuations.wl` is UNCERTIFIED: its typed
+status is `TransportEpsilonValuationsUncertified` (TMin -3 carried
+without a certificate), and the production transport now refuses it
+with exactly that status until `observableTransportCertifyEpsilonValuationsFile`
+has certified it in place. The accepted CF259 transport of 2026-09-02
+(`observable_transport_CF259.wl`, 564 s run) predates the certificate
+and was built from these uncertified valuations; it is credible but its
+valuation premise is not bound, which is what Codex's point 1 said. The
+original record is preserved unchanged (SHA-256 above).
+
+## Next speed-ups for the certificate (not done)
+
+1. One pass per point over all entries with the cheap exact route,
+   `TTotalInverse` included, and the syntactic zero test only
+   (`RootReduce` never on the hot path); measure the inverse entries
+   first (run 5's log gives the worst entry).
+2. Numeric-point `Series` per entry instead of `Together`: after the
+   substitution each entry is univariate, so `Series[entry, {eps, 0, n}]`
+   from a lower bound n and reading the first exactly-nonzero coefficient
+   avoids building the full fraction; needs the same exact zero test.
+3. The finite-field compiler evaluating the entries at eps = p (already
+   compiled for the transport itself): valuations modulo primes with the
+   symbol route, but with the hidden-zero problem solved by an exact
+   zero test of the leading coefficient rather than precision doubling.
+4. Certify at compact-record construction (`compact_family_dlog_record.wls`,
+   owner G) where the entries are already in memory, so no reload.
 
 ## Left open / for other owners
 

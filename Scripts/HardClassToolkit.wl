@@ -38,7 +38,7 @@ HCT$Version = "1.0";
 
    The toolkit does not itself Get Libra, so this is a guard for the
    surrounding kernel, not a load-site fix; the load-site fix lives in
-   FeynFacet/Private/Transport/MasterTransport.wl (masterTransportLoadLibra).
+   FeynFacet/Private/Transport/Assembly/MasterTransport.wl (masterTransportLoadLibra).
    Pinned by Tests/Infrastructure/t_wolfram_traps.wls.  The message carries no
    information we act on -- it reports an option name a third-party
    package passes to its own helper -- so switching it off is not

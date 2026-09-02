@@ -3,8 +3,7 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-Get[FileNameJoin[{root, "FeynFacet", "Private", "Transport",
-  "ObservableTransportFiniteField.wl"}]];
+Get[FeynFacet`Private`feynFacetPrivateFile["ObservableTransportFiniteField.wl"]];
 
 x = Symbol["Global`coordinateVariableWithArbitraryName"];
 u = Symbol["Global`firstArbitraryCoordinateVariable"];

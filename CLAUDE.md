@@ -9,6 +9,29 @@ assistant's workspace — never write there.
 
 ## START HERE
 
+**Rounds 4-5 (2026-09-02 afternoon; Codex's assessment worked through,
+then the user's substructure ruling):** `FeynFacet/Private/` is seven
+layers, each with sub-folders by responsibility (`Core/{Base,Modular,
+Algebra,Artifacts,Charts}`, `Process/{Cards,Diagrams}`,
+`Reduction/{Kira,AmFlow,Coefficients}`, `EpsForm/{Blocks,Strip,
+FiniteField,Multiquadratic,Family}`, `Transport/{Observable,Assembly}`;
+`Geometry` and `Infrastructure` are single files). The manifest
+`Private/LoadOrder.wl` lists layer-relative paths and
+`FeynFacet`Private`feynFacetPrivateFile["Name.wl"]` resolves a module by
+bare name: never spell a Private path in a test or script. The
+multiquadratic solver is eight files under `EpsForm/Multiquadratic/`.
+Finite-field primitives have ONE implementation,
+`Core/Modular/ModularArithmetic.wl`, and lift-and-verify one composition
+(`modularLift`). Observable transport: Laurent extraction is one `Series`
+per entry with per-row order caps (`"Series"`, CF259 265 s instead of
+564 s, identical object); a transport-ready record's epsilon valuations
+must carry a certificate (`CertifyTransportEpsilonValuations`, produced
+at compact-record construction) or the transport refuses it typed; the
+stored CF259 record predates the certificate and is refused until
+certified (open item, the certifier is still too slow on it). Passages
+below that name a flat `Private/File.wl` path are history.
+
+
 **Round 2 of the overhaul (2026-09-02, user rulings U1-U4, N1-N8 in
 `Design/PrivateOverhaul_2026-09-01.md`):** the Libra path-ordered
 transport engines (`TransportFamily` and its modules), the CANONICA
@@ -55,9 +78,9 @@ by it):**
   standalone jobs (`bench/seatqueue.sh` pattern), never launch a third.
 - The lane split with Codex is dissolved (user, 2026-09-02); the Codex
   tree is reference material.
-- Finite-field primitives (primes, modular square roots, split points,
+- Finite-field primitives (primes, modular square roots, residue tests,
   CRT, rational reconstruction, lift-and-verify) have ONE implementation:
-  `FeynFacet/Private/Core/ModularArithmetic.wl`; do not add another.
+  `FeynFacet/Private/Core/Modular/ModularArithmetic.wl`; do not add another.
 
 
 **Session transfer note: `HANDOFF.md` (repo root) — volatile state,

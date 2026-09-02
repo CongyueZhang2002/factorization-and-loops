@@ -350,7 +350,7 @@ FTAssert["a hidden zero and a hidden cancellation of orders are decided exactly 
         "TTotal" -> {{(Sqrt[1 - x] Sqrt[(1 - x)/5] - (1 - x)/Sqrt[5])/eps^3 +
           eps (Sqrt[6/5] - Sqrt[30]/5) + eps^2 Sqrt[1 - x]}},
         "TTotalInverse" -> {{1/(eps^2 Sqrt[1 - x])}},
-        "TransportEpsilonValuations" -> <|"TMin" -> 2, "BlockLower" -> {-2}|>|>]},
+        "TransportEpsilonValuations" -> <|"TMin" -> 2, "BlockLower" -> {-2}|>|>]]},
     cancelling["Status"] === "TransportEpsilonValuationsCertified" &&
       TrueQ[cancelling["Tight"]]]];
 FTAssert["an undeclared radical whose radicand vanishes at no point certifies too: the exact route needs no declaration (typed failure only for an undecidable coefficient)",

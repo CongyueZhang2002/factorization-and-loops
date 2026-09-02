@@ -121,9 +121,13 @@
                       (FamilyEpsForm.wl, FamilyRegulatorFactor.wl,
                       FamilyCertificateModular.wl, FamilyRowGauge.wl,
                       FamilyRowGaugeResume.wl)
-     Infrastructure, Geometry  one file each, flat
-     Transport        sub-folders follow in phase 3 of round 5
-                      (Design/PrivateOverhaul_2026-09-01.md) *)
+     Transport/Assembly
+                      the chart assembly of a family and the Libra loader of
+                      the retired route (MasterTransport.wl)
+     Transport/Observable
+                      the observable transport and its finite-field compiler
+                      (ObservableTransport.wl, ObservableTransportFiniteField.wl)
+     Infrastructure, Geometry  one file each, flat *)
 {
   "Core" -> {"Base/Core.wl", "Modular/ModularArithmetic.wl", "Algebra/MultiquadraticAlgebra.wl", "Algebra/RationalMaterialization.wl", "Algebra/Radicals.wl", "Artifacts/Artifacts.wl", "Charts/ChartData.wl"},
   "Process" -> {"Cards/Process.wl", "Diagrams/Topologies.wl", "Cards/CanonicalFamilies.wl", "Diagrams/DimensionalShift.wl", "Diagrams/Collinear.wl"},
@@ -131,5 +135,5 @@
   "Infrastructure" -> {"TaskBroker.wl"},
   "EpsForm" -> {"Blocks/CanonicalBlocks.wl", "Strip/EpsFormStrip.wl", "Blocks/BlockEquationDeferred.wl", "FiniteField/FiniteFieldEpsForm.wl", "FiniteField/FiniteFieldStripSolve.wl", "FiniteField/FiniteFieldStripBroker.wl", "Strip/EpsFormStripObstruction.wl", "Family/FamilyRegulatorFactor.wl", "Family/FamilyRowGauge.wl", "Family/FamilyRowGaugeResume.wl", "Family/FamilyCertificateModular.wl", "Multiquadratic/MultiquadraticStripSolve.wl", "Multiquadratic/MultiquadraticStripLetters.wl", "Multiquadratic/MultiquadraticStripScreens.wl", "Multiquadratic/MultiquadraticStripPrepareCompile.wl", "Multiquadratic/MultiquadraticStripSampling.wl", "Multiquadratic/MultiquadraticStripProviders.wl", "Multiquadratic/MultiquadraticStripReconstruction.wl", "Multiquadratic/MultiquadraticStripDriver.wl", "Multiquadratic/MultiquadraticInstallation.wl", "FiniteField/FiniteFieldGaugePullBack.wl", "Blocks/LibraEpsForm.wl", "Family/FamilyEpsForm.wl", "Blocks/DiagonalBlockEpsForm.wl"},
   "Geometry" -> {"TransportCharts.wl"},
-  "Transport" -> {"MasterTransport.wl", "ObservableTransport.wl", "ObservableTransportFiniteField.wl"}
+  "Transport" -> {"Assembly/MasterTransport.wl", "Observable/ObservableTransport.wl", "Observable/ObservableTransportFiniteField.wl"}
 }
