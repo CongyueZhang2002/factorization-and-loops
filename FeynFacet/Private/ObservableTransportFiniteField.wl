@@ -23,6 +23,8 @@ ClearAll[
   observableTransportFFMatrixValue,
   observableTransportFFAlgebraicRoots,
   observableTransportFFAlgebraicMatrixValue,
+  observableTransportFFCompileAlgebraicMatrix,
+  observableTransportFFAlgebraicCompiledMatrixValue,
   observableTransportFFAlgebraicIndependentRowsAtSamples,
   observableTransportFFSelectMatrixTrials,
   observableTransportFFFreshTrialPool,
@@ -240,6 +242,40 @@ observableTransportFFAlgebraicMatrixValue[m_, variables_List,
   If[MatrixQ[values, IntegerQ], values, $Failed]
 ];
 
+(* Replace every declared radical by a formal root once, then compile the
+   resulting rational operation tree once.  All later points and sign sheets
+   are ordinary evaluations of that shared DAG; no repeated symbolic branch
+   substitution or entrywise Together is needed.  Certified frames normally
+   provide the complete root list.  If they do not, retry once with the
+   existing radical census so standalone algebraic matrices retain the old
+   generality. *)
+observableTransportFFCompileAlgebraicMatrix[m_, variables_List,
+    declaredSquares_List] := Module[{compile, roots, result},
+  compile[rootRecords_List] := Module[
+    {rootSymbols, template, compiled},
+    rootSymbols = Table[Unique["observableTransportRoot"],
+      {Length[rootRecords]}];
+    template = Quiet[Check[transportChartApplyRootBranches[
+      Normal[m], rootRecords, rootSymbols], $Failed]];
+    If[template === $Failed, Return[$Failed, Module]];
+    compiled = observableTransportFFCompileMatrix[
+      template, Join[variables, rootSymbols]];
+    If[compiled === $Failed, $Failed,
+      <|"Roots" -> rootRecords, "CompiledMatrix" -> compiled|>]
+  ];
+  roots = observableTransportFFAlgebraicRoots[{}, declaredSquares];
+  result = compile[roots];
+  If[result =!= $Failed, Return[result, Module]];
+  roots = observableTransportFFAlgebraicRoots[m, declaredSquares];
+  compile[roots]
+];
+
+observableTransportFFAlgebraicCompiledMatrixValue[
+    compiled_Association, point_List, rootValues_List, signs_List,
+    prime_Integer] := observableTransportFFMatrixValue[
+  compiled["CompiledMatrix"],
+  Join[point, Mod[signs rootValues, prime]], prime];
+
 (* Rank samples guide the symbolic closure but do not certify it.  Evaluating
    a multiquadratic matrix exactly at a rational point leaves algebraic
    numbers in every entry, making even a small RowReduce pathologically
@@ -248,13 +284,16 @@ observableTransportFFAlgebraicMatrixValue[m_, variables_List,
    remains the acceptance test. *)
 observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
     samples_List, declaredSquares_List] := Module[
-  {dimensions, roots, rootSquares, rootCompiler, rootCount,
+  {dimensions, compiledMatrix, roots, rootSquares, rootCompiler, rootCount,
    maximumAttempts = 128, proposal},
   dimensions = Quiet[Check[Dimensions[m], {}]];
   If[Length[dimensions] =!= 2 ||
       ! MatchQ[variables, {_Symbol ..}],
     Return[ConstantArray[$Failed, Length[samples]]]];
-  roots = observableTransportFFAlgebraicRoots[m, declaredSquares];
+  compiledMatrix = observableTransportFFCompileAlgebraicMatrix[
+    m, variables, declaredSquares];
+  roots = If[AssociationQ[compiledMatrix], compiledMatrix["Roots"],
+    observableTransportFFAlgebraicRoots[m, declaredSquares]];
   rootSquares = Lookup[roots, "RootSquare", {}];
   rootCount = Length[roots];
   If[rootCount === 0,
@@ -283,9 +322,13 @@ observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
           Continue[]];
         rootValues = multiquadraticSquareRoots[deltaValues, prime];
         If[rootValues === $Failed, Continue[]];
-        image = observableTransportFFAlgebraicMatrixValue[
-          m, variables, point, roots, rootValues,
-          ConstantArray[1, rootCount], prime];
+        image = If[AssociationQ[compiledMatrix],
+          observableTransportFFAlgebraicCompiledMatrixValue[
+            compiledMatrix, point, rootValues,
+            ConstantArray[1, rootCount], prime],
+          observableTransportFFAlgebraicMatrixValue[
+            m, variables, point, roots, rootValues,
+            ConstantArray[1, rootCount], prime]];
         If[image === $Failed, Continue[]];
         reduced = Quiet[Check[
           RowReduce[Transpose[image], Modulus -> prime], $Failed]];
@@ -417,7 +460,8 @@ observableTransportModularSubspaceInclusion[space_, candidates_,
 observableTransportModularAlgebraicSubspaceInclusion[space_, candidates_,
     variables_List, declaredSquares_List, OptionsPattern[]] := Module[
   {spaceDimensions, candidateDimensions, primeCount, pointsPerPrime, seed,
-   roots, rootSquares, rootCompiler, rootCount, branchCount, primes,
+   compiledJoined, joinedImage, roots, rootSquares, rootCompiler, rootCount,
+   branchCount, primes,
    constantRootSquares, constantRootCompiler, constantRootValues,
    primeAttemptLimit,
    accepted = {}, rejected = {}, attemptsPerPrime, acceptedForPrime,
@@ -441,8 +485,11 @@ observableTransportModularAlgebraicSubspaceInclusion[space_, candidates_,
       ! IntegerQ[seed],
     Return[observableTransportFFFailure[
       "ModularAlgebraicSubspaceOptionsInvalid"]]];
-  roots = observableTransportFFAlgebraicRoots[
-    {space, candidates}, declaredSquares];
+  compiledJoined = observableTransportFFCompileAlgebraicMatrix[
+    Join[Normal[space], Normal[candidates]], variables, declaredSquares];
+  roots = If[AssociationQ[compiledJoined], compiledJoined["Roots"],
+    observableTransportFFAlgebraicRoots[
+      {space, candidates}, declaredSquares]];
   rootSquares = Lookup[roots, "RootSquare", {}];
   rootCount = Length[roots];
   If[rootCount === 0,
@@ -510,16 +557,24 @@ observableTransportModularAlgebraicSubspaceInclusion[space_, candidates_,
       Do[
         signs = Table[If[BitGet[mask, index - 1] === 1, -1, 1],
           {index, rootCount}];
-        spaceImage = observableTransportFFAlgebraicMatrixValue[
-          space, variables, point, roots, rootValues, signs, prime];
-        candidateImage = observableTransportFFAlgebraicMatrixValue[
-          candidates, variables, point, roots, rootValues, signs, prime];
-        If[spaceImage === $Failed || candidateImage === $Failed,
+        If[AssociationQ[compiledJoined],
+          joinedImage = observableTransportFFAlgebraicCompiledMatrixValue[
+            compiledJoined, point, rootValues, signs, prime];
+          spaceImage = If[joinedImage === $Failed, $Failed,
+            Take[joinedImage, First[spaceDimensions]]],
+          spaceImage = observableTransportFFAlgebraicMatrixValue[
+            space, variables, point, roots, rootValues, signs, prime];
+          candidateImage = observableTransportFFAlgebraicMatrixValue[
+            candidates, variables, point, roots, rootValues, signs, prime];
+          joinedImage = If[spaceImage === $Failed ||
+              candidateImage === $Failed, $Failed,
+            Join[spaceImage, candidateImage]]];
+        If[spaceImage === $Failed || joinedImage === $Failed,
           branchFailed = True; Break[]];
         spaceRank = Quiet[Check[MatrixRank[spaceImage,
           Modulus -> prime], $Failed]];
         joinedRank = Quiet[Check[MatrixRank[
-          Join[spaceImage, candidateImage], Modulus -> prime], $Failed]];
+          joinedImage, Modulus -> prime], $Failed]];
         If[spaceRank === $Failed || joinedRank === $Failed,
           branchFailed = True; Break[]];
         If[joinedRank =!= spaceRank,

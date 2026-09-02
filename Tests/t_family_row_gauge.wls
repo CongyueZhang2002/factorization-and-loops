@@ -178,9 +178,13 @@ incompleteInstalledDeferred = FeynFacet`Private`familyRowGaugeApply[
 badFutureMode = FeynFacet`Private`familyRowGaugeApply[
   connection, IdentityMatrix[n], IdentityMatrix[n], rows, gauge,
   {x, y}, installedRow, "Unknown"];
-FTTest`FTAssert["future A modes fail closed before mutation",
-  missingInstalledDeferred["Status"] ===
-      "DeferredFutureARequiresCompleteInstalledRow" &&
+FTTest`FTAssert["deferred mode works without the optional installed-row cache",
+  missingInstalledDeferred["Status"] === "OK" &&
+    sameMatrixQ[missingInstalledDeferred["Connection"], expectedConnection] &&
+    sameMatrixQ[missingInstalledDeferred["Transformation"], t] &&
+    sameMatrixQ[missingInstalledDeferred["Inverse"], tInverse] &&
+    missingInstalledDeferred["Statistics", "A",
+      "DeferredCurrentEntries"] > 0 &&
     incompleteInstalledDeferred["Status"] ===
       "DeferredFutureARequiresCompleteInstalledRow" &&
     badFutureMode["Status"] === "InvalidFutureAMode"];

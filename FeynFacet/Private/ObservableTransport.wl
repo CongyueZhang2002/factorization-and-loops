@@ -1591,7 +1591,9 @@ BuildObservableTransport[record_Association, demand_Association,
     secondClosureInitialSpanMethod = "NotRequired";
     secondClosureStabilizationCertificate = Missing["NotRequired"];
     secondClosureStabilizationMethod = "NotRequired";
-    boundaryKernel = observableTransportKernel[constraintMatrix];
+    boundaryKernel = If[constraintRank === 0,
+      IdentityMatrix[Length[boundarySlots]],
+      observableTransportKernel[constraintMatrix]];
     If[Length[boundarySlots] > 0 &&
         (! MatrixQ[boundaryKernel] ||
          Dimensions[boundaryKernel][[1]] =!= Length[boundarySlots] ||
@@ -1650,7 +1652,9 @@ BuildObservableTransport[record_Association, demand_Association,
       secondClosureRecord["StabilizationMethod"];
     baseConstraintMatrix = observableTransportCancelMatrix[
       Normal[extendedConstraintMatrix] /. secondVariable -> secondBase];
-    baseBoundaryKernel = observableTransportKernel[baseConstraintMatrix];
+    baseBoundaryKernel = If[Length[extendedConstraintMatrix] === 0,
+      IdentityMatrix[Length[extendedSlots]],
+      observableTransportKernel[baseConstraintMatrix]];
     If[! MatrixQ[baseBoundaryKernel] ||
         Dimensions[baseBoundaryKernel][[1]] =!= Length[extendedSlots] ||
         ! observableTransportZeroMatrixQ[

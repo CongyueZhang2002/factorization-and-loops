@@ -546,6 +546,17 @@ If[Lookup[staleStopMigration, "Status", None] === "Migrated",
     staleStopMigration["Migration"]["Rows"],
     " is resolved by the factorization already recorded there"]];
 
+stripResiduesEpsFree[solution_Association] := Which[
+  BooleanQ[Lookup[solution, "ResiduesEpsFree", Missing[]]],
+    solution["ResiduesEpsFree"],
+  AssociationQ[Lookup[solution, "InnerSolution", None]] &&
+      BooleanQ[Lookup[solution["InnerSolution"], "ResiduesEpsFree",
+        Missing[]]],
+    solution["InnerSolution", "ResiduesEpsFree"],
+  Lookup[solution, "Method", None] === "ZeroForcing", True,
+  True, Missing["ResidueEpsilonDependenceNotReported"]
+];
+
 stripSolverSummary[solution_Association, sector_Integer,
     lowerSector_Integer, extraLetters_List : {},
     solverConfiguration_Association : <||>] := Join[
@@ -564,7 +575,8 @@ stripSolverSummary[solution_Association, sector_Integer,
     "LetterDenominatorPower", "NumeratorDegreeOffset",
     "ExactDLog", "ODEEquationZero", "TransformedDLogZero",
     "Alphabet", "RootIndices", "FrameCertificate"}],
-  <|"ExtraLetters" -> extraLetters,
+  <|"ResiduesEpsFree" -> stripResiduesEpsFree[solution],
+    "ExtraLetters" -> extraLetters,
     "SolverConfiguration" -> solverConfiguration|>];
 stripSolverConfiguration[route_String] :=
   FeynFacet`Private`familyRowGaugeSolverConfiguration[
@@ -607,14 +619,55 @@ staleRegulatorStop[m_] := Module[{stop = Lookup[state, "Stop", Missing["NoStop"]
     stop, Missing["NoMatchingStop"]]];
 factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
   tInv, rowCertificate, futureAMode, propagation, staleStop, resolution,
-  checkpointFile},
-  aT = {state["A"][[1, 1 ;; nm, 1 ;; nm]], state["A"][[2, 1 ;; nm, 1 ;; nm]]};
-  If[epsFormQ[aT[[1]]] && epsFormQ[aT[[2]]], Return[False]];   (* nothing applied *)
-  log["  rows 1..", m, " carry regulator-dependent residues; FactorFamilyRegulatorDependence",
+  checkpointFile, rowSolvers, residueFlags, dependentCount, newS,
+  newSInverse},
+  (* A recorded prefix factorization is written only after its transformed
+     connection has been propagated into state.  Later sector-row gauges do
+     not alter that prefix, so re-running entrywise Together over it on every
+     resume is redundant and can cost tens of minutes. *)
+  If[AnyTrue[Lookup[state, "RegulatorFactorizations", {}],
+      AssociationQ[#] && Lookup[#, "Rows", None] === m &],
+    Return[False]];
+  If[productionQ,
+    rowSolvers = Select[Lookup[state, "StripSolvers", {}],
+      Lookup[#, "Sector", None] === m &];
+    residueFlags = Lookup[rowSolvers, "ResiduesEpsFree",
+      Missing["ResidueEpsilonDependenceNotReported"]];
+    If[AnyTrue[residueFlags, MissingQ],
+      log["  !! residue epsilon-dependence metadata is missing for rows ",
+        m, "; refusing the redundant whole-connection fallback"];
+      state["Stop"] = <|"Status" -> "MissingResidueEpsilonMetadata",
+        "Rows" -> m,
+        "LowerSectors" -> Lookup[
+          Pick[rowSolvers, MissingQ /@ residueFlags], "LowerSector", {}],
+        "Resumable" -> True|>;
+      putAtomic[state, stateFile]; Exit[2]];
+    dependentCount = Count[residueFlags, False];
+    If[dependentCount === 0,
+      log["  rows 1..", m,
+        " need no regulator factorization (all row residues eps-free)"];
+      Return[False]],
+    dependentCount = Missing["DiagnosticExactPrecheck"]];
+  aT = {state["A"][[1, 1 ;; nm, 1 ;; nm]],
+    state["A"][[2, 1 ;; nm, 1 ;; nm]]};
+  If[! productionQ && epsFormQ[aT[[1]]] && epsFormQ[aT[[2]]],
+    Return[False]];
+  log["  rows 1..", m,
+    If[IntegerQ[dependentCount], " have " <> ToString[dependentCount] <>
+      " strip(s) with", " carry"],
+    " regulator-dependent residues; FactorFamilyRegulatorDependence",
     If[algebraicFrameQ, "InFrame", ""], " on the ", nm, "x", nm, " truncation"];
   factor = If[algebraicFrameQ,
-    FeynFacet`FactorFamilyRegulatorDependenceInFrame[aT, {xx, yy}, ee, chart, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "Verbose" -> False],
-    FeynFacet`FactorFamilyRegulatorDependence[aT, {xx, yy}, ee, "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline, "Verbose" -> False]];
+    FeynFacet`FactorFamilyRegulatorDependenceInFrame[aT, {xx, yy}, ee, chart,
+      "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline,
+      "InputResiduesEpsFree" -> False,
+      "ValidationMode" -> If[productionQ,
+        "DeferredToFamilyCertificate", "Exact"], "Verbose" -> True],
+    FeynFacet`FactorFamilyRegulatorDependence[aT, {xx, yy}, ee,
+      "TimeLimit" -> Min[sectorBudget, 600], "Deadline" -> sectorDeadline,
+      "InputResiduesEpsFree" -> False,
+      "ValidationMode" -> If[productionQ,
+        "DeferredToFamilyCertificate", "Exact"], "Verbose" -> True]];
   If[AssociationQ[factor] &&
       factor["Status"] === "RegulatorFactorizationDeadlineExpired",
     (* a budget stop, not a mathematical verdict: resumable, and the
@@ -658,7 +711,7 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
   propagation = FeynFacet`Private`familyRegulatorPropagateTruncation[
     state["A"], factor["Connection"], factor["Inverse"],
     factor["Transformation"], nm, {xx, yy},
-    Lookup[factor, "PropagationSeal", <||>], futureAMode];
+    Lookup[factor, "PropagationSeal", <||>], futureAMode, ! productionQ];
   If[! AssociationQ[propagation] ||
       Lookup[propagation, "Status", None] =!= "OK",
     log["  !! regulator propagation of rows 1..", m,
@@ -685,12 +738,20 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
     <|"ClearedStatus" -> staleStop["Status"], "Rows" -> m,
       "ResolvedBy" -> factor["Method"],
       "ResolvedAt" -> DateString[{"ISODateTime"}]|>];
+  newS = If[productionQ,
+    FeynFacet`Private`familyRegulatorSparseDotDeferred[
+      state["S"], tFull, False],
+    FeynFacet`Private`familyRegulatorSparseDot[
+      state["S"], tFull, False]];
+  newSInverse = If[productionQ,
+    FeynFacet`Private`familyRegulatorSparseDotDeferred[
+      tInv, state["SInverse"], True],
+    FeynFacet`Private`familyRegulatorSparseDot[
+      tInv, state["SInverse"], True]];
   state = Join[state, <|
     "A" -> propagation["Connection"],
-    "S" -> FeynFacet`Private`familyRegulatorSparseDot[
-      state["S"], tFull, False],
-    "SInverse" -> FeynFacet`Private`familyRegulatorSparseDot[
-      tInv, state["SInverse"], True],
+    "S" -> newS,
+    "SInverse" -> newSInverse,
     "RegulatorFactorizations" -> Append[Lookup[state, "RegulatorFactorizations", {}],
       <|"Rows" -> m, "Method" -> factor["Method"], "Points" -> factor["Points"], "Seconds" -> factor["Seconds"],
         "Chart" -> Lookup[factor, "Chart", None],
@@ -721,7 +782,10 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
         ToString[Lookup[Lookup[factor, "ModularCorroboration", <||>], "Status", "?"]],
       ""],
     "; future A mode ", futureAMode,
-    " -> eps-factored ", epsFormQ[state["A"][[1, 1 ;; nm, 1 ;; nm]]] && epsFormQ[state["A"][[2, 1 ;; nm, 1 ;; nm]]]];
+    If[productionQ, "; final acceptance is the family certificate",
+      " -> eps-factored " <> ToString[
+        epsFormQ[state["A"][[1, 1 ;; nm, 1 ;; nm]]] &&
+          epsFormQ[state["A"][[2, 1 ;; nm, 1 ;; nm]]]]]];
   True];
 
 (* synchronous memory trace (stdout is block-buffered when redirected):
@@ -805,8 +869,7 @@ applyRowGauge[k_, solved_Association, installedRow_: Automatic] := Module[
   cols = Range[1, start - 1];
   Dk = ConstantArray[0, {Length[rk], start - 1}];
   Do[Dk[[All, blockRows[m] ]] = solved[m], {m, Keys[solved]}];
-  futureAMode = If[productionQ && installedRow =!= Automatic,
-    "Deferred", "Together"];
+  futureAMode = If[productionQ, "Deferred", "Together"];
   result = FeynFacet`Private`familyRowGaugeApply[
     state["A"], state["S"], state["SInverse"], rk, Dk, {xx, yy},
     installedRow, futureAMode];
@@ -852,8 +915,12 @@ Do[
      0830 P1) *)
   If[blockwiseRouteQ && k > 1, factorTruncated[k - 1]];
   memtrace["sector " <> ToString[k] <> " after factorTruncated check"];
-  aTrunc = toC[{state["A"][[1, 1 ;; nk, 1 ;; nk]],
-    state["A"][[2, 1 ;; nk, 1 ;; nk]]}];
+  (* The blockwise route constructs equations and applies row gauges in the
+     source frame; a CANONICA-context copy of the full truncation is never
+     referenced on that branch. *)
+  aTrunc = If[blockwiseRouteQ, None,
+    toC[{state["A"][[1, 1 ;; nk, 1 ;; nk]],
+      state["A"][[2, 1 ;; nk, 1 ;; nk]]}]];
   memtrace["sector " <> ToString[k] <> " after toC"];
   Which[
    blockwiseRouteQ,
@@ -1620,47 +1687,21 @@ Do[
       " done; non-eps-factored strips remaining (all sectors): ", remaining]]],
  {k, Max[2, state["Sector"] + 1], nSectors}];
 
-(* ---- family-level regulator factorization (FiniteFieldFirst route) ---- *)
-If[blockwiseRouteQ &&
-    ! (epsFormQ[state["A"][[1]]] && epsFormQ[state["A"][[2]]]),
-  Module[{factor, tFull, tInv, familyDeadline = AbsoluteTime[] + sectorBudget},
-    log["family connection has regulator-dependent residues; FactorFamilyRegulatorDependence", If[algebraicFrameQ, "InFrame", ""]];
-    (* the same absolute budget the in-sector stage gets: "TimeLimit"
-       bounds one subcall, "Deadline" bounds the stage (Codex 0830 P2) *)
-    log["  family regulator budget ", sectorBudget, " s (deadline ",
-      DateString[familyDeadline, {"Hour", ":", "Minute", ":", "Second"}], ")"];
-    factor = If[algebraicFrameQ,
-      FeynFacet`FactorFamilyRegulatorDependenceInFrame[state["A"], {xx, yy}, ee, chart,
-        "TimeLimit" -> sectorBudget, "Deadline" -> familyDeadline, "Verbose" -> True],
-      FeynFacet`FactorFamilyRegulatorDependence[state["A"], {xx, yy}, ee,
-        "TimeLimit" -> sectorBudget, "Deadline" -> familyDeadline, "Verbose" -> True]];
-    If[AssociationQ[factor] && factor["Status"] === "OK",
-      tFull = factor["Transformation"]; tInv = factor["Inverse"];
-      state = Join[state, <|"A" -> factor["Connection"],
-        "S" -> FeynFacet`Private`familyRegulatorSparseDot[state["S"], tFull, False],
-        "SInverse" -> FeynFacet`Private`familyRegulatorSparseDot[tInv, state["SInverse"], True],
-        "RegulatorFactorization" -> KeyDrop[factor, {"Connection", "Transformation", "Inverse"}]|>];
-      putAtomic[state, stateFile];
-      log["family regulator factorization: ", factor["Method"], ", ", factor["Points"], " points, ",
-        Round[factor["Seconds"], 0.1], " s -> eps-factored ", epsFormQ[state["A"][[1]]] && epsFormQ[state["A"][[2]]]],
-      log["!! family regulator factorization failed: ", If[AssociationQ[factor], factor["Status"], factor],
-        "; the dlog form with regulator-dependent residues is kept"]]]];
-
 (* ---- family-level exact checks (in chart variables) ---- *)
 S = state["S"] /. fromXY;
 Sinv = state["SInverse"] /. fromXY;
 Ap = {state["A"][[1]] /. fromXY, state["A"][[2]] /. fromXY};
 Aorig = {assembly["Apv"], assembly["Apw"]};
-allEps = epsFormQ[Ap[[1]]] && epsFormQ[Ap[[2]]];
+allEps = If[productionQ, Missing["DeferredToFamilyCertificate"],
+  epsFormQ[Ap[[1]]] && epsFormQ[Ap[[2]]]];
 sectorCertificatesExact =
   Length[state["SectorCertificates"]] === Max[0, nSectors - 1] &&
   AllTrue[state["SectorCertificates"],
     TrueQ[Lookup[#, "TransformationInverse", False]] &&
       TrueQ[Lookup[#, "GaugeIdentity", False]] &];
 If[productionQ,
-  (* Production: no exact identities here; CertifyFamilyEpsilonForm is the
-     single exact test (driver runs it next).  Only the cheap structural
-     statement is made. *)
+  (* Production: no symbolic identities here; the separate whole-family
+     modular certificate is the acceptance boundary. *)
   finalInverse = Missing["DeferredToFamilyCertificate"];
   gauge = Missing["DeferredToFamilyCertificate"];
   flatness = Missing["DeferredToFamilyCertificate"];
@@ -1687,29 +1728,58 @@ If[productionQ,
 ]];
 log["FAMILY: A'/eps eps-free ", allEps, "; gauge identity ", gauge,
   "; flatness ", flatness, "; individual strip solvers ",
-  state["StripSolvers"]];
-verdict = If[productionQ, If[allEps, "DeferredToFamilyCertificate", False],
+  If[productionQ,
+    ToString[Length[state["StripSolvers"]]] <> " accepted records",
+    state["StripSolvers"]]];
+verdict = If[productionQ, "DeferredToFamilyCertificate",
   allEps && gauge && flatness && finalInverse];
+letterEntries = If[productionQ,
+  DeleteCases[Flatten[Table[
+    Ap[[mu, ranges[[sector]], ranges[[sector]]]],
+    {mu, 2}, {sector, nSectors}]], 0],
+  DeleteCases[Flatten[Ap], 0]];
 denominatorLetters = DeleteDuplicates[monic /@ Select[
   DeleteDuplicates[Flatten[
     First /@ FactorList[Denominator[Together[#]]] & /@
-      DeleteCases[Flatten[Ap], 0]]] /. fromXY,
+      letterEntries]] /. fromXY,
   PolynomialQ[#, {c1, c2}] && ! FreeQ[#, c1 | c2] &]];
 stripLetters = DeleteDuplicates[Flatten[
   Lookup[state["StripSolvers"], "Alphabet", {}]]];
-letters = DeleteDuplicates[Join[denominatorLetters, stripLetters]];
+diagonalLetters = Lookup[state, "DiagonalAlphabets", {}];
+letters = DeleteDuplicates[Join[
+  denominatorLetters, diagonalLetters, stripLetters]];
 tdiagChart = Lookup[state, "TDiagonal", Missing[]];
 tdiagChartInverse = Lookup[state, "TDiagonalInverse", Missing[]];
 If[MatrixQ[tdiagChart] && MatrixQ[tdiagChartInverse],
   tdiagChart = tdiagChart /. fromXY;
   tdiagChartInverse = tdiagChartInverse /. fromXY;
-  ttotalAbsolute = Map[Together, tdiagChart . S, {2}];
-  ttotalAbsoluteInverse = Map[Together, Sinv . tdiagChartInverse, {2}];
+  ttotalAbsolute = If[productionQ, tdiagChart . S,
+    Map[Together, tdiagChart . S, {2}]];
+  ttotalAbsoluteInverse = If[productionQ, Sinv . tdiagChartInverse,
+    Map[Together, Sinv . tdiagChartInverse, {2}]];
   ttotalBasis = "SourceChartConnection",
   log["!! diagonal-block composition unavailable (old checkpoint); " <>
     "the record's TTotal is relative to the assembled connection"];
   ttotalAbsolute = S; ttotalAbsoluteInverse = Sinv;
   ttotalBasis = "AssembledConnection"];
+Clear[finalRegulatorFactorizationRecord];
+finalRegulatorFactorizationRecord[entry_Association] := Module[
+  {mapped = entry /. fromXY, evidence, roots, refreshed},
+  evidence = Lookup[mapped, "GradedRootFrame", Missing["NotGraded"]];
+  If[! AssociationQ[evidence], Return[mapped]];
+  roots = KeyTake[#, {"Root", "RootSquare"}] & /@
+    Lookup[evidence, "Roots", {}];
+  refreshed = FeynFacet`Private`familyRegulatorGradedFrameEvidence[
+    roots, {c1, c2}, ee];
+  Join[mapped, <|"GradedRootFrame" -> refreshed|>]
+];
+finalRegulatorFactorizationRecord[value_] := value;
+finalRegulatorFactorizations = finalRegulatorFactorizationRecord /@
+  Lookup[state, "RegulatorFactorizations", {}];
+finalRegulatorFactorization = Replace[
+  Lookup[state, "RegulatorFactorization", Missing["Absent"]],
+  association_Association :>
+    finalRegulatorFactorizationRecord[association]];
 out = <|"Family" -> family,
   "Method" -> "SectorCANONICA+ExactStripSolver",
   "Chart" -> chart["Name"], "ChartRecord" -> chart,
@@ -1726,14 +1796,16 @@ out = <|"Family" -> family,
   "Triangular" -> True, "TTotalInvertible" -> finalInverse,
   "SectorCertificates" -> state["SectorCertificates"],
   "StripSolvers" -> state["StripSolvers"],
+  "RegulatorFactorizations" -> finalRegulatorFactorizations,
+  "RegulatorFactorization" -> finalRegulatorFactorization,
   "RowGaugePropagationPolicy" -> If[productionQ,
-    "DeferredFutureAWithCompleteInstalledRowElseTogether", "Together"],
+    "DeferredExactBlockProducts", "Together"],
   "Status" -> Which[verdict === True, "ExactEpsilonForm",
     verdict === "DeferredToFamilyCertificate", "CandidateEpsilonForm",
     True, "Incomplete"],
   "CheckLevel" -> checkLevel,
   "WallSeconds" -> AbsoluteTime[] - start,
-  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip. In Production, a complete materialized current row is installed, future A row-gauge corrections and sealed constant-regulator right-products retain exact deferred sums, and unavailable installed rows fall back to Together; CertifyFamilyEpsilonForm is the sole exact acceptance test. Development retains Together propagation and its exact intermediate checks."|>;
+  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip. In Production, a complete materialized current row is installed when available; otherwise the exact current-row block formula is retained without symbolic normalization. Future A and transformation row-gauge corrections likewise retain exact block sums. CertifyFamilyEpsilonForm is the sole whole-family acceptance test. Development retains Together propagation and its exact intermediate checks."|>;
 putAtomic[out, FileNameJoin[{outdir, "family_epsform_" <> family <> ".wl"}]];
 log["written family_epsform_", family, ".wl; GateVerdict ", verdict, "; wall ", Round[AbsoluteTime[] - start], " s"];
 If[ownedKernels =!= {}, Quiet[CloseKernels[ownedKernels]]];

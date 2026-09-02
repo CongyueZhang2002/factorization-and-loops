@@ -100,6 +100,42 @@ FTAssert["fresh modular points reject a false row-space inclusion",
     "FreshModularSubspaceInclusionRejected"];
 
 tripleRootSquares = {1 + u, 1 + v, 1 + u + v};
+tripleTemplateMatrix = {
+  {Sqrt[1 + u]/(2 + v), Sqrt[1 + v] Sqrt[1 + u + v]},
+  {(1 + u)/(Sqrt[1 + v] (3 + u + v)),
+    1 + Sqrt[1 + u + v]}};
+tripleCompiled =
+  FeynFacet`Private`observableTransportFFCompileAlgebraicMatrix[
+    tripleTemplateMatrix, {u, v}, tripleRootSquares];
+tripleDiscovered =
+  FeynFacet`Private`observableTransportFFCompileAlgebraicMatrix[
+    tripleTemplateMatrix, {u, v}, Take[tripleRootSquares, 2]];
+triplePrime = 1000003;
+triplePoint = {3, 5};
+tripleRootValues = FeynFacet`Private`multiquadraticSquareRoots[
+  Mod[tripleRootSquares /. Thread[{u, v} -> triplePoint], triplePrime],
+  triplePrime];
+tripleCompiledSheets = Table[With[
+    {sheetSigns = Table[
+      If[BitGet[mask, index - 1] === 1, -1, 1], {index, 3}]},
+    FeynFacet`Private`observableTransportFFAlgebraicCompiledMatrixValue[
+      tripleCompiled, triplePoint, tripleRootValues, sheetSigns,
+      triplePrime]],
+  {mask, 0, 7}];
+tripleReferenceSheets = Table[With[
+    {sheetSigns = Table[
+      If[BitGet[mask, index - 1] === 1, -1, 1], {index, 3}]},
+    FeynFacet`Private`observableTransportFFAlgebraicMatrixValue[
+      tripleTemplateMatrix, {u, v}, triplePoint, tripleCompiled["Roots"],
+      tripleRootValues, sheetSigns, triplePrime]],
+  {mask, 0, 7}];
+FTAssert["compiled formal-root templates reproduce every sign sheet",
+  AssociationQ[tripleCompiled] && Length[tripleCompiled["Roots"]] === 3 &&
+    tripleCompiledSheets === tripleReferenceSheets];
+FTAssert["template compilation retains the undeclared-root census fallback",
+  AssociationQ[tripleDiscovered] &&
+    Length[tripleDiscovered["Roots"]] === 3];
+
 tripleIncluded =
   FeynFacet`Private`observableTransportModularAlgebraicSubspaceInclusion[
     {{Sqrt[1 + u], Sqrt[1 + v]}},

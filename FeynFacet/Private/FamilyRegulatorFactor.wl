@@ -8,14 +8,16 @@
    independent) transformation T(eps) with T^{-1} K_a T free of eps is
    found once for the whole family with Libra`FactorDependence on exact
    rational samples of A_mu/eps: the identity A(eps, x) T(eps) = T(eps)
-   A(mu, x) at generic chart points is linear in T and the unsampled
-   symbolic identity is the acceptance test (the method of
+   A(mu, x) at generic chart points is linear in T.  Development audits
+   the unsampled symbolic identity here; Production defers acceptance to
+   the final family certificate (the method of
    Scripts/libra_checkpoint_factor_dependence.wls, "ExactRationalSamples").
    Since T is constant in the variables, dT = 0 and A' = T^{-1} A T. *)
 
 Clear[FactorFamilyRegulatorDependence];
 ClearAll[familyRegulatorFactoredQ, familyRegulatorSpecialize,
   familyRegulatorConjugate, familyRegulatorSparseDot,
+  familyRegulatorConjugateDeferred, familyRegulatorSparseDotDeferred,
   familyRegulatorPropagationSeal,
   familyRegulatorPropagateTruncation, familyRegulatorPointFactoredQ,
   familyRegulatorDeadlineActiveQ, familyRegulatorRemainingSeconds,
@@ -65,6 +67,29 @@ familyRegulatorSparseDot[left_List, right_List, leftConstantQ_] := Module[{n = L
 familyRegulatorConjugate[inverse_List, matrix_List, transformation_List] :=
   familyRegulatorSparseDot[familyRegulatorSparseDot[inverse, matrix, True], transformation, False];
 
+(* Production retains the same exact sparse products as raw sums.  Their
+   normalization is deferred to the final modular family certificate. *)
+familyRegulatorSparseDotDeferred[left_List, right_List,
+    leftConstantQ_] := Module[{n = Length[left], m = Length[First[right]],
+    pattern, combine},
+  combine[terms_List] := Which[
+    terms === {}, 0,
+    Length[terms] === 1, First[terms],
+    True, Total[terms]];
+  If[leftConstantQ,
+    pattern = Table[Flatten[Position[left[[i]], Except[0], {1},
+      Heads -> False]], {i, n}];
+    Table[combine[(left[[i, #]] right[[#, j]] &) /@ pattern[[i]]],
+      {i, n}, {j, m}],
+    pattern = Table[Flatten[Position[right[[All, j]], Except[0], {1},
+      Heads -> False]], {j, m}];
+    Table[combine[(left[[i, #]] right[[#, j]] &) /@ pattern[[j]]],
+      {i, n}, {j, m}]]];
+familyRegulatorConjugateDeferred[inverse_List, matrix_List,
+    transformation_List] := familyRegulatorSparseDotDeferred[
+  familyRegulatorSparseDotDeferred[inverse, matrix, True],
+  transformation, False];
+
 (* The seal is created inside the accepted factor routine, where the input
    prefix is authoritative.  The propagation helper recomputes it before
    installing any caller-supplied transformed prefix. *)
@@ -89,14 +114,16 @@ familyRegulatorPropagationSeal[___] := $Failed;
 (* Propagate a constant regulator factor found and certified on the leading
    prefix.  For G = diag(T,I) and a block-lower-triangular connection,
      G^-1 A G = {{T^-1 A00 T, 0}, {A10 T, A11}}.
-   Deferred changes representation only: the sealed transformed prefix is
+   Deferred changes representation only: the transformed prefix is
    installed, while future/lower entries retain exact sparse right-product
-   sums.  Together preserves the historical full-conjugation path. *)
+   sums.  Together preserves the historical full-conjugation path.  The
+   inverse and seal replays are audit-mode checks; Production leaves them to
+   the final family certificate. *)
 familyRegulatorPropagateTruncation[
     connection : {_List, _List}, transformedPrefix : {_List, _List},
     inverse_List, transformation_List, prefix_Integer?Positive,
-    variables : {_Symbol, _Symbol}, seal_Association,
-    futureMode_: "Together"] := Module[
+    variables : {_Symbol, _Symbol}, seal_,
+    futureMode_: "Together", validateInverse_: True] := Module[
   {n, futureRows, upperRightZeroQ, newConnection = connection,
    transformationColumnSupport, left, leftRowSupport, support, terms,
    value, products = 0, touched = 0, deferred = 0, singleTerm = 0,
@@ -115,18 +142,21 @@ familyRegulatorPropagateTruncation[
   If[! FreeQ[{inverse, transformation}, Alternatives @@ variables],
     Return[<|"Status" ->
       "RegulatorTransformationNotConstant"|>]];
-  inverseExactQ = And @@ (AllTrue[
+  inverseExactQ = If[TrueQ[validateInverse], And @@ (AllTrue[
       Flatten[Map[Together, #, {2}]], SameQ[#, 0] &] & /@ {
         inverse . transformation - IdentityMatrix[prefix],
-        transformation . inverse - IdentityMatrix[prefix]});
-  If[! inverseExactQ,
+        transformation . inverse - IdentityMatrix[prefix]}),
+    Missing["DeferredToFamilyCertificate"]];
+  If[TrueQ[validateInverse] && ! inverseExactQ,
     Return[<|"Status" ->
       "RegulatorTransformationInverseInvalid"|>]];
-  expectedSeal = familyRegulatorPropagationSeal[
-    connection[[All, Range[prefix], Range[prefix]]],
-    transformedPrefix, inverse, transformation];
-  If[expectedSeal === $Failed || ! SameQ[seal, expectedSeal],
-    Return[<|"Status" -> "RegulatorPropagationSealMismatch"|>]];
+  If[TrueQ[validateInverse],
+    expectedSeal = familyRegulatorPropagationSeal[
+      connection[[All, Range[prefix], Range[prefix]]],
+      transformedPrefix, inverse, transformation];
+    If[expectedSeal === $Failed || ! SameQ[seal, expectedSeal],
+      Return[<|"Status" -> "RegulatorPropagationSealMismatch"|>]],
+    expectedSeal = Missing["DeferredToFamilyCertificate"]];
   If[! MemberQ[{"Together", "Deferred"}, futureMode],
     Return[<|"Status" -> "InvalidFutureAMode",
       "Actual" -> futureMode|>]];
@@ -191,6 +221,8 @@ FactorFamilyRegulatorDependence::input =
 Options[FactorFamilyRegulatorDependence] = {
   "TimeLimit" -> 900,
   "Deadline" -> Infinity,
+  "InputResiduesEpsFree" -> Automatic,
+  "ValidationMode" -> "Exact",
   "UseFermat" -> Automatic,
   "PointLadder" -> {2, 4, 8, 16},
   "GatePoints" -> 2,
@@ -233,7 +265,8 @@ FactorFamilyRegulatorDependence[{ax_List, ay_List}, {x_Symbol, y_Symbol}, epsilo
     OptionsPattern[]] := Module[
   {n, start = AbsoluteTime[], verbose, log, backend, reference, rules, valid,
    transformation = $Failed, inverse, raw, attempts = {}, newAx, newAy,
-   pointsUsed = 0, fermatRequested, deadline, expired = False, ladderLimit},
+   pointsUsed = 0, fermatRequested, deadline, expired = False, ladderLimit,
+   validationMode, deferAcceptanceQ},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependence::input]; Return[$Failed]];
@@ -241,9 +274,13 @@ FactorFamilyRegulatorDependence[{ax_List, ay_List}, {x_Symbol, y_Symbol}, epsilo
   verbose = TrueQ[OptionValue["Verbose"]];
   log[args___] := If[verbose, Print["[regulator-factor] ", args]];
   deadline = OptionValue["Deadline"];
+  validationMode = OptionValue["ValidationMode"];
+  deferAcceptanceQ = validationMode === "DeferredToFamilyCertificate";
   If[familyRegulatorDeadlineExpiredQ[deadline],
     Return[familyRegulatorDeadlineStop["Entry", deadline, start]]];
-  If[familyRegulatorFactoredQ[ax, epsilon] && familyRegulatorFactoredQ[ay, epsilon],
+  If[OptionValue["InputResiduesEpsFree"] =!= False &&
+      familyRegulatorFactoredQ[ax, epsilon] &&
+      familyRegulatorFactoredQ[ay, epsilon],
     log["the connection is already eps-factored"];
     Return[<|"Status" -> "AlreadyEpsFactored", "Transformation" -> IdentityMatrix[n],
       "Inverse" -> IdentityMatrix[n], "Connection" -> {ax, ay}, "Seconds" -> 0.|>]];
@@ -291,12 +328,24 @@ using the Wolfram backend"];
         gate = familyRegulatorPointFactoredQ[inverse, {ax, ay}, candidate,
           Take[Reverse[valid], UpTo[OptionValue["GatePoints"]]], epsilon];
         If[gate,
-          newAx = familyRegulatorConjugate[inverse, ax, candidate];
-          newAy = familyRegulatorConjugate[inverse, ay, candidate];
-          ok = familyRegulatorFactoredQ[newAx, epsilon] && familyRegulatorFactoredQ[newAy, epsilon]]];
-      AppendTo[attempts, <|"Points" -> count, "Seconds" -> seconds, "PointGate" -> gate, "ExactEpsFactor" -> ok,
+          newAx = If[deferAcceptanceQ,
+            familyRegulatorConjugateDeferred[inverse, ax, candidate],
+            familyRegulatorConjugate[inverse, ax, candidate]];
+          newAy = If[deferAcceptanceQ,
+            familyRegulatorConjugateDeferred[inverse, ay, candidate],
+            familyRegulatorConjugate[inverse, ay, candidate]];
+          ok = deferAcceptanceQ ||
+            (familyRegulatorFactoredQ[newAx, epsilon] &&
+              familyRegulatorFactoredQ[newAy, epsilon])]];
+      AppendTo[attempts, <|"Points" -> count, "Seconds" -> seconds,
+        "PointGate" -> gate,
+        "ExactEpsFactor" -> If[deferAcceptanceQ,
+          Missing["DeferredToFamilyCertificate"], ok],
         "Result" -> If[result === "TimedOut", "TimedOut", If[MatrixQ[result], "Matrix", Head[result]]]|>];
-      log[count, " points: ", Round[seconds, 0.1], " s, point gate ", gate, ", exact eps-factorization ", ok];
+      log[count, " points: ", Round[seconds, 0.1], " s, point gate ", gate,
+        If[deferAcceptanceQ,
+          "; exact acceptance deferred to family certificate",
+          ", exact eps-factorization " <> ToString[ok]]];
       If[ok, transformation = candidate; raw = result; pointsUsed = count]];
     If[MatrixQ[transformation], Break[]],
     {count, OptionValue["PointLadder"]}];
@@ -309,8 +358,13 @@ using the Wolfram backend"];
   <|"Status" -> "OK", "Method" -> "ExactRationalSamples", "Points" -> pointsUsed,
     "Transformation" -> transformation, "Inverse" -> inverse,
     "Connection" -> {newAx, newAy}, "Attempts" -> attempts,
-    "PropagationSeal" -> familyRegulatorPropagationSeal[
-      {ax, ay}, {newAx, newAy}, inverse, transformation],
+    "ValidationMode" -> validationMode,
+    "ExactEpsFactorization" -> If[deferAcceptanceQ,
+      Missing["DeferredToFamilyCertificate"], True],
+    "PropagationSeal" -> If[deferAcceptanceQ,
+      Missing["DeferredToFamilyCertificate"],
+      familyRegulatorPropagationSeal[
+        {ax, ay}, {newAx, newAy}, inverse, transformation]],
     "UseFermat" -> backend["UseFermat"], "Seconds" -> AbsoluteTime[] - start|>
 ];
 
@@ -357,6 +411,7 @@ using the Wolfram backend"];
 
 Clear[FactorFamilyRegulatorDependenceMultiquadratic];
 ClearAll[familyRegulatorNonSquareRationalQ, familyRegulatorGradedRoots,
+  familyRegulatorGradedRootFrame, familyRegulatorGradedFrameEvidence,
   familyRegulatorGradedDecompose, familyRegulatorGradedMatrices,
   familyRegulatorGradedDecomposeTask,
   familyRegulatorGradedPointFactoredQ, familyRegulatorModularImage,
@@ -374,6 +429,62 @@ familyRegulatorNonSquareRationalQ[value_] :=
   MatchQ[value, _Integer | _Rational] && value =!= 0 &&
     ! MatchQ[Sqrt[value], _Integer | _Rational];
 
+(* The graded algebra has one sign bit per independent square class. *)
+familyRegulatorGradedRootFrame[roots_List] := Module[
+  {squares, duplicates, dependent},
+  If[! AllTrue[roots, AssociationQ[#] && KeyExistsQ[#, "Root"] &&
+      KeyExistsQ[#, "RootSquare"] &&
+      TrueQ[Together[#["Root"]^2 - #["RootSquare"]] === 0] &],
+    Return[<|"Status" -> "InvalidRootMetadata"|>]];
+  squares = Together /@ Lookup[roots, "RootSquare", {}];
+  duplicates = Select[Subsets[Range[Length[roots]], {2}],
+    TrueQ[Together[squares[[#[[1]]]] - squares[[#[[2]]]]] === 0] &];
+  If[duplicates =!= {}, Return[<|"Status" -> "DuplicateRootSquares",
+    "DuplicatePairs" -> duplicates|>]];
+  dependent = FirstCase[Rest[Subsets[Range[Length[roots]]]],
+    subset_ /; TrueQ[multiquadraticStripSquareClassSquareQ[
+      Times @@ squares[[subset]]]] :> subset, None];
+  If[dependent =!= None, Return[<|"Status" -> "DependentRootSquares",
+    "RootIndices" -> dependent|>]];
+  <|"Status" -> "StableRootFrame", "Roots" -> roots,
+    "RootSquares" -> squares|>
+];
+familyRegulatorGradedRootFrame[___] :=
+  <|"Status" -> "InvalidRootMetadata"|>;
+
+familyRegulatorGradedFrameEvidence[roots_List,
+    variables : {_Symbol, _Symbol}, regulator_Symbol] := Module[
+  {frame, numericIndices, semantic},
+  If[Length[roots] > $familyRegulatorMaximumGradedRank,
+    Return[<|"Status" -> "GradedRankTooLarge", "Rank" -> Length[roots],
+      "MaximumRank" -> $familyRegulatorMaximumGradedRank|>]];
+  frame = blockEquationDeferredRootFrame[roots, variables, regulator];
+  If[Lookup[frame, "Status", None] =!= "StableRootOrder", Return[frame]];
+  If[AnyTrue[Lookup[frame["Roots"], "RootSquare", {}],
+      ! FreeQ[#, regulator] &],
+    Return[<|"Status" -> "RegulatorDependentRootSquare"|>]];
+  numericIndices = Flatten[Position[
+    Lookup[frame["Roots"], "RootSquare", {}],
+    value_ /; familyRegulatorNonSquareRationalQ[value], {1},
+    Heads -> False]];
+  semantic = <|"Schema" -> "FamilyRegulatorGradedRootFrameV1",
+    "Status" -> "StableRootFrame", "Roots" -> frame["Roots"],
+    "RootCount" -> Length[frame["Roots"]],
+    "GradeCount" -> 2^Length[frame["Roots"]],
+    "MaximumRank" -> $familyRegulatorMaximumGradedRank,
+    "RootFingerprints" -> frame["RootFingerprints"],
+    "OrderingFingerprint" -> frame["OrderingFingerprint"],
+    "NumericRootIndices" -> numericIndices,
+    "NumericRootSquares" ->
+      Lookup[frame["Roots"][[numericIndices]], "RootSquare", {}]|>;
+  Append[semantic, "FrameFingerprint" -> Hash[KeyTake[semantic,
+    {"Schema", "RootCount", "GradeCount", "MaximumRank",
+     "RootFingerprints", "OrderingFingerprint", "NumericRootIndices",
+     "NumericRootSquares"}], "SHA256", "HexString"]]
+];
+familyRegulatorGradedFrameEvidence[___] :=
+  <|"Status" -> "InvalidRootMetadata"|>;
+
 (* A numeric square class (Sqrt[2] and the like) is a constant of the
    coefficient field, not a function of the chart variables, so the chart
    route may ignore it.  The graded route may NOT: 1/(1 + Sqrt[2]) and
@@ -382,17 +493,22 @@ familyRegulatorNonSquareRationalQ[value_] :=
    Carrying the class as one more graded generator makes every channel an
    honest rational function over Q and the test canonical. *)
 familyRegulatorGradedRoots[usedRoots_List, numericClasses_List] := Module[
-  {classes},
+  {classes, candidates, frame},
   classes = Select[DeleteDuplicates[Together /@ numericClasses],
     familyRegulatorNonSquareRationalQ];
-  Join[usedRoots, Map[<|"Root" -> Sqrt[#], "RootSquare" -> #|> &, classes]]
+  candidates = Join[usedRoots,
+    Map[<|"Root" -> Sqrt[#], "RootSquare" -> #|> &, classes]];
+  frame = familyRegulatorGradedRootFrame[candidates];
+  If[Lookup[frame, "Status", None] =!= "StableRootFrame", frame,
+    frame["Roots"]]
 ];
 
 (* multiquadraticFieldDecompose with the strip module's rank-3 ABI
    ceiling lifted (see above) and the exact compose check kept.  Root
    symbols are Module locals: nothing is interned, nothing survives the
    call (pool defect 8). *)
-familyRegulatorGradedDecompose[expression_, roots_List] := Module[
+familyRegulatorGradedDecompose[expression_, roots_List,
+    validateRoundTrip_: True] := Module[
   {rank = Length[roots], rootA, rootB, rootC, rootD, rootE, symbols, deltas,
    replaced, rational, numerator, denominator, numeratorChannels,
    denominatorChannels, denominatorInverse, channels, reconstructed,
@@ -426,6 +542,7 @@ familyRegulatorGradedDecompose[expression_, roots_List] := Module[
     channels = Together /@ multiquadraticMultiply[numeratorChannels,
       denominatorInverse, deltas]];
   If[Length[channels] =!= 2^rank, Return[$Failed]];
+  If[! TrueQ[validateRoundTrip], Return[channels]];
   reconstructed = multiquadraticToExpression[channels, Lookup[roots, "Root", {}]];
   difference = reconstructed - expression;
   If[! (TrueQ[Together[difference] === 0] ||
@@ -442,7 +559,8 @@ familyRegulatorGradedDecomposeTask[dataFile_String, indices_List] :=
   Module[{data = taskBrokerRead[dataFile]},
     If[! AssociationQ[data], Return[$Failed]];
     Function[expression,
-      Quiet[Check[familyRegulatorGradedDecompose[expression, data["Roots"]],
+      Quiet[Check[familyRegulatorGradedDecompose[expression, data["Roots"],
+        Lookup[data, "ValidateRoundTrip", True]],
         $Failed]]] /@ data["Expressions"][[indices]]];
 
 (* {Ax, Ay} -> the 2 * 2^k grade-component matrices.  A zero entry keeps
@@ -469,6 +587,7 @@ familyRegulatorGradedDecomposeTask[dataFile_String, indices_List] :=
    decomposition itself changes. *)
 Options[familyRegulatorGradedMatrices] = {
   "Intern" -> True, "Parallel" -> Automatic, "Helpers" -> Automatic,
+  "ValidateRoundTrip" -> True,
   "BatchByteCap" -> Automatic, "BatchDispatcher" -> Automatic,
   "BatchTimeout" -> 3600};
 
@@ -479,16 +598,19 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
    internQ, unique = {}, uniqueIndex = <||>, entryIds,
    nonzeroCount = 0, values, helpers = 0, byteCap, dispatcher, parallel,
    batches = {}, bytes, dataFile, codes, handle, farmed, localBatch,
-   missing, decomposeLocal, route = "Serial", batchSeconds = 0.},
+   missing, decomposeLocal, route = "Serial", batchSeconds = 0.,
+   validateRoundTrip},
   gradeCount = 2^rank;
   internQ = TrueQ[OptionValue["Intern"]];
+  validateRoundTrip = TrueQ[OptionValue["ValidateRoundTrip"]];
 
   If[! internQ,
     channels = Table[
       entry = connection[[mu, i, j]];
       If[TrueQ[entry === 0], ConstantArray[0, gradeCount],
         nonzeroCount++;
-        decomposed = familyRegulatorGradedDecompose[entry, roots];
+        decomposed = familyRegulatorGradedDecompose[entry, roots,
+          validateRoundTrip];
         If[ListQ[decomposed] && Length[decomposed] === gradeCount, decomposed,
           If[Length[failures] < 4, AppendTo[failures, {mu, i, j}]];
           ConstantArray[0, gradeCount]]],
@@ -510,7 +632,8 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
        task does wrap it, so a message on a HELPER only sends that
        expression back to this kernel to be decomposed unwrapped. *)
     decomposeLocal[indices_List] := Map[
-      Function[index, familyRegulatorGradedDecompose[unique[[index]], roots]],
+      Function[index, familyRegulatorGradedDecompose[unique[[index]], roots,
+        validateRoundTrip]],
       indices];
     bytes = ByteCount /@ unique;
     byteCap = Replace[OptionValue["BatchByteCap"], Automatic :> 2^28];
@@ -537,8 +660,9 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
       batchSeconds = First[AbsoluteTiming[
         If[dispatcher === Automatic,
           dataFile = taskBrokerDataFile[
-            "frfgrade_" <> Hash[{unique, roots}, "SHA256", "HexString"],
-            <|"Expressions" -> unique, "Roots" -> roots|>];
+            "frfgrade_" <> StringReplace[CreateUUID[], "-" -> ""],
+            <|"Expressions" -> unique, "Roots" -> roots,
+              "ValidateRoundTrip" -> validateRoundTrip|>];
           codes = StringJoin[
             "FeynFacet`Private`familyRegulatorGradedDecomposeTask[\"",
             dataFile, "\", ", ToString[#, InputForm], "]"] & /@ Most[batches];
@@ -546,7 +670,8 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
             "Timeout" -> OptionValue["BatchTimeout"]];
           localBatch = decomposeLocal[Last[batches]];
           farmed = taskBrokerCollect[handle],
-          farmed = dispatcher[<|"Expressions" -> unique, "Roots" -> roots|>,
+          farmed = dispatcher[<|"Expressions" -> unique, "Roots" -> roots,
+              "ValidateRoundTrip" -> validateRoundTrip|>,
             Most[batches]];
           localBatch = decomposeLocal[Last[batches]]]]];
       values[[Last[batches]]] = localBatch;
@@ -582,6 +707,7 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
     "Statistics" -> <|"NonzeroEntries" -> nonzeroCount,
       "UniqueEntries" -> If[internQ, Length[unique], nonzeroCount],
       "Interned" -> internQ, "Route" -> route, "Helpers" -> helpers,
+      "RoundTripValidated" -> validateRoundTrip,
       "Batches" -> Length[batches], "BatchSeconds" -> batchSeconds,
       "DecomposeSeconds" -> N[AbsoluteTime[] - started]|>|>
 ];
@@ -813,6 +939,8 @@ FactorFamilyRegulatorDependenceMultiquadratic::input =
 Options[FactorFamilyRegulatorDependenceMultiquadratic] = {
   "TimeLimit" -> 900,
   "Deadline" -> Infinity,
+  "InputResiduesEpsFree" -> Automatic,
+  "ValidationMode" -> "Exact",
   "UseFermat" -> Automatic,
   "PointLadder" -> {1, 2, 4, 8},
   "GatePoints" -> 2,
@@ -832,7 +960,8 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
    pointsUsed = 0, exactLimit, conjugated, factoredQ, inverseQ, newAx, newAy,
    spot, corroboration, exactSeconds, gradeFailure = None,
    deadline, expired = False, ladderLimit, decompositionSeconds,
-   numericGradeCount = 0, skippedStages = {}},
+   numericGradeCount = 0, skippedStages = {}, validationMode,
+   deferAcceptanceQ, rootFrame, gradedFrameEvidence},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependenceMultiquadratic::input];
@@ -842,6 +971,8 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
   verbose = TrueQ[OptionValue["Verbose"]];
   log[args___] := If[verbose, Print["[multiquadratic-regulator-factor] ", args]];
   deadline = OptionValue["Deadline"];
+  validationMode = OptionValue["ValidationMode"];
+  deferAcceptanceQ = validationMode === "DeferredToFamilyCertificate";
   (* the numeric square classes of the graded generator list.  A root
      whose square is a plain non-square rational is a CONSTANT of the
      coefficient field: the completeness caveat of Codex 0830 P2 is
@@ -852,6 +983,16 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
     Return[<|"Status" -> "GradedRankTooLarge", "Rank" -> rank,
       "MaximumRank" -> $familyRegulatorMaximumGradedRank,
       "Seconds" -> AbsoluteTime[] - start|>]];
+  rootFrame = familyRegulatorGradedRootFrame[roots];
+  If[Lookup[rootFrame, "Status", None] =!= "StableRootFrame",
+    Return[Join[rootFrame, <|"Module" -> "FamilyRegulatorFactor",
+      "Rank" -> rank, "Seconds" -> AbsoluteTime[] - start|>]]];
+  gradedFrameEvidence = familyRegulatorGradedFrameEvidence[
+    roots, variables, epsilon];
+  If[Lookup[gradedFrameEvidence, "Status", None] =!= "StableRootFrame",
+    Return[Join[gradedFrameEvidence,
+      <|"Module" -> "FamilyRegulatorFactor", "Rank" -> rank,
+        "Seconds" -> AbsoluteTime[] - start|>]]];
   If[familyRegulatorDeadlineExpiredQ[deadline],
     Return[familyRegulatorDeadlineStop["Entry", deadline, start,
       <|"Rank" -> rank|>]]];
@@ -862,7 +1003,8 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
      1..23: 134.1 s of 153.9 s), so it is the one subcall that MUST be
      capped by the remaining time rather than run to completion *)
   {decompositionSeconds, decomposition} = AbsoluteTiming[
-    TimeConstrained[familyRegulatorGradedMatrices[{ax, ay}, roots],
+    TimeConstrained[familyRegulatorGradedMatrices[{ax, ay}, roots,
+        "ValidateRoundTrip" -> ! deferAcceptanceQ],
       familyRegulatorBoundedLimit[Infinity, deadline], "TimedOut"]];
   If[decomposition === "TimedOut" || familyRegulatorDeadlineExpiredQ[deadline],
     Return[familyRegulatorDeadlineStop["GradeDecomposition", deadline, start,
@@ -877,12 +1019,15 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
   activeMatrices = grades[[#1[[1]], #1[[2]]]] & /@ activeGrades;
   log[Length[activeGrades], " active grade components of ", 2 gradeCount];
   If[activeMatrices === {} ||
-      AllTrue[activeMatrices, familyRegulatorFactoredQ[#1, epsilon] &],
+      (OptionValue["InputResiduesEpsFree"] =!= False &&
+        AllTrue[activeMatrices, familyRegulatorFactoredQ[#1, epsilon] &]),
     log["every grade component is already eps-factored"];
     Return[<|"Status" -> "AlreadyEpsFactored", "Method" -> "MultiquadraticGrades",
       "Transformation" -> IdentityMatrix[n], "Inverse" -> IdentityMatrix[n],
       "Connection" -> {ax, ay}, "Rank" -> rank, "GradeCount" -> gradeCount,
-      "ActiveGrades" -> activeGrades, "Seconds" -> AbsoluteTime[] - start|>]];
+      "ActiveGrades" -> activeGrades,
+      "GradedRootFrame" -> gradedFrameEvidence,
+      "Seconds" -> AbsoluteTime[] - start|>]];
   (* every grade component is an ORDINARY rational function: the sampled
      matrices are rational in the regulator and Fermat is admissible even
      though the source connection carries radicals *)
@@ -987,13 +1132,17 @@ carries numeric square classes in which a valid constant T may live",
   If[! FreeQ[{transformation, inverse}, Alternatives @@ variables],
     Return[<|"Status" -> "TransformationNotConstant", "Rank" -> rank,
       "Attempts" -> attempts, "Seconds" -> AbsoluteTime[] - start|>]];
-  (* ---- exact acceptance, grade by grade, in the graded algebra ---- *)
+  (* Conjugation and grade composition construct the transformed source
+     connection.  Development also performs the exact intermediate audit;
+     Production leaves acceptance to the final family certificate. *)
   exactLimit = familyRegulatorBoundedLimit[
     Replace[OptionValue["ExactCheckTimeLimit"],
       Automatic :> OptionValue["TimeLimit"]], deadline];
   If[familyRegulatorDeadlineExpiredQ[deadline] ||
       (NumericQ[exactLimit] && exactLimit <= 0),
-    Return[familyRegulatorDeadlineStop["ExactGradeCheck", deadline, start,
+    Return[familyRegulatorDeadlineStop[
+      If[deferAcceptanceQ, "GradeConjugation", "ExactGradeCheck"],
+      deadline, start,
       <|"Rank" -> rank, "GradeCount" -> gradeCount,
         "ActiveGrades" -> activeGrades, "Attempts" -> attempts,
         "GradeDecompositionSeconds" -> decompositionSeconds|>]]];
@@ -1004,31 +1153,38 @@ carries numeric square classes in which a valid constant T may live",
         Module[{mu = activeGrades[[a, 1]], g = activeGrades[[a, 2]], image},
           image = familyRegulatorConjugate[inverse, activeMatrices[[a]], transformation];
           conjugated[[mu, g]] = image;
-          If[! familyRegulatorFactoredQ[image, epsilon],
+          If[! deferAcceptanceQ &&
+              ! familyRegulatorFactoredQ[image, epsilon],
             gradeFailure = {mu, g - 1};
             Throw[False, "FeynFacetGradedEpsFactor"]]],
         {a, Length[activeGrades]}]; True, "FeynFacetGradedEpsFactor"],
       exactLimit, "TimedOut"]]];
   If[factoredQ === "TimedOut",
-    Return[<|"Status" -> "ExactGradeCheckTimedOut", "Rank" -> rank,
+    Return[<|"Status" -> If[deferAcceptanceQ,
+        "GradeConjugationTimedOut", "ExactGradeCheckTimedOut"],
+      "Rank" -> rank,
       "GradeCount" -> gradeCount, "ActiveGrades" -> activeGrades,
       "ExactCheckTimeLimit" -> exactLimit, "Attempts" -> attempts,
       "Seconds" -> AbsoluteTime[] - start|>]];
-  If[! TrueQ[factoredQ],
+  If[! deferAcceptanceQ && ! TrueQ[factoredQ],
     Return[<|"Status" -> "GradeNotEpsFactored", "Rank" -> rank,
       "FailingGrade" -> gradeFailure, "ActiveGrades" -> activeGrades,
       "Attempts" -> attempts, "Seconds" -> AbsoluteTime[] - start|>]];
-  inverseQ = AllTrue[Flatten[Map[Together,
+  inverseQ = If[deferAcceptanceQ,
+    Missing["DeferredToFamilyCertificate"],
+    AllTrue[Flatten[Map[Together,
       {transformation . inverse - IdentityMatrix[n],
-       inverse . transformation - IdentityMatrix[n]}, {3}]], TrueQ[#1 === 0] &];
-  If[! inverseQ,
+       inverse . transformation - IdentityMatrix[n]}, {3}]],
+      TrueQ[#1 === 0] &]];
+  If[! deferAcceptanceQ && ! inverseQ,
     Return[<|"Status" -> "TransformationInverseInvalid", "Rank" -> rank,
       "Attempts" -> attempts, "Seconds" -> AbsoluteTime[] - start|>]];
   If[familyRegulatorDeadlineExpiredQ[deadline],
     Return[familyRegulatorDeadlineStop["GradeComposition", deadline, start,
       <|"Rank" -> rank, "GradeCount" -> gradeCount,
         "ActiveGrades" -> activeGrades, "Attempts" -> attempts,
-        "ExactEpsFactorization" -> True,
+        "ExactEpsFactorization" -> If[deferAcceptanceQ,
+          Missing["DeferredToFamilyCertificate"], True],
         "GradeDecompositionSeconds" -> decompositionSeconds,
         "ExactCheckSeconds" -> exactSeconds|>]]];
   newAx = Table[multiquadraticFieldCompose[
@@ -1038,45 +1194,59 @@ carries numeric square classes in which a valid constant T may live",
   If[! FreeQ[{newAx, newAy}, $Failed],
     Return[<|"Status" -> "GradeCompositionFailed", "Rank" -> rank,
       "Seconds" -> AbsoluteTime[] - start|>]];
-  (* The exact statement has been made by this point: the remaining two
-     stages are EVIDENCE (a bounded round-trip spot check and a modular
-     corroboration).  An expired deadline therefore skips them and says
-     so, instead of discarding an accepted exact factorization. *)
-  spot = If[familyRegulatorDeadlineExpiredQ[deadline],
-    AppendTo[skippedStages, "CompositionSpotCheck"];
-    <|"Checked" -> 0, "Total" -> 2 n^2, "Verdicts" -> {}, "Undecided" -> 0,
-      "Refuted" -> False, "Zero" -> Missing["SpotCheckSkippedDeadline"],
-      "Skipped" -> "Deadline"|>,
-    familyRegulatorGradedSpotCheck[inverse, {ax, ay}, transformation,
-      {newAx, newAy}, roots, OptionValue["RoundTripSpotChecks"],
-      familyRegulatorBoundedLimit[OptionValue["SpotCheckTimeLimit"],
-        deadline]]];
-  If[TrueQ[spot["Refuted"]],
+  spot = If[deferAcceptanceQ,
+    Missing["DeferredToFamilyCertificate"],
+    If[familyRegulatorDeadlineExpiredQ[deadline],
+      AppendTo[skippedStages, "CompositionSpotCheck"];
+      <|"Checked" -> 0, "Total" -> 2 n^2, "Verdicts" -> {}, "Undecided" -> 0,
+        "Refuted" -> False, "Zero" -> Missing["SpotCheckSkippedDeadline"],
+        "Skipped" -> "Deadline"|>,
+      familyRegulatorGradedSpotCheck[inverse, {ax, ay}, transformation,
+        {newAx, newAy}, roots, OptionValue["RoundTripSpotChecks"],
+        familyRegulatorBoundedLimit[OptionValue["SpotCheckTimeLimit"],
+          deadline]]]];
+  If[! deferAcceptanceQ && TrueQ[spot["Refuted"]],
     Return[<|"Status" -> "CompositionRoundTripFailed", "Rank" -> rank,
       "SpotCheck" -> spot, "Seconds" -> AbsoluteTime[] - start|>]];
-  corroboration = If[familyRegulatorDeadlineExpiredQ[deadline],
-    AppendTo[skippedStages, "ModularCorroboration"];
-    <|"Status" -> "CorroborationSkippedDeadline", "Corroborated" -> False,
-      "Primes" -> {}, "RecordCount" -> 0, "Records" -> {},
-      "Skipped" -> "Deadline"|>,
-    familyRegulatorGradedCorroborate[grades, roots, variables,
-      epsilon, transformation, inverse, OptionValue["CorroborationPrimes"]]];
-  log["exact grade-wise eps-factorization verified in ", Round[exactSeconds, 0.1],
-    " s; modular corroboration ", Lookup[corroboration, "Status", corroboration]];
+  corroboration = If[deferAcceptanceQ,
+    Missing["DeferredToFamilyCertificate"],
+    If[familyRegulatorDeadlineExpiredQ[deadline],
+      AppendTo[skippedStages, "ModularCorroboration"];
+      <|"Status" -> "CorroborationSkippedDeadline", "Corroborated" -> False,
+        "Primes" -> {}, "RecordCount" -> 0, "Records" -> {},
+        "Skipped" -> "Deadline"|>,
+      familyRegulatorGradedCorroborate[grades, roots, variables,
+        epsilon, transformation, inverse,
+        OptionValue["CorroborationPrimes"]]]];
+  log[If[deferAcceptanceQ,
+      "grade conjugation completed in ",
+      "exact grade-wise eps-factorization verified in "],
+    Round[exactSeconds, 0.1], " s",
+    If[deferAcceptanceQ, "; acceptance deferred to family certificate",
+      "; modular corroboration " <>
+        ToString[Lookup[corroboration, "Status", corroboration]]]];
   <|"Status" -> "OK", "Method" -> "MultiquadraticGradedSamples",
     "DeadlineSkippedStages" -> skippedStages,
     "GradeDecompositionSeconds" -> decompositionSeconds,
     "Points" -> pointsUsed, "Rank" -> rank, "GradeCount" -> gradeCount,
     "ActiveGrades" -> activeGrades,
+    "GradedRootFrame" -> gradedFrameEvidence,
     "Transformation" -> transformation, "Inverse" -> inverse,
     "Connection" -> {newAx, newAy}, "Attempts" -> attempts,
-    "ExactEpsFactorization" -> True, "ExactInverse" -> True,
-    "ExactCheckSeconds" -> exactSeconds,
+    "ValidationMode" -> validationMode,
+    "ExactEpsFactorization" -> If[deferAcceptanceQ,
+      Missing["DeferredToFamilyCertificate"], True],
+    "ExactInverse" -> inverseQ,
+    "GradeConjugationSeconds" -> exactSeconds,
+    "ExactCheckSeconds" -> If[deferAcceptanceQ,
+      Missing["NotRun"], exactSeconds],
     "CompositionSpotCheck" -> spot,
     "ModularCorroboration" -> corroboration,
     "UseFermat" -> backend["UseFermat"],
-    "PropagationSeal" -> familyRegulatorPropagationSeal[
-      {ax, ay}, {newAx, newAy}, inverse, transformation],
+    "PropagationSeal" -> If[deferAcceptanceQ,
+      Missing["DeferredToFamilyCertificate"],
+      familyRegulatorPropagationSeal[
+        {ax, ay}, {newAx, newAy}, inverse, transformation]],
     "Seconds" -> AbsoluteTime[] - start|>
 ];
 FactorFamilyRegulatorDependenceMultiquadratic[___] :=
@@ -1119,15 +1289,19 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
    chartRoots, rootImages, chartBranchRoots, inner, transformation, inverse,
    newAx, newAy, factoredQ, inverseQ, canonicalization, numericClasses,
    canonicalAx, canonicalAy, canonicalRecord, gradedRoots, multiquadratic,
-   deadline},
+   deadline, validationMode, deferAcceptanceQ},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependenceInFrame::input]; Return[$Failed]];
   n = Length[ax];
   deadline = OptionValue["Deadline"];
+  validationMode = OptionValue["ValidationMode"];
+  deferAcceptanceQ = validationMode === "DeferredToFamilyCertificate";
   If[familyRegulatorDeadlineExpiredQ[deadline],
     Return[familyRegulatorDeadlineStop["FrameEntry", deadline, start]]];
-  If[familyRegulatorFactoredQ[ax, epsilon] && familyRegulatorFactoredQ[ay, epsilon],
+  If[OptionValue["InputResiduesEpsFree"] =!= False &&
+      familyRegulatorFactoredQ[ax, epsilon] &&
+      familyRegulatorFactoredQ[ay, epsilon],
     Return[<|"Status" -> "AlreadyEpsFactored", "Transformation" -> IdentityMatrix[n],
       "Inverse" -> IdentityMatrix[n], "Connection" -> {ax, ay}, "RootIndices" -> {},
       "Chart" -> None, "Seconds" -> 0.|>]];
@@ -1187,6 +1361,13 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
        remains if THAT route refuses, and it then carries the graded
        route's diagnostics. *)
     gradedRoots = familyRegulatorGradedRoots[usedRoots, numericClasses];
+    If[! ListQ[gradedRoots],
+      Return[<|"Status" -> "InvalidGradedRootFrame",
+        "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+        "GradedRootFrame" -> gradedRoots,
+        "RadicalCanonicalization" -> canonicalRecord,
+        "NumericRadicalClasses" -> numericClasses,
+        "Seconds" -> AbsoluteTime[] - start|>]];
     multiquadratic = FactorFamilyRegulatorDependenceMultiquadratic[
       {canonicalAx, canonicalAy}, variables, epsilon, gradedRoots,
       FilterRules[{opts},
@@ -1201,13 +1382,19 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
         "GradedRootSquares" -> Lookup[gradedRoots, "RootSquare", {}],
         "RadicalCanonicalization" -> canonicalRecord,
         "NumericRadicalClasses" -> numericClasses,
-        "SourceFrameEpsFactored" -> True, "InverseExact" -> True,
+        "SourceFrameEpsFactored" -> Lookup[multiquadratic,
+          "ExactEpsFactorization",
+          Missing["DeferredToFamilyCertificate"]],
+        "InverseExact" -> Lookup[multiquadratic, "ExactInverse",
+          Missing["DeferredToFamilyCertificate"]],
         (* the seal is taken on the caller's own input prefix, exactly as
            on the chart route: the propagation helper recomputes it from
            the connection it is given *)
-        "PropagationSeal" -> familyRegulatorPropagationSeal[
-          {ax, ay}, multiquadratic["Connection"],
-          multiquadratic["Inverse"], multiquadratic["Transformation"]],
+        "PropagationSeal" -> If[deferAcceptanceQ,
+          Missing["DeferredToFamilyCertificate"],
+          familyRegulatorPropagationSeal[
+            {ax, ay}, multiquadratic["Connection"],
+            multiquadratic["Inverse"], multiquadratic["Transformation"]]],
         "Seconds" -> AbsoluteTime[] - start|>]]];
     (* a deadline expiry inside the graded route is NOT the typed
        terminal: "NoRationalChart" says the block is unsolvable by both
@@ -1288,12 +1475,25 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
      declared radicals (each rewrite certified by rewrite^2 == base plus
      the numeric sign), and only in that form can the eps-factorization
      be decided by Together *)
-  newAx = familyRegulatorConjugate[inverse, canonicalAx, transformation];
-  newAy = familyRegulatorConjugate[inverse, canonicalAy, transformation];
-  factoredQ = familyRegulatorFactoredQ[newAx, epsilon] && familyRegulatorFactoredQ[newAy, epsilon];
-  inverseQ = AllTrue[Flatten[Map[Together, transformation . inverse - IdentityMatrix[n], {2}]], TrueQ[# === 0] &] &&
-    AllTrue[Flatten[Map[Together, inverse . transformation - IdentityMatrix[n], {2}]], TrueQ[# === 0] &];
-  If[! (factoredQ && inverseQ),
+  newAx = If[deferAcceptanceQ,
+    familyRegulatorConjugateDeferred[inverse, canonicalAx, transformation],
+    familyRegulatorConjugate[inverse, canonicalAx, transformation]];
+  newAy = If[deferAcceptanceQ,
+    familyRegulatorConjugateDeferred[inverse, canonicalAy, transformation],
+    familyRegulatorConjugate[inverse, canonicalAy, transformation]];
+  factoredQ = If[deferAcceptanceQ,
+    Missing["DeferredToFamilyCertificate"],
+    familyRegulatorFactoredQ[newAx, epsilon] &&
+      familyRegulatorFactoredQ[newAy, epsilon]];
+  inverseQ = If[deferAcceptanceQ,
+    Missing["DeferredToFamilyCertificate"],
+    AllTrue[Flatten[Map[Together,
+      transformation . inverse - IdentityMatrix[n], {2}]],
+      TrueQ[# === 0] &] &&
+    AllTrue[Flatten[Map[Together,
+      inverse . transformation - IdentityMatrix[n], {2}]],
+      TrueQ[# === 0] &]];
+  If[! deferAcceptanceQ && ! (factoredQ && inverseQ),
     Return[<|"Status" -> "SourceFrameNotFactored", "SourceFrameEpsFactored" -> factoredQ,
       "InverseExact" -> inverseQ, "RootIndices" -> rootIndices, "Chart" -> chart["Name"]|>]];
   <|"Status" -> "OK",
@@ -1303,10 +1503,12 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     "Connection" -> {newAx, newAy}, "Attempts" -> inner["Attempts"],
     (* the seal is taken on the caller's own input prefix: the
        propagation helper recomputes it from the connection it is given *)
-    "PropagationSeal" -> familyRegulatorPropagationSeal[
-      {ax, ay}, {newAx, newAy}, inverse, transformation],
+    "PropagationSeal" -> If[deferAcceptanceQ,
+      Missing["DeferredToFamilyCertificate"],
+      familyRegulatorPropagationSeal[
+        {ax, ay}, {newAx, newAy}, inverse, transformation]],
     "RadicalCanonicalization" -> canonicalRecord,
     "NumericRadicalClasses" -> numericClasses,
-    "SourceFrameEpsFactored" -> True, "InverseExact" -> True,
+    "SourceFrameEpsFactored" -> factoredQ, "InverseExact" -> inverseQ,
     "Seconds" -> AbsoluteTime[] - start|>
 ];
