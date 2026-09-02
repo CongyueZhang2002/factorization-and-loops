@@ -169,11 +169,17 @@ finiteFieldStripCFFRAdapterHashes[] := Module[{binary, source, current, stamp, c
      are now computed once and re-verified only when the files' size or
      modification date changes; a changed hash is still the typed
      failure it always was. *)
+  (* The change (ctime) date is part of the stamp: a replacement that
+     preserves size and modification date (cp -p, a rebuild plus touch -r)
+     still changes it, so such a binary is re-hashed and refused as the
+     typed CFFRAdapterHashChanged failure (review finding D4, 2026-09-02). *)
   stamp = <|"AdapterBinary" -> binary, "AdapterSource" -> source,
     "BinaryBytes" -> FileByteCount[binary],
     "BinaryDate" -> FileDate[binary, "Modification"],
+    "BinaryChange" -> FileDate[binary, "Change"],
     "SourceBytes" -> FileByteCount[source],
-    "SourceDate" -> FileDate[source, "Modification"]|>;
+    "SourceDate" -> FileDate[source, "Modification"],
+    "SourceChange" -> FileDate[source, "Change"]|>;
   cached = Lookup[$finiteFieldStripCFFRAdapterHashCache, binary, None];
   If[AssociationQ[cached] && Lookup[cached, "Stamp", None] === stamp,
     Return[Join[<|"Status" -> "OK"|>, cached["Hashes"]]]];

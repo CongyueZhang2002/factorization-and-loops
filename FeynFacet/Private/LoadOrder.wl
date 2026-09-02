@@ -11,9 +11,13 @@
      Reduction       Kira reduction, coefficient reconstruction and assembly,
                      numerical cross-checks
      Infrastructure  the kernel-pool task broker
-     Geometry        rationalizing charts and root geometry
      EpsForm         stage 1: canonical blocks, off-diagonal completion,
                      regulator factorization, family certificates
+     Geometry        rationalizing charts and root geometry -- AFTER EpsForm:
+                     TransportCharts.wl inherits Options[SolveEpsFormStrip]
+                     at load time (review finding D1, 2026-09-02: loaded
+                     earlier, SolveEpsFormStripInFrame lost 15 options and
+                     wrote its artifacts to a relative "ScratchDirectory")
      Transport       stage 2: assembly, word engines, exception seam,
                      observable transport *)
 {
@@ -21,7 +25,7 @@
   "Process" -> {"Process.wl", "Topologies.wl", "CanonicalFamilies.wl", "DimensionalShift.wl", "Collinear.wl"},
   "Reduction" -> {"Reduction.wl", "StreamingKira.wl", "MasterIntegralAmFlow.wl", "Simplification.wl", "Assembly.wl", "CoefficientStore.wl", "Reconstruction.wl"},
   "Infrastructure" -> {"TaskBroker.wl"},
-  "Geometry" -> {"TransportCharts.wl"},
   "EpsForm" -> {"CanonicalBlocks.wl", "EpsFormStrip.wl", "BlockEquationDeferred.wl", "FiniteFieldEpsForm.wl", "FiniteFieldStripSolve.wl", "EpsFormStripObstruction.wl", "FamilyRegulatorFactor.wl", "FamilyRowGauge.wl", "FamilyRowGaugeResume.wl", "FamilyCertificateModular.wl", "MultiquadraticStripSolve.wl", "MultiquadraticInstallation.wl", "FiniteFieldGaugePullBack.wl", "LibraEpsForm.wl", "FamilyEpsForm.wl", "DiagonalBlockEpsForm.wl"},
+  "Geometry" -> {"TransportCharts.wl"},
   "Transport" -> {"MasterTransport.wl", "BlockwiseTransport.wl", "CanonicalWordTransport.wl", "PathTransportException.wl", "PathTransportNative.wl", "ObservableTransport.wl", "ObservableTransportFiniteField.wl"}
 }

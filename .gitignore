@@ -79,7 +79,7 @@ __pycache__/
 # --- Windows/WSL metadata ---
 *Zone.Identifier
 ppHX_NNLO_DoubleReal/Kira/
-FeynFacet/Backends/flint/bin/
+FeynFacet/Backends/flint/bin
 
 # --- Large run-data files (> 5 MB; regenerable, kept locally; listed 2026-08-23) ---
 /Codex/TwoRootCF254Sector9Lower/CF254_9_6_residue_data.wl
@@ -134,7 +134,5 @@ ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_roo
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/round2_final_gate_2026-08-26.log
 !ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/Round2Providers_2026-08-26/round2_final_gate_summary.tsv
 
-# test scratch written beside the tests by the finite-field strip solver (2026-09-02)
-Tests/**/ScratchDirectory/
 # FLINT adapter build output
-FeynFacet/Backends/flint/bin/
+FeynFacet/Backends/flint/bin

@@ -18,7 +18,7 @@ scripts and string-constructed names).
 
 | Backup file | Symbols moved | Evidence | Replacement / stub |
 |---|---|---|---|
-| `EpsFormStrip.wl` | `SolveEpsFormStrip` (definition; `Options` kept), `epsFormStripExactDLogQ`, `epsFormStripExactPotentialGauge`, `epsFormStripRunCanonica` (~315 lines) | production entry `SolveEpsFormStripInFrame` is called with `"FiniteFieldFirst" -> True` by `Scripts/family_epsform_sector.wls:1399`; only `FACET_STRIP_ROUTE=Legacy` reached the ladder; `t_construction_budget` replaces it by a stand-in; route_split.py: 4 route-only symbols | typed `RouteRetired` stub; in-frame default `FiniteFieldFirst -> True` |
+| `EpsFormStrip.wl` | `SolveEpsFormStrip` (definition; `Options` kept), `epsFormStripExactPotentialGauge`, `epsFormStripRunCanonica` (~315 lines) | production entry `SolveEpsFormStripInFrame` is called with `"FiniteFieldFirst" -> True` by `Scripts/family_epsform_sector.wls:1399`; only `FACET_STRIP_ROUTE=Legacy` reached the ladder; `t_construction_budget` replaces it by a stand-in; route_split.py: 4 route-only symbols | typed `RouteRetired` stub; in-frame default `FiniteFieldFirst -> True` |
 | `TaskBroker.wl` | `taskBrokerCanonicaLadder` (~33 lines) | only caller was the moved ladder | none |
 | `LibraEpsForm.wl` | `LibraFamilyEpsForm` (definition; `Options` kept) and 8 helpers (~348 lines) | no script; one test (moved to `Tests/`); loader helpers kept for `FamilyRegulatorFactor` | typed `RouteRetired` stub |
 | `TransportCharts.wl` | `transportChartMapleCanonicalGauge` (~23 lines) | `GaugePullBackMode` default is `"Exact"`; no script selects `"MapleCanonical"`; one test (moved) | typed `RouteRetired` stub; caller returns `StripGaugeMapleCanonicalizationFailed` |
@@ -51,3 +51,8 @@ Deliberately NOT moved (recorded per the user's rule):
 Kept although test-only reachable: `CanonicalWordTransport.wl` and the
 blockwise helpers of `BlockwiseTransport.wl` (consumed by the CF303
 exception route, `PathTransportException.wl` / `PathTransportNative.wl`).
+
+
+## Corrections 2026-09-02 (acceptance batches and review)
+
+- `taskBrokerCanonicaLadder` (TaskBroker.wl), `epsFormStripExactDLogQ` and `epsFormStripRunCanonica` (EpsFormStrip.wl) were moved back into the live tree: the reachability scan counted package callers only, and `t_task_broker_limit` / `t_canonica_scheduler` drive them directly. Rule: a symbol moves only when package AND test references are absent.

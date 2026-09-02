@@ -115,6 +115,7 @@ If[TrueQ[preload],
 (* the wrapper that runs one mission on a subkernel; ALL output goes to the mission log *)
 poolRun[file_String, logFile_String, kernelFile_String] := Module[
   {s, r, t0 = AbsoluteTime[], status, missionText, missionParseContext,
+   missionOwnValued, missionOwnBefore, missionLeaked,
    missionGlobalBefore, missionNewGlobal, missionParsed,
    missionParseFailed, missionParseCleanup, nMsg0, hadMessages},
   (* CLAIM the mission atomically-enough: a mission that was resubmitted after it never
@@ -219,9 +220,12 @@ poolRun[file_String, logFile_String, kernelFile_String] := Module[
      qualified ones otherwise (measured: a mission that reset $ContextPath
      made the next probe see "Global`q4"); qualify before touching anything
      so the unset hits Global` and never a same-named symbol elsewhere. *)
+  (* Module temporaries (name$nnn) are skipped: poolRun's own locals r and
+     hadMessages gain their values during the mission and must survive it
+     (review finding D2, 2026-09-02). *)
   missionOwnValued := Select[
     (If[StringContainsQ[#, "`"], #, "Global`" <> #] &) /@ System`Names["Global`*"],
-    StringStartsQ[#, "Global`"] && ! StringStartsQ[#, "Global`$"] &&
+    StringStartsQ[#, "Global`"] && ! StringContainsQ[#, "$"] &&
       System`ToExpression[#, InputForm, System`OwnValues] =!= {} &];
   missionOwnBefore = missionOwnValued;
   r = Block[{$Output = {s}, $Messages = {s}},

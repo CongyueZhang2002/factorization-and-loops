@@ -26,3 +26,16 @@ path (`{root, "FeynFacet", "Private", "<Layer>", "<File>.wl"}`).
 Known upward references left in place (each is one or two symbols; to be
 moved down with the symbol when the file is next touched): `FamilyEpsForm`
 (EpsForm) uses four zero-test helpers of `ObservableTransport` (Transport).
+
+
+## Correction 2026-09-02 07:30 (review finding D1)
+
+Geometry loads AFTER EpsForm, not before: `TransportCharts.wl` evaluates
+`Options[SolveEpsFormStripInFrame] = Join[Options[SolveEpsFormStrip], ...]`
+at load time, and with the earlier order `Options[SolveEpsFormStrip]` was
+still `{}`, so fifteen inherited options vanished and every finite-field
+strip solve wrote its artifacts to a relative `ScratchDirectory/Tag_...`
+path (the stray directories under `Tests/` were that symptom). Runtime
+references between layers are unaffected by order; only top-level
+evaluations are, and the manifest order is now: Core, Process, Reduction,
+Infrastructure, EpsForm, Geometry, Transport.
