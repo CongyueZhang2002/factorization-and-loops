@@ -8,6 +8,10 @@
 
 ClearAll[
   $observableTransportFFRankDiagnostics,
+  $observableTransportFFCompileFailure,
+  observableTransportFFGrammarOffenders,
+  observableTransportFFSquareFreeSplit,
+  observableTransportFFNormalizeRadicals,
   observableTransportModularRowBasis,
   observableTransportModularRowBasisAcceptedQ,
   observableTransportModularMatrixReconstruction,
@@ -162,6 +166,14 @@ observableTransportFFCompileExpressions[expressions_List,
     Head[value] === Power && IntegerQ[value[[2]]],
       With[{base = compile[value[[1]]]},
         If[base === $Failed, $Failed, {"Power", base, value[[2]]}]],
+    (* numeric square root c^(m/2), c a positive rational: (k Sqrt[s])^m *)
+    Head[value] === Power && MatchQ[value[[1]], _Integer | _Rational] &&
+        TrueQ[value[[1]] > 0] && MatchQ[value[[2]], _Rational] &&
+        Denominator[value[[2]]] === 2,
+      With[{split = observableTransportFFSquareFreeSplit[value[[1]]],
+          exponent = Numerator[value[[2]]]},
+        {"Power", {"Times", {compile[split[[1]]],
+            {"SquareRootConstant", split[[2]]}}}, exponent}],
     True, $Failed
   ];
   compile /@ expressions
@@ -205,6 +217,8 @@ observableTransportFFEvaluateExpressions[compiledExpressions_List,
         Mod[numerator PowerMod[d, -1, prime], prime]]];
   evaluateRaw[{"Variable", position_Integer}] /;
       1 <= position <= Length[point] := point[[position]];
+  evaluateRaw[{"SquareRootConstant", s_Integer}] := With[{a = Mod[s, prime]},
+    If[a === 0, $Failed, modularSquareRoot[a, prime]]];
   evaluateRaw[{"Plus", children_List}] := With[
     {values = evaluate /@ children},
     If[MemberQ[values, $Failed], $Failed, Mod[Total[values], prime]]];
@@ -239,6 +253,9 @@ observableTransportFFEvaluateExpressionsWithDerivative[
   evaluateRaw[{"Variable", position_Integer}] /;
       1 <= position <= Length[point] :=
     {point[[position]], tangent[[position]]};
+  evaluateRaw[{"SquareRootConstant", s_Integer}] := With[{a = Mod[s, prime]},
+    With[{root = If[a === 0, $Failed, modularSquareRoot[a, prime]]},
+      If[root === $Failed, $Failed, {root, 0}]]];
   evaluateRaw[{"Plus", children_List}] := With[
     {values = evaluate /@ children},
     If[MemberQ[values, $Failed], $Failed,
@@ -328,6 +345,61 @@ observableTransportFFAlgebraicMatrixValue[m_, variables_List,
    resulting rational operation tree once.  All later points and sign sheets
    are ordinary evaluations of that shared DAG; no repeated symbolic branch
    substitution or entrywise Together is permitted. *)
+(* The first few subexpressions of a template that the compiler grammar
+   does not cover, in the order they are met; a diagnostic, not a check. *)
+$observableTransportFFCompileFailure = <||>;
+observableTransportFFGrammarOffenders[template_, variables_List, count_Integer] := Module[
+  {offenders = {}, walk},
+  walk[value_] := Which[
+    Length[offenders] >= count, Null,
+    IntegerQ[value] || Head[value] === Rational, Null,
+    MatchQ[value, _Symbol], If[! MemberQ[variables, Unevaluated[value]],
+      AppendTo[offenders, <|"Kind" -> "Symbol", "Value" -> value|>]],
+    Head[value] === Plus || Head[value] === Times, Scan[walk, List @@ value],
+    Head[value] === Power && IntegerQ[value[[2]]], walk[value[[1]]],
+    True, AppendTo[offenders, <|"Kind" -> ToString[Head[value]],
+      "Value" -> Short[value, 3]|>]];
+  Scan[walk, Flatten[Normal[template]]];
+  offenders
+];
+
+(* Radicals of a specialized algebraic record (overhaul 2026-09-02, CF259
+   probe 4).  Once a variable is fixed to a rational base point, Wolfram
+   canonicalizes Sqrt[c q] as Sqrt[c'] Sqrt[q'] with q' a rational multiple
+   of the declared square q and c' a NUMERIC square root (e.g.
+   Sqrt[56/45 + y^2] = Sqrt[56 + 45 y^2]/(3 Sqrt[5])).  The root-branch
+   substitution matches a declared square only up to a perfect-square
+   factor, and the compiler grammar had no numeric radicals, so every such
+   entry was refused (AlgebraicMatrixCompileFailed).
+
+   observableTransportFFNormalizeRadicals rewrites Power[c q, e] as
+   Power[c, e] Power[q, e] for a positive rational c, so the declared
+   radical is matched exactly; the numeric factor compiles to a
+   SquareRootConstant node (square-free integer s, Sqrt[c] = k Sqrt[s]),
+   evaluated as one fixed modular square root per prime (a non-residue
+   rejects the trial, like a non-residue root square).  All occurrences of
+   one square class share the root, so products of radicals stay
+   consistent; the sheet sign lives on the declared root as before. *)
+observableTransportFFSquareFreeSplit[c_] /; MatchQ[c, _Integer | _Rational] && c > 0 := Module[
+  {a = Numerator[c], b = Denominator[c], k = 1, sf = 1},
+  Do[k *= f[[1]]^Quotient[f[[2]], 2]; If[OddQ[f[[2]]], sf *= f[[1]]],
+    {f, FactorInteger[a b]}];
+  {k/b, sf}
+];
+observableTransportFFNormalizeRadicals[expr_, rootRecords_List] := Module[
+  {squares = Lookup[rootRecords, "RootSquare", {}], scale},
+  scale[base_] := scale[base] = Module[{ratio, found = None},
+    Do[If[! TrueQ[Together[q] === 0],
+        ratio = Quiet[Check[Together[base/q], $Failed]];
+        If[MatchQ[ratio, _Integer | _Rational] && TrueQ[ratio > 0] &&
+            ratio =!= 1, found = {ratio, q}; Break[]]],
+      {q, squares}];
+    found];
+  expr /. Power[base_, e_Rational /; Denominator[e] === 2] :>
+    With[{f = scale[base]},
+      If[f === None, Power[base, e], Power[f[[1]], e] Power[f[[2]], e]]]
+];
+
 observableTransportFFCompileAlgebraicMatrix[m_, variables_List,
     declaredSquares_List] := Module[{compile, roots, result},
   compile[rootRecords_List] := Module[
@@ -338,10 +410,24 @@ observableTransportFFCompileAlgebraicMatrix[m_, variables_List,
       Lookup[rootRecords, "RootSquare", {}], variables];
     If[MemberQ[rootSquareCompiler, $Failed], Return[$Failed, Module]];
     template = Quiet[Check[transportChartApplyRootBranches[
-      Normal[m], rootRecords, rootSymbols], $Failed]];
-    If[template === $Failed, Return[$Failed, Module]];
+      observableTransportFFNormalizeRadicals[Normal[m], rootRecords],
+      rootRecords, rootSymbols], $Failed]];
+    If[template === $Failed,
+      $observableTransportFFCompileFailure = <|"Stage" -> "RootBranchSubstitution",
+        "RootSquares" -> Lookup[rootRecords, "RootSquare", {}]|>;
+      Return[$Failed, Module]];
     compiled = observableTransportFFCompileMatrix[
       template, Join[variables, rootSymbols]];
+    If[compiled === $Failed,
+      (* overhaul 2026-09-02: name the first subexpression outside the
+         compiler's grammar (integers, rationals, the variables and root
+         symbols, Plus, Times, integer powers) so a refusal is diagnosable
+         without rerunning the transport *)
+      $observableTransportFFCompileFailure = <|"Stage" -> "Grammar",
+        "Variables" -> Join[variables, rootSymbols],
+        "RootSquares" -> Lookup[rootRecords, "RootSquare", {}],
+        "Offending" -> observableTransportFFGrammarOffenders[template,
+          Join[variables, rootSymbols], 6]|>];
     If[compiled === $Failed, $Failed,
       <|"Roots" -> rootRecords, "Variables" -> variables,
         "Dimensions" -> Dimensions[template],
@@ -400,7 +486,7 @@ observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
   If[! AssociationQ[compiledMatrix],
     $observableTransportFFRankDiagnostics =
       <|"Reason" -> "AlgebraicMatrixCompileFailed",
-        "Detail" -> compiledMatrix|>;
+        "Detail" -> $observableTransportFFCompileFailure|>;
     Return[ConstantArray[$Failed, Length[samples]], Module]];
   roots = compiledMatrix["Roots"];
   rootSquares = Lookup[roots, "RootSquare", {}];

@@ -1,3 +1,8 @@
+(* Overhaul 2026-09-02: AcceptedObservableTransportQ (branch tip fc6792f7, 02:43)
+   requires the certificate key FamilyInputAccepted, which BuildObservableTransport
+   writes; the synthetic records of this test predate that key and were
+   refused wholesale (ObservableTransportNotAccepted).  The key is added
+   to every synthetic certificate; nothing else changes. *)
 #!/usr/bin/env wolframscript
 
 $HistoryLength = 0;
@@ -40,7 +45,7 @@ result = <|
   "SecondBoundaryClosureStabilizationMethod" -> "NotRequired",
   "CompactTransportAutomaton" -> automaton,
   "Certificates" -> <|
-    "FamilyEpsilonFormExact" -> True, "BoundaryBaseKernel" -> True,
+    "FamilyInputAccepted" -> True, "FamilyEpsilonFormExact" -> True, "BoundaryBaseKernel" -> True,
     "FirstKernelIdentity" -> True, "BoundaryEvolution" -> True,
     "SecondKernelIdentity" -> True|>,
   "ProbabilisticCertificates" -> <|
@@ -74,7 +79,7 @@ operatorResult = <|
     "SecondOperatorMatrices" -> {operatorSecond},
     "FinalBoundaryEmbedding" -> operatorFinal|>,
   "Certificates" -> <|
-    "FamilyEpsilonFormExact" -> True, "BoundaryBaseKernel" -> True,
+    "FamilyInputAccepted" -> True, "FamilyEpsilonFormExact" -> True, "BoundaryBaseKernel" -> True,
     "FirstKernelIdentity" -> True, "BoundaryEvolution" -> True,
     "SecondKernelIdentity" -> True|>|>;
 operatorWord = FeynFacet`ObservableTransportWordMap[

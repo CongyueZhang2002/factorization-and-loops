@@ -106,6 +106,7 @@ result = FeynFacet`BuildObservableTransport[epsilonForm, demand,
   "ReconstructionThreads" -> reconstructionThreads,
   "ValidationPrimeCount" -> validationPrimeCount,
   "ValidationPointsPerPrime" -> validationPointsPerPrime,
+  "DiagnosticDirectory" -> diagnosticDirectory,
   "Verbose" -> TrueQ[Lookup[card, "Verbose", False]]];
 If[Lookup[result, "Status", None] === "BoundarySubspaceNotInvariant",
   alternateRecord = Join[epsilonForm,
@@ -124,6 +125,7 @@ If[Lookup[result, "Status", None] === "BoundarySubspaceNotInvariant",
       "ReconstructionThreads" -> reconstructionThreads,
       "ValidationPrimeCount" -> validationPrimeCount,
       "ValidationPointsPerPrime" -> validationPointsPerPrime,
+      "DiagnosticDirectory" -> diagnosticDirectory,
       "Verbose" -> TrueQ[Lookup[card, "Verbose", False]]],
       <|"PrimaryPathStatus" -> "BoundarySubspaceNotInvariant"|>]
   ]
