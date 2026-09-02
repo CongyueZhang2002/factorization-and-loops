@@ -558,6 +558,12 @@ empty collection; check the container's head before `Lookup` (paid for
 2026-08-26: a `None` fed to `Counts` broke the dispatch terminal-status
 path). Packages dump symbols into `Global\`` (asy ~200 of them, plus a
 bare `x`; SubTropica exports `line`; PolyLogTools 1699 symbols).
+**FeynCalc creates `FeynCalc`Names`, and LoadFACET leaves `FeynCalc`` ahead
+of `System`` on `$ContextPath`: in any script parsed after loading, a bare
+`Names[...]` binds to that empty shadow and stays unevaluated (measured
+2026-09-02 on five of eight pool subkernels). Write `System`Names` in
+tests, mission scripts and pool code; package bodies under `BeginPackage`
+are not affected.**
 
 ## Shell trap (found 2026-08-24 by the campaign watchdog)
 
