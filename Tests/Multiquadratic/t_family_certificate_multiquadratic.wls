@@ -124,6 +124,17 @@ check["whole-family certification consumes an authenticated numeric constant-fie
     numericOnlyCertified["EpsilonFormCertificate", "Modular", "RootCount"] === 1 &&
     numericOnlyCertified["EpsilonFormCertificate", "Modular",
       "RegulatorRootFrameEvidenceCount"] === 1];
+(* B14 (2026-09-02): a prime at which the numeric root square 3 is a
+   non-residue (p == 7 mod 12) admits no split point; before the fix such
+   primes were drawn, exhausted 80 point attempts each and starved the
+   shared prime budget (about one failure in twelve runs).  Deterministic
+   statement: no such prime is ever trialed. *)
+check["no prime at which the numeric root square is a non-residue is trialed (B14)",
+  numericOnlyCertified["Status"] === "CertifiedEpsilonForm" &&
+    AllTrue[Lookup[numericOnlyCertified["EpsilonFormCertificate", "Modular"],
+        "RejectedPrimes", {}], JacobiSymbol[3, #Prime] === 1 &] &&
+    FreeQ[Lookup[numericOnlyCertified["EpsilonFormCertificate", "Modular"],
+        "RejectedPrimes", {}], "InsufficientUsablePoints"]];
 missingNumericFrame = FeynFacet`CertifyFamilyEpsilonForm[
   ReplacePart[numericOnlyRecord,
     "RegulatorFactorization" -> <|

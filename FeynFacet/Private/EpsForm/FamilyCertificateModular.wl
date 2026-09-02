@@ -767,6 +767,33 @@ familyCertMQSelectModalPivotTrials[___] :=
    nonzero residues and every denominator is regular on every sign sheet.
    Training and validation are point-disjoint; all sign sheets of a point
    remain in the same partition. *)
+
+(* B14 (overhaul 2026-09-02).  A prime at which a NUMERIC root square (a
+   constant of the coefficient field, 3 for Sqrt[3]) is a non-residue admits
+   no split point at all.  The loops below used to draw any p == 3 (mod 4),
+   spend up to maxPointAttempts on such a prime, and count it against ONE
+   prime budget shared by the pilot, CRT, extension and fresh-validation
+   stages -- measured 2026-09-02: the numeric constant-field certification
+   failed in about one run of twelve on both trees, always as
+   InsufficientFreshValidationPrimes after InsufficientUsablePoints at
+   p == 7 (mod 12).  Now only admissible primes are drawn (bounded raw
+   draws) and only trials consume the budget. *)
+familyCertMQNumericRootSquares[roots_List] :=
+  Select[Lookup[roots, "RootSquare", {}], MatchQ[#, _Integer | _Rational] &];
+familyCertMQPrimeAdmissibleQ[numericSquares_List, p_Integer] :=
+  AllTrue[numericSquares, Function[c, With[
+    {a = Mod[Numerator[c], p], b = Mod[Denominator[c], p]},
+    a =!= 0 && b =!= 0 &&
+      JacobiSymbol[Mod[a PowerMod[b, -1, p], p], p] === 1]]];
+familyCertMQDrawPrime[roots_List, attempted_List, range_List] := Module[
+  {numeric = familyCertMQNumericRootSquares[roots], p, draws = 0, found = None},
+  While[found === None && draws < 4096,
+    draws++;
+    p = RandomPrime[range];
+    If[Mod[p, 4] === 3 && ! MemberQ[attempted, p] &&
+        familyCertMQPrimeAdmissibleQ[numeric, p], found = p]];
+  found];
+
 familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
     regulator_Symbol, prime_Integer, trainingPoints_Integer,
     validationPoints_Integer, maxPointAttempts_Integer] := Module[
@@ -1137,9 +1164,9 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
      primes by default. *)
   While[Length[pivotPilotTrials] < pivotSignaturePilotPrimes &&
       primeAttempts < maxPrimeAttempts,
+    p = familyCertMQDrawPrime[prepared["Roots"], attemptedPrimes, {2^22, 2^23 - 1}];
+    If[p === None, Break[]];
     primeAttempts++;
-    p = RandomPrime[{2^22, 2^23 - 1}];
-    If[Mod[p, 4] =!= 3 || MemberQ[attemptedPrimes, p], Continue[]];
     AppendTo[attemptedPrimes, p];
     trial = familyCertMQTrial[prepared, variables, regulator, p,
       trainingPoints, validationPoints, maxPointAttempts];
@@ -1170,9 +1197,9 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
       "ModalSignature" -> modalPivotSignature|>],
     {nonmodal, pivotSelection["RejectedTrials"]}];
   While[Length[trials] < requestedPrimes && primeAttempts < maxPrimeAttempts,
+    p = familyCertMQDrawPrime[prepared["Roots"], attemptedPrimes, {2^22, 2^23 - 1}];
+    If[p === None, Break[]];
     primeAttempts++;
-    p = RandomPrime[{2^22, 2^23 - 1}];
-    If[Mod[p, 4] =!= 3 || MemberQ[attemptedPrimes, p], Continue[]];
     AppendTo[attemptedPrimes, p];
     trial = familyCertMQTrial[prepared, variables, regulator, p,
       trainingPoints, validationPoints, maxPointAttempts];
@@ -1199,9 +1226,9 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
     While[Lookup[reconstruction, "Status", None] ===
           "ResidueReconstructionNeedsMorePrimes" &&
         Length[trials] < maxPrimes && primeAttempts < maxPrimeAttempts,
+      p = familyCertMQDrawPrime[prepared["Roots"], attemptedPrimes, {2^22, 2^23 - 1}];
+      If[p === None, Break[]];
       primeAttempts++;
-      p = RandomPrime[{2^22, 2^23 - 1}];
-      If[Mod[p, 4] =!= 3 || MemberQ[attemptedPrimes, p], Continue[]];
       AppendTo[attemptedPrimes, p];
       trial = familyCertMQTrial[prepared, variables, regulator, p,
         trainingPoints, validationPoints, maxPointAttempts];
@@ -1236,9 +1263,9 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
   If[crtCandidateOK,
     While[Length[validationTrials] < freshValidationPrimes &&
         primeAttempts < maxPrimeAttempts,
+      p = familyCertMQDrawPrime[prepared["Roots"], attemptedPrimes, {2^22, 2^23 - 1}];
+      If[p === None, Break[]];
       primeAttempts++;
-      p = RandomPrime[{2^22, 2^23 - 1}];
-      If[Mod[p, 4] =!= 3 || MemberQ[attemptedPrimes, p], Continue[]];
       AppendTo[attemptedPrimes, p];
       trial = familyCertMQTrial[prepared, variables, regulator, p,
         trainingPoints, validationPoints, maxPointAttempts];
