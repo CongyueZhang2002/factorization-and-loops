@@ -136,7 +136,13 @@ observableTransportFFIndependentRows[m_, rules_List] := Module[
 observableTransportFFCompileExpressions[expressions_List,
     variables_List] := Module[
   {compile},
-  compile[value_] := compile[value] = Which[
+  (* Do not memoize arbitrary symbolic subtrees here.  The transport
+     matrices contain many large, distinct Laurent/radical expressions;
+     installing each one as a DownValue makes compilation spend its time
+     structurally hashing expression-sized keys and retains the whole
+     matrix twice.  The compiled evaluator below still memoizes the small
+     operation-tree nodes where sharing is useful. *)
+  compile[value_] := Which[
     IntegerQ[value], {"Integer", value},
     Head[value] === Rational,
       {"Rational", Numerator[value], Denominator[value]},
@@ -164,9 +170,10 @@ observableTransportFFCompileMatrix[m_, variables_List] := Module[
   normal = Normal[m];
   dimensions = Dimensions[normal];
   If[Length[dimensions] =!= 2, Return[$Failed]];
-  (* Compile the whole matrix through one memoized tree walker.  Transport
-     matrices share most operator subexpressions, so an entry-local compiler
-     repeats the same traversal thousands of times. *)
+  (* Compile the matrix in one traversal.  The walker deliberately has no
+     expression-key cache: on large algebraic families most entry subtrees
+     are distinct, and memoizing them is much more expensive than revisiting
+     the few shared scalar factors. *)
   compiledEntries = observableTransportFFCompileExpressions[
     Catenate[normal], variables];
   (* The compiled entries are nested Lists themselves.  Indexed Table keeps
