@@ -552,7 +552,7 @@ familyCertMQPrepare[objects_Association, roots_List,
   {frame, orderedRoots, census, denested, canonical, rootSymbols, polynomialized,
    surviving, numericClasses, numericClassIndices, undeclaredNumericClasses,
    rootImage, normalObjects, canonicalObjects,
-   polynomializedObjects, polynomializeEntry, channels, vectorKeys,
+   polynomializedObjects, polynomializeEntry, vectorKeys,
    compiledObjects, compileEntry, evaluationVariables, compiledLeaves,
    maximumExponents},
   If[rankLimit < 0 || Length[roots] > rankLimit,
@@ -624,15 +624,7 @@ familyCertMQPrepare[objects_Association, roots_List,
           With[{image = rootImage[base]},
             If[image === None, Power[base, exponent],
               image^(2 exponent)]];
-    If[transportChartRadicalBases[direct] === {}, Return[direct]];
-    (* Rare representation fallback: decompose just this scalar in the
-       exact graded algebra.  This is not a global channel materialization;
-       it runs only when direct radical substitution cannot see through an
-       atomic/container representation. *)
-    channels = Quiet[Check[familyRegulatorGradedDecompose[entry,
-      orderedRoots], $Failed]];
-    If[channels === $Failed, direct,
-      multiquadraticToExpression[channels, rootSymbols]]];
+    direct];
   vectorKeys = {"Letters", "LetterX", "LetterY"};
   polynomializedObjects = AssociationMap[Function[key,
       If[MemberQ[vectorKeys, key],
