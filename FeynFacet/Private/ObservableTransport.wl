@@ -1277,6 +1277,7 @@ BuildObservableTransport[record_Association, demand_Association,
    forbiddenRows, forbiddenLabels, forbiddenMap, basis,
    closureHistory, closureSteps, constraintMatrix, constraintPivots,
    constraintRank,
+   baseStageStart,
    closureRecord, closureInitialSpanCertificate, closureInitialSpanMethod,
    closureStabilizationCertificate, closureStabilizationMethod,
    constraintLeafCount, boundaryEvolution, movingKernelLeafLimit,
@@ -1685,17 +1686,31 @@ BuildObservableTransport[record_Association, demand_Association,
       secondClosureRecord["StabilizationCertificate"];
     secondClosureStabilizationMethod =
       secondClosureRecord["StabilizationMethod"];
+    If[verbose, Print[
+      "Observable transport base constraint cancellation start: ",
+      Dimensions[extendedConstraintMatrix]]];
+    baseStageStart = AbsoluteTime[];
     baseConstraintMatrix = observableTransportCancelMatrix[
       Normal[extendedConstraintMatrix] /. secondVariable -> secondBase];
+    If[verbose, Print[
+      "Observable transport base constraint cancellation: ",
+      Round[AbsoluteTime[] - baseStageStart, 0.1], " s"]];
+    baseStageStart = AbsoluteTime[];
     baseBoundaryKernel = If[Length[extendedConstraintMatrix] === 0,
       IdentityMatrix[Length[extendedSlots]],
       observableTransportKernel[baseConstraintMatrix]];
+    If[verbose, Print["Observable transport base kernel: ",
+      Round[AbsoluteTime[] - baseStageStart, 0.1], " s; dimensions ",
+      Dimensions[baseBoundaryKernel]]];
+    baseStageStart = AbsoluteTime[];
     If[! MatrixQ[baseBoundaryKernel] ||
         Dimensions[baseBoundaryKernel][[1]] =!= Length[extendedSlots] ||
         ! observableTransportZeroMatrixQ[
           baseConstraintMatrix . baseBoundaryKernel],
       Return[<|"Status" -> "BoundaryBaseKernelIdentityFailed"|>, Module]
     ];
+    If[verbose, Print["Observable transport base kernel replay: ",
+      Round[AbsoluteTime[] - baseStageStart, 0.1], " s"]];
     baseBoundaryEmbedding = baseBoundaryKernel;
     terminalEmbedding = baseBoundaryEmbedding
   ];
