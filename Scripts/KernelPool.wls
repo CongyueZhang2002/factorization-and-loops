@@ -213,7 +213,8 @@ poolRun[file_String, logFile_String, kernelFile_String] := Module[
      nonsense (measured: t_physical_variable_coefficients failed with 1/0 on
      a subkernel that had run the adopted transport tests).  After the
      mission, every Global` name that GAINED an own value is unset; function
-     definitions and the $-prefixed package globals are left alone. *)
+     definitions and the $-prefixed package globals are left alone;
+     FACET_POOL_ISOLATION=0 in the pool's environment disables it. *)
   missionOwnValued := Select[System`Names["Global`*"],
     ! StringStartsQ[#, "Global`$"] &&
       System`ToExpression[#, InputForm, System`OwnValues] =!= {} &];
@@ -242,7 +243,8 @@ poolRun[file_String, logFile_String, kernelFile_String] := Module[
   If[MatchQ[r, {"EXIT", _}], status = If[r[[2]] === 0, "OK", "EXIT" <> ToString[r[[2]]]]; r = r[[2]]];
   If[r === $Failed && status === "OK", status = "FAILED"];
   If[r === $Aborted && status === "OK", status = "ABORTED"];
-  missionLeaked = Complement[missionOwnValued, missionOwnBefore];
+  missionLeaked = If[Environment["FACET_POOL_ISOLATION"] === "0", {},
+    Complement[missionOwnValued, missionOwnBefore]];
   If[missionLeaked =!= {},
     Scan[System`ToExpression[#, InputForm, System`Unset] &, missionLeaked];
     WriteString[s, "MISSION isolation: unset ", Length[missionLeaked],
