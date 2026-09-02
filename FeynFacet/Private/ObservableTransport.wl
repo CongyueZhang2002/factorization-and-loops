@@ -16,9 +16,12 @@ ClearAll[
   observableTransportCancelMatrix,
   observableTransportZeroQ,
   observableTransportZeroMatrixQ,
+  observableTransportStructuralZeroMatrixQ,
   observableTransportSlotKey,
   observableTransportEpsilonOrder,
   observableTransportLaurentMatrices,
+  observableTransportLaurentMatricesTask,
+  observableTransportLaurentRows,
   observableTransportIndependentRows,
   observableTransportIndependentRowsTask,
   observableTransportIndependentRowsAtSamples,
@@ -60,6 +63,12 @@ observableTransportZeroQ[x_] :=
 
 observableTransportZeroMatrixQ[m_] :=
   AllTrue[Flatten[{Normal[m]}], observableTransportZeroQ];
+
+(* Use only after entrywise exact cancellation.  A nonliteral zero is kept as
+   a possible edge, so this cheap predicate can overestimate the block DAG but
+   can never discard a coupling. *)
+observableTransportStructuralZeroMatrixQ[m_] :=
+  AllTrue[Flatten[{Normal[m]}], TrueQ[# === 0] &];
 
 observableTransportSourceFrameQ[value_] := Module[
   {name = ToLowerCase@StringReplace[ToString[value, InputForm],
@@ -413,15 +422,69 @@ observableTransportSlotKey[{order_, component_}] :=
 
 observableTransportEpsilonOrder[0, _] := Infinity;
 observableTransportEpsilonOrder[x_, eps_] :=
-  masterTransportEpsOrder[observableTransportCancel[x], eps];
+  masterTransportEpsOrder[x, eps];
 
-observableTransportLaurentMatrices[m_, eps_, {low_Integer, high_Integer}] :=
-  Association@Table[
-    order -> Map[
+observableTransportLaurentRows[matrix_, eps_, {low_Integer, high_Integer},
+    indices_List] := Association@Table[
+  order -> Map[
+    observableTransportCancel[SeriesCoefficient[#, {eps, 0, order}]] &,
+    matrix[[indices]], {2}],
+  {order, low, high}
+];
+
+observableTransportLaurentMatricesTask[file_String,
+    indices_List] := Module[
+  {data = FamilyArtifactRead[file], matrix, eps, orderRange},
+  If[! AssociationQ[data], Return[$Failed, Module]];
+  {matrix, eps, orderRange} =
+    Lookup[data, {"Matrix", "Epsilon", "OrderRange"}, $Failed];
+  If[! MatrixQ[matrix] || eps === $Failed ||
+      ! MatchQ[orderRange, {_Integer, _Integer}],
+    Return[$Failed, Module]];
+  observableTransportLaurentRows[matrix, eps, orderRange, indices]
+];
+
+observableTransportLaurentMatrices[m_, eps_,
+    orderRange : {low_Integer, high_Integer}] := Module[
+  {matrix = Normal[m], dimensions, helperCount, chunks, payloadFile,
+   codes, handle, local, results},
+  dimensions = Quiet[Check[Dimensions[matrix], {}]];
+  If[Length[dimensions] =!= 2,
+    Return[Association@Table[order -> Map[
       observableTransportCancel[SeriesCoefficient[#, {eps, 0, order}]] &,
-      Normal[m], {2}],
-    {order, low, high}
-  ];
+      matrix, {2}], {order, low, high}], Module]];
+  local[indices_List] :=
+    observableTransportLaurentRows[matrix, eps, orderRange, indices];
+  helperCount = If[dimensions[[1]] > 1 &&
+      Times @@ dimensions Max[1, high - low + 1] >= 2048 &&
+      TrueQ[taskBrokerActiveQ[]],
+    Min[dimensions[[1]] - 1,
+      Max[0, Quiet[Check[taskBrokerFreeKernels[], 0]]]], 0];
+  If[helperCount < 1,
+    Return[local[Range[dimensions[[1]]]], Module]];
+  chunks = Partition[Range[dimensions[[1]]],
+    UpTo[Ceiling[dimensions[[1]]/(helperCount + 1)]]];
+  payloadFile = taskBrokerDataFile[
+    "observable_laurent_" <> ToString[$ProcessID] <> "_" <>
+      StringReplace[CreateUUID[], "-" -> ""],
+    <|"Matrix" -> matrix, "Epsilon" -> eps,
+      "OrderRange" -> orderRange|>];
+  codes = ("FeynFacet`Private`observableTransportLaurentMatricesTask[" <>
+      ToString[payloadFile, InputForm] <> "," <>
+      ToString[#, InputForm] <> "]") & /@ Most[chunks];
+  handle = taskBrokerSubmit[codes, "Label" -> "observableLaurent"];
+  results = Append[taskBrokerCollect[handle], local[Last[chunks]]];
+  results = MapThread[Function[{result, chunk},
+    If[AssociationQ[result] && Sort[Keys[result]] === Range[low, high] &&
+        AllTrue[Values[result], Function[value,
+          MatrixQ[value] &&
+            Dimensions[value] === {Length[chunk], dimensions[[2]]}]],
+      result, local[chunk]]], {results, chunks}];
+  Quiet[DeleteFile[payloadFile]];
+  Association@Table[
+    order -> Join @@ (Lookup[#, order] & /@ results),
+    {order, low, high}]
+];
 
 observableTransportIndependentRows[m_, rules_List] := Module[
   {evaluated, reduced, pivots},
@@ -817,7 +880,10 @@ observableTransportLiftResidues[residues_List, slots_List] := Module[
           column = Lookup[positions,
             observableTransportSlotKey[{slot[[1]] - 1, source}], Missing[]];
           value = residues[[a, slot[[2]], source]];
-          If[! MissingQ[column] && ! observableTransportZeroQ[value],
+          (* This test controls sparse storage only.  Keeping a nonliteral
+             mathematical zero is harmless; proving it here repeats the same
+             connection-entry simplification for every epsilon slot. *)
+          If[! MissingQ[column] && ! TrueQ[value === 0],
             Sow[{row, column} -> value]],
           {source, dimension}],
         {slot, slots}]
@@ -1159,6 +1225,7 @@ BuildObservableTransport[record_Association, demand_Association,
    firstConnection, secondConnection, propagatedLower, stateRowLower,
    flow, forbiddenFHigh, forbiddenPhysicalOrders, slots, positions,
    boundarySlots, boundaryPositions, embedding, lifted, tLaurent,
+   tLaurentHigh,
    forbiddenRows, forbiddenLabels, forbiddenMap, basis,
    closureHistory, closureSteps, constraintMatrix, constraintPivots,
    constraintRank,
@@ -1341,7 +1408,7 @@ BuildObservableTransport[record_Association, demand_Association,
   Do[
     stabilized = False;
     Do[
-      If[source < target && ! observableTransportZeroMatrixQ[
+      If[source < target && ! observableTransportStructuralZeroMatrixQ[
           firstConnection[[ranges[[target]], ranges[[source]]]]],
         propagatedLower[[target]] = Min[propagatedLower[[target]],
           propagatedLower[[source]] + 1]
@@ -1369,8 +1436,13 @@ BuildObservableTransport[record_Association, demand_Association,
     {Length[slots], Length[boundarySlots]}];
   lifted = First@observableTransportLiftResidues[{firstConnection}, slots];
 
+  (* Both physical maps use the same Laurent expansion of TTotal.  Build
+     the union of their order ranges once; the former two-pass route could
+     repeat the dominant symbolic series work almost verbatim. *)
+  tLaurentHigh = Max[Max[0, valuation - 1 - flow],
+    Max[physicalOrders] - flow];
   tLaurent = observableTransportLaurentMatrices[tTotal, eps,
-    {tmin, Max[0, valuation - 1 - flow]}];
+    {tmin, tLaurentHigh}];
   forbiddenRows = {};
   forbiddenLabels = {};
   Do[
@@ -1566,8 +1638,7 @@ BuildObservableTransport[record_Association, demand_Association,
     Return[<|"Status" -> "BoundaryBaseEmbeddingNotConstant"|>, Module]
   ];
 
-  tDemandLaurent = observableTransportLaurentMatrices[tTotal, eps,
-    {tmin, Max[physicalOrders] - flow}];
+  tDemandLaurent = tLaurent;
   demandedRows = {};
   physicalLabels = {};
   Do[

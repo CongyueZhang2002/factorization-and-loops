@@ -172,7 +172,7 @@ taskBrokerCached[key_, expr_] := Module[{value},
    independent algorithms share one flat pool without nested kernels. *)
 taskBrokerFreeKernels[] := Module[
   {status, m, free, limitText, environmentLimit, missionLimit,
-   allocation, familyLimit, helperCapacity, available},
+   familyLimit},
   status = Quiet[Import[FileNameJoin[{taskBrokerDirectory[], "status.txt"}], "Text"]];
   m = If[StringQ[status], StringCases[status, "free: " ~~ n : DigitCharacter .. :> ToExpression[n]], {}];
   free = If[m === {}, 1, First[m]];
@@ -188,13 +188,9 @@ taskBrokerFreeKernels[] := Module[
       IntegerQ[KernelPoolMission`$TaskBrokerMaxHelpers] &&
       KernelPoolMission`$TaskBrokerMaxHelpers >= 0,
     KernelPoolMission`$TaskBrokerMaxHelpers, Infinity];
-  allocation = taskBrokerResourceAllocation[];
-  familyLimit = Lookup[allocation, "HelperCeiling", Infinity];
-  helperCapacity = Lookup[allocation, "HelperCapacity", 0];
-  available = If[IntegerQ[familyLimit],
-    Max[free, familyLimit,
-      If[IntegerQ[helperCapacity], helperCapacity, 0]], free];
-  Min[available, environmentLimit, missionLimit]];
+  familyLimit = Lookup[taskBrokerResourceAllocation[],
+    "HelperCeiling", Infinity];
+  Min[free, environmentLimit, missionLimit, familyLimit]];
 
 (* FeynFacet is reloaded on persistent pool subkernels, resetting the local
    counter while the PID stays fixed.  A per-load filesystem-safe nonce keeps
