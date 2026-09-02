@@ -1782,19 +1782,13 @@ diagonalBlockClassRecord[class_Association, regulatorOption_, timeConstraint_,
   matrices = diagonalBlockTogether /@ {class["RepAv"], class["RepAw"]};
   result = TimeConstrained[DiagonalBlockEpsForm[matrices, {v, w}, eps],
     timeConstraint, <|"Status" -> "TimedOut"|>];
+  (* the CANONICA fallback of the class campaign is retired (user
+     decision 2026-09-02, with the CANONICA class ladder); a request for
+     it is answered as such instead of silently running the finite-field
+     route again *)
   If[result["Status"] =!= "Certified" && fallback === "CANONICA",
-    Module[{converted, attempt},
-      canonicalBlocksLoadCanonica[];
-      converted = matrices /. canonicalBlocksToCanonica[eps];
-      attempt = canonicalBlocksAttempt[converted, Length[matrices[[1]]], {v, w},
-        {0, 1, 2}, 300, 12 10^9, canonicalBlocksSolve[Automatic], eps, False];
-      If[AssociationQ[attempt],
-        result = <|"Status" -> "Certified",
-          "Transformation" -> (attempt["Transformation"] /. canonicalBlocksFromCanonica[eps]),
-          "EpsForm" -> (attempt["EpsForm"] /. canonicalBlocksFromCanonica[eps]),
-          "Variables" -> {v, w}, "Regulator" -> eps, "Method" -> "CANONICA",
-          "Frame" -> "vw", "AnsatzDegree" -> attempt["AnsatzDegree"],
-          "FallbackAttempts" -> Lookup[result, "Attempts", {}]|>]]];
+    result = Join[result, <|"FallbackStatus" -> "RouteRetired",
+      "FallbackNote" -> "the CANONICA class ladder lives in FeynFacet/Private_Backup (2026-09-02)"|>]];
   If[result["Status"] =!= "Certified",
     Return[<|"ClassID" -> Lookup[class, "ClassID", None], "Status" -> result["Status"],
       "Attempts" -> Lookup[result, "Attempts", {}],
@@ -1802,11 +1796,12 @@ diagonalBlockClassRecord[class_Association, regulatorOption_, timeConstraint_,
       "Seconds" -> AbsoluteTime[] - start|>]];
   variables = Lookup[result, "ChartVariables", result["Variables"]];
   chart = Lookup[result, "Chart", None];
+  (* the independent validation is CANONICA-free since 2026-09-02:
+     ValidateCanonicalForm solves the residues exactly and re-verifies
+     the dlog identity with Together *)
   validated = If[TrueQ[canonicaValidation],
-    (canonicalBlocksLoadCanonica[];
-     TrueQ[ValidateCanonicalForm[
-       result["EpsForm"] /. canonicalBlocksToCanonica[eps], variables,
-       "Regulator" -> CANONICA`eps]]),
+    TrueQ[ValidateCanonicalForm[result["EpsForm"], variables,
+      "Regulator" -> eps]],
     Missing["NotRun"]];
   <|
     "Format" -> "FeynFacet-CanonicalClassForm",

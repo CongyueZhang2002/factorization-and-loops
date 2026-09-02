@@ -9,6 +9,23 @@ assistant's workspace — never write there.
 
 ## START HERE
 
+**Round 2 of the overhaul (2026-09-02, user rulings U1-U4, N1-N8 in
+`Design/PrivateOverhaul_2026-09-01.md`):** the Libra path-ordered
+transport engines (`TransportFamily` and its modules), the CANONICA
+class ladder (`CanonicalizeClasses`), the CANONICA/Maple strip-ladder
+remnants and the August sweep scripts are retired to
+`FeynFacet/Private_Backup/` and `Scripts/Backup/`; their public names
+answer `RouteRetired`. CANONICA is not loaded anywhere in the live
+package (`ValidateCanonicalForm` is self-contained). Libra remains
+only where stage 1 needs it, the balance slice of `DiagonalBlockEpsForm`,
+which with the finite-field diagonal-block route and the sector driver
+is the production canonicalizer. **A stage that has produced its
+artifacts is still a maintained, optimizable route**: the benchmark
+harness (`Scripts/Diagnostics/benchmark_overhaul.wls`) carries stage-1
+items on real classes (`dbe_class<N>`) next to the transport items.
+Passages below that describe Libra as the stage-2 engine, CANONICA in
+stage 1 or `sweep_transport.wls` are history.
+
 **State advanced on 2026-09-02 (package overhaul, user-assigned; the
 running record is `Design/PrivateOverhaul_2026-09-01.md` -- read it
 before anything below, several older rules in this file are superseded

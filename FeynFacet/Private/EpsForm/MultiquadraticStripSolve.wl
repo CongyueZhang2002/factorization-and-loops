@@ -353,6 +353,8 @@ ClearAll[
   $multiquadraticStripMaximumRootCount, $multiquadraticStripMaximumEpsilonDegree,
   $multiquadraticStripWordPrimeLimit,
   $multiquadraticStripSourceFile, $multiquadraticStripSourceSHA256,
+  $multiquadraticStripABIVersion,
+  $multiquadraticStripFreivaldsProjections,
   $multiquadraticStripPrimeCache, $multiquadraticStripEpsilonCache,
   $multiquadraticStripDefaultPrimes, $multiquadraticStripPrimePool,
   $multiquadraticStripWideDefaultPrimes,
@@ -492,10 +494,19 @@ multiquadraticStripStageProgress[stage_String, data_Association] := If[
    point and buys nothing that a boundary check does not. *)
 $multiquadraticStripSourceFile = If[StringQ[$InputFileName],
   ExpandFileName[$InputFileName], ""];
-$multiquadraticStripSourceSHA256 = If[$multiquadraticStripSourceFile =!= "" &&
-    FileExistsQ[$multiquadraticStripSourceFile],
-  FileHash[$multiquadraticStripSourceFile, "SHA256", "HexString"],
-  Missing["SourceFileUnavailable"]];
+(* U3 (user decision 2026-09-02): the implementation identity carried by
+   every stored assembly, letter and potential certificate is a
+   HAND-MAINTAINED ABI version, not a hash of this file -- a comment edit
+   no longer invalidates every artifact.  Bump the string when the
+   certificate or cache-key semantics change.  Records written before this
+   date carry "SourceSHA256" instead and are accepted as the legacy
+   lineage. *)
+$multiquadraticStripABIVersion = "MultiquadraticStripSolve-ABI-1";
+$multiquadraticStripSourceSHA256 = $multiquadraticStripABIVersion;
+
+(* U2 (2026-09-02): number of random row projections replayed over ALL
+   original rows after a native (FLINT) constrained-core solve *)
+$multiquadraticStripFreivaldsProjections = 2;
 
 (* Sampling defaults: primes are 3 mod 4 so that every split point has
    an explicit square root (the sign-branch certificate needs one).
@@ -794,7 +805,7 @@ multiquadraticStripPrepareCheckpointRecord[substage_String,
       "Schema" -> $multiquadraticStripPrepareCheckpointSchema,
       "SchemaVersion" -> 1,
       "Substage" -> substage,
-      "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+      "ABIVersion" -> $multiquadraticStripABIVersion,
       "AlgebraABIFingerprint" -> multiquadraticAlgebraABIFingerprint[],
       "InputFingerprint" -> inputFingerprint,
       "PayloadSHA256" -> contentHash|>},
@@ -835,7 +846,7 @@ multiquadraticStripPrepareCheckpointAccept[record_, substage_String,
       "SuppliedPayloadSHA256" -> Lookup[record, "PayloadSHA256",
         Missing["NoPayloadSHA256"]]|>]];
   header = KeyTake[record, {"Schema", "SchemaVersion", "Substage",
-    "SourceSHA256", "AlgebraABIFingerprint", "InputFingerprint",
+    "ABIVersion", "AlgebraABIFingerprint", "InputFingerprint",
     "PayloadSHA256"}];
   If[Lookup[record, "Fingerprint", None] =!=
       multiquadraticStripFingerprint[header],
@@ -1856,7 +1867,7 @@ multiquadraticStripLetterDLogCertificateWithKey[letter_, formKey_,
   letterText = Quiet[ToString[InputForm[Together[letter /. rules]]]];
   If[! StringQ[letterText], Return[Missing["LetterNotNormalizable"]]];
   <|"Schema" -> $multiquadraticStripLetterDLogSchema,
-    "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+    "ABIVersion" -> $multiquadraticStripABIVersion,
     "LetterSHA256" -> Hash[letterText, "SHA256", "HexString"],
     "OneFormSHA256" -> formKey|>
 ];
@@ -1896,11 +1907,11 @@ multiquadraticStripLetterDLogCertificateValidQ[certificate_, letter_, form_,
     letter, variables];
   StringQ[letterKey] && StringQ[formKey] &&
     StringQ[letterExpressionKey] &&
-    SameQ[KeyTake[certificate, {"Schema", "SourceSHA256",
+    SameQ[KeyTake[certificate, {"Schema", "ABIVersion",
         "LetterExpressionSHA256", "LetterChannelSHA256",
         "OneFormChannelSHA256"}],
       <|"Schema" -> $multiquadraticStripLetterDLogChannelSchema,
-        "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+        "ABIVersion" -> $multiquadraticStripABIVersion,
         "LetterExpressionSHA256" -> letterExpressionKey,
         "LetterChannelSHA256" -> letterKey,
         "OneFormChannelSHA256" -> formKey|>]
@@ -1983,14 +1994,14 @@ multiquadraticStripConstructedDLogEvidence[letterKey_String,
     potentialPairKey_String] := Module[
   {certificate, potential},
   certificate = <|"Schema" -> $multiquadraticStripLetterDLogChannelSchema,
-    "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+    "ABIVersion" -> $multiquadraticStripABIVersion,
     "LetterExpressionSHA256" -> letterExpressionKey,
     "LetterChannelSHA256" -> letterKey,
     "OneFormChannelSHA256" -> formKey|>;
   potential = <|"Schema" -> $multiquadraticStripPotentialSchema,
     "Status" -> "PotentialVerified", "Verified" -> True,
     "PairKey" -> potentialPairKey,
-    "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+    "ABIVersion" -> $multiquadraticStripABIVersion,
     "VerificationMethod" -> "ConstructedExactDLog"|>;
   <|"Potential" -> potential, "DLogCertificate" -> certificate|>
 ];
@@ -2040,7 +2051,7 @@ multiquadraticStripVerifyPotential[letter_, form_,
   record = <|"Schema" -> $multiquadraticStripPotentialSchema,
     "Status" -> If[TrueQ[zeroQ], "PotentialVerified", "PotentialRefused"],
     "Verified" -> TrueQ[zeroQ], "PairKey" -> key,
-    "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+    "ABIVersion" -> $multiquadraticStripABIVersion,
     "Cached" -> False|>;
   (* bounded by ENTRY COUNT: an entry is five short values and a hash,
      so a byte bound would only restate the entry bound *)
@@ -7500,7 +7511,7 @@ multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
     Length[letterRecords] === Length[oneForms];
   records = If[aligned, letterRecords,
     ConstantArray[None, Length[oneForms]]];
-  prefix = {$multiquadraticStripSourceSHA256, variables, epsilon,
+  prefix = {$multiquadraticStripABIVersion, variables, epsilon,
     Lookup[roots, "Root", {}], Lookup[roots, "RootSquare", {}]};
   keys = Table[
     multiquadraticStripCompileOneFormKey[prefix, oneForms[[index]],
@@ -7612,7 +7623,7 @@ multiquadraticStripCompileCoreKeyFromParts[algebraFingerprint_,
     equationFingerprint_, rootOrderingFingerprint_, rootCanonicalSquares_,
     rootCanonicalExpressions_, dimensions_,
     variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
-  {$multiquadraticStripSourceSHA256, algebraFingerprint,
+  {$multiquadraticStripABIVersion, algebraFingerprint,
    equationFingerprint, rootOrderingFingerprint, rootCanonicalSquares,
    rootCanonicalExpressions, dimensions, variables, epsilon};
 
@@ -7689,7 +7700,7 @@ multiquadraticStripCompileDenominatorRecord[denominator_,
         "GaugeLogDerivatives" -> denominatorLogData|>]];
   If[TrueQ[useCacheQ],
     multiquadraticStripIntern["GaugeDenominator",
-      {$multiquadraticStripSourceSHA256, variables, epsilon, denominator},
+      {$multiquadraticStripABIVersion, variables, epsilon, denominator},
       Function[build[]]],
     build[]]
 ];
@@ -7758,7 +7769,7 @@ multiquadraticStripSemanticPayload[assembly_Association] := KeyTake[assembly, {
   "GaugeUnknownCount", "ResidueUnknownCount", "UnknownCount",
   "EquationsPerPoint", "ColumnOrder", "RowOrder",
   "ExactChannelFormsFingerprint", "CompiledFormsFingerprint",
-  "CompiledFormsShapeFingerprint", "SourceSHA256"}];
+  "CompiledFormsShapeFingerprint", "ABIVersion"}];
 
 (* "PreparationValidated" and "ForcingChannels" exist for ONE caller:
    solveEpsFormStripMultiquadratic, which has just built this preparation
@@ -8109,7 +8120,7 @@ multiquadraticStripCompile[preparation_Association,
   result = <|
     "Status" -> "CompiledMultiquadraticStripV1",
     "SourceFile" -> $multiquadraticStripSourceFile,
-    "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+    "ABIVersion" -> $multiquadraticStripABIVersion,
     "Preparation" -> preparation,
     "ABIFingerprint" -> preparation["ABIFingerprint"],
     "AlgebraABIFingerprint" -> preparation["AlgebraABIFingerprint"],
@@ -8151,7 +8162,7 @@ multiquadraticStripCompiledValidQ[assembly_Association] := Module[
    requiredKeys, rules, canonicalExact},
   If[Lookup[assembly, "Status", None] =!= "CompiledMultiquadraticStripV1",
     Return[False]];
-  requiredKeys = {"SourceFile", "SourceSHA256", "ABIFingerprint",
+  requiredKeys = {"SourceFile", "ABIVersion", "ABIFingerprint",
     "AlgebraABIFingerprint", "RootOrderingFingerprint", "Record", "Roots",
     "RootCount", "GradeCount", "Variables", "Regulator", "Dimensions",
     "GaugeSupport", "OneForms", "GaugeDenominator", "Normalizations",
@@ -8174,7 +8185,7 @@ multiquadraticStripCompiledValidQ[assembly_Association] := Module[
     assembly["Regulator"]];
   canonicalExact = assembly["ExactChannelForms"] /. rules;
   TrueQ[
-    assembly["SourceSHA256"] === $multiquadraticStripSourceSHA256 &&
+    assembly["ABIVersion"] === $multiquadraticStripABIVersion &&
     assembly["AlgebraABIFingerprint"] === multiquadraticAlgebraABIFingerprint[] &&
     assembly["GaugeUnknownCount"] === expectedGauge &&
     assembly["ResidueUnknownCount"] === expectedResidue &&
@@ -8260,7 +8271,7 @@ multiquadraticStripAssemblyLayout[preparation_Association] := Module[
   result = <|
     "Status" -> "MultiquadraticStripAssemblyLayoutV1",
     "SourceFile" -> $multiquadraticStripSourceFile,
-    "SourceSHA256" -> $multiquadraticStripSourceSHA256,
+    "ABIVersion" -> $multiquadraticStripABIVersion,
     "ABIFingerprint" -> preparation["ABIFingerprint"],
     "AlgebraABIFingerprint" -> preparation["AlgebraABIFingerprint"],
     "RootOrderingFingerprint" ->
@@ -8283,7 +8294,7 @@ multiquadraticStripAssemblyLayout[preparation_Association] := Module[
     "RowOrder" -> preparation["RowOrder"],
     "CoefficientABIPayload" -> coefficientPayload,
     "CoefficientABIFingerprint" -> coefficientFingerprint|>;
-  semantic = KeyTake[result, {"SourceSHA256", "ABIFingerprint",
+  semantic = KeyTake[result, {"ABIVersion", "ABIFingerprint",
     "AlgebraABIFingerprint", "RootOrderingFingerprint", "RootCount",
     "GradeCount", "Dimensions", "GaugeSupport", "GaugeUnknownCount",
     "ResidueUnknownCount", "UnknownCount", "EquationsPerPoint",
@@ -8318,14 +8329,14 @@ multiquadraticStripAssemblyLayoutValidQ[layout_Association] := Module[
   If[coefficientPayload === $Failed, Return[False]];
   coefficientFingerprint = multiquadraticStripFingerprint[
     coefficientPayload];
-  semantic = KeyTake[layout, {"SourceSHA256", "ABIFingerprint",
+  semantic = KeyTake[layout, {"ABIVersion", "ABIFingerprint",
     "AlgebraABIFingerprint", "RootOrderingFingerprint", "RootCount",
     "GradeCount", "Dimensions", "GaugeSupport", "GaugeUnknownCount",
     "ResidueUnknownCount", "UnknownCount", "EquationsPerPoint",
     "ColumnOrder", "RowOrder", "CoefficientABIFingerprint"}];
   TrueQ[
-    Lookup[layout, "SourceSHA256", None] ===
-      $multiquadraticStripSourceSHA256 &&
+    Lookup[layout, "ABIVersion", None] ===
+      $multiquadraticStripABIVersion &&
     Lookup[layout, "AlgebraABIFingerprint", None] ===
       multiquadraticAlgebraABIFingerprint[] &&
     Lookup[layout, "CoefficientABIPayload", None] === coefficientPayload &&
@@ -8849,7 +8860,7 @@ multiquadraticStripAssembleSample[assembly_Association, epsilonValue_,
   <|"Status" -> "AssembledMultiquadraticSampleV1",
     "ABIFingerprint" -> assembly["ABIFingerprint"],
     "AssemblyFingerprint" -> assembly["AssemblyFingerprint"],
-    "SourceSHA256" -> assembly["SourceSHA256"], "Prime" -> prime,
+    "ABIVersion" -> assembly["ABIVersion"], "Prime" -> prime,
     "EpsilonValue" -> epsilonValue, "EpsilonMod" -> epsilonForms["EpsilonMod"],
     "Matrix" -> matrix, "RightHandSide" -> right,
     "MatrixDimensions" -> Dimensions[matrix],
@@ -9283,7 +9294,7 @@ multiquadraticStripAssembleSample[layout_Association,
     "ProviderFingerprint" -> provider["ProviderFingerprint"],
     "ImageStoreKey" -> imageStoreKey,
     "TrainingImageKeys" -> trainingImageKeys,
-    "SourceSHA256" -> layout["SourceSHA256"], "Prime" -> prime,
+    "ABIVersion" -> layout["ABIVersion"], "Prime" -> prime,
     "EpsilonValue" -> epsilonValue,
     "EpsilonMod" -> multiquadraticStripModRational[epsilonValue, prime],
     "Matrix" -> matrix, "RightHandSide" -> right,
@@ -10116,6 +10127,15 @@ multiquadraticStripFullResidualEvidenceValidQ[evidence_Association,
   nullity = Lookup[evidence, "Nullity", $Failed];
   If[! PrimeQ[prime] || ! IntegerQ[nullity] || nullity < 0,
     Return[False]];
+  If[method === "NativeCoreVerifiedFreivaldsAllRows",
+    Return[Lookup[evidence, "ConstrainedSolveBackendUsed", None] ===
+        "FLINT" &&
+      TrueQ[Lookup[evidence, "NativeCoreResidualZero", False]] &&
+      TrueQ[Lookup[evidence, "NativeCoreResidualExact", False]] &&
+      TrueQ[Lookup[evidence, "FullResidualZero", False]] &&
+      IntegerQ[Lookup[evidence, "FreivaldsProjections", None]] &&
+      Lookup[evidence, "FreivaldsProjections", 0] >= 2]];
+  (* records written before 2026-09-02 carry the core-only method *)
   If[method === "NativeConstrainedCoreVerified",
     Return[Lookup[evidence, "ConstrainedSolveBackendUsed", None] ===
         "FLINT" &&
@@ -10191,13 +10211,31 @@ multiquadraticStripConstrainedAffineSolve[matrix_?MatrixQ, right_List,
         "NullspaceBasis" -> candidateNullspace,
         "NormalizationOK" -> False|>]];
     If[TrueQ[nativeCoreVerified],
-      certificateSummary = <|"Status" -> "Accepted",
-        "FullResidualZero" -> Missing["NotChecked"],
-        "NullspaceResidualZero" -> Missing["NotChecked"],
-        "FullResidualCheckMethod" -> "NativeConstrainedCoreVerified",
+      (* U2 (user decision 2026-09-02): a native solve is verified on the
+         constrained core only by the adapter; the ORIGINAL rows are now
+         replayed as well, by Freivalds projection -- two random row
+         combinations r.M.X == r.B mod p -- at O(m n) per projection
+         instead of the O(m n (nullity+1)) exact product, with a false
+         acceptance probability of at most p^-2 per image (p >= 2^30). *)
+      targetMatrix = Join[List /@ Mod[right, prime],
+        ConstantArray[0, {equationCount, nullity}], 2];
+      {replaySeconds, residualZero} = AbsoluteTiming[Module[{ok = True},
+        Do[Module[{r = RandomInteger[{1, prime - 1}, equationCount], lhs, rhs},
+          lhs = Mod[Mod[r . matrix, prime] . candidateMatrix, prime];
+          rhs = Mod[r . targetMatrix, prime];
+          If[lhs =!= rhs, ok = False]], {$multiquadraticStripFreivaldsProjections}];
+        ok]];
+      residualSeconds += replaySeconds;
+      fullResidualReplayCount++;
+      certificateSummary = <|
+        "Status" -> If[residualZero, "Accepted", "FullResidualNonzero"],
+        "FullResidualZero" -> residualZero,
+        "NullspaceResidualZero" -> residualZero,
+        "FullResidualCheckMethod" -> "NativeCoreVerifiedFreivaldsAllRows",
         "FullResidualExact" -> False,
+        "FreivaldsProjections" -> $multiquadraticStripFreivaldsProjections,
         "NativeCoreResidualZero" -> True,
-        "NativeCoreResidualExact" -> True, "Seconds" -> 0.|>;
+        "NativeCoreResidualExact" -> True, "Seconds" -> replaySeconds|>;
       AppendTo[residualCheckEvidence, certificateSummary];
       Return[Join[certificateSummary, <|
         "SolutionMatrix" -> candidateMatrix,
@@ -10370,6 +10408,8 @@ multiquadraticStripConstrainedAffineSolve[matrix_?MatrixQ, right_List,
       "NativeCoreResidualExact", Missing["NotApplicable"]],
     "FullResidualCheckMethod" -> validation["FullResidualCheckMethod"],
     "FullResidualExact" -> validation["FullResidualExact"],
+    "FreivaldsProjections" -> Lookup[validation, "FreivaldsProjections",
+      Missing["NotApplicable"]],
     "FullResidualChecks" -> residualCheckEvidence,
     "PhaseSeconds" -> <|"CoreSolve" -> solveSeconds,
       "NativeCoreSolve" -> nativeSolveSeconds,
@@ -11011,7 +11051,7 @@ multiquadraticStripPilotImageAuthenticate[pilot_Association,
       Lookup[sample, "ProviderFingerprint", None] =!=
         provider["ProviderFingerprint"] ||
       Lookup[sample, "Provider", None] =!= provider["Kind"] ||
-      Lookup[sample, "SourceSHA256", None] =!= layout["SourceSHA256"] ||
+      Lookup[sample, "ABIVersion", None] =!= layout["ABIVersion"] ||
       Lookup[sample, "ColumnOrder", None] =!= layout["ColumnOrder"] ||
       Lookup[sample, "RowOrder", None] =!= layout["RowOrder"],
     Return[failure["PilotSampleKeyOrABIMismatch"]]];
@@ -14668,7 +14708,7 @@ multiquadraticStripBundleExactChannels[forcing_, roots_List,
   localGroup = Last[groups];
   dataFile = If[helperGroups === {}, None,
     taskBrokerDataFile["mqbundlechannels_" <>
-      Hash[{"BundleExactChannelsV1", $multiquadraticStripSourceSHA256,
+      Hash[{"BundleExactChannelsV1", $multiquadraticStripABIVersion,
         bundleFingerprint, Lookup[roots, "RootSquare", {}] /. rules},
         "SHA256", "HexString"], payload]];
   If[helperGroups =!= {} && StringQ[dataFile],

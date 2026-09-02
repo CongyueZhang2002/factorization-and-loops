@@ -510,6 +510,8 @@ measurements, wall seconds.
 | diagonal-block eps-form, synthetic 2x2 block | Certified / 3.19 s | Certified / 1.80-1.98 s |
 | observable transport CF230 (Kallen chart, 13 masters) | not measured on the old route (Codex measured 2,989 s materialized vs 3.4 s lazy) | ModularlyVerifiedObservableTransport / 2.90 s at checkpoint 4; 5.70 s after the review-R1 per-call scan; 3.79 s with the radical constants recorded at compile time (final) |
 | observable transport CF385 (8 masters, 153 boundary coordinates) | not measured | ModularlyVerifiedObservableTransport / 47.5 s, 1.2 GB peak (final branch) |
+| diagonal-block eps-form, class 1 (1x1, ScalarDLog) | not measured | Certified / 0.001 s (round 2, standing stage-1 item `dbe_class1`) |
+| diagonal-block eps-form, class 97 (4x4 hard class, SliceResiduesFiniteFieldAffine) | ~2950 s for class 77 in the 2026-08-21 campaign (4 subkernels); class 97 not timed alone | Certified / 46.2 s, 211 MB (round 2, one kernel, `dbe_class97`) |
 | CF259 full observable transport (47 masters, rank-3, compact record) | never completed before (Codex: transport not run; probes 1-4 failed at rank sampling) | 564 s, accepted (probe 5) |
 | CF259 Laurent extraction (47x47, 417 nonzero entries, rank-3), orders -3..4 | ~10 min (probe 1, SeriesCoefficient) | jet + Cancel[Together] per coefficient: NOT finished after 21 min (stopped) -- slower; the cost is the canonicalization of algebraic coefficients, not the series expansion. Default kept at SeriesCoefficient; jet retained as an option (7/7 unit test). Next lever, not done: uncanonical jets with a modular zero test in the forbidden-map construction (masterTransportZeroQ runs Together/Simplify per entry) |
 
@@ -596,6 +598,69 @@ Reading:
 - Flaky by design and now fixed: t_family_certificate_multiquadratic (B14: 24/24 after the fix,
   1-2 failures per 24 before, on both trees).
 
+## Round 2 (2026-09-02 morning): the user's rulings on U1-U4 and N1-N8
+
+Rulings (verbatim intent) and what was done:
+- U1 "What replaced Libra? If it's not active retire it": the observable transport
+  (`BuildObservableTransport`, lazy-operator route, 88/88 ordinary families + CF259) replaced the
+  Libra path-ordered transport engines. Retired to `Private_Backup/`: `TransportFamily` and its
+  engines (BlockwiseTransport.wl, CanonicalWordTransport.wl whole), the path-transport exception
+  seam and native jets (PathTransportException.wl, PathTransportNative.wl whole), the word and
+  quadrature heads; `TransportFamilyInChart` keeps its assembly mode (FamilyEpsForm.wl uses it) and
+  answers RouteRetired for transport. NOT retired: `masterTransportLoadLibra` and the Libra balance
+  slice inside `DiagonalBlockEpsForm` -- that is the production stage-1 route. Ten tests of the
+  retired routes moved to `Private_Backup/Tests/`; the August sweep and Libra research scripts to
+  `Scripts/Backup/retired_routes_2026-09-02/`.
+- U2 "if the full check is not too expensive, add it": native (FLINT) constrained-core solves now
+  replay ALL original rows by two Freivalds projections (`$multiquadraticStripFreivaldsProjections`),
+  O(m n) per projection instead of the O(m n (nullity+1)) exact product, false acceptance <= p^-2;
+  evidence method `NativeCoreVerifiedFreivaldsAllRows`; the pre-existing `NativeConstrainedCoreVerified`
+  records stay readable.
+- U3 "kill that hash": `$multiquadraticStripSourceSHA256` (a hash of the 949 kB solver file) is
+  replaced by the hand-maintained `$multiquadraticStripABIVersion` ("MultiquadraticStripSolve-ABI-1")
+  in every certificate, checkpoint header and cache key (key name `ABIVersion`); a comment edit no
+  longer invalidates artifacts; the old symbol is an alias of the version for readers. Tests migrated
+  (persistence, provenance, radical denesting, Q4 chart, support-ladder evidence).
+- U4 "yes include wall timing": `SolveEpsFormStripInFrame` results carry ONE top-level `Timings`
+  record (`StripTimingsV1`: the construction stages and every duration key lifted out of the inner
+  solve, path-keyed); `InnerSolution` is now byte-identical between solves.
+- N1 (charts are in `Private/Geometry/TransportCharts.wl`: `TransportChartCatalog[]` + the family
+  registry); N4 (advice: leave the double validation of the multiquadratic solver until it is needed
+  again, then keep only the full check as the certificate step); N5 (GPU: no canonicalization step
+  was tried on a GPU; the only GPU candidate in stage 1 is the batched modular evaluation of block
+  equations, measured CPU-favourable at current batch sizes; see the design note).
+- N2 "put the Legacy branches into backup": `Scripts/family_epsform_sector.wls` lost its CANONICA
+  loader, the NextEquationD/InsertD/TransformDE branches, the Maple options and the Legacy dispatch
+  (1970 -> 1860 lines; the pre-removal copy is `Scripts/Backup/family_epsform_sector_2026-09-02_before_legacy_removal.wls`).
+- N3 "if we are not using canonica and libra anymore, put them to backup": CANONICA is gone from the
+  live package: `CanonicalizeClasses` (class ladder), the CANONICA loader/regulator bridge, the
+  strip ladder helpers, the broker CANONICA ladder, the Maple helpers -> `Private_Backup/`;
+  `ValidateCanonicalForm` reimplemented without CANONICA (letters from the irreducible denominator
+  factors, residues by an exact linear solve at rational points, the dlog identity re-verified with
+  Together); `DiagonalBlockEpsForm`'s CANONICA fallback answers RouteRetired and its independent
+  validation uses the new validator. Libra stays where stage 1 needs it (above).
+- N7 "why not": the strip solver's reserve-prime schedule is now `modularPrimes[31, count,
+  "Exclude" -> lifted, "Below" -> 2147483399]` (same schedule); the native path-transport sampler
+  went to backup with its route.
+- N8: `multiquadraticSplitPointQ` -> `Private_Backup/`; its two tests assert the shared predicate.
+- The user's correction, recorded as a rule: a stage that has produced its artifacts is still a
+  maintained, optimizable route of the general workflow; "closed" never means "reference only".
+  Follow-up in this round: a real class enters the benchmark harness as a standing stage-1 item.
+
+Finding of the round-2 smoke run (11:06, watchdog): CANONICA was still on the PRODUCTION stage-1
+path -- the finite-field strip route took its letter alphabet from `CANONICA`ExtractIrreducibles`
+through the symbol bridge I had moved to backup, and `SolveResidueRationalGauge` used
+`CANONICA`RatFunctionZeroCoeffs`; with the bridge gone every strip solve lost its letters (sampler
+"no nonsingular points"). Replaced by `epsFormStripIrreducibleFactors` (irreducible,
+regulator-free denominator factors of the strip entries, plus the variables) and
+`epsFormStripRationalZeroCoefficients` (numerator monomial coefficients); the affected tests were
+re-queued. Benchmarks on the round-2 tree (commit 4adfa4cc + working changes): load 2.13 s, class 1
+0.001 s, class 97 46.2 s (Certified, SliceResiduesFiniteFieldAffine), CF27 1.30 s, CF230 3.87 s,
+synthetic block 1.78 s.
+
+Acceptance of round 2: the load check and the affected tests run in fresh kernels on the seat
+queue first, then the full suite; results are appended below.
+
 ## Deliberately not done
 
 - N1. Splitting the chart catalog into a separate data file: the records
@@ -661,6 +726,8 @@ Reading:
   is tonight because it would re-key existing artifacts.
 
 ## Log
+- 11:30 (round 2) smoke queue B drained (39 jobs, watchdog: no refusal, no stall). After the CANONICA-alphabet replacement and the test migrations every rerun is green: t_construction_budget 40/40 (fingerprint intact), t_finite_field_affine_rref_backend 35/35, t_broker_adaptive 40/40, t_family_row_gauge 39/39, t_generality_renamed_variables 53/53, t_radical_denesting 36/36, t_kallen_q4_chart 60/60, t_package_generality 25/25, t_canonical_blocks 13/13, plus t_hard_class_epsforms 24/24, t_family_certificate_multiquadratic 28/28, t_multiquadratic_persistence 53/53, t_multiquadratic_provenance 69/69, t_modular_arithmetic 61/61, t_multiquadratic_algebra 75/75 and the boolean-style tests exit 0. Open: t_multiquadratic_constrained_affine_plan (2 U2 assertions; diagnostic running), t_finite_field_eps_form (rerun running). t_eps_form_strip turned out to drive the Maple residue-gauge route (SolveResidueRationalGauge) -- retired with its test per N3.
+- 11:00 (round 2) the retirement edits went through a fresh-kernel load check after one syntax slip (my usage-message rewrite left the tail of the old TransportFamily usage dangling in FeynFacet.m; the watchdog caught it, fixed, re-checked: Options 26, stubs answer RouteRetired, validator True/False on the good/bad forms, timings record, ABI version). Two more slips fixed the same hour: the new `"Below"` option of modularPrimes had not been registered (reserve primes returned $Failed; re-registered, 3 reserve primes identical to the old schedule), and my restore of canonicalBlocksChartParameter copied 300 lines of the ladder back into the live module (returned to the backup; the live file defines the chooser only). Smoke queue B (26 affected tests + benchmark) running; t_canonical_blocks 13/13 with the CANONICA-free validator, t_generality_renamed_variables and t_construction_budget migrated to the retired-route contracts and re-queued.
 - 08:41 post-merge verification on `main` in fresh kernels: load check Options[SolveEpsFormStrip] 15 / Options[SolveEpsFormStripInFrame] 26, restored helpers defined; t_construction_budget 40/40, t_kernelpool_duplicate_verdict 7/7, t_observable_transport_ff_radical_scale 10/10, t_modular_arithmetic 61/61, t_reconstruction_parser exit 0 (real directories, no symlink). Session ends here; the next session starts from HANDOFF.md.
 - 08:38 `main` fast-forwarded to `overhaul` (e577a6a9, 18 commits on 2d73f71f); post-merge verification in fresh kernels from the main tree (load check, t_construction_budget, t_reconstruction_parser, t_kernelpool_duplicate_verdict, t_observable_transport_ff_radical_scale, t_modular_arithmetic) running. Housekeeping for the next session: the `base` and `work` git worktrees live under the session scratchpad (`git worktree prune` once it is gone); the KernelPool with the new isolation code has now run three kernel-launching tests green but no production campaign yet.
 - 08:40 all confirmation queues drained; final merged table written into the acceptance section; benchmark table finalized (CF230 3.79 s after recording the radical constants at compile time). Deviation to record: the last two short queues (queue3: three fast tests + benchmark, queue4: one 30 s test) ran without their own watchdog agent; the waiter scripts and direct log reads served as the check, and both drained within minutes.

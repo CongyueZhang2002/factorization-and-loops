@@ -204,23 +204,97 @@ FTTest`FTAssert["C. the quotient is strictly coarser than the block set",
     Max[#["Size"] & /@ nloClasses] >= 2 &&
     AllTrue[nloClasses, AllTrue[#["Members"], TrueQ[#["MapVerified"]] &] &]];
 
-(* --- E' ---------------------------------------------------------- *)
-(* The validator (CANONICA-free since 2026-09-02) on stored, certified
-   class forms of the repository: nine ordinary classes and the three
-   hard classes 97, 77, 79 in their chart frames. *)
-classFormDirectory = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
-  "UU_08_10_canonical", "ClassForms"}];
-sampledForms = Select[FileNameJoin[{classFormDirectory, "class" <> ToString[#] <> ".wl"}] & /@
-  {1, 9, 45, 89, 169, 12, 20, 33, 50, 97, 77, 79}, FileExistsQ];
-FTTest`FTAssert["E'. the repository's class-form ledger is present",
-  Length[sampledForms] >= 10];
-FTTest`FTAssert["E'. every sampled certified class form re-validates from its matrices",
-  AllTrue[sampledForms, TrueQ[ValidateCanonicalForm[#]] &]];
+(* --- D ------------------------------------------------------------ *)
+
+nloRun = CanonicalizeClasses[classification,
+  "OutputDirectory" -> formDirectory,
+  "AnsatzDegrees" -> {0, 1},
+  "TimeConstraint" -> 180];
+
+FTTest`FTAssert["D. every NLO class canonicalized, none unresolved",
+  nloRun["Unresolved"] === 0 &&
+    nloRun["Canonicalized"] === classification["ClassCount"] &&
+    Length[FileNames["class*.wl", formDirectory]] ===
+      classification["ClassCount"]];
+
+(* --- E ------------------------------------------------------------ *)
+
+storedForms = FileNames["class*.wl", formDirectory];
+
+FTTest`FTAssert["E. every stored NLO form re-validates from its matrices",
+  storedForms =!= {} &&
+    AllTrue[storedForms, TrueQ[ValidateCanonicalForm[#]] &]];
+
+(* --- F ------------------------------------------------------------ *)
+
+(* A one-dimensional system that is deliberately NOT an epsilon-form:
+   (-1 - eps)/v is not eps times a constant residue. *)
+mockClass = <|
+  "ClassID" -> 9001,
+  "ContentAddress" -> "mockclass",
+  "Dim" -> 1,
+  "RepFamily" -> "MOCK",
+  "RepRows" -> {1},
+  "RepBasis" -> {"mock"},
+  "RepAv" -> {{(-1 - epsG)/vv}},
+  "RepAw" -> {{(1 + 2 epsG)/ww}},
+  "Variables" -> {vv, ww},
+  "Regulator" -> epsG
+|>;
+
+mockDirectory = FileNameJoin[{scratch, "mockforms"}];
+Quiet[CreateDirectory[mockDirectory]];
+mockFile = FileNameJoin[{mockDirectory, "class9001.wl"}];
+
+(* F1: the literal CANONICA failure tuple. *)
+Quiet[DeleteFile[mockFile]];
+failureTupleRun = CanonicalizeClasses[mockClass,
+  "OutputDirectory" -> mockDirectory,
+  "AnsatzDegrees" -> {0},
+  "Chart" -> False,
+  "Solver" -> Function[{matrices, variables, degree},
+    {False, {IdentityMatrix[Length[matrices[[1]]]], matrices}}]];
+
+FTTest`FTAssert["F1. {False,{...}} failure tuple does not validate and writes no form",
+  failureTupleRun["Canonicalized"] === 0 &&
+    failureTupleRun["Unresolved"] === 1 &&
+    ! FileExistsQ[mockFile]];
+
+(* F2: shape-valid return, matrix is not an epsilon-form.  Only the
+   reconstruction gate rejects this one. *)
+Quiet[DeleteFile[mockFile]];
+shapeValidRun = CanonicalizeClasses[mockClass,
+  "OutputDirectory" -> mockDirectory,
+  "AnsatzDegrees" -> {0},
+  "Chart" -> False,
+  "Solver" -> Function[{matrices, variables, degree},
+    {IdentityMatrix[Length[matrices[[1]]]], matrices}]];
+
+FTTest`FTAssert["F2. shape-valid non-epsilon-form is rejected by the gate, no form written",
+  shapeValidRun["Canonicalized"] === 0 &&
+    shapeValidRun["Unresolved"] === 1 &&
+    ! FileExistsQ[mockFile]];
+
+(* F3: positive control -- a genuine epsilon-form is accepted, so F1
+   and F2 are not passing merely because everything is refused. *)
+Quiet[DeleteFile[mockFile]];
+genuineRun = CanonicalizeClasses[mockClass,
+  "OutputDirectory" -> mockDirectory,
+  "AnsatzDegrees" -> {0},
+  "Chart" -> False,
+  "Solver" -> Function[{matrices, variables, degree},
+    Module[{e = Symbol["CANONICA`eps"]},
+      {IdentityMatrix[Length[matrices[[1]]]],
+        {{{-2 e/(-1 + variables[[1]] + variables[[2]])}},
+          {{-2 e/(-1 + variables[[1]] + variables[[2]])}}}}]]];
+
+FTTest`FTAssert["F3. a genuine epsilon-form return is accepted and stored",
+  genuineRun["Canonicalized"] === 1 &&
+    genuineRun["Unresolved"] === 0 &&
+    FileExistsQ[mockFile] &&
+    TrueQ[ValidateCanonicalForm[mockFile]]];
 
 (* --- G ------------------------------------------------------------ *)
-(* the ladder sections D, F, H, I of this test (CanonicalizeClasses on
-   CANONICA) are retired with the route: Private_Backup/Tests/
-   t_canonical_blocks_canonica.wls *)
 
 goodForm = {{{-2 epsG/(-1 + vv + ww)}}, {{-2 epsG/(-1 + vv + ww)}}};
 badForm = {{{epsG/(vv^2 + ww)}}, {{epsG/(vv + ww^2)}}};
@@ -245,6 +319,71 @@ FTTest`FTAssert["G. details report exposes letters and constant-residue verdict"
     details = ValidateCanonicalForm[goodForm, {vv, ww}, "Details" -> True];
     AssociationQ[details] && TrueQ[details["Valid"]] &&
       TrueQ[details["ConstantResidues"]] && details["Letters"] =!= {}]];
+
+(* --- H ------------------------------------------------------------ *)
+
+chartFiles = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
+    "UU_08_10_canonical", "DifferentialEquations", #}] & /@
+  {"nnlo_de_CF259.wl", "nnlo_de_CF248.wl"};
+
+chartDecomposition = DecomposeFamilyBlocks[chartFiles,
+  "Regulator" -> epsG, "Progress" -> False];
+
+chartTargets = {{"CF259", {1, 2}}, {"CF248", {1, 2}}};
+chartBlocks = Select[chartDecomposition["Blocks"],
+  MemberQ[chartTargets, {#["Family"], #["Rows"]}] &];
+
+chartClassification = ClassifyBlocks[chartBlocks, "Regulator" -> epsG,
+  "Progress" -> False];
+chartClasses = Values[chartClassification["Classes"]];
+
+chartDirectory = FileNameJoin[{scratch, "chartforms"}];
+
+FTTest`FTAssert["H. both single-quadratic representatives were located",
+  Length[chartBlocks] === 2 && Length[chartClasses] === 2];
+
+chartRun = CanonicalizeClasses[chartClasses,
+  "OutputDirectory" -> chartDirectory,
+  "AnsatzDegrees" -> {0},
+  "TimeConstraint" -> 300,
+  "Regulator" -> epsG];
+
+chartRecords = Get /@ FileNames["class*.wl", chartDirectory];
+
+FTTest`FTAssert["H. both classes canonicalize, and only in the chart frame",
+  chartRun["Canonicalized"] === 2 &&
+    chartRun["Unresolved"] === 0 &&
+    Length[chartRecords] === 2 &&
+    AllTrue[chartRecords, #["Frame"] === "chart" &] &&
+    AllTrue[chartRecords, #["Chart"] =!= None &]];
+
+FTTest`FTAssert["H. both chart-builder branches are exercised",
+  Sort[DeleteDuplicates[#["Chart"]["Branch"] & /@ chartRecords]] ===
+    {"LinearSolve", "SquareCompletion"}];
+
+FTTest`FTAssert["H. chart-frame forms validate in their chart variables",
+  AllTrue[chartRecords, TrueQ[ValidateCanonicalForm[#]] &] &&
+    AllTrue[chartRecords, Length[#["Variables"]] === 2 &] &&
+    AllTrue[chartRecords, MemberQ[#["Variables"], Symbol["Global`t"]] &]];
+
+(* --- I ------------------------------------------------------------ *)
+
+statusReport = CanonicalBlocksStatus[formDirectory,
+  "Classes" -> classification, "Validate" -> True];
+
+statusMissing = CanonicalBlocksStatus[chartDirectory,
+  "Classes" -> Append[chartClasses,
+    <|"ClassID" -> 9999, "ContentAddress" -> "absent", "Dim" -> 1|>],
+  "Print" -> False];
+
+FTTest`FTAssert["I. status helper reports every form and re-validates it",
+  statusReport["Done"] === Length[storedForms] &&
+    statusReport["Revalidated"] === Length[storedForms] &&
+    statusReport["MissingCount"] === 0];
+
+FTTest`FTAssert["I. status helper names the classes that have no form yet",
+  statusMissing["MissingCount"] === 1 &&
+    MemberQ[statusMissing["Missing"], 9999]];
 
 Quiet[DeleteDirectory[scratch, DeleteContents -> True]];
 

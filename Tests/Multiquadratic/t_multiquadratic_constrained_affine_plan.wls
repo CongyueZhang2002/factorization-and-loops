@@ -127,10 +127,14 @@ check["large constrained follower uses the CFFA4-certified core directly",
     widePlanned["ConstrainedSolveBackendUsed"] === "FLINT" &&
     widePlanned["ConstrainedSolveBackendThreads"] === 8 &&
     widePlanned["ConstrainedSolveNativeCoreReplayCount"] === 0 &&
-    widePlanned["ConstrainedSolveFullResidualReplayCount"] === 0 &&
+    (* U2 (2026-09-02): the native core is trusted for the core rows and
+       ALL original rows are replayed by Freivalds projections *)
+    widePlanned["ConstrainedSolveFullResidualReplayCount"] === 1 &&
     widePlanned["FullResidualCheckMethod"] ===
-      "NativeConstrainedCoreVerified" &&
+      "NativeCoreVerifiedFreivaldsAllRows" &&
     ! TrueQ[widePlanned["FullResidualExact"]] &&
+    TrueQ[widePlanned["FullResidualZero"]] &&
+    widePlanned["FreivaldsProjections"] === 2 &&
     TrueQ[widePlanned["NativeCoreResidualZero"]] &&
     TrueQ[widePlanned["NativeCoreResidualExact"]] &&
     widePlanned["ConstrainedSolveNativeValidationFailure"] === None &&
@@ -164,13 +168,14 @@ SetEnvironment["FACET_CHECK_LEVEL" -> "Production"];
 productionExact = plannedSolve[wideLater["Matrix"], wideLater["Right"],
   prime, widePlan];
 SetEnvironment["FACET_CHECK_LEVEL" -> ""];
-check["Production trusts the exact native core without an all-row replay",
+check["Production trusts the exact native core and replays all rows by Freivalds projection (U2)",
   Lookup[productionExact, "Status", None] ===
       "MultiquadraticConstrainedAffineSolution" &&
     productionExact["FullResidualCheckMethod"] ===
-      "NativeConstrainedCoreVerified" &&
+      "NativeCoreVerifiedFreivaldsAllRows" &&
     ! TrueQ[productionExact["FullResidualExact"]] &&
-    productionExact["ConstrainedSolveFullResidualReplayCount"] === 0 &&
+    TrueQ[productionExact["FullResidualZero"]] &&
+    productionExact["ConstrainedSolveFullResidualReplayCount"] === 1 &&
     residualEvidenceValidQ[productionExact, prime]];
 
 wideUnavailable = Block[{FeynFacet`Private`$feynFacetDirectory =

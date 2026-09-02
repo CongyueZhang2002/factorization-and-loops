@@ -287,16 +287,25 @@ reported, not asserted"];
   Print["    facetCPUList[] = ", FeynFacet`Private`facetCPUList[]],
   check["(D4) the CPU-list fallback on this machine is unchanged (0..15)",
     FeynFacet`Private`facetCPUList[] === StringRiffle[ToString /@ Range[0, 15], ","]]];
-check["(D4) CanonicalizeClasses no longer writes into Directory[]",
-  Module[{source = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
-      "CanonicalBlocks.wl"}], "Text"]},
-    StringFreeQ[source, "Directory[], \"CanonicalClassForms\""] &&
-      StringContainsQ[source, "$TemporaryDirectory"]]];
-check["(D4) MasterTransport refuses a base point on a letter zero",
-  Module[{source = Import[FileNameJoin[{root, "FeynFacet", "Private", "Transport",
-      "MasterTransport.wl"}], "Text"]},
-    StringContainsQ[source, "\"BasePointOnLetterZero\""] &&
-      StringContainsQ[source, "Lookup[monic, \"Denominators\", {}]"]]];
+(* the CANONICA class ladder is retired (2026-09-02, round 2): the public
+   name answers RouteRetired and its implementation, which had learned to
+   write under $TemporaryDirectory instead of Directory[], is preserved
+   unchanged in Private_Backup *)
+check["(D4) CanonicalizeClasses is retired and answers typed",
+  Lookup[FeynFacet`CanonicalizeClasses[<||>], "Status", None] === "RouteRetired" &&
+    Module[{source = Import[FileNameJoin[{root, "FeynFacet", "Private_Backup",
+        "CanonicalBlocks.wl"}], "Text"]},
+      StringFreeQ[source, "Directory[], \"CanonicalClassForms\""] &&
+        StringContainsQ[source, "$TemporaryDirectory"]]];
+(* the path-ordered engine that owned the base-point refusal is retired
+   (2026-09-02, round 2): TransportFamily answers typed and the refusal
+   text is preserved in Private_Backup/MasterTransport.wl *)
+check["(D4) TransportFamily is retired and its base-point refusal is preserved in the backup",
+  Lookup[FeynFacet`TransportFamily[<||>], "Status", None] === "RouteRetired" &&
+    Module[{source = Import[FileNameJoin[{root, "FeynFacet", "Private_Backup",
+        "MasterTransport.wl"}], "Text"]},
+      StringContainsQ[source, "\"BasePointOnLetterZero\""] &&
+        StringContainsQ[source, "Lookup[monic, \"Denominators\", {}]"]]];
 
 (* ---------------------------------------------------------------- *)
 Print["--- B4  workspace root, fingerprints, paths"];

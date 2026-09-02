@@ -275,8 +275,8 @@ check["P5 a checkpoint for another SUBSTAGE is refused",
 check["P5 resume admission is blind to the current implementation hash",
   Module[{good = checkpointRecord["ForcingChannels", "FP", {1},
       {x, y}, eps]},
-    Block[{FeynFacet`Private`$multiquadraticStripSourceSHA256 =
-        StringRepeat["a", 64]},
+    Block[{FeynFacet`Private`$multiquadraticStripABIVersion =
+        "MultiquadraticStripSolve-ABI-other"},
       Lookup[checkpointAccept[good, "ForcingChannels", "FP", {x, y}, eps],
         "Status", None] === "Accepted"]]];
 check["P5 a payload is stored CONTEXT FREE and comes back in the \

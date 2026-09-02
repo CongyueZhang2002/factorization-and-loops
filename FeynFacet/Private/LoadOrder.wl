@@ -18,8 +18,11 @@
                      at load time (review finding D1, 2026-09-02: loaded
                      earlier, SolveEpsFormStripInFrame lost 15 options and
                      wrote its artifacts to a relative "ScratchDirectory")
-     Transport       stage 2: assembly, word engines, exception seam,
-                     observable transport *)
+     Transport       stage 2: assembly (MasterTransport.wl keeps the chart
+                     assembly and the Libra loader for the diagonal-block
+                     route) and the observable transport; the path-ordered
+                     engines, word engines and exception seam are retired
+                     (Private_Backup, 2026-09-02 U1) *)
 {
   "Core" -> {"Core.wl", "ModularArithmetic.wl", "MultiquadraticAlgebra.wl", "RationalMaterialization.wl"},
   "Process" -> {"Process.wl", "Topologies.wl", "CanonicalFamilies.wl", "DimensionalShift.wl", "Collinear.wl"},
@@ -27,5 +30,5 @@
   "Infrastructure" -> {"TaskBroker.wl"},
   "EpsForm" -> {"CanonicalBlocks.wl", "EpsFormStrip.wl", "BlockEquationDeferred.wl", "FiniteFieldEpsForm.wl", "FiniteFieldStripSolve.wl", "EpsFormStripObstruction.wl", "FamilyRegulatorFactor.wl", "FamilyRowGauge.wl", "FamilyRowGaugeResume.wl", "FamilyCertificateModular.wl", "MultiquadraticStripSolve.wl", "MultiquadraticInstallation.wl", "FiniteFieldGaugePullBack.wl", "LibraEpsForm.wl", "FamilyEpsForm.wl", "DiagonalBlockEpsForm.wl"},
   "Geometry" -> {"TransportCharts.wl"},
-  "Transport" -> {"MasterTransport.wl", "BlockwiseTransport.wl", "CanonicalWordTransport.wl", "PathTransportException.wl", "PathTransportNative.wl", "ObservableTransport.wl", "ObservableTransportFiniteField.wl"}
+  "Transport" -> {"MasterTransport.wl", "ObservableTransport.wl", "ObservableTransportFiniteField.wl"}
 }

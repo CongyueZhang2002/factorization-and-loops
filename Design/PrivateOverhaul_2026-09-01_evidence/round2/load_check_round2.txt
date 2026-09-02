@@ -1,0 +1,7 @@
+loaded; Options[SolveEpsFormStripInFrame]: 26
+retired stubs: {RouteRetired, RouteRetired, RouteRetired, RouteRetired}
+validator good/bad: {True, False}
+validator details: Short[<|Valid -> True, Dimension -> 1, Variables -> {v, w}, Regulator -> eps, Letters -> {-1 + v + w}, Residues -> {{{-2}}}, ConstantResidues -> True, ReconstructionResidual -> {{{0}}, {{0}}}|>, 4]
+reserve primes: $Failed
+ABI version: MultiquadraticStripSolve-ABI-1 freivalds: 2
+timings helper: <|Record -> <|A -> 1, Inner -> <|B -> 2|>|>, Timings -> <|LiftingSeconds -> 0.5, Inner/SolveSeconds -> 3|>|>

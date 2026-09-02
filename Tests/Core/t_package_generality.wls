@@ -251,9 +251,13 @@ FTAssert["the installation roots are package properties, not literals",
     FeynFacet`Private`masterTransportResolveInstallationRoot[
       FileNameJoin[{$TemporaryDirectory, "feynfacet-no-such-root"}]] ===
       $Failed];
-FTAssert["the blockwise transport root option defaults to Automatic",
-  Lookup[Options[FeynFacet`Private`masterTransportBlockwiseSolve], "Root",
-    Missing[]] === Automatic];
+(* the blockwise engine is retired (2026-09-02, round 2); the generality
+   statement that survives is that the retired public route answers typed
+   and no live definition of the engine remains *)
+FTAssert["the blockwise transport engine is retired and answers typed",
+  Lookup[FeynFacet`TransportFamily[<||>, "Engine" -> "Blockwise"], "Status", None] ===
+      "RouteRetired" &&
+    DownValues[FeynFacet`Private`masterTransportBlockwiseSolve] === {}];
 
 (* A2: an empty differential directory is named, never a complete inventory *)
 emptyDirectory = CreateDirectory[FileNameJoin[{$TemporaryDirectory,

@@ -225,7 +225,7 @@ currentKey[canonical_] := coreKeyFromParts[algebraFingerprint[],
    fingerprint, root-ordering fingerprint, root squares, dimensions,
    variables, regulator -- and no root expressions *)
 preFixKey[canonical_] := {
-  Symbol["FeynFacet`Private`$multiquadraticStripSourceSHA256"],
+  Symbol["FeynFacet`Private`$multiquadraticStripABIVersion"],
   algebraFingerprint[],
   Hash[canonical["EquationCanonical"], "SHA256", "HexString"],
   Hash[canonical["RootCanonicalSquares"], "SHA256", "HexString"],
@@ -534,7 +534,7 @@ check["A3 a diagonal record carries no certificate (it is not a dlog)",
 (* K  THE ONE-FORM POOL KEY: ROUTE AND LETTER PROVENANCE                *)
 (* ================================================================== *)
 
-keyPrefix = {Symbol["FeynFacet`Private`$multiquadraticStripSourceSHA256"],
+keyPrefix = {Symbol["FeynFacet`Private`$multiquadraticStripABIVersion"],
   {x, y}, eps, Lookup[rootRecords, "Root", {}],
   Lookup[rootRecords, "RootSquare", {}]};
 compactKey = oneFormKeyOf[keyPrefix, goodForm, goodRecordWithTag, True,

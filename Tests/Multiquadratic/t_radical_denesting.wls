@@ -287,8 +287,8 @@ was 2x45x45 in 25 ranges",
     Lookup[state, "ReducedRows", None] === 27 &&
     Lookup[state, "SourceDimensions", None] === {2, 45, 45} &&
     Lookup[state, "SourceRangeCount", None] === 25 &&
-    StringQ[Lookup[state, "SourceSHA256", None]] &&
-    StringLength[state["SourceSHA256"]] === 64];
+    StringQ[Lookup[state, "ABIVersion",
+      Lookup[state, "SourceSHA256", None]]]];   (* frozen fixture: legacy key *)
 truncation = {state["A"][[1, 1 ;; 27, 1 ;; 27]], state["A"][[2, 1 ;; 27, 1 ;; 27]]};
 cf303Roots = currentRoots[cf303Frame, {x, y}];
 cf303Class = rootIndices[truncation, cf303Roots];

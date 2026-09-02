@@ -41,13 +41,13 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {basisMasks, maskFactor, hadamard, multiply, derivative, toExpression,
-  fromPolynomial, evaluateConjugates, projectConjugates, splitPointQ,
+  fromPolynomial, evaluateConjugates, projectConjugates,
   squareRoots, gradeClosure, activeRank, abiFingerprint, algebraProbe} =
  mq /@ {"multiquadraticBasisMasks", "multiquadraticMaskFactor",
    "multiquadraticHadamardMatrix", "multiquadraticMultiply",
    "multiquadraticDerivative", "multiquadraticToExpression",
    "multiquadraticFromPolynomial", "multiquadraticEvaluateConjugates",
-   "multiquadraticProjectConjugates", "multiquadraticSplitPointQ",
+   "multiquadraticProjectConjugates",
    "multiquadraticSquareRoots", "multiquadraticGradeClosure",
    "multiquadraticActiveRank", "multiquadraticAlgebraABIFingerprint",
    "multiquadraticAlgebraProbe"};
@@ -150,11 +150,14 @@ check["active rank is the F2 rank of the grade masks",
     activeRank[{1, 2, 4}, 3] === 3 && activeRank[{1, 2, 3}, 3] === 2 &&
     activeRank[{3, 5, 6}, 3] === 2];
 
+(* the split-point predicate is the shared modularSplitPointQ
+   (Core/ModularArithmetic.wl); the former multiquadraticSplitPointQ alias
+   had no caller and lives in Private_Backup (2026-09-02, N8) *)
 check["split point test accepts a point with all radicands square",
-  splitPointQ[{2, 3}, {x, y, x y}, {x, y}, 23] === (JacobiSymbol[2, 23] == 1 &&
+  TrueQ[mq["modularSplitPointQ"][{2, 3}, {x, y, x y}, {x, y}, 23]] === (JacobiSymbol[2, 23] == 1 &&
     JacobiSymbol[3, 23] == 1 && JacobiSymbol[6, 23] == 1)];
 check["split point test rejects a vanishing radicand",
-  splitPointQ[{0, 3}, {x, y}, {x, y}, 23] === False];
+  TrueQ[mq["modularSplitPointQ"][{0, 3}, {x, y}, {x, y}, 23]] === False];
 check["modular square roots invert squaring for p = 3 mod 4",
   Module[{values = {4, 9, 25}, p = 103, r},
     r = squareRoots[values, p];

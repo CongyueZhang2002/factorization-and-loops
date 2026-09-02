@@ -1793,6 +1793,30 @@ $transportChartMultiquadraticScopeRefusals = {
   "AlgebraicFrameNotWellFormed", "ForcingChannelDecompositionFailed",
   "GaugeDenominatorNotRational"};
 
+
+(* U4 (user decision 2026-09-02): wall-clock timings stay in the result,
+   but as ONE top-level "Timings" record, never inside the mathematical
+   payload -- two solves of the same strip then agree byte for byte on
+   "InnerSolution", and fingerprint pins hold.  Every association key
+   naming a duration is lifted out recursively; the flat key is the path
+   through the record joined by "/". *)
+transportChartTimingKeyQ[key_String] := StringMatchQ[key,
+  ___ ~~ ("Seconds" | "Timing" | "Timings" | "Wall" | "Elapsed") ~~ ___];
+transportChartTimingKeyQ[_] := False;
+transportChartSeparateTimings[record_] := Module[{timings = <||>, walk},
+  walk[assoc_Association, path_String] := Association[KeyValueMap[
+    Function[{key, value},
+      If[transportChartTimingKeyQ[key],
+        (timings[If[path === "", key, path <> "/" <> key]] = value; Nothing),
+        key -> walk[value, If[path === "", ToString[key], path <> "/" <> ToString[key]]]]],
+    assoc]];
+  walk[list_List, path_String] := walk[#, path] & /@ list;
+  walk[other_, _] := other;
+  <|"Record" -> walk[record, ""], "Timings" -> timings|>];
+transportChartTimingsRecord[stages_Association, inner_Association] :=
+  <|"Schema" -> "StripTimingsV1", "Stages" -> stages, "Inner" -> inner|>;
+
+
 SolveEpsFormStripInFrame[
     strip : {e_List, c_List, bbar_List},
     variables : {_Symbol, _Symbol}, epsilon_Symbol,
@@ -1828,7 +1852,7 @@ SolveEpsFormStripInFrame[
    finiteFieldGaugeOptions, preNormalizationGauge,
    postPullBackCheckQ, postPullBackCandidates, postPullBackVerification,
    postPullBackGauge, sourceGaugeRadicalFreeQ,
-   constructionStart = AbsoluteTime[], deadline, timings = <||>,
+   constructionStart = AbsoluteTime[], deadline, timings = <||>, innerSeparated,
    stageSeconds, substageSeconds, stripDimensions, budgetProgress,
    budgetExhausted},
 
@@ -2545,13 +2569,15 @@ SolveEpsFormStripInFrame[
         "branchSigns" -> First[acceptedSigns],
         "familyCertificate" -> "Required"|>];
     transportChartLogSuccessTimings[timings, chart["Name"], verbose];
+    innerSeparated = transportChartSeparateTimings[KeyDrop[inner, "Gauge"]];
     Return[<|"Status" -> "Solved",
       "Method" -> "RationalChart/" <> chart["Name"] <> "/" <>
         inner["Method"],
       "Gauge" -> sourceGauge, "RootIndices" -> rootIndices,
       "RootSquares" -> rootSquares, "Chart" -> chart,
       "Alphabet" -> sourceAlphabet,
-      "InnerSolution" -> KeyDrop[inner, "Gauge"],
+      "InnerSolution" -> innerSeparated["Record"],
+      "Timings" -> transportChartTimingsRecord[timings, innerSeparated["Timings"]],
       "ExactDLog" -> Lookup[inner, "ExactDLog", False],
       "Certificate" -> Lookup[inner, "Certificate", "ExactDLog"],
       "FrameCertificate" -> <|
@@ -2751,15 +2777,17 @@ SolveEpsFormStripInFrame[
   (* one rate-limited success diagnostic: the payload below is unchanged *)
   transportChartLogSuccessTimings[timings, chart["Name"], verbose];
 
-  (* the success payload is byte-identical to the pre-deadline result:
-     the substage timings are diagnostics of a STOP and are deliberately
-     not added here (2026-08-24) *)
+  (* the mathematical payload is byte-identical between solves: the
+     wall-clock numbers of the inner solve and of this construction live
+     in the one "Timings" record (U4, 2026-09-02) *)
+  innerSeparated = transportChartSeparateTimings[KeyDrop[inner, "Gauge"]];
   <|"Status" -> "Solved",
     "Method" -> "RationalChart/" <> chart["Name"] <> "/" <> inner["Method"],
     "Gauge" -> sourceGauge, "RootIndices" -> rootIndices,
     "RootSquares" -> rootSquares, "Chart" -> chart,
     "Alphabet" -> sourceAlphabet,
-    "InnerSolution" -> KeyDrop[inner, "Gauge"],
+    "InnerSolution" -> innerSeparated["Record"],
+    "Timings" -> transportChartTimingsRecord[timings, innerSeparated["Timings"]],
     "ExactDLog" -> TrueQ[Lookup[inner, "ExactDLog", False]],
     "Certificate" -> Lookup[inner, "Certificate", "ExactDLog"],
     (* the success payload is byte-identical to the pre-2026-08-25 record:

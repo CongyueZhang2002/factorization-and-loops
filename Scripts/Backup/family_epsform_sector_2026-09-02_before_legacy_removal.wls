@@ -36,6 +36,32 @@ Scan[Function[nm, ToExpression["Global`" <> nm, InputForm, Function[sy, Quiet[Un
    (ParallelizeMap[$ComputeParallel]) -- inside a pool subkernel that would
    launch sub-subkernels on the shared licence AND escape TimeConstrained
    (measured: a 300 s-constrained strip step ran 33 min) -> serial. *)
+loadCanonica[] := (
+  (* the package loader keeps a kernel-lifetime "already loaded" flag; on a
+     reused pool subkernel that flag can be True while the definitions are
+     not present (measured 2026-08-18: all five CANONICA symbols undefined on
+     kernel 27).  Force a real Get every mission; CANONICA's Get is
+     re-entrant (BeginPackage/EndPackage). *)
+  FeynFacet`Private`$canonicalBlocksCanonicaLoaded = False;
+  FeynFacet`Private`canonicalBlocksLoadCanonica[];
+  CANONICA`$ComputeParallel = False; CANONICA`Private`$ComputeParallel = False;
+  If[DownValues[CANONICA`Private`FindD] === {} && DownValues[CANONICA`FindD] === {},
+    Print["[sector-epsform] !! CANONICA did not load (FindD undefined after Get)"]; Exit[3]]);
+(* CANONICA 1.0.3 defines some internals in CANONICA` and some in
+   CANONICA`Private` (FindD: Private; CalculateNextSubsectorD: public --
+   measured 2026-08-18).  Resolve EACH symbol to the context that carries a
+   definition, at call time (after loadCanonica[]). *)
+canonicaSym[name_String] := Module[{pub = ToExpression["CANONICA`" <> name], priv = ToExpression["CANONICA`Private`" <> name]},
+  (* DownValues is HoldAll: without Evaluate it reads the Module local
+     itself (always {}) -- watcher diagnosis 2026-08-18 *)
+  Which[DownValues[Evaluate[pub]] =!= {}, pub, DownValues[Evaluate[priv]] =!= {}, priv,
+    True, (Print["[sector-epsform] !! CANONICA symbol ", name, " undefined in both contexts"]; pub)]];
+resolveCanonica[] := (
+  canonicaNextEq = canonicaSym["NextEquationD"];
+  canonicaInsertD = canonicaSym["InsertDIntoIdentity"];
+  canonicaTransformDE = canonicaSym["TransformDE"];
+  Print["[sector-epsform] CANONICA symbol contexts: ",
+    Context /@ {canonicaNextEq, canonicaInsertD, canonicaTransformDE}]);
 args = Rest[$ScriptCommandLine];
 If[Length[args] < 2,
   Print["Usage: family_epsform_sector.wls <family> <outdir> " <>
@@ -48,6 +74,12 @@ tag = If[Length[args] >= 4, args[[4]], ""];
 If[StringLength[tag] > 0 && ! StringStartsQ[tag, "_"],
   tag = "_" <> tag];
 directSectorBudget = If[Length[args] >= 5, ToExpression[args[[5]]], 30];
+rationalMapleBudget = Module[
+  {value = Environment["FACET_RATIONAL_MAPLE_BUDGET"], parsed},
+  parsed = If[StringQ[value] && StringLength[value] > 0,
+    Quiet[Check[ToExpression[value], $Failed]], $Failed];
+  If[IntegerQ[parsed] && parsed > 0, parsed, 300]
+];
 (* ---- WHOLE-FAMILY BUDGET (2026-08-25, Codex 14:30) -----------------
    sectorBudget is a PER-SECTOR wall allowance, recomputed at the start
    of every sector.  A family that is restarted therefore gets a fresh
@@ -233,7 +265,13 @@ If[FileExistsQ[familyChartFile],
     " family charts from ", familyChartFile],
   log["no family chart file at ", familyChartFile,
     "; the chart registry stays empty"]];
+mapleLib = FileNameJoin[{root, "Addon", "Other_Addon", "Maple", "IntegrableConnections"}];
 scratch = FileNameJoin[{outdir, "sector_" <> family <> tag}]; If[! DirectoryQ[scratch], CreateDirectory[scratch]];
+mapleCanonicalCache = Module[
+  {configured = Environment["FACET_MAPLE_CANONICAL_CACHE"]},
+  If[StringQ[configured] && StringLength[configured] > 0,
+    ExpandFileName[configured],
+    FileNameJoin[{DirectoryName[outdir], "MapleCanonicalCache"}]]];
 stateFile = FileNameJoin[{outdir, "sector_state_" <> family <> tag <> ".wl"}];
 (* State files are written by this driver in InputForm with the canonical
    Global` chart/regulator symbols.  Get already recreates unqualified symbols
@@ -291,8 +329,10 @@ algebraicFrameQ = Lookup[chart, "CoefficientField", "Rational"] ===
    (SolveEpsFormStripInFrame) and the completed truncation is factored
    there as well (FactorFamilyRegulatorDependenceInFrame). *)
 blockwiseRouteQ = stripRoute === "FiniteFieldFirst";
+stripMapleBudget = If[algebraicFrameQ, sectorBudget,
+  Min[sectorBudget, rationalMapleBudget]];
 (* Cooperative strip budget (2026-08-24).  Until today sectorBudget bound
-   only the retired Maple/CANONICA routes; the
+   only the Maple/CANONICA routes (stripMapleBudget above); the
    finite-field and multiquadratic engines ran unbounded -- CF300 (12,9)
    and CF303 sector 17 each ran past two hours on the multiquadratic
    engine with no cutoff.  The engines now take an absolute "Deadline"
@@ -473,6 +513,12 @@ If[AssociationQ[cachedState] &&
       cachedState = Missing["LegacyCheckpointIdentityFailed"]],
     cachedState = Missing["LegacyCheckpointIncomplete"]]
 ];
+(* Overhaul 2026-09-02: CANONICA is needed only by the retired Legacy
+   route (NextEquationD / InsertDIntoIdentity / TransformDE are called
+   only when ! blockwiseRouteQ).  On the production FiniteFieldFirst route
+   it is no longer loaded, which also keeps its Global` shadowing of
+   x, y, eps (CLAUDE.md trap) out of the mission kernel. *)
+If[! blockwiseRouteQ, loadCanonica[]; resolveCanonica[]];
 nSectors = Length[ranges]; nMasters = Length[A0[[1]]];
 bounds = Table[{First[ranges[[i]]], Last[ranges[[i]]]}, {i, nSectors}];
 invariants = {xx, yy};
@@ -1166,9 +1212,11 @@ Do[
         (* hoisted out of the route branch below so the entry stop can
            name the strip it refused to start; the CANONICA route learns
            its lower sector only from NextEquationD *)
-        nlow = k - 1 - Length[solvedBlocks];
+        nlow = If[blockwiseRouteQ, k - 1 - Length[solvedBlocks],
+          Missing["NotConstructed"]];
         (* BOUNDARY: immediately before this strip's construction begins *)
         constructionCheck["Entry"];
+        If[blockwiseRouteQ,
           memtrace["block " <> ToString[{k, nlow}] <> " before equation"];
           (* the blockwise block equation is one Together pass over the
              connection blocks and the installed row products; bracketed
@@ -1177,7 +1225,23 @@ Do[
             blockEquation[k, nlow, solvedBlocks]];
           constructionTimings["BlockEquation"] = constructionSeconds;
           memtrace["block " <> ToString[{k, nlow}] <> " after equation"];
-          nextEq = True;
+          nextEq = True,
+          (* CANONICA's NextEquationD is a SINGLE opaque call with no
+             interior unit boundary, and must NOT be TimeConstrained (a
+             TimeConstrained step has escaped its bound in pool
+             subkernels -- CLAUDE.md).  It is BRACKETED instead: the
+             deadline is checked before it (above) and again after it,
+             and its measured wall time is recorded in the typed stop so
+             a future log shows this substage's cost. *)
+          {constructionSeconds, nextEq} = AbsoluteTiming[
+            canonicaNextEq[aP, invariants, sb, prevD]];
+          constructionTimings["NextEquationD"] = constructionSeconds;
+          If[! ListQ[nextEq] || First[nextEq] === False,
+            log["  !! NextEquationD could not construct the next strip"];
+            putAtomic[state, stateFile]; Exit[2]];
+          {e, c, bbar, nlow} = {
+            fromC[nextEq[[1]]], fromC[nextEq[[2]]],
+            fromC[nextEq[[3]]], nextEq[[5]]}];
         (* BOUNDARY: after the block equation / NextEquationD *)
         constructionCheck["EquationConstructed"];
         stripInputFile = FileNameJoin[{scratch,
@@ -1250,9 +1314,10 @@ Do[
                 " s, total ",
                 ToString[Round[Lookup[statistics,
                   "MaterializeSeconds", 0.], 0.1]], " s"]]]];
-        log["  strip ", {k, nlow}, ": ", If[algebraicFrameQ,
-          "finite field in the rational chart of the strip's roots",
-          "finite field"]];
+        log["  strip ", {k, nlow}, ": ", Which[
+          blockwiseRouteQ && algebraicFrameQ, "finite field in the rational chart of the strip's roots",
+          blockwiseRouteQ, "finite field",
+          True, "degrees 0,1,2,3; Maple only if all fail"]];
         (* BOUNDARY: after the strip input is on disk (a resume of this
            sector reloads it) *)
         constructionCheck["StripInputWritten"];
@@ -1396,6 +1461,8 @@ Do[
                    source-frame identity check (2026-08-24) *)
                 "GaugePullBackMode" -> If[productionQ,
                   "FiniteFieldReconstruct", "Exact"],
+                "MapleTimeLimit" -> stripMapleBudget,
+                "MapleCanonicalCacheDirectory" -> mapleCanonicalCache,
                 "DeferredPreparation" -> deferredPreparation,
                 "Deadline" -> sectorDeadline,
                 "ScratchDirectory" -> scratch,
@@ -1455,6 +1522,48 @@ Do[
               extraLetters = obstruction["MissingLetters"];
               log["    repeating the finite-field solve with the missing letters ", extraLetters];
               solution = finiteFieldSolve[]]]];
+        If[! blockwiseRouteQ && ! stripBudgetExhaustedQ[solution],
+        solution = Catch[
+        (* BOUNDARY: the last driver-side check before the legacy route's
+           solver runs *)
+        constructionCheck["SolverDispatch"];
+        If[algebraicFrameQ,
+          FeynFacet`SolveEpsFormStripInFrame[
+            {e, c, bbar}, invariants, ee, chart,
+            "CANONICANumeratorDegrees" -> {0, 1, 2, 3},
+            "CANONICADenominatorDegree" -> 0,
+            "CANONICATimeLimit" -> 120,
+            "CANONICAKernels" -> kernelCount,
+            "MapleLibrary" -> mapleLib,
+            "MapleTimeLimit" -> stripMapleBudget,
+            "MapleCanonicalCacheDirectory" -> mapleCanonicalCache,
+            "MapleResidueKernels" -> kernelCount,
+            "MultiquadraticOptions" -> {"Deadline" -> sectorDeadline},
+            (* and the strip-construction stage inside this call *)
+            "Deadline" -> sectorDeadline,
+            "GaugePullBackMode" -> If[productionQ,
+              "FiniteFieldReconstruct", "Exact"],
+            "ScratchDirectory" -> scratch,
+            "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
+            "Verbose" -> False],
+          FeynFacet`SolveEpsFormStrip[
+            {e, c, bbar}, invariants, ee,
+            "CANONICANumeratorDegrees" -> {0, 1, 2, 3},
+            "CANONICADenominatorDegree" -> 0,
+            "CANONICATimeLimit" -> 120,
+            "CANONICAKernels" -> kernelCount,
+            "MapleLibrary" -> mapleLib,
+            "MapleTimeLimit" -> stripMapleBudget,
+            "MapleResidueKernels" -> kernelCount,
+            "ScratchDirectory" -> scratch,
+            "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
+            "Verbose" -> False]],
+        "StripConstructionBudget"]];
+        If[! solvedQ[solution] && ! stripBudgetExhaustedQ[solution] &&
+            ! algebraicFrameQ && stripRoute === "Legacy",
+          log["    exact CANONICA/Maple routes found no gauge; " <>
+            "starting finite-field reconstruction"];
+          solution = finiteFieldSolve[]];
         (* F2 (Design/GeneralityFixes2.md, 2026-08-23): SolveEpsFormStrip
            InFrame now dispatches a chartless multiquadratic strip to the
            direct engine, whose terminal success status is
@@ -1607,13 +1716,14 @@ Do[
          forms can affect telemetry only. *)
       installedRow = FeynFacet`Private`familyRowGaugeAssembleInstalledRow[
         aP, blockRows[k], fromC[prevD], invariants];
-      transformation = None;
+      transformation = If[blockwiseRouteQ, None, canonicaInsertD[sb, prevD]];
       (* CANONICA's TransformDE (the transformed truncated connection,
          fully symbolic) fed only the per-sector TransformDlogToEpsForm,
          which the finite-field-first route no longer runs; on CF385
          sector 31 (41x41) it allocated >36 GB and took the WSL VM down
          (2026-08-22).  The connection is transformed below blockwise. *)
-      res = {None, None};
+      res = {transformation, If[blockwiseRouteQ, None,
+        canonicaTransformDE[aP, invariants, transformation]]};
       state["StripSolvers"] = Join[state["StripSolvers"], stripSolvers];
       log["  sector ", k, " row completed from ", Length[stripSolvers],
         " individually checked strips"]];

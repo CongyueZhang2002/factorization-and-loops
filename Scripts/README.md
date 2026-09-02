@@ -6,13 +6,13 @@ specialized material is grouped by purpose:
 
 - `Diagnostics/`: benchmarks, probes, ledgers, and read-only campaign analysis.
 - `HardClasses/`: historical hard-class derivations and reproducibility drivers.
-- `Libra/`: specialized Libra and earlier two-root research tooling.
+- `Backup/retired_routes_2026-09-02/`: the CANONICA/Maple eps-form drivers, the August transport sweep and the Libra research tooling, retired with their routes (see its README).
 
 ## Production entry points
 
 - Full epsilon-form completion: `complete_family_epsforms.sh`
 - Family campaign and worker: `family_epsform_campaign.sh`,
-  `family_epsform_sector.wls`, `family_epsform.wls`
+  `family_epsform_sector.wls` (finite-field route; the CANONICA/Maple driver is under Backup/)
 - Certification: `certify_family_epsform_campaign.wls`,
   `certify_family_epsform_parallel.wls`, `certify_family_epsform_record.wls`
 - Observable and master transport: `complete_observable_transport.sh`,

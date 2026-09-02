@@ -2650,13 +2650,10 @@ finiteFieldStripUnseenPrimeResidualQ[record_Association, lifted_Association,
 (* primes absent from the lift schedule, walking down from 2147483399
    without a fixed window: the schedule is finite, so count such primes
    always exist *)
+(* one implementation (Core/ModularArithmetic.wl, 2026-09-02 N7): the same
+   descending schedule from 2147483399, excluding the lift primes *)
 finiteFieldStripReservePrimes[primes_List, count_Integer: 3] /; count >= 1 :=
- Module[{candidate = 2147483399, reserve = {}},
-  While[Length[reserve] < count,
-    If[! MemberQ[primes, candidate], AppendTo[reserve, candidate]];
-    candidate = NextPrime[candidate, -1]];
-  reserve
-];
+  modularPrimes[31, count, "Exclude" -> primes, "Below" -> 2147483399];
 
 SolveEpsFormStripFiniteField::dlog =
   "The lift passed the unseen-prime residual but is not a dlog form (`1`); more primes cannot change that.";

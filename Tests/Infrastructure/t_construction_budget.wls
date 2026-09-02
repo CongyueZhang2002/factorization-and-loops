@@ -53,10 +53,10 @@
    (c) PROPAGATION THROUGH THE DRIVER.  The driver
        Scripts/family_epsform_sector.wls contains EXACTLY ONE
        StripBudgetExhausted stop record (there is no parallel path for
-       construction stops), both of its strip-solve dispatches are
-       guarded by ! stripBudgetExhaustedQ[solution], and both of its
-       SolveEpsFormStripInFrame call sites pass "Deadline" ->
-       sectorDeadline.  Evaluating that single stop record verbatim --
+       construction stops), its strip-solve dispatch is guarded by
+       ! stripBudgetExhaustedQ[solution], and its SolveEpsFormStripInFrame
+       call site passes "Deadline" -> sectorDeadline (the Legacy
+       CANONICA/Maple dispatch was removed on 2026-09-02).  Evaluating that single stop record verbatim --
        the text is EXTRACTED from the driver source, never copied into
        this test -- on a real construction stop yields a state Stop
        record with Status "StripBudgetExhausted", a Stage of the form
@@ -547,12 +547,14 @@ check["the driver's own construction stop becomes the same state record",
     TrueQ[driverOwnStopRecord["Resumable"]]];
 
 (* structural guards: no solve route may run after a construction stop,
-   and both in-frame call sites must carry the sector deadline *)
-check["both driver strip-solve dispatches are guarded by the budget stop",
+   and the in-frame call site must carry the sector deadline.  Since
+   2026-09-02 (round 2) the driver has ONE strip-solve dispatch: the
+   Legacy CANONICA/Maple dispatch was removed with its route. *)
+check["the driver's strip-solve dispatch is guarded by the budget stop and no legacy dispatch remains",
   StringCount[driverSource,
-      "blockwiseRouteQ && ! stripBudgetExhaustedQ[solution]"] === 2 &&
+      "blockwiseRouteQ && ! stripBudgetExhaustedQ[solution]"] === 1 &&
     StringCount[driverSource,
-      "! blockwiseRouteQ && ! stripBudgetExhaustedQ[solution]"] === 1];
+      "! blockwiseRouteQ && ! stripBudgetExhaustedQ[solution]"] === 0];
 
 normalizeSource[s_String] := StringReplace[s, {
   RegularExpression["(?s)\\(\\*.*?\\*\\)"] -> "",
@@ -560,7 +562,7 @@ normalizeSource[s_String] := StringReplace[s, {
 inFrameChunks = Rest[StringSplit[driverSource,
   "FeynFacet`SolveEpsFormStripInFrame["]];
 check["every driver SolveEpsFormStripInFrame call site carries the sector deadline",
-  Length[inFrameChunks] === 2 &&
+  Length[inFrameChunks] === 1 &&
     AllTrue[inFrameChunks, Function[chunk,
       Module[{normalized = normalizeSource[
           StringTake[chunk, UpTo[4000]]]},

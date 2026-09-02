@@ -38,7 +38,7 @@
        returns 0 at 0, rejects every non-residue and every modulus that
        is not an odd prime, and its p == 3 (mod 4) representative is
        multiquadraticSquareRoots' representative;
-     - modularSplitPointQ agrees with multiquadraticSplitPointQ at both
+     - modularSplitPointQ agrees with the residue-symbol reference at both
        primes on random points, is correct on a rational-coefficient
        radicand, and fails typed when a coefficient denominator
        vanishes;
@@ -83,11 +83,11 @@ ff[name_String] := Symbol["FeynFacet`Private`" <> name];
     "modularLift", "modularSquareRoot", "modularSquareRoots",
     "modularResidueQ", "modularSplitPointQ", "modularSplitPoints",
     "modularPrimes"};
-{epsRec, epsCombine, epsImageQ, certRec, certRoot, mqRoots, mqSplitQ} =
+{epsRec, epsCombine, epsImageQ, certRec, certRoot, mqRoots} =
   ff /@ {"epsFormFiniteFieldRationalReconstruct",
     "epsFormFiniteFieldCombineLists", "epsFormFiniteFieldImageQ",
     "familyCertRationalReconstruct", "familyCertMQSquareRoot",
-    "multiquadraticSquareRoots", "multiquadraticSplitPointQ"};
+    "multiquadraticSquareRoots"};
 
 (* ---- independent oracles ------------------------------------------- *)
 
@@ -352,14 +352,18 @@ FTAssert["modularResidueQ is the Jacobi symbol on 200 random values at both prim
 SeedRandom[606060];
 splitTrials3 = RandomInteger[{1, p3 - 1}, {200, 2}];
 splitTrials1 = RandomInteger[{1, p1 - 1}, {200, 2}];
-FTAssert["modularSplitPointQ equals multiquadraticSplitPointQ on 200 points at 2^31-1",
+(* reference: a point splits iff every radicand reduces to a nonzero
+   quadratic residue (the former multiquadraticSplitPointQ, now retired) *)
+referenceSplitQ[pt_, rads_, vars_, p_] := Module[{vals = Mod[rads /. Thread[vars -> pt], p]},
+  AllTrue[vals, # != 0 && JacobiSymbol[#, p] == 1 &]];
+FTAssert["modularSplitPointQ equals the residue-symbol reference on 200 points at 2^31-1",
   AllTrue[splitTrials3,
    splitQ[#, radicands, {vx, vy}, p3] ===
-    mqSplitQ[#, radicands, {vx, vy}, p3] &]];
-FTAssert["modularSplitPointQ equals multiquadraticSplitPointQ on 200 points at 1000000009",
+    referenceSplitQ[#, radicands, {vx, vy}, p3] &]];
+FTAssert["modularSplitPointQ equals the residue-symbol reference on 200 points at 1000000009",
   AllTrue[splitTrials1,
    splitQ[#, radicands, {vx, vy}, p1] ===
-    mqSplitQ[#, radicands, {vx, vy}, p1] &]];
+    referenceSplitQ[#, radicands, {vx, vy}, p1] &]];
 FTAssert["both verdicts occur among those 400 points, and a vanishing radicand is never a split point",
   Count[splitTrials3, pt_ /; splitQ[pt, radicands, {vx, vy}, p3]] > 10 &&
    Count[splitTrials1, pt_ /; ! TrueQ[splitQ[pt, radicands, {vx, vy}, p1]]] > 10 &&

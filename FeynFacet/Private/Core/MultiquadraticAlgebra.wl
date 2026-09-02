@@ -31,7 +31,7 @@ ClearAll[
   multiquadraticMultiply,
   multiquadraticDerivative, multiquadraticToExpression,
   multiquadraticFromPolynomial, multiquadraticEvaluateConjugates,
-  multiquadraticProjectConjugates, multiquadraticSplitPointQ,
+  multiquadraticProjectConjugates,
   multiquadraticSquareRoots, multiquadraticGradeClosure,
   multiquadraticActiveRank, multiquadraticAlgebraProbe,
   multiquadraticAlgebraABIFingerprint,
@@ -157,9 +157,6 @@ multiquadraticProjectConjugates[values_List, rootValues_List, modulus_: 0] /;
     ]
   ];
 
-(* one implementation (Core/ModularArithmetic.wl, overhaul 2026-09-02) *)
-multiquadraticSplitPointQ[point : {_, _}, radicands_List, vars : {_, _},
-    p_Integer?Positive] := TrueQ[modularSplitPointQ[point, radicands, vars, p]];
 
 (* p = 3 (mod 4) only; the returned representative is the raw
    exponentiation, NOT the smaller of the two roots.  The sign

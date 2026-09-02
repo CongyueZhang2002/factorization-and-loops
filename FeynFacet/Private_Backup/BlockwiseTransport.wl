@@ -1,3 +1,11 @@
+(* ==== moved whole from Private/Transport/BlockwiseTransport.wl on 2026-09-02 (user decision U1) ====
+   Evidence: reachable only through the Libra path-ordered transport engines
+   (TransportFamily / TransportPathArtifactRun), which the lazy-operator
+   observable transport (Transport/ObservableTransport.wl) replaced as the
+   production route; route_split.py: no helper of this module is used by
+   ObservableTransport*, EpsForm or Geometry.
+   This file is never loaded by FeynFacet.m. *)
+
 (* Stage 2, block-wise engine: the family solution constructed
    RECURSIVELY ON THE BLOCK DAG instead of as one monolithic
    path-ordered exponential.

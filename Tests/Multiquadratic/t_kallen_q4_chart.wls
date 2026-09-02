@@ -475,7 +475,7 @@ directory's SHA-256 manifest",
       Lookup[state, "ReducedRows", None] === 24 &&
       Lookup[state, "SourceDimensions", None] === {2, 47, 47} &&
       Lookup[state, "SourceRangeCount", None] === 27 &&
-      StringQ[Lookup[state, "SourceSHA256", None]] &&
+      StringQ[Lookup[state, "ABIVersion", Lookup[state, "SourceSHA256", None]]] &&
       Module[{lines, entry},
         lines = Select[StringTrim /@ StringSplit[
             Import[manifestFile, "Text"], "\n"],

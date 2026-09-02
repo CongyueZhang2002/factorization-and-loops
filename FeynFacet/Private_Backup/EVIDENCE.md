@@ -56,3 +56,21 @@ exception route, `PathTransportException.wl` / `PathTransportNative.wl`).
 ## Corrections 2026-09-02 (acceptance batches and review)
 
 - `taskBrokerCanonicaLadder` (TaskBroker.wl), `epsFormStripExactDLogQ` and `epsFormStripRunCanonica` (EpsFormStrip.wl) were moved back into the live tree: the reachability scan counted package callers only, and `t_task_broker_limit` / `t_canonica_scheduler` drive them directly. Rule: a symbol moves only when package AND test references are absent.
+
+
+## Round 2 (2026-09-02, user decisions U1/N2/N3/N8 after the overnight overhaul)
+
+| module | what moved | evidence | replacement |
+|---|---|---|---|
+| `Transport/BlockwiseTransport.wl`, `CanonicalWordTransport.wl`, `PathTransportNative.wl`, `PathTransportException.wl` (whole modules) | the Libra path-ordered transport engines (Monolithic/Blockwise), the word engines and the CF303 exception seam | `route_split.py`: reachable only through `TransportFamily` / `TransportPathArtifactRun`; no helper used by ObservableTransport*, EpsForm or Geometry | `BuildObservableTransport` on the transport-ready family record |
+| `Transport/MasterTransport.wl` | `TransportFamily` (~915 lines), `TransportWord`, `TransportQuadrature`, `TransportStatus` and the derivative rules of the word/quadrature heads | same route; `TransportFamilyInChart` keeps its assembly mode (used by FamilyEpsForm.wl and the family assembly script) and answers RouteRetired for transport | observable transport |
+| `EpsForm/CanonicalBlocks.wl` | `CanonicalizeClasses` and its ladder helpers, `canonicalBlocksLoadCanonica`, `canonicalBlocksToCanonica`/`FromCanonica`, `canonicalBlocksAttempt`/`Solve` (~356 lines) | CANONICA class ladder; `ValidateCanonicalForm` is CANONICA-free since the same day (letters from denominator factors, residues by exact linear solve, identity re-verified with Together) | `DiagonalBlockClassCampaign` (finite-field route) |
+| `EpsForm/EpsFormStrip.wl` | `epsFormStripRunCanonica`, `epsFormStripExactDLogQ`, `epsFormStripRunCanonicaOne`, the CANONICA loader/symbol bridge and the Maple canonicalization helpers (~574 lines) | CANONICA/Maple ladder remnants; the two helpers restored on 2026-09-02 06:35 for `t_canonica_scheduler` go with that test | finite-field strip route |
+| `Infrastructure/TaskBroker.wl` | `taskBrokerCanonicaLadder`, `taskBrokerCanonicaTask` | CANONICA ladder farming; `t_task_broker_limit` retired with it | broker quota logic covered by `t_broker_adaptive` |
+| `Core/MultiquadraticAlgebra.wl` | `multiquadraticSplitPointQ` | no caller (user decision N8) | `modularSplitPointQ` |
+| `Scripts/Backup/retired_routes_2026-09-02/` | `family_epsform.wls`, `family_epsform_maple.wls`, `sweep_transport.wls`, `sweep_launch.sh`, `sweep_pass2.sh`, `pooled_sweep.wls`, `pool_phase2.wls`, `Libra/` | drivers of the retired routes | `family_epsform_sector.wls` (Legacy branches removed the same day; pre-removal copy beside it), the observable-transport campaign scripts |
+| `Private_Backup/Tests/` | t_master_transport, t_block_demands, t_blockwise_transport, t_algebraic_letters, t_canonical_word_transport, t_path_transport_exception, t_path_transport_native_order, t_chart_transport, t_transport_checkpoint, t_canonica_scheduler, t_task_broker_limit, t_canonical_blocks_canonica (sections D-I of the live test) | tests of the retired routes | the observable-transport tests; `t_canonical_blocks` keeps A, B, C, G and validates the class-form ledger |
+
+Restored after the move: `canonicalBlocksChartParameter` (generic chart-parameter chooser; `t_generality_renamed_variables` cross-checks it against `diagonalBlockChartParameter`).
+
+Kept deliberately: `masterTransportLoadLibra` and the Libra balance slice of `DiagonalBlockEpsForm` (production stage-1 route), `SolveResidueRationalGauge` (exact symbolic residue solver, no CANONICA), `TransportFamilyInChart` assembly mode.

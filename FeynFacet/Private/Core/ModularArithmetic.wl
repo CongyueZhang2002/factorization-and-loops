@@ -442,6 +442,9 @@ modularSplitPoints[___] :=
                     ABI's square-root path
      "Avoid"        integers none of which may vanish mod p -- the
                     denominators that must stay units
+     "Below" -> b   start the descending schedule at the largest prime
+                    <= b instead of at 2^bits - 1 (the strip solver's
+                    reserve primes start below 2147483399)
      "Random" -> s  instead of the descending schedule, distinct
                     random primes in [2^(bits-1), 2^bits) drawn
                     deterministically from seed s (the certificate's
@@ -449,7 +452,7 @@ modularSplitPoints[___] :=
                     reproducible). *)
 Options[modularPrimes] = {
   "Exclude" -> {}, "Residue3Mod4" -> False, "Avoid" -> {},
-  "Random" -> None
+  "Random" -> None, "Below" -> None
 };
 
 modularPrimes[bits_Integer, count_Integer, opts : OptionsPattern[]] :=
@@ -475,7 +478,9 @@ modularPrimes[bits_Integer, count_Integer, opts : OptionsPattern[]] :=
   attempts = 0;
   limit = 200 count + 1000;
   If[seed === None,
-   candidate = NextPrime[2^bits, -1];
+   candidate = With[{below = OptionValue[modularPrimes, given, "Below"]},
+     If[IntegerQ[below] && below <= 2^bits, NextPrime[below + 1, -1],
+       NextPrime[2^bits, -1]]];
    While[Length[chosen] < count && candidate >= floor && attempts < limit,
     attempts++;
     If[acceptQ[candidate], AppendTo[chosen, candidate]];

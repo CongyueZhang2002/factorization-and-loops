@@ -43,6 +43,33 @@ finite-field compiler did not accept rescaled declared radicals (B8 in
 the plan); the fix and its test are on the branch. The Laurent
 extraction (439 s of 564 s) is the remaining hot spot.
 
+## Round 2 (2026-09-02, after the user's rulings on U1-U4 and N1-N8)
+
+Retired to `FeynFacet/Private_Backup/` (evidence table in its EVIDENCE.md,
+"Round 2"): the Libra path-ordered transport engines (`TransportFamily`,
+BlockwiseTransport, CanonicalWordTransport, the exception seam and native
+jets, the word/quadrature heads), the CANONICA class ladder
+(`CanonicalizeClasses`) with its loader and helpers, the CANONICA/Maple
+strip-ladder remnants and the broker's CANONICA farming, and
+`multiquadraticSplitPointQ`; ten tests of those routes and the August
+sweep/Libra scripts went with them (`Private_Backup/Tests/`,
+`Scripts/Backup/retired_routes_2026-09-02/`). The retired public names
+answer `<|"Status" -> "RouteRetired", ...|>`. CANONICA is no longer loaded
+anywhere in the live package: `ValidateCanonicalForm` solves the residues
+exactly itself and re-verifies the dlog identity with Together. Libra
+stays exactly where stage 1 needs it: the balance slice of
+`DiagonalBlockEpsForm`, the production canonicalizer. The sector driver
+lost its Legacy branches (pre-removal copy under `Scripts/Backup/`).
+Also applied: native constrained-core solves replay all rows by Freivalds
+projections (U2); the solver's source hash is replaced by the
+hand-maintained `$multiquadraticStripABIVersion` (U3); strip results carry
+one top-level `Timings` record (U4); the reserve-prime schedule uses the
+shared generator (N7). The benchmark harness has a stage-1 item on real
+classes (`dbe_class<N>`): a stage that has produced its artifacts stays a
+maintained, optimizable route (user ruling). Acceptance of round 2:
+fresh-kernel smoke queue on the affected tests, then the full suite; see
+the plan's "Round 2" section for the tables.
+
 ## Acceptance batches and what they found
 
 Both trees ran the full suite through their own KernelPool in reuse mode
