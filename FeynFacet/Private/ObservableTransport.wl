@@ -1942,15 +1942,24 @@ BuildObservableTransport[record_Association, demand_Association,
   ];
   ambientInvarianceCertificate = Missing["NotRequired"];
   If[boundaryEvolution === "AmbientBasePoint" && constraintRank > 0,
-    ambientCovariant = D[Normal[extendedConstraintMatrix],
-        secondVariable] +
-      Normal[extendedConstraintMatrix] . Normal[liftedSecond];
-    ambientInvarianceCertificate =
+    ambientInvarianceCertificate = If[
+      coefficientField === "Multiquadratic",
+      observableTransportModularAlgebraicCovariantSubspaceInclusion[
+        extendedConstraintMatrix, liftedSecond, secondVariable,
+        {secondVariable},
+        (Lookup[algebraicRootRecords, "RootSquare", {}] /.
+          firstVariable -> firstBase),
+        "ValidationPrimeCount" -> OptionValue["ValidationPrimeCount"],
+        "ValidationPointsPerPrime" ->
+          OptionValue["ValidationPointsPerPrime"]],
+      ambientCovariant = D[Normal[extendedConstraintMatrix],
+          secondVariable] +
+        Normal[extendedConstraintMatrix] . Normal[liftedSecond];
       observableTransportModularSubspaceInclusion[
         extendedConstraintMatrix, ambientCovariant, {secondVariable},
         "ValidationPrimeCount" -> OptionValue["ValidationPrimeCount"],
         "ValidationPointsPerPrime" ->
-          OptionValue["ValidationPointsPerPrime"]];
+          OptionValue["ValidationPointsPerPrime"]]];
     If[! AssociationQ[ambientInvarianceCertificate] ||
         Lookup[ambientInvarianceCertificate, "Status", None] =!=
           "FreshModularSubspaceInclusionAccepted",
