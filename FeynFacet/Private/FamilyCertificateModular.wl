@@ -552,7 +552,9 @@ familyCertMQPrepare[objects_Association, roots_List,
   {frame, orderedRoots, census, denested, canonical, rootSymbols, polynomialized,
    surviving, numericClasses, numericClassIndices, undeclaredNumericClasses,
    rootImage, normalObjects, canonicalObjects,
-   polynomializedObjects, polynomializeEntry, channels, vectorKeys},
+   polynomializedObjects, polynomializeEntry, channels, vectorKeys,
+   compiledObjects, compileEntry, evaluationVariables, compiledLeaves,
+   maximumExponents},
   If[rankLimit < 0 || Length[roots] > rankLimit,
     Return[familyCertMQFailure["RootRankTooLarge",
       <|"RootCount" -> Length[roots], "RootRankLimit" -> rankLimit|>]]];
@@ -650,8 +652,34 @@ familyCertMQPrepare[objects_Association, roots_List,
         "SurvivingPowers" -> Take[Cases[polynomialized,
           Power[_, exponent_Rational /; Denominator[exponent] === 2],
           {0, Infinity}, Heads -> True], UpTo[6]]|>]]];
+  (* Production trials consume an exact polynomial plan, never the symbolic
+     expressions themselves.  The same packed evaluator already used by the
+     multiquadratic strip screens reduces exact coefficients once per prime
+     and then evaluates every point and sign sheet with machine-integer power
+     tables.  Keep Letters only as a cardinality marker; their logarithmic
+     derivatives are the compiled LetterX/LetterY matrices. *)
+  evaluationVariables = Join[variables, {regulator}, rootSymbols];
+  compileEntry[0] := 0;
+  compileEntry[entry_] :=
+    multiquadraticStripScreenCompileScalarExact[
+      entry, {}, {}, evaluationVariables];
+  compiledObjects = AssociationMap[Function[key,
+      If[key === "Letters", canonicalObjects[key],
+        Map[compileEntry, polynomializedObjects[key], {2}]]],
+    Keys[polynomializedObjects]];
+  If[! FreeQ[KeyDrop[compiledObjects, "Letters"], $Failed],
+    Return[familyCertMQFailure["CompiledEvaluatorConstructionFailed"]]];
+  compiledLeaves = Cases[KeyDrop[compiledObjects, "Letters"],
+    association_Association /; KeyExistsQ[association, "Numerator"] :>
+      association, {0, Infinity}];
+  maximumExponents = If[compiledLeaves === {},
+    ConstantArray[0, Length[evaluationVariables]],
+    Max /@ Transpose[Lookup[compiledLeaves, "MaximumExponents"]]];
   <|"Status" -> "PreparedMultiquadraticCertificate",
-    "Objects" -> polynomializedObjects,
+    "Objects" -> compiledObjects,
+    "ObjectRepresentation" -> "CompiledExactRationalV1",
+    "EvaluationVariables" -> evaluationVariables,
+    "MaximumExponents" -> maximumExponents,
     "Roots" -> orderedRoots, "RootSymbols" -> rootSymbols,
     "RootCount" -> Length[orderedRoots],
     "GradeCount" -> 2^Length[orderedRoots],
@@ -762,16 +790,43 @@ familyCertMQSelectModalPivotTrials[___] :=
 familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
     regulator_Symbol, prime_Integer, trainingPoints_Integer,
     validationPoints_Integer, maxPointAttempts_Integer] := Module[
-  {objects = prepared["Objects"], roots = prepared["Roots"],
+  {exactObjects = prepared["Objects"], objects,
+   roots = prepared["Roots"],
    rootSymbols = prepared["RootSymbols"], rank = prepared["RootCount"],
+   evaluationVariables = Lookup[prepared, "EvaluationVariables", {}],
+   maximumExponents = Lookup[prepared, "MaximumExponents", {}],
+   reduceEntry, evaluate, evaluateMatrix, powerTables,
    n, target, accepted = 0, attempts = 0, trainRows = {}, trainRhs = {},
    validationRows = {}, validationRhs = {}, identityChecks, pointRecords = {},
    point, epsilon2, scalarRules, deltaValues, rootValues, pointRows, pointRhs,
-   pointIdentity, pointOK, sheetRecords, signedRoots, signs, eval, evalMatrix,
+   pointIdentity, pointOK, sheetRecords, signedRoots, signs,
    S, Si, B1, B2, B1b, B2b, dSx, dSy, Av, Aw, dAvw, dAwv,
    jacobian, A1, A2, letterX, letterY, inverseEpsilon, ok, dimension,
    pivotColumns, coefficients, dlogOK, zeroFormAtPoints = True,
    trainingQ, mask},
+  If[Lookup[prepared, "ObjectRepresentation", None] =!=
+        "CompiledExactRationalV1" ||
+      Length[evaluationVariables] =!= 3 + rank ||
+      Length[maximumExponents] =!= Length[evaluationVariables],
+    Return[familyCertMQFailure[
+      "PreparedCompiledEvaluatorMissing"]]];
+  reduceEntry[0] := 0;
+  reduceEntry[entry_Association] :=
+    multiquadraticStripScreenReduceScalar[entry, prime];
+  reduceEntry[_] := $Failed;
+  objects = AssociationMap[Function[key,
+      If[key === "Letters", exactObjects[key],
+        Map[reduceEntry, exactObjects[key], {2}]]],
+    Keys[exactObjects]];
+  If[! FreeQ[KeyDrop[objects, "Letters"], $Failed],
+    Return[familyCertMQFailure[
+      "CompiledEvaluatorPrimeReductionFailed", <|"Prime" -> prime|>]]];
+  evaluate[0] := 0;
+  evaluate[entry_Association] :=
+    multiquadraticStripScreenEvaluateRationalValue[
+      entry, powerTables, prime];
+  evaluate[_] := $Failed;
+  evaluateMatrix[matrix_] := Map[evaluate, matrix, {2}];
   n = Length[objects["S"]]; dimension = n;
   target = trainingPoints + validationPoints;
   identityChecks = <|"TransformationInverse" -> True,
@@ -796,24 +851,19 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
       signs = Table[If[BitGet[mask, bit] === 1, -1, 1],
         {bit, 0, rank - 1}];
       signedRoots = Mod[signs rootValues, prime];
-      Clear[eval];
-      eval[expression_] := eval[expression] = familyCertMQModRational[
-        expression /. Thread[rootSymbols -> signedRoots] /. scalarRules,
-        prime];
-      evalMatrix[matrix_] := familyCertMQEvaluateMatrix[matrix, eval];
+      powerTables = multiquadraticStripScreenPowerTables[
+        Join[point, signedRoots], maximumExponents, prime];
       {S, Si, B1, B2, dSx, dSy, Av, Aw, dAvw, dAwv,
-        jacobian, letterX, letterY} = Map[evalMatrix, Lookup[objects,
+        jacobian, letterX, letterY} = Map[evaluateMatrix, Lookup[objects,
         {"S", "Si", "B1", "B2", "dSx", "dSy",
          "Av", "Aw", "dAvw", "dAwv", "Jacobian", "LetterX", "LetterY"}]];
       If[MemberQ[{S, Si, B1, B2, dSx, dSy, Av, Aw,
           dAvw, dAwv, jacobian, letterX, letterY}, $Failed],
         pointOK = False; Break[]];
-      Clear[eval];
-      eval[expression_] := eval[expression] = familyCertMQModRational[
-        expression /. Thread[rootSymbols -> signedRoots] /.
-          Thread[Append[variables, regulator] -> ReplacePart[point, 3 -> epsilon2]],
-        prime];
-      {B1b, B2b} = evalMatrix /@ Lookup[objects, {"B1", "B2"}];
+      powerTables = multiquadraticStripScreenPowerTables[
+        Join[ReplacePart[point, 3 -> epsilon2], signedRoots],
+        maximumExponents, prime];
+      {B1b, B2b} = evaluateMatrix /@ Lookup[objects, {"B1", "B2"}];
       If[MemberQ[{B1b, B2b}, $Failed], pointOK = False; Break[]];
       A1 = Mod[Av jacobian[[1, 1]] + Aw jacobian[[2, 1]], prime];
       A2 = Mod[Av jacobian[[1, 2]] + Aw jacobian[[2, 2]], prime];
