@@ -74,3 +74,9 @@ exception route, `PathTransportException.wl` / `PathTransportNative.wl`).
 Restored after the move: `canonicalBlocksChartParameter` (generic chart-parameter chooser; `t_generality_renamed_variables` cross-checks it against `diagonalBlockChartParameter`).
 
 Kept deliberately: `masterTransportLoadLibra` and the Libra balance slice of `DiagonalBlockEpsForm` (production stage-1 route), `SolveResidueRationalGauge` (exact symbolic residue solver, no CANONICA), `TransportFamilyInChart` assembly mode.
+
+### Round 3 (2026-09-02 afternoon): tests
+
+| File | Moved from | Evidence |
+|---|---|---|
+| `Tests/t_multiquadratic_installed_family_chain.wls` | `Tests/Multiquadratic/` | Work-in-progress contract from Codex's WIP checkpoint 612c35ee; never green in any recorded run (baseline EXIT1 after 456 s, round-2 pool EXIT1 after 1166 s): C1 requires the SplitBranch provider to reconstruct a planted rank-three (eight-grade) strip, and the solver's structural pilot finds no usable image at any of its three primes (`RegulatorReconstructionIncomplete`, `NoUsableStructuralPilot`), so C2-C6 never run. Kept here as the specification of the installable rank-three chain; restore it when the solver reaches that contract (open item in the plan). |

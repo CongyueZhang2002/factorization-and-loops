@@ -109,7 +109,8 @@ EpsFormStripObstruction[record_Association, OptionsPattern[]] := Module[
    maximumOrder, lines, verbose, log, series, order, w, curves, missing,
    residueTable, nonConstant, constants, exact, dk, result,
    gaugeSeries = {}, residueSeries = {}, missingLetters = {}, status,
-   numeratorDegrees = {}, regulatorPoleResidues = False},
+   numeratorDegrees = {}, regulatorPoleResidues = False,
+   eSeries, cSeries, product, closedQ, tw, tc, tr, tp},
   If[! (AssociationQ[record] && KeyExistsQ[record, "Strip"] &&
       MatchQ[record["Variables"], {_Symbol, _Symbol}] && MatchQ[record["Regulator"], _Symbol]),
     Message[EpsFormStripObstruction::record]; Return[$Failed]];
@@ -131,23 +132,31 @@ EpsFormStripObstruction[record_Association, OptionsPattern[]] := Module[
      order 0) *)
   gaugeSeries = {};
   status = "NoObstructionToOrder";
+  (* the order-m series of e and c are formed once (memoized per mu and m)
+     and each matrix product once per (mu, m); the earlier form recomputed
+     the whole product inside the entry loop, upper*lower times *)
+  eSeries[mu_, m_] := eSeries[mu, m] = Map[series[#, m] &, e[[mu]], {2}];
+  cSeries[mu_, m_] := cSeries[mu, m] = Map[series[#, m] &, c[[mu]], {2}];
   Do[
-    w = Table[Together[
-        Sum[With[{dd = gaugeSeries[[order - m]]},   (* D_{order-1-m} is gaugeSeries[[order-m]] (1-based, D_0 first) *)
-          (Map[series[#, m] &, e[[mu]], {2}].dd - dd.Map[series[#, m] &, c[[mu]], {2}])[[i, j]]],
-          {m, 0, order - 1}] + series[bbar[[mu, i, j]], order]],
-      {mu, 2}, {i, upper}, {j, lower}];
-    If[! AllTrue[Flatten[Table[Together[D[w[[1, i, j]], y] - D[w[[2, i, j]], x]], {i, upper}, {j, lower}]], PossibleZeroQ],
+    {tw, w} = AbsoluteTiming[Table[
+      product = Sum[With[{dd = gaugeSeries[[order - m]]},   (* D_{order-1-m} is gaugeSeries[[order-m]] (1-based, D_0 first) *)
+        eSeries[mu, m].dd - dd.cSeries[mu, m]], {m, 0, order - 1}];
+      Table[Together[If[order === 0, 0, product[[i, j]]] + series[bbar[[mu, i, j]], order]],
+        {i, upper}, {j, lower}],
+      {mu, 2}]];
+    {tc, closedQ} = AbsoluteTiming[
+      AllTrue[Flatten[Table[Together[D[w[[1, i, j]], y] - D[w[[2, i, j]], x]], {i, upper}, {j, lower}]], PossibleZeroQ]];
+    If[! closedQ,
       status = "NotClosed"; log["order ", order, ": the form is not closed (integrability violated)"];
       result = <|"Status" -> status, "Order" -> order|>; Break[]];
     curves = epsFormObstructionPolarCurves[w, variables];
     dlog = Table[Together[D[Log[L], v]], {L, Join[letters, Complement[curves, letters, -letters]]}, {v, variables}];
     missing = Select[curves, ! MemberQ[letters, #] && ! MemberQ[letters, -#] &];
     (* residues along every polar curve, every entry *)
-    residueTable = Table[
+    {tr, residueTable} = AbsoluteTiming[Table[
       Module[{r = epsFormObstructionResidues[w[[All, i, j]], L, DeleteCases[curves, L], {x, y}, lines]},
         <|"Curve" -> L, "Entry" -> {i, j}, "Values" -> r|>],
-      {L, curves}, {i, upper}, {j, lower}];
+      {L, curves}, {i, upper}, {j, lower}]];
     residueTable = Flatten[residueTable];
     (* nonzero constant residues at order 0 are a dlog part of the forcing
        that no rational gauge removes; the completed block then carries
@@ -176,7 +185,7 @@ EpsFormStripObstruction[record_Association, OptionsPattern[]] := Module[
     exact = Table[Together[w[[mu, i, j]] - Sum[
         Lookup[Lookup[constants, L, <||>], Key[{i, j}], 0] Together[D[Log[L], variables[[mu]]]], {L, curves}]],
       {mu, 2}, {i, upper}, {j, lower}];
-    dk = Table[epsFormObstructionPrimitive[exact[[All, i, j]], {x, y}], {i, upper}, {j, lower}];
+    {tp, dk} = AbsoluteTiming[Table[epsFormObstructionPrimitive[exact[[All, i, j]], {x, y}], {i, upper}, {j, lower}]];
     If[! FreeQ[dk, $Failed],
       status = "PrimitiveNotRational";
       log["order ", order, ": the residue-free part has no rational primitive"];
@@ -185,7 +194,9 @@ EpsFormStripObstruction[record_Association, OptionsPattern[]] := Module[
     AppendTo[gaugeSeries, dk];
     AppendTo[numeratorDegrees, Max[epsFormObstructionTotalDegree[Numerator[#], variables] & /@ Flatten[dk]]];
     log["order ", order, ": closed, residues constant on ", Length[curves], " curves, D_", order,
-      " numerator total degree ", Last[numeratorDegrees]];
+      " numerator total degree ", Last[numeratorDegrees],
+      " (form ", Round[tw, 0.1], " s, closedness ", Round[tc, 0.1], " s, residues ", Round[tr, 0.1],
+      " s, primitive ", Round[tp, 0.1], " s)"];
     result = <|"Status" -> status, "Order" -> order|>,
     {order, 0, maximumOrder}];
   Join[result, <|

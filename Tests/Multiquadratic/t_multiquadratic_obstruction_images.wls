@@ -56,6 +56,7 @@
        invisible to O9. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
+Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 pass = 0; fail = 0;
@@ -248,18 +249,7 @@ report["O9 contract note", Lookup[driven, "ContractNote", None]];
 
 source = Import[FileNameJoin[{root, "FeynFacet", "Private", "EpsForm",
   "MultiquadraticStripSolve.wl"}], "Text"];
-stripComments[text_String] := Module[{characters, depth = 0, out = {}, k = 1,
-    n},
-  characters = Characters[text]; n = Length[characters];
-  While[k <= n,
-    Which[
-      k < n && characters[[k]] === "(" && characters[[k + 1]] === "*",
-        depth++; k += 2,
-      k < n && characters[[k]] === "*" && characters[[k + 1]] === ")" &&
-        depth > 0, depth--; k += 2,
-      True, If[depth === 0, AppendTo[out, characters[[k]]]]; k++]];
-  StringJoin[out]];
-executable = stripComments[source];
+executable = FTTest`FTStripComments[source];
 check["O10 no theorem-level contract name survives in the executable source",
   ! StringContainsQ[executable, "NoGaugeExistsWith"]];
 

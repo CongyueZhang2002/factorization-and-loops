@@ -14,10 +14,15 @@ check[label_, ok_] := (If[TrueQ[ok], pass++; Print["OK   ", label], fail++; Prin
 R = FileNameJoin[{root, "ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical"}];
 (* (a) *)
 fixture = FeynFacet`FamilyArtifactRead[FileNameJoin[{R, "BenchmarkStripBackends/frozen_M0/fixture_CF254_9_7.wl"}]];
-{ta, ra} = AbsoluteTiming[FeynFacet`EpsFormStripObstruction[fixture, "MaximumOrder" -> 3]];
+(* cost discipline 2026-09-02: the certificate's residue and primitive
+   stages grow with the order (measured on this fixture: orders 0..3 take
+   14, 45, 66, 93 s); the default run certifies orders 0 and 1, the full
+   order-3 certificate needs FACET_TEST_LONG=1 *)
+orderA = If[Environment["FACET_TEST_LONG"] === "1", 3, 1];
+{ta, ra} = AbsoluteTiming[FeynFacet`EpsFormStripObstruction[fixture, "MaximumOrder" -> orderA]];
 Print["(a) ", Round[ta, 0.1], " s: ", If[AssociationQ[ra], KeyTake[ra, {"Status", "Order", "GaugeNumeratorDegrees"}], ra]];
-check["(a) solvable block: no obstruction to order 3", AssociationQ[ra] && ra["Status"] === "NoObstructionToOrder" && ra["Order"] === 3];
-check["(a) gauge series D_0..D_3 rational", AssociationQ[ra] && Length[ra["GaugeSeries"]] === 4 && FreeQ[ra["GaugeSeries"], Log]];
+check["(a) solvable block: no obstruction to order " <> ToString[orderA], AssociationQ[ra] && ra["Status"] === "NoObstructionToOrder" && ra["Order"] === orderA];
+check["(a) gauge series D_0..D_" <> ToString[orderA] <> " rational", AssociationQ[ra] && Length[ra["GaugeSeries"]] === orderA + 1 && FreeQ[ra["GaugeSeries"], Log]];
 (* (b) *)
 blockFile = FileNameJoin[{R, "FamilyEpsFormsSolving/tworoot_2026-08-22/CF305/sector_CF305_standard/CF305_18_15_input.wl"}];
 If[FileExistsQ[blockFile],

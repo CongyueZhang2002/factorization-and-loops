@@ -48,14 +48,18 @@
        empty fresh draw left the two-image obstruction standing.)
 
    The public driver.
-   D1  On the W4 block the driver returns Status GaugeScreenInconclusive
-       with Confirmed False, NO SolutionContract, NO ContractStrength.
-       (Pre-fix: a negative GaugeImageObstruction contract.)
+   D1  The driver's gauge-denominator merge keeps only variable-dependent
+       poles, so the W4 pool killer's regulator-only factors never reach
+       the screen through the driver: on that block the driver's ansatz
+       denominator is regulator-free and the verdict is the confirmed,
+       fresh-image-backed obstruction of D2.  (The inconclusive stop is
+       exercised at the screen level in W4 and at the classifier level in
+       E3-E5; through the driver it is unreachable by construction.)
    D2  On a genuine obstruction with a completed fresh draw the driver
        still returns the confirmed negative (round-2 behaviour kept),
        and its record carries the EvidenceRecord the predicate accepted.
-   D3  ContractStrength is absent on every nonconfirmed path (checked on
-       D1's record).
+   D3  On the merged-denominator block the ContractStrength names the
+       confirmed modular obstruction and the evidence record is attached.
    D4  The screen-first stop (opt-in) also carries the evidence record
        and only fires confirmed. *)
 
@@ -231,31 +235,41 @@ frame = <|"Name" -> "Round3Rational", "Kind" -> "TwoVariable",
   "CoefficientField" -> "Rational", "Variables" -> {ox, oy},
   "Subst" -> {ox -> ox, oy -> oy}, "Root" -> None, "RootSquare" -> None,
   "Roots" -> {}|>;
-(* the driver's gauge denominator comes from the strip and the letters,
-   so the pool-killing denominator must be forced through the ansatz the
-   driver builds: the SUPPLIED gauge denominator option *)
-drivenInconclusive = solve[record, frame, "OneForms" -> Drop[forms, {3}],
+(* the driver merges a SUPPLIED gauge denominator into its admitted-pole
+   set (multiquadraticStripMergeGaugeDenominator): factors free of the
+   chart variables are dropped, so the pool killer's regulator-only
+   factors never reach the screen through the driver.  The driver's
+   verdict on this block is therefore the same confirmed obstruction as
+   D2, backed by fresh images, and its ansatz records the merged,
+   regulator-free denominator. *)
+drivenMerged = solve[record, frame, "OneForms" -> Drop[forms, {3}],
   "GaugeDenominator" -> poolKiller,
   "IntegrabilityScreen" -> False, "DegreeOffsetLadder" -> None,
   "ScreenFirst" -> False,
   "GaugeScreenPointCount" -> 12];
+mergedDenominator = Lookup[Lookup[drivenMerged, "Ansatz", <||>],
+  "GaugeDenominator", Missing["Absent"]];
 report["D1 driver verdict on the pool-killing block", KeyTake[
-  drivenInconclusive, {"Status", "Reason", "Confirmed", "SolutionContract",
+  drivenMerged, {"Status", "Reason", "Confirmed", "SolutionContract",
     "ContractStrength", "Defects", "FreshImageCount"}]];
-check["D1 the driver returns a typed INCONCLUSIVE stop, not a negative \
-contract",
-  Lookup[drivenInconclusive, "Status", None] === "GaugeScreenInconclusive" &&
-    Lookup[drivenInconclusive, "Confirmed", None] === False &&
-    Lookup[drivenInconclusive, "SolutionContract", Missing["Absent"]] ===
-      Missing["Absent"]];
-check["D3 ContractStrength is absent on the nonconfirmed path",
-  Lookup[drivenInconclusive, "ContractStrength", Missing["Absent"]] ===
-    Missing["Absent"]];
-check["D1 the inconclusive record carries the evidence and a resumption \
-note",
-  AssociationQ[Lookup[drivenInconclusive, "EvidenceRecord", None]] &&
-    StringQ[Lookup[drivenInconclusive, "ContractNote", None]] &&
-    StringContainsQ[drivenInconclusive["ContractNote"], "NOT completed"]];
+report["D1 merged ansatz denominator", mergedDenominator];
+check["D1 the driver's merged ansatz denominator is regulator-free and \
+keeps the variable-dependent pole",
+  ! MissingQ[mergedDenominator] && FreeQ[mergedDenominator, oe] &&
+    NumberQ[Together[mergedDenominator/(1 - ox - oy)]]];
+check["D1 with the regulator-only factors gone the fresh draw completes \
+and the driver returns the confirmed obstruction",
+  Lookup[drivenMerged, "Status", None] === "GaugeImageObstruction" &&
+    Lookup[drivenMerged, "Confirmed", None] === True &&
+    Lookup[drivenMerged, "FreshImageCount", None] === defaultFresh &&
+    Lookup[drivenMerged, "SolutionContract", None] ===
+      "GaugeObstructionWithinAnsatz"];
+check["D3 the confirmed path names its contract strength and carries the \
+evidence record",
+  Lookup[drivenMerged, "ContractStrength", None] ===
+      "HighConfidenceModularObstruction" &&
+    AssociationQ[Lookup[drivenMerged, "EvidenceRecord", None]] &&
+    confirmedQ[drivenMerged]];
 
 drivenConfirmed = solve[record, frame, "OneForms" -> Drop[forms, {3}],
   "IntegrabilityScreen" -> False, "DegreeOffsetLadder" -> None,

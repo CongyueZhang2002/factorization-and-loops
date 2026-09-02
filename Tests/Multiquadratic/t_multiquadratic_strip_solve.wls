@@ -71,7 +71,12 @@ check["the rank-three multiquadratic frame is exact",
 dlog[letter_] := {D[Log[letter], x], D[Log[letter], y]};
 letters = {x, y, 1 - x - y};
 oneForms = dlog /@ letters;
-denominator = 1 - x - y;
+(* the engine canonicalizes a supplied gauge denominator (unit leading
+   coefficient per factor: 1 - x - y becomes -1 + x + y); the planted
+   coefficients, the pinned normalizations and the packed vector must
+   all refer to that form *)
+denominator = FeynFacet`Private`multiquadraticStripMergeGaugeDenominator[
+  1 - x - y, 1, {x, y}];
 support = Sort[{{0, 0}, {0, 1}, {1, 0}}];
 diagonalForm[residues_List] := Table[
   Sum[residues[[a]] oneForms[[a, mu]], {a, Length[letters]}], {mu, 2}];

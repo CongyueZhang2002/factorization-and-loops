@@ -83,7 +83,12 @@ frame = <|"Name" -> "Round2Rational", "Kind" -> "TwoVariable",
 
 letters = {rx, ry, 1 - rx - ry, 1 + rx + ry};
 forms = letterOneForm[#1, {rx, ry}] & /@ letters;
-denominator = 1 - rx - ry;
+(* the engine canonicalizes a supplied gauge denominator (each factor
+   scaled to a unit leading coefficient: 1 - rx - ry becomes
+   -1 + rx + ry), so the known coefficients are read off in the engine's
+   own form of the denominator *)
+denominator = FeynFacet`Private`multiquadraticStripMergeGaugeDenominator[
+  1 - rx - ry, 1, {rx, ry}];
 knownGauge = {{Together[(1 + re rx - 2 ry/(1 + re))/denominator]}};
 knownResidues = {{{0}}, {{0}}, {{re/(1 + 2 re)}}, {{-3/(1 + re)}}};
 forcing = Table[Map[Together,

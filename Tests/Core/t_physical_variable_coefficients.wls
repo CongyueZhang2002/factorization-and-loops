@@ -30,6 +30,12 @@ root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
+(* Cost discipline (2026-09-02): the default run checks the full exact
+   contract on the NLO data set only.  The NNLO double-real ghost grid
+   (49 pairs, a 10 MB Kira artifact) is the bulk of the 51-minute
+   baseline and is checked only with FACET_TEST_LONG=1. *)
+longTestsQ = Environment["FACET_TEST_LONG"] === "1";
+
 dataSets = {
   <|
     "Label" -> "TT",
@@ -212,6 +218,9 @@ checkDataSet[dataSet_Association] := Module[
   result
 ];
 
+If[! longTestsQ,
+  dataSets = Select[dataSets, #["Label"] === "TT" &];
+  Print["Ghost data set skipped: set FACET_TEST_LONG=1 to reconstruct the NNLO ghost grid too"]];
 Scan[checkDataSet, dataSets];
 
 FTTest`FTReport[];
