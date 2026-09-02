@@ -46,6 +46,8 @@ Module[
     "cf303_final45_hybrid_baseline_lazy_operator.wl"}];
   temporary = output <> ".tmp-" <> ToString[$ProcessID];
   Put[Join[adapter, <|"BuildSeconds" -> seconds,
+    "AcceptedIncomingLeafProviderFile" -> FileNameJoin[{runtime,
+      "cf303_exception_k_leaves.wl"}],
     "EvaluatorLibrary" -> FileNameJoin[{root, "Diagnostics", "Scripts",
       "cf303_hybrid_baseline_lazy_circuit_adapter.wl"}]|>], temporary];
   RenameFile[temporary, output, OverwriteTarget -> True];

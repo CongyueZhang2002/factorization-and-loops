@@ -23,8 +23,13 @@ ClearAll[
   cf303HybridBaselineCrossKRecord,
   cf303HybridBaselineRFKernelTerms,
   cf303HybridBaselineCrossKTerms,
+  cf303HybridBaselineExceptionLeafData,
+  cf303HybridBaselineAcceptedIncomingKTerms,
   cf303HybridBaselineResolvedPhysicalWordTerms
 ];
+
+If[! AssociationQ[$cf303HybridBaselineExceptionLeafCache],
+  $cf303HybridBaselineExceptionLeafCache = <||>];
 
 cf303HybridBaselineAddCircuitLetter[state_Association, label_List,
     order_Integer, row_Integer, column_Integer, sourceN_Integer] := Module[
@@ -271,6 +276,60 @@ cf303HybridBaselineCrossKTerms[label_List, resolution_Association,
     {channel, {"rational", "elliptic"}}, {extension, 1, 2}], 2]
 ];
 
+cf303HybridBaselineExceptionLeafData[adapter_Association] := Module[
+  {file, data},
+  file = Lookup[adapter, "AcceptedIncomingLeafProviderFile",
+    Missing["AcceptedIncomingLeafProviderFile"]];
+  If[! StringQ[file] || ! FileExistsQ[file],
+    Return[Missing["AcceptedIncomingLeafProvider", file]]];
+  If[KeyExistsQ[$cf303HybridBaselineExceptionLeafCache, file],
+    Return[$cf303HybridBaselineExceptionLeafCache[file]]];
+  data = Quiet[Check[Get[file], $Failed]];
+  If[! AssociationQ[data] ||
+      Lookup[data, "Status", None] =!=
+        "CF303ExceptionKLeavesAcceptedV1" ||
+      Lookup[data, "SourceEntryIndices", None] =!= Range[77, 88] ||
+      Length[Lookup[data, "EntryRecords", {}]] =!= 12,
+    Return[Missing["InvalidAcceptedIncomingLeafProvider", file]]];
+  $cf303HybridBaselineExceptionLeafCache[file] = data
+];
+
+(* Resolve one accepted exception remainder only when a requested physical
+   word reaches it.  The provider already contains the exact Hermite-reduced
+   GPL/eMPL letters; only the requested Laurent coefficient is expanded. *)
+cf303HybridBaselineAcceptedIncomingKTerms[adapter_Association,
+    label_List, regulator_Symbol, variable_Symbol] := Module[
+  {data, entryIndex, order, target, records, record, series, coefficient,
+   baseLabel, choices, gathered},
+  If[! MatchQ[label, {"CF303AcceptedIncomingKLeaf", _Integer,
+      _Integer, _Integer, _Integer}], Return[{}]];
+  {entryIndex, order} = label[[{2, 3}]];
+  target = label[[{4, 5}]];
+  data = cf303HybridBaselineExceptionLeafData[adapter];
+  If[MissingQ[data] || ! Between[entryIndex, {77, 88}], Return[{}]];
+  records = data["EntryRecords"];
+  record = records[[entryIndex - 76]];
+  If[record[[1]] =!= target, Return[{}]];
+  gathered = Reap[Do[
+    series = Quiet[Check[Normal@Series[term[[1]],
+      {regulator, 0, order}], $Failed]];
+    If[series === $Failed, Continue[]];
+    coefficient = Coefficient[series, regulator, order];
+    If[TrueQ[coefficient === 0], Continue[]];
+    baseLabel = term[[2, 1]] /. Symbol["Global`u"] -> variable;
+    choices = cf303FinalStandardLetterExpansion[
+      adapter["GOperator"], baseLabel];
+    Scan[Sow[{coefficient #[[1]], #[[2]]}] &, choices],
+    {term, record[[4]]}]][[2]];
+  If[gathered === {}, Return[{}]];
+  gathered = GatherBy[First[gathered], Last];
+  DeleteCases[
+    (With[{resolvedLabel = FixedPoint[
+          If[MatchQ[#, {_List}], First[#], #] &, #[[1, 2]]]},
+       {Total[#[[All, 1]]],
+        resolvedLabel}] &) /@ gathered, {0, _}]
+];
+
 (* Resolve only newly sealed circuit kernels.  Accepted exception leaves are
    intentionally preserved as exact provider labels; base and diagonal
    letters use the established GPL/eMPL standard-letter expansion. *)
@@ -288,7 +347,9 @@ cf303HybridBaselineResolvedPhysicalWordTerms[adapter_Association, word_List,
     MatchQ[label, {"CF303CircuitGPLKernel", _Integer, _Integer} |
         {"CF303ExactEllipticKernel", _Integer, _Integer}],
       cf303HybridResolveCircuitLabel[label, block1Resolution, variable],
-    MatchQ[label, {"CF303AcceptedIncomingKLeaf", ___}], {{1, label}},
+    MatchQ[label, {"CF303AcceptedIncomingKLeaf", ___}],
+      cf303HybridBaselineAcceptedIncomingKTerms[
+        adapter, label, eps, variable],
     True, cf303FinalStandardLetterExpansion[operator, label]];
   expanded = {{1, {}}};
   Do[
