@@ -305,6 +305,12 @@ RationalEpsilonLayerWordMap::usage =
   "RationalEpsilonLayerWordMap[operator,word,boundaryOrder,outputOrder,rows] evaluates one D...D or D...D K S...S word as a sparse map on boundary coordinates.";
 RationalEpsilonLayerDemandTerms::usage =
   "RationalEpsilonLayerDemandTerms[operator,{outputOrder,rows}] constructs only the nonzero word maps for one coefficient covered by the transport's accepted DemandPairs, including the endpoint-gauge H S...S contribution. MaximumTerms and MaximumStates are fail-closed resource caps.";
+BuildTangentialJunctionBinding::usage =
+  "BuildTangentialJunctionBinding[spec] builds a family-neutral singular-junction record from epsilon-order decks for the source-mode map, the complete target-G-mode map and the regularized downstream inverse selectors. It refuses until the target G representation and the rho^0/rho^1 intertwining-jet evidence are complete.";
+AcceptedTangentialJunctionBindingQ::usage =
+  "AcceptedTangentialJunctionBindingQ[binding] checks the structural contract of a TangentialJunctionBindingV1 record.";
+ComposeTangentialJunctionWordMaps::usage =
+  "ComposeTangentialJunctionWordMaps[binding,upstreamTerms,downstreamTerms,outputOrder] contracts demanded sparse maps across a regularized tangential junction. It preserves each ordered {upstream word,downstream word} pair, epsilon-order routing and the original Stage-3 boundary coordinates without shuffle expansion or dense transport materialization.";
 AttachTransportBoundaryToRationalLayer::usage =
   "AttachTransportBoundaryToRationalLayer[source,layer,boundary,sourceRows,targetRows] splits a full-system physical boundary selector into source and final-layer rows while preserving one shared vector of period coordinates.";
 BuildPhysicalTransportCoefficient::usage =
@@ -441,6 +447,10 @@ SyntaxInformation[RationalEpsilonLayerWordMap] =
   {"ArgumentsPattern" -> {_, _, _, _, _.}};
 SyntaxInformation[RationalEpsilonLayerDemandTerms] =
   {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
+SyntaxInformation[BuildTangentialJunctionBinding] =
+  {"ArgumentsPattern" -> {_}};
+SyntaxInformation[ComposeTangentialJunctionWordMaps] =
+  {"ArgumentsPattern" -> {_, _, _, _}};
 SyntaxInformation[AttachTransportBoundaryToRationalLayer] =
   {"ArgumentsPattern" -> {_, _, _, _, _}};
 SyntaxInformation[BuildPhysicalTransportCoefficient] =
