@@ -28,6 +28,37 @@ FTAssert["a Fuchsian epsilon-form endpoint builds a finite exact Frobenius prefa
     frobenius["ResidualCheckedThrough"] ===
       <|"SeriesOrder" -> 1, "EpsilonOrder" -> 2|>];
 
+reverseFrobenius = BuildEndpointFrobenius[
+  eps (residue/(u - 1) + regular),
+  Join[endpointSpec, <|"Endpoint" -> 1, "LocalDirection" -> -1|>],
+  "MaximumSeriesOrder" -> 2, "MaximumEpsilonOrder" -> 2];
+FTAssert["an inward endpoint coordinate includes its differential Jacobian",
+  reverseFrobenius["Status"] === "EndpointFrobeniusBuilt" &&
+    reverseFrobenius["LocalDirection"] === -1 &&
+    reverseFrobenius["Residue"] === residue &&
+    reverseFrobenius["FrobeniusPrefactorCoefficients"][{1, 1}] ===
+      -regular];
+
+inwardScalarFrobenius = BuildEndpointFrobenius[{{0}},
+  <|"Variable" -> u, "Regulator" -> eps, "LocalVariable" -> rho,
+    "Endpoint" -> 1, "LocalDirection" -> -1|>,
+  "MaximumSeriesOrder" -> 1, "MaximumEpsilonOrder" -> 1];
+inwardScalarMode = BuildBoundaryModeMap[inwardScalarFrobenius,
+  {{1 - u}}, <|"Family" -> "InwardCoordinateControl",
+    "Limit" -> <|"Variable" -> u, "Endpoint" -> 1|>,
+    "PhysicalEndpointRelation" -> <|"LocalPower" -> 1,
+      "LeadingCoefficient" -> 1|>|>,
+  {<|"PeriodID" -> "inward", "PeriodClass" -> "GPL",
+    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {1},
+    "PhysicalRows" -> {1}, "EpsilonExponent" -> 0,
+    "IntegerValuation" -> 1, "LogLevel" -> 0,
+    "DemandedOutputs" -> {{0, 1}}|>}];
+FTAssert["mode normalization uses the same inward coordinate as its Frobenius series",
+  inwardScalarMode["Status"] === "BoundaryModeMapBuilt" &&
+    inwardScalarMode["EndpointSpec", "LocalDirection"] === -1 &&
+    inwardScalarMode["Modes"][[1, "CanonicalMode"]] === {1} &&
+    inwardScalarMode["Modes"][[1, "PhysicalLeadingCoefficients"]] === {1}];
+
 FTAssert["non-epsilon-form and higher-order endpoint poles are refused typed",
   BuildEndpointFrobenius[connection + IdentityMatrix[2],
       endpointSpec]["Status"] === "ConnectionNotEpsilonForm" &&
@@ -55,9 +86,9 @@ realizations = {
 modeMap = BuildBoundaryModeMap[frobenius, {{1, 0}, {u, 2}},
   modeSpec, realizations];
 FTAssert["physical modes are globally extended and normalized in the canonical boundary space",
-  modeMap["Status"] === "BoundaryModeMapBuilt" &&
+    modeMap["Status"] === "BoundaryModeMapBuilt" &&
     modeMap["EndpointSpec"] === <|"Variable" -> u,
-      "Endpoint" -> 0, "FixedRules" -> {}|> &&
+      "Endpoint" -> 0, "LocalDirection" -> 1, "FixedRules" -> {}|> &&
     modeMap["Modes"][[1, "CanonicalMode"]] === {1, 0} &&
     modeMap["Modes"][[2, "CanonicalMode"]] === {0, 1/2} &&
     modeMap["Modes"][[All, "PhysicalToLocalMode"]] ===

@@ -79,7 +79,7 @@ Options[BuildEndpointFrobenius] = {
 BuildEndpointFrobenius[connection_?MatrixQ, spec_Association,
     OptionsPattern[]] := Catch@Module[
   {fail, matrix, dimension, variable, regulator, localVariable, endpoint,
-   fixedRules, maximumSeriesOrder, maximumEpsilonOrder, normalized,
+   localDirection, fixedRules, maximumSeriesOrder, maximumEpsilonOrder, normalized,
    residue, regularConnection, regularCoefficients, h, zero, source,
    prefactorCoefficients, regularTruncation, prefactorTruncation,
    residual, residualCoefficients},
@@ -95,19 +95,22 @@ BuildEndpointFrobenius[connection_?MatrixQ, spec_Association,
   regulator = Lookup[spec, "Regulator", Missing[]];
   localVariable = Lookup[spec, "LocalVariable", Global`rho];
   endpoint = Lookup[spec, "Endpoint", Missing[]];
+  localDirection = Lookup[spec, "LocalDirection", 1];
   fixedRules = Lookup[spec, "FixedRules", {}];
   maximumSeriesOrder = OptionValue["MaximumSeriesOrder"];
   maximumEpsilonOrder = OptionValue["MaximumEpsilonOrder"];
   If[! MatchQ[variable, _Symbol] || ! MatchQ[regulator, _Symbol] ||
       ! MatchQ[localVariable, _Symbol] || MissingQ[endpoint] ||
       ! FreeQ[endpoint, variable] || ! ListQ[fixedRules] ||
+      ! MemberQ[{-1, 1}, localDirection] ||
       ! IntegerQ[maximumSeriesOrder] || maximumSeriesOrder < 1 ||
       ! IntegerQ[maximumEpsilonOrder] || maximumEpsilonOrder < 0 ||
       ! DuplicateFreeQ[{variable, regulator, localVariable}],
     fail["EndpointSpecificationInvalid"]
   ];
   normalized = boundaryCanonicalMatrix[
-    (matrix /. fixedRules /. variable -> endpoint + localVariable)/
+    localDirection (matrix /. fixedRules /.
+        variable -> endpoint + localDirection localVariable)/
       regulator];
   If[! FreeQ[normalized, regulator],
     fail["ConnectionNotEpsilonForm"]
@@ -190,6 +193,7 @@ BuildEndpointFrobenius[connection_?MatrixQ, spec_Association,
     "Variable" -> variable,
     "Regulator" -> regulator,
     "LocalVariable" -> localVariable,
+    "LocalDirection" -> localDirection,
     "Endpoint" -> endpoint,
     "FixedRules" -> fixedRules,
     "MaximumSeriesOrder" -> maximumSeriesOrder,
@@ -256,7 +260,7 @@ boundaryModeExtension[residue_, canonicalRows_, constraintRows_,
 BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
     spec_Association, realizations_List] := Catch@Module[
   {fail, dimension, residue, regulator, variable, localVariable, endpoint,
-   fixedRules, relation, localPower, endpointCoefficient, family, limit,
+   localDirection, fixedRules, relation, localPower, endpointCoefficient, family, limit,
    transformationLocal, prefactor, buildMode, modes, physicalDimension,
    periodIDs, maximumSeriesOrder, maximumEpsilonOrder, initialLedger,
    logBranch},
@@ -271,6 +275,7 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
   variable = frobenius["Variable"];
   localVariable = frobenius["LocalVariable"];
   endpoint = frobenius["Endpoint"];
+  localDirection = Lookup[frobenius, "LocalDirection", 1];
   maximumSeriesOrder = frobenius["MaximumSeriesOrder"];
   maximumEpsilonOrder = frobenius["MaximumEpsilonOrder"];
   fixedRules = Lookup[spec, "FixedRules", frobenius["FixedRules"]];
@@ -295,7 +300,7 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
   ];
   transformationLocal = boundaryCanonicalMatrix[
     Normal[transformation] /. fixedRules /.
-      variable -> endpoint + localVariable];
+      variable -> endpoint + localDirection localVariable];
   If[Dimensions[transformationLocal][[2]] =!= dimension,
     fail["EndpointTransformationDimensionMismatch"]
   ];
@@ -507,7 +512,8 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
     "LocalVariable" -> localVariable,
     "Endpoint" -> endpoint,
     "EndpointSpec" -> <|"Variable" -> variable,
-      "Endpoint" -> endpoint, "FixedRules" -> fixedRules|>,
+      "Endpoint" -> endpoint, "LocalDirection" -> localDirection,
+      "FixedRules" -> fixedRules|>,
     "PhysicalEndpointRelation" -> relation,
     "Modes" -> modes,
     "Stage3NeedsLedger" -> initialLedger
