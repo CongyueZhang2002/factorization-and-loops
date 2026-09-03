@@ -4,7 +4,7 @@ Read `Design/PrivateOverhaul_2026-09-01.md` first: it is the living plan
 with done / running / not-done / decisions-for-the-user, the bug list,
 the benchmark table and the CF259 state. This note is the short version.
 
-## Current status (2026-09-02 14:40, one block; everything below it is history)
+## Current status (2026-09-03 01:10, one block; everything below it is history)
 
 - Package: seven layer folders under `FeynFacet/Private/`, each with
   sub-folders by responsibility (round 5), manifest `Private/LoadOrder.wl`
@@ -15,12 +15,35 @@ the benchmark table and the CF259 state. This note is the short version.
   the graph is acyclic (Geometry loads before EpsForm).
 - Stage 1 (eps-forms): `DiagonalBlockEpsForm` with the Libra balance slice
   and the finite-field strip solvers; CANONICA and Maple routes retired.
+  Round 8 (2026-09-02/03): the off-diagonal strip solvers no longer
+  materialize the block equation in characteristic zero: the deferred
+  DAG is evaluated natively at the sampler's points
+  (`EpsForm/FiniteField/FiniteFieldDeferredForcing.wl`,
+  `FACET_DEFERRED_FORCING=Off` restores the exact route). Hard rungs
+  CF300 (12,9) 51 s to 22 s and (12,7) 246 s to 115 s; CF303's block
+  (25,18) now passes the census in 13 s and reaches the sampler, where
+  it fails typed as Codex's recorded no-go predicts (no rational dlog
+  form). Reviewed adversarially (R2); the fixes of its findings are
+  pass 4 of `round8/M_stage1_speed.md`. Next levers with measured
+  bounds: batched per-prime adapter solves, the normalizer's per-point
+  evaluation.
 - Stage 2 (transport): `BuildObservableTransport` is the only production
   route. Laurent extraction is one `Series` per entry with per-row order
   caps (`"Series"`, round 4 agent L): identical canonical coefficients,
   CF259 265 s instead of 564 s. The jet route is kept selectable but is
   pathological on nested-quotient entries (candidate for the backup).
   Codex's modular-only closure was costed and not built (report L).
+- Non-eps-form final layers (CF303 class): a general route
+  `BuildRationalEpsilonLayerTransport` (`Transport/Observable/RationalEpsilonLayer.wl`)
+  transports a rational-in-epsilon lower-triangular final layer order by
+  order (certified epsilon window, sealed Hermite circuit over F_q[u],
+  lifted gauge H at the endpoint, bound certificate, predicate that
+  re-derives residues and words); test 35/35 with NDSolve-based
+  assertions; reviewed adversarially twice (R1). CF303 itself is NOT
+  transported: the elliptic (curve) channel, the seven Maple-only
+  exception forcings, the T25 gauge, generic p and a lazy word
+  representation for the weight-6 growth remain (list in
+  `round8/T_noneps_transport.md`).
 - Transport-ready records must carry a certificate of their epsilon
   valuations (`CertifyTransportEpsilonValuations`; produced by
   `Scripts/compact_family_dlog_record.wls`); the transport refuses an

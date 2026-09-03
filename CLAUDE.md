@@ -28,8 +28,14 @@ per entry with per-row order caps (`"Series"`, CF259 265 s instead of
 must carry a certificate (`CertifyTransportEpsilonValuations`, produced
 at compact-record construction) or the transport refuses it typed; the
 stored CF259 record predates the certificate and is refused until
-certified (open item, the certifier is still too slow on it). Passages
-below that name a flat `Private/File.wl` path are history.
+certified (done 2026-09-02 evening: certified in place, accepted artifact
+in `observable_transport_2026-09-02_certified/`). Round 8 (2026-09-03):
+the strip solvers evaluate the deferred block-equation DAG natively
+(`FACET_DEFERRED_FORCING=Off` for the exact route) and a general
+rational-in-epsilon final-layer transport route exists for the CF303
+class (`BuildRationalEpsilonLayerTransport`); both were adversarially
+reviewed, see the plan's Round 8. Passages below that name a flat
+`Private/File.wl` path are history.
 
 
 **Round 2 of the overhaul (2026-09-02, user rulings U1-U4, N1-N8 in
