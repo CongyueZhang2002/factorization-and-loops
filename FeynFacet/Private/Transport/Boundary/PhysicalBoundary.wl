@@ -506,6 +506,8 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
     "MaximumEpsilonOrder" -> maximumEpsilonOrder,
     "LocalVariable" -> localVariable,
     "Endpoint" -> endpoint,
+    "EndpointSpec" -> <|"Variable" -> variable,
+      "Endpoint" -> endpoint, "FixedRules" -> fixedRules|>,
     "PhysicalEndpointRelation" -> relation,
     "Modes" -> modes,
     "Stage3NeedsLedger" -> initialLedger

@@ -56,6 +56,8 @@ modeMap = BuildBoundaryModeMap[frobenius, {{1, 0}, {u, 2}},
   modeSpec, realizations];
 FTAssert["physical modes are globally extended and normalized in the canonical boundary space",
   modeMap["Status"] === "BoundaryModeMapBuilt" &&
+    modeMap["EndpointSpec"] === <|"Variable" -> u,
+      "Endpoint" -> 0, "FixedRules" -> {}|> &&
     modeMap["Modes"][[1, "CanonicalMode"]] === {1, 0} &&
     modeMap["Modes"][[2, "CanonicalMode"]] === {0, 1/2} &&
     modeMap["Modes"][[All, "PhysicalToLocalMode"]] ===
