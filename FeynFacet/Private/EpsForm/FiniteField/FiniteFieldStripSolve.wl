@@ -963,6 +963,7 @@ Options[SampleEpsFormStripAffine] = {
   "NumeratorDegreeOffset" -> {0, 0},
   "SolveAffineSystem" -> True,
   "RandomSeed" -> 2540908,
+  "DeferredForcingWaveValues" -> None,
   "Preparation" -> Automatic,
   "ExpectedFingerprint" -> Automatic,
   "EliminationPlan" -> None,
@@ -1393,7 +1394,7 @@ SampleEpsFormStripAffine[
    evaluationSeconds = 0., assemblySeconds = 0., pointCallSeconds = 0.,
    loopStart, kForms, kFormsQ = False, epsPowersK, kMaximumExponents = {0, 0},
    pointKey, kValues, deferredKey = None, drawnPoints = {}, forcingTable = <||>,
-   forcingImages},
+   forcingImages, imageSeconds = 0., imageBatched = 0, prefetchCount, waveValues, fetchForcing},
 
   If[! finiteFieldStripRecordQ[record],
     Message[SampleEpsFormStripAffine::record]; Return[$Failed]];
@@ -1643,7 +1644,7 @@ SampleEpsFormStripAffine[
       eValue = Map[contractRational, kValues[[1]], {3}];
       cValue = Map[contractRational, kValues[[2]], {3}];
       forcing0Value = If[StringQ[deferredKey],
-        Lookup[forcingTable, Key[{xValue, yValue}], Map[contractRational, kValues[[3]], {3}]],
+        Lookup[forcingTable, Key[{xValue, yValue}], fetchForcing[{xValue, yValue}]],
         Map[contractRational, kValues[[3]], {3}]];
       dlogValue = Map[contractRational, kValues[[4]], {2}];
       denominatorValue = contractRational[kValues[[5]]];
@@ -1716,11 +1717,26 @@ SampleEpsFormStripAffine[
   deferredKey = Lookup[Lookup[preparation, "DeferredForcing", <||>] /. None -> <||>, "Key", None];
   If[StringQ[deferredKey],
     drawnPoints = Table[RandomInteger[{2, prime - 2}, 2], {Min[maximumAttempts, 2 requestedPointCount]}];
-    forcingImages = finiteFieldDeferredForcingImages[deferredKey, prime,
-      Append[#, epsilonMod] & /@ drawnPoints];
+    prefetchCount = Min[Length[drawnPoints], requestedPointCount + 8];
+    waveValues = OptionValue["DeferredForcingWaveValues"];
+    {imageSeconds, forcingImages} = AbsoluteTiming[
+      (* the wave's other regulator values at the points every sample of the
+         wave draws (same seed): the wave's first sample batches them once,
+         the later samples hit the image cache *)
+      If[ListQ[waveValues] && waveValues =!= {},
+        Quiet[finiteFieldDeferredForcingImages[deferredKey, prime,
+          Flatten[Table[Append[pt, Mod[Numerator[value]
+              PowerMod[Mod[Denominator[value], prime], -1, prime], prime]],
+            {value, waveValues}, {pt, drawnPoints[[;; prefetchCount]]}], 1]]]];
+      finiteFieldDeferredForcingImages[deferredKey, prime,
+        Append[#, epsilonMod] & /@ drawnPoints[[;; prefetchCount]]]];
     If[Lookup[forcingImages, "Status", None] =!= "OK",
       Message[SampleEpsFormStripAffine::points]; Return[$Failed]];
-    forcingTable = AssociationThread[drawnPoints -> forcingImages["Values"]]];
+    imageBatched = Lookup[forcingImages, "BatchedImages", 0];
+    forcingTable = AssociationThread[drawnPoints[[;; prefetchCount]] -> forcingImages["Values"]];
+    (* a point past the prefetch (rejections) is fetched on its own *)
+    fetchForcing[point_] := With[{r = finiteFieldDeferredForcingImages[deferredKey, prime, {Append[point, epsilonMod]}]},
+      If[Lookup[r, "Status", None] === "OK", First[r["Values"]], $Failed]]];
   {samplingSeconds, samplingResult} = AbsoluteTiming[
     While[Length[acceptedPoints] < requestedPointCount &&
         attemptCount < maximumAttempts &&
@@ -2005,6 +2021,8 @@ SampleEpsFormStripAffine[
     "SamplingEvaluationSeconds" -> evaluationSeconds,
     "SamplingAssemblySeconds" -> assemblySeconds,
     "SamplingPointCallSeconds" -> pointCallSeconds,
+    "SamplingImageSeconds" -> imageSeconds,
+    "SamplingImagesBatched" -> imageBatched,
     "PeakMemoryBytes" -> MaxMemoryUsed[],
     "RankSeconds" -> rankSeconds,
     "AugmentedRankSeconds" -> augmentedRankSeconds,
@@ -3558,14 +3576,20 @@ SolveEpsFormStripFiniteField[record_Association,
       (* this prime is computed here, not reloaded: its wall time is a
          measurement of the block's real per-prime cost *)
       primeComputed = True;
-      sampleBatch[values_List] := Which[
+      sampleBatch[values_List] := (
+        (* round 8 pass 3: on the deferred route the sampler batches the
+           whole wave's forcing images once (option DeferredForcingWaveValues) *)
+        With[{waveOptions = If[StringQ[Lookup[Lookup[preparation, "DeferredForcing", <||>] /. None -> <||>, "Key", None]]
+              && kernelCount === 1 && ! brokerQ, {"DeferredForcingWaveValues" -> values}, {}]},
+        Which[
         brokerQ, taskBrokerSampleBatch[record, values, prime, sampleOptions],
         kernelCount > 1,
         ParallelMap[
           SampleEpsFormStripAffine[record, #, prime, Sequence @@ sampleOptions] &,
           values, Method -> "FinestGrained", DistributedContexts -> Automatic],
         True,
-        SampleEpsFormStripAffine[record, #, prime, Sequence @@ sampleOptions] & /@ values];
+        SampleEpsFormStripAffine[record, #, prime, Sequence @@ waveOptions,
+          Sequence @@ sampleOptions] & /@ values]]);
       If[regulatorSampling === "HeldOut",
         (* A2: construction prefix, held-out round, grow on failure; the
            first prime starts from InitialConstructionCount, later primes
@@ -3710,6 +3734,8 @@ SolveEpsFormStripFiniteField[record_Association,
           "SamplingEvaluationSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SamplingEvaluationSeconds", 0.]],
           "SamplingAssemblySeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SamplingAssemblySeconds", 0.]],
           "SamplingPointCallSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SamplingPointCallSeconds", 0.]],
+          "SamplingImageSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SamplingImageSeconds", 0.]],
+          "SamplingImagesBatched" -> Total[Lookup[If[ListQ[pool], pool, samples], "SamplingImagesBatched", 0]],
           "SamplingSampleSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SampleSeconds", 0.]],
           "SamplingSetupSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SetupSeconds", 0.]],
           "SamplingPreprocessingSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "PreprocessingSeconds", 0.]],
@@ -3975,6 +4001,8 @@ SolveEpsFormStripFiniteField[record_Association,
       Lookup[modularData, "SamplingAssemblySeconds", {}],
     "PrimeSamplingPointCallSeconds" ->
       Lookup[modularData, "SamplingPointCallSeconds", {}],
+    "PrimeSamplingImageSeconds" -> Lookup[modularData, "SamplingImageSeconds", {}],
+    "PrimeSamplingImagesBatched" -> Lookup[modularData, "SamplingImagesBatched", {}],
     "PrimeSamplingSampleSeconds" -> Lookup[modularData, "SamplingSampleSeconds", {}],
     "PrimeSamplingSetupSeconds" -> Lookup[modularData, "SamplingSetupSeconds", {}],
     "PrimeSamplingPreprocessingSeconds" -> Lookup[modularData, "SamplingPreprocessingSeconds", {}],

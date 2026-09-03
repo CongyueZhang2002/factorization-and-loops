@@ -56,6 +56,15 @@ ClearAll[
 ];
 
 $finiteFieldDeferredForcingRegistry = <||>;
+(* images already evaluated, keyed by {plan key, prime, x, y, epsMod}: the
+   regulator samples of a prime share their points, so a wave of samples is
+   one native batch (finiteFieldStripSolve pre-warms it) and every
+   per-sample request is served from here *)
+$finiteFieldDeferredForcingImageCache = <||>;
+(* images per native request: flint_deferred_ast_eval.c caps a request at
+   MAX_TOTAL_IMAGES = 4096 channels, i.e. Floor[4096/gradeCount] images
+   (ResourceLimit, exit 5); the chunk is the smaller of this and that cap *)
+$finiteFieldDeferredForcingBatchLimit = 1024;
 
 (* FACET_DEFERRED_FORCING=Off restores the exact pull-back before the inner
    solve (the pre-2026-09-02 route); anything else keeps the DAG route *)
@@ -91,6 +100,8 @@ finiteFieldDeferredForcingPlan[deferredPreparation_Association,
     "SHA256", "HexString"];
   plan = <|"Status" -> "OK", "Key" -> key,
     "InputFile" -> inputFile,
+    "Tables" -> finiteFieldDeferredForcingTables[data, rootImages, usedRoots,
+      chartVariables, variables, epsilon],
     "Preparation" -> preparation,
     "Variables" -> variables, "ChartVariables" -> chartVariables,
     "Regulator" -> epsilon, "Dimensions" -> dimensions,
@@ -108,10 +119,84 @@ finiteFieldDeferredForcingPlan[deferredPreparation_Association,
 ];
 finiteFieldDeferredForcingPlan[___] := <|"Status" -> "DeferredForcingPlanInvalid"|>;
 
+(* Coefficient tables of the small eps-free chart data (substitution,
+   root images, root squares, Jacobian): a rational function becomes
+   {numeratorRules, denominatorRules} with integer coefficients, and a batch
+   of points is evaluated with packed-array arithmetic instead of one AST
+   evaluation per point per expression (2 ms per image before). *)
+finiteFieldDeferredForcingTable[expression_, vars_List] := Module[{t, rn, rd, lcm},
+  t = Together[expression];
+  rn = CoefficientRules[Numerator[t], vars]; rd = CoefficientRules[Denominator[t], vars];
+  lcm = LCM @@ Denominator /@ Join[rn[[All, 2]], rd[[All, 2]]];
+  {MapAt[lcm # &, rn, {All, 2}], MapAt[lcm # &, rd, {All, 2}]}
+];
+finiteFieldDeferredForcingTables[data_Association, rootImages_List, usedRoots_List,
+    chartVariables_List, variables_List, epsilon_Symbol] := Module[
+  {chartVars = Append[chartVariables, epsilon], sourceVars = Append[variables, epsilon],
+   subst, images, squares, jacobian, degrees},
+  subst = finiteFieldDeferredForcingTable[#, chartVars] & /@ data["Subst"][[All, 2]];
+  images = finiteFieldDeferredForcingTable[#, chartVars] & /@ rootImages;
+  jacobian = Map[finiteFieldDeferredForcingTable[#, chartVars] &, data["Jacobian"], {2}];
+  squares = finiteFieldDeferredForcingTable[#, sourceVars] & /@ Lookup[usedRoots, "RootSquare", {}];
+  degrees[tables_] := Max /@ Transpose[Join[ConstantArray[0, {1, 3}],
+    Flatten[Cases[tables, (exponents_List -> _) :> exponents, Infinity], 0]]];
+  <|"Subst" -> subst, "RootImages" -> images, "Jacobian" -> jacobian,
+    "Squares" -> squares,
+    "ChartDegrees" -> degrees[{subst, images, jacobian}],
+    "SquareDegrees" -> degrees[squares]|>
+];
+(* powers 0..degree of a packed vector of residues: dims {degree + 1, n} *)
+finiteFieldDeferredForcingPowers[values_List, degree_Integer, prime_Integer] :=
+  NestList[Mod[# values, prime] &, ConstantArray[1, Length[values]], degree];
+finiteFieldDeferredForcingPolynomialAt[rules_List, powers_List, prime_Integer, count_Integer] :=
+  Module[{acc = ConstantArray[0, count]},
+    Do[acc = Mod[acc + Mod[Mod[rule[[2]], prime]
+      Fold[Mod[#1 #2, prime] &, MapThread[#1[[#2 + 1]] &, {powers, rule[[1]]}]], prime], prime],
+      {rule, rules}];
+    acc];
+(* the values of a rational function at the batch; $Failed with the first
+   singular position when a denominator vanishes *)
+finiteFieldDeferredForcingRationalAt[{numRules_, denRules_}, powers_List, prime_Integer,
+    count_Integer] := Module[{num, den, zero},
+  num = finiteFieldDeferredForcingPolynomialAt[numRules, powers, prime, count];
+  den = finiteFieldDeferredForcingPolynomialAt[denRules, powers, prime, count];
+  zero = FirstPosition[den, 0, None, {1}, Heads -> False];
+  If[zero =!= None, Return[{$Failed, First[zero]}]];
+  Mod[num PowerMod[den, -1, prime], prime]
+];
+
 (* one preflight per image {x, y, epsMod}: source point, root squares and
-   root values modulo p; a point where the chart map or a root image has a
+   root values modulo p, evaluated for the whole batch at once from the
+   coefficient tables; a point where the chart map or a root image has a
    pole is a typed rejection of the whole request *)
 finiteFieldDeferredForcingPreflights[plan_Association, prime_Integer,
+    images_List] := Module[
+  {tables = plan["Tables"], count = Length[images], powers, sv, rv, dv, sourcePowers,
+   bad, mismatch},
+  powers = MapThread[finiteFieldDeferredForcingPowers[#1, #2, prime] &,
+    {Transpose[images], tables["ChartDegrees"]}];
+  sv = finiteFieldDeferredForcingRationalAt[#, powers, prime, count] & /@ tables["Subst"];
+  rv = finiteFieldDeferredForcingRationalAt[#, powers, prime, count] & /@ tables["RootImages"];
+  bad = FirstCase[Join[sv, rv], {$Failed, position_} :> position, None];
+  If[bad =!= None,
+    Return[<|"Status" -> "DeferredForcingSingularChartPoint", "Image" -> images[[bad]]|>]];
+  sourcePowers = MapThread[finiteFieldDeferredForcingPowers[#1, #2, prime] &,
+    {Append[sv, images[[All, 3]]], tables["SquareDegrees"]}];
+  dv = finiteFieldDeferredForcingRationalAt[#, sourcePowers, prime, count] & /@ tables["Squares"];
+  bad = FirstCase[dv, {$Failed, position_} :> position, None];
+  If[bad =!= None,
+    Return[<|"Status" -> "DeferredForcingRootImageMismatch", "Image" -> images[[bad]]|>]];
+  mismatch = If[rv === {}, None,
+    FirstPosition[Total[Mod[Mod[rv rv, prime] - dv, prime]], _?Positive, None, {1}, Heads -> False]];
+  If[mismatch =!= None,
+    Return[<|"Status" -> "DeferredForcingRootImageMismatch", "Image" -> images[[First[mismatch]]]|>]];
+  Table[<|"Status" -> "MultiquadraticProviderPreflightV1", "Prime" -> prime,
+      "ProviderFingerprint" -> plan["Key"], "Point" -> sv[[All, b]], "EpsilonMod" -> images[[b, 3]],
+      "RootSquares" -> dv[[All, b]], "RootValues" -> rv[[All, b]]|>, {b, count}]
+];
+(* the per-point reference (AST evaluation of the chart data at every image);
+   the exactness probe and the test compare the batch evaluator against it *)
+finiteFieldDeferredForcingPreflightsReference[plan_Association, prime_Integer,
     images_List] := Module[{X, Y, subst, rootImages, squares, variables, epsilon},
   {X, Y} = plan["ChartVariables"]; subst = plan["Subst"];
   rootImages = plan["RootImages"]; variables = plan["Variables"];
@@ -136,29 +221,48 @@ finiteFieldDeferredForcingPreflights[plan_Association, prime_Integer,
 (* the forcing images: one native batch; per image an array
    {2, d1, d2} of residues (the chart one-form after the Jacobian) *)
 finiteFieldDeferredForcingImages[key_String, prime_Integer, images_List] := Module[
-  {plan, preflights, batch, X, Y, epsilon, gradeCount, jacobian, started = AbsoluteTime[]},
+  {plan, preflights, batch, gradeCount, jacobian, powers, masks, started = AbsoluteTime[],
+   cacheKeys, missing, batchSeconds = 0.},
   plan = Lookup[$finiteFieldDeferredForcingRegistry, key, $Failed];
   If[! AssociationQ[plan], Return[<|"Status" -> "DeferredForcingPlanUnknown"|>]];
   If[images === {}, Return[<|"Status" -> "OK", "Values" -> {}, "Seconds" -> 0.|>]];
-  preflights = finiteFieldDeferredForcingPreflights[plan, prime, images];
-  If[AssociationQ[preflights], Return[preflights]];
-  batch = multiquadraticStripNativeDeferredEvaluateBatch[plan["Provider"], preflights,
-    "Threads" -> Clip[$ProcessorCount, {1, 4}]];
-  If[Lookup[batch, "Status", None] =!= "MultiquadraticNativeDeferredBatchV1",
-    Return[<|"Status" -> "DeferredForcingBatchFailed", "Detail" -> batch|>]];
-  {X, Y} = plan["ChartVariables"]; epsilon = plan["Regulator"];
-  gradeCount = batch["GradeCount"]; jacobian = plan["Jacobian"];
+  cacheKeys = Join[{key, prime}, #] & /@ images;
+  missing = Pick[Range[Length[images]], KeyExistsQ[$finiteFieldDeferredForcingImageCache, #] & /@ cacheKeys, False];
+  (* the native evaluator caps the images per request (ResourceLimit above
+     ~1000): the missing images go in chunks of $finiteFieldDeferredForcingBatchLimit *)
+  Do[
+    preflights = finiteFieldDeferredForcingPreflights[plan, prime, images[[chunk]]];
+    If[AssociationQ[preflights], Return[preflights, Module]];
+    (* 8 threads: 2x over 4 on CF300 (12,7) (960 images 1.36 -> 0.69 s); the
+       seat launcher pins the process to 8 CPUs *)
+    batch = multiquadraticStripNativeDeferredEvaluateBatch[plan["Provider"], preflights,
+      "Threads" -> Clip[$ProcessorCount, {1, 8}]];
+    If[Lookup[batch, "Status", None] =!= "MultiquadraticNativeDeferredBatchV1",
+      Return[<|"Status" -> "DeferredForcingBatchFailed", "Detail" -> batch|>, Module]];
+    batchSeconds += batch["Seconds"];
+    gradeCount = batch["GradeCount"];
+    If[Length[$finiteFieldDeferredForcingImageCache] > 400000,
+      $finiteFieldDeferredForcingImageCache = <||>];
+    (* grade contraction with the root values (one Dot per image) and the
+       Jacobian from its tables, both for the whole chunk *)
+    powers = MapThread[finiteFieldDeferredForcingPowers[#1, #2, prime] &,
+      {Transpose[images[[chunk]]], plan["Tables"]["ChartDegrees"]}];
+    jacobian = Map[finiteFieldDeferredForcingRationalAt[#, powers, prime, Length[chunk]] &,
+      plan["Tables"]["Jacobian"], {2}];
+    If[! FreeQ[jacobian, $Failed, {3}], Return[<|"Status" -> "DeferredForcingSingularJacobian"|>, Module]];
+    masks = Table[multiquadraticMaskFactor[g, #["RootValues"]], {g, 0, gradeCount - 1}] & /@ preflights;
+    Do[Module[{av = Mod[batch["BBarBatch"][[b]] . masks[[b]], prime]},
+      $finiteFieldDeferredForcingImageCache[cacheKeys[[chunk[[b]]]]] =
+        {Mod[Mod[av[[1]] jacobian[[1, 1, b]], prime] + Mod[av[[2]] jacobian[[2, 1, b]], prime], prime],
+         Mod[Mod[av[[1]] jacobian[[1, 2, b]], prime] + Mod[av[[2]] jacobian[[2, 2, b]], prime], prime]}],
+      {b, Length[chunk]}],
+    {chunk, Partition[missing, UpTo[Min[$finiteFieldDeferredForcingBatchLimit,
+      Floor[4096/Lookup[plan["Provider"], "GradeCount", 8]]]]]}];
   <|"Status" -> "OK",
-    "Values" -> Table[Module[{image = images[[b]], rv = preflights[[b]]["RootValues"],
-        channels = batch["BBarBatch"][[b]], av, jv, values},
-      values = <|X -> image[[1]], Y -> image[[2]], epsilon -> image[[3]]|>;
-      av = Map[Mod[Total[Table[Mod[#[[g + 1]] multiquadraticMaskFactor[g, rv], prime],
-        {g, 0, gradeCount - 1}]], prime] &, channels, {3}];
-      jv = Map[finiteFieldDeferredForcingModAt[#, values, prime] &, jacobian, {2}];
-      If[MemberQ[Flatten[jv], $Failed], Return[<|"Status" -> "DeferredForcingSingularJacobian"|>, Module]];
-      {Mod[av[[1]] jv[[1, 1]] + av[[2]] jv[[2, 1]], prime],
-       Mod[av[[1]] jv[[1, 2]] + av[[2]] jv[[2, 2]], prime]}], {b, Length[images]}],
-    "BatchSeconds" -> batch["Seconds"], "Seconds" -> N[AbsoluteTime[] - started]|>
+    "Values" -> Lookup[$finiteFieldDeferredForcingImageCache, cacheKeys],
+    "BatchedImages" -> Length[missing],
+    "BatchSeconds" -> batchSeconds,
+    "Seconds" -> N[AbsoluteTime[] - started]|>
 ];
 
 (* rational interpolation in one variable modulo p: one nullspace at the
@@ -186,27 +290,50 @@ finiteFieldDeferredForcingLineFit[data_List, bound_Integer, prime_Integer, t_Sym
     "Degrees" -> {Exponent[numPoly, t], Exponent[denPoly, t]}|>
 ];
 
+(* A source root whose square becomes a perfect square under the chart map
+   reaches the candidates as Sqrt[p^2/q^2]: reduced to p/q (the sign is
+   irrelevant for a factor candidate; an irreducible radical is left and its
+   piece dropped, which the census's degree consistency then reports). *)
+finiteFieldDeferredForcingPolynomialRoot[poly_] := Module[{factors = Rest[FactorList[poly]]},
+  If[AllTrue[factors[[All, 2]], EvenQ], Times @@ (Power[#[[1]], #[[2]]/2] & /@ factors), $Failed]];
+finiteFieldDeferredForcingReduceRadicals[expr_, sign_Integer: 1] := expr //.
+  Power[s_, exponent_Rational /; Denominator[exponent] == 2] :> With[{t = Together[s]},
+    With[{n = finiteFieldDeferredForcingPolynomialRoot[Numerator[t]],
+        d = finiteFieldDeferredForcingPolynomialRoot[Denominator[t]]},
+      If[n === $Failed || d === $Failed, Power[s, exponent], sign Power[n/d, 2 exponent]]]];
+
 (* the structural superset of the pulled-back denominator factors *)
 finiteFieldDeferredForcingCandidateFactors[plan_Association] := Module[
   {records, operands, basesOf, sourceFactors, subst, X, Y, epsilon, pieces},
   {X, Y} = plan["ChartVariables"]; epsilon = plan["Regulator"]; subst = plan["Subst"];
   records = Lookup[plan["Preparation"], "Records", {}];
-  operands = DeleteDuplicates[Flatten[Lookup[#, "Operands", {}] & /@
+  (* the operands and the terms' coefficients: both carry denominators *)
+  operands = DeleteDuplicates[Flatten[{Lookup[#, "Operands", {}], Lookup[#, "Coefficient", 1]} & /@
     Flatten[Lookup[records, "Terms", {}]]]];
+  (* every denominator base at every level (Denominator is structural and
+     misses the denominators nested inside sums: CF303 (25,18)'s missing
+     quartic and degree-7 factors), radicals' squares included *)
   basesOf[expr_] := Module[{den = Denominator[expr], list},
     list = If[Head[den] === Times, List @@ den, {den}];
-    Select[Replace[list, Power[base_, _Integer] :> base, {1}], ! NumericQ[#] &]];
+    Select[Join[Replace[list, Power[base_, _Integer] :> base, {1}],
+      Cases[expr, Power[base_, exponent_?Negative] :> base, {0, Infinity}]], ! NumericQ[#] &]];
   sourceFactors = DeleteDuplicates[Flatten[(First /@ Rest[FactorList[#]]) & /@
     DeleteDuplicates[Flatten[basesOf /@ operands]]]];
-  pieces = Together[# /. subst] & /@ sourceFactors;
+  (* a factor a + b r is inverted in the multiquadratic algebra through its
+     norm a^2 - b^2 r^2, which pulls back to (a q + b p)(a q - b p)/q^2 for
+     r -> p/q: both sign variants are candidates (CF303 (25,18): the
+     conjugate variants were the missing quartic and degree-7 factors) *)
+  pieces = Join[Together[finiteFieldDeferredForcingReduceRadicals[# /. subst, 1]] & /@ sourceFactors,
+    Together[finiteFieldDeferredForcingReduceRadicals[# /. subst, -1]] & /@ sourceFactors];
   pieces = Join[Numerator /@ pieces, Denominator /@ pieces,
     Denominator /@ Together /@ subst[[All, 2]],
     Denominator /@ Together /@ plan["RootImages"],
+    Numerator /@ Together /@ plan["RootImages"],
     Denominator /@ Flatten[Together /@ plan["Jacobian"]],
     Numerator /@ Flatten[Together /@ plan["Jacobian"]]];
   pieces = DeleteDuplicates[Flatten[(First /@ Rest[FactorList[#]]) & /@
     Select[pieces, ! NumericQ[#] &]]];
-  pieces = Select[pieces, ! FreeQ[#, X | Y] &];
+  pieces = Select[pieces, ! FreeQ[#, X | Y] && PolynomialQ[#, {X, Y, epsilon}] &];
   DeleteDuplicates[pieces, TrueQ[Together[#1 - #2] === 0] || TrueQ[Together[#1 + #2] === 0] &]
 ];
 
@@ -273,32 +400,74 @@ finiteFieldDeferredForcingCensus[key_String, prime_Integer,
 
 (* the numerical verifier's identity with the DAG image in place of the
    placeholder forcing: d G - eps (e G - G c) - bbar + eps Sum K dlog == 0
-   at random points modulo a fresh prime; every point must vanish *)
+   at random points modulo a fresh prime; every regular point must vanish.
+   Everything is evaluated from coefficient tables (derivatives by exponent
+   shift), so the 64751-leaf chart gauge of CF300 (12,7) is never
+   differentiated or substituted symbolically (20 s per check before). *)
+finiteFieldDeferredForcingDerivativeRules[rules_List, index_Integer] :=
+  Cases[rules, (exponents_List -> coefficient_) /; exponents[[index]] > 0 :>
+    (exponents - UnitVector[Length[exponents], index] -> coefficient exponents[[index]])];
 finiteFieldDeferredForcingResidualQ[key_String, {e_, c_}, gauge_, alphabet_List,
     residueMatrices_List, pointCount_Integer: 16] := Module[
-  {plan, X, Y, epsilon, variables, dlog, symbolic, prime, points, images, values, ok = True,
-   started = AbsoluteTime[], evaluate, tries = 0},
+  {plan, X, Y, epsilon, vars, prime, points, images, started = AbsoluteTime[],
+   gaugeTables, eTables, cTables, letterTables, residueTables, residues, degrees, powers, poly, bad = {},
+   inverse, at, dAt, dlogAt, gaugeValues, gaugeDerivatives, eValues, cValues, dlogValues,
+   epsValues, product, residual, good, ok, dims, tableSeconds},
   plan = Lookup[$finiteFieldDeferredForcingRegistry, key, $Failed];
   If[! AssociationQ[plan], Return[<|"Status" -> "DeferredForcingPlanUnknown"|>]];
-  {X, Y} = plan["ChartVariables"]; epsilon = plan["Regulator"]; variables = {X, Y};
-  dlog = Table[Together[D[Log[alphabet[[a]]], variables[[mu]]]], {a, Length[alphabet]}, {mu, 2}];
-  symbolic = Table[D[gauge, variables[[mu]]] - epsilon (e[[mu]].gauge - gauge.c[[mu]]) +
-    epsilon Sum[residueMatrices[[a]] dlog[[a, mu]], {a, Length[alphabet]}], {mu, 2}];
+  {X, Y} = plan["ChartVariables"]; epsilon = plan["Regulator"]; vars = {X, Y, epsilon};
+  If[! FreeQ[{e, c, gauge, alphabet}, Power[_, _Rational]],
+    Return[<|"Status" -> "DeferredForcingResidualRadical"|>]];
+  dims = Dimensions[gauge];
+  tableSeconds = First[AbsoluteTiming[
+    gaugeTables = Map[finiteFieldDeferredForcingTable[#, vars] &, gauge, {2}];
+    eTables = Map[finiteFieldDeferredForcingTable[#, vars] &, e, {3}];
+    cTables = Map[finiteFieldDeferredForcingTable[#, vars] &, c, {3}];
+    letterTables = finiteFieldDeferredForcingTable[#, vars] & /@ alphabet;
+    (* the residue matrices may carry eps (the verifier reports ResiduesEpsFree separately) *)
+    residueTables = Map[finiteFieldDeferredForcingTable[#, vars] &, residueMatrices, {3}]]];
   prime = RandomPrime[{2^30, 2^31 - 1}];
-  evaluate[expr_, pt_] := Module[{v = Quiet[Check[Together[expr /. pt], $Failed]]},
-    If[! MatchQ[v, _Integer | _Rational] || Mod[Denominator[v], prime] === 0, $Failed,
-      Mod[Numerator[v] PowerMod[Denominator[v], -1, prime], prime]]];
   points = Table[RandomInteger[{3, prime - 3}, 3], {pointCount}];
   images = finiteFieldDeferredForcingImages[key, prime, points];
   If[Lookup[images, "Status", None] =!= "OK", Return[images]];
-  values = Table[Module[{pt = Thread[{X, Y, epsilon} -> points[[k]]], sym},
-      sym = Map[evaluate[#, pt] &, symbolic, {3}];
-      If[! FreeQ[sym, $Failed], Missing["Pole"],
-        Mod[Flatten[sym] - Flatten[images["Values"][[k]]], prime]]], {k, pointCount}];
-  values = DeleteCases[values, _Missing];
-  ok = Length[values] >= Ceiling[pointCount/2] && AllTrue[values, # === ConstantArray[0, Length[#]] &];
+  degrees = Max /@ Transpose[Join[ConstantArray[0, {1, 3}],
+    Cases[{gaugeTables, eTables, cTables, letterTables, residueTables}, (exponents_List -> _) :> exponents, Infinity]]];
+  powers = MapThread[finiteFieldDeferredForcingPowers[#1, #2, prime] &, {Transpose[points], degrees}];
+  poly[rules_] := finiteFieldDeferredForcingPolynomialAt[rules, powers, prime, pointCount];
+  (* a vanishing denominator marks the point as a pole (dropped, as before) *)
+  inverse[values_] := (bad = Join[bad, Flatten[Position[values, 0, {1}, Heads -> False]]];
+    PowerMod[values /. 0 -> 1, -1, prime]);
+  at[{rn_, rd_}] := Mod[poly[rn] inverse[poly[rd]], prime];
+  dAt[{rn_, rd_}, mu_] := With[{n = poly[rn], d = poly[rd],
+      dn = poly[finiteFieldDeferredForcingDerivativeRules[rn, mu]],
+      dd = poly[finiteFieldDeferredForcingDerivativeRules[rd, mu]]},
+    With[{inv = inverse[d]}, Mod[Mod[Mod[dn d, prime] - Mod[n dd, prime], prime] Mod[inv inv, prime], prime]]];
+  dlogAt[{rn_, rd_}, mu_] := With[{n = poly[rn], d = poly[rd],
+      dn = poly[finiteFieldDeferredForcingDerivativeRules[rn, mu]],
+      dd = poly[finiteFieldDeferredForcingDerivativeRules[rd, mu]]},
+    Mod[Mod[dn inverse[n], prime] - Mod[dd inverse[d], prime], prime]];
+  gaugeValues = Map[at, gaugeTables, {2}];
+  gaugeDerivatives = Table[Map[dAt[#, mu] &, gaugeTables, {2}], {mu, 2}];
+  eValues = Map[at, eTables, {3}]; cValues = Map[at, cTables, {3}];
+  residues = Map[at, residueTables, {3}];
+  dlogValues = Table[dlogAt[letterTables[[a]], mu], {a, Length[alphabet]}, {mu, 2}];
+  epsValues = points[[All, 3]];
+  (* matrix products with the point index innermost *)
+  product[a_, b_] := Table[Mod[Total[Table[Mod[a[[i, k]] b[[k, j]], prime], {k, Length[b]}]], prime],
+    {i, Length[a]}, {j, Length[First[b]]}];
+  residual = Table[Mod[
+      gaugeDerivatives[[mu]] -
+        Map[Mod[epsValues #, prime] &, Mod[product[eValues[[mu]], gaugeValues] - product[gaugeValues, cValues[[mu]]], prime], {2}] -
+        Transpose[images["Values"][[All, mu]], {3, 1, 2}] +
+        Map[Mod[epsValues #, prime] &,
+          Mod[Sum[Map[Mod[dlogValues[[a, mu]] #, prime] &, residues[[a]], {2}], {a, Length[alphabet]}], prime], {2}],
+      prime], {mu, 2}];
+  good = Complement[Range[pointCount], bad];
+  ok = Length[good] >= Ceiling[pointCount/2] &&
+    Flatten[residual[[All, All, All, good]]] === ConstantArray[0, 2 Times @@ dims Length[good]];
   <|"Status" -> "OK", "ResidualZero" -> ok, "Prime" -> prime,
-    "Points" -> Length[values], "Seconds" -> N[AbsoluteTime[] - started]|>
+    "Points" -> Length[good], "TableSeconds" -> tableSeconds,
+    "Seconds" -> N[AbsoluteTime[] - started]|>
 ];
 
 End[];

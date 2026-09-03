@@ -307,3 +307,268 @@ deferred materialization, interning of the operands (the campaign's `intern seco
   (in-kernel `LinearSolve[Modulus]` below, FLINT above).
 - `FeynFacet/Private/EpsForm/Strip/EpsFormStripInFrame.wl` (first pass): the gated canonicalizer
   route of `transportChartJacobianTogetherRecipe`.
+
+## 7. Third pass (coordinator's order: native DAG materialization, batched solves, gauge per-point evaluation)
+
+All runs through `scratchpad/bench/seat_run.sh`; logs under `scratchpad/round4/M/r8/p3_*.log`
+(the run directories `runs/<tag>_<pid>/` keep each solution's `summary.wl` and `gauge.wl`).
+"Exact route" below is the pass-2 code (HEAD `dfa0fedf`) measured again in this session on the
+same seats; "DAG route" is this pass.  Every DAG-route run ends `Solved` on the unchanged
+acceptance path (post-pull-back residual, gauge pull-back, source-frame identity, family
+certificate `Required`).
+
+### 7.1 What lever 3 is now
+
+The strip record no longer carries a materialized forcing.  `SolveEpsFormStripInFrame` builds a
+*deferred forcing plan* (`FiniteFieldDeferredForcing.wl`) that binds the deferred preparation file,
+the chart substitution, the Jacobian and the root images, and registers it under a key
+(`Hash[{file, preparation fingerprint, Subst, root images, root squares}]`); the record carries only
+that key plus the census.  Every consumer that needs the forcing modulo p asks
+`finiteFieldDeferredForcingImages[key, prime, {{x, y, epsMod}, ...}]`, which evaluates the DAG
+natively (`flint_deferred_ast_eval`, one request per chunk of at most `Floor[4096/gradeCount]`
+images -- the evaluator's `MAX_TOTAL_IMAGES` cap, `ResourceLimit` exit 5 above it), contracts the
+grades with the root values and applies the Jacobian, and caches every image.  The consumers:
+
+- the sampler (`SampleEpsFormStripAffine`): draws its point sequence first (same RNG stream as
+  before), asks for the images of the first `requestedPointCount + 8` points for the whole
+  held-out wave (option `"DeferredForcingWaveValues"`, passed by the solver's `sampleBatch`), so one
+  wave is one batch and the later samples hit the cache; a point past the prefetch is fetched on
+  its own (`fetchForcing`).  A failed image rejects the point exactly like a pole did.
+- the prepare step (`finiteFieldStripPrepare`): the alphabet and the gauge denominator come from
+  the *census* (7.3) instead of `finiteFieldStripEntryFactorList` on materialized entries.
+- the acceptance: the post-pull-back check evaluates the verifier's identity
+  `dG - eps (e G - G c) - bbar + eps Sum K dlog = 0` at 16 random points modulo a fresh 31-bit
+  prime with the DAG image as `bbar` (`finiteFieldDeferredForcingResidualQ`); the numerical
+  `VerifyEpsFormStrip` is only used on the exact route.  The exact materialization
+  (`transportChartPullBackDeferredPreparation`) runs only when the plan or the census is refused,
+  and is then the same code as before.
+
+Nothing in the DAG evaluation is approximate: the native batch returns residues of the same
+rational functions the materializer would produce, and the proofs in 7.4 check that at the
+sample points and on the final solutions.
+
+### 7.2 Before/after by stage (launcher walls; the solver's own timers in seconds)
+
+| rung | stage | exact route (pass 2, this session) | DAG route (this pass) | factor |
+|---|---|---:|---:|---:|
+| R1 (12,9) | ChartPullBack (materialize + Jacobian -> census) | 12.0 | 1.0 (census 1.0) | 12x |
+| R1 (12,9) | prepare (`Prepared strip sampling once`) | 4.4 | 0.07 | 60x |
+| R1 (12,9) | held-out sampling, 3 primes (point loops / solves / image batches) | 16.5 (5.6 / 5.5 / --) | 13.2 (4.5 / 3.4 / 0.7) | 1.25x |
+| R1 (12,9) | InnerSolve | 24.9 | 15.3 | 1.6x |
+| R1 (12,9) | GaugePullBack (normalizer / post-pull-back check) | 6.7 (4.2 / numerical verify) | 5.6 (4.2 / residual 0.3) | 1.2x |
+| R1 (12,9) | **whole strip** | **43.6** | **21.9** (`p3_r1_dag9.log`; 26.6 in `p3_r1_final.log`, run concurrently with a probe on the other seat) | **2.0x** |
+| R4 (12,7) | ChartPullBack (materialization 57 + Jacobian 20 -> census) | 76.9 | 1.8 (census 1.8) | 43x |
+| R4 (12,7) | prepare | 20.1 | 0.08 | 250x |
+| R4 (12,7) | held-out sampling, 4 primes (point loops / solves / image batches) | 48.6 (7.8 / 24.3 / --) | 61.6 (8.5 / 25.8 / 17.0 at 4 threads; 9.8 at 8 threads in `p3_r4_final.log`) | 0.8x |
+| R4 (12,7) | InnerSolve | 87.6 | 73.9 | 1.2x |
+| R4 (12,7) | GaugePullBack (normalizer / post-pull-back check) | 31.7 (21.8 / numerical verify ~9.8) | 37.4 (22.1 / residual 4.3, of which 3.9 building the tables of the 43995-leaf chart gauge) | 0.85x |
+| R4 (12,7) | **whole strip** | **196.3** | **113.2** (`p3_r4_dag3.log`; 117.5 in `p3_r4_final.log`) | **1.7x** |
+
+Against the first-pass baselines of section 5 (R1 51.3 s, R4 245.6 s) the strip is 2.3x and
+2.2x faster.  The held-out sampling on R4 is *slower* on the DAG route by the image batches:
+19 regulator values x (requestedPointCount + 8) points per prime = ~3200 images per prime at
+~1.3 ms per image in the native evaluator with 4 threads (0.7 ms with 8; `p3_threads.log`:
+960 images 1.36 -> 0.69 s).  The exact route paid for the same values inside the point loops
+(its forcing tables were free once materialized), so the DAG route trades 77 s of
+materialization for 10-17 s of native evaluation on R4 -- and for 12 s -> 1 s on R1.
+
+Where the DAG route's time goes now (R4, `p3_r4_final.log`): solves 28 s (lever 1, 7.6),
+normalizer 23 s (lever 3b, 7.7), image batches 10 s, point loops 10 s, residual check 4 s,
+census 2 s, everything else < 2 s each.
+
+### 7.3 The census (alphabet and gauge denominator without materialization)
+
+`finiteFieldDeferredForcingCensus[key, prime]`: candidate factors = every denominator base of
+the DAG (operands *and* term coefficients, at every level of the expressions -- `Denominator` is
+structural and misses denominators nested inside sums), pulled back through the chart with
+perfect-square radicals reduced (`Sqrt[p^2/q^2] -> p/q`, both sign variants: the algebra inverts
+`a + b r` through its norm, which pulls back to `(aq + bp)(aq - bp)/q^2`), plus the chart's own
+denominators (substitution, root images, Jacobian) and the root-image numerators; `FactorList`,
+dedupe up to sign.  Then two random lines `(a + t, b + s t)` at a random regulator image: 240
+images per line from one native batch, every entry fitted as a univariate rational function by
+one `NullSpace[..., Modulus -> p]` at degree bound 110 reduced by the gcd and validated on
+held-out points, the multiplicity of each candidate by repeated exact division, and the check
+that the candidates explain the whole fitted denominator degree.  The two lines must agree on
+every multiplicity and on the degree at infinity, or the census is a typed refusal
+(`DeferredForcingCensusLinesDisagree`, `...LineFitFailed`) and the strip falls back to the exact
+route.  Cost: R1 1.0 s, R4 1.8 s, CF303 (25,18) 12 s (`p3_census_lines_2518f.log`, 20 candidates,
+16 letters, denominator degree 86 along a line fully explained).
+
+Two findings.  (a) The exact census double counts a sign variant: on R1
+`finiteFieldStripEntryFactorList` + `DeleteDuplicates[..., SameQ]` reports gauge denominator
+degrees {14, 11} where the true (line-verified) degrees are {12, 10}; the DAG-route ansatz is
+therefore smaller (596 unknowns against 736) and its solves cheaper.  The exact route is not
+wrong (its ansatz contains the true one), only larger.  (b) On CF303 (25,18) the first three
+candidate sets were incomplete (the four defects above, found one by one on the leftover of the
+fitted denominator: `p3_census_lines_2518{,b,c,d,e,f}.log`); each time the census *refused* and
+the run fell back to the exact route, so no wrong alphabet ever reached a solve.
+
+### 7.4 Exactness
+
+1. **Images.**  The DAG batch equals the exact materialized strip at every sample point:
+   `SameQ` on the residue vectors, R1 12/12 points, R4 24/24 points (`dag_r1.log`, `dag_r4.log`;
+   0.19 s against 12.1 s and 0.14 s against 80.7 s of exact pull-back).
+2. **Batch evaluator.**  The vectorized preflights (coefficient tables + packed arithmetic) equal
+   the per-point AST reference `finiteFieldDeferredForcingPreflightsReference` on 1908 images of
+   R1 (`SameQ` True; 1.38 s -> 0.008 s), and the vectorized grade/Jacobian contraction equals the
+   per-image reference on 41 images (`SameQ` True) -- `p3_batch_vec.log`.
+3. **Solutions.**  The DAG-route gauges verified with `VerifyEpsFormStrip[..., "Method" -> "Exact"]`
+   against the *exactly materialized* chart strip: R1 `ExactPfaffianResidualsZero -> True`
+   (`p3_r1_verify.log`), R4 `DLogFormCertified -> True, ExactPfaffianResidualsZero -> True`
+   (`p3_r4_verify.log`, 145 s of exact verification, chart gauge leaf count 43995).  Vector
+   `SameQ` of the gauges with the exact route's is not a meaningful check: the constant-gauge
+   freedom and the smaller ansatz (7.3a) give a different representative of the same class; the
+   exact verification is the contract.
+4. **Acceptance check.**  `finiteFieldDeferredForcingResidualQ` on tables: True on the R1 and R4
+   solutions; the negative controls (a residue matrix entry + 1; a gauge entry x (1 + X)) are
+   False (`p3_r1_residual.log` 0.33 s, `p3_r4_residual.log` 4.3 s).
+5. **Sampler semantics.**  The point sequence, the acceptance rule per point, the solve and the
+   held-out validation are unchanged; only where the forcing residues come from changed.
+
+### 7.5 Tried and dropped inside this pass
+- A solver-level pre-warm with the pilot's point count x 2: wrong count for the later samples
+  (support learning shrinks the ansatz) and blind to the evaluator's cap -- the 31-bit primes' waves
+  (1908 images) were refused and every sample re-batched (`p3_r1_dag5.log`: 3816 images batched,
+  11 s); replaced by the sampler-side prefetch with the sampler's own count and chunking.
+- A symbolic residual check (`D` and `Together` of the chart gauge at 16 points): 20 s on R4;
+  replaced by the table evaluator with derivatives by exponent shift (4.3 s, 0.3 s on R1).
+- Reducing the residue matrices as numbers in that check: they carry eps
+  (`ResiduesEpsFree -> False`); they go through the tables like everything else.
+- 4 evaluator threads: 8 is 2x on the seat's 8 pinned CPUs.
+
+### 7.6 Lever 1 (batched adapter solves) -- design with measured bounds, not implemented
+Measured: R4 `PrimeSamplingConstrainedSolveSeconds` 24.3-28.2 s for 73 solves (4 primes x 18-19
+regulator values), i.e. 0.33-0.39 s per solve of the 1248-rank system in 1796 unknowns; the
+pass-2 micro-benchmark puts the adapter's own floor at 0.12-0.21 s per call (process launch,
+request/response files) and the FLINT solve at ~0.2 s at this size.  One request carrying all 18-19
+systems of a prime (same sparsity pattern, different values) would cost about one launch plus
+19 solves: ~4 s per prime instead of ~7, i.e. -12 to -15 s on R4 (about 12%).  It needs a
+multi-system request/response format in `flint_affine_solve` and its writer/reader, and the
+sampler's solve to be hoisted out of `SampleEpsFormStripAffine` (the samples of a wave would return
+their assembled systems and receive their solutions), which touches the deterministic and broker
+paths too; it is more than a session and is left as this note.
+
+### 7.7 Lever 3b (gauge pull-back per-point evaluation) -- design with measured bounds, not implemented
+Measured: `FrameCertificate/Normalizer/PrimeRecords :: EvaluatePointSeconds` 13.2-14.7 s on R4
+(128 points on each of 2 accepted primes plus the attempts of the rejected one; 35-50 ms per
+point), 2.2 s on R1.  `finiteFieldGaugePullBackEvaluatePoint` substitutes the point into the
+coordinate channels and root squares symbolically (`/. sourceRules` then `ModRational`), builds
+the chart monomials in the multiquadratic algebra (`multiquadraticMultiply` per monomial) and
+assembles, for each of the 18 regulator fibres, 16 outputs as sums over the support of
+coefficient x monomial (width `gradeCount`).  The batch form is the one used in
+`FiniteFieldDeferredForcing.wl`: coefficient tables for the channels evaluated for all points at
+once, monomials stacked as a (points x support x width) array, one `Dot` per fibre for the 16
+outputs, the denominator inverse per point as now.  The same change on the sampler side took the
+per-image cost from 1.7 ms to 0.03 ms; a conservative 10x here is -12 s on R4 (10%).  The
+records must stay identical (same points in the same order, same rejections); the proof is
+`SameQ` of the per-prime records before/after.
+
+### 7.8 Files changed in this pass (pre-pass-3 copies from `dfa0fedf` in `scratchpad/round4/M/r8/*.before_p3`)
+- NEW `FeynFacet/Private/EpsForm/FiniteField/FiniteFieldDeferredForcing.wl` (registered in
+  `LoadOrder.wl:131` after `FiniteFieldStripBroker.wl`): registry and image cache; `RouteQ`
+  (`FACET_DEFERRED_FORCING=Off` restores the exact route); `Plan` (l.83); coefficient tables and
+  the packed evaluators `Table`/`Tables`/`Powers`/`PolynomialAt`/`RationalAt` (l.127-170);
+  `Preflights` (vectorized, l.172) and `PreflightsReference` (l.199, the per-point AST evaluator
+  kept for the exactness comparison); `Images` (chunked native batches, contraction, cache,
+  l.223); `LineFit`, `PolynomialRoot`/`ReduceRadicals`, `CandidateFactors`, `Census`
+  (l.268-380); `DerivativeRules`/`ResidualQ` (l.382-445).
+- `FeynFacet/Private/EpsForm/FiniteField/FiniteFieldStripSolve.wl`: option
+  `"DeferredForcingWaveValues"` (l.966); prepare takes alphabet/denominator from the census when
+  the record carries `"DeferredForcing"` (l.1104-1120, 1238); the sampler's drawn points, wave
+  prefetch, image lookup and `fetchForcing` (l.1716-1740, 1646); per-sample image timers
+  (l.2024, 3737, 4004); the solver's `sampleBatch` passes the wave's values (l.3580-3586); the
+  final check uses `ResidualQ` on the DAG route (l.3902).
+- `FeynFacet/Private/EpsForm/Strip/EpsFormStripInFrame.wl`: the plan, census and descriptor
+  before the pull-back, `timings["DeferredForcingCensus"]`, the exact pull-back gated on the
+  descriptor being `None` (l.848, 1089-1090, 1389-1412); the post-pull-back verification on the
+  DAG route (l.1552-1566).
+- Note on HEAD: the coordinator's `dfa0fedf` is no longer HEAD.  Commit `955c3e78` (T, 23:28,
+  "Round 8b") swept the then-current working-tree state of these four files into its commit, so
+  HEAD `b2653f96` already carries an *intermediate* pass-3 state (before the chunking, the
+  vectorized evaluators, the wave prefetch, the table residual check and the census fixes); the
+  rest is uncommitted in the working tree (`git diff --stat`: `FiniteFieldDeferredForcing.wl`,
+  `FiniteFieldStripSolve.wl`).  I did not commit anything.
+
+### 7.9 Tests (seat log walls; tally lines audited, no "Failed to open file")
+Mid-pass code (after the vectorized evaluators): `t_finite_field_round2` `failed: {}` 24 s;
+`t_finite_field_adaptive_sampling` all booleans True 3 s; `t_finite_field_gauge_pullback` 14 PASS
+0 FAIL 7 s; `t_multiquadratic_transport_frame` 20 assertions 0 failed 4 s (the six pre-existing
+`OptionValue::nodef` messages from `TransportFamilyInChart`, section 6); 
+`t_deferred_bundle_chart_compatibility` 20 PASS 0 FAIL 3 s (`p3_t_*.log`).
+
+Final code (after the census fixes and 8 threads; `f2_t_*.log`, run while the ceiling occupied the
+other seat): `t_finite_field_round2` `failed: {}` 34 s; `t_finite_field_adaptive_sampling` all True
+5 s; `t_finite_field_gauge_pullback` 14 PASS 0 FAIL 8 s; `t_multiquadratic_transport_frame`
+20 assertions 0 failed 6 s (same six pre-existing messages); `t_deferred_bundle_chart_compatibility`
+20 PASS 0 FAIL 9 s.  No test knows about the deferred route explicitly; the deferred-bundle test
+and the gauge pull-back test exercise the code paths the pass changed (chart compatibility of the
+deferred preparation; the acceptance's gauge pull-back), the sampler tests the unchanged
+sampling contract.
+
+### 7.10 Final-code runs (both seats busy: the ceiling run was on the other seat)
+- R1 (12,9): **25.2 s** Solved (`f2_r1.log`; census 1.1 s, letters 10, pole orders {2,2,3,2} --
+  the same multiset as before the candidate changes; InnerSolve 15.9, GaugePullBack 8.2 with the
+  normalizer at 6.6 s against 4.2 s alone).  Range over this pass's R1 runs on the final route:
+  21.9-26.6 s; the exact route 43.6 s alone.
+- R4 (12,7): **121.0 s** Solved (`f2_r4.log`; census 1.8 s, letters 11, pole orders
+  {4,2,2,3,2,2}; InnerSolve 74.9 with solves 27.7, image batches 11.1, point loops 9.6;
+  GaugePullBack 44.3 with the normalizer at 26.3 s against 22 s alone).  Range 113.2-121.0 s;
+  the exact route 196.3 s alone.
+- The mandate's "several folds on hard blocks" is met on the materialization (43x on R4, and the
+  block that could not be materialized under 900 s now passes its census in 12.5 s) and not yet on
+  the whole strip (2.0x and 1.7x against the exact route; 2.3x and 2.2x against the first-pass
+  baselines).  What remains is measured and designed in 7.6 and 7.7 (solves 28 s and normalizer
+  22-26 s on R4, together 40-45% of the strip).
+
+### 7.11 Ceiling: CF303 (25,18) under 900 s on the DAG route
+`p3_ceiling_dag2.log`, seat B 00:16:45-00:31:37, launcher wall 892 s, exit 0, result
+**`BudgetExhausted` after 864.9 s in the inner solve** (the probe's 860 s solver budget; the
+launcher's 900 s KILL was not reached).  Where the time went, for the first time on this block:
+- load 2 s, root classification 0 s, chart `Kallen2Bilinear115` selected;
+- **census 12.5 s** (20 candidates after the four fixes of 7.3, 16 letters, pole orders
+  {2,2,2,2,2,3,3,4,4,3,3,4,2,4,2}, degree at infinity 1; both lines consistent, denominator
+  degree 86 along a line fully explained): the DAG route accepted the block, so the 1477 s
+  materialization of the campaign and the pass-2 ceiling run (killed inside it at 900 s) are
+  gone from this path;
+- prepare 0.33 s (support census `NumeratorTotalDegreeBound -> 58`, certified);
+- then the sampler's **degree probe**: 23 numerator-degree offsets x 2 support shells = 46
+  modular systems of 7144-9084 unknowns (2x2 strip: 64 residue unknowns + 4 x ~1770-2250
+  support monomials), every one `inconsistent`, ~18 s each, until the budget ran out.  No
+  offset up to {4,3} gave a consistent system, so no sample, prime or acceptance step was
+  reached.
+
+What this says and does not say.  The block is not solved on any route so far: the campaign's
+own record (`CF303_25_18_unsolved.wl`, Aug 30) is `ModularStructureUnstable` on
+`DirectRootChannel`, and the chart route never reached its sampler under 900 s before this pass.
+The census pairs feed the *same* prepare code as the exact route's pairs (`factorPairs ->
+factorPowers -> gaugeFactorPowers`, `Last > 1 && !FreeQ[factor, variables]`,
+`gaugeDenominator = Times @@ f^(p-1)`, `FiniteFieldStripSolve.wl:1155-1167`), so the convention is
+shared; the pairs themselves are line-verified maxima over the entries, as the exact census's are.
+An inconsistent ansatz at every offset therefore points at the ansatz *family* on this block,
+not at where its data came from -- the lead for the review: the campaign's source-frame gauge
+denominator for this block carries eps^3 ... eps^6 (`CF303_25_18_prepare_gaugedenominator.wl`),
+the "regulator resonance" case for which the prepare has the `GaugeDenominatorFactor` widening
+(`FiniteFieldStripSolve.wl:1168-1174`); whether (25,18) needs that widening in the chart frame is
+a question the DAG route can now ask in ~13 s + one probe (~18 s) instead of never.  I did not
+pursue it: it changes the ansatz, i.e. the physics contract of the solve, and the mandate was
+speed at a fixed contract.
+
+Cost of a probe on this block: ~18 s per 7-9k-unknown modular system through the FLINT adapter --
+the same per-solve floor lever 1 (7.6) addresses; a probe ladder of 46 systems is 14 minutes,
+so a block of this size needs either the right ansatz at the first offsets or the batched solves.
+
+### 7.12 State for the review
+- Working tree: `FiniteFieldDeferredForcing.wl` and `FiniteFieldStripSolve.wl` modified against
+  HEAD `b2653f96` (which already carries the four files' intermediate pass-3 state through T's
+  commit `955c3e78`); `EpsFormStripInFrame.wl` and `LoadOrder.wl` unchanged against HEAD.  Full
+  pass-3 diff against `dfa0fedf`: `git diff --stat dfa0fedf -- FeynFacet/Private` (448 + 100 + 66
+  + 2 lines).  Nothing committed by me.  `FACET_DEFERRED_FORCING=Off` restores the exact route
+  without a code change.
+- Reproduction (all through the seat launcher): a rung
+  `wolframscript -file scratchpad/round4/M/r8/stage1_probe.wls <input.wl> <budget s> <tag> 4`;
+  the image/evaluator exactness `batch_size_probe.wls <input> <tag> 8 2147483423`; the census
+  diagnostic `census_lines_probe.wls <input> <tag> 8 2147483423`; the solution verification
+  `verify_dag_solution.wls <input> <tag> <points> <prime> <gauge.wl> Exact|Numerical|Residual`;
+  the native evaluator's thread scaling `threads_probe.wls`.
+- Open items, in the order they pay: lever 1 (7.6, -12..-15 s on R4), lever 3b (7.7, -12 s), the
+  (25,18) ansatz question (7.11), and the per-image native cost (1.3 ms at 4 threads, 0.7 at 8).
