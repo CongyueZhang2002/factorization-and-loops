@@ -276,7 +276,7 @@ BoundaryPeriodCoefficient::usage =
   "BoundaryPeriodCoefficient[id,order] is an inert exact placeholder for the coefficient of eps^order in a physical boundary period not yet evaluated. It appears only in BoundaryConstantVector; transport selector matrices remain rational.";
 
 TransportIteratedIntegral::usage =
-  "TransportIteratedIntegral[word,{variable,base,endpoint},curve] is the inert paper-facing iterated integral of a marked-point GPL/eMPL word. The word is outermost first; curve is None for GPLs and a square-free quartic for elliptic words.";
+  "TransportIteratedIntegral[word,{variable,base,endpoint},curve,curvePointValues] is the inert paper-facing iterated integral of a marked-point GPL/eMPL word. The word is outermost first; curve is None for GPLs and a square-free quartic for elliptic words, while curvePointValues records the selected rational sheet values used by the transport.";
 TransportAlgebraicRoot::usage =
   "TransportAlgebraicRoot[coefficients,index] denotes an indexed algebraic root of a polynomial whose ascending coefficient list may contain spectator kinematics.";
 TransportLetterKernel::usage =
@@ -289,13 +289,13 @@ BuildRationalEpsilonLayerTransport::usage =
 AcceptedRationalEpsilonLayerTransportQ::usage =
   "AcceptedRationalEpsilonLayerTransportQ[result] checks the structural and semantic contract of an accepted rational-epsilon-layer transport, including consistency of its route, gauge, curve, boundary layout and word representation; it does not claim to re-prove mathematics from a result alone. AcceptedRationalEpsilonLayerTransportQ[result,source,layer,demand] re-derives the problem and verifies the direct route exactly or the rational/quartic modular route at a new prime, including the endpoint gauge; materialized words are re-enumerated, while a lazy result deliberately has none to check.";
 BuildRationalEpsilonLayerOperator::usage =
-  "BuildRationalEpsilonLayerOperator[source,layer,transport] builds a sparse lazy operator from an accepted rational-in-epsilon final-layer transport. It supports independent or shared physical boundary coordinates and keeps GPL/eMPL labels opaque until a requested coefficient is materialized.";
+  "BuildRationalEpsilonLayerOperator[source,layer,transport] builds a sparse lazy operator from an accepted rational-in-epsilon final-layer transport whose exact source/layer payload matches the supplied inputs. It supports independent or shared physical boundary coordinates, preserves the selected curve sheet, and keeps GPL/eMPL labels opaque until a requested accepted coefficient is materialized.";
 AcceptedRationalEpsilonLayerOperatorQ::usage =
   "AcceptedRationalEpsilonLayerOperatorQ[operator] checks the structural contract of a lazy rational-epsilon-layer operator.";
 RationalEpsilonLayerWordMap::usage =
   "RationalEpsilonLayerWordMap[operator,word,boundaryOrder,outputOrder,rows] evaluates one D...D or D...D K S...S word as a sparse map on boundary coordinates.";
 RationalEpsilonLayerDemandTerms::usage =
-  "RationalEpsilonLayerDemandTerms[operator,{outputOrder,rows}] constructs only the nonzero word maps for one requested coefficient, including the endpoint-gauge H S...S contribution. MaximumTerms and MaximumStates are fail-closed resource caps.";
+  "RationalEpsilonLayerDemandTerms[operator,{outputOrder,rows}] constructs only the nonzero word maps for one coefficient covered by the transport's accepted DemandPairs, including the endpoint-gauge H S...S contribution. MaximumTerms and MaximumStates are fail-closed resource caps.";
 AttachTransportBoundaryToRationalLayer::usage =
   "AttachTransportBoundaryToRationalLayer[source,layer,boundary,sourceRows,targetRows] splits a full-system physical boundary selector into source and final-layer rows while preserving one shared vector of period coordinates.";
 BuildPhysicalTransportCoefficient::usage =

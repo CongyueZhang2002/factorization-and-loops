@@ -121,12 +121,13 @@ BuildPhysicalTransportCoefficient[operator_Association,
     boundary_Association, {outputOrder_Integer, outputRow_Integer},
     path_Association, OptionsPattern[]] := Catch@Module[
   {fail, dimensions, constants, variable, base, endpoint, curve,
+   curvePointValues,
    definitions, outputGauge, gaugeOrders, physicalDimension,
    maximumExpandedTerms, expandQ, rawStore, rawCount = 0,
    demandTerms, matrix, vector, word, expanded, expandedStore,
    expandedCount = 0, merged, surviving, activeColumns, stage3,
    paperTerms, functionSpace, expression, integral, binding,
-   coordinateKeys, boundarySelectors, operatorPath},
+   coordinateKeys, boundarySelectors, operatorPath, activeTargetRows},
   fail[name_, extra_: <||>] := Throw[Join[<|"Status" -> name|>, extra]];
   If[! AcceptedRationalEpsilonLayerOperatorQ[operator],
     fail["RationalEpsilonLayerOperatorRequired"]];
@@ -162,16 +163,19 @@ BuildPhysicalTransportCoefficient[operator_Association,
   base = Lookup[path, "BasePoint", Missing[]];
   endpoint = Lookup[path, "Endpoint", Missing[]];
   curve = Lookup[path, "Curve", None];
+  curvePointValues = Lookup[path, "CurvePointValues", <||>];
   If[! MatchQ[variable, _Symbol] || MissingQ[base] || MissingQ[endpoint] ||
       ! FreeQ[base, variable] || ! FreeQ[endpoint, variable] ||
       (curve =!= None && (! PolynomialQ[curve, variable] ||
-        Exponent[curve, variable] =!= 4)),
+        Exponent[curve, variable] =!= 4)) ||
+      ! AssociationQ[curvePointValues],
     fail["PhysicalTransportPathInvalid"]];
   operatorPath = Lookup[operator, "Path", <||>];
   If[Lookup[operatorPath, "Variable", Missing[]] =!= variable ||
       Lookup[operatorPath, "BasePoint", Missing[]] =!= base ||
       Lookup[operatorPath, "Endpoint", Missing[]] =!= endpoint ||
-      Lookup[operatorPath, "Curve", None] =!= curve,
+      Lookup[operatorPath, "Curve", None] =!= curve ||
+      Lookup[operatorPath, "CurvePointValues", <||>] =!= curvePointValues,
     fail["PhysicalTransportPathDoesNotMatchOperator"]];
   definitions = OptionValue["CompositeDefinitions"];
   If[! AssociationQ[definitions],
@@ -196,8 +200,12 @@ BuildPhysicalTransportCoefficient[operator_Association,
     fail["PhysicalExpandedTermLimitInvalid"]];
 
   Do[
+    activeTargetRows = DeleteDuplicates[
+      SparseArray[outputGauge[gaugeOrder][[{outputRow}, All]]][
+        "NonzeroPositions"][[All, 2]]];
+    If[activeTargetRows === {}, Continue[]];
     demandTerms = RationalEpsilonLayerDemandTerms[operator,
-      {outputOrder - gaugeOrder, All},
+      {outputOrder - gaugeOrder, activeTargetRows},
       "MaximumTerms" -> OptionValue["MaximumTerms"],
       "MaximumStates" -> OptionValue["MaximumStates"]];
     If[Lookup[demandTerms, "Status", None] =!=
@@ -205,7 +213,7 @@ BuildPhysicalTransportCoefficient[operator_Association,
       fail[Lookup[demandTerms, "Status",
         "RationalLayerDemandFailed"], KeyDrop[demandTerms, "Status"]]];
     Do[
-      matrix = outputGauge[gaugeOrder][[{outputRow}, All]] .
+      matrix = outputGauge[gaugeOrder][[{outputRow}, activeTargetRows]] .
         term["Coefficient"];
       If[! physicalTransportNonzeroQ[matrix], Continue[]];
       rawCount++;
@@ -244,7 +252,7 @@ BuildPhysicalTransportCoefficient[operator_Association,
     fail["Stage3LedgerUnavailable"]];
   integral[{}] := 1;
   integral[w_List] := TransportIteratedIntegral[
-    w, {variable, base, endpoint}, curve];
+    w, {variable, base, endpoint}, curve, curvePointValues];
   paperTerms = KeyValueMap[Function[{markedWord, coefficientVector},
       <|"Word" -> markedWord,
         "CoefficientVector" -> Normal[coefficientVector],
@@ -261,7 +269,8 @@ BuildPhysicalTransportCoefficient[operator_Association,
     "FunctionSpace" -> functionSpace,
     "BoundaryDataStatus" -> Lookup[boundary, "BoundaryDataStatus", None],
     "Path" -> <|"Variable" -> variable, "BasePoint" -> base,
-      "Endpoint" -> endpoint, "Curve" -> curve|>,
+      "Endpoint" -> endpoint, "Curve" -> curve,
+      "CurvePointValues" -> curvePointValues|>,
     "RawTermCount" -> rawCount,
     "PaperTermCount" -> Length[paperTerms],
     "Terms" -> paperTerms,

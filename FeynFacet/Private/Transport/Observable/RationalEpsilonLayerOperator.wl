@@ -18,6 +18,8 @@ ClearAll[
   rationalLayerOperatorBoundaryColumns,
   rationalLayerOperatorFold,
   rationalLayerOperatorRowSelection,
+  rationalLayerOperatorRequestedRows,
+  rationalLayerOperatorDemandCoveredQ,
   rationalLayerOperatorNonzeroRows,
   rationalLayerOperatorGrow
 ];
@@ -48,6 +50,19 @@ rationalLayerOperatorRowSelection[matrix_, rows_List] /;
   matrix[[rows, All]];
 rationalLayerOperatorRowSelection[_, _] := $Failed;
 
+rationalLayerOperatorRequestedRows[dimension_Integer, All] := Range[dimension];
+rationalLayerOperatorRequestedRows[dimension_Integer, row_Integer] /;
+    1 <= row <= dimension := {row};
+rationalLayerOperatorRequestedRows[dimension_Integer, rows_List] /;
+    VectorQ[rows, IntegerQ] && DuplicateFreeQ[rows] &&
+      AllTrue[rows, 1 <= # <= dimension &] := rows;
+rationalLayerOperatorRequestedRows[_, _] := $Failed;
+
+rationalLayerOperatorDemandCoveredQ[operator_Association, order_Integer,
+    rows_List] := Module[{pairs = Lookup[operator, "DemandPairs", {}]},
+  AllTrue[rows, MemberQ[pairs, {order, #}] &]
+];
+
 rationalLayerOperatorNonzeroRows[matrix_] :=
   DeleteDuplicates[SparseArray[matrix]["NonzeroPositions"][[All, 1]]];
 
@@ -72,10 +87,11 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
    sourceMatrices, sourceTokens, incoming, incomingMatrices,
    incomingTokens, gauge, gaugeMatrices, gaugeTokens, dimensions, window,
    pathVariable, basePoint, endpoint, curve, boundaryBinding,
-   sourceBindingRows, targetBindingRows, boundaryCoordinateKeys},
+   sourceBindingRows, targetBindingRows, boundaryCoordinateKeys,
+   operatorSourcePayload, operatorLayerPayload, declaredCurvePointValues,
+   basicLayerPayload},
 
-  If[Lookup[transport, "Status", None] =!=
-      "RationalEpsilonLayerTransportAccepted",
+  If[! AcceptedRationalEpsilonLayerTransportQ[transport],
     Return[<|"Status" -> "RationalEpsilonLayerTransportNotAccepted"|>]];
 
   sourceDimension = Lookup[source, "Dimension", Missing[]];
@@ -104,6 +120,33 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
         MatchQ[#, {_List, _?MatrixQ}] &&
           Dimensions[#[[2]]] === {targetDimension, targetDimension} &],
     Return[<|"Status" -> "RationalLayerDiagonalOperatorInvalid"|>]];
+
+  operatorSourcePayload = Lookup[transport, "OperatorSource", None];
+  operatorLayerPayload = Lookup[transport, "OperatorLayer", None];
+  basicLayerPayload = <|"Rows" -> rows, "Diagonal" -> diagonal,
+    "TargetBoundarySelectors" -> Lookup[layer,
+      "TargetBoundarySelectors", <|0 -> IdentityMatrix[targetDimension]|>],
+    "SharedBoundaryCoordinates" ->
+      TrueQ[Lookup[layer, "SharedBoundaryCoordinates", False]],
+    "PathVariable" -> Lookup[layer, "PathVariable", Missing["PathVariable"]],
+    "Regulator" -> Lookup[layer, "Regulator", Missing["Regulator"]],
+    "BasePoint" -> Lookup[layer, "BasePoint", Missing["BasePoint"]],
+    "Endpoint" -> Lookup[layer, "Endpoint", Missing["Endpoint"]]|>;
+  If[operatorSourcePayload =!= <|"Dimension" -> sourceDimension,
+        "Letters" -> sourceLetters, "Residues" -> sourceResidues,
+        "BoundarySelectors" -> sourceSelectors|> ||
+      ! AssociationQ[operatorLayerPayload] ||
+      KeyTake[operatorLayerPayload, Keys[basicLayerPayload]] =!=
+        basicLayerPayload,
+    Return[<|"Status" -> "RationalLayerTransportInputMismatch"|>]];
+  curve = Lookup[operatorLayerPayload, "Curve", None];
+  declaredCurvePointValues = Lookup[layer, "CurvePointValues", <||>];
+  If[curve =!= None &&
+      (Lookup[layer, "Curve", None] =!= curve ||
+       ! AssociationQ[declaredCurvePointValues] ||
+       KeyTake[Lookup[operatorLayerPayload, "CurvePointValues", <||>],
+          Keys[declaredCurvePointValues]] =!= declaredCurvePointValues),
+    Return[<|"Status" -> "RationalLayerTransportInputMismatch"|>]];
 
   sharedBoundaryQ = TrueQ[Lookup[layer, "SharedBoundaryCoordinates", False]];
   If[sharedBoundaryQ,
@@ -155,7 +198,7 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
     Lookup[layer, "BasePoint", Missing["BasePoint"]]];
   endpoint = Lookup[transport, "Endpoint",
     Lookup[layer, "Endpoint", Missing["Endpoint"]]];
-  curve = Lookup[transport, "Curve", Lookup[layer, "Curve", None]];
+  curve = Lookup[transport, "Curve", curve];
   sourceBindingRows = Lookup[source, "PhysicalBoundaryRows", Missing[]];
   targetBindingRows = Lookup[layer, "PhysicalBoundaryRows", Missing[]];
   boundaryCoordinateKeys = Lookup[source, "BoundaryCoordinateKeys", Missing[]];
@@ -179,10 +222,15 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
     "Status" -> "RationalEpsilonLayerOperatorAccepted",
     "Rows" -> rows,
     "Window" -> window,
+    "DemandPairs" -> transport["DemandPairs"],
+    "OperatorSource" -> transport["OperatorSource"],
+    "OperatorLayer" -> transport["OperatorLayer"],
     "BoundaryLayout" -> boundaryLayout,
     "PhysicalBoundaryBinding" -> boundaryBinding,
     "Path" -> <|"Variable" -> pathVariable, "BasePoint" -> basePoint,
-      "Endpoint" -> endpoint, "Curve" -> curve|>,
+      "Endpoint" -> endpoint, "Curve" -> curve,
+      "CurvePointValues" ->
+        Lookup[operatorLayerPayload, "CurvePointValues", <||>]|>,
     "Dimensions" -> dimensions,
     "SourceBoundarySelectors" -> (SparseArray /@ sourceSelectors),
     "TargetBoundarySelectors" -> (SparseArray /@ targetSelectors),
@@ -192,7 +240,7 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
     "DiagonalMatrices" -> diagonalMatrices,
     "IncomingTokens" -> incomingTokens,
     "IncomingLabels" -> AssociationThread[incomingTokens,
-      ({"GPLFactor", #[[2]], #[[3]]} &) /@ Keys[incoming]],
+      (rationalLayerResidueLabel /@ Keys[incoming])],
     "IncomingMatrices" -> incomingMatrices,
     "GaugeTokens" -> gaugeTokens,
     "GaugeMatrices" -> gaugeMatrices,
@@ -218,17 +266,30 @@ AcceptedRationalEpsilonLayerOperatorQ[operator_] :=
   AssociationQ[Lookup[operator, "DiagonalMatrices", None]] &&
   AssociationQ[Lookup[operator, "IncomingMatrices", None]] &&
   AssociationQ[Lookup[operator, "GaugeMatrices", None]] &&
-  AssociationQ[Lookup[operator, "SourceMatrices", None]];
+  AssociationQ[Lookup[operator, "SourceMatrices", None]] &&
+  MatchQ[Lookup[operator, "DemandPairs", None],
+    {{_Integer, _Integer} ..}] &&
+  DuplicateFreeQ[operator["DemandPairs"]] &&
+  AssociationQ[Lookup[operator, "OperatorSource", None]] &&
+  AssociationQ[Lookup[operator, "OperatorLayer", None]];
 
 RationalEpsilonLayerWordMap[operator_Association, word_List,
     boundaryOrder_Integer, outputOrder_Integer, rows_: All] := Module[
   {diagonalTokens, incomingTokens, sourceTokens, incomingPositions,
    prefix, incomingToken, tail, incomingOrder, seed, map,
-   dimensions, selected, sharedBoundaryQ},
+   dimensions, selected, sharedBoundaryQ, requestedRows},
 
   If[! AcceptedRationalEpsilonLayerOperatorQ[operator],
     Return[<|"Status" -> "RationalEpsilonLayerOperatorNotAccepted"|>]];
   dimensions = operator["Dimensions"];
+  requestedRows = rationalLayerOperatorRequestedRows[
+    dimensions["Target"], rows];
+  If[requestedRows === $Failed,
+    Return[<|"Status" -> "RationalLayerRowsInvalid"|>]];
+  If[! rationalLayerOperatorDemandCoveredQ[operator, outputOrder,
+      requestedRows],
+    Return[<|"Status" -> "RationalLayerDemandOutsideAcceptedPairs",
+      "Demand" -> {outputOrder, rows}|>]];
   sharedBoundaryQ = operator["BoundaryLayout"] === "Shared";
   diagonalTokens = operator["DiagonalTokens"];
   incomingTokens = operator["IncomingTokens"];
@@ -279,14 +340,14 @@ RationalEpsilonLayerWordMap[operator_Association, word_List,
         dimensions["TotalBoundary"]} ||
       ! FreeQ[map, _Missing],
     Return[<|"Status" -> "RationalLayerWordProductFailed"|>]];
-  selected = rationalLayerOperatorRowSelection[SparseArray[map], rows];
+  selected = rationalLayerOperatorRowSelection[SparseArray[map], requestedRows];
   If[selected === $Failed,
     Return[<|"Status" -> "RationalLayerRowsInvalid"|>]];
   <|"Status" -> "RationalEpsilonLayerWordMap",
     "BoundaryOrder" -> boundaryOrder,
     "OutputOrder" -> outputOrder,
     "Word" -> word,
-    "Rows" -> rows,
+    "Rows" -> requestedRows,
     "Map" -> SparseArray[selected]|>
 ];
 
@@ -320,6 +381,9 @@ RationalEpsilonLayerDemandTerms[operator_Association,
     MatchQ[requestedRows, {__Integer}] && DuplicateFreeQ[requestedRows] &&
       AllTrue[requestedRows, 1 <= # <= dimensions["Target"] &], requestedRows,
     True, fail["RationalLayerRowsInvalid"]];
+  If[! rationalLayerOperatorDemandCoveredQ[operator, outputOrder, rows],
+    fail["RationalLayerDemandOutsideAcceptedPairs",
+      <|"Demand" -> {outputOrder, requestedRows}|>]];
   maximumTerms = OptionValue["MaximumTerms"];
   maximumStates = OptionValue["MaximumStates"];
   If[! (maximumTerms === Infinity || IntegerQ[maximumTerms] && maximumTerms >= 1) ||
