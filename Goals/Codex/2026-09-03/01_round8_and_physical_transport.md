@@ -6,7 +6,7 @@
 - [x] 🟢 Propagate typed evaluator failures without an exact symbolic fallback or duplicate retry.
 - [x] 🟢 Close multiquadratic candidate support under the full independent `2^r` sheet orbit.
 - [x] 🟢 Correct the rational-in-epsilon layer contract: gauge-only transport, singular endpoints, selector shapes, prime schedules and active-order pruning.
-- [ ] 🟡 Complete the modular quartic-curve Hermite channel and validate its differential identity at independent finite-field points.
+- [x] 🟢 Complete the modular quartic-curve Hermite channel and validate its differential identity at independent finite-field points.
 
 ## Lazy GPL/eMPL result construction
 
@@ -21,12 +21,17 @@
 - [x] 🟢 Build the regular-singular Frobenius prefactor and normalized physical mode map generically.
 - [x] 🟢 Permit exact, zero, transferred and formally unevaluated GPL/elliptic period coefficients without embedding special functions in selector matrices.
 - [x] 🟢 Prune the Stage-3 needs ledger first by declared observable demand and then by actual transport support.
-- [ ] 🟡 Decide and implement the correct tangential-base/Frobenius composition so local logarithms are neither omitted nor double-counted.
+- [x] 🟢 Carry an explicit tangential-base prescription through lazy rebasing and paper-facing GPL/eMPL words, without multiplying a second Frobenius factor.
+- [x] 🟢 Build square and rectangular endpoint residues, and block-triangular rational-epsilon residue decks, directly from inert letters.
+- [x] 🟢 Select the inward CF303 soft sheet and derive the exact rational GPL tangential system for its four owned source rows.
+- [ ] 🟡 Resolve every deferred CF303 incoming leaf at the soft endpoint; the earlier one-pole result omitted deferred exception/circuit labels and is invalid.
+- [ ] 🟡 Extend the CF303 soft source system to its exact 35-row closure and construct the induced normal-mode connection.
+- [ ] Build and physically constrain the residual six-mode CF303-owned selector deck.
 - [ ] Build concrete endpoint/mode records for every surviving physical period realization.
 
 ## Production completion
 
-- [ ] 🟡 Adapt the complete accepted CF303 43+2 deferred `H/K` circuit and physical `T25` gauge to the general lazy interface; do not use the stale 76-entry artifact.
+- [x] 🟢 Adapt the complete accepted CF303 43+2 deferred `H/K` circuit and physical `T25` gauge to the general lazy interface; do not use the stale 76-entry artifact.
 - [ ] Materialize the demanded CF303 physical coefficients and emit its exact Stage-3 evaluation list.
 - [ ] Map the completed ordinary and other multiquadratic transport operators onto physical boundary modes and emit their demanded coefficients/ledgers.
 - [ ] Run bounded adversarial and regression gates; stop and profile any family phase approaching one hour.
