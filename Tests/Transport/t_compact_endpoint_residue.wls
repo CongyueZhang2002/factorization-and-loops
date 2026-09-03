@@ -41,9 +41,20 @@ expectedWeights = {1, -1, 1, -1/2, 0, 0, 0, -1};
 expectedResidue = {{0, -1}, {1, -3/2}};
 FTAssert["symbolic endpoint weights are computed directly for GPL, elliptic, cohomology and composite letters",
   result["Status"] === "CompactEndpointResidueBuilt" &&
+    result["MatrixDimensions"] === {2, 2} &&
     Lookup[result["LetterWeights"], "Weight"] === expectedWeights &&
     Normal[result["Residue"]] === expectedResidue &&
     Head[result["Residue"]] === SparseArray];
+
+rectangular = BuildCompactEndpointResidue[
+  {{"GPLPole", a}, {"GPLPole", a + 1}},
+  {SparseArray[{{1, 2} -> 2}, {2, 3}],
+    SparseArray[{{2, 3} -> 7}, {2, 3}]}, z, a];
+FTAssert["rectangular off-diagonal decks use the same compact endpoint operation",
+  rectangular["Status"] === "CompactEndpointResidueBuilt" &&
+    rectangular["MatrixDimensions"] === {2, 3} &&
+    MissingQ[rectangular["Dimension"]] &&
+    Normal[rectangular["Residue"]] === {{0, 2, 0}, {0, 0, 0}}];
 
 higherPole = BuildCompactEndpointResidue[
   {{"GPLFactor", (z - a)^2 (z - a - 1), 0}},
@@ -66,8 +77,8 @@ FTAssert["composite cycles and unaligned residue matrices fail typed",
   BuildCompactEndpointResidue[{{"Loop"}}, {IdentityMatrix[1]}, z, a,
       "CompositeDefinitions" -> <|{"Loop"} -> {{1, {"Loop"}}}|>]["Status"] ===
         "CompositeLetterCycle" &&
-    BuildCompactEndpointResidue[{{"GPLPole", a}},
-      {ConstantArray[0, {1, 2}]}, z, a]["Status"] ===
+    BuildCompactEndpointResidue[{{"GPLPole", a}, {"GPLPole", a + 1}},
+      {ConstantArray[0, {1, 2}], ConstantArray[0, {2, 2}]}, z, a]["Status"] ===
         "EndpointResidueMatricesNotAligned"];
 
 FTSummary[];

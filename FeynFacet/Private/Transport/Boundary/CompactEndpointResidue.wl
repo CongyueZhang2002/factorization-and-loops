@@ -38,7 +38,7 @@ BuildCompactEndpointResidue[letters_List, residueMatrices_List,
     variable_Symbol, endpoint_, OptionsPattern[]] := Catch@Module[
   {fail, curve = OptionValue["Curve"],
    definitions = OptionValue["CompositeDefinitions"], dimensions,
-   dimension, resolve, resolved, flatResolved, curveQ, curveAtEndpoint,
+   matrixDimensions, resolve, resolved, flatResolved, curveQ, curveAtEndpoint,
    rationalWeight, oneWeight, weights, residue, active, curveHeads},
 
   fail[status_, extra_: <||>] := Throw[Join[<|"Status" -> status|>, extra]];
@@ -46,11 +46,11 @@ BuildCompactEndpointResidue[letters_List, residueMatrices_List,
       ! AssociationQ[definitions] || ! FreeQ[endpoint, variable],
     fail["CompactEndpointResidueInputInvalid"]];
   dimensions = Dimensions /@ residueMatrices;
-  If[! SameQ @@ dimensions || Length[First[dimensions]] =!= 2 ||
-      ! SameQ @@ First[dimensions],
+  If[! SameQ @@ dimensions || ! MatchQ[First[dimensions],
+      {_Integer?Positive, _Integer?Positive}],
     fail["EndpointResidueMatricesNotAligned",
       <|"MatrixDimensions" -> dimensions|>]];
-  dimension = First[First[dimensions]];
+  matrixDimensions = First[dimensions];
 
   resolve[current_, stack_List] := Module[
     {currentDefinition, currentTerms, coefficient, baseLetter},
@@ -134,13 +134,15 @@ BuildCompactEndpointResidue[letters_List, residueMatrices_List,
     value_ /; ! compactEndpointZeroQ[value], {1}, Heads -> False];
   residue = compactEndpointSparse[
     Total@MapThread[Times, {weights, residueMatrices}],
-    {dimension, dimension}];
+    matrixDimensions];
 
   <|
     "Status" -> "CompactEndpointResidueBuilt",
     "Variable" -> variable,
     "Endpoint" -> endpoint,
-    "Dimension" -> dimension,
+    "MatrixDimensions" -> matrixDimensions,
+    "Dimension" -> If[SameQ @@ matrixDimensions,
+      First[matrixDimensions], Missing["Rectangular"]],
     "LetterWeights" -> MapThread[
       <|"Letter" -> #1, "Weight" -> #2|> &, {letters, weights}],
     "ActiveLetterIndices" -> active,
