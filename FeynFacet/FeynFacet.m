@@ -283,6 +283,8 @@ TransportLetterKernel::usage =
   "TransportLetterKernel[label,variable,curve] returns the one-form coefficient represented by a GPLPole, GPLFactor, E4Pole, E4Factor, E4Omega0, E4OmegaInf or E4Eta2 label.";
 ExpandTransportWordLetters::usage =
   "ExpandTransportWordLetters[word,variable,curve,definitions] expands only one requested root-free factor/composite word into standard marked-point GPL/eMPL letters.";
+BuildCompactEndpointResidue::usage =
+  "BuildCompactEndpointResidue[letters,residueMatrices,variable,endpoint] computes the exact simple-pole residue directly from aligned sparse matrices in the inert GPL/eMPL alphabet, without constructing a symbolic connection. Options declare a quartic Curve and CompositeDefinitions.";
 
 BuildRationalEpsilonLayerTransport::usage =
   "BuildRationalEpsilonLayerTransport[source,layer,demand] transports a lower-triangular final layer whose incoming connection is rational in the regulator. The path gauge H(base)=0 removes the non-dlog part order by order through modular Hermite reduction; a declared square-free quartic Y^2=P4 uses the pair algebra h0+h1 Y and f0 du+f1 du/Y and reduces onto root-free E4 pole factors plus E4Omega0, E4OmegaInf and E4Eta2. K residues and the endpoint gauge are checked at a fresh prime, while path-free dlog input uses an exact direct route and K=0 gauge-only results remain valid. WordRepresentation selects materialized words or a lazy operator payload; SharedBoundaryCoordinates lets source and target selectors act on one common constant vector. Singular endpoints and missing rational curve-sheet values are typed non-acceptances.";
@@ -424,6 +426,8 @@ SyntaxInformation[TransportLetterKernel] =
   {"ArgumentsPattern" -> {_, _, _.}};
 SyntaxInformation[ExpandTransportWordLetters] =
   {"ArgumentsPattern" -> {_, _, _., _.}};
+SyntaxInformation[BuildCompactEndpointResidue] =
+  {"ArgumentsPattern" -> {_, _, _, _, OptionsPattern[]}};
 SyntaxInformation[BuildRationalEpsilonLayerOperator] =
   {"ArgumentsPattern" -> {_, _, _}};
 SyntaxInformation[RebaseRationalEpsilonLayerOperator] =
