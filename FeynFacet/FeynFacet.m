@@ -275,10 +275,27 @@ BuildTransportBoundaryVector::usage =
 BoundaryPeriodCoefficient::usage =
   "BoundaryPeriodCoefficient[id,order] is an inert exact placeholder for the coefficient of eps^order in a physical boundary period not yet evaluated. It appears only in BoundaryConstantVector; transport selector matrices remain rational.";
 
+TransportIteratedIntegral::usage =
+  "TransportIteratedIntegral[word,{variable,base,endpoint},curve] is the inert paper-facing iterated integral of a marked-point GPL/eMPL word. The word is outermost first; curve is None for GPLs and a square-free quartic for elliptic words.";
+TransportAlgebraicRoot::usage =
+  "TransportAlgebraicRoot[coefficients,index] denotes an indexed algebraic root of a polynomial whose ascending coefficient list may contain spectator kinematics.";
+TransportLetterKernel::usage =
+  "TransportLetterKernel[label,variable,curve] returns the one-form coefficient represented by a GPLPole, GPLFactor, E4Pole, E4Factor, E4Omega0, E4OmegaInf or E4Eta2 label.";
+ExpandTransportWordLetters::usage =
+  "ExpandTransportWordLetters[word,variable,curve,definitions] expands only one requested root-free factor/composite word into standard marked-point GPL/eMPL letters.";
+
 BuildRationalEpsilonLayerTransport::usage =
   "BuildRationalEpsilonLayerTransport[source,layer,demand] transports a lower-triangular final layer whose incoming connection is rational in the regulator. The path gauge H(base)=0 removes the non-dlog part order by order through Hermite reduction; K residues and the endpoint gauge are reconstructed over finite fields and checked at a fresh prime, while a path-free dlog input uses an exact direct route. A valid gauge-only result with K=0 is accepted. Selector orders and dimensions are validated, and a singular base point or endpoint returns PathRegularizationRequired until regularized endpoint data are supplied. Only demanded (order,row) words are enumerated. Curve letters require a declared quartic and remain a typed refusal until elliptic reduction is implemented.";
 AcceptedRationalEpsilonLayerTransportQ::usage =
   "AcceptedRationalEpsilonLayerTransportQ[result] checks the structural and semantic contract of an accepted rational-epsilon-layer transport, including consistency of its route, gauge status and gauge payload; it does not claim to re-prove the mathematics from a result alone. AcceptedRationalEpsilonLayerTransportQ[result,source,layer,demand] re-derives the problem and verifies the direct route exactly or the modular route at a new prime, including the endpoint gauge and demanded words.";
+BuildRationalEpsilonLayerOperator::usage =
+  "BuildRationalEpsilonLayerOperator[source,layer,transport] builds a sparse lazy operator from an accepted rational-in-epsilon final-layer transport. It supports independent or shared physical boundary coordinates and keeps GPL/eMPL labels opaque until a requested coefficient is materialized.";
+AcceptedRationalEpsilonLayerOperatorQ::usage =
+  "AcceptedRationalEpsilonLayerOperatorQ[operator] checks the structural contract of a lazy rational-epsilon-layer operator.";
+RationalEpsilonLayerWordMap::usage =
+  "RationalEpsilonLayerWordMap[operator,word,boundaryOrder,outputOrder,rows] evaluates one D...D or D...D K S...S word as a sparse map on boundary coordinates.";
+RationalEpsilonLayerDemandTerms::usage =
+  "RationalEpsilonLayerDemandTerms[operator,{outputOrder,rows}] constructs only the nonzero word maps for one requested coefficient, including the endpoint-gauge H S...S contribution. MaximumTerms and MaximumStates are fail-closed resource caps.";
 AcceptedObservableTransportQ::usage =
   "AcceptedObservableTransportQ[result] checks the required named exact certificates and, according to the representation and boundary method, every fresh modular closure, ambient-invariance and quotient-coordinate certificate. It keeps probabilistic structural acceptance distinct from an exact symbolic identity.";
 
@@ -397,6 +414,16 @@ SyntaxInformation[BuildTransportBoundaryVector] =
   {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
 SyntaxInformation[BoundaryPeriodCoefficient] =
   {"ArgumentsPattern" -> {_, _}};
+SyntaxInformation[TransportLetterKernel] =
+  {"ArgumentsPattern" -> {_, _, _.}};
+SyntaxInformation[ExpandTransportWordLetters] =
+  {"ArgumentsPattern" -> {_, _, _., _.}};
+SyntaxInformation[BuildRationalEpsilonLayerOperator] =
+  {"ArgumentsPattern" -> {_, _, _}};
+SyntaxInformation[RationalEpsilonLayerWordMap] =
+  {"ArgumentsPattern" -> {_, _, _, _, _.}};
+SyntaxInformation[RationalEpsilonLayerDemandTerms] =
+  {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
 SyntaxInformation[ComposeTransportChartExtension] =
   {"ArgumentsPattern" -> {_, _, _, _}};
 SyntaxInformation[BuildAlgebraicTransportFrame] =
