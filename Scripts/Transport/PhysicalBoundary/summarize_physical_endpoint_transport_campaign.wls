@@ -69,7 +69,10 @@ summary = <|
     Lookup[accepted, "EndpointConnectionDataSource", Missing[]]],
   "TotalFamilyBuildSeconds" -> Total[Lookup[accepted, "TotalSeconds", 0]],
   "MaximumFamilyBuild" -> If[accepted === {}, Missing["NoFamilies"],
-    First@TakeLargestBy[accepted, Lookup[#, "TotalSeconds", 0] &, 1]]|>;
+    With[{record = First@TakeLargestBy[accepted,
+          Lookup[#, "TotalSeconds", 0] &, 1]},
+      <|"Family" -> Lookup[record, "Family", Missing["Family"]],
+        "Seconds" -> Lookup[record, "TotalSeconds", Missing["Seconds"]]|>]]|>;
 temporary = FileNameJoin[{outputDirectory,
   "campaign_summary.wl.tmp-" <> ToString[$ProcessID]}];
 Put[summary, temporary];
