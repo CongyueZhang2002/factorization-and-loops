@@ -403,3 +403,108 @@ as "not split" instead of leaving an `And` unevaluated.
 
 Tests in `Tests/Multiquadratic` (M's directory) were run, not edited.
 Logs: `scratchpad/round4/G/lift/`.
+
+## 7. Acyclic layers: the in-frame solver moved to EpsForm, Geometry listed first (coordinator task 5, round 7, 2026-09-02)
+
+The follow-up recorded in sections 2 and 6 is done.  Moving set, decided
+from a per-statement table of TransportCharts.wl (in-file users,
+out-of-file users, EpsForm/Transport references; scratch
+`tc_analysis.txt`): a helper moved iff every in-file user moved, starting
+from `SolveEpsFormStripInFrame` and from the five helpers that referenced
+EpsForm symbols (`transportChartProjectionDecomposeEntry`,
+`transportChartParallelJacobianPullBack`, `transportChartPullBackDeferredBundle`,
+`transportChartPullBackDeferredPreparation`, the solver).
+
+Changes (all moves verbatim; proof `G_inframe_move_proof.log`, baseline =
+the working tree snapshot taken at 16:56 before the edit, NOT HEAD -- see
+the concurrency note):
+
+- NEW `FeynFacet/Private/EpsForm/Strip/EpsFormStripInFrame.wl` (1768 lines):
+  header (:1-20), `ClearAll` of all 34 private movers (:22-53), then the
+  three blocks of the old TransportCharts.wl: :87-483 -> :55-451 (stage-log
+  globals and functions, `transportChartTogetherTask`/`ParallelTogether`,
+  the projection-decompose and Jacobian-pullback tasks,
+  `transportChartLogSuccessTimings`), :850-2152 -> :453-1755
+  (`transportChartPullBackStrip`, the deferred-bundle pullbacks,
+  `transportChartCanonicalizeFrameImages`, the deadline helpers,
+  `Options[SolveEpsFormStripInFrame] = Join[Options[SolveEpsFormStrip], ...]`
+  -- the load-time inheritance that caused D1, now same-layer --
+  `$transportChartMultiquadraticScopeRefusals`, the timings separation,
+  `SolveEpsFormStripInFrame`), :2795-2806 -> :1757-1768 (the RouteRetired
+  Maple stub).  The public symbol is not Clear'ed here (TransportCharts.wl
+  never did either; usage and SyntaxInformation stay in FeynFacet.m).
+- `FeynFacet/Private/Geometry/TransportCharts.wl` (1107 lines, was 2806):
+  the 26 moved names dropped from `ClearAll` (:51-62; the list's last entry
+  `$transportChartZeroTestTag` needed a comma fix -- the first scan after
+  the move flagged exactly that leftover), layer-position note in the
+  header (:46-56), and `observableTransportSourceFrameQ` +
+  `observableTransportRecordChart` pasted after `masterTransportChartByName`
+  (:297-318) with their `ClearAll` entries.  Stays: catalog, verification,
+  frame builder, root census, `TransportRootSetChart`, registry/aliases,
+  extension, `masterTransportComposeTwoVariableRecord`,
+  `masterTransportRecordCoordinateMap`.
+- `FeynFacet/Private/Core/Base/Core.wl:782-801`: `observableTransportZeroQ`,
+  `observableTransportZeroMatrixQ`, `observableTransportBlockLowerQ` after
+  `masterTransportZeroMatQ`, `ClearAll` entries added.
+- `FeynFacet/Private/Transport/Observable/ObservableTransport.wl`: the five
+  definitions cut (old :80-81, :83-84, :92-96, :593-608, :610-623) and
+  their five `ClearAll` entries removed; nothing else touched.
+- `FeynFacet/Private/LoadOrder.wl:132-138`: `"Strip/EpsFormStripInFrame.wl"`
+  listed right after `"Strip/EpsFormStrip.wl"`; `"Geometry"` moved before
+  `"EpsForm"`; header rewritten (layer contents, the measured graph, the
+  D1 history, the sub-folder list).
+- `Tests/Infrastructure/t_construction_budget.wls:580-581`: the static
+  "never TimeConstrained" check reads the solver's source through
+  `feynFacetPrivateFile["EpsFormStripInFrame.wl"]` instead of the
+  Geometry path (it would otherwise pass vacuously on a file that no
+  longer contains the function).
+- `Design/PrivateLayers_2026-09-02.md` (rows 5-6, the upward-reference
+  paragraph, new section "Correction 2026-09-02 (round 7)" with the
+  sub-folder table) and `Design/GeometryDeclaration_2026-09-02.md`
+  (new section "Round 7").
+
+Scan after the move (`scan_r7_after.json`; before: 11 upward symbols in
+7 files): NO call-time upward reference in any layer.  Reported and
+accepted, by name: `Core/Base/Core.wl` matches the public retired head
+`TransportWord` as a pattern; `Process/Cards/Process.wl` issues the
+message `BuildSimplificationContext::invalid`; the `fail` of
+`Core/Algebra/RationalMaterialization.wl` is Module-local (false
+positive).  The FamilyEpsForm -> observableTransport* edge is gone (the
+four predicates moved down as pure moves; `RecordChart` needed only
+`SourceFrameQ`, a five-line string predicate with no other user, which
+went with it).
+
+Proof: every one of the 8 blocks occurs byte-identically exactly once
+in its destination and zero times in its source; definition heads over
+the four files 237 -> 237, symbols 195 -> 195, 40 relocated, none
+fewer, none more.
+
+Load check (`loadcheck_r7.wls`, launcher, 2.3 s): order {Core, Process,
+Reduction, Infrastructure, Geometry, EpsForm, Transport};
+`DownValues[SolveEpsFormStripInFrame]` = 1; `Options` length 25 with
+`ScratchDirectory` inherited (`Options[SolveEpsFormStrip]` = 15 keys at
+that moment, so the join happened after EpsFormStrip.wl loaded); usage
+kept; `feynFacetPrivateFile["EpsFormStripInFrame.wl"]` and
+`["Strip/EpsFormStripInFrame.wl"]` resolve to the same existing path;
+every moved private symbol defined; `RecordChart` resolves "Kallen1" and
+names the source frame `None`; `BlockLowerQ` true/false on a
+lower/upper pair.  (The `$transportChartZeroTestTag` line of that probe
+is vacuous -- `With` substituted the string value into `DownValues` --
+the symbol's OwnValue is proved by the scan and by the solver test.)
+26 OK, 0 FAIL.
+
+| test | verdict | wall |
+|---|---|---|
+| `Tests/Multiquadratic/t_multiquadratic_transport_frame.wls` (solves a one-root strip through the moved `SolveEpsFormStripInFrame`, exercises `transportChartParallelTogether` and the deadline path) | `20 assertions, 0 failed` | 3.16 s |
+| `Tests/Infrastructure/t_construction_budget.wls` (edited; static checks on the solver source via the resolver, deadline seams) | `40 OK, 0 FAIL` | 7.27 s |
+| `Tests/EpsilonForm/t_epsform_obstruction.wls` | `7 OK, 0 FAIL` | 65.36 s |
+| `Tests/Core/t_package_generality.wls` (static scan of every manifest source incl. the new file; registry runtime) | `25 assertions, 0 failed` | 35.98 s |
+
+Concurrency note: `ObservableTransport.wl` was being edited by another
+agent while this ran (uncommitted Laurent-jet retirement, file saved
+16:53:30; my read/write at 16:56).  My write kept that edit and changed
+only the five predicate definitions and `ClearAll` entries; the proof
+baseline is the 16:56 snapshot (`scratchpad/round4/G/round7_before/`).
+If the other agent writes back from an older buffer, the five
+definitions reappear in Transport and the scan will show them again;
+re-apply by deleting them there (they are defined in Core and Geometry).

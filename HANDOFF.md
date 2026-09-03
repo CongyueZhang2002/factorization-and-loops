@@ -11,7 +11,8 @@ the benchmark table and the CF259 state. This note is the short version.
   with layer-relative entries, `feynFacetPrivateFile` for module paths;
   superseded code in `Private_Backup/` with evidence. Round 4 moved 55
   upward cross-layer calls down; the few remaining ones are named in the
-  manifest header and `Design/GeometryDeclaration_2026-09-02.md`.
+  manifest header and `Design/GeometryDeclaration_2026-09-02.md`; since round 6
+  the graph is acyclic (Geometry loads before EpsForm).
 - Stage 1 (eps-forms): `DiagonalBlockEpsForm` with the Libra balance slice
   and the finite-field strip solvers; CANONICA and Maple routes retired.
 - Stage 2 (transport): `BuildObservableTransport` is the only production
@@ -279,8 +280,6 @@ public code (GiNaC class) — no bespoke integral definitions.
 
 **Round 3 (2026-09-02 afternoon, user ruling: fix the tests, kill pathological runs).** The two 30-40 minute synthetic tests were quadratic in their own source scan (per-character `AppendTo` over the 950,000-character solver source), now a linear `FTTest`FTStripComments`; the obstruction certificate no longer recomputes the eps-series matrix products per entry and its test certifies orders 0-1 by default; the three red multiquadratic tests were asserting against their own spelling of a gauge denominator that the engine canonicalizes (unit leading coefficient per factor, regulator-only factors dropped) and now read the canonical form from the engine; `t_streaming_kira_import` and `t_construction_dag` fail or crawl only in reused pool kernels (standalone 19/19 in 90 s and 86/86 in 3.9 s); `t_multiquadratic_installed_family_chain` was briefly moved to the backup as never-green; Codex corrected that (it had passed 14/14 four times): the automatic `GaugeDenominatorFactor` enlarged the planted base denominator, the test now pins the factor to 1 and is back in the suite. TestKit stamps every assertion with its wall seconds. Two fresh kernels hung at start on a paclet-server fetch and were killed; on the user's decision `$AllowInternet = False` is set in `~/.Wolfram/Kernel/init.m`. Details and measurements: `Design/PrivateOverhaul_2026-09-01.md`, sections "Round 2 acceptance" and "Round 3".
 
-## In-flight at 17:00 (quota cut-off imminent; committed as is)
+## Round 6 (2026-09-02 17:10): nothing in flight
 
-- T: Jet route retired to Private_Backup (laurent_series test 20/20); a CF259 transport run on the certified record started 16:54:50 (900 s cap) writing to `.../CF259/observable_transport_2026-09-02_certified/`; its acceptance check and SameQ comparison with the 05:51 artifact were NOT yet done when this was written. Check that directory and `scratchpad/round4/T/` logs; T's report is `round4/T_transport_correctness.md`.
-- G: moving `SolveEpsFormStripInFrame` from Geometry into `EpsForm/Strip/`, Geometry before EpsForm in the manifest; may be mid-move: run the load check (`Get Addon/Load/LoadFACET.wl`) first and read `round4/G_layers_geometry_scripts.md` before trusting the tree.
-- If the package does not load, `git diff HEAD~1` shows the half-finished moves; the previous commit 570e74f2 is a consistent state.
+All three open items of round 5 are done and pushed: CF259 transported on the certified record (accepted, `observable_transport_2026-09-02_certified/`), the Jet Laurent route retired to the backup, the layer graph acyclic (`SolveEpsFormStripInFrame` now in `EpsForm/Strip/`, Geometry loads before EpsForm), the seat launcher hardened (`Scripts/seat_run.sh`). Next: the certifier speed-ups listed in T's report; CF300/CF303 remain untransported.
