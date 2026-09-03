@@ -14,6 +14,17 @@ ComposeEndpointAutomatonPeriodWords::usage =
   "connection words with prepared OperatorAutomaton demand words and returns " <>
   "period-coordinate maps.  Unprepared demand words fail typed.";
 
+BuildGradedPhysicalEndpointTransport::usage =
+  "BuildGradedPhysicalEndpointTransport[transport, modeMap, periodData] closes the " <>
+  "accepted observable transport under its current-path word operators grade by grade, " <>
+  "then attaches the endpoint Frobenius transport to a basis of each finite row space. " <>
+  "It represents every requested-weight word without enumerating the alphabet product.";
+
+ComposeGradedPhysicalEndpointWords::usage =
+  "ComposeGradedPhysicalEndpointWords[binding, transport, wordPairs] materializes only " <>
+  "the requested current-path words from a graded physical endpoint binding and returns " <>
+  "their four-segment GPL maps on one shared vector of physical period coordinates.";
+
 EndpointConnectionWord::usage =
   "EndpointConnectionWord[path, firstWord, secondWord] is the inert Chen word " <>
   "multiplying an endpoint-to-interior boundary-coordinate map.";
@@ -21,15 +32,25 @@ EndpointConnectionWord::usage =
 Begin["`Private`"];
 
 ClearAll[exactZeroQ, failure, leadingEpsilonOrder,
+  exactAssociationLookup,
   independentEmbeddingRows, modeVector, endpointModeStatus,
   endpointModePeriodRecord, endpointResidueMatrix, reachableWordPairs,
   endpointDemandRowBasis, endpointDemandVisibilityRows,
   endpointDemandCoReachability, endpointModeOrderKey,
   endpointModeCoefficientData, endpointDemandOrderMatrices,
   operatorAutomatonWordMap, transportObservableWordMap,
-  stage3Entry, pruneLedger];
+  stage3Entry, pruneLedger, endpointExactRowBasis,
+  endpointSpecializeMatrix, endpointCurrentRowSpaces,
+  endpointBasisProjectionData, endpointExpandTermColumns,
+  endpointMergeStage3Ledger, endpointCoordinateKey];
 
 exactZeroQ[x_] := TrueQ[x === 0] || TrueQ[PossibleZeroQ[x]];
+
+(* Lookup treats a list-valued key as a list of separate keys.  Physical
+   realization IDs are commonly {family, period}, so retrieve them through
+   Association Part instead. *)
+exactAssociationLookup[association_Association, key_, default_: Missing[]] :=
+  If[KeyExistsQ[association, key], association[[Key[key]]], default];
 
 failure[tag_String, details_Association] :=
   Failure[tag, Join[<|"Status" -> tag|>, details]];
@@ -93,7 +114,8 @@ modeVector[mode_Association, dimension_Integer] := Module[
 endpointModeStatus[mode_Association] := Lookup[mode, "Status", Missing["Absent"]];
 
 endpointModePeriodRecord[periodData_Association, periodID_] :=
-  Lookup[periodData, periodID, Lookup[periodData, ToString[periodID], <||>]];
+  exactAssociationLookup[periodData, periodID,
+    exactAssociationLookup[periodData, ToString[periodID], <||>]];
 
 endpointResidueMatrix[kernels_Association, matrices_Association, variable_Symbol, endpoint_] :=
   Total[
@@ -157,7 +179,7 @@ endpointModeCoefficientData[modeVectors_Association, ids_List,
   records = Flatten@Table[
     coefficientVector = Quiet@Check[
       (SeriesCoefficient[#, {regulator, 0, order}] & /@
-        Lookup[modeVectors, id]),
+        exactAssociationLookup[modeVectors, id]),
       $Failed];
     If[coefficientVector === $Failed || !VectorQ[coefficientVector] ||
         Length[coefficientVector] =!= dimension,
@@ -362,7 +384,7 @@ BuildEndpointAutomatonBoundaryAdapter[
    demandedPivotColumns, demandedSlotMaximum, demandWordPairs,
    demandMaps, demandMapStack, demandWordRecords, baseRules,
    pivotDemand, visibility, coReachability, projectedMap, rowOffset,
-   currentMap, propagatedModes, demandOrderMatrices, demandOrders,
+   currentMap, propagatedModes, demandOrderMatrices, demandOrders, modeLimit,
    coefficientOrders, coefficientData, coefficientPositions,
    coefficientPosition, contribution, outputColumn},
 
@@ -407,9 +429,12 @@ BuildEndpointAutomatonBoundaryAdapter[
     Throw@failure["MissingEndpointSpecification", <|"Family" -> family|>]
   ];
   physicalEndpointRelation = Lookup[modeMap, "PhysicalEndpointRelation", <||>];
+  modeLimit = Lookup[modeMap, "Limit", <||>];
   endpointSpec = Join[<|
-      "Stratum" -> Lookup[Lookup[modeMap, "Limit", <||>],
-        "Stratum", Lookup[physicalEndpointRelation, "Stratum", Missing["Absent"]]],
+      "Stratum" -> If[AssociationQ[modeLimit],
+        Lookup[modeLimit, "Stratum",
+          Lookup[physicalEndpointRelation, "Stratum", Missing["Absent"]]],
+        modeLimit],
       "LocalCoordinatePower" -> Lookup[physicalEndpointRelation, "LocalPower", 1],
       "LocalCoordinateLeadingCoefficient" ->
         Lookup[physicalEndpointRelation, "LeadingCoefficient", 1]|>,
@@ -507,8 +532,8 @@ BuildEndpointAutomatonBoundaryAdapter[
       "Reason" -> "Every mode needs a PeriodID"|>]
   ];
   Do[
-    endpointAction = Together[endpointResidue . Lookup[modeVectors,
-      Lookup[mode, "PeriodID"]]];
+    endpointAction = Together[endpointResidue . exactAssociationLookup[
+      modeVectors, Lookup[mode, "PeriodID"]]];
     If[!And @@ (exactZeroQ /@ endpointAction),
       Throw@failure["EndpointModeNotTangentiallyRegular", <|
         "PeriodID" -> Lookup[mode, "PeriodID"],
@@ -523,13 +548,15 @@ BuildEndpointAutomatonBoundaryAdapter[
   knownZeroByID = Association@Table[
     id -> (exactZeroQ[Lookup[SelectFirst[realizedModes,
           Lookup[#, "PeriodID"] === id &], "KnownCoefficient", Missing["Absent"]]] ||
-      MemberQ[{"KnownZero", "ExactZero"}, Lookup[Lookup[recordByID, id], "Status", None]]),
+      MemberQ[{"KnownZero", "ExactZero"}, Lookup[
+        exactAssociationLookup[recordByID, id], "Status", None]]),
     {id, Keys[modeVectors]}];
   statusByID = Association@Table[
-    id -> If[TrueQ@Lookup[knownZeroByID, id], "KnownZero", "Unevaluated"],
+    id -> If[TrueQ@exactAssociationLookup[knownZeroByID, id],
+      "KnownZero", "Unevaluated"],
     {id, Keys[modeVectors]}];
   valuationByID = Association@Table[
-    id -> Lookup[Lookup[recordByID, id], "EpsilonValuation",
+    id -> Lookup[exactAssociationLookup[recordByID, id], "EpsilonValuation",
       Lookup[SelectFirst[realizedModes, Lookup[#, "PeriodID"] === id &],
         "PeriodEpsilonValuation", 0]],
     {id, Keys[modeVectors]}];
@@ -538,7 +565,8 @@ BuildEndpointAutomatonBoundaryAdapter[
       "Valuations" -> valuationByID|>]
   ];
   modeOrderByID = Association@Table[
-    id -> Min[leadingEpsilonOrder[#, regulator] & /@ Lookup[modeVectors, id]],
+    id -> Min[leadingEpsilonOrder[#, regulator] & /@
+      exactAssociationLookup[modeVectors, id]],
     {id, Keys[modeVectors]}];
 
   ambientSlots = Lookup[transport, "BoundaryAmbientSlots", Missing["Absent"]];
@@ -572,17 +600,21 @@ BuildEndpointAutomatonBoundaryAdapter[
     Throw@failure["InvalidPeriodOrderWindow", <|"PeriodOrderWindow" -> periodWindow|>]
   ];
   periodCoordinates = Flatten@Table[
-    If[TrueQ@Lookup[knownZeroByID, id], {},
-      realizationKey = Lookup[Lookup[recordByID, id], "RealizationKey",
-        If[TrueQ@Lookup[Lookup[recordByID, id], "ClassIdentityExact", False],
-          id, {family, id}]];
+    If[TrueQ@exactAssociationLookup[knownZeroByID, id], {},
+      realizationKey = Lookup[exactAssociationLookup[recordByID, id],
+        "RealizationKey",
+        If[TrueQ@Lookup[exactAssociationLookup[recordByID, id],
+            "ClassIdentityExact", False], id,
+          If[MatchQ[id, {family, __}], id, {family, id}]]];
       Table[<|"PeriodID" -> id, "RealizationKey" -> realizationKey,
         "EpsilonOrder" -> q,
         "Coefficient" -> FeynFacet`BoundaryPeriodCoefficient[realizationKey, q],
-        "Status" -> Lookup[statusByID, id]|>,
-        {q, Max[First[periodWindow], Lookup[valuationByID, id]], Last[periodWindow]}]],
+        "Status" -> exactAssociationLookup[statusByID, id]|>,
+        {q, Max[First[periodWindow],
+          exactAssociationLookup[valuationByID, id]], Last[periodWindow]}]],
     {id, Keys[modeVectors]}];
-  formalModeIDs = Select[Keys[modeVectors], !TrueQ@Lookup[knownZeroByID, #] &];
+  formalModeIDs = Select[Keys[modeVectors],
+    ! TrueQ@exactAssociationLookup[knownZeroByID, #] &];
   demandWordPairs = OptionValue["DemandWordPairs"];
   If[!ListQ[demandWordPairs] || demandWordPairs === {} ||
       !AllTrue[demandWordPairs, MatchQ[#, {_List, _List}] &],
@@ -631,7 +663,7 @@ BuildEndpointAutomatonBoundaryAdapter[
     Max[0, Max@Table[
       id = Lookup[coordinate, "PeriodID"];
       q = Lookup[coordinate, "EpsilonOrder"];
-      demandedSlotMaximum - q - Lookup[modeOrderByID, id],
+      demandedSlotMaximum - q - exactAssociationLookup[modeOrderByID, id],
       {coordinate, periodCoordinates}]]];
   maximumWeight = OptionValue["MaximumConnectorWeight"];
   If[maximumWeight === Automatic, maximumWeight = requiredConnectorWeight];
@@ -723,7 +755,7 @@ BuildEndpointAutomatonBoundaryAdapter[
   demandedOutputs = Lookup[transport, "PhysicalDemandPairs", {}];
   ledger = Table[
     id = Lookup[mode, "PeriodID"];
-    status = Lookup[statusByID, id];
+    status = exactAssociationLookup[statusByID, id];
     stage3Entry[family, endpointSpec, mode, status,
       Select[periodCoordinates, Lookup[#, "PeriodID"] === id &], demandedOutputs],
     {mode, realizedModes}];
@@ -864,6 +896,371 @@ ComposeEndpointAutomatonPeriodWords[
     "Stage3NeedsLedger" -> ledger
   |>
 ];
+
+(* The observable operator may represent tens of millions of alphabet words,
+   but at every exact weight their maps occupy a finite row space.  Close
+   those row spaces under the two ordered path segments, then attach the
+   endpoint connector once to a basis.  A requested word is recovered by a
+   small coordinate projection; the alphabet product is never enumerated. *)
+endpointExactRowBasis[rows_] := Module[{dense, reduced},
+  dense = Normal[rows];
+  If[dense === {}, Return[{}]];
+  If[! MatrixQ[dense], Return[$Failed]];
+  reduced = Quiet@Check[RowReduce[dense], $Failed];
+  If[reduced === $Failed, Return[$Failed]];
+  Select[reduced, AnyTrue[#, Not@*exactZeroQ] &]
+];
+
+endpointSpecializeMatrix[matrix_, rules_List] := Quiet@Check[
+  Together[Normal[matrix] /. rules], $Failed];
+
+endpointCurrentRowSpaces[transport_Association] := Catch@Module[
+  {representation, variables, path, baseRules, maximumWeight, automaton,
+   initial, firstMatrices, firstBoundary, secondMatrices, finalEmbedding,
+   firstByWeight = <||>, spaces = <||>, records, selected, matrices, rows,
+   basis, firstState, secondState},
+  representation = Lookup[transport, "WordRepresentation", Missing[]];
+  variables = Lookup[transport, "Variables", Missing[]];
+  path = Lookup[transport, "Path", <||>];
+  If[! MatchQ[variables, {_Symbol, _Symbol}],
+    Throw@failure["UnsupportedTransportVariables", <||>]];
+  baseRules = Lookup[transport, "BoundaryBasePoint", Thread[variables ->
+    {Lookup[path, "FirstBase", Missing[]],
+      Lookup[path, "SecondBase", Missing[]]}]];
+  If[! MatchQ[baseRules, {(_Rule | _RuleDelayed) ..}] ||
+      ! FreeQ[Last /@ baseRules, _Missing],
+    Throw@failure["MissingTransportBasePoint", <|"Path" -> path|>]];
+
+  Switch[representation,
+    "OperatorAutomaton",
+      automaton = Lookup[transport, "ExactOperatorAutomaton", Missing[]];
+      If[! AssociationQ[automaton],
+        Throw@failure["OperatorAutomatonRequired", <||>]];
+      maximumWeight = Lookup[automaton, "RequestedMaximumWeight", Missing[]];
+      initial = endpointSpecializeMatrix[
+        Lookup[automaton, "InitialDemandMap", Missing[]], baseRules];
+      firstMatrices = endpointSpecializeMatrix[#, baseRules] & /@
+        Lookup[automaton, "FirstOperatorMatrices", {}];
+      firstBoundary = endpointSpecializeMatrix[
+        Lookup[automaton, "FirstBoundaryOperator", Missing[]], baseRules];
+      secondMatrices = endpointSpecializeMatrix[#, baseRules] & /@
+        Lookup[automaton, "SecondOperatorMatrices", {}];
+      finalEmbedding = endpointSpecializeMatrix[
+        Lookup[automaton, "FinalBoundaryEmbedding", Missing[]], baseRules];
+      If[! IntegerQ[maximumWeight] || maximumWeight < 0 ||
+          MemberQ[Join[{initial, firstBoundary, finalEmbedding},
+            firstMatrices, secondMatrices], $Failed] ||
+          ! AllTrue[Join[{initial, firstBoundary, finalEmbedding},
+            firstMatrices, secondMatrices], MatrixQ],
+        Throw@failure["OperatorAutomatonIncomplete", <||>]];
+      basis = endpointExactRowBasis[initial];
+      If[basis === $Failed,
+        Throw@failure["CurrentPathRowSpaceFailed", <|"Weight" -> 0|>]];
+      AssociateTo[firstByWeight, 0 -> basis];
+      Do[
+        rows = If[Lookup[firstByWeight, weight - 1, {}] === {} ||
+            firstMatrices === {}, {},
+          Join @@ (Normal[Lookup[firstByWeight, weight - 1] . #] & /@
+            firstMatrices)];
+        basis = endpointExactRowBasis[rows];
+        If[basis === $Failed,
+          Throw@failure["CurrentPathRowSpaceFailed", <|"Weight" -> weight,
+            "Segment" -> "First"|>]];
+        AssociateTo[firstByWeight, weight -> basis],
+        {weight, 1, maximumWeight}];
+      Clear[firstState, secondState];
+      Do[
+        firstState = Lookup[firstByWeight, firstWeight, {}];
+        secondState[firstWeight, 0] = endpointExactRowBasis[
+          If[firstState === {}, {}, Normal[firstState . firstBoundary]]];
+        If[secondState[firstWeight, 0] === $Failed,
+          Throw@failure["CurrentPathRowSpaceFailed", <|
+            "FirstWeight" -> firstWeight, "SecondWeight" -> 0|>]];
+        Do[
+          rows = If[secondState[firstWeight, secondWeight - 1] === {} ||
+              secondMatrices === {}, {},
+            Join @@ (Normal[
+                secondState[firstWeight, secondWeight - 1] . #] & /@
+              secondMatrices)];
+          secondState[firstWeight, secondWeight] =
+            endpointExactRowBasis[rows];
+          If[secondState[firstWeight, secondWeight] === $Failed,
+            Throw@failure["CurrentPathRowSpaceFailed", <|
+              "FirstWeight" -> firstWeight,
+              "SecondWeight" -> secondWeight|>]],
+          {secondWeight, 1, maximumWeight - firstWeight}],
+        {firstWeight, 0, maximumWeight}];
+      Do[
+        rows = Flatten[Table[
+          If[secondState[firstWeight, weight - firstWeight] === {}, {},
+            Normal[secondState[firstWeight, weight - firstWeight] .
+              finalEmbedding]], {firstWeight, 0, weight}], 1];
+        basis = endpointExactRowBasis[rows];
+        If[basis === $Failed,
+          Throw@failure["CurrentPathRowSpaceFailed", <|"Weight" -> weight,
+            "Segment" -> "FinalEmbedding"|>]];
+        If[basis =!= {}, AssociateTo[spaces, weight -> SparseArray[basis]]],
+        {weight, 0, maximumWeight}],
+
+    "MaterializedWords",
+      records = Lookup[transport, "TwoSegmentWordMaps", Missing[]];
+      If[! ListQ[records] ||
+          ! AllTrue[records, MatchQ[#, {_List, _List, _?MatrixQ}] &],
+        Throw@failure["MaterializedObservableWordsRequired", <||>]];
+      maximumWeight = Max[0, Sequence @@
+        ((Length[#[[1]]] + Length[#[[2]]]) & /@ records)];
+      Do[
+        selected = Select[records,
+          Length[#[[1]]] + Length[#[[2]]] === weight &];
+        matrices = endpointSpecializeMatrix[#[[3]], baseRules] & /@ selected;
+        If[MemberQ[matrices, $Failed],
+          Throw@failure["CurrentPathWordSpecializationFailed", <|
+            "Weight" -> weight|>]];
+        rows = If[matrices === {}, {}, Join @@ matrices];
+        basis = endpointExactRowBasis[rows];
+        If[basis === $Failed,
+          Throw@failure["CurrentPathRowSpaceFailed", <|"Weight" -> weight|>]];
+        If[basis =!= {}, AssociateTo[spaces, weight -> SparseArray[basis]]],
+        {weight, 0, maximumWeight}],
+
+    _, Throw@failure["SupportedObservableWordRepresentationRequired", <|
+      "WordRepresentation" -> representation|>]
+  ];
+  <|"Status" -> "CurrentObservableRowSpacesBuilt",
+    "WordRepresentation" -> representation,
+    "MaximumWeight" -> maximumWeight, "BaseRules" -> baseRules,
+    "SpacesByWeight" -> spaces,
+    "DimensionsByWeight" -> Association@KeyValueMap[
+      #1 -> Dimensions[Normal[#2]] &, spaces]|>
+];
+
+endpointBasisProjectionData[basis_] := Module[
+  {dense = Normal[basis], reduced, columns, square, firstNonzero},
+  If[! MatrixQ[dense] || dense === {}, Return[$Failed]];
+  reduced = Quiet@Check[RowReduce[dense], $Failed];
+  If[reduced === $Failed, Return[$Failed]];
+  firstNonzero[row_List] := SelectFirst[Range[Length[row]],
+    ! exactZeroQ[row[[#]]] &, Missing["NoPivot"]];
+  columns = DeleteCases[firstNonzero /@ reduced, _Missing];
+  If[Length[columns] =!= Length[dense], Return[$Failed]];
+  square = dense[[All, columns]];
+  <|"Columns" -> columns,
+    "Inverse" -> Quiet@Check[Inverse[square], $Failed]|>
+];
+
+endpointCoordinateKey[coordinate_Association] := With[
+  {id = Lookup[coordinate, "PeriodID"],
+   order = Lookup[coordinate, "EpsilonOrder"]},
+  HoldComplete[id, order]];
+
+endpointExpandTermColumns[term_Association, localCoordinates_List,
+    globalIndex_Association, globalCount_Integer] := Module[
+  {matrix, dimensions, rules},
+  matrix = SparseArray[Lookup[term, "DemandProjectedMap"]];
+  dimensions = Dimensions[matrix];
+  rules = Cases[Most[ArrayRules[matrix]],
+    HoldPattern[{row_Integer, column_Integer} -> value_] :>
+      ({row, Lookup[globalIndex,
+          endpointCoordinateKey[localCoordinates[[column]]]]} -> value)];
+  Join[KeyDrop[term, "DemandProjectedMap"], <|
+    "Map" -> SparseArray[rules, {First[dimensions], globalCount}]|>]
+];
+
+endpointMergeStage3Ledger[ledgers_List, coordinates_List] := Module[
+  {entries, groups},
+  entries = Flatten[ledgers];
+  groups = GatherBy[entries, Lookup[#, "PeriodID", Missing[]] &];
+  Map[Function[group, Join[First[group], <|
+      "AffectedBoundaryCoordinates" -> DeleteDuplicates@Select[
+        Flatten[Lookup[group, "AffectedBoundaryCoordinates", {}]],
+        MemberQ[coordinates, #] &]|>]], groups]
+];
+
+Options[BuildGradedPhysicalEndpointTransport] = {
+  "PeriodOrderWindow" -> Automatic,
+  "MaximumConnectorWords" -> 500000
+};
+
+BuildGradedPhysicalEndpointTransport[transport_Association,
+    modeMap_Association, periodData_: <||>, OptionsPattern[]] := Catch@Module[
+  {rowSpaces, maximumWeight, spaces, maximumWords, periodWindow,
+   gradeRecords, synthetic, basis, projection, adapter, allCoordinates,
+   coordinateIndex, globalCount, grades, ledgers, globalLedger,
+   firstGrade, family},
+  If[! MemberQ[{"ExactObservableTransport",
+        "ModularlyVerifiedObservableTransport"},
+      Lookup[transport, "Status", None]],
+    Throw@failure["AcceptedObservableTransportRequired", <||>]];
+  family = Lookup[transport, "Family", Missing[]];
+  If[Lookup[modeMap, "Family", family] =!= family,
+    Throw@failure["EndpointModeFamilyMismatch", <|
+      "TransportFamily" -> family,
+      "ModeFamily" -> Lookup[modeMap, "Family", Missing[]]|>]];
+  maximumWords = OptionValue["MaximumConnectorWords"];
+  periodWindow = OptionValue["PeriodOrderWindow"];
+  If[! IntegerQ[maximumWords] || maximumWords < 1,
+    Throw@failure["InvalidConnectorWordBudget", <||>]];
+  rowSpaces = endpointCurrentRowSpaces[transport];
+  If[FailureQ[rowSpaces], Throw[rowSpaces]];
+  If[! AssociationQ[rowSpaces] ||
+      Lookup[rowSpaces, "Status", None] =!=
+        "CurrentObservableRowSpacesBuilt",
+    Throw@failure["CurrentObservableRowSpacesRequired", <||>]];
+  maximumWeight = rowSpaces["MaximumWeight"];
+  spaces = rowSpaces["SpacesByWeight"];
+  gradeRecords = Table[
+    basis = Lookup[spaces, weight];
+    projection = endpointBasisProjectionData[basis];
+    If[projection === $Failed || projection["Inverse"] === $Failed,
+      Throw@failure["CurrentPathBasisProjectionFailed", <|
+        "Weight" -> weight|>]];
+    synthetic = Join[transport, <|
+      "WordRepresentation" -> "MaterializedWords",
+      "TwoSegmentWordMaps" -> {{{}, {}, basis}}|>];
+    adapter = BuildEndpointAutomatonBoundaryAdapter[
+      synthetic, modeMap, periodData,
+      "MaximumConnectorWeight" -> maximumWeight - weight,
+      "MaximumConnectorWords" -> maximumWords,
+      "PeriodOrderWindow" -> periodWindow,
+      "DemandWordPairs" -> {{{}, {}}}];
+    If[FailureQ[adapter] || Lookup[adapter, "Status", None] =!=
+        "EndpointAutomatonBoundaryAdapterBuilt",
+      Throw@failure["GradedEndpointAdapterFailed", <|
+        "Weight" -> weight, "Result" -> adapter|>]];
+    <|"CurrentWeight" -> weight, "CurrentRowBasis" -> basis,
+      "ProjectionColumns" -> projection["Columns"],
+      "ProjectionInverse" -> projection["Inverse"],
+      "LocalPeriodCoordinates" -> adapter["PeriodCoordinates"],
+      "LocalEndpointWordTerms" -> adapter["EndpointWordTerms"],
+      "RequiredConnectorWeight" -> adapter["RequiredConnectorWeight"],
+      "RetainedConnectorWordCount" ->
+        adapter["RetainedConnectorWordCount"],
+      "VisitedConnectorStateCount" ->
+        adapter["VisitedConnectorStateCount"],
+      "PrunedConnectorChildCount" -> adapter["PrunedConnectorChildCount"],
+      "Stage3NeedsLedger" -> adapter["Stage3NeedsLedger"],
+      "EndpointPath" -> adapter["Path"]|>,
+    {weight, Keys[spaces]}];
+  If[gradeRecords === {},
+    Throw@failure["CurrentObservableRowSpacesEmpty", <||>]];
+  allCoordinates = DeleteDuplicatesBy[
+    Flatten[Lookup[gradeRecords, "LocalPeriodCoordinates", {}]],
+    endpointCoordinateKey];
+  coordinateIndex = AssociationThread[
+    endpointCoordinateKey /@ allCoordinates,
+    Range[Length[allCoordinates]]];
+  globalCount = Length[allCoordinates];
+  grades = Map[Function[grade, Join[
+      KeyDrop[grade, {"LocalPeriodCoordinates", "LocalEndpointWordTerms"}],
+      <|"EndpointWordTerms" ->
+        (endpointExpandTermColumns[#,
+            grade["LocalPeriodCoordinates"], coordinateIndex,
+            globalCount] & /@ grade["LocalEndpointWordTerms"])|>]],
+    gradeRecords];
+  ledgers = Lookup[gradeRecords, "Stage3NeedsLedger", {}];
+  globalLedger = endpointMergeStage3Ledger[ledgers, allCoordinates];
+  firstGrade = First[grades];
+  <|"Status" -> "GradedPhysicalEndpointTransportBuilt",
+    "Family" -> family,
+    "ObservableTransportStatus" -> Lookup[transport, "Status", Missing[]],
+    "ObservableWordRepresentation" ->
+      Lookup[transport, "WordRepresentation", Missing[]],
+    "PhysicalDemandPairs" -> Lookup[transport, "PhysicalDemandPairs", {}],
+    "MaximumCurrentWeight" -> maximumWeight,
+    "CurrentBaseRules" -> rowSpaces["BaseRules"],
+    "CurrentPath" -> Lookup[transport, "Path", <||>],
+    "EndpointPath" -> firstGrade["EndpointPath"],
+    "PeriodCoordinates" -> allCoordinates,
+    "Stage3NeedsLedger" -> globalLedger,
+    "GradesByWeight" -> AssociationThread[
+      Lookup[grades, "CurrentWeight"], grades],
+    "CurrentRowSpaceDimensions" -> rowSpaces["DimensionsByWeight"],
+    "FormalResultConvention" -> <|
+      "Segments" -> {"CurrentFirst", "CurrentSecond",
+        "EndpointFirst", "EndpointSecond"},
+      "WordOrientation" -> "OutermostFirst",
+      "NoAlphabetCartesianEnumeration" -> True,
+      "Coefficient" ->
+        "Map . BoundaryPeriodCoefficient[RealizationKey,EpsilonOrder]"|>|>
+];
+
+BuildGradedPhysicalEndpointTransport[___] :=
+  failure["GradedPhysicalEndpointTransportInputsNotWellFormed", <||>];
+
+ComposeGradedPhysicalEndpointWords[binding_Association,
+    transport_Association, wordPairs_List] := Catch@Module[
+  {family, coordinates, grades, baseRules, outputTerms, wordResult, map,
+   grade, columns, inverse, basisCoordinates, composed, usedColumns,
+   ledger},
+  If[Lookup[binding, "Status", None] =!=
+      "GradedPhysicalEndpointTransportBuilt",
+    Throw@failure["GradedPhysicalEndpointTransportRequired", <||>]];
+  family = Lookup[transport, "Family", Missing[]];
+  If[family =!= Lookup[binding, "Family", Missing[]],
+    Throw@failure["EndpointAdapterFamilyMismatch", <||>]];
+  If[! ListQ[wordPairs] ||
+      ! AllTrue[wordPairs, MatchQ[#, {_List, _List}] &],
+    Throw@failure["InvalidAutomatonWordRequest", <||>]];
+  coordinates = binding["PeriodCoordinates"];
+  grades = binding["GradesByWeight"];
+  baseRules = binding["CurrentBaseRules"];
+  outputTerms = Reap[Do[
+      wordResult = transportObservableWordMap[
+        transport, First[pair], Last[pair]];
+      If[FailureQ[wordResult] || ! MatrixQ[Normal[wordResult]],
+        Throw@failure["ObservableWordMapUnavailable", <|
+          "WordPair" -> pair, "Result" -> wordResult|>]];
+      map = endpointSpecializeMatrix[wordResult, baseRules];
+      If[map === $Failed,
+        Throw@failure["CurrentPathWordSpecializationFailed", <|
+          "WordPair" -> pair|>]];
+      (* An accepted automaton may have a requested maximum weight above
+         its last nonzero row-space grade.  Such words are represented by
+         the exact zero map, not by a missing grade. *)
+      If[! AnyTrue[Flatten[map], Not@*exactZeroQ], Continue[]];
+      grade = Lookup[grades, Length[First[pair]] + Length[Last[pair]],
+        Missing["Weight"]];
+      If[MissingQ[grade],
+        Throw@failure["CurrentPathWeightUnavailable", <|
+          "WordPair" -> pair|>]];
+      columns = grade["ProjectionColumns"];
+      inverse = grade["ProjectionInverse"];
+      basisCoordinates = map[[All, columns]] . inverse;
+      If[AnyTrue[Flatten[Together[
+            basisCoordinates . Normal[grade["CurrentRowBasis"]] - map]],
+          Not@*exactZeroQ],
+        Throw@failure["CurrentPathRowSpaceMismatch", <|
+          "WordPair" -> pair,
+          "CurrentWeight" ->
+            Length[First[pair]] + Length[Last[pair]]|>]];
+      Do[
+        composed = SparseArray[basisCoordinates . term["Map"]];
+        If[AnyTrue[Flatten[Normal[composed]], Not@*exactZeroQ], Sow[<|
+          "CurrentFirstWord" -> First[pair],
+          "CurrentSecondWord" -> Last[pair],
+          "EndpointFirstWord" -> term["EndpointFirstWord"],
+          "EndpointSecondWord" -> term["EndpointSecondWord"],
+          "Map" -> composed|>]],
+        {term, grade["EndpointWordTerms"]}],
+      {pair, wordPairs}]][[2]];
+  outputTerms = If[outputTerms === {}, {}, First[outputTerms]];
+  usedColumns = Sort@DeleteDuplicates@Flatten[
+    Cases[First /@ ArrayRules[Lookup[#, "Map"]],
+        {_, column_Integer} :> column] & /@ outputTerms];
+  usedColumns = Select[usedColumns, 1 <= # <= Length[coordinates] &];
+  ledger = pruneLedger[binding["Stage3NeedsLedger"], coordinates,
+    usedColumns];
+  <|"Status" -> "GradedPhysicalEndpointWordsBuilt",
+    "Family" -> family,
+    "PhysicalDemandPairs" -> binding["PhysicalDemandPairs"],
+    "PeriodCoordinates" -> coordinates,
+    "WordMaps" -> outputTerms,
+    "Stage3NeedsLedger" -> ledger,
+    "FormalResultConvention" -> binding["FormalResultConvention"]|>
+];
+
+ComposeGradedPhysicalEndpointWords[___] :=
+  failure["GradedPhysicalEndpointWordInputsNotWellFormed", <||>];
 
 End[];
 EndPackage[];
