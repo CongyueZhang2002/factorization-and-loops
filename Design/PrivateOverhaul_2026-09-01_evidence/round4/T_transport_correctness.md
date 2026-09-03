@@ -436,3 +436,106 @@ probabilistic-certificate keys.
 Artifact: `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/observable_transport_2026-09-02_certified/observable_transport_CF259.wl`,
 9,263,077 bytes, SHA-256
 `fe0c6f5926e9dcaa6c9bf5e4346207abb281e16f7f4edda496fc18af97cd6060`.
+
+
+# Round 7 (coordinator's message of 17:30): a cheap certificate; the driver's stage log
+
+## Task 2: stage milestones written as they happen
+
+- `FeynFacet/Private/Transport/Observable/ObservableTransport.wl`: the
+  17 Verbose milestone sites of `BuildObservableTransport` and the
+  closure (`If[verbose, Print[...]]`, `If[TrueQ[verbose], Print[...]]`)
+  now go through `observableTransportMilestone[args___]`, which prints
+  exactly as before and, when `$observableTransportMilestoneHook` is a
+  function, hands it the same text as one string. Content unchanged
+  (stdout of the CF27 run is line-identical to the former output).
+- `Scripts/family_observable_transport.wls` (the driver the CF259 runs
+  used): opens `<output>.log` at start and appends every milestone AS IT
+  HAPPENS -- one `OpenAppend`/`WriteString`/`Close` per line (the close
+  flushes), each line stamped with the wall clock and the seconds since
+  start; the driver's own milestones (start, record loaded, demand built,
+  transport returned/failed, result written) are logged the same way.
+  The pool mission script was not changed (it did not drive the CF259
+  run); it needs the one-line hook assignment if wanted.
+- Evidence (CF27 certified record through the seat launcher,
+  `scratchpad/round4/T/round7/cf27/`, driver exit 0, transport 1.3 s): the
+  log holds 16 stamped lines; a second shell sampling the file every
+  50 ms saw it grow through five distinct sizes (636, 931, 1366, 1525,
+  1657 bytes) with distinct mtimes within 0.23 s, i.e. lines land on
+  disk during the run, not at completion.
+
+## Task 1: a cheaper certificate -- target NOT reached (112 s; target 60 s); measured breakdown
+
+Contract unchanged: three independent rational points, a claim above the
+observation refused, `Tight`, fingerprint binding, typed statuses; the
+algebraic test is 31/31 on the final text (a 3x3 gauge with nested
+quotients, a sum-of-quotients denominator, a hidden zero and poles of two
+orders now cross-checks the bounded route against the exhaustive one, and
+the lower bound against the exact order).
+
+What was built (`FeynFacet/Private/Transport/Observable/ObservableTransport.wl`):
+
+- `observableTransportEpsilonOrderLowerBound`: a rigorous LOWER bound of
+  an entry's eps-order from its quotient scaffold without algebra --
+  lowest present exponent of an expanded polynomial (`Exponent`, C-level;
+  a zero in disguise only raises the order), min over sums, sum over
+  products, n times for positive powers; a negative power needs the exact
+  order of its base, taken from the lowest provably nonzero coefficient
+  of a polynomial base or, for a small non-polynomial base (CF259: sums
+  of quotients of ~200 leaves), from the exact route; anything else is
+  -Infinity (the entry is then a candidate). Checked against the exact
+  order on all 2209 inverse entries of CF259 at one point: 0 violations.
+- `observableTransportGroupMinimumOrder`: per group (one block's rows of
+  `TTotalInverse`; all of `TTotal`) candidates in ascending order of the
+  bound; an entry whose bound is at or above the best exact order found
+  so far cannot lower the minimum and is skipped; the first candidate is
+  evaluated exactly (`Together` route), every later one only has to be
+  proven not lower --
+- `observableTransportEpsilonOrderBelow`: exact truncated Laurent
+  arithmetic over the scaffold up to `best - 1` (numerator coefficients
+  by `CoefficientList`, the precision each factor needs propagated
+  downward, small denominators inverted as series with an exactly
+  decided leading coefficient, every kept coefficient decided exactly) --
+  answers the order if it is at most the cutoff, `Above` otherwise,
+  `$Failed` falls back to the exact route.
+- The certifier option `"Exhaustive" -> True` runs the former all-exact
+  route (the cross-check); the certificate `Method` names the route.
+- Defect found and fixed on the way: canonical `Ordering` sorts the
+  `DirectedInfinity` bounds AFTER every integer, so the unbounded
+  (-Infinity) entries came last and the ascending `Break` skipped them:
+  CF259 blocks 24 and 27 reported minimum 2 instead of 0 (`Tight ->
+  False`) in the first dry run; the sort is now numeric. Every dry run
+  after the fix reproduces Codex's TMin -3 and 27 block bounds exactly at
+  the three points (`Tight -> True`).
+
+Measured on the CF259 record (dry runs, `"Write" -> False`, 300 s cap;
+per point = one rational point, all 2209 + 2209 entries):
+
+| variant | per point | total | phases per point |
+|---|---:|---:|---|
+| round 4 exact route (all entries `Together`), run 5 | 33-66 s | 199 s | -- |
+| bounds + first candidate exact, `Ordering` defect (WRONG minima) | 33-38 s | 105 s | 41 exact per point |
+| same, ordering fixed, truncated route disabled by a negative-cutoff bug | 35-40 s | 112 s | 28 exact, 1 truncated |
+| **final text**: ordering fixed, truncated route working | **36-40 s** | **112 s** | substitution 3.4-4.5 s; **bounds 26-29 s**; exact 1.4-2.7 s (28 first candidates); truncated 1.7 s (1); 4389 entries skipped by bound |
+| tiny entries taken exactly instead of bounded, small-subexpression memo (reverted) | 42-47 s | 136 s | bounds+direct 28-32 s; truncated 7.8 s (best seeded lower, more big candidates) |
+
+Conclusion: the exact and truncated phases are already cheap (about 4 s
+per point together); what remains is the BOUND phase, 26-29 s per point
+= the C-level `PolynomialQ`/`Exponent` scans over the 100 MB of
+substituted big numerators, repeated once per scaffold level, plus the
+small `Together`s on the sum-of-quotients denominators inside every
+big entry. The target of 60 s total is not reached (112 s, from 199 s);
+per the coordinator's rule no further CF259 run was made. The next
+lever, not done: compute each big numerator's lowest exponent ONCE (a
+single pass that records the exponent per polynomial node, or the
+bound taken on the raw entry before the point substitution, where the
+same scaffold serves all three points), and share the denominators'
+exact orders per row (rows 46-47 hold the 154 big entries); estimated
+per point about 4 s substitution + 3 s bounds + 4 s exact/truncated,
+i.e. about 35 s total. The numeric 80-digit order estimate (0.1 s per
+big entry, right in all 11 probes) was measured but deliberately not
+used: it cannot prove an entry not lower, and the rigorous bound
+already skips 4389 of 4418 entries.
+
+Verification of the final text: `t_algebraic_observable_transport`
+31/31, 3.3 s after load (17:58:36-17:58:40).

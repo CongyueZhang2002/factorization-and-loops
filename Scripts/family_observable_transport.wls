@@ -19,6 +19,27 @@ If[! MemberQ[{4, 5}, Length[arguments]],
   Take[arguments, 4];
 cardFile = If[Length[arguments] === 5, arguments[[5]], None];
 
+(* Run log (round 7, 2026-09-02): <output>.log next to the output file,
+   opened at start; every stage milestone of the transport's Verbose path
+   (FeynFacet`Private`$observableTransportMilestoneHook) and every driver
+   milestone is appended AS IT HAPPENS with a wall-clock stamp and the
+   seconds since start -- one OpenAppend/WriteString/Close per line, so
+   the line is on disk when the next stage begins.  The milestones'
+   content is unchanged (they are still printed to stdout as before). *)
+runLogFile = outputFile <> ".log";
+runStart = AbsoluteTime[];
+runLog[line_String] := Module[{stream, directory = DirectoryName[runLogFile]},
+  If[! DirectoryQ[directory],
+    CreateDirectory[directory, CreateIntermediateDirectories -> True]];
+  stream = Quiet[Check[OpenAppend[runLogFile], $Failed]];
+  If[stream =!= $Failed,
+    WriteString[stream, DateString[{"Year", "-", "Month", "-", "Day", " ",
+        "Hour", ":", "Minute", ":", "Second"}], " +",
+      ToString[Round[AbsoluteTime[] - runStart, 0.1]], " s | ", line, "\n"];
+    Close[stream]]];
+runLog["driver start: family_observable_transport.wls; output " <> outputFile];
+FeynFacet`Private`$observableTransportMilestoneHook = runLog;
+
 loadAssociation[file_, description_] := Module[{value},
   If[! FileExistsQ[file],
     Print[description, " does not exist: ", file];
@@ -55,6 +76,8 @@ If[FileExistsQ[outputFile],
 ];
 
 epsilonForm = loadAssociation[epsilonFormFile, "Epsilon-form record"];
+runLog["epsilon-form record loaded: " <> ToString[Lookup[epsilonForm, "Family", None]] <>
+  ", status " <> ToString[Lookup[epsilonForm, "Status", None]]];
 differentialSystem =
   loadAssociation[differentialSystemFile, "Differential system"];
 valuations = Quiet[Check[Get[valuationsFile], $Failed]];
@@ -93,9 +116,12 @@ demand = FeynFacet`BuildObservableTransportDemand[
   "Path" -> path
 ];
 If[Lookup[demand, "Status", None] =!= "ExactObservableDemand",
+  runLog["demand construction failed: " <> ToString[Lookup[demand, "Status", None]]];
   Print["Observable-demand construction failed: ", InputForm[demand]];
   Exit[1]
 ];
+runLog["demand built: " <> ToString[Length[Lookup[demand, "PhysicalDemandPairs", {}]]] <>
+  " demanded (order,row) pairs; transport starting"];
 
 start = AbsoluteTime[];
 result = FeynFacet`BuildObservableTransport[epsilonForm, demand,
@@ -130,7 +156,11 @@ If[Lookup[result, "Status", None] === "BoundarySubspaceNotInvariant",
       <|"PrimaryPathStatus" -> "BoundarySubspaceNotInvariant"|>]
   ]
 ];
+runLog["transport returned: " <> ToString[Lookup[result, "Status", None]] <>
+  " after " <> ToString[Round[AbsoluteTime[] - start, 0.1]] <> " s; accepted " <>
+  ToString[acceptedTransportQ[result]]];
 If[! acceptedTransportQ[result],
+  runLog["transport failed: " <> ToString[Lookup[result, "Status", None]]];
   Print["Observable transport failed: ",
     InputForm[KeyTake[result, {"Status", "Reason", "Certificates",
       "Diagnostics", "RankSampleCount", "DiagnosticDirectory"}]]];
@@ -148,6 +178,7 @@ result = Join[result, <|
   "TotalSeconds" -> AbsoluteTime[] - start
 |>];
 writeAtomic[result, outputFile];
+runLog["result written: " <> outputFile <> " (" <> ToString[FileByteCount[outputFile]] <> " bytes)"];
 
 Print[result["Family"], " observable transport (", result["Status"], "): ",
   Length[result["PhysicalDemandPairs"]], " demanded (order,row) pairs, ",

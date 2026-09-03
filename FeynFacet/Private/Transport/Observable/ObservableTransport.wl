@@ -58,14 +58,34 @@ ClearAll[
   observableTransportCanonicalRadicals,
   observableTransportAlgebraicZeroQ,
   observableTransportEpsilonOrderAtPoint,
+  observableTransportEpsilonOrderLowerBound,
+  observableTransportEpsilonOrderBelow,
+  observableTransportGroupMinimumOrder,
+  $observableTransportExactSubexpressionLeafLimit,
   observableTransportExactPointValuations,
   observableTransportCertifyEpsilonValuations,
   observableTransportCertifyEpsilonValuationsFile,
   observableTransportEpsilonValuationCertificateShapeQ,
   observableTransportEpsilonValuationStatus,
   observableTransportEpsilonValuationCertificateBoundQ,
-  $observableTransportValuationTrialCount
+  $observableTransportValuationTrialCount,
+  observableTransportMilestone,
+  $observableTransportMilestoneHook
 ];
+
+(* Stage milestones of the Verbose path (round 7, 2026-09-02): every
+   milestone is printed exactly as before and, when a driver has set
+   $observableTransportMilestoneHook to a function, also handed to it as
+   one string -- the driver appends it to its run log as it happens, so a
+   hang at any stage is visible before the cap fires (the watchdog saw the
+   CF259 run's log appear only at completion). *)
+$observableTransportMilestoneHook = None;
+observableTransportMilestone[args___] := (
+  Print[args];
+  If[$observableTransportMilestoneHook =!= None,
+    Quiet[Check[$observableTransportMilestoneHook[
+      StringJoin[ToString[#, OutputForm] & /@ {args}]], Null]]]
+);
 
 observableTransportCancel[x_] := Quiet[Cancel[Together[x]]];
 
@@ -283,15 +303,205 @@ observableTransportEpsilonOrderAtPoint[expression_, eps_Symbol] := Module[
       True, n - d]]
 ];
 
+(* Rigorous LOWER bound on the eps-order of a specialized entry, read off
+   its quotient scaffold without any algebra (round 7, 2026-09-02): a
+   polynomial in eps has order >= its lowest present exponent (a
+   coefficient that is a zero in disguise only raises the order); a sum
+   has order >= the minimum of its terms, a product the sum of its
+   factors, a positive power n times; a negative power -n needs an UPPER
+   bound of the base's order, which is exact when the base is a polynomial
+   whose lowest coefficient is provably nonzero (a nonzero rational or a
+   canonical radical monomial sum) or a product of such factors --
+   anything else makes the bound -Infinity, i.e. the entry is evaluated
+   exactly.  PolynomialQ/Exponent are C-level scans, so the cost is a few
+   passes over the expanded numerators, not a walk over their leaves.
+   Measured on the largest CF259 inverse entries (3.6 MB, 118k leaves):
+   Together 0.6-2.3 s each; the bound lets all but the block's first
+   candidate be skipped. *)
+$observableTransportExactSubexpressionLeafLimit = 4000;
+observableTransportEpsilonOrderLowerBound[expression_, eps_Symbol] := Module[
+  {lower, upper, provablyNonzeroQ, exactSmall},
+  provablyNonzeroQ[c_] := c =!= 0 && observableTransportAlgebraicZeroQ[c] === False;
+  (* a small non-polynomial subexpression (CF259: denominators that are
+     sums of quotients, ~200 leaves) gets its exact order from the Together
+     route -- cheap at that size, and both a lower and an upper bound *)
+  exactSmall[e_] := If[LeafCount[e] <= $observableTransportExactSubexpressionLeafLimit,
+    observableTransportEpsilonOrderAtPoint[e, eps], $Failed];
+  upper[e_] := Which[
+    e === 0, Infinity,
+    NumericQ[e], 0,
+    e === eps, 1,
+    PolynomialQ[e, eps],
+      With[{m = Exponent[e, eps, Min]},
+        If[provablyNonzeroQ[Coefficient[e, eps, m]], m, Infinity]],
+    Head[e] === Times, Total[upper /@ (List @@ e)],
+    Head[e] === Power && IntegerQ[e[[2]]] && e[[2]] > 0, e[[2]] upper[e[[1]]],
+    True, With[{o = exactSmall[e]}, If[IntegerQ[o], o, Infinity]]];
+  lower[e_] := Which[
+    e === 0, Infinity,
+    NumericQ[e], 0,
+    e === eps, 1,
+    PolynomialQ[e, eps], Exponent[e, eps, Min],
+    Head[e] === Plus, Min[lower /@ (List @@ e)],
+    Head[e] === Times, Total[lower /@ (List @@ e)],
+    Head[e] === Power && IntegerQ[e[[2]]],
+      If[e[[2]] >= 0, e[[2]] lower[e[[1]]],
+        With[{u = upper[e[[1]]]}, If[u === Infinity, -Infinity, e[[2]] u]]],
+    True, With[{o = exactSmall[e]}, Which[IntegerQ[o], o, o === Infinity, Infinity, True, -Infinity]]];
+  lower[expression]
+];
+
+(* Exact decision "is the order of this entry at most `cutoff`, and if so
+   what is it" WITHOUT a full Together: truncated Laurent arithmetic over
+   the quotient scaffold with exact algebraic coefficients.  A node is
+   {v, list}: coefficients of eps^v .. eps^cutoff (list may be shorter
+   when the node vanishes to that order).  Numerator polynomials come from
+   CoefficientList (C-level), a product propagates the precision it needs
+   to each factor (cutoff minus the other factors' lower bounds), a
+   negative power inverts a series whose leading coefficient is decided
+   exactly (an undecidable or vanishing one is $Failed: the caller falls
+   back to the exact route).  Returns the order (integer) when it is at
+   most cutoff, `Above` when every coefficient up to cutoff is exactly
+   zero, or $Failed. *)
+observableTransportEpsilonOrderBelow[expression_, eps_Symbol, cutoff_Integer] := Module[
+  {series, add, mul, inverse, lowerOf, result, k},
+  lowerOf[e_] := observableTransportEpsilonOrderLowerBound[e, eps];
+  (* list of coefficients of e for orders v .. c, v = lowerOf[e] *)
+  series[e_, c_] := Module[{v, cl, terms, vs, need, factor, base, n, out},
+    Which[
+      e === 0, {Infinity, {}},
+      NumericQ[e], If[c < 0, {Infinity, {}}, {0, Join[{e}, ConstantArray[0, c]]}],
+      e === eps, If[c < 1, {Infinity, {}}, {1, Join[{1}, ConstantArray[0, c - 1]]}],
+      PolynomialQ[e, eps],
+        v = Exponent[e, eps, Min];
+        If[v > c, {Infinity, {}},
+          cl = CoefficientList[e, eps];
+          {v, PadRight[Take[cl, {v + 1, Min[Length[cl], c + 1]}], c - v + 1, 0]}],
+      Head[e] === Plus,
+        terms = series[#, c] & /@ (List @@ e);
+        If[MemberQ[terms, $Failed], Return[$Failed, Module]];
+        Fold[add, {Infinity, {}}, terms],
+      Head[e] === Times,
+        vs = lowerOf /@ (List @@ e);
+        If[MemberQ[vs, -Infinity], Return[$Failed, Module]];
+        If[Total[vs] > c, Return[{Infinity, {}}, Module]];
+        terms = Table[series[e[[i]], c - (Total[vs] - vs[[i]])], {i, Length[e]}];
+        If[MemberQ[terms, $Failed], Return[$Failed, Module]];
+        Fold[mul[#1, #2, c] &, {0, {1}}, terms],
+      Head[e] === Power && IntegerQ[e[[2]]] && e[[2]] > 0,
+        n = e[[2]]; v = lowerOf[e[[1]]];
+        If[v === -Infinity, Return[$Failed, Module]];
+        If[n v > c, Return[{Infinity, {}}, Module]];
+        base = series[e[[1]], c - (n - 1) v];
+        If[base === $Failed, Return[$Failed, Module]];
+        Nest[mul[#, base, c] &, {0, {1}}, n],
+      Head[e] === Power && IntegerQ[e[[2]]] && e[[2]] < 0,
+        n = -e[[2]];
+        (* the exact leading order of the base is needed: a small base by
+           the exact route, a polynomial base by its lowest provably
+           nonzero coefficient *)
+        v = Which[
+          LeafCount[e[[1]]] <= $observableTransportExactSubexpressionLeafLimit,
+            observableTransportEpsilonOrderAtPoint[e[[1]], eps],
+          PolynomialQ[e[[1]], eps],
+            With[{m = Exponent[e[[1]], eps, Min]},
+              If[observableTransportAlgebraicZeroQ[Coefficient[e[[1]], eps, m]] === False, m, $Failed]],
+          True, $Failed];
+        If[! IntegerQ[v], Return[$Failed, Module]];
+        If[-n v > c, Return[{Infinity, {}}, Module]];
+        base = series[e[[1]], c + (n + 1) v];
+        If[base === $Failed || base[[1]] > v, Return[$Failed, Module]];
+        (* drop exactly-zero leading coefficients below the true order v *)
+        base = {v, Drop[base[[2]], v - base[[1]]]};
+        out = inverse[base, c];
+        If[out === $Failed, Return[$Failed, Module]];
+        Nest[mul[#, out, c] &, {0, {1}}, n],
+      True, $Failed]];
+  add[{v1_, l1_}, {v2_, l2_}] := Which[
+    l1 === {}, {v2, l2}, l2 === {}, {v1, l1},
+    True, With[{v = Min[v1, v2], top = Max[v1 + Length[l1], v2 + Length[l2]]},
+      {v, PadRight[Join[ConstantArray[0, v1 - v], l1], top - v, 0] +
+          PadRight[Join[ConstantArray[0, v2 - v], l2], top - v, 0]}]];
+  mul[{v1_, l1_}, {v2_, l2_}, c_] := Module[{v = v1 + v2, len},
+    If[l1 === {} || l2 === {} || v > c, Return[{Infinity, {}}, Module]];
+    len = c - v + 1;
+    {v, Table[Sum[If[1 <= j <= Length[l1] && 1 <= i - j + 1 <= Length[l2],
+        l1[[j]] l2[[i - j + 1]], 0], {j, 1, i}], {i, len}]}];
+  (* series inverse of {v, {a0, a1, ...}} with a0 provably nonzero, up to order c *)
+  inverse[{v_, l_}, c_] := Module[{a0 = First[l], len, b},
+    If[observableTransportAlgebraicZeroQ[a0] =!= False, Return[$Failed, Module]];
+    len = c + v + 1;
+    If[len < 1, Return[{Infinity, {}}, Module]];
+    b = ConstantArray[0, len]; b[[1]] = 1/a0;
+    Do[b[[i]] = -Sum[If[j <= Length[l], l[[j]], 0] b[[i - j + 1]], {j, 2, i}]/a0, {i, 2, len}];
+    {-v, b}];
+  result = series[expression, cutoff];
+  If[result === $Failed, Return[$Failed]];
+  If[result[[2]] === {}, Return[Above]];
+  k = 0;
+  While[k < Length[result[[2]]],
+    With[{z = observableTransportAlgebraicZeroQ[result[[2, k + 1]]]},
+      If[z === $Failed, Return[$Failed]];
+      If[! z, Return[result[[1]] + k]]];
+    k++];
+  Above
+];
+
+(* Exact minimum order over a group of specialized entries (one block's
+   rows of TTotalInverse, or all of TTotal): entries in ascending order of
+   their lower bound; each is evaluated exactly only while its bound is
+   below the best exact order found so far -- the remaining entries are
+   proven not lower by their bounds.  Returns <|"Minimum" -> order or
+   Infinity, "Exact" -> count, "Bounded" -> count|> or a failure status. *)
+observableTransportGroupMinimumOrder[entries_List, eps_Symbol,
+    exhaustive_: False] := Module[
+  {bounds, order, best = Infinity, exact = 0, truncated = 0, value,
+   boundSeconds, exactSeconds = 0, truncatedSeconds = 0, phase},
+  boundSeconds = AbsoluteTime[];
+  bounds = If[TrueQ[exhaustive], ConstantArray[-Infinity, Length[entries]],
+    observableTransportEpsilonOrderLowerBound[#, eps] & /@ entries];
+  boundSeconds = AbsoluteTime[] - boundSeconds;
+  (* numeric ascending order: canonical Ordering sorts the DirectedInfinity
+     expressions AFTER every integer, which put the -Infinity (unbounded)
+     entries last and let the ascending Break skip them (CF259 blocks 24
+     and 27 came out 2 instead of 0, 2026-09-02 17:45) *)
+  order = Ordering[bounds /. {-Infinity -> -10^9, Infinity -> 10^9}];
+  Do[
+    If[bounds[[i]] >= best, Break[]];
+    (* after the first exact evaluation, a candidate only has to be proven
+       not LOWER than the best: truncated coefficients up to best - 1 *)
+    phase = AbsoluteTime[];
+    value = If[! TrueQ[exhaustive] && IntegerQ[best],
+      observableTransportEpsilonOrderBelow[entries[[i]], eps, best - 1], $Failed];
+    truncatedSeconds += AbsoluteTime[] - phase;
+    If[value === Above, truncated++; Continue[]];
+    If[! IntegerQ[value],
+      phase = AbsoluteTime[];
+      value = observableTransportEpsilonOrderAtPoint[entries[[i]], eps];
+      exactSeconds += AbsoluteTime[] - phase;
+      exact++,
+      truncated++];
+    If[value === $Failed, Return[<|"Status" -> "CoefficientZeroTestUndecided"|>, Module]];
+    If[value === ComplexInfinity, Return[<|"Status" -> "PointSingular"|>, Module]];
+    If[value < best, best = value],
+    {i, order}];
+  <|"Minimum" -> best, "Exact" -> exact, "Truncated" -> truncated,
+    "Bounded" -> Length[entries] - exact - truncated,
+    "BoundSeconds" -> boundSeconds, "ExactSeconds" -> exactSeconds,
+    "TruncatedSeconds" -> truncatedSeconds|>
+];
+
 (* One trial: TMin and BlockLower of the record's gauge observed at one
    rational point.  Same conventions as the exact gauge scan of
    BuildObservableTransport, except that TMin is the true minimum (the
    scan caps it at 0, a conservative choice that the acceptance rule
-   admits). *)
+   admits).  "Exhaustive" -> True evaluates every entry exactly (the
+   cross-check of the bounded route). *)
 observableTransportExactPointValuations[tTotal_, tInverse_, ranges_List,
-    variables_List, eps_Symbol, point_List] := Module[
-  {start = AbsoluteTime[], failure, rules, entriesT, entriesI, ordersT,
-   ordersI, columns, tmin, blockLower},
+    variables_List, eps_Symbol, point_List, exhaustive_: False] := Module[
+  {start = AbsoluteTime[], failure, rules, entriesT, entriesI, columns,
+   matrixI, groupT, groups, tmin, blockLower, exactCount = 0,
+   boundedCount = 0, truncatedCount = 0, phaseSeconds, substitutionSeconds},
   failure[status_, extra_: <||>] := Join[<|"Status" -> status,
     "Point" -> point|>, extra];
   entriesT = Flatten[Normal[tTotal]];
@@ -303,30 +513,41 @@ observableTransportExactPointValuations[tTotal_, tInverse_, ranges_List,
   If[! FreeQ[{entriesT, entriesI}, Power[_, e_ /; ! FreeQ[e, eps]]],
     Return[failure["EpsilonInExponent"]]];
   rules = Thread[variables -> point];
+  substitutionSeconds = AbsoluteTime[];
   entriesT = entriesT /. rules;
   entriesI = entriesI /. rules;
+  substitutionSeconds = AbsoluteTime[] - substitutionSeconds;
   If[! FreeQ[{entriesT, entriesI},
       ComplexInfinity | Indeterminate | DirectedInfinity[___]],
     Return[failure["PointSingular"]]];
   If[! FreeQ[{entriesT, entriesI}, Alternatives @@ variables],
     Return[failure["PointSubstitutionIncomplete"]]];
-  ordersT = observableTransportEpsilonOrderAtPoint[#, eps] & /@ entriesT;
-  ordersI = observableTransportEpsilonOrderAtPoint[#, eps] & /@ entriesI;
-  If[MemberQ[ordersT, $Failed] || MemberQ[ordersI, $Failed],
-    Return[failure["CoefficientZeroTestUndecided"]]];
-  If[MemberQ[ordersT, ComplexInfinity] || MemberQ[ordersI, ComplexInfinity],
-    Return[failure["PointSingular"]]];
-  If[DeleteCases[ordersT, Infinity] === {},
+  groupT = observableTransportGroupMinimumOrder[entriesT, eps, exhaustive];
+  If[KeyExistsQ[groupT, "Status"], Return[failure[groupT["Status"]]]];
+  If[groupT["Minimum"] === Infinity,
     Return[failure["TransformationVanishesAtPoint"]]];
-  tmin = Min[DeleteCases[ordersT, Infinity]];
-  ordersI = Partition[ordersI, columns];
-  blockLower = Table[
-    With[{orders = DeleteCases[
-        Flatten[ordersI[[ranges[[block]], All]]], Infinity]},
-      If[orders === {}, 0, Min[orders]]],
+  tmin = groupT["Minimum"];
+  exactCount += groupT["Exact"]; boundedCount += groupT["Bounded"];
+  truncatedCount += groupT["Truncated"];
+  phaseSeconds = Lookup[groupT, {"BoundSeconds", "ExactSeconds", "TruncatedSeconds"}];
+  matrixI = Partition[entriesI, columns];
+  groups = Table[observableTransportGroupMinimumOrder[
+      Flatten[matrixI[[ranges[[block]], All]]], eps, exhaustive],
     {block, Length[ranges]}];
+  If[AnyTrue[groups, KeyExistsQ[#, "Status"] &],
+    Return[failure[SelectFirst[groups, KeyExistsQ[#, "Status"] &]["Status"]]]];
+  exactCount += Total[Lookup[groups, "Exact"]];
+  boundedCount += Total[Lookup[groups, "Bounded"]];
+  truncatedCount += Total[Lookup[groups, "Truncated"]];
+  phaseSeconds += Total[Lookup[groups, {"BoundSeconds", "ExactSeconds", "TruncatedSeconds"}]];
+  blockLower = Replace[Lookup[groups, "Minimum"], Infinity -> 0, {1}];
   <|"Status" -> "ExactPointValuationsEvaluated",
     "Point" -> point, "TMin" -> tmin, "BlockLower" -> blockLower,
+    "ExactEntries" -> exactCount, "TruncatedEntries" -> truncatedCount,
+    "BoundedEntries" -> boundedCount,
+    "PhaseSeconds" -> <|"Substitution" -> N[substitutionSeconds],
+      "Bounds" -> N[phaseSeconds[[1]]], "Exact" -> N[phaseSeconds[[2]]],
+      "Truncated" -> N[phaseSeconds[[3]]]|>,
     "Seconds" -> N[AbsoluteTime[] - start]|>
 ];
 
@@ -334,7 +555,8 @@ Options[observableTransportCertifyEpsilonValuations] = {
   "Trials" -> Automatic,
   "Seed" -> 20260902,
   "Valuations" -> Automatic,
-  "MaximumAttempts" -> 24
+  "MaximumAttempts" -> 24,
+  "Exhaustive" -> False
 };
 
 (* Certify the record's TransportEpsilonValuations (or, when the record
@@ -401,7 +623,7 @@ observableTransportCertifyEpsilonValuations[record_Association,
         AppendTo[rejected, <|"Status" -> "PointNotAdmissible",
           "Point" -> point|>]; Continue[]];
       trial = observableTransportExactPointValuations[tTotal, tInverse,
-        ranges, variables, eps, point];
+        ranges, variables, eps, point, TrueQ[OptionValue["Exhaustive"]]];
       If[Lookup[trial, "Status", None] =!= "ExactPointValuationsEvaluated",
         AppendTo[rejected, trial]; Continue[]];
       AppendTo[trials, trial]]];
@@ -433,7 +655,9 @@ observableTransportCertifyEpsilonValuations[record_Association,
     "Status" -> "RationalPointEpsilonValuationCertificate",
     "Version" -> 1,
     "Accepted" -> True, "Probabilistic" -> True, "Exact" -> False,
-    "Method" -> "ExactUnivariateOrderAtRandomRationalPoints",
+    "Method" -> If[TrueQ[OptionValue["Exhaustive"]],
+      "ExactUnivariateOrderAtRandomRationalPoints",
+      "ExactUnivariateOrderAtRandomRationalPointsWithRigorousLowerBounds"],
     "TMin" -> claimedTMin, "BlockLower" -> claimedBlockLower,
     "ObservedTMin" -> observedTMin,
     "ObservedBlockLower" -> observedBlockLower,
@@ -1345,7 +1569,7 @@ observableTransportCovariantRowClosure[rows_, connection_, variable_,
       Return[<|"Status" -> "CovariantClosureRankDecreased",
         "Step" -> step, "CurrentRank" -> currentRank,
         "NextRank" -> nextRank|>, Module]];
-    If[TrueQ[verbose], Print["Observable covariant closure step ", step,
+    If[TrueQ[verbose], observableTransportMilestone["Observable covariant closure step ", step,
       ": rank ", currentRank, " -> ", nextRank]];
     If[nextRank === currentRank,
       stabilizationCertificate = If[TrueQ[modularCovariant],
@@ -1690,7 +1914,7 @@ observableTransportCompactDualAutomaton[residues_List, demanded_,
       candidates = If[products === {},
         SparseArray[{}, {0, stateDimension}], Join @@ products];
       key = "weight-" <> IntegerString[weight + 1, 10, 3];
-      If[TrueQ[verbose], Print[
+      If[TrueQ[verbose], observableTransportMilestone[
         "Observable compact quotient ", key, ": candidates ",
         Dimensions[candidates], ", current rank ", currentRank]];
       basisRecord = rowBasis[candidates, key];
@@ -2030,7 +2254,7 @@ BuildObservableTransport[record_Association, demand_Association,
     SparseArray[If[positions === {}, {}, Thread[positions -> 1]],
       {dimension, dimension}]
   ];
-  If[verbose, Print["Observable transport input preparation: ",
+  If[verbose, observableTransportMilestone["Observable transport input preparation: ",
     Round[AbsoluteTime[] - start, 0.1], " s"]];
 
   physicalDemandPairs = Lookup[demand, "PhysicalDemandPairs", Automatic];
@@ -2140,7 +2364,7 @@ BuildObservableTransport[record_Association, demand_Association,
   If[! FreeQ[rowLower, _Missing] || MemberQ[blockOfRow, 0],
     Return[<|"Status" -> "BlockRangesDoNotCoverFamily"|>, Module]
   ];
-  If[verbose, Print["Observable transport epsilon valuations: ",
+  If[verbose, observableTransportMilestone["Observable transport epsilon valuations: ",
     Round[AbsoluteTime[] - start, 0.1], " s cumulative; source ",
     valuationSource]];
 
@@ -2169,7 +2393,7 @@ BuildObservableTransport[record_Association, demand_Association,
           {t, $observableTransportSampleFractions}, {c, $observableTransportSampleFractions}], 1];
         admissibleRank = observableTransportAdmissibleSamples[lettersHere, rootSquaresHere,
           rankPoint, candidatesRank, Length[rankSamples]];
-        If[verbose, Print["Observable transport rank samples replaced for the algebraic record: ",
+        If[verbose, observableTransportMilestone["Observable transport rank samples replaced for the algebraic record: ",
           Length[admissibleRank], " admissible of ", Length[candidatesRank], " candidates"]];
         If[Length[admissibleRank] < Length[rankSamples],
           sampleExhaustion = <|"Status" -> "AdmissibleSamplesExhausted",
@@ -2189,7 +2413,7 @@ BuildObservableTransport[record_Association, demand_Association,
             {a, $observableTransportSampleFractions}, {b, $observableTransportSampleFractions}], 1];
           residueAdmissible = observableTransportAdmissibleSamples[lettersHere, rootSquaresHere,
             Thread[variables -> #] &, candidatesResidue, Length[residueSamples]];
-          If[verbose, Print["Observable transport residue samples replaced for the algebraic record: ",
+          If[verbose, observableTransportMilestone["Observable transport residue samples replaced for the algebraic record: ",
             Length[residueAdmissible]]];
           If[Length[residueAdmissible] < Length[residueSamples],
             sampleExhaustion = <|"Status" -> "AdmissibleSamplesExhausted",
@@ -2256,7 +2480,7 @@ BuildObservableTransport[record_Association, demand_Association,
          boundaryPositions[observableTransportSlotKey[slot]]} -> 1,
       {slot, boundarySlots}],
     {Length[slots], Length[boundarySlots]}];
-  If[verbose, Print["Observable transport structural support: ",
+  If[verbose, observableTransportMilestone["Observable transport structural support: ",
     Round[AbsoluteTime[] - start, 0.1], " s cumulative"]];
   (* Both physical maps use the same Laurent expansion of TTotal.  Build
      the union of their order ranges once; the former two-pass route could
@@ -2283,7 +2507,7 @@ BuildObservableTransport[record_Association, demand_Association,
       "TMin" -> tmin, "ValuationSource" -> valuationSource,
       "EntryCount" -> $observableTransportLaurentDiagnostics[
         "ValuationBelowRange"]|>, Module]];
-  If[verbose, Print["Observable transport Laurent extraction: ",
+  If[verbose, observableTransportMilestone["Observable transport Laurent extraction: ",
     Round[AbsoluteTime[] - start, 0.1], " s cumulative; method ",
     $observableTransportLaurentMethod, "; orders ", {tmin, tLaurentHigh},
     "; row caps ", Counts[Clip[rowHighs, {tmin - 1, tLaurentHigh}]],
@@ -2314,7 +2538,7 @@ BuildObservableTransport[record_Association, demand_Association,
   forbiddenMap = If[forbiddenRows === {},
     SparseArray[{}, {0, Length[slots]}],
     Normal[forbiddenRows] /. pathRules];
-  If[verbose, Print["Observable transport forbidden map: ",
+  If[verbose, observableTransportMilestone["Observable transport forbidden map: ",
     Dimensions[forbiddenMap], "; slots ", Length[slots],
     "; boundary slots ", Length[boundarySlots], "; ",
     Round[AbsoluteTime[] - start, 0.1], " s cumulative"]];
@@ -2360,7 +2584,7 @@ BuildObservableTransport[record_Association, demand_Association,
       closureRecord["StabilizationCertificate"];
     closureStabilizationMethod =
       closureRecord["StabilizationMethod"];
-    If[verbose, Print["Observable transport first covariant closure: ",
+    If[verbose, observableTransportMilestone["Observable transport first covariant closure: ",
       closureHistory, "; ", Round[AbsoluteTime[] - start, 0.1],
       " s cumulative"]];
     constraintMatrix = observableTransportCancelMatrix[
@@ -2425,7 +2649,7 @@ BuildObservableTransport[record_Association, demand_Association,
   If[! MemberQ[{"MovingKernel", "AmbientBasePoint"}, boundaryEvolution],
     Return[<|"Status" -> "InvalidBoundaryEvolution"|>, Module]
   ];
-  If[verbose, Print["Observable transport boundary evolution: ",
+  If[verbose, observableTransportMilestone["Observable transport boundary evolution: ",
     boundaryEvolution, "; constraint leaves ", constraintLeafCount,
     "; moving-kernel limit ", movingKernelLeafLimit, "; constraint rank ",
     constraintRank, "; ", Round[AbsoluteTime[] - start, 0.1],
@@ -2515,21 +2739,21 @@ BuildObservableTransport[record_Association, demand_Association,
       secondClosureRecord["StabilizationCertificate"];
     secondClosureStabilizationMethod =
       secondClosureRecord["StabilizationMethod"];
-    If[verbose, Print[
+    If[verbose, observableTransportMilestone[
       "Observable transport base constraint cancellation start: ",
       Dimensions[extendedConstraintMatrix]]];
     baseStageStart = AbsoluteTime[];
     baseConstraintMatrix = If[Length[extendedConstraintMatrix] === 0, {},
       observableTransportCancelMatrix[
         Normal[extendedConstraintMatrix] /. secondVariable -> secondBase]];
-    If[verbose, Print[
+    If[verbose, observableTransportMilestone[
       "Observable transport base constraint cancellation: ",
       Round[AbsoluteTime[] - baseStageStart, 0.1], " s"]];
     baseStageStart = AbsoluteTime[];
     baseBoundaryKernel = If[Length[extendedConstraintMatrix] === 0,
       IdentityMatrix[Length[extendedSlots]],
       observableTransportKernel[baseConstraintMatrix]];
-    If[verbose, Print["Observable transport base kernel: ",
+    If[verbose, observableTransportMilestone["Observable transport base kernel: ",
       Round[AbsoluteTime[] - baseStageStart, 0.1], " s; dimensions ",
       Dimensions[baseBoundaryKernel]]];
     baseStageStart = AbsoluteTime[];
@@ -2540,7 +2764,7 @@ BuildObservableTransport[record_Association, demand_Association,
             baseConstraintMatrix . baseBoundaryKernel]),
       Return[<|"Status" -> "BoundaryBaseKernelIdentityFailed"|>, Module]
     ];
-    If[verbose, Print["Observable transport base kernel replay: ",
+    If[verbose, observableTransportMilestone["Observable transport base kernel replay: ",
       Round[AbsoluteTime[] - baseStageStart, 0.1], " s"]];
     baseBoundaryEmbedding = baseBoundaryKernel;
     terminalEmbedding = baseBoundaryEmbedding
@@ -2572,7 +2796,7 @@ BuildObservableTransport[record_Association, demand_Association,
       "Consumer" -> "DemandedMap", "Detail" -> laurentOverrun|>, Module]];
   demandedMap = If[demandedRows === {},
     SparseArray[{}, {0, Length[extendedSlots]}], demandedRows];
-  If[verbose, Print["Observable transport demanded map: ",
+  If[verbose, observableTransportMilestone["Observable transport demanded map: ",
     Dimensions[demandedMap], "; extended slots ", Length[extendedSlots],
     "; transport boundary ", Dimensions[transportBoundary],
     "; base coordinates ", Dimensions[baseBoundaryEmbedding][[2]], "; ",
@@ -2893,7 +3117,7 @@ BuildObservableTransport[record_Association, demand_Association,
     Return[<|"Status" -> "CompactAutomatonRequiresRationalField",
       "CoefficientField" -> coefficientField|>, Module]
   ];
-  If[verbose, Print["Observable transport word representation: ",
+  If[verbose, observableTransportMilestone["Observable transport word representation: ",
     wordRepresentation, "; materialized upper bound ", wordCountBound,
     "; limit ", materializedWordLimit]];
 

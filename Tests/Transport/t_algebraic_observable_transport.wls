@@ -196,6 +196,17 @@ radicalCertification = FeynFacet`Private`observableTransportCertifyEpsilonValuat
   radicalRecord];
 undeclaredRadical = FeynFacet`Private`observableTransportCertifyEpsilonValuations[
   Join[radicalRecord, <|"TTotal" -> {{eps Sqrt[1 + x^3]}}|>]];
+(* round 7: the bounded route (rigorous lower bounds, exact evaluation of
+   the candidates only) must agree with the exhaustive route on a 3x3 gauge
+   with nested quotients, a hidden zero, poles of two orders and radicals *)
+boundedGauge = {{eps Sqrt[1 - x] + 1/(eps^2 (1 + 2 eps)), (1 + Sqrt[1 - x])/(eps (1 + eps)) - 1/eps, 0},
+  {0, (Sqrt[6/5] - Sqrt[30]/5)/eps^3 + eps^2, eps (1 + eps Sqrt[1 - x])/(1 + 5 eps)},
+  {(3 + eps (1 - x))/(eps^3 (1 + 2 eps) (1 + 5 eps)) - 3/(eps^3 (1 + 2 eps) (1 + 5 eps)), 1, eps^4}};
+boundedRecord = Join[computedRecordUncertified, <|"Dim" -> 3, "Ranges" -> {{1}, {2, 3}},
+  "TTotal" -> boundedGauge, "TTotalInverse" -> Transpose[boundedGauge],
+  "TransportEpsilonValuations" -> <|"TMin" -> -2, "BlockLower" -> {-2, -1}|>|>];
+boundedCertification = FeynFacet`Private`observableTransportCertifyEpsilonValuations[boundedRecord];
+exhaustiveCertification = FeynFacet`Private`observableTransportCertifyEpsilonValuations[boundedRecord, "Exhaustive" -> True];
 (* the in-place certifier for records on disk: dry run, write, re-read *)
 fileFixture = FileNameJoin[{$TemporaryDirectory,
   "t_algebraic_valuations_" <> ToString[$ProcessID] <> ".wl"}];
@@ -356,6 +367,32 @@ FTAssert["a hidden zero and a hidden cancellation of orders are decided exactly 
 FTAssert["an undeclared radical whose radicand vanishes at no point certifies too: the exact route needs no declaration (typed failure only for an undecidable coefficient)",
   undeclaredRadical["Status"] === "TransportEpsilonValuationsCertified" &&
     TrueQ[undeclaredRadical["Tight"]]];
+FTAssert["bounded and exhaustive routes agree on a 3x3 gauge with nested quotients, a hidden zero and poles: tight at TMin -2, BlockLower {-2, -1}, and the bounded route skipped entries",
+  boundedCertification["Status"] === "TransportEpsilonValuationsCertified" &&
+    TrueQ[boundedCertification["Tight"]] &&
+    exhaustiveCertification["Status"] === "TransportEpsilonValuationsCertified" &&
+    TrueQ[exhaustiveCertification["Tight"]] &&
+    boundedCertification["Certificate"]["ObservedTMin"] === -2 &&
+    boundedCertification["Certificate"]["ObservedBlockLower"] === {-2, -1} &&
+    exhaustiveCertification["Certificate"]["ObservedBlockLower"] === {-2, -1} &&
+    AllTrue[boundedCertification["Certificate"]["Trials"], #["BoundedEntries"] > 0 &] &&
+    AllTrue[exhaustiveCertification["Certificate"]["Trials"], #["BoundedEntries"] === 0 &]];
+FTAssert["the truncated coefficient route agrees with the exact order on nested quotients, a sum-of-quotients denominator, a hidden zero and a zero entry, and answers Above beyond the cutoff",
+  With[{px = 3/7, sumDen = 1/(1/(1 + 2 eps) + 2/(1 + eps) - 3 + eps^2)},
+    And @@ Table[With[{o = FeynFacet`Private`observableTransportEpsilonOrderAtPoint[e, eps],
+        b = FeynFacet`Private`observableTransportEpsilonOrderBelow[e, eps, 3]},
+      If[IntegerQ[o] && o <= 3, b === o, b === Above || b === $Failed]],
+      {e, {eps Sqrt[1 - px] + 1/(eps^2 (1 + 2 eps)), (Sqrt[6/5] - Sqrt[30]/5)/eps^3 + eps^2,
+        (3 + eps (1 - px))/(eps^3 (1 + 2 eps) (1 + 5 eps)) - 3/(eps^3 (1 + 2 eps) (1 + 5 eps)),
+        0, eps^4, sumDen, sumDen (1 + eps)^3/eps^2, (1 + eps)^2/(eps (1 + 2 eps))^2 - 1/eps^2}}] &&
+    FeynFacet`Private`observableTransportEpsilonOrderBelow[eps^4, eps, 3] === Above &&
+    FeynFacet`Private`observableTransportEpsilonOrderBelow[(1 + eps)^2/(eps (1 + 2 eps))^2 - 1/eps^2, eps, 3] === -1]];
+FTAssert["a lower bound never exceeds the exact order (nested quotient, hidden zero, radical, zero entry)",
+  With[{e0 = Symbol["Global`eps"], px = 3/7},
+    AllTrue[{eps Sqrt[1 - px] + 1/(eps^2 (1 + 2 eps)), (Sqrt[6/5] - Sqrt[30]/5)/eps^3 + eps^2,
+        (3 + eps (1 - px))/(eps^3 (1 + 2 eps) (1 + 5 eps)) - 3/(eps^3 (1 + 2 eps) (1 + 5 eps)), 0, eps^4, 1/(1 + Sqrt[2] - Sqrt[2] + eps)},
+      FeynFacet`Private`observableTransportEpsilonOrderLowerBound[#, eps] <=
+        FeynFacet`Private`observableTransportEpsilonOrderAtPoint[#, eps] &]]];
 FTAssert["the in-place certifier: a dry run leaves the file uncertified, the write certifies it, a repeat reports it certified",
   fileDry["Status"] === "TransportEpsilonValuationsCertified" &&
     fileDry["OutputFile"] === None &&
