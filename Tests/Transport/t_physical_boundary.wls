@@ -58,9 +58,71 @@ FTAssert["physical modes are globally extended and normalized in the canonical b
   modeMap["Status"] === "BoundaryModeMapBuilt" &&
     modeMap["Modes"][[1, "CanonicalMode"]] === {1, 0} &&
     modeMap["Modes"][[2, "CanonicalMode"]] === {0, 1/2} &&
+    modeMap["Modes"][[All, "PhysicalToLocalMode"]] ===
+      modeMap["Modes"][[All, "CanonicalMode"]] &&
     modeMap["Modes"][[All, "PhysicalLocalOrders"]] === {{0}, {0}} &&
     Lookup[modeMap["Stage3NeedsLedger"], "Status"] ===
       {"Unevaluated", "Unevaluated"}];
+
+coordinateResidue = {{2, 1}, {0, 2}};
+coordinateFrobenius = BuildEndpointFrobenius[
+  eps coordinateResidue/u, endpointSpec,
+  "MaximumSeriesOrder" -> 1, "MaximumEpsilonOrder" -> 2];
+coordinateSpec = <|
+  "Family" -> "SyntheticCoordinateControl",
+  "Limit" -> <|"Variable" -> u, "Endpoint" -> 0,
+    "Direction" -> "Positive"|>,
+  "PhysicalEndpointRelation" -> <|
+    "LocalPower" -> 2, "LeadingCoefficient" -> 4|>|>;
+coordinateRealizations = {
+  <|"PeriodID" -> "eigen", "PeriodClass" -> "GPL",
+    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {1},
+    "ConstraintRows" -> {1, 2}, "PhysicalRows" -> {1},
+    "EpsilonExponent" -> 1, "IntegerValuation" -> 0,
+    "LogLevel" -> 0, "DemandedOutputs" -> {{0, 1}}|>,
+  <|"PeriodID" -> "jordan", "PeriodClass" -> "GPL",
+    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {2},
+    "ConstraintRows" -> {1, 2}, "PhysicalRows" -> {2},
+    "EpsilonExponent" -> 1, "IntegerValuation" -> 0,
+    "LogLevel" -> 1, "DemandedOutputs" -> {{0, 2}}|>
+};
+coordinateModes = BuildBoundaryModeMap[coordinateFrobenius,
+  IdentityMatrix[2], coordinateSpec, coordinateRealizations];
+coordinateLog = Log[4];
+expectedCoordinateModes = {
+  {1 + eps coordinateLog + eps^2 coordinateLog^2/2, 0},
+  {eps coordinateLog/2 + eps^2 coordinateLog^2/2,
+   1 + eps coordinateLog + eps^2 coordinateLog^2/2}};
+FTAssert["t = alpha rho^kappa converts eigenvectors and Jordan modes through the retained epsilon order",
+  coordinateModes["Status"] === "BoundaryModeMapBuilt" &&
+    coordinateModes["Modes"][[All, "CanonicalMode"]] ===
+      {{1, 0}, {0, 1}} &&
+    And @@ Flatten[MapThread[Together[#1 - #2] === 0 &,
+      {coordinateModes["Modes"][[All, "PhysicalToLocalMode"]],
+       expectedCoordinateModes}, 2]]];
+
+negativeCoordinateSpec = MapAt[
+  Join[#, <|"LeadingCoefficient" -> -4|>] &,
+  coordinateSpec, Key["PhysicalEndpointRelation"]];
+negativeCoordinateModes = BuildBoundaryModeMap[coordinateFrobenius,
+  IdentityMatrix[2], negativeCoordinateSpec, coordinateRealizations];
+branchedCoordinateModes = BuildBoundaryModeMap[coordinateFrobenius,
+  IdentityMatrix[2], MapAt[Join[#, <|"LeadingCoefficient" -> -4,
+      "LogBranch" -> -1|>] &, coordinateSpec,
+    Key["PhysicalEndpointRelation"]], coordinateRealizations];
+zeroNegativeModes = BuildBoundaryModeMap[frobenius,
+  {{1, 0}, {u, 2}}, MapAt[
+    Join[#, <|"LeadingCoefficient" -> -4|>] &, modeSpec,
+    Key["PhysicalEndpointRelation"]], realizations];
+FTAssert["a non-positive coordinate factor needs an explicit logarithm branch only when the residue acts nontrivially",
+  negativeCoordinateModes["Status"] === "BoundaryModeMapIncomplete" &&
+    Lookup[negativeCoordinateModes["Modes"], "Status"] ===
+      {"PhysicalEndpointLogBranchRequired",
+       "PhysicalEndpointLogBranchRequired"} &&
+    branchedCoordinateModes["Status"] === "BoundaryModeMapBuilt" &&
+    zeroNegativeModes["Status"] === "BoundaryModeMapBuilt" &&
+    zeroNegativeModes["Modes"][[All, "PhysicalToLocalMode"]] ===
+      zeroNegativeModes["Modes"][[All, "CanonicalMode"]]];
 
 jordanFrobenius = BuildEndpointFrobenius[
   eps {{0, 1}, {0, 0}}/u, endpointSpec,

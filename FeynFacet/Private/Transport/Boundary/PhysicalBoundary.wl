@@ -16,7 +16,8 @@ Clear[BuildEndpointFrobenius, BuildBoundaryModeMap,
 ClearAll[boundaryExactZeroQ, boundaryCanonicalMatrix,
   boundaryFiniteQ, boundaryParticularSolution, boundaryLocalOrder,
   boundaryLeadingCoefficient, boundaryModeExtension,
-  boundaryEpsilonValuation, boundaryExactCoefficientQ];
+  boundaryEpsilonValuation, boundaryExactCoefficientQ,
+  boundaryUnambiguouslyPositiveQ];
 
 boundaryExactZeroQ[value_] :=
   AllTrue[Flatten[{Normal[value]}],
@@ -27,6 +28,9 @@ boundaryCanonicalMatrix[matrix_] :=
 
 boundaryFiniteQ[value_] :=
   FreeQ[value, Indeterminate | ComplexInfinity | DirectedInfinity[_]];
+
+boundaryUnambiguouslyPositiveQ[value_] :=
+  TrueQ[Quiet[Check[Refine[value > 0], False]]];
 
 boundaryParticularSolution[matrix_, target_] := Module[
   {columnCount, reduced, coefficientPart, rightHandSide, solution,
@@ -254,7 +258,8 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
   {fail, dimension, residue, regulator, variable, localVariable, endpoint,
    fixedRules, relation, localPower, endpointCoefficient, family, limit,
    transformationLocal, prefactor, buildMode, modes, physicalDimension,
-   periodIDs, maximumSeriesOrder, maximumEpsilonOrder, initialLedger},
+   periodIDs, maximumSeriesOrder, maximumEpsilonOrder, initialLedger,
+   logBranch},
   fail[status_, extra_: <||>] :=
     Throw[Join[<|"Status" -> status|>, extra]];
   If[Lookup[frobenius, "Status", None] =!= "EndpointFrobeniusBuilt",
@@ -282,7 +287,9 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
   ];
   localPower = relation["LocalPower"];
   endpointCoefficient = relation["LeadingCoefficient"];
+  logBranch = Lookup[relation, "LogBranch", Automatic];
   If[! MatchQ[localPower, _Integer | _Rational] || localPower <= 0 ||
+      boundaryExactZeroQ[endpointCoefficient] ||
       ! FreeQ[endpointCoefficient, variable | localVariable | regulator],
     fail["PhysicalEndpointRelationInvalid"]
   ];
@@ -306,7 +313,8 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
      candidates, requestedNormalizationRow, normalizationIndex,
      expectedLeading, actualLeading, normalization, normalizedVector,
      normalizedMapped, normalizedSelected, normalizedOrders,
-     normalizedLeading},
+     normalizedLeading, residueAction, coordinateLog,
+     physicalToLocalMode},
     If[! AssociationQ[realization],
       Return[<|"Status" -> "BoundaryRealizationInvalid"|>]
     ];
@@ -421,6 +429,30 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       Return[<|"Status" -> "BoundaryModeValidationFailed",
         "PeriodID" -> periodID|>]
     ];
+    (* If t = alpha rho^kappa, then the physical and local Frobenius
+       constants differ by exp(eps Log[alpha] R_rho/kappa).  Keep the
+       exponential only to the same epsilon depth as the local prefactor.
+       An ordinary zero-residue mode is invariant and needs no branch. *)
+    residueAction = Together /@ (residue.normalizedVector);
+    physicalToLocalMode = If[boundaryExactZeroQ[residueAction],
+      normalizedVector,
+      If[logBranch === Automatic,
+        If[! boundaryUnambiguouslyPositiveQ[endpointCoefficient],
+          Return[<|"Status" -> "PhysicalEndpointLogBranchRequired",
+            "PeriodID" -> periodID|>]
+        ];
+        coordinateLog = Log[endpointCoefficient],
+        If[! IntegerQ[logBranch],
+          Return[<|"Status" -> "PhysicalEndpointLogBranchInvalid",
+            "PeriodID" -> periodID|>]
+        ];
+        coordinateLog = Log[endpointCoefficient] + 2 Pi I logBranch
+      ];
+      Together /@ (normalizedVector + Sum[
+        (regulator coordinateLog/localPower)^order/Factorial[order]
+          MatrixPower[residue, order].normalizedVector,
+        {order, 1, maximumEpsilonOrder}])
+    ];
     <|
       "Status" -> "BoundaryModeMatched",
       "PeriodID" -> periodID,
@@ -436,6 +468,7 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       "NormalizationPhysicalRow" ->
         physicalRows[[normalizationIndex]],
       "CanonicalMode" -> normalizedVector,
+      "PhysicalToLocalMode" -> physicalToLocalMode,
       "PhysicalLocalOrders" -> normalizedOrders,
       "PhysicalLeadingCoefficients" -> normalizedLeading
     |>
