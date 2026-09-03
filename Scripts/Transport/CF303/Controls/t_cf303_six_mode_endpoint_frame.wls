@@ -1,0 +1,160 @@
+$AllowInternet = False;
+$HistoryLength = 0;
+scriptDirectory = DirectoryName[ExpandFileName[$InputFileName]];
+repositoryRoot = DirectoryName[scriptDirectory, 4];
+Get[FileNameJoin[{repositoryRoot, "Addon", "Load", "LoadFACET.wl"}]];
+source = Get[FileNameJoin[{scriptDirectory, "..", "Artifacts",
+  "CF303PhysicalSoftSixSystem.wl"}]];
+frame = Get[FileNameJoin[{scriptDirectory, "..", "Artifacts",
+  "CF303SixModeEndpointFrame.wl"}]];
+
+recordsToMatrix[records_, field_] := Normal[SparseArray[
+  ({#Row, #Column} -> Lookup[#, field, 0]) & /@ records, {6, 6}]];
+zeroMatrixQ[matrix_] := And @@ Flatten[Map[# === 0 &, matrix, {2}]];
+reduceMatrix[matrix_] := Map[Cancel[Together[#]] &, matrix, {2}];
+checks = {};
+check[name_, condition_] := AppendTo[checks, <|"Name" -> name,
+  "Passed" -> TrueQ[condition]|>];
+
+bParallel = recordsToMatrix[source["Homogeneous"]["Tangential"], "Finite"];
+normalResidue = Normal[SparseArray[
+  ({#Row, #Column} -> Lookup[#Principal, -1, 0]) & /@
+    source["Homogeneous"]["Normal"], {6, 6}]];
+residueRecord = frame["NormalResidue"];
+modeRecord = frame["ModeFrame"];
+v = modeRecord["Matrix"];
+vInverse = modeRecord["Inverse"];
+lambda = residueRecord["NonzeroEigenvalue"];
+projector = residueRecord["SpectralProjector"];
+gamma = Normal[SparseArray[
+  ({#Row, #Column} -> #Value) & /@
+    frame["TangentialConnection"]["SparseEntries"], {6, 6}]];
+levelt = BuildEndpointLeveltModeConnection[normalResidue, bParallel,
+  <|"TangentialVariable" -> p, "Regulator" -> eps, "ModeFrame" -> v,
+    "LocalExponents" -> {0, 0, 0, 0, 0, lambda}|>];
+
+check["rank_one_spectral_data",
+  MatrixRank[normalResidue] === 1 &&
+  zeroMatrixQ[reduceMatrix[normalResidue - lambda*projector]] &&
+  zeroMatrixQ[reduceMatrix[projector . projector - projector]]];
+check["moving_frame_diagonalizes_residue",
+  Cancel[Det[v]] === 1 && zeroMatrixQ[reduceMatrix[vInverse . v - IdentityMatrix[6]]] &&
+  reduceMatrix[vInverse . normalResidue . v] ===
+    DiagonalMatrix[{0, 0, 0, 0, 0, lambda}]];
+check["package_api_spectrum_and_gamma",
+  levelt["Status"] === "EndpointLeveltModeConnectionBuilt" &&
+  zeroMatrixQ[reduceMatrix[gamma - levelt["TangentialConnection"]]] &&
+  Lookup[levelt["ExponentData"], "IntegerPart"] === {0, 0, 0, 0, 0, -2} &&
+  Lookup[levelt["ExponentData"], "RegulatorCoefficient"] ===
+    {0, 0, 0, 0, 0, -4} &&
+  Lookup[levelt["ExponentSectors"], "Indices"] === {{1, 2, 3, 4, 5}, {6}}];
+check["package_api_cross_eigenspace_blocks_vanish",
+  levelt["CrossExponentCoupling"] === False &&
+  zeroMatrixQ[gamma[[1 ;; 5, {6}]]] &&
+  zeroMatrixQ[gamma[[{6}, 1 ;; 5]]]];
+
+targetRecord = frame["AcceptedTargetGauge"];
+targetGauge = targetRecord["Matrix"];
+acceptedFrame = targetRecord["AcceptedModeFrame"];
+acceptedLevelt = BuildEndpointLeveltModeConnection[normalResidue, bParallel,
+  <|"TangentialVariable" -> p, "Regulator" -> eps,
+    "ModeFrame" -> acceptedFrame,
+    "LocalExponents" -> {0, 0, 0, 0, 0, lambda}|>];
+acceptedGamma = acceptedLevelt["TangentialConnection"];
+targetConnection = targetRecord["TargetEpsilonConnection"];
+targetCouplings = targetRecord["TargetGPLCouplings"];
+check["accepted_target_gauge_and_levelt_api",
+  Cancel[Together[Det[targetGauge]]] === targetRecord["Determinant"] &&
+  zeroMatrixQ[reduceMatrix[targetRecord["Inverse"] . targetGauge -
+    IdentityMatrix[2]]] &&
+  acceptedLevelt["Status"] === "EndpointLeveltModeConnectionBuilt" &&
+  acceptedLevelt["CrossExponentCoupling"] === False &&
+  zeroMatrixQ[acceptedGamma[[1 ;; 5, {6}] ]] &&
+  zeroMatrixQ[acceptedGamma[[{6}, 1 ;; 5]]]];
+check["accepted_target_block_is_rational_gpl_epsilon_form",
+  zeroMatrixQ[reduceMatrix[
+    acceptedGamma[[4 ;; 5, 4 ;; 5]] - targetConnection]] &&
+  zeroMatrixQ[reduceMatrix[targetConnection/eps -
+    (targetCouplings["InvP"]/p +
+      targetCouplings["InvOneMinusP"]/(1 - p) +
+      targetCouplings["InvOnePlusP"]/(1 + p))]] &&
+  zeroMatrixQ[targetConnection /. eps -> 0]];
+
+nonzeroRecord = frame["EpsilonNormalizedNonzeroMode"];
+check["nonzero_mode_integer_shear_and_prefactor",
+  Expand[nonzeroRecord["NormalExponentAfter"] + 4*eps] === 0 &&
+  Cancel[Together[gamma[[6, 6]] -
+    D[Log[nonzeroRecord["R6"]], p] -
+    nonzeroRecord["TangentialConnectionAfter"]]] === 0 &&
+  Cancel[Together[nonzeroRecord["TangentialConnectionAfter"] -
+    eps*(4/p + 16*p/(1 - 2*p^2))]] === 0];
+
+production = frame["ProductionInput"];
+productionFrame = production["PhysicalModeFrame"];
+productionLevelt = BuildEndpointLeveltModeConnection[normalResidue, bParallel,
+  <|"TangentialVariable" -> p, "Regulator" -> eps,
+    "ModeFrame" -> productionFrame,
+    "LocalExponents" -> {0, 0, 0, 0, 0, lambda}|>];
+productionGamma = Normal[SparseArray[
+  ({#Row, #Column} -> #Value) & /@
+    production["TangentialConnectionSparseEntries"], {6, 6}]];
+sourceIndices = {1, 2, 3, 6};
+productionSource = production["Source"];
+productionLayer = production["Layer"];
+sourceConnection = eps*(
+  productionSource["Residues"][[1]]/p +
+  productionSource["Residues"][[2]]*p/(1 - 2*p^2));
+check["production_frame_and_epsilon_diagonal_blocks",
+  production["Status"] === "CF303SixModeRationalLayerInputAcceptedV1" &&
+  production["FrameColumnOrder"] === {"Block24Mode1", "Block24Mode2",
+    "Block23Zero", "TargetMode1", "TargetMode2", "Block23Nonzero"} &&
+  production["SourceModeOrder"] === {"Block24Mode1", "Block24Mode2",
+    "Block23Zero", "Block23Nonzero"} &&
+  productionLevelt["Status"] === "EndpointLeveltModeConnectionBuilt" &&
+  zeroMatrixQ[reduceMatrix[productionGamma -
+    productionLevelt["TangentialConnection"]]] &&
+  zeroMatrixQ[reduceMatrix[
+    productionGamma[[sourceIndices, sourceIndices]] - sourceConnection]] &&
+  zeroMatrixQ[reduceMatrix[
+    productionGamma[[4 ;; 5, 4 ;; 5]] - targetConnection]]];
+check["accepted_coordinate_binding_and_embedded_target_extension",
+  FreeQ[production["AcceptedCoordinateBinding"][
+    "Block24CanonicalToProduction"], p] &&
+  production["AcceptedCoordinateBinding"][
+    "TargetExtensionEncodedInNonzeroModeFrame"] === True &&
+  production["AcceptedCoordinateBinding"][
+    "Block23NonzeroTargetExtensionInProductionNormalization"] ===
+      {-1/((1 + 4*eps)*(2 + 3*eps)),
+       -1/((1 + 4*eps)*(2 + 3*eps))} &&
+  productionLayer["TargetBoundarySelectors"][0] ===
+    {{0, 0, 0, 0, 1, 0}, {0, 0, 0, 0, 0, 1}}];
+prepared = BuildRationalEpsilonLayerTransport[productionSource,
+  productionLayer, <|"Pairs" -> {{0, 1}, {0, 2}}|>,
+  "PrepareOnly" -> True];
+check["rational_epsilon_layer_input_prepares",
+  prepared["Status"] === "Prepared" &&
+  prepared["Dimensions"] === {2, 4} &&
+  prepared["SharedBoundaryCoordinates"] === True &&
+  productionLayer["ZeroColumns"] === {4}];
+
+kernelRecords = frame["KernelDecomposition"]["Kernels"];
+recomposed = Total[Function[record,
+  record["Kernel"]*Normal[SparseArray[
+    ({#Row, #Column} -> #Value) & /@ record["Couplings"], {6, 6}]]]
+  /@ kernelRecords];
+check["kernel_decomposition_and_primitives",
+  zeroMatrixQ[reduceMatrix[gamma - recomposed]] &&
+  And @@ (Cancel[D[#Primitive, p] - #Kernel] === 0 & /@ kernelRecords)];
+couplings = Flatten[Lookup[kernelRecords, "Couplings"]];
+check["rational_epsilon_coefficients",
+  And @@ (Function[entry, With[{value = Together[entry["Value"]]},
+      FreeQ[value, p] && PolynomialQ[Numerator[value], eps] &&
+        PolynomialQ[Denominator[value], eps]]]
+    /@ couplings) &&
+  frame["KernelDecomposition"]["CoefficientEpsilonDegreeMax"] === {2, 1}];
+
+failures = Select[checks, ! TrueQ[#Passed] &];
+Scan[Print[If[#Passed, "PASS ", "FAIL "], #Name] &, checks];
+Print["SUMMARY passed=", Count[Lookup[checks, "Passed"], True],
+  " failed=", Length[failures]];
+Quit[If[failures === {}, 0, 1]];
