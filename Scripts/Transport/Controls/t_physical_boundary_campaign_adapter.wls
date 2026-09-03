@@ -1,5 +1,15 @@
 #!/usr/bin/env wolframscript
 
+Block[{$HistoryLength = 0}, Module[
+ {repo, history, controlHistory, transportRoot, checks, check,
+  loadAssociation, control, cf299, cf407, exactZeroArrayQ,
+  nonzeroPositions, sparseFromEntries, historicalControl, control299,
+  control407, transportForFailure, modeForFailure, logMode, logFailure,
+  unpreparedIndex, materializedTransport, materializedResidue,
+  materializedMode, materializedModeMap, materializedTiming,
+  materializedAdapter, materializedComposition, materializedStoredMap,
+  materializedProvidedMap, summary, testResult},
+
 repo = ExpandFileName@FileNameJoin[{DirectoryName[$InputFileName], "..", "..", ".."}];
 history = "/home/maxzhang/factorization-and-loops-codex/External/CodexExchange/endpoint_matching_2026-08-17";
 controlHistory = FileNameJoin[{repo, "Codex", "ppHX_NNLO_DoubleReal",
@@ -16,12 +26,13 @@ check[name_, condition_] := AppendTo[checks, name -> TrueQ[condition]];
 loadAssociation[path_] := Get[path];
 
 control[family_String, currentFile_String, modeFile_String] := Module[
-  {transport, modeMap, adapter, composed},
+  {transport, modeMap, adapter, composed, adapterTiming, compositionTiming},
   transport = loadAssociation[FileNameJoin[{transportRoot, currentFile}]];
   modeMap = loadAssociation[FileNameJoin[{history, modeFile}]];
-  adapter = FeynFacetCampaign`PhysicalBoundary`BuildEndpointAutomatonBoundaryAdapter[
-    transport, modeMap, <||>, "MaximumConnectorWeight" -> Automatic,
-    "PeriodOrderWindow" -> {0, 2}];
+  adapterTiming = AbsoluteTiming[
+    adapter = FeynFacetCampaign`PhysicalBoundary`BuildEndpointAutomatonBoundaryAdapter[
+      transport, modeMap, <||>, "MaximumConnectorWeight" -> Automatic,
+      "PeriodOrderWindow" -> {0, 2}]];
   check[family <> " adapter built",
     AssociationQ[adapter] && Lookup[adapter, "Status", None] ===
       "EndpointAutomatonBoundaryAdapterBuilt"];
@@ -29,8 +40,9 @@ control[family_String, currentFile_String, modeFile_String] := Module[
     Print[family <> " failure: ", InputForm[adapter]];
     Return[adapter]
   ];
-  composed = FeynFacetCampaign`PhysicalBoundary`ComposeEndpointAutomatonPeriodWords[
-    adapter, transport, {{{}, {}}}];
+  compositionTiming = AbsoluteTiming[
+    composed = FeynFacetCampaign`PhysicalBoundary`ComposeEndpointAutomatonPeriodWords[
+      adapter, transport, {{{}, {}}}]];
   check[family <> " composition built",
     AssociationQ[composed] && Lookup[composed, "Status", None] ===
       "EndpointAutomatonPhysicalPeriodWordsBuilt"];
@@ -45,11 +57,61 @@ control[family_String, currentFile_String, modeFile_String] := Module[
   check[family <> " formal ledger present",
     AnyTrue[Lookup[adapter, "Stage3NeedsLedger", {}],
       Lookup[#, "Status", None] === "Unevaluated" &]];
-  <|"Adapter" -> adapter, "Composition" -> composed|>
+  <|"Adapter" -> adapter, "Composition" -> composed,
+    "AdapterSeconds" -> First[adapterTiming],
+    "CompositionSeconds" -> First[compositionTiming]|>
 ];
 
 cf299 = control["CF299", "observable_transport_CF299.wl", "BoundaryModeMap_CF299.wl"];
 cf407 = control["CF407", "observable_transport_CF407.wl", "BoundaryModeMap_CF407.wl"];
+
+(* CF123 is an intentionally cheap provider control: its accepted transport
+   stores direct two-segment word maps and no lazy automaton.  A known-zero
+   residue mode exercises retrieval without claiming a new physical period. *)
+materializedTransport = loadAssociation[
+  FileNameJoin[{transportRoot, "observable_transport_CF123.wl"}]];
+materializedStoredMap = SelectFirst[
+  materializedTransport["TwoSegmentWordMaps"],
+  First[#] === {} && #[[2]] === {} &][[3]];
+materializedProvidedMap =
+  FeynFacetCampaign`PhysicalBoundary`Private`transportObservableWordMap[
+    materializedTransport, {}, {}];
+check["CF123 materialized provider returns the exact stored word map",
+  TrueQ[materializedProvidedMap === materializedStoredMap]];
+materializedResidue = Total@MapThread[
+  Limit[(y - (1 - p^2)) (D[#1, y]/#1 /. x -> p^2),
+    y -> 1 - p^2] #2 &,
+  {materializedTransport["DLogLetters"],
+    materializedTransport["DLogResidues"]}];
+materializedMode = First[NullSpace[materializedResidue]];
+materializedModeMap = <|"Status" -> "BoundaryModeMapBuilt",
+  "Family" -> "CF123",
+  "EndpointSpec" -> <|"Variable" -> y, "Endpoint" -> 1 - p^2,
+    "FixedRules" -> {x -> p^2}, "Stratum" -> "1-v-w=0"|>,
+  "Modes" -> {<|"Status" -> "BoundaryModeMatched",
+    "PeriodID" -> "MaterializedProviderControl",
+    "CanonicalMode" -> materializedMode,
+    "LocalEigenvalue" -> 0, "GeneralizedLevel" -> 0,
+    "KnownCoefficient" -> 0, "PeriodEpsilonValuation" -> 0,
+    "Support" -> Flatten@Position[materializedMode,
+      _?(Not@*PossibleZeroQ)]|>}|>;
+materializedTiming = AbsoluteTiming[
+  materializedAdapter =
+    FeynFacetCampaign`PhysicalBoundary`BuildEndpointAutomatonBoundaryAdapter[
+      materializedTransport, materializedModeMap, <||>,
+      "MaximumConnectorWeight" -> 0, "MaximumConnectorWords" -> 100,
+      "PeriodOrderWindow" -> {0, 0}]];
+materializedComposition = If[AssociationQ[materializedAdapter],
+  FeynFacetCampaign`PhysicalBoundary`ComposeEndpointAutomatonPeriodWords[
+    materializedAdapter, materializedTransport, {{{}, {}}}],
+  materializedAdapter];
+check["CF123 accepted materialized-word provider is consumed directly",
+  AssociationQ[materializedAdapter] &&
+    materializedAdapter["ObservableWordMapProvider"] === "MaterializedWords" &&
+    AssociationQ[materializedComposition] &&
+    materializedComposition["Status"] ===
+      "EndpointAutomatonPhysicalPeriodWordsBuilt" &&
+    materializedComposition["WordMaps"] === {}];
 
 exactZeroArrayQ[array_] := And @@ (TrueQ[PossibleZeroQ[#]] & /@ Flatten[array]);
 nonzeroPositions[array_] := ({#[[1, 1]], #[[1, 2]]} &) /@
@@ -249,14 +311,25 @@ If[AssociationQ[cf407] && KeyExistsQ[cf407, "Adapter"],
     AnyTrue[Lookup[cf407["Adapter"], "Stage3NeedsLedger", {}],
       Lookup[#, "PeriodID", None] === 23 && Lookup[#, "Status", None] === "Unevaluated" &]]
 ];
-check["unused CF407 period orders are pruned from the Stage3 ledger",
+If[AssociationQ[cf407] && KeyExistsQ[cf407, "Adapter"],
+  unpreparedIndex = First[
+    cf407["Adapter"]["Path"]["Segments"][[2]]["AlphabetIndices"]];
+  check["unprepared observable words fail typed instead of broad enumeration",
+    MatchQ[
+      FeynFacetCampaign`PhysicalBoundary`ComposeEndpointAutomatonPeriodWords[
+        cf407["Adapter"], transportForFailure, {{{unpreparedIndex}, {}}}],
+      Failure["EndpointDemandWordNotPrepared", _Association]]]
+];
+check["unused CF407 period orders are pruned before Stage3 composition",
   Length[First@Cases[cf407["Composition"]["Stage3NeedsLedger"],
     entry_Association /; Lookup[entry, "PeriodID", None] === 23 :>
-      Lookup[entry, "AffectedBoundaryCoordinates", {}]]] <
+      Lookup[entry, "AffectedBoundaryCoordinates", {}]]] === 1 &&
     Length@Select[cf407["Adapter"]["PeriodCoordinates"],
-      Lookup[#, "PeriodID", None] === 23 &]];
+      Lookup[#, "PeriodID", None] === 23 &] === 1];
 
 summary[result_] := If[AssociationQ[result] && KeyExistsQ[result, "Adapter"], <|
+  "AdapterSeconds" -> result["AdapterSeconds"],
+  "CompositionSeconds" -> result["CompositionSeconds"],
   "EnumeratedConnectorWordCount" -> result["Adapter"]["EnumeratedConnectorWordCount"],
   "RetainedConnectorWordCount" -> result["Adapter"]["RetainedConnectorWordCount"],
   "RequiredConnectorWeight" -> result["Adapter"]["RequiredConnectorWeight"],
@@ -266,13 +339,21 @@ summary[result_] := If[AssociationQ[result] && KeyExistsQ[result, "Adapter"], <|
     result["Composition"]["Stage3NeedsLedger"])
 |>, result];
 
-Print[InputForm[<|
+testResult = <|
   "Status" -> If[And @@ Last /@ checks, "PASS", "FAIL"],
   "Checks" -> checks,
   "CF299" -> summary[cf299],
   "CF407" -> summary[cf407],
+  "CF123MaterializedProvider" -> <|
+    "AdapterSeconds" -> First[materializedTiming],
+    "Provider" -> If[AssociationQ[materializedAdapter],
+      Lookup[materializedAdapter, "ObservableWordMapProvider", Missing["Absent"]],
+      materializedAdapter]|>,
   "CF299HistoricalControl" -> control299,
   "CF407HistoricalControl" -> control407
-|>]];
+|>;
+Print[InputForm[testResult]];
 
-Exit[If[And @@ Last /@ checks, 0, 1]];
+If[TrueQ[KernelPoolMission`$MissionSafe], testResult,
+  Exit[If[And @@ Last /@ checks, 0, 1]]]
+]]
