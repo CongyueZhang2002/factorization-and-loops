@@ -92,13 +92,14 @@ that the maximum W pole is `rho^-2`, and that every coefficient is in the
 rational/base channel.
 
 For physical endpoint matching one needs the projected local powers
-`rho^-2`, `rho^-1`, and `rho^0`.  The current endpoint ABI emits the first
-two principal powers.  The remaining operation should be a pointwise
-`rho^0` extraction **after projection**, followed by rational
-reconstruction in `p`; it is not a reason to materialize W.  Canonical
-source Frobenius jets through order `rho^2` suffice.  If the projection is
-performed on lower physical masters before the `d` factors, CF1 row 1 needs
-one extra jet because `d1` has a simple soft pole.
+`rho^-2`, `rho^-1`, and `rho^0`.  The endpoint ABI now extracts all three
+pointwise, and
+`cf303_inherited_soft_projection_point.py` projects them before returning
+anything to a reconstruction stage.  At `p=3` the provider takes about
+2.61 seconds and the seven-mode projection itself takes about 0.001 seconds.
+Canonical source Frobenius jets through order `rho^2` suffice.  If the
+projection is performed on lower physical masters before the `d` factors,
+CF1 row 1 needs one extra jet because `d1` has a simple soft pole.
 
 The epsilon shifts in `d` also make the regular-path transport gap small:
 
@@ -179,12 +180,13 @@ support/timing control; it is not used as an identity certificate.
 
 ## What is still missing
 
-1. Generate the soft Frobenius/particular jets for these five lower-family
-   realizations through the depths above.  The current observable artifacts
-   start at regular interior points and are not endpoint-mode maps.
-2. Extend the three indicated observable demands by one epsilon order.
-3. Extract the projected `rho^0` W coefficient pointwise.
-4. Either evaluate the two realization-local PID-9 series or keep them as
+The soft Frobenius/particular jets are now generated in
+`Artifacts/CF303InheritedLowerSoftJets.wl`; the exact bounded build takes
+about 16 seconds and retains only thirteen residue-closed columns.  What
+remains is:
+
+1. Extend the three indicated observable demands by one epsilon order.
+2. Either evaluate the two realization-local PID-9 series or keep them as
    the formal Stage-3 ledger entries already recorded in the artifact.
 
 The bounded control

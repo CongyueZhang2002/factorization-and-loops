@@ -159,9 +159,11 @@
    "CanonicalSourceJetDepth" -> 2,
    "LowerPhysicalJetDepth" -> <|"CF1Row1" -> 3, "OtherRows" -> 2|>,
    "RequiredWLocalPowersForFiniteMatching" -> {-2, -1, 0},
-   "ExistingEndpointABIProvides" -> {-2, -1},
-   "MissingEndpointABIDatum" ->
-    "Project the rho^0 coefficient before p reconstruction; do not reconstruct raw W"|>,
+   "ExistingEndpointABIProvides" -> {-2, -1, 0},
+   "PointProjector" ->
+    "Scripts/Transport/CF303/cf303_inherited_soft_projection_point.py",
+   "ProjectionPolicy" ->
+    "Project the rho-local deck before p reconstruction; never reconstruct raw W"|>,
  "ObservableTransportInputs" -> {
    <|"Family" -> "CF1", "Status" -> "ExactObservableTransport",
      "CoefficientField" -> "Rational", "MaximumWeight" -> 6|>,
@@ -205,9 +207,8 @@
    "DoNotIdentifyAcrossFamilies" ->
     "Class sharing alone does not identify physical period coefficients"|>,
  "RemainingDataNeeds" -> {
-   "Soft Frobenius jets through the listed depth for all five lower families",
+   "Generated soft jets: Scripts/Transport/CF303/Artifacts/CF303InheritedLowerSoftJets.wl",
    "One additional targeted observable epsilon order for CF12, CF199 and CF53",
-   "The projected rho^0 W coefficient",
    "Evaluation or an exact realization transfer for the two PID9 zero modes"
    }
 |>

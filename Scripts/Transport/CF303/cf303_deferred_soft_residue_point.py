@@ -130,8 +130,9 @@ def shifted_coefficients(polynomial: list[int], point: int, count: int,
             for order in range(count)]
 
 
-def rational_function_local_data(rf: Any, point: int,
-                                 prime: int) -> dict[str, Any] | None:
+def rational_function_local_data(rf: Any, point: int, prime: int,
+                                 through_power: int = -1
+                                 ) -> dict[str, Any] | None:
     numerator_order, numerator = strip_vanishing(rf.numerator, point, prime)
     denominator_order, denominator = strip_vanishing(
         rf.denominator, point, prime
@@ -141,7 +142,7 @@ def rational_function_local_data(rf: Any, point: int,
     if numerator_order is None:
         return None
     valuation = numerator_order - denominator_order
-    count = max(1, -valuation)
+    count = max(1, through_power - valuation + 1)
     numerator_series = shifted_coefficients(numerator, point, count, prime)
     denominator_series = shifted_coefficients(
         denominator, point, count, prime
@@ -155,25 +156,29 @@ def rational_function_local_data(rf: Any, point: int,
                         inverse_lead % prime)
     def rho_coefficient(power: int, coefficient: int) -> int:
         return (-coefficient if power % 2 else coefficient) % prime
+    coefficients = {
+        valuation + order: rho_coefficient(
+            valuation + order, coefficient
+        )
+        for order, coefficient in enumerate(quotient)
+        if valuation + order <= through_power and coefficient
+    }
     return {
         "valuation": valuation,
         "leading": rho_coefficient(valuation, quotient[0]),
-        "principal": {
-            valuation + order: rho_coefficient(
-                valuation + order, coefficient
-            )
-            for order, coefficient in enumerate(quotient)
-            if valuation + order < 0 and coefficient
-        },
+        "principal": {power: value for power, value in coefficients.items()
+                      if power < 0},
+        "finite": coefficients.get(0, 0),
     }
 
 
-def function_pair_local_data(pair: Any, point: int,
-                             prime: int) -> dict[str, Any] | None:
+def function_pair_local_data(pair: Any, point: int, prime: int,
+                             through_power: int = -1
+                             ) -> dict[str, Any] | None:
     channels = ("rational", "elliptic_y_coefficient")
     components = {
         (channel, extension): rational_function_local_data(
-            pair[channel_index][extension], point, prime
+            pair[channel_index][extension], point, prime, through_power
         )
         for channel_index, channel in enumerate(channels)
         for extension in range(2)
@@ -204,8 +209,16 @@ def function_pair_local_data(pair: Any, point: int,
             for channel in channels
         },
     } for power in powers]
+    finite = {
+        channel: [
+            (components[channel, extension]["finite"]
+             if components[channel, extension] is not None else 0)
+            for extension in range(2)
+        ]
+        for channel in channels
+    }
     return {"valuation": valuation, "leading": leading,
-            "principal": principal}
+            "principal": principal, "finite": finite}
 
 
 def zero_value() -> dict[str, list[int]]:
@@ -457,7 +470,9 @@ def physical_endpoint_map(adapter_point: dict[str, Any], inputs: dict[str, Any],
                                 helper
                             ), helper
                         ) for channel in range(2))
-                local = function_pair_local_data(value, endpoint, prime)
+                local = function_pair_local_data(
+                    value, endpoint, prime, through_power=0
+                )
                 if local is None:
                     continue
                 source_valuations[local["valuation"]] += 1
@@ -475,7 +490,9 @@ def physical_endpoint_map(adapter_point: dict[str, Any], inputs: dict[str, Any],
         for target_row in range(2):
             for source_row in range(2):
                 pair = (matrix[target_row][source_row], zero_extension)
-                local = function_pair_local_data(pair, endpoint, prime)
+                local = function_pair_local_data(
+                    pair, endpoint, prime, through_power=0
+                )
                 if local is None:
                     continue
                 final_valuations[local["valuation"]] += 1

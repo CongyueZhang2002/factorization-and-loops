@@ -123,41 +123,32 @@ check["FormalLedgerIsGPLOnly",
    only seven source columns and a double pole.  It is not used as an
    identity certificate. *)
 pointScript = FileNameJoin[{cf303Directory,
-  "cf303_deferred_soft_residue_point.py"}];
+  "cf303_inherited_soft_projection_point.py"}];
 pointProcess = RunProcess[{"python3", pointScript, "--p", "3"}];
 If[pointProcess["ExitCode"] =!= 0,
   Print[pointProcess["StandardError"]]; Quit[2]];
 point = ImportString[pointProcess["StandardOutput"], "RawJSON"];
-endpointMap = point["physical_endpoint_map"];
-entries = endpointMap["source_entries"];
-entry[q_, target_, source_] := SelectFirst[entries,
-  Lookup[#, "order"] === q && Lookup[#, "target_master"] === target &&
-    Lookup[#, "source_master"] === source &];
-principalCoefficient[current_, power_] := Module[{term},
-  term = SelectFirst[Lookup[current, "principal", {}],
-    Lookup[#, "rho_power"] === power &, <||>];
-  First@Lookup[term, "rational", {0, 0}]];
-projectedPrincipalCount[{left_, right_}] := Count[
-  Flatten@Table[
-    Mod[2*principalCoefficient[entry[q, target, left], power] -
-      3*principalCoefficient[entry[q, target, right], power],
-      point["prime"]], {q, -3, 3}, {target, {44, 45}},
-      {power, {-2, -1}}], Except[0]];
+formalProjections = Select[point["mode_projections"],
+  Lookup[#, "period_status"] === "FormalUnevaluated" &];
 check["AcceptedWSupportAndPoleDepth",
-  endpointMap["support_source_masters"] === support &&
-  endpointMap["source_epsilon_order_window"] === {-3, 6} &&
-  endpointMap["maximum_source_pole_order"] === 2 &&
-  endpointMap["elliptic_y_nonzero_coordinate_count"] === 0];
+  point["status"] === "CF303InheritedSoftProjectionPointV1" &&
+  point["source_state_rows"] === support &&
+  point["local_rho_power_window"] === {-2, 0} &&
+  point["maximum_input_w_pole_order"] === 2 &&
+  TrueQ[point["coefficient_field_usage"]["rational_base_only"]]];
 check["MinimalWCoordinateCount",
   artifact["MinimalWProjection"]["RequiredScalarWCoordinates"] ===
    2*(3*6 + 4*7)];
 check["BothPID9PrincipalProjectionsAreActive",
-  projectedPrincipalCount[{21, 22}] === 16 &&
-  projectedPrincipalCount[{29, 30}] === 16];
+  point["formal_pid9_coordinate_count"] === 28 &&
+  Counts[Lookup[formalProjections, "mode_id"]] ===
+    <|"CF199::PID9ZeroMode" -> 14, "CF53::PID9ZeroMode" -> 14|> &&
+  Count[Flatten[Lookup[formalProjections, "local_coefficients"]],
+    item_Association /; Lookup[item, "rho_power"] === 0] === 28];
 
 failed = Keys@Select[checks, Not];
 If[failed =!= {}, Print["FAIL ", failed]; Quit[3]];
 Print["PASS checks=", Length[checks],
-  " pointSeconds=", point["timings_seconds"]["total"],
+  " pointSeconds=", point["total_seconds"],
   " supportRows=", support, " requiredW=92 formalPID9Series=2x7"];
 Quit[];

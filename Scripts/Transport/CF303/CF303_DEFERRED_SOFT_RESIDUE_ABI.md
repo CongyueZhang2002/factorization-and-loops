@@ -45,11 +45,13 @@ symbolic expression. Before multiplication all 112 nonzero `H` coordinates
 have a double pole. After the exact epsilon convolution and `T25` left
 multiplication, the source block has 61 double-pole, 58 simple-pole, and 14
 regular coordinates; seven of the 140 possible coordinates vanish. Its
-principal deck has 61 `rho^-2` and 119 `rho^-1` terms. The final `T25` block
-has ten regular nonzero coordinates and two zeros. Thus real cancellations
-occur, especially in physical row 44, but 61 double poles survive and cannot
-be replaced by a finite endpoint value. All these coefficients are also
-rational/base-only at both controls.
+principal deck has 61 `rho^-2` and 119 `rho^-1` terms. The ABI also returns
+the exact pointwise `rho^0` coefficient of every source and final coordinate;
+this is a Laurent coefficient, not a replacement of the surviving principal
+part. The final `T25` block has ten regular nonzero coordinates and two zeros.
+Thus real cancellations occur, especially in physical row 44, but 61 double
+poles survive. All these coefficients are also rational/base-only at both
+controls.
 
 ## Bounded controls
 
@@ -77,8 +79,9 @@ filesystem path.
 The residue deck alone takes approximately 0.64--0.76 seconds per point;
 parsing the accepted deck takes about 0.59 seconds, while the actual cross-`K`
 plus block-1 endpoint reduction takes about 0.002 seconds. Constructing the
-additional physical endpoint map takes 1.75--1.79 seconds, for a complete ABI
-time of 2.39--2.49 seconds per point. The control stays below 100 MiB RSS.
+additional physical endpoint map, including its finite Laurent coefficient,
+takes about 1.8 seconds, for a complete ABI time near 2.6 seconds per point.
+The control stays below 100 MiB RSS.
 
 Run it with
 

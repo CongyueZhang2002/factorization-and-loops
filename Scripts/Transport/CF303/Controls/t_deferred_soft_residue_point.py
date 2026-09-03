@@ -155,6 +155,12 @@ for point, epsilon in ((Fraction(3), Fraction(1, 7)),
     ), r, prime)
     assert local["valuation"] == -2
     assert local["principal"] == {-2: 2, -1: prime - 3}
+    through_finite = module.rational_function_local_data(SimpleNamespace(
+        numerator=(2 - 3 * r + 5 * r * r, 3 - 10 * r, 5),
+        denominator=(r * r, -2 * r, 1),
+    ), r, prime, through_power=0)
+    assert through_finite["principal"] == {-2: 2, -1: prime - 3}
+    assert through_finite["finite"] == 5
 
 print("CF303 deferred soft residue point ABI: PASS at p=3 and p=239/47; "
       "B 40/86 and rank 2, rank(B|ker Rs)=2, full rank 9, "
