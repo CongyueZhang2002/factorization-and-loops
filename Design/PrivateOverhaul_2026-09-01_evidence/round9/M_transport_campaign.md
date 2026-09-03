@@ -33,6 +33,34 @@ CF259 has a certified transport artifact outside the accepted set
 on it in this census (it is not a target: no certified eps-form record) -- it will be run as a
 pool mission during step 2 and recorded.
 
+**R3 F3 -- what "refused only for lacking the certificate" means, established on five families**
+(`scratchpad/round9/compare_records2.wls`, one launcher run, 3 s; log `compare_records2.log`):
+CF27 (R3's open case), CF50 and CF267 (seeded random draw from the 85), and R3's CF57 and CF262 as
+controls.  Method: the letters of the two records are matched by expression (`DLogLetters`,
+equal up to sign; the map is bijective in all five, the identity for CF267 and CF262, a
+permutation for CF27, CF50, CF57), the second-segment letters by their kernel expression, the
+renamed path symbol `observablePathNN` canonicalized; then every index-carrying object is
+compared per letter or per relabelled word, and the index-free objects by `SameQ`.
+Result: in all five families the DLog residues per letter, the first-segment active letter set,
+the first-segment kernels and kernel matrices per letter, the second-segment kernel matrices per
+kernel, and `Demand`, `PhysicalDemandPairs`, `PhysicalRows`, `PhysicalValuation`,
+`BoundaryBaseEmbedding`, `BoundaryKernelAtBase`, `BoundaryAmbientSlots`, `MaximumWeight`,
+`Variables`, `BoundaryEvolutionMethod`, `FirstSegmentKernelMethod` are equal; the word maps of
+the materialized families are equal on every word after the relabelling (CF27: 126/126
+two-segment and 34/34 first-segment words; CF267: 47/47 and 16/16), and the operator automata
+of the automaton families are equal in first and second alphabet with their operator matrices,
+`InitialDemandMap`, `FirstBoundaryOperator`, `FinalBoundaryEmbedding` and weight (CF50, CF57,
+CF262).  So the transported content is the same modulo the alphabet re-indexing the builders
+changed between rounds (new records number the letters in a different order; the words and
+matrices follow that numbering).  **One genuine difference remains, and it is a label, not
+content:** `SecondSegmentKernelMethod` differs in CF50 and CF57 (CF50 new "SecondSegmentKernelMethod" -> "DLogResidues" | old "SecondSegmentKernelMethod" -> "CertifiedDLogResidues"; CF57 new "SecondSegmentKernelMethod" -> "DLogResidues" | old "SecondSegmentKernelMethod" -> "CertifiedDLogResidues"; CF27 new "SecondSegmentKernelMethod" -> "RationalKernelDecomposition" | old "SecondSegmentKernelMethod" -> "RationalKernelDecomposition"), i.e. the round-9
+builder certified the second-segment kernel identity by a different method than the 2026-09-01
+one; the kernels and kernel matrices themselves are equal.  The earlier sentence is therefore
+corrected to: the 2026-09-01 records are refused by the current predicate for the missing
+epsilon-valuation certificate binding; their transported content agrees with the round-9
+records up to the letter re-indexing and, in two of five sampled families, the second-segment
+kernel certification label.
+
 **Target set (certified eps-form, no accepted transport): 87 families** = the 89 certified minus
 CF300 and CF385.  Not attempted: CF259 and CF303 (no certified eps-form; inventory reason:
 triple-root families whose eps-form stage is the round-8 stage-1 work -- CF303 has the recorded
@@ -171,98 +199,98 @@ outside the accepted directory).  The target set stays 87 (CF259 has no record i
 
 ### Campaign table (family, status, wall, cause) -- filled as the queue drains
 
-| family | campaign status | mission wall s | record TotalSeconds | record status | cause / note |
+| family | accepted (driver word `exact` in `campaign.tsv` = record written after `AcceptedObservableTransportQ`; the records are `ModularlyVerifiedObservableTransport`, i.e. modular/probabilistic, not exact) | mission wall s | record TotalSeconds | record status | cause / note |
 |---|---|---:|---:|---|---|
-| CF429 | exact | 0.3 | 0.02 | ExactObservableTransport | (1 kernel message(s) in the mission log, record accepted) |
-| CF3 | exact | 0.7 | 0.39 | - | - |
-| CF360 | exact | 0.7 | 0.41 | - | - |
-| CF68 | exact | 0.8 | 0.48 | - | - |
-| CF1 | exact | 0.4 | 0.20 | ExactObservableTransport | - |
-| CF69 | exact | 0.8 | 0.68 | - | - |
-| CF210 | exact | 0.4 | 0.26 | - | - |
-| CF262 | exact | 0.4 | 0.16 | - | - |
-| CF212 | exact | 0.6 | 0.52 | - | - |
-| CF34 | exact | 0.4 | 0.21 | - | - |
-| CF197 | exact | 0.6 | 0.39 | - | - |
-| CF204 | exact | 0.5 | 0.25 | - | - |
-| CF201 | exact | 0.5 | 0.35 | - | - |
-| CF2 | exact | 0.5 | 0.33 | - | - |
-| CF90 | exact | 0.5 | 0.33 | - | - |
-| CF86 | exact | 0.5 | 0.34 | - | - |
-| CF207 | exact | 0.5 | 0.33 | - | - |
-| CF198 | exact | 0.5 | 0.34 | - | - |
-| CF205 | exact | 0.7 | 0.45 | - | - |
-| CF199 | exact | 0.6 | 0.36 | - | - |
-| CF209 | exact | 0.6 | 0.42 | - | - |
-| CF263 | exact | 0.6 | 0.48 | - | - |
-| CF211 | exact | 0.7 | 0.49 | - | - |
-| CF12 | exact | 0.7 | 0.47 | - | - |
-| CF371 | exact | 0.9 | 0.70 | - | - |
-| CF20 | exact | 0.8 | 0.69 | - | - |
-| CF23 | exact | 0.8 | 0.56 | - | - |
-| CF21 | exact | 0.9 | 0.73 | - | - |
-| CF123 | exact | 0.9 | 0.79 | - | - |
-| CF16 | exact | 0.9 | 0.65 | - | - |
-| CF24 | exact | 0.8 | 0.62 | - | - |
-| CF390 | exact | 1.1 | 0.96 | - | - |
-| CF215 | exact | 1.2 | 1.03 | - | - |
-| CF27 | exact | 1.4 | 1.17 | - | - |
-| CF226 | exact | 1.3 | 1.08 | - | - |
-| CF415 | exact | 1.3 | 1.05 | - | - |
-| CF404 | exact | 1.5 | 1.34 | - | - |
-| CF267 | exact | 1.7 | 1.45 | - | - |
-| CF124 | exact | 2.1 | 1.82 | - | - |
-| CF393 | exact | 1.7 | 1.50 | - | - |
-| CF308 | exact | 1.8 | 1.60 | - | - |
-| CF248 | exact | 1.2 | 1.03 | - | - |
-| CF57 | exact | 9.6 | 9.33 | - | - |
-| CF388 | exact | 4.8 | 4.60 | - | - |
-| CF91 | exact | 1.7 | 1.46 | - | - |
-| CF249 | exact | 2.0 | 1.76 | - | - |
-| CF56 | exact | 5.7 | 5.50 | - | - |
-| CF301 | exact | 2.6 | 2.40 | - | - |
-| CF253 | exact | 6.1 | 5.92 | - | - |
-| CF407 | exact | 27.4 | 27.16 | - | - |
-| CF33 | exact | 11.5 | 11.21 | - | - |
-| CF420 | exact | 28.4 | 28.17 | - | - |
-| CF67 | exact | 2.5 | 2.43 | - | - |
-| CF230 | exact | 4.4 | 4.17 | - | - |
-| CF384 | exact | 36.3 | 36.06 | - | - |
-| CF88 | exact | 3.6 | 3.39 | - | - |
-| CF413 | exact | 40.4 | 40.17 | - | - |
-| CF26 | exact | 16.6 | 16.33 | - | - |
-| CF299 | exact | 34.7 | 34.42 | - | - |
-| CF13 | exact | 37.1 | 36.85 | - | - |
-| CF18 | exact | 39.5 | 39.23 | - | - |
-| CF416 | exact | 5.9 | 5.67 | - | - |
-| CF97 | exact | 11.4 | 11.10 | - | - |
-| CF50 | exact | 24.7 | 24.29 | - | - |
-| CF53 | exact | 35.9 | 35.67 | - | - |
-| CF264 | exact | 18.0 | 17.78 | - | - |
-| CF260 | exact | 45.0 | 44.79 | - | - |
-| CF98 | exact | 28.1 | 27.85 | - | - |
-| CF258 | exact | 40.6 | 40.18 | - | - |
-| CF218 | exact | 13.5 | 13.30 | - | - |
-| CF217 | exact | 14.1 | 13.88 | - | - |
-| CF213 | exact | 15.1 | 14.79 | - | - |
-| CF232 | exact | 22.5 | 22.29 | - | - |
-| CF71 | exact | 22.1 | 21.82 | - | - |
-| CF48 | exact | 60.2 | 59.83 | - | - |
-| CF52 | exact | 69.4 | 69.09 | - | - |
-| CF254 | exact | 99.7 | 99.37 | - | - |
-| CF240 | exact | 191.8 | 191.50 | - | - |
-| CF236 | exact | 93.8 | 93.49 | - | - |
-| CF408 | exact | 112.8 | 112.30 | - | - |
-| CF269 | exact | 101.9 | 101.49 | - | - |
-| CF319 | exact | 80.0 | 79.73 | - | - |
-| CF231 | exact | 80.6 | 80.15 | - | - |
-| CF265 | exact (re-run by agent T on the certified finite-field residue route, 16:20; the 15:24 queue run was `incomplete`, `DLogResiduesRequired`) | 185 (T) | - | ModularlyVerifiedObservableTransport | first-kernel residues reconstructed from the certificate letters; `campaign.tsv` still carries the queue's `incomplete` row |
-| CF321 | exact | 269.5 | 269.21 | - | - |
-| CF311 | exact | 153.0 | 152.39 | - | - |
-| CF305 | exact (re-run 16:15-16:20 as one launcher job of the mission script, 900 s cap; the 15:25 queue run was `incomplete`, `DLogResiduesRequired`) | 284 (launcher) | 276.89 | ModularlyVerifiedObservableTransport | first-kernel residues reconstructed on 15 certificate letters (certified finite-field route added by T); 10 demanded (order,row) pairs, 85 boundary coordinates, weight 4; `campaign.tsv` still carries the queue's `incomplete` row |
+| CF429 | accepted | 0.3 | 0.02 | ExactObservableTransport | (1 kernel message(s) in the mission log, record accepted) |
+| CF3 | accepted | 0.7 | 0.39 | - | - |
+| CF360 | accepted | 0.7 | 0.41 | - | - |
+| CF68 | accepted | 0.8 | 0.48 | - | - |
+| CF1 | accepted | 0.4 | 0.20 | ExactObservableTransport | - |
+| CF69 | accepted | 0.8 | 0.68 | - | - |
+| CF210 | accepted | 0.4 | 0.26 | - | - |
+| CF262 | accepted | 0.4 | 0.16 | - | - |
+| CF212 | accepted | 0.6 | 0.52 | - | - |
+| CF34 | accepted | 0.4 | 0.21 | - | - |
+| CF197 | accepted | 0.6 | 0.39 | - | - |
+| CF204 | accepted | 0.5 | 0.25 | - | - |
+| CF201 | accepted | 0.5 | 0.35 | - | - |
+| CF2 | accepted | 0.5 | 0.33 | - | - |
+| CF90 | accepted | 0.5 | 0.33 | - | - |
+| CF86 | accepted | 0.5 | 0.34 | - | - |
+| CF207 | accepted | 0.5 | 0.33 | - | - |
+| CF198 | accepted | 0.5 | 0.34 | - | - |
+| CF205 | accepted | 0.7 | 0.45 | - | - |
+| CF199 | accepted | 0.6 | 0.36 | - | - |
+| CF209 | accepted | 0.6 | 0.42 | - | - |
+| CF263 | accepted | 0.6 | 0.48 | - | - |
+| CF211 | accepted | 0.7 | 0.49 | - | - |
+| CF12 | accepted | 0.7 | 0.47 | - | - |
+| CF371 | accepted | 0.9 | 0.70 | - | - |
+| CF20 | accepted | 0.8 | 0.69 | - | - |
+| CF23 | accepted | 0.8 | 0.56 | - | - |
+| CF21 | accepted | 0.9 | 0.73 | - | - |
+| CF123 | accepted | 0.9 | 0.79 | - | - |
+| CF16 | accepted | 0.9 | 0.65 | - | - |
+| CF24 | accepted | 0.8 | 0.62 | - | - |
+| CF390 | accepted | 1.1 | 0.96 | - | - |
+| CF215 | accepted | 1.2 | 1.03 | - | - |
+| CF27 | accepted | 1.4 | 1.17 | - | - |
+| CF226 | accepted | 1.3 | 1.08 | - | - |
+| CF415 | accepted | 1.3 | 1.05 | - | - |
+| CF404 | accepted | 1.5 | 1.34 | - | - |
+| CF267 | accepted | 1.7 | 1.45 | - | - |
+| CF124 | accepted | 2.1 | 1.82 | - | - |
+| CF393 | accepted | 1.7 | 1.50 | - | - |
+| CF308 | accepted | 1.8 | 1.60 | - | - |
+| CF248 | accepted | 1.2 | 1.03 | - | - |
+| CF57 | accepted | 9.6 | 9.33 | - | - |
+| CF388 | accepted | 4.8 | 4.60 | - | - |
+| CF91 | accepted | 1.7 | 1.46 | - | - |
+| CF249 | accepted | 2.0 | 1.76 | - | - |
+| CF56 | accepted | 5.7 | 5.50 | - | - |
+| CF301 | accepted | 2.6 | 2.40 | - | - |
+| CF253 | accepted | 6.1 | 5.92 | - | - |
+| CF407 | accepted | 27.4 | 27.16 | - | - |
+| CF33 | accepted | 11.5 | 11.21 | - | - |
+| CF420 | accepted | 28.4 | 28.17 | - | - |
+| CF67 | accepted | 2.5 | 2.43 | - | - |
+| CF230 | accepted | 4.4 | 4.17 | - | - |
+| CF384 | accepted | 36.3 | 36.06 | - | - |
+| CF88 | accepted | 3.6 | 3.39 | - | - |
+| CF413 | accepted | 40.4 | 40.17 | - | - |
+| CF26 | accepted | 16.6 | 16.33 | - | - |
+| CF299 | accepted | 34.7 | 34.42 | - | - |
+| CF13 | accepted | 37.1 | 36.85 | - | - |
+| CF18 | accepted | 39.5 | 39.23 | - | - |
+| CF416 | accepted | 5.9 | 5.67 | - | - |
+| CF97 | accepted | 11.4 | 11.10 | - | - |
+| CF50 | accepted | 24.7 | 24.29 | - | - |
+| CF53 | accepted | 35.9 | 35.67 | - | - |
+| CF264 | accepted | 18.0 | 17.78 | - | - |
+| CF260 | accepted | 45.0 | 44.79 | - | - |
+| CF98 | accepted | 28.1 | 27.85 | - | - |
+| CF258 | accepted | 40.6 | 40.18 | - | - |
+| CF218 | accepted | 13.5 | 13.30 | - | - |
+| CF217 | accepted | 14.1 | 13.88 | - | - |
+| CF213 | accepted | 15.1 | 14.79 | - | - |
+| CF232 | accepted | 22.5 | 22.29 | - | - |
+| CF71 | accepted | 22.1 | 21.82 | - | - |
+| CF48 | accepted | 60.2 | 59.83 | - | - |
+| CF52 | accepted | 69.4 | 69.09 | - | - |
+| CF254 | accepted | 99.7 | 99.37 | - | - |
+| CF240 | accepted | 191.8 | 191.50 | - | - |
+| CF236 | accepted | 93.8 | 93.49 | - | - |
+| CF408 | accepted | 112.8 | 112.30 | - | - |
+| CF269 | accepted | 101.9 | 101.49 | - | - |
+| CF319 | accepted | 80.0 | 79.73 | - | - |
+| CF231 | accepted | 80.6 | 80.15 | - | - |
+| CF265 | accepted (re-run by agent T on the certified finite-field residue route, 16:20; the 15:24 queue run was `incomplete`, `DLogResiduesRequired`) | 185 (T) | - | ModularlyVerifiedObservableTransport | first-kernel residues reconstructed from the certificate letters; `campaign.tsv` still carries the queue's `incomplete` row |
+| CF321 | accepted | 269.5 | 269.21 | - | - |
+| CF311 | accepted | 153.0 | 152.39 | - | - |
+| CF305 | accepted (re-run 16:15-16:20 as one launcher job of the mission script, 900 s cap; the 15:25 queue run was `incomplete`, `DLogResiduesRequired`) | 284 (launcher) | 276.89 | ModularlyVerifiedObservableTransport | first-kernel residues reconstructed on 15 certificate letters (certified finite-field route added by T); 10 demanded (order,row) pairs, 85 boundary coordinates, weight 4; `campaign.tsv` still carries the queue's `incomplete` row |
 
 Queue drained 15:26:34 (launcher wall 582 s for the 86 queued families; driver exit 2 = two
-incomplete).  **85 of 87 accepted** (`exact` = record written after `AcceptedObservableTransportQ`),
+incomplete).  **85 of 87 accepted** (the driver's `campaign.tsv` word for an accepted record is `exact`; the records themselves are `ModularlyVerifiedObservableTransport` -- R3 F6: the report's column now says `accepted`),
 **2 typed failures**: CF265 and CF305, both two-root families (charts Kallen13, Kallen23), both
 `DLogResiduesRequired` after 170.5 s and 160.1 s; no timeouts; the two-in-a-row rule never
 fired (CF311 succeeded between them).  Mission walls: 83 families under 30 s, CF231 (two-root)
