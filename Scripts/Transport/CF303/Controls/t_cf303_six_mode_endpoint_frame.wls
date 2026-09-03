@@ -136,6 +136,45 @@ check["rational_epsilon_layer_input_prepares",
   prepared["Dimensions"] === {2, 4} &&
   prepared["SharedBoundaryCoordinates"] === True &&
   productionLayer["ZeroColumns"] === {4}];
+fullRun = BuildRationalEpsilonLayerTransport[productionSource,
+  productionLayer, <|"Pairs" -> {{0, 1}, {0, 2}}|>,
+  "PrimeCount" -> 3, "WordRepresentation" -> "LazyOperator"];
+fullOperator = BuildRationalEpsilonLayerOperator[productionSource,
+  productionLayer, fullRun];
+fullEvidence = production["FullRunEvidence"];
+check["full_symbolic_endpoint_transport_and_operator",
+  fullRun["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+  AcceptedRationalEpsilonLayerTransportQ[fullRun, productionSource,
+    productionLayer, <|"Pairs" -> {{0, 1}, {0, 2}}|>] &&
+  fullOperator["Status"] === "RationalEpsilonLayerOperatorAccepted" &&
+  AcceptedRationalEpsilonLayerOperatorQ[fullOperator] &&
+  fullEvidence["Route"] === "SealedModularCircuit" &&
+  fullEvidence["GaugeRepresentation"] === "RationalFunction" &&
+  Length[fullEvidence["Primes"]] === 3 &&
+  PrimeQ[fullEvidence["FreshValidationPrime"]] &&
+  fullEvidence["GaugeNonzeroEntries"] === 6 &&
+  TrueQ[fullEvidence["FourArgumentPredicate"]] &&
+  TrueQ[fullEvidence["OperatorPredicate"]]];
+
+junction = production["AcceptedZPathJunction"];
+junctionSource = junction["SourceModeMap"];
+junctionTarget = junction["IndependentTargetF25ModeMap"];
+knownG25Extension = junction["KnownG25NormalResidueExtension"];
+check["accepted_z_path_junction_mode_map",
+  junction["Status"] === "CF303AcceptedZPathJunctionModeMapV1" &&
+  Dimensions[junctionSource] === {43, 6} &&
+  Dimensions[junctionTarget] === {2, 6} &&
+  Dimensions[knownG25Extension] === {2, 6} &&
+  DeleteDuplicates[junctionSource["NonzeroPositions"][[All, 1]]] ===
+    {34, 35, 36, 37} &&
+  Normal[knownG25Extension[[All, 4]]] ===
+    production["AcceptedCoordinateBinding"]
+      ["Block23NonzeroTargetExtensionInProductionNormalization"] &&
+  Normal[junctionTarget[[All, {5, 6}] ]] === IdentityMatrix[2] &&
+  junction["IndependentTargetRepresentation"] === "F25" &&
+  junction["TargetModeMapComplete"] === False &&
+  junction["RequiresRegularizedZRebase"] === True &&
+  junction["NoDirectSelectorSubstitution"] === True];
 
 kernelRecords = frame["KernelDecomposition"]["Kernels"];
 recomposed = Total[Function[record,

@@ -176,6 +176,48 @@ productionLayer = <|
 productionPrepare = BuildRationalEpsilonLayerTransport[
   productionSource, productionLayer, <|"Pairs" -> {{0, 1}, {0, 2}}|>,
   "PrepareOnly" -> True];
+productionDemand = <|"Pairs" -> {{0, 1}, {0, 2}}|>;
+productionTransportTiming = AbsoluteTiming[
+  productionTransport = BuildRationalEpsilonLayerTransport[
+    productionSource, productionLayer, productionDemand,
+    "PrimeCount" -> 3, "WordRepresentation" -> "LazyOperator"]];
+productionTransportSeconds = First[productionTransportTiming];
+productionTransportPredicate = AcceptedRationalEpsilonLayerTransportQ[
+  productionTransport, productionSource, productionLayer, productionDemand];
+productionOperatorTiming = AbsoluteTiming[
+  productionOperator = BuildRationalEpsilonLayerOperator[
+    productionSource, productionLayer, productionTransport]];
+productionOperatorSeconds = First[productionOperatorTiming];
+productionCertificate = Lookup[productionTransport, "Certificate", <||>];
+productionGaugeFunctions = Lookup[productionTransport,
+  "GaugeFunctions", <||>];
+productionGaugeNonzeros = Total[
+  Length[SparseArray[#]["NonzeroPositions"]] & /@
+    Values[productionGaugeFunctions]];
+
+(* Exact local map from the six production mode coefficients to the accepted
+   z-path coordinates at the soft junction.  This is not yet the rebase from
+   z=1/2: that requires a tangentially regularized inverse of the accepted
+   z-path operator. *)
+acceptedSourceStateRows = Join[Range[22], {26, 27}, Range[29, 36],
+  Range[39, 43], {23, 24, 25, 28, 37, 38}];
+productionToAcceptedBlock24 = Map[Cancel[Together[#]] &,
+  Inverse[block24AcceptedBinding], {2}];
+acceptedJunctionSourceMap = ConstantArray[0, {43, 6}];
+acceptedJunctionSourceMap[[{36, 37}, {1, 2}]] =
+  productionToAcceptedBlock24;
+acceptedJunctionSourceMap[[34, 3]] =
+  1/block23ZeroAcceptedNormalization;
+acceptedJunctionSourceMap[[{34, 35}, 4]] =
+  {1, -2}/block23NonzeroBaseNormalization;
+acceptedJunctionSourceMap = Map[Cancel[Together[#]] &,
+  acceptedJunctionSourceMap, {2}];
+independentTargetF25Map = {
+  {0, 0, 0, 0, 1, 0},
+  {0, 0, 0, 0, 0, 1}};
+knownG25NormalExtension = {
+  {0, 0, 0, block23NonzeroExtensionInBaseFrame, 0, 0},
+  {0, 0, 0, block23NonzeroExtensionInBaseFrame, 0, 0}};
 
 kernelNames = {"InvP", "InvOneMinusP", "InvOnePlusP", "InvP3",
   "InvP5", "P", "QuadraticDLog"};
@@ -289,11 +331,35 @@ validation = <|
     Lookup[productionPrepare, "Status", "Failure"] === "Prepared" &&
       Lookup[productionPrepare, "Dimensions", Missing[]] === {2, 4} &&
       TrueQ[Lookup[productionPrepare,
-        "SharedBoundaryCoordinates", False]]|>;
+        "SharedBoundaryCoordinates", False]],
+  "FullProductionTransportAccepted" ->
+    Lookup[productionTransport, "Status", "Failure"] ===
+      "RationalEpsilonLayerTransportAccepted" &&
+      TrueQ[productionTransportPredicate] &&
+      Lookup[productionOperator, "Status", "Failure"] ===
+        "RationalEpsilonLayerOperatorAccepted" &&
+      TrueQ[AcceptedRationalEpsilonLayerOperatorQ[productionOperator]],
+  "AcceptedJunctionModeMapExact" ->
+    Dimensions[acceptedJunctionSourceMap] === {43, 6} &&
+      Dimensions[independentTargetF25Map] === {2, 6} &&
+      Dimensions[knownG25NormalExtension] === {2, 6} &&
+      Complement[DeleteDuplicates[
+        SparseArray[acceptedJunctionSourceMap]["NonzeroPositions"][[All, 1]]],
+        {34, 35, 36, 37}] === {} &&
+      acceptedSourceStateRows[[{34, 35, 36, 37}]] ===
+        {40, 41, 42, 43}|>;
 If[! And @@ Values[validation],
   Print["FAIL validation ", InputForm[validation]];
   If[! TrueQ[validation["RationalLayerProductionInputPrepared"]],
     Print["FAIL production prepare ", InputForm[productionPrepare]]];
+  If[! TrueQ[validation["AcceptedJunctionModeMapExact"]],
+    Print["FAIL junction map dims=",
+      InputForm[{Dimensions[acceptedJunctionSourceMap],
+        Dimensions[independentTargetF25Map],
+        Dimensions[knownG25NormalExtension]}], " support=",
+      InputForm[DeleteDuplicates[SparseArray[acceptedJunctionSourceMap][
+        "NonzeroPositions"][[All, 1]]]], " states=",
+      InputForm[acceptedSourceStateRows[[{34, 35, 36, 37}]]]]];
   Quit[3]];
 
 result = <|
@@ -372,7 +438,53 @@ result = <|
       "FrobeniusRegularPrefactorRequired" -> True|>,
     "PrepareOnlyControl" -> KeyTake[productionPrepare,
       {"Status", "Orders", "Factors", "Dimensions",
-        "SharedBoundaryCoordinates"}]|>,
+        "SharedBoundaryCoordinates"}],
+    "FullRunEvidence" -> <|
+      "DemandPairs" -> productionDemand["Pairs"],
+      "TransportStatus" -> Lookup[productionTransport, "Status", None],
+      "Route" -> Lookup[productionCertificate, "IncomingRoute", None],
+      "GaugeStatus" -> Lookup[productionTransport, "GaugeStatus", None],
+      "GaugeRepresentation" -> Lookup[productionCertificate,
+        "GaugeRepresentation", None],
+      "Window" -> Lookup[productionTransport, "Window", None],
+      "Primes" -> Lookup[productionCertificate, "Primes", {}],
+      "FreshValidationPrime" -> Lookup[productionCertificate,
+        "FreshValidationPrime", None],
+      "GaugeOrders" -> Keys[productionGaugeFunctions],
+      "GaugeNonzeroEntries" -> productionGaugeNonzeros,
+      "GaugeByteCount" -> ByteCount[productionGaugeFunctions],
+      "TransportByteCount" -> ByteCount[productionTransport],
+      "FourArgumentPredicate" -> productionTransportPredicate,
+      "OperatorStatus" -> Lookup[productionOperator, "Status", None],
+      "OperatorPredicate" ->
+        AcceptedRationalEpsilonLayerOperatorQ[productionOperator],
+      "OperatorByteCount" -> ByteCount[productionOperator],
+      "TimingsSeconds" -> <|
+        "Transport" -> productionTransportSeconds,
+        "Operator" -> productionOperatorSeconds|>|>,
+    "AcceptedZPathJunction" -> <|
+      "Status" -> "CF303AcceptedZPathJunctionModeMapV1",
+      "Junction" -> <|"p" -> pFinal, "z" -> 2*pFinal,
+        "NormalCoordinate" -> "rho=2p-z",
+        "Prescription" -> "TangentialRegularized"|>,
+      "AcceptedSourceStateRows" -> acceptedSourceStateRows,
+      "SourceModeMap" -> SparseArray[acceptedJunctionSourceMap],
+      "IndependentTargetRepresentation" -> "F25",
+      "IndependentTargetF25ModeMap" ->
+        SparseArray[independentTargetF25Map],
+      "KnownG25NormalResidueExtension" ->
+        SparseArray[knownG25NormalExtension],
+      "TargetModeMapComplete" -> False,
+      "MissingTargetConversion" ->
+        "Apply G25=F25-H.F_source with the principal and finite local H deck contracted against source Frobenius jets",
+      "PhysicalNormalExponents" ->
+        {0, 0, 0, -2 - 4*eps, 0, 0},
+      "CanonicalNormalExponents" ->
+        {0, 0, 0, -4*eps, 0, 0},
+      "AcceptedZBasePoint" -> 1/2,
+      "AcceptedZBoundaryColumns" -> 293,
+      "RequiresRegularizedZRebase" -> True,
+      "NoDirectSelectorSubstitution" -> True|>|>,
   "KernelDecomposition" -> <|
     "GPLAlphabet" -> {0, 1, -1, 1/Sqrt[2], -1/Sqrt[2]},
     "Kernels" -> kernelRecords,

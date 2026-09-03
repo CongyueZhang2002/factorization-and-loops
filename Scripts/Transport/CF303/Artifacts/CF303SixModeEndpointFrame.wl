@@ -247,13 +247,56 @@
      "FrobeniusRegularPrefactorRequired" -> True|>, 
    "PrepareOnlyControl" -> <|"Status" -> "Prepared", "Orders" -> {0}, 
      "Factors" -> {-1 + p, p, 1 + p, -1/2 + p^2}, "Dimensions" -> {2, 4}, 
-     "SharedBoundaryCoordinates" -> True|>|>, 
- "KernelDecomposition" -> <|"GPLAlphabet" -> {0, 1, -1, 1/Sqrt[2], 
-     -(1/Sqrt[2])}, "Kernels" -> {<|"Name" -> "InvP", "Kernel" -> p^(-1), 
-      "Type" -> "GPL", "Primitive" -> Log[p], "Couplings" -> 
-       {<|"Row" -> 1, "Column" -> 1, "Value" -> -2*(1 + eps)|>, 
-        <|"Row" -> 2, "Column" -> 1, "Value" -> (1 + 4*eps + 4*eps^2)/
-           (1 + eps)|>, <|"Row" -> 2, "Column" -> 2, "Value" -> -3 - 2*eps|>, 
+     "SharedBoundaryCoordinates" -> True|>, "FullRunEvidence" -> 
+    <|"DemandPairs" -> {{0, 1}, {0, 2}}, "TransportStatus" -> 
+      "RationalEpsilonLayerTransportAccepted", 
+     "Route" -> "SealedModularCircuit", "GaugeStatus" -> 
+      "GaugeRationalFunctionReconstructed", "GaugeRepresentation" -> 
+      "RationalFunction", "Window" -> {0, 0}, 
+     "Primes" -> {1545924587, 1979909543, 1511375849}, 
+     "FreshValidationPrime" -> 1928321617, "GaugeOrders" -> {0}, 
+     "GaugeNonzeroEntries" -> 6, "GaugeByteCount" -> 3112, 
+     "TransportByteCount" -> 37712, "FourArgumentPredicate" -> True, 
+     "OperatorStatus" -> "RationalEpsilonLayerOperatorAccepted", 
+     "OperatorPredicate" -> True, "OperatorByteCount" -> 26320, 
+     "TimingsSeconds" -> <|"Transport" -> 0.042469, 
+       "Operator" -> 0.000789|>|>, "AcceptedZPathJunction" -> 
+    <|"Status" -> "CF303AcceptedZPathJunctionModeMapV1", 
+     "Junction" -> <|"p" -> pFinal, "z" -> 2*pFinal, "NormalCoordinate" -> 
+        "rho=2p-z", "Prescription" -> "TangentialRegularized"|>, 
+     "AcceptedSourceStateRows" -> {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 
+      14, 15, 16, 17, 18, 19, 20, 21, 22, 26, 27, 29, 30, 31, 32, 33, 34, 35, 
+      36, 39, 40, 41, 42, 43, 23, 24, 25, 28, 37, 38}, 
+     "SourceModeMap" -> SparseArray[Automatic, {43, 6}, 0, 
+       {1, {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 5, 6, 6, 6, 6, 6, 6, 
+         6}, {{3}, {4}, {4}, {1}, {2}, {2}}}, 
+        {(-4*eps^3*(1 + 4*eps))/(7*(1 + 5*eps)*(-2 + 13*eps - 27*eps^2 + 
+            18*eps^3)), eps^3/(14*(1 + 4*eps)*(-2 + 13*eps - 27*eps^2 + 
+            18*eps^3)), -1/7*eps^3/((1 + 4*eps)*(-2 + 13*eps - 27*eps^2 + 
+             18*eps^3)), (-2*eps^3)/(3*(-2 + 13*eps - 27*eps^2 + 18*eps^3)), 
+         (-4*(eps^3 + eps^4))/(3*(-2 + eps + 35*eps^2 - 40*eps^3 - 
+            108*eps^4 + 144*eps^5)), (-16*(eps^3 + eps^4))/
+          (3*(-2 + eps + 35*eps^2 - 40*eps^3 - 108*eps^4 + 144*eps^5))}}], 
+     "IndependentTargetRepresentation" -> "F25", 
+     "IndependentTargetF25ModeMap" -> SparseArray[Automatic, {2, 6}, 0, 
+       {1, {{0, 1, 2}, {{5}, {6}}}, {1, 1}}], 
+     "KnownG25NormalResidueExtension" -> SparseArray[Automatic, {2, 6}, 0, 
+       {1, {{0, 1, 2}, {{4}, {4}}}, {-(1/((2 + 3*eps)*(1 + 4*eps))), 
+         -(1/((2 + 3*eps)*(1 + 4*eps)))}}], "TargetModeMapComplete" -> False, 
+     "MissingTargetConversion" -> "Apply G25=F25-H.F_source with the \
+principal and finite local H deck contracted against source Frobenius jets", 
+     "PhysicalNormalExponents" -> {0, 0, 0, -2 - 4*eps, 0, 0}, 
+     "CanonicalNormalExponents" -> {0, 0, 0, -4*eps, 0, 0}, 
+     "AcceptedZBasePoint" -> 1/2, "AcceptedZBoundaryColumns" -> 293, 
+     "RequiresRegularizedZRebase" -> True, "NoDirectSelectorSubstitution" -> 
+      True|>|>, "KernelDecomposition" -> 
+  <|"GPLAlphabet" -> {0, 1, -1, 1/Sqrt[2], -(1/Sqrt[2])}, 
+   "Kernels" -> {<|"Name" -> "InvP", "Kernel" -> p^(-1), "Type" -> "GPL", 
+      "Primitive" -> Log[p], "Couplings" -> {<|"Row" -> 1, "Column" -> 1, 
+         "Value" -> -2*(1 + eps)|>, <|"Row" -> 2, "Column" -> 1, 
+         "Value" -> (1 + 4*eps + 4*eps^2)/(1 + eps)|>, 
+        <|"Row" -> 2, "Column" -> 2, "Value" -> -3 - 2*eps|>, 
         <|"Row" -> 3, "Column" -> 3, "Value" -> -4*(1 + 2*eps)|>, 
         <|"Row" -> 4, "Column" -> 1, "Value" -> (2*(eps + 2*eps^2))/
            (1 + eps)|>, <|"Row" -> 4, "Column" -> 2, 
@@ -317,6 +360,8 @@
    "ProductionDiagonalBlocksAreEpsilonForm" -> True, 
    "ProductionCrossEigenspaceBlocksVanish" -> True, 
    "AcceptedTargetExtensionBoundToNonzeroFrame" -> True, 
-   "RationalLayerProductionInputPrepared" -> True|>, 
- "TimingsSeconds" -> <|"FrameAndGamma" -> 0.006959, 
-   "KernelDecomposition" -> 0.014098|>|>
+   "RationalLayerProductionInputPrepared" -> True, 
+   "FullProductionTransportAccepted" -> True, 
+   "AcceptedJunctionModeMapExact" -> True|>, 
+ "TimingsSeconds" -> <|"FrameAndGamma" -> 0.006719, 
+   "KernelDecomposition" -> 0.01276|>|>

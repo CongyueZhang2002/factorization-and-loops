@@ -136,19 +136,23 @@ give respectively
 eps (4/p + 16p/(1-2p^2)).
 ```
 
-The exact canonical nonzero source mode extends into both accepted target
-coordinates by the same coefficient
+The accepted normal-residue deck gives the nonzero source mode the same
+extension in both `G25` coordinates,
 
 ```text
 y = -14(-2+13eps-27eps^2+18eps^3)/(eps^3(2+3eps)).
 ```
 
-In the `g6` production normalization, this is
-`-1/((1+4eps)(2+3eps)) (1,1)`.  It is encoded in the nonzero normal-mode
-frame itself, not added again as an independent target boundary selector.
-The selectors therefore contain six shared constant boundary coordinates:
-four source modes followed by two independent target zero modes.  The
-resulting `ProductionInput` contains:
+which in the `g6` production normalization is
+`-1/((1+4eps)(2+3eps)) (1,1)`.  The physical `p`-path frame already contains
+the source-dependent target behavior, so its ordinary target selectors add
+only the two independent zero modes.  This does **not** by itself identify
+the raw `F25=T25^-1 I25` endpoint columns with `G25`: that conversion must
+contract the principal and finite local deck of `H` against the source
+Frobenius jets.  The junction record keeps the known `G25` extension and the
+independent `F25` columns separate and marks the full target map incomplete.
+
+The resulting `ProductionInput` contains:
 
 - a four-mode source epsilon-form operator on `0` and the quadratic factor
   `1-2p^2`;
@@ -162,6 +166,71 @@ resulting `ProductionInput` contains:
 A bounded call to `BuildRationalEpsilonLayerTransport[...,"PrepareOnly"->True]`
 accepts this record with dimensions `{2,4}` and shared boundary coordinates.
 No dense 45-by-45 connection is involved.
+
+The full symbolic-endpoint route is also exercised, not only prepared.  For
+demand `{{0,1},{0,2}}` it used three reconstruction primes plus a fresh
+validation prime, reconstructed six nonzero rational gauge functions at
+epsilon order zero, and produced accepted transport and lazy-operator
+records.  The reference build took about `0.05 s` after package load; the
+gauge, transport and operator occupied about `3.1 KB`, `37.7 KB` and
+`26.3 KB`, respectively.  Exact machine values and primes are stored in
+`ProductionInput["FullRunEvidence"]`.
+
+## Junction to the accepted z-path operator
+
+`ProductionInput["AcceptedZPathJunction"]` supplies the exact local source
+mode map in the accepted 43-row order.  It is supported only on source
+positions `{34,35,36,37}`, corresponding to state rows `{40,41,42,43}`.
+The junction is
+
+```text
+p = pFinal,  z = 2 pFinal,  rho = 2p-z -> 0
+```
+
+with a tangentially regularized prescription.  Direct substitution into the
+accepted z-path operator's 293 selectors is invalid: those selectors live at
+the regular base `z=1/2`, whereas the junction is singular.
+
+The smallest connector should consume a junction record with:
+
+1. the exact 43-by-N source mode map and 2-by-N target-mode data at the soft
+   point, including the local exponents and sheet/direction;
+2. an accepted interior operator ABI that can return a requested source or
+   target word coefficient without materializing all words;
+3. the symbolic `HByOrderPairs`, evaluated locally only after its principal
+   and finite terms are multiplied by the required source Frobenius jets;
+4. the original Stage-3 coordinate keys, carried through unchanged.
+
+Its operation is a tangentially regularized, order-by-order triangular solve
+for the 293 base constants at `z=1/2`, followed by the existing lazy z-path
+action.  If `Z_q[w_z]` is a requested z-word map, `J_r` the regularized
+junction solve, and `P_s[w_p]` a p-word map, the composed sparse coefficient
+is
+
+```text
+sum_(q+r+s=n) Z_q[w_z] . J_r . P_s[w_p].
+```
+
+The word key should remain the ordered pair `{pWord,zWord}`.  Expanding it
+into shuffled one-path words is unnecessary and can cause combinatorial
+growth; the represented function is simply the product of the two segment
+integrals.  The connector must preserve the six (later inherited-extended)
+Stage-3 boundary-coordinate keys instead of exposing the intermediate 293
+regular-base constants as new physical periods.
+
+The accepted z adapter already exposes the needed demand ABI:
+
+- source rows through `masterTransportCanonicalChenWordCoefficient` on its
+  embedded 43-row source operator;
+- final rows through `cf303HybridBaselineCanonicalWordCoefficient` or
+  `cf303HybridBaselinePhysicalWordCoefficient`;
+- standard GPL/eMPL leaves through
+  `cf303HybridBaselineResolvedPhysicalWordTerms`.
+
+What remains genuinely missing is the regularized junction solve, especially
+the full local `F25 -> G25=F25-H F_source` contraction and the inherited
+source modes.  A generic connector should require these as typed inputs; it
+must not silently treat `z=2p` as an ordinary base-point evaluation.
 
 ## Accepted final-block gauge
 
