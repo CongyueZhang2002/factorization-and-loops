@@ -12,7 +12,7 @@
    therefore share the same transport engine without being conflated. *)
 
 Clear[BuildEndpointFrobenius, BuildBoundaryModeMap,
-  BuildTransportBoundaryVector];
+  BuildTransportBoundaryVector, BoundaryPeriodCoefficient];
 ClearAll[boundaryExactZeroQ, boundaryCanonicalMatrix,
   boundaryFiniteQ, boundaryParticularSolution, boundaryLocalOrder,
   boundaryLeadingCoefficient, boundaryModeExtension,
@@ -323,7 +323,8 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
     suppliedSeed = Lookup[realization, "CanonicalSeed", Automatic];
     If[MissingQ[periodID] ||
         ! MemberQ[{"GPL", "Elliptic"}, periodClass] ||
-        ! IntegerQ[periodEpsilonValuation] || ! ListQ[demandedOutputs],
+        ! IntegerQ[periodEpsilonValuation] || ! ListQ[demandedOutputs] ||
+        ! AllTrue[demandedOutputs, MatchQ[#, {_Integer, _Integer}] &],
       Return[<|"Status" -> "BoundaryPeriodDescriptionInvalid",
         "PeriodID" -> periodID|>]
     ];
@@ -491,20 +492,27 @@ boundaryExactCoefficientQ[value_, regulator_Symbol] :=
   FreeQ[value, regulator | _Real | _Missing | Indeterminate |
     ComplexInfinity | DirectedInfinity[_]];
 
+Options[BuildTransportBoundaryVector] = {
+  "MissingPeriodAction" -> "Refuse"
+};
+
 BuildTransportBoundaryVector[modeMap_Association, periodData_,
-    window : {_Integer, _Integer}] := Catch@Module[
-  {fail, low = window[[1]], high = window[[2]], modes, regulator,
-   dimension, records, normalizedRecords, recordList, missingGPL = {},
-   missingElliptic = {}, invalid = {}, coordinates = {}, modeValues = {},
-   depthProblems = {}, needsLedger = {}, appendLedger, modeValuation,
-   markMissing, expectedValuation,
-   record, recordStatus, valuation, requiredHigh, coefficients,
-   missingOrders, values, potentialCoordinates, actualCoordinates,
+    window : {_Integer, _Integer}, OptionsPattern[]] := Catch@Module[
+  {fail, low = window[[1]], high = window[[2]], action, formalActionQ,
+   modes, regulator, dimension, records, normalizedRecords, recordIDs,
+   missingGPL = {}, missingElliptic = {}, invalid = {}, depthProblems = {},
+   windowProblems = {}, coordinates = {}, modeValues = {}, needsLedger = {},
+   appendLedger, markMissing, resolveCoefficients, addCoordinates,
+   modeValuation, expectedValuation, activeDemand, targetHigh,
+   requiredHigh, requiredOrders, potentialCoordinates, actualCoordinates,
+   record, recordStatus, coefficientData, missingOrders, resolved,
    activeClasses = {}, selectorForOrder, selectors, constants,
-   boundaryVectors, functionSpace, incompleteStatus},
+   boundaryVectors, functionSpace, dataStatus, incompleteStatus},
   fail[status_, extra_: <||>] :=
     Throw[Join[<|"Status" -> status|>, extra]];
-  If[low > high,
+  action = OptionValue["MissingPeriodAction"];
+  formalActionQ = action === "Formal";
+  If[low > high || ! MemberQ[{"Refuse", "Formal"}, action],
     fail["BoundaryEpsilonWindowInvalid"]
   ];
   If[Lookup[modeMap, "Status", None] =!= "BoundaryModeMapBuilt",
@@ -519,8 +527,8 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
     AssociationQ[periodData], periodData,
     ListQ[periodData] && AllTrue[periodData, AssociationQ] &&
         AllTrue[periodData, KeyExistsQ[#, "PeriodID"] &],
-      recordList = Lookup[periodData, "PeriodID"];
-      If[! DuplicateFreeQ[recordList],
+      recordIDs = Lookup[periodData, "PeriodID"];
+      If[! DuplicateFreeQ[recordIDs],
         fail["BoundaryPeriodDataInvalid",
           <|"Reason" -> "DuplicatePeriodID"|>]
       ];
@@ -531,7 +539,7 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
   normalizedRecords = Association@KeyValueMap[
     #1 -> If[AssociationQ[#2] && ! KeyExistsQ[#2, "PeriodID"],
       Join[<|"PeriodID" -> #1|>, #2], #2] &, records];
-  appendLedger[mode_, status_, affected_, data_: <||>] :=
+  appendLedger[mode_, demand_, status_, affected_, data_: <||>] :=
     AppendTo[needsLedger, Join[<|
       "PeriodID" -> mode["PeriodID"],
       "PeriodClass" -> mode["PeriodClass"],
@@ -542,7 +550,7 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
         "LocalEigenvalue" -> mode["LocalEigenvalue"],
         "GeneralizedLevel" -> mode["GeneralizedLevel"]|>,
       "AffectedBoundaryCoordinates" -> affected,
-      "DemandedOutputs" -> mode["DemandedOutputs"],
+      "DemandedOutputs" -> demand,
       "Status" -> status|>, data]];
   markMissing[mode_, orders_] :=
     If[mode["PeriodClass"] === "GPL",
@@ -550,110 +558,195 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
         <|"PeriodID" -> mode["PeriodID"], "Orders" -> orders|>],
       AppendTo[missingElliptic,
         <|"PeriodID" -> mode["PeriodID"], "Orders" -> orders|>]];
+  resolveCoefficients[mode_, data_Association, orders_List] :=
+    Association@Table[order -> If[KeyExistsQ[data, order], data[order],
+      BoundaryPeriodCoefficient[mode["PeriodID"], order]],
+      {order, orders}];
+  addCoordinates[mode_, data_Association, orders_List] := Module[
+    {affected = {}, value},
+    Do[
+      value = data[order];
+      If[! boundaryExactZeroQ[value],
+        AppendTo[coordinates, <|
+          "PeriodID" -> mode["PeriodID"],
+          "PeriodClass" -> mode["PeriodClass"],
+          "EpsilonOrder" -> order,
+          "Value" -> value|>];
+        AppendTo[modeValues, <|"Mode" -> mode["CanonicalMode"],
+          "EpsilonOrder" -> order|>];
+        AppendTo[affected, {mode["PeriodID"], order}]
+      ],
+      {order, orders}];
+    If[affected =!= {}, AppendTo[activeClasses, mode["PeriodClass"]]];
+    affected
+  ];
 
   Do[
+    (* A mode absent from the already-pruned demand can require no boundary
+       coefficient and therefore gets no needs-ledger row. *)
+    activeDemand = DeleteDuplicates@Select[mode["DemandedOutputs"],
+      MatchQ[#, {_Integer, _Integer}] &&
+        low <= First[#] <= high &];
+    If[activeDemand === {}, Continue[]];
     modeValuation = boundaryEpsilonValuation[
       mode["CanonicalMode"], regulator];
     expectedValuation = mode["PeriodEpsilonValuation"];
     If[modeValuation === $Failed || ! IntegerQ[modeValuation],
       AppendTo[invalid, <|"PeriodID" -> mode["PeriodID"],
         "Reason" -> "CanonicalModeNotRationalInRegulator"|>];
-      appendLedger[mode, "Unevaluated", {},
+      appendLedger[mode, activeDemand, "Unevaluated", {},
         <|"Problem" -> "CanonicalModeNotRationalInRegulator"|>];
       Continue[]
     ];
-    requiredHigh = high - modeValuation;
-    potentialCoordinates = If[expectedValuation <= requiredHigh,
-      Table[{mode["PeriodID"], order},
-        {order, expectedValuation, requiredHigh}], {}];
-    If[high - expectedValuation > modeMap["MaximumEpsilonOrder"],
+    targetHigh = Max[activeDemand[[All, 1]]];
+    requiredHigh = targetHigh - modeValuation;
+    requiredOrders = If[expectedValuation <= requiredHigh,
+      Range[expectedValuation, requiredHigh], {}];
+    potentialCoordinates =
+      {mode["PeriodID"], #} & /@ requiredOrders;
+    If[requiredOrders === {}, Continue[]];
+    If[expectedValuation + modeValuation < low,
+      AppendTo[windowProblems, <|"PeriodID" -> mode["PeriodID"],
+        "NeededMinimumOrder" -> expectedValuation + modeValuation,
+        "AvailableMinimumOrder" -> low|>];
+      appendLedger[mode, activeDemand, "Unevaluated",
+        potentialCoordinates,
+        <|"Problem" -> "BoundaryEpsilonWindowTooNarrow"|>];
+      Continue[]
+    ];
+    If[targetHigh - expectedValuation >
+        modeMap["MaximumEpsilonOrder"],
       AppendTo[depthProblems, <|"PeriodID" -> mode["PeriodID"],
-        "NeededEpsilonOrder" -> high - expectedValuation,
+        "NeededEpsilonOrder" -> targetHigh - expectedValuation,
         "AvailableEpsilonOrder" -> modeMap["MaximumEpsilonOrder"]|>];
-      appendLedger[mode, "Unevaluated", potentialCoordinates,
+      appendLedger[mode, activeDemand, "Unevaluated",
+        potentialCoordinates,
         <|"Problem" -> "FrobeniusDepthInsufficient"|>];
       Continue[]
     ];
     record = Lookup[normalizedRecords, mode["PeriodID"], Missing[]];
     If[MissingQ[record] || ! AssociationQ[record],
-      markMissing[mode, If[potentialCoordinates === {}, {},
-        potentialCoordinates[[All, 2]]]];
-      appendLedger[mode, "Unevaluated", potentialCoordinates];
+      If[formalActionQ,
+        resolved = resolveCoefficients[mode, <||>, requiredOrders];
+        actualCoordinates = addCoordinates[mode, resolved, requiredOrders],
+        markMissing[mode, requiredOrders];
+        actualCoordinates = potentialCoordinates];
+      appendLedger[mode, activeDemand, "Unevaluated",
+        actualCoordinates];
+      Continue[]
+    ];
+    If[Lookup[record, "PeriodID", mode["PeriodID"]] =!=
+        mode["PeriodID"],
+      AppendTo[invalid, <|"PeriodID" -> mode["PeriodID"],
+        "Reason" -> "PeriodIDMismatch"|>];
+      appendLedger[mode, activeDemand, "Unevaluated",
+        potentialCoordinates, <|"Problem" -> "PeriodIDMismatch"|>];
       Continue[]
     ];
     If[Lookup[record, "PeriodClass", None] =!= mode["PeriodClass"],
       AppendTo[invalid, <|"PeriodID" -> mode["PeriodID"],
         "Reason" -> "PeriodClassMismatch"|>];
-      appendLedger[mode, "Unevaluated", potentialCoordinates,
+      appendLedger[mode, activeDemand, "Unevaluated",
+        potentialCoordinates,
         <|"Problem" -> "PeriodClassMismatch"|>];
       Continue[]
     ];
     recordStatus = Lookup[record, "Status", None];
     If[recordStatus === "ExactZero",
-      appendLedger[mode, "KnownZero", {}];
+      appendLedger[mode, activeDemand, "KnownZero", {}];
       Continue[]
     ];
     If[recordStatus === "Transferable",
-      markMissing[mode, If[potentialCoordinates === {}, {},
-        potentialCoordinates[[All, 2]]]];
-      appendLedger[mode, "Transferable", potentialCoordinates,
-        KeyTake[record, {"TransferFrom", "TransferMap"}]];
+      coefficientData = Lookup[record, "TransferMap", <||>];
+      If[! AssociationQ[coefficientData] ||
+          ! AllTrue[Lookup[coefficientData,
+              Intersection[Keys[coefficientData], requiredOrders]],
+            boundaryExactCoefficientQ[#, regulator] &],
+        AppendTo[invalid, <|"PeriodID" -> mode["PeriodID"],
+          "Reason" -> "TransferMapInvalid"|>];
+        appendLedger[mode, activeDemand, "Transferable",
+          potentialCoordinates, <|"Problem" -> "TransferMapInvalid"|>];
+        Continue[]
+      ];
+      missingOrders = Complement[requiredOrders, Keys[coefficientData]];
+      If[missingOrders =!= {} && ! formalActionQ,
+        markMissing[mode, missingOrders];
+        appendLedger[mode, activeDemand, "Transferable",
+          potentialCoordinates,
+          Join[KeyTake[record, {"TransferFrom"}],
+            <|"MissingOrders" -> missingOrders|>]];
+        Continue[]
+      ];
+      resolved = resolveCoefficients[mode, coefficientData,
+        requiredOrders];
+      actualCoordinates = addCoordinates[mode, resolved, requiredOrders];
+      appendLedger[mode, activeDemand, "Transferable",
+        actualCoordinates,
+        Join[KeyTake[record, {"TransferFrom"}],
+          If[missingOrders === {}, <||>,
+            <|"MissingOrders" -> missingOrders|>]]];
       Continue[]
     ];
     If[recordStatus =!= "Exact",
-      markMissing[mode, If[potentialCoordinates === {}, {},
-        potentialCoordinates[[All, 2]]]];
-      appendLedger[mode, "Unevaluated", potentialCoordinates];
+      If[formalActionQ,
+        resolved = resolveCoefficients[mode, <||>, requiredOrders];
+        actualCoordinates = addCoordinates[mode, resolved, requiredOrders],
+        markMissing[mode, requiredOrders];
+        actualCoordinates = potentialCoordinates];
+      appendLedger[mode, activeDemand, "Unevaluated",
+        actualCoordinates];
       Continue[]
     ];
-    valuation = Lookup[record, "Valuation", Missing[]];
-    coefficients = Lookup[record, "Coefficients", Missing[]];
-    If[valuation =!= expectedValuation || ! AssociationQ[coefficients],
+    If[Lookup[record, "Valuation", Missing[]] =!=
+        expectedValuation ||
+        ! AssociationQ[Lookup[record, "Coefficients", Missing[]]],
       AppendTo[invalid, <|"PeriodID" -> mode["PeriodID"],
         "Reason" -> "PeriodSeriesInvalid",
         "ExpectedValuation" -> expectedValuation,
-        "ActualValuation" -> valuation|>];
-      appendLedger[mode, "Unevaluated", potentialCoordinates,
+        "ActualValuation" -> Lookup[record, "Valuation", Missing[]]|>];
+      appendLedger[mode, activeDemand, "Unevaluated",
+        potentialCoordinates,
         <|"Problem" -> "PeriodSeriesInvalid"|>];
       Continue[]
     ];
-    missingOrders = If[valuation <= requiredHigh,
-      Complement[Range[valuation, requiredHigh], Keys[coefficients]], {}];
-    If[missingOrders =!= {},
-      markMissing[mode, missingOrders];
-      appendLedger[mode, "Unevaluated", potentialCoordinates,
-        <|"MissingOrders" -> missingOrders|>];
-      Continue[]
-    ];
-    values = If[valuation <= requiredHigh,
-      Lookup[coefficients, Range[valuation, requiredHigh]], {}];
-    If[! AllTrue[values,
-        boundaryExactCoefficientQ[#, regulator] &] ||
-        (valuation <= requiredHigh &&
-          boundaryExactZeroQ[Lookup[coefficients, valuation]]),
+    coefficientData = record["Coefficients"];
+    If[! AllTrue[Lookup[coefficientData,
+          Intersection[Keys[coefficientData], requiredOrders]],
+        boundaryExactCoefficientQ[#, regulator] &&
+          FreeQ[#, _BoundaryPeriodCoefficient] &] ||
+        (MemberQ[requiredOrders, expectedValuation] &&
+          KeyExistsQ[coefficientData, expectedValuation] &&
+          boundaryExactZeroQ[coefficientData[expectedValuation]]),
       AppendTo[invalid, <|"PeriodID" -> mode["PeriodID"],
         "Reason" -> "PeriodCoefficientsNotExact"|>];
-      appendLedger[mode, "Unevaluated", potentialCoordinates,
+      appendLedger[mode, activeDemand, "Unevaluated",
+        potentialCoordinates,
         <|"Problem" -> "PeriodCoefficientsNotExact"|>];
       Continue[]
     ];
-    actualCoordinates = {};
-    Do[
-      If[! boundaryExactZeroQ[coefficients[order]],
-        AppendTo[coordinates, <|
-          "PeriodID" -> mode["PeriodID"],
-          "PeriodClass" -> mode["PeriodClass"],
-          "EpsilonOrder" -> order,
-          "Value" -> coefficients[order]|>];
-        AppendTo[modeValues, <|"Mode" -> mode["CanonicalMode"],
-          "EpsilonOrder" -> order|>];
-        AppendTo[actualCoordinates, {mode["PeriodID"], order}]
-      ],
-      {order, valuation, requiredHigh}];
-    If[actualCoordinates =!= {},
-      AppendTo[activeClasses, mode["PeriodClass"]]];
-    appendLedger[mode, "KnownExact", actualCoordinates],
+    missingOrders = Complement[requiredOrders, Keys[coefficientData]];
+    If[missingOrders =!= {} && ! formalActionQ,
+      markMissing[mode, missingOrders];
+      appendLedger[mode, activeDemand, "Unevaluated",
+        potentialCoordinates,
+        <|"MissingOrders" -> missingOrders|>];
+      Continue[]
+    ];
+    resolved = resolveCoefficients[mode, coefficientData,
+      requiredOrders];
+    actualCoordinates = addCoordinates[mode, resolved, requiredOrders];
+    appendLedger[mode, activeDemand,
+      If[missingOrders === {}, "KnownExact", "Unevaluated"],
+      actualCoordinates,
+      If[missingOrders === {}, <||>,
+        <|"MissingOrders" -> missingOrders|>]],
     {mode, modes}];
+  If[windowProblems =!= {},
+    Return[<|"Status" -> "BoundaryEpsilonWindowTooNarrow",
+      "Family" -> modeMap["Family"], "Limit" -> modeMap["Limit"],
+      "RequestedWindow" -> window, "Problems" -> windowProblems,
+      "Stage3NeedsLedger" -> needsLedger|>, Module]
+  ];
   If[depthProblems =!= {},
     Return[<|"Status" -> "FrobeniusDepthInsufficient",
       "Family" -> modeMap["Family"], "Limit" -> modeMap["Limit"],
@@ -710,14 +803,20 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
     MemberQ[activeClasses, "Elliptic"], "GPL+Elliptic",
     MemberQ[activeClasses, "GPL"], "GPL",
     True, "Zero"];
+  dataStatus = If[FreeQ[constants, _BoundaryPeriodCoefficient],
+    If[MemberQ[Lookup[needsLedger, "Status", {}], "Transferable"],
+      "ExactWithTransfers", "Exact"], "FormalNotEvaluated"];
   <|
-    "Status" -> "TransportBoundaryVectorBuilt",
+    "Status" -> If[dataStatus === "FormalNotEvaluated",
+      "FormalTransportBoundaryVectorBuilt",
+      "TransportBoundaryVectorBuilt"],
     "Family" -> modeMap["Family"],
     "Limit" -> modeMap["Limit"],
     "Dimension" -> dimension,
     "Regulator" -> regulator,
     "Window" -> window,
     "FunctionSpace" -> functionSpace,
+    "BoundaryDataStatus" -> dataStatus,
     "BoundaryCoordinates" -> coordinates,
     "BoundaryConstantVector" -> constants,
     "BoundarySelectors" -> selectors,

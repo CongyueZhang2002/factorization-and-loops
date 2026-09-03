@@ -45,7 +45,7 @@ realizations = {
     "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {1},
     "PhysicalRows" -> {1}, "EpsilonExponent" -> 0,
     "IntegerValuation" -> 0, "LogLevel" -> 0,
-    "DemandedOutputs" -> {{0, 1}, {1, 1}}|>,
+    "DemandedOutputs" -> {{0, 1}, {1, 1}, {3, 1}}|>,
   <|"PeriodID" -> "e", "PeriodClass" -> "Elliptic",
     "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {2},
     "PhysicalRows" -> {2}, "EpsilonExponent" -> 1,
@@ -161,6 +161,77 @@ FTAssert["missing GPL data and missing data of both classes have distinct typed 
 FTAssert["a requested epsilon depth beyond the stored Frobenius prefactor is refused typed",
   BuildTransportBoundaryVector[modeMap, periods,
     {0, 3}]["Status"] === "FrobeniusDepthInsufficient"];
+
+prunedRealizations = realizations;
+prunedRealizations[[1, "DemandedOutputs"]] = {{0, 1}};
+prunedRealizations[[2, "DemandedOutputs"]] = {{1, 2}};
+prunedModeMap = BuildBoundaryModeMap[frobenius,
+  {{1, 0}, {u, 2}}, modeSpec, prunedRealizations];
+formalBoundary = BuildTransportBoundaryVector[prunedModeMap, <||>,
+  {0, 1}, "MissingPeriodAction" -> "Formal"];
+FTAssert["formal mixed periods produce a rational selector basis and remain explicitly unevaluated",
+  formalBoundary["Status"] ===
+      "FormalTransportBoundaryVectorBuilt" &&
+    formalBoundary["BoundaryDataStatus"] === "FormalNotEvaluated" &&
+    Context[BoundaryPeriodCoefficient] === "FeynFacet`" &&
+    formalBoundary["BoundaryConstantVector"] === {
+      BoundaryPeriodCoefficient["g", 0],
+      BoundaryPeriodCoefficient["e", 0],
+      BoundaryPeriodCoefficient["e", 1]} &&
+    formalBoundary["BoundarySelectors"][0] ===
+      {{1, 0, 0}, {0, 1/2, 0}} &&
+    formalBoundary["BoundarySelectors"][1] ===
+      {{0, 0, 0}, {0, 0, 1/2}} &&
+    Lookup[formalBoundary["Stage3NeedsLedger"], "Status"] ===
+      {"Unevaluated", "Unevaluated"}];
+
+FTAssert["demand pruning removes an unused period order from both the coordinate basis and needs ledger",
+  FreeQ[formalBoundary["BoundaryCoordinates"],
+    <|"PeriodID" -> "g", "EpsilonOrder" -> 1|>] &&
+    FreeQ[formalBoundary["Stage3NeedsLedger"], {"g", 1}] &&
+    formalBoundary["Stage3NeedsLedger"][[1,
+      "AffectedBoundaryCoordinates"]] === {{"g", 0}}];
+
+formalSource = Join[<|"Letters" -> {{"GPLPole", -1}},
+    "Residues" -> {{{0, 0}, {0, 0}}}|>,
+  formalBoundary["TransportBoundary"]];
+formalConsumed = BuildRationalEpsilonLayerTransport[formalSource, layer,
+  <|"Pairs" -> {{1, 1}}|>];
+FTAssert["transport proceeds unchanged with formal GPL and elliptic boundary constants",
+  formalConsumed["Status"] ===
+      "RationalEpsilonLayerTransportAccepted" &&
+    formalConsumed["BoundaryColumns"] === 4];
+
+transferredBoundary = BuildTransportBoundaryVector[prunedModeMap, <|
+    "g" -> <|"PeriodClass" -> "GPL", "Status" -> "ExactZero"|>,
+    "e" -> <|"PeriodClass" -> "Elliptic",
+      "Status" -> "Transferable", "TransferFrom" -> "source-period",
+      "TransferMap" -> <|0 -> 0,
+        1 -> BoundaryPeriodCoefficient["source-period", 2]|>|>|>,
+  {0, 1}, "MissingPeriodAction" -> "Formal"];
+FTAssert["known zeros and transfer maps are substituted and zero transfer coordinates are pruned",
+  transferredBoundary["Status"] ===
+      "FormalTransportBoundaryVectorBuilt" &&
+    transferredBoundary["BoundaryConstantVector"] ===
+      {BoundaryPeriodCoefficient["source-period", 2]} &&
+    Lookup[transferredBoundary["Stage3NeedsLedger"], "Status"] ===
+      {"KnownZero", "Transferable"} &&
+    transferredBoundary["Stage3NeedsLedger"][[2,
+      "AffectedBoundaryCoordinates"]] === {{"e", 1}}];
+
+exactTransferBoundary = BuildTransportBoundaryVector[prunedModeMap, <|
+    "g" -> <|"PeriodClass" -> "GPL", "Status" -> "ExactZero"|>,
+    "e" -> <|"PeriodClass" -> "Elliptic",
+      "Status" -> "Transferable", "TransferFrom" -> "known-period",
+      "TransferMap" -> <|0 -> 5, 1 -> 7|>|>|>, {0, 1}];
+FTAssert["a complete exact transfer needs no formal placeholder and is marked exact-with-transfers",
+  exactTransferBoundary["Status"] ===
+      "TransportBoundaryVectorBuilt" &&
+    exactTransferBoundary["BoundaryDataStatus"] ===
+      "ExactWithTransfers" &&
+    exactTransferBoundary["BoundaryConstantVector"] === {5, 7} &&
+    exactTransferBoundary["Stage3NeedsLedger"][[2, "Status"]] ===
+      "Transferable"];
 
 FTAssert["class mismatches, approximate constants and truncated Laurent data are never accepted",
   BuildTransportBoundaryVector[modeMap,

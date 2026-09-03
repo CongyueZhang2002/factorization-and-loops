@@ -270,7 +270,10 @@ BuildBoundaryModeMap::usage =
   "BuildBoundaryModeMap[frobenius,transformation,spec,realizations] extends declared block residue modes to the full canonical system and normalizes them against exact physical endpoint valuations after applying transformation and the Frobenius prefactor. The input is family-neutral: spec supplies Family and Limit as ledger metadata plus PhysicalEndpointRelation; each realization supplies row sets, powers, period class (GPL or Elliptic), epsilon valuation, and demanded outputs. Ambiguous or incompatible modes remain typed incomplete.";
 
 BuildTransportBoundaryVector::usage =
-  "BuildTransportBoundaryVector[modeMap,periodData,{emin,emax}] converts exact Laurent coefficients of GPL constants and elliptic periods into rational BoundarySelectors and a separate BoundaryConstantVector. The returned TransportBoundary can be joined into a transport source without putting special functions into its linear algebra. Missing GPL constants, missing elliptic periods, and transferable-but-unapplied periods are typed incomplete; every result includes a Stage3NeedsLedger.";
+  "BuildTransportBoundaryVector[modeMap,periodData,{emin,emax}] converts Laurent coefficients of GPL constants and elliptic periods into rational BoundarySelectors and a separate BoundaryConstantVector. The returned TransportBoundary can be joined into a transport source without putting special functions into its linear algebra. With \"MissingPeriodAction\" -> \"Formal\", coefficients not yet evaluated become inert BoundaryPeriodCoefficient[id,order] constants and transport can proceed with Status \"FormalTransportBoundaryVectorBuilt\"; the default \"Refuse\" retains typed incompleteness. Exact zeros and supplied exact transfer maps are substituted before unused orders are pruned. Every data result includes the demand-pruned Stage3NeedsLedger.";
+
+BoundaryPeriodCoefficient::usage =
+  "BoundaryPeriodCoefficient[id,order] is an inert exact placeholder for the coefficient of eps^order in a physical boundary period not yet evaluated. It appears only in BoundaryConstantVector; transport selector matrices remain rational.";
 
 BuildRationalEpsilonLayerTransport::usage =
   "BuildRationalEpsilonLayerTransport[source,layer,demand] transports a lower-triangular final layer whose incoming connection is rational in the regulator. The path gauge H(base)=0 removes the non-dlog part order by order through Hermite reduction; K residues and the endpoint gauge are reconstructed over finite fields and checked at a fresh prime, while a path-free dlog input uses an exact direct route. A valid gauge-only result with K=0 is accepted. Selector orders and dimensions are validated, and a singular base point or endpoint returns PathRegularizationRequired until regularized endpoint data are supplied. Only demanded (order,row) words are enumerated. Curve letters require a declared quartic and remain a typed refusal until elliptic reduction is implemented.";
@@ -391,7 +394,9 @@ SyntaxInformation[BuildEndpointFrobenius] =
 SyntaxInformation[BuildBoundaryModeMap] =
   {"ArgumentsPattern" -> {_, _, _, _}};
 SyntaxInformation[BuildTransportBoundaryVector] =
-  {"ArgumentsPattern" -> {_, _, _}};
+  {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
+SyntaxInformation[BoundaryPeriodCoefficient] =
+  {"ArgumentsPattern" -> {_, _}};
 SyntaxInformation[ComposeTransportChartExtension] =
   {"ArgumentsPattern" -> {_, _, _, _}};
 SyntaxInformation[BuildAlgebraicTransportFrame] =
