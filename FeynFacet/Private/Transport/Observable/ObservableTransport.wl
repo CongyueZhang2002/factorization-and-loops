@@ -987,7 +987,9 @@ Options[FindObservableTransportPath] = {
 
 FindObservableTransportPath[record_Association, OptionsPattern[]] := Module[
   {variables, letters, coefficientField, fractions, candidates, selected,
-   admissibleQ},
+   admissibleQ, chartRecord, rootSquares, automaticCandidatesQ,
+   baseCandidates, targetCandidates, rationalSquareQ,
+   splitBaseQ, splitSelected, target},
   variables = Lookup[record, "Variables", Missing[]];
   letters = Lookup[record, "Letters", Missing[]];
   If[! MatchQ[variables, {_Symbol, _Symbol}] || ! ListQ[letters],
@@ -995,6 +997,7 @@ FindObservableTransportPath[record_Association, OptionsPattern[]] := Module[
   ];
   fractions = {1/4, 1/3, 1/5, 2/7, 3/8, 2/5, 3/7, 3/11,
     4/11, 5/13};
+  automaticCandidatesQ = OptionValue["Candidates"] === Automatic;
   candidates = Replace[OptionValue["Candidates"], Automatic ->
     Select[Tuples[fractions, 3], #[[1]] =!= #[[3]] &]];
   If[! MatchQ[candidates, {{_, _, _} ..}],
@@ -1015,10 +1018,53 @@ FindObservableTransportPath[record_Association, OptionsPattern[]] := Module[
       observableTransportNonsingularQ[letters,
         Thread[variables -> point]]]
   ];
-  selected = SelectFirst[candidates,
-    admissibleQ[#[[1 ;; 2]]] &&
-      admissibleQ[{#[[3]], #[[2]]}] &,
-    Missing["NoNonsingularPath"]];
+  (* A regular algebraic base can still leave every constraint matrix over
+     a large number field.  Prefer a base on which all declared roots split
+     over Q: the ensuing exact kernel problem is then rational.  The split
+     test is scalar and is performed before the full record regularity scan.
+     The bounded rational-height grid is family neutral; if it finds no
+     usable split base, retain the former regular-path choice below. *)
+  splitSelected = Missing["NoSplitRegularPath"];
+  If[coefficientField === "Multiquadratic",
+    chartRecord = Lookup[record, "ChartRecord", <||>];
+    rootSquares = If[AssociationQ[chartRecord],
+      Quiet[Check[
+        Together /@ (Lookup[Lookup[chartRecord, "Roots", {}],
+            "RootSquare", {}] /. Lookup[chartRecord, "Subst", {}]),
+        {}]], {}];
+    If[rootSquares =!= {},
+      rationalSquareQ[value_] := MatchQ[value, _Integer | _Rational] &&
+        TrueQ[value > 0] && IntegerQ[Sqrt[Numerator[value]]] &&
+        IntegerQ[Sqrt[Denominator[value]]];
+      splitBaseQ[point_] := AllTrue[rootSquares,
+        Function[square, rationalSquareQ[
+          Quiet[Check[Together[square /. Thread[variables -> point]],
+            $Failed]]]]];
+      baseCandidates = If[automaticCandidatesQ,
+        Tuples[DeleteDuplicates@Join[fractions,
+          Flatten[Table[n/d, {d, 2, 32}, {n, 1, d - 1}]]], 2],
+        DeleteDuplicates[candidates[[All, 1 ;; 2]]]];
+      splitSelected = Catch[
+        Do[
+          If[splitBaseQ[base] &&
+              observableTransportNonsingularQ[letters,
+                Thread[variables -> base]] && admissibleQ[base],
+            targetCandidates = If[automaticCandidatesQ, fractions,
+              Cases[candidates, {base[[1]], base[[2]], value_} :> value]];
+            target = SelectFirst[targetCandidates,
+              # =!= base[[1]] && admissibleQ[{#, base[[2]]}] &,
+              Missing["NoRegularTarget"]];
+            If[! MissingQ[target], Throw[Append[base, target]]]],
+          {base, baseCandidates}];
+        Missing["NoSplitRegularPath"]]
+    ]
+  ];
+  selected = If[MissingQ[splitSelected],
+    SelectFirst[candidates,
+      admissibleQ[#[[1 ;; 2]]] &&
+        admissibleQ[{#[[3]], #[[2]]}] &,
+      Missing["NoNonsingularPath"]],
+    splitSelected];
   If[MissingQ[selected],
     <|"Status" -> "NoNonsingularRationalPath"|>,
     <|
