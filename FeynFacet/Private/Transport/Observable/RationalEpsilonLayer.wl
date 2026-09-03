@@ -17,14 +17,15 @@
    and K_n its residue part on the declared pole alphabet; G then obeys
    dG = D G + K F_S and a word reaching the final rows has exactly one
    incoming letter, D...D K_r S...S (or D...D on the target boundary).
-   Every recurrence step is executed as a SEALED CIRCUIT over F_q[u] at a
-   fixed rational path parameter set: leaves specialized first, no
-   characteristic-zero H/K ever expanded; only the demanded K residues are
-   reconstructed across primes (CRT + rational reconstruction) and
-   validated at a fresh prime; H stays at its modular images.  Curve
-   letters (Y^2 = P4) are a typed alphabet extension: admitted by the gate
-   only with a declared quartic, and their channel is refused typed until
-   the elliptic Hermite reduction exists.  No family name appears here. *)
+   A genuinely u-dependent recurrence is executed as a sealed circuit over
+   F_q[u]: leaves are specialized first, K and the endpoint value of H are
+   reconstructed across primes and validated at a fresh prime.  If all
+   incoming coefficients are independent of u, the exact dlog residues are
+   read directly and H vanishes.  Singular endpoints remain a typed refusal
+   until tangential regularization data are implemented.  Curve letters
+   (Y^2 = P4) are admitted only with a declared quartic, and their channel is
+   refused typed until elliptic Hermite reduction exists.  No family name
+   appears here. *)
 
 Clear[BuildRationalEpsilonLayerTransport, AcceptedRationalEpsilonLayerTransportQ];
 ClearAll[
@@ -425,18 +426,12 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
    verbose, fail, kExact, certificate, laurentCoefficient, hImageCount = 0, sourceStates, directQ,
    weightByOrder, letterDecomposition, neededWeight, weightCapped, cappedPairs,
    endpoint, gaugeAtEndpoint = <||>, gaugeComparisons = 0, gaugeMismatches = 0, probePoints,
-   skippedPrimes = {}, scheduleIndex, fingerprint, regularization},
+   skippedPrimes = {}, scheduleIndex, regularization, targetSelectorInput,
+   primeCount, maximumPrimeCount, primeSchedule, activeIncomingOrders},
   verbose = TrueQ[OptionValue["Verbose"]];
   fail[status_, extra_: <||>] := Throw[Join[<|"Status" -> status|>, extra]];
-  (* S4: the certificate is bound to the INPUTS by a structural fingerprint
-     (source, layer, demand as sorted associations) and to the OUTPUT by
-     hashes of the residues and the gauge; the four-argument predicate
-     recomputes the fingerprint and re-verifies the residues *)
-  (* N5 (documented): the fingerprint is byte-exact -- the four-argument
-     predicate needs the identical source, layer and demand associations
-     (same keys, same expression forms); an equivalent but differently
-     written input is a fingerprint mismatch, not an error *)
-  fingerprint = Hash[{KeySort[source], KeySort[layer], KeySort[demand]}];
+  seed = OptionValue["Seed"];
+  If[! IntegerQ[seed], fail["InvalidSeed"]];
   u = Lookup[layer, "PathVariable", Missing[]]; eps = Lookup[layer, "Regulator", Missing[]];
   base = Lookup[layer, "BasePoint", Missing[]]; rows = Lookup[layer, "Rows", Missing[]];
   diagonal = Lookup[layer, "Diagonal", Missing[]]; incoming = Lookup[layer, "Incoming", Missing[]];
@@ -448,12 +443,28 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
   d = Length[rows];
   If[! AllTrue[diagonal, Dimensions[#[[2]]] === {d, d} &], fail["LayerInputNotWellFormed", <|"Reason" -> "diagonal residue dimensions"|>]];
   n = Lookup[source, "Dimension", Missing[]];
-  If[! IntegerQ[n] || ! ListQ[Lookup[source, "Letters", None]] ||
+  If[! IntegerQ[n] || n < 1 || ! ListQ[Lookup[source, "Letters", None]] ||
       ! ListQ[Lookup[source, "Residues", None]] ||
       Length[source["Letters"]] =!= Length[source["Residues"]] ||
       ! AllTrue[source["Residues"], Dimensions[#] === {n, n} &] ||
       ! AssociationQ[Lookup[source, "BoundarySelectors", None]],
     fail["SourceLayerNotAccepted"]];
+  targetSelectorInput = Lookup[layer, "TargetBoundarySelectors", <|0 -> IdentityMatrix[d]|>];
+  (* Source selectors all act on the same boundary-constant vector.  Target
+     selectors may have different column counts because they are padded into
+     disjoint target-boundary blocks below.  In both cases the Laurent-order
+     labels must be integers and every selector must have at least one column. *)
+  With[{selectors = source["BoundarySelectors"]},
+    If[selectors === <||> || ! VectorQ[Keys[selectors], IntegerQ] ||
+        ! AllTrue[Values[selectors], MatrixQ[#] && Length[Dimensions[#]] === 2 &&
+          Dimensions[#][[1]] === n && Dimensions[#][[2]] >= 1 &] ||
+        ! (SameQ @@ (Dimensions[#][[2]] & /@ Values[selectors])),
+      fail["SourceBoundarySelectorsInvalid"]]];
+  If[! AssociationQ[targetSelectorInput] || targetSelectorInput === <||> ||
+      ! VectorQ[Keys[targetSelectorInput], IntegerQ] ||
+      ! AllTrue[Values[targetSelectorInput], MatrixQ[#] && Length[Dimensions[#]] === 2 &&
+        Dimensions[#][[1]] === d && Dimensions[#][[2]] >= 1 &],
+    fail["TargetBoundarySelectorsInvalid"]];
   If[! AllTrue[incoming, IntegerQ[#["Row"]] && 1 <= #["Row"] <= d && IntegerQ[#["Column"]] && 1 <= #["Column"] <= n &],
     fail["LayerInputNotWellFormed", <|"Reason" -> "incoming row/column indices"|>]];
   (* S5: residue matrices and selectors are constant rational matrices *)
@@ -464,7 +475,7 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
       If[bad =!= {}, fail["ResidueMatrixNotConstant", <|"Where" -> "Source", "Letters" -> source["Letters"][[bad]]|>]]];
     If[! AllTrue[Values[source["BoundarySelectors"]], constantQ],
       fail["ResidueMatrixNotConstant", <|"Where" -> "SourceBoundarySelectors"|>]];
-    If[! AllTrue[Values[Lookup[layer, "TargetBoundarySelectors", <|0 -> IdentityMatrix[d]|>]], constantQ],
+    If[! AllTrue[Values[targetSelectorInput], constantQ],
       fail["ResidueMatrixNotConstant", <|"Where" -> "TargetBoundarySelectors"|>]]];
   (* every source column must be present or declared as an exception; the
      check is a COLUMN-PRESENCE proxy (a column with one declared term and a
@@ -494,7 +505,7 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
      vanishing at a fixed point evaded the former fixed probes), minimum
      over the points as in round 4; the Series' own valuation is read
      after the expansion and a pole below the window is refused *)
-  probePoints = BlockRandom[SeedRandom[OptionValue["Seed"] + 7];
+  probePoints = BlockRandom[SeedRandom[seed + 7];
     Table[base + RandomInteger[{1, 199}]/RandomInteger[{200, 397}], {3}]];
   valuations = Table[Module[{vs},
       vs = Table[observableTransportEpsilonOrderAtPoint[c /. u -> pt, eps], {pt, probePoints}];
@@ -502,7 +513,8 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
       Min[vs]], {c, coefficients}];
   low = Min[valuations];
   demandPairs = Lookup[demand, "Pairs", Missing[]];
-  If[! MatchQ[demandPairs, {{_Integer, _Integer} ..}] || ! AllTrue[demandPairs, 1 <= #[[2]] <= d &],
+  If[! MatchQ[demandPairs, {{_Integer, _Integer} ..}] || ! DuplicateFreeQ[demandPairs] ||
+      ! AllTrue[demandPairs, 1 <= #[[2]] <= d &],
     fail["InvalidLayerDemand"]];
   (* S1 (R1 review, 2026-09-02): a word D^a K_r S^b Sel[q] contributes at
      q + a + r + b, so a demanded order N needs incoming orders up to
@@ -531,6 +543,17 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
       ! FreeQ[#, u] && ! FreeQ[#, eps] &]},
     If[mixed =!= {}, fail["MixedEpsilonPathDenominator", <|"Factors" -> mixed|>]]];
   factors = rationalLayerPoleFactors[labels, coefficients, u];
+  endpoint = Lookup[layer, "Endpoint", Lookup[demand, "Endpoint", None]];
+  regularization = <|"BasePoint" -> Select[factors, (# /. u -> base) === 0 &],
+    "Endpoint" -> If[MatchQ[endpoint, _Integer | _Rational],
+      Select[factors, (# /. u -> endpoint) === 0 &], {}]|>;
+  (* Residues alone are not a physical transport when an iterated-integral
+     endpoint is singular.  Until tangential-base/endpoint data are accepted
+     and consumed, return a typed non-acceptance instead of Accepted plus an
+     unresolved warning. *)
+  If[regularization["BasePoint"] =!= {} || regularization["Endpoint"] =!= {},
+    fail["PathRegularizationRequired", <|"RegularizationRequired" -> regularization,
+      "BasePoint" -> base, "Endpoint" -> endpoint|>]];
   (* Round 8, stage 4: when every incoming coefficient is free of the path
      variable, each B_n is a combination of the declared dlog letters with
      NUMERICAL coefficients, Omega_n = B_n (H_(n-1) = 0 inductively) and
@@ -571,15 +594,12 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
       {entry, incoming}];
     reconstructed = Select[reconstructed, ! AllTrue[Flatten[#], # === 0 &] &];
     keys = Keys[reconstructed];
-    If[keys === {}, fail["LayerResiduesVanish", <|"Window" -> {low, high}|>]];
     primes = {}; freshPrime = None; images = {}; comparisons = Length[keys] d n; mismatches = 0;
     If[verbose, observableTransportMilestone["Rational layer: incoming connection is dlog with path-free coefficients: ",
       Length[keys], " exact residue keys, no modular image, ", Round[AbsoluteTime[] - start, 0.1], " s"]]];
   (* primes *)
-  seed = OptionValue["Seed"];
-  endpoint = Lookup[layer, "Endpoint", Lookup[demand, "Endpoint", None]];
   If[TrueQ[OptionValue["PrepareOnly"]],
-    Throw[<|"Status" -> "Prepared", "Fingerprint" -> fingerprint, "Laurent" -> laurent, "Orders" -> orders,
+    Throw[<|"Status" -> "Prepared", "Laurent" -> laurent, "Orders" -> orders,
       "Factors" -> factors, "DirectQ" -> directQ, "DirectResidues" -> If[directQ, reconstructed, None],
       "Diagonal" -> diagonal, "Source" -> source, "PathVariable" -> u, "Regulator" -> eps,
       "BasePoint" -> base, "Endpoint" -> endpoint, "Window" -> {low, high}, "Rows" -> rows,
@@ -599,12 +619,22 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
      -- the CF303 transfer carries 58-digit numerators over 28-digit
      denominators, which three 31-bit primes cannot reconstruct
      (ReconstructionNotConverged, 2026-09-02 18:41) *)
-  primes = Replace[OptionValue["Primes"], Automatic :> BlockRandom[SeedRandom[seed];
-    Table[RandomPrime[{2^30, 2^31 - 1}], {OptionValue["MaximumPrimeCount"] + 1}]]];
-  If[! MatchQ[primes, {__Integer}] || Length[primes] < 3 || ! DuplicateFreeQ[primes], fail["InvalidPrimeSchedule"]];
-  freshPrime = Last[primes]; primes = Most[primes];
+  primeCount = OptionValue["PrimeCount"];
+  maximumPrimeCount = OptionValue["MaximumPrimeCount"];
+  If[! IntegerQ[primeCount] || primeCount < 1 || ! IntegerQ[maximumPrimeCount] ||
+      maximumPrimeCount < primeCount,
+    fail["InvalidPrimeCount", <|"PrimeCount" -> primeCount,
+      "MaximumPrimeCount" -> maximumPrimeCount|>]];
+  primeSchedule = Replace[OptionValue["Primes"], Automatic :> BlockRandom[
+    SeedRandom[seed]; Module[{schedule = {}, count = maximumPrimeCount + 1},
+      While[Length[schedule] < count,
+        schedule = DeleteDuplicates[Append[schedule, RandomPrime[{2^30, 2^31 - 1}]]]];
+      schedule]]];
+  If[! MatchQ[primeSchedule, {__Integer}] || Length[primeSchedule] < primeCount + 1 ||
+      ! DuplicateFreeQ[primeSchedule] || ! AllTrue[primeSchedule, # > 2 && PrimeQ[#] &],
+    fail["InvalidPrimeSchedule"]];
   images = {}; reconstructed = <||>; keys = {};
-  Module[{needed = Min[OptionValue["PrimeCount"], Length[primes]], converged = False, lifted, usedPrimes,
+  Module[{needed = primeCount, converged = False, lifted, usedPrimes,
      failingKey = None, failingEntry = None, failingResidues = None},
     scheduleIndex = 0; usedPrimes = {};
     While[! converged,
@@ -613,16 +643,14 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
          refusal at two primes is a genuine defect of the input *)
       While[Length[images] < needed,
         scheduleIndex++;
-        If[scheduleIndex > Length[primes], fail["PrimeScheduleExhausted", <|"SkippedPrimes" -> skippedPrimes|>]];
-        With[{p = primes[[scheduleIndex]], image = rationalLayerRecurrenceImage[laurent, diagonal, source, factors, u, base, orders, primes[[scheduleIndex]], endpoint]},
+        If[scheduleIndex > Length[primeSchedule], fail["PrimeScheduleExhausted", <|"SkippedPrimes" -> skippedPrimes|>]];
+        With[{p = primeSchedule[[scheduleIndex]], image = rationalLayerRecurrenceImage[laurent, diagonal, source, factors, u, base, orders, primeSchedule[[scheduleIndex]], endpoint]},
           If[image["Status"] === "RecurrenceImageEvaluated",
             AppendTo[images, image]; AppendTo[usedPrimes, p],
             AppendTo[skippedPrimes, <|"Prime" -> p, "Status" -> image["Status"]|>];
             If[Count[skippedPrimes, KeyValuePattern["Status" -> image["Status"]]] >= 2,
               fail[image["Status"], <|"Primes" -> Lookup[Select[skippedPrimes, #["Status"] === image["Status"] &], "Prime"]|>]]]]];
       keys = Union @@ (Keys[#["KResidues"]] & /@ images);
-      If[keys === {}, fail["LayerResiduesVanish", <|"Window" -> {low, high},
-        "Reason" -> "no nonzero K residue at any order of the window on any prime"|>]];
       reconstructed = <||>; converged = True;
       Do[
         lifted = Table[Table[
@@ -650,18 +678,18 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
           gaugeAtEndpoint[order] = lifted,
           {order, orders}]];
       If[! converged,
-        If[needed >= Length[primes],
+        If[needed >= maximumPrimeCount,
           fail["ReconstructionNotConverged", <|"PrimeCount" -> Length[images],
-            "MaximumPrimeCount" -> OptionValue["MaximumPrimeCount"],
+            "MaximumPrimeCount" -> maximumPrimeCount,
             "Key" -> failingKey, "Entry" -> failingEntry, "Residues" -> failingResidues,
             "Primes" -> usedPrimes|>]];
-        needed = Min[needed + Max[1, Ceiling[needed/2]], Length[primes]]]];
+        needed = Min[needed + Max[1, Ceiling[needed/2]], maximumPrimeCount]]];
     (* N2: the fresh prime goes through the same skip-and-record loop *)
     freshImage = None;
     While[freshImage === None,
       scheduleIndex++;
-      If[scheduleIndex > Length[primes], fail["PrimeScheduleExhausted", <|"SkippedPrimes" -> skippedPrimes, "Stage" -> "FreshPrime"|>]];
-      With[{p = primes[[scheduleIndex]]},
+      If[scheduleIndex > Length[primeSchedule], fail["PrimeScheduleExhausted", <|"SkippedPrimes" -> skippedPrimes, "Stage" -> "FreshPrime"|>]];
+      With[{p = primeSchedule[[scheduleIndex]]},
         If[MemberQ[usedPrimes, p], Continue[]];
         With[{image = rationalLayerRecurrenceImage[laurent, diagonal, source, factors, u, base, orders, p, endpoint]},
           If[image["Status"] === "RecurrenceImageEvaluated",
@@ -693,9 +721,13 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
   (* S2: the weight a + b a word needs is N - q - r; it is DERIVED from the
      demand, the boundary orders and the window; "MaximumWeight" only caps
      it, and a cap that drops words is a typed refusal *)
+  activeIncomingOrders = DeleteDuplicates[First /@ Keys[
+    Select[reconstructed, ! AllTrue[Flatten[#], # === 0 &] &]]];
   neededWeight = Max[Join[
-    Flatten[Table[pair[[1]] - q - r, {pair, demandPairs}, {q, Keys[source["BoundarySelectors"]]}, {r, orders}]],
-    Flatten[Table[pair[[1]] - q, {pair, demandPairs}, {q, Keys[Lookup[layer, "TargetBoundarySelectors", <|0 -> 0|>]]}]], {0}]];
+    Select[Flatten[Table[pair[[1]] - q - r, {pair, demandPairs},
+      {q, Keys[source["BoundarySelectors"]]}, {r, activeIncomingOrders}]], # >= 0 &],
+    Select[Flatten[Table[pair[[1]] - q, {pair, demandPairs},
+      {q, Keys[targetSelectorInput]}]], # >= 0 &], {0}]];
   maximumWeight = Replace[OptionValue["MaximumWeight"], Automatic -> neededWeight];
   If[! IntegerQ[maximumWeight] || maximumWeight < 0, fail["InvalidMaximumWeight"]];
   weightCapped = maximumWeight < neededWeight;
@@ -703,14 +735,12 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
   {targetSelectors, targetBoundaryCount} = rationalLayerTargetSelectors[layer, d];
   (* maximal tail weight per boundary order: order - q - r over the demanded
      orders and the incoming orders present *)
-  weightByOrder = With[{incomingOrders = DeleteDuplicates[First /@ keys]},
-    Association@Table[q -> Max[Flatten[Table[pair[[1]] - q - r, {pair, demandPairs}, {r, incomingOrders}]]],
-      {q, Keys[source["BoundarySelectors"]]}]];
+  weightByOrder = Association@Table[q -> With[{weights = Select[
+        Flatten[Table[pair[[1]] - q - r, {pair, demandPairs}, {r, activeIncomingOrders}]], # >= 0 &]},
+      If[weights === {}, -1, Max[weights]]], {q, Keys[source["BoundarySelectors"]]}];
   sourceStates = rationalLayerSourceStates[source, maximumWeight, weightByOrder, OptionValue["MaximumStates"]];
   If[verbose, observableTransportMilestone["Rational layer: source words grown to weight ", maximumWeight, ": ",
     Total[Length /@ Flatten[Values[sourceStates], 1]], " states, ", Round[AbsoluteTime[] - start, 0.1], " s"]];
-  regularization = <|"BasePoint" -> Select[factors, (# /. u -> base) === 0 &],
-    "Endpoint" -> If[MatchQ[endpoint, _Integer | _Rational], Select[factors, (# /. u -> endpoint) === 0 &], {}]|>;
   words = Association@Table[pair -> rationalLayerWords[pair[[1]], pair[[2]], diagonal, reconstructed, source,
       targetSelectors, sourceBoundaryCount, targetBoundaryCount, maximumWeight, OptionValue["MaximumWords"], sourceStates], {pair, demandPairs}];
   cappedPairs = Keys[Select[words, AssociationQ]];
@@ -738,15 +768,7 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
     "PoleFactors" -> factors,
     "Valuations" -> valuations, "ValuationProbePoints" -> probePoints,
     "SkippedPrimes" -> skippedPrimes,
-    "InputFingerprint" -> fingerprint,
-    (* N4: a base point or endpoint on a pole factor needs a regularized
-       (tangential) base or endpoint for the words' iterated integrals; the
-       residues and the gauge are finite, the certificate says so typed *)
     "RegularizationRequired" -> regularization,
-    "ResidueHash" -> Hash[KeySort[reconstructed]],
-    "WordHash" -> Hash[KeySort[words]],
-    "PayloadHash" -> Hash[{endpoint, {low, high}, rows, base, demandPairs}],
-    "GaugeHash" -> Hash[If[directQ, Association@Table[order -> ConstantArray[0, {d, n}], {order, orders}], gaugeAtEndpoint]],
     "Window" -> {low, high},
     "Seed" -> seed|>;
   <|"Status" -> "RationalEpsilonLayerTransportAccepted",
@@ -770,43 +792,91 @@ rationalLayerCertificateShapeQ[certificate_] := AssociationQ[certificate] &&
   MatchQ[Lookup[certificate, "Alphabet", None], {__Association}] &&
   AllTrue[certificate["Alphabet"], #["Status"] === "Admitted" &] &&
   IntegerQ[Lookup[certificate, "ResidueComparisons", None]] &&
-  certificate["ResidueComparisons"] > 0 &&
+  certificate["ResidueComparisons"] >= 0 &&
   Lookup[certificate, "ResidueMismatches", -1] === 0 &&
+  Lookup[certificate, "RegularizationRequired", None] ===
+    <|"BasePoint" -> {}, "Endpoint" -> {}|> &&
   Which[
     Lookup[certificate, "IncomingRoute", None] === "SealedModularCircuit",
-      TrueQ[certificate["Probabilistic"]] && TrueQ[certificate["Exact"] === False] &&
+      TrueQ[certificate["Probabilistic"]] && certificate["Exact"] === False &&
       MatchQ[Lookup[certificate, "Primes", None], {__Integer}] &&
+      DuplicateFreeQ[certificate["Primes"]] &&
+      AllTrue[certificate["Primes"], # > 2 && PrimeQ[#] &] &&
       IntegerQ[Lookup[certificate, "FreshValidationPrime", None]] &&
-      ! MemberQ[certificate["Primes"], certificate["FreshValidationPrime"]],
+      PrimeQ[certificate["FreshValidationPrime"]] &&
+      ! MemberQ[certificate["Primes"], certificate["FreshValidationPrime"]] &&
+      TrueQ[Lookup[certificate, "GaugeReconstructed", False]] &&
+      IntegerQ[Lookup[certificate, "GaugeComparisons", None]] &&
+      certificate["GaugeComparisons"] > 0 &&
+      Lookup[certificate, "GaugeMismatches", -1] === 0,
     Lookup[certificate, "IncomingRoute", None] === "IncomingDlogDirect",
-      TrueQ[certificate["Exact"]] && certificate["Probabilistic"] === False,
+      TrueQ[certificate["Exact"]] && certificate["Probabilistic"] === False &&
+      Lookup[certificate, "Primes", None] === {} &&
+      Lookup[certificate, "FreshValidationPrime", Missing[]] === None &&
+      Lookup[certificate, "GaugeReconstructed", True] === False,
     True, False];
 
-(* one argument: the certificate's shape and its BINDING to the result's
-   residues and gauge (hashes); it cannot re-verify without the inputs *)
-AcceptedRationalEpsilonLayerTransportQ[result_] := AssociationQ[result] &&
-  Lookup[result, "Status", None] === "RationalEpsilonLayerTransportAccepted" &&
-  rationalLayerCertificateShapeQ[Lookup[result, "Certificate", None]] &&
-  AssociationQ[Lookup[result, "KResidues", None]] &&
-  AssociationQ[Lookup[result, "DemandedWords", None]] &&
-  MemberQ[{"GaugeReconstructedAtEndpoint", "GaugeVanishes"}, Lookup[result, "GaugeStatus", None]] &&
-  AssociationQ[Lookup[result, "GaugeAtEndpoint", None]] &&
-  Lookup[result["Certificate"], "ResidueHash", None] === Hash[KeySort[result["KResidues"]]] &&
-  Lookup[result["Certificate"], "GaugeHash", None] === Hash[result["GaugeAtEndpoint"]] &&
-  (* N1: the words (the deliverable) and the payload fields are bound too *)
-  Lookup[result["Certificate"], "WordHash", None] === Hash[KeySort[result["DemandedWords"]]] &&
-  Lookup[result["Certificate"], "PayloadHash", None] === Hash[{Lookup[result, "Endpoint", None], Lookup[result, "Window", None],
-    Lookup[result, "Rows", None], Lookup[result, "BasePoint", None], Lookup[result, "DemandPairs", None]}];
+(* One argument checks the accepted record's structural and semantic contract.
+   It deliberately does not pretend that hashes prove the mathematics; use
+   the four-argument form for a fresh modular evaluation (or exact direct
+   reconstruction) against the inputs. *)
+AcceptedRationalEpsilonLayerTransportQ[result_] := Module[
+  {certificate, route, window, orders, rows, gauge, gaugeDimensions,
+   kResidues, words, demandPairs, regularization},
+  If[! AssociationQ[result] ||
+      Lookup[result, "Status", None] =!= "RationalEpsilonLayerTransportAccepted",
+    Return[False]];
+  certificate = Lookup[result, "Certificate", None];
+  If[! rationalLayerCertificateShapeQ[certificate], Return[False]];
+  window = Lookup[result, "Window", None];
+  rows = Lookup[result, "Rows", None];
+  demandPairs = Lookup[result, "DemandPairs", None];
+  gauge = Lookup[result, "GaugeAtEndpoint", None];
+  kResidues = Lookup[result, "KResidues", None];
+  words = Lookup[result, "DemandedWords", None];
+  regularization = Lookup[result, "RegularizationRequired", None];
+  If[! MatchQ[window, {_Integer, _Integer}] || window[[1]] > window[[2]] ||
+      ! ListQ[rows] || rows === {} ||
+      ! MatchQ[demandPairs, {{_Integer, _Integer} ..}] || ! DuplicateFreeQ[demandPairs] ||
+      ! AllTrue[demandPairs, 1 <= #[[2]] <= Length[rows] &] ||
+      ! AssociationQ[gauge] || ! AssociationQ[kResidues] || ! AssociationQ[words] ||
+      Sort[Keys[words]] =!= Sort[demandPairs], Return[False]];
+  orders = Range[window[[1]], window[[2]]];
+  If[Sort[Keys[gauge]] =!= orders ||
+      ! AllTrue[Values[gauge], MatrixQ[#] && Dimensions[#][[1]] === Length[rows] &&
+        Dimensions[#][[2]] >= 1 &], Return[False]];
+  gaugeDimensions = Dimensions[First[Values[gauge]]];
+  If[! AllTrue[Values[gauge], Dimensions[#] === gaugeDimensions &] ||
+      ! AllTrue[Values[kResidues], MatrixQ[#] && Dimensions[#] === gaugeDimensions &] ||
+      ! AllTrue[Values[words], ListQ], Return[False]];
+  If[regularization =!= <|"BasePoint" -> {}, "Endpoint" -> {}|> ||
+      Lookup[certificate, "RegularizationRequired", None] =!= regularization ||
+      Lookup[certificate, "Endpoint", Missing[]] =!= Lookup[result, "Endpoint", Missing[]] ||
+      Lookup[certificate, "Window", None] =!= window, Return[False]];
+  route = certificate["IncomingRoute"];
+  Which[
+    route === "IncomingDlogDirect",
+      Lookup[result, "GaugeStatus", None] === "GaugeVanishes" &&
+      Lookup[result, "GaugeImages", None] === <||> &&
+      AllTrue[Values[gauge], AllTrue[Flatten[#], # === 0 &] &],
+    route === "SealedModularCircuit",
+      Lookup[result, "GaugeStatus", None] === "GaugeReconstructedAtEndpoint" &&
+      MatchQ[Lookup[result, "Endpoint", None], _Integer | _Rational] &&
+      AssociationQ[Lookup[result, "GaugeImages", None]] &&
+      Sort[Keys[result["GaugeImages"]]] === Sort[certificate["Primes"]] &&
+      AllTrue[Values[result["GaugeImages"]], AssociationQ[#] && Sort[Keys[#]] === orders &] &&
+      Lookup[certificate, "GaugeImages", -1] === Length[orders] Length[certificate["Primes"]],
+    True, False]
+];
 
-(* four arguments: the fingerprint of the inputs must match, and the
-   residues are RE-VERIFIED from the inputs -- exactly on the direct route,
-   at a NEW prime (not in the certificate) on the modular route, gauge at
-   the endpoint included *)
+(* Four arguments re-derive the prepared problem from the supplied inputs,
+   then re-verify the residues and gauge: exactly on the direct route, at a
+   new prime on the modular route. *)
 AcceptedRationalEpsilonLayerTransportQ[result_, source_Association, layer_Association, demand_Association] := Module[
-  {certificate, prepared, newPrime, image, u, eps, d, n, ok, wordsAgreeQ},
+  {certificate, prepared, newPrime = None, image = None, candidate, trial,
+   excludedPrimes, d, n, ok, wordsAgreeQ},
   If[! AcceptedRationalEpsilonLayerTransportQ[result], Return[False]];
   certificate = result["Certificate"];
-  If[Hash[{KeySort[source], KeySort[layer], KeySort[demand]}] =!= Lookup[certificate, "InputFingerprint", None], Return[False]];
   prepared = BuildRationalEpsilonLayerTransport[source, layer, demand, "PrepareOnly" -> True,
     "Seed" -> Lookup[certificate, "Seed", 20260902],
     "IncomingRoute" -> If[Lookup[certificate, "IncomingRoute", None] === "SealedModularCircuit", "Modular", Automatic]];
@@ -818,27 +888,41 @@ AcceptedRationalEpsilonLayerTransportQ[result_, source_Association, layer_Associ
   If[prepared["DirectQ"] =!= (certificate["IncomingRoute"] === "IncomingDlogDirect"), Return[False]];
   (* N1: every demanded word re-enumerated from the (re-verified) residues *)
   wordsAgreeQ[residues_] := Module[{targetSelectors, targetBoundaryCount, sourceBoundaryCount, orders = prepared["Orders"],
-      demandPairs = prepared["DemandPairs"], neededWeight, weightByOrder, sourceStates},
+      demandPairs = prepared["DemandPairs"], neededWeight, weightByOrder, sourceStates,
+      activeIncomingOrders},
     {targetSelectors, targetBoundaryCount} = rationalLayerTargetSelectors[layer, prepared["Dimensions"][[1]]];
     sourceBoundaryCount = Length[First[Values[source["BoundarySelectors"]]][[1]]];
-    neededWeight = Max[Join[Flatten[Table[pair[[1]] - q - r, {pair, demandPairs}, {q, Keys[source["BoundarySelectors"]]}, {r, orders}]],
-      Flatten[Table[pair[[1]] - q, {pair, demandPairs}, {q, Keys[targetSelectors]}]], {0}]];
-    weightByOrder = Association@Table[q -> Max[Flatten[Table[pair[[1]] - q - r, {pair, demandPairs}, {r, orders}]]], {q, Keys[source["BoundarySelectors"]]}];
+    activeIncomingOrders = DeleteDuplicates[First /@ Keys[
+      Select[residues, ! AllTrue[Flatten[#], # === 0 &] &]]];
+    neededWeight = Max[Join[
+      Select[Flatten[Table[pair[[1]] - q - r, {pair, demandPairs},
+        {q, Keys[source["BoundarySelectors"]]}, {r, activeIncomingOrders}]], # >= 0 &],
+      Select[Flatten[Table[pair[[1]] - q, {pair, demandPairs},
+        {q, Keys[targetSelectors]}]], # >= 0 &], {0}]];
+    weightByOrder = Association@Table[q -> With[{weights = Select[
+          Flatten[Table[pair[[1]] - q - r, {pair, demandPairs}, {r, activeIncomingOrders}]], # >= 0 &]},
+        If[weights === {}, -1, Max[weights]]], {q, Keys[source["BoundarySelectors"]]}];
     sourceStates = Catch[rationalLayerSourceStates[source, neededWeight, weightByOrder]];
     If[! AssociationQ[sourceStates] || KeyExistsQ[sourceStates, "Status"], Return[False, Module]];
     And @@ Table[rationalLayerWords[pair[[1]], pair[[2]], prepared["Diagonal"], residues, source, targetSelectors,
         sourceBoundaryCount, targetBoundaryCount, neededWeight, Infinity, sourceStates] === result["DemandedWords"][pair], {pair, demandPairs}]];
   If[prepared["DirectQ"],
     Return[KeySort[prepared["DirectResidues"]] === KeySort[result["KResidues"]] && wordsAgreeQ[prepared["DirectResidues"]]]];
-  (* modular: one image at a prime outside the certificate *)
-  newPrime = BlockRandom[SeedRandom[Lookup[certificate, "Seed", 0] + 104729];
-    SelectFirst[Table[RandomPrime[{2^30, 2^31 - 1}], {64}],
-      ! MemberQ[Join[certificate["Primes"], {certificate["FreshValidationPrime"]}], #] &, None]];
+  (* Modular: try bounded fresh primes outside the construction certificate.
+     A prime where a denominator or pole factor degenerates is exceptional,
+     not evidence against an otherwise valid record. *)
+  excludedPrimes = Join[certificate["Primes"], {certificate["FreshValidationPrime"]}];
+  BlockRandom[SeedRandom[Lookup[certificate, "Seed", 0] + 104729];
+    Do[
+      candidate = RandomPrime[{2^30, 2^31 - 1}];
+      If[MemberQ[excludedPrimes, candidate], Continue[]];
+      trial = rationalLayerRecurrenceImage[prepared["Laurent"], prepared["Diagonal"], prepared["Source"],
+        prepared["Factors"], prepared["PathVariable"], prepared["BasePoint"], prepared["Orders"], candidate, prepared["Endpoint"]];
+      If[Lookup[trial, "Status", None] === "RecurrenceImageEvaluated",
+        newPrime = candidate; image = trial; Break[]],
+      {64}]];
   If[newPrime === None, Return[False]];
-  image = rationalLayerRecurrenceImage[prepared["Laurent"], prepared["Diagonal"], prepared["Source"],
-    prepared["Factors"], prepared["PathVariable"], prepared["BasePoint"], prepared["Orders"], newPrime, prepared["Endpoint"]];
-  If[Lookup[image, "Status", None] =!= "RecurrenceImageEvaluated", Return[False]];
-  {d, n} = Dimensions[First[Values[result["KResidues"]]]];
+  {d, n} = prepared["Dimensions"];
   ok = And @@ Flatten[Table[
       With[{exact = Lookup[result["KResidues"], Key[key], ConstantArray[0, {d, n}]], img = Lookup[image["KResidues"], Key[key], ConstantArray[0, {d, n}]]},
         Table[Mod[Numerator[exact[[i, j]]] - img[[i, j]] Denominator[exact[[i, j]]], newPrime] === 0, {i, d}, {j, n}]],

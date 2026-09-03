@@ -172,6 +172,27 @@ FTAssert["the sealed modular circuit on the same layer gives SameQ residues and 
   modular["Certificate"]["IncomingRoute"] === "SealedModularCircuit" && AcceptedRationalEpsilonLayerTransportQ[modular] &&
     KeySort[direct["KResidues"]] === KeySort[Select[modular["KResidues"], ! AllTrue[Flatten[#], # === 0 &] &]] &&
     direct["DemandedWords"] === modular["DemandedWords"]];
+(* An exact derivative can produce a nonzero endpoint gauge with no dlog
+   remainder at all.  This is a complete transport, not a vanished layer. *)
+gaugeOnlySource = <|"Dimension" -> 1, "Letters" -> {{"GPLPole", -1}},
+  "Residues" -> {{{0}}}, "BoundarySelectors" -> <|0 -> {{1}}|>|>;
+gaugeOnlyLayer = <|"Rows" -> {1}, "PathVariable" -> u, "Regulator" -> eps,
+  "BasePoint" -> 0, "Endpoint" -> 1,
+  "Diagonal" -> {{{"GPLPole", -1}, {{0}}}},
+  "Incoming" -> {<|"Row" -> 1, "Column" -> 1,
+    "Coefficient" -> 1/(eps (u + 1)), "Letter" -> {"GPLPole", -1}|>},
+  "TargetBoundarySelectors" -> <|0 -> {{1}}|>|>;
+gaugeOnlyDemand = <|"Pairs" -> {{-1, 1}}|>;
+gaugeOnly = BuildRationalEpsilonLayerTransport[gaugeOnlySource, gaugeOnlyLayer,
+  gaugeOnlyDemand, "PrimeCount" -> 3];
+FTAssert["K=0 with a nonzero reconstructed endpoint gauge is a valid gauge-only transport",
+  gaugeOnly["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+    gaugeOnly["KResidues"] === <||> && gaugeOnly["GaugeAtEndpoint"][-1] === {{1/2}} &&
+    gaugeOnly["GaugeStatus"] === "GaugeReconstructedAtEndpoint" &&
+    gaugeOnly["Certificate"]["ResidueComparisons"] === 0 &&
+    gaugeOnly["Certificate"]["GaugeComparisons"] > 0 &&
+    AcceptedRationalEpsilonLayerTransportQ[gaugeOnly] &&
+    AcceptedRationalEpsilonLayerTransportQ[gaugeOnly, gaugeOnlySource, gaugeOnlyLayer, gaugeOnlyDemand]];
 (* ---- R1's independent end-to-end check (round 8b): the ODE dF = A F solved
    numerically order by order (NDSolve, 30 digits) versus the route's words
    evaluated as numerical iterated integrals -- no use of the route's
@@ -255,6 +276,12 @@ FTAssert["S5: a diagonal residue with the path variable, a source residue with e
   BuildRationalEpsilonLayerTransport[source, Join[dlogLayer, <|"Diagonal" -> {{{"GPLPole", 3/4}, {{u, 0}, {0, 2}}}, diagonal[[2]]}|>], demand]["Status"] === "ResidueMatrixNotConstant" &&
   BuildRationalEpsilonLayerTransport[Join[source, <|"Residues" -> {{{0, eps}, {0, 0}}, {{1, 0}, {0, -1}}}|>], dlogLayer, demand]["Status"] === "ResidueMatrixNotConstant" &&
   BuildRationalEpsilonLayerTransport[Join[source, <|"BoundarySelectors" -> <|0 -> {{1, x}, {0, 1}}|>|>], dlogLayer, demand]["Status"] === "ResidueMatrixNotConstant"];
+FTAssert["selector orders, row dimensions and the shared source-column shape are validated before enumeration",
+  BuildRationalEpsilonLayerTransport[Join[source, <|"BoundarySelectors" -> <|"zero" -> IdentityMatrix[2]|>|>], dlogLayer, demand]["Status"] === "SourceBoundarySelectorsInvalid" &&
+  BuildRationalEpsilonLayerTransport[Join[source, <|"BoundarySelectors" -> <|0 -> IdentityMatrix[2], 1 -> {{1}, {0}}|>|>], dlogLayer, demand]["Status"] === "SourceBoundarySelectorsInvalid" &&
+  BuildRationalEpsilonLayerTransport[source, Join[dlogLayer, <|"TargetBoundarySelectors" -> <|"zero" -> IdentityMatrix[2]|>|>], demand]["Status"] === "TargetBoundarySelectorsInvalid" &&
+  BuildRationalEpsilonLayerTransport[source, Join[dlogLayer, <|"TargetBoundarySelectors" -> <|0 -> {{1, 0}}|>|>], demand]["Status"] === "TargetBoundarySelectorsInvalid" &&
+  BuildRationalEpsilonLayerTransport[source, dlogLayer, <|"Pairs" -> {{0, 1}, {0, 1}}|>]["Status"] === "InvalidLayerDemand"];
 FTAssert["S6: a coefficient whose eps^-3 term vanishes at three fixed points is not truncated: the Series valuation below the certified window is refused typed, and the probe points are random",
   With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> (u - 1/2) (u - 5/6) (u - 11/14)/eps^3 + 1/eps^2, "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>, "PrimeCount" -> 3]},
     r["Status"] === "RationalEpsilonLayerTransportAccepted" && r["Window"][[1]] === -3 && DuplicateFreeQ[r["Certificate"]["ValuationProbePoints"]]] &&
@@ -270,39 +297,57 @@ FTAssert["S8: a non-quartic curve is refused typed, E4Eta2 is a curve letter, Ze
   BuildRationalEpsilonLayerTransport[source, Join[dlogLayer, <|"ZeroColumns" -> {2, 7}|>], demand]["Status"] === "ZeroColumnsInvalid"];
 FTAssert["a source word growth beyond the state cap is a typed refusal",
   BuildRationalEpsilonLayerTransport[sourceNeg, odeLayer, odeDemand, "MaximumStates" -> 5]["Status"] === "SourceWordGrowthCapped"];
-FTAssert["S4: the four-argument predicate re-verifies both routes from the inputs; a residue altered with its hash recomputed is caught at a new prime; a changed input breaks the fingerprint; the one-argument form binds the residues by hash",
+FTAssert["S4: the four-argument predicate re-verifies both routes from the inputs and catches an altered residue at a new prime",
   AcceptedRationalEpsilonLayerTransportQ[result, source, layer, demand] &&
     AcceptedRationalEpsilonLayerTransportQ[direct, source, dlogLayer, demand] &&
     With[{tampered = Join[result, <|"KResidues" -> MapAt[# + 1 &, result["KResidues"], {Key[First[Keys[result["KResidues"]]]], 1, 1}]|>]},
-      ! AcceptedRationalEpsilonLayerTransportQ[tampered] &&
-      ! AcceptedRationalEpsilonLayerTransportQ[Join[tampered, <|"Certificate" -> Join[tampered["Certificate"], <|"ResidueHash" -> Hash[KeySort[tampered["KResidues"]]]|>]|>], source, layer, demand]] &&
+      AcceptedRationalEpsilonLayerTransportQ[tampered] &&
+      ! AcceptedRationalEpsilonLayerTransportQ[tampered, source, layer, demand]] &&
     ! AcceptedRationalEpsilonLayerTransportQ[result, source, Join[layer, <|"BasePoint" -> 1/3|>], demand] &&
     ! AcceptedRationalEpsilonLayerTransportQ[direct, source, layer, demand]];
 (* ---- Round 8c: R1's re-review findings N1-N4 ---- *)
-FTAssert["N1: a doubled word coefficient, a deleted word, a removed demanded pair and a changed result endpoint are all refused by both predicate forms; a tampering that recomputes every hash is caught by the re-enumeration",
+FTAssert["N1: mathematical word changes are caught by input-backed re-enumeration, while structural payload mismatches are caught without hashes",
   With[{doubled = Join[result, <|"DemandedWords" -> MapAt[Join[#, <|"Coefficient" -> 2 #["Coefficient"]|>] &, result["DemandedWords"], {Key[{0, 1}], 1}]|>],
       deleted = Join[result, <|"DemandedWords" -> MapAt[Rest, result["DemandedWords"], {Key[{0, 1}]}]|>],
       removed = Join[result, <|"DemandedWords" -> KeyDrop[result["DemandedWords"], {{0, 1}}]|>],
       moved = Join[result, <|"Endpoint" -> 1/3|>]},
-    ! AcceptedRationalEpsilonLayerTransportQ[doubled] && ! AcceptedRationalEpsilonLayerTransportQ[doubled, source, layer, demand] &&
-    ! AcceptedRationalEpsilonLayerTransportQ[deleted] && ! AcceptedRationalEpsilonLayerTransportQ[deleted, source, layer, demand] &&
+    AcceptedRationalEpsilonLayerTransportQ[doubled] && ! AcceptedRationalEpsilonLayerTransportQ[doubled, source, layer, demand] &&
+    AcceptedRationalEpsilonLayerTransportQ[deleted] && ! AcceptedRationalEpsilonLayerTransportQ[deleted, source, layer, demand] &&
     ! AcceptedRationalEpsilonLayerTransportQ[removed] && ! AcceptedRationalEpsilonLayerTransportQ[removed, source, layer, demand] &&
     ! AcceptedRationalEpsilonLayerTransportQ[moved] && ! AcceptedRationalEpsilonLayerTransportQ[moved, source, layer, demand] &&
-    With[{rehashed = Join[doubled, <|"Certificate" -> Join[doubled["Certificate"], <|"WordHash" -> Hash[KeySort[doubled["DemandedWords"]]]|>]|>]},
-      AcceptedRationalEpsilonLayerTransportQ[rehashed] && ! AcceptedRationalEpsilonLayerTransportQ[rehashed, source, layer, demand]] &&
     AcceptedRationalEpsilonLayerTransportQ[result, source, layer, demand] && AcceptedRationalEpsilonLayerTransportQ[direct, source, dlogLayer, demand]]];
+FTAssert["GaugeStatus is semantically bound to the route and gauge payload",
+  ! AcceptedRationalEpsilonLayerTransportQ[Join[result, <|"GaugeStatus" -> "GaugeVanishes"|>]] &&
+  ! AcceptedRationalEpsilonLayerTransportQ[Join[direct, <|"GaugeStatus" -> "GaugeReconstructedAtEndpoint"|>]] &&
+  ! AcceptedRationalEpsilonLayerTransportQ[Join[direct, <|"GaugeAtEndpoint" -> Map[# + 1 &, direct["GaugeAtEndpoint"], {3}]|>]] &&
+  ! AcceptedRationalEpsilonLayerTransportQ[Join[result, <|"Certificate" -> Join[result["Certificate"], <|"GaugeReconstructed" -> False|>]|>]]];
 FTAssert["N2: a degenerate prime placed in the fresh-prime slot of an explicit schedule (position PrimeCount + 1) is skipped and recorded, the result accepted with the next prime as the fresh one",
   With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> u/(eps^2 (u^2 - 1000003)), "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>,
       "Primes" -> {1000033, 1000037, 1000039, 1000081, 1000099, 1000117, 1000121, 1000133, 1000151, 1000003, 1000159, 1000171}, "PrimeCount" -> 9, "MaximumPrimeCount" -> 11]},
     r["Status"] === "RationalEpsilonLayerTransportAccepted" && MemberQ[Lookup[r["Certificate"]["SkippedPrimes"], "Prime"], 1000003] && r["Certificate"]["FreshValidationPrime"] =!= 1000003]];
+FTAssert["the prime contract rejects composite, duplicate and undersized schedules and uses the final explicit prime for fresh validation",
+  BuildRationalEpsilonLayerTransport[gaugeOnlySource, gaugeOnlyLayer, gaugeOnlyDemand,
+    "Primes" -> {3, 5, 7, 9}, "PrimeCount" -> 3]["Status"] === "InvalidPrimeSchedule" &&
+  BuildRationalEpsilonLayerTransport[gaugeOnlySource, gaugeOnlyLayer, gaugeOnlyDemand,
+    "Primes" -> {3, 5, 5, 7}, "PrimeCount" -> 3]["Status"] === "InvalidPrimeSchedule" &&
+  BuildRationalEpsilonLayerTransport[gaugeOnlySource, gaugeOnlyLayer, gaugeOnlyDemand,
+    "Primes" -> {1000033, 1000037, 1000039}, "PrimeCount" -> 3]["Status"] === "InvalidPrimeSchedule" &&
+  BuildRationalEpsilonLayerTransport[gaugeOnlySource, gaugeOnlyLayer, gaugeOnlyDemand,
+    "PrimeCount" -> 4, "MaximumPrimeCount" -> 3]["Status"] === "InvalidPrimeCount" &&
+  With[{r = BuildRationalEpsilonLayerTransport[gaugeOnlySource, gaugeOnlyLayer, gaugeOnlyDemand,
+      "Primes" -> {1000033, 1000037, 1000039, 1000081}, "PrimeCount" -> 3]},
+    r["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+      r["Certificate"]["Primes"] === {1000033, 1000037, 1000039} &&
+      r["Certificate"]["FreshValidationPrime"] === 1000081]];
 FTAssert["N3: a Gaussian-rational coefficient is refused typed early on the modular route and accepted exactly on the direct route",
   BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> I/(eps^2 (u + 1)), "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>, "PrimeCount" -> 3]["Status"] === "CoefficientFieldNotRational" &&
   With[{r = BuildRationalEpsilonLayerTransport[source, Join[dlogLayer, <|"Incoming" -> Append[dlogIncoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> I/eps^2, "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>]},
     r["Status"] === "RationalEpsilonLayerTransportAccepted" && ! FreeQ[r["KResidues"], _Complex]]];
-FTAssert["N4: a coefficient with a pole at the base point and an endpoint on a letter pole are accepted with the typed RegularizationRequired note; a regular pair carries empty notes",
+FTAssert["N4: unresolved base-point or endpoint singularities are a typed non-acceptance, while a regular pair carries empty notes",
   With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Endpoint" -> 3/4, "Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/(eps^2 (u - 1/2)), "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>, "PrimeCount" -> 3]},
-    r["Status"] === "RationalEpsilonLayerTransportAccepted" && r["Certificate"]["RegularizationRequired"]["BasePoint"] === {u - 1/2} &&
-      r["Certificate"]["RegularizationRequired"]["Endpoint"] === {u - 3/4}] &&
+    r["Status"] === "PathRegularizationRequired" && ! AcceptedRationalEpsilonLayerTransportQ[r] &&
+      r["RegularizationRequired"]["BasePoint"] === {u - 1/2} &&
+      r["RegularizationRequired"]["Endpoint"] === {u - 3/4}] &&
   result["Certificate"]["RegularizationRequired"] === <|"BasePoint" -> {}, "Endpoint" -> {}|>];
 FTAssert["the predicate refuses a tampered certificate",
   ! AcceptedRationalEpsilonLayerTransportQ[Join[result, <|"Certificate" -> Join[result["Certificate"], <|"ResidueMismatches" -> 1|>]|>]] &&
