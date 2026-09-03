@@ -37,21 +37,39 @@
    sampler, the modular residual below (the numerical verifier's identity
    with the DAG image in place of the placeholder forcing) and the family
    certificate are the checks; exact materialization is left to the family
-   certificate.  Every failure is typed; the in-frame solver falls back to
-   the exact route on any of them. *)
+   certificate.  Plan and census refusals fall back to the exact pull-back
+   before the solve; a runtime failure after the deferred route is selected
+   is returned typed instead of silently repeating the expensive exact path. *)
 
 Begin["FeynFacet`Private`"];
 
 ClearAll[
   $finiteFieldDeferredForcingRegistry,
+  $finiteFieldDeferredForcingImageCache,
+  $finiteFieldDeferredForcingBatchLimit,
   finiteFieldDeferredForcingRouteQ,
   finiteFieldDeferredForcingModAt,
   finiteFieldDeferredForcingPlan,
+  finiteFieldDeferredForcingHandle,
+  finiteFieldDeferredForcingEnsurePlan,
+  finiteFieldDeferredForcingTable,
+  finiteFieldDeferredForcingTables,
+  finiteFieldDeferredForcingPowers,
+  finiteFieldDeferredForcingPolynomialAt,
+  finiteFieldDeferredForcingRationalAt,
   finiteFieldDeferredForcingPreflights,
+  finiteFieldDeferredForcingPreflightsReference,
   finiteFieldDeferredForcingImages,
   finiteFieldDeferredForcingLineFit,
+  finiteFieldDeferredForcingPolynomialRoot,
+  finiteFieldDeferredForcingReduceRadicals,
+  finiteFieldDeferredForcingRadicalVariants,
   finiteFieldDeferredForcingCandidateFactors,
   finiteFieldDeferredForcingCensus,
+  finiteFieldDeferredForcingDerivativeRules,
+  finiteFieldDeferredForcingRuntimeFailure,
+  finiteFieldDeferredForcingRuntimeFailureQ,
+  finiteFieldDeferredForcingLocalRetryQ,
   finiteFieldDeferredForcingResidualQ
 ];
 
@@ -65,11 +83,19 @@ $finiteFieldDeferredForcingImageCache = <||>;
    MAX_TOTAL_IMAGES = 4096 channels, i.e. Floor[4096/gradeCount] images
    (ResourceLimit, exit 5); the chunk is the smaller of this and that cap *)
 $finiteFieldDeferredForcingBatchLimit = 1024;
-(* R2 F2 telemetry: typed failures of the deferred route seen by the
-   sampler in this kernel (a helper's failures are counted by the broker's
-   local fallback in the solving kernel, $taskBrokerHelperFailureCount) *)
-If[! IntegerQ[$finiteFieldDeferredForcingTypedFailures], $finiteFieldDeferredForcingTypedFailures = 0];
-$finiteFieldDeferredForcingLastFailure = None;
+
+(* Runtime failures are data, not a diagnostic side channel.  Only an absent
+   helper-local plan is worth one retry on the solving kernel; arithmetic,
+   native-adapter and mathematical failures must propagate unchanged. *)
+finiteFieldDeferredForcingRuntimeFailure[reason_String, detail_: None] :=
+  <|"Status" -> "DeferredForcingRuntimeFailure", "Reason" -> reason,
+    "Detail" -> detail|>;
+finiteFieldDeferredForcingRuntimeFailureQ[result_] :=
+  AssociationQ[result] &&
+    Lookup[result, "Status", None] === "DeferredForcingRuntimeFailure";
+finiteFieldDeferredForcingLocalRetryQ[result_] :=
+  finiteFieldDeferredForcingRuntimeFailureQ[result] &&
+    Lookup[result, "Reason", None] === "DeferredForcingPlanUnknown";
 
 (* FACET_DEFERRED_FORCING=Off restores the exact pull-back before the inner
    solve (the pre-2026-09-02 route); anything else keeps the DAG route *)
@@ -259,12 +285,20 @@ finiteFieldDeferredForcingPreflightsReference[plan_Association, prime_Integer,
 
 (* the forcing images: one native batch; per image an array
    {2, d1, d2} of residues (the chart one-form after the Jacobian) *)
-finiteFieldDeferredForcingImages[key_String, prime_Integer, images_List] := Module[
+Options[finiteFieldDeferredForcingImages] = {"Threads" -> Automatic};
+finiteFieldDeferredForcingImages[key_String, prime_Integer, images_List,
+    OptionsPattern[]] := Module[
   {plan, preflights, batch, gradeCount, jacobian, powers, masks, started = AbsoluteTime[],
-   cacheKeys, missing, batchSeconds = 0., values, computed},
+   cacheKeys, missing, batchSeconds = 0., values, computed, requestedThreads, threads},
   plan = Lookup[$finiteFieldDeferredForcingRegistry, key, $Failed];
   If[! AssociationQ[plan], Return[<|"Status" -> "DeferredForcingPlanUnknown"|>]];
   If[images === {}, Return[<|"Status" -> "OK", "Values" -> {}, "Seconds" -> 0.|>]];
+  requestedThreads = Replace[OptionValue["Threads"],
+    Automatic :> Clip[$ProcessorCount, {1, 8}]];
+  If[! IntegerQ[requestedThreads] || ! Between[requestedThreads, {1, 8}],
+    Return[<|"Status" -> "DeferredForcingInvalidThreadCount",
+      "Threads" -> requestedThreads|>]];
+  threads = taskBrokerNativeThreadLimit[requestedThreads];
   (* R2 F1: the cache is bounded between calls only -- a call is atomic with
      respect to it; its own results live in a local list until they are
      returned, so a reset can never leave a value of this call Missing *)
@@ -278,10 +312,8 @@ finiteFieldDeferredForcingImages[key_String, prime_Integer, images_List] := Modu
   Do[
     preflights = finiteFieldDeferredForcingPreflights[plan, prime, images[[chunk]]];
     If[AssociationQ[preflights], Return[preflights, Module]];
-    (* 8 threads: 2x over 4 on CF300 (12,7) (960 images 1.36 -> 0.69 s); the
-       seat launcher pins the process to 8 CPUs *)
     batch = multiquadraticStripNativeDeferredEvaluateBatch[plan["Provider"], preflights,
-      "Threads" -> Clip[$ProcessorCount, {1, 8}]];
+      "Threads" -> threads];
     If[Lookup[batch, "Status", None] =!= "MultiquadraticNativeDeferredBatchV1",
       Return[<|"Status" -> "DeferredForcingBatchFailed", "Detail" -> batch|>, Module]];
     batchSeconds += batch["Seconds"];
@@ -309,6 +341,7 @@ finiteFieldDeferredForcingImages[key_String, prime_Integer, images_List] := Modu
   <|"Status" -> "OK",
     "Values" -> values,
     "BatchedImages" -> Length[missing],
+    "Threads" -> threads,
     "BatchSeconds" -> batchSeconds,
     "Seconds" -> N[AbsoluteTime[] - started]|>
 ];
@@ -344,11 +377,33 @@ finiteFieldDeferredForcingLineFit[data_List, bound_Integer, prime_Integer, t_Sym
    piece dropped, which the census's degree consistency then reports). *)
 finiteFieldDeferredForcingPolynomialRoot[poly_] := Module[{factors = Rest[FactorList[poly]]},
   If[AllTrue[factors[[All, 2]], EvenQ], Times @@ (Power[#[[1]], #[[2]]/2] & /@ factors), $Failed]];
-finiteFieldDeferredForcingReduceRadicals[expr_, sign_Integer: 1] := expr //.
-  Power[s_, exponent_Rational /; Denominator[exponent] == 2] :> With[{t = Together[s]},
+finiteFieldDeferredForcingRadicalVariants[expr_, maximum_: Infinity] := Module[
+  {powers, rationalized, representatives = {}, classes, position, equivalentQ},
+  powers = DeleteDuplicates[Cases[expr,
+    power : Power[_, exponent_Rational /; Denominator[exponent] == 2] :> power,
+    {0, Infinity}]];
+  rationalized = Cases[powers, power_ :> With[{t = Together[power[[1]]]},
     With[{n = finiteFieldDeferredForcingPolynomialRoot[Numerator[t]],
         d = finiteFieldDeferredForcingPolynomialRoot[Denominator[t]]},
-      If[n === $Failed || d === $Failed, Power[s, exponent], sign Power[n/d, 2 exponent]]]];
+      If[n === $Failed || d === $Failed, Nothing, {power, n/d}]]]];
+  If[rationalized === {}, Return[{expr}]];
+  equivalentQ[a_, b_] := TrueQ[Together[a - b] === 0] ||
+    TrueQ[Together[a + b] === 0];
+  classes = Table[
+    position = FirstPosition[representatives,
+      representative_ /; equivalentQ[item[[2]], representative], None];
+    If[position === None,
+      AppendTo[representatives, item[[2]]]; Length[representatives],
+      First[position]],
+    {item, rationalized}];
+  If[IntegerQ[maximum] && Length[representatives] > maximum,
+    Return[{expr}]];
+  Table[expr /. MapThread[
+      Function[{item, class},
+        item[[1]] -> signChoice[[class]] Power[item[[2]], 2 item[[1, 2]]]],
+      {rationalized, classes}],
+    {signChoice, Tuples[{1, -1}, Length[representatives]]}]
+];
 
 (* the structural superset of the pulled-back denominator factors *)
 finiteFieldDeferredForcingCandidateFactors[plan_Association] := Module[
@@ -367,12 +422,14 @@ finiteFieldDeferredForcingCandidateFactors[plan_Association] := Module[
       Cases[expr, Power[base_, exponent_?Negative] :> base, {0, Infinity}]], ! NumericQ[#] &]];
   sourceFactors = DeleteDuplicates[Flatten[(First /@ Rest[FactorList[#]]) & /@
     DeleteDuplicates[Flatten[basesOf /@ operands]]]];
-  (* a factor a + b r is inverted in the multiquadratic algebra through its
-     norm a^2 - b^2 r^2, which pulls back to (a q + b p)(a q - b p)/q^2 for
-     r -> p/q: both sign variants are candidates (CF303 (25,18): the
-     conjugate variants were the missing quartic and degree-7 factors) *)
-  pieces = Join[Together[finiteFieldDeferredForcingReduceRadicals[# /. subst, 1]] & /@ sourceFactors,
-    Together[finiteFieldDeferredForcingReduceRadicals[# /. subst, -1]] & /@ sourceFactors];
+  (* A denominator in several roots contributes its full independent
+     conjugation orbit.  Once a chart sends each root to a rational function,
+     all 2^r sign choices are polynomial candidates; unresolved or excess
+     radicals stay non-polynomial and make the later census refuse safely. *)
+  pieces = Flatten[
+    (Together /@ finiteFieldDeferredForcingRadicalVariants[# /. subst,
+        Length[plan["Roots"]]]) & /@
+      sourceFactors];
   pieces = Join[Numerator /@ pieces, Denominator /@ pieces,
     Denominator /@ Together /@ subst[[All, 2]],
     Denominator /@ Together /@ plan["RootImages"],
@@ -389,7 +446,7 @@ finiteFieldDeferredForcingCandidateFactors[plan_Association] := Module[
    entries and the forcing's degree at infinity, from two random lines
    (a + t, b + s t) in the chart at a random regulator image. *)
 Options[finiteFieldDeferredForcingCensus] = {
-  "DegreeBound" -> 110, "Seed" -> 20260902};
+  "DegreeBound" -> 110, "Seed" -> 20260902, "Threads" -> Automatic};
 finiteFieldDeferredForcingCensus[key_String, prime_Integer,
     OptionsPattern[]] := Module[
   {plan, started = AbsoluteTime[], candidates, X, Y, epsilon, bound, t, lineCount,
@@ -408,7 +465,8 @@ finiteFieldDeferredForcingCensus[key_String, prime_Integer,
       epsilonMod = RandomInteger[{2, prime - 2}]];
     tValues = Table[Mod[a0 + 7 k, prime], {k, lineCount}];
     images = Table[{Mod[a0 + tv, prime], Mod[b0 + slope tv, prime], epsilonMod}, {tv, tValues}];
-    evaluated = finiteFieldDeferredForcingImages[key, prime, images];
+    evaluated = finiteFieldDeferredForcingImages[key, prime, images,
+      "Threads" -> OptionValue["Threads"]];
     If[Lookup[evaluated, "Status", None] =!= "OK", Return[evaluated, Module]];
     fits = Table[finiteFieldDeferredForcingLineFit[
         Table[{tValues[[k]], Flatten[evaluated["Values"][[k]]][[entry]]}, {k, lineCount}],
@@ -456,7 +514,8 @@ finiteFieldDeferredForcingCensus[key_String, prime_Integer,
 finiteFieldDeferredForcingDerivativeRules[rules_List, index_Integer] :=
   Cases[rules, (exponents_List -> coefficient_) /; exponents[[index]] > 0 :>
     (exponents - UnitVector[Length[exponents], index] -> coefficient exponents[[index]])];
-Options[finiteFieldDeferredForcingResidualQ] = {"Seed" -> 20260903};
+Options[finiteFieldDeferredForcingResidualQ] = {
+  "Seed" -> 20260903, "Threads" -> Automatic};
 finiteFieldDeferredForcingResidualQ[key_String, {e_, c_}, gauge_, alphabet_List,
     residueMatrices_List, pointCount_Integer: 16, OptionsPattern[]] := Module[
   {plan, X, Y, epsilon, vars, prime, points, images, started = AbsoluteTime[],
@@ -481,7 +540,8 @@ finiteFieldDeferredForcingResidualQ[key_String, {e_, c_}, gauge_, alphabet_List,
   BlockRandom[SeedRandom[OptionValue["Seed"]];
     prime = RandomPrime[{2^30, 2^31 - 1}];
     points = Table[RandomInteger[{3, prime - 3}, 3], {pointCount}]];
-  images = finiteFieldDeferredForcingImages[key, prime, points];
+  images = finiteFieldDeferredForcingImages[key, prime, points,
+    "Threads" -> OptionValue["Threads"]];
   If[Lookup[images, "Status", None] =!= "OK", Return[images]];
   degrees = Max /@ Transpose[Join[ConstantArray[0, {1, 3}],
     Cases[{gaugeTables, eTables, cTables, letterTables, residueTables}, (exponents_List -> _) :> exponents, Infinity]]];

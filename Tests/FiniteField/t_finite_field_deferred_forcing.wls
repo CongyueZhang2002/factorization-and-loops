@@ -7,7 +7,7 @@
          batch limit 8, 20 uncached images returned 8 Missing under "OK");
    F2 -- a helper kernel (empty plan registry) rebuilds the plan from the
          descriptor's handle and samples exactly like the solving kernel;
-         without the handle the sample fails typed and is counted.
+         without the handle the sample returns a typed runtime reason.
    The fixture is the campaign's CF300 (12,9) chart strip (a deferred
    preparation with a rational chart); a missing fixture fails the test. *)
 
@@ -46,7 +46,8 @@ rootImages = Table[SelectFirst[chartRoots, TrueQ[Together[#["RootSquare"] - used
 plan = mq["finiteFieldDeferredForcingPlan"][dp, inputFile, data, usedRoots, rootImages, chartVariables, variables, epsilon, Dimensions[First[bbar]]];
 FTAssert["D1 the deferred forcing plan is built and registered", plan["Status"] === "OK" && StringQ[plan["Key"]]];
 key = plan["Key"];
-Images = mq["finiteFieldDeferredForcingImages"];
+ImagesRaw = mq["finiteFieldDeferredForcingImages"];
+Images[k_, p_, points_] := ImagesRaw[k, p, points, "Threads" -> 2];
 cacheOf[] := mq["$finiteFieldDeferredForcingImageCache"];
 setCache[v_] := (FeynFacet`Private`$finiteFieldDeferredForcingImageCache = v);
 setLimit[n_] := (FeynFacet`Private`$finiteFieldDeferredForcingBatchLimit = n);
@@ -56,9 +57,9 @@ images[n_, seed_] := BlockRandom[SeedRandom[seed]; Table[Append[RandomInteger[{2
 im30 = images[30, 11];
 setCache[<||>]; rBig = Images[key, prime, im30];
 setLimit[7]; setCache[<||>]; rSmall = Images[key, prime, im30]; setLimit[1024];
-FTAssert["D2 a batch limit of 7 returns the same images as one request of 30",
-  rBig["Status"] === "OK" && rSmall["Status"] === "OK" && rBig["Values"] === rSmall["Values"] &&
-    rSmall["BatchedImages"] === 30];
+FTAssert["D2 a batch limit of 7 returns the same two-thread images as one request of 30",
+    rBig["Status"] === "OK" && rSmall["Status"] === "OK" && rBig["Values"] === rSmall["Values"] &&
+    rSmall["BatchedImages"] === 30 && rBig["Threads"] === 2 && rSmall["Threads"] === 2];
 
 (* R2 F1 (fixture P2): the cache crosses its reset inside one multi-chunk call *)
 im20 = images[20, 12];
@@ -81,7 +82,7 @@ setCache[<||>];
 
 (* R2 F2: the helper path.  The record the sampler sees (as SolveEpsFormStripInFrame
    builds it): chart strip with the placeholder forcing and the descriptor. *)
-census = mq["finiteFieldDeferredForcingCensus"][key, prime];
+census = mq["finiteFieldDeferredForcingCensus"][key, prime, "Threads" -> 2];
 FTAssert["D6 the census accepts the strip", census["Status"] === "OK"];
 descriptor = <|"Key" -> key, "Census" -> KeyTake[census, {"Letters", "GaugeFactorPowers", "ForcingInfinityDegree"}],
   "Handle" -> mq["finiteFieldDeferredForcingHandle"][plan]|>;
@@ -92,8 +93,10 @@ sampleRecord = <|"Strip" -> {chartEC[[1]], chartEC[[2]], ConstantArray[0, Dimens
 preparation = mq["finiteFieldStripPrepare"][sampleRecord];
 FTAssert["D7 the sampler's preparation carries the descriptor", AssociationQ[preparation] &&
   AssociationQ[Lookup[preparation, "DeferredForcing", None]] && StringQ[preparation["Fingerprint"]]];
-stripSeconds[a_] := If[AssociationQ[a], KeySelect[a, ! StringEndsQ[ToString[#], "Seconds"] &], a];
-sampleOptions = {"PointCount" -> 12, "RandomSeed" -> 2540908};
+stripSeconds[a_] := If[AssociationQ[a], KeySelect[a,
+  ! StringEndsQ[ToString[#], "Seconds"] && # =!= "SamplingImagesBatched" &], a];
+sampleOptions = {"PointCount" -> 12, "RandomSeed" -> 2540908,
+  "BackendThreads" -> 2};
 (* the solving kernel's sample *)
 main = FeynFacet`SampleEpsFormStripAffine[sampleRecord, 1/13, prime, Sequence @@ sampleOptions,
   "Preparation" -> preparation, "ExpectedFingerprint" -> preparation["Fingerprint"]];
@@ -105,27 +108,56 @@ brokerDir = CreateDirectory[];
 recordFile = mq["taskBrokerPutAtomic"][sampleRecord, FileNameJoin[{brokerDir, "record_" <> preparation["Fingerprint"] <> ".wl"}]];
 optionsFile = mq["taskBrokerPutAtomic"][sampleOptions, FileNameJoin[{brokerDir, "opts.wl"}]];
 FeynFacet`Private`$finiteFieldDeferredForcingRegistry = <||>; setCache[<||>];
-failuresBefore = FeynFacet`Private`$finiteFieldDeferredForcingTypedFailures;
-helper = mq["taskBrokerSampleTask"][recordFile, preparation["Fingerprint"], {1/13}, prime, optionsFile];
+helper = mq["taskBrokerSampleTask"][recordFile, preparation["Fingerprint"],
+  {1/13, 2/17}, prime, optionsFile];
 FTAssert["D9 (R2 F2) a helper with an empty registry rebuilds the plan from the handle and returns the solving kernel's sample",
-  ListQ[helper] && Length[helper] === 1 && AssociationQ[First[helper]] &&
+  ListQ[helper] && Length[helper] === 2 && AssociationQ[First[helper]] &&
     stripSeconds[First[helper]] === stripSeconds[main] &&
     KeyExistsQ[FeynFacet`Private`$finiteFieldDeferredForcingRegistry, key] &&
     TrueQ[FeynFacet`Private`$finiteFieldDeferredForcingRegistry[key]["Slim"]]];
-FTAssert["D10 the rebuilt plan serves images identical to the original plan's",
+FTAssert["D10 the helper preserves one forcing-image wave across its regulator batch",
+  helper[[1]]["SamplingImagesBatched"] > 0 &&
+    helper[[2]]["SamplingImagesBatched"] === 0];
+FTAssert["D11 the rebuilt plan serves images identical to the original plan's",
   With[{r = Images[key, prime, im20]}, r["Status"] === "OK" && r["Values"] === rRef["Values"]]];
-FTAssert["D11 a slim plan refuses a census typed",
-  mq["finiteFieldDeferredForcingCensus"][key, prime]["Status"] === "DeferredForcingPlanSlim"];
-(* without the handle: typed failure, counted *)
+FTAssert["D12 a slim plan refuses a census typed",
+  mq["finiteFieldDeferredForcingCensus"][key, prime,
+    "Threads" -> 2]["Status"] === "DeferredForcingPlanSlim"];
+(* without the handle: a typed runtime result, eligible for one local retry *)
 FeynFacet`Private`$finiteFieldDeferredForcingRegistry = <||>;
 noHandle = Join[sampleRecord, <|"DeferredForcing" -> KeyDrop[descriptor, "Handle"]|>];
 noHandlePreparation = mq["finiteFieldStripPrepare"][noHandle];
-failuresBefore = FeynFacet`Private`$finiteFieldDeferredForcingTypedFailures;
 bare = Quiet[FeynFacet`SampleEpsFormStripAffine[noHandle, 1/13, prime, Sequence @@ sampleOptions,
   "Preparation" -> noHandlePreparation, "ExpectedFingerprint" -> noHandlePreparation["Fingerprint"]]];
-FTAssert["D12 without a handle a helper's sample fails typed and the failure is counted",
-  bare === $Failed && FeynFacet`Private`$finiteFieldDeferredForcingTypedFailures === failuresBefore + 1 &&
-    FeynFacet`Private`$finiteFieldDeferredForcingLastFailure === "DeferredForcingPlanUnknown"];
+FTAssert["D13 without a handle a helper's sample returns its typed reason",
+  mq["finiteFieldDeferredForcingRuntimeFailureQ"][bare] &&
+    bare["Reason"] === "DeferredForcingPlanUnknown" &&
+    mq["finiteFieldDeferredForcingLocalRetryQ"][bare] &&
+    ! mq["finiteFieldDeferredForcingLocalRetryQ"][
+      mq["finiteFieldDeferredForcingRuntimeFailure"]["DeferredForcingBatchFailed"]]];
+
+(* Each rationalized radical receives an independent conjugation sign. *)
+rx = Unique["rx"]; ry = Unique["ry"];
+radicalExpression = 1 + Sqrt[(1 + rx)^2] + Sqrt[(1 + ry)^2];
+radicalVariants = mq["finiteFieldDeferredForcingRadicalVariants"][radicalExpression];
+expectedVariants = Flatten[Table[1 + sx (1 + rx) + sy (1 + ry),
+  {sx, {1, -1}}, {sy, {1, -1}}]];
+FTAssert["D14 two rationalized radicals produce the complete four-element sign orbit",
+  Length[radicalVariants] === 4 && AllTrue[expectedVariants,
+    Function[expected, AnyTrue[radicalVariants,
+      TrueQ[Together[# - expected] === 0] &]]]];
+
+(* A runtime adapter failure is not reinterpreted as an inconsistent ansatz. *)
+Block[{FeynFacet`Private`finiteFieldDeferredForcingImages =
+    Function[{k0, p0, images0, threadOption},
+      <|"Status" -> "SyntheticDeferredBatchFailure"|>]},
+  topFailure = Quiet[FeynFacet`SolveEpsFormStripFiniteField[sampleRecord,
+    "Primes" -> {prime}, "MaximumPrimeCount" -> 1,
+    "PointCount" -> 12, "KernelCount" -> 1, "BackendThreads" -> 2,
+    "SupportLearning" -> False, "Verbose" -> False]]];
+FTAssert["D15 the top-level solver preserves a typed deferred runtime failure",
+  mq["finiteFieldDeferredForcingRuntimeFailureQ"][topFailure] &&
+    topFailure["Reason"] === "SyntheticDeferredBatchFailure"];
 (* the solving kernel's registry is restored for whatever follows *)
 mq["finiteFieldDeferredForcingPlan"][dp, inputFile, data, usedRoots, rootImages, chartVariables, variables, epsilon, Dimensions[First[bbar]]];
 Quiet[DeleteDirectory[brokerDir, DeleteContents -> True]];

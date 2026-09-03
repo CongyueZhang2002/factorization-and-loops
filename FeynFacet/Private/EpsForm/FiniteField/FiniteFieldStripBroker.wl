@@ -20,12 +20,14 @@ ClearAll[
 taskBrokerSampleTask[recordFile_String, fingerprint_String, values_List, prime_Integer, optionsFile_String] :=
  Module[{record, preparation, options},
   record = taskBrokerRead[recordFile];
-  options = taskBrokerRead[optionsFile];
+  options = DeleteCases[taskBrokerRead[optionsFile],
+    "DeferredForcingWaveValues" -> _];
   preparation = taskBrokerCached[{"preparation", fingerprint},
     Module[{p = finiteFieldStripPrepare[record]},
       If[AssociationQ[p] && p["Fingerprint"] === fingerprint, p, $Failed]]];
   If[preparation === $Failed, Return[$Failed]];
-  SampleEpsFormStripAffine[record, #, prime, Sequence @@ options,
+  SampleEpsFormStripAffine[record, #, prime,
+    "DeferredForcingWaveValues" -> values, Sequence @@ options,
     "Preparation" -> preparation, "ExpectedFingerprint" -> fingerprint] & /@ values];
 
 (* A fixed-core sample holds a dense modular matrix in Wolfram and another
@@ -62,14 +64,16 @@ taskBrokerSampleWorkerLimit[___] := 1;
 taskBrokerSampleBatch[record_Association, values_List, prime_Integer, sampleOptions_List] :=
  Module[{fingerprint, recordFile, options, optionsFile, free, batches,
    workerCount, requestedWorkers, threadsPerWorker, balancedOptions,
-   codes, handle, local,
-   results, flat, missing},
+   codes, handle, local, recomputed,
+   results, flat, retry},
   fingerprint = Replace[Lookup[sampleOptions, "ExpectedFingerprint", Automatic],
     Automatic :> finiteFieldStripFingerprint[record]];
   recordFile = taskBrokerDataFile["record_" <> fingerprint, record];
   balancedOptions = sampleOptions /. Rule["BackendThreads",
       requested_Integer] :> Rule["BackendThreads",
         taskBrokerNativeThreadLimit[requested]];
+  balancedOptions = DeleteCases[balancedOptions,
+    "DeferredForcingWaveValues" -> _];
   requestedWorkers = Min[taskBrokerFreeKernels[] + 1, Length[values]];
   workerCount = taskBrokerSampleWorkerLimit[
     sampleOptions, requestedWorkers];
@@ -83,6 +87,7 @@ taskBrokerSampleBatch[record_Association, values_List, prime_Integer, sampleOpti
   (* no helper free: compute locally rather than queue behind the others *)
   If[free < 1,
     Return[SampleEpsFormStripAffine[record, #, prime,
+      "DeferredForcingWaveValues" -> values,
       Sequence @@ balancedOptions] & /@ values]];
   (* free + 1 shares: the helpers take the first `free`, this kernel the last *)
   batches = Partition[values, UpTo[Max[1, Ceiling[Length[values]/(free + 1)]]]];
@@ -100,21 +105,23 @@ taskBrokerSampleBatch[record_Association, values_List, prime_Integer, sampleOpti
     ToString[#, InputForm], ", ", ToString[prime], ", \"", optionsFile, "\"]"] & /@ Most[batches];
   handle = taskBrokerSubmit[codes, "Label" -> "ff" <> ToString[prime]];
   local = SampleEpsFormStripAffine[record, #, prime,
+      "DeferredForcingWaveValues" -> Last[batches],
       Sequence @@ balancedOptions] & /@ Last[batches];
   results = Append[taskBrokerCollect[handle], local];
   flat = Flatten[MapThread[Function[{batch, r},
     If[ListQ[r] && Length[r] === Length[batch], r, ConstantArray[$Failed, Length[batch]]]],
     {batches, results}], 1];
-  (* local fallback for failed tasks; R2 F2: counted and printed, so a
-     helper path that fails typed (e.g. a plan a helper cannot see) can no
-     longer hide behind the correct local result *)
-  missing = Flatten[Position[flat, $Failed, {1}, Heads -> False]];
-  If[missing =!= {},
-    $taskBrokerHelperFailureCount += Length[missing];
-    Print["[broker] ", Length[missing], " of ", Length[values],
-      " helper samples failed typed at prime ", prime,
-      "; recomputed locally (running total ", $taskBrokerHelperFailureCount, ")"]];
-  Do[flat[[i]] = SampleEpsFormStripAffine[record, values[[i]], prime,
-    Sequence @@ balancedOptions], {i, missing}];
+  (* A broker transport failure ($Failed), or the one helper-local failure
+     that the solving kernel can repair (an absent plan), gets one local
+     retry.  Every other typed deferred failure is mathematical or native
+     runtime data and propagates without a duplicate computation. *)
+  retry = DeleteDuplicates[Join[
+    Flatten[Position[flat, $Failed, {1}, Heads -> False]],
+    Select[Range[Length[flat]],
+      finiteFieldDeferredForcingLocalRetryQ[flat[[#]]] &]]];
+  If[retry =!= {},
+    recomputed = SampleEpsFormStripAffine[record, #, prime,
+        "DeferredForcingWaveValues" -> values[[retry]],
+        Sequence @@ balancedOptions] & /@ values[[retry]];
+    Do[flat[[retry[[k]]]] = recomputed[[k]], {k, Length[retry]}]];
   flat];
-If[! IntegerQ[$taskBrokerHelperFailureCount], $taskBrokerHelperFailureCount = 0];

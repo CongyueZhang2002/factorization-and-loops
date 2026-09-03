@@ -1394,7 +1394,8 @@ SampleEpsFormStripAffine[
    evaluationSeconds = 0., assemblySeconds = 0., pointCallSeconds = 0.,
    loopStart, kForms, kFormsQ = False, epsPowersK, kMaximumExponents = {0, 0},
    pointKey, kValues, deferredKey = None, drawnPoints = {}, forcingTable = <||>,
-   forcingImages, imageSeconds = 0., imageBatched = 0, prefetchCount, waveValues, fetchForcing},
+   forcingImages, waveImages = None, deferredFailure = None,
+   imageSeconds = 0., imageBatched = 0, prefetchCount, waveValues, fetchForcing},
 
   If[! finiteFieldStripRecordQ[record],
     Message[SampleEpsFormStripAffine::record]; Return[$Failed]];
@@ -1646,6 +1647,8 @@ SampleEpsFormStripAffine[
       forcing0Value = If[StringQ[deferredKey],
         Lookup[forcingTable, Key[{xValue, yValue}], fetchForcing[{xValue, yValue}]],
         Map[contractRational, kValues[[3]], {3}]];
+      If[finiteFieldDeferredForcingRuntimeFailureQ[deferredFailure],
+        Return[$Failed]];
       dlogValue = Map[contractRational, kValues[[4]], {2}];
       denominatorValue = contractRational[kValues[[5]]];
       derivativeDenominatorValues = contractRational /@ kValues[[6]],
@@ -1718,9 +1721,8 @@ SampleEpsFormStripAffine[
   deferredKey = If[AssociationQ[Lookup[preparation, "DeferredForcing", None]],
     finiteFieldDeferredForcingEnsurePlan[preparation["DeferredForcing"]], None];
   If[AssociationQ[Lookup[preparation, "DeferredForcing", None]] && ! StringQ[deferredKey],
-    $finiteFieldDeferredForcingTypedFailures += 1;
-    $finiteFieldDeferredForcingLastFailure = "DeferredForcingPlanUnknown";
-    Message[SampleEpsFormStripAffine::points]; Return[$Failed]];
+    Return[finiteFieldDeferredForcingRuntimeFailure[
+      "DeferredForcingPlanUnknown"]]];
   If[StringQ[deferredKey],
     drawnPoints = Table[RandomInteger[{2, prime - 2}, 2], {Min[maximumAttempts, 2 requestedPointCount]}];
     prefetchCount = Min[Length[drawnPoints], requestedPointCount + 8];
@@ -1730,21 +1732,30 @@ SampleEpsFormStripAffine[
          wave draws (same seed): the wave's first sample batches them once,
          the later samples hit the image cache *)
       If[ListQ[waveValues] && waveValues =!= {},
-        Quiet[finiteFieldDeferredForcingImages[deferredKey, prime,
+        waveImages = Quiet[finiteFieldDeferredForcingImages[deferredKey, prime,
           Flatten[Table[Append[pt, Mod[Numerator[value]
               PowerMod[Mod[Denominator[value], prime], -1, prime], prime]],
-            {value, waveValues}, {pt, drawnPoints[[;; prefetchCount]]}], 1]]]];
+            {value, waveValues}, {pt, drawnPoints[[;; prefetchCount]]}], 1],
+          "Threads" -> backendThreads]]];
       finiteFieldDeferredForcingImages[deferredKey, prime,
-        Append[#, epsilonMod] & /@ drawnPoints[[;; prefetchCount]]]];
+        Append[#, epsilonMod] & /@ drawnPoints[[;; prefetchCount]],
+        "Threads" -> backendThreads]];
     If[Lookup[forcingImages, "Status", None] =!= "OK",
-      $finiteFieldDeferredForcingTypedFailures += 1;
-      $finiteFieldDeferredForcingLastFailure = Lookup[forcingImages, "Status", None];
-      Message[SampleEpsFormStripAffine::points]; Return[$Failed]];
-    imageBatched = Lookup[forcingImages, "BatchedImages", 0];
+      Return[finiteFieldDeferredForcingRuntimeFailure[
+        Lookup[forcingImages, "Status", "DeferredForcingImageFailure"],
+        KeyDrop[forcingImages, "Values"]]]];
+    imageBatched = Lookup[forcingImages, "BatchedImages", 0] +
+      If[AssociationQ[waveImages] && Lookup[waveImages, "Status", None] === "OK",
+        Lookup[waveImages, "BatchedImages", 0], 0];
     forcingTable = AssociationThread[drawnPoints[[;; prefetchCount]] -> forcingImages["Values"]];
     (* a point past the prefetch (rejections) is fetched on its own *)
-    fetchForcing[point_] := With[{r = finiteFieldDeferredForcingImages[deferredKey, prime, {Append[point, epsilonMod]}]},
-      If[Lookup[r, "Status", None] === "OK", First[r["Values"]], $Failed]]];
+    fetchForcing[point_] := With[{r = finiteFieldDeferredForcingImages[
+        deferredKey, prime, {Append[point, epsilonMod]},
+        "Threads" -> backendThreads]},
+      If[Lookup[r, "Status", None] === "OK", First[r["Values"]],
+        deferredFailure = finiteFieldDeferredForcingRuntimeFailure[
+          Lookup[r, "Status", "DeferredForcingImageFailure"],
+          KeyDrop[r, "Values"]]; $Failed]]];
   {samplingSeconds, samplingResult} = AbsoluteTiming[
     While[Length[acceptedPoints] < requestedPointCount &&
         attemptCount < maximumAttempts &&
@@ -1755,10 +1766,13 @@ SampleEpsFormStripAffine[
       loopStart = AbsoluteTime[];
       pointResult = buildPointRows @@ point;
       pointCallSeconds += AbsoluteTime[] - loopStart;
+      If[finiteFieldDeferredForcingRuntimeFailureQ[deferredFailure], Break[]];
       If[pointResult =!= $Failed,
         AppendTo[acceptedPoints, point];
         AppendTo[pointRows, pointResult[[1]]];
         AppendTo[pointRightHandSides, pointResult[[2]]]]]];
+  If[finiteFieldDeferredForcingRuntimeFailureQ[deferredFailure],
+    Return[deferredFailure]];
   If[Length[acceptedPoints] < requestedPointCount,
     Message[SampleEpsFormStripAffine::points]; Return[$Failed]];
   matrix = SparseArray[Join @@ pointRows];
@@ -2768,6 +2782,8 @@ finiteFieldStripUnseenPrimeResidualQ[record_Association, lifted_Association,
     Sequence @@ If[MatchQ[Lookup[lifted, "GaugeSupport", None], {{_Integer, _Integer} ..}],
       Join[{"Support" -> lifted["GaugeSupport"]}, DeleteCases[sampleOptions, "Support" -> _]],
       sampleOptions]];
+  If[finiteFieldDeferredForcingRuntimeFailureQ[sample],
+    $finiteFieldLastUnseenSample = sample; Return[False]];
   If[! AssociationQ[sample], $finiteFieldLastUnseenSample = <|"PointFailure" -> True|>; Return[False]];
   If[! TrueQ[sample["Consistent"]], Return[False]];
   canonical = NormalizeEpsFormAffineSample[sample, lifted["NormalizationColumns"], prime];
@@ -2949,7 +2965,6 @@ Options[SolveEpsFormStripFiniteField] = {
 SolveEpsFormStripFiniteField[record_Association,
     opts : OptionsPattern[]] := Module[
   {primes, epsilonSamples, degreeOffsets, pointCount, kernelCount,
-   deferredTypedFailuresStart = 0, brokerHelperFailuresStart = 0,
    constructionCount, maximumTotalDegree, artifactDirectory,
    artifactPrefix, minimumPrimeCount, adaptivePrimeSampling,
    adaptiveValidationMargin, verbose, log, degreeProbe,
@@ -2973,7 +2988,7 @@ SolveEpsFormStripFiniteField[record_Association,
    primeSeconds, primeWallSeconds = {},
    liftReason = "OK", backendDecision, backendConfiguration,
    planDiscoveryBackend, planDiscoveryDecision, nativeProbeQ = False,
-   nativeProbeFailure,
+   nativeProbeFailure, deferredFailureOf, deferredFailure,
    cachedSimplexProbe = Missing["NotProbed"],
    suppliedPreparation, suppliedEliminationPlan,
    eliminationPlanFingerprint = None,
@@ -2982,9 +2997,6 @@ SolveEpsFormStripFiniteField[record_Association,
    budgetProgress, budgetExhausted},
   If[! finiteFieldStripRecordQ[record],
     Message[SampleEpsFormStripAffine::record]; Return[$Failed]];
-  (* R2 F2 telemetry baseline for this solve *)
-  deferredTypedFailuresStart = $finiteFieldDeferredForcingTypedFailures;
-  brokerHelperFailuresStart = $taskBrokerHelperFailureCount;
   deadline = OptionValue["Deadline"];
   If[! finiteFieldStripDeadlineQ[deadline],
     Return[<|"Status" -> "InvalidDeadline", "Deadline" -> deadline,
@@ -3042,7 +3054,14 @@ SolveEpsFormStripFiniteField[record_Association,
   If[AssociationQ[suppliedEliminationPlan] &&
       TrueQ[OptionValue["SupportLearning"]],
     Return[<|"Status" -> "EliminationPlanResumeRequiresFixedSupport"|>]];
+  deferredFailureOf[value_] := Which[
+    finiteFieldDeferredForcingRuntimeFailureQ[value], value,
+    ListQ[value], SelectFirst[value,
+      finiteFieldDeferredForcingRuntimeFailureQ, None],
+    True, None];
   nativeProbeFailure[sample_] := Module[{plan, detail},
+    detail = deferredFailureOf[sample];
+    If[finiteFieldDeferredForcingRuntimeFailureQ[detail], Return[detail]];
     If[! nativeProbeQ, Return[None]];
     If[AssociationQ[suppliedEliminationPlan] && AssociationQ[sample] &&
         Lookup[Lookup[sample, "PlanValidationStatus", <||>],
@@ -3424,6 +3443,9 @@ SolveEpsFormStripFiniteField[record_Association,
             "ArtifactDirectory" -> artifactDirectory,
             "Preparation" -> preparation,
             "ExpectedFingerprint" -> preparation["Fingerprint"]]]];
+      deferredFailure = deferredFailureOf[pilotSample];
+      If[finiteFieldDeferredForcingRuntimeFailureQ[deferredFailure],
+        Return[deferredFailure]];
       If[AssociationQ[pilotSample] &&
           AssociationQ[Lookup[pilotSample, "EliminationPlan", None]] &&
           pilotSample["EliminationPlan"]["Status"] === "OK",
@@ -3481,6 +3503,9 @@ SolveEpsFormStripFiniteField[record_Association,
           "SolveAffineSystem" -> True, "DiscoverPlan" -> True,
           "ArtifactDirectory" -> artifactDirectory,
           "Preparation" -> preparation, "ExpectedFingerprint" -> preparation["Fingerprint"]];
+        deferredFailure = deferredFailureOf[learnedPilot];
+        If[finiteFieldDeferredForcingRuntimeFailureQ[deferredFailure],
+          Return[deferredFailure]];
         learnedPlan = If[AssociationQ[learnedPilot], Lookup[learnedPilot, "EliminationPlan", None], None];
         If[AssociationQ[learnedPilot] && TrueQ[learnedPilot["Consistent"]] &&
             AssociationQ[learnedPlan] && learnedPlan["Status"] === "OK",
@@ -3494,6 +3519,8 @@ SolveEpsFormStripFiniteField[record_Association,
           log["Support learning: the ", Length[learned], "-monomial support was not consistent; keeping the ",
             blockLength, "-monomial support"]],
         log["Support learning: pilot uses ", Length[learned], " of ", blockLength, " monomials; nothing to shrink"]]]];
+  If[finiteFieldDeferredForcingRuntimeFailureQ[deferredFailure],
+    Return[deferredFailure]];
 
   (* broker decision: a pool is serving, we own no subkernels, and the
      pilot (or the degree probe when no plan was discovered) showed the
@@ -3636,6 +3663,9 @@ SolveEpsFormStripFiniteField[record_Association,
               batch = With[{timed = AbsoluteTiming[
                   sampleBatch[Table[regulatorValue[epsilonCursor + k], {k, want}]]]},
                 heldOutBatchSeconds += First[timed]; Last[timed]];
+              deferredFailure = deferredFailureOf[batch];
+              If[finiteFieldDeferredForcingRuntimeFailureQ[deferredFailure],
+                Throw[deferredFailure, "a2"]];
               epsilonCursor += want; attempts += want;
               If[AnyTrue[batch, ! AssociationQ[#] &],
                 log["Discarded ", Count[batch, Except[_Association]],
@@ -3666,6 +3696,8 @@ SolveEpsFormStripFiniteField[record_Association,
               If[Length[pool] + need > Length[epsilonSamples] + 8, Throw["Cap", "a2"]],
             _, Throw["Failed", "a2"]]],
           "a2"]];
+        If[finiteFieldDeferredForcingRuntimeFailureQ[heldOutResult],
+          budgetStop = heldOutResult; Break[]];
         log["Prime ", prime, ": held-out sampling ", Length[pool], " regulator values -> ",
           heldOutResult, " (", Round[seconds, 0.1], " s)"];
         Which[
@@ -3699,6 +3731,9 @@ SolveEpsFormStripFiniteField[record_Association,
           " kernel", If[kernelCount === 1, "", "s"], " at ",
           Length[currentEpsilonSamples], " regulator values"];
         {seconds, samples} = AbsoluteTiming[sampleBatch[currentEpsilonSamples]];
+        deferredFailure = deferredFailureOf[samples];
+        If[finiteFieldDeferredForcingRuntimeFailureQ[deferredFailure],
+          budgetStop = deferredFailure; Break[]];
         If[AnyTrue[samples, ! AssociationQ[#] &],
           (* regulator values at a pole of the forcing are replaced by
              values beyond the schedule (2026-08-22) *)
@@ -3709,10 +3744,14 @@ SolveEpsFormStripFiniteField[record_Association,
               (* between replacement regulator values: no batch is
                  submitted past the deadline *)
               extra = sampleBatch[Table[regulatorValue[cursor + k], {k, missing}]];
+              deferredFailure = deferredFailureOf[extra];
+              If[finiteFieldDeferredForcingRuntimeFailureQ[deferredFailure],
+                budgetStop = deferredFailure; Break[]];
               cursor += missing;
               samples = Join[samples, Select[extra, AssociationQ]];
               missing = Count[extra, Except[_Association]]];
             log["Regulator values at a pole of the forcing replaced; ", Length[samples], " samples"]]];
+        If[finiteFieldDeferredForcingRuntimeFailureQ[budgetStop], Break[]];
         (* an incomplete deterministic batch because the deadline passed
            is a budget stop, never a sampling failure: it must not turn
            into a full retry (a second complete solve) *)
@@ -3876,6 +3915,8 @@ SolveEpsFormStripFiniteField[record_Association,
           sampleEpsilon = regulatorValue[Length[epsilonSamples] + 11 + 7 j];
           unseen = finiteFieldStripUnseenPrimeResidualQ[record, lifted, preparation,
             unseenPrime, sampleEpsilon, sampleOptions];
+          If[finiteFieldDeferredForcingRuntimeFailureQ[$finiteFieldLastUnseenSample],
+            budgetStop = $finiteFieldLastUnseenSample; Break[]];
           If[TrueQ[unseen] || ! TrueQ[Lookup[$finiteFieldLastUnseenSample, "PointFailure", False]], Break[]],
           {j, 0, 5}];
         If[budgetStop =!= None, Break[]];
@@ -3914,6 +3955,9 @@ SolveEpsFormStripFiniteField[record_Association,
             With[{r = finiteFieldDeferredForcingResidualQ[record["DeferredForcing"]["Key"],
                 record["Strip"][[1 ;; 2]], lifted["Gauge"], lifted["Alphabet"], lifted["ResidueMatrices"]]},
               (* R2 F4: a modular check, named as such, with its seed, prime and points *)
+              If[Lookup[r, "Status", None] =!= "OK",
+                finiteFieldDeferredForcingRuntimeFailure[
+                  Lookup[r, "Status", "DeferredForcingResidualFailure"], r],
               <|"DLogFormCertified" -> TrueQ[Lookup[r, "ResidualZero", False]] &&
                   FreeQ[lifted["Alphabet"], record["Regulator"]] &&
                   FreeQ[lifted["ResidueMatrices"], Alternatives @@ record["Variables"]],
@@ -3923,8 +3967,10 @@ SolveEpsFormStripFiniteField[record_Association,
                 "LettersEpsFree" -> FreeQ[lifted["Alphabet"], record["Regulator"]],
                 "ResiduesKinematicsFree" -> FreeQ[lifted["ResidueMatrices"], Alternatives @@ record["Variables"]],
                 "ResiduesEpsFree" -> FreeQ[lifted["ResidueMatrices"], record["Regulator"]],
-                "Points" -> Lookup[r, "Points", 0], "ExactCheckSeconds" -> Lookup[r, "Seconds", 0.]|>],
+                "Points" -> Lookup[r, "Points", 0], "ExactCheckSeconds" -> Lookup[r, "Seconds", 0.]|>]],
             VerifyEpsFormStrip[record, lifted, "Method" -> "Numerical", "KernelCount" -> 1]]},
+          If[finiteFieldDeferredForcingRuntimeFailureQ[numerical],
+            budgetStop = numerical; Break[]];
           If[AssociationQ[numerical] && TrueQ[numerical["DLogFormCertified"]],
             log[If[TrueQ[numerical["ModularRoute"]], "Modular (DAG-image) Pfaffian residuals at ",
                 "Numerical Pfaffian residuals at "], numerical["Points"], " random points: zero (",
@@ -3969,11 +4015,6 @@ SolveEpsFormStripFiniteField[record_Association,
        regulator schedule would reproduce the same residues *)
     If[adaptivePrimeSampling && liftReason =!= "modulus", Return[fullRetry[]]];
     Message[SolveEpsFormStripFiniteField::failed]; Return[$Failed]];
-  If[$taskBrokerHelperFailureCount - brokerHelperFailuresStart > 0 ||
-      $finiteFieldDeferredForcingTypedFailures - deferredTypedFailuresStart > 0,
-    log["Deferred-route telemetry: ", $finiteFieldDeferredForcingTypedFailures - deferredTypedFailuresStart,
-      " typed failures in this kernel (last ", $finiteFieldDeferredForcingLastFailure, "), ",
-      $taskBrokerHelperFailureCount - brokerHelperFailuresStart, " helper samples recomputed locally"]];
   Join[solution, <|
     "Method" -> "SimultaneousFiniteFieldAffinePDE",
     "EliminationPlan" -> eliminationPlan,
@@ -4024,10 +4065,6 @@ SolveEpsFormStripFiniteField[record_Association,
       Lookup[modularData, "SamplingPointCallSeconds", {}],
     "PrimeSamplingImageSeconds" -> Lookup[modularData, "SamplingImageSeconds", {}],
     "PrimeSamplingImagesBatched" -> Lookup[modularData, "SamplingImagesBatched", {}],
-    (* R2 F2: typed failures of the deferred route in this kernel and helper
-       samples the broker recomputed locally, since this solve started *)
-    "DeferredForcingTypedFailures" -> $finiteFieldDeferredForcingTypedFailures - deferredTypedFailuresStart,
-    "BrokerHelperFailures" -> $taskBrokerHelperFailureCount - brokerHelperFailuresStart,
     "PrimeSamplingSampleSeconds" -> Lookup[modularData, "SamplingSampleSeconds", {}],
     "PrimeSamplingSetupSeconds" -> Lookup[modularData, "SamplingSetupSeconds", {}],
     "PrimeSamplingPreprocessingSeconds" -> Lookup[modularData, "SamplingPreprocessingSeconds", {}],

@@ -1466,7 +1466,7 @@ multiquadraticStripNativeDeferredEvaluateBatch[provider_Association,
       command = Join[{binary, inputFile, requestFile, outputFile},
         If[derivatives, {"--derivatives"}, {}],
         {"--threads", ToString[actualThreads]}];
-      process = RunProcess[command];
+      process = RunProcess[taskBrokerNativeCommand[command, actualThreads]];
       If[! AssociationQ[process] || process["ExitCode"] =!= 0,
         multiquadraticStripFailure["NativeDeferredEvaluatorProcessFailed",
           <|"ExitCode" -> If[AssociationQ[process],
