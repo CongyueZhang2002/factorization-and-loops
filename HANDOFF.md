@@ -4,7 +4,7 @@ Read `Design/PrivateOverhaul_2026-09-01.md` first: it is the living plan
 with done / running / not-done / decisions-for-the-user, the bug list,
 the benchmark table and the CF259 state. This note is the short version.
 
-## Current status (2026-09-03 01:10, one block; everything below it is history)
+## Current status (2026-09-03 15:40, one block; everything below it is history)
 
 - Package: seven layer folders under `FeynFacet/Private/`, each with
   sub-folders by responsibility (round 5), manifest `Private/LoadOrder.wl`
@@ -50,6 +50,18 @@ the benchmark table and the CF259 state. This note is the short version.
   uncertified record typed. The stored CF259 record predates the
   certificate; certifying it is open (the certifier exceeds its cap on
   that 47 x 47 record; the fix is a numeric-point Series per entry).
+- Accepted observable transports (round 9, 2026-09-03): 85 of the 87
+  certified families under the certified route, records in
+  `Results/UU_08_10_canonical/ObservableTransport_2026-09-03_round9/`
+  (written only after `AcceptedObservableTransportQ`); the 2026-09-01 set
+  is history (its records predate the valuation certificate and are
+  refused by the current predicate). Typed refusals: CF265, CF305
+  (`DLogResiduesRequired`, first-kernel dlog residues; with T). Physical
+  boundary modes 39/40 and endpoint transports 39/39 of the 40
+  nullity-period families in the `*_2026-09-03_round9/` siblings
+  (CF211 degenerate eigenspace open; the period coefficients are formal
+  until Stage 3 supplies values). Codex's overnight campaign record:
+  `Goals/Codex/2026-09-03/01_round8_and_physical_transport.md`.
 - CF259: transported with the valuation certificate bound, accepted by the
   current predicate: `.../CF259/observable_transport_2026-09-02_certified/`
   (270 s, SameQ with the 05:51 artifact, which no longer passes the
