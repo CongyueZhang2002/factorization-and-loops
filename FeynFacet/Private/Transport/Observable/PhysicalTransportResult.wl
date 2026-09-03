@@ -54,7 +54,7 @@ physicalTransportLedger[boundary_Association, activeColumns_List] := Module[
 AttachTransportBoundaryToRationalLayer[source_Association,
     layer_Association, boundary_Association, sourceRows_List,
     targetRows_List] := Catch@Module[
-  {fail, status, dimension, selectors, columnCounts, sourceDimension,
+  {fail, status, dimension, selectors, columnCounts, coordinates, sourceDimension,
    targetDimension, sourceSelectors, targetSelectors},
   fail[name_, extra_: <||>] := Throw[Join[<|"Status" -> name|>, extra]];
   status = Lookup[boundary, "Status", None];
@@ -77,9 +77,13 @@ AttachTransportBoundaryToRationalLayer[source_Association,
         MatrixQ[#] && Dimensions[#][[1]] === dimension &],
     fail["TransportBoundaryLayerLayoutInvalid"]];
   columnCounts = DeleteDuplicates[Dimensions[#][[2]] & /@ Values[selectors]];
+  coordinates = Lookup[boundary, "BoundaryCoordinates", Missing[]];
   If[Length[columnCounts] =!= 1 ||
       Length[Lookup[boundary, "BoundaryConstantVector", {}]] =!=
-        First[columnCounts],
+        First[columnCounts] || ! ListQ[coordinates] ||
+      Length[coordinates] =!= First[columnCounts] ||
+      ! AllTrue[coordinates, AssociationQ[#] &&
+        KeyExistsQ[#, "PeriodID"] && KeyExistsQ[#, "EpsilonOrder"] &],
     fail["TransportBoundaryColumnLayoutInvalid"]];
   sourceSelectors = Association@KeyValueMap[
     #1 -> SparseArray[#2[[sourceRows, All]]] &, selectors];
@@ -87,9 +91,15 @@ AttachTransportBoundaryToRationalLayer[source_Association,
     #1 -> SparseArray[#2[[targetRows, All]]] &, selectors];
   <|"Status" -> "TransportBoundaryAttachedToRationalLayer",
     "Source" -> Join[source,
-      <|"BoundarySelectors" -> sourceSelectors|>],
+      <|"BoundarySelectors" -> sourceSelectors,
+        "PhysicalBoundaryRows" -> sourceRows,
+        "PhysicalBoundaryDimension" -> dimension,
+        "BoundaryCoordinateKeys" ->
+          ({#["PeriodID"], #["EpsilonOrder"]} &) /@
+            coordinates|>],
     "Layer" -> Join[layer, <|
       "TargetBoundarySelectors" -> targetSelectors,
+      "PhysicalBoundaryRows" -> targetRows,
       "SharedBoundaryCoordinates" -> True|>],
     "Boundary" -> boundary,
     "SourceRows" -> sourceRows, "TargetRows" -> targetRows|>
@@ -115,7 +125,8 @@ BuildPhysicalTransportCoefficient[operator_Association,
    maximumExpandedTerms, expandQ, rawStore, rawCount = 0,
    demandTerms, matrix, vector, word, expanded, expandedStore,
    expandedCount = 0, merged, surviving, activeColumns, stage3,
-   paperTerms, functionSpace, expression, integral},
+   paperTerms, functionSpace, expression, integral, binding,
+   coordinateKeys, boundarySelectors, operatorPath},
   fail[name_, extra_: <||>] := Throw[Join[<|"Status" -> name|>, extra]];
   If[! AcceptedRationalEpsilonLayerOperatorQ[operator],
     fail["RationalEpsilonLayerOperatorRequired"]];
@@ -128,6 +139,25 @@ BuildPhysicalTransportCoefficient[operator_Association,
   If[! ListQ[constants] ||
       Length[constants] =!= dimensions["TotalBoundary"],
     fail["PhysicalBoundaryDimensionMismatch"]];
+  binding = Lookup[operator, "PhysicalBoundaryBinding", None];
+  coordinateKeys = ({#["PeriodID"], #["EpsilonOrder"]} &) /@
+    Lookup[boundary, "BoundaryCoordinates", {}];
+  boundarySelectors = Lookup[boundary, "BoundarySelectors", <||>];
+  If[! AssociationQ[binding] ||
+      Lookup[binding, "Dimension", None] =!= Lookup[boundary, "Dimension", None] ||
+      Lookup[binding, "CoordinateKeys", None] =!= coordinateKeys ||
+      ! AssociationQ[boundarySelectors] ||
+      Sort[Keys[operator["SourceBoundarySelectors"]]] =!=
+        Sort[Keys[boundarySelectors]] ||
+      Sort[Keys[operator["TargetBoundarySelectors"]]] =!=
+        Sort[Keys[boundarySelectors]] ||
+      ! AllTrue[Keys[boundarySelectors], Function[order,
+        Normal[operator["SourceBoundarySelectors"][order]] ===
+          Normal[boundarySelectors[order][[binding["SourceRows"], All]]] &&
+        Normal[operator["TargetBoundarySelectors"][order]] ===
+          Normal[boundarySelectors[order][[binding["TargetRows"], All]]]
+      ]],
+    fail["PhysicalBoundaryNotBoundToOperator"]];
   variable = Lookup[path, "Variable", Missing[]];
   base = Lookup[path, "BasePoint", Missing[]];
   endpoint = Lookup[path, "Endpoint", Missing[]];
@@ -137,6 +167,12 @@ BuildPhysicalTransportCoefficient[operator_Association,
       (curve =!= None && (! PolynomialQ[curve, variable] ||
         Exponent[curve, variable] =!= 4)),
     fail["PhysicalTransportPathInvalid"]];
+  operatorPath = Lookup[operator, "Path", <||>];
+  If[Lookup[operatorPath, "Variable", Missing[]] =!= variable ||
+      Lookup[operatorPath, "BasePoint", Missing[]] =!= base ||
+      Lookup[operatorPath, "Endpoint", Missing[]] =!= endpoint ||
+      Lookup[operatorPath, "Curve", None] =!= curve,
+    fail["PhysicalTransportPathDoesNotMatchOperator"]];
   definitions = OptionValue["CompositeDefinitions"];
   If[! AssociationQ[definitions],
     fail["CompositeLetterDefinitionsInvalid"]];
@@ -203,6 +239,9 @@ BuildPhysicalTransportCoefficient[operator_Association,
   surviving = Select[merged, physicalTransportNonzeroQ];
   activeColumns = physicalTransportActiveColumns[Normal /@ Values[surviving]];
   stage3 = physicalTransportLedger[boundary, activeColumns];
+  If[Lookup[stage3, "Status", None] =!=
+      "Stage3NeedsPrunedByTransport",
+    fail["Stage3LedgerUnavailable"]];
   integral[{}] := 1;
   integral[w_List] := TransportIteratedIntegral[
     w, {variable, base, endpoint}, curve];

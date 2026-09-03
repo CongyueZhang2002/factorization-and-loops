@@ -34,6 +34,8 @@ attached = AttachTransportBoundaryToRationalLayer[
 transport = <|"Status" -> "RationalEpsilonLayerTransportAccepted",
   "Window" -> {0, 0}, "KResidues" -> <||>,
   "GaugeAtEndpoint" -> <|0 -> IdentityMatrix[2]|>,
+  "PathVariable" -> u, "BasePoint" -> 0, "Endpoint" -> 1,
+  "Curve" -> None,
   "Certificate" -> <|"Probabilistic" -> True|>|>;
 operator = BuildRationalEpsilonLayerOperator[
   attached["Source"], attached["Layer"], transport];
@@ -70,7 +72,7 @@ FTAssert["an epsilon-dependent physical output gauge is applied after F=G+H sour
 
 ellipticSource = Join[attached["Source"], <|
   "Letters" -> {{"E4Omega0"}}, "Residues" -> {{{1, 0}, {0, 0}}}|>];
-ellipticTransport = transport;
+ellipticTransport = Join[transport, <|"Curve" -> u^4 + u + 1|>];
 ellipticOperator = BuildRationalEpsilonLayerOperator[
   ellipticSource, attached["Layer"], ellipticTransport];
 ellipticCoefficient = BuildPhysicalTransportCoefficient[
@@ -90,5 +92,17 @@ FTAssert["paper expansion caps fail closed",
       "Endpoint" -> 1, "Curve" -> u^4 + u + 1|>,
     "MaximumExpandedTerms" -> 0]["Status"] ===
       "PhysicalExpandedTermLimitInvalid"];
+
+FTAssert["a different path or same-length but different boundary basis cannot be substituted",
+  BuildPhysicalTransportCoefficient[operator, boundary,
+    {0, 1}, <|"Variable" -> u, "BasePoint" -> 0,
+      "Endpoint" -> 2|>]["Status"] ===
+      "PhysicalTransportPathDoesNotMatchOperator" &&
+  BuildPhysicalTransportCoefficient[operator,
+    Join[boundary, <|"BoundaryCoordinates" ->
+      Reverse[boundary["BoundaryCoordinates"]]|>],
+    {0, 1}, <|"Variable" -> u, "BasePoint" -> 0,
+      "Endpoint" -> 1|>]["Status"] ===
+      "PhysicalBoundaryNotBoundToOperator"];
 
 FTSummary[];

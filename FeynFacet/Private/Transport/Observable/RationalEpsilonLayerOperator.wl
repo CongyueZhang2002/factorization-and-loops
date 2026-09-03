@@ -70,7 +70,9 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
    targetBoundaryCount, sharedBoundaryQ, boundaryLayout, diagonal,
    diagonalMatrices, diagonalTokens,
    sourceMatrices, sourceTokens, incoming, incomingMatrices,
-   incomingTokens, gauge, gaugeMatrices, gaugeTokens, dimensions, window},
+   incomingTokens, gauge, gaugeMatrices, gaugeTokens, dimensions, window,
+   pathVariable, basePoint, endpoint, curve, boundaryBinding,
+   sourceBindingRows, targetBindingRows, boundaryCoordinateKeys},
 
   If[Lookup[transport, "Status", None] =!=
       "RationalEpsilonLayerTransportAccepted",
@@ -147,6 +149,24 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
   gaugeMatrices = AssociationThread[gaugeTokens, SparseArray /@ Values[gauge]];
 
   boundaryLayout = If[sharedBoundaryQ, "Shared", "Independent"];
+  pathVariable = Lookup[transport, "PathVariable",
+    Lookup[layer, "PathVariable", Missing["PathVariable"]]];
+  basePoint = Lookup[transport, "BasePoint",
+    Lookup[layer, "BasePoint", Missing["BasePoint"]]];
+  endpoint = Lookup[transport, "Endpoint",
+    Lookup[layer, "Endpoint", Missing["Endpoint"]]];
+  curve = Lookup[transport, "Curve", Lookup[layer, "Curve", None]];
+  sourceBindingRows = Lookup[source, "PhysicalBoundaryRows", Missing[]];
+  targetBindingRows = Lookup[layer, "PhysicalBoundaryRows", Missing[]];
+  boundaryCoordinateKeys = Lookup[source, "BoundaryCoordinateKeys", Missing[]];
+  boundaryBinding = If[sharedBoundaryQ &&
+      MatchQ[sourceBindingRows, {__Integer}] &&
+      MatchQ[targetBindingRows, {__Integer}] &&
+      ListQ[boundaryCoordinateKeys],
+    <|"Dimension" -> Lookup[source, "PhysicalBoundaryDimension", Missing[]],
+      "SourceRows" -> sourceBindingRows,
+      "TargetRows" -> targetBindingRows,
+      "CoordinateKeys" -> boundaryCoordinateKeys|>, None];
 
   dimensions = <|"Source" -> sourceDimension,
     "Target" -> targetDimension,
@@ -160,6 +180,9 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
     "Rows" -> rows,
     "Window" -> window,
     "BoundaryLayout" -> boundaryLayout,
+    "PhysicalBoundaryBinding" -> boundaryBinding,
+    "Path" -> <|"Variable" -> pathVariable, "BasePoint" -> basePoint,
+      "Endpoint" -> endpoint, "Curve" -> curve|>,
     "Dimensions" -> dimensions,
     "SourceBoundarySelectors" -> (SparseArray /@ sourceSelectors),
     "TargetBoundarySelectors" -> (SparseArray /@ targetSelectors),
