@@ -537,21 +537,22 @@ launcher's 900 s KILL was not reached).  Where the time went, for the first time
   offset up to {4,3} gave a consistent system, so no sample, prime or acceptance step was
   reached.
 
-What this says and does not say.  The block is not solved on any route so far: the campaign's
-own record (`CF303_25_18_unsolved.wl`, Aug 30) is `ModularStructureUnstable` on
-`DirectRootChannel`, and the chart route never reached its sampler under 900 s before this pass.
-The census pairs feed the *same* prepare code as the exact route's pairs (`factorPairs ->
-factorPowers -> gaugeFactorPowers`, `Last > 1 && !FreeQ[factor, variables]`,
-`gaugeDenominator = Times @@ f^(p-1)`, `FiniteFieldStripSolve.wl:1155-1167`), so the convention is
-shared; the pairs themselves are line-verified maxima over the entries, as the exact census's are.
-An inconsistent ansatz at every offset therefore points at the ansatz *family* on this block,
-not at where its data came from -- the lead for the review: the campaign's source-frame gauge
-denominator for this block carries eps^3 ... eps^6 (`CF303_25_18_prepare_gaugedenominator.wl`),
-the "regulator resonance" case for which the prepare has the `GaugeDenominatorFactor` widening
-(`FiniteFieldStripSolve.wl:1168-1174`); whether (25,18) needs that widening in the chart frame is
-a question the DAG route can now ask in ~13 s + one probe (~18 s) instead of never.  I did not
-pursue it: it changes the ansatz, i.e. the physics contract of the solve, and the mandate was
-speed at a fixed contract.
+What this says (rewritten after R2's F3).  Codex's note of 2026-08-30
+(`Exchange/Codex/2026-08-30/05_cf303_dlog_no_go_and_rational_kernel_route.md`) records a
+frame-independent integrability obstruction for this block: the gauge-eliminated covariant
+integrability screen has defect 1 at three independent (prime, eps) images for both the 48-dlog
+and the 16-polar-dlog targets, the rational gauge ansatz is exhaustive (all 16 divisor bounds and
+the infinity bound saturated), so no strict rational dlog form exists on (25,18) in any frame;
+T's transport route exists because of it.  Forty-six inconsistent offset/shell systems are
+therefore the *expected* outcome of a correct ansatz on a block with no dlog form, not evidence
+about the ansatz, and the block's campaign record (`CF303_25_18_unsolved.wl`,
+`ModularStructureUnstable` on `DirectRootChannel`) is the same fact seen from another route.
+The progress this pass makes on the block is exactly this: the chart route reaches the sampler
+in 13 s (census 12.5 s, prepare 0.33 s) where it used to sit 25 minutes in the materialization,
+and it returns typed.  Whether any widening of the ansatz is meaningful on this block is a
+question for the integrability screen, which the DAG images can now feed at ~1 ms per image;
+it is not a plan of this campaign, and the `GaugeDenominatorFactor` remark of the earlier draft
+is withdrawn.
 
 Cost of a probe on this block: ~18 s per 7-9k-unknown modular system through the FLINT adapter --
 the same per-solve floor lever 1 (7.6) addresses; a probe ladder of 46 systems is 14 minutes,
@@ -572,3 +573,30 @@ so a block of this size needs either the right ansatz at the first offsets or th
   the native evaluator's thread scaling `threads_probe.wls`.
 - Open items, in the order they pay: lever 1 (7.6, -12..-15 s on R4), lever 3b (7.7, -12 s), the
   (25,18) ansatz question (7.11), and the per-image native cost (1.3 ms at 4 threads, 0.7 at 8).
+
+## 8. R2's fixes (review `R2_review_stage1_speed.md`, verdict "finished with the listed fixes")
+
+| finding | fix | where | verification |
+|---|---|---|---|
+| F1 (medium): the image cache's 400,000-entry reset sat inside the chunk loop, so a multi-chunk call crossing it returned `OK` with earlier chunks' values `Missing` (R2: 8 of 20) | A call is atomic with respect to the cache: the reset happens only at the start of a call (between calls), every result of the call lives in a local list until it is returned, and any `Missing` value is a typed failure `DeferredForcingImagesIncomplete` (with `MissingCount`), never `OK` | `FiniteFieldDeferredForcing.wl:268-312` (`finiteFieldDeferredForcingImages`) | R2's fixture P2 is now an assertion: NEW `Tests/FiniteField/t_finite_field_deferred_forcing.wls` D3 (cache pre-filled to 399,998, batch limit 8, 20 uncached images -> `OK`, no `Missing`, values `SameQ` with the fresh-cache reference), D4 (the next call resets between calls and is complete), D5 (a chunk that yields no values is a typed failure), D2 (batch limit 7 vs one request of 30: `SameQ`) -- 13/13 PASS, 7 s |
+| F2 (medium): on the KernelPool broker path a helper kernel could not find the plan in the solving kernel's registry, every helper sample failed typed and the broker recomputed locally -- pool parallelism silently lost on the hard strips | The descriptor now carries a serializable **handle** (input file, the preparation's validation fields, chart substitution, Jacobian, root squares, root images, chart/source variables, regulator, dimensions); `finiteFieldDeferredForcingEnsurePlan` rebuilds a "slim" plan from it on a kernel whose registry lacks the key (same key by construction: the hash reads only those fields; a mismatch is refused), and the sampler resolves its key through it.  A slim plan serves images and residual checks and refuses a census typed (`DeferredForcingPlanSlim`).  Telemetry: `$finiteFieldDeferredForcingTypedFailures` (+ last status) counts the sampler's typed failures in each kernel; `$taskBrokerHelperFailureCount` counts helper samples the broker recomputed locally, printed unconditionally by the broker (`[broker] n of m helper samples failed typed at prime p; recomputed locally`), both carried per solve in `Timings/Inner` (`DeferredForcingTypedFailures`, `BrokerHelperFailures`) and logged by the solver (`Deferred-route telemetry: ...`, a line the sector driver prints) whenever nonzero | `FiniteFieldDeferredForcing.wl:127-159` (handle, ensure), `:402` (slim census refusal), `:68-72` (counters); `EpsFormStripInFrame.wl:1404-1405` (handle in the descriptor); `FiniteFieldStripSolve.wl:1717-1724` (ensure + count), `:1741-1745` (count), `:2985-2987` (baselines), `:3972-3976` (log), `:4027-4030` (timings); `FiniteFieldStripBroker.wl:108-120` (count + print) | In-kernel simulation of a helper, as the coordinator allowed (the licence's two seats forbid a pool test here): the same record file and options file a broker writes (`taskBrokerPutAtomic` into a fresh directory), the registry emptied, `taskBrokerSampleTask` called -> the sample equals the solving kernel's sample (all keys but timers `SameQ`), the plan is registered slim under the same key (D9), its images equal the original plan's (D10), the census refuses typed (D11); without the handle the sample fails typed and the counter advances by one with `DeferredForcingPlanUnknown` (D12).  Not verified: the real pool round trip (a `KernelPool` with `FACET_TASK_BROKER` set and a hard strip whose pilot exceeds `BrokerMinimumSeconds`); the check would be the broker line above absent from the sector log and `BrokerHelperFailures -> 0` in `Timings/Inner` of a strip that used helpers |
+| F3 (medium, report): the (25,18) lead ignored the recorded frame-independent no-go | 7.11 rewritten: Codex note 05 (2026-08-30) cited -- defect-1 integrability obstruction at three images, exhaustive rational ansatz, no strict rational dlog form in any frame; the 46 inconsistent systems are the expected outcome; the progress stated as "reaches the sampler in 13 s and returns typed"; the `GaugeDenominatorFactor` remark withdrawn and any widening stated as a question for the integrability screen, not a plan | section 7.11 | -- |
+| F4 (low-medium): the modular acceptance check was stored as `NumericalPfaffianResidualsZero` / `Certificate -> "NumericalResidual"`, unseeded | On the DAG route the check is stored as `ModularPfaffianResidualsZero` with a `ModularResidual` record (`Status`, `Prime`, `Points`, `RequestedPoints`, `Seed`, `Seconds`), `Certificate -> "ModularResidual"` (inner and strip level, `FrameCertificate["InnerCertificate"]`), the log line says "Modular (DAG-image) Pfaffian residuals"; `finiteFieldDeferredForcingResidualQ` draws its prime and points under `SeedRandom[Seed]` (option, default 20260903) and returns them.  Every reader of the certificate extended to accept `ModularResidual` alongside `NumericalResidual`: `familyRowGaugeStripAcceptanceRecordQ` (three places, and the frame key `ModularPfaffianResidualsZero`), the in-frame `innerSolvedQ`, the sector driver's `solvedQ`.  The exact route's keys are untouched | `FiniteFieldDeferredForcing.wl:459-485`; `EpsFormStripInFrame.wl:1558-1568, 1585-1595, 1622-1626, 1079`; `FiniteFieldStripSolve.wl:3916-3940`; `FamilyRowGauge.wl:118, 129-134, 153`; `Scripts/family_epsform_sector.wls:1279` | R1 on the final code (`r2_r1b.log`, 22.2 s, `Solved`): the record carries `"Certificate" -> "ModularResidual"`, `"InnerCertificate" -> "ModularResidual"`, `"ModularPfaffianResidualsZero" -> True`, `"ModularResidual" -> <|"Status" -> "OK", "Prime" -> 1329879151, "Points" -> 16, "RequestedPoints" -> 16, "Seed" -> 20260903, "Seconds" -> 0.23|>` (`runs/r1r2b_*/summary.wl`) |
+| F5 (low, not required): one singular point fails a whole wave's sample; the DAG route caps attempts at 2 x requestedPointCount | Not changed in this round (typed, ~1e-9 per point at 31-bit primes, no wrong acceptance); recorded as open | -- | -- |
+| F6 (low, not required): the conjugate sign variants cover one radical at a time | Not changed (fail-closed: the degree-consistency check refuses and the strip falls back to the exact route); recorded as open | -- | -- |
+
+Tests after the fixes (seat launcher, 300 s caps; tally lines audited, no "Failed to open file"):
+`t_finite_field_round2` `failed: {}` 27 s; `t_finite_field_adaptive_sampling` all True 3 s;
+`t_multiquadratic_transport_frame` 20 assertions 0 failed 4 s (the six pre-existing
+`OptionValue::nodef` messages); `t_deferred_bundle_chart_compatibility` 20 PASS 0 FAIL 4 s; NEW
+`t_finite_field_deferred_forcing` 13 PASS 0 FAIL 7 s (`r2_t_*.log`, `r2_t_deferred_forcing2.log`).
+Also run (not in the required list): `t_finite_field_gauge_pullback` 14 PASS 0 FAIL 6s (`r2_t_gauge.log`).
+
+One defect of my own in this round, recorded: a first placement of the telemetry baselines
+landed inside the solver's `Module` variable list (a nested `{}` default matched the anchor),
+which broke `SolveEpsFormStripFiniteField`; the load check passed (the file parses) and only the
+R1 run showed it (`Module::lvsym`, `r2_r1.log`).  Fixed by anchoring on the first body statement;
+the test chain that had started on the broken code was killed by verified PID and re-run.
+Nothing committed; the working tree now differs from HEAD in `FamilyRowGauge.wl`,
+`FiniteFieldDeferredForcing.wl`, `FiniteFieldStripBroker.wl`, `FiniteFieldStripSolve.wl`,
+`EpsFormStripInFrame.wl`, `Scripts/family_epsform_sector.wls`, this report, and the new test.

@@ -1276,7 +1276,7 @@ Do[
           "Verbose" -> True];
         solvedQ[s_] := AssociationQ[s] && Lookup[s, "Status", None] === "Solved" &&
           (TrueQ[Lookup[s, "ExactDLog", False]] ||
-            (productionQ && Lookup[s, "Certificate", None] === "NumericalResidual"));
+            (productionQ && MemberQ[{"NumericalResidual", "ModularResidual"}, Lookup[s, "Certificate", None]]));
         (* a construction stop short-circuits both solve routes: it is
            handled by the StripBudgetExhausted block below, unchanged *)
         If[blockwiseRouteQ && ! stripBudgetExhaustedQ[solution],

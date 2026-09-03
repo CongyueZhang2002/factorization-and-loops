@@ -1714,7 +1714,13 @@ SampleEpsFormStripAffine[
   (* round 8 pass 3: on the deferred route the forcing images of every
      candidate point come from ONE native DAG batch, so the points are drawn
      first (the same RNG stream as before) and the loop consumes them *)
-  deferredKey = Lookup[Lookup[preparation, "DeferredForcing", <||>] /. None -> <||>, "Key", None];
+  (* R2 F2: on a helper kernel the plan is rebuilt from the descriptor's handle *)
+  deferredKey = If[AssociationQ[Lookup[preparation, "DeferredForcing", None]],
+    finiteFieldDeferredForcingEnsurePlan[preparation["DeferredForcing"]], None];
+  If[AssociationQ[Lookup[preparation, "DeferredForcing", None]] && ! StringQ[deferredKey],
+    $finiteFieldDeferredForcingTypedFailures += 1;
+    $finiteFieldDeferredForcingLastFailure = "DeferredForcingPlanUnknown";
+    Message[SampleEpsFormStripAffine::points]; Return[$Failed]];
   If[StringQ[deferredKey],
     drawnPoints = Table[RandomInteger[{2, prime - 2}, 2], {Min[maximumAttempts, 2 requestedPointCount]}];
     prefetchCount = Min[Length[drawnPoints], requestedPointCount + 8];
@@ -1731,6 +1737,8 @@ SampleEpsFormStripAffine[
       finiteFieldDeferredForcingImages[deferredKey, prime,
         Append[#, epsilonMod] & /@ drawnPoints[[;; prefetchCount]]]];
     If[Lookup[forcingImages, "Status", None] =!= "OK",
+      $finiteFieldDeferredForcingTypedFailures += 1;
+      $finiteFieldDeferredForcingLastFailure = Lookup[forcingImages, "Status", None];
       Message[SampleEpsFormStripAffine::points]; Return[$Failed]];
     imageBatched = Lookup[forcingImages, "BatchedImages", 0];
     forcingTable = AssociationThread[drawnPoints[[;; prefetchCount]] -> forcingImages["Values"]];
@@ -2941,6 +2949,7 @@ Options[SolveEpsFormStripFiniteField] = {
 SolveEpsFormStripFiniteField[record_Association,
     opts : OptionsPattern[]] := Module[
   {primes, epsilonSamples, degreeOffsets, pointCount, kernelCount,
+   deferredTypedFailuresStart = 0, brokerHelperFailuresStart = 0,
    constructionCount, maximumTotalDegree, artifactDirectory,
    artifactPrefix, minimumPrimeCount, adaptivePrimeSampling,
    adaptiveValidationMargin, verbose, log, degreeProbe,
@@ -2973,6 +2982,9 @@ SolveEpsFormStripFiniteField[record_Association,
    budgetProgress, budgetExhausted},
   If[! finiteFieldStripRecordQ[record],
     Message[SampleEpsFormStripAffine::record]; Return[$Failed]];
+  (* R2 F2 telemetry baseline for this solve *)
+  deferredTypedFailuresStart = $finiteFieldDeferredForcingTypedFailures;
+  brokerHelperFailuresStart = $taskBrokerHelperFailureCount;
   deadline = OptionValue["Deadline"];
   If[! finiteFieldStripDeadlineQ[deadline],
     Return[<|"Status" -> "InvalidDeadline", "Deadline" -> deadline,
@@ -3901,30 +3913,34 @@ SolveEpsFormStripFiniteField[record_Association,
                placeholder forcing, modulo a fresh prime at random points *)
             With[{r = finiteFieldDeferredForcingResidualQ[record["DeferredForcing"]["Key"],
                 record["Strip"][[1 ;; 2]], lifted["Gauge"], lifted["Alphabet"], lifted["ResidueMatrices"]]},
+              (* R2 F4: a modular check, named as such, with its seed, prime and points *)
               <|"DLogFormCertified" -> TrueQ[Lookup[r, "ResidualZero", False]] &&
                   FreeQ[lifted["Alphabet"], record["Regulator"]] &&
                   FreeQ[lifted["ResidueMatrices"], Alternatives @@ record["Variables"]],
-                "NumericalPfaffianResidualsZero" -> Lookup[r, "ResidualZero", False],
+                "ModularPfaffianResidualsZero" -> Lookup[r, "ResidualZero", False],
+                "ModularResidual" -> KeyTake[r, {"Status", "Prime", "Points", "RequestedPoints", "Seed", "Seconds"}],
+                "ModularRoute" -> True,
                 "LettersEpsFree" -> FreeQ[lifted["Alphabet"], record["Regulator"]],
                 "ResiduesKinematicsFree" -> FreeQ[lifted["ResidueMatrices"], Alternatives @@ record["Variables"]],
                 "ResiduesEpsFree" -> FreeQ[lifted["ResidueMatrices"], record["Regulator"]],
-                "Points" -> Lookup[r, "Points", 0], "ExactCheckSeconds" -> Lookup[r, "Seconds", 0.],
-                "Residual" -> r|>],
+                "Points" -> Lookup[r, "Points", 0], "ExactCheckSeconds" -> Lookup[r, "Seconds", 0.]|>],
             VerifyEpsFormStrip[record, lifted, "Method" -> "Numerical", "KernelCount" -> 1]]},
           If[AssociationQ[numerical] && TrueQ[numerical["DLogFormCertified"]],
-            log["Numerical Pfaffian residuals at ", numerical["Points"], " random points: zero (",
+            log[If[TrueQ[numerical["ModularRoute"]], "Modular (DAG-image) Pfaffian residuals at ",
+                "Numerical Pfaffian residuals at "], numerical["Points"], " random points: zero (",
               Round[numerical["ExactCheckSeconds"], 0.1], " s); exact statement deferred to the family certificate"];
             solution = Join[KeyDrop[lifted, "LiftedVector"],
-              KeyTake[numerical, {"NumericalPfaffianResidualsZero", "LettersEpsFree",
-                "ResiduesKinematicsFree", "ResiduesEpsFree"}],
-              <|"Status" -> "Solved", "Certificate" -> "NumericalResidual",
+              KeyTake[numerical, {"NumericalPfaffianResidualsZero", "ModularPfaffianResidualsZero",
+                "ModularResidual", "LettersEpsFree", "ResiduesKinematicsFree", "ResiduesEpsFree"}],
+              <|"Status" -> "Solved",
+                "Certificate" -> If[TrueQ[numerical["ModularRoute"]], "ModularResidual", "NumericalResidual"],
                 "ExactDLog" -> Missing["DeferredToFamilyCertificate"],
                 "DLogFormCertified" -> Missing["DeferredToFamilyCertificate"],
                 "ExactPfaffianResidualsZero" -> Missing["NotRunNumericalMode"],
                 "UnseenPrime" -> unseenPrime|>];
             Break[],
             log["Numerical Pfaffian residuals NONZERO or structure failed: ",
-              If[AssociationQ[numerical], KeyTake[numerical, {"NumericalPfaffianResidualsZero", "StructuralFailureReasons"}], numerical],
+              If[AssociationQ[numerical], KeyTake[numerical, {"NumericalPfaffianResidualsZero", "ModularPfaffianResidualsZero", "StructuralFailureReasons"}], numerical],
               " -- lift rejected, more primes"]]]];
       solution = If[AssociationQ[lifted] && TrueQ[unseen],
         Quiet[Check[
@@ -3953,6 +3969,11 @@ SolveEpsFormStripFiniteField[record_Association,
        regulator schedule would reproduce the same residues *)
     If[adaptivePrimeSampling && liftReason =!= "modulus", Return[fullRetry[]]];
     Message[SolveEpsFormStripFiniteField::failed]; Return[$Failed]];
+  If[$taskBrokerHelperFailureCount - brokerHelperFailuresStart > 0 ||
+      $finiteFieldDeferredForcingTypedFailures - deferredTypedFailuresStart > 0,
+    log["Deferred-route telemetry: ", $finiteFieldDeferredForcingTypedFailures - deferredTypedFailuresStart,
+      " typed failures in this kernel (last ", $finiteFieldDeferredForcingLastFailure, "), ",
+      $taskBrokerHelperFailureCount - brokerHelperFailuresStart, " helper samples recomputed locally"]];
   Join[solution, <|
     "Method" -> "SimultaneousFiniteFieldAffinePDE",
     "EliminationPlan" -> eliminationPlan,
@@ -4003,6 +4024,10 @@ SolveEpsFormStripFiniteField[record_Association,
       Lookup[modularData, "SamplingPointCallSeconds", {}],
     "PrimeSamplingImageSeconds" -> Lookup[modularData, "SamplingImageSeconds", {}],
     "PrimeSamplingImagesBatched" -> Lookup[modularData, "SamplingImagesBatched", {}],
+    (* R2 F2: typed failures of the deferred route in this kernel and helper
+       samples the broker recomputed locally, since this solve started *)
+    "DeferredForcingTypedFailures" -> $finiteFieldDeferredForcingTypedFailures - deferredTypedFailuresStart,
+    "BrokerHelperFailures" -> $taskBrokerHelperFailureCount - brokerHelperFailuresStart,
     "PrimeSamplingSampleSeconds" -> Lookup[modularData, "SamplingSampleSeconds", {}],
     "PrimeSamplingSetupSeconds" -> Lookup[modularData, "SamplingSetupSeconds", {}],
     "PrimeSamplingPreprocessingSeconds" -> Lookup[modularData, "SamplingPreprocessingSeconds", {}],

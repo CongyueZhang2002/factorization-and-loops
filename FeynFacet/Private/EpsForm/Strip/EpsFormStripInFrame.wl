@@ -1076,7 +1076,7 @@ SolveEpsFormStripInFrame[
   innerSolvedQ[candidate_] := AssociationQ[candidate] &&
     Lookup[candidate, "Status", None] === "Solved" &&
     (TrueQ[Lookup[candidate, "ExactDLog", False]] ||
-      MemberQ[{"NumericalResidual", "PendingPostPullBackResidual"},
+      MemberQ[{"NumericalResidual", "ModularResidual", "PendingPostPullBackResidual"},
         Lookup[candidate, "Certificate", None]]);
   solveRationalStrip = Function[{rationalStrip, rationalVariables},
     Module[{candidate, directory, defaults, finiteOptions,
@@ -1400,7 +1400,9 @@ SolveEpsFormStripInFrame[
     If[Lookup[deferredForcingCensus, "Status", None] === "OK",
       deferredForcingDescriptor = <|"Key" -> deferredForcingPlan["Key"],
         "Census" -> KeyTake[deferredForcingCensus,
-          {"Letters", "GaugeFactorPowers", "ForcingInfinityDegree"}]|>;
+          {"Letters", "GaugeFactorPowers", "ForcingInfinityDegree"}],
+        (* R2 F2: the helper kernels rebuild the plan from this *)
+        "Handle" -> finiteFieldDeferredForcingHandle[deferredForcingPlan]|>;
       timings["DeferredForcingCensus"] = deferredForcingCensus["Seconds"];
       If[verbose, Print["[strip-in-frame] deferred forcing: DAG route, census ",
         Round[deferredForcingCensus["Seconds"], 0.1], " s, letters ",
@@ -1553,14 +1555,16 @@ SolveEpsFormStripInFrame[
         (* round 8 pass 3: the same residual with the DAG image of the forcing *)
         With[{r = finiteFieldDeferredForcingResidualQ[deferredForcingDescriptor["Key"],
             chartStrip[[1 ;; 2]], postPullBackGauge, inner["Alphabet"], inner["ResidueMatrices"]]},
+          (* R2 F4: a modular check, named as such, with its seed, prime and points *)
           <|"DLogFormCertified" -> TrueQ[Lookup[r, "ResidualZero", False]] &&
               FreeQ[inner["Alphabet"], epsilon] &&
               FreeQ[inner["ResidueMatrices"], Alternatives @@ chartVariables],
-            "NumericalPfaffianResidualsZero" -> Lookup[r, "ResidualZero", False],
+            "ModularPfaffianResidualsZero" -> Lookup[r, "ResidualZero", False],
+            "ModularResidual" -> KeyTake[r, {"Status", "Prime", "Points", "RequestedPoints", "Seed", "Seconds"}],
             "LettersEpsFree" -> FreeQ[inner["Alphabet"], epsilon],
             "ResiduesKinematicsFree" -> FreeQ[inner["ResidueMatrices"], Alternatives @@ chartVariables],
             "ResiduesEpsFree" -> FreeQ[inner["ResidueMatrices"], epsilon],
-            "Points" -> Lookup[r, "Points", 0], "Residual" -> r|>],
+            "Points" -> Lookup[r, "Points", 0]|>],
         VerifyEpsFormStrip[
           <|"Strip" -> chartStrip, "Variables" -> chartVariables,
             "Regulator" -> epsilon|>,
@@ -1582,9 +1586,10 @@ SolveEpsFormStripInFrame[
       First[postPullBackCandidates], "Verification", <||>];
     inner = Join[inner,
       KeyTake[postPullBackVerification,
-        {"NumericalPfaffianResidualsZero", "LettersEpsFree",
-         "ResiduesKinematicsFree", "ResiduesEpsFree"}],
-      <|"Certificate" -> "NumericalResidual",
+        {"NumericalPfaffianResidualsZero", "ModularPfaffianResidualsZero", "ModularResidual",
+         "LettersEpsFree", "ResiduesKinematicsFree", "ResiduesEpsFree"}],
+      <|"Certificate" -> If[AssociationQ[deferredForcingDescriptor],
+          "ModularResidual", "NumericalResidual"],
         "ExactDLog" -> Missing["DeferredToFamilyCertificate"],
         "DLogFormCertified" -> Missing["DeferredToFamilyCertificate"]|>];
     timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
@@ -1618,6 +1623,9 @@ SolveEpsFormStripInFrame[
         "UnseenPrime" -> Lookup[inner, "UnseenPrime", None],
         "NumericalPfaffianResidualsZero" -> Lookup[inner,
           "NumericalPfaffianResidualsZero", Missing["NotRun"]],
+        "ModularPfaffianResidualsZero" -> Lookup[inner,
+          "ModularPfaffianResidualsZero", Missing["NotRun"]],
+        "ModularResidual" -> Lookup[inner, "ModularResidual", Missing["NotRun"]],
         "Normalizer" -> KeyDrop[finiteFieldGauge, "Result"]|>|>]];
 
   signChoices = Tuples[{1, -1}, Length[usedRoots]];

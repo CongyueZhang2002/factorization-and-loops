@@ -65,6 +65,11 @@ $finiteFieldDeferredForcingImageCache = <||>;
    MAX_TOTAL_IMAGES = 4096 channels, i.e. Floor[4096/gradeCount] images
    (ResourceLimit, exit 5); the chunk is the smaller of this and that cap *)
 $finiteFieldDeferredForcingBatchLimit = 1024;
+(* R2 F2 telemetry: typed failures of the deferred route seen by the
+   sampler in this kernel (a helper's failures are counted by the broker's
+   local fallback in the solving kernel, $taskBrokerHelperFailureCount) *)
+If[! IntegerQ[$finiteFieldDeferredForcingTypedFailures], $finiteFieldDeferredForcingTypedFailures = 0];
+$finiteFieldDeferredForcingLastFailure = None;
 
 (* FACET_DEFERRED_FORCING=Off restores the exact pull-back before the inner
    solve (the pre-2026-09-02 route); anything else keeps the DAG route *)
@@ -118,6 +123,40 @@ finiteFieldDeferredForcingPlan[deferredPreparation_Association,
   plan
 ];
 finiteFieldDeferredForcingPlan[___] := <|"Status" -> "DeferredForcingPlanInvalid"|>;
+
+(* R2 F2: a helper kernel (KernelPool broker) has an empty registry.  The
+   descriptor therefore carries a small serializable handle from which the
+   helper rebuilds the plan deterministically (same key: the hash reads only
+   the file, the preparation fingerprint, the chart substitution, the root
+   images and the root squares).  The rebuilt plan is "slim": it has the
+   preparation's validation fields but not its records, so it serves images
+   and residual checks, never a census. *)
+finiteFieldDeferredForcingHandle[plan_Association] := <|
+  "InputFile" -> plan["InputFile"],
+  "Preparation" -> KeyTake[plan["Preparation"],
+    {"Status", "ABIVersion", "SourceFingerprint", "Fingerprint"}],
+  "Subst" -> plan["Subst"], "Jacobian" -> plan["Jacobian"],
+  "Roots" -> (KeyTake[#, "RootSquare"] & /@ plan["Roots"]),
+  "RootImages" -> plan["RootImages"],
+  "ChartVariables" -> plan["ChartVariables"], "Variables" -> plan["Variables"],
+  "Regulator" -> plan["Regulator"], "Dimensions" -> plan["Dimensions"]|>;
+finiteFieldDeferredForcingEnsurePlan[descriptor_Association] := Module[{key, handle, plan},
+  key = Lookup[descriptor, "Key", None];
+  If[! StringQ[key], Return[None]];
+  If[KeyExistsQ[$finiteFieldDeferredForcingRegistry, key], Return[key]];
+  handle = Lookup[descriptor, "Handle", None];
+  If[! AssociationQ[handle], Return[None]];
+  plan = finiteFieldDeferredForcingPlan[<|"Preparation" -> handle["Preparation"]|>,
+    handle["InputFile"], KeyTake[handle, {"Subst", "Jacobian"}], handle["Roots"],
+    handle["RootImages"], handle["ChartVariables"], handle["Variables"],
+    handle["Regulator"], handle["Dimensions"]];
+  If[Lookup[plan, "Status", None] =!= "OK", Return[None]];
+  If[plan["Key"] =!= key,
+    KeyDropFrom[$finiteFieldDeferredForcingRegistry, plan["Key"]]; Return[None]];
+  $finiteFieldDeferredForcingRegistry[key] = Append[plan, "Slim" -> True];
+  key
+];
+finiteFieldDeferredForcingEnsurePlan[___] := None;
 
 (* Coefficient tables of the small eps-free chart data (substitution,
    root images, root squares, Jacobian): a rational function becomes
@@ -222,12 +261,18 @@ finiteFieldDeferredForcingPreflightsReference[plan_Association, prime_Integer,
    {2, d1, d2} of residues (the chart one-form after the Jacobian) *)
 finiteFieldDeferredForcingImages[key_String, prime_Integer, images_List] := Module[
   {plan, preflights, batch, gradeCount, jacobian, powers, masks, started = AbsoluteTime[],
-   cacheKeys, missing, batchSeconds = 0.},
+   cacheKeys, missing, batchSeconds = 0., values, computed},
   plan = Lookup[$finiteFieldDeferredForcingRegistry, key, $Failed];
   If[! AssociationQ[plan], Return[<|"Status" -> "DeferredForcingPlanUnknown"|>]];
   If[images === {}, Return[<|"Status" -> "OK", "Values" -> {}, "Seconds" -> 0.|>]];
+  (* R2 F1: the cache is bounded between calls only -- a call is atomic with
+     respect to it; its own results live in a local list until they are
+     returned, so a reset can never leave a value of this call Missing *)
+  If[Length[$finiteFieldDeferredForcingImageCache] > 400000,
+    $finiteFieldDeferredForcingImageCache = <||>];
   cacheKeys = Join[{key, prime}, #] & /@ images;
-  missing = Pick[Range[Length[images]], KeyExistsQ[$finiteFieldDeferredForcingImageCache, #] & /@ cacheKeys, False];
+  values = Lookup[$finiteFieldDeferredForcingImageCache, cacheKeys];
+  missing = Pick[Range[Length[images]], MatchQ[#, _Missing] & /@ values];
   (* the native evaluator caps the images per request (ResourceLimit above
      ~1000): the missing images go in chunks of $finiteFieldDeferredForcingBatchLimit *)
   Do[
@@ -241,8 +286,6 @@ finiteFieldDeferredForcingImages[key_String, prime_Integer, images_List] := Modu
       Return[<|"Status" -> "DeferredForcingBatchFailed", "Detail" -> batch|>, Module]];
     batchSeconds += batch["Seconds"];
     gradeCount = batch["GradeCount"];
-    If[Length[$finiteFieldDeferredForcingImageCache] > 400000,
-      $finiteFieldDeferredForcingImageCache = <||>];
     (* grade contraction with the root values (one Dot per image) and the
        Jacobian from its tables, both for the whole chunk *)
     powers = MapThread[finiteFieldDeferredForcingPowers[#1, #2, prime] &,
@@ -251,15 +294,20 @@ finiteFieldDeferredForcingImages[key_String, prime_Integer, images_List] := Modu
       plan["Tables"]["Jacobian"], {2}];
     If[! FreeQ[jacobian, $Failed, {3}], Return[<|"Status" -> "DeferredForcingSingularJacobian"|>, Module]];
     masks = Table[multiquadraticMaskFactor[g, #["RootValues"]], {g, 0, gradeCount - 1}] & /@ preflights;
-    Do[Module[{av = Mod[batch["BBarBatch"][[b]] . masks[[b]], prime]},
-      $finiteFieldDeferredForcingImageCache[cacheKeys[[chunk[[b]]]]] =
+    Do[computed = With[{av = Mod[batch["BBarBatch"][[b]] . masks[[b]], prime]},
         {Mod[Mod[av[[1]] jacobian[[1, 1, b]], prime] + Mod[av[[2]] jacobian[[2, 1, b]], prime], prime],
-         Mod[Mod[av[[1]] jacobian[[1, 2, b]], prime] + Mod[av[[2]] jacobian[[2, 2, b]], prime], prime]}],
+         Mod[Mod[av[[1]] jacobian[[1, 2, b]], prime] + Mod[av[[2]] jacobian[[2, 2, b]], prime], prime]}];
+      values[[chunk[[b]]]] = computed;
+      $finiteFieldDeferredForcingImageCache[cacheKeys[[chunk[[b]]]]] = computed,
       {b, Length[chunk]}],
     {chunk, Partition[missing, UpTo[Min[$finiteFieldDeferredForcingBatchLimit,
       Floor[4096/Lookup[plan["Provider"], "GradeCount", 8]]]]]}];
+  (* never OK with a hole: a Missing value is a typed failure of the call *)
+  If[! FreeQ[values, _Missing, {1}],
+    Return[<|"Status" -> "DeferredForcingImagesIncomplete",
+      "MissingCount" -> Count[values, _Missing, {1}]|>]];
   <|"Status" -> "OK",
-    "Values" -> Lookup[$finiteFieldDeferredForcingImageCache, cacheKeys],
+    "Values" -> values,
     "BatchedImages" -> Length[missing],
     "BatchSeconds" -> batchSeconds,
     "Seconds" -> N[AbsoluteTime[] - started]|>
@@ -351,6 +399,7 @@ finiteFieldDeferredForcingCensus[key_String, prime_Integer,
   {X, Y} = plan["ChartVariables"]; epsilon = plan["Regulator"];
   bound = OptionValue["DegreeBound"]; lineCount = 2 bound + 20;
   t = Symbol["FeynFacet`Private`deferredForcingLineT"];
+  If[TrueQ[Lookup[plan, "Slim", False]], Return[<|"Status" -> "DeferredForcingPlanSlim"|>]];
   candidates = finiteFieldDeferredForcingCandidateFactors[plan];
   lineCensus[seed_] := Module[{a0, b0, slope, tValues, images, evaluated, fits, factorLines,
       multiplicity, entryPowers},
@@ -407,8 +456,9 @@ finiteFieldDeferredForcingCensus[key_String, prime_Integer,
 finiteFieldDeferredForcingDerivativeRules[rules_List, index_Integer] :=
   Cases[rules, (exponents_List -> coefficient_) /; exponents[[index]] > 0 :>
     (exponents - UnitVector[Length[exponents], index] -> coefficient exponents[[index]])];
+Options[finiteFieldDeferredForcingResidualQ] = {"Seed" -> 20260903};
 finiteFieldDeferredForcingResidualQ[key_String, {e_, c_}, gauge_, alphabet_List,
-    residueMatrices_List, pointCount_Integer: 16] := Module[
+    residueMatrices_List, pointCount_Integer: 16, OptionsPattern[]] := Module[
   {plan, X, Y, epsilon, vars, prime, points, images, started = AbsoluteTime[],
    gaugeTables, eTables, cTables, letterTables, residueTables, residues, degrees, powers, poly, bad = {},
    inverse, at, dAt, dlogAt, gaugeValues, gaugeDerivatives, eValues, cValues, dlogValues,
@@ -426,8 +476,11 @@ finiteFieldDeferredForcingResidualQ[key_String, {e_, c_}, gauge_, alphabet_List,
     letterTables = finiteFieldDeferredForcingTable[#, vars] & /@ alphabet;
     (* the residue matrices may carry eps (the verifier reports ResiduesEpsFree separately) *)
     residueTables = Map[finiteFieldDeferredForcingTable[#, vars] &, residueMatrices, {3}]]];
-  prime = RandomPrime[{2^30, 2^31 - 1}];
-  points = Table[RandomInteger[{3, prime - 3}, 3], {pointCount}];
+  (* R2 F4: seeded, so the prime and the points of a recorded check are
+     reproducible from the record's Seed *)
+  BlockRandom[SeedRandom[OptionValue["Seed"]];
+    prime = RandomPrime[{2^30, 2^31 - 1}];
+    points = Table[RandomInteger[{3, prime - 3}, 3], {pointCount}]];
   images = finiteFieldDeferredForcingImages[key, prime, points];
   If[Lookup[images, "Status", None] =!= "OK", Return[images]];
   degrees = Max /@ Transpose[Join[ConstantArray[0, {1, 3}],
@@ -466,7 +519,8 @@ finiteFieldDeferredForcingResidualQ[key_String, {e_, c_}, gauge_, alphabet_List,
   ok = Length[good] >= Ceiling[pointCount/2] &&
     Flatten[residual[[All, All, All, good]]] === ConstantArray[0, 2 Times @@ dims Length[good]];
   <|"Status" -> "OK", "ResidualZero" -> ok, "Prime" -> prime,
-    "Points" -> Length[good], "TableSeconds" -> tableSeconds,
+    "Points" -> Length[good], "RequestedPoints" -> pointCount, "Seed" -> OptionValue["Seed"],
+    "TableSeconds" -> tableSeconds,
     "Seconds" -> N[AbsoluteTime[] - started]|>
 ];
 

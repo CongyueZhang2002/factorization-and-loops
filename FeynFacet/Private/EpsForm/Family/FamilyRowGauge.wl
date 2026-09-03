@@ -115,7 +115,7 @@ familyRowGaugeStripAcceptanceRecordQ[record_Association] := Module[
       Lookup[installation, "Status", None] ===
         "InstallationEvidenceAccepted" &&
       Lookup[installation, "Certificate", None] === certificate &&
-      MemberQ[{"ExactResidual", "NumericalResidual"}, certificate]]];
+      MemberQ[{"ExactResidual", "NumericalResidual", "ModularResidual"}, certificate]]];
   frame = Lookup[record, "FrameCertificate", <||>];
   If[StringQ[method] && StringStartsQ[method, "RationalChart/"],
     If[! AssociationQ[frame], Return[False]];
@@ -126,10 +126,11 @@ familyRowGaugeStripAcceptanceRecordQ[record_Association] := Module[
         TrueQ[Lookup[frame, "GaugeRoundTrip", False]] &&
         MatchQ[branchSigns, {__Integer}] &&
         AllTrue[branchSigns, MemberQ[{-1, 1}, #] &] &&
-        Lookup[frame, "InnerCertificate", None] ===
-          "NumericalResidual" &&
+        MemberQ[{"NumericalResidual", "ModularResidual"},
+          Lookup[frame, "InnerCertificate", None]] &&
         IntegerQ[Lookup[frame, "UnseenPrime", None]] &&
-        TrueQ[Lookup[frame, "NumericalPfaffianResidualsZero", False]];
+        (TrueQ[Lookup[frame, "NumericalPfaffianResidualsZero", False]] ||
+          TrueQ[Lookup[frame, "ModularPfaffianResidualsZero", False]]);
     Return[Switch[validationMode,
       "PostMapleFiniteFieldResidual" | "PostPullBackFiniteFieldResidual",
         numericalBaseQ &&
@@ -149,7 +150,7 @@ familyRowGaugeStripAcceptanceRecordQ[record_Association] := Module[
       And @@ (TrueQ[Lookup[frame, #, False]] & /@
         {"GaugeRoundTrip", "TransformedOneFormPullBack", "Exact"})]];
   TrueQ[Lookup[record, "ExactDLog", False]] ||
-    MemberQ[{"ExactResidual", "NumericalResidual"}, certificate]
+    MemberQ[{"ExactResidual", "NumericalResidual", "ModularResidual"}, certificate]
 ];
 familyRowGaugeStripAcceptanceRecordQ[___] := False;
 

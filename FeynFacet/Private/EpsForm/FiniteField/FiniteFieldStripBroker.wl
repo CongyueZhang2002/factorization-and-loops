@@ -105,8 +105,16 @@ taskBrokerSampleBatch[record_Association, values_List, prime_Integer, sampleOpti
   flat = Flatten[MapThread[Function[{batch, r},
     If[ListQ[r] && Length[r] === Length[batch], r, ConstantArray[$Failed, Length[batch]]]],
     {batches, results}], 1];
-  (* local fallback for failed tasks *)
+  (* local fallback for failed tasks; R2 F2: counted and printed, so a
+     helper path that fails typed (e.g. a plan a helper cannot see) can no
+     longer hide behind the correct local result *)
   missing = Flatten[Position[flat, $Failed, {1}, Heads -> False]];
+  If[missing =!= {},
+    $taskBrokerHelperFailureCount += Length[missing];
+    Print["[broker] ", Length[missing], " of ", Length[values],
+      " helper samples failed typed at prime ", prime,
+      "; recomputed locally (running total ", $taskBrokerHelperFailureCount, ")"]];
   Do[flat[[i]] = SampleEpsFormStripAffine[record, values[[i]], prime,
     Sequence @@ balancedOptions], {i, missing}];
   flat];
+If[! IntegerQ[$taskBrokerHelperFailureCount], $taskBrokerHelperFailureCount = 0];
