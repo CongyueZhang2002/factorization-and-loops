@@ -623,7 +623,7 @@ Options[finiteFieldGaugePullBackPrime] = {
 
 finiteFieldGaugePullBackPrime[plan_Association, prime_Integer,
     OptionsPattern[]] := Module[
-  {started = AbsoluteTime[], maximumKinematic, maximumEpsilon, heldOut,
+  {started = AbsoluteTime[], phaseSeconds = <||>, maximumKinematic, maximumEpsilon, heldOut,
    epsilonHeldOut, denominatorAggregation, maximumDenominatorCandidates,
    expectedEpsilon, expectedNumerator, expectedDenominator,
    expectedActive, expectedAnchors, expectedNormalization, deadline,
@@ -684,8 +684,8 @@ finiteFieldGaugePullBackPrime[plan_Association, prime_Integer,
   epsilonCandidateCount = If[IntegerQ[fibreBudget], fibreBudget + 4,
     2 maximumEpsilon + 8];
   epsilonCandidates = Range[2, 1 + epsilonCandidateCount];
-  fullSpecialized = finiteFieldGaugePullBackSpecialize[
-    plan, epsilonCandidates, prime];
+  fullSpecialized = With[{timed = AbsoluteTiming[finiteFieldGaugePullBackSpecialize[
+    plan, epsilonCandidates, prime]]}, phaseSeconds["SpecializeSeconds"] = Lookup[phaseSeconds, "SpecializeSeconds", 0.] + First[timed]; Last[timed]];
   If[Lookup[fullSpecialized, "Status", None] =!=
       "FiniteFieldGaugePullBackSpecializationV1",
     Return[fullSpecialized]];
@@ -697,15 +697,15 @@ finiteFieldGaugePullBackPrime[plan_Association, prime_Integer,
     Return[finiteFieldGaugePullBackFailure[
       "FiniteFieldGaugePullBackFibreBudgetFailed",
       <|"Prime" -> prime|>]]];
-  specialized = finiteFieldGaugePullBackTakeFibres[
-    fullSpecialized, fibreBudget];
+  specialized = With[{timed = AbsoluteTiming[finiteFieldGaugePullBackTakeFibres[
+    fullSpecialized, fibreBudget]]}, phaseSeconds["TakeFibresSeconds"] = Lookup[phaseSeconds, "TakeFibresSeconds", 0.] + First[timed]; Last[timed]];
   If[Lookup[specialized, "Status", None] =!=
       "FiniteFieldGaugePullBackSpecializationV1", Return[specialized]];
   pilotFibre = 1;
   If[expectedNumerator === Automatic || expectedDenominator === Automatic ||
       expectedActive === Automatic,
-    degrees = finiteFieldGaugePullBackSliceDegrees[
-      specialized, pilotFibre, maximumKinematic, heldOut, deadline];
+    degrees = With[{timed = AbsoluteTiming[finiteFieldGaugePullBackSliceDegrees[
+      specialized, pilotFibre, maximumKinematic, heldOut, deadline]]}, phaseSeconds["SliceDegreesSeconds"] = Lookup[phaseSeconds, "SliceDegreesSeconds", 0.] + First[timed]; Last[timed]];
     If[Lookup[degrees, "Status", None] =!=
         "FiniteFieldGaugePullBackSliceDegreesV1", Return[degrees]];
     activeOutputs = degrees["ActiveOutputs"];
@@ -766,8 +766,8 @@ finiteFieldGaugePullBackPrime[plan_Association, prime_Integer,
         pointAttempts < required + 512,
       If[finiteFieldGaugePullBackExpiredQ[deadline], Break[]];
       pointAttempts++;
-      evaluated = finiteFieldGaugePullBackEvaluatePoint[
-        specialized, pointGenerator[pointAttempts]];
+      evaluated = With[{timed = AbsoluteTiming[finiteFieldGaugePullBackEvaluatePoint[
+        specialized, pointGenerator[pointAttempts]]]}, phaseSeconds["EvaluatePointSeconds"] = Lookup[phaseSeconds, "EvaluatePointSeconds", 0.] + First[timed]; Last[timed]];
       If[Lookup[evaluated, "Status", None] ===
           "FiniteFieldGaugePullBackPointV1",
         AppendTo[records, evaluated]]];
@@ -806,11 +806,11 @@ finiteFieldGaugePullBackPrime[plan_Association, prime_Integer,
     If[AssociationQ[pointResult], Return[pointResult]];
     points = Lookup[records, "Point"];
     fibreValues = Transpose[Lookup[records, "Values"], {2, 1, 3}];
-    candidateFit = finiteFieldGaugePullBackFitFibre[
+    candidateFit = With[{timed = AbsoluteTiming[finiteFieldGaugePullBackFitFibre[
       points, fibreValues[[pilotFibre]], activeOutputs,
       candidateNumeratorSupport, candidateDenominatorSupport,
       prime, heldOut,
-      anchors, expectedNormalization];
+      anchors, expectedNormalization]]}, phaseSeconds["FitFibreSeconds"] = Lookup[phaseSeconds, "FitFibreSeconds", 0.] + First[timed]; Last[timed]];
     log["[finite-field gauge pullback] denominator candidate ",
       candidateBounds, " with numerator ", candidateNumeratorBounds,
       " -> ",
@@ -855,10 +855,10 @@ finiteFieldGaugePullBackPrime[plan_Association, prime_Integer,
     fibreValues = Transpose[Lookup[records, "Values"], {2, 1, 3}];
     Do[
       If[finiteFieldGaugePullBackExpiredQ[deadline], Break[]];
-      fit = finiteFieldGaugePullBackFitFibre[
+      fit = With[{timed = AbsoluteTiming[finiteFieldGaugePullBackFitFibre[
         points, fibreValues[[index]], activeOutputs,
         numeratorSupport, denominatorSupport, prime, heldOut,
-        anchors, normalization];
+        anchors, normalization]]}, phaseSeconds["FitFibreSeconds"] = Lookup[phaseSeconds, "FitFibreSeconds", 0.] + First[timed]; Last[timed]];
       If[Lookup[fit, "Status", None] =!=
           "FiniteFieldGaugePullBackFibreFitV1", Continue[]];
       vector = Join[Flatten[Transpose[fit["NumeratorCoefficients"]]],
@@ -903,8 +903,8 @@ finiteFieldGaugePullBackPrime[plan_Association, prime_Integer,
         <|"Prime" -> prime, "Detail" -> interpolation,
           "AcceptedFibres" -> Length[fits],
           "AvailableFibres" -> availableFibreCount|>]]];
-    specialized = finiteFieldGaugePullBackTakeFibres[
-      fullSpecialized, nextFibreBudget];
+    specialized = With[{timed = AbsoluteTiming[finiteFieldGaugePullBackTakeFibres[
+      fullSpecialized, nextFibreBudget]]}, phaseSeconds["TakeFibresSeconds"] = Lookup[phaseSeconds, "TakeFibresSeconds", 0.] + First[timed]; Last[timed]];
     records = {};
     pointAttempts = 0;
     pointResult = ensurePointCount[requiredPoints];
@@ -933,6 +933,8 @@ finiteFieldGaugePullBackPrime[plan_Association, prime_Integer,
     "BaseDenominatorBounds" -> baseDenominatorBounds,
     "MaximumDenominatorBounds" -> maximumDenominatorBounds,
     "AcceptedFibreCount" -> Length[fits],
+    (* round-8 phase timers (2026-09-02) *)
+    Sequence @@ Normal[phaseSeconds],
     "Seconds" -> N[AbsoluteTime[] - started]|>
 ];
 finiteFieldGaugePullBackPrime[___] :=

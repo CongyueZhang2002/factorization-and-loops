@@ -11,16 +11,17 @@ Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 u = Symbol["Global`layerU"]; eps = Symbol["Global`eps"];
 q = u^2 + 1;
+(* the second pole is the NON-INTEGER rational 3/4 (CF303's factors at p = 9/8 have such coefficients) *)
 source = <|"Dimension" -> 2,
-  "Letters" -> {{"GPLPole", -1}, {"GPLPole", 2}},
+  "Letters" -> {{"GPLPole", -1}, {"GPLPole", 3/4}},
   "Residues" -> {{{0, 1}, {0, 0}}, {{1, 0}, {0, -1}}},
   "BoundarySelectors" -> <|0 -> IdentityMatrix[2], 1 -> {{0, 1}, {0, 0}}|>|>;
-diagonal = {{{"GPLPole", 2}, {{1, 0}, {0, 2}}}, {{"GPLFactor", q, 0}, {{0, 1}, {1, 0}}}};
+diagonal = {{{"GPLPole", 3/4}, {{1, 0}, {0, 2}}}, {{"GPLFactor", q, 0}, {{0, 1}, {1, 0}}}};
 incoming = {
   <|"Row" -> 1, "Column" -> 1, "Coefficient" -> (1 + 3 eps + eps^2)/(eps^2 (1 + eps)), "Letter" -> {"GPLFactor", q, 1}|>,
   <|"Row" -> 1, "Column" -> 2, "Coefficient" -> (2 + eps)/eps^2 1/(u + 1), "Letter" -> {"GPLPole", -1}|>,
   <|"Row" -> 2, "Column" -> 1, "Coefficient" -> (eps + 2)/eps (u^2 + 3)/q, "Letter" -> {"GPLFactor", q, 0}|>,
-  <|"Row" -> 2, "Column" -> 2, "Coefficient" -> 1/(eps (1 - 2 eps)) u/(u - 2), "Letter" -> {"GPLPole", -1}|>};
+  <|"Row" -> 2, "Column" -> 2, "Coefficient" -> 1/(eps (1 - 2 eps)) u/(u - 3/4), "Letter" -> {"GPLPole", -1}|>};
 layer = <|"Rows" -> {44, 45}, "PathVariable" -> u, "Regulator" -> eps, "BasePoint" -> 1/2,
   "Diagonal" -> diagonal, "Incoming" -> incoming,
   "TargetBoundarySelectors" -> <|0 -> IdentityMatrix[2], 1 -> {{1, 1}, {0, 1}}|>|>;
@@ -29,10 +30,20 @@ demand = <|"Pairs" -> {{-2, 1}, {-2, 2}, {-1, 1}, {-1, 2}, {0, 1}, {0, 2}}|>;
 Print["route: ", Lookup[result, "Status", None], " in ", Round[seconds, 0.01], " s; window ", Lookup[result, "Window", None], "; residue keys ", Length[Lookup[result, "KResidues", <||>]], "; comparisons ", Lookup[Lookup[result, "Certificate", <||>], "ResidueComparisons", None]];
 FTAssert["the synthetic rational layer is transported and accepted by the public predicate",
   result["Status"] === "RationalEpsilonLayerTransportAccepted" && AcceptedRationalEpsilonLayerTransportQ[result] && result["Window"] === {-2, 0}];
+FTAssert["every reconstructed residue is a 2x2 matrix over the 2-master source (the layer shape is read from the matrices, not from an expression's term count)",
+  AllTrue[Values[result["KResidues"]], Dimensions[#] === {2, 2} &] && Length[result["KResidues"]] === 10];
+(* a wider source (3 masters) with the same layer: the third column declared zero *)
+source3 = <|"Dimension" -> 3, "Letters" -> source["Letters"], "Residues" -> (ArrayFlatten[{{#, {{0}, {0}}}, {{{0, 0}}, {{1}}}}] & /@ source["Residues"]),
+  "BoundarySelectors" -> <|0 -> IdentityMatrix[3], 1 -> {{0, 1, 0}, {0, 0, 0}, {0, 0, 1}}|>|>;
+result3 = BuildRationalEpsilonLayerTransport[source3, Join[layer, <|"ZeroColumns" -> {3}|>], demand, "PrimeCount" -> 3];
+FTAssert["a 3-master source with the third column declared zero gives 2x3 residues whose first two columns equal the 2-master result",
+  result3["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+    AllTrue[Values[result3["KResidues"]], Dimensions[#] === {2, 3} &] &&
+    And @@ Table[result3["KResidues"][key][[All, 1 ;; 2]] === result["KResidues"][key], {key, Keys[result["KResidues"]]}]];
 
 (* ---- independent characteristic-zero reference ---- *)
 letterForm[{"GPLPole", c_}] := 1/(u - c); letterForm[{"GPLFactor", qq_, k_}] := u^k/qq;
-factors = {u + 1, u - 2, q};
+factors = {u + 1, u - 3/4, q};
 bOrder[order_] := Table[Sum[If[e["Row"] === i && e["Column"] === j,
     SeriesCoefficient[e["Coefficient"], {eps, 0, order}] letterForm[e["Letter"]], 0], {e, incoming}], {i, 2}, {j, 2}];
 d1[f_] := Sum[letterForm[dl[[1]]] (dl[[2]] . f), {dl, diagonal}];
@@ -111,20 +122,51 @@ FTAssert["a curve letter without a declared curve is refused typed",
   BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/eps, "Letter" -> {"E4Pole", 3}|>]|>], demand]["Status"] === "CurveDeclarationRequired"];
 FTAssert["a curve letter with a declared curve is admitted by the gate but its channel is refused typed",
   BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Curve" -> u^4 + 1, "Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/eps, "Letter" -> {"E4Pole", 3}|>]|>], demand]["Status"] === "CurveChannelNotImplemented"];
+FTAssert["an algebraic pole position is refused typed (declare the conjugate pair as a GPLFactor letter)",
+  With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/eps, "Letter" -> {"GPLPole", Sqrt[5]}|>]|>], demand]},
+    r["Status"] === "AlgebraicPoleNotAdmitted" && r["Label"] === {"GPLPole", Sqrt[5]}]];
 FTAssert["an unknown letter head is refused typed with its label",
   With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/eps, "Letter" -> {"Mystery", 3}|>]|>], demand]},
     r["Status"] === "AlphabetLetterNotAdmitted" && r["Label"] === {"Mystery", 3}]];
 FTAssert["an incoming coefficient not rational in eps is refused typed",
-  BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> Sqrt[eps]/eps, "Letter" -> {"GPLPole", 2}|>]|>], demand]["Status"] === "IncomingNotRationalInEpsilon"];
+  BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> Sqrt[eps]/eps, "Letter" -> {"GPLPole", 3/4}|>]|>], demand]["Status"] === "IncomingNotRationalInEpsilon"];
 FTAssert["a source column with no incoming entry and no zero declaration is a typed lower-block exception",
   With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Select[incoming, #["Column"] === 1 &]|>], demand]},
     r["Status"] === "LowerBlockExceptionRequired" && r["Columns"] === {2}] &&
   BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Select[incoming, #["Column"] === 1 &], "ZeroColumns" -> {2}|>], demand]["Status"] === "RationalEpsilonLayerTransportAccepted"];
 FTAssert["an unspecialized parameter in a coefficient is refused typed",
-  With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> Symbol["Global`layerP"]/eps, "Letter" -> {"GPLPole", 2}|>]|>], demand]},
+  With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> Symbol["Global`layerP"]/eps, "Letter" -> {"GPLPole", 3/4}|>]|>], demand]},
     r["Status"] === "PathParameterNotSpecialized" && r["Symbols"] === {Symbol["Global`layerP"]}]];
 FTAssert["a residue at a pole outside the alphabet cannot arise from declared letters and coefficients; a malformed letter is refused",
   BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Diagonal" -> Append[diagonal, {{"GPLFactor", (u - 1)^2, 0}, IdentityMatrix[2]}]|>], demand]["Status"] === "AlphabetLetterNotAdmitted"];
+(* stage 4: a layer whose incoming coefficients are path-free takes the exact
+   direct route; forced through the sealed modular circuit it must give the
+   same residues and words (SameQ) *)
+dlogIncoming = {
+  <|"Row" -> 1, "Column" -> 1, "Coefficient" -> (1 + 3 eps + eps^2)/(eps^2 (1 + eps)), "Letter" -> {"GPLFactor", q, 1}|>,
+  <|"Row" -> 1, "Column" -> 2, "Coefficient" -> (2 + eps)/eps^2, "Letter" -> {"GPLPole", -1}|>,
+  <|"Row" -> 2, "Column" -> 1, "Coefficient" -> (eps + 2)/eps, "Letter" -> {"GPLFactor", q, 0}|>,
+  <|"Row" -> 2, "Column" -> 2, "Coefficient" -> 1/(eps (1 - 2 eps)), "Letter" -> {"GPLPole", 3/4}|>};
+dlogLayer = Join[layer, <|"Incoming" -> dlogIncoming|>];
+direct = BuildRationalEpsilonLayerTransport[source, dlogLayer, demand];
+modular = BuildRationalEpsilonLayerTransport[source, dlogLayer, demand, "IncomingRoute" -> "Modular", "PrimeCount" -> 3];
+FTAssert["a path-free incoming connection takes the exact direct route, accepted, gauge vanishing",
+  direct["Status"] === "RationalEpsilonLayerTransportAccepted" && AcceptedRationalEpsilonLayerTransportQ[direct] &&
+    direct["Certificate"]["IncomingRoute"] === "IncomingDlogDirect" && direct["GaugeStatus"] === "GaugeVanishes" &&
+    TrueQ[direct["Certificate"]["Exact"]]];
+(* a REDUCIBLE factor letter (9/16 - u^2 splits over Q) must land on the same irreducible-factor letters in both routes *)
+splitLayer = Join[layer, <|"Incoming" -> Append[dlogIncoming, <|"Row" -> 2, "Column" -> 1, "Coefficient" -> (3 + eps)/eps^2, "Letter" -> {"GPLFactor", 9/16 - u^2, 1}|>]|>];
+splitDirect = BuildRationalEpsilonLayerTransport[source, splitLayer, demand];
+splitModular = BuildRationalEpsilonLayerTransport[source, splitLayer, demand, "IncomingRoute" -> "Modular", "PrimeCount" -> 3];
+FTAssert["a reducible GPLFactor letter is decomposed onto the irreducible factors identically by the direct and the modular route (SameQ residues and words)",
+  splitDirect["Status"] === "RationalEpsilonLayerTransportAccepted" && splitModular["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+    KeySort[splitDirect["KResidues"]] === KeySort[Select[splitModular["KResidues"], ! AllTrue[Flatten[#], # === 0 &] &]] &&
+    splitDirect["DemandedWords"] === splitModular["DemandedWords"] &&
+    MemberQ[Keys[splitDirect["KResidues"]], {-2, u + 3/4, 0}]];
+FTAssert["the sealed modular circuit on the same layer gives SameQ residues and words",
+  modular["Certificate"]["IncomingRoute"] === "SealedModularCircuit" && AcceptedRationalEpsilonLayerTransportQ[modular] &&
+    KeySort[direct["KResidues"]] === KeySort[Select[modular["KResidues"], ! AllTrue[Flatten[#], # === 0 &] &]] &&
+    direct["DemandedWords"] === modular["DemandedWords"]];
 FTAssert["the predicate refuses a tampered certificate",
   ! AcceptedRationalEpsilonLayerTransportQ[Join[result, <|"Certificate" -> Join[result["Certificate"], <|"ResidueMismatches" -> 1|>]|>]] &&
   ! AcceptedRationalEpsilonLayerTransportQ[KeyDrop[result, "Certificate"]]];

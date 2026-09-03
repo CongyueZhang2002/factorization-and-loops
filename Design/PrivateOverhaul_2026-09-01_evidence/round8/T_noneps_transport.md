@@ -256,3 +256,199 @@ operator (43 masters, 107 letters) has 21 curve letters, 9 composite
 elliptic letters and 14 `GPLPole` positions that are algebraic in p
 (`+-2 Sqrt[p^2 - p]`, written through the endpoint variable); its
 residues have 3,589 nonzero entries, boundary orders -2..5.
+
+
+## 4. Stage 3: CF303's accepted inputs through the route (read only; outputs under `CF303/rational_layer_2026-09-02/`)
+
+Adapter (scratch, `scratchpad/round4/T/round8/cf303_adapter.wls`; the
+package stays family-neutral): Codex's accepted artifacts
+`cf303_hybrid_elliptic_operator_15_17_21.wl` (source operator: 43
+masters, 107 letters, sparse 43x43 residues, boundary selectors for
+orders -2..5 with 287 columns) and `cf303_block25_general_elliptic_transfer.wl`
+(76 entry records, 892 letter terms) are specialized at the fixed path
+parameter `p = 9/8` and endpoint `uFinal = 3/2`: at that p, `p^2 - p =
+9/64`, so the fourteen algebraic pole positions `+-2 Sqrt[p^2 - p]` are
+the rationals `+-3/4` and every rational letter of the source is a
+genuine `GPLPole`/`GPLFactor` over Q (0 radical poles left). The
+diagonal's six letters get residue matrices from the three constant
+generators through `ConstantCompositeKernels`; the four diagonal entry
+records of the transfer are dropped (they are the eps-linear diagonal,
+already represented); the 72 off-diagonal records give 874 incoming
+terms, 778 with rational letters, over 36 of the 43 source columns.
+The seven columns with no incoming entry are masters
+{{1, 2, 12, 21, 22, 29, 30}} -- exactly the support set of Codex's
+exception blocks -- and the route names them:
+
+| run | input | status | facts |
+|---|---|---|---|
+| 1 | full alphabet (curve letters, composite elliptic letters) | `LowerBlockExceptionRequired`, columns {{1,2,12,21,22,25,26}} = masters {{1,2,12,21,22,29,30}} | the exception check precedes the alphabet gate; with the columns declared the same input is `CurveChannelNotImplemented` (21 source curve letters, 9 composite letters, 96 transfer terms) |
+| 2 | rational sub-layer (curve terms and curve/composite source letters dropped), exceptions undeclared | `LowerBlockExceptionRequired`, same columns | typed, 4 s after load |
+| 3 | rational sub-layer with the seven columns declared zero -- a MEASUREMENT of the rational channel at scale, NOT a CF303 transport | see below | demand: rows 44-45 at orders -4..-2 (Codex's low orders), boundary orders -2..5, target boundary orders 0..2 |
+
+Defects the CF303 scale exposed in my code (all fixed, fixture test
+15/15 after each):
+
+- the first measurement (18:22) was KILLED at the 900 s cap inside the
+  word enumeration, everything before it having taken 4 s (Laurent
+  expansion of 778 entries 0.6 s, three prime images 0.1 s): the
+  enumeration multiplied dense 43x43 residues into dense 43x287
+  selectors for every state and every demanded pair. Replaced by sparse
+  matrices, the source-word growth computed once per boundary order and
+  shared across pairs, and a column/row support test before applying an
+  incoming letter (`rationalLayerSourceStates`, `rationalLayerWords`);
+  the source words to weight 3 are 89,445 states in 7.2 s;
+- the second (18:38) returned an "accepted" status with 0 residues: the
+  recurrence image read the layer's rows and columns off the wrong
+  level of the Laurent matrix (`Length[First[m]]` = columns, and the
+  term count of an expression for the columns), which the 2x2 fixture
+  hid by coincidence; the predicate refused it (0 comparisons). Fixed
+  (`Dimensions`, checked against the source dimension), a typed
+  `LayerResiduesVanish` added, and the fixture test extended with a
+  3-master source and a residue-shape assertion;
+- the third (18:40) refused typed `ReconstructionNotConverged`: three
+  31-bit primes cannot reconstruct residues whose exact values carry
+  58-digit numerators over 28-digit denominators (the transfer's
+  coefficients). The prime schedule is now lift-and-verify: images are
+  added (1.5x steps) until every residue reconstructs, then the fresh
+  prime validates; `MaximumPrimeCount` (24) is the typed limit.
+
+- the fourth (18:41) still refused `ReconstructionNotConverged` at the
+  20-prime maximum although the exact residues are at most 40 digits
+  over 28 (a direct diagnostic showed every modular image equal to the
+  exact residue at two primes): at p = 9/8 the source still has twelve
+  pole positions in quadratic extensions (`(-32 +- Sqrt[1105])/36`,
+  `(18 +- 3 Sqrt[70])/16`, `(-9 +- 3 I Sqrt[55])/32`, ...), which the
+  gate had admitted because `NumericQ` is True for them and the modular
+  arithmetic then produced inconsistent images (my adapter's radical
+  census had used `|` for `||` and reported 0). The gate now refuses an
+  algebraic pole position typed (`AlgebraicPoleNotAdmitted`, fixture
+  assertion 16/16), and the adapter merges each conjugate pair into one
+  `GPLFactor` letter on its minimal polynomial with residues `R+ + R-`
+  (power 1) and `-(R+ c- + R- c+)` (power 0), refusing typed when those
+  are not rational: six pairs merged, none dropped.
+
+Measurement (run 6, 18:49, 900 s cap; `cf303_adapter_run6.log`), the
+rational sub-layer at p = 9/8 with the seven exception columns declared
+zero -- a measurement of the rational channel at scale, NOT a CF303
+transport:
+
+| stage | wall |
+|---|---:|
+| artifacts loaded, specialized, conjugate pairs merged | 4.5 s |
+| Laurent expansion of 778 incoming entries (one Series each), window {-2, -2} | 0.5 s |
+| 12 prime images of the sealed recurrence (adaptive: 8, then 12) | 35.7 s (about 3 s each) |
+| CRT + rational reconstruction of 21 residue keys, fresh-prime validation 1,806 comparisons, 0 mismatches | (inside the above) |
+| source words grown to weight 3: 89,445 states | 10.0 s |
+| demanded words, rows 44-45 at orders -4, -3, -2: 11+11, 231+231, 3,433+3,425 = 7,342 | 0.4 s |
+| total, status `RationalEpsilonLayerTransportAccepted`, predicate True | 46.7 s |
+
+Codex's counts for the FULL alphabet at the same orders (all rows, 76-
+entry deck): 10, 193, 2,955 internal words; the sub-layer's counts are
+per row on the rational sub-alphabet, so they are comparable in size,
+not in value. Artifact: `.../CF303/rational_layer_2026-09-02/rational_sublayer_p9d8.wl`
+(9.8 MB, provenance note inside: partial, curve letters and exception
+columns dropped, p = 9/8).
+
+
+
+## 5. Stage 4: optimization with the transport lessons (measure first; before/after per stage)
+
+The stage-3 profile (run 6, 46.7 s) says where the time is: 36 s in the
+twelve modular images of the recurrence and 10 s in growing the source
+words of every boundary order to the full weight; the Laurent expansion
+(one `Series` per entry) is 0.5 s and the word enumeration 0.4 s.
+
+Two levers, both general and both cross-checked on the fixture (test
+18/18):
+
+1. `IncomingDlogDirect` (route branch in `BuildRationalEpsilonLayerTransport`,
+   certificate `IncomingRoute`): when every incoming coefficient is free
+   of the path variable -- the CF303 transfer is of this kind, its
+   coefficients are rational in `(eps, p)` only -- each `B_n` is a
+   combination of the declared dlog letters with numerical coefficients,
+   `Omega_n = B_n` (inductively `H_(n-1) = 0`), and the Hermite gauge
+   vanishes identically: the K residues are the exact Laurent
+   coefficients on the letters' own factors. No modular image, no
+   reconstruction, no fresh prime: `Exact -> True`, `Probabilistic ->
+   False`, `GaugeStatus -> "GaugeVanishes"`, and the predicate accepts
+   that shape. The sealed circuit remains the route whenever a
+   coefficient depends on u (`IncomingRoute -> "Modular"` forces it; on
+   the path-free fixture both routes give SameQ residues and words).
+2. Demand-pruned source growth (`rationalLayerSourceStates` with
+   `weightByOrder`): from a boundary order q only tails of weight at most
+   `max(order - q - r)` over the demanded orders and the incoming orders
+   present can reach a demanded pair; selectors that cannot reach any
+   are not grown at all (for orders -4..-2 with r >= -2 only q <= 0
+   matter, and weights at most 2).
+
+Not applied, with the reason: the finite-field compiler's native batch
+evaluation (`observableTransportFFCompile*`) would speed up the modular
+images, but on this layer they are no longer executed; the per-image
+cost (about 3 s: `Together` over `F_q(u)` of 86 entries with 17 pole
+factors, Hermite, partial fractions) is recorded for the day a
+u-dependent layer -- the exception forcings -- runs through the circuit.
+
+| stage | before (run 6) | after (run 7) |
+|---|---:|---:|
+| artifacts loaded, specialized, pairs merged | 4.5 s | 4.6 s |
+| Laurent expansion, 778 entries | 0.5 s | 0.5 s |
+| residues: 12 modular images + reconstruction + fresh prime | 35.7 s | 0.2 s (direct: 21 exact keys, no image, no reconstruction) |
+| source words | 10.0 s (89,445 states, every q to weight 3) | < 0.1 s (278 states, only q <= 0 to weight <= 2) |
+| demanded words (7,342 for the six pairs) | 0.4 s | 0.4 s (7,342, the same counts 11/231/3,433) |
+| total | 46.7 s | 1.1 s (from 46.7 s; 5.8 s with the load) |
+
+Cross-check at scale (run 8, `cf303_adapter_run8.log`): the same input
+through the sealed modular circuit (`"IncomingRoute" -> "Modular"`, 12
+adaptive primes, 1,806 fresh-prime comparisons, 0 mismatches, 38.9 s --
+itself down from 46.7 s by the demand-pruned growth) gives residues SameQ
+and demanded words SameQ with the direct route. An intermediate version
+of the direct route (run 7) keyed a reducible letter polynomial whole
+(`9/16 - u^2`) and counted 10/204/3,039 words against the modular
+route's 11/231/3,433; the direct route now decomposes every letter once
+over the irreducible pole factors (`Apart` over Q), and the fixture
+locks this with a reducible-factor cross-check (test 19/19).
+
+Test inventory of this campaign: `Tests/Transport/t_rational_epsilon_layer.wls`
+19/19 in about 3 s after load (acceptance; residues SameQ with the
+independent Hermite reference; gauge image at u = 3 modulo every prime;
+words SameQ; residue shapes and a 3-master source; enumeration counts and
+a typed cap; the direct/modular cross-checks on a path-free layer and on
+a reducible factor; the typed refusals: curve letter without curve, curve
+channel, algebraic pole, unknown head, non-rational eps, lower-block
+exception with and without the zero declaration, unspecialized
+parameter, malformed letter, tampered certificate). Every kernel run
+went through the seat launcher; all CF303 runs used the 900 s cap, and
+the one killed by it (18:22) was diagnosed and fixed rather than retried.
+
+## 6. What remains for a complete CF303 result (honest list)
+
+- The elliptic channel: 21 curve letters and 9 composite elliptic letters
+  of the source, 96 curve-letter terms of the transfer (16 of 76
+  entries). The gate admits them only with the declared quartic and the
+  route refuses their channel typed (`CurveChannelNotImplemented`); the
+  Hermite reduction on `Y^2 = P4(u)` (exact part + simple poles + the
+  cohomology basis {1, u, u^2}, the `E4Omega0`/`E4OmegaInf` kernels, the
+  sheet convention `Yc[c]^2 = P4(c)`) is not in the package. Codex's
+  Python reducer has it over `F_q`/`F_q2`; a package version needs the
+  same arithmetic plus the reconstruction of `Q(Y)`-valued residues.
+- The seven lower-block exception forcings (masters {1,2,12,21,22,29,30}):
+  only Maple text (3-72 MB) plus Python-parsed censuses exist; they are
+  u-dependent (the sealed circuit's real use) and would need a Wolfram-
+  readable export first. The route names them typed
+  (`LowerBlockExceptionRequired`); the measurement declared them zero,
+  which is why its artifact is labelled partial.
+- The physical gauge `T25` (`I_25 = T25 . F_25`, orders 0..2): declared
+  optional, not applied (`PhysicalGaugeNotApplied` is the typed status
+  the route would carry; the adapter did not pass the gauge).
+- The p-dependence: the route runs at a fixed rational p (9/8 here, where
+  the algebraic poles are rational and the six remaining conjugate pairs
+  merge with rational residues); a result as a function of p needs either
+  a p-reconstruction of the residues or one run per needed p, as in
+  Codex's route.
+- The source layer as data: Codex's 43-master operator was consumed
+  directly (letters, sparse residues, boundary selectors); building it
+  from a family record through `BuildObservableTransport` needs the
+  elliptic blocks 15/17/21, i.e. the same elliptic channel.
+- An adversarial review of the certificate's claims: the direct route is
+  exact by construction; the modular route's acceptance is probabilistic
+  (fresh prime), like the rest of the observable transport.

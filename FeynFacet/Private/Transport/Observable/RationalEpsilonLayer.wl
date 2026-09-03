@@ -52,7 +52,11 @@ $rationalLayerCurveLetters = {"E4Pole", "E4Factor", "E4Omega0", "E4OmegaInf"};
 (* A letter label: {"GPLPole", c} is du/(u - c); {"GPLFactor", q, k} is
    u^k du/q(u) with q square-free and k < deg q.  Curve letters are
    recognised, and admitted only with a declared quartic curve. *)
-rationalLayerLetterFormQ[{"GPLPole", c_}, u_] := FreeQ[c, u] && NumericQ[c];
+(* a pole position must be a RATIONAL number: an algebraic one (CF303 at
+   p = 9/8 still has conjugate pairs over Q(Sqrt[1105])) passed NumericQ
+   and broke the modular images (2026-09-02 18:50); such a pair is to be
+   declared as one GPLFactor letter on its minimal polynomial *)
+rationalLayerLetterFormQ[{"GPLPole", c_}, u_] := MatchQ[c, _Integer | _Rational];
 rationalLayerLetterFormQ[{"GPLFactor", q_, k_Integer}, u_] :=
   PolynomialQ[q, u] && Exponent[q, u] >= 1 && 0 <= k < Exponent[q, u] &&
   VectorQ[CoefficientList[q, u], MatchQ[#, _Integer | _Rational] &] &&
@@ -69,10 +73,15 @@ rationalLayerAlphabetGate[labels_List, u_Symbol, curve_] := Module[
         <|"Label" -> label, "Status" -> "AlphabetLetterNotAdmitted",
           "Reason" -> "not a labelled letter"|>,
       MemberQ[$rationalLayerRationalLetters, First[label]],
-        If[rationalLayerLetterFormQ[label, u],
-          <|"Label" -> label, "Status" -> "Admitted", "Channel" -> "Rational"|>,
-          <|"Label" -> label, "Status" -> "AlphabetLetterNotAdmitted",
-            "Reason" -> "malformed rational letter (pole must be a number, factor square-free with integer coefficients, power below the degree)"|>],
+        Which[
+          rationalLayerLetterFormQ[label, u],
+            <|"Label" -> label, "Status" -> "Admitted", "Channel" -> "Rational"|>,
+          MatchQ[label, {"GPLPole", c_ /; NumericQ[c] && ! MatchQ[c, _Integer | _Rational]}],
+            <|"Label" -> label, "Status" -> "AlgebraicPoleNotAdmitted",
+              "Reason" -> "pole position is algebraic; declare the conjugate pair as a GPLFactor letter on its minimal polynomial"|>,
+          True,
+            <|"Label" -> label, "Status" -> "AlphabetLetterNotAdmitted",
+              "Reason" -> "malformed rational letter (pole must be a rational number, factor square-free with rational coefficients, power below the degree)"|>],
       MemberQ[$rationalLayerCurveLetters, First[label]],
         If[curve === None,
           <|"Label" -> label, "Status" -> "CurveDeclarationRequired"|>,
@@ -120,8 +129,17 @@ rationalLayerModularFunction[expression_, u_Symbol, prime_Integer] := Module[
   {PolynomialMod[numerator PowerMod[lead, -1, prime], prime],
    PolynomialMod[denominator PowerMod[lead, -1, prime], prime]}
 ];
-rationalLayerModularPolynomial[expression_, prime_Integer] :=
-  PolynomialMod[Expand[expression], prime];
+(* a polynomial over Q reduced into F_q coefficient by coefficient (the
+   built-in Modulus arithmetic does not reduce rational coefficients such
+   as the 3/4 of CF303's pole factors at p = 9/8 -- the images across
+   primes were inconsistent and no residue reconstructed, 2026-09-02 18:43) *)
+rationalLayerModularPolynomial[expression_, u_Symbol, prime_Integer] := Module[
+  {coefficients = CoefficientList[Expand[expression], u]},
+  If[MemberQ[Mod[Denominator /@ coefficients, prime], 0], Return[$Failed]];
+  Expand[Total[MapIndexed[
+    Mod[Numerator[#1] PowerMod[Denominator[#1], -1, prime], prime] u^(First[#2] - 1) &,
+    coefficients]]]
+];
 
 (* Hermite reduction over F_q (Horowitz-Ostrogradsky): f = N/D proper ->
    f = d(Bp/Dstar)/du + C/Dminus with Dminus square-free; the polynomial
@@ -159,21 +177,26 @@ rationalLayerHermite[{numerator_, denominator_}, u_Symbol, prime_Integer] := Mod
 (* C/Dminus on the declared coprime pole factors: C/Dminus = Sum_j r_j/q_j,
    deg r_j < deg q_j; a factor of Dminus outside the alphabet is $Failed. *)
 rationalLayerPartialFractions[{c_, dMinus_}, factors_List, u_Symbol, prime_Integer] := Module[
-  {reduced = dMinus, present = {}, result = <||>, cofactor, gcd, inverse, r},
+  {reduced = dMinus, present = {}, result = <||>, cofactor, gcd, inverse, r, modular, image},
   If[c === 0, Return[<||>]];
+  (* the declared factors reduced into F_q, keyed by the original factor *)
+  modular = Association@Table[factor -> rationalLayerModularPolynomial[factor, u, prime], {factor, factors}];
+  If[MemberQ[Values[modular], $Failed], Return[$Failed]];
   Do[
-    If[PolynomialRemainder[reduced, factor, u, Modulus -> prime] === 0,
+    image = modular[factor];
+    If[PolynomialRemainder[reduced, image, u, Modulus -> prime] === 0,
       AppendTo[present, factor];
-      reduced = PolynomialQuotient[reduced, factor, u, Modulus -> prime]],
+      reduced = PolynomialQuotient[reduced, image, u, Modulus -> prime]],
     {factor, factors}];
   If[Exponent[reduced, u] > 0, Return[$Failed]];
   Do[
-    cofactor = PolynomialQuotient[dMinus, factor, u, Modulus -> prime];
+    image = modular[factor];
+    cofactor = PolynomialQuotient[dMinus, image, u, Modulus -> prime];
     (* r = C cofactor^-1 mod factor *)
-    gcd = PolynomialExtendedGCD[cofactor, factor, u, Modulus -> prime];
+    gcd = PolynomialExtendedGCD[cofactor, image, u, Modulus -> prime];
     If[Exponent[gcd[[1]], u] =!= 0, Return[$Failed, Module]];
     inverse = PolynomialMod[gcd[[2, 1]] PowerMod[gcd[[1]], -1, prime], prime];
-    r = PolynomialRemainder[PolynomialMod[c inverse, prime], factor, u, Modulus -> prime];
+    r = PolynomialRemainder[PolynomialMod[c inverse, prime], image, u, Modulus -> prime];
     r = PolynomialMod[r PowerMod[Coefficient[reduced, u, 0], -1, prime], prime];
     result[factor] = PadRight[CoefficientList[r, u], Exponent[factor, u], 0],
     {factor, present}];
@@ -192,8 +215,13 @@ rationalLayerRecurrenceImage[laurent_Association, diagonal_List, source_Associat
   {d, n, letterFunctions, hPrevious, h, k, omega, entryValue, hermite, fractions,
    value, evaluateAt, hImages = <||>, kResidues = <||>, failure = None,
    diagonalForms, sourceForms, dEntry, sEntry, fixed, hEntry},
-  d = Length[First[Lookup[laurent, First[orders]]]];
-  n = Length[First[First[Lookup[laurent, First[orders]]]]];
+  (* rows and columns of the incoming Laurent matrices; the first CF303 run
+     (2026-09-02 18:38) read them off the wrong level and looped over
+     nothing while the fixture's 2x2 hid it *)
+  {d, n} = Dimensions[Lookup[laurent, First[orders]]][[1 ;; 2]];
+  If[n =!= source["Dimension"],
+    Return[<|"Status" -> "LayerDimensionMismatch", "Prime" -> prime,
+      "Columns" -> n, "SourceDimension" -> source["Dimension"]|>]];
   diagonalForms = ({rationalLayerLetterFunction[#[[1]], u], #[[2]]} &) /@ diagonal;
   sourceForms = MapThread[{rationalLayerLetterFunction[#1, u], #2} &,
     {source["Letters"], source["Residues"]}];
@@ -255,15 +283,20 @@ rationalLayerRecurrenceImage[laurent_Association, diagonal_List, source_Associat
    The first CF303 measurement (2026-09-02 18:22) was killed at the 900 s
    cap in the dense version of this enumeration; everything before it had
    taken 4 s. *)
-rationalLayerSourceStates[source_Association, maximumWeight_Integer] := Module[
-  {sLetters, grow, nonzeroQ},
+rationalLayerSourceStates[source_Association, maximumWeight_Integer, weightByOrder_: Automatic] := Module[
+  {sLetters, grow, nonzeroQ, needed},
   nonzeroQ[m_] := Length[SparseArray[m]["NonzeroPositions"]] > 0;
   sLetters = Transpose[{source["Letters"], SparseArray /@ source["Residues"]}];
   grow[states_List] := Select[Flatten[Table[
       {Append[state[[1]], letter[[1]]], letter[[2]] . state[[2]]}, {state, states}, {letter, sLetters}], 1],
     nonzeroQ[#[[2]]] &];
-  Association@Table[q -> NestList[grow, {{{}, SparseArray[source["BoundarySelectors"][q]]}}, maximumWeight],
-    {q, Keys[source["BoundarySelectors"]]}]
+  (* grown only as far as a demanded pair can be reached from that boundary
+     order (round 8, stage 4: the tail weights of a run are bounded by
+     order - q - r; growing every selector to the full weight cost 10 s of
+     the 47 s CF303 measurement) *)
+  needed[q_] := If[weightByOrder === Automatic, maximumWeight, Lookup[weightByOrder, q, -1]];
+  Association@Table[q -> NestList[grow, {{{}, SparseArray[source["BoundarySelectors"][q]]}}, Min[maximumWeight, needed[q]]],
+    {q, Select[Keys[source["BoundarySelectors"]], needed[#] >= 0 &]}]
 ];
 
 rationalLayerWords[order_Integer, row_Integer, diagonal_List, kResidues_Association,
@@ -327,9 +360,11 @@ rationalLayerWords[order_Integer, row_Integer, diagonal_List, kResidues_Associat
 Options[BuildRationalEpsilonLayerTransport] = {
   "Primes" -> Automatic,
   "PrimeCount" -> 3,
+  "MaximumPrimeCount" -> 24,
   "Seed" -> 20260902,
   "MaximumWeight" -> 4,
   "MaximumWords" -> Infinity,
+  "IncomingRoute" -> Automatic,
   "Verbose" -> False
 };
 
@@ -340,7 +375,8 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
    laurent, orders, primes, seed, images, freshPrime, freshImage, keys,
    reconstructed, lifted, comparisons = 0, mismatches = 0, targetSelectors,
    sourceBoundaryCount, targetBoundaryCount, demandPairs, words, maximumWeight,
-   verbose, fail, kExact, certificate, laurentCoefficient, hImageCount = 0, sourceStates},
+   verbose, fail, kExact, certificate, laurentCoefficient, hImageCount = 0, sourceStates, directQ,
+   weightByOrder, letterDecomposition},
   verbose = TrueQ[OptionValue["Verbose"]];
   fail[status_, extra_: <||>] := Throw[Join[<|"Status" -> status|>, extra]];
   u = Lookup[layer, "PathVariable", Missing[]]; eps = Lookup[layer, "Regulator", Missing[]];
@@ -404,28 +440,99 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
       ! FreeQ[#, u] && ! FreeQ[#, eps] &]},
     If[mixed =!= {}, fail["MixedEpsilonPathDenominator", <|"Factors" -> mixed|>]]];
   factors = rationalLayerPoleFactors[labels, coefficients, u];
+  (* Round 8, stage 4: when every incoming coefficient is free of the path
+     variable, each B_n is a combination of the declared dlog letters with
+     NUMERICAL coefficients, Omega_n = B_n (H_(n-1) = 0 inductively) and
+     the Hermite gauge vanishes identically: the K residues are the exact
+     Laurent coefficients on the letters' own factors -- no modular image,
+     no reconstruction, exact by construction ("IncomingDlogDirect"; the
+     CF303 transfer is of this kind: 12 prime images cost 36 s of a 47 s
+     run).  "IncomingRoute" -> "Modular" forces the sealed circuit (the
+     cross-check). *)
+  directQ = OptionValue["IncomingRoute"] =!= "Modular" && AllTrue[coefficients, FreeQ[#, u] &];
+  If[directQ,
+    (* every letter decomposed ONCE over the pole-factor alphabet (the
+       irreducible monic factors over Q), so that a reducible GPLFactor
+       polynomial -- 9/16 - u^2 = -(u - 3/4)(u + 3/4) on CF303 at p = 9/8 --
+       lands on the same letters as in the modular route (run 7 keyed it
+       whole and counted different words, 2026-09-02 18:53) *)
+    letterDecomposition[letter_] := letterDecomposition[letter] = Module[{a, terms, out = <||>},
+      a = Apart[rationalLayerLetterFunction[letter, u], u];
+      terms = If[Head[a] === Plus, List @@ a, {a}];
+      Do[With[{den = Denominator[Together[term]]},
+          With[{factor = SelectFirst[factors, PolynomialRemainder[den, #, u] === 0 &, None]},
+            If[factor === None, Throw[<|"Status" -> "ResiduePoleNotInAlphabet", "Letter" -> letter|>]];
+            With[{r = PolynomialRemainder[Together[term factor], factor, u]},
+              out[factor] = Lookup[out, factor, 0] + r]]],
+        {term, terms}];
+      Association@KeyValueMap[#1 -> PadRight[CoefficientList[Together[#2], u], Exponent[#1, u], 0] &, out]];
+    reconstructed = <||>;
+    Do[With[{series = laurentCoefficient[entry["Coefficient"]], decomposition = letterDecomposition[entry["Letter"]]},
+        Do[If[series[[k]] =!= 0,
+            KeyValueMap[Function[{factor, list},
+              Do[If[list[[kk]] =!= 0,
+                  Module[{key = {orders[[k]], factor, kk - 1}, matrix},
+                    matrix = Lookup[reconstructed, Key[key], ConstantArray[0, {d, n}]];
+                    matrix[[entry["Row"], entry["Column"]]] += series[[k]] list[[kk]];
+                    reconstructed[key] = matrix]],
+                {kk, Length[list]}]], decomposition]],
+          {k, Length[orders]}]],
+      {entry, incoming}];
+    reconstructed = Select[reconstructed, ! AllTrue[Flatten[#], # === 0 &] &];
+    keys = Keys[reconstructed];
+    If[keys === {}, fail["LayerResiduesVanish", <|"Window" -> {low, high}|>]];
+    primes = {}; freshPrime = None; images = {}; comparisons = Length[keys] d n; mismatches = 0;
+    If[verbose, observableTransportMilestone["Rational layer: incoming connection is dlog with path-free coefficients: ",
+      Length[keys], " exact residue keys, no modular image, ", Round[AbsoluteTime[] - start, 0.1], " s"]]];
   (* primes *)
   seed = OptionValue["Seed"];
+  If[! directQ,
+  (* the prime schedule: a seeded sequence; images are added until every
+     residue reconstructs (lift-and-verify) or the maximum count is reached
+     -- the CF303 transfer carries 58-digit numerators over 28-digit
+     denominators, which three 31-bit primes cannot reconstruct
+     (ReconstructionNotConverged, 2026-09-02 18:41) *)
   primes = Replace[OptionValue["Primes"], Automatic :> BlockRandom[SeedRandom[seed];
-    Table[RandomPrime[{2^30, 2^31 - 1}], {OptionValue["PrimeCount"] + 1}]]];
-  If[! MatchQ[primes, {__Integer}] || Length[primes] < 2 || ! DuplicateFreeQ[primes], fail["InvalidPrimeSchedule"]];
+    Table[RandomPrime[{2^30, 2^31 - 1}], {OptionValue["MaximumPrimeCount"] + 1}]]];
+  If[! MatchQ[primes, {__Integer}] || Length[primes] < 3 || ! DuplicateFreeQ[primes], fail["InvalidPrimeSchedule"]];
   freshPrime = Last[primes]; primes = Most[primes];
-  images = Table[rationalLayerRecurrenceImage[laurent, diagonal, source, factors, u, base, orders, p], {p, primes}];
-  If[AnyTrue[images, #["Status"] =!= "RecurrenceImageEvaluated" &],
-    fail[SelectFirst[images, #["Status"] =!= "RecurrenceImageEvaluated" &]["Status"], <|"Images" -> Lookup[images, "Status"]|>]];
-  If[verbose, observableTransportMilestone["Rational layer: ", Length[primes], " prime images of the recurrence, ", Round[AbsoluteTime[] - start, 0.1], " s"]];
-  (* reconstruct the K residues across primes *)
-  keys = Union @@ (Keys[#["KResidues"]] & /@ images);
-  reconstructed = <||>;
-  Do[
-    lifted = Table[Table[
-        With[{residues = Table[Lookup[images[[pi]]["KResidues"], Key[key], ConstantArray[0, {d, n}]][[i, j]], {pi, Length[primes]}]},
-          With[{crt = modularCRT[residues, primes]},
-            If[crt === $Failed, $Failed, modularRationalReconstruct[crt, Times @@ primes]]]],
-        {j, n}], {i, d}];
-    If[! FreeQ[lifted, $Failed], fail["ReconstructionNotConverged", <|"Key" -> key, "PrimeCount" -> Length[primes]|>]];
-    reconstructed[key] = lifted,
-    {key, keys}];
+  images = {}; reconstructed = <||>; keys = {};
+  Module[{needed = Min[OptionValue["PrimeCount"], Length[primes]], converged = False, lifted, usedPrimes,
+     failingKey = None, failingEntry = None, failingResidues = None},
+    While[! converged,
+      Do[With[{p = primes[[k]]},
+          AppendTo[images, rationalLayerRecurrenceImage[laurent, diagonal, source, factors, u, base, orders, p]];
+          If[Last[images]["Status"] =!= "RecurrenceImageEvaluated",
+            fail[Last[images]["Status"], <|"Prime" -> p|>]]],
+        {k, Length[images] + 1, needed}];
+      usedPrimes = Take[primes, Length[images]];
+      keys = Union @@ (Keys[#["KResidues"]] & /@ images);
+      If[keys === {}, fail["LayerResiduesVanish", <|"Window" -> {low, high},
+        "Reason" -> "no nonzero K residue at any order of the window on any prime"|>]];
+      reconstructed = <||>; converged = True;
+      Do[
+        lifted = Table[Table[
+            With[{residues = Table[Lookup[images[[pi]]["KResidues"], Key[key], ConstantArray[0, {d, n}]][[i, j]], {pi, Length[images]}]},
+              With[{crt = modularCRT[residues, usedPrimes]},
+                If[crt === $Failed, $Failed, modularRationalReconstruct[crt, Times @@ usedPrimes]]]],
+            {j, n}], {i, d}];
+        If[! FreeQ[lifted, $Failed],
+          converged = False;
+          failingKey = key; failingEntry = First[Position[lifted, $Failed, {2}, 1]];
+          failingResidues = Table[Lookup[images[[pi]]["KResidues"], Key[key], ConstantArray[0, {d, n}]][[failingEntry[[1]], failingEntry[[2]]]], {pi, Length[images]}];
+          Break[]];
+        reconstructed[key] = lifted,
+        {key, keys}];
+      If[! converged,
+        If[needed >= Length[primes],
+          fail["ReconstructionNotConverged", <|"PrimeCount" -> Length[images],
+            "MaximumPrimeCount" -> OptionValue["MaximumPrimeCount"],
+            "Key" -> failingKey, "Entry" -> failingEntry, "Residues" -> failingResidues,
+            "Primes" -> usedPrimes|>]];
+        needed = Min[needed + Max[1, Ceiling[needed/2]], Length[primes]]]];
+    primes = usedPrimes];
+  If[verbose, observableTransportMilestone["Rational layer: ", Length[primes], " prime images of the recurrence, ",
+    Length[keys], " residue keys reconstructed, ", Round[AbsoluteTime[] - start, 0.1], " s"]];
   (* fresh-prime validation *)
   freshImage = rationalLayerRecurrenceImage[laurent, diagonal, source, factors, u, base, orders, freshPrime];
   If[freshImage["Status"] =!= "RecurrenceImageEvaluated", fail[freshImage["Status"], <|"Prime" -> freshPrime|>]];
@@ -436,7 +543,8 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
         {i, d}, {j, n}]],
     {key, Union[keys, Keys[freshImage["KResidues"]]]}];
   If[mismatches > 0, fail["FreshPrimeValidationFailed", <|"Mismatches" -> mismatches, "Comparisons" -> comparisons|>]];
-  hImageCount = Total[Length /@ Lookup[images, "HImages"]];
+  ];   (* end of the modular route *)
+  hImageCount = If[images === {}, 0, Total[Length /@ Lookup[images, "HImages"]]];
   (* demanded words *)
   maximumWeight = OptionValue["MaximumWeight"];
   sourceBoundaryCount = Length[First[Values[source["BoundarySelectors"]]][[1]]];
@@ -446,7 +554,12 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
     Association@MapIndexed[Function[{q, index},
       q -> (PadRight[PadLeft[#, offsets[[First[index]]] + Length[#]], targetBoundaryCount] & /@ targetSelectors[q])],
       Keys[targetSelectors]]];
-  sourceStates = rationalLayerSourceStates[source, maximumWeight];
+  (* maximal tail weight per boundary order: order - q - r over the demanded
+     orders and the incoming orders present *)
+  weightByOrder = With[{incomingOrders = DeleteDuplicates[First /@ keys]},
+    Association@Table[q -> Max[Flatten[Table[pair[[1]] - q - r, {pair, demandPairs}, {r, incomingOrders}]]],
+      {q, Keys[source["BoundarySelectors"]]}]];
+  sourceStates = rationalLayerSourceStates[source, maximumWeight, weightByOrder];
   If[verbose, observableTransportMilestone["Rational layer: source words grown to weight ", maximumWeight, ": ",
     Total[Length /@ Flatten[Values[sourceStates], 1]], " states, ", Round[AbsoluteTime[] - start, 0.1], " s"]];
   words = Association@Table[pair -> rationalLayerWords[pair[[1]], pair[[2]], diagonal, reconstructed, source,
@@ -455,7 +568,8 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
     Total[If[AssociationQ[#], Length[#["Words"]], Length[#]] & /@ Values[words]],
     If[AnyTrue[Values[words], AssociationQ], " (some pairs capped)", ""], ", ", Round[AbsoluteTime[] - start, 0.1], " s"]];
   certificate = <|"Status" -> "RationalEpsilonLayerTransportAccepted",
-    "Probabilistic" -> True, "Exact" -> False,
+    "IncomingRoute" -> If[directQ, "IncomingDlogDirect", "SealedModularCircuit"],
+    "Probabilistic" -> ! directQ, "Exact" -> directQ,
     "Primes" -> primes, "FreshValidationPrime" -> freshPrime,
     "ResidueComparisons" -> comparisons, "ResidueMismatches" -> mismatches,
     "ReconstructedResidueKeys" -> Length[keys],
@@ -470,8 +584,8 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
     "Rows" -> rows, "PathVariable" -> u, "Regulator" -> eps, "BasePoint" -> base,
     "Window" -> {low, high},
     "KResidues" -> reconstructed,
-    "GaugeImages" -> Association@Table[primes[[pi]] -> images[[pi]]["HImages"], {pi, Length[primes]}],
-    "GaugeStatus" -> "GaugeNotReconstructed",
+    "GaugeImages" -> If[directQ, <||>, Association@Table[primes[[pi]] -> images[[pi]]["HImages"], {pi, Length[primes]}]],
+    "GaugeStatus" -> If[directQ, "GaugeVanishes", "GaugeNotReconstructed"],
     "DemandedWords" -> words,
     "BoundaryColumns" -> sourceBoundaryCount + targetBoundaryCount,
     "Certificate" -> certificate,
@@ -480,21 +594,25 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
 
 rationalLayerCertificateShapeQ[certificate_] := AssociationQ[certificate] &&
   Lookup[certificate, "Status", None] === "RationalEpsilonLayerTransportAccepted" &&
-  TrueQ[Lookup[certificate, "Probabilistic", False]] &&
-  TrueQ[Lookup[certificate, "Exact", True] === False] &&
-  MatchQ[Lookup[certificate, "Primes", None], {__Integer}] &&
-  IntegerQ[Lookup[certificate, "FreshValidationPrime", None]] &&
-  ! MemberQ[certificate["Primes"], certificate["FreshValidationPrime"]] &&
+  MatchQ[Lookup[certificate, "Alphabet", None], {__Association}] &&
+  AllTrue[certificate["Alphabet"], #["Status"] === "Admitted" &] &&
   IntegerQ[Lookup[certificate, "ResidueComparisons", None]] &&
   certificate["ResidueComparisons"] > 0 &&
   Lookup[certificate, "ResidueMismatches", -1] === 0 &&
-  MatchQ[Lookup[certificate, "Alphabet", None], {__Association}] &&
-  AllTrue[certificate["Alphabet"], #["Status"] === "Admitted" &];
+  Which[
+    Lookup[certificate, "IncomingRoute", None] === "SealedModularCircuit",
+      TrueQ[certificate["Probabilistic"]] && TrueQ[certificate["Exact"] === False] &&
+      MatchQ[Lookup[certificate, "Primes", None], {__Integer}] &&
+      IntegerQ[Lookup[certificate, "FreshValidationPrime", None]] &&
+      ! MemberQ[certificate["Primes"], certificate["FreshValidationPrime"]],
+    Lookup[certificate, "IncomingRoute", None] === "IncomingDlogDirect",
+      TrueQ[certificate["Exact"]] && certificate["Probabilistic"] === False,
+    True, False];
 
 AcceptedRationalEpsilonLayerTransportQ[result_] := AssociationQ[result] &&
   Lookup[result, "Status", None] === "RationalEpsilonLayerTransportAccepted" &&
   rationalLayerCertificateShapeQ[Lookup[result, "Certificate", None]] &&
   AssociationQ[Lookup[result, "KResidues", None]] &&
   AssociationQ[Lookup[result, "DemandedWords", None]] &&
-  Lookup[result, "GaugeStatus", None] === "GaugeNotReconstructed";
+  MemberQ[{"GaugeNotReconstructed", "GaugeVanishes"}, Lookup[result, "GaugeStatus", None]];
 AcceptedRationalEpsilonLayerTransportQ[___] := False;

@@ -1296,6 +1296,10 @@ finiteFieldStripSupportLadder[preparation_Association, numeratorDegrees_List, ki
    eps^0..eps^K for monomial m; a sample collapses it with the powers of
    its regulator value *)
 $finiteFieldStripPrimeFormCache = <||>;
+(* per-(fingerprint, prime, point) evaluations of the uncollapsed prime
+   forms, shared by the regulator samples of a prime (round 8) *)
+$finiteFieldStripPointValueCache = <||>;
+
 finiteFieldStripPrimeForms[preparation_Association, prime_Integer] :=
  Module[{key, modNumber, reducePoly, reduceRational, forms},
   key = {preparation["Fingerprint"], prime};
@@ -1369,7 +1373,8 @@ SampleEpsFormStripAffine[
    backendFailure = None,
    planValidation = <|"Status" -> "NoEliminationPlan"|>,
    evaluationSeconds = 0., assemblySeconds = 0., pointCallSeconds = 0.,
-   loopStart},
+   loopStart, kForms, kFormsQ = False, epsPowersK, kMaximumExponents = {0, 0},
+   pointKey, kValues},
 
   If[! finiteFieldStripRecordQ[record],
     Message[SampleEpsFormStripAffine::record]; Return[$Failed]];
@@ -1492,6 +1497,28 @@ SampleEpsFormStripAffine[
     If[denominatorValue === 0, Throw[$Failed, "BadPoint"]];
     Mod[numeratorValue PowerMod[denominatorValue, -1, prime], prime]
   ];
+  (* round 8 (2026-09-02, stage-1 speed): the regulator samples of one
+     prime share their points (the same RandomSeed draws the same
+     sequence), so the UNCOLLAPSED prime forms {ix, iy, matrix(terms x
+     eps-powers)} are evaluated once per (prime, point) into one vector
+     over the eps powers per polynomial, cached, and contracted with the
+     sample's eps powers: Sum_k (Sum_terms m[t,k] x^ix y^iy) eps^k equals
+     Sum_terms (Sum_k m[t,k] eps^k) x^ix y^iy modulo p, so every value is
+     the one the collapsed evaluation produced.  Column sums reduce each
+     product below 2^62 before summing, as evaluatePolynomial does. *)
+  evaluatePolynomialK[{ix_, iy_, matrix_}, xPowers_, yPowers_] :=
+    If[ix === {}, {0},
+      With[{monomials = Mod[xPowers[[ix + 1]] yPowers[[iy + 1]], prime]},
+        Table[Mod[Total[Mod[monomials matrix[[All, k]], prime]], prime],
+          {k, Length[First[matrix]]}]]];
+  evaluateRationalK[{numerator_, denominator_}, xPowers_, yPowers_] :=
+    {evaluatePolynomialK[numerator, xPowers, yPowers],
+     evaluatePolynomialK[denominator, xPowers, yPowers]};
+  contractRational[{numeratorK_, denominatorK_}] := Module[{n, d},
+    d = Mod[denominatorK . Take[epsPowersK, Length[denominatorK]], prime];
+    If[d === 0, Throw[$Failed, "BadPoint"]];
+    n = Mod[numeratorK . Take[epsPowersK, Length[numeratorK]], prime];
+    Mod[n PowerMod[d, -1, prime], prime]];
   (* the monomial tables are the LEAVES {coefficients, xExponents,
      yExponents} (three integer vectors).  The former pattern
      {_List, _List, _List} also matched a ROW of three {numerator,
@@ -1545,11 +1572,23 @@ SampleEpsFormStripAffine[
   {eForms, cForms, forcingConstantForms, dlogForms,
     gaugeDenominatorForm, gaugeDenominatorDerivativeForms} =
       preprocessedForms;
+  If[KeyExistsQ[preparation, "SymbolicForms"],
+    kForms = finiteFieldStripPrimeForms[preparation, prime];
+    kFormsQ = True;
+    epsPowersK = Table[PowerMod[epsilonMod, k, prime], {k, 0,
+      Max[0, Max[Cases[kForms, {_?VectorQ, _?VectorQ, m_?MatrixQ} :>
+        Length[First[m]] - 1, {0, Infinity}]]]}];
+    kMaximumExponents = Module[{pairs = Cases[kForms,
+        {ix_?VectorQ, iy_?VectorQ, _?MatrixQ} :> {Max[ix], Max[iy]},
+        {0, Infinity}]},
+      If[pairs === {}, {0, 0}, {Max[pairs[[All, 1]]], Max[pairs[[All, 2]]]}]];
+    If[Length[$finiteFieldStripPointValueCache] > 4096,
+      $finiteFieldStripPointValueCache = <||>]];
   (* power tables must cover the support's exponents, which since
      2026-08-22 (total-degree simplex) may exceed the bidegree rectangle *)
   tableExponents = MapThread[Max,
     {maximumExponents[preprocessedForms], numeratorDegrees,
-     {Max[support[[All, 1]]], Max[support[[All, 2]]]}}];
+     {Max[support[[All, 1]]], Max[support[[All, 2]]]}, kMaximumExponents}];
   blockLength = Length[support];
   supportX = Developer`ToPackedArray[support[[All, 1]]];
   supportY = Developer`ToPackedArray[support[[All, 2]]];
@@ -1570,20 +1609,38 @@ SampleEpsFormStripAffine[
       {power, 0, tableExponents[[1]]}];
     yPowers = Table[PowerMod[Mod[yValue, prime], power, prime],
       {power, 0, tableExponents[[2]]}];
-    eValue = Map[evaluateRational[#, xPowers, yPowers] &, eForms, {3}];
-    cValue = Map[evaluateRational[#, xPowers, yPowers] &, cForms, {3}];
-    forcing0Value = Map[evaluateRational[#, xPowers, yPowers] &,
-      forcingConstantForms, {3}];
-    (* the residue column of triple (a, i, j) in the row (mu, i, j)
-       carries eps dlog_mu(phi_a): the alphabet x 2 values are evaluated
-       once per point *)
-    dlogValue = Map[evaluateRational[#, xPowers, yPowers] &, dlogForms, {2}];
-    denominatorValue = evaluateRational[
-      gaugeDenominatorForm, xPowers, yPowers];
+    If[kFormsQ,
+      pointKey = {preparation["Fingerprint"], prime, xValue, yValue};
+      kValues = Lookup[$finiteFieldStripPointValueCache, Key[pointKey], None];
+      If[kValues === None,
+        kValues = {
+          Map[evaluateRationalK[#, xPowers, yPowers] &, kForms[[1]], {3}],
+          Map[evaluateRationalK[#, xPowers, yPowers] &, kForms[[2]], {3}],
+          Map[evaluateRationalK[#, xPowers, yPowers] &, kForms[[3]], {3}],
+          Map[evaluateRationalK[#, xPowers, yPowers] &, kForms[[4]], {2}],
+          evaluateRationalK[kForms[[5]], xPowers, yPowers],
+          evaluateRationalK[#, xPowers, yPowers] & /@ kForms[[6]]};
+        $finiteFieldStripPointValueCache[pointKey] = kValues];
+      eValue = Map[contractRational, kValues[[1]], {3}];
+      cValue = Map[contractRational, kValues[[2]], {3}];
+      forcing0Value = Map[contractRational, kValues[[3]], {3}];
+      dlogValue = Map[contractRational, kValues[[4]], {2}];
+      denominatorValue = contractRational[kValues[[5]]];
+      derivativeDenominatorValues = contractRational /@ kValues[[6]],
+      eValue = Map[evaluateRational[#, xPowers, yPowers] &, eForms, {3}];
+      cValue = Map[evaluateRational[#, xPowers, yPowers] &, cForms, {3}];
+      forcing0Value = Map[evaluateRational[#, xPowers, yPowers] &,
+        forcingConstantForms, {3}];
+      (* the residue column of triple (a, i, j) in the row (mu, i, j)
+         carries eps dlog_mu(phi_a): the alphabet x 2 values are evaluated
+         once per point *)
+      dlogValue = Map[evaluateRational[#, xPowers, yPowers] &, dlogForms, {2}];
+      denominatorValue = evaluateRational[
+        gaugeDenominatorForm, xPowers, yPowers];
+      derivativeDenominatorValues =
+        evaluateRational[#, xPowers, yPowers] & /@
+          gaugeDenominatorDerivativeForms];
     inverseDenominator = PowerMod[denominatorValue, -1, prime];
-    derivativeDenominatorValues =
-      evaluateRational[#, xPowers, yPowers] & /@
-        gaugeDenominatorDerivativeForms;
     (* round-8 profile timers (2026-09-02): form evaluation versus row
        assembly, accumulated over the points of one sample *)
     evaluationSeconds += AbsoluteTime[] - pointStart; pointStart = AbsoluteTime[];
@@ -1907,6 +1964,7 @@ SampleEpsFormStripAffine[
     "Nullity" -> unknownCount - rank,
     "Consistent" -> TrueQ[rank === augmentedRank],
     "SetupSeconds" -> setupSeconds,
+    "SampleSeconds" -> N[AbsoluteTime[] - setupStart],
     "PreparationReused" -> preparationReused,
     "PreprocessingSeconds" -> preprocessingSeconds,
     "SamplingSeconds" -> samplingSeconds,
@@ -2843,6 +2901,8 @@ SolveEpsFormStripFiniteField[record_Association,
    fullRetry, loopExit, preparation, eliminationPlan, pilotSample,
    supportKind, supportStrategy, shells, selectedShell = "Rectangle", supportOptions, probeCount = 0,
    regulatorSampling, initialConstruction, heldOutCount, unseenPrimeCheck,
+  heldOutBatchSeconds = 0., heldOutCanonicalSeconds = 0.,
+  heldOutInterpolateSeconds = 0.,
    expectedDegrees = Automatic, learnedConstruction, sampleBatch, pool,
    canonical, heldOutResult, heldOutValidated, epsilonCursor, regulatorValue, need,
    reservePrimes, lifted, unseen, sampleEpsilon, unseenPrime = None,
@@ -3481,6 +3541,8 @@ SolveEpsFormStripFiniteField[record_Association,
           Max[Replace[Total /@ expectedDegrees, -Infinity -> 0, {1}]] + 1];
         need = learnedConstruction + heldOutCount;
         pool = {}; epsilonCursor = 0; interpolation = $Failed;
+        heldOutBatchSeconds = 0.; heldOutCanonicalSeconds = 0.;
+        heldOutInterpolateSeconds = 0.;
         {seconds, heldOutResult} = AbsoluteTiming[Catch[While[True,
           (* between held-out construction cycles *)
           If[finiteFieldStripDeadlineExpiredQ[deadline],
@@ -3501,7 +3563,9 @@ SolveEpsFormStripFiniteField[record_Association,
               If[finiteFieldStripDeadlineExpiredQ[deadline],
                 Throw["BudgetExhausted", "a2"]];
               want = need - Length[samples];
-              batch = sampleBatch[Table[regulatorValue[epsilonCursor + k], {k, want}]];
+              batch = With[{timed = AbsoluteTiming[
+                  sampleBatch[Table[regulatorValue[epsilonCursor + k], {k, want}]]]},
+                heldOutBatchSeconds += First[timed]; Last[timed]];
               epsilonCursor += want; attempts += want;
               If[AnyTrue[batch, ! AssociationQ[#] &],
                 log["Discarded ", Count[batch, Except[_Association]],
@@ -3509,17 +3573,21 @@ SolveEpsFormStripFiniteField[record_Association,
               samples = Join[samples, Select[batch, AssociationQ]]]];
           If[Length[samples] < need, Throw["SampleFailed", "a2"]];
           pool = Join[pool, samples];
-          canonical = finiteFieldStripCanonicalSamples[pool, prime, Which[
-            AssociationQ[eliminationPlan], eliminationPlan["NormalizationColumns"],
-            modularData === {}, Automatic,
-            True, First[modularData]["NormalizationColumns"]]];
+          canonical = With[{timed = AbsoluteTiming[
+              finiteFieldStripCanonicalSamples[pool, prime, Which[
+                AssociationQ[eliminationPlan], eliminationPlan["NormalizationColumns"],
+                modularData === {}, Automatic,
+                True, First[modularData]["NormalizationColumns"]]]]},
+            heldOutCanonicalSeconds += First[timed]; Last[timed]];
           If[canonical["Status"] =!= "OK", Throw[canonical["Status"], "a2"]];
-          heldOutResult = finiteFieldStripHeldOutInterpolate[
-            canonical["CanonicalSamples"], prime,
-            "InitialConstructionCount" -> learnedConstruction,
-            "HeldOutCount" -> heldOutCount,
-            "MaximumTotalDegree" -> maximumTotalDegree,
-            "ExpectedDegrees" -> expectedDegrees];
+          heldOutResult = With[{timed = AbsoluteTiming[
+              finiteFieldStripHeldOutInterpolate[
+                canonical["CanonicalSamples"], prime,
+                "InitialConstructionCount" -> learnedConstruction,
+                "HeldOutCount" -> heldOutCount,
+                "MaximumTotalDegree" -> maximumTotalDegree,
+                "ExpectedDegrees" -> expectedDegrees]]},
+            heldOutInterpolateSeconds += First[timed]; Last[timed]];
           Switch[heldOutResult["Status"],
             "HeldOutValidated", heldOutValidated = heldOutResult; Throw["Validated", "a2"],
             "RejectPrimeDegreeProfileChanged", Throw["RejectPrime", "a2"],
@@ -3608,6 +3676,20 @@ SolveEpsFormStripFiniteField[record_Association,
           "SamplingEvaluationSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SamplingEvaluationSeconds", 0.]],
           "SamplingAssemblySeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SamplingAssemblySeconds", 0.]],
           "SamplingPointCallSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SamplingPointCallSeconds", 0.]],
+          "SamplingSampleSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SampleSeconds", 0.]],
+          "SamplingSetupSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SetupSeconds", 0.]],
+          "SamplingPreprocessingSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "PreprocessingSeconds", 0.]],
+          "SamplingSolveSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "ConstrainedSolveSeconds", 0.]] +
+            Total[Lookup[If[ListQ[pool], pool, samples], "LinearSolveSeconds", 0.]] +
+            Total[Lookup[If[ListQ[pool], pool, samples], "PlanDiscoverySeconds", 0.]],
+          "SamplingConstrainedSolveSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "ConstrainedSolveSeconds", 0.]],
+          "SamplingLinearSolveSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "LinearSolveSeconds", 0.]],
+          "SamplingPlanDiscoverySeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "PlanDiscoverySeconds", 0.]],
+          "SamplingBackends" -> Tally[Lookup[If[ListQ[pool], pool, samples], "BackendUsed", None]],
+          "SamplingSolvePaths" -> Tally[Lookup[If[ListQ[pool], pool, samples], "SolvePath", None]],
+          "HeldOutBatchSeconds" -> heldOutBatchSeconds,
+          "HeldOutCanonicalSeconds" -> heldOutCanonicalSeconds,
+          "HeldOutInterpolateSeconds" -> heldOutInterpolateSeconds,
           "SelectedNumeratorDegreeOffset" -> selectedOffset,
           "SelectedSupportShell" -> selectedShell,
           "RecordFingerprint" -> recordFingerprint,
@@ -3845,6 +3927,18 @@ SolveEpsFormStripFiniteField[record_Association,
       Lookup[modularData, "SamplingAssemblySeconds", {}],
     "PrimeSamplingPointCallSeconds" ->
       Lookup[modularData, "SamplingPointCallSeconds", {}],
+    "PrimeSamplingSampleSeconds" -> Lookup[modularData, "SamplingSampleSeconds", {}],
+    "PrimeSamplingSetupSeconds" -> Lookup[modularData, "SamplingSetupSeconds", {}],
+    "PrimeSamplingPreprocessingSeconds" -> Lookup[modularData, "SamplingPreprocessingSeconds", {}],
+    "PrimeSamplingSolveSeconds" -> Lookup[modularData, "SamplingSolveSeconds", {}],
+    "PrimeSamplingConstrainedSolveSeconds" -> Lookup[modularData, "SamplingConstrainedSolveSeconds", {}],
+    "PrimeSamplingLinearSolveSeconds" -> Lookup[modularData, "SamplingLinearSolveSeconds", {}],
+    "PrimeSamplingPlanDiscoverySeconds" -> Lookup[modularData, "SamplingPlanDiscoverySeconds", {}],
+    "PrimeSamplingBackends" -> Lookup[modularData, "SamplingBackends", {}],
+    "PrimeSamplingSolvePaths" -> Lookup[modularData, "SamplingSolvePaths", {}],
+    "PrimeHeldOutBatchSeconds" -> Lookup[modularData, "HeldOutBatchSeconds", {}],
+    "PrimeHeldOutCanonicalSeconds" -> Lookup[modularData, "HeldOutCanonicalSeconds", {}],
+    "PrimeHeldOutInterpolateSeconds" -> Lookup[modularData, "HeldOutInterpolateSeconds", {}],
     "PrimeInterpolationSeconds" ->
       Lookup[modularData, "InterpolationSeconds", {}],
     "TotalSamplingSeconds" ->
