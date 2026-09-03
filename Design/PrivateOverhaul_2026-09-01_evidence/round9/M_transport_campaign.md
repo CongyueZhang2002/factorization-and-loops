@@ -256,10 +256,10 @@ outside the accepted directory).  The target set stays 87 (CF259 has no record i
 | CF269 | exact | 101.9 | 101.49 | - | - |
 | CF319 | exact | 80.0 | 79.73 | - | - |
 | CF231 | exact | 80.6 | 80.15 | - | - |
-| CF265 | incomplete | 170.5 | - | - | typed `DLogResiduesRequired` (`Reason -> NoProductionSymbolicFallback`) |
+| CF265 | exact (re-run by agent T on the certified finite-field residue route, 16:20; the 15:24 queue run was `incomplete`, `DLogResiduesRequired`) | 185 (T) | - | ModularlyVerifiedObservableTransport | first-kernel residues reconstructed from the certificate letters; `campaign.tsv` still carries the queue's `incomplete` row |
 | CF321 | exact | 269.5 | 269.21 | - | - |
 | CF311 | exact | 153.0 | 152.39 | - | - |
-| CF305 | incomplete | 160.1 | - | - | typed `DLogResiduesRequired` (`Reason -> NoProductionSymbolicFallback`) |
+| CF305 | exact (re-run 16:15-16:20 as one launcher job of the mission script, 900 s cap; the 15:25 queue run was `incomplete`, `DLogResiduesRequired`) | 284 (launcher) | 276.89 | ModularlyVerifiedObservableTransport | first-kernel residues reconstructed on 15 certificate letters (certified finite-field route added by T); 10 demanded (order,row) pairs, 85 boundary coordinates, weight 4; `campaign.tsv` still carries the queue's `incomplete` row |
 
 Queue drained 15:26:34 (launcher wall 582 s for the 86 queued families; driver exit 2 = two
 incomplete).  **85 of 87 accepted** (`exact` = record written after `AcceptedObservableTransportQ`),
@@ -277,6 +277,14 @@ the transport's demand/path stage (the run works for ~165 s first); a verbose re
 into scratch (`scratchpad/round9/diag/`, a diagnostic with the mission's `Verbose` card, not a
 retry into the campaign directory) is queued on the step-3 pool and its output is reported in
 section 4.  Not fixed: the builder is agent T's file.
+
+**Addendum (16:20).** Agent T added a certified finite-field reconstruction of the missing
+constant residues; CF265 is accepted on that route (185 s, T's run), and CF305 was re-run here
+as one launcher job of `Scripts/family_observable_transport_pool_mission.wls` (900 s cap, the
+mission writes only an accepted record): **accepted**, 276.9 s build / 284 s launcher wall,
+`ModularlyVerifiedObservableTransport`, residues reconstructed on 15 certificate letters
+(`scratchpad/round9/cf305_rerun.log`).  The campaign's accepted count is therefore **87 of 87**;
+`campaign.tsv` keeps the queue's two `incomplete` rows as the record of the 15:24-15:25 runs.
 
 ## 3. Physical stages on the new transports (step 3)
 
@@ -302,6 +310,9 @@ realizations, `MissingFamilies -> {}`; period coefficients `KnownZero` / `Uneval
 stratum, dimension 14) -- the degenerate-eigenspace mode selection that is agent T's round-9
 item (1); CF209 and CF260, which had no endpoint transport before, are accepted now.  Timing:
 modes 0.5-6 s each, endpoint builds 1-60 s each; the whole step 3 took 3 min of pool time.
+CF265 and CF305 (accepted later, addendum above) are not among the 42 families with structural
+nullity periods (`NullityPeriods.wl` names neither), so the boundary-mode and endpoint stages are
+not defined for them -- the builders would refuse `NoActiveFamiliesSelected`; nothing was run.
 
 | family | boundary modes (status, chart, stratum, periods, s) | endpoint transport (Stage-3 coordinates, grades, s) | previously (2026-09-03 accepted set) |
 |---|---|---|---|
@@ -352,11 +363,10 @@ modes 0.5-6 s each, endpoint builds 1-60 s each; the whole step 3 took 3 min of 
 |---|---|
 | CF259 | no record in `FamilyEpsFormsCertified/` (triple-root; its eps-form is a compact-valuation record under the triple-root campaign directory); its certified transport artifact of 2026-09-02 IS accepted by `AcceptedObservableTransportQ` (census addendum) -- it is a transport outside the accepted directory, not a missing one |
 | CF303 | no certified eps-form (triple-root; recorded strict-dlog no-go, Codex note 05); T's transport route |
-| CF265 | certified eps-form (two-root, chart Kallen13); transport refused typed `DLogResiduesRequired` (`Reason -> NoProductionSymbolicFallback`) after 170 s; verbose diagnostic below |
-| CF305 | certified eps-form (two-root, chart Kallen23); same refusal after 160 s |
 
-Every other family (85 of the 87 targets, plus CF300 and CF385 from before) now has an accepted
-observable transport in `ObservableTransport_2026-09-03_round9/` or the accepted set.
+Every other family -- all 87 targets, plus CF300 and CF385 from before -- now has an accepted
+observable transport in `ObservableTransport_2026-09-03_round9/` or the accepted set (CF265 and
+CF305 since 16:20 on T's certified residue route).
 
 **CF265 diagnostic** (`scratchpad/round9/pool/logs/diag_CF265.log`, verbose card, output into
 scratch, 127 s): loads 0.2 s; epsilon valuations `ComputedFromGauge` 2.9 s; Laurent extraction
@@ -384,13 +394,15 @@ recorded for T with the log.
 - Census: 91 families; 89 certified eps-forms; accepted transports before the campaign 2 in
   the accepted directory (+ CF259's artifact outside it); the 86 records of 2026-09-01 refused by
   the current predicate (epsilon-valuation certificate binding); physical stages 39.
-- Campaign: 87 targets, **85 accepted**, 2 typed failures (CF265, CF305, `DLogResiduesRequired`),
+- Campaign: 87 targets, **87 accepted** (85 in the queue; CF265 and CF305 after T's certified
+  residue route, 185 s and 284 s), 2 typed failures in the queue itself (`DLogResiduesRequired`),
   0 timeouts, 582 s of pool wall for the queue, first family checked before the queue, the
   two-in-a-row rule never fired, every family with a typed status and wall in section 2.
 - Physical stages: boundary modes 39/40 (CF211 `AmbiguousPhysicalEigenspace`), endpoint
   transports 39/39, summary `PhysicalEndpointTransportCampaignComplete`.
-- Remaining without a transport: CF265, CF305 (typed refusal, cause recorded), CF303 (no
-  eps-form, no-go), CF259 (accepted artifact outside the accepted directory).
+- Remaining without a transport: CF303 (no eps-form, no-go) and CF259 only in the sense that its
+  accepted artifact sits outside the accepted directory; CF265/CF305 have no physical stage
+  because they carry no structural nullity period.
 - Housekeeping: nothing committed; no package or Transport file edited (all drivers are scratch
   copies under `scratchpad/round9/`); the accepted directories untouched; the pool stopped and
-  both seats free at 15:30:40; no kernels running.
+  both seats free at 15:30:40 (the CF305 re-run held one seat 16:15-16:20); no kernels running.
