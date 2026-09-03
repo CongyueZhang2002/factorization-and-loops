@@ -1,7 +1,5 @@
-(* Transport of a final layer whose incoming connection is RATIONAL IN THE
-   REGULATOR (round 8, 2026-09-02; user mandate "optimize also the
-   transporter for non-eps form, like CF303"; design in
-   Design/PrivateOverhaul_2026-09-01_evidence/round8/T_noneps_transport.md).
+(* Transport of a final layer whose incoming connection is rational in the
+   regulator.
 
    System dF = A F, A = [[S, 0], [B, D]] on a one-dimensional path in the
    variable u: the source connection S = eps Sum S_i w_i and the final-
@@ -22,22 +20,30 @@
    reconstructed across primes and validated at a fresh prime.  If all
    incoming coefficients are independent of u, the exact dlog residues are
    read directly and H vanishes.  Singular endpoints remain a typed refusal
-   until tangential regularization data are implemented.  Curve letters
-   (Y^2 = P4) are admitted only with a declared quartic, and their channel is
-   refused typed until elliptic Hermite reduction exists.  No family name
-   appears here. *)
+   until tangential regularization data are implemented.  On a declared
+   square-free quartic Y^2=P4, the same modular recurrence uses coefficient
+   pairs for h0+h1 Y and f0 du+f1 du/Y and reduces the elliptic component to
+   square-free pole letters plus the three genus-one cohomology letters.
+   No family name appears here. *)
 
 Clear[BuildRationalEpsilonLayerTransport, AcceptedRationalEpsilonLayerTransportQ];
 ClearAll[
   rationalLayerLetterFormQ,
+  rationalLayerCurveLetterFormQ,
   rationalLayerLetterFunction,
+  rationalLayerLetterPair,
+  rationalLayerCurvePointValue,
+  rationalLayerResidueKey,
+  rationalLayerResidueLabel,
   rationalLayerAlphabetGate,
   rationalLayerPoleFactors,
   rationalLayerModularFunction,
   rationalLayerModularPolynomial,
   rationalLayerHermite,
+  rationalLayerEllipticHermite,
   rationalLayerPartialFractions,
   rationalLayerRecurrenceImage,
+  rationalLayerCurveRecurrenceImage,
   rationalLayerSourceStates,
   rationalLayerTargetSelectors,
   rationalLayerWords,
@@ -54,10 +60,8 @@ $rationalLayerCurveLetters = {"E4Pole", "E4Factor", "E4Omega0", "E4OmegaInf", "E
 (* A letter label: {"GPLPole", c} is du/(u - c); {"GPLFactor", q, k} is
    u^k du/q(u) with q square-free and k < deg q.  Curve letters are
    recognised, and admitted only with a declared quartic curve. *)
-(* a pole position must be a RATIONAL number: an algebraic one (CF303 at
-   p = 9/8 still has conjugate pairs over Q(Sqrt[1105])) passed NumericQ
-   and broke the modular images (2026-09-02 18:50); such a pair is to be
-   declared as one GPLFactor letter on its minimal polynomial *)
+(* A pole position must be rational.  Algebraic conjugates are represented
+   root-free by one GPLFactor letter on their minimal polynomial. *)
 rationalLayerLetterFormQ[{"GPLPole", c_}, u_] := MatchQ[c, _Integer | _Rational];
 rationalLayerLetterFormQ[{"GPLFactor", q_, k_Integer}, u_] :=
   PolynomialQ[q, u] && Exponent[q, u] >= 1 && 0 <= k < Exponent[q, u] &&
@@ -65,8 +69,50 @@ rationalLayerLetterFormQ[{"GPLFactor", q_, k_Integer}, u_] :=
   Exponent[PolynomialGCD[q, D[q, u]], u] === 0;
 rationalLayerLetterFormQ[___] := False;
 
+rationalLayerCurveLetterFormQ[{"E4Pole", c_}, _] :=
+  MatchQ[c, _Integer | _Rational];
+rationalLayerCurveLetterFormQ[{"E4Factor", q_, k_Integer}, u_] :=
+  rationalLayerLetterFormQ[{"GPLFactor", q, k}, u];
+rationalLayerCurveLetterFormQ[{"E4Omega0"}, _] := True;
+rationalLayerCurveLetterFormQ[{"E4OmegaInf"}, _] := True;
+rationalLayerCurveLetterFormQ[{"E4Eta2"}, _] := True;
+rationalLayerCurveLetterFormQ[___] := False;
+
 rationalLayerLetterFunction[{"GPLPole", c_}, u_] := 1/(u - c);
 rationalLayerLetterFunction[{"GPLFactor", q_, k_Integer}, u_] := u^k/q;
+
+(* A function is h0+h1 Y and a one-form is f0 du+f1 du/Y.  Pair entries
+   below are their rational coefficient functions {base, elliptic}. *)
+rationalLayerLetterPair[label : {head_, ___}, u_, curve_, pointValues_Association] /;
+    MemberQ[$rationalLayerRationalLetters, head] :=
+  {rationalLayerLetterFunction[label, u], 0};
+rationalLayerLetterPair[{"E4Factor", q_, k_Integer}, u_, _, _] := {0, u^k/q};
+rationalLayerLetterPair[{"E4Pole", c_}, u_, _, pointValues_Association] :=
+  {0, Lookup[pointValues, c, Missing["CurvePointValue", c]]/(u - c)};
+rationalLayerLetterPair[{"E4Omega0"}, _, _, _] := {0, 1};
+rationalLayerLetterPair[{"E4OmegaInf"}, u_, _, _] := {0, u};
+rationalLayerLetterPair[{"E4Eta2"}, u_, curve_, _] :=
+  {0, u^2 + Coefficient[curve, u, 3] u/(2 Coefficient[curve, u, 4])};
+
+rationalLayerCurvePointValue[point_, curve_, u_, declared_Association] := Module[
+  {value = Together[curve /. u -> point], candidate},
+  candidate = Lookup[declared, point, Automatic];
+  If[candidate === Automatic, candidate = Sqrt[value]];
+  If[! MatchQ[candidate, _Integer | _Rational] ||
+      Together[candidate^2 - value] =!= 0,
+    Missing["CurvePointValue", point], candidate]
+];
+
+(* Rational keys retain the historical {order,factor,power} ABI.  Curve
+   letters are opaque in the second slot and retain the same three-field
+   shape, so lazy consumers can distinguish the channels without expanding
+   polynomial factors into marked points. *)
+rationalLayerResidueKey[order_, {"GPLFactor", factor_, power_Integer}] :=
+  {order, factor, power};
+rationalLayerResidueKey[order_, label_List] := {order, label, 0};
+rationalLayerResidueLabel[{_, factor_, power_Integer}] /; ! ListQ[factor] :=
+  {"GPLFactor", factor, power};
+rationalLayerResidueLabel[{_, label_List, _Integer}] := label;
 
 rationalLayerAlphabetGate[labels_List, u_Symbol, curve_] := Module[
   {verdicts},
@@ -89,9 +135,13 @@ rationalLayerAlphabetGate[labels_List, u_Symbol, curve_] := Module[
           curve === None,
             <|"Label" -> label, "Status" -> "CurveDeclarationRequired"|>,
           ! PolynomialQ[curve, u] || Exponent[curve, u] =!= 4 ||
+            ! VectorQ[CoefficientList[curve, u], MatchQ[#, _Integer | _Rational] &] ||
             Exponent[PolynomialGCD[curve, D[curve, u]], u] =!= 0,
             <|"Label" -> label, "Status" -> "CurveNotQuartic",
               "Reason" -> "the declared curve must be a square-free quartic polynomial in the path variable"|>,
+          ! rationalLayerCurveLetterFormQ[label, u],
+            <|"Label" -> label, "Status" -> "AlphabetLetterNotAdmitted",
+              "Reason" -> "malformed elliptic letter"|>,
           True,
             <|"Label" -> label, "Status" -> "Admitted", "Channel" -> "Curve"|>],
       True,
@@ -113,6 +163,8 @@ rationalLayerPoleFactors[letters_List, coefficients_List, u_Symbol] := Module[
   polynomials = Join[
     Cases[letters, {"GPLPole", c_} :> u - c],
     Cases[letters, {"GPLFactor", q_, _} :> q],
+    Cases[letters, {"E4Pole", c_} :> u - c],
+    Cases[letters, {"E4Factor", q_, _} :> q],
     Denominator[Together[#]] & /@ coefficients];
   factors = DeleteDuplicates[Flatten[Cases[FactorList[Times @@ polynomials],
     {f_, _} /; ! FreeQ[f, u] :> f]]];
@@ -137,10 +189,8 @@ rationalLayerModularFunction[expression_, u_Symbol, prime_Integer] := Module[
   {PolynomialMod[numerator PowerMod[lead, -1, prime], prime],
    PolynomialMod[denominator PowerMod[lead, -1, prime], prime]}
 ];
-(* a polynomial over Q reduced into F_q coefficient by coefficient (the
-   built-in Modulus arithmetic does not reduce rational coefficients such
-   as the 3/4 of CF303's pole factors at p = 9/8 -- the images across
-   primes were inconsistent and no residue reconstructed, 2026-09-02 18:43) *)
+(* A polynomial over Q reduced into F_q coefficient by coefficient; built-in
+   modulus arithmetic does not consistently normalize rational coefficients. *)
 rationalLayerModularPolynomial[expression_, u_Symbol, prime_Integer] := Module[
   {coefficients = CoefficientList[Expand[expression], u]},
   If[MemberQ[Mod[Denominator /@ coefficients, prime], 0], Return[$Failed]];
@@ -181,6 +231,91 @@ rationalLayerHermite[{numerator_, denominator_}, u_Symbol, prime_Integer] := Mod
   solution = First[solution];
   <|"Primitive" -> {Expand[PolynomialMod[(bPoly /. solution) + polynomialPrimitive dStar, prime]], dStar},
     "Remainder" -> {PolynomialMod[cPoly /. solution, prime], dMinus}|>
+];
+
+(* Elliptic Hermite reduction on Y^2=P(u).  For f du/Y, find g and a
+   square-free-pole remainder plus the three genus-one cohomology classes,
+
+     f = P g' + P' g/2 + r/q + c0 + c1 u + c2 u^2  (mod prime),
+
+   so that g Y is the primitive.  The reduction depends only on the quartic
+   and rational-function data. *)
+rationalLayerEllipticHermite[{numeratorInput_, denominatorInput_}, curve_,
+    u_Symbol, prime_Integer] := Module[
+  {numerator, denominator, common, lead, branchGCD, repeated, squarefree,
+   repeatedDegree, squarefreeDegree, quotient, polynomialDegree,
+   polynomialPrimitiveCount, commonDenominator, target, inverseTwo,
+   bSymbols, rSymbols, pSymbols, cSymbols, unknowns, bPolynomial,
+   rPolynomial, pPolynomial, cPolynomial, operator, equation,
+   coefficients, solutions, solution, primitiveNumerator, identity},
+  numerator = PolynomialMod[numeratorInput, prime];
+  denominator = PolynomialMod[denominatorInput, prime];
+  If[denominator === 0,
+    Return[<|"Status" -> "EllipticHermiteDenominatorZero"|>]];
+  If[numerator === 0,
+    Return[<|"Status" -> "EllipticHermiteReduced",
+      "Primitive" -> {0, 1}, "ProperRemainder" -> {0, 1},
+      "Cohomology" -> {0, 0, 0}|>]];
+  common = PolynomialGCD[numerator, denominator, Modulus -> prime];
+  numerator = PolynomialQuotient[numerator, common, u, Modulus -> prime];
+  denominator = PolynomialQuotient[denominator, common, u, Modulus -> prime];
+  lead = Coefficient[denominator, u, Exponent[denominator, u]];
+  numerator = PolynomialMod[numerator PowerMod[lead, -1, prime], prime];
+  denominator = PolynomialMod[denominator PowerMod[lead, -1, prime], prime];
+  branchGCD = PolynomialGCD[denominator, curve, Modulus -> prime];
+  If[Exponent[branchGCD, u] > 0,
+    Return[<|"Status" -> "CurveBranchPoleNotSupported",
+      "Factor" -> branchGCD|>]];
+  repeated = PolynomialGCD[denominator, D[denominator, u], Modulus -> prime];
+  repeated = PolynomialMod[repeated PowerMod[
+    Coefficient[repeated, u, Exponent[repeated, u]], -1, prime], prime];
+  squarefree = PolynomialQuotient[denominator, repeated, u, Modulus -> prime];
+  squarefree = PolynomialMod[squarefree PowerMod[
+    Coefficient[squarefree, u, Exponent[squarefree, u]], -1, prime], prime];
+  repeatedDegree = Exponent[repeated, u];
+  squarefreeDegree = Exponent[squarefree, u];
+  quotient = PolynomialQuotient[numerator, denominator, u, Modulus -> prime];
+  polynomialDegree = If[quotient === 0, -1, Exponent[quotient, u]];
+  polynomialPrimitiveCount = Max[0, polynomialDegree - 2];
+  commonDenominator = PolynomialLCM[denominator, repeated^2, Modulus -> prime];
+  commonDenominator = PolynomialLCM[commonDenominator, squarefree, Modulus -> prime];
+  target = PolynomialMod[numerator PolynomialQuotient[
+    commonDenominator, denominator, u, Modulus -> prime], prime];
+  inverseTwo = PowerMod[2, -1, prime];
+  bSymbols = Array[Unique["e4B"] &, repeatedDegree];
+  rSymbols = Array[Unique["e4R"] &, squarefreeDegree];
+  pSymbols = Array[Unique["e4P"] &, polynomialPrimitiveCount];
+  cSymbols = Array[Unique["e4C"] &, 3];
+  unknowns = Join[bSymbols, rSymbols, pSymbols, cSymbols];
+  bPolynomial = If[bSymbols === {}, 0, bSymbols . u^Range[0, repeatedDegree - 1]];
+  rPolynomial = If[rSymbols === {}, 0, rSymbols . u^Range[0, squarefreeDegree - 1]];
+  pPolynomial = If[pSymbols === {}, 0, pSymbols . u^Range[0, polynomialPrimitiveCount - 1]];
+  cPolynomial = cSymbols . {1, u, u^2};
+  operator[g_] := Expand[curve D[g, u] + inverseTwo D[curve, u] g];
+  equation = Expand[
+    (curve (D[bPolynomial, u] repeated - bPolynomial D[repeated, u]) +
+        inverseTwo D[curve, u] bPolynomial repeated)
+        PolynomialQuotient[commonDenominator, repeated^2, u, Modulus -> prime] +
+      rPolynomial PolynomialQuotient[commonDenominator, squarefree, u, Modulus -> prime] +
+      operator[pPolynomial] commonDenominator + cPolynomial commonDenominator - target];
+  coefficients = CoefficientList[equation, u];
+  solutions = Quiet[Check[Solve[Thread[coefficients == 0], unknowns,
+      Modulus -> prime], $Failed]];
+  If[solutions === $Failed || solutions === {},
+    Return[<|"Status" -> "EllipticHermiteReductionUndecided"|>]];
+  solution = First[solutions];
+  If[! FreeQ[unknowns /. solution, Alternatives @@ unknowns],
+    Return[<|"Status" -> "EllipticHermiteReductionUnderdetermined"|>]];
+  primitiveNumerator = PolynomialMod[(bPolynomial + pPolynomial repeated) /. solution, prime];
+  rPolynomial = PolynomialMod[rPolynomial /. solution, prime];
+  cSymbols = Mod[cSymbols /. solution, prime];
+  identity = PolynomialMod[equation /. solution, prime];
+  If[identity =!= 0,
+    Return[<|"Status" -> "EllipticHermiteIdentityFailed"|>]];
+  <|"Status" -> "EllipticHermiteReduced",
+    "Primitive" -> {primitiveNumerator, repeated},
+    "ProperRemainder" -> {rPolynomial, squarefree},
+    "Cohomology" -> cSymbols|>
 ];
 
 (* C/Dminus on the declared coprime pole factors: C/Dminus = Sum_j r_j/q_j,
@@ -224,9 +359,8 @@ rationalLayerRecurrenceImage[laurent_Association, diagonal_List, source_Associat
   {d, n, letterFunctions, hPrevious, h, k, omega, entryValue, hermite, fractions,
    value, evaluateAt, hImages = <||>, kResidues = <||>, failure = None,
    diagonalForms, sourceForms, dEntry, sEntry, fixed, hEntry, hEndpoint = <||>, endpointValues},
-  (* rows and columns of the incoming Laurent matrices; the first CF303 run
-     (2026-09-02 18:38) read them off the wrong level and looped over
-     nothing while the fixture's 2x2 hid it *)
+  (* Rows and columns are read from the Laurent matrix, not from a scalar
+     entry's expression tree. *)
   {d, n} = Dimensions[Lookup[laurent, First[orders]]][[1 ;; 2]];
   If[n =!= source["Dimension"],
     Return[<|"Status" -> "LayerDimensionMismatch", "Prime" -> prime,
@@ -288,6 +422,140 @@ rationalLayerRecurrenceImage[laurent_Association, diagonal_List, source_Associat
     "KResidues" -> kResidues, "HImages" -> hImages, "HEndpoint" -> hEndpoint|>
 ];
 
+(* Quartic-curve recurrence.  Matrix entries of h are coefficient pairs for
+   h0+h1 Y; form entries are pairs for f0 du+f1 du/Y.  Their product is
+
+     (h0 f0+h1 f1) du + (h0 f1+P h1 f0) du/Y,
+
+   while d(h1 Y)=(P h1'+P' h1/2)du/Y. *)
+rationalLayerCurveRecurrenceImage[laurent_Association, diagonal_List,
+    source_Association, factors_List, u_Symbol, curve_, pointValues_Association,
+    base_, baseY_, orders_List, prime_Integer, endpoint_, endpointY_] := Module[
+  {d, n, curveImage, baseImage, endpointImage, baseYImage, endpointYImage, scalarImage, rf, product,
+   diagonalForms, sourceForms, hPrevious, h, omega, rationalHermite,
+   ellipticHermite, fractions, fixed, hEntry, hImages = <||>,
+   hEndpoint = <||>, endpointValues, kResidues = <||>, failure = None,
+   store, shift, cohomology, evaluateAt, root, rootValue, rootValueImage},
+  {d, n} = Dimensions[Lookup[laurent, First[orders]]][[1 ;; 2]];
+  If[n =!= source["Dimension"],
+    Return[<|"Status" -> "LayerDimensionMismatch", "Prime" -> prime|>]];
+  curveImage = rationalLayerModularPolynomial[curve, u, prime];
+  If[curveImage === $Failed || Exponent[curveImage, u] =!= 4 ||
+      Exponent[PolynomialGCD[curveImage, D[curveImage, u], Modulus -> prime], u] > 0,
+    Return[<|"Status" -> "CurveDegeneratesAtPrime", "Prime" -> prime|>]];
+  scalarImage[value_] := If[Mod[Denominator[value], prime] === 0, $Failed,
+    Mod[Numerator[value] PowerMod[Denominator[value], -1, prime], prime]];
+  baseImage = scalarImage[base]; endpointImage = scalarImage[endpoint];
+  baseYImage = scalarImage[baseY]; endpointYImage = scalarImage[endpointY];
+  If[MemberQ[{baseImage, endpointImage, baseYImage, endpointYImage}, $Failed],
+    Return[<|"Status" -> "CurvePointNotDefinedAtPrime", "Prime" -> prime|>]];
+  If[Mod[baseYImage^2 - (curveImage /. u -> baseImage), prime] =!= 0 ||
+      Mod[endpointYImage^2 - (curveImage /. u -> endpointImage), prime] =!= 0,
+    Return[<|"Status" -> "CurveSheetInconsistentAtPrime", "Prime" -> prime|>]];
+  rf[{numerator_, denominator_}] := numerator/denominator;
+  product[functionPair_, formPair_] := With[
+    {h0 = rf[functionPair[[1]]], h1 = rf[functionPair[[2]]],
+     f0 = formPair[[1]], f1 = formPair[[2]]},
+    {h0 f0 + h1 f1, h0 f1 + curveImage h1 f0}];
+  evaluateAt[{numerator_, denominator_}, point_] := Module[{pointImage, dv, nv},
+    pointImage = scalarImage[point];
+    If[pointImage === $Failed, Return[$Failed, Module]];
+    dv = Mod[denominator /. u -> pointImage, prime];
+    nv = Mod[numerator /. u -> pointImage, prime];
+    If[dv === 0, $Failed, Mod[nv PowerMod[dv, -1, prime], prime]]];
+  diagonalForms = ({rationalLayerLetterPair[#[[1]], u, curve, pointValues], #[[2]]} &) /@ diagonal;
+  sourceForms = MapThread[{rationalLayerLetterPair[#1, u, curve, pointValues], #2} &,
+    {source["Letters"], source["Residues"]}];
+  If[! FreeQ[{diagonalForms, sourceForms}, _Missing],
+    Return[<|"Status" -> "CurvePointValueRequired", "Prime" -> prime|>]];
+  store[order_, label_, value_, i_, j_] := If[Mod[value, prime] =!= 0,
+    Module[{key = rationalLayerResidueKey[order, label], matrix},
+      matrix = Lookup[kResidues, Key[key], ConstantArray[0, {d, n}]];
+      matrix[[i, j]] = Mod[matrix[[i, j]] + value, prime];
+      kResidues[key] = matrix]];
+  shift = Mod[Coefficient[curveImage, u, 3] PowerMod[
+    Mod[2 Coefficient[curveImage, u, 4], prime], -1, prime], prime];
+  hPrevious = ConstantArray[{{0, 1}, {0, 1}}, {d, n}];
+  Do[
+    omega = Table[Module[{terms = {{laurent[order][[i, j, 1]]},
+          {laurent[order][[i, j, 2]]}}, term},
+        Do[
+          term = product[hPrevious[[l, j]], form[[1]]];
+          AppendTo[terms[[1]], form[[2, i, l]] term[[1]]];
+          AppendTo[terms[[2]], form[[2, i, l]] term[[2]]],
+          {form, diagonalForms}, {l, d}];
+        Do[
+          term = product[hPrevious[[i, l]], form[[1]]];
+          AppendTo[terms[[1]], -form[[2, l, j]] term[[1]]];
+          AppendTo[terms[[2]], -form[[2, l, j]] term[[2]]],
+          {form, sourceForms}, {l, n}];
+        rationalLayerModularFunction[Total[#], u, prime] & /@ terms],
+      {i, d}, {j, n}];
+    If[! FreeQ[omega, $Failed], failure = "CoefficientNotDefinedAtPrime"; Break[]];
+    h = ConstantArray[{{0, 1}, {0, 1}}, {d, n}];
+    Do[
+      rationalHermite = rationalLayerHermite[omega[[i, j, 1]], u, prime];
+      If[rationalHermite === $Failed,
+        failure = "HermiteReductionUndecided"; Break[]];
+      fractions = rationalLayerPartialFractions[rationalHermite["Remainder"],
+        factors, u, prime];
+      If[fractions === $Failed, failure = "ResiduePoleNotInAlphabet"; Break[]];
+      KeyValueMap[Function[{factor, list}, Do[
+        store[order, {"GPLFactor", factor, kk - 1}, list[[kk]], i, j],
+        {kk, Length[list]}]], fractions];
+      ellipticHermite = rationalLayerEllipticHermite[omega[[i, j, 2]],
+        curveImage, u, prime];
+      If[Lookup[ellipticHermite, "Status", None] =!= "EllipticHermiteReduced",
+        failure = Lookup[ellipticHermite, "Status", "EllipticHermiteReductionUndecided"];
+        Break[]];
+      fractions = rationalLayerPartialFractions[
+        ellipticHermite["ProperRemainder"], factors, u, prime];
+      If[fractions === $Failed, failure = "ResiduePoleNotInAlphabet"; Break[]];
+      KeyValueMap[Function[{factor, list},
+        If[Exponent[factor, u] === 1,
+          root = Together[-Coefficient[factor, u, 0]/Coefficient[factor, u, 1]];
+          rootValue = rationalLayerCurvePointValue[root, curve, u, pointValues];
+          rootValueImage = If[MissingQ[rootValue], $Failed, scalarImage[rootValue]],
+          rootValueImage = $Failed];
+        Do[If[kk === 1 && rootValueImage =!= $Failed && rootValueImage =!= 0,
+            store[order, {"E4Pole", root},
+              list[[kk]] PowerMod[rootValueImage, -1, prime], i, j],
+            store[order, {"E4Factor", factor, kk - 1}, list[[kk]], i, j]],
+          {kk, Length[list]}]], fractions];
+      cohomology = ellipticHermite["Cohomology"];
+      store[order, {"E4Omega0"}, cohomology[[1]], i, j];
+      store[order, {"E4OmegaInf"}, cohomology[[2]] - shift cohomology[[3]], i, j];
+      store[order, {"E4Eta2"}, cohomology[[3]], i, j];
+      fixed = evaluateAt[rationalHermite["Primitive"], base];
+      If[fixed =!= $Failed,
+        With[{ellipticBase = evaluateAt[ellipticHermite["Primitive"], base]},
+          If[ellipticBase === $Failed, fixed = $Failed,
+            fixed = Mod[fixed + baseYImage ellipticBase, prime]]]];
+      If[fixed === $Failed, failure = "BasePointOnPole"; Break[]];
+      hEntry = {
+        {PolynomialMod[rationalHermite["Primitive"][[1]] -
+            fixed rationalHermite["Primitive"][[2]], prime],
+          rationalHermite["Primitive"][[2]]},
+        ellipticHermite["Primitive"]};
+      h[[i, j]] = hEntry,
+      {i, d}, {j, n}];
+    If[failure =!= None, Break[]];
+    hImages[order] = h;
+    endpointValues = Map[Module[{v0 = evaluateAt[#[[1]], endpoint],
+          v1 = evaluateAt[#[[2]], endpoint]},
+        If[MemberQ[{v0, v1}, $Failed], $Failed,
+          Mod[v0 + endpointYImage v1, prime]]] &, h, {2}];
+    If[! FreeQ[endpointValues, $Failed], failure = "EndpointOnPoleAtPrime"; Break[]];
+    hEndpoint[order] = endpointValues;
+    hPrevious = h,
+    {order, orders}];
+  If[failure =!= None,
+    Return[<|"Status" -> failure, "Prime" -> prime|>]];
+  <|"Status" -> "RecurrenceImageEvaluated", "Prime" -> prime,
+    "KResidues" -> kResidues, "HImages" -> hImages,
+    "HEndpoint" -> hEndpoint, "CurveChannel" -> True|>
+];
+
 (* ---- words ------------------------------------------------------------ *)
 
 (* Words D^a K_r S^b and D^a reaching (order, row): the coefficient of a
@@ -298,10 +566,7 @@ rationalLayerRecurrenceImage[laurent_Association, diagonal_List, source_Associat
    source-word growth shared across all demanded pairs (sourceStates:
    q -> states by weight), and a K letter applied only where its columns
    meet the state's nonzero rows.  "MaximumWords" caps the enumeration and
-   the pair is then reported capped (typed), never truncated silently.
-   The first CF303 measurement (2026-09-02 18:22) was killed at the 900 s
-   cap in the dense version of this enumeration; everything before it had
-   taken 4 s. *)
+   the pair is then reported capped (typed), never truncated silently. *)
 rationalLayerSourceStates[source_Association, maximumWeight_Integer, weightByOrder_: Automatic, maximumStates_: Infinity] := Module[
   {sLetters, grow, nonzeroQ, needed, total = 0},
   nonzeroQ[m_] := Length[SparseArray[m]["NonzeroPositions"]] > 0;
@@ -312,10 +577,8 @@ rationalLayerSourceStates[source_Association, maximumWeight_Integer, weightByOrd
     total += Length[next];
     If[total > maximumStates, Throw[<|"Status" -> "SourceWordGrowthCapped", "MaximumStates" -> maximumStates, "States" -> total|>]];
     next];
-  (* grown only as far as a demanded pair can be reached from that boundary
-     order (round 8, stage 4: the tail weights of a run are bounded by
-     order - q - r; growing every selector to the full weight cost 10 s of
-     the 47 s CF303 measurement) *)
+  (* Grow each boundary order only as far as a demanded pair can reach it:
+     the source-tail weight is order-q-r. *)
   needed[q_] := If[weightByOrder === Automatic, maximumWeight, Lookup[weightByOrder, q, -1]];
   Association@Table[q -> NestList[grow, {{{}, SparseArray[source["BoundarySelectors"][q]]}}, Min[maximumWeight, needed[q]]],
     {q, Select[Keys[source["BoundarySelectors"]], needed[#] >= 0 &]}]
@@ -324,20 +587,23 @@ rationalLayerSourceStates[source_Association, maximumWeight_Integer, weightByOrd
 rationalLayerWords[order_Integer, row_Integer, diagonal_List, kResidues_Association,
     source_Association, targetSelectors_Association, sourceBoundaryCount_Integer,
     targetBoundaryCount_Integer, maximumWeight_Integer, maximumWords_: Infinity,
-    sourceStatesGiven_: Automatic] := Module[
+    sourceStatesGiven_: Automatic, sharedBoundaryQ_: False] := Module[
   {words = {}, dLetters, kLetters, embedSource, embedTarget, grow, capped = False,
    nonzeroQ, sourceStates, dStates, kStates, count = 0, rowsOf, columnsOf, dropped = 0},
   nonzeroQ[m_] := Length[SparseArray[m]["NonzeroPositions"]] > 0;
   rowsOf[m_] := DeleteDuplicates[SparseArray[m]["NonzeroPositions"][[All, 1]]];
   columnsOf[m_] := DeleteDuplicates[SparseArray[m]["NonzeroPositions"][[All, 2]]];
   dLetters = ({#[[1]], SparseArray[#[[2]]]} &) /@ diagonal;
-  kLetters = KeyValueMap[{{#1[[2]], #1[[3]]}, #1[[1]], SparseArray[#2]} &, KeySort[kResidues]];
+  kLetters = KeyValueMap[{rationalLayerResidueLabel[#1], #1[[1]], SparseArray[#2]} &,
+    KeySort[kResidues]];
   kLetters = Select[kLetters, nonzeroQ[#[[3]]] &];
   kLetters = ({#[[1]], #[[2]], #[[3]], columnsOf[#[[3]]]} &) /@ kLetters;
   sourceStates = If[sourceStatesGiven === Automatic,
     rationalLayerSourceStates[source, maximumWeight], sourceStatesGiven];
-  embedSource[vector_] := Join[vector, ConstantArray[0, targetBoundaryCount]];
-  embedTarget[vector_] := Join[ConstantArray[0, sourceBoundaryCount], vector];
+  embedSource[vector_] := If[TrueQ[sharedBoundaryQ], vector,
+    Join[vector, ConstantArray[0, targetBoundaryCount]]];
+  embedTarget[vector_] := If[TrueQ[sharedBoundaryQ], vector,
+    Join[ConstantArray[0, sourceBoundaryCount], vector]];
   grow[states_List, letters_List] := Select[Flatten[Table[
       {Append[state[[1]], letter[[1]]], letter[[2]] . state[[2]]}, {state, states}, {letter, letters}], 1],
     nonzeroQ[#[[2]]] &];
@@ -371,7 +637,8 @@ rationalLayerWords[order_Integer, row_Integer, diagonal_List, kResidues_Associat
           If[0 <= a <= maximumWeight,
             kStates = Select[Table[
                 If[Intersection[kLetter[[4]], rowsOf[state[[2]]]] === {}, Nothing,
-                  {Append[state[[1]], {"GPLFactor", kLetter[[1, 1]], kLetter[[1, 2]], "Incoming", kLetter[[2]]}], kLetter[[3]] . state[[2]]}],
+                  {Append[state[[1]], Join[kLetter[[1]], {"Incoming", kLetter[[2]]}]],
+                    kLetter[[3]] . state[[2]]}],
                 {state, sourceStates[q][[b + 1]]}], nonzeroQ[#[[2]]] &];
             dStates = Nest[grow[#, dLetters] &, kStates, a];
             Do[If[nonzeroQ[state[[2]][[row]]],
@@ -391,9 +658,10 @@ rationalLayerWords[order_Integer, row_Integer, diagonal_List, kResidues_Associat
 (* The target boundary selectors padded into one block of columns, grouped
    by target boundary order (shared by the route and the re-verifying
    predicate so that both build the same words). *)
-rationalLayerTargetSelectors[layer_Association, d_Integer] := Module[
+rationalLayerTargetSelectors[layer_Association, d_Integer, sharedQ_: False] := Module[
   {selectors, count, offsets},
   selectors = Lookup[layer, "TargetBoundarySelectors", <|0 -> IdentityMatrix[d]|>];
+  If[TrueQ[sharedQ], Return[{selectors, Dimensions[First[Values[selectors]]][[2]]}]];
   count = Total[Length[First[#]] & /@ Values[selectors]];
   offsets = Accumulate[Prepend[Length[First[#]] & /@ Values[selectors], 0]];
   {Association@MapIndexed[Function[{q, index},
@@ -412,6 +680,7 @@ Options[BuildRationalEpsilonLayerTransport] = {
   "MaximumWords" -> Infinity,
   "MaximumStates" -> 200000,
   "IncomingRoute" -> Automatic,
+  "WordRepresentation" -> Automatic,
   "PrepareOnly" -> False,
   "Verbose" -> False
 };
@@ -427,7 +696,10 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
    weightByOrder, letterDecomposition, neededWeight, weightCapped, cappedPairs,
    endpoint, gaugeAtEndpoint = <||>, gaugeComparisons = 0, gaugeMismatches = 0, probePoints,
    skippedPrimes = {}, scheduleIndex, regularization, targetSelectorInput,
-   primeCount, maximumPrimeCount, primeSchedule, activeIncomingOrders},
+   primeCount, maximumPrimeCount, primeSchedule, activeIncomingOrders,
+   wordRepresentation, sharedBoundaryQ, curveQ, curvePointValues,
+   curveBaseValue = None, curveEndpointValue = None, curvePoints,
+   recurrenceImage, operatorSource, operatorLayer},
   verbose = TrueQ[OptionValue["Verbose"]];
   fail[status_, extra_: <||>] := Throw[Join[<|"Status" -> status|>, extra]];
   seed = OptionValue["Seed"];
@@ -450,6 +722,7 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
       ! AssociationQ[Lookup[source, "BoundarySelectors", None]],
     fail["SourceLayerNotAccepted"]];
   targetSelectorInput = Lookup[layer, "TargetBoundarySelectors", <|0 -> IdentityMatrix[d]|>];
+  sharedBoundaryQ = TrueQ[Lookup[layer, "SharedBoundaryCoordinates", False]];
   (* Source selectors all act on the same boundary-constant vector.  Target
      selectors may have different column counts because they are padded into
      disjoint target-boundary blocks below.  In both cases the Laurent-order
@@ -465,6 +738,15 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
       ! AllTrue[Values[targetSelectorInput], MatrixQ[#] && Length[Dimensions[#]] === 2 &&
         Dimensions[#][[1]] === d && Dimensions[#][[2]] >= 1 &],
     fail["TargetBoundarySelectorsInvalid"]];
+  If[sharedBoundaryQ &&
+      (! (SameQ @@ (Dimensions[#][[2]] & /@ Values[targetSelectorInput])) ||
+       Dimensions[First[Values[targetSelectorInput]]][[2]] =!=
+         Dimensions[First[Values[source["BoundarySelectors"]]]][[2]]),
+    fail["SharedBoundarySelectorsInvalid"]];
+  wordRepresentation = Replace[OptionValue["WordRepresentation"],
+    Automatic -> "MaterializedWords"];
+  If[! MemberQ[{"MaterializedWords", "LazyOperator"}, wordRepresentation],
+    fail["WordRepresentationInvalid"]];
   If[! AllTrue[incoming, IntegerQ[#["Row"]] && 1 <= #["Row"] <= d && IntegerQ[#["Column"]] && 1 <= #["Column"] <= n &],
     fail["LayerInputNotWellFormed", <|"Reason" -> "incoming row/column indices"|>]];
   (* S5: residue matrices and selectors are constant rational matrices *)
@@ -490,8 +772,7 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
   labels = DeleteDuplicates[Join[diagonal[[All, 1]], Lookup[incoming, "Letter"], source["Letters"]]];
   gate = rationalLayerAlphabetGate[labels, u, curve];
   If[gate["Status"] =!= "AlphabetAdmitted", fail[gate["Status"], KeyDrop[gate, "Status"]]];
-  If[MemberQ[gate["Channels"], "Curve"], fail["CurveChannelNotImplemented",
-    <|"Reason" -> "elliptic Hermite reduction not yet in the package", "Verdicts" -> gate["Verdicts"]|>]];
+  curveQ = MemberQ[gate["Channels"], "Curve"];
   (* incoming coefficients: rational in eps and u, every other symbol specialized *)
   coefficients = Lookup[incoming, "Coefficient"];
   symbols = DeleteDuplicates[Cases[coefficients, s_Symbol /; s =!= u && s =!= eps, {0, Infinity}]];
@@ -499,6 +780,32 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
   If[! AllTrue[coefficients, With[{t = Together[#]},
       PolynomialQ[Numerator[t], {eps, u}] && PolynomialQ[Denominator[t], {eps, u}]] &],
     fail["IncomingNotRationalInEpsilon"]];
+  directQ = OptionValue["IncomingRoute"] =!= "Modular" && AllTrue[coefficients, FreeQ[#, u] &];
+  endpoint = Lookup[layer, "Endpoint", Lookup[demand, "Endpoint", None]];
+  curvePointValues = Lookup[layer, "CurvePointValues", <||>];
+  If[curveQ && (! AssociationQ[curvePointValues] ||
+      ! AllTrue[Keys[curvePointValues], MatchQ[#, _Integer | _Rational] &]),
+    fail["CurvePointValuesInvalid"]];
+  If[curveQ,
+    curvePoints = DeleteDuplicates[Cases[labels, {"E4Pole", point_} :> point]];
+    curvePointValues = Join[curvePointValues, Association@Table[point ->
+      Replace[Lookup[curvePointValues, point, Automatic],
+        Automatic :> Sqrt[Together[curve /. u -> point]]], {point, curvePoints}]];
+    If[! directQ,
+      If[! MatchQ[endpoint, _Integer | _Rational],
+        fail["EndpointRequired", <|"Reason" -> "a curve-valued gauge needs a declared endpoint"|>]];
+      curveBaseValue = rationalLayerCurvePointValue[base, curve, u,
+        Lookup[layer, "CurvePointValues", <||>]];
+      curveEndpointValue = rationalLayerCurvePointValue[endpoint, curve, u,
+        Lookup[layer, "CurvePointValues", <||>]];
+      If[MissingQ[curveBaseValue] || MissingQ[curveEndpointValue] ||
+          ! AllTrue[Values[curvePointValues], MatchQ[#, _Integer | _Rational] &],
+        fail["CurvePointValueRequired", <|"BasePoint" -> base,
+          "Endpoint" -> endpoint, "MarkedPoints" -> curvePoints,
+          "Reason" -> "the modular curve recurrence needs rational sheet values y with y^2=P(point), supplied through CurvePointValues when not rational squares"|>]];
+      If[AnyTrue[Normal[curvePointValues],
+          Together[Last[#]^2 - (curve /. u -> First[#])] =!= 0 &],
+        fail["CurvePointValuesInvalid"]]]];
   (* epsilon window: exact valuation of every coefficient at the base point and at
      two more rational points of u (the round-4 certificate style) *)
   (* S6: three random rational probe points from the seed (a coefficient
@@ -516,7 +823,7 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
   If[! MatchQ[demandPairs, {{_Integer, _Integer} ..}] || ! DuplicateFreeQ[demandPairs] ||
       ! AllTrue[demandPairs, 1 <= #[[2]] <= d &],
     fail["InvalidLayerDemand"]];
-  (* S1 (R1 review, 2026-09-02): a word D^a K_r S^b Sel[q] contributes at
+  (* A word D^a K_r S^b Sel[q] contributes at
      q + a + r + b, so a demanded order N needs incoming orders up to
      N - q_min over the SOURCE boundary orders (Codex: "orders -2..4 for
      the target window -4..2" with boundary orders from -2); the former
@@ -529,9 +836,17 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
   laurentCoefficient[c_] := Module[{s = observableTransportLaurentEntrySeries[c, eps, {low, high}]},
     If[s === $Failed, Table[Cancel[Together[SeriesCoefficient[c, {eps, 0, o}]]], {o, orders}], s]];
   $observableTransportLaurentDiagnostics = <||>;
-  laurent = Table[ConstantArray[0, {d, n}], {Length[orders]}];
-  Do[With[{series = laurentCoefficient[entry["Coefficient"]], form = rationalLayerLetterFunction[entry["Letter"], u]},
-      Do[laurent[[k, entry["Row"], entry["Column"]]] += series[[k]] form, {k, Length[orders]}]],
+  laurent = If[curveQ,
+    Table[ConstantArray[{0, 0}, {d, n}], {Length[orders]}],
+    Table[ConstantArray[0, {d, n}], {Length[orders]}]];
+  Do[With[{series = laurentCoefficient[entry["Coefficient"]],
+      form = If[curveQ, rationalLayerLetterPair[entry["Letter"], u, curve, curvePointValues],
+        rationalLayerLetterFunction[entry["Letter"], u]]},
+      Do[If[curveQ,
+          laurent[[k, entry["Row"], entry["Column"], 1]] += series[[k]] form[[1]];
+          laurent[[k, entry["Row"], entry["Column"], 2]] += series[[k]] form[[2]],
+          laurent[[k, entry["Row"], entry["Column"]]] += series[[k]] form],
+        {k, Length[orders]}]],
     {entry, incoming}];
   laurent = AssociationThread[orders -> laurent];
   If[Lookup[$observableTransportLaurentDiagnostics, "ValuationBelowRange", 0] > 0,
@@ -543,10 +858,12 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
       ! FreeQ[#, u] && ! FreeQ[#, eps] &]},
     If[mixed =!= {}, fail["MixedEpsilonPathDenominator", <|"Factors" -> mixed|>]]];
   factors = rationalLayerPoleFactors[labels, coefficients, u];
-  endpoint = Lookup[layer, "Endpoint", Lookup[demand, "Endpoint", None]];
-  regularization = <|"BasePoint" -> Select[factors, (# /. u -> base) === 0 &],
+  regularization = <|"BasePoint" -> Join[
+      Select[factors, (# /. u -> base) === 0 &],
+      If[curveQ && Together[curve /. u -> base] === 0, {curve}, {}]],
     "Endpoint" -> If[MatchQ[endpoint, _Integer | _Rational],
-      Select[factors, (# /. u -> endpoint) === 0 &], {}]|>;
+      Join[Select[factors, (# /. u -> endpoint) === 0 &],
+        If[curveQ && Together[curve /. u -> endpoint] === 0, {curve}, {}]], {}]|>;
   (* Residues alone are not a physical transport when an iterated-integral
      endpoint is singular.  Until tangential-base/endpoint data are accepted
      and consumed, return a typed non-acceptance instead of Accepted plus an
@@ -554,22 +871,16 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
   If[regularization["BasePoint"] =!= {} || regularization["Endpoint"] =!= {},
     fail["PathRegularizationRequired", <|"RegularizationRequired" -> regularization,
       "BasePoint" -> base, "Endpoint" -> endpoint|>]];
-  (* Round 8, stage 4: when every incoming coefficient is free of the path
+  (* When every incoming coefficient is free of the path
      variable, each B_n is a combination of the declared dlog letters with
      NUMERICAL coefficients, Omega_n = B_n (H_(n-1) = 0 inductively) and
      the Hermite gauge vanishes identically: the K residues are the exact
-     Laurent coefficients on the letters' own factors -- no modular image,
-     no reconstruction, exact by construction ("IncomingDlogDirect"; the
-     CF303 transfer is of this kind: 12 prime images cost 36 s of a 47 s
-     run).  "IncomingRoute" -> "Modular" forces the sealed circuit (the
-     cross-check). *)
-  directQ = OptionValue["IncomingRoute"] =!= "Modular" && AllTrue[coefficients, FreeQ[#, u] &];
+     Laurent coefficients on the letters' own factors -- no modular image
+     or reconstruction.  "IncomingRoute" -> "Modular" forces the sealed
+     circuit for a cross-check. *)
   If[directQ,
-    (* every letter decomposed ONCE over the pole-factor alphabet (the
-       irreducible monic factors over Q), so that a reducible GPLFactor
-       polynomial -- 9/16 - u^2 = -(u - 3/4)(u + 3/4) on CF303 at p = 9/8 --
-       lands on the same letters as in the modular route (run 7 keyed it
-       whole and counted different words, 2026-09-02 18:53) *)
+    (* Decompose each rational letter once over irreducible monic pole
+       factors so direct and modular routes use the same labels. *)
     letterDecomposition[letter_] := letterDecomposition[letter] = Module[{a, terms, out = <||>},
       a = Apart[rationalLayerLetterFunction[letter, u], u];
       terms = If[Head[a] === Plus, List @@ a, {a}];
@@ -581,16 +892,24 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
         {term, terms}];
       Association@KeyValueMap[#1 -> PadRight[CoefficientList[Together[#2], u], Exponent[#1, u], 0] &, out]];
     reconstructed = <||>;
-    Do[With[{series = laurentCoefficient[entry["Coefficient"]], decomposition = letterDecomposition[entry["Letter"]]},
-        Do[If[series[[k]] =!= 0,
-            KeyValueMap[Function[{factor, list},
-              Do[If[list[[kk]] =!= 0,
-                  Module[{key = {orders[[k]], factor, kk - 1}, matrix},
-                    matrix = Lookup[reconstructed, Key[key], ConstantArray[0, {d, n}]];
-                    matrix[[entry["Row"], entry["Column"]]] += series[[k]] list[[kk]];
-                    reconstructed[key] = matrix]],
-                {kk, Length[list]}]], decomposition]],
-          {k, Length[orders]}]],
+    Do[With[{series = laurentCoefficient[entry["Coefficient"]], label = entry["Letter"]},
+        If[MemberQ[$rationalLayerCurveLetters, First[label]],
+          Do[If[series[[k]] =!= 0,
+              Module[{key = rationalLayerResidueKey[orders[[k]], label], matrix},
+                matrix = Lookup[reconstructed, Key[key], ConstantArray[0, {d, n}]];
+                matrix[[entry["Row"], entry["Column"]]] += series[[k]];
+                reconstructed[key] = matrix]],
+            {k, Length[orders]}],
+          With[{decomposition = letterDecomposition[label]},
+            Do[If[series[[k]] =!= 0,
+                KeyValueMap[Function[{factor, list},
+                  Do[If[list[[kk]] =!= 0,
+                      Module[{key = {orders[[k]], factor, kk - 1}, matrix},
+                        matrix = Lookup[reconstructed, Key[key], ConstantArray[0, {d, n}]];
+                        matrix[[entry["Row"], entry["Column"]]] += series[[k]] list[[kk]];
+                        reconstructed[key] = matrix]],
+                    {kk, Length[list]}]], decomposition]],
+              {k, Length[orders]}]]]],
       {entry, incoming}];
     reconstructed = Select[reconstructed, ! AllTrue[Flatten[#], # === 0 &] &];
     keys = Keys[reconstructed];
@@ -603,7 +922,13 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
       "Factors" -> factors, "DirectQ" -> directQ, "DirectResidues" -> If[directQ, reconstructed, None],
       "Diagonal" -> diagonal, "Source" -> source, "PathVariable" -> u, "Regulator" -> eps,
       "BasePoint" -> base, "Endpoint" -> endpoint, "Window" -> {low, high}, "Rows" -> rows,
-      "DemandPairs" -> demandPairs, "Dimensions" -> {d, n}|>]];
+      "DemandPairs" -> demandPairs, "Dimensions" -> {d, n},
+      "WordRepresentation" -> wordRepresentation,
+      "SharedBoundaryCoordinates" -> sharedBoundaryQ,
+      "CurveQ" -> curveQ, "Curve" -> curve,
+      "CurvePointValues" -> curvePointValues,
+      "CurveBaseValue" -> curveBaseValue,
+      "CurveEndpointValue" -> curveEndpointValue|>]];
   (* N3: the modular arithmetic reduces rational numbers only; a Gaussian
      rational (I) or any other non-rational number in a coefficient would
      burn the whole prime schedule -- refused typed here (the direct route
@@ -613,12 +938,15 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
     fail["CoefficientFieldNotRational", <|"Reason" -> "the sealed modular circuit reduces rational coefficients only; a Gaussian or algebraic coefficient needs the direct route or a field extension"|>]];
   If[! directQ && ! MatchQ[endpoint, _Integer | _Rational],
     fail["EndpointRequired", <|"Reason" -> "a u-dependent layer needs the gauge H at the endpoint (F_T = G + H F_S); declare Endpoint in the layer or the demand"|>]];
+  recurrenceImage[prime_] := If[curveQ,
+    rationalLayerCurveRecurrenceImage[laurent, diagonal, source, factors, u,
+      curve, curvePointValues, base, curveBaseValue, orders, prime, endpoint,
+      curveEndpointValue],
+    rationalLayerRecurrenceImage[laurent, diagonal, source, factors, u, base,
+      orders, prime, endpoint]];
   If[! directQ,
-  (* the prime schedule: a seeded sequence; images are added until every
-     residue reconstructs (lift-and-verify) or the maximum count is reached
-     -- the CF303 transfer carries 58-digit numerators over 28-digit
-     denominators, which three 31-bit primes cannot reconstruct
-     (ReconstructionNotConverged, 2026-09-02 18:41) *)
+  (* Seeded prime schedule: add images until every coordinate reconstructs
+     (lift-and-verify) or the declared maximum is reached. *)
   primeCount = OptionValue["PrimeCount"];
   maximumPrimeCount = OptionValue["MaximumPrimeCount"];
   If[! IntegerQ[primeCount] || primeCount < 1 || ! IntegerQ[maximumPrimeCount] ||
@@ -638,18 +966,19 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
      failingKey = None, failingEntry = None, failingResidues = None},
     scheduleIndex = 0; usedPrimes = {};
     While[! converged,
-      (* S7: a prime at which a leaf is undefined, the endpoint sits on a pole
-         or a pole factor degenerates is SKIPPED and recorded; the same
-         refusal at two primes is a genuine defect of the input *)
+      (* A prime at which a leaf is undefined or a pole/curve factor
+         degenerates is skipped and recorded.  Only exhaustion is terminal:
+         distinct exceptional primes need not share a mathematical cause. *)
       While[Length[images] < needed,
         scheduleIndex++;
         If[scheduleIndex > Length[primeSchedule], fail["PrimeScheduleExhausted", <|"SkippedPrimes" -> skippedPrimes|>]];
-        With[{p = primeSchedule[[scheduleIndex]], image = rationalLayerRecurrenceImage[laurent, diagonal, source, factors, u, base, orders, primeSchedule[[scheduleIndex]], endpoint]},
+        With[{p = primeSchedule[[scheduleIndex]], image = recurrenceImage[primeSchedule[[scheduleIndex]]]},
           If[image["Status"] === "RecurrenceImageEvaluated",
             AppendTo[images, image]; AppendTo[usedPrimes, p],
-            AppendTo[skippedPrimes, <|"Prime" -> p, "Status" -> image["Status"]|>];
-            If[Count[skippedPrimes, KeyValuePattern["Status" -> image["Status"]]] >= 2,
-              fail[image["Status"], <|"Primes" -> Lookup[Select[skippedPrimes, #["Status"] === image["Status"] &], "Prime"]|>]]]]];
+            If[image["Status"] === "CurveBranchPoleNotSupported",
+              fail[image["Status"], <|"Prime" -> p|>],
+              AppendTo[skippedPrimes, <|"Prime" -> p, "Status" -> image["Status"]|>]]]];
+        ];
       keys = Union @@ (Keys[#["KResidues"]] & /@ images);
       reconstructed = <||>; converged = True;
       Do[
@@ -691,12 +1020,13 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
       If[scheduleIndex > Length[primeSchedule], fail["PrimeScheduleExhausted", <|"SkippedPrimes" -> skippedPrimes, "Stage" -> "FreshPrime"|>]];
       With[{p = primeSchedule[[scheduleIndex]]},
         If[MemberQ[usedPrimes, p], Continue[]];
-        With[{image = rationalLayerRecurrenceImage[laurent, diagonal, source, factors, u, base, orders, p, endpoint]},
+        With[{image = recurrenceImage[p]},
           If[image["Status"] === "RecurrenceImageEvaluated",
             freshImage = image; freshPrime = p,
-            AppendTo[skippedPrimes, <|"Prime" -> p, "Status" -> image["Status"]|>];
-            If[Count[skippedPrimes, KeyValuePattern["Status" -> image["Status"]]] >= 2,
-              fail[image["Status"], <|"Primes" -> Lookup[Select[skippedPrimes, #["Status"] === image["Status"] &], "Prime"]|>]]]]]];
+            If[image["Status"] === "CurveBranchPoleNotSupported",
+              fail[image["Status"], <|"Prime" -> p|>],
+              AppendTo[skippedPrimes, <|"Prime" -> p, "Status" -> image["Status"]|>]]]]];
+      ];
     primes = usedPrimes];
   If[verbose, observableTransportMilestone["Rational layer: ", Length[primes], " prime images of the recurrence, ",
     Length[keys], " residue keys reconstructed, ", Round[AbsoluteTime[] - start, 0.1], " s"]];
@@ -717,43 +1047,54 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
   If[mismatches > 0, fail["FreshPrimeValidationFailed", <|"Mismatches" -> mismatches, "Comparisons" -> comparisons|>]];
   ];   (* end of the modular route *)
   hImageCount = If[images === {}, 0, Total[Length /@ Lookup[images, "HImages"]]];
-  (* demanded words *)
-  (* S2: the weight a + b a word needs is N - q - r; it is DERIVED from the
-     demand, the boundary orders and the window; "MaximumWeight" only caps
-     it, and a cap that drops words is a typed refusal *)
-  activeIncomingOrders = DeleteDuplicates[First /@ Keys[
-    Select[reconstructed, ! AllTrue[Flatten[#], # === 0 &] &]]];
-  neededWeight = Max[Join[
-    Select[Flatten[Table[pair[[1]] - q - r, {pair, demandPairs},
-      {q, Keys[source["BoundarySelectors"]]}, {r, activeIncomingOrders}]], # >= 0 &],
-    Select[Flatten[Table[pair[[1]] - q, {pair, demandPairs},
-      {q, Keys[targetSelectorInput]}]], # >= 0 &], {0}]];
-  maximumWeight = Replace[OptionValue["MaximumWeight"], Automatic -> neededWeight];
-  If[! IntegerQ[maximumWeight] || maximumWeight < 0, fail["InvalidMaximumWeight"]];
-  weightCapped = maximumWeight < neededWeight;
   sourceBoundaryCount = Length[First[Values[source["BoundarySelectors"]]][[1]]];
-  {targetSelectors, targetBoundaryCount} = rationalLayerTargetSelectors[layer, d];
-  (* maximal tail weight per boundary order: order - q - r over the demanded
-     orders and the incoming orders present *)
-  weightByOrder = Association@Table[q -> With[{weights = Select[
-        Flatten[Table[pair[[1]] - q - r, {pair, demandPairs}, {r, activeIncomingOrders}]], # >= 0 &]},
-      If[weights === {}, -1, Max[weights]]], {q, Keys[source["BoundarySelectors"]]}];
-  sourceStates = rationalLayerSourceStates[source, maximumWeight, weightByOrder, OptionValue["MaximumStates"]];
-  If[verbose, observableTransportMilestone["Rational layer: source words grown to weight ", maximumWeight, ": ",
-    Total[Length /@ Flatten[Values[sourceStates], 1]], " states, ", Round[AbsoluteTime[] - start, 0.1], " s"]];
-  words = Association@Table[pair -> rationalLayerWords[pair[[1]], pair[[2]], diagonal, reconstructed, source,
-      targetSelectors, sourceBoundaryCount, targetBoundaryCount, maximumWeight, OptionValue["MaximumWords"], sourceStates], {pair, demandPairs}];
-  cappedPairs = Keys[Select[words, AssociationQ]];
-  If[weightCapped || cappedPairs =!= {},
-    (* typed: the partial words are attached for inspection, the status is a refusal *)
-    Throw[<|"Status" -> If[weightCapped, "WordWeightCapReached", "WordEnumerationCapped"],
-      "NeededWeight" -> neededWeight, "MaximumWeight" -> maximumWeight,
-      "MaximumWords" -> OptionValue["MaximumWords"], "CappedPairs" -> cappedPairs,
-      "DroppedCombinations" -> Total[Lookup[#, "DroppedCombinations", 0] & /@ Values[Select[words, AssociationQ]]],
-      "DemandedWords" -> words, "Window" -> {low, high}|>]];
-  If[verbose, observableTransportMilestone["Rational layer: demanded words ",
-    Total[If[AssociationQ[#], Length[#["Words"]], Length[#]] & /@ Values[words]],
-    If[AnyTrue[Values[words], AssociationQ], " (some pairs capped)", ""], ", ", Round[AbsoluteTime[] - start, 0.1], " s"]];
+  {targetSelectors, targetBoundaryCount} =
+    rationalLayerTargetSelectors[layer, d, sharedBoundaryQ];
+  If[wordRepresentation === "LazyOperator",
+    (* The returned K/source/diagonal data are the operator.  No source state
+       and no word is constructed on this route; MaximumStates/MaximumWords
+       therefore cannot turn a valid lazy transport into a census refusal. *)
+    neededWeight = None; maximumWeight = None; sourceStates = <||>; words = None,
+    (* Materialized words.  The weight a+b is derived from the actual nonzero
+       K orders; absent K orders must not trigger fictitious source growth. *)
+    activeIncomingOrders = DeleteDuplicates[First /@ Keys[
+      Select[reconstructed, ! AllTrue[Flatten[#], # === 0 &] &]]];
+    neededWeight = Max[Join[
+      Select[Flatten[Table[pair[[1]] - q - r, {pair, demandPairs},
+        {q, Keys[source["BoundarySelectors"]]}, {r, activeIncomingOrders}]], # >= 0 &],
+      Select[Flatten[Table[pair[[1]] - q, {pair, demandPairs},
+        {q, Keys[targetSelectorInput]}]], # >= 0 &], {0}]];
+    maximumWeight = Replace[OptionValue["MaximumWeight"], Automatic -> neededWeight];
+    If[! IntegerQ[maximumWeight] || maximumWeight < 0, fail["InvalidMaximumWeight"]];
+    weightCapped = maximumWeight < neededWeight;
+    weightByOrder = Association@Table[q -> With[{weights = Select[
+          Flatten[Table[pair[[1]] - q - r, {pair, demandPairs}, {r, activeIncomingOrders}]], # >= 0 &]},
+        If[weights === {}, -1, Max[weights]]], {q, Keys[source["BoundarySelectors"]]}];
+    sourceStates = rationalLayerSourceStates[source, maximumWeight, weightByOrder, OptionValue["MaximumStates"]];
+    If[verbose, observableTransportMilestone["Rational layer: source words grown to weight ", maximumWeight, ": ",
+      Total[Length /@ Flatten[Values[sourceStates], 1]], " states, ", Round[AbsoluteTime[] - start, 0.1], " s"]];
+    words = Association@Table[pair -> rationalLayerWords[pair[[1]], pair[[2]], diagonal, reconstructed, source,
+        targetSelectors, sourceBoundaryCount, targetBoundaryCount, maximumWeight, OptionValue["MaximumWords"],
+        sourceStates, sharedBoundaryQ], {pair, demandPairs}];
+    cappedPairs = Keys[Select[words, AssociationQ]];
+    If[weightCapped || cappedPairs =!= {},
+      Throw[<|"Status" -> If[weightCapped, "WordWeightCapReached", "WordEnumerationCapped"],
+        "NeededWeight" -> neededWeight, "MaximumWeight" -> maximumWeight,
+        "MaximumWords" -> OptionValue["MaximumWords"], "CappedPairs" -> cappedPairs,
+        "DroppedCombinations" -> Total[Lookup[#, "DroppedCombinations", 0] & /@ Values[Select[words, AssociationQ]]],
+        "DemandedWords" -> words, "Window" -> {low, high}|>]];
+    If[verbose, observableTransportMilestone["Rational layer: demanded words ",
+      Total[If[AssociationQ[#], Length[#["Words"]], Length[#]] & /@ Values[words]],
+      ", ", Round[AbsoluteTime[] - start, 0.1], " s"]]];
+  operatorSource = <|"Dimension" -> n, "Letters" -> source["Letters"],
+    "Residues" -> source["Residues"],
+    "BoundarySelectors" -> source["BoundarySelectors"]|>;
+  operatorLayer = <|"Rows" -> rows, "Diagonal" -> diagonal,
+    "TargetBoundarySelectors" -> targetSelectorInput,
+    "SharedBoundaryCoordinates" -> sharedBoundaryQ,
+    "PathVariable" -> u, "Regulator" -> eps, "BasePoint" -> base,
+    "Endpoint" -> endpoint, "Curve" -> If[curveQ, curve, None],
+    "CurvePointValues" -> If[curveQ, curvePointValues, <||>]|>;
   certificate = <|"Status" -> "RationalEpsilonLayerTransportAccepted",
     "IncomingRoute" -> If[directQ, "IncomingDlogDirect", "SealedModularCircuit"],
     "Probabilistic" -> ! directQ, "Exact" -> directQ,
@@ -769,12 +1110,18 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
     "Valuations" -> valuations, "ValuationProbePoints" -> probePoints,
     "SkippedPrimes" -> skippedPrimes,
     "RegularizationRequired" -> regularization,
+    "WordRepresentation" -> wordRepresentation,
+    "SharedBoundaryCoordinates" -> sharedBoundaryQ,
+    "CurveChannel" -> curveQ,
+    "Curve" -> If[curveQ, curve, None],
     "Window" -> {low, high},
     "Seed" -> seed|>;
   <|"Status" -> "RationalEpsilonLayerTransportAccepted",
     "Rows" -> rows, "PathVariable" -> u, "Regulator" -> eps, "BasePoint" -> base,
     "Window" -> {low, high},
     "DemandPairs" -> demandPairs,
+    "OperatorSource" -> operatorSource,
+    "OperatorLayer" -> operatorLayer,
     "RegularizationRequired" -> regularization,
     "KResidues" -> reconstructed,
     "GaugeImages" -> If[directQ, <||>, Association@Table[primes[[pi]] -> images[[pi]]["HImages"], {pi, Length[primes]}]],
@@ -782,7 +1129,12 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
     "Endpoint" -> endpoint,
     "GaugeStatus" -> If[directQ, "GaugeVanishes", "GaugeReconstructedAtEndpoint"],
     "DemandedWords" -> words,
-    "BoundaryColumns" -> sourceBoundaryCount + targetBoundaryCount,
+    "WordRepresentation" -> wordRepresentation,
+    "SharedBoundaryCoordinates" -> sharedBoundaryQ,
+    "CurveChannel" -> curveQ,
+    "Curve" -> If[curveQ, curve, None],
+    "BoundaryColumns" -> If[sharedBoundaryQ, sourceBoundaryCount,
+      sourceBoundaryCount + targetBoundaryCount],
     "Certificate" -> certificate,
     "Seconds" -> N[AbsoluteTime[] - start]|>
 ];
@@ -822,7 +1174,9 @@ rationalLayerCertificateShapeQ[certificate_] := AssociationQ[certificate] &&
    reconstruction) against the inputs. *)
 AcceptedRationalEpsilonLayerTransportQ[result_] := Module[
   {certificate, route, window, orders, rows, gauge, gaugeDimensions,
-   kResidues, words, demandPairs, regularization},
+   kResidues, words, demandPairs, regularization, wordRepresentation,
+   sharedBoundaryQ, operatorSource, operatorLayer, sourceDimension,
+   sourceSelectors, targetSelectors, sourceWidth, targetWidth},
   If[! AssociationQ[result] ||
       Lookup[result, "Status", None] =!= "RationalEpsilonLayerTransportAccepted",
     Return[False]];
@@ -835,20 +1189,88 @@ AcceptedRationalEpsilonLayerTransportQ[result_] := Module[
   kResidues = Lookup[result, "KResidues", None];
   words = Lookup[result, "DemandedWords", None];
   regularization = Lookup[result, "RegularizationRequired", None];
+  wordRepresentation = Lookup[result, "WordRepresentation", None];
+  sharedBoundaryQ = Lookup[result, "SharedBoundaryCoordinates", None];
+  operatorSource = Lookup[result, "OperatorSource", None];
+  operatorLayer = Lookup[result, "OperatorLayer", None];
   If[! MatchQ[window, {_Integer, _Integer}] || window[[1]] > window[[2]] ||
       ! ListQ[rows] || rows === {} ||
       ! MatchQ[demandPairs, {{_Integer, _Integer} ..}] || ! DuplicateFreeQ[demandPairs] ||
       ! AllTrue[demandPairs, 1 <= #[[2]] <= Length[rows] &] ||
-      ! AssociationQ[gauge] || ! AssociationQ[kResidues] || ! AssociationQ[words] ||
-      Sort[Keys[words]] =!= Sort[demandPairs], Return[False]];
+      ! AssociationQ[gauge] || ! AssociationQ[kResidues] ||
+      ! MemberQ[{"MaterializedWords", "LazyOperator"}, wordRepresentation] ||
+      ! BooleanQ[sharedBoundaryQ] ||
+      ! IntegerQ[Lookup[result, "BoundaryColumns", None]] || result["BoundaryColumns"] < 1 ||
+      Lookup[certificate, "WordRepresentation", None] =!= wordRepresentation ||
+      Lookup[certificate, "SharedBoundaryCoordinates", None] =!= sharedBoundaryQ,
+    Return[False]];
+  If[! AssociationQ[operatorSource] || ! AssociationQ[operatorLayer] ||
+      Sort[Keys[operatorSource]] =!= Sort[{"Dimension", "Letters", "Residues",
+        "BoundarySelectors"}] ||
+      Sort[Keys[operatorLayer]] =!= Sort[{"Rows", "Diagonal",
+        "TargetBoundarySelectors", "SharedBoundaryCoordinates", "PathVariable",
+        "Regulator", "BasePoint", "Endpoint", "Curve", "CurvePointValues"}],
+    Return[False]];
+  sourceDimension = Lookup[operatorSource, "Dimension", None];
+  sourceSelectors = Lookup[operatorSource, "BoundarySelectors", None];
+  targetSelectors = Lookup[operatorLayer, "TargetBoundarySelectors", None];
+  If[! IntegerQ[sourceDimension] || sourceDimension < 1 ||
+      ! ListQ[operatorSource["Letters"]] || ! ListQ[operatorSource["Residues"]] ||
+      Length[operatorSource["Letters"]] =!= Length[operatorSource["Residues"]] ||
+      ! AllTrue[operatorSource["Residues"], Dimensions[#] ===
+        {sourceDimension, sourceDimension} &] ||
+      ! AssociationQ[sourceSelectors] || sourceSelectors === <||> ||
+      ! VectorQ[Keys[sourceSelectors], IntegerQ] ||
+      ! AllTrue[Values[sourceSelectors], MatrixQ[#] &&
+        Dimensions[#][[1]] === sourceDimension && Dimensions[#][[2]] >= 1 &] ||
+      ! (SameQ @@ (Dimensions[#][[2]] & /@ Values[sourceSelectors])) ||
+      Lookup[operatorLayer, "Rows", None] =!= rows ||
+      ! MatchQ[Lookup[operatorLayer, "Diagonal", None], {{_List, _?MatrixQ} ..}] ||
+      ! AllTrue[operatorLayer["Diagonal"], Dimensions[#[[2]]] ===
+        {Length[rows], Length[rows]} &] ||
+      ! AssociationQ[targetSelectors] || targetSelectors === <||> ||
+      ! VectorQ[Keys[targetSelectors], IntegerQ] ||
+      ! AllTrue[Values[targetSelectors], MatrixQ[#] &&
+        Dimensions[#][[1]] === Length[rows] && Dimensions[#][[2]] >= 1 &] ||
+      Lookup[operatorLayer, "SharedBoundaryCoordinates", None] =!= sharedBoundaryQ ||
+      Lookup[operatorLayer, "PathVariable", Missing[]] =!=
+        Lookup[result, "PathVariable", Missing[]] ||
+      Lookup[operatorLayer, "Regulator", Missing[]] =!=
+        Lookup[result, "Regulator", Missing[]] ||
+      Lookup[operatorLayer, "BasePoint", Missing[]] =!=
+        Lookup[result, "BasePoint", Missing[]] ||
+      Lookup[operatorLayer, "Endpoint", Missing[]] =!=
+        Lookup[result, "Endpoint", Missing[]] ||
+      Lookup[operatorLayer, "Curve", Missing[]] =!=
+        Lookup[result, "Curve", Missing[]] ||
+      ! AssociationQ[Lookup[operatorLayer, "CurvePointValues", None]],
+    Return[False]];
+  sourceWidth = Dimensions[First[Values[sourceSelectors]]][[2]];
+  If[sharedBoundaryQ &&
+      (! (SameQ @@ (Dimensions[#][[2]] & /@ Values[targetSelectors])) ||
+       Dimensions[First[Values[targetSelectors]]][[2]] =!= sourceWidth),
+    Return[False]];
+  targetWidth = If[sharedBoundaryQ, sourceWidth,
+    Total[Dimensions[#][[2]] & /@ Values[targetSelectors]]];
+  If[Lookup[result, "BoundaryColumns", None] =!=
+      If[sharedBoundaryQ, sourceWidth, sourceWidth + targetWidth], Return[False]];
+  If[! BooleanQ[Lookup[result, "CurveChannel", None]] ||
+      Lookup[certificate, "CurveChannel", None] =!= result["CurveChannel"] ||
+      Lookup[certificate, "Curve", Missing[]] =!= Lookup[result, "Curve", Missing[]],
+    Return[False]];
+  If[If[wordRepresentation === "MaterializedWords",
+      ! AssociationQ[words] || Sort[Keys[words]] =!= Sort[demandPairs] ||
+        ! AllTrue[Values[words], ListQ],
+      words =!= None], Return[False]];
   orders = Range[window[[1]], window[[2]]];
   If[Sort[Keys[gauge]] =!= orders ||
       ! AllTrue[Values[gauge], MatrixQ[#] && Dimensions[#][[1]] === Length[rows] &&
         Dimensions[#][[2]] >= 1 &], Return[False]];
   gaugeDimensions = Dimensions[First[Values[gauge]]];
-  If[! AllTrue[Values[gauge], Dimensions[#] === gaugeDimensions &] ||
-      ! AllTrue[Values[kResidues], MatrixQ[#] && Dimensions[#] === gaugeDimensions &] ||
-      ! AllTrue[Values[words], ListQ], Return[False]];
+  If[gaugeDimensions =!= {Length[rows], sourceDimension} ||
+      ! AllTrue[Values[gauge], Dimensions[#] === gaugeDimensions &] ||
+      ! AllTrue[Values[kResidues], MatrixQ[#] && Dimensions[#] === gaugeDimensions &],
+    Return[False]];
   If[regularization =!= <|"BasePoint" -> {}, "Endpoint" -> {}|> ||
       Lookup[certificate, "RegularizationRequired", None] =!= regularization ||
       Lookup[certificate, "Endpoint", Missing[]] =!= Lookup[result, "Endpoint", Missing[]] ||
@@ -874,23 +1296,54 @@ AcceptedRationalEpsilonLayerTransportQ[result_] := Module[
    new prime on the modular route. *)
 AcceptedRationalEpsilonLayerTransportQ[result_, source_Association, layer_Association, demand_Association] := Module[
   {certificate, prepared, newPrime = None, image = None, candidate, trial,
-   excludedPrimes, d, n, ok, wordsAgreeQ},
+   excludedPrimes, d, n, ok, wordsAgreeQ, expectedOperatorSource,
+   expectedOperatorLayer},
   If[! AcceptedRationalEpsilonLayerTransportQ[result], Return[False]];
   certificate = result["Certificate"];
   prepared = BuildRationalEpsilonLayerTransport[source, layer, demand, "PrepareOnly" -> True,
     "Seed" -> Lookup[certificate, "Seed", 20260902],
-    "IncomingRoute" -> If[Lookup[certificate, "IncomingRoute", None] === "SealedModularCircuit", "Modular", Automatic]];
+    "IncomingRoute" -> If[Lookup[certificate, "IncomingRoute", None] === "SealedModularCircuit", "Modular", Automatic],
+    "WordRepresentation" -> Lookup[result, "WordRepresentation", Automatic]];
   If[Lookup[prepared, "Status", None] =!= "Prepared" || prepared["Window"] =!= result["Window"], Return[False]];
+  expectedOperatorSource = <|"Dimension" -> prepared["Dimensions"][[2]],
+    "Letters" -> prepared["Source"]["Letters"],
+    "Residues" -> prepared["Source"]["Residues"],
+    "BoundarySelectors" -> prepared["Source"]["BoundarySelectors"]|>;
+  expectedOperatorLayer = <|"Rows" -> prepared["Rows"],
+    "Diagonal" -> prepared["Diagonal"],
+    "TargetBoundarySelectors" -> Lookup[layer, "TargetBoundarySelectors",
+      <|0 -> IdentityMatrix[prepared["Dimensions"][[1]]]|>],
+    "SharedBoundaryCoordinates" -> prepared["SharedBoundaryCoordinates"],
+    "PathVariable" -> prepared["PathVariable"],
+    "Regulator" -> prepared["Regulator"],
+    "BasePoint" -> prepared["BasePoint"], "Endpoint" -> prepared["Endpoint"],
+    "Curve" -> If[prepared["CurveQ"], prepared["Curve"], None],
+    "CurvePointValues" -> If[prepared["CurveQ"],
+      prepared["CurvePointValues"], <||>]|>;
+  If[Lookup[result, "OperatorSource", None] =!= expectedOperatorSource ||
+      Lookup[result, "OperatorLayer", None] =!= expectedOperatorLayer,
+    Return[False]];
   (* N1: the payload fields must be the inputs' *)
   If[prepared["Endpoint"] =!= Lookup[result, "Endpoint", None] || prepared["Rows"] =!= Lookup[result, "Rows", None] ||
       prepared["BasePoint"] =!= Lookup[result, "BasePoint", None] || prepared["DemandPairs"] =!= Lookup[result, "DemandPairs", None] ||
-      Sort[Keys[result["DemandedWords"]]] =!= Sort[prepared["DemandPairs"]], Return[False]];
+      prepared["WordRepresentation"] =!= Lookup[result, "WordRepresentation", None] ||
+      prepared["SharedBoundaryCoordinates"] =!= Lookup[result, "SharedBoundaryCoordinates", None] ||
+      prepared["CurveQ"] =!= Lookup[result, "CurveChannel", None] ||
+      If[prepared["CurveQ"], prepared["Curve"] =!= Lookup[result, "Curve", None],
+        Lookup[result, "Curve", Missing[]] =!= None], Return[False]];
   If[prepared["DirectQ"] =!= (certificate["IncomingRoute"] === "IncomingDlogDirect"), Return[False]];
+  With[{sourceWidth = Dimensions[First[Values[source["BoundarySelectors"]]]][[2]],
+        targetWidth = Last[rationalLayerTargetSelectors[layer,
+          prepared["Dimensions"][[1]], prepared["SharedBoundaryCoordinates"]]]},
+    If[Lookup[result, "BoundaryColumns", None] =!=
+        If[prepared["SharedBoundaryCoordinates"], sourceWidth,
+          sourceWidth + targetWidth], Return[False]]];
   (* N1: every demanded word re-enumerated from the (re-verified) residues *)
   wordsAgreeQ[residues_] := Module[{targetSelectors, targetBoundaryCount, sourceBoundaryCount, orders = prepared["Orders"],
       demandPairs = prepared["DemandPairs"], neededWeight, weightByOrder, sourceStates,
       activeIncomingOrders},
-    {targetSelectors, targetBoundaryCount} = rationalLayerTargetSelectors[layer, prepared["Dimensions"][[1]]];
+    {targetSelectors, targetBoundaryCount} = rationalLayerTargetSelectors[layer,
+      prepared["Dimensions"][[1]], prepared["SharedBoundaryCoordinates"]];
     sourceBoundaryCount = Length[First[Values[source["BoundarySelectors"]]][[1]]];
     activeIncomingOrders = DeleteDuplicates[First /@ Keys[
       Select[residues, ! AllTrue[Flatten[#], # === 0 &] &]]];
@@ -905,9 +1358,11 @@ AcceptedRationalEpsilonLayerTransportQ[result_, source_Association, layer_Associ
     sourceStates = Catch[rationalLayerSourceStates[source, neededWeight, weightByOrder]];
     If[! AssociationQ[sourceStates] || KeyExistsQ[sourceStates, "Status"], Return[False, Module]];
     And @@ Table[rationalLayerWords[pair[[1]], pair[[2]], prepared["Diagonal"], residues, source, targetSelectors,
-        sourceBoundaryCount, targetBoundaryCount, neededWeight, Infinity, sourceStates] === result["DemandedWords"][pair], {pair, demandPairs}]];
+        sourceBoundaryCount, targetBoundaryCount, neededWeight, Infinity, sourceStates,
+        prepared["SharedBoundaryCoordinates"]] === result["DemandedWords"][pair], {pair, demandPairs}]];
   If[prepared["DirectQ"],
-    Return[KeySort[prepared["DirectResidues"]] === KeySort[result["KResidues"]] && wordsAgreeQ[prepared["DirectResidues"]]]];
+    Return[KeySort[prepared["DirectResidues"]] === KeySort[result["KResidues"]] &&
+      (result["WordRepresentation"] === "LazyOperator" || wordsAgreeQ[prepared["DirectResidues"]])]];
   (* Modular: try bounded fresh primes outside the construction certificate.
      A prime where a denominator or pole factor degenerates is exceptional,
      not evidence against an otherwise valid record. *)
@@ -916,8 +1371,13 @@ AcceptedRationalEpsilonLayerTransportQ[result_, source_Association, layer_Associ
     Do[
       candidate = RandomPrime[{2^30, 2^31 - 1}];
       If[MemberQ[excludedPrimes, candidate], Continue[]];
-      trial = rationalLayerRecurrenceImage[prepared["Laurent"], prepared["Diagonal"], prepared["Source"],
-        prepared["Factors"], prepared["PathVariable"], prepared["BasePoint"], prepared["Orders"], candidate, prepared["Endpoint"]];
+      trial = If[prepared["CurveQ"],
+        rationalLayerCurveRecurrenceImage[prepared["Laurent"], prepared["Diagonal"], prepared["Source"],
+          prepared["Factors"], prepared["PathVariable"], prepared["Curve"],
+          prepared["CurvePointValues"], prepared["BasePoint"], prepared["CurveBaseValue"],
+          prepared["Orders"], candidate, prepared["Endpoint"], prepared["CurveEndpointValue"]],
+        rationalLayerRecurrenceImage[prepared["Laurent"], prepared["Diagonal"], prepared["Source"],
+          prepared["Factors"], prepared["PathVariable"], prepared["BasePoint"], prepared["Orders"], candidate, prepared["Endpoint"]]];
       If[Lookup[trial, "Status", None] === "RecurrenceImageEvaluated",
         newPrime = candidate; image = trial; Break[]],
       {64}]];
@@ -931,6 +1391,7 @@ AcceptedRationalEpsilonLayerTransportQ[result_, source_Association, layer_Associ
       With[{exact = result["GaugeAtEndpoint"][order], img = image["HEndpoint"][order]},
         Table[Mod[Numerator[exact[[i, j]]] - img[[i, j]] Denominator[exact[[i, j]]], newPrime] === 0, {i, d}, {j, n}]],
       {order, prepared["Orders"]}]];
-  ok && wordsAgreeQ[result["KResidues"]]
+  ok && (result["WordRepresentation"] === "LazyOperator" ||
+    wordsAgreeQ[result["KResidues"]])
 ];
 AcceptedRationalEpsilonLayerTransportQ[___] := False;

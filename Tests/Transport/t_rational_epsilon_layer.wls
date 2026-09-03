@@ -125,8 +125,17 @@ FTAssert["the pruned enumeration keeps the word counts of the exhaustive one (1,
 (* ---- typed refusals ---- *)
 FTAssert["a curve letter without a declared curve is refused typed",
   BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/eps, "Letter" -> {"E4Pole", 3}|>]|>], demand]["Status"] === "CurveDeclarationRequired"];
-FTAssert["a curve letter with a declared curve is admitted by the gate but its channel is refused typed",
-  BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Curve" -> u^4 + 1, "Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/eps, "Letter" -> {"E4Pole", 3}|>]|>], demand]["Status"] === "CurveChannelNotImplemented"];
+FTAssert["a curve letter with a declared square-free quartic is accepted on the exact path-free route",
+  With[{r = BuildRationalEpsilonLayerTransport[source,
+      Join[layer, <|"Curve" -> u^4 + 1,
+        "Incoming" -> {
+          <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/eps,
+            "Letter" -> {"E4Pole", 3}|>,
+          <|"Row" -> 1, "Column" -> 2, "Coefficient" -> 1,
+            "Letter" -> {"GPLPole", -1}|>}|>], demand,
+      "WordRepresentation" -> "LazyOperator"]},
+    r["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+      r["CurveChannel"] && r["Certificate"]["IncomingRoute"] === "IncomingDlogDirect"]];
 FTAssert["an algebraic pole position is refused typed (declare the conjugate pair as a GPLFactor letter)",
   With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/eps, "Letter" -> {"GPLPole", Sqrt[5]}|>]|>], demand]},
     r["Status"] === "AlgebraicPoleNotAdmitted" && r["Label"] === {"GPLPole", Sqrt[5]}]];
@@ -159,6 +168,20 @@ FTAssert["a path-free incoming connection takes the exact direct route, accepted
   direct["Status"] === "RationalEpsilonLayerTransportAccepted" && AcceptedRationalEpsilonLayerTransportQ[direct] &&
     direct["Certificate"]["IncomingRoute"] === "IncomingDlogDirect" && direct["GaugeStatus"] === "GaugeVanishes" &&
     TrueQ[direct["Certificate"]["Exact"]]];
+lazyDirect = BuildRationalEpsilonLayerTransport[source, dlogLayer, demand,
+  "WordRepresentation" -> "LazyOperator"];
+alteredSource = Join[source, <|"Residues" ->
+  ReplacePart[source["Residues"], {1, 1, 1} -> 7]|>];
+alteredLayer = Join[dlogLayer, <|"Diagonal" ->
+  ReplacePart[dlogLayer["Diagonal"], {1, 2, 1, 1} -> 7]|>];
+FTAssert["the accepted lazy transport carries its exact compact operator inputs and cannot be paired with another source or layer",
+  lazyDirect["OperatorSource"] === KeyTake[source,
+      {"Dimension", "Letters", "Residues", "BoundarySelectors"}] &&
+    lazyDirect["OperatorLayer"]["Diagonal"] === dlogLayer["Diagonal"] &&
+    lazyDirect["DemandPairs"] === demand["Pairs"] &&
+    AcceptedRationalEpsilonLayerTransportQ[lazyDirect, source, dlogLayer, demand] &&
+    ! AcceptedRationalEpsilonLayerTransportQ[lazyDirect, alteredSource, dlogLayer, demand] &&
+    ! AcceptedRationalEpsilonLayerTransportQ[lazyDirect, source, alteredLayer, demand]];
 (* a REDUCIBLE factor letter (9/16 - u^2 splits over Q) must land on the same irreducible-factor letters in both routes *)
 splitLayer = Join[layer, <|"Incoming" -> Append[dlogIncoming, <|"Row" -> 2, "Column" -> 1, "Coefficient" -> (3 + eps)/eps^2, "Letter" -> {"GPLFactor", 9/16 - u^2, 1}|>]|>];
 splitDirect = BuildRationalEpsilonLayerTransport[source, splitLayer, demand];
@@ -193,6 +216,47 @@ FTAssert["K=0 with a nonzero reconstructed endpoint gauge is a valid gauge-only 
     gaugeOnly["Certificate"]["GaugeComparisons"] > 0 &&
     AcceptedRationalEpsilonLayerTransportQ[gaugeOnly] &&
     AcceptedRationalEpsilonLayerTransportQ[gaugeOnly, gaugeOnlySource, gaugeOnlyLayer, gaugeOnlyDemand]];
+lazy = BuildRationalEpsilonLayerTransport[source, layer,
+  demand, "WordRepresentation" -> "LazyOperator", "MaximumStates" -> 1,
+  "MaximumWords" -> 0, "PrimeCount" -> 3];
+FTAssert["the lazy representation skips the eager word/state census even under impossible materialization caps",
+  lazy["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+    lazy["WordRepresentation"] === "LazyOperator" && lazy["DemandedWords"] === None &&
+    AssociationQ[lazy["KResidues"]] && AcceptedRationalEpsilonLayerTransportQ[lazy] &&
+    AcceptedRationalEpsilonLayerTransportQ[lazy, source, layer, demand] &&
+    BuildRationalEpsilonLayerTransport[source, layer, demand,
+      "WordRepresentation" -> "MaterializedWords", "MaximumWords" -> 0,
+      "PrimeCount" -> 3]["Status"] === "WordEnumerationCapped" &&
+    BuildRationalEpsilonLayerTransport[source, layer, demand,
+      "WordRepresentation" -> "Unknown"]["Status"] === "WordRepresentationInvalid"];
+
+sharedSource = <|"Dimension" -> 1, "Letters" -> {{"GPLPole", -1}},
+  "Residues" -> {{{0}}}, "BoundarySelectors" -> <|0 -> {{1}}|>|>;
+sharedLayer = <|"Rows" -> {1}, "PathVariable" -> u, "Regulator" -> eps,
+  "BasePoint" -> 0, "Endpoint" -> 1,
+  "Diagonal" -> {{{"GPLPole", -1}, {{0}}}},
+  "Incoming" -> {<|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1,
+    "Letter" -> {"GPLPole", -1}|>},
+  "TargetBoundarySelectors" -> <|0 -> {{1}}|>,
+  "SharedBoundaryCoordinates" -> True|>;
+sharedDemand = <|"Pairs" -> {{0, 1}}|>;
+shared = BuildRationalEpsilonLayerTransport[sharedSource, sharedLayer, sharedDemand];
+sharedWordValue = Total[(First[#["Coefficient"]] If[#["Word"] === {}, 1, Log[2]]) & /@
+  shared["DemandedWords"][{0, 1}]];
+sharedODEValue = NDSolveValue[{f'[z] == 1/(z + 1), f[0] == 1}, f[1],
+  {z, 0, 1}, WorkingPrecision -> 30, AccuracyGoal -> 20, PrecisionGoal -> 20];
+separate = BuildRationalEpsilonLayerTransport[sharedSource,
+  KeyDrop[sharedLayer, "SharedBoundaryCoordinates"], sharedDemand];
+FTAssert["one shared boundary coordinate contributes to source and target terms without duplicating the physical period",
+  shared["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+    shared["SharedBoundaryCoordinates"] && shared["BoundaryColumns"] === 1 &&
+    AllTrue[shared["DemandedWords"][{0, 1}], Length[#["Coefficient"]] === 1 &] &&
+    Abs[N[sharedWordValue - sharedODEValue]] < 10^-10 &&
+    separate["BoundaryColumns"] === 2 &&
+    AcceptedRationalEpsilonLayerTransportQ[shared, sharedSource, sharedLayer, sharedDemand] &&
+    BuildRationalEpsilonLayerTransport[sharedSource,
+      Join[sharedLayer, <|"TargetBoundarySelectors" -> <|0 -> {{1, 0}}|>|>],
+      sharedDemand]["Status"] === "SharedBoundarySelectorsInvalid"];
 (* ---- R1's independent end-to-end check (round 8b): the ODE dF = A F solved
    numerically order by order (NDSolve, 30 digits) versus the route's words
    evaluated as numerical iterated integrals -- no use of the route's
