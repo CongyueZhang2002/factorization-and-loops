@@ -24,9 +24,10 @@
 - [x] 🟢 Carry an explicit tangential-base prescription through lazy rebasing and paper-facing GPL/eMPL words, without multiplying a second Frobenius factor.
 - [x] 🟢 Build square and rectangular endpoint residues, and block-triangular rational-epsilon residue decks, directly from inert letters.
 - [x] 🟢 Select the inward CF303 soft sheet and derive the exact rational GPL tangential system for its four owned source rows.
-- [ ] 🟡 Resolve every deferred CF303 incoming leaf at the soft endpoint; the earlier one-pole result omitted deferred exception/circuit labels and is invalid.
+- [x] 🟢 Resolve every deferred CF303 incoming leaf at the soft endpoint and expose the complete pointwise residue plus physical-map Laurent deck. The bounded two-point control takes 4.93 s / 89 MB; the complete incoming residue has 40/86 nonzeros and rank 2, while `T25.H` retains 61 double-pole coordinates.
 - [ ] 🟡 Extend the CF303 soft source system to its exact 35-row closure and construct the induced normal-mode connection.
 - [ ] Build and physically constrain the residual six-mode CF303-owned selector deck.
+- [ ] Reconstruct only the projected endpoint objects `B_q(p).V_own` and the reduced six-mode tangential connection; do not reconstruct the raw `2 x 43` deck unless projection fails to reduce its degree/height.
 - [ ] Build concrete endpoint/mode records for every surviving physical period realization.
 
 ## Production completion
