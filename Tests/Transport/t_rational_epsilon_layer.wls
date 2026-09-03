@@ -278,6 +278,32 @@ FTAssert["S4: the four-argument predicate re-verifies both routes from the input
       ! AcceptedRationalEpsilonLayerTransportQ[Join[tampered, <|"Certificate" -> Join[tampered["Certificate"], <|"ResidueHash" -> Hash[KeySort[tampered["KResidues"]]]|>]|>], source, layer, demand]] &&
     ! AcceptedRationalEpsilonLayerTransportQ[result, source, Join[layer, <|"BasePoint" -> 1/3|>], demand] &&
     ! AcceptedRationalEpsilonLayerTransportQ[direct, source, layer, demand]];
+(* ---- Round 8c: R1's re-review findings N1-N4 ---- *)
+FTAssert["N1: a doubled word coefficient, a deleted word, a removed demanded pair and a changed result endpoint are all refused by both predicate forms; a tampering that recomputes every hash is caught by the re-enumeration",
+  With[{doubled = Join[result, <|"DemandedWords" -> MapAt[Join[#, <|"Coefficient" -> 2 #["Coefficient"]|>] &, result["DemandedWords"], {Key[{0, 1}], 1}]|>],
+      deleted = Join[result, <|"DemandedWords" -> MapAt[Rest, result["DemandedWords"], {Key[{0, 1}]}]|>],
+      removed = Join[result, <|"DemandedWords" -> KeyDrop[result["DemandedWords"], {{0, 1}}]|>],
+      moved = Join[result, <|"Endpoint" -> 1/3|>]},
+    ! AcceptedRationalEpsilonLayerTransportQ[doubled] && ! AcceptedRationalEpsilonLayerTransportQ[doubled, source, layer, demand] &&
+    ! AcceptedRationalEpsilonLayerTransportQ[deleted] && ! AcceptedRationalEpsilonLayerTransportQ[deleted, source, layer, demand] &&
+    ! AcceptedRationalEpsilonLayerTransportQ[removed] && ! AcceptedRationalEpsilonLayerTransportQ[removed, source, layer, demand] &&
+    ! AcceptedRationalEpsilonLayerTransportQ[moved] && ! AcceptedRationalEpsilonLayerTransportQ[moved, source, layer, demand] &&
+    With[{rehashed = Join[doubled, <|"Certificate" -> Join[doubled["Certificate"], <|"WordHash" -> Hash[KeySort[doubled["DemandedWords"]]]|>]|>]},
+      AcceptedRationalEpsilonLayerTransportQ[rehashed] && ! AcceptedRationalEpsilonLayerTransportQ[rehashed, source, layer, demand]] &&
+    AcceptedRationalEpsilonLayerTransportQ[result, source, layer, demand] && AcceptedRationalEpsilonLayerTransportQ[direct, source, dlogLayer, demand]]];
+FTAssert["N2: a degenerate prime placed in the fresh-prime slot of an explicit schedule (position PrimeCount + 1) is skipped and recorded, the result accepted with the next prime as the fresh one",
+  With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> u/(eps^2 (u^2 - 1000003)), "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>,
+      "Primes" -> {1000033, 1000037, 1000039, 1000081, 1000099, 1000117, 1000121, 1000133, 1000151, 1000003, 1000159, 1000171}, "PrimeCount" -> 9, "MaximumPrimeCount" -> 11]},
+    r["Status"] === "RationalEpsilonLayerTransportAccepted" && MemberQ[Lookup[r["Certificate"]["SkippedPrimes"], "Prime"], 1000003] && r["Certificate"]["FreshValidationPrime"] =!= 1000003]];
+FTAssert["N3: a Gaussian-rational coefficient is refused typed early on the modular route and accepted exactly on the direct route",
+  BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> I/(eps^2 (u + 1)), "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>, "PrimeCount" -> 3]["Status"] === "CoefficientFieldNotRational" &&
+  With[{r = BuildRationalEpsilonLayerTransport[source, Join[dlogLayer, <|"Incoming" -> Append[dlogIncoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> I/eps^2, "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>]},
+    r["Status"] === "RationalEpsilonLayerTransportAccepted" && ! FreeQ[r["KResidues"], _Complex]]];
+FTAssert["N4: a coefficient with a pole at the base point and an endpoint on a letter pole are accepted with the typed RegularizationRequired note; a regular pair carries empty notes",
+  With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Endpoint" -> 3/4, "Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/(eps^2 (u - 1/2)), "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>, "PrimeCount" -> 3]},
+    r["Status"] === "RationalEpsilonLayerTransportAccepted" && r["Certificate"]["RegularizationRequired"]["BasePoint"] === {u - 1/2} &&
+      r["Certificate"]["RegularizationRequired"]["Endpoint"] === {u - 3/4}] &&
+  result["Certificate"]["RegularizationRequired"] === <|"BasePoint" -> {}, "Endpoint" -> {}|>];
 FTAssert["the predicate refuses a tampered certificate",
   ! AcceptedRationalEpsilonLayerTransportQ[Join[result, <|"Certificate" -> Join[result["Certificate"], <|"ResidueMismatches" -> 1|>]|>]] &&
   ! AcceptedRationalEpsilonLayerTransportQ[KeyDrop[result, "Certificate"]]];
