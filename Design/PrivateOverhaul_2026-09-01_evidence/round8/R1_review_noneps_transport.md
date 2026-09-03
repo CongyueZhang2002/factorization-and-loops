@@ -291,3 +291,126 @@ word kinds carry opposite letter orders (S2b), and its
 output is not consumable on the only class of layers it was built for
 (S3); the general skeleton, the typed gate, the Hermite circuit and the
 direct route are sound where tested.
+
+---
+
+# Re-review (round 8b, HEAD `955c3e78`)
+
+Same rules and scope: every kernel through the seat launcher under 300 s,
+package read only, nothing committed. Evidence under
+`scratchpad/round4/R1/rr/` (`test_run.log`; `rr_adversarial.wls` +
+`rr_adversarial2.log`, 11.7 s after load, every `NDSolve` under
+`TimeConstrained[..., 90]`; the first attempt, `rr_adversarial.log`, died
+on two bugs of my own script -- a self-referential memo definition and a
+listable `Lookup` with a list key -- and is superseded).
+
+**Reproduction.** `t_rational_epsilon_layer.wls`: 31 assertions, 0
+failed, 34.8 s after the TestKit load (the report's "31/31, 36 s" is
+confirmed). T's run-9 and cross-check logs
+(`scratchpad/round4/T/round8b/`) carry the numbers the report states:
+window {-2, 0}, 75 residue keys, 7,902 words (11/11, 242/242,
+3,715/3,681), the modular cross-check at 18 adaptive primes in 168 s with
+residues and words SameQ, the full target -4..2 refused typed
+`SourceWordGrowthCapped` at 1,572,742 states after 158.8 s; the rewritten
+artifact has `"Window" -> {-2, 0}` with 538 words at incoming order -1 and
+22 at order 0 next to the 7,342 at -2. (The adapter's own run 3b returned
+`EndpointRequired` because it passed no endpoint; the cross-check script
+did, so the report's table row is right.)
+
+## Earlier findings
+
+| finding | status | evidence (fixture section, file:line) |
+|---|---|---|
+| S1 window stopped at the highest demanded order | **fixed** | `:495` `high = N_max - q_min`. D: with the order -1 source, pair {0,1} has the same 74 (direct) / 86 (modular) words whether or not order 1 is demanded; A: source boundary orders {-2, 0, 1} and target {-1, 0, 1} (straddling zero), demand -2..1, window {-2, 3}, `G + H F_S` agrees with the ODE to 1e-10 on all seven (order, row); the CF303 artifact now carries the 560 words of incoming orders -1 and 0 |
+| S2 `MaximumWeight -> 4` silent | **fixed** | `:657-665`, `:384-386`, `:684-690`. D: demand {3,1} at the derived default gives 813 words, equal to `MaximumWeight -> 8`; `MaximumWeight -> 3` is `WordWeightCapReached`, predicate False. C: on the straddle fixture `MaximumWeight -> 2` / `-> 4` refuse with `NeededWeight` 5 and the dropped combinations (40 / 2) and the capped pairs; `MaximumWords -> 5` `WordEnumerationCapped`; `MaximumStates -> 3` `SourceWordGrowthCapped`; all three refused by the predicate |
+| S2b opposite letter orders | **fixed** | `:342-348`, `:356`. D: order 2 on the order -1 source, four length-2 target words, word sums in the stored (outermost-first) order agree with the ODE to 7.7e-11 and 1.5e-9 |
+| S3 H never lifted | **fixed** for the endpoint value | `:272-284`, `:614-625`, `:640-646`. A: hard u-dependent layer (two edges into (1,1) with different letters, a triple pole at u = -1, a double pole at u^2 + 1, mixed factors), `GaugeAtEndpoint` at orders -2..3 lifted from 3 primes and validated at the fresh prime (24 gauge comparisons, 0 mismatches); `G + H F_S` versus the ODE 2e-11 to 2e-10 on all seven pairs, the words alone 0.07 to 0.57 off -- the gauge term is essential and right. H along the path is not lifted, which this contract does not need |
+| S4 predicate a shape check | **partially fixed** -- see N1 | `:417-421`, `:708-710`, `:745-757`, `:760-790`. B: the gauge altered with its hash recomputed is refused by the four-argument form at a new prime; a changed base point breaks the fingerprint (T's test). But the words are bound by nothing (N1) |
+| S5 non-constant residues | **fixed** | `:441-450`. D: `ResidueMatrixNotConstant` for the u-dependent diagonal residue and the eps-dependent source residue |
+| S6 fixed probe points, silent truncation | **fixed** | `:475-484`, `:501-510`. D: the old evasive coefficient now certifies at -3 (probe points 30/31, 97/95, 155/193 from the seed); a coefficient built to vanish at exactly those seeded points is refused typed `LaurentValuationBelowWindow` -- never truncated |
+| S7 bad primes fatal | **partially fixed** | `:585-596` skips and records a bad schedule prime (T's test, `SkippedPrimes`). Not fixed at `:639`: when the bad prime is the FRESH prime (explicit schedule `{1000033, ..., 1000003}` with `PrimeCount -> 6`) the route still dies with `ResiduePoleNotInAlphabet` at 1000003. Reachable only with an explicit schedule |
+| S8 claims without code | **fixed** | `:86-94` `CurveNotQuartic` (D: `Curve -> u^2`), `:48` `E4Eta2`, `:455-457` `ZeroColumnsInvalid` (D: `{2, 7}`), the T25 status claim withdrawn in the report, the column-presence proxy documented at `:451-454` |
+| S9 mixed-authorship commit | **acknowledged** in the report (coordinator's commit from the shared tree) | -- |
+| S10 test design | **fixed** | ODE assertions independent of the enumerator with a negative boundary order, length-2 target words and the u-dependent end-to-end value (T's test lines 175-252, 40 digits) |
+
+## New findings, ranked
+
+### N1 (medium-high, contract): the demanded words -- the deliverable -- are bound by nothing
+
+The one-argument predicate hashes `KResidues` and `GaugeAtEndpoint`
+(`:753-754`); the four-argument form re-derives residues and gauge
+(`:770-788`) but never re-enumerates, counts or hashes `DemandedWords`.
+Fixture B on the accepted straddle result: a word coefficient doubled,
+a word deleted, and the whole pair {0,1} removed from `DemandedWords`
+each pass BOTH predicates (True/True). Since the residues are only the
+input to the words and a consumer reads the words, this is the same
+class of gap as S4 was. Fix: a `WordHash` in the certificate (bound by
+the one-argument form), and in the four-argument form re-enumerate the
+words from the re-derived residues (the enumeration is 0.4 s on the
+CF303 sub-layer, far below the images) or at least check the pair set
+against the demand and the per-pair counts against the certificate.
+Also bind the result's payload fields: `Endpoint`, `Window`, `Rows`,
+`BasePoint` (fixture B: the result's `Endpoint` set to 1/3 passes both
+forms; the four-argument form silently uses the layer's endpoint).
+
+### N2 (low): a bad fresh prime is still a misleading fatal status (S7 remainder)
+
+`:638-639`. Fixture D: explicit schedule with the degenerate prime last
+-> `ResiduePoleNotInAlphabet`. Fix: draw the fresh prime with the same
+skip-and-record loop.
+
+### N3 (low): a Gaussian-rational coefficient burns the whole prime schedule
+
+Fixture D: coefficient `I/(eps^2 (u+1))` on the u-dependent layer passes
+the `PolynomialQ` gate (`:470-472`), the modular arithmetic never reduces
+`I`, and the route returns `ReconstructionNotConverged` after all 24
+images with `Key -> {"Gauge", -2}` -- typed but wrong about the cause and
+costly. The direct route accepts the same `I` exactly (residues in
+`Q(i)`). Fix: refuse non-rational coefficients typed for the modular
+route (or reduce `I` at primes with p == 1 mod 4).
+
+### N4 (low, contract): a singular base point or endpoint is accepted without a note
+
+Fixture D: a coefficient with the factor `1/(u - 1/2)` at base 1/2 (the
+random probes no longer hit the base) and an endpoint 3/4 on a letter
+pole are both `RationalEpsilonLayerTransportAccepted` with an empty
+`SkippedPrimes`. The K residues and `H` are finite and right, but the
+words' iterated integrals to such a point need a regularized
+(tangential) base or endpoint that the certificate does not declare.
+Fix: a typed note (`BasePointOnAlphabet` / `EndpointOnAlphabet`) in the
+certificate when the base or endpoint is a root of a pole factor.
+
+### N5 (informational): the input fingerprint is byte-exact
+
+Fixture B: the same demand with `Pairs` reordered, or the layer with an
+extra harmless key, makes the four-argument predicate False. Safe
+direction; document that the predicate needs the identical inputs.
+
+## Measurement (re-review)
+
+The Round 8b table is an honest re-statement: the CF303 numbers are for
+the rational sub-layer only, with the complete window and derived weight
+for orders -4..-2, the modular cross-check SameQ, and the real target
+refused typed at 1.6 M states -- the report now says in its own words
+that the enumerator cannot reach the target and names the lazy word
+representation as a design item.
+
+## Recommendations, in priority order
+
+1. Bind and re-verify the words (N1) and the payload fields; add the
+   fixture-B tamperings as assertions.
+2. Fresh prime through the skip loop (N2); typed refusal of non-rational
+   coefficients on the modular route (N3).
+3. Typed note for a singular base point or endpoint (N4).
+4. Unchanged from R1: the lazy word representation before any target
+   order above -2; the conjugate-pair merge into the package for generic
+   p; then the elliptic channel, the exception importer and T25.
+
+## Verdict
+
+Finished with the listed fixes: S1, S2, S2b, S3, S5, S6, S8, S10 fixed
+and re-verified independently (ODE at 1e-10 on a harder u-dependent
+fixture with straddling boundary orders); S4 and S7 partially fixed --
+the words must be bound and re-verified (N1) before a consumer can rely
+on the predicate, and the fresh prime needs the skip loop (N2). The
+CF303 remains list stands as the report states it.
