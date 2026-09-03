@@ -25,9 +25,10 @@
 - [x] 🟢 Build square and rectangular endpoint residues, and block-triangular rational-epsilon residue decks, directly from inert letters.
 - [x] 🟢 Select the inward CF303 soft sheet and derive the exact rational GPL tangential system for its four owned source rows.
 - [x] 🟢 Resolve every deferred CF303 incoming leaf at the soft endpoint and expose the complete pointwise residue plus physical-map Laurent deck. The bounded two-point control takes 4.93 s / 89 MB; the complete incoming residue has 40/86 nonzeros and rank 2, while `T25.H` retains 61 double-pole coordinates.
-- [ ] 🟡 Extend the CF303 soft source system to its exact 35-row closure and construct the induced normal-mode connection.
-- [ ] Build and physically constrain the residual six-mode CF303-owned selector deck.
-- [ ] Reconstruct only the projected endpoint objects `B_q(p).V_own` and the reduced six-mode tangential connection; do not reconstruct the raw `2 x 43` deck unless projection fails to reduce its degree/height.
+- [x] 🟢 Replace the unnecessary 35-row symbolic closure with the exact sparse four-mode source map. Its endpoint restriction takes 0.05 s, passes the 10/10 finite-field control, and only one owned source mode can feed the final block.
+- [x] 🟢 Extract the exact physical `6 x 6` homogeneous and `6 x 39` inherited soft systems without loading the full connection. The complete build takes 123.6 s; the homogeneous normal residue is rank one with spectrum `{0,0,0,0,0,-2-4 eps}`.
+- [ ] 🟡 Build and physically constrain the residual six-mode CF303-owned selector deck with the general rational-in-epsilon Levelt consumer.
+- [ ] 🟡 Reconstruct only the projected endpoint objects on the seven active inherited source coordinates and the reduced six-mode tangential connection; never reconstruct the raw `2 x 43` deck.
 - [ ] Build concrete endpoint/mode records for every surviving physical period realization.
 
 ## Production completion
@@ -42,5 +43,6 @@
 
 - [x] 🟢 Do not reconstruct dense characteristic-zero `H/K` matrices merely to verify a provider-backed lazy result.
 - [x] 🟢 Do not enumerate the full weight-six alphabet or add intermediate hash/check stages.
+- [x] 🟢 Add a family-neutral rational-in-epsilon Levelt mode consumer; the bounded package test is 26/26 green.
 - [ ] Measure requested-coefficient materialization on a hard real artifact and optimize only a demonstrated dominant phase.
 - [ ] Keep the global campaign within eight Wolfram subkernels and eight native cores, redistributing resources as active families drain.
