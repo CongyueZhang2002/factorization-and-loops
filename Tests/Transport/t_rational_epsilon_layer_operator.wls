@@ -110,14 +110,20 @@ FTAssert["the operator cannot pair an accepted transport with different source o
   BuildRationalEpsilonLayerOperator[source, alteredLayer, transport]["Status"] ===
     "RationalLayerTransportInputMismatch"];
 
+tangentialPrescription = <|"Type" -> "TangentialRegularized",
+  "LocalDirection" -> -1, "PhysicalCoordinateLeadingCoefficient" -> 3/2,
+  "LogBranch" -> 0|>;
 independentRebase = RebaseRationalEpsilonLayerOperator[
   operator, 1/2, source["BoundarySelectors"],
-  layer["TargetBoundarySelectors"]];
+  layer["TargetBoundarySelectors"],
+  "BasePointPrescription" -> tangentialPrescription];
 FTAssert["independent source and target constants are embedded once into a shared rebased boundary vector",
   AcceptedRationalEpsilonLayerOperatorQ[independentRebase] &&
   independentRebase["Rebase", "OriginalBoundaryLayout"] ===
     "Independent" &&
   independentRebase["BoundaryLayout"] === "Shared" &&
+  independentRebase["Path", "BasePointPrescription"] ===
+    tangentialPrescription &&
   independentRebase["Dimensions", "TotalBoundary"] === 4 &&
   Normal[independentRebase["SourceBoundarySelectors", 0]] ===
     {{1, 0, 0, 0}, {0, 0, 0, 0}} &&

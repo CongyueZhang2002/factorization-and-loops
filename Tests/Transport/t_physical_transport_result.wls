@@ -73,10 +73,14 @@ rebasedOperator = RebaseRationalEpsilonLayerOperator[
   operator, 1/2,
   attached["Source", "BoundarySelectors"],
   attached["Layer", "TargetBoundarySelectors"],
-  "HAtNewBase" -> <|0 -> 2/3 IdentityMatrix[2]|>];
+  "HAtNewBase" -> <|0 -> 2/3 IdentityMatrix[2]|>,
+  "BasePointPrescription" -> <|"Type" -> "TangentialRegularized",
+    "LocalDirection" -> -1|>];
 rebasedCoefficient = BuildPhysicalTransportCoefficient[
   rebasedOperator, boundary, {0, 1},
-  <|"Variable" -> u, "BasePoint" -> 1/2, "Endpoint" -> 1|>];
+  <|"Variable" -> u, "BasePoint" -> 1/2, "Endpoint" -> 1,
+    "BasePointPrescription" -> <|"Type" -> "TangentialRegularized",
+      "LocalDirection" -> -1|>|>];
 FTAssert["an accepted operator rebases by Chen path composition without materializing an inverse series",
   AcceptedRationalEpsilonLayerOperatorQ[rebasedOperator] &&
   rebasedOperator["Rebase", "Method"] ===
@@ -87,7 +91,9 @@ FTAssert["an accepted operator rebases by Chen path composition without material
   rebasedCoefficient["Expression"] ===
     1/3 BoundaryPeriodCoefficient["a", 0] +
       BoundaryPeriodCoefficient["c", 0] &&
-  rebasedCoefficient["Path", "BasePoint"] === 1/2];
+  rebasedCoefficient["Path", "BasePoint"] === 1/2 &&
+  rebasedCoefficient["Path", "BasePointPrescription", "Type"] ===
+    "TangentialRegularized"];
 
 FTAssert["rebasing refuses to guess a nonzero gauge value or missing selector geometry",
   RebaseRationalEpsilonLayerOperator[operator, 1/2,
@@ -139,6 +145,26 @@ FTAssert["a genuine mixed transport keeps its surviving eMPL word explicit and s
     TransportIteratedIntegral[{{"E4Omega0"}}, ___]] &&
   ellipticCoefficient["Stage3", "ActiveBoundaryCoordinates"] ===
     {{"a", 0}}];
+
+tangentialEllipticOperator = RebaseRationalEpsilonLayerOperator[
+  ellipticOperator, 0, attached["Source", "BoundarySelectors"],
+  attached["Layer", "TargetBoundarySelectors"],
+  "BasePointPrescription" -> <|"Type" -> "TangentialRegularized",
+    "LocalDirection" -> 1|>];
+tangentialEllipticCoefficient = BuildPhysicalTransportCoefficient[
+  tangentialEllipticOperator, boundary, {1, 1},
+  <|"Variable" -> u, "BasePoint" -> 0, "Endpoint" -> 1,
+    "Curve" -> curve,
+    "BasePointPrescription" -> <|"Type" -> "TangentialRegularized",
+      "LocalDirection" -> 1|>|>];
+tangentialFunction = tangentialEllipticCoefficient["Terms"][[1]]["Function"];
+FTAssert["a singular-base word carries its tangential prescription in the paper-facing integral",
+  tangentialEllipticCoefficient["Status"] ===
+      "PhysicalTransportCoefficientBuilt" &&
+  Head[tangentialFunction] === FeynFacet`TransportIteratedIntegral &&
+  First[List @@ tangentialFunction] === {{"E4Omega0"}} &&
+  Last[List @@ tangentialFunction] ===
+    <|"Type" -> "TangentialRegularized", "LocalDirection" -> 1|>];
 
 FTAssert["paper expansion caps fail closed",
   BuildPhysicalTransportCoefficient[ellipticOperator, boundary,

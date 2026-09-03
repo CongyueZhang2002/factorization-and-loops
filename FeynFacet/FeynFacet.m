@@ -276,7 +276,7 @@ BoundaryPeriodCoefficient::usage =
   "BoundaryPeriodCoefficient[id,order] is an inert exact placeholder for the coefficient of eps^order in a physical boundary period not yet evaluated. It appears only in BoundaryConstantVector; transport selector matrices remain rational.";
 
 TransportIteratedIntegral::usage =
-  "TransportIteratedIntegral[word,{variable,base,endpoint},curve,curvePointValues] is the inert paper-facing iterated integral of a marked-point GPL/eMPL word. The word is outermost first; curve is None for GPLs and a square-free quartic for elliptic words, while curvePointValues records the selected rational sheet values used by the transport.";
+  "TransportIteratedIntegral[word,{variable,base,endpoint},curve,curvePointValues] is the inert paper-facing iterated integral of a marked-point GPL/eMPL word. An optional fifth BasePointPrescription argument records tangential regularization at a singular base without multiplying a second Frobenius factor. The word is outermost first; curve is None for GPLs and a square-free quartic for elliptic words, while curvePointValues records the selected rational sheet values used by the transport.";
 TransportAlgebraicRoot::usage =
   "TransportAlgebraicRoot[coefficients,index] denotes an indexed algebraic root of a polynomial whose ascending coefficient list may contain spectator kinematics.";
 TransportLetterKernel::usage =
@@ -295,7 +295,7 @@ BuildRationalEpsilonLayerOperator::usage =
 AcceptedRationalEpsilonLayerOperatorQ::usage =
   "AcceptedRationalEpsilonLayerOperatorQ[operator] checks the structural contract of a lazy rational-epsilon-layer operator.";
 RebaseRationalEpsilonLayerOperator::usage =
-  "RebaseRationalEpsilonLayerOperator[operator,newBase,sourceSelectors,targetSelectors] rebases an accepted sparse Chen operator using explicitly supplied physical selectors at newBase. It changes no residues and builds no dense inverse: for FTarget=G+H FSource it replaces each target selector by T_q-Sum_r H_r(newBase) S_(q-r). HAtNewBase may supply precomputed gauge coefficients when the stored endpoint value cannot be substituted.";
+  "RebaseRationalEpsilonLayerOperator[operator,newBase,sourceSelectors,targetSelectors] rebases an accepted sparse Chen operator using explicitly supplied physical selectors at newBase. It changes no residues and builds no dense inverse: for FTarget=G+H FSource it replaces each target selector by T_q-Sum_r H_r(newBase) S_(q-r). HAtNewBase may supply precomputed gauge coefficients when the stored endpoint value cannot be substituted; BasePointPrescription records a tangentially regularized singular base.";
 RationalEpsilonLayerWordMap::usage =
   "RationalEpsilonLayerWordMap[operator,word,boundaryOrder,outputOrder,rows] evaluates one D...D or D...D K S...S word as a sparse map on boundary coordinates.";
 RationalEpsilonLayerDemandTerms::usage =
@@ -303,7 +303,7 @@ RationalEpsilonLayerDemandTerms::usage =
 AttachTransportBoundaryToRationalLayer::usage =
   "AttachTransportBoundaryToRationalLayer[source,layer,boundary,sourceRows,targetRows] splits a full-system physical boundary selector into source and final-layer rows while preserving one shared vector of period coordinates.";
 BuildPhysicalTransportCoefficient::usage =
-  "BuildPhysicalTransportCoefficient[operator,boundary,{epsilonOrder,physicalRow},path] composes one requested lazy final-layer coefficient, the endpoint path gauge, an optional epsilon-dependent physical output gauge, marked GPL/eMPL words and the formal or exact boundary-period vector. It returns the paper-facing expression and the Stage-3 ledger pruned by actual transport support.";
+  "BuildPhysicalTransportCoefficient[operator,boundary,{epsilonOrder,physicalRow},path] composes one requested lazy final-layer coefficient, the endpoint path gauge, an optional epsilon-dependent physical output gauge, marked GPL/eMPL words and the formal or exact boundary-period vector. A TangentialRegularized BasePointPrescription is carried into every nonempty inert iterated integral. It returns the paper-facing expression and the Stage-3 ledger pruned by actual transport support.";
 AcceptedObservableTransportQ::usage =
   "AcceptedObservableTransportQ[result] checks the required named exact certificates and, according to the representation and boundary method, every fresh modular closure, ambient-invariance and quotient-coordinate certificate. It keeps probabilistic structural acceptance distinct from an exact symbolic identity.";
 

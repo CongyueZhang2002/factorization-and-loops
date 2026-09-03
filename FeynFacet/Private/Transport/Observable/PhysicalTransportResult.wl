@@ -121,7 +121,7 @@ BuildPhysicalTransportCoefficient[operator_Association,
     boundary_Association, {outputOrder_Integer, outputRow_Integer},
     path_Association, OptionsPattern[]] := Catch@Module[
   {fail, dimensions, constants, variable, base, endpoint, curve,
-   curvePointValues,
+   curvePointValues, basePointPrescription,
    definitions, outputGauge, gaugeOrders, physicalDimension,
    maximumExpandedTerms, expandQ, rawStore, rawCount = 0,
    demandTerms, matrix, vector, word, expanded, expandedStore,
@@ -176,18 +176,27 @@ BuildPhysicalTransportCoefficient[operator_Association,
   endpoint = Lookup[path, "Endpoint", Missing[]];
   curve = Lookup[path, "Curve", None];
   curvePointValues = Lookup[path, "CurvePointValues", <||>];
+  basePointPrescription = Lookup[path, "BasePointPrescription", None];
   If[! MatchQ[variable, _Symbol] || MissingQ[base] || MissingQ[endpoint] ||
       ! FreeQ[base, variable] || ! FreeQ[endpoint, variable] ||
       (curve =!= None && (! PolynomialQ[curve, variable] ||
         Exponent[curve, variable] =!= 4)) ||
-      ! AssociationQ[curvePointValues],
+      ! AssociationQ[curvePointValues] ||
+      (basePointPrescription =!= None &&
+        ! (AssociationQ[basePointPrescription] &&
+          Lookup[basePointPrescription, "Type", None] ===
+            "TangentialRegularized" &&
+          MemberQ[{-1, 1}, Lookup[basePointPrescription,
+            "LocalDirection", Missing[]]])),
     fail["PhysicalTransportPathInvalid"]];
   operatorPath = Lookup[operator, "Path", <||>];
   If[Lookup[operatorPath, "Variable", Missing[]] =!= variable ||
       Lookup[operatorPath, "BasePoint", Missing[]] =!= base ||
       Lookup[operatorPath, "Endpoint", Missing[]] =!= endpoint ||
       Lookup[operatorPath, "Curve", None] =!= curve ||
-      Lookup[operatorPath, "CurvePointValues", <||>] =!= curvePointValues,
+      Lookup[operatorPath, "CurvePointValues", <||>] =!= curvePointValues ||
+      Lookup[operatorPath, "BasePointPrescription", None] =!=
+        basePointPrescription,
     fail["PhysicalTransportPathDoesNotMatchOperator"]];
   definitions = OptionValue["CompositeDefinitions"];
   If[! AssociationQ[definitions],
@@ -263,8 +272,16 @@ BuildPhysicalTransportCoefficient[operator_Association,
       "Stage3NeedsPrunedByTransport",
     fail["Stage3LedgerUnavailable"]];
   integral[{}] := 1;
-  integral[w_List] := TransportIteratedIntegral[
-    w, {variable, base, endpoint}, curve, curvePointValues];
+  integral[w_List] := If[basePointPrescription === None,
+    With[{wordValue = w, pathValue = {variable, base, endpoint},
+        curveValue = curve, pointValues = curvePointValues},
+      FeynFacet`TransportIteratedIntegral[
+        wordValue, pathValue, curveValue, pointValues]],
+    With[{wordValue = w, pathValue = {variable, base, endpoint},
+        curveValue = curve, pointValues = curvePointValues,
+        prescription = basePointPrescription},
+      FeynFacet`TransportIteratedIntegral[
+        wordValue, pathValue, curveValue, pointValues, prescription]]];
   paperTerms = KeyValueMap[Function[{markedWord, coefficientVector},
       <|"Word" -> markedWord,
         "CoefficientVector" -> Normal[coefficientVector],
@@ -282,7 +299,8 @@ BuildPhysicalTransportCoefficient[operator_Association,
     "BoundaryDataStatus" -> Lookup[boundary, "BoundaryDataStatus", None],
     "Path" -> <|"Variable" -> variable, "BasePoint" -> base,
       "Endpoint" -> endpoint, "Curve" -> curve,
-      "CurvePointValues" -> curvePointValues|>,
+      "CurvePointValues" -> curvePointValues,
+      "BasePointPrescription" -> basePointPrescription|>,
     "RawTermCount" -> rawCount,
     "PaperTermCount" -> Length[paperTerms],
     "Terms" -> paperTerms,

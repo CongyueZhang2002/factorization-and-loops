@@ -286,7 +286,8 @@ AcceptedRationalEpsilonLayerOperatorQ[operator_] :=
   AssociationQ[Lookup[operator, "OperatorLayer", None]];
 
 Options[RebaseRationalEpsilonLayerOperator] = {
-  "HAtNewBase" -> Automatic
+  "HAtNewBase" -> Automatic,
+  "BasePointPrescription" -> None
 };
 
 (* Rebase the accepted sparse Chen operator without constructing or
@@ -306,7 +307,7 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
    zeroSource, zeroTarget, gaugeEndpoint, gaugeAtNewBase, gaugeOrders,
    expectedGaugeOrders, sourceOrders, targetOrders, correctedOrders,
    correctedTarget, path, variable, oldBase, oldEndpoint, rebased,
-   binding},
+   binding, basePointPrescription, rebasedPath},
   fail[status_, extra_: <||>] := Throw[Join[<|"Status" -> status|>, extra]];
   If[! AcceptedRationalEpsilonLayerOperatorQ[operator],
     fail["RationalEpsilonLayerOperatorNotAccepted"]];
@@ -331,6 +332,14 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
       MissingQ[oldEndpoint] || MissingQ[newBase] ||
       ! FreeQ[newBase, variable],
     fail["RationalLayerRebasePointInvalid"]];
+  basePointPrescription = OptionValue["BasePointPrescription"];
+  If[basePointPrescription =!= None &&
+      ! (AssociationQ[basePointPrescription] &&
+        Lookup[basePointPrescription, "Type", None] ===
+          "TangentialRegularized" &&
+        MemberQ[{-1, 1}, Lookup[basePointPrescription,
+          "LocalDirection", Missing[]]]),
+    fail["RationalLayerBasePointPrescriptionInvalid"]];
 
   gaugeEndpoint = Lookup[operator, "GaugeMatrices", <||>];
   If[! AssociationQ[gaugeEndpoint] ||
@@ -391,10 +400,14 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
   binding = If[layout === "Shared" &&
       sourceColumns === dimensions["TotalBoundary"],
     Lookup[operator, "PhysicalBoundaryBinding", None], None];
+  rebasedPath = Join[KeyDrop[path, "BasePointPrescription"],
+    <|"BasePoint" -> newBase|>,
+    If[AssociationQ[basePointPrescription],
+      <|"BasePointPrescription" -> basePointPrescription|>, <||>]];
   rebased = Join[operator, <|
     "BoundaryLayout" -> "Shared",
     "PhysicalBoundaryBinding" -> binding,
-    "Path" -> Join[path, <|"BasePoint" -> newBase|>],
+    "Path" -> rebasedPath,
     "Dimensions" -> Join[dimensions, <|
       "SourceBoundary" -> commonColumns,
       "TargetBoundary" -> commonColumns,
@@ -406,6 +419,7 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
       "Method" -> "ChenPathCompositionNoMaterialization",
       "OriginalBasePoint" -> oldBase,
       "NewBasePoint" -> newBase,
+      "BasePointPrescription" -> basePointPrescription,
       "Endpoint" -> oldEndpoint,
       "OriginalBoundaryLayout" -> layout,
       "PhysicalSourceBoundarySelectors" ->
