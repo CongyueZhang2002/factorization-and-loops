@@ -451,6 +451,13 @@ finiteFieldGaugePullBackFitDenominator[points_List, values_List,
      returned nullspace is still verified on every original row below. *)
   preference = Join[Range[numeratorUnknownCount + 1, unknownCount],
     Range[numeratorUnknownCount]];
+  (* round 8 (2026-09-02, stage-1 speed): a fibre relation of fewer than 256
+     unknowns is a sub-millisecond in-kernel nullspace; the native RREF
+     adapter costs a process round trip per call (measured 0.1-0.2 s), which
+     dominated the fits (6.2 s of the (12,9) normalizer's 11.5 s).  The
+     same 256 threshold as finiteFieldStripBackendDecision; the returned
+     nullspace is verified on every original row below either way. *)
+  If[unknownCount >= 256,
   native = Quiet[Check[finiteFieldStripCFFRRun[
       matrix, rightHandSide, prime, preference, 8, Automatic], $Failed]];
   If[AssociationQ[native] && Lookup[native, "Status", None] === "OK",
@@ -463,6 +470,7 @@ finiteFieldGaugePullBackFitDenominator[points_List, values_List,
       nullspace = $Failed],
     nullspace = $Failed];
   If[nullspace === $Failed,
+    nullspace = Quiet[Check[NullSpace[matrix, Modulus -> prime], $Failed]]],
     nullspace = Quiet[Check[NullSpace[matrix, Modulus -> prime], $Failed]]];
   If[! ListQ[nullspace],
     Return[finiteFieldGaugePullBackFailure[
@@ -537,7 +545,13 @@ finiteFieldGaugePullBackFitNumerators[points_List, values_List,
   rhs = Developer`ToPackedArray[Mod[
     values[[constructionIndices]]
       denominatorValues[[constructionIndices]], prime]];
-  solution = finiteFieldStripFLINTSolve[construction, rhs, prime, 8];
+  (* round 8 (2026-09-02): the numerator core is numeratorCount x
+     numeratorCount (tens of unknowns per fibre); below the 256 threshold the
+     in-kernel modular solve beats the adapter's process round trip, and the
+     held-out rows below validate the solution either way *)
+  solution = If[numeratorCount < 256,
+    Quiet[Check[LinearSolve[construction, rhs, Modulus -> prime], $Failed]],
+    finiteFieldStripFLINTSolve[construction, rhs, prime, 8]];
   If[Dimensions[solution] =!= {numeratorCount, outputCount},
     Return[finiteFieldGaugePullBackFailure[
       "FiniteFieldGaugePullBackNumeratorSolveFailed"]]];
