@@ -337,8 +337,35 @@ transportChartParallelProjectionDecompose[___] :=
    the broker sees any work.  A recipe contains only the two source entries
    and the two scalar Jacobian coefficients, so writing and distributing it
    does not construct the expensive product. *)
+(* round 8 (2026-09-02, stage-1 speed): the normalization goes through the
+   exact canonicalizer of Core/Algebra/RationalMaterialization.wl -- a
+   1 s Together probe keeps every easy entry on Together, a hard entry is
+   reduced by the FLINT multivariate gcd -- and falls back to Together on
+   any refusal.  The value is the same canonical rational function
+   (numerator over the product of the denominator factors, numeric content
+   in the numerator); the finite-field sampler reads it through
+   Numerator/Denominator/CoefficientRules, which see identical polynomials. *)
+$transportChartJacobianNativeLeafCount = 150000;
 transportChartJacobianTogetherRecipe[
-    {av_, aw_, jv_, jw_}] := Together[av jv + aw jw];
+    {av_, aw_, jv_, jw_}] := Module[{expression = av jv + aw jw, pair},
+  (* measured 2026-09-02 on CF300: (12,7) recipes (strip leafCount 658936)
+     60.1 s -> 22.1 s through the canonicalizer; (12,9) recipes (270935)
+     10.1 s -> 14.5 s, the 1 s probes being pure loss on entries Together
+     finishes in a few seconds -- hence the leaf-count gate *)
+  If[LeafCount[expression] < $transportChartJacobianNativeLeafCount,
+    Return[If[Environment["FACET_R8_RECIPE_LOG"] === "On",
+      With[{r = AbsoluteTiming[Together[expression]]},
+        Print["[jacobian-recipe] leaves ", LeafCount[expression], " Together ", Round[First[r], 0.01], " s"]; Last[r]],
+      Together[expression]]]];
+  pair = Quiet[Check[AbsoluteTiming[rationalMaterializationCanonicalValue[expression]],
+    $Failed]];
+  If[Environment["FACET_R8_RECIPE_LOG"] === "On",
+    Print["[jacobian-recipe] leaves ", LeafCount[expression], " canonicalizer ",
+      If[ListQ[pair], Round[First[pair], 0.01], "failed"], " s"]];
+  pair = If[ListQ[pair], Last[pair], $Failed];
+  If[MatchQ[pair, {_, _Association}],
+    First[pair]/(Times @@ KeyValueMap[Power, Last[pair]]),
+    Together[expression]]];
 transportChartJacobianTogetherRecipe[___] := $Failed;
 
 transportChartJacobianTogetherTask[dataFile_String] := Module[

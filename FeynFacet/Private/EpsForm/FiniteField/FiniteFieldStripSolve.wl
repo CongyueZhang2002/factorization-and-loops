@@ -1367,7 +1367,9 @@ SampleEpsFormStripAffine[
    planDiscoveryBackend, planDiscoveryDecision,
    planDiscoveryBackendUsed = None, backendFallbackReason = None,
    backendFailure = None,
-   planValidation = <|"Status" -> "NoEliminationPlan"|>},
+   planValidation = <|"Status" -> "NoEliminationPlan"|>,
+   evaluationSeconds = 0., assemblySeconds = 0., pointCallSeconds = 0.,
+   loopStart},
 
   If[! finiteFieldStripRecordQ[record],
     Message[SampleEpsFormStripAffine::record]; Return[$Failed]];
@@ -1562,7 +1564,8 @@ SampleEpsFormStripAffine[
     {xPowers, yPowers, eValue, cValue, forcing0Value, dlogValue,
      denominatorValue, derivativeDenominatorValues, inverseDenominator,
      phiFlat, derivativePhiFlat, rows, right, rowIndex = 0,
-     blocks, residuePart, mu, i, j, aIndex, bIndex, residueIndex},
+     blocks, residuePart, mu, i, j, aIndex, bIndex, residueIndex,
+     pointStart = AbsoluteTime[]},
     xPowers = Table[PowerMod[Mod[xValue, prime], power, prime],
       {power, 0, tableExponents[[1]]}];
     yPowers = Table[PowerMod[Mod[yValue, prime], power, prime],
@@ -1581,6 +1584,9 @@ SampleEpsFormStripAffine[
     derivativeDenominatorValues =
       evaluateRational[#, xPowers, yPowers] & /@
         gaugeDenominatorDerivativeForms;
+    (* round-8 profile timers (2026-09-02): form evaluation versus row
+       assembly, accumulated over the points of one sample *)
+    evaluationSeconds += AbsoluteTime[] - pointStart; pointStart = AbsoluteTime[];
     (* monomial tables over the support (row-major rectangle order
        restricted to the retained monomials) *)
     phiFlat = Mod[Mod[xPowers[[supportX + 1]] yPowers[[supportY + 1]], prime]
@@ -1616,7 +1622,13 @@ SampleEpsFormStripAffine[
       rows[[rowIndex]] = Join[Flatten[blocks], residuePart];
       right[[rowIndex]] = forcing0Value[[mu, i, j]],
       {mu, 2}, {i, upperDimension}, {j, lowerDimension}];
-    {SparseArray[rows], right}
+    assemblySeconds += AbsoluteTime[] - pointStart;
+    (* round 8 (2026-09-02): the rows stay a packed dense block; ONE
+       SparseArray is built per sample from the joined blocks below.  A
+       SparseArray per point cost 1.8 ms each (56% of the sampling time of
+       CF300 (12,9): 93 points x 19 regulator values x 3 primes), and the
+       joined matrix is identical entry by entry. *)
+    {rows, right}
   ], "BadPoint"];
 
   SeedRandom[randomSeed];
@@ -1625,14 +1637,16 @@ SampleEpsFormStripAffine[
         attemptCount < maximumAttempts,
       attemptCount++;
       point = RandomInteger[{2, prime - 2}, 2];
+      loopStart = AbsoluteTime[];
       pointResult = buildPointRows @@ point;
+      pointCallSeconds += AbsoluteTime[] - loopStart;
       If[pointResult =!= $Failed,
         AppendTo[acceptedPoints, point];
         AppendTo[pointRows, pointResult[[1]]];
         AppendTo[pointRightHandSides, pointResult[[2]]]]]];
   If[Length[acceptedPoints] < requestedPointCount,
     Message[SampleEpsFormStripAffine::points]; Return[$Failed]];
-  matrix = Join @@ pointRows;
+  matrix = SparseArray[Join @@ pointRows];
   rightHandSide = Join @@ pointRightHandSides;
   eliminationPlan = OptionValue["EliminationPlan"];
   discoverPlanQ = TrueQ[OptionValue["DiscoverPlan"]];
@@ -1896,6 +1910,9 @@ SampleEpsFormStripAffine[
     "PreparationReused" -> preparationReused,
     "PreprocessingSeconds" -> preprocessingSeconds,
     "SamplingSeconds" -> samplingSeconds,
+    "SamplingEvaluationSeconds" -> evaluationSeconds,
+    "SamplingAssemblySeconds" -> assemblySeconds,
+    "SamplingPointCallSeconds" -> pointCallSeconds,
     "PeakMemoryBytes" -> MaxMemoryUsed[],
     "RankSeconds" -> rankSeconds,
     "AugmentedRankSeconds" -> augmentedRankSeconds,
@@ -3584,6 +3601,13 @@ SolveEpsFormStripFiniteField[record_Association,
         loopExit = "Failed"; Break[]];
       interpolation = Join[interpolation,
         <|"SamplingSeconds" -> seconds,
+          (* round-8 profile (2026-09-02): the sampler's own split of the
+             point work, summed over the regulator samples of this prime *)
+          (* the held-out route accumulates its samples in pool, the
+             deterministic route keeps them in samples *)
+          "SamplingEvaluationSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SamplingEvaluationSeconds", 0.]],
+          "SamplingAssemblySeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SamplingAssemblySeconds", 0.]],
+          "SamplingPointCallSeconds" -> Total[Lookup[If[ListQ[pool], pool, samples], "SamplingPointCallSeconds", 0.]],
           "SelectedNumeratorDegreeOffset" -> selectedOffset,
           "SelectedSupportShell" -> selectedShell,
           "RecordFingerprint" -> recordFingerprint,
@@ -3815,6 +3839,12 @@ SolveEpsFormStripFiniteField[record_Association,
     "PrimeWallSeconds" -> primeWallSeconds,
     "PrimeSamplingSeconds" ->
       Lookup[modularData, "SamplingSeconds", {}],
+    "PrimeSamplingEvaluationSeconds" ->
+      Lookup[modularData, "SamplingEvaluationSeconds", {}],
+    "PrimeSamplingAssemblySeconds" ->
+      Lookup[modularData, "SamplingAssemblySeconds", {}],
+    "PrimeSamplingPointCallSeconds" ->
+      Lookup[modularData, "SamplingPointCallSeconds", {}],
     "PrimeInterpolationSeconds" ->
       Lookup[modularData, "InterpolationSeconds", {}],
     "TotalSamplingSeconds" ->
