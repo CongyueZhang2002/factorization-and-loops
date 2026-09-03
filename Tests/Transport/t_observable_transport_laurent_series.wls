@@ -24,6 +24,13 @@ rows[mat_, method_, orders_, caps_: Automatic] := Block[
   FeynFacet`Private`observableTransportLaurentRows[mat, eps, orders, Range[Length[mat]], caps]];
 FTAssert["the production default is the Series route",
   FeynFacet`Private`$observableTransportLaurentMethod === "Series"];
+(* round 6: the jet route is retired to Private_Backup with its test *)
+FTAssert["selecting the retired Jet route is refused typed, at the row level and at the tensor level",
+  rows[{{1/eps}}, "Jet", {-1, 0}] === <|"Status" -> "RouteRetired", "Route" -> "Laurent jet", "Replacement" -> "Series"|> &&
+  Block[{FeynFacet`Private`$observableTransportLaurentMethod = "Jet"},
+    FeynFacet`Private`observableTransportLaurentMatrices[{{1/eps}}, eps, {-1, 0}]] ===
+    <|"Status" -> "RouteRetired", "Route" -> "Laurent jet", "Replacement" -> "Series"|> &&
+  System`Names["FeynFacet`Private`observableTransportEpsJet*"] === {}];
 
 (* 1. synthetic matrix of t_observable_transport_laurent_jet.wls *)
 r1 = Sqrt[1 - 4 x y]; r2 = Sqrt[x^2 + 4 y];

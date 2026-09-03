@@ -3,81 +3,70 @@
    bottom; a layer may reference only itself and the layers above it.
    FeynFacet.m reads this file; a module not listed here is not loaded.
    Superseded code lives in FeynFacet/Private_Backup/ (never loaded).
+   A manifest entry is a path relative to its layer; the bare file name
+   stays unique across the manifest and FeynFacet.m's feynFacetPrivateFile
+   answers to either spelling.
 
-     Core            exact algebra, modular arithmetic, extension-field
-                     algebra, rational-DAG materialization; since the layer
-                     pass of 2026-09-02 (round 4) also the layer-neutral
-                     helpers that used to sit higher up: the root/radical
-                     algebra of rationalizing charts and the chart re-keying
-                     (MultiquadraticAlgebra.wl, from Geometry), the chart-
-                     record data and chain-rule pullbacks, the regulator/
-                     variable resolution and the radical zero tests
-                     (Core.wl, from Transport), the context-guarded artifact
-                     reader/writer (from EpsForm) and the binary record I/O
-                     (from Reduction)
+     Core            exact algebra, modular arithmetic, extension-field and
+                     radical algebra, rational-DAG materialization, the
+                     context-guarded artifact I/O and binary record I/O,
+                     chart-record data and chain-rule pullbacks, regulator/
+                     variable resolution, the radical zero tests and their
+                     Boolean wrappers (observableTransportZeroQ,
+                     ...ZeroMatrixQ, ...BlockLowerQ, from Transport, round 7)
      Process         process cards, diagram generation, topologies, cuts,
-                     dimensional shifts, collinear factorization; the
-                     pre-IBP result validator (from Reduction) and the
-                     coefficient-kinematics declaration normalizer (from
-                     Reduction) live here since round 4
+                     dimensional shifts, collinear factorization, the pre-IBP
+                     result validator, the coefficient-kinematics normalizer
      Reduction       Kira reduction, coefficient reconstruction and assembly,
                      numerical cross-checks
-     Infrastructure  the generic kernel-pool task broker (no EpsForm
-                     reference since round 4)
-     EpsForm         stage 1: canonical blocks, off-diagonal completion,
-                     regulator factorization, family certificates; the strip
-                     sampler's broker client (FiniteFieldStripBroker.wl, from
-                     Infrastructure) and the Libra loader (LibraEpsForm.wl,
-                     from Transport)
+     Infrastructure  the generic kernel-pool task broker
      Geometry        the catalog of rationalizing charts, chart verification,
-                     the per-family chart registry, the root census, the
-                     record-to-chart coordinate map (from Transport) AND the
-                     in-frame strip solver SolveEpsFormStripInFrame.  It
-                     loads AFTER EpsForm because that solver calls the
-                     EpsForm solvers and inherits Options[SolveEpsFormStrip]
-                     at load time (review finding D1, 2026-09-02) -- a
-                     downward reference under this order.
+                     the algebraic frame builder, the root census, the
+                     per-family chart registry, chart extension, the
+                     record-to-chart coordinate map and the record-chart
+                     resolution (observableTransportRecordChart, from
+                     Transport, round 7).  Loads BEFORE EpsForm since round 7
+                     (2026-09-02): the in-frame strip solver that once shared
+                     this file is in EpsForm/Strip/EpsFormStripInFrame.wl, so
+                     nothing here references EpsForm, at load time or later.
+     EpsForm         stage 1: canonical blocks, the in-frame and finite-field
+                     strip solvers, deferred block equations, the
+                     multiquadratic engine, gauge pull-back, regulator
+                     factorization, row gauges, family records and
+                     certificates, the Libra loader, the strip sampler's
+                     broker client
      Transport       stage 2: MasterTransport.wl (chart assembly of a family,
                      Libra backend for the retired route) and the observable
                      transport; the path-ordered engines, word engines and
                      exception seam are retired (Private_Backup, 2026-09-02 U1)
 
-   TRUE DEPENDENCY GRAPH, measured by Scripts/Diagnostics-style symbol scan
-   on 2026-09-02 (round 4, evidence/round4/G_layers_geometry_scripts.md):
-   every layer references only itself and lower layers EXCEPT the
-   following call-time references, listed by name so that nobody has to
-   rediscover them:
-     EpsForm -> Geometry  TransportRootSetChart (BlockEquationDeferred.wl,
-                          DiagonalBlockEpsForm.wl, FamilyRegulatorFactor.wl),
-                          TransportChartVerify and transportFamilyChartAlias
-                          (FamilyEpsForm.wl): catalog and registry lookups.
-                          The chart CATALOG conceptually sits below EpsForm;
-                          it stays above only because SolveEpsFormStripInFrame
-                          shares its file.  The recorded fix is to move the
-                          in-frame solver and its deferred-bundle helpers
-                          into EpsForm and list Geometry before EpsForm.
-     EpsForm -> Transport observableTransportBlockLowerQ, observableTransport-
-                          RecordChart, observableTransportZeroMatrixQ,
-                          observableTransportZeroQ (FamilyEpsForm.wl ->
-                          ObservableTransport.wl): four small predicates; the
-                          zero tests wrap masterTransportZeroQ (now Core).
-     name-only            Core.wl matches the public retired head TransportWord
-                          as a pattern; Process.wl issues the message
-                          BuildSimplificationContext::invalid (Reduction).
-   No load-time reference crosses upward.
+   DEPENDENCY GRAPH, measured 2026-09-02 (round 7) by the symbol scan of
+   evidence/round4/G_layers_geometry_scripts.md (definition heads per
+   file, identifier references per file, a reference whose only
+   definitions live in a later layer is upward): NO call-time upward
+   reference remains.  What the scan still reports, by name:
+     Core/Base/Core.wl matches the public retired head TransportWord
+       (Transport) as a PATTERN in masterTransportZeroQ's word branch;
+     Process/Cards/Process.wl issues the MESSAGE
+       BuildSimplificationContext::invalid (defined in Reduction);
+     Core/Algebra/RationalMaterialization.wl's `fail` is Module-local
+       (scan false positive, not the Process.wl `fail`).
+   History: the D1 correction of 2026-09-02 07:30 moved Geometry after
+   EpsForm because TransportCharts.wl evaluated
+   Options[SolveEpsFormStripInFrame] = Join[Options[SolveEpsFormStrip], ...]
+   at load time; that statement now lives in EpsFormStripInFrame.wl,
+   listed after EpsFormStrip.wl, and the order is the designed one again.
 
    SUB-FOLDERS (round 5, 2026-09-02, user ruling "substructure in
-   Private").  A manifest entry is a path relative to its layer; the bare
-   file name stays unique across the manifest and FeynFacet.m's
-   feynFacetPrivateFile answers to either spelling.  One line per
-   sub-folder, what belongs there:
+   Private").  One line per sub-folder, what belongs there:
      Core/Base        contexts and installation geometry, kernel counts,
                       result headers, basis and scalar declarations, exact
-                      zero tests, linear integral sums, regulator/variable
-                      resolution and the word collector (Core.wl)
+                      zero tests and their Boolean wrappers, linear integral
+                      sums, regulator/variable resolution and the word
+                      collector (Core.wl)
      Core/Modular     the ONE finite-field implementation: rational
                       reconstruction, CRT, square roots, residue tests,
-                      prime schedules (ModularArithmetic.wl)
+                      prime schedules, lift-and-verify (ModularArithmetic.wl)
      Core/Algebra     extension-field and radical algebra: the neutral
                       multiquadratic grade algebra (MultiquadraticAlgebra.wl),
                       rational-DAG materialization (RationalMaterialization.wl),
@@ -98,14 +87,19 @@
                       coefficient simplification, the coefficient store,
                       reconstruction and assembly (Simplification.wl,
                       CoefficientStore.wl, Reconstruction.wl, Assembly.wl)
+     Geometry         one file, flat: TransportCharts.wl
      EpsForm/Blocks   diagonal blocks and the block decomposition: the
                       canonical-block classifier, the finite-field
                       diagonal-block route, the Libra loader, the deferred
                       block-equation DAG (CanonicalBlocks.wl,
                       DiagonalBlockEpsForm.wl, LibraEpsForm.wl,
                       BlockEquationDeferred.wl)
-     EpsForm/Strip    the off-diagonal strip contract and its obstruction
-                      records (EpsFormStrip.wl, EpsFormStripObstruction.wl)
+     EpsForm/Strip    the off-diagonal strip contract, the in-frame strip
+                      solver SolveEpsFormStripInFrame with its stage log,
+                      broker-parallel tasks, deferred-bundle pullbacks and
+                      deadline bookkeeping (from Geometry, round 7), and the
+                      obstruction records (EpsFormStrip.wl,
+                      EpsFormStripInFrame.wl, EpsFormStripObstruction.wl)
      EpsForm/FiniteField
                       the finite-field strip solver and its lift, broker
                       client and gauge pullback (FiniteFieldEpsForm.wl,
@@ -122,18 +116,18 @@
                       FamilyCertificateModular.wl, FamilyRowGauge.wl,
                       FamilyRowGaugeResume.wl)
      Transport/Assembly
-                      the chart assembly of a family and the Libra loader of
+                      the chart assembly of a family and the Libra backend of
                       the retired route (MasterTransport.wl)
      Transport/Observable
                       the observable transport and its finite-field compiler
                       (ObservableTransport.wl, ObservableTransportFiniteField.wl)
-     Infrastructure, Geometry  one file each, flat *)
+     Infrastructure   one file, flat: TaskBroker.wl *)
 {
   "Core" -> {"Base/Core.wl", "Modular/ModularArithmetic.wl", "Algebra/MultiquadraticAlgebra.wl", "Algebra/RationalMaterialization.wl", "Algebra/Radicals.wl", "Artifacts/Artifacts.wl", "Charts/ChartData.wl"},
   "Process" -> {"Cards/Process.wl", "Diagrams/Topologies.wl", "Cards/CanonicalFamilies.wl", "Diagrams/DimensionalShift.wl", "Diagrams/Collinear.wl"},
   "Reduction" -> {"Kira/Reduction.wl", "Kira/StreamingKira.wl", "AmFlow/MasterIntegralAmFlow.wl", "Coefficients/Simplification.wl", "Coefficients/Assembly.wl", "Coefficients/CoefficientStore.wl", "Coefficients/Reconstruction.wl"},
   "Infrastructure" -> {"TaskBroker.wl"},
-  "EpsForm" -> {"Blocks/CanonicalBlocks.wl", "Strip/EpsFormStrip.wl", "Blocks/BlockEquationDeferred.wl", "FiniteField/FiniteFieldEpsForm.wl", "FiniteField/FiniteFieldStripSolve.wl", "FiniteField/FiniteFieldStripBroker.wl", "Strip/EpsFormStripObstruction.wl", "Family/FamilyRegulatorFactor.wl", "Family/FamilyRowGauge.wl", "Family/FamilyRowGaugeResume.wl", "Family/FamilyCertificateModular.wl", "Multiquadratic/MultiquadraticStripSolve.wl", "Multiquadratic/MultiquadraticStripLetters.wl", "Multiquadratic/MultiquadraticStripScreens.wl", "Multiquadratic/MultiquadraticStripPrepareCompile.wl", "Multiquadratic/MultiquadraticStripSampling.wl", "Multiquadratic/MultiquadraticStripProviders.wl", "Multiquadratic/MultiquadraticStripReconstruction.wl", "Multiquadratic/MultiquadraticStripDriver.wl", "Multiquadratic/MultiquadraticInstallation.wl", "FiniteField/FiniteFieldGaugePullBack.wl", "Blocks/LibraEpsForm.wl", "Family/FamilyEpsForm.wl", "Blocks/DiagonalBlockEpsForm.wl"},
   "Geometry" -> {"TransportCharts.wl"},
+  "EpsForm" -> {"Blocks/CanonicalBlocks.wl", "Strip/EpsFormStrip.wl", "Strip/EpsFormStripInFrame.wl", "Blocks/BlockEquationDeferred.wl", "FiniteField/FiniteFieldEpsForm.wl", "FiniteField/FiniteFieldStripSolve.wl", "FiniteField/FiniteFieldStripBroker.wl", "Strip/EpsFormStripObstruction.wl", "Family/FamilyRegulatorFactor.wl", "Family/FamilyRowGauge.wl", "Family/FamilyRowGaugeResume.wl", "Family/FamilyCertificateModular.wl", "Multiquadratic/MultiquadraticStripSolve.wl", "Multiquadratic/MultiquadraticStripLetters.wl", "Multiquadratic/MultiquadraticStripScreens.wl", "Multiquadratic/MultiquadraticStripPrepareCompile.wl", "Multiquadratic/MultiquadraticStripSampling.wl", "Multiquadratic/MultiquadraticStripProviders.wl", "Multiquadratic/MultiquadraticStripReconstruction.wl", "Multiquadratic/MultiquadraticStripDriver.wl", "Multiquadratic/MultiquadraticInstallation.wl", "FiniteField/FiniteFieldGaugePullBack.wl", "Blocks/LibraEpsForm.wl", "Family/FamilyEpsForm.wl", "Blocks/DiagonalBlockEpsForm.wl"},
   "Transport" -> {"Assembly/MasterTransport.wl", "Observable/ObservableTransport.wl", "Observable/ObservableTransportFiniteField.wl"}
 }

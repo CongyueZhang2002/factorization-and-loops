@@ -78,3 +78,11 @@ Kept deliberately: `masterTransportLoadLibra` and the Libra balance slice of `Di
 ### Round 3 (2026-09-02 afternoon): tests
 
 `t_multiquadratic_installed_family_chain.wls` was moved here at 12:55 as a never-green WIP contract and RESTORED at 13:20: Codex showed it had passed 14/14 four times before and that the red verdict came from the automatic gauge-denominator factor enlarging the planted base denominator; the test now pins `"GaugeDenominatorFactor" -> 1`. Nothing from round 3 stays in the backup.
+
+
+## Round 6 (2026-09-02, Codex conciseness point: the rejected Laurent jet)
+
+| Backup file | Moved from | Evidence | Replacement / stub |
+|---|---|---|---|
+| `ObservableTransportJet.wl` (`observableTransportEpsJetTrim/Add/Mul/Pow/Compile/Leading/Coefficients`, `observableTransportLaurentEntryJet`, `$observableTransportLaurentCanonicalize`, ~95 lines, verbatim) | `Private/Transport/Observable/ObservableTransport.wl` | agent L's measurement, `Design/PrivateOverhaul_2026-09-01_evidence/round4/L_modular_laurent_route.md` section 1 route C: the jet compile of the nested-quotient CF259 entry (42,20) does not terminate in 30 s, a calibration run was killed at 300 s inside it (common-denominator growth with the nesting depth; the 21-minute rejection of 05:05 was the same effect); no production caller (only the `"Jet"` branch of `observableTransportLaurentRows`) | `$observableTransportLaurentMethod === "Jet"` answers `<|"Status" -> "RouteRetired", "Route" -> "Laurent jet", "Replacement" -> "Series"|>` from `observableTransportLaurentRows` and `observableTransportLaurentMatrices`; `BuildObservableTransport` returns that status; production is `"Series"` (agent L, round 4) |
+| `Tests/t_observable_transport_laurent_jet.wls` | `Tests/Transport/` | tests only the moved code | `t_observable_transport_laurent_series.wls` asserts the typed refusal |

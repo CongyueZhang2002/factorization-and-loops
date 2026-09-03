@@ -357,3 +357,42 @@ rule: no CF259 rerun in this round).
 - A rational-field record with a numeric radical constant (no declared
   root) goes through the rational selector, which has no such gate;
   not seen in any record, noted only.
+
+
+# Round 6 (coordinator's message of 16:45): Jet retirement and the CF259 rerun
+
+## Task 1: the Laurent jet route retired (Codex's conciseness point; L's measurement)
+
+- Moved verbatim to `FeynFacet/Private_Backup/ObservableTransportJet.wl`
+  (115 lines with the provenance header): `observableTransportEpsJetTrim`,
+  `...Add`, `...Mul`, `...Pow`, `...Compile`, `...Leading`,
+  `...Coefficients`, `observableTransportLaurentEntryJet`,
+  `$observableTransportLaurentCanonicalize`. Evidence in the header and
+  in `Private_Backup/EVIDENCE.md` (new "Round 6" table): agent L's
+  measurement (`round4/L_modular_laurent_route.md`, section 1, route C --
+  the jet compile of the nested-quotient CF259 entry (42,20) does not
+  terminate in 30 s; a calibration run was killed at 300 s inside it).
+- Live file `FeynFacet/Private/Transport/Observable/ObservableTransport.wl`
+  (its round-4 location): the nine symbols removed from the code and the
+  `ClearAll` list; `$observableTransportLaurentJetRetired = <|"Status" ->
+  "RouteRetired", "Route" -> "Laurent jet", "Replacement" -> "Series"|>`
+  next to the method flag; `observableTransportLaurentRows` and
+  `observableTransportLaurentMatrices` answer it when the method is
+  `"Jet"`; `BuildObservableTransport` returns a status-carrying Laurent
+  result as its own typed status instead of indexing it as a tensor (a
+  guard after the `tLaurent` call); the route comment rewritten (Jet
+  retired, where it lives, what answers). Production stays `"Series"`.
+- `Tests/Transport/t_observable_transport_laurent_jet.wls` moved (plain
+  `mv`, no git state touched) to `FeynFacet/Private_Backup/Tests/`.
+- `Tests/Transport/t_observable_transport_laurent_series.wls`: one
+  assertion added -- `"Jet"` refused typed at the row level and at the
+  tensor level, and no `observableTransportEpsJet*` symbol defined
+  (`System\`Names`: a package symbol shadows `Names` on the test's
+  context path, which the first run of the assertion exposed).
+
+Verification (seat launcher): load check `scratchpad/round4/T/load_check_jet.wls`
+-- package loads, method `Series`, jet symbols absent, the Jet selection
+answers the typed refusal, the Series route unchanged on a 1x1 -- 5 s
+(16:53:30-16:53:35); `t_observable_transport_laurent_series` 20/20 in
+15 s after load (16:54:3x-16:54:50; the first run 19/20 failed only on
+the `Names` shadowing in the new assertion, fixed as above).

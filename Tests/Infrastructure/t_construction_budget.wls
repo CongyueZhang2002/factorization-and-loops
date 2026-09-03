@@ -577,8 +577,8 @@ check["the construction stage is never TimeConstrained",
   ! StringContainsQ[driverSource, "TimeConstrained[canonicaNextEq"] &&
     ! StringContainsQ[driverSource, "TimeConstrained[blockEquation"] &&
     ! StringContainsQ[
-      Import[FileNameJoin[{root, "FeynFacet", "Private", "Geometry",
-        "TransportCharts.wl"}], "Text"],
+      Import[FeynFacet`Private`feynFacetPrivateFile["EpsFormStripInFrame.wl"],
+        "Text"],
       "TimeConstrained[transportChartPullBackStrip"]];
 
 Print["t_construction_budget: ", pass, " OK, ", fail, " FAIL"];

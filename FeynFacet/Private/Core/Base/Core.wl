@@ -650,6 +650,8 @@ ClearAll[
   masterTransportCollect,
   masterTransportSimplifyZeroQ,
   masterTransportZeroQ,
+  observableTransportZeroQ, observableTransportZeroMatrixQ,
+  observableTransportBlockLowerQ,
   masterTransportZeroMatQ,
   masterTransportCheckLevel,
   masterTransportPointZeroQ
@@ -772,6 +774,31 @@ masterTransportZeroQ[e_] := Module[{collected, residual},
 
 masterTransportZeroMatQ[m_] :=
   AllTrue[Flatten[{m}], TrueQ[masterTransportZeroQ[#]] &];
+
+(* Moved verbatim from Transport/Observable/ObservableTransport.wl (round 7,
+   2026-09-02): the Boolean wrappers of masterTransportZeroQ and the
+   block-lower-triangularity predicate; FamilyEpsForm.wl (EpsForm) and the
+   observable transport both use them. *)
+observableTransportZeroQ[x_] :=
+  TrueQ[masterTransportZeroQ[x]];
+
+observableTransportZeroMatrixQ[m_] :=
+  AllTrue[Flatten[{Normal[m]}], observableTransportZeroQ];
+
+observableTransportBlockLowerQ[matrices : {_, _}, ranges_List] := Module[
+  {n = Length[First[matrices]]},
+  If[! AllTrue[ranges, VectorQ[#, IntegerQ] &] ||
+      Sort[Flatten[ranges]] =!= Range[n], Return[False]];
+  AllTrue[
+    Flatten[Table[
+      If[i < j,
+        {matrices[[1, ranges[[i]], ranges[[j]]]],
+         matrices[[2, ranges[[i]], ranges[[j]]]]},
+        {}],
+      {i, Length[ranges]}, {j, Length[ranges]}]],
+    observableTransportZeroMatrixQ
+  ]
+];
 
 
 (* Check level (user decision 2026-08-22: checks stay separate from the

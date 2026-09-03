@@ -94,3 +94,28 @@ header of `FeynFacet/Private/LoadOrder.wl` carries the same list):
   accepted as such.
 - `fail` in Core/RationalMaterialization.wl is a `Module`-local symbol,
   not the Process.wl `fail` (scan false positive).
+
+
+## Round 7 (2026-09-02): the follow-up is done, the geometry layer is exactly the declared data
+
+`SolveEpsFormStripInFrame` and the helpers only it used left
+`Geometry/TransportCharts.wl` verbatim for `EpsForm/Strip/EpsFormStripInFrame.wl`
+(1,712 lines: the stage log and its globals, the broker-parallel
+Together / projection-decompose / Jacobian-pullback tasks, the success
+timings, `transportChartPullBackStrip`, the deferred-bundle pullbacks,
+`transportChartCanonicalizeFrameImages`, the deadline bookkeeping, the
+option list with its `Options[SolveEpsFormStrip]` join, the timings
+separation, the solver, the retired Maple stub).  What stays in Geometry
+is the declared data of this note and its verification: the catalog, the
+`TransportChartVerify` licence, `BuildAlgebraicTransportFrame`, the root
+census, `TransportRootSetChart`, the per-family registry and aliases,
+the chart extension, `masterTransportComposeTwoVariableRecord`,
+`masterTransportRecordCoordinateMap`, and -- down from Transport --
+`observableTransportRecordChart` with `observableTransportSourceFrameQ`
+(a record's chart resolved against the catalog).  The three Boolean zero
+predicates `FamilyEpsForm` used went to `Core/Base/Core.wl` next to
+`masterTransportZeroQ`.  Geometry is listed before EpsForm again; the
+symbol scan after the move finds no call-time upward reference in any
+layer (two name-only references remain, listed in the manifest header).
+Proof, load check and test verdicts: evidence `round4/G_layers_geometry_scripts.md`,
+section 7.
