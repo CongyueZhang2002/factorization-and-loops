@@ -5,11 +5,20 @@ Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 u = Symbol["Global`physicalResultU"];
+eps = Symbol["Global`physicalResultEps"];
 source = <|"Dimension" -> 2,
   "Letters" -> {{"GPLPole", -1}},
   "Residues" -> {ConstantArray[0, {2, 2}]}|>;
 layer = <|"Rows" -> {3, 4},
-  "Diagonal" -> {{{"GPLPole", -1}, ConstantArray[0, {2, 2}]}}|>;
+  "PathVariable" -> u, "Regulator" -> eps,
+  "BasePoint" -> 0, "Endpoint" -> 1,
+  "Diagonal" -> {{{"GPLPole", -2}, ConstantArray[0, {2, 2}]}},
+  "Incoming" -> {
+    <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 2/(u + 1),
+      "Letter" -> {"GPLPole", -1}|>,
+    <|"Row" -> 2, "Column" -> 2, "Coefficient" -> 2/(u + 1),
+      "Letter" -> {"GPLPole", -1}|>
+  }|>;
 boundary = <|
   "Status" -> "FormalTransportBoundaryVectorBuilt",
   "BoundaryDataStatus" -> "FormalNotEvaluated", "Dimension" -> 4,
@@ -31,17 +40,18 @@ boundary = <|
 
 attached = AttachTransportBoundaryToRationalLayer[
   source, layer, boundary, {1, 2}, {3, 4}];
-transport = <|"Status" -> "RationalEpsilonLayerTransportAccepted",
-  "Window" -> {0, 0}, "KResidues" -> <||>,
-  "GaugeAtEndpoint" -> <|0 -> IdentityMatrix[2]|>,
-  "PathVariable" -> u, "BasePoint" -> 0, "Endpoint" -> 1,
-  "Curve" -> None,
-  "Certificate" -> <|"Probabilistic" -> True|>|>;
+demand = <|"Pairs" -> {{0, 1}, {0, 2}}|>;
+transport = BuildRationalEpsilonLayerTransport[
+  attached["Source"], attached["Layer"], demand,
+  "WordRepresentation" -> "LazyOperator", "PrimeCount" -> 3];
 operator = BuildRationalEpsilonLayerOperator[
   attached["Source"], attached["Layer"], transport];
 
-FTAssert["a full physical boundary is split into one shared period basis",
+FTAssert["a full physical boundary is split into one shared period basis and bound to a genuine accepted lazy transport",
   attached["Status"] === "TransportBoundaryAttachedToRationalLayer" &&
+  transport["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+  transport["WordRepresentation"] === "LazyOperator" &&
+  transport["GaugeAtEndpoint"][0] === IdentityMatrix[2] &&
   AcceptedRationalEpsilonLayerOperatorQ[operator] &&
   operator["BoundaryLayout"] === "Shared" &&
   operator["Dimensions", "TotalBoundary"] === 4];
@@ -70,16 +80,30 @@ FTAssert["an epsilon-dependent physical output gauge is applied after F=G+H sour
   gauged["Stage3", "ActiveBoundaryCoordinates"] ===
     {{"b", 0}, {"d", 0}}];
 
-ellipticSource = Join[attached["Source"], <|
-  "Letters" -> {{"E4Omega0"}}, "Residues" -> {{{1, 0}, {0, 0}}}|>];
-ellipticTransport = Join[transport, <|"Curve" -> u^4 + u + 1|>];
+curve = u^4 - u^3 + 5 u^2 - 2 u + 1;
+ellipticLayer = Join[attached["Layer"], <|
+  "Curve" -> curve,
+  "CurvePointValues" -> <||>,
+  "Incoming" -> {
+    <|"Row" -> 1, "Column" -> 1, "Coefficient" -> eps,
+      "Letter" -> {"E4Omega0"}|>,
+    <|"Row" -> 2, "Column" -> 2, "Coefficient" -> eps,
+      "Letter" -> {"E4Omega0"}|>
+  }|>];
+ellipticDemand = <|"Pairs" -> {{1, 1}}|>;
+ellipticTransport = BuildRationalEpsilonLayerTransport[
+  attached["Source"], ellipticLayer, ellipticDemand,
+  "WordRepresentation" -> "LazyOperator"];
 ellipticOperator = BuildRationalEpsilonLayerOperator[
-  ellipticSource, attached["Layer"], ellipticTransport];
+  attached["Source"], ellipticLayer, ellipticTransport];
 ellipticCoefficient = BuildPhysicalTransportCoefficient[
   ellipticOperator, boundary, {1, 1},
   <|"Variable" -> u, "BasePoint" -> 0, "Endpoint" -> 1,
-    "Curve" -> u^4 + u + 1|>];
-FTAssert["mixed words remain explicit eMPL iterated integrals and only active periods reach Stage 3",
+    "Curve" -> curve|>];
+FTAssert["a genuine mixed transport keeps its surviving eMPL word explicit and sends only active periods to Stage 3",
+  ellipticTransport["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+  ellipticTransport["Certificate", "IncomingRoute"] === "IncomingDlogDirect" &&
+  AcceptedRationalEpsilonLayerOperatorQ[ellipticOperator] &&
   ellipticCoefficient["FunctionSpace"] === "GPL+Elliptic" &&
   ! FreeQ[ellipticCoefficient["Expression"],
     TransportIteratedIntegral[{{"E4Omega0"}}, ___]] &&
@@ -89,11 +113,11 @@ FTAssert["mixed words remain explicit eMPL iterated integrals and only active pe
 FTAssert["paper expansion caps fail closed",
   BuildPhysicalTransportCoefficient[ellipticOperator, boundary,
     {1, 1}, <|"Variable" -> u, "BasePoint" -> 0,
-      "Endpoint" -> 1, "Curve" -> u^4 + u + 1|>,
+      "Endpoint" -> 1, "Curve" -> curve|>,
     "MaximumExpandedTerms" -> 0]["Status"] ===
       "PhysicalExpandedTermLimitInvalid"];
 
-FTAssert["a different path or same-length but different boundary basis cannot be substituted",
+FTAssert["a different path, same-length different boundary basis, and an out-of-demand coefficient are refused",
   BuildPhysicalTransportCoefficient[operator, boundary,
     {0, 1}, <|"Variable" -> u, "BasePoint" -> 0,
       "Endpoint" -> 2|>]["Status"] ===
@@ -103,6 +127,10 @@ FTAssert["a different path or same-length but different boundary basis cannot be
       Reverse[boundary["BoundaryCoordinates"]]|>],
     {0, 1}, <|"Variable" -> u, "BasePoint" -> 0,
       "Endpoint" -> 1|>]["Status"] ===
-      "PhysicalBoundaryNotBoundToOperator"];
+      "PhysicalBoundaryNotBoundToOperator" &&
+  BuildPhysicalTransportCoefficient[operator, boundary,
+    {1, 1}, <|"Variable" -> u, "BasePoint" -> 0,
+      "Endpoint" -> 1|>]["Status"] ===
+      "RationalLayerDemandOutsideAcceptedPairs"];
 
 FTSummary[];
