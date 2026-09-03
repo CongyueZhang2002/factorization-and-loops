@@ -95,6 +95,28 @@ Do[If[Lookup[kRef, Key[key], None] =!= Lookup[kRoute, Key[key], None],
   {key, Union[Keys[kRef], Keys[kRoute]]}];
 FTAssert["the reconstructed K residues are SameQ with the characteristic-zero reference on every (order, factor, power)",
   Sort[Keys[kRef]] === Sort[Keys[kRoute]] && And @@ Table[kRef[key] === kRoute[key], {key, Keys[kRef]}]];
+(* A symbolic endpoint needs the rational gauge H(u), not a numerical
+   endpoint sample.  It is reconstructed coefficientwise from the same
+   modular recurrence and checked at a held-out finite-field point. *)
+pEnd = Symbol["Global`layerEndpoint"];
+symbolicLayer = Join[layer, <|"Endpoint" -> pEnd|>];
+symbolic = BuildRationalEpsilonLayerTransport[source, symbolicLayer, demand,
+  "PrimeCount" -> 3, "WordRepresentation" -> "LazyOperator"];
+symbolicOperator = BuildRationalEpsilonLayerOperator[source, symbolicLayer,
+  symbolic];
+FTAssert["a symbolic path endpoint reconstructs the complete rational gauge and feeds the lazy operator",
+  symbolic["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+    symbolic["GaugeStatus"] === "GaugeRationalFunctionReconstructed" &&
+    symbolic["Certificate"]["GaugeRepresentation"] === "RationalFunction" &&
+    symbolic["Certificate"]["GaugeMismatches"] === 0 &&
+    And @@ Flatten@Table[
+      Together[symbolic["GaugeAtEndpoint"][order][[i, j]] -
+        (hRef[order][[i, j]] /. u -> pEnd)] === 0,
+      {order, Keys[hRef]}, {i, 2}, {j, 2}] &&
+    AcceptedRationalEpsilonLayerTransportQ[symbolic] &&
+    AcceptedRationalEpsilonLayerTransportQ[symbolic, source,
+      symbolicLayer, demand] &&
+    AcceptedRationalEpsilonLayerOperatorQ[symbolicOperator]];
 (* the H gauge: the modular images must agree with the exact reference at the base and at a probe point *)
 hRefProbe = Map[Together, hPrev, {2}];
 With[{p = First[Keys[result["GaugeImages"]]]}, With[{img = result["GaugeImages"][p][0]},
