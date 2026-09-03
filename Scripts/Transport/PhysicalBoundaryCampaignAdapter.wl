@@ -329,8 +329,12 @@ transportObservableWordMap[transport_Association, firstWord_List,
   ]
 ];
 
+(* Round 9b (T, R3's F2): a Basis sub-realization's declaration (parent
+   period, dimension, echelon basis, siblings) travels on every ledger entry
+   and period coordinate; declarationByMode is set per call. *)
 stage3Entry[family_, endpointSpec_, mode_, status_, coordinates_List, outputs_List] := <|
   "PeriodID" -> Lookup[mode, "PeriodID", Missing["Absent"]],
+  "DegenerateEigenspace" -> Lookup[mode, "DegenerateEigenspaceDeclaration", None],
   "Family" -> family,
   "Limit" -> <|
     "Variable" -> Lookup[endpointSpec, "Variable", Missing["Absent"]],
@@ -521,6 +525,11 @@ BuildEndpointAutomatonBoundaryAdapter[
       "LogBranchMustBeSpecified" ->
         !exactZeroQ[localCoordinateLeadingCoefficient - 1]|>]
   ];
+  (* Round 9b (T, R3's F2): every realized mode carries its degenerate-
+     eigenspace declaration (None for an ordinary mode) *)
+  realizedModes = Map[Join[#, <|"DegenerateEigenspaceDeclaration" ->
+      FeynFacet`BoundaryDegenerateEigenspaceDeclaration[#, realizedModes]|>] &,
+    realizedModes];
   modeVectors = Association@Map[
     Function[currentMode,
       With[{currentVector = modeVector[currentMode, dimension]},
@@ -609,6 +618,9 @@ BuildEndpointAutomatonBoundaryAdapter[
       Table[<|"PeriodID" -> id, "RealizationKey" -> realizationKey,
         "EpsilonOrder" -> q,
         "Coefficient" -> FeynFacet`BoundaryPeriodCoefficient[realizationKey, q],
+        "DegenerateEigenspace" -> Lookup[SelectFirst[realizedModes,
+            Lookup[#, "PeriodID"] === id &, <||>],
+          "DegenerateEigenspaceDeclaration", None],
         "Status" -> exactAssociationLookup[statusByID, id]|>,
         {q, Max[First[periodWindow],
           exactAssociationLookup[valuationByID, id]], Last[periodWindow]}]],
@@ -1172,6 +1184,12 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
     "EndpointPath" -> firstGrade["EndpointPath"],
     "PeriodCoordinates" -> allCoordinates,
     "Stage3NeedsLedger" -> globalLedger,
+    (* Round 9b (T, R3's F2): the split eigenspaces of the mode map, each
+       ONE period; the sub-realization coordinates above carry the
+       declaration individually *)
+    "DegenerateEigenspaces" -> Lookup[modeMap, "DegenerateEigenspaces", {}],
+    "PeriodCountConvention" ->
+      "a degenerate eigenspace counts once; its sub-realizations are tied by one relation along the stratum",
     "GradesByWeight" -> AssociationThread[
       Lookup[grades, "CurrentWeight"], grades],
     "CurrentRowSpaceDimensions" -> rowSpaces["DimensionsByWeight"],

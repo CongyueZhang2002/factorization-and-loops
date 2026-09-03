@@ -3435,13 +3435,20 @@ observableTransportReconstructedResidueCertificate[residueRecord_Association] :=
     "Source" -> "CertificateLetterModularReconstruction",
     "CoefficientField" -> "Rational",
     "ConstantResidues" -> True, "ResiduesVerifiedAtAllPrimes" -> True,
-    "IdentityExactlyCertifiedOnLetters" -> True,
+    (* Round 9b (T, R3's F1): what the reconstruction proves itself is
+       span membership at random (point, eps) samples, eps-linearity at
+       three eps values per prime and the identity at a fresh prime; the
+       exact identity and the constancy of the residues rest on the family
+       certificate that gates the route *)
+    "IdentityInheritedFromFamilyCertificate" -> True,
     "LetterCount" -> Length[Lookup[residueRecord, "Letters", {}]],
     "ResidueCount" -> Length[Lookup[residueRecord, "Residues", {}]]|>,
    KeyTake[Lookup[residueRecord, "ReconstructionCertificate", <||>],
     {"Method", "Primes", "PointsPerPrime", "DesignRank",
-     "EpsilonLinearityChecked", "FreshValidationPrime",
-     "FreshValidationPoints", "Comparisons", "Mismatches", "ModulusBits",
+     "EpsilonLinearityChecked", "EpsilonLinearityPointsPerPrime",
+     "EpsilonValuesPerLinearityPoint", "EpsilonSamplesByPrime",
+     "FreshValidationPrime", "FreshValidationPoints",
+     "ValidationEpsilonValues", "Comparisons", "Mismatches", "ModulusBits",
      "ReconstructedHeightBitsMaximum", "Seed", "Seconds"}]];
 observableTransportReconstructedResidueCertificate[___] := $Failed;
 
@@ -3459,8 +3466,13 @@ observableTransportReconstructedResidueCertificateQ[certificate_] :=
   TrueQ[Lookup[certificate, "Exact", True] === False] &&
   TrueQ[Lookup[certificate, "ConstantResidues", False]] &&
   TrueQ[Lookup[certificate, "ResiduesVerifiedAtAllPrimes", False]] &&
-  TrueQ[Lookup[certificate, "IdentityExactlyCertifiedOnLetters", False]] &&
+  TrueQ[Lookup[certificate, "IdentityInheritedFromFamilyCertificate", False]] &&
   TrueQ[Lookup[certificate, "EpsilonLinearityChecked", False]] &&
+  IntegerQ[Lookup[certificate, "EpsilonLinearityPointsPerPrime", Missing[]]] &&
+  Lookup[certificate, "EpsilonLinearityPointsPerPrime", 0] >= 1 &&
+  IntegerQ[Lookup[certificate, "EpsilonValuesPerLinearityPoint", Missing[]]] &&
+  Lookup[certificate, "EpsilonValuesPerLinearityPoint", 0] >= 3 &&
+  MatchQ[Lookup[certificate, "ValidationEpsilonValues", None], {__Integer}] &&
   IntegerQ[Lookup[certificate, "LetterCount", Missing[]]] &&
   Lookup[certificate, "LetterCount", 0] > 0 &&
   Lookup[certificate, "LetterCount", 0] ===

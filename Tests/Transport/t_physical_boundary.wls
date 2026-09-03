@@ -446,10 +446,40 @@ FTAssert["a genuinely multi-dimensional admissible eigenspace is refused by defa
     degenerateBasis["DegenerateEigenspaces"] ===
       {<|"ParentPeriodID" -> "deg", "EigenspaceDimension" -> 2|>} &&
     degenerateBasis["Stage3NeedsLedger"][[All, "PeriodID"]] === {{"deg", 1}, {"deg", 2}} &&
-    degenerateBasis["Stage3NeedsLedger"][[2, "DegenerateEigenspace"]] ===
+    KeyTake[degenerateBasis["Stage3NeedsLedger"][[2, "DegenerateEigenspace"]],
+        {"ParentPeriodID", "EigenspaceDirection", "EigenspaceDimension"}] ===
       <|"ParentPeriodID" -> "deg", "EigenspaceDirection" -> 2, "EigenspaceDimension" -> 2|> &&
     BuildTransportBoundaryVector[degenerateBasis, <||>, {0, 0},
       "MissingPeriodAction" -> "Formal"]["Status"] =!= "BoundaryModeMapInputInvalid"];
+
+(* Round 9b: R3's F4 -- an invalid policy value is refused typed, never
+   read as "no policy" *)
+invalidPolicies = BuildBoundaryModeMap[frobenius, IdentityMatrix[2], modeSpec,
+    {degenerateRealization["deg", 0, <|"DegenerateEigenspacePolicy" -> #|>]}] & /@
+  {"basis", "Bases", True};
+FTAssert["an invalid DegenerateEigenspacePolicy value is refused typed with the value named",
+  AllTrue[invalidPolicies, #["Status"] === "BoundaryModeMapIncomplete" &&
+    #["Modes"][[1, "Status"]] === "DegenerateEigenspacePolicyInvalid" &] &&
+    invalidPolicies[[All, "Modes", 1, "Policy"]] === {"basis", "Bases", True} &&
+    invalidPolicies[[1, "Stage3NeedsLedger", 1, "Problem"]] === "DegenerateEigenspacePolicyInvalid"];
+(* Round 9b: R3's F2 -- the split is declared on the mode records, on every
+   ledger entry and on every boundary coordinate of the transport boundary *)
+degenerateVector = BuildTransportBoundaryVector[degenerateBasis, <||>, {0, 0},
+  "MissingPeriodAction" -> "Formal"];
+expectedDeclaration[k_] := <|"ParentPeriodID" -> "deg", "EigenspaceDirection" -> k,
+  "EigenspaceDimension" -> 2, "CanonicalRows" -> {1, 2},
+  "SubRealizationPeriodIDs" -> {{"deg", 1}, {"deg", 2}},
+  "EigenspaceBasis" -> {{1, 0}, {0, 1}}, "PeriodCount" -> 1,
+  "Meaning" -> BoundaryDegenerateEigenspaceDeclaration[degenerateBasis["Modes"][[1]], degenerateBasis["Modes"]]["Meaning"]|>;
+FTAssert["a Basis split is declared with its parent, dimension, siblings and echelon basis on the mode records, the mode-map ledger, the boundary-vector ledger and every boundary coordinate",
+  degenerateBasis["Modes"][[All, "EigenspaceBasis"]] === {{{1, 0}, {0, 1}}, {{1, 0}, {0, 1}}} &&
+    degenerateBasis["Stage3NeedsLedger"][[All, "DegenerateEigenspace"]] === {expectedDeclaration[1], expectedDeclaration[2]} &&
+    degenerateVector["Status"] === "FormalTransportBoundaryVectorBuilt" &&
+    degenerateVector["DegenerateEigenspaces"] === {<|"ParentPeriodID" -> "deg", "EigenspaceDimension" -> 2|>} &&
+    Length[degenerateVector["BoundaryCoordinates"]] === 2 &&
+    degenerateVector["BoundaryCoordinates"][[All, "DegenerateEigenspace"]] === {expectedDeclaration[1], expectedDeclaration[2]} &&
+    degenerateVector["Stage3NeedsLedger"][[All, "DegenerateEigenspace"]] === {expectedDeclaration[1], expectedDeclaration[2]} &&
+    BoundaryDegenerateEigenspaceDeclaration[modeMap["Modes"][[1]], modeMap["Modes"]] === None];
 
 FTAssert["the production boundary module contains no family-specific token",
   With[{text = Import[FileNameJoin[{root, "FeynFacet", "Private",

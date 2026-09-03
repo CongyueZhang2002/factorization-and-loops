@@ -59,8 +59,14 @@ the benchmark table and the CF259 state. This note is the short version.
   (`DLogResiduesRequired`, first-kernel dlog residues; with T). Physical
   boundary modes 39/40 and endpoint transports 39/39 of the 40
   nullity-period families in the `*_2026-09-03_round9/` siblings
-  (CF211 degenerate eigenspace open; the period coefficients are formal
-  until Stage 3 supplies values). Codex's overnight campaign record:
+  (CF211 and CF300's degenerate eigenspaces handled by the typed
+  `DegenerateEigenspacePolicy` with the split declared on every ledger
+  entry; the period coefficients are formal until Stage 3 supplies
+  values). CF265 and CF305 accepted through the certified finite-field
+  reconstruction of their constant residues (eps-linearity fitted across
+  three eps values per prime). CF303: stage-A physical coefficients in
+  its frame (`.../CF303/physical_coefficients_2026-09-03_T/`), stage B
+  typed. Reviews R3 in `round9/`. Codex's overnight campaign record:
   `Goals/Codex/2026-09-03/01_round8_and_physical_transport.md`.
 - CF259: transported with the valuation certificate bound, accepted by the
   current predicate: `.../CF259/observable_transport_2026-09-02_certified/`

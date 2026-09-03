@@ -169,4 +169,29 @@ FTAssert["list-valued physical realization IDs remain single coordinate keys",
 FTAssert["the real-family construction remains bounded",
   First[buildTiming] < 120];
 
+(* Round 9b (T, R3's F2): on the installed CF300 map the period-12 split is
+   declared on every coordinate and ledger entry of its sub-realizations and
+   at the record's top level; ordinary modes carry None *)
+{transport300, modeMap300} = loadFamily["CF300"];
+binding300 = FeynFacetCampaign`PhysicalBoundary`BuildGradedPhysicalEndpointTransport[
+  transport300, modeMap300, <||>];
+splitCoordinates = Select[binding300["PeriodCoordinates"],
+  MatchQ[Lookup[#, "PeriodID"], {"CF300", 12, _}] &];
+splitLedger = Select[binding300["Stage3NeedsLedger"],
+  MatchQ[Lookup[#, "PeriodID"], {"CF300", 12, _}] &];
+ordinaryCoordinates = Select[binding300["PeriodCoordinates"],
+  ! MatchQ[Lookup[#, "PeriodID"], {"CF300", 12, _}] &];
+FTAssert["a Basis split of the installed CF300 map is declared on the endpoint record, its coordinates and its ledger entries",
+  binding300["Status"] === "GradedPhysicalEndpointTransportBuilt" &&
+    binding300["DegenerateEigenspaces"] ===
+      {<|"ParentPeriodID" -> {"CF300", 12}, "EigenspaceDimension" -> 2|>} &&
+    splitCoordinates =!= {} && splitLedger =!= {} &&
+    AllTrue[Join[splitCoordinates, splitLedger], With[{d = Lookup[#, "DegenerateEigenspace", None]},
+      AssociationQ[d] && d["ParentPeriodID"] === {"CF300", 12} &&
+        d["EigenspaceDimension"] === 2 && d["PeriodCount"] === 1 &&
+        d["SubRealizationPeriodIDs"] === {{"CF300", 12, 1}, {"CF300", 12, 2}} &&
+        MatrixQ[d["EigenspaceBasis"]] && Dimensions[d["EigenspaceBasis"]] === {2, 4} &&
+        d["EigenspaceDirection"] === Last[Lookup[#, "PeriodID"]]] &] &&
+    AllTrue[ordinaryCoordinates, Lookup[#, "DegenerateEigenspace", Missing[]] === None &]];
+
 FTReport[];

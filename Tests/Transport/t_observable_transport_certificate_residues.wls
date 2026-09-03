@@ -30,7 +30,23 @@ FTAssert["the constant residues are reconstructed exactly on the certificate let
     DuplicateFreeQ[result["Certificate"]["Primes"]] &&
     ! MemberQ[result["Certificate"]["Primes"],
       result["Certificate"]["FreshValidationPrime"]] &&
-    result["Certificate"]["DesignRank"] === 4];
+    result["Certificate"]["DesignRank"] === 4 &&
+    result["Certificate"]["EpsilonLinearityPointsPerPrime"] === 3 &&
+    result["Certificate"]["EpsilonValuesPerLinearityPoint"] === 3 &&
+    AllTrue[Values[result["Certificate"]["EpsilonSamplesByPrime"]],
+      Length[DeleteDuplicates[#]] === 3 && FreeQ[#, 0 | 1] &] &&
+    Length[result["Certificate"]["ValidationEpsilonValues"]] === 3 &&
+    FreeQ[result["Certificate"]["ValidationEpsilonValues"], 0 | 1]];
+
+(* R3's F1 fixtures: both agree with eps at eps = 1 and eps = 2 exactly *)
+nonlinearFactor[factor_] := Table[Together[factor Sum[residues[[i]] D[letters[[i]], v]/letters[[i]],
+    {i, 4}]], {v, {y, s}}];
+nonlinearA = reconstruct[nonlinearFactor[(2 + eps^2)/3], {y, s}, eps, letters, 2];
+nonlinearB = reconstruct[nonlinearFactor[eps + 5 eps (eps - 1) (eps - 2)], {y, s}, eps, letters, 2];
+FTAssert["R3's two eps-nonlinear connections, which agree with eps at eps = 1 and 2, are refused as non-linear",
+  nonlinearA["Status"] === "EpsilonLinearityFailed" &&
+    nonlinearB["Status"] === "EpsilonLinearityFailed" &&
+    IntegerQ[nonlinearA["InconsistentRows"]] && nonlinearA["InconsistentRows"] > 0];
 
 dependent = reconstruct[connections, {y, s}, eps, Append[letters, 2 y], 2];
 outside = reconstruct[{connections[[1]] + eps {{0, 1/(y - 2)}, {0, 0}},
@@ -64,6 +80,9 @@ FTAssert["the recorded reconstruction certificate is accepted by the predicate's
     ! certificateQ[Join[certificate, <|"DesignRank" -> 3|>]] &&
     ! certificateQ[Join[certificate, <|"Primes" -> {First[certificate["Primes"]]}|>]] &&
     ! certificateQ[Join[certificate, <|"EpsilonLinearityChecked" -> False|>]] &&
+    ! certificateQ[KeyDrop[certificate, "IdentityInheritedFromFamilyCertificate"]] &&
+    ! certificateQ[Join[certificate, <|"EpsilonValuesPerLinearityPoint" -> 2|>]] &&
+    ! certificateQ[KeyDrop[certificate, "ValidationEpsilonValues"]] &&
     ! certificateQ[Join[certificate, <|"CoefficientField" -> "Multiquadratic"|>]] &&
     ! certificateQ[Join[certificate, <|"Status" -> "CertifiedDLogResidues"|>]] &&
     ! certificateQ[KeyDrop[certificate, "FreshValidationPoints"]]];

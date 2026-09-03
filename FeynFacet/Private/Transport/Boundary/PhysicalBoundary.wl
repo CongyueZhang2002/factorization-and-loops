@@ -13,7 +13,8 @@
 
 Clear[BuildEndpointFrobenius, BuildEndpointLeveltModeConnection,
   BuildBoundaryModeMap,
-  BuildTransportBoundaryVector, BoundaryPeriodCoefficient];
+  BuildTransportBoundaryVector, BoundaryPeriodCoefficient,
+  BoundaryDegenerateEigenspaceDeclaration];
 ClearAll[boundaryExactZeroQ, boundaryCanonicalMatrix,
   boundaryFiniteQ, boundaryParticularSolution, boundaryLocalOrder,
   boundaryLeadingCoefficient, boundaryModeExtension,
@@ -553,6 +554,14 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       Return[<|"Status" -> "BoundaryModePowersInvalid",
         "PeriodID" -> periodID|>]
     ];
+    (* Round 9b (T, R3's F4): the policy is validated up front; a typo can
+       no longer silently disable the split *)
+    policy = Lookup[realization, "DegenerateEigenspacePolicy", "Refuse"];
+    If[! MemberQ[{"Refuse", "Basis"}, policy],
+      Return[<|"Status" -> "DegenerateEigenspacePolicyInvalid",
+        "PeriodID" -> periodID, "Policy" -> policy,
+        "AllowedPolicies" -> {"Refuse", "Basis"}|>]
+    ];
     expectedOrder = localPower integerValuation;
     If[! IntegerQ[expectedOrder],
       Return[<|"Status" -> "PhysicalValuationNotIntegral",
@@ -580,7 +589,6 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
        sub-realization {.. periodID .., k}: the physical solution has one
        coefficient per direction at this point, and the Stage-3 ledger says
        so (DegenerateEigenspace).  Nothing selects a direction silently. *)
-    policy = Lookup[realization, "DegenerateEigenspacePolicy", "Refuse"];
     If[extension["Status"] === "AmbiguousPhysicalEigenspace" &&
         policy === "Basis" &&
         ListQ[Lookup[extension, "AdmissibleBasis", None]],
@@ -588,7 +596,9 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       subID[k_] := If[ListQ[periodID], Append[periodID, k], {periodID, k}];
       Return[Table[buildMode[realization, <|"Extension" -> basis[[k]],
           "PeriodID" -> subID[k], "Direction" -> k,
-          "Dimension" -> Length[basis], "ParentPeriodID" -> periodID|>],
+          "Dimension" -> Length[basis], "ParentPeriodID" -> periodID,
+          "EigenspaceBasis" -> Map[Together /@ #["Vector"][[canonicalRows]] &,
+            basis]|>],
         {k, Length[basis]}]]
     ];
     If[extension["Status"] =!= "Exact",
@@ -693,7 +703,8 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       If[given === None, record,
         Join[record, <|"ParentPeriodID" -> given["ParentPeriodID"],
           "EigenspaceDirection" -> given["Direction"],
-          "EigenspaceDimension" -> given["Dimension"]|>]]]
+          "EigenspaceDimension" -> given["Dimension"],
+          "EigenspaceBasis" -> given["EigenspaceBasis"]|>]]]
   ];
 
   modes = Flatten[buildMode /@ realizations];
@@ -712,9 +723,8 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       "AffectedBoundaryCoordinates" -> {},
       "DemandedOutputs" -> Lookup[mode, "DemandedOutputs", {}],
       "Status" -> "Unevaluated",
-      "DegenerateEigenspace" -> If[KeyExistsQ[mode, "ParentPeriodID"],
-        KeyTake[mode, {"ParentPeriodID", "EigenspaceDirection",
-          "EigenspaceDimension"}], None],
+      "DegenerateEigenspace" ->
+        BoundaryDegenerateEigenspaceDeclaration[mode, modes],
       "Problem" -> If[Lookup[mode, "Status", None] ===
         "BoundaryModeMatched", "PeriodDataRequired",
         Lookup[mode, "Status", "BoundaryModeIncomplete"]]|>], modes];
@@ -745,6 +755,29 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
 
 BuildBoundaryModeMap[___] :=
   <|"Status" -> "BoundaryModeMapInputInvalid"|>;
+
+(* Round 9b (T, R3's F2): the machine-readable declaration that a mode
+   record is one direction of a degenerate admissible eigenspace realized
+   under the Basis policy.  It travels with every needs-ledger entry and
+   every boundary coordinate that mentions the sub-realization, so that a
+   Stage-3 consumer sees ONE undetermined period (the parent) whose
+   sub-realization coefficients are tied by a relation along the stratum,
+   never independent periods.  None for an ordinary mode. *)
+BoundaryDegenerateEigenspaceDeclaration[mode_Association, modes_List] :=
+  If[! KeyExistsQ[mode, "ParentPeriodID"], None,
+    With[{siblings = Select[modes,
+        Lookup[#, "ParentPeriodID", None] === mode["ParentPeriodID"] &]},
+      <|"ParentPeriodID" -> mode["ParentPeriodID"],
+        "EigenspaceDirection" -> mode["EigenspaceDirection"],
+        "EigenspaceDimension" -> mode["EigenspaceDimension"],
+        "CanonicalRows" -> Lookup[mode, "CanonicalRows", Missing[]],
+        "SubRealizationPeriodIDs" -> Lookup[siblings, "PeriodID"],
+        "EigenspaceBasis" -> Lookup[mode, "EigenspaceBasis",
+          Table[Lookup[sibling, "CanonicalMode"][[
+            Lookup[sibling, "CanonicalRows"]]], {sibling, siblings}]],
+        "PeriodCount" -> 1,
+        "Meaning" -> "one undetermined direction of the parent period, realized as this eigenspace basis; the sub-realizations' coefficients are tied by one relation along the stratum (a Stage-3 datum); count the parent once in any period tally"|>]];
+BoundaryDegenerateEigenspaceDeclaration[___] := None;
 
 boundaryEpsilonValuation[vector_List, regulator_Symbol] := Module[
   {orders = DeleteCases[
@@ -816,6 +849,8 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
         "GeneralizedLevel" -> mode["GeneralizedLevel"]|>,
       "AffectedBoundaryCoordinates" -> affected,
       "DemandedOutputs" -> demand,
+      "DegenerateEigenspace" ->
+        BoundaryDegenerateEigenspaceDeclaration[mode, modes],
       "Status" -> status|>, data]];
   markMissing[mode_, orders_] :=
     If[mode["PeriodClass"] === "GPL",
@@ -836,6 +871,8 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
           "PeriodID" -> mode["PeriodID"],
           "PeriodClass" -> mode["PeriodClass"],
           "EpsilonOrder" -> order,
+          "DegenerateEigenspace" ->
+            BoundaryDegenerateEigenspaceDeclaration[mode, modes],
           "Value" -> value|>];
         AppendTo[modeValues, <|"Mode" -> mode["CanonicalMode"],
           "EpsilonOrder" -> order|>];
@@ -1111,6 +1148,7 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
     "FunctionSpace" -> functionSpace,
     "BoundaryDataStatus" -> dataStatus,
     "BoundaryCoordinates" -> coordinates,
+    "DegenerateEigenspaces" -> Lookup[modeMap, "DegenerateEigenspaces", {}],
     "BoundaryConstantVector" -> constants,
     "BoundarySelectors" -> selectors,
     "BoundaryVector" -> boundaryVectors,
