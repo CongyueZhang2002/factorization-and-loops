@@ -4,7 +4,16 @@ Read `Design/PrivateOverhaul_2026-09-01.md` first: it is the living plan
 with done / running / not-done / decisions-for-the-user, the bug list,
 the benchmark table and the CF259 state. This note is the short version.
 
-## Current status (2026-09-03 15:40, one block; everything below it is history)
+## Current status (2026-09-03 18:20, one block; everything below it is history)
+
+- ONE definition of a finished transport (user ruling 18:10):
+  `Design/FinishedTransportContract_2026-09-03.md`. A family is transported
+  only when `PhysicalTransportFinishedQ` accepts its record (explicit
+  iterated integrals from the physical boundary point, explicit
+  coefficients over a named period basis with the period table and
+  relations, three re-verifiable certificates). NO family has such a record
+  yet (round 10 builds the finisher and runs it). Everything named below as
+  "accepted" is a STAGE of the construction, not a transport.
 
 - Package: seven layer folders under `FeynFacet/Private/`, each with
   sub-folders by responsibility (round 5), manifest `Private/LoadOrder.wl`
@@ -50,15 +59,16 @@ the benchmark table and the CF259 state. This note is the short version.
   uncertified record typed. The stored CF259 record predates the
   certificate; certifying it is open (the certifier exceeds its cap on
   that 47 x 47 record; the fix is a numeric-point Series per entry).
-- Accepted observable transports (round 9, 2026-09-03): 85 of the 87
-  certified families under the certified route, records in
+- Stage 2a, observable transport (round 9, 2026-09-03): stage accepted for
+  all 87 certified families under the certified route, records in
   `Results/UU_08_10_canonical/ObservableTransport_2026-09-03_round9/`
   (written only after `AcceptedObservableTransportQ`); the 2026-09-01 set
   is history (its records predate the valuation certificate and are
-  refused by the current predicate). Typed refusals: CF265, CF305
-  (`DLogResiduesRequired`, first-kernel dlog residues; with T). Physical
-  boundary modes 39/40 and endpoint transports 39/39 of the 40
-  nullity-period families in the `*_2026-09-03_round9/` siblings
+  refused by the current predicate). Stage 2b boundary modes 40/40 and
+  stage 2c graded endpoint records 39/39 plus CF300 of the 40
+  nullity-period families in the `*_2026-09-03_round9/` siblings (lazy
+  words, placeholder period coefficients: inputs to the finisher, not
+  Stage-3 input)
   (CF211 and CF300's degenerate eigenspaces handled by the typed
   `DegenerateEigenspacePolicy` with the split declared on every ledger
   entry; the period coefficients are formal until Stage 3 supplies
@@ -68,8 +78,7 @@ the benchmark table and the CF259 state. This note is the short version.
   its frame (`.../CF303/physical_coefficients_2026-09-03_T/`), stage B
   typed. Reviews R3 in `round9/`. Codex's overnight campaign record:
   `Goals/Codex/2026-09-03/01_round8_and_physical_transport.md`.
-- CF259: transported with the valuation certificate bound, accepted by the
-  current predicate: `.../CF259/observable_transport_2026-09-02_certified/`
+- CF259: stage 2a accepted with the valuation certificate bound: `.../CF259/observable_transport_2026-09-02_certified/`
   (270 s, SameQ with the 05:51 artifact, which no longer passes the
   predicate and is kept as history). CF300 and CF303 are not transported.
 - Tests: 12 retired, 8 fixed in round 3 (the long ones were quadratic test
