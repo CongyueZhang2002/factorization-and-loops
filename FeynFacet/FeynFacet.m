@@ -296,6 +296,10 @@ RationalEpsilonLayerWordMap::usage =
   "RationalEpsilonLayerWordMap[operator,word,boundaryOrder,outputOrder,rows] evaluates one D...D or D...D K S...S word as a sparse map on boundary coordinates.";
 RationalEpsilonLayerDemandTerms::usage =
   "RationalEpsilonLayerDemandTerms[operator,{outputOrder,rows}] constructs only the nonzero word maps for one requested coefficient, including the endpoint-gauge H S...S contribution. MaximumTerms and MaximumStates are fail-closed resource caps.";
+AttachTransportBoundaryToRationalLayer::usage =
+  "AttachTransportBoundaryToRationalLayer[source,layer,boundary,sourceRows,targetRows] splits a full-system physical boundary selector into source and final-layer rows while preserving one shared vector of period coordinates.";
+BuildPhysicalTransportCoefficient::usage =
+  "BuildPhysicalTransportCoefficient[operator,boundary,{epsilonOrder,physicalRow},path] composes one requested lazy final-layer coefficient, the endpoint path gauge, an optional epsilon-dependent physical output gauge, marked GPL/eMPL words and the formal or exact boundary-period vector. It returns the paper-facing expression and the Stage-3 ledger pruned by actual transport support.";
 AcceptedObservableTransportQ::usage =
   "AcceptedObservableTransportQ[result] checks the required named exact certificates and, according to the representation and boundary method, every fresh modular closure, ambient-invariance and quotient-coordinate certificate. It keeps probabilistic structural acceptance distinct from an exact symbolic identity.";
 
@@ -424,6 +428,10 @@ SyntaxInformation[RationalEpsilonLayerWordMap] =
   {"ArgumentsPattern" -> {_, _, _, _, _.}};
 SyntaxInformation[RationalEpsilonLayerDemandTerms] =
   {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
+SyntaxInformation[AttachTransportBoundaryToRationalLayer] =
+  {"ArgumentsPattern" -> {_, _, _, _, _}};
+SyntaxInformation[BuildPhysicalTransportCoefficient] =
+  {"ArgumentsPattern" -> {_, _, _, _, OptionsPattern[]}};
 SyntaxInformation[ComposeTransportChartExtension] =
   {"ArgumentsPattern" -> {_, _, _, _}};
 SyntaxInformation[BuildAlgebraicTransportFrame] =
