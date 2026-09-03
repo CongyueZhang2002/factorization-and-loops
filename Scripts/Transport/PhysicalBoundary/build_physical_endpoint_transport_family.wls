@@ -6,8 +6,8 @@
 Module[
   {missionTag, repositoryRoot, arguments, outputDirectory, family,
    resultRoot, transportFile, modeFile, formFile, outputFile, writeAtomic,
-   transport, modeMap, form, dlog, connectionDataSource, started, binding,
-   gradeSummary, result},
+   transport, modeMap, form, dlog, connectionDataSource, knownZeroIDs,
+   periodData, started, binding, gradeSummary, result},
 
   missionTag = Unique["PhysicalEndpointMissionExit$"];
   Catch[
@@ -51,6 +51,18 @@ Module[
 
     transport = Get[transportFile];
     modeMap = Get[modeFile];
+    (* Boundary-mode artifacts already carry the ledger PIDs whose exact
+       zero realization/transfer was established.  Feed that mathematical
+       datum to the endpoint adapter instead of reclassifying it as missing
+       merely because no numerical period table was supplied. *)
+    knownZeroIDs = Lookup[modeMap, "KnownZeroLedgerPeriodIDs", {}];
+    periodData = Association@DeleteCases[
+      Map[Function[mode, With[{id = Lookup[mode, "PeriodID", Missing[]]},
+        If[MissingQ[id] || ! MemberQ[knownZeroIDs,
+            If[MatchQ[id, {_String, _Integer}] &&
+                First[id] === Lookup[modeMap, "Family"], Last[id], id]],
+          Nothing, id -> <|"Status" -> "KnownZero"|>]]],
+        Lookup[modeMap, "Modes", {}]], Nothing];
     connectionDataSource = "ObservableTransport";
     If[! ListQ[Lookup[transport, "DLogLetters", Missing[]]] ||
         ! ListQ[Lookup[transport, "DLogResidues", Missing[]]],
@@ -80,7 +92,7 @@ Module[
     started = AbsoluteTime[];
     binding =
       FeynFacetCampaign`PhysicalBoundary`BuildGradedPhysicalEndpointTransport[
-        transport, modeMap, <||>];
+        transport, modeMap, periodData];
     If[FailureQ[binding] || Lookup[binding, "Status", None] =!=
         "GradedPhysicalEndpointTransportBuilt",
       Print[family, " physical endpoint transport failed: ",

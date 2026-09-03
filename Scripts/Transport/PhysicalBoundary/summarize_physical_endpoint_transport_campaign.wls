@@ -40,6 +40,7 @@ seriesKeys = DeleteDuplicates[Lookup[coordinates, "RealizationKey",
 ledgers = Flatten[Lookup[accepted, "Stage3NeedsLedger", {}]];
 modeKey[entry_] := With[{id = Lookup[entry, "PeriodID", Missing[]]},
   HoldComplete[id]];
+structuralPeriodID[id_] := If[MatchQ[id, {_String, _Integer}], Last[id], id];
 ledgerGroups = GatherBy[ledgers, modeKey];
 mergedLedger = Map[Function[group, Join[First[group], <|
       "AffectedBoundaryCoordinates" -> DeleteDuplicates@Flatten[
@@ -49,6 +50,12 @@ knownZeroModes = Select[mergedLedger,
 unevaluatedModes = Select[mergedLedger,
   Lookup[#, "Status", None] === "Unevaluated" &&
     Lookup[#, "AffectedBoundaryCoordinates", {}] =!= {} &];
+structuralPeriodIDs = DeleteDuplicates[
+  structuralPeriodID /@ Lookup[mergedLedger, "PeriodID", {}]];
+knownZeroStructuralPeriodIDs = DeleteDuplicates[
+  structuralPeriodID /@ Lookup[knownZeroModes, "PeriodID", {}]];
+unevaluatedStructuralPeriodIDs = DeleteDuplicates[
+  structuralPeriodID /@ Lookup[unevaluatedModes, "PeriodID", {}]];
 
 summary = <|
   "Status" -> If[missingFamilies === {},
@@ -59,8 +66,16 @@ summary = <|
   "MissingFamilies" -> missingFamilies,
   "FamilyCount" -> Length[acceptedFamilies],
   "ModeRealizationCount" -> Length[mergedLedger],
+  "KnownZeroModeRealizationCount" -> Length[knownZeroModes],
+  "UnevaluatedModeRealizationCount" -> Length[unevaluatedModes],
   "KnownZeroModeRealizations" -> Lookup[knownZeroModes, "PeriodID", {}],
   "UnevaluatedModeRealizations" -> Lookup[unevaluatedModes, "PeriodID", {}],
+  "StructuralPeriodIDCount" -> Length[structuralPeriodIDs],
+  "StructuralPeriodIDs" -> structuralPeriodIDs,
+  "KnownZeroStructuralPeriodIDs" -> knownZeroStructuralPeriodIDs,
+  "UnevaluatedStructuralPeriodIDCount" ->
+    Length[unevaluatedStructuralPeriodIDs],
+  "UnevaluatedStructuralPeriodIDs" -> unevaluatedStructuralPeriodIDs,
   "Stage3SeriesCount" -> Length[seriesKeys],
   "Stage3CoordinateCount" -> Length[coordinates],
   "Stage3Coordinates" -> coordinates,
@@ -79,7 +94,10 @@ Put[summary, temporary];
 RenameFile[temporary, FileNameJoin[{outputDirectory,
   "campaign_summary.wl"}], OverwriteTarget -> True];
 Print[InputForm[KeyTake[summary, {"Status", "FamilyCount",
-  "ModeRealizationCount", "Stage3SeriesCount", "Stage3CoordinateCount",
+  "ModeRealizationCount", "KnownZeroModeRealizationCount",
+  "UnevaluatedModeRealizationCount", "StructuralPeriodIDCount",
+  "KnownZeroStructuralPeriodIDs", "UnevaluatedStructuralPeriodIDCount",
+  "Stage3SeriesCount", "Stage3CoordinateCount",
   "EndpointConnectionDataSources", "TotalFamilyBuildSeconds",
   "MaximumFamilyBuild", "MissingFamilies"}]]];
 If[summary["Status"] =!= "PhysicalEndpointTransportCampaignComplete",
