@@ -34,15 +34,18 @@ s = 1-v-w = p+a.
 ```
 
 The soft stratum has two exact chart preimages,
-`u=2p` and `u=2(1-p^2)/p`.  They carry opposite continuations of the
-bilinear square root.  No accepted CF303 sheet/orientation record selects one,
-so the adapter records both and refuses to guess.
+`u=2p` and `u=2(1-p^2)/p`.  The physical path selects `u=2p` first on
+`0<p<1/Sqrt[2]`, where the continued bilinear root is `1-2p^2>0`.  With the
+inward coordinate `rho=2p-u`,
+`s/rho=(1-2p^2)/(2p)>0`.  The same sheet is then continued in `p` with the
+physical `+i0` prescription; the root crosses zero at `p=1/Sqrt[2]` rather
+than being silently replaced by its absolute value.  The alternative
+preimage remains recorded for comparison.
 
 The other missing inputs are mathematical, not implementation gaps:
 
-- a full 45-row canonical-to-physical map on the selected singular sheet (the
-  existing 37-row regular-path gauge and the accepted 2x2 `T25` do not supply
-  this);
+- specialization of the accepted 43-row assembly map and 2x2 `T25` gauge on
+  the selected singular sheet;
 - CF303 Frobenius mode realizations and their valuations/log levels;
 - exact or explicitly formal GPL/elliptic period series for those modes.
 

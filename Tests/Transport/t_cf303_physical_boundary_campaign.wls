@@ -49,11 +49,19 @@ FTAssert["the soft endpoint pullback records both exact chart preimages",
   AllTrue[preimages, Together[
       soft["ChartLocalExpression"] /. u -> #Endpoint] === 0 &]];
 
-FTAssert["the branch ambiguity and the missing 43-row singular basis map stay typed",
+selected = soft["SelectedPreimage"];
+FTAssert["the physical low-p sheet and inward endpoint coordinate are explicit",
   campaign["PhysicalEndpoint", "Status"] ===
-      "PhysicalEndpointSheetSelectionRequired" &&
+      "PhysicalEndpointSheetSelected" &&
+  selected["Endpoint"] === 2 p &&
+  selected["LocalDirection"] === -1 &&
+  Together[selected["PhysicalEndpointRelation", "LeadingCoefficient"] -
+      (1 - 2 p^2)/(2 p)] === 0 &&
   campaign["CanonicalToPhysical", "Source", "Status"] ===
-      "AcceptedSingularEndpointMapMissing" &&
+      "AcceptedAssemblyMapAvailable" &&
+  FileExistsQ[campaign["CanonicalToPhysical", "Source", "StateFile"]] &&
+  campaign["CanonicalToPhysical", "MissingDatum"] ===
+      "The selected normal modes and their tangential soft-stratum evolution" &&
   MissingQ[campaign["BoundaryRealizations"]] &&
   Lookup[campaign["Stage3NeedsLedger"], "Status"] ===
       {"Unevaluated", "Unevaluated"}];

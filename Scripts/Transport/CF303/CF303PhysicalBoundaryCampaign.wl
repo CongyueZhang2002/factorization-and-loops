@@ -16,8 +16,9 @@ CF303PhysicalBoundaryCampaign[OptionsPattern[]] := Catch@Module[
    validationFile, staleFile, artifact, manifest, validation, sourceRows,
    targetRows, boundaryColumns, sourceCount, targetColumns, sourcePath,
    path, p, u, a, soft, endpoint1, endpoint2, coefficient1,
-   coefficient2, physicalEndpoint, canonicalToPhysical, ledger, spec,
-   campaign, completeIncomingCount},
+   coefficient2, inwardCoefficient, selectedPreimage, physicalEndpoint,
+   canonicalToPhysical, ledger, spec, campaign, completeIncomingCount,
+   stateFile},
   fail[name_, extra_: <||>] := Throw[Join[<|"Status" -> name|>, extra]];
   here = cf303PhysicalBoundaryCampaignDirectory;
   repository = DirectoryName[here, 3];
@@ -70,8 +71,9 @@ CF303PhysicalBoundaryCampaign[OptionsPattern[]] := Catch@Module[
     "Curve" -> artifact["Curve"]|>;
 
   (* In the Kallen2Bilinear115 chart, s=1-v-w=p+a.  The soft stratum a=-p
-     has two u preimages.  The historical path has not selected a continued
-     root sheet, so both are recorded and neither is silently preferred. *)
+     has two u preimages.  The first is selected on the low-p physical
+     chamber and then continued on that sheet; the alternative stays in the
+     record so the continuation is explicit rather than an absolute root. *)
   p = Symbol["Global`p"];
   u = Symbol["Global`u"];
   a = Together[(4 p (1 - p) - 2 u)/(u^2 + 4 p (1 - p))];
@@ -80,8 +82,20 @@ CF303PhysicalBoundaryCampaign[OptionsPattern[]] := Catch@Module[
   endpoint2 = Together[2 (1 - p^2)/p];
   coefficient1 = Together[D[soft, u] /. u -> endpoint1];
   coefficient2 = Together[D[soft, u] /. u -> endpoint2];
+  inwardCoefficient = Together[-coefficient1];
+  selectedPreimage = <|
+    "Endpoint" -> endpoint1,
+    "LocalCoordinate" -> HoldForm[Global`rho == endpoint1 - u],
+    "LocalDirection" -> -1,
+    "PhysicalEndpointRelation" -> <|"LocalPower" -> 1,
+      "LeadingCoefficient" -> inwardCoefficient|>,
+    "RootBranches" -> <|"SqrtLambda2" -> -2 p,
+      "SqrtBilinear115" -> 1 - 2 p^2|>,
+    "InitialPhysicalDomain" -> HoldForm[0 < p < 1/Sqrt[2]],
+    "Continuation" ->
+      "Continue this sheet in p with the physical +i0 prescription; the bilinear root crosses zero at p=1/Sqrt[2]"|>;
   physicalEndpoint = <|
-    "Status" -> "PhysicalEndpointSheetSelectionRequired",
+    "Status" -> "PhysicalEndpointSheetSelected",
     "PhysicalChamber" -> HoldForm[
       Global`v > 0 && Global`w > 0 && Global`v + Global`w < 1],
     "CandidateStrata" -> {
@@ -95,39 +109,42 @@ CF303PhysicalBoundaryCampaign[OptionsPattern[]] := Catch@Module[
         Global`w -> Together[(1 - a) (1 - p)]|>,
       "PhysicalLocalVariable" -> HoldForm[1 - Global`v - Global`w],
       "ChartLocalExpression" -> soft,
+      "SelectedPreimage" -> selectedPreimage,
       "Preimages" -> {
-        <|"Endpoint" -> endpoint1,
+        Join[selectedPreimage, <|
           "PhysicalEndpointRelation" -> <|"LocalPower" -> 1,
             "LeadingCoefficient" -> coefficient1|>,
-          "RootBranches" -> <|"SqrtLambda2" -> -2 p,
-            "SqrtBilinear115" -> 1 - 2 p^2|>|>,
+          "CoordinateConvention" -> "u-endpoint"|>],
         <|"Endpoint" -> endpoint2,
           "PhysicalEndpointRelation" -> <|"LocalPower" -> 1,
             "LeadingCoefficient" -> coefficient2|>,
           "RootBranches" -> <|"SqrtLambda2" -> -2 p,
             "SqrtBilinear115" -> 2 p^2 - 1|>|>}
       |>,
-    "MissingDatum" ->
-      "A CF303 ordered stratum and continued-sheet/orientation record"|>;
+    "SelectionReason" ->
+      "For 0<p<1/Sqrt[2], the path from the physical interior reaches u=2p with sqrt(1-4vw)=1-2p^2>0; rho=2p-u makes s/rho positive"|>;
+
+  stateFile = FileNameJoin[{repository, "ppHX_NNLO_DoubleReal", "Results",
+    "UU_08_10_canonical", "FamilyEpsFormsSolving",
+    "triple_root_2026-08-28_codex_clean", "CF303",
+    "sector_state_CF303_standard.wl"}];
 
   canonicalToPhysical = <|
-    "Status" -> "CanonicalToPhysicalMapIncomplete",
+    "Status" -> "CanonicalToPhysicalMapAvailable",
     "Source" -> <|
       "Rows" -> sourceRows,
-      "Status" -> "AcceptedSingularEndpointMapMissing",
+      "Status" -> "AcceptedAssemblyMapAvailable",
       "KnownDefinition" ->
         "I_source=(TDiagonal.S).F_canonical, restricted to the 43 source rows",
-      "PartialRegularPathArtifact" -> FileNameJoin[{scratch, "Runtime",
-        "2026-08-31_cf303_analytic_transport",
-        "cf303_selected21_source_gauge_slice.wl"}],
-      "PartialRowCount" -> 37|>,
+      "StateFile" -> stateFile,
+      "Fields" -> {"TDiagonal", "S", "TDiagonalInverse", "SInverse"}|>,
     "FinalLayer" -> <|
       "Rows" -> targetRows, "Status" -> "AcceptedPathGauge",
       "Orientation" -> artifact["PhysicalRelation"],
       "GaugeByOrderPairs" -> artifact["PhysicalGaugeByOrderPairs"],
       "Orders" -> artifact["PhysicalGaugeOrders"]|>,
     "MissingDatum" ->
-      "A full 45-row canonical-to-physical map on the selected singular sheet"|>;
+      "The selected normal modes and their tangential soft-stratum evolution"|>;
 
   ledger = {
     <|"PeriodID" -> "CF303::PhysicalBoundaryModes",
@@ -147,7 +164,7 @@ CF303PhysicalBoundaryCampaign[OptionsPattern[]] := Catch@Module[
       "DemandedOutputs" -> Flatten[Table[{order, row},
         {order, -4, 2}, {row, targetRows}], 1],
       "Status" -> "Unevaluated",
-      "Problem" -> "FullSingularEndpointBasisMapRequired"|>};
+      "Problem" -> "SelectedNormalModesAndTangentialEvolutionRequired"|>};
 
   spec = <|
     "Family" -> "CF303",
