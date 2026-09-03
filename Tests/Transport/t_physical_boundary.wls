@@ -396,6 +396,61 @@ FTAssert["class mismatches, approximate constants and truncated Laurent data are
         periods, Key["e"]], {0, 1}]["Status"] ===
       "EllipticBoundaryPeriodsIncomplete"];
 
+(* Round 9: a repeated block eigenvalue.  The 2x2 zero residue has a 2-d
+   eigenspace at eigenvalue 0; the physical-row transformation decides what
+   the integral's valuation can separate. *)
+degenerateRealization[id_, valuation_, extra_: <||>] := Join[<|
+  "PeriodID" -> id, "PeriodClass" -> "GPL",
+  "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {1, 2},
+  "PhysicalRows" -> {1, 2}, "EpsilonExponent" -> 0,
+  "IntegerValuation" -> valuation, "LogLevel" -> 0,
+  "DemandedOutputs" -> {{0, 1}}|>, extra];
+(* expected order 1: e1 maps to (rho, 0), e2 to (1 + ..., 1); only e1 cancels
+   the rho^0 power *)
+selectedByValuation = BuildBoundaryModeMap[frobenius, {{u, 1}, {0, 1}},
+  modeSpec, {degenerateRealization["sel", 1]}];
+FTAssert["a repeated block eigenvalue is resolved when the integral's valuation cancels the lower powers of all but one direction",
+  selectedByValuation["Status"] === "BoundaryModeMapBuilt" &&
+    selectedByValuation["Modes"][[1, "CanonicalMode"]] === {1, 0} &&
+    selectedByValuation["Modes"][[1, "PhysicalLocalOrders"]] === {1, Infinity} &&
+    selectedByValuation["Modes"][[1, "PhysicalLeadingCoefficients"]][[1]] === 1 &&
+    selectedByValuation["DegenerateEigenspaces"] === {}];
+(* expected order 1 but every direction starts at rho^0: typed, not ambiguous *)
+noDirection = BuildBoundaryModeMap[frobenius, {{1, 1}, {0, 1}},
+  modeSpec, {degenerateRealization["none", 1]}];
+FTAssert["a repeated eigenvalue with no direction compatible with the valuation is refused typed",
+  noDirection["Status"] === "BoundaryModeMapIncomplete" &&
+    noDirection["Modes"][[1, "Status"]] === "PhysicalValuationMismatch" &&
+    noDirection["Modes"][[1, "PhysicalAdmissibleNullity"]] === 0 &&
+    noDirection["Modes"][[1, "BlockNullity"]] === 2 &&
+    noDirection["Stage3NeedsLedger"][[1, "Problem"]] === "PhysicalValuationMismatch"];
+(* expected order 0 and both directions at order 0: genuinely two
+   coefficients; refused by default, realized as the canonical eigenspace
+   basis under the explicit policy *)
+genuinelyDegenerate = BuildBoundaryModeMap[frobenius, IdentityMatrix[2],
+  modeSpec, {degenerateRealization["deg", 0]}];
+degenerateBasis = BuildBoundaryModeMap[frobenius, IdentityMatrix[2],
+  modeSpec, {degenerateRealization["deg", 0,
+    <|"DegenerateEigenspacePolicy" -> "Basis"|>]}];
+FTAssert["a genuinely multi-dimensional admissible eigenspace is refused by default and realized as exact echelon sub-realizations only under the explicit Basis policy",
+  genuinelyDegenerate["Status"] === "BoundaryModeMapIncomplete" &&
+    genuinelyDegenerate["Modes"][[1, "Status"]] === "AmbiguousPhysicalEigenspace" &&
+    genuinelyDegenerate["Modes"][[1, "PhysicalAdmissibleNullity"]] === 2 &&
+    Length[genuinelyDegenerate["Modes"][[1, "AdmissibleBasis"]]] === 2 &&
+    degenerateBasis["Status"] === "BoundaryModeMapBuilt" &&
+    Length[degenerateBasis["Modes"]] === 2 &&
+    degenerateBasis["Modes"][[All, "PeriodID"]] === {{"deg", 1}, {"deg", 2}} &&
+    degenerateBasis["Modes"][[All, "CanonicalMode"]] === {{1, 0}, {0, 1}} &&
+    degenerateBasis["Modes"][[All, "Status"]] === {"BoundaryModeMatched", "BoundaryModeMatched"} &&
+    degenerateBasis["Modes"][[All, "EigenspaceDimension"]] === {2, 2} &&
+    degenerateBasis["DegenerateEigenspaces"] ===
+      {<|"ParentPeriodID" -> "deg", "EigenspaceDimension" -> 2|>} &&
+    degenerateBasis["Stage3NeedsLedger"][[All, "PeriodID"]] === {{"deg", 1}, {"deg", 2}} &&
+    degenerateBasis["Stage3NeedsLedger"][[2, "DegenerateEigenspace"]] ===
+      <|"ParentPeriodID" -> "deg", "EigenspaceDirection" -> 2, "EigenspaceDimension" -> 2|> &&
+    BuildTransportBoundaryVector[degenerateBasis, <||>, {0, 0},
+      "MissingPeriodAction" -> "Formal"]["Status"] =!= "BoundaryModeMapInputInvalid"];
+
 FTAssert["the production boundary module contains no family-specific token",
   With[{text = Import[FileNameJoin[{root, "FeynFacet", "Private",
       "Transport", "Boundary", "PhysicalBoundary.wl"}], "Text"]},

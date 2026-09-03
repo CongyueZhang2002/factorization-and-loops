@@ -1,0 +1,114 @@
+# Round 9 (agent T): CF300 boundary modes and CF303 demanded physical coefficients
+
+Written as the work proceeds (2026-09-03). Rules: every kernel run through `Scripts/seat_run.sh` (300 s iteration, 900 s measurement), pathological runs killed by PID, no commits, Codex's tree read-only. Scratch: `scratchpad/round4/T/round9/`.
+
+## Task 1: CF300 boundary modes (Codex's degenerate-eigenspace fix)
+
+### 1.1 State found
+
+- Codex's `boundarySelectModeExtension` (checkpoint `a81c7dea`, `FeynFacet/Private/Transport/Boundary/PhysicalBoundary.wl:368`) IS wired into `BuildBoundaryModeMap` (`:548`: used whenever no `CanonicalSeed` is supplied). It extends every block-kernel seed, keeps the exact extensions, maps them to the physical rows, and cancels every local power below the expected order (`localPower * IntegerValuation`); a unique surviving direction is the mode, otherwise `AmbiguousPhysicalEigenspace`. The window check `expectedOrder > maximumSeriesOrder` moved before the selection (correct: the selection needs the depth).
+- The campaign (`Scripts/Transport/PhysicalBoundary/build_boundary_mode_campaign.wls`) keeps all 33 structural periods (`StructuralPeriodIDs`, `CertifiedPeriodIDs`), discriminates same-class blocks by `BlockRows`, adds the `Q4a` chart, and writes `campaign_summary_<family>.wl` for a single family.
+- Codex's last smoke (its tree, `Runtime/2026-09-03_cf300_mode_series_smoke/pool/logs/boundary_mode_CF300.log`, 10:35): CF300 has six structural periods at `wEdge` (1, 7, 9, 12, 25, 26); five matched; period 12 (class 62, canonical rows {6,7,8,9}) returned `AmbiguousPhysicalEigenspace` with `BlockNullity 2, PhysicalAdmissibleNullity 2, ExpectedOrder 0`.
+
+### 1.2 Why the valuation cannot select for period 12 (evidence)
+
+Probes (`round9/probe_cf300_block.log`, `probe_cf300_generic.log`, `probe_cf300_points.log`, `probe_cf300_tangential.log`), all on the certified CF300 eps-form and its accepted transport (no gauge constants: `GaugeConstantRules` is empty), edge point `x = 1/2, y -> 0` (chart `Multiquadratic3`, stratum `wEdge`):
+
+| fact | evidence |
+|---|---|
+| block {6,7,8,9} residue at the edge: eigenvalues {eps, eps, 0, 0}, kernel dimension 2 | `probe_cf300_block.log`: kernel `{{0,1,0,0}, {-1,0,-1,1}}` |
+| the 2-d kernel is generic on the stratum, not an artifact of x = 1/2 | `probe_cf300_points.log`: kernel 2 at x = 1/2, 1/3, 2/7, 3/5 (every other block's kernel is also point-independent, so x = 1/2 is a generic edge point) |
+| the class-62 form has the same 2-d kernel at its own w = 0 stratum (t = 0, v generic) | `probe_cf300_generic.log`: identical 4x4 residue matrix, kernel 2 |
+| both directions lift to global level-0 kernel vectors of the 24x24 residue (rows 1-5 zero) | `probe_cf300_block.log`: both seeds solvable, 3 free upper parameters each; the residue is block lower-triangular |
+| both directions have physical order 0 in the block rows (= the expected order), so no lower power can be cancelled | Codex's log: `PhysicalAdmissibleNullity 2, ExpectedOrder 0` |
+| the tangential-preservation condition of `Design/BoundaryNullityCounter.md` is automatic here | flatness gives R' = [A_t, R], so the prolongation M1 = R' + R A_t = A_t R annihilates ker R; `probe_cf300_tangential.log` confirms invariant dimension = kernel dimension for every block |
+| the census's single period for class 62 at wEdge cannot be re-derived | the counter's code is not on disk (`~/FACET/.../FableNullityPeriods_2026-08-14.wl` is a copy of `NullityPeriods.wl`); the count must come from a condition along the whole stratum (corner behaviour of the tangential ODE), which fixes a direction only through transcendental constants, not pointwise |
+
+Conclusion: at the edge point the physical solution's component in this eigenspace has TWO coefficients; a pointwise rational rule cannot name one of them "the period". Choosing a direction by `NullSpace` order would be a silent default.
+
+### 1.3 Completion (typed)
+
+(filled in below as implemented)
+
+Implemented (`FeynFacet/Private/Transport/Boundary/PhysicalBoundary.wl`, backup of the checkpoint text in `round9/PhysicalBoundary.before_T.wl`):
+
+- `boundarySelectModeExtension`: Codex's valuation filter stays the first selector. Two typed outcomes replace the single `AmbiguousPhysicalEigenspace`: no direction cancels the lower powers -> `PhysicalValuationMismatch` with `PhysicalAdmissibleNullity 0` and the computed orders; more than one survives -> `AmbiguousPhysicalEigenspace` carrying `AdmissibleBasis`, the canonical (row-echelon on the block coordinates) basis of the admissible eigenspace, each direction re-extended exactly through `boundaryModeExtension`.
+- `BuildBoundaryModeMap`: a realization may declare `"DegenerateEigenspacePolicy" -> "Basis"`; only then a multi-dimensional admissible eigenspace is realized as one exact sub-realization per direction, `PeriodID -> {family, id, k}`, with `ParentPeriodID`, `EigenspaceDirection`, `EigenspaceDimension` on the record and in the Stage-3 ledger (`DegenerateEigenspace`), and the map lists `DegenerateEigenspaces`. Default policy: the typed refusal, as before. PeriodID is an opaque key everywhere downstream (`BoundaryPeriodCoefficient[id, order]`, the endpoint adapter), verified by grep and by the endpoint rebuild below.
+- Campaign (`build_boundary_mode_campaign.wls`): opts into the policy, records `ModeCount` and `DegenerateEigenspaces` per family and in the summary; the stale `LedgerPeriodIDs` print key replaced.
+- Unit tests (`Tests/Transport/t_physical_boundary.wls`, three new assertions on the 2x2 zero-residue control whose eigenvalue-0 eigenspace is 2-d): (i) transformation `{{u,1},{0,1}}`, valuation 1: only e1 cancels rho^0, selected, `CanonicalMode {1,0}`, orders `{1, Infinity}`; (ii) `{{1,1},{0,1}}`, valuation 1: no direction compatible -> `PhysicalValuationMismatch`, admissible nullity 0; (iii) identity, valuation 0: refused by default with a 2-element `AdmissibleBasis`; under the policy two exact records `{"deg",1}`, `{"deg",2}` with modes `{1,0}`, `{0,1}`, the ledger split, and `BuildTransportBoundaryVector` consuming the map. Run: `round9/t_physical_boundary_run1.log`, 29 assertions, 0 failed (26 existing unchanged).
+
+### 1.4 Campaign runs (seat launcher, 900 s cap)
+
+| run | result | log |
+|---|---|---|
+| CF300 boundary modes -> `PhysicalBoundaryModes_2026-09-03_T/` | `PhysicalBoundaryModeCampaignAcceptedV1`; 6 periods (1, 7, 9, 12, 25, 26) realized as 7 exact modes, `DegenerateEigenspaces -> {{CF300, 12}: dimension 2}`; Frobenius 83.8 s, mode matching 9.7 s, 95.1 s total; every mode `BoundaryModeMatched`, no inexact number outside the timings | `round9/campaign_cf300_run1.log` |
+| install | `PhysicalBoundaryModes/boundary_mode_CF300.wl` replaced (old 2-period map, SHA-256 `da5d5e7a...`, kept in `PhysicalBoundaryModes_2026-09-03_T/before/`); new SHA-256 `f15b181f...` | `round9/cf300_before_sha256.txt` |
+| CF300 endpoint transport (Codex's mission `build_physical_endpoint_transport_family.wls`, reads the installed map) -> `PhysicalEndpointTransport_2026-09-03_T/`, then installed over `PhysicalEndpointTransport/physical_endpoint_transport_CF300.wl` (old SHA-256 `cc1a9c82...` kept in `before/`) | `GradedPhysicalEndpointTransportBuilt`, `PhysicalEndpointTransportAcceptedV1`, 10 Stage-3 coordinates, grades {0,1,2}, 23.9 s; the record's PeriodIDs are the seven of the new map including `{CF300,12,1}`, `{CF300,12,2}`; its `BoundaryModeMap` source is the installed file | `round9/endpoint_cf300_run1.log`; new SHA-256 `8b3c8bbd...` |
+| CF211 boundary modes (coordinator's second real test; the same block-nullity-2 case) -> `PhysicalBoundaryModes_2026-09-03_T/` | `PhysicalBoundaryModeCampaignAcceptedV1`; period 13 (class 67, 2-d class) realized as 2 exact modes, `DegenerateEigenspaces -> {{CF211, 13}: dimension 2}`; 0.27 s. Not installed over the canonical CF211 files (not asked; the canonical map carries the certified subset) | `round9/campaign_cf211_run1.log` |
+
+What the split means for Stage 3: for `{CF300,12}` the ledger now demands two coefficients at the edge point (one per admissible direction). The census's "one new period" is compatible with this only through a relation along the stratum (a condition at the stratum's ends on the tangential ODE); that relation is transcendental at x = 1/2 and is Stage-3 work, not a mode-map selection. Until it is supplied, both coefficients are formal, which is exactly what the ledger says.
+
+## Coordinator items after Task 1
+
+### (a) CF265 / CF305: `DLogResiduesRequired` on the certified route
+
+Finding (files read, no kernel): both families are exact-route records (`Status ExactEpsilonForm`, method `SectorCANONICA+ExactStripSolver`, charts `Kallen13` / `Kallen23`, coefficient field Rational, variables {y, s}, dimension 32). Their `EpsilonFormCertificate["DLog"]` is `Valid`, has the 15-letter chart alphabet, `ConstantResidues -> True` and a zero `ReconstructionResidual` -- but `"Residues" -> Missing["NotReconstructed"]`: the exact certifier verified the dlog identity and never stored the constant residue matrices (the multiquadratic certifier does reconstruct them, `FamilyCertificateModular.wl:374-431`; the exact route does not). The production builder's `usableDLogQ` therefore fails on `ListQ[Residues]` for both the record and the certificate, and it refuses typed with `NoProductionSymbolicFallback` (`ObservableTransport.wl:2932`). M's verbose CF265 log confirms the refusal comes right after the base kernel (126.7 s cumulative).
+
+Was the fallback removed for cause? Yes: Codex's commit `966d7b7a` / `a377d957` "Remove symbolic transport fallback" (2026-09-02, in both trees), i.e. the retired symbolic route; the comment at the refusal site documents the decision. The 2026-09-01 builder's symbolic `Apart`-based decomposition is what filled the residues for these two families then.
+
+Available certified producers, assessed: (i) Codex's native dlog computation (`FeynFacet/Backends/native_postfix/family_dlog_native.py` + `Scripts/compact_family_dlog_record.wls`) -- needs the native library built, FLINT tooling and a sidecar, and hard-codes `"CoefficientField" -> "Multiquadratic"` in its output, which `computedDLogQ` rejects for a rational-field family; not usable here without changing Codex's script. (ii) The multiquadratic certifier's CRT reconstruction -- lives in M's EpsForm files (off limits) and is tied to that certifier's trials.
+
+Decision and implementation: a certified finite-field route inside the transport builder, on the certificate's own letters (for which the identity is already exactly certified), never a symbolic fallback:
+
+- `ObservableTransportFiniteField.wl`: `observableTransportCertificateLetterResidues[connections, variables, eps, letters, dimension]`. For the eps-linear connection A_k = eps Sum_i R_i d_k log l_i the design matrix W (one row per sample point and variable, one column per letter) is shared by all d^2 entries, so the residues of every entry come from one modular `RowReduce` per prime (36 x (15 + 1024) for CF265). Per prime it checks the eps-linearity (A at eps = 2 equals 2 A at eps = 1 at the first point), the letters' independence (rank W = letter count, else `LetterFormsDependent`) and the identity (an inconsistent augmented row means the connection is outside the letters' span: `ConnectionOutsideLetterSpan`); a pole hit resamples the point. CRT over the primes, rational reconstruction with lift-and-verify (`ResidueReconstructionNotConverged` at the cap), then validation at a fresh prime on fresh points (`FreshPrimeValidationFailed` with counts). Result: the residue matrices and a certificate (method, primes, points, design rank, fresh prime and points, comparisons, mismatches, seed, seconds; `Probabilistic -> True`, `Exact -> False`).
+- `ObservableTransport.wl` (after the residue-record selection, before the refusal): when the record is exact/certified, the field is Rational and the certificate DLog is `reconstructableCertificateDLogQ` (valid, same variables/regulator/dimension, letters present, constant residues, residues NOT a list), the reconstruction runs; on success the first-kernel residue record is `CertifiedFiniteField` with `Method -> "CertificateLetterModularReconstruction"`, `IdentityExact -> False`, `IdentityCertified -> True`, and the transport result carries `FirstKernelResidueSource`, `CertificateLetterResidueReconstruction` (the certificate) and the flag `FirstKernelResiduesReconstructedOnCertificateLetters`. On any typed failure the original refusal is returned, now with `CertificateDLogResiduesReconstructable` and the reconstruction's typed status attached. Multiquadratic families and non-certified records are untouched.
+- Unit test `Tests/Transport/t_observable_transport_certificate_residues.wls` (3 assertions, `round9/t_cert_residues_run1.log`, 3/3, 2.8 s): a 2x2 connection built from four letters and known rational residues is recovered exactly (`Residues === residues`, 24 fresh comparisons, 0 mismatches, design rank 4, fresh prime outside the CRT primes); a dependent fifth letter -> `LetterFormsDependent` (rank 4 of 5); a pole outside the alphabet -> `ConnectionOutsideLetterSpan`; an eps^2 term -> `EpsilonLinearityFailed`; a second seed reproduces the residues at other primes.
+
+Acceptance: the transport's probabilistic certificate for this route is `ProbabilisticCertificates["FamilyDLogResidues"]` with `Status -> "ReconstructedCertificateLetterResidues"` (built by the named `observableTransportReconstructedResidueCertificate`), and `AcceptedObservableTransportQ` gained a third, named branch `observableTransportReconstructedResidueCertificateQ` (rational field; design rank = letter count; eps-linearity checked; at least two CRT primes; a fresh validation prime outside them with at least one fresh point; comparisons > 0; mismatches 0). The Multiquadratic requirement now applies to the two existing branches only (before, it was in the common part). The unit test's fourth assertion accepts the recorded certificate and refuses eight tamperings (`round9/t_cert_residues_run3.log`, 4/4).
+
+Two defects found on the way, both by the CF265 run itself: (1) the first cap of 8 primes was one short -- these exact-route residues carry about 130-bit rationals and need nine 31-bit primes (`round9/probe_cf265_residues.log`: `ResidueReconstructionNotConverged` at 8; `probe_cf265_residues2.log`: converged at 9, 6144 fresh comparisons, 0 mismatches, 41.7 s); the cap is now 24 (the rational-layer route's default) and the certificate records `ModulusBits` and `ReconstructedHeightBitsMaximum`; (2) the transport completed but the predicate refused it because the generic probabilistic certificate demanded a Multiquadratic field (`round9/cf265_transport_run2.log`, "accepted False") -- fixed by the named branch above.
+
+Verification (seat launcher, 900 s cap, M's exact inputs: certified eps-form, `nnlo_de_CF265.wl`, `MasterCoefficientValuations.wl`, verbose card; standalone driver `Scripts/family_observable_transport.wls`):
+
+| run | result | log |
+|---|---|---|
+| CF265 before the fix | `DLogResiduesRequired` at 123.8 s (M's refusal reproduced) | `round9/cf265_transport_run1.log` |
+| CF265 with the reconstruction (cap 8) | reconstruction refused typed after 34 s, `DLogResiduesRequired` | `probe_cf265_residues.log` |
+| CF265, cap 24, before the predicate branch | residues reconstructed at 132 s (39.2 s, nine primes, fresh prime validated), transport `ModularlyVerifiedObservableTransport` at 182 s, predicate False, nothing written | `round9/cf265_transport_run2.log` |
+| CF265, final | residues reconstructed at 135 s (40.8 s), `ModularlyVerifiedObservableTransport` at 185.3 s, `AcceptedObservableTransportQ` True, written to `ObservableTransport_2026-09-03_T/families/observable_transport_CF265.wl` (1,118,240 bytes) with `FirstKernelResidueSource -> CertificateLetterModularReconstruction` and the certificate | `round9/cf265_transport_run3.log`, the record's own `.log` |
+
+Not installed over M's round-9 set (M owns that campaign directory); CF305 has the identical certificate shape (15 letters, `NotReconstructed`) and is one driver command away, not run (900 s budget).
+
+Regression after the predicate change (seat launcher, 300 s each, `round9/regress_*.log`, `regress2_*.log`): M's CF259 predicate check on the certified multiquadratic record -> `AcceptedObservableTransportQ` True (unchanged); `t_observable_transport_ff_radical_prime` 7/7; `t_observable_transport_samples_field` 12/12; `t_observable_transport_laurent_series` 20/20; `t_algebraic_observable_transport` 31/31 after one fix: its assertion "all demand-driven transport identities are exact" requires every `Certificates` flag to be True, and my first version had put the route flag `FirstKernelResiduesReconstructedOnCertificateLetters` (False on exact fixtures) among the flags -- moved to the result's top level (`FirstKernelResidueSource`). The CF265 record written at 16:02 predates that move and carries the flag (True) inside `Certificates`; the predicate ignores extra keys, so its acceptance is unaffected. `t_physical_boundary` 29/29 and `t_observable_transport_certificate_residues` 4/4 stand.
+
+### (b) CF211
+
+Recorded in the Task-1 table above: accepted, period 13 realized as a 2-mode eigenspace (`{CF211,13,1}`, `{CF211,13,2}`, canonical rows {11,12}), 0.27 s, `round9/campaign_cf211_run1.log`; the artifact is in `PhysicalBoundaryModes_2026-09-03_T/` (not installed over the canonical CF211 files).
+
+### Files changed by T in round 9 (working tree, no commits)
+
+`FeynFacet/Private/Transport/Boundary/PhysicalBoundary.wl`, `Scripts/Transport/PhysicalBoundary/build_boundary_mode_campaign.wls`, `Tests/Transport/t_physical_boundary.wls`, `FeynFacet/Private/Transport/Observable/ObservableTransportFiniteField.wl`, `FeynFacet/Private/Transport/Observable/ObservableTransport.wl`, `Tests/Transport/t_observable_transport_certificate_residues.wls` (new); results: `PhysicalBoundaryModes_2026-09-03_T/` (CF300, CF211, `before/`), `PhysicalEndpointTransport_2026-09-03_T/` (CF300), `ObservableTransport_2026-09-03_T/families/` (CF265), and the two installed CF300 files (SHA-256 in `round9/cf300_before_sha256.txt`). Pre-edit copies of the three package files: `round9/*.before_T.wl` in the scratch.
+
+## Task 2: CF303 demanded physical coefficients
+
+### 2.1 Quartic-curve Hermite channel re-verified at my own points
+
+Codex's `Tests/Transport/t_rational_epsilon_curve_layer.wls` checks the elliptic Hermite identity and the pair-recurrence differential identity dH + K = B + D H_prev - H_prev S at prime 1000033 and points {3, 4, 5}. I re-ran its fixture with the prime and points replaced by my own -- primes 1000081 and 1000099 (PrimeQ checked), points {7, 11, 13} -- for both the Hermite reduction and the recurrence image (`round9/probe_curve_channel.wls`, generated from the test text with only those substitutions): 8/8 assertions, `round9/probe_curve_channel.log`. The channel holds at independent finite-field points; Task 2 proceeded.
+
+### 2.2 Stage A: p-path six-mode layer materialized (general route, lazy operator)
+
+Output directory: `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF303/physical_coefficients_2026-09-03_T/` (README.md with the per-pair table, `cf303_p_layer_physical_coefficients.wl`, `cf303_stage3_evaluation_list.wl`). Script `round9/cf303_stage_a.wls`, logs `round9/cf303_stage_a_run1.log` (first attempt refused every coefficient typed `PhysicalBoundaryNotBoundToOperator`: the operator must be built from a boundary attached through `AttachTransportBoundaryToRationalLayer`, as Codex's own test does) and `run2.log` (final, 0.34 s after load).
+
+- Demand: the ledger's window {-4..2} x {44, 45}. Transport accepted (window {0, 2}); cross-check at fresh primes: a second run with an independent seed (prime sets disjoint) gives SameQ K residues and endpoint gauge, both four-argument predicates True; operator accepted.
+- Coefficients: orders -4..-1 exactly zero in the eps-normalized frame; order 0: one paper term per row (the empty word) carrying four active periods (Block23Zero, Block24Mode1, Block24Mode2, IndependentTargetMode1; after the T25 gauge also IndependentTargetMode2); order 1: 7 paper terms; order 2: 26 terms, with explicit GPL words on {0, 1, -1} and the marked points of 1-2p^2. The T25-gauged coefficient is typed `RationalLayerDemandOutsideAcceptedPairs` for the pairs whose gauge convolution needs orders below the window (-4 and -3 on one row); everything else built.
+- Boundary convention recorded in the README: every period enters at eps order 0 as the accepted frame's selectors declare; a period's own eps expansion is a Stage-3 datum.
+
+### 2.3 Stage B: composition through the soft junction -- typed, not materialized
+
+The canonical rows 44/45 need Z_q . J_r . P_s. The junction J_r is Codex's unfinished checkpoint: `CF303RebaseLazyAdapterAtJunction` expects an order-keyed `SourceModeMap` deck; the checkpointed `CF303TangentialJunctionMap.wl` holds a single rational-eps 43x13 matrix reconstructed at one prime (one held-out point, no fresh-prime certificate). On the accepted lazy adapter the rebase returns `CF303JunctionModeDeckInvalid` (`round9/probe_cf303_junction.log`, 300 s cap). Stage reached: P_s materialized and cross-checked; J_r's deck and its certificate are the missing data; Z_q is the accepted adapter. No 900 s run was attempted on the junction because its input contract is not met -- a typed refusal, not a timeout.
+
+### Remains (Task 2)
+
+1. Produce the junction deck in the shape `CF303JunctionRebase.wl` expects (order-keyed `SourceModeMap`, matching `TargetGModeMap`) from the multi-prime junction fits (`build_cf303_tangential_junction_map.wls` needs at least two `q*.json` fits and an independent validation point; the checkpoint has one prime) and certify it at a fresh prime.
+2. Then `CF303RebaseLazyAdapterAtJunction` + `BuildPhysicalTransportCoefficient` on the rebased adapter for the 14 demanded pairs, cross-checked at fresh primes, and the canonical-row evaluation list (13 periods: the six frame modes plus the seven inherited soft modes).
+3. CF305: one driver command on the certified route (identical certificate shape to CF265).

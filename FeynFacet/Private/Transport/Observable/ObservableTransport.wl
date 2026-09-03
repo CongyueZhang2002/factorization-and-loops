@@ -42,6 +42,8 @@ ClearAll[
   observableTransportWordCountBound,
   observableTransportCompactDualAutomaton,
   observableTransportKernelDecomposition,
+  observableTransportReconstructedResidueCertificateQ,
+  observableTransportReconstructedResidueCertificate,
   observableTransportSecondSegmentMaps,
   observableTransportFamilyName,
   observableTransportIntegralIndices,
@@ -2148,6 +2150,7 @@ BuildObservableTransport[record_Association, demand_Association,
    physicalDemand, physicalOrder, component,
    demandedMap, familyCertificate, recordDLog, certificateDLog,
    certifiedDLog, residueDLogSource, residueProbabilistic,
+   reconstructableCertificateDLogQ, certificateLetterReconstruction,
    residueRecord, residueRecordUsableQ, usableDLogQ,
    firstKernelRecord,
    liftedResidues,
@@ -2929,6 +2932,52 @@ BuildObservableTransport[record_Association, demand_Association,
         "Method" -> residueDLogSource|>,
       $Failed
   ];
+  (* Round 9 (T, 2026-09-03): an exact certificate that verified the dlog
+     identity on its letters but left the constant residues unreconstructed
+     ("Residues" -> Missing["NotReconstructed"]: the exact certification
+     route on CF265/CF305) gets them reconstructed modularly on those same
+     letters, with the identity, the letters' independence and the
+     eps-linearity checked at every prime and a fresh-prime validation --
+     a certified finite-field route (probabilistic, typed at every step).
+     The production builder still has no symbolic fallback. *)
+  reconstructableCertificateDLogQ[value_] := AssociationQ[value] &&
+    TrueQ[Lookup[value, "Valid", False]] &&
+    Lookup[value, "Variables", Missing[]] === variables &&
+    Lookup[value, "Regulator", Missing[]] === eps &&
+    Lookup[value, "Dimension", Missing[]] === dimension &&
+    ListQ[Lookup[value, "Letters", None]] && value["Letters"] =!= {} &&
+    TrueQ[Lookup[value, "ConstantResidues", False]] &&
+    ! ListQ[Lookup[value, "Residues", None]];
+  certificateLetterReconstruction = None;
+  If[! residueRecordUsableQ[residueRecord] &&
+      coefficientField === "Rational" &&
+      (recordExactQ || recordCertifiedQ) &&
+      reconstructableCertificateDLogQ[certificateDLog],
+    certificateLetterReconstruction =
+      observableTransportCertificateLetterResidues[epsConnections,
+        variables, eps, certificateDLog["Letters"], dimension,
+        "PrimeCount" -> Max[2, OptionValue["ValidationPrimeCount"]],
+        "ValidationPoints" -> Max[3, OptionValue["ValidationPointsPerPrime"]]];
+    If[Lookup[certificateLetterReconstruction, "Status", None] ===
+        "CertificateLetterResiduesReconstructed",
+      residueDLogSource = "CertificateLetterModularReconstruction";
+      residueProbabilistic = True;
+      residueRecord = <|"Status" -> "CertifiedFiniteField",
+        "Letters" -> certificateDLog["Letters"],
+        "Residues" -> certificateLetterReconstruction["Residues"],
+        "Identity" -> True, "IdentityExact" -> False,
+        "IdentityCertified" -> True, "Probabilistic" -> True,
+        "Method" -> residueDLogSource,
+        "ReconstructionCertificate" ->
+          certificateLetterReconstruction["Certificate"]|>;
+      If[TrueQ[OptionValue["Verbose"]], observableTransportMilestone[
+        "Observable transport first-kernel residues reconstructed on ",
+        Length[certificateDLog["Letters"]], " certificate letters: primes ",
+        certificateLetterReconstruction["Certificate"]["Primes"],
+        ", fresh prime ",
+        certificateLetterReconstruction["Certificate"]["FreshValidationPrime"],
+        ", ", Round[certificateLetterReconstruction["Certificate"]["Seconds"], 0.1],
+        " s"]]]];
   (* Production transport has no symbolic residue or entry-kernel fallback.
      A missing dlog decomposition is an input/computation failure. *)
   If[! residueRecordUsableQ[residueRecord],
@@ -2939,7 +2988,11 @@ BuildObservableTransport[record_Association, demand_Association,
       "FamilyEpsilonFormCertified" -> recordCertifiedQ,
       "FamilyEpsilonFormExact" -> recordExactQ,
       "RecordDLogUsable" -> usableDLogQ[recordDLog],
-      "CertificateDLogUsable" -> usableDLogQ[certificateDLog]|>, Module]
+      "CertificateDLogUsable" -> usableDLogQ[certificateDLog],
+      "CertificateDLogResiduesReconstructable" ->
+        reconstructableCertificateDLogQ[certificateDLog],
+      "CertificateLetterReconstruction" ->
+        certificateLetterReconstruction|>, Module]
   ];
   pathActiveLetters = Select[Range[Length[residueRecord["Letters"]]],
     ! observableTransportZeroQ[
@@ -3095,7 +3148,9 @@ BuildObservableTransport[record_Association, demand_Association,
         ambientInvarianceCertificate]];
   If[residueProbabilistic,
     AssociateTo[structuralProbabilisticCertificates,
-      "FamilyDLogResidues" -> If[
+      "FamilyDLogResidues" -> Which[
+        residueDLogSource === "CertificateLetterModularReconstruction",
+        observableTransportReconstructedResidueCertificate[residueRecord],
         residueDLogSource === "ComputedFiniteFieldDLog",
         <|"Status" -> "ComputedDLogResidues", "Accepted" -> True,
           "Exact" -> False, "Probabilistic" -> True,
@@ -3118,6 +3173,7 @@ BuildObservableTransport[record_Association, demand_Association,
             "FreshValidationPrime", Missing[]],
           "LetterCount" -> Length[certifiedDLog["Letters"]],
           "ResidueCount" -> Length[certifiedDLog["Residues"]]|>,
+        True,
         <|"Status" -> "CertifiedDLogResidues", "Accepted" -> True,
           "Exact" -> False, "Probabilistic" -> True,
           "Source" -> "EpsilonFormCertificate",
@@ -3324,6 +3380,13 @@ BuildObservableTransport[record_Association, demand_Association,
       recordCertifiedQ, "Certified",
       recordTransportReadyQ, "ComputedDLog",
       True, "Invalid"],
+    (* the residue route is reported here, not as a certificate flag: the
+       certificate flags are all-True on an accepted record *)
+    "FirstKernelResidueSource" -> residueDLogSource,
+    "CertificateLetterResidueReconstruction" ->
+      If[AssociationQ[residueRecord] &&
+          KeyExistsQ[residueRecord, "ReconstructionCertificate"],
+        residueRecord["ReconstructionCertificate"], None],
     "Certificates" -> <|
       "FamilyEpsilonFormCertified" -> recordCertifiedQ,
       "FamilyEpsilonFormExact" -> recordExactQ,
@@ -3357,6 +3420,64 @@ BuildObservableTransport[record_Association, demand_Association,
 (* Keep the formal and production acceptance predicates distinct.  An exact
    materialized record retains the historical status; a compact record is
    accepted only when every quotient system has fresh modular evidence. *)
+(* Round 9 (T, 2026-09-03): the probabilistic certificate of first-kernel
+   residues reconstructed on an exact certificate's letters (a rational
+   field family whose exact certifier left "Residues" ->
+   Missing["NotReconstructed"]): built from the residue record by the
+   transport, accepted by the predicate below.  Everything the
+   reconstruction checked is on record and is re-checked: the letters'
+   independence (design rank = letter count), the eps-linearity, at least
+   two CRT primes, a fresh validation prime outside them with at least one
+   fresh point and zero mismatches over a positive comparison count. *)
+observableTransportReconstructedResidueCertificate[residueRecord_Association] :=
+  Join[<|"Status" -> "ReconstructedCertificateLetterResidues",
+    "Accepted" -> True, "Exact" -> False, "Probabilistic" -> True,
+    "Source" -> "CertificateLetterModularReconstruction",
+    "CoefficientField" -> "Rational",
+    "ConstantResidues" -> True, "ResiduesVerifiedAtAllPrimes" -> True,
+    "IdentityExactlyCertifiedOnLetters" -> True,
+    "LetterCount" -> Length[Lookup[residueRecord, "Letters", {}]],
+    "ResidueCount" -> Length[Lookup[residueRecord, "Residues", {}]]|>,
+   KeyTake[Lookup[residueRecord, "ReconstructionCertificate", <||>],
+    {"Method", "Primes", "PointsPerPrime", "DesignRank",
+     "EpsilonLinearityChecked", "FreshValidationPrime",
+     "FreshValidationPoints", "Comparisons", "Mismatches", "ModulusBits",
+     "ReconstructedHeightBitsMaximum", "Seed", "Seconds"}]];
+observableTransportReconstructedResidueCertificate[___] := $Failed;
+
+observableTransportReconstructedResidueCertificateQ[certificate_] :=
+  AssociationQ[certificate] &&
+  Lookup[certificate, "Status", None] ===
+    "ReconstructedCertificateLetterResidues" &&
+  Lookup[certificate, "Source", None] ===
+    "CertificateLetterModularReconstruction" &&
+  Lookup[certificate, "Method", None] ===
+    "ModularResidueReconstructionOnCertificateLetters" &&
+  Lookup[certificate, "CoefficientField", None] === "Rational" &&
+  TrueQ[Lookup[certificate, "Accepted", False]] &&
+  TrueQ[Lookup[certificate, "Probabilistic", False]] &&
+  TrueQ[Lookup[certificate, "Exact", True] === False] &&
+  TrueQ[Lookup[certificate, "ConstantResidues", False]] &&
+  TrueQ[Lookup[certificate, "ResiduesVerifiedAtAllPrimes", False]] &&
+  TrueQ[Lookup[certificate, "IdentityExactlyCertifiedOnLetters", False]] &&
+  TrueQ[Lookup[certificate, "EpsilonLinearityChecked", False]] &&
+  IntegerQ[Lookup[certificate, "LetterCount", Missing[]]] &&
+  Lookup[certificate, "LetterCount", 0] > 0 &&
+  Lookup[certificate, "LetterCount", 0] ===
+    Lookup[certificate, "ResidueCount", -1] &&
+  Lookup[certificate, "DesignRank", -1] ===
+    Lookup[certificate, "LetterCount", 0] &&
+  MatchQ[Lookup[certificate, "Primes", None], {_Integer, __Integer}] &&
+  DuplicateFreeQ[certificate["Primes"]] &&
+  IntegerQ[Lookup[certificate, "FreshValidationPrime", Missing[]]] &&
+  ! MemberQ[certificate["Primes"], certificate["FreshValidationPrime"]] &&
+  IntegerQ[Lookup[certificate, "FreshValidationPoints", Missing[]]] &&
+  certificate["FreshValidationPoints"] >= 1 &&
+  IntegerQ[Lookup[certificate, "Comparisons", Missing[]]] &&
+  certificate["Comparisons"] > 0 &&
+  Lookup[certificate, "Mismatches", -1] === 0;
+observableTransportReconstructedResidueCertificateQ[___] := False;
+
 AcceptedObservableTransportQ[result_] := Module[
   {status, certificates, probabilistic, systems, requiredExact,
    representation, boundaryMethod, constraintRank, coordinateRequired,
@@ -3422,14 +3543,19 @@ AcceptedObservableTransportQ[result_] := Module[
     TrueQ[Lookup[certificate, "Accepted", False]] &&
     TrueQ[Lookup[certificate, "Probabilistic", False]] &&
     TrueQ[Lookup[certificate, "Exact", True] === False] &&
-    Lookup[certificate, "CoefficientField", None] === "Multiquadratic" &&
     TrueQ[Lookup[certificate, "ConstantResidues", False]] &&
     TrueQ[Lookup[certificate, "ResiduesVerifiedAtAllPrimes", False]] &&
     IntegerQ[Lookup[certificate, "LetterCount", Missing[]]] &&
     Lookup[certificate, "LetterCount", -1] >= 0 &&
     Lookup[certificate, "LetterCount", 0] ===
       Lookup[certificate, "ResidueCount", -1] && Which[
+      (* round 9 (T): residues reconstructed on an exact certificate's
+         letters (rational field); the named predicate is unit-tested *)
+      Lookup[certificate, "Status", None] ===
+          "ReconstructedCertificateLetterResidues",
+        observableTransportReconstructedResidueCertificateQ[certificate],
       Lookup[certificate, "Status", None] === "ComputedDLogResidues",
+        Lookup[certificate, "CoefficientField", None] === "Multiquadratic" &&
         Lookup[certificate, "IdentityMethod", None] ===
           "FiniteFieldPointwise" &&
         TrueQ[Lookup[certificate, "FreshPrimeValidation", False]] &&
@@ -3438,6 +3564,7 @@ AcceptedObservableTransportQ[result_] := Module[
         Lookup[certificate, "CRTPrimes", {}] =!= {} &&
         IntegerQ[Lookup[certificate, "FreshValidationPrime", Missing[]]],
       Lookup[certificate, "Status", None] === "CertifiedDLogResidues",
+        Lookup[certificate, "CoefficientField", None] === "Multiquadratic" &&
         Lookup[certificate, "CertificationLevel", None] ===
           "HighConfidenceFiniteField" &&
         Lookup[certificate, "IdentityMethod", None] === "Modular" &&

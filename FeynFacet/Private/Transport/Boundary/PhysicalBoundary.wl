@@ -371,7 +371,7 @@ boundarySelectModeExtension[residue_, transformationLocal_, prefactor_,
   {localOperator, seeds, extensions, exactExtensions, vectors,
    selectedBasis, orders, finiteOrders, minimumOrder, lowerPowers,
    lowerConstraints, admissible, coefficients, vector, selected,
-   expectedCoefficients},
+   expectedCoefficients, basisSeeds, basisExtensions},
   localOperator = (residue - eigenvalue IdentityMatrix[Length[residue]])[[
     canonicalRows, canonicalRows]];
   seeds = NullSpace[localOperator];
@@ -406,11 +406,29 @@ boundarySelectModeExtension[residue_, transformationLocal_, prefactor_,
     row_ /; boundaryExactZeroQ[row]];
   admissible = If[lowerConstraints === {},
     IdentityMatrix[Length[vectors]], NullSpace[lowerConstraints]];
-  If[Length[admissible] =!= 1,
+  (* no direction cancels every lower power: the valuation excludes the
+     whole eigenspace (typed, distinct from an ambiguity) *)
+  If[admissible === {},
+    Return[<|"Status" -> "PhysicalValuationMismatch",
+      "BlockNullity" -> Length[seeds], "PhysicalAdmissibleNullity" -> 0,
+      "ComputedOrders" -> orders, "ExpectedOrder" -> expectedOrder|>]];
+  (* more than one direction survives the valuation: the physical solution
+     carries one coefficient per direction at this point.  Refuse typed and
+     hand back the canonical (echelon) basis of the admissible eigenspace,
+     each direction re-extended exactly, so that a caller with an explicit
+     policy can realize the whole eigenspace instead of guessing *)
+  If[Length[admissible] > 1,
+    basisSeeds = Together /@ RowReduce[
+      (Together /@ Total[MapThread[#1 #2 &, {#, vectors}]])[[canonicalRows]] & /@
+        admissible];
+    basisExtensions = boundaryModeExtension[residue, canonicalRows,
+        constraintRows, eigenvalue, maximumLevel, #] & /@ basisSeeds;
     Return[<|"Status" -> "AmbiguousPhysicalEigenspace",
       "BlockNullity" -> Length[seeds],
       "PhysicalAdmissibleNullity" -> Length[admissible],
-      "ExpectedOrder" -> expectedOrder|>]];
+      "ExpectedOrder" -> expectedOrder,
+      "AdmissibleBasis" -> If[AllTrue[basisExtensions,
+          Lookup[#, "Status", None] === "Exact" &], basisExtensions, None]|>]];
   coefficients = First[admissible];
   vector = Together /@ Total[MapThread[#1 #2 &, {coefficients, vectors}]];
   selected = (Together /@ (transformationLocal.prefactor.vector))[[physicalRows]];
@@ -479,11 +497,12 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       regulator^key[[2]] localVariable^key[[1]] coefficient],
     frobenius["FrobeniusPrefactorCoefficients"]];
 
-  buildMode[realization_] := Module[
+  buildMode[realization_, given_: None] := Module[
     {periodID, periodClass, periodEpsilonValuation, canonicalRows,
      physicalRows, constraintRows, demandedOutputs, exponent,
      integerValuation, maximumLevel, suppliedSeed, eigenvalue,
      extension, vector, mapped, selected, orders, expectedOrder,
+     policy, basis, subID,
      candidates, requestedNormalizationRow, normalizationIndex,
      expectedLeading, actualLeading, normalization, normalizedVector,
      normalizedMapped, normalizedSelected, normalizedOrders,
@@ -492,7 +511,8 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
     If[! AssociationQ[realization],
       Return[<|"Status" -> "BoundaryRealizationInvalid"|>]
     ];
-    periodID = Lookup[realization, "PeriodID", Missing[]];
+    periodID = If[given === None, Lookup[realization, "PeriodID", Missing[]],
+      given["PeriodID"]];
     periodClass = Lookup[realization, "PeriodClass", Missing[]];
     periodEpsilonValuation = Lookup[realization,
       "PeriodEpsilonValuation", Missing[]];
@@ -545,12 +565,32 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
         "AvailableSeriesOrder" -> maximumSeriesOrder|>]
     ];
     eigenvalue = Together[localPower exponent];
-    extension = If[suppliedSeed === Automatic,
+    extension = Which[
+      given =!= None, given["Extension"],
+      suppliedSeed === Automatic,
       boundarySelectModeExtension[residue, transformationLocal, prefactor,
         canonicalRows, physicalRows, constraintRows, eigenvalue,
         maximumLevel, expectedOrder, localVariable],
+      True,
       boundaryModeExtension[residue, canonicalRows,
         constraintRows, eigenvalue, maximumLevel, suppliedSeed]];
+    (* A genuinely multi-dimensional admissible eigenspace is refused typed
+       by default.  Under the realization's explicit policy "Basis" every
+       direction of the canonical admissible basis becomes its own exact
+       sub-realization {.. periodID .., k}: the physical solution has one
+       coefficient per direction at this point, and the Stage-3 ledger says
+       so (DegenerateEigenspace).  Nothing selects a direction silently. *)
+    policy = Lookup[realization, "DegenerateEigenspacePolicy", "Refuse"];
+    If[extension["Status"] === "AmbiguousPhysicalEigenspace" &&
+        policy === "Basis" &&
+        ListQ[Lookup[extension, "AdmissibleBasis", None]],
+      basis = extension["AdmissibleBasis"];
+      subID[k_] := If[ListQ[periodID], Append[periodID, k], {periodID, k}];
+      Return[Table[buildMode[realization, <|"Extension" -> basis[[k]],
+          "PeriodID" -> subID[k], "Direction" -> k,
+          "Dimension" -> Length[basis], "ParentPeriodID" -> periodID|>],
+        {k, Length[basis]}]]
+    ];
     If[extension["Status"] =!= "Exact",
       Return[Join[<|"PeriodID" -> periodID,
           "PeriodClass" -> periodClass|>, extension]]
@@ -631,7 +671,7 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
           MatrixPower[residue, order].normalizedVector,
         {order, 1, maximumEpsilonOrder}])
     ];
-    <|
+    With[{record = <|
       "Status" -> "BoundaryModeMatched",
       "PeriodID" -> periodID,
       "PeriodClass" -> periodClass,
@@ -649,10 +689,14 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       "PhysicalToLocalMode" -> physicalToLocalMode,
       "PhysicalLocalOrders" -> normalizedOrders,
       "PhysicalLeadingCoefficients" -> normalizedLeading
-    |>
+    |>},
+      If[given === None, record,
+        Join[record, <|"ParentPeriodID" -> given["ParentPeriodID"],
+          "EigenspaceDirection" -> given["Direction"],
+          "EigenspaceDimension" -> given["Dimension"]|>]]]
   ];
 
-  modes = buildMode /@ realizations;
+  modes = Flatten[buildMode /@ realizations];
   periodIDs = DeleteCases[Lookup[modes, "PeriodID", Missing[]],
     _Missing];
   If[! DuplicateFreeQ[periodIDs],
@@ -668,6 +712,9 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       "AffectedBoundaryCoordinates" -> {},
       "DemandedOutputs" -> Lookup[mode, "DemandedOutputs", {}],
       "Status" -> "Unevaluated",
+      "DegenerateEigenspace" -> If[KeyExistsQ[mode, "ParentPeriodID"],
+        KeyTake[mode, {"ParentPeriodID", "EigenspaceDirection",
+          "EigenspaceDimension"}], None],
       "Problem" -> If[Lookup[mode, "Status", None] ===
         "BoundaryModeMatched", "PeriodDataRequired",
         Lookup[mode, "Status", "BoundaryModeIncomplete"]]|>], modes];
@@ -689,6 +736,9 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       "FixedRules" -> fixedRules|>,
     "PhysicalEndpointRelation" -> relation,
     "Modes" -> modes,
+    "DegenerateEigenspaces" -> DeleteDuplicates[
+      KeyTake[#, {"ParentPeriodID", "EigenspaceDimension"}] & /@
+        Select[modes, KeyExistsQ[#, "ParentPeriodID"] &]],
     "Stage3NeedsLedger" -> initialLedger
   |>
 ];

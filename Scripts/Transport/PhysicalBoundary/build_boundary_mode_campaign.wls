@@ -184,7 +184,12 @@ buildFamily[family_] := Catch@Module[
       "EpsilonExponent" -> period["EpsPart"],
       "IntegerValuation" ->
         period["IntegerValuation", endpoint["Stratum"]],
-      "LogLevel" -> period["LogLevel"]|>;
+      "LogLevel" -> period["LogLevel"],
+      (* a repeated block eigenvalue whose admissible directions the
+         valuation cannot separate is realized as its whole canonical
+         eigenspace basis (one exact sub-realization per direction), never
+         by a silent choice; the ledger records the split *)
+      "DegenerateEigenspacePolicy" -> "Basis"|>;
     If[MemberQ[{1, 6, 7}, period["PeriodID"]],
       Join[realization, <|"KnownCoefficient" -> 0|>], realization]
   ], familyPeriods];
@@ -238,6 +243,8 @@ buildFamily[family_] := Catch@Module[
   <|"Family" -> family, "Status" -> "Accepted",
     "Chart" -> chart, "Stratum" -> endpoint["Stratum"],
     "PeriodCount" -> Length[realizations],
+    "ModeCount" -> Length[Lookup[modeMap, "Modes", {}]],
+    "DegenerateEigenspaces" -> Lookup[modeMap, "DegenerateEigenspaces", {}],
     "FrobeniusSeconds" -> frobeniusSeconds,
     "ModeSeconds" -> modeSeconds,
     "TotalSeconds" -> AbsoluteTime[] - start,
@@ -262,13 +269,16 @@ summary = <|
   "StructuralPeriodIDs" -> structuralPeriodIDs,
   "CertifiedPeriodIDs" -> certifiedPeriodIDs,
   "RealizationCount" -> Total[Lookup[results, "PeriodCount", 0]],
+  "ModeCount" -> Total[Lookup[results, "ModeCount", 0]],
+  "DegenerateEigenspaces" -> Flatten[Lookup[results, "DegenerateEigenspaces", {}]],
   "Seconds" -> AbsoluteTime[] - campaignStart|>;
 summaryFile = If[Length[requestedFamilies] === 1,
   "campaign_summary_" <> First[requestedFamilies] <> ".wl",
   "campaign_summary.wl"];
 writeAtomic[summary, FileNameJoin[{outputDirectory, summaryFile}]];
 Print[InputForm[KeyTake[summary, {"Status", "AcceptedFamilies",
-  "LedgerPeriodIDs", "RealizationCount", "Seconds"}]]];
+  "StructuralPeriodIDs", "RealizationCount", "ModeCount",
+  "DegenerateEigenspaces", "Seconds"}]]];
 If[summary["Status"] =!= "PhysicalBoundaryModeCampaignAcceptedV1",
   Exit[1]];
 Quit[];

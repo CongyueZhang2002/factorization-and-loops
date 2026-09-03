@@ -43,6 +43,7 @@ ClearAll[
   observableTransportModularAlgebraicCovariantSubspaceInclusion,
   observableTransportFFSelectMatrixTrials,
   observableTransportFFFreshTrialPool,
+  observableTransportCertificateLetterResidues,
   observableTransportFFAliasData,
   observableTransportFFExpressionString,
   observableTransportFFWorkDirectory,
@@ -2077,3 +2078,202 @@ observableTransportModularMatrixReconstruction[m_, variables_List,
     "Matrix" -> reconstructed,
     "ModularCertificate" -> record["ModularCertificate"]|>
 ];
+
+
+(* Round 9 (T, 2026-09-03): constant dlog residues reconstructed on the
+   letters of an exact family certificate that verified the dlog identity
+   but left "Residues" -> Missing["NotReconstructed"] (the exact
+   certification route; CF265, CF305 on the Kallen charts).  For an
+   eps-linear connection A_k = eps Sum_i R_i d_k log l_i with constant
+   rational R_i, the design matrix W (one row per sample point and
+   variable, one column per letter) is shared by every matrix entry, so the
+   residues of all d^2 entries are one modular row reduction per prime; the
+   images are combined by CRT, rationally reconstructed with
+   lift-and-verify, and validated at a fresh prime on fresh points.  The
+   letters' independence (rank of W) and the identity itself (consistency
+   of the augmented system at every prime) are checked, the eps-linearity
+   is checked at one point per prime, and every failure is typed.  This is
+   a certified finite-field route; there is no symbolic decomposition. *)
+Options[observableTransportCertificateLetterResidues] = {
+  (* CF265's exact-route residues need nine 31-bit primes (about 130-bit
+     rationals): the cap matches the rational-layer route's default *)
+  "PrimeCount" -> 2, "MaximumPrimeCount" -> 24, "ValidationPoints" -> 3,
+  "ExtraPoints" -> 3, "Seed" -> 20260903};
+
+observableTransportCertificateLetterResidues[connections_List,
+    variables_List, eps_Symbol, letters_List, dimension_Integer,
+    OptionsPattern[]] := Module[
+  {start = AbsoluteTime[], letterCount = Length[letters],
+   variableCount = Length[variables], fail, allVariables,
+   compiledConnections, compiledLetters, compiledDerivatives, seed,
+   pointsPerPrime, sampleAt, imageAtPrime, primes = {}, images = {},
+   primeIndex = 0, pool, image, reconstruct, reconstructed = None,
+   freshPrime = None, freshPoints = 0, comparisons = 0, mismatches = 0,
+   maximumPrimes, validationPoints, residueImages, residueMatrix,
+   lastReconstruction = {}},
+  fail[status_, extra_: <||>] :=
+    Return[Join[<|"Status" -> status|>, extra], Module];
+  seed = OptionValue["Seed"];
+  maximumPrimes = OptionValue["MaximumPrimeCount"];
+  validationPoints = OptionValue["ValidationPoints"];
+  If[letterCount === 0, fail["NoCertificateLetters"]];
+  If[Length[connections] =!= variableCount,
+    fail["ConnectionVariableMismatch"]];
+  If[! AllTrue[letters, FreeQ[#, eps] &], fail["LettersNotEpsilonFree"]];
+  If[! AllTrue[connections, MatrixQ[Normal[#]] &&
+      Dimensions[Normal[#]] === {dimension, dimension} &],
+    fail["ConnectionShapeInvalid"]];
+  allVariables = Append[variables, eps];
+  compiledConnections = observableTransportFFCompileMatrix[
+      Normal[#], allVariables] & /@ connections;
+  If[MemberQ[compiledConnections, $Failed],
+    fail["ConnectionCompilationFailed"]];
+  compiledLetters = observableTransportFFCompileExpressions[
+    Together /@ letters, variables];
+  compiledDerivatives = Table[observableTransportFFCompileExpressions[
+      Together /@ D[letters, v], variables], {v, variables}];
+  If[! FreeQ[{compiledLetters, compiledDerivatives}, $Failed],
+    fail["LetterCompilationFailed"]];
+  pointsPerPrime = letterCount + OptionValue["ExtraPoints"];
+  (* one sample: the letters' dlog values and the connection images at
+     eps = 1 (and eps = 2 for the linearity check); None on a pole *)
+  sampleAt[point_List, prime_Integer, linearityQ_] := Module[
+    {letterValues, derivativeValues, forms, values, twice},
+    letterValues = observableTransportFFEvaluateExpressions[
+      compiledLetters, point, prime];
+    If[MemberQ[letterValues, $Failed | 0], Return[None]];
+    forms = Table[
+      derivativeValues = observableTransportFFEvaluateExpressions[
+        compiledDerivatives[[k]], point, prime];
+      If[MemberQ[derivativeValues, $Failed], Return[None, Module]];
+      Mod[derivativeValues PowerMod[letterValues, -1, prime], prime],
+      {k, variableCount}];
+    values = Table[observableTransportFFMatrixValue[
+        compiledConnections[[k]], Append[point, 1], prime],
+      {k, variableCount}];
+    If[MemberQ[values, $Failed], Return[None]];
+    If[linearityQ,
+      twice = Table[observableTransportFFMatrixValue[
+          compiledConnections[[k]], Append[point, 2], prime],
+        {k, variableCount}];
+      If[MemberQ[twice, $Failed], Return[None]];
+      If[! AllTrue[Range[variableCount],
+          Mod[twice[[#]] - 2 values[[#]], prime] ===
+            ConstantArray[0, {dimension, dimension}] &],
+        Return[$EpsilonNonlinear]]];
+    <|"Forms" -> forms, "Values" -> values|>];
+  (* the residue images of every entry at one prime: rows (point, k) of
+     W = forms, right-hand sides = the flattened connection images *)
+  imageAtPrime[prime_Integer, candidates_List] := Module[
+    {rows = {}, rhs = {}, accepted = 0, sample, reduced, pivots, rank,
+     inconsistent},
+    Do[
+      sample = sampleAt[point, prime, accepted === 0];
+      If[sample === $EpsilonNonlinear,
+        Return[<|"Status" -> "EpsilonLinearityFailed",
+          "Prime" -> prime, "Point" -> point|>, Module]];
+      If[sample === None, Continue[]];
+      Do[AppendTo[rows, sample["Forms"][[k]]];
+        AppendTo[rhs, Flatten[sample["Values"][[k]]]], {k, variableCount}];
+      accepted++;
+      If[accepted >= pointsPerPrime, Break[]],
+      {point, candidates}];
+    If[accepted < pointsPerPrime,
+      Return[<|"Status" -> "ConnectionEvaluationFailed", "Prime" -> prime,
+        "AcceptedPoints" -> accepted, "NeededPoints" -> pointsPerPrime|>, Module]];
+    reduced = RowReduce[Join[rows, rhs, 2], Modulus -> prime];
+    pivots = Table[FirstPosition[reduced[[row]], Except[0], {0}, 1,
+        Heads -> False][[1]], {row, Length[reduced]}];
+    rank = Count[pivots, p_ /; 1 <= p <= letterCount];
+    inconsistent = Count[pivots, p_ /; p > letterCount];
+    If[inconsistent > 0,
+      Return[<|"Status" -> "ConnectionOutsideLetterSpan", "Prime" -> prime,
+        "InconsistentRows" -> inconsistent|>, Module]];
+    If[rank < letterCount,
+      Return[<|"Status" -> "LetterFormsDependent", "Prime" -> prime,
+        "DesignRank" -> rank, "LetterCount" -> letterCount|>, Module]];
+    (* pivot row j carries letter pivots[[j]]; rows are in pivot order *)
+    <|"Status" -> "Image", "Prime" -> prime, "AcceptedPoints" -> accepted,
+      "Residues" -> Table[reduced[[j, letterCount + 1 ;;]],
+        {j, letterCount}]|>];
+  reconstruct[] := Module[{modulus = Times @@ primes, crt, values},
+    values = Table[
+      crt = modularCRT[Lookup[images, "Residues"][[All, i, e]], primes];
+      If[crt === $Failed, $Failed, modularRationalReconstruct[crt, modulus]],
+      {i, letterCount}, {e, dimension^2}];
+    lastReconstruction = values;
+    If[FreeQ[values, $Failed], values, $Failed]];
+  (* lift-and-verify over the prime schedule *)
+  While[reconstructed === None,
+    primeIndex++;
+    If[Length[primes] >= maximumPrimes,
+      fail["ResidueReconstructionNotConverged",
+        <|"Primes" -> primes, "MaximumPrimeCount" -> maximumPrimes,
+          "ModulusBits" -> Round[Log2[Times @@ primes]],
+          "FailedEntries" -> Count[Flatten[lastReconstruction], $Failed],
+          "TotalEntries" -> letterCount dimension^2,
+          "ReconstructedHeightBitsMaximum" -> Max[0, Map[
+            If[# === $Failed, 0, Round[Log2[Max[1, Abs[Numerator[#]],
+              Denominator[#]]]]] &, Flatten[lastReconstruction]]],
+          "SampleFailedImages" -> Take[Select[Flatten[Table[
+              {i, e, Lookup[images, "Residues"][[All, i, e]]},
+              {i, letterCount}, {e, dimension^2}], 1],
+            lastReconstruction[[#[[1]], #[[2]]]] === $Failed &], UpTo[3]]|>]];
+    pool = observableTransportFFFreshTrialPool[1, pointsPerPrime + 8,
+      variableCount, primes, seed + primeIndex];
+    image = imageAtPrime[First[pool["Primes"]], Lookup[pool["Trials"], "Point"]];
+    If[image["Status"] =!= "Image", fail[image["Status"], KeyDrop[image, "Status"]]];
+    AppendTo[primes, image["Prime"]];
+    AppendTo[images, image];
+    If[Length[primes] >= OptionValue["PrimeCount"],
+      reconstructed = reconstruct[];
+      If[reconstructed === $Failed, reconstructed = None]]];
+  (* fresh-prime validation on fresh points: the identity with the
+     reconstructed residues, every entry, every variable *)
+  primeIndex++;
+  pool = observableTransportFFFreshTrialPool[1, validationPoints + 8,
+    variableCount, primes, seed + primeIndex];
+  freshPrime = First[pool["Primes"]];
+  residueImages = Quiet[Check[Map[
+      Mod[Numerator[#] PowerMod[Denominator[#], -1, freshPrime], freshPrime] &,
+      reconstructed, {2}], $Failed]];
+  If[residueImages === $Failed, fail["FreshPrimeDividesDenominator",
+      <|"Prime" -> freshPrime|>]];
+  Do[
+    With[{sample = sampleAt[point, freshPrime, False]},
+      If[sample === None, Continue[]];
+      Do[
+        With[{predicted = Mod[sample["Forms"][[k]] . residueImages, freshPrime],
+            actual = Flatten[sample["Values"][[k]]]},
+          comparisons += dimension^2;
+          mismatches += Count[Mod[predicted - actual, freshPrime], Except[0]]],
+        {k, variableCount}];
+      freshPoints++;
+      If[freshPoints >= validationPoints, Break[]]],
+    {point, Lookup[pool["Trials"], "Point"]}];
+  If[freshPoints < validationPoints,
+    fail["FreshPrimeValidationIncomplete", <|"Prime" -> freshPrime,
+      "Points" -> freshPoints|>]];
+  If[mismatches > 0,
+    fail["FreshPrimeValidationFailed", <|"Prime" -> freshPrime,
+      "Comparisons" -> comparisons, "Mismatches" -> mismatches|>]];
+  residueMatrix[row_] := Partition[row, dimension];
+  <|"Status" -> "CertificateLetterResiduesReconstructed",
+    "Residues" -> residueMatrix /@ reconstructed,
+    "Certificate" -> <|
+      "Method" -> "ModularResidueReconstructionOnCertificateLetters",
+      "Probabilistic" -> True, "Exact" -> False,
+      "LetterCount" -> letterCount, "Dimension" -> dimension,
+      "Primes" -> primes, "PointsPerPrime" -> pointsPerPrime,
+      "DesignRank" -> letterCount, "EpsilonLinearityChecked" -> True,
+      "FreshValidationPrime" -> freshPrime,
+      "FreshValidationPoints" -> freshPoints,
+      "Comparisons" -> comparisons, "Mismatches" -> mismatches,
+      "ModulusBits" -> Round[Log2[Times @@ primes]],
+      "ReconstructedHeightBitsMaximum" -> Max[0, Map[
+        Round[Log2[Max[1, Abs[Numerator[#]], Denominator[#]]]] &,
+        Flatten[reconstructed]]],
+      "Seed" -> seed, "Seconds" -> AbsoluteTime[] - start|>|>
+];
+observableTransportCertificateLetterResidues[___] :=
+  <|"Status" -> "CertificateLetterResidueInputInvalid"|>;
