@@ -501,7 +501,8 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
   {fail, low = window[[1]], high = window[[2]], action, formalActionQ,
    modes, regulator, dimension, records, normalizedRecords, recordIDs,
    missingGPL = {}, missingElliptic = {}, invalid = {}, depthProblems = {},
-   windowProblems = {}, coordinates = {}, modeValues = {}, needsLedger = {},
+   windowProblems = {}, tangentialProblems = {}, coordinates = {},
+   modeValues = {}, needsLedger = {},
    appendLedger, markMissing, resolveCoefficients, addCoordinates,
    modeValuation, expectedValuation, activeDemand, targetHigh,
    requiredHigh, requiredOrders, potentialCoordinates, actualCoordinates,
@@ -605,6 +606,28 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
     potentialCoordinates =
       {mode["PeriodID"], #} & /@ requiredOrders;
     If[requiredOrders === {}, Continue[]];
+    (* The local solution is H(rho,eps) rho^(eps R)c.  A rational boundary
+       selector represents it without extra tangential data only for an
+       ordinary zero-residue mode.  Nonzero eigenvalues carry
+       exp(eps lambda log rho), and generalized modes carry additional log
+       powers; silently dropping either factor changes the solution. *)
+    If[Lookup[mode, "GeneralizedLevel", Missing[]] =!= 0 ||
+        ! boundaryExactZeroQ[
+          Lookup[mode, "LocalEigenvalue", Missing[]]],
+      AppendTo[tangentialProblems, <|
+        "PeriodID" -> mode["PeriodID"],
+        "LocalEigenvalue" -> Lookup[mode, "LocalEigenvalue", Missing[]],
+        "GeneralizedLevel" ->
+          Lookup[mode, "GeneralizedLevel", Missing[]]|>];
+      appendLedger[mode, activeDemand, "Unevaluated",
+        potentialCoordinates, <|
+          "Problem" -> "TangentialLogModeRequired",
+          "LocalEigenvalue" ->
+            Lookup[mode, "LocalEigenvalue", Missing[]],
+          "GeneralizedLevel" ->
+            Lookup[mode, "GeneralizedLevel", Missing[]]|>];
+      Continue[]
+    ];
     If[expectedValuation + modeValuation < low,
       AppendTo[windowProblems, <|"PeriodID" -> mode["PeriodID"],
         "NeededMinimumOrder" -> expectedValuation + modeValuation,
@@ -741,6 +764,12 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
       If[missingOrders === {}, <||>,
         <|"MissingOrders" -> missingOrders|>]],
     {mode, modes}];
+  If[tangentialProblems =!= {},
+    Return[<|"Status" -> "TangentialLogModeRequired",
+      "Family" -> modeMap["Family"], "Limit" -> modeMap["Limit"],
+      "RequestedWindow" -> window, "Problems" -> tangentialProblems,
+      "Stage3NeedsLedger" -> needsLedger|>, Module]
+  ];
   If[windowProblems =!= {},
     Return[<|"Status" -> "BoundaryEpsilonWindowTooNarrow",
       "Family" -> modeMap["Family"], "Limit" -> modeMap["Limit"],

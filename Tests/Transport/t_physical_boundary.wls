@@ -13,7 +13,7 @@ rho = Symbol["Global`boundaryRho"];
 eps = Symbol["Global`eps"];
 elliptic0 = Inactive[EllipticK][1/2];
 elliptic1 = Inactive[EllipticE][1/3];
-residue = {{0, 0}, {0, 1}};
+residue = ConstantArray[0, {2, 2}];
 regular = {{0, 1}, {0, 0}};
 connection = eps (residue/u + regular);
 endpointSpec = <|"Variable" -> u, "Regulator" -> eps,
@@ -48,7 +48,7 @@ realizations = {
     "DemandedOutputs" -> {{0, 1}, {1, 1}, {3, 1}}|>,
   <|"PeriodID" -> "e", "PeriodClass" -> "Elliptic",
     "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {2},
-    "PhysicalRows" -> {2}, "EpsilonExponent" -> 1,
+    "PhysicalRows" -> {2}, "EpsilonExponent" -> 0,
     "IntegerValuation" -> 0, "LogLevel" -> 0,
     "DemandedOutputs" -> {{0, 2}, {1, 2}}|>
 };
@@ -75,6 +75,26 @@ FTAssert["a genuine generalized residue mode is found at its minimal log level",
   jordanMode["Status"] === "BoundaryModeMapBuilt" &&
     jordanMode["Modes"][[1, "GeneralizedLevel"]] === 1 &&
     jordanMode["Modes"][[1, "CanonicalMode"]] === {0, 1}];
+
+powerFrobenius = BuildEndpointFrobenius[
+  eps {{0, 0}, {0, 1}}/u, endpointSpec,
+  "MaximumSeriesOrder" -> 1, "MaximumEpsilonOrder" -> 1];
+powerMode = BuildBoundaryModeMap[powerFrobenius, IdentityMatrix[2],
+  modeSpec, {<|"PeriodID" -> "power", "PeriodClass" -> "GPL",
+    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {2},
+    "PhysicalRows" -> {2}, "EpsilonExponent" -> 1,
+    "IntegerValuation" -> 0, "LogLevel" -> 0,
+    "DemandedOutputs" -> {{0, 2}}|>}];
+FTAssert["nonzero and generalized residue modes require their tangential logarithmic factors before transport",
+  BuildTransportBoundaryVector[jordanMode, <||>, {0, 0},
+      "MissingPeriodAction" -> "Formal"]["Status"] ===
+        "TangentialLogModeRequired" &&
+    BuildTransportBoundaryVector[powerMode, <||>, {0, 0},
+      "MissingPeriodAction" -> "Formal"]["Status"] ===
+        "TangentialLogModeRequired" &&
+    BuildTransportBoundaryVector[jordanMode, <||>, {0, 0},
+      "MissingPeriodAction" -> "Formal"]["Stage3NeedsLedger"][[1,
+        "Problem"]] === "TangentialLogModeRequired"];
 
 periods = <|
   "g" -> <|"PeriodClass" -> "GPL", "Status" -> "Exact",
