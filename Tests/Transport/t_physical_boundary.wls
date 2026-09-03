@@ -65,6 +65,40 @@ FTAssert["non-epsilon-form and higher-order endpoint poles are refused typed",
     BuildEndpointFrobenius[eps IdentityMatrix[2]/u^2,
       endpointSpec]["Status"] === "EndpointNotFuchsian"];
 
+leveltP = Symbol["Global`leveltP"];
+leveltFrame = {{1, 0}, {1/leveltP, 1}};
+leveltExponents = {0, -2 - 4 eps};
+leveltExpected = {{eps/leveltP, 0}, {0, 2 eps/(1 - leveltP)}};
+leveltResidue = Together[
+  leveltFrame.DiagonalMatrix[leveltExponents].Inverse[leveltFrame]];
+leveltTangential = Together[
+  leveltFrame.leveltExpected.Inverse[leveltFrame] +
+    D[leveltFrame, leveltP].Inverse[leveltFrame]];
+levelt = BuildEndpointLeveltModeConnection[leveltResidue,
+  leveltTangential, <|"TangentialVariable" -> leveltP,
+    "Regulator" -> eps, "ModeFrame" -> leveltFrame,
+    "LocalExponents" -> leveltExponents|>];
+FTAssert["a rational-in-epsilon regular-singular endpoint is reduced in a moving Levelt frame",
+  levelt["Status"] === "EndpointLeveltModeConnectionBuilt" &&
+    And @@ Flatten[MapThread[Together[#1 - #2] === 0 &,
+      {levelt["TangentialConnection"], leveltExpected}, 2]] &&
+    Lookup[levelt["ExponentData"], "IntegerPart"] === {0, -2} &&
+    Lookup[levelt["ExponentData"], "RegulatorCoefficient"] === {0, -4} &&
+    Lookup[levelt["ExponentSectors"], "Indices"] === {{1}, {2}}];
+
+FTAssert["an invalid frame and unequal-exponent tangential mixing are refused typed",
+  BuildEndpointLeveltModeConnection[leveltResidue,
+      leveltTangential, <|"TangentialVariable" -> leveltP,
+        "Regulator" -> eps, "ModeFrame" -> IdentityMatrix[2],
+        "LocalExponents" -> leveltExponents|>]["Status"] ===
+      "EndpointLeveltModeFrameInvalid" &&
+    BuildEndpointLeveltModeConnection[leveltResidue,
+      leveltTangential + leveltFrame.{{0, 1}, {0, 0}}.
+        Inverse[leveltFrame], <|"TangentialVariable" -> leveltP,
+        "Regulator" -> eps, "ModeFrame" -> leveltFrame,
+        "LocalExponents" -> leveltExponents|>]["Status"] ===
+      "EndpointLeveltSectorsCoupled"];
+
 modeSpec = <|
   "Family" -> "SyntheticBoundaryControl",
   "Limit" -> <|"Variable" -> u, "Endpoint" -> 0,

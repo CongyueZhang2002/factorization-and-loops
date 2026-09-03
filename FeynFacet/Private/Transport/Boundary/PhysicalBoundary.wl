@@ -11,7 +11,8 @@
    vector of exact boundary constants.  GPL constants and elliptic periods
    therefore share the same transport engine without being conflated. *)
 
-Clear[BuildEndpointFrobenius, BuildBoundaryModeMap,
+Clear[BuildEndpointFrobenius, BuildEndpointLeveltModeConnection,
+  BuildBoundaryModeMap,
   BuildTransportBoundaryVector, BoundaryPeriodCoefficient];
 ClearAll[boundaryExactZeroQ, boundaryCanonicalMatrix,
   boundaryFiniteQ, boundaryParticularSolution, boundaryLocalOrder,
@@ -209,6 +210,89 @@ BuildEndpointFrobenius[connection_?MatrixQ, spec_Association,
 
 BuildEndpointFrobenius[___] :=
   <|"Status" -> "EndpointFrobeniusInputInvalid"|>;
+
+BuildEndpointLeveltModeConnection[normalResidue_?MatrixQ,
+    tangentialFinite_?MatrixQ, spec_Association] := Catch@Module[
+  {fail, dimension, variable, regulator, frame, exponents, inverse,
+   expectedResidue, residueInFrame, frameDerivative, connection,
+   exponentGroups, crossSectorPositions, exponentData},
+  fail[status_, extra_: <||>] :=
+    Throw[Join[<|"Status" -> status|>, extra]];
+  dimension = Length[normalResidue];
+  If[dimension < 1 || Dimensions[normalResidue] =!= {dimension, dimension} ||
+      Dimensions[tangentialFinite] =!= {dimension, dimension},
+    fail["EndpointLeveltDimensionsInvalid"]
+  ];
+  variable = Lookup[spec, "TangentialVariable", Missing[]];
+  regulator = Lookup[spec, "Regulator", Missing[]];
+  frame = Lookup[spec, "ModeFrame", Missing[]];
+  exponents = Lookup[spec, "LocalExponents", Missing[]];
+  If[! MatchQ[variable, _Symbol] || ! MatchQ[regulator, _Symbol] ||
+      variable === regulator || ! MatrixQ[frame] ||
+      Dimensions[frame] =!= {dimension, dimension} ||
+      ! ListQ[exponents] || Length[exponents] =!= dimension ||
+      ! FreeQ[exponents, variable] ||
+      ! FreeQ[{normalResidue, tangentialFinite, frame, exponents}, _Real],
+    fail["EndpointLeveltSpecificationInvalid"]
+  ];
+  inverse = Quiet[Check[Inverse[frame], $Failed]];
+  If[inverse === $Failed || ! MatrixQ[inverse] ||
+      ! boundaryFiniteQ[inverse],
+    fail["EndpointLeveltModeFrameSingular"]
+  ];
+  inverse = boundaryCanonicalMatrix[inverse];
+  expectedResidue = DiagonalMatrix[exponents];
+  residueInFrame = boundaryCanonicalMatrix[
+    inverse.normalResidue.frame];
+  If[! boundaryExactZeroQ[residueInFrame - expectedResidue],
+    fail["EndpointLeveltModeFrameInvalid", <|
+      "ResidueInFrame" -> residueInFrame,
+      "ExpectedResidue" -> expectedResidue|>]
+  ];
+  frameDerivative = Map[D[#, variable] &, frame, {2}];
+  connection = boundaryCanonicalMatrix[
+    inverse.tangentialFinite.frame - inverse.frameDerivative];
+  exponentGroups = Gather[Range[dimension],
+    boundaryExactZeroQ[exponents[[#1]] - exponents[[#2]]] &];
+  crossSectorPositions = Select[
+    Flatten[Table[{row, column}, {row, dimension}, {column, dimension}], 1],
+    ! boundaryExactZeroQ[exponents[[First[#]]] -
+          exponents[[Last[#]]]] &&
+      ! boundaryExactZeroQ[connection[[First[#], Last[#]]]] &];
+  If[crossSectorPositions =!= {},
+    fail["EndpointLeveltSectorsCoupled", <|
+      "Positions" -> crossSectorPositions,
+      "LocalExponents" -> exponents|>]
+  ];
+  exponentData = Map[Function[exponent, Module[{integerPart, remainder},
+      integerPart = Together[exponent /. regulator -> 0];
+      remainder = Together[(exponent - integerPart)/regulator];
+      <|"Exponent" -> exponent, "IntegerPart" -> integerPart,
+        "RegulatorCoefficient" -> remainder,
+        "AffineInRegulator" -> FreeQ[remainder, regulator]|>
+    ]], exponents];
+  <|
+    "Status" -> "EndpointLeveltModeConnectionBuilt",
+    "Dimension" -> dimension,
+    "TangentialVariable" -> variable,
+    "Regulator" -> regulator,
+    "ModeFrame" -> frame,
+    "InverseModeFrame" -> inverse,
+    "LocalExponents" -> exponents,
+    "ExponentData" -> exponentData,
+    "NormalResidueInModeFrame" -> residueInFrame,
+    "TangentialConnection" -> connection,
+    "ExponentSectors" -> Map[Function[indices, <|
+        "Indices" -> indices,
+        "Exponent" -> exponents[[First[indices]]],
+        "TangentialConnection" -> connection[[indices, indices]]|>],
+      exponentGroups],
+    "CrossExponentCoupling" -> False
+  |>
+];
+
+BuildEndpointLeveltModeConnection[___] :=
+  <|"Status" -> "EndpointLeveltModeConnectionInputsNotWellFormed"|>;
 
 boundaryModeExtension[residue_, canonicalRows_, constraintRows_,
     eigenvalue_, maximumLevel_, suppliedSeed_] := Module[
