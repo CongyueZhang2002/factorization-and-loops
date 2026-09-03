@@ -47,6 +47,8 @@ ClearAll[
   $finiteFieldDeferredForcingRegistry,
   $finiteFieldDeferredForcingImageCache,
   $finiteFieldDeferredForcingBatchLimit,
+  $finiteFieldDeferredForcingTypedFailures,
+  $finiteFieldDeferredForcingLastFailure,
   finiteFieldDeferredForcingRouteQ,
   finiteFieldDeferredForcingModAt,
   finiteFieldDeferredForcingPlan,

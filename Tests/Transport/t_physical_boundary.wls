@@ -1,0 +1,184 @@
+#!/usr/bin/env wolframscript
+
+(* Singular-boundary production path: local Frobenius recurrence, exact
+   physical-mode normalization, and separation of transport selectors from
+   GPL/elliptic boundary constants.  Everything is a bounded 2x2 control. *)
+
+root = DirectoryName[ExpandFileName[$InputFileName], 3];
+Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
+Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+
+u = Symbol["Global`boundaryU"];
+rho = Symbol["Global`boundaryRho"];
+eps = Symbol["Global`eps"];
+elliptic0 = Inactive[EllipticK][1/2];
+elliptic1 = Inactive[EllipticE][1/3];
+residue = {{0, 0}, {0, 1}};
+regular = {{0, 1}, {0, 0}};
+connection = eps (residue/u + regular);
+endpointSpec = <|"Variable" -> u, "Regulator" -> eps,
+  "LocalVariable" -> rho, "Endpoint" -> 0|>;
+
+frobenius = BuildEndpointFrobenius[connection, endpointSpec,
+  "MaximumSeriesOrder" -> 2, "MaximumEpsilonOrder" -> 2];
+FTAssert["a Fuchsian epsilon-form endpoint builds a finite exact Frobenius prefactor",
+  frobenius["Status"] === "EndpointFrobeniusBuilt" &&
+    frobenius["Residue"] === residue &&
+    frobenius["FrobeniusPrefactorCoefficients"][{1, 1}] === regular &&
+    frobenius["ResidualCheckedThrough"] ===
+      <|"SeriesOrder" -> 1, "EpsilonOrder" -> 2|>];
+
+FTAssert["non-epsilon-form and higher-order endpoint poles are refused typed",
+  BuildEndpointFrobenius[connection + IdentityMatrix[2],
+      endpointSpec]["Status"] === "ConnectionNotEpsilonForm" &&
+    BuildEndpointFrobenius[eps IdentityMatrix[2]/u^2,
+      endpointSpec]["Status"] === "EndpointNotFuchsian"];
+
+modeSpec = <|
+  "Family" -> "SyntheticBoundaryControl",
+  "Limit" -> <|"Variable" -> u, "Endpoint" -> 0,
+    "Direction" -> "Positive"|>,
+  "PhysicalEndpointRelation" -> <|
+    "LocalPower" -> 1, "LeadingCoefficient" -> 1|>|>;
+realizations = {
+  <|"PeriodID" -> "g", "PeriodClass" -> "GPL",
+    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {1},
+    "PhysicalRows" -> {1}, "EpsilonExponent" -> 0,
+    "IntegerValuation" -> 0, "LogLevel" -> 0,
+    "DemandedOutputs" -> {{0, 1}, {1, 1}}|>,
+  <|"PeriodID" -> "e", "PeriodClass" -> "Elliptic",
+    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {2},
+    "PhysicalRows" -> {2}, "EpsilonExponent" -> 1,
+    "IntegerValuation" -> 0, "LogLevel" -> 0,
+    "DemandedOutputs" -> {{0, 2}, {1, 2}}|>
+};
+modeMap = BuildBoundaryModeMap[frobenius, {{1, 0}, {u, 2}},
+  modeSpec, realizations];
+FTAssert["physical modes are globally extended and normalized in the canonical boundary space",
+  modeMap["Status"] === "BoundaryModeMapBuilt" &&
+    modeMap["Modes"][[1, "CanonicalMode"]] === {1, 0} &&
+    modeMap["Modes"][[2, "CanonicalMode"]] === {0, 1/2} &&
+    modeMap["Modes"][[All, "PhysicalLocalOrders"]] === {{0}, {0}} &&
+    Lookup[modeMap["Stage3NeedsLedger"], "Status"] ===
+      {"Unevaluated", "Unevaluated"}];
+
+jordanFrobenius = BuildEndpointFrobenius[
+  eps {{0, 1}, {0, 0}}/u, endpointSpec,
+  "MaximumSeriesOrder" -> 1, "MaximumEpsilonOrder" -> 1];
+jordanMode = BuildBoundaryModeMap[jordanFrobenius, IdentityMatrix[2],
+  modeSpec, {<|"PeriodID" -> "log", "PeriodClass" -> "GPL",
+    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {2},
+    "ConstraintRows" -> {1, 2}, "PhysicalRows" -> {2},
+    "EpsilonExponent" -> 0, "IntegerValuation" -> 0,
+    "LogLevel" -> 1, "DemandedOutputs" -> {{0, 2}}|>}];
+FTAssert["a genuine generalized residue mode is found at its minimal log level",
+  jordanMode["Status"] === "BoundaryModeMapBuilt" &&
+    jordanMode["Modes"][[1, "GeneralizedLevel"]] === 1 &&
+    jordanMode["Modes"][[1, "CanonicalMode"]] === {0, 1}];
+
+periods = <|
+  "g" -> <|"PeriodClass" -> "GPL", "Status" -> "Exact",
+    "Valuation" -> 0, "Coefficients" -> <|0 -> 2, 1 -> 3|>|>,
+  "e" -> <|"PeriodClass" -> "Elliptic", "Status" -> "Exact",
+    "Valuation" -> 0,
+    "Coefficients" -> <|0 -> elliptic0, 1 -> elliptic1|>|>|>;
+boundary = BuildTransportBoundaryVector[modeMap, periods, {0, 1}];
+FTAssert["mixed GPL and elliptic data yield rational transport selectors and a separate exact constant vector",
+  boundary["Status"] === "TransportBoundaryVectorBuilt" &&
+    boundary["FunctionSpace"] === "GPL+Elliptic" &&
+    boundary["BoundaryConstantVector"] ===
+      {2, 3, elliptic0, elliptic1} &&
+    boundary["BoundarySelectors"][0] ===
+      {{1, 0, 0, 0}, {0, 0, 1/2, 0}} &&
+    boundary["BoundarySelectors"][1] ===
+      {{0, 1, 0, 0}, {0, 0, 0, 1/2}} &&
+    boundary["BoundaryVector"][0] === {2, elliptic0/2} &&
+    boundary["BoundaryVector"][1] === {3, elliptic1/2}];
+
+FTAssert["the explicit stage-3 ledger binds family, limit, Frobenius mode, affected coordinates and outputs",
+  Lookup[boundary["Stage3NeedsLedger"], "Status"] ===
+      {"KnownExact", "KnownExact"} &&
+    AllTrue[boundary["Stage3NeedsLedger"],
+      #Family === "SyntheticBoundaryControl" &&
+        AssociationQ[#Limit] && AssociationQ[#FrobeniusMode] &&
+        ListQ[#AffectedBoundaryCoordinates] &&
+        ListQ[#DemandedOutputs] &]];
+
+source = Join[<|"Letters" -> {{"GPLPole", -1}},
+    "Residues" -> {{{0, 0}, {0, 0}}}|>,
+  boundary["TransportBoundary"]];
+layer = <|"Rows" -> {3}, "PathVariable" -> u,
+  "Regulator" -> eps, "BasePoint" -> 0, "Endpoint" -> 1/2,
+  "Diagonal" -> {{{"GPLPole", -1}, {{0}}}},
+  "Incoming" -> {
+    <|"Row" -> 1, "Column" -> 1, "Coefficient" -> eps,
+      "Letter" -> {"GPLPole", -1}|>,
+    <|"Row" -> 1, "Column" -> 2, "Coefficient" -> eps,
+      "Letter" -> {"GPLPole", -1}|>}
+|>;
+consumed = BuildRationalEpsilonLayerTransport[source, layer,
+  <|"Pairs" -> {{1, 1}}|>];
+FTAssert["the emitted TransportBoundary is consumed directly by the rational layer transport",
+  consumed["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+    consumed["BoundaryColumns"] === 5];
+
+gplOnly = BuildTransportBoundaryVector[modeMap,
+  Join[periods, <|"e" -> <|"PeriodClass" -> "Elliptic",
+    "Status" -> "ExactZero"|>|>], {0, 1}];
+FTAssert["known-zero elliptic modes leave a GPL-only boundary and are explicit in the ledger",
+  gplOnly["Status"] === "TransportBoundaryVectorBuilt" &&
+    gplOnly["FunctionSpace"] === "GPL" &&
+    Lookup[gplOnly["Stage3NeedsLedger"], "Status"] ===
+      {"KnownExact", "KnownZero"}];
+
+missingElliptic = BuildTransportBoundaryVector[modeMap,
+  KeyDrop[periods, "e"], {0, 1}];
+FTAssert["an absent elliptic period is typed incomplete and retained in the needs ledger",
+  missingElliptic["Status"] ===
+      "EllipticBoundaryPeriodsIncomplete" &&
+    Lookup[missingElliptic["Stage3NeedsLedger"], "Status"] ===
+      {"KnownExact", "Unevaluated"} &&
+    missingElliptic["Stage3NeedsLedger"][[2,
+      "AffectedBoundaryCoordinates"]] === {{"e", 0}, {"e", 1}}];
+
+transferable = BuildTransportBoundaryVector[modeMap,
+  Join[periods, <|"e" -> <|"PeriodClass" -> "Elliptic",
+    "Status" -> "Transferable", "TransferFrom" -> "other-limit"|>|>],
+  {0, 1}];
+FTAssert["a transferable but unapplied period remains incomplete rather than masquerading as a value",
+  transferable["Status"] === "EllipticBoundaryPeriodsIncomplete" &&
+    transferable["Stage3NeedsLedger"][[2, "Status"]] ===
+      "Transferable" &&
+    transferable["Stage3NeedsLedger"][[2, "TransferFrom"]] ===
+      "other-limit"];
+
+FTAssert["missing GPL data and missing data of both classes have distinct typed statuses",
+  BuildTransportBoundaryVector[modeMap, KeyDrop[periods, "g"],
+      {0, 1}]["Status"] === "GPLBoundaryConstantsIncomplete" &&
+    BuildTransportBoundaryVector[modeMap, <||>,
+      {0, 1}]["Status"] === "BoundaryDataIncomplete"];
+
+FTAssert["a requested epsilon depth beyond the stored Frobenius prefactor is refused typed",
+  BuildTransportBoundaryVector[modeMap, periods,
+    {0, 3}]["Status"] === "FrobeniusDepthInsufficient"];
+
+FTAssert["class mismatches, approximate constants and truncated Laurent data are never accepted",
+  BuildTransportBoundaryVector[modeMap,
+      MapAt[Join[#, <|"PeriodClass" -> "GPL"|>] &, periods,
+        Key["e"]], {0, 1}]["Status"] ===
+      "BoundaryPeriodDataInvalid" &&
+    BuildTransportBoundaryVector[modeMap,
+      MapAt[Join[#, <|"Coefficients" -> <|0 -> 2., 1 -> 3|>|>] &,
+        periods, Key["g"]], {0, 1}]["Status"] ===
+      "BoundaryPeriodDataInvalid" &&
+    BuildTransportBoundaryVector[modeMap,
+      MapAt[Join[#, <|"Coefficients" -> <|0 -> elliptic0|>|>] &,
+        periods, Key["e"]], {0, 1}]["Status"] ===
+      "EllipticBoundaryPeriodsIncomplete"];
+
+FTAssert["the production boundary module contains no family-specific token",
+  With[{text = Import[FileNameJoin[{root, "FeynFacet", "Private",
+      "Transport", "Boundary", "PhysicalBoundary.wl"}], "Text"]},
+    StringFreeQ[text, RegularExpression["CF[0-9]+"]]]];
+
+FTReport[];

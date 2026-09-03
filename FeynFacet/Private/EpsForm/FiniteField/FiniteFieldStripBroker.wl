@@ -12,7 +12,8 @@
 ClearAll[
   taskBrokerSampleTask,
   taskBrokerSampleWorkerLimit,
-  taskBrokerSampleBatch
+  taskBrokerSampleBatch,
+  $taskBrokerHelperFailureCount
 ];
 
 (* helper side: one task = several regulator values of one prime on the

@@ -263,6 +263,15 @@ FindObservableTransportPath::usage =
 BuildObservableTransport::usage =
   "BuildObservableTransport[familyEpsForm,demand] constructs only the iterated-integral maps that can contribute to the requested epsilon-order/master-row pairs. familyEpsForm is an exactly certified whole-family epsilon-form record. demand declares PhysicalDemandPairs (or the older Cartesian PhysicalRows and PhysicalOrders form), PhysicalValuation and Path. The routine first imposes the vanishing Laurent coefficients of the physical masters, derives the exact allowed boundary subspace, keeps its constants factored, and then propagates only nonzero projected dlog words. Every returned kernel, residue decomposition and differential invariant is checked symbolically.";
 
+BuildEndpointFrobenius::usage =
+  "BuildEndpointFrobenius[connection,spec] builds the finite local prefactor H(rho,eps) and residue R for an epsilon-form connection at a declared regular-singular endpoint, so that the local solution is H(rho,eps) rho^(eps R) c. spec gives Variable, Regulator, Endpoint, and optionally LocalVariable and FixedRules; options set the retained local and epsilon orders. Non-epsilon-form or non-Fuchsian endpoints are refused with typed statuses.";
+
+BuildBoundaryModeMap::usage =
+  "BuildBoundaryModeMap[frobenius,transformation,spec,realizations] extends declared block residue modes to the full canonical system and normalizes them against exact physical endpoint valuations after applying transformation and the Frobenius prefactor. The input is family-neutral: spec supplies Family and Limit as ledger metadata plus PhysicalEndpointRelation; each realization supplies row sets, powers, period class (GPL or Elliptic), epsilon valuation, and demanded outputs. Ambiguous or incompatible modes remain typed incomplete.";
+
+BuildTransportBoundaryVector::usage =
+  "BuildTransportBoundaryVector[modeMap,periodData,{emin,emax}] converts exact Laurent coefficients of GPL constants and elliptic periods into rational BoundarySelectors and a separate BoundaryConstantVector. The returned TransportBoundary can be joined into a transport source without putting special functions into its linear algebra. Missing GPL constants, missing elliptic periods, and transferable-but-unapplied periods are typed incomplete; every result includes a Stage3NeedsLedger.";
+
 BuildRationalEpsilonLayerTransport::usage =
   "BuildRationalEpsilonLayerTransport[source,layer,demand] transports a lower-triangular final layer whose incoming connection is rational in the regulator. The path gauge H(base)=0 removes the non-dlog part order by order through Hermite reduction; K residues and the endpoint gauge are reconstructed over finite fields and checked at a fresh prime, while a path-free dlog input uses an exact direct route. A valid gauge-only result with K=0 is accepted. Selector orders and dimensions are validated, and a singular base point or endpoint returns PathRegularizationRequired until regularized endpoint data are supplied. Only demanded (order,row) words are enumerated. Curve letters require a declared quartic and remain a typed refusal until elliptic reduction is implemented.";
 AcceptedRationalEpsilonLayerTransportQ::usage =
@@ -377,6 +386,12 @@ SyntaxInformation[GenerateDiagram] = {"ArgumentsPattern" -> {_}};
 SyntaxInformation[DimensionalShift] = {"ArgumentsPattern" -> {_, _, _, _.}};
 SyntaxInformation[BuildObservableTransport] =
   {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
+SyntaxInformation[BuildEndpointFrobenius] =
+  {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
+SyntaxInformation[BuildBoundaryModeMap] =
+  {"ArgumentsPattern" -> {_, _, _, _}};
+SyntaxInformation[BuildTransportBoundaryVector] =
+  {"ArgumentsPattern" -> {_, _, _}};
 SyntaxInformation[ComposeTransportChartExtension] =
   {"ArgumentsPattern" -> {_, _, _, _}};
 SyntaxInformation[BuildAlgebraicTransportFrame] =
