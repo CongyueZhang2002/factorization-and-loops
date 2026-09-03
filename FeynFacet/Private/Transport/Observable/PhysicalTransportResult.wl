@@ -127,7 +127,8 @@ BuildPhysicalTransportCoefficient[operator_Association,
    demandTerms, matrix, vector, word, expanded, expandedStore,
    expandedCount = 0, merged, surviving, activeColumns, stage3,
    paperTerms, functionSpace, expression, integral, binding,
-   coordinateKeys, boundarySelectors, operatorPath, activeTargetRows},
+   coordinateKeys, boundarySelectors, operatorPath, activeTargetRows,
+   rebase, boundSourceSelectors, boundTargetSelectors},
   fail[name_, extra_: <||>] := Throw[Join[<|"Status" -> name|>, extra]];
   If[! AcceptedRationalEpsilonLayerOperatorQ[operator],
     fail["RationalEpsilonLayerOperatorRequired"]];
@@ -141,6 +142,15 @@ BuildPhysicalTransportCoefficient[operator_Association,
       Length[constants] =!= dimensions["TotalBoundary"],
     fail["PhysicalBoundaryDimensionMismatch"]];
   binding = Lookup[operator, "PhysicalBoundaryBinding", None];
+  rebase = Lookup[operator, "Rebase", None];
+  boundSourceSelectors = If[AssociationQ[rebase] &&
+      Lookup[rebase, "Status", None] === "ExactLazyChenRebase",
+    Lookup[rebase, "PhysicalSourceBoundarySelectors", Missing[]],
+    operator["SourceBoundarySelectors"]];
+  boundTargetSelectors = If[AssociationQ[rebase] &&
+      Lookup[rebase, "Status", None] === "ExactLazyChenRebase",
+    Lookup[rebase, "PhysicalTargetBoundarySelectors", Missing[]],
+    operator["TargetBoundarySelectors"]];
   coordinateKeys = ({#["PeriodID"], #["EpsilonOrder"]} &) /@
     Lookup[boundary, "BoundaryCoordinates", {}];
   boundarySelectors = Lookup[boundary, "BoundarySelectors", <||>];
@@ -150,12 +160,14 @@ BuildPhysicalTransportCoefficient[operator_Association,
       ! AssociationQ[boundarySelectors] ||
       Sort[Keys[operator["SourceBoundarySelectors"]]] =!=
         Sort[Keys[boundarySelectors]] ||
-      Sort[Keys[operator["TargetBoundarySelectors"]]] =!=
-        Sort[Keys[boundarySelectors]] ||
+      ! AssociationQ[boundSourceSelectors] ||
+      ! AssociationQ[boundTargetSelectors] ||
+      Sort[Keys[boundSourceSelectors]] =!= Sort[Keys[boundarySelectors]] ||
+      Sort[Keys[boundTargetSelectors]] =!= Sort[Keys[boundarySelectors]] ||
       ! AllTrue[Keys[boundarySelectors], Function[order,
-        Normal[operator["SourceBoundarySelectors"][order]] ===
+        Normal[boundSourceSelectors[order]] ===
           Normal[boundarySelectors[order][[binding["SourceRows"], All]]] &&
-        Normal[operator["TargetBoundarySelectors"][order]] ===
+        Normal[boundTargetSelectors[order]] ===
           Normal[boundarySelectors[order][[binding["TargetRows"], All]]]
       ]],
     fail["PhysicalBoundaryNotBoundToOperator"]];

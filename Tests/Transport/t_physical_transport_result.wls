@@ -69,6 +69,36 @@ FTAssert["the endpoint gauge and target boundary combine into a paper-facing coe
     {{"a", 0}, {"c", 0}} &&
   Length[coefficient["Stage3", "Ledger"]] === 2];
 
+rebasedOperator = RebaseRationalEpsilonLayerOperator[
+  operator, 1/2,
+  attached["Source", "BoundarySelectors"],
+  attached["Layer", "TargetBoundarySelectors"],
+  "HAtNewBase" -> <|0 -> 2/3 IdentityMatrix[2]|>];
+rebasedCoefficient = BuildPhysicalTransportCoefficient[
+  rebasedOperator, boundary, {0, 1},
+  <|"Variable" -> u, "BasePoint" -> 1/2, "Endpoint" -> 1|>];
+FTAssert["an accepted operator rebases by Chen path composition without materializing an inverse series",
+  AcceptedRationalEpsilonLayerOperatorQ[rebasedOperator] &&
+  rebasedOperator["Rebase", "Method"] ===
+    "ChenPathCompositionNoMaterialization" &&
+  Normal[rebasedOperator["TargetBoundarySelectors", 0][[1]]] ===
+    {-2/3, 0, 1, 0} &&
+  rebasedCoefficient["Status"] === "PhysicalTransportCoefficientBuilt" &&
+  rebasedCoefficient["Expression"] ===
+    1/3 BoundaryPeriodCoefficient["a", 0] +
+      BoundaryPeriodCoefficient["c", 0] &&
+  rebasedCoefficient["Path", "BasePoint"] === 1/2];
+
+FTAssert["rebasing refuses to guess a nonzero gauge value or missing selector geometry",
+  RebaseRationalEpsilonLayerOperator[operator, 1/2,
+    attached["Source", "BoundarySelectors"],
+    attached["Layer", "TargetBoundarySelectors"]]["Status"] ===
+      "RationalLayerGaugeAtNewBaseRequired" &&
+  RebaseRationalEpsilonLayerOperator[operator, 1/2,
+    <|0 -> {{1}}|>, attached["Layer", "TargetBoundarySelectors"],
+    "HAtNewBase" -> <|0 -> 2/3 IdentityMatrix[2]|>]["Status"] ===
+      "RationalLayerRebaseSelectorsInvalid"];
+
 gauged = BuildPhysicalTransportCoefficient[operator, boundary,
   {0, 1}, <|"Variable" -> u, "BasePoint" -> 0,
     "Endpoint" -> 1|>,

@@ -10,6 +10,7 @@
 
 Clear[BuildRationalEpsilonLayerOperator,
   AcceptedRationalEpsilonLayerOperatorQ,
+  RebaseRationalEpsilonLayerOperator,
   RationalEpsilonLayerWordMap,
   RationalEpsilonLayerDemandTerms];
 
@@ -21,7 +22,8 @@ ClearAll[
   rationalLayerOperatorRequestedRows,
   rationalLayerOperatorDemandCoveredQ,
   rationalLayerOperatorNonzeroRows,
-  rationalLayerOperatorGrow
+  rationalLayerOperatorGrow,
+  rationalLayerOperatorSelectorColumns
 ];
 
 rationalLayerOperatorNonzeroQ[m_] :=
@@ -33,6 +35,16 @@ rationalLayerOperatorBoundaryColumns[selectors_Association] := Module[
       MatchQ[#, {_Integer, _Integer}] &] ||
       Length[DeleteDuplicates[dimensions[[All, 2]]]] =!= 1,
     Missing["InvalidBoundarySelectors"], First[dimensions][[2]]]
+];
+
+rationalLayerOperatorSelectorColumns[selectors_Association,
+    rows_Integer] := Module[
+  {columns = rationalLayerOperatorBoundaryColumns[selectors]},
+  If[MissingQ[columns] || selectors === <||> ||
+      ! VectorQ[Keys[selectors], IntegerQ] ||
+      ! AllTrue[Values[selectors],
+        MatrixQ[#] && Dimensions[#] === {rows, columns} &],
+    Missing["InvalidBoundarySelectors"], columns]
 ];
 
 (* word is outermost first; multiplication starts at the boundary selector,
@@ -272,6 +284,142 @@ AcceptedRationalEpsilonLayerOperatorQ[operator_] :=
   DuplicateFreeQ[operator["DemandPairs"]] &&
   AssociationQ[Lookup[operator, "OperatorSource", None]] &&
   AssociationQ[Lookup[operator, "OperatorLayer", None]];
+
+Options[RebaseRationalEpsilonLayerOperator] = {
+  "HAtNewBase" -> Automatic
+};
+
+(* Rebase the accepted sparse Chen operator without constructing or
+   inverting its word series.  The caller supplies the physical source and
+   target selectors at the new base.  For F_T = G + H F_S, the homogeneous
+   target datum is
+
+       G_q(e) = T_q(e) - Sum_r H_r(e) S_(q-r)(e).
+
+   Independent source/target coordinates are embedded into one common
+   boundary vector because G(e) mixes the two spaces. *)
+RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
+    sourceSelectors_Association, targetSelectors_Association,
+    OptionsPattern[]] := Catch@Module[
+  {fail, dimensions, sourceDimension, targetDimension, sourceColumns,
+   targetColumns, layout, commonColumns, sourceCommon, targetCommon,
+   zeroSource, zeroTarget, gaugeEndpoint, gaugeAtNewBase, gaugeOrders,
+   expectedGaugeOrders, sourceOrders, targetOrders, correctedOrders,
+   correctedTarget, path, variable, oldBase, oldEndpoint, rebased,
+   binding},
+  fail[status_, extra_: <||>] := Throw[Join[<|"Status" -> status|>, extra]];
+  If[! AcceptedRationalEpsilonLayerOperatorQ[operator],
+    fail["RationalEpsilonLayerOperatorNotAccepted"]];
+  dimensions = operator["Dimensions"];
+  If[! AssociationQ[dimensions] ||
+      ! MatchQ[Lookup[dimensions, {"Source", "Target", "TotalBoundary"}],
+        {_Integer?Positive, _Integer?Positive, _Integer?Positive}],
+    fail["RationalLayerOperatorDimensionsInvalid"]];
+  sourceDimension = dimensions["Source"];
+  targetDimension = dimensions["Target"];
+  sourceColumns = rationalLayerOperatorSelectorColumns[
+    sourceSelectors, sourceDimension];
+  targetColumns = rationalLayerOperatorSelectorColumns[
+    targetSelectors, targetDimension];
+  If[MissingQ[sourceColumns] || MissingQ[targetColumns],
+    fail["RationalLayerRebaseSelectorsInvalid"]];
+  path = Lookup[operator, "Path", <||>];
+  variable = Lookup[path, "Variable", Missing[]];
+  oldBase = Lookup[path, "BasePoint", Missing[]];
+  oldEndpoint = Lookup[path, "Endpoint", Missing[]];
+  If[! MatchQ[variable, _Symbol] || MissingQ[oldBase] ||
+      MissingQ[oldEndpoint] || MissingQ[newBase] ||
+      ! FreeQ[newBase, variable],
+    fail["RationalLayerRebasePointInvalid"]];
+
+  gaugeEndpoint = Lookup[operator, "GaugeMatrices", <||>];
+  If[! AssociationQ[gaugeEndpoint] ||
+      ! AllTrue[Normal[gaugeEndpoint],
+        MatchQ[First[#], {"H", _Integer}] && MatrixQ[Last[#]] &&
+          Dimensions[Last[#]] === {targetDimension, sourceDimension} &],
+    fail["RationalLayerGaugeOperatorInvalid"]];
+  expectedGaugeOrders = If[gaugeEndpoint === <||>, {},
+    Keys[gaugeEndpoint][[All, 2]]];
+  gaugeAtNewBase = OptionValue["HAtNewBase"];
+  If[gaugeAtNewBase === Automatic,
+    If[gaugeEndpoint =!= <||> && newBase =!= oldEndpoint &&
+        (! MatchQ[oldEndpoint, _Symbol] ||
+          FreeQ[Values[gaugeEndpoint], oldEndpoint]) &&
+        AnyTrue[Values[gaugeEndpoint], rationalLayerOperatorNonzeroQ],
+      fail["RationalLayerGaugeAtNewBaseRequired"]];
+    gaugeAtNewBase = Association@KeyValueMap[
+      #1[[2]] -> SparseArray[Normal[#2] /.
+          oldEndpoint -> newBase] &,
+      gaugeEndpoint],
+    If[! AssociationQ[gaugeAtNewBase] ||
+        Sort[Keys[gaugeAtNewBase]] =!= Sort[expectedGaugeOrders] ||
+        ! AllTrue[Values[gaugeAtNewBase], MatrixQ[#] &&
+          Dimensions[#] === {targetDimension, sourceDimension} &],
+      fail["RationalLayerGaugeAtNewBaseInvalid"]];
+    gaugeAtNewBase = Map[SparseArray, gaugeAtNewBase]
+  ];
+  gaugeOrders = Keys[Select[gaugeAtNewBase,
+    rationalLayerOperatorNonzeroQ]];
+
+  layout = operator["BoundaryLayout"];
+  If[layout === "Shared",
+    If[sourceColumns =!= targetColumns,
+      fail["RationalLayerSharedRebaseSelectorsInvalid"]];
+    commonColumns = sourceColumns;
+    sourceCommon = Map[SparseArray, sourceSelectors];
+    targetCommon = Map[SparseArray, targetSelectors],
+    commonColumns = sourceColumns + targetColumns;
+    sourceCommon = Association@KeyValueMap[#1 -> SparseArray[
+        ArrayFlatten[{{#2, ConstantArray[0,
+          {sourceDimension, targetColumns}]}}]] &, sourceSelectors];
+    targetCommon = Association@KeyValueMap[#1 -> SparseArray[
+        ArrayFlatten[{{ConstantArray[0,
+          {targetDimension, sourceColumns}], #2}}]] &, targetSelectors]
+  ];
+  zeroSource = SparseArray[{}, {sourceDimension, commonColumns}];
+  zeroTarget = SparseArray[{}, {targetDimension, commonColumns}];
+  sourceOrders = Keys[sourceCommon];
+  targetOrders = Keys[targetCommon];
+  correctedOrders = Union[targetOrders,
+    Flatten[Table[r + q, {r, gaugeOrders}, {q, sourceOrders}]]];
+  correctedTarget = Association@Table[q -> SparseArray[
+      Lookup[targetCommon, q, zeroTarget] - Total[
+        Table[gaugeAtNewBase[r] .
+          Lookup[sourceCommon, q - r, zeroSource], {r, gaugeOrders}]]],
+    {q, correctedOrders}];
+
+  binding = If[layout === "Shared" &&
+      sourceColumns === dimensions["TotalBoundary"],
+    Lookup[operator, "PhysicalBoundaryBinding", None], None];
+  rebased = Join[operator, <|
+    "BoundaryLayout" -> "Shared",
+    "PhysicalBoundaryBinding" -> binding,
+    "Path" -> Join[path, <|"BasePoint" -> newBase|>],
+    "Dimensions" -> Join[dimensions, <|
+      "SourceBoundary" -> commonColumns,
+      "TargetBoundary" -> commonColumns,
+      "TotalBoundary" -> commonColumns|>],
+    "SourceBoundarySelectors" -> sourceCommon,
+    "TargetBoundarySelectors" -> correctedTarget,
+    "Rebase" -> <|
+      "Status" -> "ExactLazyChenRebase",
+      "Method" -> "ChenPathCompositionNoMaterialization",
+      "OriginalBasePoint" -> oldBase,
+      "NewBasePoint" -> newBase,
+      "Endpoint" -> oldEndpoint,
+      "OriginalBoundaryLayout" -> layout,
+      "PhysicalSourceBoundarySelectors" ->
+        Map[SparseArray, sourceSelectors],
+      "PhysicalTargetBoundarySelectors" ->
+        Map[SparseArray, targetSelectors],
+      "HAtNewBase" -> gaugeAtNewBase|>|>];
+  If[! AcceptedRationalEpsilonLayerOperatorQ[rebased],
+    fail["RationalLayerRebaseConstructionFailed"]];
+  rebased
+];
+
+RebaseRationalEpsilonLayerOperator[___] :=
+  <|"Status" -> "RationalLayerRebaseInputsNotWellFormed"|>;
 
 RationalEpsilonLayerWordMap[operator_Association, word_List,
     boundaryOrder_Integer, outputOrder_Integer, rows_: All] := Module[

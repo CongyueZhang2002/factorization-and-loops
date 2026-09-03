@@ -292,6 +292,8 @@ BuildRationalEpsilonLayerOperator::usage =
   "BuildRationalEpsilonLayerOperator[source,layer,transport] builds a sparse lazy operator from an accepted rational-in-epsilon final-layer transport whose exact source/layer payload matches the supplied inputs. It supports independent or shared physical boundary coordinates, preserves the selected curve sheet, and keeps GPL/eMPL labels opaque until a requested accepted coefficient is materialized.";
 AcceptedRationalEpsilonLayerOperatorQ::usage =
   "AcceptedRationalEpsilonLayerOperatorQ[operator] checks the structural contract of a lazy rational-epsilon-layer operator.";
+RebaseRationalEpsilonLayerOperator::usage =
+  "RebaseRationalEpsilonLayerOperator[operator,newBase,sourceSelectors,targetSelectors] rebases an accepted sparse Chen operator using explicitly supplied physical selectors at newBase. It changes no residues and builds no dense inverse: for FTarget=G+H FSource it replaces each target selector by T_q-Sum_r H_r(newBase) S_(q-r). HAtNewBase may supply precomputed gauge coefficients when the stored endpoint value cannot be substituted.";
 RationalEpsilonLayerWordMap::usage =
   "RationalEpsilonLayerWordMap[operator,word,boundaryOrder,outputOrder,rows] evaluates one D...D or D...D K S...S word as a sparse map on boundary coordinates.";
 RationalEpsilonLayerDemandTerms::usage =
@@ -424,6 +426,8 @@ SyntaxInformation[ExpandTransportWordLetters] =
   {"ArgumentsPattern" -> {_, _, _., _.}};
 SyntaxInformation[BuildRationalEpsilonLayerOperator] =
   {"ArgumentsPattern" -> {_, _, _}};
+SyntaxInformation[RebaseRationalEpsilonLayerOperator] =
+  {"ArgumentsPattern" -> {_, _, _, _, OptionsPattern[]}};
 SyntaxInformation[RationalEpsilonLayerWordMap] =
   {"ArgumentsPattern" -> {_, _, _, _, _.}};
 SyntaxInformation[RationalEpsilonLayerDemandTerms] =
