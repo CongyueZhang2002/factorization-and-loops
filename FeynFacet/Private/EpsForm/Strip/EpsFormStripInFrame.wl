@@ -845,7 +845,8 @@ SolveEpsFormStripInFrame[
    bundlePullback, preparationPullback, rationalStrip,
    deferredBundle, bundleValidation, bundleRoots, bundleIndices,
    deferredPreparation, preparation, preparationRootSquares,
-   preparationIndices, deferredSourceQ,
+   preparationIndices, deferredSourceQ, deferredForcingDescriptor = None,
+   deferredForcingPlan, deferredForcingCensus, deferredForcingFile,
    materializationCertificate, materializationValidation,
    deferredForcingMaterializedQ,
    selectedIndices, stableFrame, bundleRecord,
@@ -1083,8 +1084,10 @@ SolveEpsFormStripInFrame[
         primaryFailure, candidateOptions, letterData, letterRecords,
         dlogRecords, expandedRecord, expandedOptions, expandedPrefix,
         suppliedLetterRecords, suppliedOneForms, recordsCertifiedQ},
-      rationalRecord = <|"Strip" -> rationalStrip,
-        "Variables" -> rationalVariables, "Regulator" -> epsilon|>;
+      rationalRecord = Join[<|"Strip" -> rationalStrip,
+        "Variables" -> rationalVariables, "Regulator" -> epsilon|>,
+        If[AssociationQ[deferredForcingDescriptor],
+          <|"DeferredForcing" -> deferredForcingDescriptor|>, <||>]];
       (* "FiniteFieldFirst" -> True: no CANONICA/Maple ladder in the
          production loop (user decision 2026-08-22); the finite field
          solves the strip in the targeted chart directly *)
@@ -1375,7 +1378,38 @@ SolveEpsFormStripInFrame[
     If[Lookup[bundlePullback, "Status", None] =!= "OK",
       Return[bundlePullback]];
     chartStrip[[3]] = bundlePullback["OneForm"]];
-  If[AssociationQ[deferredPreparation],
+  (* round 8 pass 3 (2026-09-02): the DAG route.  The deferred preparation is
+     NOT materialized before the inner solve: the finite-field sampler takes
+     its forcing images from the native evaluator of the DAG at its own
+     points and the census from modular line interpolation
+     (FiniteFieldDeferredForcing.wl); chartStrip[[3]] stays the zero
+     placeholder, which the source-frame identity below adds to both sides.
+     Any typed failure of the plan or census falls back to the exact
+     pull-back (FACET_DEFERRED_FORCING=Off forces it). *)
+  deferredForcingDescriptor = None;
+  If[AssociationQ[deferredPreparation] && finiteFieldDeferredForcingRouteQ[],
+    deferredForcingFile = FirstCase[multiquadraticOptions,
+      HoldPattern["DeferredPreparationFile" -> f_String] :> f, None];
+    deferredForcingPlan = If[StringQ[deferredForcingFile],
+      finiteFieldDeferredForcingPlan[deferredPreparation, deferredForcingFile,
+        data, usedRoots, rootImages, chartVariables, variables, epsilon,
+        Dimensions[bbar[[1]]]], <|"Status" -> "DeferredForcingNoFile"|>];
+    deferredForcingCensus = If[Lookup[deferredForcingPlan, "Status", None] === "OK",
+      finiteFieldDeferredForcingCensus[deferredForcingPlan["Key"], 2147483423],
+      deferredForcingPlan];
+    If[Lookup[deferredForcingCensus, "Status", None] === "OK",
+      deferredForcingDescriptor = <|"Key" -> deferredForcingPlan["Key"],
+        "Census" -> KeyTake[deferredForcingCensus,
+          {"Letters", "GaugeFactorPowers", "ForcingInfinityDegree"}]|>;
+      timings["DeferredForcingCensus"] = deferredForcingCensus["Seconds"];
+      If[verbose, Print["[strip-in-frame] deferred forcing: DAG route, census ",
+        Round[deferredForcingCensus["Seconds"], 0.1], " s, letters ",
+        Length[deferredForcingCensus["Letters"]], ", pole orders ",
+        Lookup[deferredForcingCensus, "GaugeFactorPowers", {}][[All, 2]],
+        ", infinity degree ", deferredForcingCensus["ForcingInfinityDegree"]]],
+      If[verbose, Print["[strip-in-frame] deferred forcing: DAG route refused (",
+        Lookup[deferredForcingCensus, "Status", None], "); exact pull-back"]]]];
+  If[AssociationQ[deferredPreparation] && deferredForcingDescriptor === None,
     preparationPullback = transportChartPullBackDeferredPreparation[
       deferredPreparation, data, chartBranchRoots, rootImages];
     If[Lookup[preparationPullback, "Status", None] =!= "OK",
@@ -1515,12 +1549,24 @@ SolveEpsFormStripInFrame[
       branchImages = MapThread[Times, {signs, rootImages}];
       postPullBackGauge = transportChartApplyRootBranches[
           sourceGauge, usedRoots, branchImages] /. data["Subst"];
-      postPullBackVerification = VerifyEpsFormStrip[
-        <|"Strip" -> chartStrip, "Variables" -> chartVariables,
-          "Regulator" -> epsilon|>,
-        Join[KeyTake[inner, {"Alphabet", "ResidueMatrices"}],
-          <|"Gauge" -> postPullBackGauge|>],
-        "Method" -> "Numerical", "KernelCount" -> 1];
+      postPullBackVerification = If[AssociationQ[deferredForcingDescriptor],
+        (* round 8 pass 3: the same residual with the DAG image of the forcing *)
+        With[{r = finiteFieldDeferredForcingResidualQ[deferredForcingDescriptor["Key"],
+            chartStrip[[1 ;; 2]], postPullBackGauge, inner["Alphabet"], inner["ResidueMatrices"]]},
+          <|"DLogFormCertified" -> TrueQ[Lookup[r, "ResidualZero", False]] &&
+              FreeQ[inner["Alphabet"], epsilon] &&
+              FreeQ[inner["ResidueMatrices"], Alternatives @@ chartVariables],
+            "NumericalPfaffianResidualsZero" -> Lookup[r, "ResidualZero", False],
+            "LettersEpsFree" -> FreeQ[inner["Alphabet"], epsilon],
+            "ResiduesKinematicsFree" -> FreeQ[inner["ResidueMatrices"], Alternatives @@ chartVariables],
+            "ResiduesEpsFree" -> FreeQ[inner["ResidueMatrices"], epsilon],
+            "Points" -> Lookup[r, "Points", 0], "Residual" -> r|>],
+        VerifyEpsFormStrip[
+          <|"Strip" -> chartStrip, "Variables" -> chartVariables,
+            "Regulator" -> epsilon|>,
+          Join[KeyTake[inner, {"Alphabet", "ResidueMatrices"}],
+            <|"Gauge" -> postPullBackGauge|>],
+          "Method" -> "Numerical", "KernelCount" -> 1]];
       <|"Signs" -> signs, "Verification" -> postPullBackVerification|>,
       {signs, signChoices}];
     postPullBackCandidates = Select[postPullBackCandidates,

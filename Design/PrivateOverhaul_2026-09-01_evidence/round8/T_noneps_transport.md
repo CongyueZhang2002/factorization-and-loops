@@ -452,3 +452,97 @@ the one killed by it (18:22) was diagnosed and fixed rather than retried.
 - An adversarial review of the certificate's claims: the direct route is
   exact by construction; the modular route's acceptance is probabilistic
   (fresh prime), like the rest of the observable transport.
+
+
+# Round 8b: R1's findings fixed (`R1_review_noneps_transport.md`, verdict "not finished")
+
+Rules kept: every kernel through the seat launcher (300 s caps for the
+test; 900 s for the one CF303 measurement), nothing committed, the
+EpsForm solver files untouched. File: `FeynFacet/Private/Transport/Observable/RationalEpsilonLayer.wl`
+(line numbers of the final text); test: `Tests/Transport/t_rational_epsilon_layer.wls`,
+**31 assertions, 0 failed, 36 s after load** (the ODE checks dominate).
+
+| finding | fix (file:line) | evidence |
+|---|---|---|
+| S1 (high) eps window stopped at the highest demanded order; every word on a negative source boundary order missing, accepted, predicate True | `:489-497`: `high = Max[demanded] - Min[source boundary orders]` (Codex's "-2..4 for the target -4..2" from boundary orders -2) | R1's ODE fixture turned into an assertion: source boundary orders {-1, 0, 1}, demand orders -1..2 both rows, the ODE `dF = A F` solved order by order with `NDSolve` at 40 digits (`PrecisionGoal`/`AccuracyGoal` 20) against the route's words evaluated as numerical iterated integrals -- no use of the route's enumerator: window {-2, 3}, deviations 8e-13 to 1.6e-10 on all eight (order, row); the words of pair {0, 1} are the same whether or not order 1 is also demanded |
+| S2 (high) `MaximumWeight -> 4` dropped words silently | `:657-665`: the weight is DERIVED (`neededWeight = max(N - q - r)` over demand, boundary orders, window; target words `N - q_t`); the option defaults to `Automatic` and only caps; a cap that drops anything is the typed `WordWeightCapReached` (`:365-366`, `:594-599`) with `NeededWeight` and `DroppedCombinations`; `MaximumWords` likewise `WordEnumerationCapped`; both refused by the predicate; a runaway source growth is the typed `SourceWordGrowthCapped` (`:311`, `MaximumStates`) | assertions: `MaximumWeight -> 1` on the fixture gives `WordWeightCapReached`, needed 2, dropped 2, predicate False; `MaximumWords -> 3` gives `WordEnumerationCapped`, predicate False; `MaximumStates -> 5` gives `SourceWordGrowthCapped` |
+| S2b (medium-high) the two word kinds stored with opposite letter orders | `:342-348` convention documented at the data structure: `"Word"` OUTERMOST FIRST for both kinds; `:356` target words reversed like source words | the ODE assertion at order 2 (length-2 target words present) agrees to 1.6e-10 in that convention |
+| S3 (high, design) H never lifted; a u-dependent result not consumable | `:272-284` each prime image evaluates `H_n(u1)`; `:615-627` `H_n(u1)` reconstructed across the primes like the residues (lift-and-verify), `:640-647` validated at the fresh prime (`GaugeComparisons`, `GaugeMismatches`); result `"GaugeAtEndpoint"`, `"GaugeStatus" -> "GaugeReconstructedAtEndpoint"`; `:569` `EndpointRequired` typed for a u-dependent layer without an endpoint | assertions on the u-dependent fixture: `H_n(1/4)` SameQ with the independent characteristic-zero reference at every order; the full transported value `F_T = G + H F_S` (words as iterated integrals + lifted H times the ODE's source solution) agrees with the ODE to 3e-11 at all six (order, row); the missing endpoint is refused typed |
+| S4 (medium) predicate a shape check | `:417-421` input fingerprint (sorted source, layer, demand), certificate `InputFingerprint`, `ResidueHash`, `GaugeHash` (`:708-710`); one-argument predicate binds residues and gauge by hash (`:745-757`); four-argument predicate (`:760-790`) recomputes the fingerprint, re-prepares the inputs (`PrepareOnly`), re-derives the direct residues exactly or evaluates one recurrence image at a NEW prime outside the certificate and compares every residue and gauge value | assertions: four-argument True on both routes; a residue altered WITH its hash recomputed is caught at the new prime; a changed base point breaks the fingerprint; a result checked against the wrong layer is refused |
+| S5 (medium) non-constant residues accepted | `:441-449` every residue matrix and selector must be a rational matrix, else `ResidueMatrixNotConstant` with where and which letters | assertions: diagonal residue with u, source residue with eps, selector with a symbol all refused typed |
+| S6 (medium) fixed valuation probe points, silent truncation | `:475-482` three random rational points from the seed, minimum as in round 4; `:505-510` the Series' own `ValuationBelowRange` diagnostic is reset before and read after the expansion: `LaurentValuationBelowWindow` typed | assertion with R1's evasive coefficient `(u-1/2)(u-5/6)(u-11/14)/eps^3 + 1/eps^2`: window now starts at -3, probe points distinct; under another seed either accepted at -3 or refused typed, never truncated |
+| S7 (low-medium) bad primes fatal with a misleading status | `:585-600` a prime whose image fails (`CoefficientNotDefinedAtPrime`, `EndpointOnPoleAtPrime`, `ResiduePoleNotInAlphabet`) is skipped and recorded (`SkippedPrimes` in the certificate); the same status at two primes is the genuine typed failure; `PrimeScheduleExhausted` typed; `:163` the Hermite gcd made monic explicitly | assertion with R1's schedule `{1000003, ...}` and the factor `u^2 - 1000003`: accepted, 1000003 in `SkippedPrimes`, not among the primes nor the fresh prime |
+| S8 (low) claims without code | `:86-95` curve gate requires a square-free quartic (`CurveNotQuartic`); `:48` `E4Eta2` in the curve alphabet; `:450-460` `ZeroColumns` validated (`ZeroColumnsInvalid`) and the exception check documented as a column-presence proxy; T25: the claim of a `PhysicalGaugeNotApplied` status is WITHDRAWN -- nothing of T25 is in the package (see the remains list) | assertions: `Curve -> u^2` refused `CurveNotQuartic`; `{"E4Eta2"}` without a curve `CurveDeclarationRequired`; `ZeroColumns -> {2, 7}` refused |
+| S9 (low, provenance) commit `f2965aed` carried M's EpsForm edits under T's message | recorded here: the mixed-authorship commit was made by the coordinator from the shared working tree; my report's "EpsForm solver files untouched" refers to my edits only | -- |
+| S10 (low) test design | the ODE end-to-end assertions above (negative boundary order, length-2 target word, evaluation of every word) are independent of the enumerator; the residue SameQ against the extended-gcd Hermite reference stays; the enumerator-count pin (1, 0, 7, 5, 26, 23) stays as a regression only | 31/31 |
+
+Not moved into the package (R1's recommendation 4, first item): the
+conjugate-pair merge of algebraic pole letters stays in the CF303 adapter;
+the gate refuses such letters typed (`AlgebraicPoleNotAdmitted`) so no
+generic-p source is silently accepted. R1's recommendation 5 (the word
+representation for weight 6 on 107 letters) is a design item, recorded
+in the remains list.
+
+## CF303 rational sub-layer re-measured with the corrected window (run 9)
+
+Adapter `scratchpad/round4/T/round8/cf303_adapter.wls` (run 9, log
+`round8b/cf303_adapter_run9.log`) and the cross-check script
+`round8b/cf303_crosscheck.wls` (`cf303_crosscheck2.log`); same inputs and
+specialization as before (p = 9/8, curve terms and the seven exception
+columns dropped -- still a measurement of the rational channel, NOT a
+CF303 transport), options now at their derived defaults (no weight cap).
+
+| run | demand | window | result |
+|---|---|---|---|
+| 1, full alphabet | -4..-2 | -- | typed `ResidueMatrixNotConstant`: the residues of the composite elliptic letters are not rational matrices at this p (the S5 gate fires before the alphabet gate) |
+| 2, rational sub-layer, exceptions undeclared | -4..-2 | -- | typed `LowerBlockExceptionRequired`, columns = masters {1, 2, 12, 21, 22, 29, 30} |
+| 3, rational sub-layer, exceptions declared zero, direct route | -4..-2 | {-2, 0} (was {-2, -2}) | accepted, 75 exact residue keys (was 21), 1.2 s; words 11/11, 242/242, 3,715/3,681 = **7,902** (was 7,342): the 560 added words carry incoming orders -1 (538) and 0 (22) on boundary orders -2 and -1 -- exactly the `K_(-1) Sel[-1]`, `K_0 Sel[-2]`, ... words R1 found missing; predicate True |
+| 3b, the same through the sealed modular circuit | -4..-2 | {-2, 0} | accepted after 18 adaptive primes (the order -1 and 0 coefficients have larger heights than order -2: 12 primes were not enough, typed `ReconstructionNotConverged` in the first attempt with a 12-prime maximum), 6,450 fresh-prime comparisons, 0 mismatches, 168 s; residues SameQ and demanded words SameQ with run 3 |
+| 5, the full target -4..2 (Codex's) | -4..2 | {-2, 4} (Codex's "-2..4") | 183 exact residue keys in 0.8 s; then the source-word growth for the needed weight 6 exceeds the state cap: typed `SourceWordGrowthCapped` at 1,572,742 states after 159 s (the cap is checked per growth step and overshoots; it refuses, it does not save time) |
+
+What this covers: the rational channel of the final layer at one rational
+p with the complete window and weight for orders -4..-2, exact residues,
+words evaluated nowhere (they are coefficient records), and a modular
+cross-check of the same. What it does not: the elliptic channel, the
+seven exception forcings, the physical gauge, p as a variable, the target
+orders -1..2 (weight 6, beyond this enumerator), and any physical value.
+The artifact `.../CF303/rational_layer_2026-09-02/rational_sublayer_p9d8.wl`
+was rewritten by run 9 (window {-2, 0}); its provenance note says
+"partial".
+
+## What remains for a complete CF303 result (rewritten after R1)
+
+- The word representation. The enumeration is exponential in the
+  weight: the target orders -1..2 need weight 6 from boundary order -2
+  and refuse typed at 1.6 M states. Codex's route never enumerates; it
+  evaluates one requested word from sparse residue products. The package
+  route needs the same lazy accessor (or `BuildObservableTransport`'s
+  operator automaton) before any target order above -2 is reachable;
+  this is a design item, not an optimization of the present enumerator.
+- The elliptic channel: `rationalLayerModularFunction`/`rationalLayerHermite`
+  are `F_q[u]`-only; the curve needs the split field of the quartic,
+  `Q(Y)`-valued residues, the three-component cohomology part
+  (`E4Omega0`, `E4OmegaInf`, `E4Eta2`) and a sheet convention; the K-key
+  schema `{order, factor, power}` and the K-letter label have no slot for
+  a cohomology component or a sheet and must change. The gate now refuses
+  the channel typed with a quartic-only curve declaration; the composite
+  elliptic letters' residues are refused at the S5 gate.
+- The seven exception forcings (masters {1, 2, 12, 21, 22, 29, 30}):
+  Maple text only; an importer is needed; then the sealed circuit with the
+  lifted gauge (S3, now in place) is the route for them, with H at the
+  endpoint and along the path where the selectors act.
+- T25: nothing of the physical gauge is in the package; the claim of a
+  typed `PhysicalGaugeNotApplied` status is withdrawn. In Codex's route
+  `T25` is where H is consumed, so T25 and the lifted H are one design
+  item.
+- p as a variable: the route runs at a fixed rational p; the conjugate-
+  pair merge stays in the adapter (typed refusal `AlgebraicPoleNotAdmitted`
+  in the package for any other p); a p-dependent result needs either a
+  p-reconstruction of the residues or one run per p.
+- The source layer from a family record through `BuildObservableTransport`:
+  not started; the source is consumed as Codex's artifact (the elliptic
+  blocks 15/17/21 are the same elliptic channel).
+- Certificates: the direct route is exact at its p; the modular route's
+  acceptance is probabilistic (fresh prime, new-prime re-verification in
+  the four-argument predicate).
+

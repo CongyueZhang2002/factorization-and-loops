@@ -1067,7 +1067,10 @@ finiteFieldStripFingerprint[record_Association] := Module[
   base = {record["Strip"], record["Variables"],
     SymbolName[record["Regulator"]],
     Lookup[record, "GaugeDenominatorFactor", 1],
-    Lookup[record, "ExtraLetters", {}]};
+    Lookup[record, "ExtraLetters", {}],
+    (* round 8 pass 3: a deferred forcing is identified by its plan key and
+       census; the Strip slot is a zero placeholder on that route *)
+    Lookup[record, "DeferredForcing", None]};
   dlogRecords = Lookup[record, "DLogRecords", Automatic];
   (* Preserve the historical key exactly when the new mathematical payload
      is absent; old prime/plan artifacts remain reusable. *)
@@ -1083,7 +1086,8 @@ finiteFieldStripPrepare[record_Association] := Module[
    factors, factorPowers, gaugeFactorPowers, gaugeDenominator,
    denominatorDegrees, symbolicForms, supportCensus, dlogRecords,
    extraLetters, derivedExtraLetters, dlogBasisRoute,
-   precomputedDLogCount = 0, derivedDLogCount = 0},
+   precomputedDLogCount = 0, derivedDLogCount = 0,
+   deferredForcing, deferredCensus},
   variables = record["Variables"];
   epsilon = record["Regulator"];
   {e, c, bbar} = record["Strip"];
@@ -1091,9 +1095,19 @@ finiteFieldStripPrepare[record_Association] := Module[
   {upperDimension, lowerDimension} = dimensions;
   dlogRecords = Lookup[record, "DLogRecords", Automatic];
   extraLetters = Flatten[{Lookup[record, "ExtraLetters", {}]}];
+  (* round 8 pass 3 (2026-09-02): a deferred forcing (Strip slot = zero
+     placeholder, record["DeferredForcing"] = plan key + modular census,
+     FiniteFieldDeferredForcing.wl) contributes its letters, pole orders and
+     degree at infinity from the census instead of from a materialized bbar *)
+  deferredForcing = Lookup[record, "DeferredForcing", None];
+  deferredCensus = If[AssociationQ[deferredForcing],
+    Lookup[deferredForcing, "Census", <||>], <||>];
   If[dlogRecords === Automatic,
     alphabet = epsFormStripAlphabet[record["Strip"], variables, epsilon];
     If[alphabet === $Failed, Return[$Failed]];
+    If[AssociationQ[deferredForcing],
+      alphabet = DeleteDuplicates[Join[alphabet, Lookup[deferredCensus, "Letters", {}]],
+        TrueQ[Together[#1 - #2] === 0] || TrueQ[Together[#1 + #2] === 0] &]];
     (* record key "ExtraLetters": letters the block's own entries do not
        show but a residue needs (EpsFormStripObstruction "MissingLetters") *)
     alphabet = DeleteDuplicates[Join[alphabet, extraLetters]];
@@ -1137,8 +1151,9 @@ finiteFieldStripPrepare[record_Association] := Module[
           Normal[SparseArray[{{i, j} -> 1}, dimensions]],
           {mu, 2}]]],
     residueTriples];
-  factorPairs = Flatten[
-    finiteFieldStripEntryFactorList /@ Flatten[bbar], 1];
+  factorPairs = If[AssociationQ[deferredForcing],
+    Lookup[deferredCensus, "GaugeFactorPowers", {}],
+    Flatten[finiteFieldStripEntryFactorList /@ Flatten[bbar], 1]];
   factors = If[factorPairs === {}, {},
     DeleteDuplicates[factorPairs[[All, 1]], SameQ]];
   factorPowers = Table[
@@ -1178,7 +1193,9 @@ finiteFieldStripPrepare[record_Association] := Module[
     finitePoleOrder[exprs_] := With[{pairs = Flatten[
         Rest[FactorList[Denominator[Cancel[Together[#]]]]] & /@ Flatten[exprs], 1]},
       If[pairs === {}, 0, Max[pairs[[All, 2]]]]];
-    forcingInfinity = Max[infinityDegree /@ Flatten[bbar]];
+    forcingInfinity = If[AssociationQ[deferredForcing],
+      Lookup[deferredCensus, "ForcingInfinityDegree", -Infinity],
+      Max[infinityDegree /@ Flatten[bbar]]];
     diagonalInfinity = Max[DeleteCases[infinityDegree /@ Flatten[{e, c}], -Infinity]];
     dlogInfinity = Max[DeleteCases[infinityDegree /@ Flatten[dlog], -Infinity]];
     diagonalPoles = finitePoleOrder[{e, c}];
@@ -1217,6 +1234,7 @@ finiteFieldStripPrepare[record_Association] := Module[
        rational[gaugeDenominator],
        rational /@ (D[gaugeDenominator, #] & /@ variables)}]];
   <|"Fingerprint" -> finiteFieldStripFingerprint[record],
+    "DeferredForcing" -> deferredForcing,
     "SymbolicForms" -> symbolicForms,
     "Variables" -> variables, "Regulator" -> epsilon,
     "Dimensions" -> dimensions, "Alphabet" -> alphabet, "DLog" -> dlog,
@@ -1374,7 +1392,8 @@ SampleEpsFormStripAffine[
    planValidation = <|"Status" -> "NoEliminationPlan"|>,
    evaluationSeconds = 0., assemblySeconds = 0., pointCallSeconds = 0.,
    loopStart, kForms, kFormsQ = False, epsPowersK, kMaximumExponents = {0, 0},
-   pointKey, kValues},
+   pointKey, kValues, deferredKey = None, drawnPoints = {}, forcingTable = <||>,
+   forcingImages},
 
   If[! finiteFieldStripRecordQ[record],
     Message[SampleEpsFormStripAffine::record]; Return[$Failed]];
@@ -1623,7 +1642,9 @@ SampleEpsFormStripAffine[
         $finiteFieldStripPointValueCache[pointKey] = kValues];
       eValue = Map[contractRational, kValues[[1]], {3}];
       cValue = Map[contractRational, kValues[[2]], {3}];
-      forcing0Value = Map[contractRational, kValues[[3]], {3}];
+      forcing0Value = If[StringQ[deferredKey],
+        Lookup[forcingTable, Key[{xValue, yValue}], Map[contractRational, kValues[[3]], {3}]],
+        Map[contractRational, kValues[[3]], {3}]];
       dlogValue = Map[contractRational, kValues[[4]], {2}];
       denominatorValue = contractRational[kValues[[5]]];
       derivativeDenominatorValues = contractRational /@ kValues[[6]],
@@ -1689,11 +1710,24 @@ SampleEpsFormStripAffine[
   ], "BadPoint"];
 
   SeedRandom[randomSeed];
+  (* round 8 pass 3: on the deferred route the forcing images of every
+     candidate point come from ONE native DAG batch, so the points are drawn
+     first (the same RNG stream as before) and the loop consumes them *)
+  deferredKey = Lookup[Lookup[preparation, "DeferredForcing", <||>] /. None -> <||>, "Key", None];
+  If[StringQ[deferredKey],
+    drawnPoints = Table[RandomInteger[{2, prime - 2}, 2], {Min[maximumAttempts, 2 requestedPointCount]}];
+    forcingImages = finiteFieldDeferredForcingImages[deferredKey, prime,
+      Append[#, epsilonMod] & /@ drawnPoints];
+    If[Lookup[forcingImages, "Status", None] =!= "OK",
+      Message[SampleEpsFormStripAffine::points]; Return[$Failed]];
+    forcingTable = AssociationThread[drawnPoints -> forcingImages["Values"]]];
   {samplingSeconds, samplingResult} = AbsoluteTiming[
     While[Length[acceptedPoints] < requestedPointCount &&
-        attemptCount < maximumAttempts,
+        attemptCount < maximumAttempts &&
+        (! StringQ[deferredKey] || attemptCount < Length[drawnPoints]),
       attemptCount++;
-      point = RandomInteger[{2, prime - 2}, 2];
+      point = If[StringQ[deferredKey], drawnPoints[[attemptCount]],
+        RandomInteger[{2, prime - 2}, 2]];
       loopStart = AbsoluteTime[];
       pointResult = buildPointRows @@ point;
       pointCallSeconds += AbsoluteTime[] - loopStart;
@@ -3836,7 +3870,21 @@ SolveEpsFormStripFiniteField[record_Association,
         Break[]];
       If[AssociationQ[lifted] && TrueQ[unseen] &&
           MemberQ[{"Numerical", "Modular"}, OptionValue["FinalCheck"]] && unseenPrimeCheck,
-        Module[{numerical = VerifyEpsFormStrip[record, lifted, "Method" -> "Numerical", "KernelCount" -> 1]},
+        Module[{numerical = If[AssociationQ[Lookup[record, "DeferredForcing", None]],
+            (* round 8 pass 3: the same identity, the DAG image in place of the
+               placeholder forcing, modulo a fresh prime at random points *)
+            With[{r = finiteFieldDeferredForcingResidualQ[record["DeferredForcing"]["Key"],
+                record["Strip"][[1 ;; 2]], lifted["Gauge"], lifted["Alphabet"], lifted["ResidueMatrices"]]},
+              <|"DLogFormCertified" -> TrueQ[Lookup[r, "ResidualZero", False]] &&
+                  FreeQ[lifted["Alphabet"], record["Regulator"]] &&
+                  FreeQ[lifted["ResidueMatrices"], Alternatives @@ record["Variables"]],
+                "NumericalPfaffianResidualsZero" -> Lookup[r, "ResidualZero", False],
+                "LettersEpsFree" -> FreeQ[lifted["Alphabet"], record["Regulator"]],
+                "ResiduesKinematicsFree" -> FreeQ[lifted["ResidueMatrices"], Alternatives @@ record["Variables"]],
+                "ResiduesEpsFree" -> FreeQ[lifted["ResidueMatrices"], record["Regulator"]],
+                "Points" -> Lookup[r, "Points", 0], "ExactCheckSeconds" -> Lookup[r, "Seconds", 0.],
+                "Residual" -> r|>],
+            VerifyEpsFormStrip[record, lifted, "Method" -> "Numerical", "KernelCount" -> 1]]},
           If[AssociationQ[numerical] && TrueQ[numerical["DLogFormCertified"]],
             log["Numerical Pfaffian residuals at ", numerical["Points"], " random points: zero (",
               Round[numerical["ExactCheckSeconds"], 0.1], " s); exact statement deferred to the family certificate"];

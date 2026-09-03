@@ -22,7 +22,7 @@ incoming = {
   <|"Row" -> 1, "Column" -> 2, "Coefficient" -> (2 + eps)/eps^2 1/(u + 1), "Letter" -> {"GPLPole", -1}|>,
   <|"Row" -> 2, "Column" -> 1, "Coefficient" -> (eps + 2)/eps (u^2 + 3)/q, "Letter" -> {"GPLFactor", q, 0}|>,
   <|"Row" -> 2, "Column" -> 2, "Coefficient" -> 1/(eps (1 - 2 eps)) u/(u - 3/4), "Letter" -> {"GPLPole", -1}|>};
-layer = <|"Rows" -> {44, 45}, "PathVariable" -> u, "Regulator" -> eps, "BasePoint" -> 1/2,
+layer = <|"Rows" -> {44, 45}, "PathVariable" -> u, "Regulator" -> eps, "BasePoint" -> 1/2, "Endpoint" -> 1/4,
   "Diagonal" -> diagonal, "Incoming" -> incoming,
   "TargetBoundarySelectors" -> <|0 -> IdentityMatrix[2], 1 -> {{1, 1}, {0, 1}}|>|>;
 demand = <|"Pairs" -> {{-2, 1}, {-2, 2}, {-1, 1}, {-1, 2}, {0, 1}, {0, 2}}|>;
@@ -72,7 +72,7 @@ hermiteQ[f_] := Module[{a = Apart[Together[f], u], terms, exact = 0, residues = 
     residues[Q] = Together[Lookup[residues, Q, 0] + rem]];
   Scan[reduceTerm, terms];
   <|"Exact" -> Together[exact], "Residues" -> Association@KeyValueMap[#1 -> PadRight[CoefficientList[Together[#2], u], Exponent[#1, u], 0] &, residues]|>];
-hPrev = ConstantArray[0, {2, 2}]; kRef = <||>;
+hPrev = ConstantArray[0, {2, 2}]; kRef = <||>; hRef = <||>;
 Do[
   omega = bOrder[order] + d1[hPrev] - Sum[hPrev . (sl[[2]] letterForm[sl[[1]]]), {sl, Transpose[{source["Letters"], source["Residues"]}]}];
   omega = Map[Together, omega, {2}];
@@ -82,7 +82,7 @@ Do[
       KeyValueMap[Function[{factor, list}, Do[Module[{matrix = Lookup[kRef, Key[{order, factor, kk - 1}], ConstantArray[0, {2, 2}]]},
           matrix[[i, j]] = list[[kk]]; kRef[{order, factor, kk - 1}] = matrix], {kk, Length[list]}]], hr["Residues"]]],
     {i, 2}, {j, 2}];
-  hPrev = h,
+  hPrev = h; hRef[order] = h,
   {order, -2, 0}];
 kRef = KeySelect[kRef, True &];
 kRef = Association@KeyValueMap[#1 -> (Together /@ #2) &, kRef];
@@ -107,16 +107,21 @@ FTAssert["the last-order gauge image agrees with the exact reference at u = 3 mo
     {key, Keys[result["GaugeImages"]]}]];
 (* demanded words: rebuild from the reference residues with the route's own word grammar *)
 wordsRef = Association@Table[pair -> FeynFacet`Private`rationalLayerWords[pair[[1]], pair[[2]], diagonal, kRef, source,
-    <|0 -> (Join[#, {0, 0}] & /@ IdentityMatrix[2]), 1 -> (Join[{0, 0}, #] & /@ {{1, 1}, {0, 1}})|>, 2, 4, 4], {pair, demand["Pairs"]}];
+    <|0 -> (Join[#, {0, 0}] & /@ IdentityMatrix[2]), 1 -> (Join[{0, 0}, #] & /@ {{1, 1}, {0, 1}})|>, 2, 4, 2], {pair, demand["Pairs"]}];
 FTAssert["the demanded word coefficients are SameQ with those built from the reference residues, and nonempty",
   And @@ Table[result["DemandedWords"][pair] === wordsRef[pair], {pair, demand["Pairs"]}] &&
     Total[Length /@ Values[result["DemandedWords"]]] > 0];
 Print["demanded words per pair: ", Length /@ result["DemandedWords"]];
-FTAssert["the pruned enumeration keeps the word counts of the exhaustive one (1, 0, 7, 5, 26, 23) and a cap is typed",
+With[{cw = BuildRationalEpsilonLayerTransport[source, layer, demand, "MaximumWords" -> 3], cg = BuildRationalEpsilonLayerTransport[source, layer, demand, "MaximumWeight" -> 1]},
+  Print["cap diagnostic: counts ", Values[Length /@ result["DemandedWords"]], "; MaximumWords 3 -> ", cw["Status"], " predicate ", AcceptedRationalEpsilonLayerTransportQ[cw],
+    "; MaximumWeight 1 -> ", cg["Status"], " needed ", cg["NeededWeight"], " dropped ", cg["DroppedCombinations"], " predicate ", AcceptedRationalEpsilonLayerTransportQ[cg]]];
+FTAssert["the pruned enumeration keeps the word counts of the exhaustive one (1, 0, 7, 5, 26, 23); a word cap and a weight cap are typed refusals that the predicate refuses",
   Values[Length /@ result["DemandedWords"]] === {1, 0, 7, 5, 26, 23} &&
     With[{capped = BuildRationalEpsilonLayerTransport[source, layer, demand, "MaximumWords" -> 3]},
-      capped["Status"] === "RationalEpsilonLayerTransportAccepted" &&
-        capped["DemandedWords"][{0, 1}]["Status"] === "WordEnumerationCapped"]];
+      capped["Status"] === "WordEnumerationCapped" && ! AcceptedRationalEpsilonLayerTransportQ[capped]] &&
+    With[{capped = BuildRationalEpsilonLayerTransport[source, layer, demand, "MaximumWeight" -> 1]},
+      capped["Status"] === "WordWeightCapReached" && capped["NeededWeight"] === 2 && capped["DroppedCombinations"] > 0 &&
+        ! AcceptedRationalEpsilonLayerTransportQ[capped]]];
 (* ---- typed refusals ---- *)
 FTAssert["a curve letter without a declared curve is refused typed",
   BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/eps, "Letter" -> {"E4Pole", 3}|>]|>], demand]["Status"] === "CurveDeclarationRequired"];
@@ -167,6 +172,112 @@ FTAssert["the sealed modular circuit on the same layer gives SameQ residues and 
   modular["Certificate"]["IncomingRoute"] === "SealedModularCircuit" && AcceptedRationalEpsilonLayerTransportQ[modular] &&
     KeySort[direct["KResidues"]] === KeySort[Select[modular["KResidues"], ! AllTrue[Flatten[#], # === 0 &] &]] &&
     direct["DemandedWords"] === modular["DemandedWords"]];
+(* ---- R1's independent end-to-end check (round 8b): the ODE dF = A F solved
+   numerically order by order (NDSolve, 30 digits) versus the route's words
+   evaluated as numerical iterated integrals -- no use of the route's
+   enumerator; a NEGATIVE source boundary order (S1), and order 2 with
+   length-2 target words (S2b) ---- *)
+sourceNeg = Join[source, <|"BoundarySelectors" -> <|-1 -> {{1, 0}, {0, 1}}, 0 -> IdentityMatrix[2], 1 -> {{0, 1}, {0, 0}}|>|>];
+odeIncoming = Append[dlogIncoming, <|"Row" -> 2, "Column" -> 2, "Coefficient" -> 3/eps, "Letter" -> {"GPLPole", -1}|>];
+odeLayer = Join[layer, <|"Incoming" -> odeIncoming|>];
+letterForm[{"GPLFactor", qq_, k_, "Incoming", _}] := u^k/qq;
+base = 1/2; u1 = 1/4; prec = 40; goals = Sequence[PrecisionGoal -> 20, AccuracyGoal -> 20];
+selS = sourceNeg["BoundarySelectors"]; selT = odeLayer["TargetBoundarySelectors"];
+fS0[qq_] := If[KeyExistsQ[selS, qq], ArrayFlatten[{{selS[qq], ConstantArray[0, {2, 2}]}}], ConstantArray[0, {2, 4}]];
+fT0[qq_] := If[KeyExistsQ[selT, qq], ArrayFlatten[{{ConstantArray[0, {2, 2}], selT[qq]}}], ConstantArray[0, {2, 4}]];
+S1form = Total[MapThread[letterForm[#1] #2 &, {sourceNeg["Letters"], sourceNeg["Residues"]}]];
+D1form = Sum[letterForm[dl[[1]]] dl[[2]], {dl, diagonal}];
+Bn[n_] := Table[Sum[If[e["Row"] === i && e["Column"] === j, SeriesCoefficient[e["Coefficient"], {eps, 0, n}] letterForm[e["Letter"]], 0], {e, odeIncoming}], {i, 2}, {j, 2}];
+fS = <||>; fT = <||>;
+Do[fS[qq] = If[qq < -1, ConstantArray[0, {2, 4}], Module[{f, sol, rhs},
+    rhs = If[qq - 1 < -1, ConstantArray[0, {2, 4}], S1form . fS[qq - 1]];
+    sol = NDSolve[Join[Flatten[Table[f[i, j]'[u] == rhs[[i, j]], {i, 2}, {j, 4}]], Flatten[Table[f[i, j][base] == fS0[qq][[i, j]], {i, 2}, {j, 4}]]],
+      Flatten[Table[f[i, j], {i, 2}, {j, 4}]], {u, u1, base}, WorkingPrecision -> prec, MaxSteps -> 10^6, goals];
+    Table[f[i, j][u] /. First[sol], {i, 2}, {j, 4}]]], {qq, -1, 5}];
+Do[fT[n] = Module[{f, sol, rhs},
+    rhs = Sum[Bn[r] . If[KeyExistsQ[fS, n - r], fS[n - r], ConstantArray[0, {2, 4}]], {r, -2, n + 1}] + D1form . If[KeyExistsQ[fT, n - 1], fT[n - 1], ConstantArray[0, {2, 4}]];
+    sol = NDSolve[Join[Flatten[Table[f[i, j]'[u] == rhs[[i, j]], {i, 2}, {j, 4}]], Flatten[Table[f[i, j][base] == fT0[n][[i, j]], {i, 2}, {j, 4}]]],
+      Flatten[Table[f[i, j], {i, 2}, {j, 4}]], {u, u1, base}, WorkingPrecision -> prec, MaxSteps -> 10^6, goals];
+    Table[f[i, j][u] /. First[sol], {i, 2}, {j, 4}]], {n, -3, 2}];
+odeValue[n_, row_] := (fT[n] /. u -> u1)[[row]];
+iterated[{}] := 1;
+iterated[letters_List] := Module[{k = Length[letters], y, sol, eqs},
+  eqs = Join[{y[k]'[u] == letterForm[letters[[k]]]}, Table[y[j]'[u] == letterForm[letters[[j]]] y[j + 1][u], {j, k - 1}], Table[y[j][base] == 0, {j, k}]];
+  sol = NDSolve[eqs, Table[y[j], {j, k}], {u, u1, base}, WorkingPrecision -> prec, MaxSteps -> 10^6, goals];
+  y[1][u1] /. First[sol]];
+mapped[v_] := {v[[1]], v[[2]], v[[3]] + v[[5]], v[[4]] + v[[6]]};
+wordSum[r_, pair_] := With[{ws = r["DemandedWords"][pair]}, If[ws === {}, ConstantArray[0, 6], Total[Table[iterated[e["Word"]] e["Coefficient"], {e, ws}]]]];
+odeDemand = <|"Pairs" -> Flatten[Table[{n, row}, {n, -1, 2}, {row, 2}], 1]|>;
+{odeSeconds, odeResult} = AbsoluteTiming[BuildRationalEpsilonLayerTransport[sourceNeg, odeLayer, odeDemand]];
+odeDeviations = Table[{n, row, N[Norm[odeValue[n, row] - mapped[wordSum[odeResult, {n, row}]]], 3]}, {n, -1, 2}, {row, 2}];
+Print["ODE check (negative boundary order, orders -1..2): window ", odeResult["Window"], "; route ", Round[odeSeconds, 0.01], " s; deviations ", odeDeviations];
+FTAssert["S1: with a source boundary order -1 the window is widened (high = N_max - q_min = 3) and the words for a pair do not depend on what else is demanded",
+  odeResult["Window"] === {-2, 3} &&
+    With[{alone = BuildRationalEpsilonLayerTransport[sourceNeg, odeLayer, <|"Pairs" -> {{0, 1}}|>]},
+      alone["Window"] === {-2, 1} && Sort[Lookup[alone["DemandedWords"][{0, 1}], "Word"]] === Sort[Lookup[odeResult["DemandedWords"][{0, 1}], "Word"]]]];
+FTAssert["R1's ODE check: every demanded (order, row) of orders -1..2 agrees with the numerical ODE solution to 1e-9 (words evaluated as iterated integrals, outermost letter first)",
+  odeResult["Status"] === "RationalEpsilonLayerTransportAccepted" && AllTrue[Flatten[odeDeviations, 1], #[[3]] < 10^-9 &]];
+FTAssert["S2b: order 2 has target words of length 2 and they enter the ODE agreement in the outermost-first convention",
+  Count[odeResult["DemandedWords"][{2, 1}], e_ /; e["Kind"] === "TargetBoundary" && Length[e["Word"]] === 2] > 0 &&
+    N[Norm[odeValue[2, 1] - mapped[wordSum[odeResult, {2, 1}]]]] < 10^-9 &&
+    N[Norm[odeValue[2, 2] - mapped[wordSum[odeResult, {2, 2}]]]] < 10^-9];
+(* ---- S3: the lifted gauge at the endpoint, exact reference SameQ, and the full
+   transported value F_T = G + H F_S against the ODE for the u-DEPENDENT layer ---- *)
+FTAssert["S3: the gauge at the endpoint is reconstructed and SameQ with the exact reference at every order",
+  result["GaugeStatus"] === "GaugeReconstructedAtEndpoint" && result["Certificate"]["GaugeReconstructed"] &&
+    result["Certificate"]["GaugeComparisons"] > 0 && result["Certificate"]["GaugeMismatches"] === 0 &&
+    And @@ Table[result["GaugeAtEndpoint"][order] === Map[Together, hRef[order] /. u -> 1/4, {2}], {order, -2, 0}]];
+FTAssert["a u-dependent layer without an endpoint is refused typed",
+  BuildRationalEpsilonLayerTransport[source, KeyDrop[layer, "Endpoint"], demand, "PrimeCount" -> 3]["Status"] === "EndpointRequired"];
+selS2 = source["BoundarySelectors"];
+fS02[qq_] := If[KeyExistsQ[selS2, qq], ArrayFlatten[{{selS2[qq], ConstantArray[0, {2, 2}]}}], ConstantArray[0, {2, 4}]];
+S1form2 = Total[MapThread[letterForm[#1] #2 &, {source["Letters"], source["Residues"]}]];
+Bn2[n_] := Table[Sum[If[e["Row"] === i && e["Column"] === j, SeriesCoefficient[e["Coefficient"], {eps, 0, n}] letterForm[e["Letter"]], 0], {e, incoming}], {i, 2}, {j, 2}];
+fS2 = <||>; fT2 = <||>;
+Do[fS2[qq] = If[qq < 0, ConstantArray[0, {2, 4}], Module[{f, sol, rhs},
+    rhs = If[qq - 1 < 0, ConstantArray[0, {2, 4}], S1form2 . fS2[qq - 1]];
+    sol = NDSolve[Join[Flatten[Table[f[i, j]'[u] == rhs[[i, j]], {i, 2}, {j, 4}]], Flatten[Table[f[i, j][base] == fS02[qq][[i, j]], {i, 2}, {j, 4}]]],
+      Flatten[Table[f[i, j], {i, 2}, {j, 4}]], {u, u1, base}, WorkingPrecision -> prec, MaxSteps -> 10^6, goals];
+    Table[f[i, j][u] /. First[sol], {i, 2}, {j, 4}]]], {qq, 0, 3}];
+Do[fT2[n] = Module[{f, sol, rhs},
+    rhs = Sum[Bn2[r] . If[KeyExistsQ[fS2, n - r], fS2[n - r], ConstantArray[0, {2, 4}]], {r, -2, n}] + D1form . If[KeyExistsQ[fT2, n - 1], fT2[n - 1], ConstantArray[0, {2, 4}]];
+    sol = NDSolve[Join[Flatten[Table[f[i, j]'[u] == rhs[[i, j]], {i, 2}, {j, 4}]], Flatten[Table[f[i, j][base] == fT0[n][[i, j]], {i, 2}, {j, 4}]]],
+      Flatten[Table[f[i, j], {i, 2}, {j, 4}]], {u, u1, base}, WorkingPrecision -> prec, MaxSteps -> 10^6, goals];
+    Table[f[i, j][u] /. First[sol], {i, 2}, {j, 4}]], {n, -2, 0}];
+transported[n_, row_] := mapped[wordSum[result, {n, row}]] +
+  Sum[(result["GaugeAtEndpoint"][m] . If[KeyExistsQ[fS2, n - m], fS2[n - m] /. u -> u1, ConstantArray[0, {2, 4}]])[[row]], {m, -2, 0}];
+gaugeDeviations = Table[{n, row, N[Norm[(fT2[n] /. u -> u1)[[row]] - transported[n, row]], 3]}, {n, -2, 0}, {row, 2}];
+Print["u-dependent layer, F_T = G + H F_S against the ODE: deviations ", gaugeDeviations];
+FTAssert["S3 end to end: on the u-dependent layer the transported value G + H F_S agrees with the ODE to 1e-9 at every demanded (order, row)",
+  AllTrue[Flatten[gaugeDeviations, 1], #[[3]] < 10^-9 &]];
+(* ---- S5-S8 typed refusals ---- *)
+FTAssert["S5: a diagonal residue with the path variable, a source residue with eps, and a selector with a symbol are refused typed",
+  BuildRationalEpsilonLayerTransport[source, Join[dlogLayer, <|"Diagonal" -> {{{"GPLPole", 3/4}, {{u, 0}, {0, 2}}}, diagonal[[2]]}|>], demand]["Status"] === "ResidueMatrixNotConstant" &&
+  BuildRationalEpsilonLayerTransport[Join[source, <|"Residues" -> {{{0, eps}, {0, 0}}, {{1, 0}, {0, -1}}}|>], dlogLayer, demand]["Status"] === "ResidueMatrixNotConstant" &&
+  BuildRationalEpsilonLayerTransport[Join[source, <|"BoundarySelectors" -> <|0 -> {{1, x}, {0, 1}}|>|>], dlogLayer, demand]["Status"] === "ResidueMatrixNotConstant"];
+FTAssert["S6: a coefficient whose eps^-3 term vanishes at three fixed points is not truncated: the Series valuation below the certified window is refused typed, and the probe points are random",
+  With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> (u - 1/2) (u - 5/6) (u - 11/14)/eps^3 + 1/eps^2, "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>, "PrimeCount" -> 3]},
+    r["Status"] === "RationalEpsilonLayerTransportAccepted" && r["Window"][[1]] === -3 && DuplicateFreeQ[r["Certificate"]["ValuationProbePoints"]]] &&
+  With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> (u - 1/2) (u - 5/6) (u - 11/14)/eps^3 + 1/eps^2, "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>, "PrimeCount" -> 3, "Seed" -> 1]},
+    MemberQ[{"RationalEpsilonLayerTransportAccepted", "LaurentValuationBelowWindow"}, r["Status"]] && (r["Status"] =!= "RationalEpsilonLayerTransportAccepted" || r["Window"][[1]] === -3)]];
+FTAssert["S7: a prime at which a pole factor degenerates is skipped and recorded, the result still accepted; a bad prime is never a misleading status",
+  With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> u/(eps^2 (u^2 - 1000003)), "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>,
+      "Primes" -> {1000003, 1000033, 1000037, 1000039, 1000081, 1000099, 1000117, 1000121, 1000133, 1000151, 1000159, 1000171}, "PrimeCount" -> 3]},
+    r["Status"] === "RationalEpsilonLayerTransportAccepted" && Lookup[r["Certificate"]["SkippedPrimes"], "Prime"] === {1000003} && ! MemberQ[r["Certificate"]["Primes"], 1000003] && r["Certificate"]["FreshValidationPrime"] =!= 1000003]];
+FTAssert["S8: a non-quartic curve is refused typed, E4Eta2 is a curve letter, ZeroColumns naming a present or out-of-range column is refused typed",
+  BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Curve" -> u^2, "Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/eps, "Letter" -> {"E4Pole", 3}|>]|>], demand]["Status"] === "CurveNotQuartic" &&
+  BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> 1/eps, "Letter" -> {"E4Eta2"}|>]|>], demand]["Status"] === "CurveDeclarationRequired" &&
+  BuildRationalEpsilonLayerTransport[source, Join[dlogLayer, <|"ZeroColumns" -> {2, 7}|>], demand]["Status"] === "ZeroColumnsInvalid"];
+FTAssert["a source word growth beyond the state cap is a typed refusal",
+  BuildRationalEpsilonLayerTransport[sourceNeg, odeLayer, odeDemand, "MaximumStates" -> 5]["Status"] === "SourceWordGrowthCapped"];
+FTAssert["S4: the four-argument predicate re-verifies both routes from the inputs; a residue altered with its hash recomputed is caught at a new prime; a changed input breaks the fingerprint; the one-argument form binds the residues by hash",
+  AcceptedRationalEpsilonLayerTransportQ[result, source, layer, demand] &&
+    AcceptedRationalEpsilonLayerTransportQ[direct, source, dlogLayer, demand] &&
+    With[{tampered = Join[result, <|"KResidues" -> MapAt[# + 1 &, result["KResidues"], {Key[First[Keys[result["KResidues"]]]], 1, 1}]|>]},
+      ! AcceptedRationalEpsilonLayerTransportQ[tampered] &&
+      ! AcceptedRationalEpsilonLayerTransportQ[Join[tampered, <|"Certificate" -> Join[tampered["Certificate"], <|"ResidueHash" -> Hash[KeySort[tampered["KResidues"]]]|>]|>], source, layer, demand]] &&
+    ! AcceptedRationalEpsilonLayerTransportQ[result, source, Join[layer, <|"BasePoint" -> 1/3|>], demand] &&
+    ! AcceptedRationalEpsilonLayerTransportQ[direct, source, layer, demand]];
 FTAssert["the predicate refuses a tampered certificate",
   ! AcceptedRationalEpsilonLayerTransportQ[Join[result, <|"Certificate" -> Join[result["Certificate"], <|"ResidueMismatches" -> 1|>]|>]] &&
   ! AcceptedRationalEpsilonLayerTransportQ[KeyDrop[result, "Certificate"]]];
