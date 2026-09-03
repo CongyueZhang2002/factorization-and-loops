@@ -804,6 +804,15 @@ Results so far:
 - M, pass 4 (01:30): F1 the image call is atomic with respect to the cache and a Missing value is the typed `DeferredForcingImagesIncomplete` (new test `t_finite_field_deferred_forcing` 13/13 with R2's fixture); F2 the deferred plan travels with the broker task as a serializable handle rebuilt on any kernel, typed-failure counters in the telemetry printed by the broker and the solver (verified in-kernel with an emptied registry; the real pool round trip stated as not verified); F3 the (25,18) paragraph rewritten around Codex's no-go; F4 the DAG-route check is `ModularPfaffianResidualsZero` with a seeded `ModularResidual` record accepted by every certificate reader. Tests green (round2, adaptive, transport_frame, deferred_bundle, deferred_forcing, gauge_pullback). Campaign M closed: finished with R2's fixes applied.
 - Adversarial review (fresh Fable, after each campaign's report): assess correctness claims, the measurements and the generality, recommend; the campaign is "finished" only after the review's points are answered.
 
+## Round 9 (2026-09-03 15:10, user: "work on the 3 points you said confident; you can use 8 subkernels and 16 cores")
+
+Context: Codex's overnight campaign (Goals/Codex/2026-09-03/01_round8_and_physical_transport.md; 42 commits on main up to 09:45; result campaigns `PhysicalBoundaryModes/` and `PhysicalEndpointTransport/` accepted for 39 families with 201 formal period coefficients; CF300 and CF385 observable transports promoted) stopped at 10:32 on the Fable limit with CF300's boundary-mode map failing (`AmbiguousPhysicalEigenspace`) and its fix half-written; that state is checkpointed above. The three points:
+- T: (1) finish and verify Codex's degenerate-eigenspace mode selection so CF300's boundary modes are accepted (campaign summary Accepted, mode records exact); (2) materialize CF303's demanded physical coefficients from the adapted 43+2 circuit and T25 with modular cross-checks, after re-verifying the quartic-curve Hermite channel's differential identity at independent finite-field points; emit the Stage-3 evaluation list.
+- M: (3) census of the families with a certified eps-form and no accepted observable transport, then the pooled observable-transport campaign on them (one pool main through the seat launcher, 8 subkernels, per-family caps), typed failure per family, and the reason recorded for every family that cannot be attempted (no certified eps-form, with the inventory's category).
+- Opus watchdog on the pool for the campaign.
+
+Results: filled in as the agents report.
+
 ## Deliberately not done
 
 - N1. Splitting the chart catalog into a separate data file: the records
