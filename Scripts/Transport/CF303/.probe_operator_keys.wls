@@ -1,0 +1,16 @@
+a = Get["/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_native_dlog_residues/cf303_final45_hybrid_baseline_lazy_operator.wl"];
+Print[InputForm[Keys[a]]];
+Scan[Function[key, Print[InputForm[{key, Head[a[key]], If[AssociationQ[a[key]], Keys[a[key]], If[ListQ[a[key]], Dimensions[a[key]], None]]}]]], Keys[a]];
+Print["source operator"];
+o = a["SourceArtifact", "Operator"];
+Scan[Function[key, Print[InputForm[{key, Head[o[key]], If[AssociationQ[o[key]], Keys[o[key]], If[ListQ[o[key]], Dimensions[o[key]], None]]}]]], Keys[o]];
+Print["g operator selected"];
+Scan[Function[key, Print[InputForm[{key, Head[a["GOperator", key]], If[AssociationQ[a["GOperator", key]], Keys[a["GOperator", key]], If[ListQ[a["GOperator", key]], Dimensions[a["GOperator", key]], None]]}]]], {"Rows", "OffDiagonalResidues", "DiagonalResidues", "CoefficientFormula", "TransferProvider", "BoundaryConvention"}];
+Print["source provider"];
+Print[InputForm[a["SourceArtifact", "Operator", "Provider"]]];
+Print["source coefficient formula"];
+Print[InputForm[a["SourceArtifact", "Operator", "CoefficientFormula"]]];
+Print["g coefficient formula"];
+Print[InputForm[a["GOperator", "CoefficientFormula"]]];
+Print["g transfer schedule"];
+Print[InputForm[a["GOperator", "TransferProvider", "Schedule"]]];

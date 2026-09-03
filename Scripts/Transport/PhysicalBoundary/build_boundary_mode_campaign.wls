@@ -35,11 +35,16 @@ periods = Get[FileNameJoin[{certificateDirectory, "NullityPeriods.wl"}]][
   "Periods"];
 assignments = Get[FileNameJoin[{resultRoot, "BlockClasses",
   "block_class_assign.wl"}]];
-ledgerPeriodIDs = Sort@Flatten[ToExpression /@ StringCases[
+certifiedPeriodIDs = Sort@Flatten[ToExpression /@ StringCases[
   FileNameTake /@ FileNames["period_*.wl", certificateDirectory],
   "period_" ~~ digits : DigitCharacter .. ~~ ".wl" :> digits]];
-activePeriods = Select[periods,
-  MemberQ[ledgerPeriodIDs, Lookup[#, "PeriodID", None]] &];
+(* A Stage-3 evaluation certificate is evidence about the value of a mode;
+   it is not a prerequisite for the mode to occur in the physical solution.
+   Keep every structurally counted period and mark uncertified values formal
+   downstream.  Filtering here used to erase 13 of the 33 exact nullity
+   modes from the transport. *)
+structuralPeriodIDs = Sort@Lookup[periods, "PeriodID", {}];
+activePeriods = periods;
 allFamilies = Sort@DeleteDuplicates@Flatten@Lookup[activePeriods, "Families"];
 families = If[requestedFamilies === {}, allFamilies,
   Select[requestedFamilies, MemberQ[allFamilies, #] &]];
@@ -94,6 +99,11 @@ endpointForChart[chart_, variables_] := Switch[chart,
       "Endpoint" -> 1/2, "LocalDirection" -> -1,
       "FixedRules" -> {variables[[1]] -> 1/4},
       "LeadingCoefficient" -> 2|>,
+  "Q4a",
+    <|"Stratum" -> "wEdge", "Variable" -> variables[[2]],
+      "Endpoint" -> 1/2, "LocalDirection" -> -1,
+      "FixedRules" -> {variables[[1]] -> 1/4},
+      "LeadingCoefficient" -> 2|>,
   "Bilinear115",
     <|"Stratum" -> "wEdge", "Variable" -> variables[[2]],
       "Endpoint" -> 1, "LocalDirection" -> -1,
@@ -113,7 +123,7 @@ familyFile[directory_, prefix_, family_] :=
 buildFamily[family_] := Catch@Module[
   {fail, start = AbsoluteTime[], formFile, transportFile, form, transport,
    chart, variables, endpoint, familyPeriods, permutation, realization,
-   rows, matches, blockPosition, canonicalRows, realizations, gaugeRules,
+   rows, matches, rowMatches, blockPosition, canonicalRows, realizations, gaugeRules,
    connection, frobeniusSpec, frobeniusSeconds, frobenius, modeSeconds,
    modeMap, outputFile},
   fail[status_, extra_: <||>] := Throw[Join[<|"Family" -> family,
@@ -144,9 +154,18 @@ buildFamily[family_] := Catch@Module[
   realizations = Map[Function[period,
     matches = Select[assignments,
       #["Family"] === family && #["ClassID"] === period["ClassID"] &];
+    (* A family may contain the same class in more than one block.  The
+       independently deduplicated BlockRows list cannot be paired by
+       position with Families, but it is still a safe discriminator when it
+       selects exactly one of this family's same-class blocks. *)
+    rowMatches = Select[matches, MemberQ[
+        Sort /@ Lookup[period, "BlockRows", {}], Sort[#Rows]] &];
+    If[Length[rowMatches] === 1, matches = rowMatches];
     If[Length[matches] =!= 1,
       fail["PeriodRealizationNotUnique", <|"PeriodID" -> period["PeriodID"],
-        "ClassID" -> period["ClassID"], "MatchCount" -> Length[matches]|>]];
+        "ClassID" -> period["ClassID"], "MatchCount" -> Length[matches],
+        "CandidateRows" -> Lookup[matches, "Rows", {}],
+        "PeriodBlockRows" -> Lookup[period, "BlockRows", {}]|>]];
     rows = First[matches]["Rows"];
     blockPosition = FirstPosition[Sort /@ form["Blocks"], Sort[rows],
       Missing["Block"]];
@@ -202,7 +221,9 @@ buildFamily[family_] := Catch@Module[
     "Chart" -> chart,
     "GaugeConstantRules" -> gaugeRules,
     "PhysicalEdgePoint" -> endpoint,
-    "LedgerPeriodIDs" -> Lookup[familyPeriods, "PeriodID"],
+    "StructuralPeriodIDs" -> Lookup[familyPeriods, "PeriodID"],
+    "CertifiedPeriodIDs" -> Intersection[
+      Lookup[familyPeriods, "PeriodID"], certifiedPeriodIDs],
     "KnownZeroLedgerPeriodIDs" -> Intersection[
       Lookup[familyPeriods, "PeriodID"], {1, 6, 7}],
     "RealizationKeys" -> Lookup[realizations, "PeriodID"],
@@ -238,10 +259,14 @@ summary = <|
   "AcceptedFamilies" -> Lookup[
     Select[results, Lookup[#, "Status", None] === "Accepted" &], "Family"],
   "Results" -> results,
-  "LedgerPeriodIDs" -> ledgerPeriodIDs,
+  "StructuralPeriodIDs" -> structuralPeriodIDs,
+  "CertifiedPeriodIDs" -> certifiedPeriodIDs,
   "RealizationCount" -> Total[Lookup[results, "PeriodCount", 0]],
   "Seconds" -> AbsoluteTime[] - campaignStart|>;
-writeAtomic[summary, FileNameJoin[{outputDirectory, "campaign_summary.wl"}]];
+summaryFile = If[Length[requestedFamilies] === 1,
+  "campaign_summary_" <> First[requestedFamilies] <> ".wl",
+  "campaign_summary.wl"];
+writeAtomic[summary, FileNameJoin[{outputDirectory, summaryFile}]];
 Print[InputForm[KeyTake[summary, {"Status", "AcceptedFamilies",
   "LedgerPeriodIDs", "RealizationCount", "Seconds"}]]];
 If[summary["Status"] =!= "PhysicalBoundaryModeCampaignAcceptedV1",

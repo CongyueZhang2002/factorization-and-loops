@@ -6,10 +6,12 @@ periods.  It is intentionally a process campaign outside `FeynFacet/Private`:
 the reusable Frobenius and mode algorithms remain in
 `Private/Transport/Boundary/PhysicalBoundary.wl`.
 
-The campaign reads the 20 current period certificates, joins each period's
-class to `BlockClasses/block_class_assign.wl`, and thereby recovers all 55
-family/row realizations unambiguously.  It never reads the independently
-deduplicated `Families` and `BlockRows` arrays positionally.
+The campaign reads all 33 structural modes from `NullityPeriods.wl`, joins
+each period's class to `BlockClasses/block_class_assign.wl`, and recovers the
+family/row realizations unambiguously.  A missing Stage-3 value certificate
+leaves a mode formal; it must never remove that mode from transport.  The
+currently certified subset is recorded separately.  The campaign never reads
+the independently deduplicated `Families` and `BlockRows` arrays positionally.
 
 Every current period admits a rational physical edge point whose normal
 coordinate is the second coordinate of its accepted transport chart.  The

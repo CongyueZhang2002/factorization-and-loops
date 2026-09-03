@@ -17,6 +17,7 @@ Clear[BuildEndpointFrobenius, BuildEndpointLeveltModeConnection,
 ClearAll[boundaryExactZeroQ, boundaryCanonicalMatrix,
   boundaryFiniteQ, boundaryParticularSolution, boundaryLocalOrder,
   boundaryLeadingCoefficient, boundaryModeExtension,
+  boundarySelectModeExtension,
   boundaryEpsilonValuation, boundaryExactCoefficientQ,
   boundaryUnambiguouslyPositiveQ];
 
@@ -57,14 +58,30 @@ boundaryParticularSolution[matrix_, target_] := Module[
 
 boundaryLocalOrder[0, _Symbol] := Infinity;
 boundaryLocalOrder[expression_, variable_Symbol] := Module[
-  {numerator, denominator, scale = Unique["boundaryScale$"]},
+  {numerator, denominator, scale = Unique["boundaryScale$"], series,
+   coefficients, minimum, denominatorPower, position, order},
   {numerator, denominator} = NumeratorDenominator[Together[expression]];
-  If[! PolynomialQ[numerator, variable] ||
-      ! PolynomialQ[denominator, variable],
-    Return[$Failed]
+  If[PolynomialQ[numerator, variable] &&
+      PolynomialQ[denominator, variable],
+    Return[
+      Exponent[numerator /. variable -> scale variable, scale, Min] -
+        Exponent[denominator /. variable -> scale variable, scale, Min]]
   ];
-  Exponent[numerator /. variable -> scale variable, scale, Min] -
-    Exponent[denominator /. variable -> scale variable, scale, Min]
+  (* A multiquadratic chart can leave square roots in the inverse gauge even
+     when every root is regular and nonzero at the chosen physical edge.
+     Their exact local series still has an ordinary integer valuation.  Read
+     that valuation directly instead of rejecting the mode merely because
+     NumeratorDenominator is not polynomial. *)
+  series = Quiet@Check[Series[expression, {variable, 0, 8}], $Failed];
+  If[series === $Failed || Head[series] =!= SeriesData, Return[$Failed]];
+  coefficients = series[[3]];
+  minimum = series[[4]];
+  denominatorPower = series[[6]];
+  position = SelectFirst[Range[Length[coefficients]],
+    ! boundaryExactZeroQ[coefficients[[#]]] &, Missing["ZeroSeries"]];
+  If[MissingQ[position], Return[$Failed]];
+  order = (minimum + position - 1)/denominatorPower;
+  If[IntegerQ[order], order, $Failed]
 ];
 
 boundaryLeadingCoefficient[0, _, _] := 0;
@@ -341,6 +358,74 @@ boundaryModeExtension[residue_, canonicalRows_, constraintRows_,
     <|"Status" -> "NoCompatibleGlobalMode"|>]
 ];
 
+(* A repeated block eigenvalue does not by itself make a physical mode
+   ambiguous.  The integer valuation of the original integral supplies the
+   missing basis-independent condition: cancel every lower local power and
+   retain the unique compatible direction that starts at the requested
+   power.  This is the same Frobenius selection used for a one-dimensional
+   eigenspace, expressed on the whole eigenspace rather than on Mathematica's
+   arbitrary NullSpace basis. *)
+boundarySelectModeExtension[residue_, transformationLocal_, prefactor_,
+    canonicalRows_, physicalRows_, constraintRows_, eigenvalue_,
+    maximumLevel_, expectedOrder_Integer, localVariable_Symbol] := Module[
+  {localOperator, seeds, extensions, exactExtensions, vectors,
+   selectedBasis, orders, finiteOrders, minimumOrder, lowerPowers,
+   lowerConstraints, admissible, coefficients, vector, selected,
+   expectedCoefficients},
+  localOperator = (residue - eigenvalue IdentityMatrix[Length[residue]])[[
+    canonicalRows, canonicalRows]];
+  seeds = NullSpace[localOperator];
+  If[seeds === {}, Return[<|"Status" -> "NoBlockEigenmode"|>]];
+  extensions = boundaryModeExtension[residue, canonicalRows,
+      constraintRows, eigenvalue, maximumLevel, #] & /@ seeds;
+  exactExtensions = Select[extensions, Lookup[#, "Status", None] === "Exact" &];
+  If[exactExtensions === {},
+    Return[<|"Status" -> "NoCompatibleGlobalMode"|>]];
+  If[Length[exactExtensions] === 1, Return[First[exactExtensions]]];
+
+  vectors = Lookup[exactExtensions, "Vector"];
+  selectedBasis = (Together /@
+        (transformationLocal.prefactor.#))[[physicalRows]] & /@ vectors;
+  orders = Map[boundaryLocalOrder[#, localVariable] &, selectedBasis, {2}];
+  If[MemberQ[orders, $Failed, Infinity],
+    Return[<|"Status" -> "PhysicalModeNotRationalAtEndpoint"|>]];
+  finiteOrders = DeleteCases[Flatten[orders], Infinity];
+  If[finiteOrders === {} || Min[finiteOrders] > expectedOrder,
+    Return[<|"Status" -> "PhysicalValuationMismatch",
+      "ComputedOrders" -> orders, "ExpectedOrder" -> expectedOrder|>]];
+  minimumOrder = Min[finiteOrders];
+  lowerPowers = If[minimumOrder < expectedOrder,
+    Range[minimumOrder, expectedOrder - 1], {}];
+  lowerConstraints = DeleteCases[
+    Flatten[Table[
+      Together /@ Table[
+        SeriesCoefficient[selectedBasis[[basis, row]],
+          {localVariable, 0, power}],
+        {basis, Length[selectedBasis]}],
+      {row, Length[physicalRows]}, {power, lowerPowers}], 1],
+    row_ /; boundaryExactZeroQ[row]];
+  admissible = If[lowerConstraints === {},
+    IdentityMatrix[Length[vectors]], NullSpace[lowerConstraints]];
+  If[Length[admissible] =!= 1,
+    Return[<|"Status" -> "AmbiguousPhysicalEigenspace",
+      "BlockNullity" -> Length[seeds],
+      "PhysicalAdmissibleNullity" -> Length[admissible],
+      "ExpectedOrder" -> expectedOrder|>]];
+  coefficients = First[admissible];
+  vector = Together /@ Total[MapThread[#1 #2 &, {coefficients, vectors}]];
+  selected = (Together /@ (transformationLocal.prefactor.vector))[[physicalRows]];
+  expectedCoefficients = boundaryLeadingCoefficient[
+      selected[[#]], expectedOrder, localVariable] & /@
+    Range[Length[selected]];
+  If[AllTrue[expectedCoefficients, boundaryExactZeroQ],
+    Return[<|"Status" -> "PhysicalValuationMismatch",
+      "ComputedOrders" -> (boundaryLocalOrder[#, localVariable] & /@ selected),
+      "ExpectedOrder" -> expectedOrder|>]];
+  <|"Status" -> "Exact",
+    "GeneralizedLevel" -> Max[Lookup[exactExtensions, "GeneralizedLevel"]],
+    "Vector" -> vector|>
+];
+
 BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
     spec_Association, realizations_List] := Catch@Module[
   {fail, dimension, residue, regulator, variable, localVariable, endpoint,
@@ -448,9 +533,24 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       Return[<|"Status" -> "BoundaryModePowersInvalid",
         "PeriodID" -> periodID|>]
     ];
+    expectedOrder = localPower integerValuation;
+    If[! IntegerQ[expectedOrder],
+      Return[<|"Status" -> "PhysicalValuationNotIntegral",
+        "PeriodID" -> periodID|>]
+    ];
+    If[expectedOrder > maximumSeriesOrder,
+      Return[<|"Status" -> "FrobeniusDepthInsufficient",
+        "PeriodID" -> periodID,
+        "NeededSeriesOrder" -> expectedOrder,
+        "AvailableSeriesOrder" -> maximumSeriesOrder|>]
+    ];
     eigenvalue = Together[localPower exponent];
-    extension = boundaryModeExtension[residue, canonicalRows,
-      constraintRows, eigenvalue, maximumLevel, suppliedSeed];
+    extension = If[suppliedSeed === Automatic,
+      boundarySelectModeExtension[residue, transformationLocal, prefactor,
+        canonicalRows, physicalRows, constraintRows, eigenvalue,
+        maximumLevel, expectedOrder, localVariable],
+      boundaryModeExtension[residue, canonicalRows,
+        constraintRows, eigenvalue, maximumLevel, suppliedSeed]];
     If[extension["Status"] =!= "Exact",
       Return[Join[<|"PeriodID" -> periodID,
           "PeriodClass" -> periodClass|>, extension]]
@@ -462,17 +562,6 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
     If[MemberQ[orders, $Failed],
       Return[<|"Status" -> "PhysicalModeNotRationalAtEndpoint",
         "PeriodID" -> periodID|>]
-    ];
-    expectedOrder = localPower integerValuation;
-    If[! IntegerQ[expectedOrder],
-      Return[<|"Status" -> "PhysicalValuationNotIntegral",
-        "PeriodID" -> periodID|>]
-    ];
-    If[expectedOrder > maximumSeriesOrder,
-      Return[<|"Status" -> "FrobeniusDepthInsufficient",
-        "PeriodID" -> periodID,
-        "NeededSeriesOrder" -> expectedOrder,
-        "AvailableSeriesOrder" -> maximumSeriesOrder|>]
     ];
     candidates = Flatten@Position[orders, expectedOrder];
     If[candidates === {},

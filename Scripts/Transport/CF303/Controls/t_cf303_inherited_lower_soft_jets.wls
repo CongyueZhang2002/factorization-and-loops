@@ -7,7 +7,7 @@ check[name_, value_] := AssociateTo[checks, name -> TrueQ[value]];
 
 families = artifact["Families"];
 check["AcceptedScope",
-  artifact["Status"] === "CF303InheritedLowerSoftJetsAcceptedV1" &&
+  artifact["Status"] === "CF303InheritedLowerSoftJetsAcceptedV2" &&
   Lookup[families, "Family"] === {"CF1", "CF12", "CF21", "CF199", "CF53"} &&
   And @@ (Lookup[#, "CoefficientField"] === "Rational" &&
       Lookup[#, "FunctionClass"] === "GPL" & /@ families)];
@@ -16,11 +16,12 @@ check["MinimalResidueClosures",
     {{1}, {1, 6}, {1, 4}, {1, 7, 8, 9}, {1, 10, 11, 12}}];
 check["DemandedWindows",
   artifact["DemandedCoefficientWindows"] === <|
-    "CF1" -> <|"Rho" -> {0, 2}, "Epsilon" -> {0, 5}|>,
-    "CF12" -> <|"Rho" -> {0, 2}, "Epsilon" -> {0, 5}|>,
-    "CF21" -> <|"Rho" -> {0, 2}, "Epsilon" -> {0, 5}|>,
-    "CF199" -> <|"Rho" -> {0, 2}, "Epsilon" -> {0, 6}|>,
-    "CF53" -> <|"Rho" -> {0, 2}, "Epsilon" -> {0, 6}|>|>];
+    "CF1" -> <|"Rho" -> {0, 4}, "Epsilon" -> {0, 5}|>,
+    "CF12" -> <|"Rho" -> {0, 4}, "Epsilon" -> {0, 5}|>,
+    "CF21" -> <|"Rho" -> {0, 4}, "Epsilon" -> {0, 5}|>,
+    "CF199" -> <|"Rho" -> {0, 4}, "Epsilon" -> {0, 6}|>,
+    "CF53" -> <|"Rho" -> {0, 4}, "Epsilon" -> {0, 6}|>|> &&
+  StringContainsQ[artifact["JetDepthReason"], "rho^1"]];
 
 coefficient[record_, rhoOrder_, epsilonOrder_] := SelectFirst[
   record["SelectedFrobeniusPrefactor"]["NonzeroCoefficients"],

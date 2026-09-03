@@ -169,6 +169,8 @@ def rational_function_local_data(rf: Any, point: int, prime: int,
         "principal": {power: value for power, value in coefficients.items()
                       if power < 0},
         "finite": coefficients.get(0, 0),
+        "positive": {power: value for power, value in coefficients.items()
+                     if power > 0},
     }
 
 
@@ -209,6 +211,19 @@ def function_pair_local_data(pair: Any, point: int, prime: int,
             for channel in channels
         },
     } for power in powers]
+    positive_powers = sorted({power for value in populated
+                              for power in value["positive"]})
+    positive = [{
+        "rho_power": power,
+        **{
+            channel: [
+                (components[channel, extension]["positive"].get(power, 0)
+                 if components[channel, extension] is not None else 0)
+                for extension in range(2)
+            ]
+            for channel in channels
+        },
+    } for power in positive_powers]
     finite = {
         channel: [
             (components[channel, extension]["finite"]
@@ -218,7 +233,8 @@ def function_pair_local_data(pair: Any, point: int, prime: int,
         for channel in channels
     }
     return {"valuation": valuation, "leading": leading,
-            "principal": principal, "finite": finite}
+            "principal": principal, "finite": finite,
+            "positive": positive}
 
 
 def zero_value() -> dict[str, list[int]]:
