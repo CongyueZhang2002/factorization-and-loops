@@ -26,8 +26,10 @@ the benchmark table and the CF259 state. This note is the short version.
   uncertified record typed. The stored CF259 record predates the
   certificate; certifying it is open (the certifier exceeds its cap on
   that 47 x 47 record; the fix is a numeric-point Series per entry).
-- CF259: transported (accepted artifact of 05:51; reproduced SameQ in
-  265 s by the new route). CF300 and CF303 are not transported.
+- CF259: transported with the valuation certificate bound, accepted by the
+  current predicate: `.../CF259/observable_transport_2026-09-02_certified/`
+  (270 s, SameQ with the 05:51 artifact, which no longer passes the
+  predicate and is kept as history). CF300 and CF303 are not transported.
 - Tests: 12 retired, 8 fixed in round 3 (the long ones were quadratic test
   code, not physics); verification policy: small targeted tests through
   the two licensed kernel seats, no full-suite runs, kill pathological

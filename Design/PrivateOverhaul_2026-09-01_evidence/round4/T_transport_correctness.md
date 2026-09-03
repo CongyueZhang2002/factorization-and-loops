@@ -396,3 +396,43 @@ answers the typed refusal, the Series route unchanged on a 1x1 -- 5 s
 (16:53:30-16:53:35); `t_observable_transport_laurent_series` 20/20 in
 15 s after load (16:54:3x-16:54:50; the first run 19/20 failed only on
 the `Names` shadowing in the new assertion, fixed as above).
+
+## Task 2: the CF259 rerun on the certified record (user's go, 16:45)
+
+Driven as the 05:51 run was (`Scripts/family_observable_transport.wls`,
+`FACET_CHECK_LEVEL=Production`, `FACET_KERNEL_COUNT=1`, the 05:51 path
+card), through the seat launcher with a 900 s cap, on the certified
+compact record, writing to the NEW directory
+`.../CF259/observable_transport_2026-09-02_certified/` (the 05:51
+directory untouched). Launched 16:54:50 after task 1 was verified,
+exited 0 at 16:59:29. Log copied beside the artifact (`transport_run.log`),
+README with provenance written there.
+
+| stage (cumulative wall) | certified rerun | 05:51 run |
+|---|---:|---:|
+| input preparation | 0.2 s | 0.2 s |
+| epsilon valuations (source FamilyRecord, certified) | 0.9 s | 0.2 s |
+| structural support | 1.7 s | 0.4 s |
+| Laurent extraction (Series, orders -3..2, row caps {-1: 38, 1: 7, 2: 2}, 0 fallbacks) | 150.8 s | 439.6 s (SeriesCoefficient) |
+| forbidden map {102, 120}, 120 slots, 100 boundary slots | 165.6 s | -- |
+| first covariant closure {93, 97, 97} | 203.4 s | -- |
+| boundary evolution (AmbientBasePoint, 187,988 leaves, rank 77) + second closure (77 -> 94 -> 94), cancellation 0.3 s, base kernel {261, 167} | 234 s (demanded map {20, 261}) | -- |
+| total, status `ModularlyVerifiedObservableTransport`, 20 demanded pairs, 167 boundary coordinates, weight 5, OperatorAutomaton | 270.4 s | 564.2 s |
+
+Acceptance and comparison (separate kernel, 120 s cap,
+`scratchpad/round4/T/cf259_rerun/compare.wls`, 3.6 s): `AcceptedObservableTransportQ`
+on the new artifact True; on the 05:51 artifact False under the current
+predicate (no certificate fields). Certificate carried: source
+`FamilyRecord`, status `RationalPointEpsilonValuationCertificate`,
+`Tight -> True`, `FingerprintVerified -> True`,
+`Certificates["TransportEpsilonValuationsBound"] -> True`. SameQ with the
+05:51 artifact, the way L's benchmark compared: all 25 deterministic keys
+(demanded rows, constraint matrix, boundary slots/kernel/embedding, rank
+histories, kernels, valuations, ...) and all 10 operator-automaton
+sub-keys SameQ -- differing keys `{}`; demanded map SameQ True,
+constraint matrix SameQ True, automaton SameQ True; same set of
+probabilistic-certificate keys.
+
+Artifact: `ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/FamilyEpsFormsSolving/triple_root_2026-08-28_codex_clean/CF259/observable_transport_2026-09-02_certified/observable_transport_CF259.wl`,
+9,263,077 bytes, SHA-256
+`fe0c6f5926e9dcaa6c9bf5e4346207abb281e16f7f4edda496fc18af97cd6060`.

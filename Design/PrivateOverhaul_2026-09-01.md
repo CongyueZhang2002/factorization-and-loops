@@ -769,7 +769,9 @@ Sequencing: the moves start when T and G have finished editing (a move under a l
 - G: `SolveEpsFormStripInFrame` moved into `EpsForm/Strip/`, Geometry listed before EpsForm, upward-reference scan re-run, design notes updated to the true graph.
 - Opus watchdog resumed for the period.
 
-Results: filled in as the agents report.
+Results:
+- T (done 17:05): Jet route retired to `Private_Backup/ObservableTransportJet.wl` with its test and evidence; `"Jet"` answers `RouteRetired`; `t_observable_transport_laurent_series` 20/20. CF259 rerun on the certified record: `ModularlyVerifiedObservableTransport` in 270 s (Laurent 151 s vs 440 s), `AcceptedObservableTransportQ` True with the valuation certificate bound, every deterministic part SameQ with the 05:51 artifact; new artifact `.../CF259/observable_transport_2026-09-02_certified/observable_transport_CF259.wl` (SHA-256 fe0c6f59...6060), the 05:51 one kept.
+- G: in flight at the quota cut-off (see HANDOFF's in-flight note).
 
 ## Deliberately not done
 
