@@ -16,6 +16,22 @@ and its `Status` names the mathematical statement established.  A bare
 `"OK"`, a file fingerprint, or a settings fingerprint is not a mathematical
 acceptance statement.
 
+References between artifacts are explicit and human-readable:
+
+```wl
+<|
+  "RelativePath" -> "...",
+  "DataType" -> "...",
+  "SchemaVersion" -> 2,
+  "Family" -> "CF..."
+|>
+```
+
+A block reference additionally gives its target and source rows when relevant.
+The consumer reloads the referenced mathematical inputs and re-evaluates the
+defining equation.  V2 records do not contain content hashes, settings hashes,
+fingerprints, or hash-based acceptance and resumption gates.
+
 ## Conventions
 
 - The independent variables are arbitrary symbols.  The current solver accepts
@@ -41,7 +57,7 @@ acceptance statement.
   "Family" -> "CF...",
   "KinematicVariables" -> {x1, x2},
   "DimensionalRegulator" -> eps,
-  "MasterIntegralBasis" -> {...},
+  "OriginalMasterIntegralBasis" -> {...},
   "ConnectionMatrices" -> {A1, A2}
 |>
 ```
@@ -103,16 +119,16 @@ and a nonzero Jacobian.  It does not claim a rational inverse or birationality.
   "CoefficientVariables" -> {z1, z2},
   "SourceToCoefficientVariableRules" -> {x1 -> z1, x2 -> z2},
   "SquareRootGenerators" -> {
-    <|"GeneratorIndex" -> 1, "GeneratorExpression" -> Sqrt[q1z],
-      "QuadraticRadicand" -> q1z, "SourceRadicand" -> q1|>, ...
+    <|"Generator" -> rho1, "QuadraticRadicand" -> q1z,
+      "SourceRadicand" -> q1|>, ...
   },
-  "QuadraticRelations" -> {...},
   "SquareClassIndependenceStatus" -> "NotChecked"
 |>
 ```
 
-This record does not claim a degree-`2^r` field or Galois group unless
-square-class independence is separately established.
+The equations `rhoi^2 == qi` are derived from `SquareRootGenerators`; they are
+not stored a second time.  This record does not claim a degree-`2^r` field or
+Galois group unless square-class independence is separately established.
 
 ## 3. Block decomposition
 
@@ -120,14 +136,15 @@ square-class independence is separately established.
 <|
   "DataType" -> "FamilyDifferentialSystemBlockDecomposition",
   "SchemaVersion" -> 2,
-  "IrreducibleDiagonalBlocks" -> {{...}, ...},
-  "BlockPermutation" -> {...},
-  "BlockIndexRanges" -> {...}
+  "FamilyDifferentialSystemReference" -> <|...|>,
+  "IrreducibleDiagonalBlocks" -> {{...}, ...}
 |>
 ```
 
-The rows in each block and the permutation are explicit.  No downstream stage
-reconstructs their ordering from file names or dictionary order.
+The ordered row lists are authoritative.  A permutation or contiguous block
+range may be computed and cached privately, but is not a second source of
+truth.  No downstream stage reconstructs block ordering from file names or
+association order.
 
 ## 4. Diagonal-block dlog epsilon form
 
@@ -139,7 +156,6 @@ reconstructs their ordering from file names or dictionary order.
   "CoefficientVariables" -> {z1, z2},
   "DimensionalRegulator" -> eps,
   "BasisTransformationMatrix" -> T,
-  "InverseBasisTransformationMatrix" -> Tinv,
   "Letters" -> {phi1, ...},
   "ConstantResidueMatrices" -> {R1, ...},
   "Status" -> "DLogEpsilonFormValidated",
@@ -147,7 +163,10 @@ reconstructs their ordering from file names or dictionary order.
 |>
 ```
 
-The transformed connection is defined by
+The inverse of `BasisTransformationMatrix` is derived rather than stored.  If
+a performance cache is necessary it is named
+`CachedInverseBasisTransformationMatrix` and is checked before use.  The
+transformed connection is defined by
 `eps Sum[Ri D[Log[phii], zj]]`.  Storing another full copy under `EpsForm` is
 optional cache data, not a second definition.  `EpsilonFactorizedSystem` is
 used when epsilon factorization is known but the constant-residue dlog
@@ -162,12 +181,16 @@ representation is not.
   "TargetBlockRows" -> {...},
   "SourceBlockRows" -> {...},
   "OffDiagonalBasisTransformationBlock" -> H,
-  "TransformedOffDiagonalConnectionBlock" -> {B1, B2},
-  "DLogPotentials" -> {...},
+  "OffDiagonalDLogCoefficientMatrices" -> {K1, ...},
   "Status" -> "OffDiagonalBasisTransformationBlockValidated",
   "Validation" -> <|"Method" -> ..., "Passed" -> True, ...|>
 |>
 ```
+
+`OffDiagonalBasisTransformationBlock` and the constant dlog coefficient
+matrices are authoritative.  A stored transformed connection block is an
+optional `CachedTransformedOffDiagonalConnectionBlock`, not a second
+definition of the result.
 
 A finite-ansatz failure is `OffDiagonalBlockAnsatzInconsistency`.  The phrase
 `OffDiagonalBlockDLogEpsilonFormObstructionCertificate` is reserved for an
@@ -185,7 +208,6 @@ ansatz-independent no-go result.
   "FamilyDifferentialSystem" -> <|...|>,
   "CoefficientPresentation" -> <|...|>,
   "BasisTransformationMatrix" -> Ttotal,
-  "InverseBasisTransformationMatrix" -> TtotalInv,
   "DiagonalBlockDLogEpsilonForms" -> {...}
 |>
 ```
@@ -202,12 +224,11 @@ the stronger result is a separate object:
   "SchemaVersion" -> 2,
   "Family" -> "CF...",
   "CoefficientPresentation" -> <|...|>,
-  "KinematicVariables" -> {z1, z2},
+  "CoefficientVariables" -> {z1, z2},
   "DimensionalRegulator" -> eps,
-  "MasterIntegralBasis" -> {...},
+  "OriginalMasterIntegralBasis" -> {...},
   "BlockDecomposition" -> <|...|>,
   "BasisTransformationMatrix" -> Ttotal,
-  "InverseBasisTransformationMatrix" -> TtotalInv,
   "Letters" -> {phi1, ...},
   "ConstantResidueMatrices" -> {R1, ...},
   "Status" -> "FamilyDLogEpsilonFormValidated",
@@ -221,7 +242,72 @@ this form remains a distinct block-triangular differential system and is
 solved by variation of constants; it is never relabelled as a family dlog
 epsilon form.
 
-## 7. Boundary data and master-integral solution
+## 7. Required epsilon orders
+
+The exact epsilon valuations of the hard-function coefficients are upstream
+input, not output of the differential-equation solver:
+
+```wl
+<|
+  "DataType" -> "HardFunctionMasterCoefficientEpsilonValuations",
+  "SchemaVersion" -> 2,
+  "Entries" -> {
+    <|
+      "MasterIntegralIndex" -> i,
+      "MasterIntegral" -> <|
+        "Family" -> "CF...", "PropagatorPowers" -> {...}|>,
+      "HardFunctionCoefficientEpsilonValuation" -> n,
+      "DeterminationMethod" -> "..."
+    |>, ...
+  },
+  "Status" -> "HardFunctionMasterCoefficientEpsilonValuationsDetermined"
+|>
+```
+
+Together with the requested hard-function epsilon range, they determine
+
+```wl
+<|
+  "DataType" -> "MasterIntegralEpsilonOrderRequirements",
+  "SchemaVersion" -> 2,
+  "RequestedHardFunctionEpsilonOrders" -> {nmin, ..., nmax},
+  "Entries" -> {
+    <|
+      "MasterIntegralIndex" -> i,
+      "RequiredMasterIntegralEpsilonOrders" -> {...}
+    |>, ...
+  },
+  "Status" -> "MasterIntegralEpsilonOrderRequirementsDerived"
+|>
+```
+
+A coefficient valuation is not itself a requested master-integral order.  For
+example, a coefficient with valuation `v` can contribute to hard-function
+order `n` through the master-integral coefficient of order `n-v`.
+
+## 8. Local solutions, boundary data, and evolution
+
+A local differential-equation result is represented by
+
+```wl
+<|
+  "DataType" -> "TruncatedLocalFrobeniusExpansion",
+  "SchemaVersion" -> 2,
+  "DifferentialSystemReference" -> <|...|>,
+  "LocalExpansionPoint" -> <|...|>,
+  "PointType" -> "OrdinaryPoint" | "RegularSingularPoint",
+  "LocalVariable" -> rho,
+  "ConnectionResidue" -> R,
+  "TruncatedLocalPrefactor" -> H,
+  "RetainedLocalOrders" -> {...},
+  "RetainedEpsilonOrders" -> {...},
+  "Status" -> "TruncatedLocalFrobeniusExpansionValidated",
+  "Validation" -> <|...|>
+|>
+```
+
+The connection residue and local prefactor are mathematical data.  A choice
+of implementation backend is computation metadata and does not belong here.
 
 A boundary domain is explicit:
 
@@ -238,31 +324,124 @@ or
 |>
 ```
 
-Point data uses `BoundaryConstantID` and
-`BoundaryConstantEpsilonCoefficient[id,n]`.  Stratum data uses
+Matching physical asymptotics to the local modes produces
+
+```wl
+<|
+  "DataType" -> "BoundaryAsymptoticModeMatching",
+  "SchemaVersion" -> 2,
+  "LocalFrobeniusExpansionReference" -> <|...|>,
+  "BoundaryDomain" -> <|...|>,
+  "FrobeniusModes" -> {
+    <|"FrobeniusModeID" -> ..., "LocalExponent" -> ...|>, ...
+  },
+  "BoundaryConstantTable" -> <|...|>,
+  "BoundaryFunctionTable" -> <|...|>,
+  "BoundaryRelations" -> {...},
+  "Status" -> "BoundaryAsymptoticsMatchedToFrobeniusModes",
+  "Validation" -> <|...|>
+|>
+```
+
+Point data use `BoundaryConstantID` and
+`BoundaryConstantEpsilonCoefficient[id,n]`.  Stratum data use
 `BoundaryFunctionID` and `BoundaryFunctionEpsilonCoefficient[id,n]`.
 `FrobeniusModeID`, `BoundaryIntegralID`, and `BoundaryRelation` remain separate
 objects.  Degeneracy of a residue eigenspace does not by itself create a
 relation among boundary constants or functions.
 
-The publishable analytic output is
+A square path evolution object is stored only when it is actually constructed:
 
 ```wl
 <|
-  "DataType" -> "MasterIntegralSolutionInTermsOfBoundaryConstants",
+  "DataType" -> "RegularizedBoundaryToBasePointEvolutionOperator",
   "SchemaVersion" -> 2,
-  "RequestedMasterIntegralEpsilonCoefficients" -> <|...|>,
-  "BoundaryConstantTable" -> <|...|>,
-  "BoundaryConstantRelations" -> {...},
-  "Status" -> "MasterIntegralSolutionInTermsOfBoundaryConstants"
+  "DifferentialSystemReference" -> <|...|>,
+  "BoundaryDomain" -> <|...|>,
+  "BasePoint" -> <|...|>,
+  "Path" -> <|...|>,
+  "RegularizationPrescription" -> <|...|>,
+  "EpsilonOrders" -> {...},
+  "EvolutionOperatorCoefficients" -> <|...|>,
+  "Status" -> "RegularizedBoundaryToBasePointEvolutionOperatorValidated",
+  "Validation" -> <|...|>
 |>
 ```
 
-At a boundary stratum, the corresponding type and fields say
-`BoundaryFunctions`.  A formal iterated-integral expression uses explicit
-letter or index sequences; a product of integrals on path segments is not
-called one integral on the concatenated path unless Chen's deconcatenation sum
-has actually been performed.
+A rectangular, demand-pruned map is not called an evolution operator or
+transport matrix.  It is a private
+`IteratedIntegralCoefficientOperatorForRequestedOutputs` until requested
+entries are constructed.
+
+## 9. Master-integral solutions
+
+The public solution has one data type.  Coverage of requested coefficients and
+determination of boundary data are independent properties:
+
+```wl
+<|
+  "DataType" -> "MasterIntegralSolution",
+  "SchemaVersion" -> 2,
+  "FamilyDifferentialSystemReference" -> <|...|>,
+  "MasterIntegralEpsilonOrderRequirementsReference" -> <|...|>,
+  "BoundaryDomain" -> <|...|>,
+  "RequestedMasterIntegralEpsilonCoefficients" -> <|...|>,
+  "BoundaryConstantTable" -> <|...|>,
+  "BoundaryFunctionTable" -> <|...|>,
+  "BoundaryRelations" -> {...},
+  "DemandCoverage" -> "Complete" | "Incomplete",
+  "BoundaryDataStatus" -> "Undetermined" | "Partial" | "Determined",
+  "Status" -> "MasterIntegralSolutionConstructed",
+  "Validation" -> <|...|>
+|>
+```
+
+An empty boundary-constant or boundary-function table is omitted.  Formal
+iterated-integral expressions use `FormalChenIteratedIntegral` with explicit
+letter or index sequences.  A product of integrals on path segments remains a
+product; it is not called one integral on the concatenated path unless Chen's
+deconcatenation sum has actually been performed.
+
+After all required constants or boundary functions, the physical region, and
+the analytic continuation prescription have been fixed, the final object is
+
+```wl
+<|
+  "DataType" -> "PhysicalRegionMasterIntegralSolution",
+  "SchemaVersion" -> 2,
+  "MasterIntegralSolutionReference" -> <|...|>,
+  "PhysicalRegion" -> <|...|>,
+  "AnalyticContinuationPrescription" -> <|...|>,
+  "MasterIntegralEpsilonCoefficients" -> <|...|>,
+  "Status" -> "PhysicalRegionMasterIntegralSolutionValidated",
+  "Validation" -> <|...|>
+|>
+```
+
+This is the only completed-solution status.  A result still containing
+undetermined boundary data remains a `MasterIntegralSolution`, not a physical
+region solution.
+
+## 10. Complete artifact flow
+
+```text
+Pairs + KiraStream + CanonicalRegistry + master list
+  + HardFunctionMasterCoefficientEpsilonValuations
+        -> FamilyDifferentialSystem
+        -> FamilyDifferentialSystemBlockDecomposition
+        -> CoefficientPresentation
+        -> diagonal and off-diagonal basis transformations
+        -> FamilyDifferentialSystemWithEpsilonFormDiagonalBlocks
+           or FamilyDLogEpsilonForm when the stronger equation is validated
+        -> MasterIntegralEpsilonOrderRequirements
+        -> TruncatedLocalFrobeniusExpansion
+        -> BoundaryAsymptoticModeMatching
+        -> RegularizedBoundaryToBasePointEvolutionOperator
+           and/or private requested-output coefficient operator
+        -> MasterIntegralSolution
+        -> determine and substitute all boundary data
+        -> PhysicalRegionMasterIntegralSolution
+```
 
 ## Migration rule
 
