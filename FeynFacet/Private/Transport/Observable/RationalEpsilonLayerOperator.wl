@@ -291,10 +291,11 @@ Options[RebaseRationalEpsilonLayerOperator] = {
   "BasePointPrescription" -> None
 };
 
-(* Rebase the accepted sparse Chen operator without constructing or
-   inverting its word series.  The caller supplies the physical source and
-   target selectors at the new base.  For F_T = G + H F_S, the homogeneous
-   target datum is
+(* Use the same differential equation with a new lower integration limit.
+   Chen-series coefficient matrices depend on the connection, not on the
+   lower limit, so no old-base evolution matrix is inverted.  The caller
+   supplies the actual source and target initial data at the new base.  For
+   F_T = G + H F_S, the homogeneous target datum is
 
        G_q(e) = T_q(e) - Sum_r H_r(e) S_(q-r)(e).
 
@@ -417,7 +418,9 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
     "TargetBoundarySelectors" -> correctedTarget,
     "Rebase" -> <|
       "Status" -> "ExactLazyChenRebase",
-      "Method" -> "ChenPathCompositionNoMaterialization",
+      "Method" -> "SameDifferentialEquationWithNewBasePoint",
+      "MathematicalStatement" ->
+        "The residue coefficient operator is unchanged; the formal iterated integrals and initial-data selectors use the new lower limit",
       "OriginalBasePoint" -> oldBase,
       "NewBasePoint" -> newBase,
       "BasePointPrescription" -> basePointPrescription,

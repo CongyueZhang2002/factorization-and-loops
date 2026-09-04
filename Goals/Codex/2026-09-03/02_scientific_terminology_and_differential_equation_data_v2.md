@@ -18,11 +18,11 @@
 
 - [x] 🟢 Define one typed V2 artifact sequence from the family differential system through the physical-region master-integral solution.
 
-- [ ] 🟡 Make square-root generators authoritative and derive their quadratic relations instead of storing duplicate descriptions.
+- [x] 🟢 Make square-root generators authoritative and derive their quadratic relations instead of storing duplicate descriptions.
 
 - [ ] 🟡 Make every result reference explicit mathematical input data and re-evaluate its defining equation; do not use content or settings fingerprints for identity, resumption, or acceptance.
 
-- [ ] Rebuild minimal typed test fixtures; live tests must not read archived production artifacts or count a missing-file skip as V2 coverage.
+- [ ] 🟡 Rebuild minimal typed test fixtures; the core V2 family-form, provider, demand, and final-solution fixtures are independent of archived production data, while older transport suites still need migration.
 
 - [ ] Regenerate all families from the preserved inputs and record wall time and peak memory for every mathematical stage as the new performance baseline.
 
@@ -36,6 +36,8 @@
 
 - [ ] 🟡 Represent point boundary constants, boundary functions on strata, Frobenius modes, boundary integrals, and relations as distinct mathematical objects.
 
-- [ ] Produce `MasterIntegralSolution` records with independent demand-coverage and boundary-data status fields.
+- [x] 🟢 Derive `MasterIntegralEpsilonOrderRequirements` directly from requested hard-function orders and exact coefficient valuations.
+
+- [ ] 🟡 Produce `MasterIntegralSolution` records with independent demand-coverage and boundary-data status fields; point-boundary records are implemented and boundary-stratum functions remain the next consumer unit.
 
 - [ ] Produce `PhysicalRegionMasterIntegralSolution` only after all required boundary data, the physical region, and analytic continuation prescription are fixed.

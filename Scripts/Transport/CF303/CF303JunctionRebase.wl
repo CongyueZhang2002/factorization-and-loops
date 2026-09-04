@@ -129,7 +129,8 @@ CF303RebaseLazyAdapterAtJunction[adapter_Association,
     junction_Association, amplitudeWindow : {_Integer, _Integer}] :=
  Catch@Module[
   {fail, selectors, sourceArtifact, sourceOperator, gOperator,
-   coordinateKeys, boundaryCount, rebased},
+   coordinateKeys, boundaryCount, oldPath, variable, pathEndpoint,
+   newBasePoint, basePointPrescription, newPath, rebased},
 
   fail[status_, extra_: <||>] := Throw[Join[<|"Status" -> status|>, extra]];
   If[Lookup[adapter, "Status", None] =!=
@@ -152,33 +153,61 @@ CF303RebaseLazyAdapterAtJunction[adapter_Association,
         selectors["Dimensions", "TargetGState"],
     fail["CF303LazyAdapterJunctionLayoutMismatch"]];
 
+  oldPath = Lookup[sourceArtifact, "Path", <||>];
+  variable = Lookup[oldPath, "Variable", Missing[]];
+  pathEndpoint = Lookup[oldPath, "PathEndpoint",
+    Lookup[oldPath, "Endpoint", Missing[]]];
+  newBasePoint = 2 Global`p;
+  basePointPrescription = <|
+    "Type" -> "TangentialRegularized",
+    "LocalCoordinate" -> Global`rho,
+    "CoordinateRelation" -> HoldForm[
+      Global`rho == newBasePoint - variable],
+    "LocalDirection" -> -1|>;
+  If[! MatchQ[variable, _Symbol] || MissingQ[pathEndpoint] ||
+      ! FreeQ[pathEndpoint, variable],
+    fail["CF303LazyAdapterPathInvalid"]];
+  newPath = <|
+    "Variable" -> variable,
+    "BasePoint" -> newBasePoint,
+    "PathEndpoint" -> pathEndpoint,
+    "BasePointPrescription" -> basePointPrescription,
+    "Curve" -> Lookup[adapter, "Curve", None]|>;
+
   coordinateKeys = selectors["BoundaryCoordinateKeys"];
   boundaryCount = Length[coordinateKeys];
   sourceOperator = Join[sourceOperator, <|
     "BoundaryColumns" -> coordinateKeys,
-    "BoundarySelectors" -> selectors["SourceBoundarySelectors"]|>];
-  sourceArtifact = Join[sourceArtifact, <|"Operator" -> sourceOperator|>];
+    "BoundarySelectors" -> selectors["SourceBoundarySelectors"],
+    "Path" -> newPath,
+    "IteratedIntegralConvention" ->
+      "Formal Chen iterated integrals along the recorded path, with the letter sequence outermost first"|>];
+  sourceArtifact = Join[sourceArtifact, <|
+    "Operator" -> sourceOperator, "Path" -> newPath|>];
   gOperator = Join[gOperator, <|
     "SourceArtifact" -> sourceArtifact,
     "SourceBoundaryCount" -> boundaryCount,
     "BoundaryColumns" -> coordinateKeys,
     "TargetBoundaryColumns" -> coordinateKeys,
     "TargetBoundarySelectors" -> selectors["TargetGBoundarySelectors"],
-    "BoundaryLayout" -> "SharedJunctionModes"|>];
+    "BoundaryLayout" -> "SharedJunctionModes",
+    "Path" -> newPath|>];
   rebased = Join[adapter, <|
     "Status" -> "CF303JunctionRebasedLazyAdapterV1",
     "SourceArtifact" -> sourceArtifact,
     "GOperator" -> gOperator,
+    "Path" -> newPath,
     "BoundaryColumns" -> coordinateKeys,
     "BoundaryConvention" ->
       "Thirteen soft-mode epsilon series at the tangential base z=2p",
     "JunctionRebase" -> <|
-      "Status" -> "ExactSparseLaurentSelectorConvolution",
-      "BasePoint" -> 2 Global`p,
-      "Prescription" -> "TangentialRegularized",
-      "NormalCoordinate" -> "rho=2p-z",
+      "Status" -> "ExactSparseLaurentInitialDataAtTangentialBasePoint",
+      "MathematicalOperation" ->
+        "Solve the same G-basis differential system with its lower limit and local initial data at z=2p",
+      "BasePoint" -> newBasePoint,
+      "BasePointPrescription" -> basePointPrescription,
       "Selectors" -> selectors,
-      "HNormalizationBase" -> 1/2,
+      "OffDiagonalTransformationNormalizationBasePoint" -> 1/2,
       "TargetRepresentation" -> "G25"|>|>];
   If[! CF303AcceptedJunctionRebasedAdapterQ[rebased],
     fail["CF303JunctionRebasedAdapterConstructionFailed"]];
@@ -194,7 +223,13 @@ CF303AcceptedJunctionRebasedAdapterQ[adapter_] :=
     "CF303JunctionRebasedLazyAdapterV1" &&
   AssociationQ[Lookup[adapter, "SourceArtifact", None]] &&
   AssociationQ[Lookup[adapter, "GOperator", None]] &&
+  AssociationQ[Lookup[adapter, "Path", None]] &&
   AssociationQ[Lookup[adapter, "JunctionRebase", None]] &&
+  Lookup[adapter["SourceArtifact"], "Path", Missing[]] ===
+    adapter["Path"] &&
+  Lookup[adapter["GOperator"], "Path", Missing[]] === adapter["Path"] &&
+  Lookup[adapter["Path"], "BasePointPrescription", <||>]["Type"] ===
+    "TangentialRegularized" &&
   Lookup[adapter, "BoundaryColumns", {}] ===
     Lookup[adapter["GOperator"], "BoundaryColumns", Missing[]] &&
   Length[Lookup[adapter, "BoundaryColumns", {}]] ===

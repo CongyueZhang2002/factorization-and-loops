@@ -1,6 +1,6 @@
 # 2026-09-03 status
 
-- [ ] 🟡 The scientific-terminology and differential-equation-data V2 migration is active; pre-V2 generated data are archived and the V2 artifact sequence is defined.
+- [ ] 🟡 The scientific-terminology and differential-equation-data V2 migration is active; pre-V2 generated data are archived, the V2 artifact sequence is defined, and explicit master-integral epsilon-order requirements are implemented.
 
 - [x] 🟢 Deferred forcing and rational-layer correctness corrections are installed and focused regressions are green.
 - [x] 🟢 Generic Frobenius/mode matching, formal boundary periods, lazy mixed GPL/eMPL words and physical-gauge composition are implemented.

@@ -81,10 +81,10 @@ rebasedCoefficient = BuildPhysicalTransportCoefficient[
   <|"Variable" -> u, "BasePoint" -> 1/2, "Endpoint" -> 1,
     "BasePointPrescription" -> <|"Type" -> "TangentialRegularized",
       "LocalDirection" -> -1|>|>];
-FTAssert["an accepted operator rebases by Chen path composition without materializing an inverse series",
+FTAssert["an accepted operator changes its lower integration limit and initial data without inverting an old-base series",
   AcceptedRationalEpsilonLayerOperatorQ[rebasedOperator] &&
   rebasedOperator["Rebase", "Method"] ===
-    "ChenPathCompositionNoMaterialization" &&
+    "SameDifferentialEquationWithNewBasePoint" &&
   Normal[rebasedOperator["TargetBoundarySelectors", 0][[1]]] ===
     {-2/3, 0, 1, 0} &&
   rebasedCoefficient["Status"] === "PhysicalTransportCoefficientBuilt" &&

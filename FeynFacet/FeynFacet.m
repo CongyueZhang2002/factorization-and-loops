@@ -278,6 +278,10 @@ ConstructMasterIntegralSolution::usage =
   "ConstructMasterIntegralSolution[family,\"InputFiles\"->files] constructs every requested epsilon coefficient of every requested physical master integral as an explicit sum of formal Chen iterated integrals multiplied by typed boundary constants or boundary functions. files explicitly names the family differential equation, requested-output coefficient operator, boundary-asymptotic matching, and regularized boundary-to-base-point evolution records. DemandCoverage and BoundaryDataStatus report independent properties of the result.";
 MasterIntegralSolutionQ::usage =
   "MasterIntegralSolutionQ[result] revalidates a V2 MasterIntegralSolution, including coverage of every requested epsilon coefficient, allowed symbolic heads, the differential equation, and boundary-asymptotic matching.";
+DeriveMasterIntegralEpsilonOrderRequirements::usage =
+  "DeriveMasterIntegralEpsilonOrderRequirements[request,valuations] derives the required epsilon orders of every master integral from explicit V2 hard-function epsilon-order and master-coefficient valuation records.";
+MasterIntegralEpsilonOrderRequirementsQ::usage =
+  "MasterIntegralEpsilonOrderRequirementsQ[result] re-derives and validates a V2 MasterIntegralEpsilonOrderRequirements record from its stored mathematical inputs.";
 ConstructBoundarySelectorMatrices::usage =
   "ConstructBoundarySelectorMatrices[modeMatching,boundaryData,{emin,emax}] constructs the rational matrices that select the required Frobenius-mode coefficients at each epsilon order. The result preserves the explicitly declared boundary domain and reports whether its columns label boundary-constant or boundary-function coefficients.";
 
@@ -451,6 +455,10 @@ SyntaxInformation[TransformTangentialConnectionToNormalResidueEigenbasis] =
 SyntaxInformation[ConstructMasterIntegralSolution] =
   {"ArgumentsPattern" -> {_, OptionsPattern[]}};
 SyntaxInformation[MasterIntegralSolutionQ] =
+  {"ArgumentsPattern" -> {_}};
+SyntaxInformation[DeriveMasterIntegralEpsilonOrderRequirements] =
+  {"ArgumentsPattern" -> {_, _}};
+SyntaxInformation[MasterIntegralEpsilonOrderRequirementsQ] =
   {"ArgumentsPattern" -> {_}};
 SyntaxInformation[MatchBoundaryAsymptoticsToFrobeniusModes] =
   {"ArgumentsPattern" -> {_, _, _, _}};
