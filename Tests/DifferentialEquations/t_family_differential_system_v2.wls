@@ -11,6 +11,40 @@ eps = Symbol["Global`systemEps"];
 flatMatrices = {{{1/x}}, {{1/y}}};
 nonflatMatrices = {{{y}}, {{0}}};
 
+l1 = Symbol["Global`systemLoop1"];
+l2 = Symbol["Global`systemLoop2"];
+p1 = Symbol["Global`systemExternal1"];
+p2 = Symbol["Global`systemExternal2"];
+p3 = Symbol["Global`systemExternal3"];
+s12 = Symbol["Global`systemInvariant12"];
+s13 = Symbol["Global`systemInvariant13"];
+s23 = Symbol["Global`systemInvariant23"];
+quadraticPropagator[momentum_] :=
+  FeynCalc`FeynAmpDenominator[
+    FeynCalc`StandardPropagatorDenominator[
+      FeynCalc`Momentum[momentum], 0, 0, 1]];
+bilinearPropagator[first_, second_] :=
+  FeynCalc`FeynAmpDenominator[
+    FeynCalc`StandardPropagatorDenominator[0,
+      FeynCalc`Pair[FeynCalc`Momentum[first],
+        FeynCalc`Momentum[second]], 0, 1]];
+completeTwoLoopTopology = {"SyntheticTopology", {
+    quadraticPropagator[l1], quadraticPropagator[l2],
+    bilinearPropagator[l1, l2],
+    bilinearPropagator[l1, p1], bilinearPropagator[l1, p2],
+    bilinearPropagator[l1, p3], bilinearPropagator[l2, p1],
+    bilinearPropagator[l2, p2], bilinearPropagator[l2, p3]},
+  {l1, l2}, {p1, p2, p3}};
+preparedEulerAlgebra =
+  FeynFacetCampaign`DifferentialEquations`Private`familyDEPrepareEulerAlgebra[
+    completeTwoLoopTopology, {s12, s13, s23}, {1}];
+loopExternalScalarProduct = Lookup[
+  preparedEulerAlgebra["ScalarProducts"], Key[Sort[{l1, p1}]]];
+quadraticEulerWeight =
+  FeynFacetCampaign`DifferentialEquations`Private`familyDEEulerWeight[
+    p1, {"Quadratic", l1 + p1}, preparedEulerAlgebra["MomentumBasis"],
+    preparedEulerAlgebra["ScalarProducts"]];
+
 finite = FeynFacetCampaign`DifferentialEquations`ValidateFamilyDifferentialSystemFlatness[
   flatMatrices, {x, y}, eps,
     "FiniteFieldPrimes" -> {2147483629}, "PointsPerPrime" -> 2];
@@ -29,10 +63,10 @@ record = FeynFacetCampaign`DifferentialEquations`ConstructFamilyDifferentialSyst
         "RelativePath" -> "fixtures/registry.wxf",
         "DataType" -> "FeynFacetCanonicalFamilyRegistryRecord",
         "SchemaVersion" -> 1, "Family" -> "SyntheticFamily"|>,
-      "TraceManifest" -> <|
-        "RelativePath" -> "fixtures/trace.wxf",
-        "DataType" -> "FeynFacet-TraceCheckpoint",
-        "SchemaVersion" -> 2, "Family" -> "SyntheticFamily"|>|>,
+      "MasterIntegralList" -> <|
+        "RelativePath" -> "fixtures/master-integrals.wl",
+        "DataType" -> "FeynFacet-KiraStream",
+        "SchemaVersion" -> 1, "Family" -> "SyntheticFamily"|>|>,
     "KinematicVariableDefinition" -> <|
       "ScaleNormalization" -> (s12 -> 1),
       "KinematicVariableRules" -> {s13 -> x, s23 -> y}|>,
@@ -43,12 +77,13 @@ help = FeynFacetCampaign`DifferentialEquations`ParseFamilyDifferentialSystemCLIA
 temporary = CreateDirectory[FileNameJoin[{$TemporaryDirectory,
   "family_de_v2_" <> ToString[$ProcessID]}]];
 Scan[Export[FileNameJoin[{temporary, #}], "fixture", "String"] &,
-  {"registry.wxf", "trace.wxf", "families.yaml", "kinematics.yaml"}];
+  {"registry.wxf", "master-integrals.wl", "families.yaml",
+    "kinematics.yaml"}];
 CreateDirectory[FileNameJoin[{temporary, "scratch"}]];
 parsed = FeynFacetCampaign`DifferentialEquations`ParseFamilyDifferentialSystemCLIArguments[{
     "--repository-root", temporary, "--family", "FamilyA",
     "--canonical-registry", "registry.wxf",
-    "--trace-manifest", "trace.wxf",
+    "--master-integral-list", "master-integrals.wl",
     "--integral-families", "families.yaml",
     "--kinematics", "kinematics.yaml", "--scratch", "scratch",
     "--output", "results/system.wl", "--variables", "alpha,beta",
@@ -82,6 +117,15 @@ FTAssert["bounded finite-field curvature validation succeeds",
     finite["Method"] === "ProbabilisticFiniteFieldSampling" &&
     TrueQ[finite["Probabilistic"]] && ! TrueQ[finite["Exact"]] &&
     Length[finite["Samples"]] === 2];
+FTAssert["the two-loop scalar-product basis contains the mixed loop product and has dimension nine",
+  Lookup[preparedEulerAlgebra, "Status", None] ===
+      "EulerScalarProductAlgebraPrepared" &&
+    Length[preparedEulerAlgebra["Propagators"]] === 9 &&
+    Length[preparedEulerAlgebra["ScalarProductSolution"]] === 9 &&
+    KeyExistsQ[preparedEulerAlgebra["ScalarProducts"],
+      Sort[{l1, l2}]]];
+FTAssert["quadratic-propagator Euler weights retain the scalar product",
+  Together[quadraticEulerWeight - 2 loopExternalScalarProduct] === 0];
 FTAssert["development symbolic curvature validation is exact",
   exact["Status"] === "ConnectionFlatnessValidated" &&
     exact["Method"] === "CharacteristicZeroSymbolicIdentity" &&
@@ -129,6 +173,7 @@ FTAssert["CLI parsing retains arbitrary declared variable and regulator symbols"
 FTAssert["CLI help is available without reading artifacts or invoking Kira",
   help["Status"] === "HelpRequested" &&
     StringContainsQ[help["Usage"], "--canonical-registry"] &&
+    StringContainsQ[help["Usage"], "--master-integral-list"] &&
     StringContainsQ[help["Usage"], "--kira-threads 8"]];
 FTAssert["repository-relative paths resolve without hidden project paths",
   resolved["Status"] ===

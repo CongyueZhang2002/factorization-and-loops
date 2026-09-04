@@ -1,7 +1,8 @@
 (* General two-loop family differential-system construction.
 
    The topology and cut data come from the current CanonicalRegistry; the
-   requested seed masters come from the current TraceManifest.  This module
+   requested seed masters come from the current Kira-stream master-integral
+   list.  This module
    retains the established Euler-operator/Kira closure construction while
    keeping project paths and Kira configuration outside FeynFacet`Private`.
    The default flatness check evaluates the defining curvature at bounded
@@ -20,7 +21,7 @@ ConstructFamilyDifferentialSystemV2::usage =
 FamilyDifferentialSystemV2Q::usage =
   "FamilyDifferentialSystemV2Q[record] checks the V2 FamilyDifferentialSystem schema and its recorded flatness evidence.";
 BuildFamilyDifferentialSystemV2::usage =
-  "BuildFamilyDifferentialSystemV2[spec] reads the declared registry, trace manifest, and Kira configuration, performs Euler/Kira closure, validates flatness, and atomically writes one V2 FamilyDifferentialSystem plus a sibling V2 ComputationMetrics sidecar.";
+  "BuildFamilyDifferentialSystemV2[spec] reads the declared registry, Kira-stream master-integral list, and Kira configuration, performs Euler/Kira closure, validates flatness, and atomically writes one V2 FamilyDifferentialSystem plus a sibling V2 ComputationMetrics sidecar.";
 
 Begin["`Private`"];
 
@@ -83,7 +84,7 @@ familyDEInputReference[root_String, path_String, dataType_String,
 familyDECLIUsage[] := StringRiffle[{
   "wolframscript -file build_family_differential_system_v2.wls",
   "  --repository-root ROOT --family FAMILY",
-  "  --canonical-registry PATH --trace-manifest PATH",
+  "  --canonical-registry PATH --master-integral-list PATH",
   "  --integral-families PATH --kinematics PATH",
   "  --scratch PATH --output PATH",
   "  --variables x1,x2 --regulator eps",
@@ -114,7 +115,7 @@ ParseFamilyDifferentialSystemCLIArguments[args_List] := Module[
     Return[familyDEFailure["CommandLineOptionRepeated"]]];
   raw = Association[(StringDrop[First[#], 2] -> Last[#]) & /@ pairs];
   known = {"repository-root", "family", "canonical-registry",
-    "trace-manifest", "integral-families", "kinematics", "scratch",
+    "master-integral-list", "integral-families", "kinematics", "scratch",
     "output", "variables", "regulator", "invariants", "kira", "fermat",
     "kira-dimension-symbol", "kira-threads",
     "maximum-closure-iterations", "flatness-method",
@@ -125,7 +126,7 @@ ParseFamilyDifferentialSystemCLIArguments[args_List] := Module[
     Return[familyDEFailure["CommandLineOptionUnknown",
       <|"UnknownOptions" -> unknown|>]]];
   required = {"repository-root", "family", "canonical-registry",
-    "trace-manifest", "integral-families", "kinematics", "scratch",
+    "master-integral-list", "integral-families", "kinematics", "scratch",
     "output", "variables", "regulator", "invariants"};
   missing = Select[required, ! KeyExistsQ[raw, #] &];
   If[missing =!= {},
@@ -160,7 +161,7 @@ ParseFamilyDifferentialSystemCLIArguments[args_List] := Module[
     "RepositoryRoot" -> raw["repository-root"],
     "Family" -> raw["family"],
     "CanonicalRegistryFile" -> raw["canonical-registry"],
-    "TraceManifestFile" -> raw["trace-manifest"],
+    "MasterIntegralListFile" -> raw["master-integral-list"],
     "IntegralFamiliesFile" -> raw["integral-families"],
     "KinematicsFile" -> raw["kinematics"],
     "ScratchDirectory" -> raw["scratch"],
@@ -198,7 +199,7 @@ ResolveFamilyDifferentialSystemBuildSpecification[spec_Association] := Module[
   family = Lookup[spec, "Family", Missing[]];
   If[! familyDESafeNameQ[family],
     Return[familyDEFailure["FamilyNameInvalid"]]];
-  fileKeys = {"CanonicalRegistryFile", "TraceManifestFile",
+  fileKeys = {"CanonicalRegistryFile", "MasterIntegralListFile",
     "IntegralFamiliesFile", "KinematicsFile", "KiraExecutable",
     "FermatExecutable"};
   missing = Select[fileKeys, ! StringQ[Lookup[spec, #, Missing[]]] &];
@@ -334,7 +335,8 @@ familyDEPrepareEulerAlgebra[topology_, invariants_List,
     Return[familyDEFailure["CutIndicesInvalid"]]];
   momentumBasis = Join[loopMomenta, externalMomenta];
   pairs = Join[{{loopMomenta[[1]], loopMomenta[[1]]},
-      {loopMomenta[[2]], loopMomenta[[2]]}, loopMomenta},
+      {loopMomenta[[2]], loopMomenta[[2]]},
+      {loopMomenta[[1]], loopMomenta[[2]]}},
     Flatten[Table[{loop, external}, {loop, loopMomenta},
       {external, externalMomenta}], 1]];
   If[Length[propagators] =!= Length[pairs],
@@ -344,12 +346,12 @@ familyDEPrepareEulerAlgebra[topology_, invariants_List,
   unknowns = Table[Unique["loopScalarProduct$"], {Length[pairs]}];
   scalarProducts = AssociationThread[Sort /@ pairs, unknowns];
   {p1, p2, p3} = externalMomenta;
-  AssociateTo[scalarProducts,
+  AssociateTo[scalarProducts, <|
     Sort[{p1, p1}] -> 0, Sort[{p2, p2}] -> 0,
     Sort[{p3, p3}] -> 0,
     Sort[{p1, p2}] -> invariants[[1]]/2,
     Sort[{p1, p3}] -> invariants[[2]]/2,
-    Sort[{p2, p3}] -> invariants[[3]]/2];
+    Sort[{p2, p3}] -> invariants[[3]]/2|>];
   propagatorSymbols = Table[Unique["propagator$"], {Length[propagators]}];
   expressions = familyDEPropagatorExpression[#, momentumBasis,
       scalarProducts] & /@ propagators;
@@ -388,7 +390,7 @@ familyDEPropagatorExpression[{"Bilinear", a_, b_}, basis_, products_] :=
 familyDEPropagatorExpression[___] := Missing["UnsupportedPropagator"];
 
 familyDEEulerWeight[direction_, {"Quadratic", momentum_}, basis_, products_] :=
-  2 Coefficient[momentum, direction]
+  2 Coefficient[momentum, direction] *
     familyDEScalarProduct[direction, momentum, basis, products];
 familyDEEulerWeight[direction_, {"Bilinear", a_, b_}, basis_, products_] :=
   Coefficient[a, direction] familyDEScalarProduct[direction, b, basis, products] +
@@ -698,7 +700,8 @@ FamilyDifferentialSystemV2Q[record_Association] := Module[
 FamilyDifferentialSystemV2Q[_] := False;
 
 BuildFamilyDifferentialSystemV2[spec_Association] := Catch@Module[
-  {totalStart = AbsoluteTime[], resolved, family, root, registry, manifest,
+  {totalStart = AbsoluteTime[], resolved, family, root, registry,
+   masterIntegralList,
    registryData, families, familyRecord, topology, cutIndices, allMasters,
    familyMasters, masterHead, familyLabel, seedBasis, blockBasis,
    preparation, invariants, variables, regulator, dimensionSymbol,
@@ -728,10 +731,10 @@ BuildFamilyDifferentialSystemV2[spec_Association] := Catch@Module[
   {seconds, value} = AbsoluteTiming[
     registry = FeynFacet`Private`coefficientReadRecord[
       resolved["CanonicalRegistryFile"]];
-    manifest = FeynFacet`Private`coefficientReadRecord[
-      resolved["TraceManifestFile"]]];
+    masterIntegralList = FeynFacet`FamilyArtifactRead[
+      resolved["MasterIntegralListFile"]]];
   phaseTimings["InputReadSeconds"] = N[seconds];
-  If[! AssociationQ[registry] || ! AssociationQ[manifest],
+  If[! AssociationQ[registry] || ! AssociationQ[masterIntegralList],
     Throw[familyDEFailure["MathematicalInputsUnreadable"]]];
   registryData = Lookup[registry, "Registry", Missing[]];
   families = If[AssociationQ[registryData],
@@ -742,12 +745,13 @@ BuildFamilyDifferentialSystemV2[spec_Association] := Catch@Module[
       Lookup[registryData, "Type", None] =!=
         "FeynFacetCanonicalFamilyRegistry" ||
       Lookup[registryData, "Version", None] =!= 1 ||
-      Lookup[manifest, "Format", None] =!= "FeynFacet-TraceCheckpoint" ||
-      Lookup[manifest, "FormatVersion", None] =!= 2 ||
+      Lookup[masterIntegralList, "Format", None] =!=
+        "FeynFacet-KiraStream" ||
+      Lookup[masterIntegralList, "FormatVersion", None] =!= 1 ||
       ! ListQ[families] ||
-      ! AssociationQ[Lookup[manifest, "TraceData", Missing[]]] ||
-      ! ListQ[Lookup[manifest["TraceData"], "Masters", Missing[]]],
-    Throw[familyDEFailure["CurrentRegistryOrTraceManifestRequired"]]];
+      ! ListQ[Lookup[masterIntegralList, "Masters", Missing[]]],
+    Throw[familyDEFailure[
+      "CurrentRegistryOrMasterIntegralListRequired"]]];
   familyRecord = SelectFirst[families,
     ToString[Lookup[#, "Name", ""]] === family &, Missing[]];
   If[MissingQ[familyRecord],
@@ -755,10 +759,10 @@ BuildFamilyDifferentialSystemV2[spec_Association] := Catch@Module[
       <|"Family" -> family|>]]];
   topology = Lookup[familyRecord, "Topology", Missing[]];
   cutIndices = Sort[Lookup[familyRecord, "CutIndices", {}]];
-  allMasters = manifest["TraceData", "Masters"];
+  allMasters = masterIntegralList["Masters"];
   familyMasters = Select[allMasters, familyDEFamilyLabel[#] === family &];
   If[familyMasters === {},
-    Throw[familyDEFailure["FamilyHasNoTraceManifestMasters",
+    Throw[familyDEFailure["FamilyHasNoMasterIntegralListEntries",
       <|"Family" -> family|>]]];
   masterHead = Head[First[familyMasters]];
   familyLabel = First[First[familyMasters]];
@@ -855,8 +859,8 @@ BuildFamilyDifferentialSystemV2[spec_Association] := Catch@Module[
     "CanonicalRegistry" -> familyDEInputReference[root,
       resolved["CanonicalRegistryFile"],
       "FeynFacetCanonicalFamilyRegistryRecord", 1, family],
-    "TraceManifest" -> familyDEInputReference[root,
-      resolved["TraceManifestFile"], "FeynFacet-TraceCheckpoint", 2,
+    "MasterIntegralList" -> familyDEInputReference[root,
+      resolved["MasterIntegralListFile"], "FeynFacet-KiraStream", 1,
       family],
     "IntegralFamiliesConfiguration" -> familyDEInputReference[root,
       resolved["IntegralFamiliesFile"],
