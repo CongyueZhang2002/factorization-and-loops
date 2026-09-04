@@ -274,6 +274,10 @@ BuildBoundaryModeMap::usage =
 
 BoundaryDegenerateEigenspaceDeclaration::usage =
   "BoundaryDegenerateEigenspaceDeclaration[mode,modes] is the machine-readable declaration carried by every ledger entry and boundary coordinate of a Basis sub-realization: parent period, direction, dimension, the echelon eigenspace basis and the sibling sub-realization IDs (one undetermined period with a rational relation); None for an ordinary mode.";
+FinishPhysicalTransport::usage =
+  "FinishPhysicalTransport[family] builds the ONE finished-transport record of Design/FinishedTransportContract_2026-09-03.md: every demanded (epsilon order, physical row) pair as an explicit sum of iterated integrals from the physical boundary point with coefficients over a named period basis, the period table and relations, and the differential-equation, boundary-matching and binding/purity certificates. Status PhysicalTransportFinished or PhysicalTransportIncomplete with the pairs and reasons.";
+PhysicalTransportFinishedQ::usage =
+  "PhysicalTransportFinishedQ[record] re-verifies a finished-transport record from the record alone: status, every demanded pair, purity of the stored expressions, and the differential-equation and boundary-matching certificates.";
 BuildTransportBoundaryVector::usage =
   "BuildTransportBoundaryVector[modeMap,periodData,{emin,emax}] converts Laurent coefficients of GPL constants and elliptic periods into rational BoundarySelectors and a separate BoundaryConstantVector. The returned TransportBoundary can be joined into a transport source without putting special functions into its linear algebra. With \"MissingPeriodAction\" -> \"Formal\", coefficients not yet evaluated become inert BoundaryPeriodCoefficient[id,order] constants and transport can proceed with Status \"FormalTransportBoundaryVectorBuilt\"; the default \"Refuse\" retains typed incompleteness. Exact zeros and supplied exact transfer maps are substituted before unused orders are pruned. Every data result includes the demand-pruned Stage3NeedsLedger.";
 

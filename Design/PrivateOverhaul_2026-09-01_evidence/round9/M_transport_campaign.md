@@ -306,7 +306,7 @@ into scratch (`scratchpad/round9/diag/`, a diagnostic with the mission's `Verbos
 retry into the campaign directory) is queued on the step-3 pool and its output is reported in
 section 4.  Not fixed: the builder is agent T's file.
 
-**Addendum (16:20).** Agent T added a certified finite-field reconstruction of the missing
+**Addendum (16:20; path note added later: T's CF265 record now lives in `ObservableTransport_2026-09-03_T/families/`, not in the round-9 directory).** Agent T added a certified finite-field reconstruction of the missing
 constant residues; CF265 is accepted on that route (185 s, T's run), and CF305 was re-run here
 as one launcher job of `Scripts/family_observable_transport_pool_mission.wls` (900 s cap, the
 mission writes only an accepted record): **accepted**, 276.9 s build / 284 s launcher wall,

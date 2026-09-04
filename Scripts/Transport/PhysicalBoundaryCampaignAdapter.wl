@@ -519,9 +519,13 @@ BuildEndpointAutomatonBoundaryAdapter[
     Throw@failure["TangentialLogModeRequired", <|
       "Reason" -> "Only ordinary zero modes can be passed to the interior automaton",
       "PeriodIDs" -> Lookup[realizedModes, "PeriodID", Missing["Absent"]],
-      "RequiredLocalNormalization" -> HoldForm[
-        Exp[regulator Log[localCoordinateLeadingCoefficient]
-          Subscript[R, endpointVariable]/localCoordinatePower]],
+      (* Round 10 (T): values are inserted; a HoldForm over Module locals
+         wrote FeynFacetCampaign`PhysicalBoundary`Private`...$NNN symbols
+         into 39 of 40 stored endpoint records *)
+      "RequiredLocalNormalization" -> With[{coefficient =
+          localCoordinateLeadingCoefficient, power = localCoordinatePower,
+          variable = endpointVariable, reg = regulator},
+        HoldForm[Exp[reg Log[coefficient] Subscript["R", variable]/power]]],
       "LogBranchMustBeSpecified" ->
         !exactZeroQ[localCoordinateLeadingCoefficient - 1]|>]
   ];
@@ -792,9 +796,11 @@ BuildEndpointAutomatonBoundaryAdapter[
       "Power" -> localCoordinatePower,
       "LeadingCoefficient" -> localCoordinateLeadingCoefficient,
       "ActionOnAcceptedModes" -> "IdentityBecauseEndpointResidueAnnihilatesModes",
-      "NontrivialModesRequire" -> HoldForm[
-        Exp[regulator Log[localCoordinateLeadingCoefficient]
-          Subscript[R, endpointVariable]/localCoordinatePower]]|>
+      (* Round 10 (T): values inserted, see the same fix above *)
+      "NontrivialModesRequire" -> With[{coefficient =
+          localCoordinateLeadingCoefficient, power = localCoordinatePower,
+          variable = endpointVariable, reg = regulator},
+        HoldForm[Exp[reg Log[coefficient] Subscript["R", variable]/power]]]|>
   |>;
 
   <|
