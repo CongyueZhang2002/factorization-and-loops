@@ -21,7 +21,7 @@
      - the letters themselves.
 
    Nothing is transported here: MaxWeight -> 0 makes
-   TransportFamilyInChart stop at DepthExceedsCap and hand back the
+   AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks stop at DepthExceedsCap and hand back the
    assembly record (Apv/Apw = the conjugated chart connections, Ranges,
    Forms), which is all this measurement needs.
 
@@ -91,7 +91,7 @@ blocks = familyBlocks[family];
 log[family, ": ", Length[de["Av"]], " masters, ", Length[blocks], " blocks"];
 
 log["assembling in the chart (MaxWeight -> 0: no transport)"];
-{assembleSeconds, r} = AbsoluteTiming[FeynFacet`TransportFamilyInChart[
+{assembleSeconds, r} = AbsoluteTiming[FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
    <|"Family" -> family, "Basis" -> Lookup[de, "BlockBasis", None],
      "Av" -> de["Av"], "Aw" -> de["Aw"]|>,
    chart97, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,

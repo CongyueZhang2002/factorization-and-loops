@@ -16,7 +16,7 @@ familyChartFile = FileNameJoin[{
   ParentDirectory[DirectoryName[ExpandFileName[systemFile]]],
   "TransportFamilyCharts.wl"}];
 If[FileExistsQ[familyChartFile],
-  familyChartRegistration = FeynFacet`TransportFamilyChartLoad[familyChartFile];
+  familyChartRegistration = FeynFacet`LoadFamilyRootData[familyChartFile];
   If[Lookup[familyChartRegistration, "Status", None] =!= "FamilyChartsRegistered",
     Print["CERTIFY family chart registration refused: ",
       InputForm[familyChartRegistration]];
@@ -30,31 +30,32 @@ If[! AssociationQ[record] || ! AssociationQ[system],
 ];
 
 {seconds, certified} = AbsoluteTiming[
-  FeynFacet`CertifyFamilyEpsilonForm[record, system]
+  FeynFacet`ValidateFamilyDLogEpsilonForm[record, system]
 ];
 If[! AssociationQ[certified],
   Print["CERTIFY result is not an Association"];
   Exit[4]
 ];
 
-If[MemberQ[{"ExactEpsilonForm", "CertifiedEpsilonForm"},
+If[MemberQ[{"ExactlyValidatedFamilyDLogEpsilonForm",
+      "ProbabilisticallyValidatedFamilyDLogEpsilonForm"},
       certified["Status"]] &&
-    FeynFacet`CertifiedFamilyEpsilonFormQ[certified],
+    FeynFacet`ValidatedFamilyDLogEpsilonFormQ[certified],
   outputDirectory = DirectoryName[ExpandFileName[outputFile]];
   If[! DirectoryQ[outputDirectory],
     CreateDirectory[outputDirectory, CreateIntermediateDirectories -> True]];
   temporary = outputFile <> ".partial-" <> ToString[$ProcessID];
   Put[certified, temporary];
   RenameFile[temporary, outputFile, OverwriteTarget -> True];
-  Print["CERTIFY family=", certified["Family"],
-    " certified=True level=", Lookup[
-      Lookup[certified, "EpsilonFormCertificate", <||>],
-      "CertificationLevel", "LegacyExact"],
+  Print["VALIDATE family=", certified["Family"],
+    " validated=True method=", Lookup[
+      Lookup[certified, "Validation", <||>], "Method", "Unknown"],
     " seconds=", Round[seconds, 0.1],
     " bytes=", FileByteCount[outputFile]],
-  Print["CERTIFY family=", Lookup[certified, "Family", "?"],
-    " certified=False status=", certified["Status"],
-    " checks=", InputForm[Lookup[certified, "Checks", <||>]],
+  Print["VALIDATE family=", Lookup[certified, "Family", "?"],
+    " validated=False status=", certified["Status"],
+    " conditions=", InputForm[Lookup[
+      Lookup[certified, "Validation", <||>], "Conditions", <||>]],
     " seconds=", Round[seconds, 0.1]];
   Exit[5]
 ];

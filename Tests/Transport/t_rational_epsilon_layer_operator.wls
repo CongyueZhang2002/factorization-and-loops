@@ -160,11 +160,11 @@ sharedOperator = BuildRationalEpsilonLayerOperator[
   sharedSource, sharedLayer, sharedTransport];
 sharedTerms = RationalEpsilonLayerDemandTerms[sharedOperator, {0, All}];
 FTAssert["shared physical boundary coordinates are not duplicated and a genuine reconstructed endpoint gauge contributes as a coefficient rather than a fake integration letter",
-  sharedTransport["GaugeAtEndpoint"][0] === IdentityMatrix[2] &&
+  sharedTransport["OffDiagonalBasisTransformationBlockAtPathEndpoint"][0] === IdentityMatrix[2] &&
   AcceptedRationalEpsilonLayerOperatorQ[sharedOperator] &&
   sharedOperator["BoundaryLayout"] === "Shared" &&
   sharedOperator["Dimensions", "TotalBoundary"] === 2 &&
-  Count[Lookup[sharedTerms["Terms"], "Kind"], "EndpointGauge"] === 1 &&
+  Count[Lookup[sharedTerms["Terms"], "Kind"], "OffDiagonalTransformationAtPathEndpoint"] === 1 &&
   AllTrue[sharedTerms["Terms"], #1["Word"] === {} &] &&
   Total[Normal /@ Lookup[sharedTerms["Terms"], "Coefficient"]] ===
     sharedLayer["TargetBoundarySelectors", 0] +

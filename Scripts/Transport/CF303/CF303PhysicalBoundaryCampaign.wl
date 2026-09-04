@@ -62,7 +62,7 @@ CF303PhysicalBoundaryCampaign[OptionsPattern[]] := Catch@Module[
       sourceCount =!= 287 || Length[boundaryColumns] =!= 293 ||
       completeIncomingCount =!= 90 ||
       artifact["HOrders"] =!= Range[-3, 4] ||
-      artifact["PhysicalGaugeOrders"] =!= Range[0, 2],
+      artifact["PhysicalOffDiagonalTransformationOrders"] =!= Range[0, 2],
     fail["CF303AcceptedTransportLayoutInvalid"]];
 
   sourcePath = artifact["SourceArtifact", "Path"];
@@ -142,7 +142,7 @@ CF303PhysicalBoundaryCampaign[OptionsPattern[]] := Catch@Module[
       "Rows" -> targetRows, "Status" -> "AcceptedPathGauge",
       "Orientation" -> artifact["PhysicalRelation"],
       "GaugeByOrderPairs" -> artifact["PhysicalGaugeByOrderPairs"],
-      "Orders" -> artifact["PhysicalGaugeOrders"]|>,
+      "Orders" -> artifact["PhysicalOffDiagonalTransformationOrders"]|>,
     "MissingDatum" ->
       "The selected normal modes and their tangential soft-stratum evolution"|>;
 

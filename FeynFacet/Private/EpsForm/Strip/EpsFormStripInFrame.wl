@@ -54,16 +54,15 @@ ClearAll[  transportChartCanonicalizeFrameImages,
 ];
 
 (* Success-path stage visibility (Codex 08:30, performance addition 3).
-   The two most expensive exact stages of the in-frame strip solve
+   The two most expensive exact stages of the strip solve
    already MEASURE themselves -- timings["GaugePullBack"] and
-   timings["SourceFrameIdentity"] -- but the numbers were only ever
+   timings["SourceRepresentationIdentity"] -- but the numbers were only ever
    emitted on a budget STOP, so a successful strip left the whole
    interval unattributed (CF303 {17,12}: ~1558 s from strip start to
    exact acceptance, of which the cheap finite-field pilot and held-out
    checks are a small part and the rest was invisible).  The success
-   PAYLOAD stays byte-identical -- it is pinned by hash in
-   t_construction_budget and fingerprinted by other records -- so this is
-   one rate-limited log line and nothing else. *)
+   payload contains the same mathematical result; this is one rate-limited
+   log line and nothing else. *)
 $transportChartSuccessLogInterval = 60.;
 $transportChartLastSuccessLogTime = -Infinity;
 
@@ -246,7 +245,7 @@ transportChartProjectionDecomposeTask[dataFile_String] := Module[
   If[! ListQ[entries], Return[$Failed]];
   transportChartProjectionDecomposeEntry[#1,
       data["TaggedRoots"], data["TransformedRoots"], data["Tags"],
-      data["RootImages"]] & /@ entries
+      data["SquareRootGeneratorImages"]] & /@ entries
 ];
 
 transportChartParallelProjectionDecompose[image_, taggedRoots_List,
@@ -289,7 +288,8 @@ transportChartParallelProjectionDecompose[image_, taggedRoots_List,
     payload[batch_] := <|"Entries" -> entries[[batch]],
       "TaggedRoots" -> taggedRoots,
       "TransformedRoots" -> transformedRoots,
-      "Tags" -> projectionTags, "RootImages" -> projectionRootImages|>;
+      "Tags" -> projectionTags,
+      "SquareRootGeneratorImages" -> projectionRootImages|>;
     dataFiles = Map[Function[batch, taskBrokerDataFile[
         "tcprojection_" <> StringReplace[CreateUUID[], "-" -> ""],
         payload[batch]]], helperBatches];
@@ -472,8 +472,8 @@ transportChartLogSuccessTimings[timings_Association, chartName_,
   $transportChartLastSuccessLogTime = AbsoluteTime[];
   Print["[strip-in-frame] accepted in chart ", chartName,
     ": gauge pull-back ", Round[Lookup[timings, "GaugePullBack", 0.], 0.1],
-    " s, source-frame identity ",
-    Round[Lookup[timings, "SourceFrameIdentity", 0.], 0.1], " s"];
+    " s, source-representation identity ",
+    Round[Lookup[timings, "SourceRepresentationIdentity", 0.], 0.1], " s"];
   True,
   False];
 
@@ -496,9 +496,11 @@ transportChartPullBackStrip[strip : {e_List, c_List, bbar_List},
   pull[pair_] := Module[{components},
     components = Map[
       Map[Together, transportChartApplyRootBranches[
-        # /. data["Subst"], branchRoots, images], {2}] &, pair];
+        # /. masterTransportPresentationSubstitution[data],
+        branchRoots, images], {2}] &, pair];
     masterTransportPullBackOneForm[
-      components[[1]], components[[2]], data["Jacobian"]]
+      components[[1]], components[[2]],
+      data["DifferentialPullbackMatrix"]]
   ];
   pull /@ {e, c, bbar}
 ];
@@ -511,32 +513,36 @@ transportChartPullBackStrip[strip : {e_List, c_List, bbar_List},
    multiquadratic engine. *)
 transportChartPullBackDeferredBundle[bundle_Association,
     data_Association, branchRoots_List, images_List] := Module[
-  {transform, evaluated, image, survivingRadicals, pulled},
-  If[! MatchQ[Lookup[data, "Subst", None], {___Rule}] ||
-      ! MatchQ[Lookup[data, "Jacobian", None], {{_, _}, {_, _}}] ||
+  {substitution, differentialPullback, transform, evaluated, image,
+   survivingRadicals, pulled},
+  substitution = masterTransportPresentationSubstitution[data];
+  differentialPullback = Lookup[data, "DifferentialPullbackMatrix", $Failed];
+  If[! MatchQ[substitution, {_Rule, _Rule}] ||
+      ! MatchQ[differentialPullback, {{_, _}, {_, _}}] ||
       Length[branchRoots] =!= Length[images],
-    Return[<|"Status" -> "DeferredBundleChartDataInvalid"|>]];
+    Return[<|"Status" ->
+      "DeferredBundleCoefficientPresentationInvalid"|>]];
   transform[expr_] := Together[transportChartApplyRootBranches[
     expr, branchRoots, images]];
-  evaluated = blockEquationDeferredBundleEvaluate[bundle, data["Subst"],
+  evaluated = blockEquationDeferredBundleEvaluate[bundle, substitution,
     "ExpressionTransform" -> transform];
   If[Lookup[evaluated, "Status", None] =!= "OK",
-    Return[<|"Status" -> "DeferredBundleChartEvaluationFailed",
+    Return[<|"Status" -> "DeferredBundleParametrizationEvaluationFailed",
       "Detail" -> evaluated|>]];
   image = evaluated["Image"];
   If[! MatchQ[Dimensions[image], {2, _, _}],
-    Return[<|"Status" -> "DeferredBundleChartImageInvalid"|>]];
+    Return[<|"Status" -> "DeferredBundleParametrizedImageInvalid"|>]];
   survivingRadicals = transportChartRadicalBases[image];
   If[survivingRadicals =!= {},
-    Return[<|"Status" -> "DeferredBundleChartStillAlgebraic",
+    Return[<|"Status" -> "DeferredBundleNotRationalized",
       "RadicalBases" -> survivingRadicals|>]];
   pulled = masterTransportPullBackOneForm[
-    image[[1]], image[[2]], data["Jacobian"]];
+    image[[1]], image[[2]], differentialPullback];
   <|"Status" -> "OK", "OneForm" -> pulled,
     "OperandEvaluations" -> evaluated["OperandEvaluations"]|>
 ];
 transportChartPullBackDeferredBundle[___] :=
-  <|"Status" -> "DeferredBundleChartInputInvalid"|>;
+  <|"Status" -> "DeferredBundleParametrizationInputInvalid"|>;
 
 (* Materialize the raw block-equation DAG only after its active roots and
    source coordinates have been replaced by the rational chart.  If modular
@@ -549,54 +555,91 @@ transportChartPullBackDeferredPreparation[record_Association,
     data_Association, branchRoots_List, images_List] := Module[
   {preparation, transform, materialized, dimensions, values, image,
    survivingRadicals, pulled, polynomialSymbols,
-   projectionRoots, transformedProjectionRoots, projectionChannels,
-   projectionTags, projectionRootImages,
-   taggedProjectionRoots,
+   sourceVariables, presentationVariables, substitution,
+   differentialPullback, projectionPresentation,
+   presentationSquareRootGenerators, projectionGeneratorIndices,
+   projectionSquareRootGenerators,
+   transformedProjectionSquareRootGenerators, projectionChannels,
+   projectionTags, projectionGeneratorImages,
+   taggedProjectionSquareRootGenerators,
    projectionParallel, projectionSeconds = 0., inactiveChannels,
    projectionRecord = None,
    projectionPreparedFallbacks = 0,
    jacobianPullBack},
   preparation = Lookup[record, "Preparation",
     Lookup[record, "DeferredPreparation", Missing["NoPreparation"]]];
-  If[! AssociationQ[preparation] ||
-      Lookup[preparation, "Status", None] =!= "Prepared" ||
-      ! MatchQ[Lookup[data, "Subst", None], {___Rule}] ||
-      ! MatchQ[Lookup[data, "Jacobian", None], {{_, _}, {_, _}}] ||
+  sourceVariables = Lookup[data, "SourceVariables", $Failed];
+  presentationVariables = masterTransportPresentationVariables[data];
+  substitution = masterTransportPresentationSubstitution[data];
+  differentialPullback = Lookup[data, "DifferentialPullbackMatrix", $Failed];
+  If[! TrueQ[blockEquationDeferredPreparationQ[preparation]] ||
+      ! MatchQ[sourceVariables, {_Symbol, _Symbol}] ||
+      ! MatchQ[presentationVariables, {_Symbol, _Symbol}] ||
+      ! MatchQ[substitution, {_Rule, _Rule}] ||
+      ! MatchQ[differentialPullback, {{_, _}, {_, _}}] ||
       Length[branchRoots] =!= Length[images],
-    Return[<|"Status" -> "DeferredPreparationChartInputInvalid"|>]];
-  projectionRoots = Lookup[record, "ProjectionRoots", {}];
-  If[! ListQ[projectionRoots] ||
-      ! AllTrue[projectionRoots, AssociationQ[#1] &&
-        KeyExistsQ[#1, "Root"] && KeyExistsQ[#1, "RootSquare"] &],
-    Return[<|"Status" -> "DeferredPreparationProjectionFrameInvalid"|>]];
-  transformedProjectionRoots = projectionRoots /. data["Subst"];
+    Return[<|"Status" ->
+      "DeferredPreparationParametrizationInputInvalid"|>]];
+  projectionPresentation = masterTransportCoefficientPresentationData[
+    Lookup[record, "CoefficientPresentation", Missing[
+      "NoCoefficientPresentation"]], sourceVariables];
+  If[Lookup[projectionPresentation, "Status", None] =!= "OK",
+    Return[<|"Status" ->
+      "DeferredPreparationCoefficientPresentationInvalid",
+      "Detail" -> projectionPresentation|>]];
+  presentationSquareRootGenerators =
+    coefficientPresentationSquareRootsInVariables[
+      projectionPresentation, sourceVariables];
+  projectionGeneratorIndices = Lookup[record,
+    "ProjectionSquareRootGeneratorIndices", {}];
+  If[! ListQ[presentationSquareRootGenerators] ||
+      ! VectorQ[projectionGeneratorIndices, IntegerQ] ||
+      ! ContainsOnly[projectionGeneratorIndices,
+        Range[Length[presentationSquareRootGenerators]]] ||
+      projectionGeneratorIndices =!=
+        Sort[DeleteDuplicates[projectionGeneratorIndices]],
+    Return[<|"Status" ->
+      "DeferredPreparationSquareRootGeneratorsInvalid",
+      "Detail" -> presentationSquareRootGenerators,
+      "ProjectionSquareRootGeneratorIndices" ->
+        projectionGeneratorIndices|>]];
+  projectionSquareRootGenerators =
+    presentationSquareRootGenerators[[projectionGeneratorIndices]];
+  transformedProjectionSquareRootGenerators =
+    projectionSquareRootGenerators /. substitution;
   projectionTags = Table[
     Unique["FeynFacet`Private`deferredProjectionRoot"],
-    {Length[projectionRoots]}];
-  projectionRootImages = Lookup[transformedProjectionRoots, "Root", {}];
-  taggedProjectionRoots = MapThread[
-    <|"Root" -> #1, "RootSquare" -> Lookup[#2, "RootSquare", $Failed]|> &,
-    {projectionTags, transformedProjectionRoots}];
+    {Length[projectionSquareRootGenerators]}];
+  projectionGeneratorImages =
+    squareRootRecordExpression /@
+      transformedProjectionSquareRootGenerators;
+  taggedProjectionSquareRootGenerators = MapThread[
+    <|"Generator" -> #1,
+      "QuadraticRadicand" -> squareRootRecordRadicand[#2],
+      "SourceRadicand" -> Lookup[#3, "SourceRadicand",
+        squareRootRecordRadicand[#3]]|> &,
+    {projectionTags, transformedProjectionSquareRootGenerators,
+      projectionSquareRootGenerators}];
   transform[expr_] := Module[{activeImage},
     activeImage = transportChartApplyRootBranches[
-      expr /. data["Subst"], branchRoots, images];
+      expr /. masterTransportPresentationSubstitution[data],
+      branchRoots, images];
     (* Inactive roots are algebra generators during operand interning.  This
        prevents Together/FactorList from rationalizing their denominators
        separately in dozens of operands before the four target sums cancel
        those roots. *)
     transportChartApplyRootBranches[activeImage,
-      transformedProjectionRoots, projectionTags]];
+      transformedProjectionSquareRootGenerators, projectionTags]];
   polynomialSymbols = DeleteDuplicates[Join[
-    Lookup[data, "Variables", {}],
+    presentationVariables,
     {Lookup[preparation, "Regulator", None]},
     Lookup[preparation, "Parameters", {}], projectionTags]];
   materialized = blockEquationDeferredMaterialize[preparation,
-    "ValidatePreparation" -> False,
     "ExpressionTransform" -> transform,
     "PolynomialSymbols" -> polynomialSymbols,
     "Cancel" -> False, "CanonicalizeUntouched" -> False,
     "AlgebraicCanonicalize" -> False,
-    "Parallel" -> If[projectionRoots === {}, Automatic,
+    "Parallel" -> If[projectionSquareRootGenerators === {}, Automatic,
       blockEquationDeferredParallelRouteQ[]],
     "Helpers" -> Automatic,
     "Progress" -> transportChartStageLogQ[],
@@ -611,16 +654,18 @@ transportChartPullBackDeferredPreparation[record_Association,
   image = Table[values[{mu, i, j}],
     {mu, dimensions[[1]]}, {i, dimensions[[2]]},
     {j, dimensions[[3]]}];
-  If[projectionRoots =!= {},
+  If[projectionSquareRootGenerators =!= {},
     projectionParallel = transportChartParallelProjectionDecompose[
-      image, taggedProjectionRoots, transformedProjectionRoots,
-      projectionTags, projectionRootImages,
+      image, taggedProjectionSquareRootGenerators,
+      transformedProjectionSquareRootGenerators,
+      projectionTags, projectionGeneratorImages,
       "chartprojection_" <> ToString[
         Lookup[preparation, "Sector", "block"]] <> "_" <>
         ToString[Lookup[preparation, "LowerSector", "source"]]];
     If[Lookup[projectionParallel, "Status", None] =!= "OK",
       Return[<|"Status" -> "DeferredPreparationInactiveProjectionFailed",
-        "ProjectionRootCount" -> Length[projectionRoots],
+        "ProjectionSquareRootGeneratorCount" ->
+          Length[projectionSquareRootGenerators],
         "Detail" -> KeyDrop[projectionParallel, "Channels"]|>]];
     projectionChannels = projectionParallel["Channels"];
     projectionSeconds = projectionParallel["Seconds"];
@@ -629,28 +674,31 @@ transportChartPullBackDeferredPreparation[record_Association,
     If[! AllTrue[inactiveChannels, TrueQ[Together[#1] === 0] &],
       Return[<|"Status" ->
           "DeferredPreparationInactiveProjectionNonzero",
-        "ProjectionRootCount" -> Length[projectionRoots]|>]];
+        "ProjectionSquareRootGeneratorCount" ->
+          Length[projectionSquareRootGenerators]|>]];
     image = Map[First, projectionChannels, {3}];
     projectionRecord = <|"Status" -> "ExactInactiveGradeProjection",
-      "RootCount" -> Length[projectionRoots],
+      "SquareRootGeneratorCount" ->
+        Length[projectionSquareRootGenerators],
       "PrecombinedFallbacks" -> projectionPreparedFallbacks,
       "Seconds" -> N[projectionSeconds]|>;
-    Print["[deferred-router] exact inactive-root projection: roots ",
-      Length[projectionRoots], ", ",
+    Print["[deferred-router] exact inactive-generator projection: generators ",
+      Length[projectionSquareRootGenerators], ", ",
       Round[N[projectionSeconds], 0.1], " s, precombined fallbacks ",
       projectionPreparedFallbacks, ", route ",
       projectionParallel["Route"], ", helpers ",
       projectionParallel["Helpers"]]];
   survivingRadicals = transportChartRadicalBases[image];
   If[survivingRadicals =!= {},
-    Return[<|"Status" -> "DeferredPreparationChartStillAlgebraic",
+    Return[<|"Status" -> "DeferredPreparationNotRationalized",
       "RadicalBases" -> survivingRadicals|>]];
   (* The Jacobian combinations are independent exact rational
      normalizations.  Their cost depends on the materialized expressions,
      not on whether an inactive-root projection produced them, so the shared
      helper applies its size admission uniformly and keeps easy inputs local. *)
   jacobianPullBack = transportChartParallelJacobianPullBack[
-    image, data["Jacobian"], "chartforcing_" <> ToString[
+    image, differentialPullback,
+      "parametrized_inhomogeneity_" <> ToString[
       Lookup[preparation, "Sector", "block"]] <> "_" <>
       ToString[Lookup[preparation, "LowerSector", "source"]]];
   If[Lookup[jacobianPullBack, "Status", None] =!= "OK",
@@ -667,10 +715,10 @@ transportChartPullBackDeferredPreparation[record_Association,
       ", helpers ", Lookup[jacobianPullBack, "Helpers", 0]]];
   <|"Status" -> "OK", "OneForm" -> pulled,
     "Materialization" -> KeyDrop[materialized, "Values"],
-    "InactiveRootProjection" -> projectionRecord|>
+    "InactiveSquareRootGeneratorProjection" -> projectionRecord|>
 ];
 transportChartPullBackDeferredPreparation[___] :=
-  <|"Status" -> "DeferredPreparationChartInputInvalid"|>;
+  <|"Status" -> "DeferredPreparationParametrizationInputInvalid"|>;
 
 (* Rewrite the images of a chart/frame map so that every radical they
    carry is a DECLARED one: the nested and numeric radicands Solve emits
@@ -745,7 +793,7 @@ transportChartBudgetExhausted[substage_String, elapsed_, deadline_,
     "Substage" -> substage,
     "Elapsed" -> elapsed,
     "Deadline" -> deadline,
-    "Method" -> "StripConstructionInFrame",
+    "Method" -> "OffDiagonalBlockBasisTransformationConstruction",
     "Resumable" -> True|>,
   progress];
 
@@ -757,7 +805,6 @@ Options[SolveEpsFormStripInFrame] = Join[
     "MultiquadraticDispatch" -> True,
     "MultiquadraticOptions" -> {},
     "DeferredPreparation" -> Automatic,
-    "DeferredMaterializationCertificate" -> Automatic,
     (* "Exact" (default): the package's exact Together pull-back of the
        chart gauge, then the historical exact frame gates below.
        "FiniteFieldReconstruct": reconstruct the reduced source-frame gauge
@@ -781,25 +828,26 @@ Options[SolveEpsFormStripInFrame] = Join[
   }
 ];
 
-(* A root set with no joint rational chart is dispatched to the direct
+(* A root set with no catalogued joint rationalizing parametrization is
+   dispatched to the direct
    multiquadratic engine (Design/GeneralityFixes2.md F2, 2026-08-23).
    These statuses mean the ENGINE declined the input as outside its own
    scope, not that it ran and failed; only they keep the historical
-   "NoRationalStripChart" answer, with the engine's typed refusal
+   "NoCataloguedRationalizingParametrization" answer, with the engine's typed refusal
    attached so the caller can tell the two apart.  Every other engine
    status -- "ModularConsistent" and every typed failure -- is returned
    verbatim. *)
 $transportChartMultiquadraticScopeRefusals = {
   "UnsupportedRootRank", "InvalidStripRecord",
-  "StripContainsUndeclaredRadicals", "ContextSensitiveStripABI",
-  "AlgebraicFrameNotWellFormed", "ForcingChannelDecompositionFailed",
+  "StripContainsUndeclaredRadicals", "ContextSensitivePreparationData",
+  "CoefficientPresentationNotWellFormed",
+  "ForcingChannelDecompositionFailed",
   "GaugeDenominatorNotRational"};
 
 
 (* U4 (user decision 2026-09-02): wall-clock timings stay in the result,
    but as ONE top-level "Timings" record, never inside the mathematical
-   payload -- two solves of the same strip then agree byte for byte on
-   "InnerSolution", and fingerprint pins hold.  Every association key
+   payload.  Every association key
    naming a duration is lifted out recursively; the flat key is the path
    through the record joined by "/". *)
 transportChartTimingKeyQ[key_String] := StringMatchQ[key,
@@ -822,7 +870,7 @@ transportChartTimingsRecord[stages_Association, inner_Association] :=
 SolveEpsFormStripInFrame[
     strip : {e_List, c_List, bbar_List},
     variables : {_Symbol, _Symbol}, epsilon_Symbol,
-    frame_Association, opts : OptionsPattern[]] := Block[
+    coefficientPresentation_Association, opts : OptionsPattern[]] := Block[
   (* the stage lines follow this call's "Verbose" (Codex 14:30): a caller
      that asked for a quiet library gets one.  Block, so every exit path
      -- including a Return out of the Module below -- restores it. *)
@@ -831,9 +879,12 @@ SolveEpsFormStripInFrame[
   {$transportChartStageLog = TrueQ[OptionValue[
     SolveEpsFormStripInFrame, {opts}, "Verbose"]]},
   Module[
-  {allRoots, classification, rootIndices, usedRoots, rootSquares, chart,
+  {coefficientPresentationData, allRoots, classification, rootIndices,
+   usedRoots, rootSquares, chart,
    chartVariables, rekeyed, data, chartStrip, inner, chartGauge,
-   identityData, coordinateMap, sourceGauge, chartRoots, rootImages,
+   presentationVariables, presentationRoots,
+   presentationToSourceRules, sourceCoordinateImages,
+   coordinateMap, sourceGauge, chartRoots, rootImages,
    chartBranchRoots, mapCanonicalization, comparatorRefusals,
    signChoices, acceptedSigns, branchImages, branchedGauge,
    sourceTransformed, chartTransformed, pulledTransformed,
@@ -843,13 +894,14 @@ SolveEpsFormStripInFrame[
    scratchDirectory, stripTag, verbose, solveRationalStrip, innerSolvedQ,
    multiquadraticOptions, multiquadraticResult, multiquadraticStatus,
    bundlePullback, preparationPullback, rationalStrip,
-   deferredBundle, bundleValidation, bundleRoots, bundleIndices,
-   deferredPreparation, preparation, preparationRootSquares,
+   deferredBundle, bundleValidation, bundlePresentationData,
+   bundlePresentationRoots, bundleGeneratorIndices, bundleRoots,
+   bundleIndices, deferredPreparation, preparation,
+   preparationPresentationData, preparationPresentationRoots,
+   preparationGeneratorIndices, preparationRoots,
    preparationIndices, deferredSourceQ, deferredForcingDescriptor = None,
    deferredForcingPlan, deferredForcingCensus, deferredForcingFile,
-   materializationCertificate, materializationValidation,
-   deferredForcingMaterializedQ,
-   selectedIndices, stableFrame, bundleRecord,
+   selectedIndices, bundleRecord,
    gaugePullBackMode, finiteFieldCanonicalQ,
    productionCanonicalQ, finiteFieldGauge,
    finiteFieldGaugeOptions,
@@ -887,11 +939,10 @@ SolveEpsFormStripInFrame[
      whether or not the substage it belongs to was reached. *)
   budgetProgress[] := <|
     "ConstructionTimings" -> timings,
-    "RootIndices" -> If[ListQ[rootIndices], rootIndices,
+    "SquareRootGeneratorIndices" -> If[ListQ[rootIndices], rootIndices,
       Missing["NotClassified"]],
-    "RootSquares" -> If[ListQ[rootSquares], rootSquares,
-      Missing["NotClassified"]],
-    "Chart" -> If[AssociationQ[chart], Lookup[chart, "Name", None], None],
+    "RationalizingParametrizationName" ->
+      If[AssociationQ[chart], Lookup[chart, "Name", None], None],
     "StripDimensions" -> stripDimensions,
     "InnerStatus" -> If[AssociationQ[inner],
       Lookup[inner, "Status", None], Missing["NotSolved"]]|>;
@@ -899,11 +950,18 @@ SolveEpsFormStripInFrame[
     substage, AbsoluteTime[] - constructionStart, deadline,
     budgetProgress[]];
 
-  (* the frame gate is pure input validation and outranks a budget stop,
+  (* coefficient-presentation validation outranks a budget stop,
      exactly as the solvers' option gates do *)
-  allRoots = transportChartCurrentRoots[frame, variables];
-  If[allRoots === $Failed,
-    Return[<|"Status" -> "AlgebraicFrameNotWellFormed"|>]];
+  coefficientPresentationData =
+    masterTransportCoefficientPresentationData[
+      coefficientPresentation, variables];
+  If[Lookup[coefficientPresentationData, "Status", None] =!= "OK",
+    Return[coefficientPresentationData]];
+  allRoots = coefficientPresentationSquareRootsInVariables[
+    coefficientPresentationData, variables];
+  If[! ListQ[allRoots],
+    Return[If[AssociationQ[allRoots], allRoots,
+      <|"Status" -> "CoefficientPresentationNotWellFormed"|>]]];
   (* A deferred forcing bundle is part of the strip's mathematical input,
      even though the materialized BBar slot is intentionally a zero shape
      placeholder.  Authenticate it before either the zero-forcing shortcut
@@ -928,7 +986,28 @@ SolveEpsFormStripInFrame[
         Lookup[deferredBundle, "Regulator", None] =!= epsilon ||
         Lookup[deferredBundle, "Dimensions", None] =!=
           Prepend[Dimensions[bbar[[1]]], 2],
-      Return[<|"Status" -> "DeferredBundleFrameMismatch"|>]],
+      Return[<|"Status" ->
+        "DeferredBundleCoefficientPresentationMismatch"|>]];
+    bundlePresentationData = masterTransportCoefficientPresentationData[
+      Lookup[deferredBundle, "CoefficientPresentation",
+        Missing["NoCoefficientPresentation"]], variables];
+    bundlePresentationRoots =
+      coefficientPresentationSquareRootsInVariables[
+        bundlePresentationData, variables];
+    bundleGeneratorIndices = Lookup[deferredBundle,
+      "SquareRootGeneratorIndices", $Failed];
+    If[Lookup[bundlePresentationData, "Status", None] =!= "OK" ||
+        ! ListQ[bundlePresentationRoots] ||
+        ! VectorQ[bundleGeneratorIndices, IntegerQ] ||
+        ! ContainsOnly[bundleGeneratorIndices,
+          Range[Length[bundlePresentationRoots]]] ||
+        bundleGeneratorIndices =!=
+          Sort[DeleteDuplicates[bundleGeneratorIndices]],
+      Return[<|"Status" ->
+        "DeferredBundleCoefficientPresentationMismatch",
+        "CoefficientPresentation" -> bundlePresentationData,
+        "SquareRootGeneratorIndices" -> bundleGeneratorIndices|>]];
+    bundleRoots = bundlePresentationRoots[[bundleGeneratorIndices]],
     If[! MissingQ[deferredBundle] && deferredBundle =!= Automatic,
       Return[<|"Status" -> "InvalidDeferredBundle"|>]]];
   deferredPreparation = OptionValue["DeferredPreparation"];
@@ -936,41 +1015,37 @@ SolveEpsFormStripInFrame[
     preparation = Lookup[deferredPreparation, "Preparation",
       Lookup[deferredPreparation, "DeferredPreparation",
         Missing["NoPreparation"]]];
-    preparationRootSquares = Lookup[deferredPreparation,
-      "RootSquares", Missing["NoRootSquares"]];
-    If[! AssociationQ[preparation] ||
-        Lookup[preparation, "Status", None] =!= "Prepared" ||
-        Lookup[preparation, "ABIVersion", None] =!=
-          $blockEquationDeferredABIVersion ||
+    preparationPresentationData =
+      masterTransportCoefficientPresentationData[
+        Lookup[deferredPreparation, "CoefficientPresentation",
+          Missing["NoCoefficientPresentation"]], variables];
+    preparationPresentationRoots =
+      coefficientPresentationSquareRootsInVariables[
+        preparationPresentationData, variables];
+    preparationGeneratorIndices = Lookup[deferredPreparation,
+      "SquareRootGeneratorIndices", $Failed];
+    If[! TrueQ[blockEquationDeferredPreparationQ[preparation]] ||
         Lookup[preparation, "Variables", None] =!= variables ||
         Lookup[preparation, "Regulator", None] =!= epsilon ||
         Lookup[preparation, "Dimensions", None] =!=
           Prepend[Dimensions[bbar[[1]]], 2] ||
-        ! ListQ[preparationRootSquares],
-      Return[<|"Status" -> "DeferredPreparationFrameMismatch"|>]],
+        Lookup[preparationPresentationData, "Status", None] =!= "OK" ||
+        ! ListQ[preparationPresentationRoots] ||
+        ! VectorQ[preparationGeneratorIndices, IntegerQ] ||
+        ! ContainsOnly[preparationGeneratorIndices,
+          Range[Length[preparationPresentationRoots]]] ||
+        preparationGeneratorIndices =!=
+          Sort[DeleteDuplicates[preparationGeneratorIndices]],
+      Return[<|"Status" ->
+        "DeferredPreparationCoefficientPresentationMismatch"|>]];
+    preparationRoots =
+      preparationPresentationRoots[[preparationGeneratorIndices]],
     If[deferredPreparation =!= Automatic,
       Return[<|"Status" -> "InvalidDeferredPreparation"|>]]];
   If[AssociationQ[deferredBundle] && AssociationQ[deferredPreparation],
     Return[<|"Status" -> "AmbiguousDeferredForcing"|>]];
-  materializationCertificate =
-    OptionValue["DeferredMaterializationCertificate"];
-  deferredForcingMaterializedQ = False;
-  If[materializationCertificate =!= Automatic,
-    If[! AssociationQ[deferredBundle] ||
-        ! AssociationQ[materializationCertificate],
-      Return[<|"Status" -> "InvalidDeferredMaterializationCertificate"|>]];
-    materializationValidation =
-      blockEquationDeferredMaterializationCertificateValidate[
-        materializationCertificate, deferredBundle, bbar,
-        variables, epsilon];
-    If[Lookup[materializationValidation, "Status", None] =!=
-        "MaterializationCertificateValid",
-      Return[<|"Status" -> "InvalidDeferredMaterializationCertificate",
-        "Detail" -> materializationValidation|>]];
-    deferredForcingMaterializedQ = True];
   deferredSourceQ =
-    (AssociationQ[deferredBundle] && ! deferredForcingMaterializedQ) ||
-      AssociationQ[deferredPreparation];
+    AssociationQ[deferredBundle] || AssociationQ[deferredPreparation];
   (* BOUNDARY 1 (entry): an already-expired deadline never starts the
      root classifier, which denests and square-class-matches every
      radical occurring in the strip *)
@@ -978,7 +1053,7 @@ SolveEpsFormStripInFrame[
     Return[budgetExhausted["Entry"]]];
   {stageSeconds, classification} = AbsoluteTiming[
     transportChartRootIndices[strip, allRoots]];
-  timings["RootClassification"] = stageSeconds;
+  timings["SquareRootGeneratorClassification"] = stageSeconds;
   If[TrueQ[OptionValue["Verbose"]],
     Print["[strip-in-frame] root classification: ",
       Round[stageSeconds, 0.1], " s"]];
@@ -999,52 +1074,56 @@ SolveEpsFormStripInFrame[
         Lookup[classification, "NumericRadicalClasses", {}]|>]];
   rootIndices = classification["RootIndices"];
   If[AssociationQ[deferredBundle],
-    (* Roots used only by the deferred forcing are invisible in the zero
-       placeholder.  Match the authenticated bundle frame back to the
-       caller's frame, then canonicalize the UNION.  Source indices remain
-       provenance; declaration order is not allowed to become a grade ABI. *)
-    bundleRoots = Lookup[deferredBundle["RootFrame"], "Roots", {}];
+    (* Generators used only by the deferred forcing are invisible in the zero
+       placeholder.  Match the bundle's declared generator subset into the
+       strip coefficient presentation by its displayed generator and
+       quadratic relation.  The strip presentation's order is authoritative. *)
     bundleIndices = Table[Module[{matches},
         matches = Flatten[Position[allRoots,
-          candidate_ /; TrueQ[Together[candidate["RootSquare"] -
-                bundleRoot["RootSquare"]] === 0] &&
-            TrueQ[Together[candidate["Root"] - bundleRoot["Root"]] === 0],
+          candidate_ /; TrueQ[Together[
+              squareRootRecordRadicand[candidate] -
+                squareRootRecordRadicand[bundleRoot]] === 0] &&
+            TrueQ[Together[squareRootRecordExpression[candidate] -
+                squareRootRecordExpression[bundleRoot]] === 0],
           {1}, Heads -> False]];
         If[Length[matches] =!= 1,
-          Return[<|"Status" -> "DeferredBundleRootFrameMismatch",
-            "BundleRoot" -> bundleRoot, "Matches" -> matches|>, Module]];
+          Return[<|"Status" ->
+            "DeferredBundleCoefficientPresentationMismatch",
+            "BundleSquareRootGenerator" -> bundleRoot,
+            "Matches" -> matches|>, Module]];
         First[matches]],
       {bundleRoot, bundleRoots}];
     If[! VectorQ[bundleIndices, IntegerQ],
       Return[FirstCase[bundleIndices, failure_Association :> failure,
-        <|"Status" -> "DeferredBundleRootFrameMismatch"|>]]];
-    selectedIndices = DeleteDuplicates[Join[rootIndices, bundleIndices]];
-    stableFrame = blockEquationDeferredRootFrame[
-      KeyTake[#1, {"Root", "RootSquare"}] & /@ allRoots[[selectedIndices]],
-      variables, epsilon];
-    If[Lookup[stableFrame, "Status", None] =!= "StableRootOrder",
-      Return[<|"Status" -> "DeferredBundleRootUnionInvalid",
-        "Detail" -> stableFrame|>]];
-    rootIndices = selectedIndices[[Lookup[stableFrame["Roots"],
-      "SourceIndex", {}]]]];
+        <|"Status" ->
+          "DeferredBundleCoefficientPresentationMismatch"|>]]];
+    selectedIndices = Sort[DeleteDuplicates[
+      Join[rootIndices, bundleIndices]]];
+    rootIndices = selectedIndices];
   If[AssociationQ[deferredPreparation],
     preparationIndices = Table[Module[{matches},
         matches = Flatten[Position[allRoots,
           candidate_ /; TrueQ[Together[
-              candidate["RootSquare"] - square] === 0],
+              squareRootRecordRadicand[candidate] -
+                squareRootRecordRadicand[preparationRoot]] === 0] &&
+            TrueQ[Together[squareRootRecordExpression[candidate] -
+                squareRootRecordExpression[preparationRoot]] === 0],
           {1}, Heads -> False]];
         If[Length[matches] =!= 1,
-          Return[<|"Status" -> "DeferredPreparationRootFrameMismatch",
-            "RootSquare" -> square, "Matches" -> matches|>, Module]];
+          Return[<|"Status" ->
+            "DeferredPreparationCoefficientPresentationMismatch",
+            "PreparationSquareRootGenerator" -> preparationRoot,
+            "Matches" -> matches|>, Module]];
         First[matches]],
-      {square, preparationRootSquares}];
+      {preparationRoot, preparationRoots}];
     If[! VectorQ[preparationIndices, IntegerQ],
       Return[FirstCase[preparationIndices, failure_Association :> failure,
-        <|"Status" -> "DeferredPreparationRootFrameMismatch"|>]]];
+        <|"Status" ->
+          "DeferredPreparationCoefficientPresentationMismatch"|>]]];
     rootIndices = Sort[DeleteDuplicates[
       Join[rootIndices, preparationIndices]]]];
   usedRoots = allRoots[[rootIndices]];
-  rootSquares = Lookup[usedRoots, "RootSquare", {}];
+  rootSquares = squareRootRecordRadicand /@ usedRoots;
   (* dD = eps (e.D-D.c)+bbar is solved identically by D=0 when the
      forcing vanishes.  This must precede chart selection: the diagonal
      blocks may span a root set with no joint rational chart even though
@@ -1053,12 +1132,15 @@ SolveEpsFormStripInFrame[
       AllTrue[Flatten[bbar], SameQ[#, 0] &],
     Return[<|"Status" -> "Solved", "Method" -> "ZeroForcing",
       "Gauge" -> ConstantArray[0, Dimensions[bbar[[1]]]],
-      "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
-      "Chart" -> None, "Alphabet" -> {}, "ExactDLog" -> True,
-      "Certificate" -> "ExactDLog", "FrameCertificate" -> <|
-        "Chart" -> None, "GaugeRoundTrip" -> True,
+      "CoefficientPresentation" -> coefficientPresentationData,
+      "SquareRootGeneratorIndices" -> rootIndices,
+      "Alphabet" -> {}, "ExactDLog" -> True,
+      "Certificate" -> "ExactDLog", "Validation" -> <|
+        "RationalizingParametrizationName" -> None,
+        "GaugeRoundTrip" -> True,
         "TransformedOneFormPullBack" -> True, "SourceDLog" -> True,
-        "SamplingEntered" -> False, "Exact" -> True|>|>]];
+        "SamplingEntered" -> False, "Method" -> "Exact",
+        "Passed" -> True|>|>]];
   optionRules = FilterRules[{opts}, Options[SolveEpsFormStrip]];
   finiteFieldQ = TrueQ[OptionValue["FiniteFieldFallback"]] ||
     TrueQ[OptionValue["FiniteFieldFirst"]];
@@ -1080,7 +1162,8 @@ SolveEpsFormStripInFrame[
         Lookup[candidate, "Certificate", None]]);
   solveRationalStrip = Function[{rationalStrip, rationalVariables},
     Module[{candidate, directory, defaults, finiteOptions,
-        rationalRecord, rationalFrame, fallbackOptions, fallback,
+        rationalRecord, rationalCoefficientPresentation,
+        fallbackOptions, fallback,
         primaryFailure, candidateOptions, letterData, letterRecords,
         dlogRecords, expandedRecord, expandedOptions, expandedPrefix,
         suppliedLetterRecords, suppliedOneForms, recordsCertifiedQ},
@@ -1129,14 +1212,14 @@ SolveEpsFormStripInFrame[
           transportChartDeadlineExpiredQ[deadline],
         Return[candidate, Module]];
       primaryFailure = <|"Status" -> "SolverReturnedFailed"|>;
-      rationalFrame = <|"Variables" -> rationalVariables,
-        "Subst" -> Thread[rationalVariables -> rationalVariables],
-        "Roots" -> {}|>;
+      rationalCoefficientPresentation =
+        masterTransportCoefficientPresentationData[
+          None, rationalVariables];
       (* Options tied to the source algebraic frame cannot be reused after
          chart substitution.  Resource, reconstruction, deadline and
          checkpoint options remain valid and are retained. *)
       fallbackOptions = DeleteCases[multiquadraticOptions,
-        HoldPattern[("DeferredBundle" | "RootIndices" |
+        HoldPattern[("DeferredBundle" | "SquareRootGeneratorIndices" |
           "AdditionalLetters" | "AlgebraicLetters" |
           "GaugeDenominator" | "GaugeDenominatorFactor") -> _]];
       suppliedLetterRecords = FirstCase[fallbackOptions,
@@ -1169,7 +1252,7 @@ SolveEpsFormStripInFrame[
               "MultiquadraticCandidateLettersV1",
             Return[If[AssociationQ[letterData],
               Join[<|"PrimaryRationalFailure" -> primaryFailure|>, letterData],
-              <|"Status" -> "RationalChartCandidateLettersUntyped",
+              <|"Status" -> "RationalizedStripCandidateLettersUntyped",
                 "PrimaryRationalFailure" -> primaryFailure,
                 "CandidateResult" -> letterData|>], Module]];
           letterData["LetterRecords"]];
@@ -1215,14 +1298,14 @@ SolveEpsFormStripInFrame[
           DeleteCases[fallbackOptions, HoldPattern["LetterRecords" -> _]],
           "LetterRecords" -> letterRecords]];
       fallback = solveEpsFormStripMultiquadratic[
-        rationalRecord, rationalFrame,
+        rationalRecord, rationalCoefficientPresentation,
         Sequence @@ DeleteDuplicatesBy[Join[fallbackOptions,
-          {"RootIndices" -> {}, "Deadline" -> deadline,
-           "Verbose" -> verbose}], First]];
+          {"Deadline" -> deadline, "Verbose" -> verbose}], First]];
       If[AssociationQ[fallback],
         Join[<|"PrimaryRationalFailure" -> primaryFailure,
-          "FallbackFrame" -> "MaterializedRationalChart"|>, fallback],
-        <|"Status" -> "RationalChartMultiquadraticFallbackUntyped",
+          "FallbackCoefficientPresentation" ->
+            "SourceVariableRepresentationAfterRationalization"|>, fallback],
+        <|"Status" -> "RationalizedStripMultiquadraticFallbackUntyped",
           "PrimaryRationalFailure" -> primaryFailure,
           "FallbackResult" -> fallback|>]
     ]
@@ -1231,11 +1314,8 @@ SolveEpsFormStripInFrame[
   If[rootIndices === {},
     rationalStrip = strip;
     If[deferredSourceQ,
-      data = <|"Status" -> "OK", "Variables" -> variables,
-        "SourceVariables" -> variables,
-        "Subst" -> Thread[variables -> variables],
-        "Jacobian" -> IdentityMatrix[2], "JacobianDet" -> 1|>];
-    If[AssociationQ[deferredBundle] && ! deferredForcingMaterializedQ,
+      data = masterTransportCoefficientPresentationData[None, variables]];
+    If[AssociationQ[deferredBundle],
       bundlePullback = transportChartPullBackDeferredBundle[
         deferredBundle, data, {}, {}];
       If[Lookup[bundlePullback, "Status", None] =!= "OK",
@@ -1254,30 +1334,35 @@ SolveEpsFormStripInFrame[
       Return[budgetExhausted["SolverDispatch"]]];
     inner = solveRationalStrip[rationalStrip, variables];
     If[! innerSolvedQ[inner], Return[inner]];
-    Return[Join[inner, <|"Method" -> "RationalFrame/" <> inner["Method"],
-      "RootIndices" -> {}, "FrameCertificate" -> <|
-        "Chart" -> None, "GaugeRoundTrip" -> True,
-        "TransformedOneFormPullBack" -> True, "Exact" -> True|>|>]]];
+    Return[Join[inner, <|
+      "Method" -> "SourceVariableRepresentation/" <> inner["Method"],
+      "CoefficientPresentation" -> coefficientPresentationData,
+      "SquareRootGeneratorIndices" -> {}, "Validation" -> <|
+        "RationalizingParametrizationName" -> None,
+        "GaugeRoundTrip" -> True,
+        "TransformedOneFormPullBack" -> True,
+        "Method" -> "Exact", "Passed" -> True|>|>]]];
 
   (* BOUNDARY 2 (chart selection): the catalog walk re-verifies each
      candidate chart's exact root identities *)
   If[transportChartDeadlineExpiredQ[deadline],
-    Return[budgetExhausted["ChartSelection"]]];
+    Return[budgetExhausted["ParametrizationSelection"]]];
   {stageSeconds, chart} = AbsoluteTiming[
-    TransportRootSetChart[rootSquares, variables]];
-  timings["ChartSelection"] = stageSeconds;
+    LookupCataloguedRationalizingParametrizationForRoots[rootSquares, variables]];
+  timings["ParametrizationSelection"] = stageSeconds;
   If[MissingQ[chart],
     (* F2 (Design/GeneralityFixes2.md, 2026-08-23): no joint rational
        chart is not the end of the road.  The direct multiquadratic
        engine solves such a strip in the grade basis of the declared
        root set.  A reconstructed gauge with certified active dlog
        potentials and independent fresh residuals returns the installable
-       "Solved" ABI; an incomplete "ModularConsistent" result is recorded
+       "Solved" result; an incomplete "ModularConsistent" result is recorded
        but never installed.  The result is returned exactly as the engine
        typed it. *)
     If[! TrueQ[OptionValue["MultiquadraticDispatch"]],
-      Return[<|"Status" -> "NoRationalStripChart",
-        "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+      Return[<|"Status" -> "NoCataloguedRationalizingParametrization",
+        "CoefficientPresentation" -> coefficientPresentationData,
+        "SquareRootGeneratorIndices" -> rootIndices,
         "MultiquadraticDispatch" -> "Disabled"|>]];
     If[verbose, Print["[strip-in-frame] no rational chart for root squares ",
       rootSquares, "; dispatching to the multiquadratic engine"]];
@@ -1288,7 +1373,8 @@ SolveEpsFormStripInFrame[
     If[transportChartDeadlineExpiredQ[deadline],
       Return[budgetExhausted["MultiquadraticDispatch"]]];
     bundleRecord = Join[
-      <|"Variables" -> variables, "Regulator" -> epsilon, "Strip" -> strip|>,
+      <|"Variables" -> variables, "Regulator" -> epsilon, "Strip" -> strip,
+        "CoefficientPresentation" -> coefficientPresentationData|>,
       If[AssociationQ[deferredBundle],
         <|"DeferredBundle" -> deferredBundle|>, <||>],
       (* seam fix (Codex 2026-08-31 notes 02/04): the VALIDATED raw
@@ -1299,34 +1385,29 @@ SolveEpsFormStripInFrame[
          "DeferredPreparationFile" option to form its native source. *)
       If[AssociationQ[deferredPreparation],
         <|"DeferredPreparation" -> deferredPreparation|>, <||>]];
-    multiquadraticResult = Block[
-      {$blockEquationDeferredTrustedBundle =
-        If[AssociationQ[deferredBundle],
-          <|"Bundle" -> deferredBundle,
-            "Fingerprint" -> Lookup[deferredBundle,
-              "BundleFingerprint", None]|>, None]},
-      solveEpsFormStripMultiquadratic[
-        bundleRecord,
-        frame,
-        Sequence @@ DeleteDuplicatesBy[
-          Join[{
-              "RootClassification" -> classification},
-            multiquadraticOptions,
-            {"Deadline" -> deadline, "Verbose" -> TrueQ[verbose]}], First]]];
+    multiquadraticResult = solveEpsFormStripMultiquadratic[
+      bundleRecord,
+      coefficientPresentationData,
+      Sequence @@ DeleteDuplicatesBy[
+        Join[multiquadraticOptions,
+          {"Deadline" -> deadline, "Verbose" -> TrueQ[verbose]}], First]];
     If[! AssociationQ[multiquadraticResult],
       Return[<|"Status" -> "MultiquadraticDispatchNotTyped",
-        "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+        "CoefficientPresentation" -> coefficientPresentationData,
+        "SquareRootGeneratorIndices" -> rootIndices,
         "Result" -> multiquadraticResult|>]];
     multiquadraticStatus = Lookup[multiquadraticResult, "Status", None];
     If[MemberQ[$transportChartMultiquadraticScopeRefusals, multiquadraticStatus],
-      Return[<|"Status" -> "NoRationalStripChart",
-        "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+      Return[<|"Status" -> "NoCataloguedRationalizingParametrization",
+        "CoefficientPresentation" -> coefficientPresentationData,
+        "SquareRootGeneratorIndices" -> rootIndices,
         "MultiquadraticDispatch" -> "OutOfScope",
         "MultiquadraticRefusal" -> multiquadraticResult|>]];
     (* verbatim, with the frame's own root census added where the engine
        does not carry it (the typed failures do not) *)
     Return[Join[
-      <|"RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+      <|"CoefficientPresentation" -> coefficientPresentationData,
+        "SquareRootGeneratorIndices" -> rootIndices,
         "MultiquadraticDispatch" -> "Engine"|>,
       multiquadraticResult]]];
 
@@ -1334,27 +1415,32 @@ SolveEpsFormStripInFrame[
      record, the root images and the pulled-back declared squares are one
      Together pass each over the chart's entries *)
   If[transportChartDeadlineExpiredQ[deadline],
-    Return[budgetExhausted["ChartPreparation"]]];
+    Return[budgetExhausted["ParametrizationPreparation"]]];
   stageSeconds = AbsoluteTime[];
   chartVariables = {
     Symbol["FeynFacet`Private`stripChartX"],
     Symbol["FeynFacet`Private`stripChartY"]};
-  rekeyed = transportChartRekey[chart, variables, chartVariables];
-  data = masterTransportChartData[rekeyed, variables];
+  rekeyed = rekeyCoefficientPresentation[chart, variables, chartVariables];
+  data = masterTransportCoefficientPresentationData[rekeyed, variables];
   If[Lookup[data, "Status", None] =!= "OK", Return[data]];
-  chartRoots = Lookup[rekeyed, "Roots", {}];
+  chartRoots = Lookup[rekeyed, "RationalizedSquareRoots", {}];
   rootImages = Table[Module[{matching = SelectFirst[chartRoots,
-      TrueQ[Together[#["RootSquare"] -
-          usedRoots[[i]]["RootSquare"]] === 0] &,
-      Missing["RootNotRationalized"]]},
-    If[MissingQ[matching], matching, matching["Root"]]],
+      TrueQ[Together[#["SourceRadicand"] -
+          squareRootRecordRadicand[usedRoots[[i]]]] === 0] &,
+      Missing["SquareRootNotRationalized"]]},
+    If[MissingQ[matching], matching, matching["RationalRoot"]]],
     {i, Length[usedRoots]}];
   If[AnyTrue[rootImages, MissingQ],
-    Return[<|"Status" -> "StripChartRootMapMissing"|>]];
+    Return[<|"Status" ->
+      "RationalizingParametrizationSquareRootImageMissing"|>]];
   chartBranchRoots = Map[
-    <|"RootSquare" -> Together[#["RootSquare"] /. data["Subst"]]|> &,
+    <|"QuadraticRadicand" -> Together[
+        squareRootRecordRadicand[#] /.
+          masterTransportPresentationSubstitution[data]],
+      "Generator" -> squareRootRecordExpression[#],
+      "SourceRadicand" -> squareRootRecordRadicand[#]|> &,
     usedRoots];
-  timings["ChartPreparation"] = AbsoluteTime[] - stageSeconds;
+  timings["ParametrizationPreparation"] = AbsoluteTime[] - stageSeconds;
   (* BOUNDARY 4 (before the chart pullback): transportChartPullBackStrip
      is a SINGLE opaque pass -- substitution of the root images into
      every entry of the strip, then one Together over the result -- with
@@ -1364,7 +1450,7 @@ SolveEpsFormStripInFrame[
      It is deliberately NOT TimeConstrained (documented trap: a
      TimeConstrained step has escaped its bound in pool subkernels). *)
   If[transportChartDeadlineExpiredQ[deadline],
-    Return[budgetExhausted["ChartPullBack"]]];
+    Return[budgetExhausted["ParametrizationPullBack"]]];
   (* the root images and the pulled-back declared squares are needed
      BEFORE the pullback, not after it: transportChartPullBackStrip
      substitutes them into the chart entries and only then normalizes
@@ -1372,7 +1458,7 @@ SolveEpsFormStripInFrame[
   stageSeconds = AbsoluteTime[];
   chartStrip = transportChartPullBackStrip[
     strip, data, chartBranchRoots, rootImages];
-  If[AssociationQ[deferredBundle] && ! deferredForcingMaterializedQ,
+  If[AssociationQ[deferredBundle],
     bundlePullback = transportChartPullBackDeferredBundle[
       deferredBundle, data, chartBranchRoots, rootImages];
     If[Lookup[bundlePullback, "Status", None] =!= "OK",
@@ -1417,11 +1503,11 @@ SolveEpsFormStripInFrame[
     If[Lookup[preparationPullback, "Status", None] =!= "OK",
       Return[preparationPullback]];
     chartStrip[[3]] = preparationPullback["OneForm"]];
-  timings["ChartPullBack"] = AbsoluteTime[] - stageSeconds;
+  timings["ParametrizationPullBack"] = AbsoluteTime[] - stageSeconds;
   (* BOUNDARY 5 (after the pullback; also the last boundary before a
      solver runs on the chart route) *)
   If[transportChartDeadlineExpiredQ[deadline],
-    Return[budgetExhausted["ChartPullBackComplete"]]];
+    Return[budgetExhausted["ParametrizationPullBackComplete"]]];
   transportChartStageStart["inner solve",
     <|"chart" -> chart["Name"], "strip" -> stripDimensions,
       "leafCount" -> transportChartStageSize[chartStrip]|>];
@@ -1451,20 +1537,37 @@ SolveEpsFormStripInFrame[
       "branches" -> 2^Length[usedRoots],
       "alphabet" -> Length[Lookup[inner, "Alphabet", {}]]|>];
 
-  identityData = <|"Status" -> "OK", "Kind" -> "TwoVariable",
-    "CoefficientField" -> "Multiquadratic",
-    "Variables" -> variables, "SourceVariables" -> variables,
-    "Subst" -> Thread[variables -> variables],
-    "Jacobian" -> IdentityMatrix[2], "JacobianDet" -> 1,
-    "Root" -> If[allRoots === {}, None, allRoots[[1]]["Root"]],
-    "RootSquare" -> If[allRoots === {}, None,
-      allRoots[[1]]["RootSquare"]], "Roots" -> allRoots|>;
+  presentationVariables = masterTransportPresentationVariables[
+    coefficientPresentationData];
+  presentationRoots = coefficientPresentationSquareRootRecords[
+    coefficientPresentationData];
+  If[! MatchQ[presentationVariables, {_Symbol, _Symbol}] ||
+      ! ListQ[presentationRoots],
+    Return[<|"Status" -> "CoefficientPresentationInvalid",
+      "CoefficientPresentation" -> coefficientPresentationData,
+      "SquareRootGenerators" -> presentationRoots|>]];
+  presentationToSourceRules =
+    Thread[presentationVariables -> variables];
   coordinateMap = masterTransportRecordCoordinateMap[
-    <|"Variables" -> chartVariables, "Chart" -> rekeyed|>,
-    identityData, Automatic];
+    <|"CoefficientVariables" -> chartVariables,
+      "RationalizingParametrization" -> rekeyed|>,
+    coefficientPresentationData];
   If[Lookup[coordinateMap, "Status", None] =!= "OK",
     Return[<|"Status" -> "StripGaugePullBackFailed",
       "CoordinateMap" -> coordinateMap|>]];
+  (* The coordinate composition is solved in the presentation's own
+     coefficient variables.  This solver's contract returns its
+     basis-transformation block in the supplied differential variables;
+     these symbols name the same coefficient-variable slots, so re-key
+     them positionally before all remaining exact checks. *)
+  sourceCoordinateImages = Together /@
+    ((Last /@ coordinateMap["CoefficientVariableRules"]) /.
+      presentationToSourceRules);
+  coordinateMap = Join[coordinateMap, <|
+    "CoefficientVariableRules" -> MapThread[Rule,
+      {First /@ coordinateMap["CoefficientVariableRules"],
+        sourceCoordinateImages}],
+    "CoefficientVariableImages" -> sourceCoordinateImages|>];
   (* The INVERSE of a joint chart is obtained by solving, and Solve emits
      the second chart variable with a NESTED radicand -- for CF303
      {17,12} in Kallen23 the image carried
@@ -1478,20 +1581,22 @@ SolveEpsFormStripInFrame[
      consumer of the record assumes.  A frame image that cannot be
      rewritten stops the construction typed. *)
   mapCanonicalization = transportChartCanonicalizeFrameImages[
-    Last /@ coordinateMap["Map"], allRoots, variables];
+    sourceCoordinateImages, allRoots, variables];
   If[Lookup[mapCanonicalization, "Status", None] =!= "OK",
     Return[<|"Status" -> "StripGaugeMapNotInDeclaredField",
-      "CoordinateMap" -> KeyDrop[coordinateMap, "Images"],
+      "CoordinateMap" ->
+        KeyDrop[coordinateMap, "CoefficientVariableImages"],
       "Canonicalization" -> mapCanonicalization|>]];
   If[verbose && mapCanonicalization["Rewritten"] > 0,
     Print["[strip-in-frame] ", mapCanonicalization["Rewritten"],
       " coordinate-map radical(s) rewritten in the declared field: ",
       mapCanonicalization["RewrittenBases"]]];
   coordinateMap = Join[coordinateMap, <|
-    "Map" -> MapThread[Rule, {First /@ coordinateMap["Map"],
-      mapCanonicalization["Images"]}],
-    "Images" -> mapCanonicalization["Images"],
-    "DeclaredFieldRewrites" -> KeyTake[mapCanonicalization,
+    "CoefficientVariableRules" -> MapThread[Rule,
+      {First /@ coordinateMap["CoefficientVariableRules"],
+        mapCanonicalization["Images"]}],
+    "CoefficientVariableImages" -> mapCanonicalization["Images"],
+    "DeclaredSquareRootAlgebraRewrites" -> KeyTake[mapCanonicalization,
       {"Rewritten", "RewrittenBases", "NumericRadicalClasses"}]|>];
   transportChartStageMark["acceptance: coordinate map",
     <|"seconds" -> N[AbsoluteTime[] - stageSeconds],
@@ -1502,7 +1607,8 @@ SolveEpsFormStripInFrame[
    finiteFieldCanonicalQ,
     finiteFieldGauge = transportChartFiniteFieldCanonicalGauge[
       chartGauge, Lookup[inner, "GaugeDenominator", $Failed],
-      chartVariables, coordinateMap["Images"], variables, epsilon,
+      chartVariables, coordinateMap["CoefficientVariableImages"],
+      variables, epsilon,
       usedRoots,
       Sequence @@ DeleteDuplicatesBy[Join[finiteFieldGaugeOptions,
         {"Deadline" -> deadline, "Verbose" -> TrueQ[verbose]}], First]];
@@ -1516,7 +1622,8 @@ SolveEpsFormStripInFrame[
         "Helpers" -> 0|>],
    True,
     parallelTogether = transportChartParallelTogether[
-      chartGauge, coordinateMap["Map"], "chartgauge", deadline];
+      chartGauge, coordinateMap["CoefficientVariableRules"],
+      "basis-transformation-block", deadline];
     If[Lookup[parallelTogether, "Status", None] === "DeadlineExpired",
       timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
       Return[budgetExhausted["GaugePullBack"]]];
@@ -1532,7 +1639,8 @@ SolveEpsFormStripInFrame[
       "helpers" -> parallelTogether["Helpers"]|>];
   {substageSeconds, sourceAlphabet} = AbsoluteTiming[
     DeleteDuplicates[Together /@
-      (Lookup[inner, "Alphabet", {}] /. coordinateMap["Map"])]];
+      (Lookup[inner, "Alphabet", {}] /.
+        coordinateMap["CoefficientVariableRules"])] ];
   transportChartStageMark["acceptance: source alphabet",
     <|"seconds" -> N[substageSeconds], "letters" -> Length[sourceAlphabet]|>];
 
@@ -1550,7 +1658,8 @@ SolveEpsFormStripInFrame[
     postPullBackCandidates = Table[
       branchImages = MapThread[Times, {signs, rootImages}];
       postPullBackGauge = transportChartApplyRootBranches[
-          sourceGauge, usedRoots, branchImages] /. data["Subst"];
+          sourceGauge, usedRoots, branchImages] /.
+        masterTransportPresentationSubstitution[data];
       postPullBackVerification = If[AssociationQ[deferredForcingDescriptor],
         (* round 8 pass 3: the same residual with the DAG image of the forcing *)
         With[{r = finiteFieldDeferredForcingResidualQ[deferredForcingDescriptor["Key"],
@@ -1601,23 +1710,26 @@ SolveEpsFormStripInFrame[
     transportChartLogSuccessTimings[timings, chart["Name"], verbose];
     innerSeparated = transportChartSeparateTimings[KeyDrop[inner, "Gauge"]];
     Return[<|"Status" -> "Solved",
-      "Method" -> "RationalChart/" <> chart["Name"] <> "/" <>
+      "Method" -> "RationalizingParametrization/" <>
+        chart["Name"] <> "/" <>
         inner["Method"],
-      "Gauge" -> sourceGauge, "RootIndices" -> rootIndices,
-      "RootSquares" -> rootSquares, "Chart" -> chart,
+      "Gauge" -> sourceGauge,
+      "CoefficientPresentation" -> coefficientPresentationData,
+      "SquareRootGeneratorIndices" -> rootIndices,
       "Alphabet" -> sourceAlphabet,
       "InnerSolution" -> innerSeparated["Record"],
       "Timings" -> transportChartTimingsRecord[timings, innerSeparated["Timings"]],
       "ExactDLog" -> Lookup[inner, "ExactDLog", False],
       "Certificate" -> Lookup[inner, "Certificate", "ExactDLog"],
-      "FrameCertificate" -> <|
+      "Validation" -> <|
+        "RationalizingParametrizationName" -> chart["Name"],
         "CoordinateComposition" ->
-          TrueQ[coordinateMap["CompositionExact"]],
+          TrueQ[coordinateMap["CompositionVerified"]],
         "BranchSigns" -> First[acceptedSigns],
         "GaugeRoundTrip" -> True,
         "TransformedOneFormPullBack" -> True,
         "SourceDLog" -> Missing["DeferredToFamilyCertificate"],
-        "Exact" -> False,
+        "Passed" -> True,
         "ValidationMode" -> "PostPullBackFiniteFieldResidual",
         "InnerCertificate" -> Lookup[inner, "Certificate", None],
         "UnseenPrime" -> Lookup[inner, "UnseenPrime", None],
@@ -1695,7 +1807,9 @@ SolveEpsFormStripInFrame[
         branchedGauge = transportChartApplyRootBranches[
           sourceGauge, usedRoots, branchImages];
         zeroMatrixNamedQ["gauge round-trip zero test",
-          (branchedGauge /. data["Subst"]) - chartGauge]]],
+          (branchedGauge /.
+            masterTransportPresentationSubstitution[data]) -
+              chartGauge]]],
       $transportChartZeroTestTag,
       Function[{payload, tag}, zeroTestStop = payload; {}]]];
   transportChartStageMark["acceptance: branch round trip",
@@ -1716,28 +1830,30 @@ SolveEpsFormStripInFrame[
       <|"Status" -> "StripGaugeRoundTripUndeclaredRadicals",
         "RadicalBases" -> DeleteDuplicates[Flatten[comparatorRefusals]],
         "CoordinateMapRewrites" ->
-          Lookup[coordinateMap, "DeclaredFieldRewrites", <||>]|>]]];
+          Lookup[coordinateMap,
+            "DeclaredSquareRootAlgebraRewrites", <||>]|>]]];
   branchImages = MapThread[Times, {First[acceptedSigns], rootImages}];
   timings["GaugePullBack"] = AbsoluteTime[] - stageSeconds;
   transportChartStageDone["acceptance: gauge pull-back",
     <|"seconds" -> timings["GaugePullBack"],
       "branchSigns" -> First[acceptedSigns]|>];
 
-  (* BOUNDARY 7 (before the source-frame identity check): the check
-     re-derives the transformed one-form in the ALGEBRAIC frame, applies
+  (* BOUNDARY 7 (before the source-representation identity check): the check
+     re-derives the transformed one-form in the algebraic coefficient
+     presentation, applies
      the branch images and pulls the pair back through the Jacobian --
      the most expensive exact step of the construction on a large
      strip. *)
   If[transportChartDeadlineExpiredQ[deadline],
-    Return[budgetExhausted["SourceFrameIdentity"]]];
+    Return[budgetExhausted["SourceRepresentationIdentity"]]];
   stageSeconds = AbsoluteTime[];
-  transportChartStageStart["acceptance: source-frame identity",
+  transportChartStageStart["acceptance: source-representation identity",
     <|"chart" -> chart["Name"], "gauge" -> Dimensions[sourceGauge],
       "sourceGaugeLeafCount" -> transportChartStageSize[sourceGauge],
       "chartGaugeLeafCount" -> transportChartStageSize[chartGauge],
       "roots" -> Length[usedRoots]|>];
 
-  (* Same ordering rule as the pullback above: the source-frame
+  (* Same ordering rule as the pullback above: the source-representation
      transformed one-form carries the declared radicals in every entry,
      so it is NOT normalized here.  The branch images are substituted
      first and the canonical Together is taken inside pullPair, on
@@ -1766,9 +1882,12 @@ SolveEpsFormStripInFrame[
     sourceTransformed, usedRoots, branchImages];
   pullPair[pair_] := Module[{components},
     components = Map[
-      Map[Together, # /. data["Subst"], {2}] &, pair];
+      Map[Together,
+        # /. masterTransportPresentationSubstitution[data], {2}] &,
+      pair];
     masterTransportPullBackOneForm[
-      components[[1]], components[[2]], data["Jacobian"]]
+      components[[1]], components[[2]],
+      data["DifferentialPullbackMatrix"]]
   ];
   {substageSeconds, pulledTransformed} = AbsoluteTiming[Module[{pulled},
     pulled = pullPair[branchedGauge];
@@ -1783,15 +1902,16 @@ SolveEpsFormStripInFrame[
       "roots" -> Length[usedRoots]|>];
   zeroTestStop = None;
   identityHolds = Catch[
-    zeroMatrixNamedQ["source-frame zero test mu=1",
+    zeroMatrixNamedQ["source-representation zero test mu=1",
         pulledTransformed[[1]] - chartTransformed[[1]]] &&
-      zeroMatrixNamedQ["source-frame zero test mu=2",
+      zeroMatrixNamedQ["source-representation zero test mu=2",
         pulledTransformed[[2]] - chartTransformed[[2]]],
     $transportChartZeroTestTag,
     Function[{payload, tag}, zeroTestStop = payload; False]];
   If[AssociationQ[zeroTestStop],
-    timings["SourceFrameIdentity"] = AbsoluteTime[] - stageSeconds;
-    Return[Join[budgetExhausted["SourceFrameIdentity"],
+    timings["SourceRepresentationIdentity"] =
+      AbsoluteTime[] - stageSeconds;
+    Return[Join[budgetExhausted["SourceRepresentationIdentity"],
       <|"ZeroTestSubstage" -> Lookup[zeroTestStop, "Substage", "ZeroTest"]|>,
       KeyDrop[zeroTestStop, "Substage"]]]];
   transportChartStageDone["acceptance: one-form zero test",
@@ -1799,12 +1919,13 @@ SolveEpsFormStripInFrame[
       "identity" -> identityHolds|>];
   If[! identityHolds,
     Return[If[comparatorRefusals === {},
-      <|"Status" -> "StripGaugeSourceFrameIdentityFailed"|>,
-      <|"Status" -> "StripGaugeSourceFrameUndeclaredRadicals",
+      <|"Status" -> "StripGaugeSourceRepresentationIdentityFailed"|>,
+      <|"Status" -> "StripGaugeSourceRepresentationUndeclaredRadicals",
         "RadicalBases" -> DeleteDuplicates[Flatten[comparatorRefusals]]|>]]];
-  timings["SourceFrameIdentity"] = AbsoluteTime[] - stageSeconds;
-  transportChartStageDone["acceptance: source-frame identity",
-    <|"seconds" -> timings["SourceFrameIdentity"]|>];
+  timings["SourceRepresentationIdentity"] =
+    AbsoluteTime[] - stageSeconds;
+  transportChartStageDone["acceptance: source-representation identity",
+    <|"seconds" -> timings["SourceRepresentationIdentity"]|>];
   (* one rate-limited success diagnostic: the payload below is unchanged *)
   transportChartLogSuccessTimings[timings, chart["Name"], verbose];
 
@@ -1813,25 +1934,27 @@ SolveEpsFormStripInFrame[
      in the one "Timings" record (U4, 2026-09-02) *)
   innerSeparated = transportChartSeparateTimings[KeyDrop[inner, "Gauge"]];
   <|"Status" -> "Solved",
-    "Method" -> "RationalChart/" <> chart["Name"] <> "/" <> inner["Method"],
-    "Gauge" -> sourceGauge, "RootIndices" -> rootIndices,
-    "RootSquares" -> rootSquares, "Chart" -> chart,
+    "Method" -> "RationalizingParametrization/" <>
+      chart["Name"] <> "/" <> inner["Method"],
+    "Gauge" -> sourceGauge,
+    "CoefficientPresentation" -> coefficientPresentationData,
+    "SquareRootGeneratorIndices" -> rootIndices,
     "Alphabet" -> sourceAlphabet,
     "InnerSolution" -> innerSeparated["Record"],
     "Timings" -> transportChartTimingsRecord[timings, innerSeparated["Timings"]],
     "ExactDLog" -> TrueQ[Lookup[inner, "ExactDLog", False]],
     "Certificate" -> Lookup[inner, "Certificate", "ExactDLog"],
-    (* the success payload is byte-identical to the pre-2026-08-25 record:
-       the coordinate-map canonicalization is EVIDENCE OF A STOP and of
-       the verbose log, never a new key -- t_construction_budget pins this
-       payload by hash and other records fingerprint it *)
-    "FrameCertificate" -> <|
-      "CoordinateComposition" -> coordinateMap["CompositionExact"],
+    (* Coordinate-map canonicalization remains diagnostic evidence for a
+       typed stop; the accepted result records the exact identities below. *)
+    "Validation" -> <|
+      "RationalizingParametrizationName" -> chart["Name"],
+      "CoordinateComposition" -> coordinateMap["CompositionVerified"],
       "BranchSigns" -> First[acceptedSigns],
       "GaugeRoundTrip" -> True,
       "TransformedOneFormPullBack" -> True,
       "SourceDLog" -> True,
-      "Exact" -> True|>|>
+      "Method" -> "Exact",
+      "Passed" -> True|>|>
 ]
 ];
 

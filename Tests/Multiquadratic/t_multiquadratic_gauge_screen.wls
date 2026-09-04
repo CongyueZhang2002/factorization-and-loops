@@ -317,9 +317,9 @@ If[longTestsQ,
 (* G11-G13: the screen and the discovery on the real block CF300 (12,9) *)
 (* ------------------------------------------------------------------ *)
 
-FeynFacet`TransportFamilyChartLoad[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
+FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
    "Results", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
-chart = FeynFacet`TransportFamilyChart["CF300"];
+chart = FeynFacet`FamilyRootData["CF300"];
 (* FROZEN INPUTS (2026-08-25).  These three files used to be read from
    the LIVE campaign directory triple_root_2026-08-24_fable/CF300/,
    which every campaign mission rewrites: the strip input was rewritten

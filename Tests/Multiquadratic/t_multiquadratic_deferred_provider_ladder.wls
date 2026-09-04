@@ -16,7 +16,7 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
 Clear[dlx, dly, dle, dlcx, dlcy];
 variables = {dlx, dly}; epsilon = dle;
-frame = BuildAlgebraicTransportFrame[{dlx}, variables, {dlcx, dlcy}];
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[{dlx}, variables, {dlcx, dlcy}];
 
 (* lower block (2,1) is the exact forcing; the diagonal blocks used by the
    strip equation below are zero *)
@@ -26,7 +26,7 @@ connection = {
 };
 bundle = forcingOf[connection, {{1}, {2}}, 2, 1, <||>, variables,
   epsilon, "Output" -> "Bundle", "BundleRoots" -> {}];
-FTAssert["DL0 the rational deferred bundle is authenticated",
+FTAssert["DL0 the rational deferred bundle is valid",
   Lookup[bundle, "Status", None] === "PreparedDeferredBundle" &&
     Lookup[validateBundle[bundle], "Status", None] === "BundleValid"];
 
@@ -83,12 +83,9 @@ FTAssert["DL3 both images carry exact one-RHS consistency evidence",
       ConstantArray["SingleRightHandSideAffineInconsistency", 2] &&
     Lookup[rungs[[2]], "AugmentedRanks", {}] ===
       Lookup[rungs[[2]], "Ranks", {}]];
-FTAssert["DL4 support-only reprepare reuses the authenticated provider",
+FTAssert["DL4 support-only reprepare reuses the same coefficient provider",
   TrueQ[Lookup[rungs[[2]], "ProviderReused", False]] &&
-    Lookup[rungs[[1]], "ProviderFingerprint", None] ===
-      Lookup[rungs[[2]], "ProviderFingerprint", Missing[]] &&
-    Lookup[rungs[[1]], "LayoutFingerprint", None] =!=
-      Lookup[rungs[[2]], "LayoutFingerprint", None]];
+    rungs[[1, "SupportCount"]] < rungs[[2, "SupportCount"]]];
 FTAssert["DL5 the two successful pilots are not sampled or RREFed again",
   Lookup[ladder, "SuccessfulPilotReuseCount", 0] === 2 &&
     Lookup[reconstruction, "ReusedPilotImageCount", 0] === 2 &&

@@ -232,9 +232,9 @@ check["the frozen CF300 (12,9) strip and its exact channels are in the \
 repository",
   FileExistsQ[stripFile] && FileExistsQ[channelFile]];
 
-FeynFacet`TransportFamilyChartLoad[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
+FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
   "Results", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
-chart = FeynFacet`TransportFamilyChart["CF300"];
+chart = FeynFacet`FamilyRootData["CF300"];
 cfRecord = FeynFacet`FamilyArtifactRead[stripFile, "Global`"];
 frozenChannels = FeynFacet`FamilyArtifactRead[channelFile, "Global`"];
 cfVariables = cfRecord["Variables"];

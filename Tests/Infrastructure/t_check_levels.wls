@@ -52,16 +52,16 @@ de = FeynFacet`FamilyArtifactRead[FileNameJoin[{R, "DifferentialEquations", "nnl
 system = <|"Family" -> family, "Basis" -> de["BlockBasis"], "Av" -> de["Av"], "Aw" -> de["Aw"]|>;
 (* the per-family chart inventory is project data since 2026-08-23: register
    it exactly as the sector driver does *)
-FeynFacet`TransportFamilyChartLoad[FileNameJoin[{R, "TransportFamilyCharts.wl"}]];
-chart = FeynFacet`TransportFamilyChart[family];
+FeynFacet`LoadFamilyRootData[FileNameJoin[{R, "TransportFamilyCharts.wl"}]];
+chart = FeynFacet`FamilyRootData[family];
 If[chart === None || MissingQ[chart],   (* root-free or unregistered family: the identity chart, as the sector script does *)
   chart = <|"Name" -> "RationalIdentity", "Kind" -> "TwoVariable", "CoefficientField" -> "Rational",
     "Variables" -> {Global`x, Global`y}, "Subst" -> {Global`v -> Global`x, Global`w -> Global`y},
     "Root" -> None, "RootSquare" -> None, "Roots" -> {}, "Notes" -> "identity chart"|>];
 assemble[level_] := Block[{FeynFacet`Private`masterTransportCheckLevel = (level &)},
-  FeynFacet`TransportFamilyInChart[system, chart, "SourceVariables" -> {Global`v, Global`w}, "Regulator" -> Global`eps,
-    "AssemblyOnly" -> True, "Blocks" -> blocks, "FormDirectory" -> FileNameJoin[{R, "ClassForms"}],
-    "PhysicalValuation" -> 0, "Orders" -> {0, 1}, "TransportBackend" -> "Libra", "MaxWeight" -> 0, "Verbose" -> False]];
+  FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[system, chart, "SourceVariables" -> {Global`v, Global`w}, "Regulator" -> Global`eps,
+    "Blocks" -> blocks, "FormDirectory" -> FileNameJoin[{R, "ClassForms"}],
+    "Verbose" -> False]];
 {tD, dev} = AbsoluteTiming[assemble["Development"]];
 {tP, prod} = AbsoluteTiming[assemble["Production"]];
 If[! (AssociationQ[dev] && dev["Status"] ===

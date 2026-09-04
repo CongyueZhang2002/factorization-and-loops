@@ -143,11 +143,7 @@ ClearAll[
   $multiquadraticStripStageStartTime,
   $multiquadraticStripStageLog,
   multiquadraticStripFailure,
-  multiquadraticStripFingerprint,
   $multiquadraticStripForcingChannelSchema,
-  $multiquadraticStripForcingChannelSchemaV1,
-  multiquadraticStripForcingChannelFingerprint,
-  multiquadraticStripForcingChannelContentHash,
   multiquadraticStripForcingChannelRecord,
   multiquadraticStripForcingChannelsAccept,
   $multiquadraticStripPrepareCheckpointSchema,
@@ -171,14 +167,6 @@ ClearAll[
   $multiquadraticStripMaximumRootCount,
   $multiquadraticStripMaximumEpsilonDegree,
   $multiquadraticStripWordPrimeLimit,
-  $multiquadraticStripSourceFile,
-  $multiquadraticStripSourceSHA256,
-  $multiquadraticStripABIVersion,
-  multiquadraticStripLegacySourceSHA256Q,
-  multiquadraticStripABIKey,
-  multiquadraticStripABILineage,
-  multiquadraticStripABIVersionValidQ,
-  multiquadraticStripABIAliasExpected,
   $multiquadraticStripFreivaldsProjections,
   $multiquadraticStripPrimeCache,
   $multiquadraticStripEpsilonCache,
@@ -317,75 +305,6 @@ multiquadraticStripStageProgress[stage_String, data_Association] := If[
   True,
   False];
 
-(* The source identity is bound once, at load: DRCA re-hashed its own
-   file after every point assembly, which is one file read per modular
-   point and buys nothing that a boundary check does not. *)
-$multiquadraticStripSourceFile = If[StringQ[$InputFileName],
-  ExpandFileName[$InputFileName], ""];
-(* U3 (user decision 2026-09-02): the implementation identity carried by
-   every stored assembly, letter and potential certificate is a
-   HAND-MAINTAINED ABI version, not a hash of this file -- a comment edit
-   no longer invalidates every artifact.  Bump the string when the
-   certificate or cache-key semantics change.  Records written before this
-   date carry "SourceSHA256" instead and are admitted as the legacy
-   lineage by the alias below (until round 4 of 2026-09-02 this sentence
-   was prose only: every validator required the new key). *)
-$multiquadraticStripABIVersion = "MultiquadraticStripSolve-ABI-1";
-$multiquadraticStripSourceSHA256 = $multiquadraticStripABIVersion;
-
-(* The legacy lineage, concretely (round 4, 2026-09-02).  A record
-   written before U3 carries "SourceSHA256" -> <64 hex digits> (the hash
-   of the source file that wrote it) where a current record carries
-   "ABIVersion", and its seals -- the checkpoint Fingerprint, the
-   AssemblyFingerprint, the certificate KeyTake -- were computed over
-   that key.  A validator therefore recomputes each seal over the key
-   THE RECORD carries (multiquadraticStripABIKey): the content binding
-   is unchanged and only the implementation-identity key is aliased.
-   The legacy hash value itself is compared with nothing, which is what
-   U3 ruled (every pre-U3 source is the ABI-1 lineage); it stays bound
-   by the seal, so a changed hash is still a seal mismatch.  A record
-   with neither key, or with a malformed legacy hash, is refused, and
-   the lineage is reported typed by multiquadraticStripABILineage
-   ("ABIVersion" or "LegacySourceSHA256").  In-memory records (layouts,
-   samples, providers, pool keys) are always current-format and are not
-   aliased.  Tests/Multiquadratic/t_multiquadratic_legacy_abi_records.wls
-   drives a pre-U3-format record through every stored-record validator. *)
-multiquadraticStripLegacySourceSHA256Q[value_] :=
-  StringQ[value] && StringLength[value] === 64 &&
-    StringMatchQ[value, RegularExpression["[0-9a-f]{64}"]];
-
-multiquadraticStripABIKey[record_Association] := Which[
-  KeyExistsQ[record, "ABIVersion"], "ABIVersion",
-  multiquadraticStripLegacySourceSHA256Q[
-    Lookup[record, "SourceSHA256", None]], "SourceSHA256",
-  True, $Failed];
-multiquadraticStripABIKey[___] := $Failed;
-
-multiquadraticStripABILineage[record_] :=
-  Switch[multiquadraticStripABIKey[record],
-    "ABIVersion", "ABIVersion",
-    "SourceSHA256", "LegacySourceSHA256",
-    _, $Failed];
-
-(* the implementation-identity test of every stored-record validator *)
-multiquadraticStripABIVersionValidQ[record_] :=
-  Switch[multiquadraticStripABIKey[record],
-    "ABIVersion", record["ABIVersion"] === $multiquadraticStripABIVersion,
-    "SourceSHA256", True,
-    _, False];
-
-(* an expected certificate, re-keyed to the lineage of the record it is
-   compared with: for a legacy record the entry "ABIVersion" -> ABI-1
-   becomes "SourceSHA256" -> the record's own hash, in the same position *)
-multiquadraticStripABIAliasExpected[expected_Association, record_] :=
-  Switch[multiquadraticStripABIKey[record],
-    "ABIVersion", expected,
-    "SourceSHA256", Association[KeyValueMap[
-      If[#1 === "ABIVersion", "SourceSHA256" -> record["SourceSHA256"],
-        #1 -> #2] &, expected]],
-    _, $Failed];
-multiquadraticStripABIAliasExpected[___] := $Failed;
-
 (* U2 (2026-09-02): number of random row projections replayed over ALL
    original rows after a native (FLINT) constrained-core solve *)
 $multiquadraticStripFreivaldsProjections = 2;
@@ -502,82 +421,21 @@ multiquadraticStripDeadlineCheckpoint[substage_String,
     $multiquadraticStripDeadlineTag],
   False];
 
-multiquadraticStripFingerprint[value_] :=
-  Hash[ToString[InputForm[value]], "SHA256", "HexString"];
-
-(* ---- provenance for a reused forcing-channel decomposition ---------
-   (Codex 04:30 P2: "reused forcing channels need provenance, not only
-   shape")
-
-   Decomposing the forcing into grade channels a second time inside the
-   same call is a measured 807 s of the CF300 (12,9) compile, so the
-   preparation hands its own decomposition on.  The reuse used to be
-   accepted on ARRAY SHAPE and a $Failed scan alone: safe for the one
-   caller that supplies the array it has just built, and unsafe as a
-   general cache or artifact boundary, where a shape-compatible array
-   from a DIFFERENT strip would be installed silently and the whole
-   solve would be built on someone else's forcing.
-   A supplied decomposition therefore travels as a SEALED RECORD whose
-   fingerprint covers the forcing it decomposes, the declared root
-   order, the variables and the regulator; the consumer recomputes that
-   fingerprint from its own inputs and FAILS CLOSED on any mismatch. A
-   bare array carries no provenance and can only be shape-checked, so it
-   is refused typed rather than trusted.
-
-   ---- V2 (2026-08-25, Codex 14:30 P1: forcing-channel CONTENT) -------
-
-   V1 fingerprinted the forcing, the root squares, the rank and the
-   dimensions -- everything the channels are DERIVED FROM, and not the
-   channels themselves.  A same-shape mutation of the "Channels" field
-   under an otherwise valid V1 seal was therefore accepted, and the whole
-   solve was then built on BBar data that decomposes a different object.
-   The seal is a content seal now: "ChannelsSHA256" is a field of the
-   record AND an ingredient of the fingerprint, so a mutated channel
-   fails both the content test and the provenance test, and the two
-   failures are reported separately (a content mismatch names the
-   channels; a provenance mismatch names the strip).
-
-   V1 records are REFUSED, never upgraded: a V1 record proves nothing
-   about its channels, and silently re-sealing it here would mint exactly
-   the provenance it lacks.  The refusal is typed and its caller
-   decomposes the forcing itself, which is what a missing seal has always
-   meant. *)
-$multiquadraticStripForcingChannelSchemaV1 =
-  "MultiquadraticForcingChannelsV1";
+(* A channel decomposition is an internal computational intermediate.
+   It carries the mathematical data from which it was obtained, not a
+   digest or an implementation identity.  The final strip acceptance
+   re-evaluates the transformed differential equation independently, so
+   this boundary needs only reject reuse for a different mathematical
+   problem; it must not duplicate that final validation. *)
 $multiquadraticStripForcingChannelSchema =
-  "MultiquadraticForcingChannelsV2";
-
-(* A STRUCTURAL hash, not an algebraic one: the forcing of a real block
-   carries 10^4-10^5 leaves and the point of the reuse is to avoid
-   touching it again, so canonicalizing it here would cost more than the
-   decomposition it protects.  The chart variables and the regulator are
-   mapped to the module's formal symbols first (a cheap replacement), so
-   the seal does not depend on which context they arrived in; anything
-   else that differs -- a different strip, a different root order, a
-   different forcing -- changes the hash and the reuse is refused. *)
-multiquadraticStripForcingChannelContentHash[channels_, variables_List,
-    epsilon_] := Hash[
-  channels /. multiquadraticStripCanonicalRules[variables, epsilon],
-  "SHA256", "HexString"];
-
-multiquadraticStripForcingChannelFingerprint[forcing_, roots_List,
-    variables_List, epsilon_, contentHash_] := Module[
-  {rules = multiquadraticStripCanonicalRules[variables, epsilon]},
-  multiquadraticStripFingerprint[{
-    $multiquadraticStripForcingChannelSchema,
-    Hash[forcing /. rules, "SHA256"],
-    Hash[Lookup[roots, "RootSquare", {}] /. rules, "SHA256"],
-    Length[roots], Dimensions[forcing], contentHash}]];
+  "MultiquadraticForcingChannelsV3";
 
 multiquadraticStripForcingChannelRecord[channels_, forcing_, roots_List,
-    variables_List, epsilon_] := Module[
-  {contentHash = multiquadraticStripForcingChannelContentHash[channels,
-    variables, epsilon]},
+    variables_List, epsilon_] := Module[{rules},
+  rules = multiquadraticStripCanonicalRules[variables, epsilon];
   <|"Schema" -> $multiquadraticStripForcingChannelSchema,
-    "SchemaVersion" -> 2,
-    "ChannelsSHA256" -> contentHash,
-    "Fingerprint" -> multiquadraticStripForcingChannelFingerprint[forcing,
-      roots, variables, epsilon, contentHash],
+    "SchemaVersion" -> 3,
+    "DefiningData" -> ({forcing, roots} /. rules),
     "GradeCount" -> 2^Length[roots],
     "Dimensions" -> Dimensions[forcing],
     "Channels" -> channels|>
@@ -587,26 +445,15 @@ multiquadraticStripForcingChannelRecord[channels_, forcing_, roots_List,
    the caller turns into a failure record *)
 multiquadraticStripForcingChannelsAccept[supplied_, forcing_, roots_List,
     variables_List, epsilon_] := Module[
-  {expected, gradeCount, channels, schema, contentHash},
+  {definingData, gradeCount, channels, schema},
   If[supplied === Automatic || MissingQ[supplied] || supplied === None,
     Return[<|"Status" -> "NotSupplied"|>]];
   If[! AssociationQ[supplied],
-    Return[<|"Status" -> "ForcingChannelsUnsealed",
-      "Reason" -> "a forcing-channel decomposition must arrive as a sealed \
-record; a bare array carries no provenance and is refused"|>]];
+    Return[<|"Status" -> "ForcingChannelRecordExpected"|>]];
   schema = Lookup[supplied, "Schema", None];
-  (* refused-typed, NOT upgraded: a V1 seal authenticates the forcing it
-     decomposes and says nothing at all about the channels it carries *)
-  If[schema === $multiquadraticStripForcingChannelSchemaV1,
-    Return[<|"Status" -> "ForcingChannelSealSuperseded",
-      "SuppliedSchema" -> schema,
-      "ExpectedSchema" -> $multiquadraticStripForcingChannelSchema,
-      "Reason" -> "the V1 seal does not authenticate the channel content; \
-a V1 record is recomputed, never accepted"|>]];
   If[schema =!= $multiquadraticStripForcingChannelSchema,
-    Return[<|"Status" -> "ForcingChannelsUnsealed",
-      "Reason" -> "a forcing-channel decomposition must arrive as a sealed \
-record; a bare array carries no provenance and is refused"|>]];
+    Return[<|"Status" -> "ForcingChannelSchemaUnsupported",
+      "SuppliedSchema" -> schema|>]];
   gradeCount = 2^Length[roots];
   channels = Lookup[supplied, "Channels", $Failed];
   If[! ArrayQ[channels, 4] ||
@@ -615,23 +462,10 @@ record; a bare array carries no provenance and is refused"|>]];
     Return[<|"Status" -> "ForcingChannelShapeMismatch",
       "Expected" -> Append[Dimensions[forcing], gradeCount],
       "Actual" -> Dimensions[channels]|>]];
-  (* the CONTENT test first: it names the field that was mutated, while
-     the fingerprint test below cannot distinguish a channel mutation
-     from a different strip *)
-  contentHash = multiquadraticStripForcingChannelContentHash[channels,
-    variables, epsilon];
-  If[Lookup[supplied, "ChannelsSHA256", None] =!= contentHash,
-    Return[<|"Status" -> "ForcingChannelContentMismatch",
-      "ExpectedChannelsSHA256" -> contentHash,
-      "SuppliedChannelsSHA256" -> Lookup[supplied, "ChannelsSHA256",
-        Missing["NoChannelsSHA256"]]|>]];
-  expected = multiquadraticStripForcingChannelFingerprint[forcing, roots,
-    variables, epsilon, contentHash];
-  If[Lookup[supplied, "Fingerprint", None] =!= expected,
-    Return[<|"Status" -> "ForcingChannelProvenanceMismatch",
-      "ExpectedFingerprint" -> expected,
-      "SuppliedFingerprint" -> Lookup[supplied, "Fingerprint",
-        Missing["NoFingerprint"]]|>]];
+  definingData = {forcing, roots} /.
+    multiquadraticStripCanonicalRules[variables, epsilon];
+  If[! SameQ[Lookup[supplied, "DefiningData", Missing[]], definingData],
+    Return[<|"Status" -> "ForcingChannelDefiningDataMismatch"|>]];
   <|"Status" -> "Accepted", "Channels" -> channels|>
 ];
 
@@ -650,23 +484,17 @@ record; a bare array carries no provenance and is refused"|>]];
    "CandidateLetters", "GaugeDenominator" -- so a stop and a checkpoint
    speak the same vocabulary.
 
-   PROVENANCE.  A checkpoint is NOT a cache keyed by a file name.  Every
-   record carries implementation provenance for diagnostics, an INPUT
-   fingerprint over exactly the mathematical inputs its substage consumed,
-   a PAYLOAD content hash, and a seal fingerprint over the stored header.
-   Resume admission is deliberately blind to implementation provenance:
-   changing a backend or the source file cannot change a mathematical
-   intermediate.  A reader therefore requires the same substage and input,
-   and verifies that the stored payload still matches its stored seal.
-   The forcing checkpoint's payload is additionally the V2 sealed
-   forcing-channel record itself, so its channels are content
-   authenticated by exactly the code path the in-memory reuse uses.
+   A checkpoint stores the mathematical input of its substage directly.
+   Resume admission compares that input after mapping the caller's variable
+   names to the module's formal symbols.  Backend choices and source-file
+   identity are deliberately absent.  Subsequent stage predicates and the
+   final strip acceptance validate the mathematical result.
 
    CONTEXT.  Payloads are written in the formal System` symbols and
    mapped back on read, so a checkpoint written under Global` and read
    after CANONICA has taken over eps/x/y is the same object. *)
 $multiquadraticStripPrepareCheckpointSchema =
-  "MultiquadraticPrepareCheckpointV1";
+  "MultiquadraticPrepareCheckpointV2";
 
 $multiquadraticStripPrepareCheckpointSubstages = {
   "ForcingChannels", "CandidateLetters", "GaugeDenominator"};
@@ -677,31 +505,27 @@ multiquadraticStripPrepareCheckpointFile[directory_, tag_String,
     ToLowerCase[substage] <> ".wl"}];
 
 multiquadraticStripPrepareCheckpointRecord[substage_String,
-    inputFingerprint_, payload_, variables : {_Symbol, _Symbol},
+    definingInput_, payload_, variables : {_Symbol, _Symbol},
     epsilon_Symbol] := Module[
-  {canonical, contentHash},
-  canonical = payload /. multiquadraticStripCanonicalRules[variables, epsilon];
-  If[! multiquadraticStripContextFreeQ[canonical], Return[$Failed]];
-  contentHash = Hash[canonical, "SHA256", "HexString"];
-  Module[{header = <|
-      "Schema" -> $multiquadraticStripPrepareCheckpointSchema,
-      "SchemaVersion" -> 1,
-      "Substage" -> substage,
-      "ABIVersion" -> $multiquadraticStripABIVersion,
-      "AlgebraABIFingerprint" -> multiquadraticAlgebraABIFingerprint[],
-      "InputFingerprint" -> inputFingerprint,
-      "PayloadSHA256" -> contentHash|>},
-    Join[header,
-      <|"Fingerprint" -> multiquadraticStripFingerprint[header],
-        "Payload" -> canonical|>]]
+  {canonicalInput, canonicalPayload, rules},
+  rules = multiquadraticStripCanonicalRules[variables, epsilon];
+  canonicalInput = definingInput /. rules;
+  canonicalPayload = payload /. rules;
+  If[! multiquadraticStripContextFreeQ[{canonicalInput, canonicalPayload}],
+    Return[$Failed]];
+  <|"Schema" -> $multiquadraticStripPrepareCheckpointSchema,
+    "SchemaVersion" -> 2,
+    "Substage" -> substage,
+    "DefiningInput" -> canonicalInput,
+    "Payload" -> canonicalPayload|>
 ];
 multiquadraticStripPrepareCheckpointRecord[___] := $Failed;
 
 (* "Accepted" with the payload in the caller's symbols, or a typed
    refusal.  Nothing here recomputes and nothing here repairs. *)
 multiquadraticStripPrepareCheckpointAccept[record_, substage_String,
-    inputFingerprint_, variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
-  Module[{header, contentHash, abiKey},
+    definingInput_, variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
+  Module[{canonicalInput},
   If[! AssociationQ[record] ||
       Lookup[record, "Schema", None] =!=
         $multiquadraticStripPrepareCheckpointSchema,
@@ -713,42 +537,12 @@ multiquadraticStripPrepareCheckpointAccept[record_, substage_String,
     Return[<|"Status" -> "PrepareCheckpointSubstageMismatch",
       "Substage" -> substage,
       "SuppliedSubstage" -> Lookup[record, "Substage", None]|>]];
-  If[Lookup[record, "InputFingerprint", None] =!= inputFingerprint,
+  canonicalInput = definingInput /.
+    multiquadraticStripCanonicalRules[variables, epsilon];
+  If[! SameQ[Lookup[record, "DefiningInput", Missing[]], canonicalInput],
     Return[<|"Status" -> "PrepareCheckpointInputMismatch",
-      "Substage" -> substage,
-      "ExpectedInputFingerprint" -> inputFingerprint,
-      "SuppliedInputFingerprint" -> Lookup[record, "InputFingerprint",
-        Missing["NoInputFingerprint"]]|>]];
-  (* the implementation-identity KEY: "ABIVersion" or the legacy
-     "SourceSHA256" (U3 lineage); neither, or a malformed legacy hash, is
-     a typed refusal.  The VALUE is not compared: resume admission is
-     blind to the implementation version (t_multiquadratic_persistence
-     P5) -- the input fingerprint, the payload hash and the seal are the
-     binding, and the version is provenance. *)
-  abiKey = multiquadraticStripABIKey[record];
-  If[abiKey === $Failed,
-    Return[<|"Status" -> "PrepareCheckpointABIUnknown",
-      "Substage" -> substage,
-      "SuppliedKeys" -> Intersection[Keys[record],
-        {"ABIVersion", "SourceSHA256"}]|>]];
-  contentHash = Hash[Lookup[record, "Payload", $Failed],
-    "SHA256", "HexString"];
-  If[Lookup[record, "PayloadSHA256", None] =!= contentHash,
-    Return[<|"Status" -> "PrepareCheckpointContentMismatch",
-      "Substage" -> substage,
-      "ExpectedPayloadSHA256" -> contentHash,
-      "SuppliedPayloadSHA256" -> Lookup[record, "PayloadSHA256",
-        Missing["NoPayloadSHA256"]]|>]];
-  (* the seal was computed over the identity key the record carries *)
-  header = KeyTake[record, {"Schema", "SchemaVersion", "Substage",
-    abiKey, "AlgebraABIFingerprint", "InputFingerprint",
-    "PayloadSHA256"}];
-  If[Lookup[record, "Fingerprint", None] =!=
-      multiquadraticStripFingerprint[header],
-    Return[<|"Status" -> "PrepareCheckpointSealMismatch",
       "Substage" -> substage|>]];
   <|"Status" -> "Accepted", "Substage" -> substage,
-    "ABILineage" -> multiquadraticStripABILineage[record],
     "Payload" -> (record["Payload"] /.
       (Reverse /@ multiquadraticStripCanonicalRules[variables, epsilon]))|>
 ];
@@ -767,10 +561,8 @@ multiquadraticStripModRational[value_, prime_Integer] := Module[
   Mod[Numerator[rational] PowerMod[denominator, -1, prime], prime]
 ];
 
-(* Canonicalization for every stored fingerprint: the chart variables
-   and the regulator become formal System` symbols, so the InputForm
-   text of an ABI payload is the same in Global`, in a dedicated
-   artifact context, and after CANONICA has taken over eps/x/y. *)
+(* Map coefficient variables and epsilon to formal System` symbols so
+   persisted mathematical expressions compare independently of context. *)
 multiquadraticStripCanonicalRules[variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
   Join[Thread[variables -> {\[FormalX], \[FormalY]}], {epsilon -> \[FormalE]}];
 

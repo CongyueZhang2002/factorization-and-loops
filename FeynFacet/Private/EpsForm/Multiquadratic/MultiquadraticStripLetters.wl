@@ -3,19 +3,13 @@
    round 4, 2026-09-02, pure moves): field arithmetic in the grade basis, one-form span, alphabet construction,
    regulator samples, field membership and letter keys, certified dlog
    potentials, diagonal spans, the candidate letter set, gauge denominators.
-   Loads after the preceding parts (Private/LoadOrder.wl); the ABI, the
+   Loads after the preceding parts (Private/LoadOrder.wl); the shared data,
    globals and the shared utilities are in MultiquadraticStripSolve.wl. *)
 
 Begin["FeynFacet`Private`"];
 
 ClearAll[
-  multiquadraticStripLetterDLogCertificate,
-  multiquadraticStripLetterDLogCertificateWithKey,
-  multiquadraticStripLetterDLogCertificateValidQ,
   multiquadraticStripChannelTextKey,
-  multiquadraticStripExpressionTextKey,
-  $multiquadraticStripLetterDLogSchema,
-  $multiquadraticStripLetterDLogChannelSchema,
   $multiquadraticStripPotentialSchema,
   $multiquadraticStripPotentialCache,
   $multiquadraticStripPotentialCounters,
@@ -225,9 +219,9 @@ multiquadraticFieldDecompose[expression_, roots_List,
   If[rank > $multiquadraticStripMaximumRootCount ||
       ! MemberQ[{True, False}, normalizeInput], Return[$Failed]];
   deltas = If[rank === 0, {},
-    Together /@ Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]]];
+    Together /@ (squareRootRecordRadicand /@ roots)];
   If[! FreeQ[deltas, $Failed], Return[$Failed]];
-  rootImages = Lookup[roots, "Root", ConstantArray[$Failed, rank]];
+  rootImages = squareRootRecordExpression /@ roots;
   If[! FreeQ[rootImages, $Failed], Return[$Failed]];
   symbols = Table[Unique["multiquadraticRoot$"], {rank}];
   replaced = If[rank === 0, expression,
@@ -292,7 +286,8 @@ multiquadraticFieldDecompose[expression_, roots_List,
 
 multiquadraticFieldCompose[channels_List, roots_List] /;
     Length[channels] === 2^Length[roots] :=
-  multiquadraticToExpression[channels, Lookup[roots, "Root", {}]];
+  multiquadraticToExpression[channels,
+    squareRootRecordExpression /@ roots];
 multiquadraticFieldCompose[___] := $Failed;
 
 (* Embed a local channel vector over a subset of the declared roots
@@ -561,8 +556,8 @@ multiquadraticStripAlgebraicLetters[roots_List, alphabet_List,
   Module[{c},
     constantSymbol = c;
     Do[
-      delta = Together[Lookup[root, "RootSquare", $Failed]];
-      rootExpression = Lookup[root, "Root", $Failed];
+      delta = Together[squareRootRecordRadicand[root]];
+      rootExpression = squareRootRecordExpression[root];
       If[delta === $Failed || rootExpression === $Failed, Continue[]];
       (* A = 0: the root itself, admissible when delta factors into the
          alphabet (it always does when delta is a declared polar curve) *)
@@ -657,17 +652,16 @@ multiquadraticStripFieldMemberQ[expression_, roots_List] := Module[
       Power[_, exponent_Rational /; ! IntegerQ[exponent]]]]
 ];
 
-(* Deduplication key.  The Codex-derived basis keyed one-forms on their
+(* Deduplication key.  The basis once keyed one-forms on their
    exact channel decomposition, which is a field inversion per component
    and measured 1539 s of the 2429 s preparation of CF300 (12,9).  Two
    forms that are equal have the same Together normal form in canonical
-   symbols, so the text of that normal form is the key; a collision would
-   only merge two equal columns. *)
+   symbols.  Store that mathematical normal form itself as the key. *)
 multiquadraticStripFormTextKey[form : {_, _}, variables_List,
     epsilon_Symbol] := Module[{rules, canonical},
   rules = multiquadraticStripCanonicalRules[variables, epsilon];
   canonical = Quiet[Together /@ (form /. rules)];
-  Hash[ToString[InputForm[canonical]], "SHA256", "HexString"]
+  canonical
 ];
 
 (* When the exact grade channels already exist, they are the canonical
@@ -682,8 +676,7 @@ multiquadraticStripChannelTextKey[channels_List, variables_List,
   rules = multiquadraticStripCanonicalRules[variables, epsilon];
   canonical = Quiet[Map[Together, channels /. rules, {depth}]];
   If[! ListQ[canonical] || ! FreeQ[canonical, $Failed], Return[$Failed]];
-  Hash[ToString[InputForm[{Dimensions[canonical], canonical}]],
-    "SHA256", "HexString"]
+  {Dimensions[canonical], canonical}
 ];
 multiquadraticStripChannelTextKey[channels_List,
     variables : {_Symbol, _Symbol}] := Module[{rules, depth, canonical},
@@ -692,19 +685,9 @@ multiquadraticStripChannelTextKey[channels_List,
   rules = Thread[variables -> {\[FormalX], \[FormalY]}];
   canonical = Quiet[Map[Together, channels /. rules, {depth}]];
   If[! ListQ[canonical] || ! FreeQ[canonical, $Failed], Return[$Failed]];
-  Hash[ToString[InputForm[{Dimensions[canonical], canonical}]],
-    "SHA256", "HexString"]
+  {Dimensions[canonical], canonical}
 ];
 multiquadraticStripChannelTextKey[___] := $Failed;
-
-(* A cheap structural key for an internally constructed expression.  Unlike
-   the channel key this deliberately performs no algebra: it binds the exact
-   raw letter stored in the record while normalizing only the two chart-symbol
-   names.  The retained grade channels separately bind its field value. *)
-multiquadraticStripExpressionTextKey[expression_,
-    variables : {_Symbol, _Symbol}] := Hash[ToString[InputForm[
-      expression /. Thread[variables -> {\[FormalX], \[FormalY]}]]],
-    "SHA256", "HexString"];
 
 multiquadraticStripLetterOneForm[letter_, variables : {x_, y_}] := Module[
   {value = Quiet[Together[letter]], derivative},
@@ -729,10 +712,7 @@ multiquadraticStripLetterOneForm[letter_, variables : {x_, y_}] := Module[
 multiquadraticStripLetterDLogDataInField[letter_, roots_List,
     variables : {x_, y_}] := Module[
   {channelData, letterChannels = Missing["NotRetained"], channels, form,
-   letterChannelKey, formChannelKey, letterExpressionKey, potentialPairKey,
    channelZeroQ},
-  letterExpressionKey = multiquadraticStripExpressionTextKey[
-    letter, variables];
   If[roots =!= {},
     channelData = Quiet[multiquadraticStripLetterChannelData[
       letter, roots, variables]];
@@ -745,22 +725,12 @@ multiquadraticStripLetterDLogDataInField[letter_, roots_List,
       form = Quiet[multiquadraticFieldCompose[#1, roots] & /@ channels];
       If[MatchQ[form, {_, _}] && FreeQ[form,
           $Failed | DirectedInfinity | Indeterminate],
-        letterChannelKey = multiquadraticStripChannelTextKey[
-          letterChannels, variables];
-        formChannelKey = multiquadraticStripChannelTextKey[
-          channels, variables];
-        potentialPairKey = multiquadraticStripPotentialPairKey[
-          letter, form, variables, \[FormalE]];
         (* Both constructors end their channel arithmetic in Together, so an
            exact zero channel is already the integer 0.  Record that verdict
            here instead of normalizing the same channels again on admission. *)
         channelZeroQ = AllTrue[Flatten[channels], SameQ[#1, 0] &];
         Return[<|"OneForm" -> form, "Channels" -> channels,
           "LetterChannels" -> letterChannels,
-          "LetterChannelKey" -> letterChannelKey,
-          "LetterExpressionKey" -> letterExpressionKey,
-          "OneFormChannelKey" -> formChannelKey,
-          "PotentialPairKey" -> potentialPairKey,
           "ChannelZeroQ" -> channelZeroQ,
           "Path" -> "GradeAlgebra"|>]]]];
   form = multiquadraticStripLetterOneForm[letter, variables];
@@ -768,8 +738,6 @@ multiquadraticStripLetterDLogDataInField[letter_, roots_List,
   channels = If[roots === {}, List /@ form,
     Quiet[multiquadraticFieldDecompose[#1, roots] & /@ form]];
   letterChannels = If[roots === {}, {letter}, Missing["NotRetained"]];
-  potentialPairKey = multiquadraticStripPotentialPairKey[
-    letter, form, variables, \[FormalE]];
   channelZeroQ = If[MatchQ[channels, {_List, _List}] &&
       FreeQ[channels, $Failed],
     AllTrue[Flatten[channels], SameQ[#1, 0] &],
@@ -778,14 +746,6 @@ multiquadraticStripLetterDLogDataInField[letter_, roots_List,
     "Channels" -> If[MatchQ[channels, {_List, _List}] &&
       FreeQ[channels, $Failed], channels, Missing["NotRetained"]],
     "LetterChannels" -> letterChannels,
-    "LetterChannelKey" -> If[ListQ[letterChannels],
-      multiquadraticStripChannelTextKey[letterChannels, variables],
-      Missing["NotRetained"]],
-    "LetterExpressionKey" -> letterExpressionKey,
-    "OneFormChannelKey" -> If[MatchQ[channels, {_List, _List}],
-      multiquadraticStripChannelTextKey[channels, variables],
-      Missing["NotRetained"]],
-    "PotentialPairKey" -> potentialPairKey,
     "ChannelZeroQ" -> channelZeroQ,
     "Path" -> "MaterializedFallback"|>
 ];
@@ -990,115 +950,11 @@ multiquadraticStripConstructDLogBatch[letters_List, roots_List,
 ];
 multiquadraticStripConstructDLogBatch[___] := $Failed;
 
-(* ---- the compact-route dlog certificate (2026-08-25, Codex 14:30 P1)
-
-   multiquadraticStripCompileOneFormEntry may compile a one-form by
-   decomposing its LETTER and differentiating inside the grade algebra --
-   which computes the channels of dlog(Letter), not the channels of the
-   form it was asked to compile.  Those two agree exactly when the record
-   is one this module built.  The old admission test was
-   SameQ[record["OneForm"], form]: it proves the caller passed the form
-   it stored, and NOTHING about whether that form is the letter's dlog.
-   A caller-assembled record naming a correct letter and a wrong one-form
-   passed it, and the compiler then silently installed dlog(Letter) in
-   place of the requested form.
-
-   The certificate is minted HERE, at the only site that pairs a letter
-   with the one-form it computed from it, and it binds the SHA-256 of
-   BOTH canonical texts.  Admission re-derives both hashes from the
-   letter and the form actually presented at the call, so a mutation of
-   either field breaks the binding.  It is provenance, not a proof of
-   correctness of this function; what it proves is that these two
-   objects were produced together by this code path from this source. *)
-$multiquadraticStripLetterDLogSchema = "MultiquadraticLetterDLogV1";
-$multiquadraticStripLetterDLogChannelSchema =
-  "MultiquadraticLetterDLogChannelsV2";
-
-(* The two hashes use exactly the normalization
-   multiquadraticStripFormTextKey already applies to every candidate
-   one-form -- ONE Together per component and the InputForm text of the
-   result.  Deliberately NOT multiquadraticStripCanonicalText, which
-   additionally Expands the numerator and the denominator: on a real
-   block's algebraic one-form that Expand is unbounded, and it would
-   make minting a provenance tag cost more than the algebra the tag
-   exists to avoid.  Together alone is canonical enough for a hash --
-   it is deterministic, and the mint and the check run it on the same
-   objects. *)
-multiquadraticStripLetterDLogCertificate[letter_, form_,
-    variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
-  multiquadraticStripLetterDLogCertificateWithKey[letter,
-    If[MatchQ[form, {_, _}],
-      multiquadraticStripFormTextKey[form, variables, epsilon],
-      $Failed], variables, epsilon];
-
-(* the form key is what multiquadraticStripCandidateLetters computes for
-   every record anyway, so the mint costs ONE Together on the letter *)
-multiquadraticStripLetterDLogCertificateWithKey[letter_, formKey_,
-    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
-  {rules, letterText},
-  If[! StringQ[formKey] || MissingQ[letter], Return[Missing["NoLetter"]]];
-  rules = multiquadraticStripCanonicalRules[variables, epsilon];
-  letterText = Quiet[ToString[InputForm[Together[letter /. rules]]]];
-  If[! StringQ[letterText], Return[Missing["LetterNotNormalizable"]]];
-  <|"Schema" -> $multiquadraticStripLetterDLogSchema,
-    "ABIVersion" -> $multiquadraticStripABIVersion,
-    "LetterSHA256" -> Hash[letterText, "SHA256", "HexString"],
-    "OneFormSHA256" -> formKey|>
-];
-
-multiquadraticStripLetterDLogCertificateValidQ[certificate_, letter_, form_,
-    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[{expected},
-  If[! AssociationQ[certificate], Return[False]];
-  If[Lookup[certificate, "Schema", None] =!=
-      $multiquadraticStripLetterDLogSchema, Return[False]];
-  expected = multiquadraticStripABIAliasExpected[
-    multiquadraticStripLetterDLogCertificate[letter, form, variables, epsilon],
-    certificate];
-  AssociationQ[expected] && SameQ[
-    KeyTake[certificate, Keys[expected]], expected]
-];
-
-(* Internal grade-algebra records use their already-certified rational
-   channels as the provenance payload and also bind the exact stored letter
-   spelling.  The compile boundary recomposes the one-form channels exactly;
-   the spelling key detects raw-letter mutation without demanding that a
-   recomposed radical expression be SameQ to an algebraically equal input.
-   The five-argument V1 validator above remains the contract for records that
-   do not carry retained channels. *)
-multiquadraticStripLetterDLogCertificateValidQ[certificate_, letter_, form_,
-    variables : {_Symbol, _Symbol}, epsilon_Symbol,
-    letterChannels_List, formChannels_List] := Module[
-  {letterKey, formKey, letterExpressionKey, expected},
-  If[Lookup[certificate, "Schema", None] =!=
-      $multiquadraticStripLetterDLogChannelSchema,
-    Return[multiquadraticStripLetterDLogCertificateValidQ[
-      certificate, letter, form, variables, epsilon]]];
-  If[MissingQ[letter] || ! MatchQ[form, {_, _}], Return[False]];
-  letterKey = multiquadraticStripChannelTextKey[
-    letterChannels, variables, epsilon];
-  formKey = multiquadraticStripChannelTextKey[
-    formChannels, variables, epsilon];
-  letterExpressionKey = multiquadraticStripExpressionTextKey[
-    letter, variables];
-  expected = multiquadraticStripABIAliasExpected[
-    <|"Schema" -> $multiquadraticStripLetterDLogChannelSchema,
-      "ABIVersion" -> $multiquadraticStripABIVersion,
-      "LetterExpressionSHA256" -> letterExpressionKey,
-      "LetterChannelSHA256" -> letterKey,
-      "OneFormChannelSHA256" -> formKey|>, certificate];
-  StringQ[letterKey] && StringQ[formKey] &&
-    StringQ[letterExpressionKey] && AssociationQ[expected] &&
-    SameQ[KeyTake[certificate, Keys[expected]], expected]
-];
-
 (* ------------------------------------------------------------------ *)
 (* CERTIFIED dlog POTENTIALS (2026-08-26, round-2 item 7)               *)
 (* ------------------------------------------------------------------ *)
 
-(* Codex review 1.2 and Pro's answer 2, in one sentence: a hash is
-   provenance, not a proof.  The certificate above proves that a letter
-   and a one-form were produced TOGETHER by this code path from this
-   source; an epsilon form needs the MATHEMATICAL statement
+(* An epsilon form needs the mathematical statement
 
        omega_a = dlog L_a,     i.e.   omega_a - dL_a/L_a = 0 exactly,
 
@@ -1108,8 +964,8 @@ multiquadraticStripLetterDLogCertificateValidQ[certificate_, letter_, form_,
    uninstallable and the engine has always said so.  What was missing is
    the positive half -- an actual verification, carried with the form.
 
-   COST.  Both reviews prescribe the same policy: verify ONCE per unique
-   (omega, L) pair, unconditionally, and cache the verdict by CONTENT.
+   Verify once per unique (omega, L) pair and cache the verdict by the
+   canonical mathematical pair itself.
    The relation is two Together calls on objects the alphabet layer has
    already normalized; against the algebraic stage it is free, and the
    cache makes a repeated pair free outright.  The key is the pair of
@@ -1139,20 +995,16 @@ multiquadraticStripPotentialStatistics[] :=
     <|"Entries" -> Length[$multiquadraticStripPotentialCache],
       "EntryLimit" -> $multiquadraticStripPotentialCacheEntryLimit|>];
 
-(* the content key of a (one-form, letter) PAIR: the same two canonical
-   texts the provenance certificate hashes, so a verified pair and its
-   certificate name the same objects *)
+(* Canonical mathematical data for a (one-form, letter) pair. *)
 multiquadraticStripPotentialPairKey[letter_, form_,
     variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
-  {rules, letterText, formKey},
+  {rules, canonicalLetter, canonicalForm},
   If[MissingQ[letter] || ! MatchQ[form, {_, _}], Return[$Failed]];
   rules = multiquadraticStripCanonicalRules[variables, epsilon];
-  letterText = Quiet[ToString[InputForm[Together[letter /. rules]]]];
-  If[! StringQ[letterText], Return[$Failed]];
-  formKey = multiquadraticStripFormTextKey[form, variables, epsilon];
-  If[! StringQ[formKey], Return[$Failed]];
-  Hash[{$multiquadraticStripPotentialSchema, letterText, formKey},
-    "SHA256", "HexString"]
+  canonicalLetter = Quiet[Together[letter /. rules]];
+  canonicalForm = Quiet[Together /@ (form /. rules)];
+  If[! FreeQ[{canonicalLetter, canonicalForm}, $Failed], Return[$Failed]];
+  {canonicalLetter, canonicalForm}
 ];
 
 (* Evidence for the INTERNAL constructor, which has just produced form as
@@ -1163,21 +1015,13 @@ multiquadraticStripPotentialPairKey[letter_, form_,
    canonical grade-channel payloads, but record explicitly that exactness
    follows from construction.  Caller-supplied pairs still go through
    multiquadraticStripVerifyPotential and can be refused. *)
-multiquadraticStripConstructedDLogEvidence[letterKey_String,
-    formKey_String, letterExpressionKey_String,
-    potentialPairKey_String] := Module[
-  {certificate, potential},
-  certificate = <|"Schema" -> $multiquadraticStripLetterDLogChannelSchema,
-    "ABIVersion" -> $multiquadraticStripABIVersion,
-    "LetterExpressionSHA256" -> letterExpressionKey,
-    "LetterChannelSHA256" -> letterKey,
-    "OneFormChannelSHA256" -> formKey|>;
+multiquadraticStripConstructedDLogEvidence[letter_, form_] := Module[
+  {potential},
   potential = <|"Schema" -> $multiquadraticStripPotentialSchema,
     "Status" -> "PotentialVerified", "Verified" -> True,
-    "PairKey" -> potentialPairKey,
-    "ABIVersion" -> $multiquadraticStripABIVersion,
+    "Letter" -> letter, "OneForm" -> form,
     "VerificationMethod" -> "ConstructedExactDLog"|>;
-  <|"Potential" -> potential, "DLogCertificate" -> certificate|>
+  <|"Potential" -> potential|>
 ];
 multiquadraticStripConstructedDLogEvidence[___] := $Failed;
 
@@ -1202,16 +1046,18 @@ multiquadraticStripVerifyPotential[letter_, form_,
   If[MissingQ[letter],
     Return[<|"Schema" -> $multiquadraticStripPotentialSchema,
       "Status" -> "NoPotentialOffered", "Verified" -> False,
-      "PairKey" -> Missing["NoLetter"], "Cached" -> False|>]];
+      "Letter" -> Missing["NoLetter"], "OneForm" -> form,
+      "Cached" -> False|>]];
   If[! MatchQ[form, {_, _}],
     Return[<|"Schema" -> $multiquadraticStripPotentialSchema,
       "Status" -> "InvalidOneForm", "Verified" -> False,
-      "PairKey" -> Missing["NoForm"], "Cached" -> False|>]];
+      "Letter" -> letter, "OneForm" -> Missing["NoForm"],
+      "Cached" -> False|>]];
   key = multiquadraticStripPotentialPairKey[letter, form, variables, epsilon];
-  If[! StringQ[key],
+  If[key === $Failed,
     Return[<|"Schema" -> $multiquadraticStripPotentialSchema,
       "Status" -> "PairNotNormalizable", "Verified" -> False,
-      "PairKey" -> Missing["NotNormalizable"], "Cached" -> False|>]];
+      "Letter" -> letter, "OneForm" -> form, "Cached" -> False|>]];
   cached = Lookup[$multiquadraticStripPotentialCache, key, Missing["NoEntry"]];
   If[! MissingQ[cached],
     $multiquadraticStripPotentialCounters["Hits"] += 1;
@@ -1224,11 +1070,9 @@ multiquadraticStripVerifyPotential[letter_, form_,
     $multiquadraticStripPotentialCounters["Refused"] += 1];
   record = <|"Schema" -> $multiquadraticStripPotentialSchema,
     "Status" -> If[TrueQ[zeroQ], "PotentialVerified", "PotentialRefused"],
-    "Verified" -> TrueQ[zeroQ], "PairKey" -> key,
-    "ABIVersion" -> $multiquadraticStripABIVersion,
+    "Verified" -> TrueQ[zeroQ], "Letter" -> letter, "OneForm" -> form,
     "Cached" -> False|>;
-  (* bounded by ENTRY COUNT: an entry is five short values and a hash,
-     so a byte bound would only restate the entry bound *)
+  (* bounded by entry count *)
   If[Length[$multiquadraticStripPotentialCache] >=
       $multiquadraticStripPotentialCacheEntryLimit,
     $multiquadraticStripPotentialCache = <||>;
@@ -1783,7 +1627,7 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
   samples = multiquadraticStripRegulatorSampleValues[bbar, variables, epsilon,
     sampleCount, pool];
   multiquadraticStripStageDone["candidate letters: regulator samples"];
-  rootSquares = Lookup[roots, "RootSquare", {}];
+  rootSquares = squareRootRecordRadicand /@ roots;
   entries = Flatten[samples["SubstitutedEntries"]];
   multiquadraticStripStageStart["candidate letters: polar census",
     <|"forcingEntries" -> Length[entries]|>];
@@ -1818,12 +1662,10 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
      extraOut = extra,
      derivedNorm = Missing["NotDerived"],
      constructedQ = oneFormIn === Automatic || AssociationQ[oneFormIn],
-     evidence, potential, certificate, dlogData,
+     evidence, potential, dlogData,
      channels = Missing["NotRetained"],
      letterChannels = Missing["NotRetained"], channelRepresentationQ,
-     constructedChannelEvidenceQ, letterChannelKey = $Failed,
-     letterExpressionKey = $Failed, potentialPairKey = $Failed,
-     suppliedFormChannelKey = $Failed,
+     constructedChannelEvidenceQ,
      constructedChannelZeroQ = Missing["NotRetained"], zeroQ},
     (* AN INSTALLED LETTER MUST BE EPSILON-INDEPENDENT (round-3 A2): a
        letter such as eps*x has the same kinematic dlog as x, so its
@@ -1853,12 +1695,6 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
       channels = Lookup[dlogData, "Channels", Missing["NotRetained"]];
       letterChannels = Lookup[dlogData, "LetterChannels",
         Missing["NotRetained"]];
-      letterChannelKey = Lookup[dlogData, "LetterChannelKey", $Failed];
-      letterExpressionKey = Lookup[dlogData,
-        "LetterExpressionKey", $Failed];
-      suppliedFormChannelKey = Lookup[dlogData,
-        "OneFormChannelKey", $Failed];
-      potentialPairKey = Lookup[dlogData, "PotentialPairKey", $Failed];
       constructedChannelZeroQ = Lookup[dlogData, "ChannelZeroQ",
         Missing["NotRetained"]]];
     If[oneForm === $Failed || ! MatchQ[oneForm, {_, _}], Return[Null]];
@@ -1911,47 +1747,21 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
         (! multiquadraticStripFieldMemberQ[oneForm[[1]], roots] ||
          ! multiquadraticStripFieldMemberQ[oneForm[[2]], roots]), Return[Null]];
     fkey = If[channelRepresentationQ,
-      If[constructedQ && StringQ[suppliedFormChannelKey],
-        suppliedFormChannelKey,
-        multiquadraticStripChannelTextKey[channels, variables, epsilon]],
+      multiquadraticStripChannelTextKey[channels, variables, epsilon],
       multiquadraticStripFormTextKey[oneForm, variables, epsilon]];
-    If[! StringQ[fkey], Return[Null]];
+    If[fkey === $Failed, Return[Null]];
     If[constructedChannelEvidenceQ,
-      If[! StringQ[letterChannelKey],
-        letterChannelKey = multiquadraticStripChannelTextKey[
-          letterChannels, variables, epsilon]];
-      If[! StringQ[letterChannelKey], Return[Null]];
-      If[! StringQ[letterExpressionKey],
-        letterExpressionKey = multiquadraticStripExpressionTextKey[
-          letter, variables]];
-      If[! StringQ[letterExpressionKey], Return[Null]];
-      If[! StringQ[potentialPairKey],
-        potentialPairKey = multiquadraticStripPotentialPairKey[
-          letter, oneForm, variables, epsilon]];
-      If[! StringQ[potentialPairKey], Return[Null]];
       evidence = multiquadraticStripConstructedDLogEvidence[
-        letterChannelKey, fkey, letterExpressionKey, potentialPairKey];
+        letter, oneForm];
       If[! AssociationQ[evidence], Return[Null]];
-      potential = evidence["Potential"];
-      certificate = evidence["DLogCertificate"],
+      potential = evidence["Potential"],
       potential = KeyDrop[multiquadraticStripVerifyPotential[letter,
-        oneForm, variables, epsilon], "Cached"];
-      certificate = If[MissingQ[letter], Missing["NotADLog"],
-        multiquadraticStripLetterDLogCertificate[
-          letter, oneForm, variables, epsilon]]];
+        oneForm, variables, epsilon], "Cached"]];
     If[constructedQ && channelRepresentationQ &&
         TrueQ[Lookup[potential, "Verified", False]],
       AssociateTo[channelByFormKey, fkey -> channels]];
-    (* THE dlog CERTIFICATE, minted at the one site that pairs a letter
-       with the one-form computed from it.  A "Diagonal" record carries
-       Missing["NotADLog"] as its letter and therefore no certificate: it
-       is a closed form, not a dlog, and the compact route must refuse it
-       -- which is exactly what an absent certificate makes it do. *)
-    (* THE POTENTIAL, verified once per unique (omega, L) pair and cached
-       by content (round-2 item 7).  This is the mathematical statement
-       the certificate above only carries provenance for: a record whose
-       "Potential" is not Verified is not an installable letter, whatever
-       its provenance says. *)
+    (* The potential is exact by construction or has passed the explicit
+       dlog equation.  A closed form without a letter remains non-dlog. *)
     AppendTo[records, Join[<|"Kind" -> kind, "Letter" -> letter,
       "OneForm" -> oneForm, "FormKey" -> fkey,
       (* KeyDrop["Cached"]: whether this pair was verified now or read
@@ -1959,8 +1769,7 @@ multiquadraticStripCandidateLetters[strip : {e_List, c_List, bbar_List},
          identical preparations must be byte-identical (the prepare-core
          suite compares them with SameQ).  The hit/miss counts stay
          available through multiquadraticStripPotentialStatistics[]. *)
-      "Potential" -> potential,
-      "DLogCertificate" -> certificate|>,
+      "Potential" -> potential|>,
       If[channelRepresentationQ,
         <|"OneFormChannels" -> channels|>, <||>],
       If[constructedQ && channelRepresentationQ &&

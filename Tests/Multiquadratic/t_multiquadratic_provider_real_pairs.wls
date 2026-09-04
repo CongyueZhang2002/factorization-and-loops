@@ -74,7 +74,7 @@ If[! (FileExistsQ[chartFile] &&
     " FAIL"];
   Exit[1]];
 
-registration = FeynFacet`TransportFamilyChartLoad[chartFile];
+registration = FeynFacet`LoadFamilyRootData[chartFile];
 check["the project family-chart inventory authenticates",
   Lookup[registration, "Status", None] === "FamilyChartsRegistered"];
 
@@ -111,8 +111,8 @@ runCase[case_Association] := Module[
   (* The saved inputs are already written in the registered frame's target
      variables {x,y}.  Keep its authenticated source {v,w} -> target {x,y}
      identity map; rebuilding with {x,y} as BOTH source and target would
-     destroy the distinction that BuildAlgebraicTransportFrame certifies. *)
-  frame = FeynFacet`TransportFamilyChart["CF259"];
+     destroy the distinction that BuildSquareRootGeneratorsAndQuadraticRelations certifies. *)
+  frame = FeynFacet`FamilyRootData["CF259"];
   allRoots = If[AssociationQ[frame],
     mq["transportChartCurrentRoots"][frame, variables], $Failed];
   expectedIndices = case["RootIndices"];

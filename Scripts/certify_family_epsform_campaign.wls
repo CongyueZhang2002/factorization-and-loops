@@ -41,9 +41,10 @@ Do[
   If[FileExistsQ[outputFile],
     existing = FeynFacet`FamilyArtifactRead[outputFile];
     If[AssociationQ[existing] &&
-        FeynFacet`CertifiedFamilyEpsilonFormQ[existing],
-      acceptedStatus = If[FeynFacet`ExactFamilyEpsilonFormQ[existing],
-        "AlreadyExact", "AlreadyCertified"];
+        FeynFacet`ValidatedFamilyDLogEpsilonFormQ[existing],
+      acceptedStatus = If[
+        FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[existing],
+        "AlreadyExact", "AlreadyProbabilisticallyValidated"];
       AppendTo[results, <|"Family" -> family, "Status" -> acceptedStatus,
         "File" -> outputFile, "Seconds" -> 0.|>];
       Print["CERTIFY-CAMPAIGN family=", family,
@@ -80,15 +81,17 @@ Do[
       AppendTo[candidateDiagnostics, <|
         "Source" -> candidate, "Status" -> "Unreadable"|>];
       Continue[]];
-    certified = FeynFacet`CertifyFamilyEpsilonForm[record, system];
+    certified = FeynFacet`ValidateFamilyDLogEpsilonForm[record, system];
     If[AssociationQ[certified] &&
-        MemberQ[{"ExactEpsilonForm", "CertifiedEpsilonForm"},
+        MemberQ[{"ExactlyValidatedFamilyDLogEpsilonForm",
+            "ProbabilisticallyValidatedFamilyDLogEpsilonForm"},
           certified["Status"]] &&
-        FeynFacet`CertifiedFamilyEpsilonFormQ[certified],
+        FeynFacet`ValidatedFamilyDLogEpsilonFormQ[certified],
       writeAtomic[certified, outputFile];
       elapsed = AbsoluteTime[] - familyStart;
-      acceptedStatus = If[FeynFacet`ExactFamilyEpsilonFormQ[certified],
-        "Exact", "Certified"];
+      acceptedStatus = If[
+        FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[certified],
+        "Exact", "ProbabilisticallyValidated"];
       AppendTo[results, <|"Family" -> family, "Status" -> acceptedStatus,
         "Source" -> candidate, "File" -> outputFile,
         "Seconds" -> elapsed, "Bytes" -> FileByteCount[outputFile]|>];
@@ -101,8 +104,8 @@ Do[
       AppendTo[candidateDiagnostics, <|
         "Source" -> candidate,
         "Status" -> Lookup[certified, "Status", "NotAnAssociation"],
-        "Checks" -> Lookup[certified, "Checks", <||>],
-        "Gate" -> Lookup[certified, "Gate", <||>]
+        "Conditions" -> Lookup[
+          Lookup[certified, "Validation", <||>], "Conditions", <||>]
       |>]
     ],
     {candidate, candidates}
@@ -117,14 +120,14 @@ Do[
     Print["CERTIFY-CAMPAIGN family=", family,
       " certified=False seconds=", Round[elapsed, 0.1],
       " criteria=", InputForm[DeleteDuplicates[
-        Lookup[candidateDiagnostics, "Checks", <||>]]]]
+        Lookup[candidateDiagnostics, "Conditions", <||>]]]]
   ];
   Clear[system, record, certified, existing],
   {systemFile, differentialFiles}
 ];
 
-acceptedStatuses = {"Exact", "AlreadyExact", "Certified",
-  "AlreadyCertified"};
+acceptedStatuses = {"Exact", "AlreadyExact", "ProbabilisticallyValidated",
+  "AlreadyProbabilisticallyValidated"};
 report = <|
   "Status" -> If[AllTrue[results,
       MemberQ[acceptedStatuses, #Status] &],

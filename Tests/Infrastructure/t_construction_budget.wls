@@ -9,7 +9,7 @@
    CANONICA NextEquationD (or the blockwise block equation), the
    strip-input write, the zero-forcing probe, and then, inside
    SolveEpsFormStripInFrame, the chart pullback, the gauge pullback and
-   the source-frame identity check -- where no deadline was ever checked,
+   the source-representation identity check -- where no deadline was ever checked,
    so the 7200 s sector budget passed silently on both families with no
    record of where the time went.
 
@@ -41,14 +41,10 @@
    (b) IDENTITY AT Deadline -> Infinity.  On the chart-path strip fixture
        of Tests/Multiquadratic/t_multiquadratic_transport_frame.wls (the one-root
        algebraic strip solved in Kallen1 and pulled back to the
-       multiquadratic frame), the result with "Deadline" -> Infinity is
-       BYTE-IDENTICAL to the result without the option, and both are
-       byte-identical to the result recorded at HEAD a475092, before the
-       construction deadline existed.  The recorded expectation is the
-       SHA256 of the result's canonical InputForm string, captured in a
-       kernel that loaded HEAD's FeynFacet from a git worktree; see
-       $headFingerprint below.  The success payload gained no key: the
-       substage timings are diagnostics of a STOP only.
+       square-root-generator presentation), the result with
+       "Deadline" -> Infinity is byte-identical to the result without the
+       option after removing wall-clock timings.  The success payload gains
+       no construction-stop key.
 
    (c) PROPAGATION THROUGH THE DRIVER.  The driver
        Scripts/family_epsform_sector.wls contains EXACTLY ONE
@@ -75,9 +71,11 @@ report[label_, value_] := Print["     ", label, ": ", Short[value, 6]];
 
 (* the substage vocabulary each construction stage may name; a
    BudgetExhausted result outside it is a defect, not a pass *)
-inFrameSubstages = {"Entry", "ChartSelection", "ChartPreparation",
-  "ChartPullBack", "ChartPullBackComplete", "GaugePullBack",
-  "SourceFrameIdentity", "SolverDispatch", "MultiquadraticDispatch"};
+inFrameSubstages = {"Entry", "ParametrizationSelection",
+  "ParametrizationPreparation", "ParametrizationPullBack",
+  "ParametrizationPullBackComplete", "GaugePullBack",
+  "SourceRepresentationIdentity", "SolverDispatch",
+  "MultiquadraticDispatch"};
 driverSubstages = {"Entry", "EquationConstructed", "StripInputWritten",
   "ZeroForcingProbe", "SolverDispatch"};
 
@@ -96,20 +94,12 @@ constructionStopQ[r_, vocabulary_List] := budgetExhaustedQ[r] &&
    decide how a private symbol prints *)
 canonicalString[expr_] := Block[{$ContextPath = {"System`"},
   $Context = "Global`"}, ToString[stripTimings[expr], InputForm]];
-(* Byte identity is asserted on the RESULT, not on the wall-clock
-   diagnostics and provenance hashes the finite-field route records inside it (measured
-   2026-09-02: two consecutive solves differed only in
+(* Byte identity is asserted on the mathematical result, not on wall-clock
+   diagnostics (measured 2026-09-02: two consecutive solves differed only in
    "InnerSolution" -> ... "LiftingSeconds" -> 0.0009 vs 0.000871).  Every
    association key naming a duration is dropped recursively. *)
 timingKeyQ[key_String] := StringMatchQ[key,
-  ___ ~~ ("Seconds" | "Timing" | "Timings" | "Wall" | "Elapsed" |
-    "Fingerprint" | "Hash" | "SHA256") ~~ ___];
-(* The finite-field route also nests provenance hashes in every
-   sub-record ("PreparationFingerprint", "PlanFingerprint",
-   "EliminationPlanFingerprint": 37 occurrences in this 1x1 fixture) and
-   those differ between kernels while the mathematical content is
-   identical (measured 2026-09-02 on three pool subkernels); they are
-   provenance, not result, and are dropped as well. *)
+  ___ ~~ ("Seconds" | "Timing" | "Timings" | "Wall" | "Elapsed") ~~ ___];
 timingKeyQ[_] := False;
 stripTimings[assoc_Association] :=
   Map[stripTimings, KeySelect[assoc, ! timingKeyQ[#] &]];
@@ -131,10 +121,12 @@ lambda1 = (1 - v - w)^2 - 4 v w;
 lambda2 = (1 + v - w)^2 + 4 v w;
 lambda3 = (1 - v + w)^2 + 4 v w;
 
-frame = BuildAlgebraicTransportFrame[
+coefficientPresentation = BuildSquareRootGeneratorsAndQuadraticRelations[
   {lambda1, lambda2, lambda3}, {v, w}, {x, y}];
-check["the three-root multiquadratic frame is exact",
-  AssociationQ[frame] && frame["Status"] === "ExactFrame"];
+check["the three-generator quadratic relations are verified",
+  AssociationQ[coefficientPresentation] &&
+    coefficientPresentation["Status"] ===
+      "SquareRootGeneratorRelationsVerified"];
 
 knownGauge = {{Sqrt[lambda1]}};
 zeroOneForm = {ConstantArray[0, {1, 1}], ConstantArray[0, {1, 1}]};
@@ -151,20 +143,24 @@ fixtureOptions = {
 (* ------------------------------------------------------------------ *)
 
 {baselineSeconds, baseline} = AbsoluteTiming[SolveEpsFormStripInFrame[
-  algebraicStrip, {v, w}, eps, frame, Sequence @@ fixtureOptions]];
+  algebraicStrip, {v, w}, eps, coefficientPresentation,
+  Sequence @@ fixtureOptions]];
 {infinitySeconds, infinityResult} = AbsoluteTiming[
-  SolveEpsFormStripInFrame[algebraicStrip, {v, w}, eps, frame,
+  SolveEpsFormStripInFrame[
+    algebraicStrip, {v, w}, eps, coefficientPresentation,
     Sequence @@ fixtureOptions, "Deadline" -> Infinity]];
 
 check["the fixture solves without the option (the existing suite's expectation)",
   AssociationQ[baseline] && baseline["Status"] === "Solved" &&
-    StringStartsQ[baseline["Method"], "RationalChart/Kallen1/"] &&
+    StringStartsQ[baseline["Method"],
+      "RationalizingParametrization/Kallen1/"] &&
     TrueQ[baseline["ExactDLog"]] &&
-    TrueQ[baseline["FrameCertificate"]["CoordinateComposition"]] &&
-    TrueQ[baseline["FrameCertificate"]["GaugeRoundTrip"]] &&
-    TrueQ[baseline["FrameCertificate"]["TransformedOneFormPullBack"]] &&
-    TrueQ[baseline["FrameCertificate"]["SourceDLog"]] &&
-    TrueQ[baseline["FrameCertificate"]["Exact"]]];
+    TrueQ[baseline["Validation"]["CoordinateComposition"]] &&
+    TrueQ[baseline["Validation"]["GaugeRoundTrip"]] &&
+    TrueQ[baseline["Validation"]["TransformedOneFormPullBack"]] &&
+    TrueQ[baseline["Validation"]["SourceDLog"]] &&
+    baseline["Validation"]["Method"] === "Exact" &&
+    TrueQ[baseline["Validation"]["Passed"]]];
 check["Deadline -> Infinity reproduces the fixture byte-identically",
   canonicalString[baseline] === canonicalString[infinityResult]];
 check["Deadline -> Infinity adds no key to the success payload",
@@ -173,42 +169,12 @@ check["Deadline -> Infinity adds no key to the success payload",
     ! KeyExistsQ[infinityResult, "ConstructionTimings"] &&
     ! KeyExistsQ[infinityResult, "Substage"]];
 
-(* Recorded expectation, measured 2026-08-25 in three separate kernels,
-   each loading FeynFacet from a different source tree and evaluating
-   exactly the call above, then hashing canonicalString of its result.
-   The third-party addons are gitignored, so the git worktree gets them
-   by symlink from the main tree; without that the baseline kernel aborts
-   at load ("add-on directories are missing") and no fingerprint is
-   produced -- which is how this expectation was empty on the first run.
-
-     A  pure HEAD a475092 (no construction deadline in the sources)
-     B  HEAD a475092 + ONLY this change's diff (the three files below;
-        MultiquadraticStripSolve.wl and FamilyRowGaugeResume.wl left at
-        HEAD, so the co-resident multiquadratic-letters work is excluded)
-     M  the full working tree
-
-   A == B == M == the value below.  A == B is the equivalence statement
-   for THIS change: the construction deadline alters no result.  A == M
-   additionally shows the co-resident edits do not reach this fixture. *)
-(* Re-recorded 2026-09-02 (overhaul): SolveEpsFormStripInFrame now takes
-   the finite-field route first ("RationalChart/Kallen1/
-   SimultaneousFiniteFieldAffine..."; the CANONICA/Maple ladder is retired),
-   so the a475092 value of the old route no longer applies; the value below
-   is the timing-stripped canonical string of the overhaul route, measured
-   in a pool subkernel and in the standalone confirmation of the same day.
-   The old value was 1067c0d02e05c54806ce5883925cb9a9e1fc3fcfb0c4fc553ed0a240e7d6aeb2. *)
-$headFingerprint =
-  "236ec0f8e082e14ef95ed92847272c0a1d867b350ec9f2039360577648fb772c";
-currentFingerprint = Hash[canonicalString[baseline], "SHA256", "HexString"];
-check["the fixture result is byte-identical to the recorded overhaul-route record",
-  currentFingerprint === $headFingerprint];
-report["fixture SHA256 (current / recorded HEAD)",
-  {currentFingerprint, $headFingerprint}];
 report["fixture baseline / Deadline -> Infinity seconds",
   Round[{baselineSeconds, infinitySeconds}, 0.01]];
 
 check["a malformed deadline is a typed refusal, not a crash",
-  Lookup[SolveEpsFormStripInFrame[algebraicStrip, {v, w}, eps, frame,
+  Lookup[SolveEpsFormStripInFrame[
+    algebraicStrip, {v, w}, eps, coefficientPresentation,
     Sequence @@ fixtureOptions, "Deadline" -> "soon"],
     "Status", None] === "InvalidDeadline"];
 
@@ -252,7 +218,8 @@ withSolverStandIns[body_] := Block[
 
 solverCalls = 0; capturedSolverOptions = {};
 {expirySeconds, expired} = AbsoluteTiming[withSolverStandIns[
-  SolveEpsFormStripInFrame[algebraicStrip, {v, w}, eps, frame,
+  SolveEpsFormStripInFrame[
+    algebraicStrip, {v, w}, eps, coefficientPresentation,
     Sequence @@ fixtureOptions, "Deadline" -> AbsoluteTime[] - 1]]];
 
 check["an expired deadline returns Status BudgetExhausted at the entry boundary",
@@ -264,26 +231,28 @@ check["no solver is invoked when the deadline has already expired",
   solverCalls === 0];
 check["the entry stop carries the construction identifiers",
   budgetExhaustedQ[expired] &&
-    expired["Method"] === "StripConstructionInFrame" &&
+    expired["Method"] ===
+      "OffDiagonalBlockBasisTransformationConstruction" &&
     expired["ConstructionTimings"] === <||> &&
-    expired["RootIndices"] === Missing["NotClassified"] &&
-    expired["RootSquares"] === Missing["NotClassified"] &&
+    expired["SquareRootGeneratorIndices"] === Missing["NotClassified"] &&
     expired["InnerStatus"] === Missing["NotSolved"] &&
-    expired["Chart"] === None &&
+    expired["RationalizingParametrizationName"] === None &&
     expired["StripDimensions"] === {1, 1} &&
     expired["Deadline"] < AbsoluteTime[]];
 check["the entry stop returns in under 30 s of wall time", expirySeconds < 30];
 report["entry stop", KeyTake[expired,
-  {"Stage", "Substage", "Elapsed", "ConstructionTimings", "Chart",
+  {"Stage", "Substage", "Elapsed", "ConstructionTimings",
+   "RationalizingParametrizationName",
    "StripDimensions", "InnerStatus"}]];
 
 (* an input error outranks a budget stop, and still reaches no solver *)
 solverCalls = 0; capturedSolverOptions = {};
-malformedFrame = withSolverStandIns[
+malformedPresentation = withSolverStandIns[
   SolveEpsFormStripInFrame[algebraicStrip, {v, w}, eps,
-    <|"Status" -> "ExactFrame"|>, "Deadline" -> AbsoluteTime[] - 1]];
-check["a malformed frame outranks the budget stop and reaches no solver",
-  Lookup[malformedFrame, "Status", None] === "AlgebraicFrameNotWellFormed" &&
+    <|"Status" -> "Malformed"|>, "Deadline" -> AbsoluteTime[] - 1]];
+check["a malformed coefficient presentation outranks the budget stop and reaches no solver",
+  Lookup[malformedPresentation, "Status", None] ===
+      "CoefficientPresentationNotWellFormed" &&
     solverCalls === 0];
 
 (* ------------------------------------------------------------------ *)
@@ -299,15 +268,17 @@ check["a malformed frame outranks the budget stop and reaches no solver",
    2 classificationSeconds + pause/2, and leaves it at about
    classificationSeconds + pause, well after.  Nothing is
    TimeConstrained. *)
-allRootsProbe = FeynFacet`Private`transportChartCurrentRoots[frame, {v, w}];
+allRootsProbe =
+  FeynFacet`Private`coefficientPresentationSquareRootsInVariables[
+    coefficientPresentation, {v, w}];
 {classificationSeconds, classificationProbe} = AbsoluteTiming[
   FeynFacet`Private`transportChartRootIndices[algebraicStrip, allRootsProbe]];
-check["the fixture's roots classify to the frame's first root",
+check["the fixture's roots classify to the presentation's first generator",
   AssociationQ[classificationProbe] &&
     classificationProbe["RootIndices"] === {1}];
 report["root classification seconds", Round[classificationSeconds, 0.001]];
 
-trueChart = TransportRootSetChart[{Together[lambda1]}, {v, w}];
+trueChart = LookupCataloguedRationalizingParametrizationForRoots[{Together[lambda1]}, {v, w}];
 check["the fixture's root set resolves to the Kallen1 chart",
   AssociationQ[trueChart] && trueChart["Name"] === "Kallen1"];
 
@@ -315,32 +286,40 @@ chartSelectionPause = Max[4.0, 8 classificationSeconds];
 lateDeadlineOffset = 2 classificationSeconds + chartSelectionPause/2;
 solverCalls = 0; capturedSolverOptions = {};
 {lateSeconds, late} = AbsoluteTiming[withSolverStandIns[Block[
-  {TransportRootSetChart},
-  TransportRootSetChart[___] := (Pause[chartSelectionPause]; trueChart);
-  SolveEpsFormStripInFrame[algebraicStrip, {v, w}, eps, frame,
+  {LookupCataloguedRationalizingParametrizationForRoots},
+  LookupCataloguedRationalizingParametrizationForRoots[___] := (Pause[chartSelectionPause]; trueChart);
+  SolveEpsFormStripInFrame[
+    algebraicStrip, {v, w}, eps, coefficientPresentation,
     Sequence @@ fixtureOptions,
     "Deadline" -> AbsoluteTime[] + lateDeadlineOffset]]]];
 
 check["a deadline reached during construction stops at a LATER boundary, not the entry gate",
   constructionStopQ[late, inFrameSubstages] && late["Substage"] =!= "Entry"];
 check["the boundary that fires is the one after the slow bracketed call",
-  budgetExhaustedQ[late] && late["Substage"] === "ChartPreparation"];
+  budgetExhaustedQ[late] &&
+    late["Substage"] === "ParametrizationPreparation"];
 check["the bracketed call's measured wall time is recorded in the stop",
   budgetExhaustedQ[late] &&
     AssociationQ[Lookup[late, "ConstructionTimings", None]] &&
-    KeyExistsQ[late["ConstructionTimings"], "RootClassification"] &&
-    KeyExistsQ[late["ConstructionTimings"], "ChartSelection"] &&
-    late["ConstructionTimings"]["ChartSelection"] >= chartSelectionPause &&
-    ! KeyExistsQ[late["ConstructionTimings"], "ChartPullBack"] &&
+    KeyExistsQ[late["ConstructionTimings"],
+      "SquareRootGeneratorClassification"] &&
+    KeyExistsQ[late["ConstructionTimings"],
+      "ParametrizationSelection"] &&
+    late["ConstructionTimings"]["ParametrizationSelection"] >=
+      chartSelectionPause &&
+    ! KeyExistsQ[late["ConstructionTimings"],
+      "ParametrizationPullBack"] &&
     ! KeyExistsQ[late["ConstructionTimings"], "InnerSolve"]];
 check["the late stop reaches no solver either", solverCalls === 0];
 check["the late stop identifies the chart it had selected",
-  budgetExhaustedQ[late] && late["Chart"] === "Kallen1" &&
-    late["RootIndices"] === {1}];
+  budgetExhaustedQ[late] &&
+    late["RationalizingParametrizationName"] === "Kallen1" &&
+    late["SquareRootGeneratorIndices"] === {1}];
 check["the late stop returns promptly after its deadline",
   lateSeconds < chartSelectionPause + 30];
 report["late stop", KeyTake[late,
-  {"Stage", "Substage", "Elapsed", "ConstructionTimings", "Chart"}]];
+  {"Stage", "Substage", "Elapsed", "ConstructionTimings",
+   "RationalizingParametrizationName"}]];
 report["late stop wall seconds", Round[lateSeconds, 0.01]];
 
 (* ------------------------------------------------------------------ *)
@@ -374,7 +353,8 @@ withCountingDeadline[expireAt_, body_] := Block[
 
 deadlineReads = 0;
 countingBaseline = withCountingDeadline[0,
-  SolveEpsFormStripInFrame[algebraicStrip, {v, w}, eps, frame,
+  SolveEpsFormStripInFrame[
+    algebraicStrip, {v, w}, eps, coefficientPresentation,
     Sequence @@ fixtureOptions, "Deadline" -> AbsoluteTime[] + 3600]];
 totalDeadlineReads = deadlineReads;
 check["the counting stand-in does not disturb the successful fixture",
@@ -387,14 +367,15 @@ deadlineReads = 0;
 solverCalls = 0; capturedSolverOptions = {};
 {acceptanceSeconds, acceptanceStop} = AbsoluteTiming[
   withCountingDeadline[totalDeadlineReads,
-    SolveEpsFormStripInFrame[algebraicStrip, {v, w}, eps, frame,
+    SolveEpsFormStripInFrame[
+      algebraicStrip, {v, w}, eps, coefficientPresentation,
       Sequence @@ fixtureOptions, "Deadline" -> AbsoluteTime[] + 3600]]];
 
 check["a deadline reached inside an acceptance zero test stops typed",
   constructionStopQ[acceptanceStop, inFrameSubstages]];
 check["the acceptance stop names an acceptance substage, not the entry gate",
   budgetExhaustedQ[acceptanceStop] &&
-    MemberQ[{"GaugePullBack", "SourceFrameIdentity"},
+    MemberQ[{"GaugePullBack", "SourceRepresentationIdentity"},
       acceptanceStop["Substage"]]];
 check["the LAST deadline read of a construction is inside a zero test, \
 i.e. the test is preemptible per entry and not only per stage",
@@ -420,7 +401,8 @@ rationalStrip = {zeroOneForm, zeroOneForm,
 handedDeadline = AbsoluteTime[] + 3600;
 solverCalls = 0; capturedSolverOptions = {};
 handed = withSolverStandIns[
-  SolveEpsFormStripInFrame[rationalStrip, {v, w}, eps, frame,
+  SolveEpsFormStripInFrame[
+    rationalStrip, {v, w}, eps, coefficientPresentation,
     "FiniteFieldFirst" -> True, "Verbose" -> False,
     "Deadline" -> handedDeadline]];
 check["a rational strip reaches the solver and the solver gets the deadline",
@@ -431,7 +413,8 @@ check["a rational strip reaches the solver and the solver gets the deadline",
 explicitDeadline = AbsoluteTime[] + 12345;
 solverCalls = 0; capturedSolverOptions = {};
 handedExplicit = withSolverStandIns[
-  SolveEpsFormStripInFrame[rationalStrip, {v, w}, eps, frame,
+  SolveEpsFormStripInFrame[
+    rationalStrip, {v, w}, eps, coefficientPresentation,
     "FiniteFieldFirst" -> True, "Verbose" -> False,
     "FiniteFieldOptions" -> {"Deadline" -> explicitDeadline},
     "Deadline" -> handedDeadline]];
@@ -495,7 +478,8 @@ check["the package construction stop becomes a StripBudgetExhausted state record
     packageStopRecord["Strip"] === {12, 9} &&
     packageStopRecord["Stage"] === "StripConstruction:Entry" &&
     packageStopRecord["SectorBudget"] === 7200 &&
-    packageStopRecord["Method"] === "StripConstructionInFrame" &&
+    packageStopRecord["Method"] ===
+      "OffDiagonalBlockBasisTransformationConstruction" &&
     TrueQ[packageStopRecord["Resumable"]] &&
     NumericQ[packageStopRecord["Elapsed"]] &&
     packageStopRecord["StripCheckpointFile"] ===
@@ -509,10 +493,11 @@ check["the state record's Progress carries the construction evidence",
 check["a later-boundary stop records its substage wall times in the state record",
   AssociationQ[lateStopRecord] &&
     lateStopRecord["Status"] === "StripBudgetExhausted" &&
-    lateStopRecord["Stage"] === "StripConstruction:ChartPreparation" &&
-    lateStopRecord["Progress"]["ConstructionTimings"]["ChartSelection"] >=
-      chartSelectionPause &&
-    lateStopRecord["Progress"]["Chart"] === "Kallen1"];
+    lateStopRecord["Stage"] ===
+      "StripConstruction:ParametrizationPreparation" &&
+    lateStopRecord["Progress", "ConstructionTimings",
+      "ParametrizationSelection"] >=
+      chartSelectionPause];
 report["driver state Stop record (entry)", packageStopRecord];
 
 (* the driver's own construction stop, built by its own extracted

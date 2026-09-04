@@ -36,7 +36,7 @@ r1 = Sqrt[q1]; r2 = Sqrt[q2]; r3 = Sqrt[q3];
 dl[L_] := Map[Together, {D[Log[L], x], D[Log[L], y]}];
 
 check["the catalog has no joint rational chart for the CF259 triple",
-  MissingQ[FeynFacet`TransportRootSetChart[
+  MissingQ[FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[
     {(1 - v - w)^2 - 4 v w, (1 - v + w)^2 + 4 v w, 4 v + w^2}, {v, w}]]];
 
 (* ---- a clean 3-root eps-form and a planted eps-dependent T ---- *)
@@ -167,9 +167,8 @@ If[AssociationQ[f] && f["Status"] === "OK",
     AssociationQ[Lookup[f, "CompositionSpotCheck", None]] &&
       TrueQ[f["CompositionSpotCheck"]["Zero"]] &&
       f["CompositionSpotCheck"]["Checked"] >= 1];
-  check["planted T: a propagation seal is attached",
-    AssociationQ[Lookup[f, "PropagationSeal", None]] &&
-      f["PropagationSeal"]["Schema"] === "FeynFacetRegulatorPropagationSeal"];
+  check["planted T: no surrogate propagation identifier is stored",
+    ! KeyExistsQ[f, "PropagationSeal"]];
   check["planted T: a generous deadline skipped no evidence stage",
     Lookup[f, "DeadlineSkippedStages", $Failed] === {} &&
       NumericQ[Lookup[f, "GradeDecompositionSeconds", $Failed]]];
@@ -528,26 +527,5 @@ check["grade interning: a byte cap splits the unique expressions, not the entrie
       "BatchDispatcher" -> gradeDispatcher]},
    d["Grades"] === oldGrade["Grades"] &&
      Lookup[d["Statistics"], "Batches", 0] === 2]];
-(* the sampled grade matrices are cached per (component, point) so the
-   {1, 2, 4, 8} point ladder reuses its prefixes *)
-FeynFacet`Private`$familyRegulatorGradedSampleCache = <||>;
-sampleMatrix = FeynFacet`Private`familyRegulatorGradedSampleMatrix;
-gradeComponent = newGrade["Grades"][[1, 1]];
-samplePoint = {x -> 3/5, y -> 7/11};
-sampledOnce = sampleMatrix[gradeComponent, samplePoint, eps];
-cacheAfterFirst = Length[FeynFacet`Private`$familyRegulatorGradedSampleCache];
-sampledTwice = sampleMatrix[gradeComponent, samplePoint, eps];
-cacheAfterSecond = Length[FeynFacet`Private`$familyRegulatorGradedSampleCache];
-check["grade sampling: a repeated (component, point) is served from the cache",
-  sampledOnce === sampledTwice && cacheAfterFirst === 1 &&
-    cacheAfterSecond === 1];
-sampleMatrix[gradeComponent, {x -> 4/5, y -> 7/11}, eps];
-check["grade sampling: a new point adds one cache entry",
-  Length[FeynFacet`Private`$familyRegulatorGradedSampleCache] === 2];
-check["grade sampling: the cached value is the uncached value",
-  sampledOnce === Map[Function[entry,
-    If[TrueQ[entry === 0], 0, Together[(entry /. samplePoint)/eps]]],
-    gradeComponent, {2}]];
-
 Print["t_multiquadratic_regulator_factor: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];

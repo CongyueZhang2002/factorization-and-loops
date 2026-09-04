@@ -1,6 +1,6 @@
 (* Blockwise-schema adapter (2026-08-22): compose the established 2026-08-19/20
    blockwise Libra result of a family into a standard family record and
-   certify it against the source DE with CertifyFamilyEpsilonForm.
+   validate it against the source DE with ValidateFamilyDLogEpsilonForm.
      input record   (LibraTwoRoot_20260819/family_epsform_<CF>.wl): TTotal_in
                     relative to the source, chart, Blocks, assembled EpsForm_in
      blockwise      (blockwise_local_<CF>.wl): Transformation T_b from
@@ -32,15 +32,18 @@ record = Join[input, <|
   "Letters" -> Lookup[fd, "Letters", Lookup[input, "Letters", {}]],
   "BlockwiseSource" -> <|"Input" -> "LibraTwoRoot_20260819", "Blockwise" -> "blockwise_local_" <> family <> ".wl",
     "FactorDependence" -> "factor_dependence_" <> family <> "_canonicadlog.wl"|>|>];
-{t3, certified} = AbsoluteTiming[FeynFacet`CertifyFamilyEpsilonForm[record, system]];
-Print["certificate in ", Round[t3, 0.1], " s: ", certified["Status"], " ", Lookup[certified, "Checks", "?"]];
-If[MemberQ[{"ExactEpsilonForm", "CertifiedEpsilonForm"},
+{t3, certified} = AbsoluteTiming[
+  FeynFacet`ValidateFamilyDLogEpsilonForm[record, system]];
+Print["validation in ", Round[t3, 0.1], " s: ", certified["Status"],
+  " ", Lookup[Lookup[certified, "Validation", <||>], "Conditions", "?"]];
+If[MemberQ[{"ExactlyValidatedFamilyDLogEpsilonForm",
+      "ProbabilisticallyValidatedFamilyDLogEpsilonForm"},
       certified["Status"]] &&
-    FeynFacet`CertifiedFamilyEpsilonFormQ[certified],
+    FeynFacet`ValidatedFamilyDLogEpsilonFormQ[certified],
   Put[certified, outputFile <> ".partial"]; RenameFile[outputFile <> ".partial", outputFile, OverwriteTarget -> True];
-  Print["CERTIFY family=", family, " certified=True level=",
-    Lookup[Lookup[certified, "EpsilonFormCertificate", <||>],
-      "CertificationLevel", "LegacyExact"], " seconds=", Round[t3, 0.1],
+  Print["VALIDATE family=", family, " validated=True method=",
+    Lookup[Lookup[certified, "Validation", <||>],
+      "Method", "Unknown"], " seconds=", Round[t3, 0.1],
     " bytes=", FileByteCount[outputFile]],
-  Print["CERTIFY family=", family, " certified=False status=",
+  Print["VALIDATE family=", family, " validated=False status=",
     certified["Status"]]];

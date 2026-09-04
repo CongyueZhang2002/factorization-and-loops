@@ -28,7 +28,7 @@ driverFile = ExpandFileName[$InputFileName];
 root = ParentDirectory[DirectoryName[driverFile]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 (* pool subkernels keep state: clear the Global` symbols CANONICA and earlier
-   missions leave behind (they broke TransportFamilyInChart on a reused
+   missions leave behind (they broke AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks on a reused
    subkernel: "assembly failed" on kernel 26, 2026-08-18) *)
 Scan[Function[nm, ToExpression["Global`" <> nm, InputForm, Function[sy, Quiet[Unprotect[sy]]; ClearAll[sy], HoldAll]]], {"tau", "s", "u", "p", "x", "y", "eps"}];
 (* CANONICA is loaded AFTER assembly (its Global` shadowing of x, y, eps must
@@ -82,7 +82,8 @@ chartFile = If[Length[args] >= 6 && StringLength[args[[6]]] > 0,
    gate) or "Production" (user decision 2026-08-22: checks stay separate
    from the calculation -- blocks are accepted on the modular residual,
    the per-sector exact identities and the script's family gate are
-   skipped, and the single exact statement is CertifyFamilyEpsilonForm,
+   skipped, and the single exact statement is
+   ValidateFamilyDLogEpsilonForm,
    run afterwards by the driver). *)
 checkLevel = Module[{value = Environment["FACET_CHECK_LEVEL"]},
   If[StringQ[value] && value === "Production", "Production", "Development"]];
@@ -225,14 +226,16 @@ classFormDirectory = If[Length[args] >= 8 && StringLength[args[[8]]] > 0,
    after the assembled connection is verified radical-free. *)
 familyChartFile = FileNameJoin[{ftData, "TransportFamilyCharts.wl"}];
 If[FileExistsQ[familyChartFile],
-  familyChartRegistration = FeynFacet`TransportFamilyChartLoad[familyChartFile];
-  If[Lookup[familyChartRegistration, "Status", None] =!= "FamilyChartsRegistered",
-    log["!! family chart registration refused: ", familyChartRegistration];
+  familyChartRegistration = FeynFacet`LoadFamilyRootData[familyChartFile];
+  If[Lookup[familyChartRegistration, "Status", None] =!=
+      "FamilyRootDataRegistered",
+    log["!! family root-data registration refused: ",
+      familyChartRegistration];
     Exit[2]];
   log["registered ", familyChartRegistration["Registered"],
-    " family charts from ", familyChartFile],
-  log["no family chart file at ", familyChartFile,
-    "; the chart registry stays empty"]];
+    " family root-data entries from ", familyChartFile],
+  log["no family root-data file at ", familyChartFile,
+    "; the registry stays empty"]];
 scratch = FileNameJoin[{outdir, "sector_" <> family <> tag}]; If[! DirectoryQ[scratch], CreateDirectory[scratch]];
 stateFile = FileNameJoin[{outdir, "sector_state_" <> family <> tag <> ".wl"}];
 (* State files are written by this driver in InputForm with the canonical
@@ -249,37 +252,41 @@ chart = If[StringQ[chartFile],
   If[! FileExistsQ[chartFile],
     log["!! chart file does not exist: ", chartFile]; Exit[2]];
   readArtifact[chartFile],
-  FeynFacet`TransportFamilyChart[family]];
+  FeynFacet`FamilyRootData[family]];
 (* None  = registered as root-free (transport in the source variables).
    Missing["FamilyChartNotRegistered", family] = no declaration at all:
    the identity frame is used PROVISIONALLY and the assembled connection
    is checked for radicals below (a rooted family with no registration
    must stop, not transport in a frame that cannot hold its roots). *)
-chartNotRegisteredQ = MatchQ[chart, Missing["FamilyChartNotRegistered", _]];
+chartNotRegisteredQ = MatchQ[chart,
+  Missing["FamilyRootDataNotRegistered", _]];
 If[chartNotRegisteredQ,
-  log["no transport chart registered for ", family,
-    "; trying the identity frame -- the assembled connection must be radical-free"]];
+  log["no family root data registered for ", family,
+    "; trying the source-variable representation -- the assembled " <>
+    "connection must be radical-free"]];
 If[chart === None || chartNotRegisteredQ,
   chart = <|
-    "Name" -> "RationalIdentity",
-    "Kind" -> "TwoVariable",
-    "CoefficientField" -> "Rational",
-    "Variables" -> {xx, yy},
-    "Subst" -> {vv -> xx, ww -> yy},
-    "Root" -> None,
-    "RootSquare" -> None,
-    "Roots" -> {},
-    "Notes" -> "identity chart for a family whose connection contains no square root"
+    "DataType" -> "SourceVariableRepresentation",
+    "SchemaVersion" -> 2,
+    "SourceVariables" -> {vv, ww},
+    "CoefficientVariables" -> {xx, yy},
+    "SourceVariableSubstitution" -> {vv -> xx, ww -> yy},
+    "DifferentialPullbackMatrix" -> IdentityMatrix[2]
   |>
 ];
 If[! AssociationQ[chart],
-  log["!! no exact rational or multiquadratic frame could be constructed"];
+  log["!! no valid coefficient presentation could be constructed"];
   Exit[2]];
-chartCertificate = FeynFacet`TransportChartVerify[chart];
-If[! TrueQ[Lookup[chartCertificate, "OK", False]],
-  log["!! chart identities or Jacobian failed: ", chartCertificate]; Exit[2]];
-algebraicFrameQ = Lookup[chart, "CoefficientField", "Rational"] ===
-  "Multiquadratic";
+chart = FeynFacet`Private`masterTransportCoefficientPresentationData[
+  chart, {vv, ww}];
+If[Lookup[chart, "Status", None] =!= "OK",
+  log["!! coefficient presentation validation failed: ", chart]; Exit[2]];
+chartCertificate = <|
+  "Method" -> "DirectSymbolicCoefficientPresentationValidation",
+  "Passed" -> True,
+  "JacobianDeterminant" -> chart["JacobianDeterminant"]|>;
+algebraicFrameQ = Lookup[chart, "DataType", None] ===
+  "SquareRootGeneratorsAndQuadraticRelations";
 (* The blockwise row composition (blockEquation / applyRowGauge) and the
    per-sector regulator factorization are identities over any
    characteristic-zero coefficient field; gating them on a rational
@@ -339,16 +346,15 @@ stripConstructionStop[substage_String, start_, strip_List,
   "Resumable" -> True,
   "Strip" -> strip,
   "ConstructionTimings" -> stageTimings|>;
-chartFingerprint = Hash[
-  KeyTake[chart, {"Name", "Variables", "Subst", "Roots", "Parents"}],
-  "SHA256", "HexString"];
+coefficientPresentationForResume = chart;
 If[AssociationQ[cachedState] &&
-    ! MissingQ[Lookup[cachedState, "ChartFingerprint", Missing[]]] &&
-    cachedState["ChartFingerprint"] =!= chartFingerprint,
-  log["cached sector state belongs to a different chart; " <>
+    ! SameQ[Lookup[cachedState, "CoefficientPresentation",
+      Missing["NoCoefficientPresentation"]],
+      coefficientPresentationForResume],
+  log["cached sector state belongs to a different coefficient presentation; " <>
     "starting from the exact input system"];
-  cachedState = Missing["ChartMismatch"]];
-{c1, c2} = chart["Variables"];
+  cachedState = Missing["CoefficientPresentationMismatch"]];
+{c1, c2} = FeynFacet`Private`masterTransportPresentationVariables[chart];
 toXY = {c1 -> xx, c2 -> yy}; fromXY = {xx -> c1, yy -> c2};
 If[AssociationQ[cachedState] &&
     KeyExistsQ[cachedState, "OriginalA"] &&
@@ -368,11 +374,15 @@ If[AssociationQ[cachedState] &&
       log["cached state has no block order; recomputing the assembly to recover it"];
       de0 = readArtifact[FileNameJoin[{ftData, "DifferentialEquations", "nnlo_de_" <> family <> ".wl"}]];
       sys0 = <|"Family" -> family, "Basis" -> de0["BlockBasis"], "Av" -> de0["Av"], "Aw" -> de0["Aw"]|>;
-      rec0 = FeynFacet`TransportFamilyInChart[sys0, chart, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
-        "AssemblyOnly" -> True, "Blocks" -> blocks, "FormDirectory" -> classFormDirectory,
-        "PhysicalValuation" -> 0, "Orders" -> {0, 1}, "TransportBackend" -> "Libra", "MaxWeight" -> 0, "Verbose" -> False];
-      If[! (AssociationQ[rec0] && KeyExistsQ[rec0, "Assembly"]), log["!! assembly failed"]; Exit[1]];
-      asm0 = rec0["Assembly"]; fresh = {asm0["Apv"] /. toXY, asm0["Apw"] /. toXY};
+      rec0 = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
+        sys0, chart, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
+        "Blocks" -> blocks, "FormDirectory" -> classFormDirectory,
+        "Verbose" -> False];
+      If[! (AssociationQ[rec0] &&
+          KeyExistsQ[rec0, "FamilyDifferentialSystem"]),
+        log["!! assembly failed"]; Exit[1]];
+      asm0 = rec0["FamilyDifferentialSystem"];
+      fresh = {asm0["Apv"] /. toXY, asm0["Apw"] /. toXY};
       If[asm0["Ranges"] =!= ranges, log["!! recomputed assembly has different ranges"]; Exit[1]];
       SeedRandom[17]; zeroAt = AllTrue[Table[pt = Thread[{xx, yy, ee} -> RandomInteger[{3, 10^6}, 3]/RandomInteger[{10^6, 10^7}, 3]];
         AllTrue[Flatten[(fresh - A0) /. pt], TrueQ[# == 0] &], {2}], TrueQ];
@@ -388,17 +398,15 @@ If[AssociationQ[cachedState] &&
       "nnlo_de_" <> family <> ".wl"}]];
   system = <|"Family" -> family, "Basis" -> de["BlockBasis"],
     "Av" -> de["Av"], "Aw" -> de["Aw"]|>;
-  rec = FeynFacet`TransportFamilyInChart[system, chart,
+  rec = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[system, chart,
     "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
-    "AssemblyOnly" -> True,
     "Blocks" -> blocks,
     "FormDirectory" -> classFormDirectory,
-    "PhysicalValuation" -> 0, "Orders" -> {0, 1},
-    "TransportBackend" -> "Libra", "MaxWeight" -> 0,
     "Verbose" -> False];
-  If[! (AssociationQ[rec] && KeyExistsQ[rec, "Assembly"]),
+  If[! (AssociationQ[rec] &&
+      KeyExistsQ[rec, "FamilyDifferentialSystem"]),
     log["!! assembly failed"]; Exit[1]];
-  assembly = rec["Assembly"];
+  assembly = rec["FamilyDifferentialSystem"];
   A0 = {assembly["Apv"] /. toXY, assembly["Apw"] /. toXY};
   ranges = assembly["Ranges"]
 ];
@@ -411,13 +419,13 @@ If[chartNotRegisteredQ,
   unregisteredRadicals = DeleteDuplicates[Cases[A0,
     Power[base_, _Rational] :> base, {0, Infinity}, Heads -> True]];
   If[unregisteredRadicals =!= {} || ! FreeQ[A0, _Root],
-    log["!! no transport chart is registered for ", family,
+    log["!! no root data are registered for ", family,
       " and the assembled connection is not radical-free: ",
       Take[unregisteredRadicals, UpTo[3]],
       If[FreeQ[A0, _Root], "", " (and algebraic Root objects)"]];
     Exit[2]];
-  log["no registered chart: the assembled connection is radical-free, ",
-    "the identity frame is exact for ", family]];
+  log["the assembled connection is radical-free; the source-variable " <>
+    "representation is valid for ", family]];
 (* Diagonal-block composition: the record must store the ABSOLUTE
    transformation TTotal = diag(T_class) . S against the chart-pulled-
    back source connection, not the sector gauge S alone (records
@@ -451,32 +459,12 @@ freshDiagonal = Module[{forms = Lookup[assembly, "Forms", Missing[]],
       Lookup[forms, "Alphabet", {}]]];
     {td, tdi, alphabets}]
 ];
-If[AssociationQ[cachedState] &&
-    MissingQ[Lookup[cachedState, "ChartFingerprint", Missing[]]],
-  legacyS = Lookup[cachedState, "S", Missing[]];
-  legacyA = Lookup[cachedState, "A", Missing[]];
-  If[MatrixQ[legacyS] && MatchQ[legacyA, {_?MatrixQ, _?MatrixQ}],
-    legacySInverse = Together[Inverse[legacyS]];
-    legacyOriginal = Table[Map[Together,
-      legacyS . legacyA[[mu]] . legacySInverse +
-        D[legacyS, {xx, yy}[[mu]]] . legacySInverse, {2}], {mu, 2}];
-    legacyExact = And @@ (TrueQ[Together[#] === 0] & /@
-      Flatten[legacyOriginal - A0]);
-    If[legacyExact,
-      cachedState["OriginalA"] = A0;
-      cachedState["Ranges"] = ranges;
-      cachedState["ChartFingerprint"] = chartFingerprint;
-      log["adopted an older checkpoint after exact reconstruction of " <>
-        "the chart connection"],
-      log["older checkpoint does not reconstruct the chart connection; " <>
-        "starting from the input system"];
-      cachedState = Missing["LegacyCheckpointIdentityFailed"]],
-    cachedState = Missing["LegacyCheckpointIncomplete"]]
-];
 nSectors = Length[ranges]; nMasters = Length[A0[[1]]];
 bounds = Table[{First[ranges[[i]]], Last[ranges[[i]]]}, {i, nSectors}];
 invariants = {xx, yy};
-log["assembled ", nMasters, "x", nMasters, ", ", nSectors, " sectors, chart ", chart["Name"], " ", {c1, c2}, " -> ", {xx, yy}];
+log["assembled ", nMasters, "x", nMasters, ", ", nSectors,
+  " sectors in ", Lookup[chart, "Name", chart["DataType"]], " ",
+  {c1, c2}, " -> ", {xx, yy}];
 (* rational entries: Together is a canonical form, so Together === 0 is a
    complete zero test.  masterTransportZeroMatQ fell through to Simplify
    on every nonzero entry; on CF385 (44 masters) the per-sector block
@@ -506,7 +494,7 @@ If[algebraicFrameQ && AssociationQ[cachedState] &&
 state = If[AssociationQ[cachedState], (log["resuming"]; cachedState),
   <|"Sector" -> 1, "OriginalA" -> A0, "Ranges" -> ranges,
     "Blocks" -> assembly["Blocks"],
-    "ChartFingerprint" -> chartFingerprint,
+    "CoefficientPresentation" -> coefficientPresentationForResume,
     "S" -> IdentityMatrix[nMasters], "SInverse" -> IdentityMatrix[nMasters],
     "A" -> A0, "StripSolvers" -> {}, "SectorCertificates" -> {}|>];
 If[! KeyExistsQ[state, "TDiagonal"] && ListQ[freshDiagonal],
@@ -527,14 +515,13 @@ If[! KeyExistsQ[state, "DiagonalAlphabets"],
     systemAlphabet = <|"Family" -> family,
       "Basis" -> deAlphabet["BlockBasis"], "Av" -> deAlphabet["Av"],
       "Aw" -> deAlphabet["Aw"]|>;
-    recAlphabet = FeynFacet`TransportFamilyInChart[systemAlphabet, chart,
+    recAlphabet = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[systemAlphabet, chart,
       "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
-      "AssemblyOnly" -> True, "Blocks" -> blocks,
+      "Blocks" -> blocks,
       "FormDirectory" -> classFormDirectory,
-      "PhysicalValuation" -> 0, "Orders" -> {0, 1},
-      "TransportBackend" -> "Libra", "MaxWeight" -> 0,
       "Verbose" -> False];
-    assemblyAlphabet = Lookup[recAlphabet, "Assembly", Missing[]];
+    assemblyAlphabet = Lookup[recAlphabet, "FamilyDifferentialSystem",
+      Missing[]];
     If[AssociationQ[assemblyAlphabet] &&
         ListQ[Lookup[assemblyAlphabet, "Forms", None]],
       state["DiagonalAlphabets"] = DeleteDuplicates[Flatten[
@@ -638,7 +625,6 @@ stripSolverSummary[solution_Association, sector_Integer,
     "BackendRequested", "BackendThreads", "BackendsUsed",
     "PlanDiscoveryBackendRequested", "PlanDiscoveryBackendUsed",
     "PlanDiscoveryBackendThreads",
-    "EliminationPlanFingerprint",
     "PrimeSamplingSeconds", "PrimeInterpolationSeconds",
     "TotalSamplingSeconds", "TotalInterpolationSeconds",
     "LiftingSeconds", "ExactCheckSeconds",
@@ -648,8 +634,6 @@ stripSolverSummary[solution_Association, sector_Integer,
     "ExactDLog", "ODEEquationZero", "TransformedDLogZero",
     "Alphabet", "RootIndices", "FrameCertificate",
     "SolutionContract", "Certificate", "Provider",
-    "ProviderFingerprint", "LayoutFingerprint",
-    "CoefficientABIFingerprint", "ReconstructedVectorFingerprint",
     "OneFormsCertified", "LettersEpsFree", "ResiduesKinematicsFree",
     "InstallationEvidence", "PhaseSeconds"}],
   If[AssociationQ[Lookup[solution, "RegulatorReconstruction", None]],
@@ -786,7 +770,7 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
     FeynFacet`Private`familyRegulatorPropagateTruncation[
       state["A"], factor["Connection"], factor["Inverse"],
       factor["Transformation"], nm, {xx, yy},
-      Lookup[factor, "PropagationSeal", <||>], futureAMode, ! productionQ]];
+      futureAMode, ! productionQ]];
   If[! AssociationQ[propagation] ||
       Lookup[propagation, "Status", None] =!= "OK",
     log["  !! regulator propagation of rows 1..", m,
@@ -906,8 +890,8 @@ blockRows[m_] := ranges[[m]];
      already-factored operand denominators -- no gcd is computed to find
      the common denominator.
 
-   A typed refusal from the deferred route (a broken block precondition,
-   a mismatched ABI) falls back to the symbolic route and says so; it
+   A typed refusal from the deferred route (a broken block precondition or
+   incompatible mathematical input) falls back to the symbolic route and says so; it
    never silently continues.  $blockConstructionRecord carries the
    census, the timings and the route actually used into this block's
    certificate. *)
@@ -926,7 +910,7 @@ blockEquation[k_, j_, solved_Association] := Module[
   $blockConstructionRecord = <|"Route" -> route|>;
   If[route === "Deferred",
     bundleRoots = If[TrueQ[algebraicFrameQ],
-      FeynFacet`Private`transportChartCurrentRoots[chart, invariants], {}];
+      FeynFacet`Private`coefficientPresentationSquareRootsInVariables[chart, invariants], {}];
     deferred = If[TrueQ[algebraicFrameQ] && ListQ[bundleRoots],
       FeynFacet`Private`blockEquationDeferredForcing[
         A, ranges, k, j, solved, invariants, ee,
@@ -941,11 +925,11 @@ blockEquation[k_, j_, solved_Association] := Module[
         "Route" -> "DeferredChartPreparation",
         "DeferredPreparation" -> <|
           "Preparation" -> deferred["DeferredPreparation"],
-          "RootSquares" -> Lookup[deferred["ChartDecision"],
-            "RootSquares", {}],
-          "ProjectionRoots" -> If[ListQ[bundleRoots],
-            bundleRoots[[Lookup[deferred["ChartDecision"],
-              "ProjectionRootIndices", {}]]], {}]|>,
+          "CoefficientPresentation" -> deferred["CoefficientPresentation"],
+          "SquareRootGeneratorIndices" ->
+            deferred["SquareRootGeneratorIndices"],
+          "ProjectionSquareRootGeneratorIndices" ->
+            deferred["ProjectionSquareRootGeneratorIndices"]|>,
         "ChartDecision" -> deferred["ChartDecision"],
         "Census" -> deferred["Census"],
         "ZeroForcingCandidateQ" -> False|>;
@@ -957,8 +941,11 @@ blockEquation[k_, j_, solved_Association] := Module[
         "Route" -> "DeferredDirectPreparation",
         "DeferredPreparation" -> <|
           "Preparation" -> deferred["DeferredPreparation"],
-          "RootSquares" -> Lookup[deferred, "RootSquares",
-            Lookup[deferred["ChartDecision"], "RootSquares", {}]]|>,
+          "CoefficientPresentation" -> deferred["CoefficientPresentation"],
+          "SquareRootGeneratorIndices" ->
+            deferred["SquareRootGeneratorIndices"],
+          "ProjectionSquareRootGeneratorIndices" ->
+            deferred["ProjectionSquareRootGeneratorIndices"]|>,
         "ChartDecision" -> deferred["ChartDecision"],
         "Census" -> deferred["Census"],
         "ZeroForcingCandidateQ" -> False|>;
@@ -971,7 +958,6 @@ blockEquation[k_, j_, solved_Association] := Module[
       zeroPlaceholder = ConstantArray[0, deferred["Dimensions"]];
       $blockConstructionRecord = <|"Route" -> "DeferredBundle",
         "DeferredBundle" -> deferred,
-        "DeferredBundleFingerprint" -> deferred["BundleFingerprint"],
         "Census" -> Lookup[deferred["Statistics"], "Census", <||>],
         "ZeroForcingCandidateQ" -> False,
         "BundleStatistics" -> KeyDrop[deferred["Statistics"], "Census"]|>;
@@ -1101,7 +1087,8 @@ Do[
               FileExistsQ[inputFile] &&
                 Lookup[readArtifact[inputFile], "Family", None] ===
                   family]]]) &&
-        Lookup[stripCheckpoint, "ConnectionHash", None] === Hash[aP, "SHA256", "HexString"] &&
+        SameQ[Lookup[stripCheckpoint, "TruncatedConnectionMatrices",
+          Missing["NoConnectionMatrices"]], aP] &&
         Lookup[stripCheckpoint, "Sector", Missing[]] === k &&
         Lookup[stripCheckpoint, "SubSize", Missing[]] === subSize &&
         Lookup[stripCheckpoint, "Truncation", Missing[]] === nk &&
@@ -1195,12 +1182,7 @@ Do[
             If[AssociationQ[Lookup[$blockConstructionRecord,
                 "DeferredPreparation", None]],
               <|"DeferredPreparation" ->
-                $blockConstructionRecord["DeferredPreparation"]|>, <||>],
-            If[AssociationQ[Lookup[$blockConstructionRecord,
-                "DeferredMaterializationCertificate", None]],
-              <|"DeferredMaterializationCertificate" ->
-                $blockConstructionRecord[
-                  "DeferredMaterializationCertificate"]|>, <||>]],
+                $blockConstructionRecord["DeferredPreparation"]|>, <||>]],
           stripInputFile]]];
         constructionTimings["StripInputWrite"] = constructionSeconds;
         If[Environment["FACET_RECORD_STRIP_ONLY"] === "True",
@@ -1399,9 +1381,6 @@ Do[
                 "DeferredPreparation" -> deferredPreparation,
                 "Deadline" -> sectorDeadline,
                 "ScratchDirectory" -> scratch,
-                "DeferredMaterializationCertificate" -> Lookup[
-                  $blockConstructionRecord,
-                  "DeferredMaterializationCertificate", Automatic],
                 "Tag" -> family <> "_" <> ToString[k] <> "_" <> ToString[nlow],
                 "Verbose" -> True],
             True, finiteFieldSolve[]],
@@ -1534,19 +1513,18 @@ Do[
               "Artifact" -> modularArtifact|>,
             KeyTake[solution, {"RootIndices", "RootSquares", "Dimensions",
               "UnknownCount", "EquationsPerPoint", "PreparationSchema",
-              "ABIFingerprint", "AlgebraABIFingerprint",
-              "AssemblyFingerprint", "SamplePrimes", "RegulatorValues",
+              "SamplePrimes", "RegulatorValues",
               "HeldOutPrime", "HeldOutRegulatorValue", "ExactLift",
               "ExactChannelResidual", "RootFreeFastPathCount", "Seconds"}]];
           putAtomic[
             <|"Family" -> family, "Sector" -> k, "LowerSector" -> nlow,
               "Variables" -> invariants, "Regulator" -> ee,
               "Strip" -> {e, c, bbar},
-              "StripInput" -> <|"ChartFingerprint" -> chartFingerprint,
+              "StripInput" -> <|
+                "CoefficientPresentation" -> coefficientPresentationForResume,
                 "AlgebraicFrame" -> algebraicFrameQ,
                 "Truncation" -> nk, "SubSize" -> subSize,
                 "Dimensions" -> Dimensions[First[bbar]],
-                "ConnectionHash" -> Hash[aP, "SHA256", "HexString"],
                 "StripCheckpointFile" -> stripCheckpointFile|>,
               "Summary" -> modularSummary,
               "Result" -> solution|>,
@@ -1596,7 +1574,7 @@ Do[
         putAtomic[
           <|"Family" -> family, "Sector" -> k, "SubSize" -> subSize,
             "Truncation" -> nk, "PrevD" -> fromC[prevD],
-            "ConnectionHash" -> Hash[aP, "SHA256", "HexString"],
+            "TruncatedConnectionMatrices" -> aP,
             "StripSolvers" -> stripSolvers,
             "SolvedForms" -> fromC[solvedForms]|>,
           stripCheckpointFile];
@@ -1701,7 +1679,7 @@ Do[
     "CheckLevel" -> checkLevel|>;
   state = Join[
     KeyTake[state, {"OriginalA", "Ranges", "Blocks", "OriginalAReconstruction",
-      "ChartFingerprint", "TDiagonal", "TDiagonalInverse",
+      "CoefficientPresentation", "TDiagonal", "TDiagonalInverse",
       "RegulatorFactorizations", "RegulatorFactorization"}],
     <|"Sector" -> k, "S" -> newS, "SInverse" -> newSInverse,
       "A" -> aNew, "StripSolvers" -> state["StripSolvers"],
@@ -1741,7 +1719,7 @@ sectorCertificatesExact =
     TrueQ[Lookup[#, "TransformationInverse", False]] &&
       TrueQ[Lookup[#, "GaugeIdentity", False]] &];
 If[productionQ,
-  (* Production: no exact identities here; CertifyFamilyEpsilonForm is the
+  (* Production: no exact identities here; ValidateFamilyDLogEpsilonForm is the
      single exact test (driver runs it next).  Only the cheap structural
      statement is made. *)
   finalInverse = Missing["DeferredToFamilyCertificate"];
@@ -1830,9 +1808,8 @@ finalRegulatorFactorization = Replace[
   association_Association :> finalRegulatorFactorizationRecord[association]];
 out = <|"Family" -> family,
   "Method" -> "SectorCANONICA+ExactStripSolver",
-  "Chart" -> chart["Name"], "ChartRecord" -> chart,
-  "ChartCertificate" -> chartCertificate,
-  "ChartFingerprint" -> chartFingerprint,
+  "CoefficientPresentation" -> coefficientPresentationForResume,
+  "CoefficientPresentationValidation" -> chartCertificate,
   "Variables" -> {c1, c2}, "Regulator" -> ee,
   "Ranges" -> ranges, "Blocks" -> assembly["Blocks"],
   "TTotal" -> ttotalAbsolute, "TTotalInverse" -> ttotalAbsoluteInverse,
@@ -1853,7 +1830,7 @@ out = <|"Family" -> family,
     True, "Incomplete"],
   "CheckLevel" -> checkLevel,
   "WallSeconds" -> AbsoluteTime[] - start,
-  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip. In Production, a complete materialized current row is installed when available; otherwise the exact current-row block formula is retained without redundant symbolic normalization. Future A and inverse row-gauge corrections likewise retain exact block sums. CertifyFamilyEpsilonForm is the sole whole-family acceptance test and records whether its evidence is characteristic-zero exact or high-confidence finite-field. Development retains Together propagation and its exact intermediate checks."|>;
+  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip. In Production, a complete materialized current row is installed when available; otherwise the exact current-row block formula is retained without redundant symbolic normalization. Future connection and inverse basis-transformation row corrections likewise retain exact block sums. ValidateFamilyDLogEpsilonForm is the sole whole-family validation and distinguishes characteristic-zero symbolic identities from probabilistic finite-field evidence. Development retains Together propagation and its exact intermediate checks."|>;
 putAtomic[out, FileNameJoin[{outdir, "family_epsform_" <> family <> ".wl"}]];
 log["written family_epsform_", family, ".wl; GateVerdict ", verdict, "; wall ", Round[AbsoluteTime[] - start], " s"];
 If[ownedKernels =!= {}, Quiet[CloseKernels[ownedKernels]]];

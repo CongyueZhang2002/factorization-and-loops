@@ -7,8 +7,8 @@
    "transport") is removed; the epsilon-valuation certificate of a
    transport-ready record (Codex correctness point 1) is exercised on
    the same 1x1 fixture: a good record certifies and transports, a
-   stale/high claim is refused, a forged or unbound certificate is
-   refused, and the accept predicate binds the certificate. *)
+   stale/high claim is refused, a forged claim is refused, and the
+   recorded points are re-evaluated on the actual transformation matrices. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
@@ -166,7 +166,8 @@ forgedRecord = Join[computedRecord, <|"TransportEpsilonValuations" ->
 forgedTransport = BuildObservableTransport[forgedRecord, demand,
   "BoundaryEvolution" -> "AmbientBasePoint",
   "WordRepresentation" -> "OperatorAutomaton"];
-(* the gauge changed after certification: the fingerprint no longer binds *)
+(* A constant rescaling preserves both the transformation equation and the
+   epsilon valuations; mathematical re-evaluation must accept it. *)
 rescaledRecord = Join[computedRecord, <|"TTotal" -> {{2 eps}},
   "TTotalInverse" -> {{1/(2 eps)}}|>];
 rescaledTransport = BuildObservableTransport[rescaledRecord, demand,
@@ -319,7 +320,7 @@ FTAssert["the accepted transport carries the verified certificate",
   computedTransport["TransportEpsilonValuationCertificate"]["Status"] ===
       "RationalPointEpsilonValuationCertificate" &&
     TrueQ[computedTransport["TransportEpsilonValuationCertificate"][
-      "FingerprintVerified"]] &&
+      "DefiningDataRevalidated"]] &&
     TrueQ[computedTransport["Certificates"]["TransportEpsilonValuationsBound"]]];
 FTAssert["uncertified valuations are refused with a typed status",
   computedUncertified["Status"] === "TransportEpsilonValuationsUncertified" &&
@@ -334,9 +335,10 @@ FTAssert["a stale/high BlockLower is refused by the certifier",
     staleBlockLower["ObservedBlockLower"] === {-1}];
 FTAssert["a claim raised after certification is refused: certificate does not name it",
   forgedTransport["Status"] === "TransportEpsilonValuationCertificateInvalid"];
-FTAssert["a gauge changed after certification is refused: fingerprint mismatch",
+FTAssert["a mathematically equivalent constant basis rescaling is accepted after direct valuation re-evaluation",
   rescaledTransport["Status"] ===
-    "TransportEpsilonValuationCertificateMismatch"];
+      "ModularlyVerifiedObservableTransport" &&
+    AcceptedObservableTransportQ[rescaledTransport]];
 FTAssert["a conservative claim certifies as not tight and transports accepted",
   conservative["Status"] === "TransportEpsilonValuationsCertified" &&
     conservative["Tight"] === False &&

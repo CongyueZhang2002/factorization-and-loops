@@ -187,10 +187,8 @@ mapCheck = AllTrue[nloClasses,
 FTTest`FTAssert["C. classes partition the blocks and every member map is exact",
   classification["MembersTotal"] === Length[nloBlocks] &&
     classification["ClassCount"] <= Length[nloBlocks] &&
-    Length[DeleteDuplicates[#["ContentAddress"] & /@ nloClasses]] ===
-      classification["ClassCount"] &&
     Length[nloClasses] === classification["ClassCount"] &&
-    AllTrue[nloClasses, StringQ[#["ContentAddress"]] &] &&
+    Lookup[nloClasses, "ClassID"] === Range[classification["ClassCount"]] &&
     TrueQ[mapCheck]];
 
 (* Regression for the invariant bug: an earlier bucket key folded in the
@@ -205,17 +203,19 @@ FTTest`FTAssert["C. the quotient is strictly coarser than the block set",
     AllTrue[nloClasses, AllTrue[#["Members"], TrueQ[#["MapVerified"]] &] &]];
 
 (* --- E' ---------------------------------------------------------- *)
-(* The validator (CANONICA-free since 2026-09-02) on stored, certified
-   class forms of the repository: nine ordinary classes and the three
-   hard classes 97, 77, 79 in their chart frames. *)
-classFormDirectory = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
-  "UU_08_10_canonical", "ClassForms"}];
-sampledForms = Select[FileNameJoin[{classFormDirectory, "class" <> ToString[#] <> ".wl"}] & /@
-  {1, 9, 45, 89, 169, 12, 20, 33, 50, 97, 77, 79}, FileExistsQ];
-FTTest`FTAssert["E'. the repository's class-form ledger is present",
-  Length[sampledForms] >= 10];
-FTTest`FTAssert["E'. every sampled certified class form re-validates from its matrices",
-  AllTrue[sampledForms, TrueQ[ValidateCanonicalForm[#]] &]];
+(* Minimal exact fixtures exercise the validator directly.  Generated
+   project data are deliberately not part of a package unit test. *)
+sampledForms = {
+  {{{epsG/vv}}, {{0}}},
+  {epsG ({{1, 0}, {0, 0}}/vv +
+      {{0, 1}, {0, 0}}/(1 - vv - ww)),
+   epsG {{0, 1}, {0, 0}}/(1 - vv - ww)},
+  {ConstantArray[0, {2, 2}], ConstantArray[0, {2, 2}]}};
+FTTest`FTAssert["E'. the minimal dlog fixtures are explicit and nonempty",
+  Length[sampledForms] === 3];
+FTTest`FTAssert["E'. every exact fixture re-validates from its matrices",
+  AllTrue[sampledForms,
+    TrueQ[ValidateCanonicalForm[#, {vv, ww}, "Regulator" -> epsG]] &]];
 
 (* --- G ------------------------------------------------------------ *)
 (* the ladder sections D, F, H, I of this test (CanonicalizeClasses on

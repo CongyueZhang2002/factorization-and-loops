@@ -17,7 +17,7 @@ blocks = Table[{a["Rows"], a["ClassID"]}, {a, Select[assign, #["Family"] === "CF
 chart97 = <|"Kind" -> "TwoVariable", "Variables" -> {xx, yy},
   "Subst" -> {vv -> xx yy, ww -> (1 - xx) (1 - yy)},
   "Root" -> xx - yy, "RootSquare" -> (1 - vv - ww)^2 - 4 vv ww|>;
-call[opts___] := FeynFacet`TransportFamilyInChart[
+call[opts___] := FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
   <|"Family" -> "CF230", "Av" -> de["Av"], "Aw" -> de["Aw"]|>,
   chart97, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
   "Blocks" -> blocks, "FormDirectory" -> FileNameJoin[{R, "ClassForms"}],

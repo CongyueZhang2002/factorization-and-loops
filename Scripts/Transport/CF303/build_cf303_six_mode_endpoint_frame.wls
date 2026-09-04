@@ -23,23 +23,28 @@ frameTiming = AbsoluteTiming[
   spectralProjector = Map[Cancel[Together[#]] &,
     normalResidue/nonzeroEigenvalue, {2}];
   kernelMixing = (2 + 5*eps)/(2*p^2);
-  modeFrame = Transpose[{
+  normalResidueEigenbasis = Transpose[{
     {1, 0, 0, 0, 0, 0},
     {0, 1, 0, 0, 0, 0},
     {0, 0, 1, kernelMixing, 0, 0},
     {0, 0, 0, 0, 1, 0},
     {0, 0, 0, 0, 0, 1},
     {0, 0, 0, 1, 0, -1/p^2}}];
-  levelt = BuildEndpointLeveltModeConnection[normalResidue, bParallel,
+  eigenbasisTransformation =
+    TransformTangentialConnectionToNormalResidueEigenbasis[
+      normalResidue, bParallel,
     <|"TangentialVariable" -> p, "Regulator" -> eps,
-      "ModeFrame" -> modeFrame,
+      "NormalResidueEigenbasis" -> normalResidueEigenbasis,
       "LocalExponents" -> {0, 0, 0, 0, 0, nonzeroEigenvalue}|>];
-  If[Lookup[levelt, "Status", "Failure"] =!=
-      "EndpointLeveltModeConnectionBuilt",
-    Print["FAIL Levelt API ", InputForm[levelt]]; Quit[3]];
-  modeFrameInverse = levelt["InverseModeFrame"];
-  residueInModeFrame = levelt["NormalResidueInModeFrame"];
-  gamma = levelt["TangentialConnection"];
+  If[Lookup[eigenbasisTransformation, "Status", "Failure"] =!=
+      "TangentialConnectionTransformedToNormalResidueEigenbasis",
+    Print["FAIL normal-residue eigenbasis API ",
+      InputForm[eigenbasisTransformation]]; Quit[3]];
+  inverseNormalResidueEigenbasis =
+    eigenbasisTransformation["InverseNormalResidueEigenbasis"];
+  normalResidueInEigenbasis =
+    eigenbasisTransformation["NormalResidueInEigenbasis"];
+  gamma = eigenbasisTransformation["TangentialConnectionInEigenbasis"];
 ];
 frameSeconds = First[frameTiming];
 
@@ -56,16 +61,20 @@ targetGauge = {
 targetGaugeInverse = Map[Cancel[Together[#]] &, Inverse[targetGauge], {2}];
 acceptedCoordinateGauge = IdentityMatrix[6];
 acceptedCoordinateGauge[[4 ;; 5, 4 ;; 5]] = targetGauge;
-acceptedModeFrame = modeFrame . acceptedCoordinateGauge;
-acceptedLevelt = BuildEndpointLeveltModeConnection[normalResidue, bParallel,
+acceptedNormalResidueEigenbasis = normalResidueEigenbasis . acceptedCoordinateGauge;
+acceptedEigenbasisTransformation =
+  TransformTangentialConnectionToNormalResidueEigenbasis[
+    normalResidue, bParallel,
   <|"TangentialVariable" -> p, "Regulator" -> eps,
-    "ModeFrame" -> acceptedModeFrame,
+    "NormalResidueEigenbasis" -> acceptedNormalResidueEigenbasis,
     "LocalExponents" -> {0, 0, 0, 0, 0, nonzeroEigenvalue}|>];
-If[Lookup[acceptedLevelt, "Status", "Failure"] =!=
-    "EndpointLeveltModeConnectionBuilt",
-  Print["FAIL accepted target Levelt API ", InputForm[acceptedLevelt]];
+If[Lookup[acceptedEigenbasisTransformation, "Status", "Failure"] =!=
+    "TangentialConnectionTransformedToNormalResidueEigenbasis",
+  Print["FAIL accepted target normal-residue eigenbasis API ",
+    InputForm[acceptedEigenbasisTransformation]];
   Quit[3]];
-acceptedGamma = acceptedLevelt["TangentialConnection"];
+acceptedGamma = acceptedEigenbasisTransformation[
+  "TangentialConnectionInEigenbasis"];
 targetEpsilonConnection = eps*{
   {-(-3 - 2*p + 6*p^2)/((p - 1)*p*(p + 1)),
     (-1 + 4*p)/(2*(p - 1)*(p + 1))},
@@ -121,16 +130,20 @@ productionCoordinateGauge[[1 ;; 2, 1 ;; 2]] = block24SourceGauge;
 productionCoordinateGauge[[3, 3]] = block23ZeroGauge;
 productionCoordinateGauge[[4 ;; 5, 4 ;; 5]] = targetGauge;
 productionCoordinateGauge[[6, 6]] = nonzeroTangentialPrefactor;
-productionModeFrame = modeFrame . productionCoordinateGauge;
-productionLevelt = BuildEndpointLeveltModeConnection[normalResidue, bParallel,
+productionNormalResidueEigenbasis = normalResidueEigenbasis . productionCoordinateGauge;
+productionEigenbasisTransformation =
+  TransformTangentialConnectionToNormalResidueEigenbasis[
+    normalResidue, bParallel,
   <|"TangentialVariable" -> p, "Regulator" -> eps,
-    "ModeFrame" -> productionModeFrame,
+    "NormalResidueEigenbasis" -> productionNormalResidueEigenbasis,
     "LocalExponents" -> {0, 0, 0, 0, 0, nonzeroEigenvalue}|>];
-If[Lookup[productionLevelt, "Status", "Failure"] =!=
-    "EndpointLeveltModeConnectionBuilt",
-  Print["FAIL production Levelt API ", InputForm[productionLevelt]];
+If[Lookup[productionEigenbasisTransformation, "Status", "Failure"] =!=
+    "TangentialConnectionTransformedToNormalResidueEigenbasis",
+  Print["FAIL production normal-residue eigenbasis API ",
+    InputForm[productionEigenbasisTransformation]];
   Quit[3]];
-productionGamma = productionLevelt["TangentialConnection"];
+productionGamma = productionEigenbasisTransformation[
+  "TangentialConnectionInEigenbasis"];
 productionSourceIndices = {1, 2, 3, 6};
 productionSourceConnection =
   productionGamma[[productionSourceIndices, productionSourceIndices]];
@@ -189,11 +202,11 @@ productionOperatorTiming = AbsoluteTiming[
     productionSource, productionLayer, productionTransport]];
 productionOperatorSeconds = First[productionOperatorTiming];
 productionCertificate = Lookup[productionTransport, "Certificate", <||>];
-productionGaugeFunctions = Lookup[productionTransport,
-  "GaugeFunctions", <||>];
+productionOffDiagonalBasisTransformationBlockCoefficients = Lookup[productionTransport,
+  "OffDiagonalBasisTransformationBlockCoefficients", <||>];
 productionGaugeNonzeros = Total[
   Length[SparseArray[#]["NonzeroPositions"]] & /@
-    Values[productionGaugeFunctions]];
+    Values[productionOffDiagonalBasisTransformationBlockCoefficients]];
 
 (* Exact local map from the six production mode coefficients to the accepted
    z-path coordinates at the soft junction.  This is not yet the rebase from
@@ -273,19 +286,20 @@ validation = <|
   "ProjectorIdempotent" ->
     zeroMatrixQ[Map[Cancel[Together[#]] &,
       spectralProjector . spectralProjector - spectralProjector, {2}]],
-  "FrameDeterminantOne" -> (Cancel[Det[modeFrame]] === 1),
+  "FrameDeterminantOne" -> (Cancel[Det[normalResidueEigenbasis]] === 1),
   "ResidueDiagonalized" ->
-    residueInModeFrame === DiagonalMatrix[{0, 0, 0, 0, 0,
+    normalResidueInEigenbasis === DiagonalMatrix[{0, 0, 0, 0, 0,
       nonzeroEigenvalue}],
   "CrossEigenspaceBlocksVanish" ->
-    ! TrueQ[levelt["CrossExponentCoupling"]] &&
-      Lookup[levelt["ExponentSectors"], "Indices"] === {{1, 2, 3, 4, 5}, {6}} &&
+    ! TrueQ[eigenbasisTransformation["UnequalExponentCoupling"]] &&
+      Lookup[eigenbasisTransformation["EqualExponentSectors"], "Indices"] ===
+        {{1, 2, 3, 4, 5}, {6}} &&
       zeroMatrixQ[crossToNonzero] && zeroMatrixQ[crossFromNonzero],
   "KernelRecompositionExact" -> zeroMatrixQ[decompositionResidual],
   "AcceptedTargetGaugeInvertible" ->
     Cancel[Together[Det[targetGauge]]] =!= 0,
   "AcceptedFrameCrossEigenspaceBlocksVanish" ->
-    ! TrueQ[acceptedLevelt["CrossExponentCoupling"]] &&
+    ! TrueQ[acceptedEigenbasisTransformation["UnequalExponentCoupling"]] &&
       zeroMatrixQ[acceptedCrossToNonzero] &&
       zeroMatrixQ[acceptedCrossFromNonzero],
   "AcceptedTargetBlockIsEpsilonForm" ->
@@ -318,7 +332,8 @@ validation = <|
         productionGamma[[4 ;; 5, 4 ;; 5]] -
           targetEpsilonConnection, {2}]],
   "ProductionCrossEigenspaceBlocksVanish" ->
-    ! TrueQ[productionLevelt["CrossExponentCoupling"]] &&
+    ! TrueQ[productionEigenbasisTransformation[
+      "UnequalExponentCoupling"]] &&
       zeroMatrixQ[productionCrossToNonzero] &&
       zeroMatrixQ[productionCrossFromNonzero],
   "AcceptedTargetExtensionBoundToNonzeroFrame" ->
@@ -370,16 +385,18 @@ result = <|
   "NormalResidue" -> <|"Matrix" -> normalResidue, "Rank" -> 1,
     "NonzeroEigenvalue" -> nonzeroEigenvalue,
     "SpectralProjector" -> spectralProjector|>,
-  "ModeFrame" -> <|
-    "Builder" -> "BuildEndpointLeveltModeConnection",
+  "NormalResidueEigenbasis" -> <|
+    "Builder" ->
+      "TransformTangentialConnectionToNormalResidueEigenbasis",
     "Convention" -> "columns are five zero modes followed by one nonzero mode",
     "Labels" -> {"ZeroE1", "ZeroE2", "ZeroBlock23",
       "ZeroTargetE5", "ZeroTargetE6", "NonzeroBlock23"},
-    "Matrix" -> modeFrame, "Inverse" -> modeFrameInverse,
-    "ResidueInFrame" -> residueInModeFrame,
-    "ExponentData" -> levelt["ExponentData"],
-    "ExponentSectors" -> Lookup[levelt["ExponentSectors"], "Indices"]|>,
-  "TangentialConnection" -> <|
+    "Matrix" -> normalResidueEigenbasis, "Inverse" -> inverseNormalResidueEigenbasis,
+    "NormalResidueInEigenbasis" -> normalResidueInEigenbasis,
+    "ExponentData" -> eigenbasisTransformation["ExponentData"],
+    "EqualExponentSectors" ->
+      Lookup[eigenbasisTransformation["EqualExponentSectors"], "Indices"]|>,
+  "TangentialConnectionInEigenbasis" -> <|
     "Convention" -> "Gamma=V^-1 B_parallel V - V^-1 dV/dp",
     "SparseEntries" -> matrixEntries[gamma],
     "ZeroEigenspaceBlock" -> gamma[[1 ;; 5, 1 ;; 5]],
@@ -391,7 +408,7 @@ result = <|
     "Provenance" -> "accepted CF303 PhysicalGaugeByOrderPairs at rho=0",
     "Matrix" -> targetGauge, "Inverse" -> targetGaugeInverse,
     "Determinant" -> Cancel[Together[Det[targetGauge]]],
-    "AcceptedModeFrame" -> acceptedModeFrame,
+    "AcceptedNormalResidueEigenbasis" -> acceptedNormalResidueEigenbasis,
     "TangentialConnectionSparseEntries" -> matrixEntries[acceptedGamma],
     "TargetEpsilonConnection" -> targetEpsilonConnection,
     "TargetGPLCouplings" -> targetGPLCouplings,
@@ -410,7 +427,7 @@ result = <|
       "Block23Zero", "TargetMode1", "TargetMode2", "Block23Nonzero"},
     "SourceModeOrder" -> {"Block24Mode1", "Block24Mode2",
       "Block23Zero", "Block23Nonzero"},
-    "PhysicalModeFrame" -> productionModeFrame,
+    "PhysicalNormalResidueEigenbasis" -> productionNormalResidueEigenbasis,
     "TangentialConnectionSparseEntries" -> matrixEntries[productionGamma],
     "Source" -> productionSource,
     "Layer" -> productionLayer,
@@ -433,7 +450,7 @@ result = <|
         block23NonzeroAcceptedExtension*{1, 1},
       "Block23NonzeroTargetExtensionInProductionNormalization" ->
         block23NonzeroExtensionInBaseFrame*{1, 1},
-      "TargetExtensionEncodedInNonzeroModeFrame" -> True,
+      "TargetExtensionEncodedInNonzeroResidueEigenbasis" -> True,
       "TargetBoundarySelectorsContainOnlyIndependentZeroModes" -> True,
       "FrobeniusRegularPrefactorRequired" -> True|>,
     "PrepareOnlyControl" -> KeyTake[productionPrepare,
@@ -443,16 +460,16 @@ result = <|
       "DemandPairs" -> productionDemand["Pairs"],
       "TransportStatus" -> Lookup[productionTransport, "Status", None],
       "Route" -> Lookup[productionCertificate, "IncomingRoute", None],
-      "GaugeStatus" -> Lookup[productionTransport, "GaugeStatus", None],
-      "GaugeRepresentation" -> Lookup[productionCertificate,
-        "GaugeRepresentation", None],
+      "OffDiagonalTransformationBlockStatus" -> Lookup[productionTransport, "OffDiagonalTransformationBlockStatus", None],
+      "OffDiagonalTransformationBlockRepresentation" -> Lookup[productionCertificate,
+        "OffDiagonalTransformationBlockRepresentation", None],
       "Window" -> Lookup[productionTransport, "Window", None],
       "Primes" -> Lookup[productionCertificate, "Primes", {}],
       "FreshValidationPrime" -> Lookup[productionCertificate,
         "FreshValidationPrime", None],
-      "GaugeOrders" -> Keys[productionGaugeFunctions],
+      "OffDiagonalTransformationOrders" -> Keys[productionOffDiagonalBasisTransformationBlockCoefficients],
       "GaugeNonzeroEntries" -> productionGaugeNonzeros,
-      "GaugeByteCount" -> ByteCount[productionGaugeFunctions],
+      "GaugeByteCount" -> ByteCount[productionOffDiagonalBasisTransformationBlockCoefficients],
       "TransportByteCount" -> ByteCount[productionTransport],
       "FourArgumentPredicate" -> productionTransportPredicate,
       "OperatorStatus" -> Lookup[productionOperator, "Status", None],

@@ -45,8 +45,8 @@ FTAssert["an exact chart composition transports an older numerical certificate",
 checkpoint = <|
   "Family" -> family, "Sector" -> sector, "SubSize" -> 1,
   "Truncation" -> 3, "PrevD" -> {{x + y}},
-  "ConnectionHash" -> Hash[connection /. eps -> CANONICA`eps,
-    "SHA256", "HexString"],
+  "TruncatedConnectionMatrices" ->
+    (connection /. eps -> CANONICA`eps),
   "StripSolvers" -> {acceptance}, "SolvedForms" -> forms|>;
 
 temporary = CreateDirectory[];

@@ -18,8 +18,13 @@ strip = {
   {{{0}}, {{0}}},
   {{{1}}, {{0}}}
 };
-frame = <|"Variables" -> variables,
-  "Subst" -> Thread[variables -> variables], "Roots" -> {}|>;
+coefficientPresentation = <|
+  "DataType" -> "SourceVariableRepresentation",
+  "SchemaVersion" -> 2,
+  "SourceVariables" -> variables,
+  "CoefficientVariables" -> variables,
+  "SourceVariableSubstitution" -> Thread[variables -> variables],
+  "DifferentialPullbackMatrix" -> IdentityMatrix[2]|>;
 letterRecords = {<|"Kind" -> "ForcingDLog", "Letter" -> rx,
   "OneForm" -> {1/rx, 0}, "Potential" -> <|"Verified" -> True|>|>};
 letterData = <|"Status" -> "MultiquadraticCandidateLettersV1",
@@ -52,7 +57,8 @@ success = Internal`InheritedBlock[{
     (candidateCalls++; letterData);
   FeynFacet`Private`solveEpsFormStripMultiquadratic[___] :=
     (mqCalls++; <|"Status" -> "UnexpectedMQCall"|>);
-  FeynFacet`SolveEpsFormStripInFrame[strip, variables, re, frame,
+  FeynFacet`SolveEpsFormStripInFrame[
+    strip, variables, re, coefficientPresentation,
     "FiniteFieldFirst" -> True, "FiniteFieldFallback" -> True,
     "MultiquadraticDispatch" -> True, "Verbose" -> False]
 ];
@@ -78,7 +84,8 @@ fallback = Internal`InheritedBlock[{
     fallbackMQCalls++;
     seenFallbackOptions = Association[{opts}];
     <|"Status" -> "MQFallbackStub"|>);
-  FeynFacet`SolveEpsFormStripInFrame[strip, variables, re, frame,
+  FeynFacet`SolveEpsFormStripInFrame[
+    strip, variables, re, coefficientPresentation,
     "FiniteFieldFirst" -> True, "FiniteFieldFallback" -> True,
     "MultiquadraticDispatch" -> True, "Verbose" -> False]
 ];
@@ -87,8 +94,11 @@ checks = <|
   "ExpandedBasisRetrySolves" -> AssociationQ[success] &&
     success["Status"] === "Solved" &&
     success["AlphabetRecovery"] === "RankZeroCandidateDLogs" &&
-    StringStartsQ[success["Method"], "RationalFrame/"] &&
-    AssociationQ[success["FrameCertificate"]],
+    StringStartsQ[success["Method"], "SourceVariableRepresentation/"] &&
+    success["CoefficientPresentation", "DataType"] ===
+      "SourceVariableRepresentation" &&
+    AssociationQ[success["Validation"]] &&
+    TrueQ[success["Validation", "Passed"]],
   "ExactlyOneExpandedRetry" -> ffCalls === 2 && candidateCalls === 1 &&
     mqCalls === 0,
   "ExpandedRecordIsMathOnly" -> AssociationQ[seenExpandedRecord] &&
@@ -99,7 +109,9 @@ checks = <|
     Lookup[seenExpandedOptions, "ArtifactPrefix", ""], "_dlog_basis"],
   "ConservativeFallbackRunsOnlyAfterBothFiniteFailures" ->
     ffFallbackCalls === 2 && fallbackCandidateCalls === 1 &&
-      fallbackMQCalls === 1 && fallback["Status"] === "MQFallbackStub",
+      fallbackMQCalls === 1 && fallback["Status"] === "MQFallbackStub" &&
+      fallback["FallbackCoefficientPresentation"] ===
+        "SourceVariableRepresentationAfterRationalization",
   "ConservativeFallbackReusesRecords" ->
     Lookup[seenFallbackOptions, "LetterRecords", Missing[]] === letterRecords
 |>;

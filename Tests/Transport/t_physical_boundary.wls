@@ -8,6 +8,12 @@ root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
+FTAssert["the local-solution APIs are exported without compatibility aliases",
+  StringQ[ComputeTruncatedLocalFrobeniusExpansion::usage] &&
+    StringQ[TransformTangentialConnectionToNormalResidueEigenbasis::usage] &&
+    ! NameQ["FeynFacet`BuildEndpointFrobenius"] &&
+    ! NameQ["FeynFacet`BuildEndpointLeveltModeConnection"]];
+
 u = Symbol["Global`boundaryU"];
 rho = Symbol["Global`boundaryRho"];
 eps = Symbol["Global`eps"];
@@ -17,143 +23,175 @@ residue = ConstantArray[0, {2, 2}];
 regular = {{0, 1}, {0, 0}};
 connection = eps (residue/u + regular);
 endpointSpec = <|"Variable" -> u, "Regulator" -> eps,
-  "LocalVariable" -> rho, "Endpoint" -> 0|>;
+  "LocalVariable" -> rho, "LocalExpansionPoint" -> 0|>;
 
-frobenius = BuildEndpointFrobenius[connection, endpointSpec,
+frobenius = ComputeTruncatedLocalFrobeniusExpansion[connection, endpointSpec,
   "MaximumSeriesOrder" -> 2, "MaximumEpsilonOrder" -> 2];
-FTAssert["a Fuchsian epsilon-form endpoint builds a finite exact Frobenius prefactor",
-  frobenius["Status"] === "EndpointFrobeniusBuilt" &&
+FTAssert["an ordinary point produces a finite exact local Frobenius expansion",
+  frobenius["Status"] === "TruncatedLocalFrobeniusExpansionComputed" &&
+    frobenius["PointType"] === "OrdinaryPoint" &&
+    frobenius["LocalExpansionPoint"] === 0 &&
     frobenius["Residue"] === residue &&
     frobenius["FrobeniusPrefactorCoefficients"][{1, 1}] === regular &&
     frobenius["ResidualCheckedThrough"] ===
       <|"SeriesOrder" -> 1, "EpsilonOrder" -> 2|>];
 
-reverseFrobenius = BuildEndpointFrobenius[
+reverseFrobenius = ComputeTruncatedLocalFrobeniusExpansion[
   eps (residue/(u - 1) + regular),
-  Join[endpointSpec, <|"Endpoint" -> 1, "LocalDirection" -> -1|>],
+  Join[endpointSpec,
+    <|"LocalExpansionPoint" -> 1, "LocalDirection" -> -1|>],
   "MaximumSeriesOrder" -> 2, "MaximumEpsilonOrder" -> 2];
 FTAssert["an inward endpoint coordinate includes its differential Jacobian",
-  reverseFrobenius["Status"] === "EndpointFrobeniusBuilt" &&
+  reverseFrobenius["Status"] ===
+      "TruncatedLocalFrobeniusExpansionComputed" &&
     reverseFrobenius["LocalDirection"] === -1 &&
     reverseFrobenius["Residue"] === residue &&
     reverseFrobenius["FrobeniusPrefactorCoefficients"][{1, 1}] ===
       -regular];
 
-inwardScalarFrobenius = BuildEndpointFrobenius[{{0}},
+inwardScalarFrobenius = ComputeTruncatedLocalFrobeniusExpansion[{{0}},
   <|"Variable" -> u, "Regulator" -> eps, "LocalVariable" -> rho,
-    "Endpoint" -> 1, "LocalDirection" -> -1|>,
+    "LocalExpansionPoint" -> 1, "LocalDirection" -> -1|>,
   "MaximumSeriesOrder" -> 1, "MaximumEpsilonOrder" -> 1];
-inwardScalarMode = BuildBoundaryModeMap[inwardScalarFrobenius,
+inwardScalarMode = MatchBoundaryAsymptoticsToFrobeniusModes[inwardScalarFrobenius,
   {{1 - u}}, <|"Family" -> "InwardCoordinateControl",
     "Limit" -> <|"Variable" -> u, "Endpoint" -> 1|>,
+    "BoundaryDomain" -> <|"Type" -> "PhysicalBoundaryPoint"|>,
     "PhysicalEndpointRelation" -> <|"LocalPower" -> 1,
       "LeadingCoefficient" -> 1|>|>,
-  {<|"PeriodID" -> "inward", "PeriodClass" -> "GPL",
-    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {1},
+  {<|"BoundaryConstantID" -> "inward",
+    "DeclaredBoundaryConstantAnalyticClass" -> "GPL",
+    "BoundaryConstantEpsilonValuation" -> 0, "CanonicalRows" -> {1},
     "PhysicalRows" -> {1}, "EpsilonExponent" -> 0,
     "IntegerValuation" -> 1, "LogLevel" -> 0,
     "DemandedOutputs" -> {{0, 1}}|>}];
 FTAssert["mode normalization uses the same inward coordinate as its Frobenius series",
-  inwardScalarMode["Status"] === "BoundaryModeMapBuilt" &&
-    inwardScalarMode["EndpointSpec", "LocalDirection"] === -1 &&
-    inwardScalarMode["Modes"][[1, "CanonicalMode"]] === {1} &&
-    inwardScalarMode["Modes"][[1, "PhysicalLeadingCoefficients"]] === {1}];
+  inwardScalarMode["Status"] === "BoundaryAsymptoticModeMatching" &&
+    inwardScalarMode["LocalExpansionSpecification", "LocalDirection"] === -1 &&
+    inwardScalarMode["FrobeniusModes"][[1, "CanonicalMode"]] === {1} &&
+    inwardScalarMode["FrobeniusModes"][[1, "PhysicalLeadingCoefficients"]] === {1}];
 
 FTAssert["non-epsilon-form and higher-order endpoint poles are refused typed",
-  BuildEndpointFrobenius[connection + IdentityMatrix[2],
+  ComputeTruncatedLocalFrobeniusExpansion[
+      connection + IdentityMatrix[2],
       endpointSpec]["Status"] === "ConnectionNotEpsilonForm" &&
-    BuildEndpointFrobenius[eps IdentityMatrix[2]/u^2,
-      endpointSpec]["Status"] === "EndpointNotFuchsian"];
+    ComputeTruncatedLocalFrobeniusExpansion[
+      eps IdentityMatrix[2]/u^2, endpointSpec]["Status"] ===
+      "ConnectionNotFuchsianAtLocalExpansionPoint"];
 
-leveltP = Symbol["Global`leveltP"];
-leveltFrame = {{1, 0}, {1/leveltP, 1}};
-leveltExponents = {0, -2 - 4 eps};
-leveltExpected = {{eps/leveltP, 0}, {0, 2 eps/(1 - leveltP)}};
-leveltResidue = Together[
-  leveltFrame.DiagonalMatrix[leveltExponents].Inverse[leveltFrame]];
-leveltTangential = Together[
-  leveltFrame.leveltExpected.Inverse[leveltFrame] +
-    D[leveltFrame, leveltP].Inverse[leveltFrame]];
-levelt = BuildEndpointLeveltModeConnection[leveltResidue,
-  leveltTangential, <|"TangentialVariable" -> leveltP,
-    "Regulator" -> eps, "ModeFrame" -> leveltFrame,
-    "LocalExponents" -> leveltExponents|>];
-FTAssert["a rational-in-epsilon regular-singular endpoint is reduced in a moving Levelt frame",
-  levelt["Status"] === "EndpointLeveltModeConnectionBuilt" &&
+eigenbasisP = Symbol["Global`eigenbasisP"];
+normalResidueEigenbasis = {{1, 0}, {1/eigenbasisP, 1}};
+localExponents = {0, -2 - 4 eps};
+expectedTangentialConnection =
+  {{eps/eigenbasisP, 0}, {0, 2 eps/(1 - eigenbasisP)}};
+normalResidue = Together[
+  normalResidueEigenbasis.DiagonalMatrix[localExponents].
+    Inverse[normalResidueEigenbasis]];
+tangentialConnection = Together[
+  normalResidueEigenbasis.expectedTangentialConnection.
+      Inverse[normalResidueEigenbasis] +
+    D[normalResidueEigenbasis, eigenbasisP].
+      Inverse[normalResidueEigenbasis]];
+eigenbasisResult = TransformTangentialConnectionToNormalResidueEigenbasis[
+  normalResidue, tangentialConnection,
+  <|"TangentialVariable" -> eigenbasisP, "Regulator" -> eps,
+    "NormalResidueEigenbasis" -> normalResidueEigenbasis,
+    "LocalExponents" -> localExponents|>];
+FTAssert["the tangential connection is transformed in a moving normal-residue eigenbasis",
+  eigenbasisResult["Status"] ===
+      "TangentialConnectionTransformedToNormalResidueEigenbasis" &&
     And @@ Flatten[MapThread[Together[#1 - #2] === 0 &,
-      {levelt["TangentialConnection"], leveltExpected}, 2]] &&
-    Lookup[levelt["ExponentData"], "IntegerPart"] === {0, -2} &&
-    Lookup[levelt["ExponentData"], "RegulatorCoefficient"] === {0, -4} &&
-    Lookup[levelt["ExponentSectors"], "Indices"] === {{1}, {2}}];
+      {eigenbasisResult["TangentialConnectionInEigenbasis"],
+       expectedTangentialConnection}, 2]] &&
+    Lookup[eigenbasisResult["ExponentData"], "IntegerPart"] === {0, -2} &&
+    Lookup[eigenbasisResult["ExponentData"], "RegulatorCoefficient"] ===
+      {0, -4} &&
+    Lookup[eigenbasisResult["EqualExponentSectors"], "Indices"] ===
+      {{1}, {2}}];
 
-FTAssert["an invalid frame and unequal-exponent tangential mixing are refused typed",
-  BuildEndpointLeveltModeConnection[leveltResidue,
-      leveltTangential, <|"TangentialVariable" -> leveltP,
-        "Regulator" -> eps, "ModeFrame" -> IdentityMatrix[2],
-        "LocalExponents" -> leveltExponents|>]["Status"] ===
-      "EndpointLeveltModeFrameInvalid" &&
-    BuildEndpointLeveltModeConnection[leveltResidue,
-      leveltTangential + leveltFrame.{{0, 1}, {0, 0}}.
-        Inverse[leveltFrame], <|"TangentialVariable" -> leveltP,
-        "Regulator" -> eps, "ModeFrame" -> leveltFrame,
-        "LocalExponents" -> leveltExponents|>]["Status"] ===
-      "EndpointLeveltSectorsCoupled"];
+FTAssert["an invalid residue eigenbasis and unequal-exponent tangential mixing are refused typed",
+  TransformTangentialConnectionToNormalResidueEigenbasis[normalResidue,
+      tangentialConnection, <|"TangentialVariable" -> eigenbasisP,
+        "Regulator" -> eps,
+        "NormalResidueEigenbasis" -> IdentityMatrix[2],
+        "LocalExponents" -> localExponents|>]["Status"] ===
+      "NormalResidueEigenbasisInvalid" &&
+    TransformTangentialConnectionToNormalResidueEigenbasis[normalResidue,
+      tangentialConnection +
+        normalResidueEigenbasis.{{0, 1}, {0, 0}}.
+          Inverse[normalResidueEigenbasis],
+      <|"TangentialVariable" -> eigenbasisP, "Regulator" -> eps,
+        "NormalResidueEigenbasis" -> normalResidueEigenbasis,
+        "LocalExponents" -> localExponents|>]["Status"] ===
+      "UnequalExponentSectorsCoupled"];
 
 modeSpec = <|
   "Family" -> "SyntheticBoundaryControl",
   "Limit" -> <|"Variable" -> u, "Endpoint" -> 0,
     "Direction" -> "Positive"|>,
+  "BoundaryDomain" -> <|"Type" -> "PhysicalBoundaryPoint"|>,
   "PhysicalEndpointRelation" -> <|
     "LocalPower" -> 1, "LeadingCoefficient" -> 1|>|>;
 realizations = {
-  <|"PeriodID" -> "g", "PeriodClass" -> "GPL",
-    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {1},
+  <|"BoundaryConstantID" -> "g", "BoundaryIntegralID" -> "I_g",
+    "DeclaredBoundaryConstantAnalyticClass" -> "GPL",
+    "BoundaryConstantEpsilonValuation" -> 0, "CanonicalRows" -> {1},
     "PhysicalRows" -> {1}, "EpsilonExponent" -> 0,
     "IntegerValuation" -> 0, "LogLevel" -> 0,
     "DemandedOutputs" -> {{0, 1}, {1, 1}, {3, 1}}|>,
-  <|"PeriodID" -> "e", "PeriodClass" -> "Elliptic",
-    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {2},
+  <|"BoundaryConstantID" -> "e", "BoundaryIntegralID" -> "I_e",
+    "DeclaredBoundaryConstantAnalyticClass" -> "Elliptic",
+    "BoundaryConstantEpsilonValuation" -> 0, "CanonicalRows" -> {2},
     "PhysicalRows" -> {2}, "EpsilonExponent" -> 0,
     "IntegerValuation" -> 0, "LogLevel" -> 0,
     "DemandedOutputs" -> {{0, 2}, {1, 2}}|>
 };
-modeMap = BuildBoundaryModeMap[frobenius, {{1, 0}, {u, 2}},
+modeMap = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius, {{1, 0}, {u, 2}},
   modeSpec, realizations];
 FTAssert["physical modes are globally extended and normalized in the canonical boundary space",
-    modeMap["Status"] === "BoundaryModeMapBuilt" &&
-    modeMap["EndpointSpec"] === <|"Variable" -> u,
-      "Endpoint" -> 0, "LocalDirection" -> 1, "FixedRules" -> {}|> &&
-    modeMap["Modes"][[1, "CanonicalMode"]] === {1, 0} &&
-    modeMap["Modes"][[2, "CanonicalMode"]] === {0, 1/2} &&
-    modeMap["Modes"][[All, "PhysicalToLocalMode"]] ===
-      modeMap["Modes"][[All, "CanonicalMode"]] &&
-    modeMap["Modes"][[All, "PhysicalLocalOrders"]] === {{0}, {0}} &&
-    Lookup[modeMap["Stage3NeedsLedger"], "Status"] ===
+    modeMap["Status"] === "BoundaryAsymptoticModeMatching" &&
+    modeMap["LocalExpansionSpecification"] === <|"Variable" -> u,
+      "LocalExpansionPoint" -> 0, "LocalDirection" -> 1, "FixedRules" -> {}|> &&
+    modeMap["FrobeniusModes"][[1, "CanonicalMode"]] === {1, 0} &&
+    modeMap["FrobeniusModes"][[2, "CanonicalMode"]] === {0, 1/2} &&
+    modeMap["FrobeniusModes"][[All, "PhysicalToLocalMode"]] ===
+      modeMap["FrobeniusModes"][[All, "CanonicalMode"]] &&
+    modeMap["FrobeniusModes"][[All, "BoundaryIntegralID"]] ===
+      {"I_g", "I_e"} &&
+    modeMap["FrobeniusModes"][[All, "PhysicalLocalOrders"]] === {{0}, {0}} &&
+    Lookup[modeMap["BoundaryDataRequirements"], "Status"] ===
       {"Unevaluated", "Unevaluated"}];
 
 coordinateResidue = {{2, 1}, {0, 2}};
-coordinateFrobenius = BuildEndpointFrobenius[
+coordinateFrobenius = ComputeTruncatedLocalFrobeniusExpansion[
   eps coordinateResidue/u, endpointSpec,
   "MaximumSeriesOrder" -> 1, "MaximumEpsilonOrder" -> 2];
+FTAssert["a nonzero Fuchsian residue classifies the local expansion point as regular singular",
+  coordinateFrobenius["Status"] ===
+      "TruncatedLocalFrobeniusExpansionComputed" &&
+    coordinateFrobenius["PointType"] === "RegularSingularPoint"];
 coordinateSpec = <|
   "Family" -> "SyntheticCoordinateControl",
   "Limit" -> <|"Variable" -> u, "Endpoint" -> 0,
     "Direction" -> "Positive"|>,
+  "BoundaryDomain" -> <|"Type" -> "PhysicalBoundaryPoint"|>,
   "PhysicalEndpointRelation" -> <|
     "LocalPower" -> 2, "LeadingCoefficient" -> 4|>|>;
 coordinateRealizations = {
-  <|"PeriodID" -> "eigen", "PeriodClass" -> "GPL",
-    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {1},
+  <|"BoundaryConstantID" -> "eigen",
+    "DeclaredBoundaryConstantAnalyticClass" -> "GPL",
+    "BoundaryConstantEpsilonValuation" -> 0, "CanonicalRows" -> {1},
     "ConstraintRows" -> {1, 2}, "PhysicalRows" -> {1},
     "EpsilonExponent" -> 1, "IntegerValuation" -> 0,
     "LogLevel" -> 0, "DemandedOutputs" -> {{0, 1}}|>,
-  <|"PeriodID" -> "jordan", "PeriodClass" -> "GPL",
-    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {2},
+  <|"BoundaryConstantID" -> "jordan",
+    "DeclaredBoundaryConstantAnalyticClass" -> "GPL",
+    "BoundaryConstantEpsilonValuation" -> 0, "CanonicalRows" -> {2},
     "ConstraintRows" -> {1, 2}, "PhysicalRows" -> {2},
     "EpsilonExponent" -> 1, "IntegerValuation" -> 0,
     "LogLevel" -> 1, "DemandedOutputs" -> {{0, 2}}|>
 };
-coordinateModes = BuildBoundaryModeMap[coordinateFrobenius,
+coordinateModes = MatchBoundaryAsymptoticsToFrobeniusModes[coordinateFrobenius,
   IdentityMatrix[2], coordinateSpec, coordinateRealizations];
 coordinateLog = Log[4];
 expectedCoordinateModes = {
@@ -161,101 +199,107 @@ expectedCoordinateModes = {
   {eps coordinateLog/2 + eps^2 coordinateLog^2/2,
    1 + eps coordinateLog + eps^2 coordinateLog^2/2}};
 FTAssert["t = alpha rho^kappa converts eigenvectors and Jordan modes through the retained epsilon order",
-  coordinateModes["Status"] === "BoundaryModeMapBuilt" &&
-    coordinateModes["Modes"][[All, "CanonicalMode"]] ===
+  coordinateModes["Status"] === "BoundaryAsymptoticModeMatching" &&
+    coordinateModes["FrobeniusModes"][[All, "CanonicalMode"]] ===
       {{1, 0}, {0, 1}} &&
     And @@ Flatten[MapThread[Together[#1 - #2] === 0 &,
-      {coordinateModes["Modes"][[All, "PhysicalToLocalMode"]],
+      {coordinateModes["FrobeniusModes"][[All, "PhysicalToLocalMode"]],
        expectedCoordinateModes}, 2]]];
 
 negativeCoordinateSpec = MapAt[
   Join[#, <|"LeadingCoefficient" -> -4|>] &,
   coordinateSpec, Key["PhysicalEndpointRelation"]];
-negativeCoordinateModes = BuildBoundaryModeMap[coordinateFrobenius,
+negativeCoordinateModes = MatchBoundaryAsymptoticsToFrobeniusModes[coordinateFrobenius,
   IdentityMatrix[2], negativeCoordinateSpec, coordinateRealizations];
-branchedCoordinateModes = BuildBoundaryModeMap[coordinateFrobenius,
+branchedCoordinateModes = MatchBoundaryAsymptoticsToFrobeniusModes[coordinateFrobenius,
   IdentityMatrix[2], MapAt[Join[#, <|"LeadingCoefficient" -> -4,
       "LogBranch" -> -1|>] &, coordinateSpec,
     Key["PhysicalEndpointRelation"]], coordinateRealizations];
-zeroNegativeModes = BuildBoundaryModeMap[frobenius,
+zeroNegativeModes = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius,
   {{1, 0}, {u, 2}}, MapAt[
     Join[#, <|"LeadingCoefficient" -> -4|>] &, modeSpec,
     Key["PhysicalEndpointRelation"]], realizations];
 FTAssert["a non-positive coordinate factor needs an explicit logarithm branch only when the residue acts nontrivially",
-  negativeCoordinateModes["Status"] === "BoundaryModeMapIncomplete" &&
-    Lookup[negativeCoordinateModes["Modes"], "Status"] ===
-      {"PhysicalEndpointLogBranchRequired",
-       "PhysicalEndpointLogBranchRequired"} &&
-    branchedCoordinateModes["Status"] === "BoundaryModeMapBuilt" &&
-    zeroNegativeModes["Status"] === "BoundaryModeMapBuilt" &&
-    zeroNegativeModes["Modes"][[All, "PhysicalToLocalMode"]] ===
-      zeroNegativeModes["Modes"][[All, "CanonicalMode"]]];
+  negativeCoordinateModes["Status"] === "BoundaryAsymptoticModeMatchingIncomplete" &&
+    Lookup[negativeCoordinateModes["FrobeniusModes"], "Status"] ===
+      {"PhysicalLimitLogBranchRequired",
+       "PhysicalLimitLogBranchRequired"} &&
+    branchedCoordinateModes["Status"] === "BoundaryAsymptoticModeMatching" &&
+    zeroNegativeModes["Status"] === "BoundaryAsymptoticModeMatching" &&
+    zeroNegativeModes["FrobeniusModes"][[All, "PhysicalToLocalMode"]] ===
+      zeroNegativeModes["FrobeniusModes"][[All, "CanonicalMode"]]];
 
-jordanFrobenius = BuildEndpointFrobenius[
+jordanFrobenius = ComputeTruncatedLocalFrobeniusExpansion[
   eps {{0, 1}, {0, 0}}/u, endpointSpec,
   "MaximumSeriesOrder" -> 1, "MaximumEpsilonOrder" -> 1];
-jordanMode = BuildBoundaryModeMap[jordanFrobenius, IdentityMatrix[2],
-  modeSpec, {<|"PeriodID" -> "log", "PeriodClass" -> "GPL",
-    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {2},
+jordanMode = MatchBoundaryAsymptoticsToFrobeniusModes[jordanFrobenius, IdentityMatrix[2],
+  modeSpec, {<|"BoundaryConstantID" -> "log",
+    "DeclaredBoundaryConstantAnalyticClass" -> "GPL",
+    "BoundaryConstantEpsilonValuation" -> 0, "CanonicalRows" -> {2},
     "ConstraintRows" -> {1, 2}, "PhysicalRows" -> {2},
     "EpsilonExponent" -> 0, "IntegerValuation" -> 0,
     "LogLevel" -> 1, "DemandedOutputs" -> {{0, 2}}|>}];
 FTAssert["a genuine generalized residue mode is found at its minimal log level",
-  jordanMode["Status"] === "BoundaryModeMapBuilt" &&
-    jordanMode["Modes"][[1, "GeneralizedLevel"]] === 1 &&
-    jordanMode["Modes"][[1, "CanonicalMode"]] === {0, 1}];
+  jordanMode["Status"] === "BoundaryAsymptoticModeMatching" &&
+    jordanMode["FrobeniusModes"][[1, "GeneralizedLevel"]] === 1 &&
+    jordanMode["FrobeniusModes"][[1, "CanonicalMode"]] === {0, 1}];
 
-powerFrobenius = BuildEndpointFrobenius[
+powerFrobenius = ComputeTruncatedLocalFrobeniusExpansion[
   eps {{0, 0}, {0, 1}}/u, endpointSpec,
   "MaximumSeriesOrder" -> 1, "MaximumEpsilonOrder" -> 1];
-powerMode = BuildBoundaryModeMap[powerFrobenius, IdentityMatrix[2],
-  modeSpec, {<|"PeriodID" -> "power", "PeriodClass" -> "GPL",
-    "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {2},
+powerMode = MatchBoundaryAsymptoticsToFrobeniusModes[powerFrobenius, IdentityMatrix[2],
+  modeSpec, {<|"BoundaryConstantID" -> "power",
+    "DeclaredBoundaryConstantAnalyticClass" -> "GPL",
+    "BoundaryConstantEpsilonValuation" -> 0, "CanonicalRows" -> {2},
     "PhysicalRows" -> {2}, "EpsilonExponent" -> 1,
     "IntegerValuation" -> 0, "LogLevel" -> 0,
     "DemandedOutputs" -> {{0, 2}}|>}];
 FTAssert["nonzero and generalized residue modes require their tangential logarithmic factors before transport",
-  BuildTransportBoundaryVector[jordanMode, <||>, {0, 0},
-      "MissingPeriodAction" -> "Formal"]["Status"] ===
+  ConstructBoundaryValueVectorFromConstants[jordanMode, <||>, {0, 0},
+      "MissingBoundaryDataAction" -> "Formal"]["Status"] ===
         "TangentialLogModeRequired" &&
-    BuildTransportBoundaryVector[powerMode, <||>, {0, 0},
-      "MissingPeriodAction" -> "Formal"]["Status"] ===
+    ConstructBoundaryValueVectorFromConstants[powerMode, <||>, {0, 0},
+      "MissingBoundaryDataAction" -> "Formal"]["Status"] ===
         "TangentialLogModeRequired" &&
-    BuildTransportBoundaryVector[jordanMode, <||>, {0, 0},
-      "MissingPeriodAction" -> "Formal"]["Stage3NeedsLedger"][[1,
+    ConstructBoundaryValueVectorFromConstants[jordanMode, <||>, {0, 0},
+      "MissingBoundaryDataAction" -> "Formal"]["BoundaryDataRequirements"][[1,
         "Problem"]] === "TangentialLogModeRequired"];
 
-periods = <|
-  "g" -> <|"PeriodClass" -> "GPL", "Status" -> "Exact",
+boundaryConstants = <|
+  "g" -> <|"DeclaredBoundaryConstantAnalyticClass" -> "GPL", "Status" -> "Exact",
     "Valuation" -> 0, "Coefficients" -> <|0 -> 2, 1 -> 3|>|>,
-  "e" -> <|"PeriodClass" -> "Elliptic", "Status" -> "Exact",
+  "e" -> <|"DeclaredBoundaryConstantAnalyticClass" -> "Elliptic", "Status" -> "Exact",
     "Valuation" -> 0,
     "Coefficients" -> <|0 -> elliptic0, 1 -> elliptic1|>|>|>;
-boundary = BuildTransportBoundaryVector[modeMap, periods, {0, 1}];
+boundarySelectors = ConstructBoundarySelectorMatrices[modeMap,
+  boundaryConstants, {0, 1}];
+boundary = ConstructBoundaryValueVectorFromConstants[modeMap,
+  boundaryConstants, {0, 1}];
 FTAssert["mixed GPL and elliptic data yield rational transport selectors and a separate exact constant vector",
-  boundary["Status"] === "TransportBoundaryVectorBuilt" &&
+  boundary["Status"] === "BoundaryConstantValueVectorConstructed" &&
     boundary["FunctionSpace"] === "GPL+Elliptic" &&
     boundary["BoundaryConstantVector"] ===
       {2, 3, elliptic0, elliptic1} &&
-    boundary["BoundarySelectors"][0] ===
+    boundarySelectors["BoundarySelectorMatricesByEpsilonOrder"][0] ===
       {{1, 0, 0, 0}, {0, 0, 1/2, 0}} &&
-    boundary["BoundarySelectors"][1] ===
+    boundarySelectors["BoundarySelectorMatricesByEpsilonOrder"][1] ===
       {{0, 1, 0, 0}, {0, 0, 0, 1/2}} &&
-    boundary["BoundaryVector"][0] === {2, elliptic0/2} &&
-    boundary["BoundaryVector"][1] === {3, elliptic1/2}];
+    boundary["BoundaryValueVectorByEpsilonOrder"][0] === {2, elliptic0/2} &&
+    boundary["BoundaryValueVectorByEpsilonOrder"][1] === {3, elliptic1/2}];
 
-FTAssert["the explicit stage-3 ledger binds family, limit, Frobenius mode, affected coordinates and outputs",
-  Lookup[boundary["Stage3NeedsLedger"], "Status"] ===
+FTAssert["the boundary-data requirements bind family, physical limit, Frobenius mode, affected epsilon coefficients and requested master-integral coefficients",
+  Lookup[boundary["BoundaryDataRequirements"], "Status"] ===
       {"KnownExact", "KnownExact"} &&
-    AllTrue[boundary["Stage3NeedsLedger"],
+    AllTrue[boundary["BoundaryDataRequirements"],
       #Family === "SyntheticBoundaryControl" &&
-        AssociationQ[#Limit] && AssociationQ[#FrobeniusMode] &&
-        ListQ[#AffectedBoundaryCoordinates] &&
-        ListQ[#DemandedOutputs] &]];
+        AssociationQ[#PhysicalKinematicLimit] && AssociationQ[#FrobeniusMode] &&
+        ListQ[#BoundaryConstantEpsilonCoefficientLabels] &&
+        ListQ[#RequiredMasterIntegralCoefficients] &]];
 
 source = Join[<|"Letters" -> {{"GPLPole", -1}},
-    "Residues" -> {{{0, 0}, {0, 0}}}|>,
-  boundary["TransportBoundary"]];
+    "Residues" -> {{{0, 0}, {0, 0}}}, "Dimension" -> 2|>,
+  <|"BoundarySelectors" ->
+    boundarySelectors["BoundarySelectorMatricesByEpsilonOrder"]|>];
 layer = <|"Rows" -> {3}, "PathVariable" -> u,
   "Regulator" -> eps, "BasePoint" -> 0, "Endpoint" -> 1/2,
   "Diagonal" -> {{{"GPLPole", -1}, {{0}}}},
@@ -267,83 +311,86 @@ layer = <|"Rows" -> {3}, "PathVariable" -> u,
 |>;
 consumed = BuildRationalEpsilonLayerTransport[source, layer,
   <|"Pairs" -> {{1, 1}}|>];
-FTAssert["the emitted TransportBoundary is consumed directly by the rational layer transport",
+FTAssert["the boundary selector matrices are consumed directly by the rational layer transport",
   consumed["Status"] === "RationalEpsilonLayerTransportAccepted" &&
     consumed["BoundaryColumns"] === 5];
 
-gplOnly = BuildTransportBoundaryVector[modeMap,
-  Join[periods, <|"e" -> <|"PeriodClass" -> "Elliptic",
+gplOnly = ConstructBoundaryValueVectorFromConstants[modeMap,
+  Join[boundaryConstants, <|"e" -> <|"DeclaredBoundaryConstantAnalyticClass" -> "Elliptic",
     "Status" -> "ExactZero"|>|>], {0, 1}];
 FTAssert["known-zero elliptic modes leave a GPL-only boundary and are explicit in the ledger",
-  gplOnly["Status"] === "TransportBoundaryVectorBuilt" &&
+  gplOnly["Status"] === "BoundaryConstantValueVectorConstructed" &&
     gplOnly["FunctionSpace"] === "GPL" &&
-    Lookup[gplOnly["Stage3NeedsLedger"], "Status"] ===
+    Lookup[gplOnly["BoundaryDataRequirements"], "Status"] ===
       {"KnownExact", "KnownZero"}];
 
-missingElliptic = BuildTransportBoundaryVector[modeMap,
-  KeyDrop[periods, "e"], {0, 1}];
-FTAssert["an absent elliptic period is typed incomplete and retained in the needs ledger",
+missingElliptic = ConstructBoundaryValueVectorFromConstants[modeMap,
+  KeyDrop[boundaryConstants, "e"], {0, 1}];
+FTAssert["an absent elliptic boundary constant is typed incomplete and retained in the requirements",
   missingElliptic["Status"] ===
-      "EllipticBoundaryPeriodsIncomplete" &&
-    Lookup[missingElliptic["Stage3NeedsLedger"], "Status"] ===
+      "EllipticBoundaryConstantsIncomplete" &&
+    Lookup[missingElliptic["BoundaryDataRequirements"], "Status"] ===
       {"KnownExact", "Unevaluated"} &&
-    missingElliptic["Stage3NeedsLedger"][[2,
-      "AffectedBoundaryCoordinates"]] === {{"e", 0}, {"e", 1}}];
+    missingElliptic["BoundaryDataRequirements"][[2,
+      "BoundaryConstantEpsilonCoefficientLabels"]] === {{"e", 0}, {"e", 1}}];
 
-transferable = BuildTransportBoundaryVector[modeMap,
-  Join[periods, <|"e" -> <|"PeriodClass" -> "Elliptic",
+transferable = ConstructBoundaryValueVectorFromConstants[modeMap,
+  Join[boundaryConstants, <|"e" -> <|"DeclaredBoundaryConstantAnalyticClass" -> "Elliptic",
     "Status" -> "Transferable", "TransferFrom" -> "other-limit"|>|>],
   {0, 1}];
-FTAssert["a transferable but unapplied period remains incomplete rather than masquerading as a value",
-  transferable["Status"] === "EllipticBoundaryPeriodsIncomplete" &&
-    transferable["Stage3NeedsLedger"][[2, "Status"]] ===
+FTAssert["a transferable but unapplied boundary constant remains incomplete rather than masquerading as a value",
+  transferable["Status"] === "EllipticBoundaryConstantsIncomplete" &&
+    transferable["BoundaryDataRequirements"][[2, "Status"]] ===
       "Transferable" &&
-    transferable["Stage3NeedsLedger"][[2, "TransferFrom"]] ===
+    transferable["BoundaryDataRequirements"][[2, "TransferFrom"]] ===
       "other-limit"];
 
 FTAssert["missing GPL data and missing data of both classes have distinct typed statuses",
-  BuildTransportBoundaryVector[modeMap, KeyDrop[periods, "g"],
+  ConstructBoundaryValueVectorFromConstants[modeMap, KeyDrop[boundaryConstants, "g"],
       {0, 1}]["Status"] === "GPLBoundaryConstantsIncomplete" &&
-    BuildTransportBoundaryVector[modeMap, <||>,
+    ConstructBoundaryValueVectorFromConstants[modeMap, <||>,
       {0, 1}]["Status"] === "BoundaryDataIncomplete"];
 
 FTAssert["a requested epsilon depth beyond the stored Frobenius prefactor is refused typed",
-  BuildTransportBoundaryVector[modeMap, periods,
+  ConstructBoundaryValueVectorFromConstants[modeMap, boundaryConstants,
     {0, 3}]["Status"] === "FrobeniusDepthInsufficient"];
 
 prunedRealizations = realizations;
 prunedRealizations[[1, "DemandedOutputs"]] = {{0, 1}};
 prunedRealizations[[2, "DemandedOutputs"]] = {{1, 2}};
-prunedModeMap = BuildBoundaryModeMap[frobenius,
+prunedModeMap = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius,
   {{1, 0}, {u, 2}}, modeSpec, prunedRealizations];
-formalBoundary = BuildTransportBoundaryVector[prunedModeMap, <||>,
-  {0, 1}, "MissingPeriodAction" -> "Formal"];
-FTAssert["formal mixed periods produce a rational selector basis and remain explicitly unevaluated",
+formalBoundarySelectors = ConstructBoundarySelectorMatrices[prunedModeMap, <||>,
+  {0, 1}, "MissingBoundaryDataAction" -> "Formal"];
+formalBoundary = ConstructBoundaryValueVectorFromConstants[prunedModeMap, <||>,
+  {0, 1}, "MissingBoundaryDataAction" -> "Formal"];
+FTAssert["formal GPL and elliptic boundary constants produce rational selector matrices and remain explicitly unevaluated",
   formalBoundary["Status"] ===
-      "FormalTransportBoundaryVectorBuilt" &&
+      "FormalBoundaryConstantValueVectorConstructed" &&
     formalBoundary["BoundaryDataStatus"] === "FormalNotEvaluated" &&
-    Context[BoundaryPeriodCoefficient] === "FeynFacet`" &&
+    Context[BoundaryConstantEpsilonCoefficient] === "FeynFacet`" &&
     formalBoundary["BoundaryConstantVector"] === {
-      BoundaryPeriodCoefficient["g", 0],
-      BoundaryPeriodCoefficient["e", 0],
-      BoundaryPeriodCoefficient["e", 1]} &&
-    formalBoundary["BoundarySelectors"][0] ===
+      BoundaryConstantEpsilonCoefficient["g", 0],
+      BoundaryConstantEpsilonCoefficient["e", 0],
+      BoundaryConstantEpsilonCoefficient["e", 1]} &&
+    formalBoundarySelectors["BoundarySelectorMatricesByEpsilonOrder"][0] ===
       {{1, 0, 0}, {0, 1/2, 0}} &&
-    formalBoundary["BoundarySelectors"][1] ===
+    formalBoundarySelectors["BoundarySelectorMatricesByEpsilonOrder"][1] ===
       {{0, 0, 0}, {0, 0, 1/2}} &&
-    Lookup[formalBoundary["Stage3NeedsLedger"], "Status"] ===
+    Lookup[formalBoundary["BoundaryDataRequirements"], "Status"] ===
       {"Unevaluated", "Unevaluated"}];
 
-FTAssert["demand pruning removes an unused period order from both the coordinate basis and needs ledger",
-  FreeQ[formalBoundary["BoundaryCoordinates"],
-    <|"PeriodID" -> "g", "EpsilonOrder" -> 1|>] &&
-    FreeQ[formalBoundary["Stage3NeedsLedger"], {"g", 1}] &&
-    formalBoundary["Stage3NeedsLedger"][[1,
-      "AffectedBoundaryCoordinates"]] === {{"g", 0}}];
+FTAssert["demand pruning removes an unused boundary-constant epsilon coefficient from both the records and requirements",
+  FreeQ[formalBoundary["BoundaryConstantEpsilonCoefficientRecords"],
+    <|"BoundaryConstantID" -> "g", "EpsilonOrder" -> 1|>] &&
+    FreeQ[formalBoundary["BoundaryDataRequirements"], {"g", 1}] &&
+    formalBoundary["BoundaryDataRequirements"][[1,
+      "BoundaryConstantEpsilonCoefficientLabels"]] === {{"g", 0}}];
 
 formalSource = Join[<|"Letters" -> {{"GPLPole", -1}},
-    "Residues" -> {{{0, 0}, {0, 0}}}|>,
-  formalBoundary["TransportBoundary"]];
+    "Residues" -> {{{0, 0}, {0, 0}}}, "Dimension" -> 2|>,
+  <|"BoundarySelectors" ->
+    formalBoundarySelectors["BoundarySelectorMatricesByEpsilonOrder"]|>];
 formalConsumed = BuildRationalEpsilonLayerTransport[formalSource, layer,
   <|"Pairs" -> {{1, 1}}|>];
 FTAssert["transport proceeds unchanged with formal GPL and elliptic boundary constants",
@@ -351,135 +398,191 @@ FTAssert["transport proceeds unchanged with formal GPL and elliptic boundary con
       "RationalEpsilonLayerTransportAccepted" &&
     formalConsumed["BoundaryColumns"] === 4];
 
-transferredBoundary = BuildTransportBoundaryVector[prunedModeMap, <|
-    "g" -> <|"PeriodClass" -> "GPL", "Status" -> "ExactZero"|>,
-    "e" -> <|"PeriodClass" -> "Elliptic",
+transferredBoundary = ConstructBoundaryValueVectorFromConstants[prunedModeMap, <|
+    "g" -> <|"DeclaredBoundaryConstantAnalyticClass" -> "GPL", "Status" -> "ExactZero"|>,
+    "e" -> <|"DeclaredBoundaryConstantAnalyticClass" -> "Elliptic",
       "Status" -> "Transferable", "TransferFrom" -> "source-period",
       "TransferMap" -> <|0 -> 0,
-        1 -> BoundaryPeriodCoefficient["source-period", 2]|>|>|>,
-  {0, 1}, "MissingPeriodAction" -> "Formal"];
+        1 -> BoundaryConstantEpsilonCoefficient["source-constant", 2]|>|>|>,
+  {0, 1}, "MissingBoundaryDataAction" -> "Formal"];
 FTAssert["known zeros and transfer maps are substituted and zero transfer coordinates are pruned",
   transferredBoundary["Status"] ===
-      "FormalTransportBoundaryVectorBuilt" &&
+      "FormalBoundaryConstantValueVectorConstructed" &&
     transferredBoundary["BoundaryConstantVector"] ===
-      {BoundaryPeriodCoefficient["source-period", 2]} &&
-    Lookup[transferredBoundary["Stage3NeedsLedger"], "Status"] ===
+      {BoundaryConstantEpsilonCoefficient["source-constant", 2]} &&
+    Lookup[transferredBoundary["BoundaryDataRequirements"], "Status"] ===
       {"KnownZero", "Transferable"} &&
-    transferredBoundary["Stage3NeedsLedger"][[2,
-      "AffectedBoundaryCoordinates"]] === {{"e", 1}}];
+    transferredBoundary["BoundaryDataRequirements"][[2,
+      "BoundaryConstantEpsilonCoefficientLabels"]] === {{"e", 1}}];
 
-exactTransferBoundary = BuildTransportBoundaryVector[prunedModeMap, <|
-    "g" -> <|"PeriodClass" -> "GPL", "Status" -> "ExactZero"|>,
-    "e" -> <|"PeriodClass" -> "Elliptic",
+exactTransferBoundary = ConstructBoundaryValueVectorFromConstants[prunedModeMap, <|
+    "g" -> <|"DeclaredBoundaryConstantAnalyticClass" -> "GPL", "Status" -> "ExactZero"|>,
+    "e" -> <|"DeclaredBoundaryConstantAnalyticClass" -> "Elliptic",
       "Status" -> "Transferable", "TransferFrom" -> "known-period",
       "TransferMap" -> <|0 -> 5, 1 -> 7|>|>|>, {0, 1}];
 FTAssert["a complete exact transfer needs no formal placeholder and is marked exact-with-transfers",
   exactTransferBoundary["Status"] ===
-      "TransportBoundaryVectorBuilt" &&
+      "BoundaryConstantValueVectorConstructed" &&
     exactTransferBoundary["BoundaryDataStatus"] ===
       "ExactWithTransfers" &&
     exactTransferBoundary["BoundaryConstantVector"] === {5, 7} &&
-    exactTransferBoundary["Stage3NeedsLedger"][[2, "Status"]] ===
+    exactTransferBoundary["BoundaryDataRequirements"][[2, "Status"]] ===
       "Transferable"];
 
 FTAssert["class mismatches, approximate constants and truncated Laurent data are never accepted",
-  BuildTransportBoundaryVector[modeMap,
-      MapAt[Join[#, <|"PeriodClass" -> "GPL"|>] &, periods,
+  ConstructBoundaryValueVectorFromConstants[modeMap,
+      MapAt[Join[#, <|"DeclaredBoundaryConstantAnalyticClass" -> "GPL"|>] &, boundaryConstants,
         Key["e"]], {0, 1}]["Status"] ===
-      "BoundaryPeriodDataInvalid" &&
-    BuildTransportBoundaryVector[modeMap,
+      "BoundaryDataInvalid" &&
+    ConstructBoundaryValueVectorFromConstants[modeMap,
       MapAt[Join[#, <|"Coefficients" -> <|0 -> 2., 1 -> 3|>|>] &,
-        periods, Key["g"]], {0, 1}]["Status"] ===
-      "BoundaryPeriodDataInvalid" &&
-    BuildTransportBoundaryVector[modeMap,
+        boundaryConstants, Key["g"]], {0, 1}]["Status"] ===
+      "BoundaryDataInvalid" &&
+    ConstructBoundaryValueVectorFromConstants[modeMap,
       MapAt[Join[#, <|"Coefficients" -> <|0 -> elliptic0|>|>] &,
-        periods, Key["e"]], {0, 1}]["Status"] ===
-      "EllipticBoundaryPeriodsIncomplete"];
+        boundaryConstants, Key["e"]], {0, 1}]["Status"] ===
+      "EllipticBoundaryConstantsIncomplete"];
 
 (* Round 9: a repeated block eigenvalue.  The 2x2 zero residue has a 2-d
    eigenspace at eigenvalue 0; the physical-row transformation decides what
    the integral's valuation can separate. *)
 degenerateRealization[id_, valuation_, extra_: <||>] := Join[<|
-  "PeriodID" -> id, "PeriodClass" -> "GPL",
-  "PeriodEpsilonValuation" -> 0, "CanonicalRows" -> {1, 2},
+  "BoundaryConstantID" -> id,
+  "DeclaredBoundaryConstantAnalyticClass" -> "GPL",
+  "BoundaryConstantEpsilonValuation" -> 0, "CanonicalRows" -> {1, 2},
   "PhysicalRows" -> {1, 2}, "EpsilonExponent" -> 0,
   "IntegerValuation" -> valuation, "LogLevel" -> 0,
   "DemandedOutputs" -> {{0, 1}}|>, extra];
 (* expected order 1: e1 maps to (rho, 0), e2 to (1 + ..., 1); only e1 cancels
    the rho^0 power *)
-selectedByValuation = BuildBoundaryModeMap[frobenius, {{u, 1}, {0, 1}},
+selectedByValuation = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius, {{u, 1}, {0, 1}},
   modeSpec, {degenerateRealization["sel", 1]}];
 FTAssert["a repeated block eigenvalue is resolved when the integral's valuation cancels the lower powers of all but one direction",
-  selectedByValuation["Status"] === "BoundaryModeMapBuilt" &&
-    selectedByValuation["Modes"][[1, "CanonicalMode"]] === {1, 0} &&
-    selectedByValuation["Modes"][[1, "PhysicalLocalOrders"]] === {1, Infinity} &&
-    selectedByValuation["Modes"][[1, "PhysicalLeadingCoefficients"]][[1]] === 1 &&
-    selectedByValuation["DegenerateEigenspaces"] === {}];
+  selectedByValuation["Status"] === "BoundaryAsymptoticModeMatching" &&
+    selectedByValuation["FrobeniusModes"][[1, "CanonicalMode"]] === {1, 0} &&
+    selectedByValuation["FrobeniusModes"][[1, "PhysicalLocalOrders"]] === {1, Infinity} &&
+    selectedByValuation["FrobeniusModes"][[1, "PhysicalLeadingCoefficients"]][[1]] === 1 &&
+    selectedByValuation["DegenerateResidueEigenspaceBases"] === {}];
 (* expected order 1 but every direction starts at rho^0: typed, not ambiguous *)
-noDirection = BuildBoundaryModeMap[frobenius, {{1, 1}, {0, 1}},
+noDirection = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius, {{1, 1}, {0, 1}},
   modeSpec, {degenerateRealization["none", 1]}];
 FTAssert["a repeated eigenvalue with no direction compatible with the valuation is refused typed",
-  noDirection["Status"] === "BoundaryModeMapIncomplete" &&
-    noDirection["Modes"][[1, "Status"]] === "PhysicalValuationMismatch" &&
-    noDirection["Modes"][[1, "PhysicalAdmissibleNullity"]] === 0 &&
-    noDirection["Modes"][[1, "BlockNullity"]] === 2 &&
-    noDirection["Stage3NeedsLedger"][[1, "Problem"]] === "PhysicalValuationMismatch"];
+  noDirection["Status"] === "BoundaryAsymptoticModeMatchingIncomplete" &&
+    noDirection["FrobeniusModes"][[1, "Status"]] === "PhysicalValuationMismatch" &&
+    noDirection["FrobeniusModes"][[1, "PhysicalAdmissibleNullity"]] === 0 &&
+    noDirection["FrobeniusModes"][[1, "BlockNullity"]] === 2 &&
+    noDirection["BoundaryDataRequirements"][[1, "Problem"]] === "PhysicalValuationMismatch"];
 (* expected order 0 and both directions at order 0: genuinely two
    coefficients; refused by default, realized as the canonical eigenspace
    basis under the explicit policy *)
-genuinelyDegenerate = BuildBoundaryModeMap[frobenius, IdentityMatrix[2],
+genuinelyDegenerate = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius, IdentityMatrix[2],
   modeSpec, {degenerateRealization["deg", 0]}];
-degenerateBasis = BuildBoundaryModeMap[frobenius, IdentityMatrix[2],
+degenerateBasis = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius, IdentityMatrix[2],
   modeSpec, {degenerateRealization["deg", 0,
-    <|"DegenerateEigenspacePolicy" -> "Basis"|>]}];
+    <|"DegenerateResidueEigenspacePolicy" -> "Basis"|>]}];
 FTAssert["a genuinely multi-dimensional admissible eigenspace is refused by default and realized as exact echelon sub-realizations only under the explicit Basis policy",
-  genuinelyDegenerate["Status"] === "BoundaryModeMapIncomplete" &&
-    genuinelyDegenerate["Modes"][[1, "Status"]] === "AmbiguousPhysicalEigenspace" &&
-    genuinelyDegenerate["Modes"][[1, "PhysicalAdmissibleNullity"]] === 2 &&
-    Length[genuinelyDegenerate["Modes"][[1, "AdmissibleBasis"]]] === 2 &&
-    degenerateBasis["Status"] === "BoundaryModeMapBuilt" &&
-    Length[degenerateBasis["Modes"]] === 2 &&
-    degenerateBasis["Modes"][[All, "PeriodID"]] === {{"deg", 1}, {"deg", 2}} &&
-    degenerateBasis["Modes"][[All, "CanonicalMode"]] === {{1, 0}, {0, 1}} &&
-    degenerateBasis["Modes"][[All, "Status"]] === {"BoundaryModeMatched", "BoundaryModeMatched"} &&
-    degenerateBasis["Modes"][[All, "EigenspaceDimension"]] === {2, 2} &&
-    degenerateBasis["DegenerateEigenspaces"] ===
-      {<|"ParentPeriodID" -> "deg", "EigenspaceDimension" -> 2|>} &&
-    degenerateBasis["Stage3NeedsLedger"][[All, "PeriodID"]] === {{"deg", 1}, {"deg", 2}} &&
-    KeyTake[degenerateBasis["Stage3NeedsLedger"][[2, "DegenerateEigenspace"]],
-        {"ParentPeriodID", "EigenspaceDirection", "EigenspaceDimension"}] ===
-      <|"ParentPeriodID" -> "deg", "EigenspaceDirection" -> 2, "EigenspaceDimension" -> 2|> &&
-    BuildTransportBoundaryVector[degenerateBasis, <||>, {0, 0},
-      "MissingPeriodAction" -> "Formal"]["Status"] =!= "BoundaryModeMapInputInvalid"];
+  genuinelyDegenerate["Status"] === "BoundaryAsymptoticModeMatchingIncomplete" &&
+    genuinelyDegenerate["FrobeniusModes"][[1, "Status"]] === "AmbiguousPhysicalEigenspace" &&
+    genuinelyDegenerate["FrobeniusModes"][[1, "PhysicalAdmissibleNullity"]] === 2 &&
+    Length[genuinelyDegenerate["FrobeniusModes"][[1, "AdmissibleBasis"]]] === 2 &&
+    degenerateBasis["Status"] === "BoundaryAsymptoticModeMatching" &&
+    Length[degenerateBasis["FrobeniusModes"]] === 2 &&
+    degenerateBasis["FrobeniusModes"][[All, "BoundaryConstantID"]] === {{"deg", 1}, {"deg", 2}} &&
+    degenerateBasis["FrobeniusModes"][[All, "CanonicalMode"]] === {{1, 0}, {0, 1}} &&
+    degenerateBasis["FrobeniusModes"][[All, "Status"]] ===
+      {"BoundaryAsymptoticsMatchedToFrobeniusMode", "BoundaryAsymptoticsMatchedToFrobeniusMode"} &&
+    degenerateBasis["FrobeniusModes"][[All, "EigenspaceDimension"]] === {2, 2} &&
+    Length[degenerateBasis["DegenerateResidueEigenspaceBases"]] === 2 &&
+    degenerateBasis["BoundaryDataRequirements"][[All, "BoundaryConstantID"]] ===
+      {{"deg", 1}, {"deg", 2}} &&
+    KeyTake[degenerateBasis["BoundaryDataRequirements"][[2,
+        "DegenerateResidueEigenspaceBasis"]],
+        {"ParentBoundaryConstantID", "EigenspaceDirection", "EigenspaceDimension",
+          "IndependentBoundaryDataCount", "BoundaryRelations"}] ===
+      <|"ParentBoundaryConstantID" -> "deg", "EigenspaceDirection" -> 2,
+        "EigenspaceDimension" -> 2, "IndependentBoundaryDataCount" -> 2,
+        "BoundaryRelations" -> {}|> &&
+    ConstructBoundaryValueVectorFromConstants[degenerateBasis, <||>, {0, 0},
+      "MissingBoundaryDataAction" -> "Formal"]["Status"] =!=
+        "BoundaryConstantValueVectorInputsInvalid"];
 
 (* Round 9b: R3's F4 -- an invalid policy value is refused typed, never
    read as "no policy" *)
-invalidPolicies = BuildBoundaryModeMap[frobenius, IdentityMatrix[2], modeSpec,
-    {degenerateRealization["deg", 0, <|"DegenerateEigenspacePolicy" -> #|>]}] & /@
+invalidPolicies = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius, IdentityMatrix[2], modeSpec,
+    {degenerateRealization["deg", 0, <|"DegenerateResidueEigenspacePolicy" -> #|>]}] & /@
   {"basis", "Bases", True};
-FTAssert["an invalid DegenerateEigenspacePolicy value is refused typed with the value named",
-  AllTrue[invalidPolicies, #["Status"] === "BoundaryModeMapIncomplete" &&
-    #["Modes"][[1, "Status"]] === "DegenerateEigenspacePolicyInvalid" &] &&
-    invalidPolicies[[All, "Modes", 1, "Policy"]] === {"basis", "Bases", True} &&
-    invalidPolicies[[1, "Stage3NeedsLedger", 1, "Problem"]] === "DegenerateEigenspacePolicyInvalid"];
-(* Round 9b: R3's F2 -- the split is declared on the mode records, on every
-   ledger entry and on every boundary coordinate of the transport boundary *)
-degenerateVector = BuildTransportBoundaryVector[degenerateBasis, <||>, {0, 0},
-  "MissingPeriodAction" -> "Formal"];
-expectedDeclaration[k_] := <|"ParentPeriodID" -> "deg", "EigenspaceDirection" -> k,
-  "EigenspaceDimension" -> 2, "CanonicalRows" -> {1, 2},
-  "SubRealizationPeriodIDs" -> {{"deg", 1}, {"deg", 2}},
-  "EigenspaceBasis" -> {{1, 0}, {0, 1}}, "PeriodCount" -> 1,
-  "Meaning" -> BoundaryDegenerateEigenspaceDeclaration[degenerateBasis["Modes"][[1]], degenerateBasis["Modes"]]["Meaning"]|>;
-FTAssert["a Basis split is declared with its parent, dimension, siblings and echelon basis on the mode records, the mode-map ledger, the boundary-vector ledger and every boundary coordinate",
-  degenerateBasis["Modes"][[All, "EigenspaceBasis"]] === {{{1, 0}, {0, 1}}, {{1, 0}, {0, 1}}} &&
-    degenerateBasis["Stage3NeedsLedger"][[All, "DegenerateEigenspace"]] === {expectedDeclaration[1], expectedDeclaration[2]} &&
-    degenerateVector["Status"] === "FormalTransportBoundaryVectorBuilt" &&
-    degenerateVector["DegenerateEigenspaces"] === {<|"ParentPeriodID" -> "deg", "EigenspaceDimension" -> 2|>} &&
-    Length[degenerateVector["BoundaryCoordinates"]] === 2 &&
-    degenerateVector["BoundaryCoordinates"][[All, "DegenerateEigenspace"]] === {expectedDeclaration[1], expectedDeclaration[2]} &&
-    degenerateVector["Stage3NeedsLedger"][[All, "DegenerateEigenspace"]] === {expectedDeclaration[1], expectedDeclaration[2]} &&
-    BoundaryDegenerateEigenspaceDeclaration[modeMap["Modes"][[1]], modeMap["Modes"]] === None];
+FTAssert["an invalid DegenerateResidueEigenspacePolicy value is refused typed with the value named",
+  AllTrue[invalidPolicies, #["Status"] === "BoundaryAsymptoticModeMatchingIncomplete" &&
+    #["FrobeniusModes"][[1, "Status"]] === "DegenerateResidueEigenspacePolicyInvalid" &] &&
+    invalidPolicies[[All, "FrobeniusModes", 1, "Policy"]] === {"basis", "Bases", True} &&
+    invalidPolicies[[1, "BoundaryDataRequirements", 1, "Problem"]] === "DegenerateResidueEigenspacePolicyInvalid"];
+(* The split is declared on the mode records, every requirement, and every
+   boundary-constant coefficient record. *)
+degenerateVector = ConstructBoundaryValueVectorFromConstants[degenerateBasis, <||>, {0, 0},
+  "MissingBoundaryDataAction" -> "Formal"];
+expectedBasis[k_] := <|"BoundaryDataType" -> "BoundaryConstant",
+  "ParentBoundaryConstantID" -> "deg", "EigenspaceDimension" -> 2,
+  "CanonicalRows" -> {1, 2}, "FrobeniusModeIDs" -> {{"deg", 1}, {"deg", 2}},
+  "EigenspaceBasis" -> {{1, 0}, {0, 1}}, "IndependentBoundaryDataCount" -> 2,
+  "BoundaryRelations" -> {},
+  "Meaning" -> DegenerateResidueEigenspaceBasis[
+    degenerateBasis["FrobeniusModes"][[1]], degenerateBasis["FrobeniusModes"]]["Meaning"],
+  "BoundaryConstantID" -> {"deg", k}, "EigenspaceDirection" -> k|>;
+FTAssert["a degenerate residue eigenspace records independent basis directions and does not invent a relation among their boundary constants",
+  degenerateBasis["FrobeniusModes"][[All, "EigenspaceBasis"]] ===
+      {{{1, 0}, {0, 1}}, {{1, 0}, {0, 1}}} &&
+    degenerateBasis["BoundaryDataRequirements"][[All,
+      "DegenerateResidueEigenspaceBasis"]] === {expectedBasis[1], expectedBasis[2]} &&
+    degenerateVector["Status"] === "FormalBoundaryConstantValueVectorConstructed" &&
+    Length[degenerateVector["BoundaryConstantEpsilonCoefficientRecords"]] === 2 &&
+    degenerateVector["BoundaryConstantEpsilonCoefficientRecords"][[All,
+      "DegenerateResidueEigenspaceBasis"]] === {expectedBasis[1], expectedBasis[2]} &&
+    degenerateVector["BoundaryDataRequirements"][[All,
+      "DegenerateResidueEigenspaceBasis"]] === {expectedBasis[1], expectedBasis[2]} &&
+    DegenerateResidueEigenspaceBasis[modeMap["FrobeniusModes"][[1]],
+      modeMap["FrobeniusModes"]] === None];
+
+missingDomain = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius,
+  {{1, 0}, {u, 2}}, KeyDrop[modeSpec, "BoundaryDomain"], realizations];
+FTAssert["mode matching refuses to guess whether unspecified boundary data are constants or functions",
+  missingDomain["Status"] === "BoundaryDomainRequired"];
+
+tangentialVariable = Symbol["Global`boundaryTangentialVariable"];
+functionSpec = Join[modeSpec, <|
+  "Family" -> "SyntheticBoundaryFunctionControl",
+  "BoundaryDomain" -> <|"Type" -> "PhysicalBoundaryStratum",
+    "TangentialVariables" -> {tangentialVariable}|>|>];
+functionRealization = <|
+  "BoundaryFunctionID" -> "f",
+  "DeclaredBoundaryFunctionClass" -> "GPL",
+  "BoundaryFunctionEpsilonValuation" -> 0,
+  "CanonicalRows" -> {1}, "PhysicalRows" -> {1},
+  "EpsilonExponent" -> 0, "IntegerValuation" -> 0,
+  "LogLevel" -> 0, "DemandedOutputs" -> {{0, 1}}|>;
+functionMatching = MatchBoundaryAsymptoticsToFrobeniusModes[frobenius,
+  {{1, 0}, {u, 2}}, functionSpec, {functionRealization}];
+functionSelectors = ConstructBoundarySelectorMatrices[functionMatching,
+  <||>, {0, 0}, "MissingBoundaryDataAction" -> "Formal"];
+functionValues = ConstructBoundaryValueVectorFromFunctions[functionMatching,
+  <||>, {0, 0}, "MissingBoundaryDataAction" -> "Formal"];
+FTAssert["a positive-dimensional physical boundary stratum emits a boundary function, never a boundary constant",
+  functionMatching["Status"] === "BoundaryAsymptoticModeMatching" &&
+    functionMatching["BoundaryDataType"] === "BoundaryFunction" &&
+    functionMatching["FrobeniusModes"][[1, "BoundaryFunctionID"]] === "f" &&
+    functionValues["Status"] === "FormalBoundaryFunctionValueVectorConstructed" &&
+    functionValues["BoundaryFunctionVector"] ===
+      {BoundaryFunctionEpsilonCoefficient["f", 0]} &&
+    functionValues["BoundaryFunctionEpsilonCoefficientLabels"] === {{"f", 0}} &&
+    functionSelectors["BoundarySelectorMatricesByEpsilonOrder"][0] === {{1}, {0}} &&
+    ConstructBoundaryValueVectorFromConstants[functionMatching, <||>, {0, 0},
+      "MissingBoundaryDataAction" -> "Formal"]["Status"] ===
+        "PhysicalBoundaryPointRequired"];
+
+FTAssert["the former ambiguous boundary-vector and period-placeholder heads are absent",
+  ! NameQ["FeynFacet`BuildTransportBoundaryVector"] &&
+    ! NameQ["FeynFacet`BoundaryPeriodCoefficient"] &&
+    ! NameQ["FeynFacet`BuildBoundaryModeMap"] &&
+    ! NameQ["FeynFacet`BoundaryDegenerateEigenspaceDeclaration"]];
 
 FTAssert["the production boundary module contains no family-specific token",
   With[{text = Import[FileNameJoin[{root, "FeynFacet", "Private",

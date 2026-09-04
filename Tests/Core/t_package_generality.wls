@@ -8,16 +8,15 @@
                  digit), an absolute /home/ path, or a project-tree name.
                  Comments may cite families and measurements: that is
                  provenance, and the plan keeps it.
-     RUNTIME  -- the per-family chart registry ships EMPTY; an unregistered
-                 family is Missing["FamilyChartNotRegistered", family] and
-                 never None; a synthetic family registers and resolves in
-                 both entry forms (catalog chart name, root-square list) and
-                 as a legacy chart alias; every invalid registration is
-                 refused typed and registers nothing.
+     RUNTIME  -- the per-family root-data registry ships EMPTY; an
+                 unregistered family is Missing, never None; a synthetic
+                 family registers and resolves in both supported V2 forms
+                 (a catalogued rationalizing parametrization and explicit
+                 source radicands); legacy and invalid registrations are
+                 refused and register nothing.
      PATHS    -- no installation path is a built-in literal: the transport
-                 backends' root resolves from the package, and the strip
-                 solver's implementation provenance hashes only package
-                 sources unless a driver declares itself. *)
+                 backends' root resolves from the package, and package code
+                 contains no project-specific result-tree paths. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
@@ -111,16 +110,16 @@ FTAssert["no project-tree name outside comments",
   ! MemberQ[violations, r_ /; r["Kind"] === "ProjectTreeName"]];
 
 (* ------------------------------------------------------------------ *)
-(*  RUNTIME: the per-family chart registry                              *)
+(*  RUNTIME: the per-family root-data registry                          *)
 (* ------------------------------------------------------------------ *)
-registry := FeynFacet`Private`$transportFamilyChartRegistry;
+registry := FeynFacet`Private`$familyRootDataRegistry;
 
-FTAssert["the package ships an empty family-chart registry",
+FTAssert["the package ships an empty family root-data registry",
   registry === <||>];
 
-emptyLookup = FeynFacet`TransportFamilyChart["ZZ7"];
+emptyLookup = FeynFacet`FamilyRootData["ZZ7"];
 FTAssert["an unregistered family is Missing, never None",
-  emptyLookup === Missing["FamilyChartNotRegistered", "ZZ7"] &&
+  emptyLookup === Missing["FamilyRootDataNotRegistered", "ZZ7"] &&
     emptyLookup =!= None && MissingQ[emptyLookup]];
 
 (* the package's own source/chart symbols, never assigned to themselves
@@ -131,94 +130,105 @@ gx = Symbol["Global`x"]; gy = Symbol["Global`y"];
 lambda1 = (1 - gv - gw)^2 - 4 gv gw;
 lambda3 = (1 - gv + gw)^2 + 4 gv gw;
 
-registration = FeynFacet`TransportFamilyChartRegister[<|
-  "ZZ7" -> "Kallen1",
-  "ZZ8" -> <|"RootSquares" -> {lambda1, lambda3, 4 gv + gw^2}|>,
-  "v = x y, w = (1-x)(1-y)" -> <|"ChartAlias" -> "Kallen1"|>|>];
+registration = FeynFacet`RegisterFamilyRootData[<|
+  "ZZ7" -> <|"RationalizingParametrizationName" -> "Kallen1"|>,
+  "ZZ8" -> <|"SourceRadicands" ->
+    {lambda1, lambda3, 4 gv + gw^2}|>|>];
 FTAssert["a valid registration reports its count and kinds",
   AssociationQ[registration] &&
-    registration["Status"] === "FamilyChartsRegistered" &&
-    registration["Registered"] === 3 &&
-    KeySort[registration["Kinds"]] === KeySort[<|"ChartName" -> 1,
-      "RootSquares" -> 1, "ChartAlias" -> 1|>]];
+    registration["Status"] === "FamilyRootDataRegistered" &&
+    registration["Registered"] === 2 &&
+    KeySort[registration["Kinds"]] === KeySort[<|
+      "RationalizingParametrization" -> 1,
+      "SquareRootGeneratorsAndQuadraticRelations" -> 1|>]];
 
-chartNameLookup = FeynFacet`TransportFamilyChart["ZZ7"];
+chartNameLookup = FeynFacet`FamilyRootData["ZZ7"];
 FTAssert["a registered chart name resolves to the catalog record",
   AssociationQ[chartNameLookup] &&
-    chartNameLookup === FeynFacet`TransportChartCatalog[]["Kallen1"]];
+    chartNameLookup === FeynFacet`RationalizingParametrizationCatalog[]["Kallen1"]];
 
-rootLookup = FeynFacet`TransportFamilyChart["ZZ8"];
+rootLookup = FeynFacet`FamilyRootData["ZZ8"];
 FTAssert["a registered root-square list resolves to an exact frame",
-  AssociationQ[rootLookup] && rootLookup["Status"] === "ExactFrame" &&
-    Length[rootLookup["Roots"]] === 3 &&
-    TrueQ[rootLookup["ChartCertificate"]["OK"]] &&
-    rootLookup["ChartCertificate"]["RootIdentities"] ===
+  AssociationQ[rootLookup] &&
+    rootLookup["Status"] === "SquareRootGeneratorRelationsVerified" &&
+    Length[rootLookup["SquareRootGenerators"]] === 3 &&
+    TrueQ[rootLookup["QuadraticRelationVerification"]["Verified"]] &&
+    rootLookup["QuadraticRelationVerification"]["PerGenerator"] ===
       {True, True, True} &&
-    rootLookup["Variables"] === {gx, gy}];
+    rootLookup["CoefficientVariables"] === {gx, gy}];
 
 ga = Symbol["Global`generalityA"]; gb = Symbol["Global`generalityB"];
 gp = Symbol["Global`generalityP"]; gq = Symbol["Global`generalityQ"];
-renamedRoots = FeynFacet`TransportFamilyChart["ZZ8", {ga, gb}, {gp, gq}];
+renamedRoots = FeynFacet`FamilyRootData["ZZ8", {ga, gb}, {gp, gq}];
 FTAssert["source and chart variables are arguments, not Global` literals",
-  AssociationQ[renamedRoots] && renamedRoots["Status"] === "ExactFrame" &&
-    renamedRoots["Variables"] === {gp, gq} &&
-    renamedRoots["Subst"] === {ga -> gp, gb -> gq} &&
-    TrueQ[Together[renamedRoots["Roots"][[1]]["RootSquare"] -
-      ((1 - ga - gb)^2 - 4 ga gb)] === 0]];
+  AssociationQ[renamedRoots] &&
+    renamedRoots["Status"] === "SquareRootGeneratorRelationsVerified" &&
+    renamedRoots["CoefficientVariables"] === {gp, gq} &&
+    renamedRoots["SourceToCoefficientVariableRules"] ===
+      {ga -> gp, gb -> gq} &&
+    TrueQ[Together[
+      renamedRoots["SquareRootGenerators"][[1]]["SourceRadicand"] -
+        ((1 - ga - gb)^2 - 4 ga gb)] === 0] &&
+    TrueQ[Together[
+      renamedRoots["SquareRootGenerators"][[1]]["QuadraticRadicand"] -
+        ((1 - gp - gq)^2 - 4 gp gq)] === 0]];
 
-renamedChart = FeynFacet`TransportFamilyChart["ZZ7", {ga, gb}, {gp, gq}];
+renamedChart = FeynFacet`FamilyRootData["ZZ7", {ga, gb}, {gp, gq}];
 FTAssert["a catalog chart is rekeyed exactly into the caller's symbols",
-  AssociationQ[renamedChart] && renamedChart["Variables"] === {gp, gq} &&
-    (First /@ renamedChart["Subst"]) === {ga, gb} &&
-    Together[(Last /@ renamedChart["Subst"]) - {gp gq,
+  AssociationQ[renamedChart] &&
+    renamedChart["ParametrizingVariables"] === {gp, gq} &&
+    (First /@ renamedChart["SourceVariableSubstitution"]) === {ga, gb} &&
+    Together[(Last /@ renamedChart["SourceVariableSubstitution"]) - {gp gq,
       (1 - gp) (1 - gq)}] === {0, 0}];
 
-FTAssert["a legacy chart alias resolves through the registry",
-  FeynFacet`Private`transportFamilyChartAlias[
-      "v = x y, w = (1-x)(1-y)"] === "Kallen1" &&
-    MissingQ[FeynFacet`Private`transportFamilyChartAlias["v = x, w = y"]]];
-FTAssert["a record written with a legacy chart string is normalized",
-  FeynFacet`Private`familyEpsFormLegacyChart[
-      <|"Chart" -> "v = x y, w = (1-x)(1-y)"|>] ===
-    <|"Chart" -> "Kallen1"|> &&
-  FeynFacet`Private`familyEpsFormLegacyChart[
-      <|"Chart" -> "NotAnAlias"|>] === <|"Chart" -> "NotAnAlias"|>];
+FTAssert["legacy chart and root-square registry entries are refused",
+  AllTrue[
+    {<|"ChartAlias" -> "Kallen1"|>,
+      <|"RootSquares" -> {lambda1}|>,
+      <|"RationalizingParametrizationAlias" -> "Kallen1"|>},
+    Lookup[FeynFacet`RegisterFamilyRootData[<|"ZZ9" -> #|>],
+      "Status", None] === "InvalidFamilyRootDataEntries" &]];
 
 before = registry;
 refusals = <|
-  "ChartNameNotInCatalog" ->
-    FeynFacet`TransportFamilyChartRegister[<|"ZZ9" -> "NoSuchChart"|>],
-  "RootSquareContainsRadicals" ->
-    FeynFacet`TransportFamilyChartRegister[
-      <|"ZZ9" -> <|"RootSquares" -> {Sqrt[gv]}|>|>],
-  "RootSquaresNotANonemptyList" ->
-    FeynFacet`TransportFamilyChartRegister[
-      <|"ZZ9" -> <|"RootSquares" -> {}|>|>],
-  "EntryKeysNotRecognized" ->
-    FeynFacet`TransportFamilyChartRegister[
-      <|"ZZ9" -> <|"Chart" -> "Kallen1"|>|>],
-  "ChartAliasNotInCatalog" ->
-    FeynFacet`TransportFamilyChartRegister[
-      <|"ZZ9" -> <|"ChartAlias" -> "NoSuchChart"|>|>],
-  "EntryNotStringOrAssociation" ->
-    FeynFacet`TransportFamilyChartRegister[<|"ZZ9" -> 17|>]
+  "RationalizingParametrizationNameNotInCatalog" ->
+    FeynFacet`RegisterFamilyRootData[<|"ZZ9" -> <|
+      "RationalizingParametrizationName" -> "NoSuchParametrization"|>|>],
+  "SourceRadicandContainsRadicals" ->
+    FeynFacet`RegisterFamilyRootData[
+      <|"ZZ9" -> <|"SourceRadicands" -> {Sqrt[gv]}|>|>],
+  "SourceRadicandsNotANonemptyList" ->
+    FeynFacet`RegisterFamilyRootData[
+      <|"ZZ9" -> <|"SourceRadicands" -> {}|>|>],
+  "FamilyRootDataEntryKeysNotRecognized" ->
+    FeynFacet`RegisterFamilyRootData[
+      <|"ZZ9" -> <|"UnknownField" -> "Kallen1"|>|>],
+  "SourceRadicandEntryHasExtraKeys" ->
+    FeynFacet`RegisterFamilyRootData[
+      <|"ZZ9" -> <|"SourceRadicands" -> {lambda1},
+        "Extra" -> True|>|>],
+  "FamilyRootDataEntryNotAssociation" ->
+    FeynFacet`RegisterFamilyRootData[<|"ZZ9" -> 17|>]
 |>;
 FTAssert["every invalid entry is refused with its own reason",
   AllTrue[Keys[refusals], Function[reason,
     Lookup[refusals[reason], "Status", None] ===
-        "InvalidFamilyChartEntries" &&
+        "InvalidFamilyRootDataEntries" &&
       Lookup[Lookup[refusals[reason]["Invalid"], "ZZ9", <||>],
         "Status", None] === reason]]];
 FTAssert["a refused registration registers nothing",
-  registry === before && MissingQ[FeynFacet`TransportFamilyChart["ZZ9"]]];
+  registry === before && MissingQ[FeynFacet`FamilyRootData["ZZ9"]]];
 FTAssert["a mixed valid/invalid table registers nothing",
-  Lookup[FeynFacet`TransportFamilyChartRegister[
-      <|"ZZ10" -> "Kallen2", "ZZ11" -> "NoSuchChart"|>],
-    "Status", None] === "InvalidFamilyChartEntries" &&
-  MissingQ[FeynFacet`TransportFamilyChart["ZZ10"]]];
+  Lookup[FeynFacet`RegisterFamilyRootData[
+      <|"ZZ10" -> <|"RationalizingParametrizationName" -> "Kallen2"|>,
+        "ZZ11" -> <|"RationalizingParametrizationName" ->
+          "NoSuchParametrization"|>|>],
+    "Status", None] === "InvalidFamilyRootDataEntries" &&
+  MissingQ[FeynFacet`FamilyRootData["ZZ10"]]];
 FTAssert["non-string family keys are refused",
-  Lookup[FeynFacet`TransportFamilyChartRegister[<|17 -> "Kallen1"|>],
-    "Status", None] === "FamilyChartKeysNotStrings"];
+  Lookup[FeynFacet`RegisterFamilyRootData[<|17 -> <|
+      "RationalizingParametrizationName" -> "Kallen1"|>|>],
+    "Status", None] === "FamilyRootDataKeysNotStrings"];
 
 missingFile = FileNameJoin[{$TemporaryDirectory,
   "feynfacet-no-such-chart-file-" <> CreateUUID[] <> ".wl"}];
@@ -227,15 +237,16 @@ badFile = FileNameJoin[{$TemporaryDirectory,
 Put[{"not", "an", "association"}, badFile];
 goodFile = FileNameJoin[{$TemporaryDirectory,
   "feynfacet-chart-file-" <> CreateUUID[] <> ".wl"}];
-Put[<|"ZZ12" -> "Kallen3"|>, goodFile];
-FTAssert["a chart file is loaded, and a missing or malformed one refused",
-  Lookup[FeynFacet`TransportFamilyChartLoad[missingFile], "Status",
-      None] === "FamilyChartFileMissing" &&
-    Lookup[FeynFacet`TransportFamilyChartLoad[badFile], "Status", None] ===
-      "FamilyChartFileNotAnAssociation" &&
-    Lookup[FeynFacet`TransportFamilyChartLoad[goodFile], "Status", None] ===
-      "FamilyChartsRegistered" &&
-    Lookup[FeynFacet`TransportFamilyChart["ZZ12"], "Name", None] ===
+Put[<|"ZZ12" -> <|
+  "RationalizingParametrizationName" -> "Kallen3"|>|>, goodFile];
+FTAssert["a root-data file is loaded, and a missing or malformed one refused",
+  Lookup[FeynFacet`LoadFamilyRootData[missingFile], "Status",
+      None] === "FamilyRootDataFileMissing" &&
+    Lookup[FeynFacet`LoadFamilyRootData[badFile], "Status", None] ===
+      "FamilyRootDataFileNotAnAssociation" &&
+    Lookup[FeynFacet`LoadFamilyRootData[goodFile], "Status", None] ===
+      "FamilyRootDataRegistered" &&
+    Lookup[FeynFacet`FamilyRootData["ZZ12"], "Name", None] ===
       "Kallen3"];
 Quiet[DeleteFile /@ Select[{badFile, goodFile}, FileExistsQ]];
 
@@ -285,17 +296,18 @@ Quiet[DeleteDirectory[emptyDirectory, DeleteContents -> True]];
    before the collision check, and that is what is asserted then. *)
 rationalizeRootsFile = FileNameJoin[{FeynFacet`Private`$feynFacetAddonRoot,
   "Addon", "Mathematica_Addon", "RationalizeRoots", "RationalizeRoots.m"}];
-extension = FeynFacet`RationalizeTransportChartExtension[
-  FeynFacet`TransportChartCatalog[]["Kallen1"],
+extension = FeynFacet`ExtendRationalizingParametrization[
+  FeynFacet`RationalizingParametrizationCatalog[]["Kallen1"],
   (1 + gv - gw)^2 + 4 gv gw,
   "OutputVariables" -> {gx, gy}, "TimeConstraint" -> 30];
-FTAssert["chart-extension output variables may not meet the base chart",
+FTAssert["extension variables may not collide with the base parametrization",
   Lookup[extension, "Status", None] === If[FileExistsQ[rationalizeRootsFile],
-    "OutputVariablesCollideWithBaseChart", "RationalizeRootsUnavailable"]];
-FTAssert["the chart-extension output default is a fresh private pair",
-  Lookup[Options[FeynFacet`RationalizeTransportChartExtension],
+    "OutputVariablesCollideWithBaseParametrization",
+    "RationalizeRootsUnavailable"]];
+FTAssert["the parametrization-extension output default is a fresh private pair",
+  Lookup[Options[FeynFacet`ExtendRationalizingParametrization],
       "OutputVariables", Missing[]] === Automatic &&
-    FreeQ[Options[FeynFacet`RationalizeTransportChartExtension],
+    FreeQ[Options[FeynFacet`ExtendRationalizingParametrization],
       Symbol["Global`r"] | Symbol["Global`t"]]];
 
 FTReport[];

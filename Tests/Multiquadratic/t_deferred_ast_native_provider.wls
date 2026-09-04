@@ -10,7 +10,7 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {prepare, layoutBuilder, directProvider, attachDeferred, preflight,
   nativeBatchEvaluator, assembleSample, forcingOf, solve,
-  wideScheduleQ} = mq /@ {
+  wideScheduleQ, presentationRoots, generatorExpression} = mq /@ {
   "multiquadraticStripPrepare", "multiquadraticStripAssemblyLayout",
   "multiquadraticStripDirectProvider",
   "multiquadraticStripAttachDeferredPreparation",
@@ -19,22 +19,20 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
   "multiquadraticStripAssembleSample",
   "blockEquationDeferredForcing",
   "solveEpsFormStripMultiquadratic",
-  "multiquadraticStripWidePrimeScheduleQ"};
+  "multiquadraticStripWidePrimeScheduleQ",
+  "coefficientPresentationSquareRootsInVariables",
+  "squareRootRecordExpression"};
 
-Clear[x, y, eps];
+Clear[x, y, eps, sx, sy, cx, cy];
 (* The package's word-prime square-root path uses p == 3 (mod 4). *)
 prime = 103;
-sourceFingerprint = "DeferredASTNativeProviderFixtureV1";
-roots = (<|"Root" -> Sqrt[#1], "RootSquare" -> #1|> &) /@
-  {x, y, 1 + x + y};
-frame = <|"Name" -> "DeferredASTNativeProviderFixture",
-  "Kind" -> "TwoVariable", "CoefficientField" -> "Algebraic",
-  "Variables" -> {x, y}, "Subst" -> {x -> x, y -> y},
-  "Roots" -> roots|>;
+coefficientPresentation = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {sx, sy, 1 + sx + sy}, {sx, sy}, {cx, cy}];
+roots = presentationRoots[coefficientPresentation, {x, y}];
 zero11 = {{{0}}, {{0}}};
 (* Keep every declared root visible to the ordinary root census.  The native
    source below supplies only the off-diagonal forcing. *)
-e = {{{Total[Lookup[roots, "Root"]]}}, {{0}}};
+e = {{{Total[generatorExpression /@ roots]}}, {{0}}};
 record = <|"Family" -> "DEFERRED_AST_NATIVE_PROVIDER", "Sector" -> 2,
   "LowerSector" -> 1, "Variables" -> {x, y}, "Regulator" -> eps,
   "Strip" -> {e, zero11, zero11}|>;
@@ -43,9 +41,9 @@ expression = 7 + 5*Sqrt[x] + 11*Sqrt[y] + 13*Sqrt[1 + x + y] +
   17*Sqrt[x]*Sqrt[y] + 19*Sqrt[x]*Sqrt[1 + x + y] +
   23*Sqrt[y]*Sqrt[1 + x + y] +
   29*Sqrt[x]*Sqrt[y]*Sqrt[1 + x + y];
-sourcePreparation = <|"Status" -> "Prepared",
-  "ABIVersion" -> "BlockEquationDeferredV1",
-  "SourceFingerprint" -> sourceFingerprint, "Variables" -> {x, y},
+sourcePreparation = <|"DataType" -> "DeferredBlockEquation",
+  "SchemaVersion" -> 2, "Status" -> "Prepared",
+  "Variables" -> {x, y},
   "Regulator" -> eps, "Dimensions" -> {2, 1, 1},
   "Records" -> {
     <|"Target" -> {1, 1, 1}, "Terms" -> {
@@ -57,16 +55,22 @@ sourceFile = CreateTemporary[];
 Put[<|"DeferredPreparation" ->
     <|"Preparation" -> sourcePreparation|>|>, sourceFile];
 
-prepared = prepare[record, frame, "RootIndices" -> {1, 2, 3},
+prepared = prepare[record, coefficientPresentation, "RootIndices" -> {1, 2, 3},
   "OneForms" -> {}, "GaugeDenominator" -> 1,
   "Support" -> {{0, 0}}, "CoefficientProvider" -> "QuotientGrade"];
 layout = layoutBuilder[prepared];
 provider = directProvider[prepared["Record"], prepared["Roots"],
   "Kind" -> "QuotientGrade", "OneForms" -> prepared["OneForms"],
-  "GaugeDenominator" -> prepared["GaugeDenominator"],
-  "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
-  "SourceFingerprint" -> sourceFingerprint];
+  "GaugeDenominator" -> prepared["GaugeDenominator"]];
 provider = attachDeferred[provider, sourcePreparation, sourceFile];
+wrongSourcePreparation = ReplacePart[sourcePreparation,
+  {Key["Records"], 1, Key["Terms"], 1, Key["Coefficient"]} -> 37];
+wrongSourceFile = CreateTemporary[];
+Put[<|"DeferredPreparation" ->
+    <|"Preparation" -> wrongSourcePreparation|>|>, wrongSourceFile];
+FTAssert["deferred preparation attachment checks the file's exact mathematical data",
+  Lookup[attachDeferred[provider, sourcePreparation, wrongSourceFile],
+    "Status", None] === "DeferredPreparationFileDataMismatch"];
 point = preflight[provider, 7, prime, {4, 9}];
 batch = nativeBatchEvaluator[provider, {point}];
 derivativeBatch = nativeBatchEvaluator[provider, {point},
@@ -103,8 +107,8 @@ FTAssert["provider sampler injects native BBar into the existing rows",
     sample["NativeDeferredBatchFailureCount"] === 0];
 
 (* Exercise the actual top-level provider constructor.  The bundle compiler
-   preserves the same raw preparation as non-fingerprinted acceleration
-   metadata, and the production strip file contains that nested payload. *)
+   preserves the same raw preparation as acceleration metadata, and the
+   production strip file contains that nested payload. *)
 connection = {
   {{0, 0}, {expression, 0}},
   {{0, 0}, {2 expression, 0}}
@@ -135,10 +139,12 @@ constructorResult = Block[
         AssociationQ[Lookup[constructorLayout["Record"],
           "DeferredBundle", None]],
       "WideScheduleQ" -> wideScheduleQ[constructorProvider],
-      "ProviderSourceFingerprint" ->
-        Lookup[constructorProvider, "SourceFingerprint", None],
+      "ProviderDeferredPreparation" ->
+        Lookup[constructorProvider, "DeferredPreparation", None],
+      "ProviderCoefficientData" ->
+        Lookup[constructorProvider, "CoefficientData", None],
       "ConstructorSample" -> constructorSample|>];
-  solve[productionRecord, frame,
+  solve[productionRecord, coefficientPresentation,
     "DeferredBundle" -> bundle,
     "DeferredPreparationFile" -> productionFile,
     "RootIndices" -> {1, 2, 3}, "OneForms" -> {},
@@ -174,8 +180,11 @@ FTAssert["production constructor attaches the bundle DAG and bypasses bundle BBa
     ! TrueQ[constructorResult["ProviderCarriesBundle"]] &&
     ! TrueQ[constructorResult["LayoutCarriesBundle"]] &&
     TrueQ[constructorResult["WideScheduleQ"]] &&
-    constructorResult["ProviderSourceFingerprint"] ===
-      bundle["SourceFingerprint"] &&
+    constructorResult["ProviderDeferredPreparation"] ===
+      KeyTake[bundle["DeferredPreparation", "Preparation"],
+        {"DataType", "SchemaVersion", "Status", "Variables",
+         "Regulator", "Dimensions"}] &&
+    AssociationQ[constructorResult["ProviderCoefficientData"]] &&
     Lookup[constructorSample, "Status", None] ===
       "AssembledMultiquadraticSampleV1" &&
     constructorSample["RightHandSide"] === expectedRight &&
@@ -186,5 +195,6 @@ FTAssert["production constructor attaches the bundle DAG and bypasses bundle BBa
     constructorSample["SplitSparseDeferredBundleCompositionSeconds"] === 0.];
 
 Quiet[DeleteFile[sourceFile]];
+Quiet[DeleteFile[wrongSourceFile]];
 Quiet[DeleteFile[productionFile]];
 FTReport[];

@@ -19,8 +19,8 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
    "blockEquationDeferredBundleFingerprint",
    "blockEquationDeferredSourceExpression",
    "blockEquationDeferredAlgebraicZeroQ",
-   "blockEquationDeferredRootFrame",
-   "blockEquationDeferredFrameCanonicalize",
+   "blockEquationDeferredValidateSquareRootGenerators",
+   "blockEquationDeferredCanonicalizeWithSquareRootGenerators",
    "multiquadraticFieldDecompose", "multiquadraticMaskFactor"};
 
 Clear[rx, ry, re];

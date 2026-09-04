@@ -249,7 +249,7 @@ cy = Symbol["Global`ffGaugeChartY"];
 lambda1 = (1 - v - w)^2 - 4 v w;
 lambda2 = (1 + v - w)^2 + 4 v w;
 lambda3 = (1 - v + w)^2 + 4 v w;
-frame = FeynFacet`BuildAlgebraicTransportFrame[
+frame = FeynFacet`BuildSquareRootGeneratorsAndQuadraticRelations[
   {lambda1, lambda2, lambda3}, {v, w}, {cx, cy}];
 knownGauge = {{Sqrt[lambda1]}};
 zeroOneForm = {ConstantArray[0, {1, 1}], ConstantArray[0, {1, 1}]};
@@ -275,11 +275,12 @@ integration = Block[{FeynFacet`SolveEpsFormStripFiniteField},
       "HeldOutPointCount" -> 3}, "Verbose" -> False]];
 FTAssert["the in-frame mode uses the existing post-pullback residual",
   Lookup[integration, "Status", None] === "Solved" &&
-    Lookup[Lookup[integration, "FrameCertificate", <||>],
+    Lookup[Lookup[integration, "Validation", <||>],
       "ValidationMode", None] === "PostPullBackFiniteFieldResidual" &&
     TrueQ[FeynFacet`Private`transportChartAlgebraicZeroQ[
       integration["Gauge"][[1, 1]] - Sqrt[lambda1],
-      frame["Roots"]]]];
+      FeynFacet`Private`coefficientPresentationSquareRootsInVariables[
+        frame, {v, w}]]]];
 
 (* A failed rational ansatz keeps the already-materialized chart and moves
    only the solve to the conservative rank-zero engine.  Stub both seams so
@@ -289,10 +290,14 @@ fallbackIntegration = Block[{FeynFacet`SolveEpsFormStripFiniteField,
     FeynFacet`Private`solveEpsFormStripMultiquadratic},
   FeynFacet`SolveEpsFormStripFiniteField[___] := $Failed;
   FeynFacet`Private`solveEpsFormStripMultiquadratic[
-      record_Association, fallbackFrame_Association, ___Rule] := Module[
+      record_Association, fallbackPresentation_Association, ___Rule] := Module[
     {chartVars = record["Variables"]},
-    fallbackCalled = fallbackFrame["Roots"] === {} &&
-      fallbackFrame["Variables"] === chartVars;
+    fallbackCalled =
+      fallbackPresentation["DataType"] ===
+        "SourceVariableRepresentation" &&
+      fallbackPresentation["CoefficientVariables"] === chartVars &&
+      FeynFacet`Private`coefficientPresentationSquareRootRecords[
+        fallbackPresentation] === {};
     <|"Status" -> "Solved", "Method" -> "InjectedConservativeRankZero",
       "Gauge" -> {{chartVars[[1]] - chartVars[[2]]}},
       "GaugeDenominator" -> 1, "Alphabet" -> {},
@@ -306,6 +311,7 @@ FTAssert["a failed rational ansatz reuses the chart in the rank-zero solver",
     StringContainsQ[Lookup[fallbackIntegration, "Method", ""],
       "InjectedConservativeRankZero"] &&
     Lookup[Lookup[fallbackIntegration, "InnerSolution", <||>],
-      "FallbackFrame", None] === "MaterializedRationalChart"];
+      "FallbackCoefficientPresentation", None] ===
+        "SourceVariableRepresentationAfterRationalization"];
 
 FTDone[];

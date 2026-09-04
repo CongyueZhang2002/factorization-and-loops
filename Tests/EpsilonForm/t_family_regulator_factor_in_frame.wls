@@ -57,7 +57,7 @@ check["rational: status OK via the rational path", AssociationQ[f0] && f0["Statu
    case is covered by Tests/Multiquadratic/t_multiquadratic_regulator_factor.wls).  Here
    the connection is a planted constant conjugation of a clean eps-form,
    so the graded route factors it. *)
-check["catalog has no joint chart for {lambda1, 1 - 4 v w}", MissingQ[FeynFacet`TransportRootSetChart[{lambda1[v, w], 1 - 4 v w}, {v, w}]]];
+check["catalog has no joint chart for {lambda1, 1 - 4 v w}", MissingQ[FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[{lambda1[v, w], 1 - 4 v w}, {v, w}]]];
 letters2 = {x, y, 1 - x - y, (1 - x - y + r1)/(1 - x - y - r1), (1 + r2)/(1 - r2)};
 canonical2 = Table[eps Sum[{k1, k2, k3, k4, k1}[[a]] dl[letters2[[a]]][[mu]], {a, 5}], {mu, 2}];
 connection2 = Table[Map[Together, t . canonical2[[mu]] . tInv, {2}], {mu, 2}];

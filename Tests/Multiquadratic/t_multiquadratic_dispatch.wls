@@ -1,5 +1,6 @@
 #!/usr/bin/env wolframscript
-(* Chartless multiquadratic dispatch, root-order ABI and the scalar-local
+(* Multiquadratic dispatch without a catalogued joint rationalizing
+   parametrization, generator-order invariance, and the scalar-local
    root-free fast path (Design/GeneralityFixes2.md F1, F2, F6.1;
    2026-08-23).  The fixtures are rebuilt here from the construction of
    Exchange/Codex/2026-08-23/16_standardization_generality_audit/
@@ -8,28 +9,23 @@
 
    Acceptance criteria, stated before the run.
 
-   F1, root-order ABI.  The DECLARATION order of a basis of square
-   classes is not mathematical data.  Two frames that declare the same
-   root triple in opposite order must produce BIT-IDENTICAL preparation
-   fingerprints and bit-identical hashed payloads, and the canonical
-   roots and canonical equations must be identical text.  The hashed
-   payload must no longer carry "RootSourceIndices"; the preparation
-   must still carry it as non-hashed provenance, and it must record the
-   two declaration orders faithfully.  The preparation schema is
-   "MultiquadraticStripPreparationV2".
+   F1, generator-order invariance.  The declaration order of a basis of
+   square classes is not mathematical data.  Two presentations that declare
+   the same three generators in opposite order must produce identical
+   defining data and coefficient data.  Source indices remain diagnostic
+   information outside those mathematical records.
 
    F2, chartless dispatch in the public solver.  On the audit's rank
    three {s,t} fixture with u = 1-s-t (no joint rational chart) the
-   PUBLIC SolveEpsFormStripInFrame must reach the installable "Solved" ABI
+   PUBLIC SolveEpsFormStripInFrame must reach the installable "Solved" result
    with root rank 3, eight grades and all eight sign branches certified with
    zero residual.  In production mode exact symbolic certification is
    deferred to the family certificate, while fresh modular reconstruction
    evidence and certified one-forms authorize installation.  The recorded
    artifact must round-trip through an explicit artifact context.  The historical
-   "NoRationalStripChart" answer survives ONLY where the engine refuses
-   the input as outside its scope (then flagged "OutOfScope" with the
-   engine's typed refusal attached) or where the dispatch is switched
-   off; a caller option error comes back as the engine typed it.
+   An absent catalogued rationalizing parametrization is reported explicitly
+   when the engine refuses the input or when dispatch is switched off; a
+   caller option error comes back as the engine typed it.
 
    F6.1, scalar-local root-free fast path.  A scalar free of every
    declared root must decompose to the grade-zero channel padded to the
@@ -44,10 +40,14 @@ Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 private[name_String] := Symbol["FeynFacet`Private`" <> name];
-{prepare, decompose, compose, currentRoots, statistics, artifactWrite,
+{prepare, layoutBuilder, decompose, compose, presentationRoots,
+  rootExpression, rootRadicand, statistics, artifactWrite,
   artifactLoadRaw} = private /@ {"multiquadraticStripPrepare",
+  "multiquadraticStripAssemblyLayout",
   "multiquadraticFieldDecompose", "multiquadraticFieldCompose",
-  "transportChartCurrentRoots", "multiquadraticFieldPathStatistics",
+  "coefficientPresentationSquareRootsInVariables",
+  "squareRootRecordExpression", "squareRootRecordRadicand",
+  "multiquadraticFieldPathStatistics",
   "multiquadraticStripArtifactWrite", "multiquadraticStripArtifactLoadRaw"};
 
 s = Symbol["Global`mqds"]; t = Symbol["Global`mqdt"];
@@ -60,14 +60,16 @@ Clear[s, t, u, eta, cs, ct];
 (* ------------------------------------------------------------------ *)
 
 rootSquares = {s, t, u} /. u -> 1 - s - t;
-frame = BuildAlgebraicTransportFrame[rootSquares, {s, t}, {cs, ct}];
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[rootSquares, {s, t}, {cs, ct}];
 FTAssert["the rank-three Mandelstam frame is exact after u is eliminated",
-  AssociationQ[frame] && frame["Status"] === "ExactFrame" &&
-    Length[frame["Roots"]] === 3 &&
-    frame["ChartCertificate", "RootIdentities"] === {True, True, True}];
+  AssociationQ[frame] &&
+    frame["Status"] === "SquareRootGeneratorRelationsVerified" &&
+    Length[frame["SquareRootGenerators"]] === 3 &&
+    frame["QuadraticRelationVerification", "PerGenerator"] ===
+      {True, True, True}];
 
 FTAssert["the root triple {s,t,1-s-t} has no joint rational chart",
-  MissingQ[TransportRootSetChart[rootSquares, {s, t}]]];
+  MissingQ[LookupCataloguedRationalizingParametrizationForRoots[rootSquares, {s, t}]]];
 
 denominator = 1 - s - t;
 gauge = Sqrt[s] Sqrt[t] Sqrt[denominator]/denominator;
@@ -80,13 +82,15 @@ prepareOptions = Sequence["OneForms" -> {}, "GaugeDenominator" -> denominator,
   "Support" -> {{0, 0}}];
 
 (* ------------------------------------------------------------------ *)
-(* F1: the declaration order of the roots is not part of the ABI        *)
+(* F1: declaration order is not part of the mathematical data           *)
 (* ------------------------------------------------------------------ *)
 
 forwardPreparation = prepare[record, frame, prepareOptions];
-frameReversed = BuildAlgebraicTransportFrame[
+frameReversed = BuildSquareRootGeneratorsAndQuadraticRelations[
   Reverse[rootSquares], {s, t}, {cs, ct}];
 reversedPreparation = prepare[record, frameReversed, prepareOptions];
+forwardLayout = layoutBuilder[forwardPreparation];
+reversedLayout = layoutBuilder[reversedPreparation];
 
 FTAssert["both root declaration orders prepare",
   Lookup[forwardPreparation, "Status", None] ===
@@ -96,54 +100,69 @@ FTAssert["both root declaration orders prepare",
     forwardPreparation["RootCount"] === 3 &&
     reversedPreparation["RootCount"] === 3];
 
-FTAssert["the preparation schema is MultiquadraticStripPreparationV2",
-  forwardPreparation["ABIPayload"]["Schema"] ===
-      "MultiquadraticStripPreparationV2" &&
+FTAssert["the preparation schema is MultiquadraticStripPreparationV3",
+  forwardPreparation["DefiningData"]["Schema"] ===
+      "MultiquadraticStripPreparationV3" &&
     forwardPreparation["PreparationSchema"] ===
-      "MultiquadraticStripPreparationV2"];
+      "MultiquadraticStripPreparationV3"];
 
-FTAssert["the hashed payload no longer carries the root source indices",
-  ! KeyExistsQ[forwardPreparation["ABIPayload"], "RootSourceIndices"] &&
-    FreeQ[forwardPreparation["ABIPayload"], "RootSourceIndices"]];
+FTAssert["defining data does not contain source declaration indices",
+  ! KeyExistsQ[forwardPreparation["DefiningData"], "RootSourceIndices"] &&
+    FreeQ[forwardPreparation["DefiningData"], "RootSourceIndices"]];
 
-FTAssert["forward and reversed declaration give bit-identical fingerprints",
-  forwardPreparation["ABIFingerprint"] ===
-    reversedPreparation["ABIFingerprint"]];
+FTAssert["forward and reversed declarations give permutation-equivalent defining data",
+  KeyDrop[forwardPreparation["DefiningData"],
+      {"RootCanonicalSquares", "RootCanonicalExpressions"}] ===
+    KeyDrop[reversedPreparation["DefiningData"],
+      {"RootCanonicalSquares", "RootCanonicalExpressions"}]];
 
-FTAssert["forward and reversed declaration give bit-identical hashed payloads",
-  forwardPreparation["ABIPayload"] === reversedPreparation["ABIPayload"]];
+FTAssert["each layout records its ordered coefficient data explicitly",
+  KeyDrop[forwardLayout["CoefficientData"],
+      {"RootSquares", "RootExpressions"}] ===
+    KeyDrop[reversedLayout["CoefficientData"],
+      {"RootSquares", "RootExpressions"}] &&
+    forwardLayout["CoefficientData", "RootSquares"] ===
+      Reverse[reversedLayout["CoefficientData", "RootSquares"]] &&
+    forwardLayout["CoefficientData", "RootExpressions"] ===
+      Reverse[reversedLayout["CoefficientData", "RootExpressions"]]];
 
-FTAssert["the canonical roots are identical text under either declaration",
-  forwardPreparation["ABIPayload"]["RootCanonicalSquares"] ===
-      reversedPreparation["ABIPayload"]["RootCanonicalSquares"] &&
-    forwardPreparation["ABIPayload"]["RootCanonicalExpressions"] ===
-      reversedPreparation["ABIPayload"]["RootCanonicalExpressions"] &&
-    forwardPreparation["RootOrderingFingerprint"] ===
-      reversedPreparation["RootOrderingFingerprint"]];
+FTAssert["the canonical roots follow the declared generator permutation",
+  forwardPreparation["DefiningData"]["RootCanonicalSquares"] ===
+      Reverse[reversedPreparation["DefiningData"][
+        "RootCanonicalSquares"]] &&
+    forwardPreparation["DefiningData"]["RootCanonicalExpressions"] ===
+      Reverse[reversedPreparation["DefiningData"][
+        "RootCanonicalExpressions"]]];
 
 FTAssert["the canonical equations are identical text under either declaration",
-  forwardPreparation["ABIPayload"]["EquationCanonical"] ===
-      reversedPreparation["ABIPayload"]["EquationCanonical"] &&
-    forwardPreparation["ABIPayload"]["EquationFingerprint"] ===
-      reversedPreparation["ABIPayload"]["EquationFingerprint"]];
+  forwardPreparation["DefiningData"]["EquationCanonical"] ===
+    reversedPreparation["DefiningData"]["EquationCanonical"]];
 
 FTAssert["the canonical root squares themselves are the same objects",
-  Lookup[forwardPreparation["Roots"], "RootSquare", {}] ===
-    Lookup[reversedPreparation["Roots"], "RootSquare", {}]];
+  (rootRadicand /@ forwardPreparation["Roots"]) ===
+    Reverse[rootRadicand /@ reversedPreparation["Roots"]]];
 
-FTAssert["the source indices survive as non-hashed provenance",
+FTAssert["the source indices survive as diagnostic declaration data",
   forwardPreparation["RootSourceIndices"] === {1, 2, 3} &&
-    reversedPreparation["RootSourceIndices"] === {3, 2, 1}];
+    reversedPreparation["RootSourceIndices"] === {1, 2, 3}];
 
 (* ------------------------------------------------------------------ *)
-(* F2: the public in-frame solver dispatches the chartless strip        *)
+(* F2: public dispatch without a catalogued joint parametrization       *)
 (* ------------------------------------------------------------------ *)
 
 publicResult = SolveEpsFormStripInFrame[strip, {s, t}, eta, frame,
   "FiniteFieldFirst" -> True, "FiniteFieldFallback" -> True,
-  "Verbose" -> False];
+  "Verbose" -> False,
+  (* This test exercises rank-three dispatch and reconstruction, not the
+     independent problem of discovering a denominator ansatz. *)
+  "MultiquadraticOptions" -> {prepareOptions,
+    "GaugeDenominatorFactor" -> 1,
+    "IntegrabilityScreen" -> False,
+    "ScreenFirst" -> False,
+    "GaugeScreen" -> False,
+    "DegreeOffsetLadder" -> None}];
 
-FTAssert["the public in-frame solver installs a chartless triple-root strip",
+FTAssert["the public solver installs the triple-root strip without a joint parametrization",
   AssociationQ[publicResult] &&
     Lookup[publicResult, "Status", None] === "Solved"];
 
@@ -169,11 +188,19 @@ FTAssert["every sign branch is present and has zero residual",
 
 FTAssert["the dispatched result carries the frame's root census and the dispatch flag",
   Lookup[publicResult, "MultiquadraticDispatch", None] === "Engine" &&
-    Lookup[publicResult, "RootIndices", None] === {1, 2, 3} &&
-    Length[Lookup[publicResult, "RootSquares", {}]] === 3];
+    Lookup[publicResult, "SquareRootGeneratorIndices", None] === {1, 2, 3} &&
+    With[{presentation = Lookup[publicResult, "CoefficientPresentation", None]},
+      AssociationQ[presentation] &&
+        presentation["DataType"] === frame["DataType"] &&
+        presentation["SourceVariables"] === frame["SourceVariables"] &&
+        presentation["CoefficientVariables"] === frame["CoefficientVariables"] &&
+        presentation["SourceToCoefficientVariableRules"] ===
+          frame["SourceToCoefficientVariableRules"] &&
+        presentation["SquareRootGenerators"] === frame["SquareRootGenerators"]]];
 
 reconstructionEvidence = Lookup[publicResult,
   "RegulatorReconstruction", <||>];
+trainingImageKeys = Lookup[reconstructionEvidence, "TrainingImageKeys", {}];
 FTAssert["fresh unseen-prime and held-out regulator evidence authorize installation",
   Intersection[Lookup[reconstructionEvidence, "SamplePrimes", {}],
       Lookup[reconstructionEvidence, "UnseenPrimes", {}]] === {} &&
@@ -182,7 +209,10 @@ FTAssert["fresh unseen-prime and held-out regulator evidence authorize installat
         "HeldOutValidation", <||>]],
       Lookup[#1, "ValidationCount", 0] > 0 &] &&
     Lookup[reconstructionEvidence,
-      "FreshProviderPointwiseCheckCount", 0] > 0];
+      "FreshProviderPointwiseCheckCount", 0] > 0 &&
+    trainingImageKeys =!= {} && AllTrue[trainingImageKeys,
+      MatchQ[#, {_Integer?PrimeQ, _Integer | _Rational,
+        {_Integer, _Integer}}] &]];
 
 (* the sector driver records exactly this, and reads it back in its own
    context: the context-free part of the record must survive *)
@@ -195,7 +225,7 @@ modularRecord = <|"Family" -> "PROBE", "Sector" -> 1, "LowerSector" -> 0,
     "Status" -> "Solved", "Installed" -> True,
     "RootCount" -> publicResult["RootCount"],
     "BranchCount" -> Length[publicResult["BranchCertificate"]],
-    "ProviderFingerprint" -> publicResult["ProviderFingerprint"]|>,
+    "CoefficientData" -> forwardLayout["CoefficientData"]|>,
   "Result" -> publicResult|>;
 artifactWrite[modularRecord, modularFile];
 hydrated = artifactLoadRaw[modularFile, "FeynFacet`DispatchTestArtifact`"];
@@ -204,31 +234,32 @@ FTAssert["the recorded modular artifact round-trips in an explicit context",
     AssociationQ[hydrated["Value"]] &&
     hydrated["Value"]["Summary"]["Status"] === "Solved" &&
     hydrated["Value"]["Summary"]["Installed"] === True &&
-    hydrated["Value"]["Summary"]["ProviderFingerprint"] ===
-      publicResult["ProviderFingerprint"] &&
+    hydrated["Value"]["Summary"]["CoefficientData"] ===
+      forwardLayout["CoefficientData"] &&
     hydrated["Value"]["Result"]["Status"] === "Solved" &&
     Length[hydrated["Value"]["Result"]["BranchCertificate"]] === 8];
 Quiet[DeleteDirectory[artifactDirectory, DeleteContents -> True]];
 
 disabled = SolveEpsFormStripInFrame[strip, {s, t}, eta, frame,
   "MultiquadraticDispatch" -> False];
-FTAssert["switching the dispatch off restores the historical refusal",
-  Lookup[disabled, "Status", None] === "NoRationalStripChart" &&
+FTAssert["switching the dispatch off reports the absent parametrization",
+  Lookup[disabled, "Status", None] ===
+      "NoCataloguedRationalizingParametrization" &&
     Lookup[disabled, "MultiquadraticDispatch", None] === "Disabled" &&
-    Length[Lookup[disabled, "RootSquares", {}]] === 3];
+    Lookup[disabled, "SquareRootGeneratorIndices", None] === {1, 2, 3}];
 
-(* an independent symbol that no chart and no modular ABI can carry: the
-   engine refuses the INPUT, so the historical status is kept and the
-   refusal is attached *)
-frameExtra = BuildAlgebraicTransportFrame[{s, t, u}, {s, t}, {cs, ct}];
+(* An independent coefficient symbol lies outside the two-variable
+   presentation, so the engine refuses the mathematical input. *)
+frameExtra = BuildSquareRootGeneratorsAndQuadraticRelations[{s, t, u}, {s, t}, {cs, ct}];
 outOfScope = SolveEpsFormStripInFrame[
   {zeroDiagonal, zeroDiagonal, {{{Sqrt[u]}}, {{0}}}}, {s, t}, eta,
   frameExtra];
-FTAssert["an out-of-scope input keeps NoRationalStripChart, with the engine's typed refusal attached",
-  Lookup[outOfScope, "Status", None] === "NoRationalStripChart" &&
+FTAssert["an out-of-scope input reports the missing parametrization and engine refusal",
+  Lookup[outOfScope, "Status", None] ===
+      "NoCataloguedRationalizingParametrization" &&
     Lookup[outOfScope, "MultiquadraticDispatch", None] === "OutOfScope" &&
     Lookup[Lookup[outOfScope, "MultiquadraticRefusal", <||>], "Status", None] ===
-      "ContextSensitiveStripABI"];
+      "ContextSensitivePreparationData"];
 
 optionError = SolveEpsFormStripInFrame[strip, {s, t}, eta, frame,
   "MultiquadraticOptions" -> {"NoSuchEngineOption" -> 1}];
@@ -259,7 +290,7 @@ FTAssert["an undeclared radical is still refused before any dispatch",
 (* F6.1: the scalar-local root-free fast path                           *)
 (* ------------------------------------------------------------------ *)
 
-roots = currentRoots[frame, {s, t}];
+roots = presentationRoots[frame, {s, t}];
 FTAssert["the frame yields three declared roots for the field primitives",
   ListQ[roots] && Length[roots] === 3];
 
@@ -281,8 +312,8 @@ FTAssert["the fast-path result was accepted only after the exact compose check",
   afterRootFree["ComposeCheckCount"] - before["ComposeCheckCount"] === 1 &&
     TrueQ[Together[compose[rootFreeChannels, roots] - rootFreeScalar] === 0]];
 
-rootScalar = Together[roots[[1]]["Root"] roots[[3]]["Root"]/(1 + s + t) +
-  roots[[2]]["Root"]];
+rootScalar = Together[rootExpression[roots[[1]]] rootExpression[roots[[3]]]/
+  (1 + s + t) + rootExpression[roots[[2]]]];
 afterRootFreeTwo = statistics[];
 rootChannels = decompose[rootScalar, roots];
 afterRoot = statistics[];

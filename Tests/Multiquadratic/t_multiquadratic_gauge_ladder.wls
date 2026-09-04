@@ -242,7 +242,7 @@ report["L5 mid-ladder stop", KeyTake[midLadder, {"Status", "Stage",
 (* ------------------------------------------------------------------ *)
 
 Clear[x, y, eps, v, w, cx, cy];
-frame = FeynFacet`BuildAlgebraicTransportFrame[{v, w, 1 + v + w}, {v, w},
+frame = FeynFacet`BuildSquareRootGeneratorsAndQuadraticRelations[{v, w, 1 + v + w}, {v, w},
    {cx, cy}];
 dlog[letter_] := {D[Log[letter], x], D[Log[letter], y]};
 (* the fourth letter is the one dropped below: its pole is in NO other
@@ -331,9 +331,9 @@ If[longTestsQ,
 (* L7: the real CF300 (12,9) descriptor                                 *)
 (* ------------------------------------------------------------------ *)
 
-FeynFacet`TransportFamilyChartLoad[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
+FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
    "Results", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
-chart = FeynFacet`TransportFamilyChart["CF300"];
+chart = FeynFacet`FamilyRootData["CF300"];
 (* FROZEN INPUTS (2026-08-25): the live campaign directory rewrites the
    strip input and the sector state under a running suite, so this test
    reads immutable copies with recorded provenance instead.  See the

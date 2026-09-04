@@ -1511,19 +1511,19 @@ diagonalBlockChartVariables[chart_Association, {x_, y_}] := Module[{cv},
      Unique["FeynFacet`Private`chartVariable"]}]];
 
 (* The catalog candidate for one quadratic, in the block's OWN
-   variables.  TransportRootSetChart identifies {x, y} with the catalog
+   variables.  LookupCataloguedRationalizingParametrizationForRoots identifies {x, y} with the catalog
    source variables positionally, so the match no longer depends on the
    block's variables being named v and w (the old gate was
    SymbolName[x] === "v" && SymbolName[y] === "w", which skipped the
-   catalog entirely for a renamed system), and transportChartRekey
+   catalog entirely for a renamed system), and rekeyCoefficientPresentation
    writes the chart back in {x, y} and in chart variables that cannot
    collide with them. *)
 diagonalBlockCatalogCandidate[{ax_, ay_}, {x_, y_}, eps_, quadratic_] :=
   Module[{chart, chartVariables, rekeyed, sub, sv, sw, sys, lets},
-    chart = TransportRootSetChart[{quadratic}, {x, y}];
+    chart = LookupCataloguedRationalizingParametrizationForRoots[{quadratic}, {x, y}];
     If[! AssociationQ[chart], Return[None]];
     chartVariables = diagonalBlockChartVariables[chart, {x, y}];
-    rekeyed = transportChartRekey[chart, {x, y}, chartVariables];
+    rekeyed = rekeyCoefficientPresentation[chart, {x, y}, chartVariables];
     If[! AssociationQ[rekeyed] || ! MatchQ[Lookup[rekeyed, "Subst", None],
         {_Rule, _Rule}], Return[None]];
     sub = rekeyed["Subst"];
@@ -1809,7 +1809,6 @@ diagonalBlockClassRecord[class_Association, regulatorOption_, timeConstraint_,
     "Format" -> "FeynFacet-CanonicalClassForm",
     "FormatVersion" -> $canonicalBlocksArtifactVersion,
     "ClassID" -> Lookup[class, "ClassID", None],
-    "ContentAddress" -> Lookup[class, "ContentAddress", None],
     "RepFamily" -> Lookup[class, "RepFamily", None],
     "RepRows" -> Lookup[class, "RepRows", None],
     "RepBasis" -> Lookup[class, "RepBasis", Missing[]],

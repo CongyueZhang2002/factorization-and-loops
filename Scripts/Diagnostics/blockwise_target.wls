@@ -80,7 +80,7 @@ de = readArtifact[FileNameJoin[{ftDE, "nnlo_de_" <> family <> ".wl"}]];
 blocks = familyBlocks[family];
 log[family, ": ", Length[de["Av"]], " masters, ", Length[blocks], " blocks, orders ", orders];
 
-{seconds, result} = AbsoluteTiming[FeynFacet`TransportFamilyInChart[
+{seconds, result} = AbsoluteTiming[FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
    <|"Family" -> family, "Basis" -> Lookup[de, "BlockBasis", None],
      "Av" -> de["Av"], "Aw" -> de["Aw"]|>,
    chart97, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,

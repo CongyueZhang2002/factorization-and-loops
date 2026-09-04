@@ -221,7 +221,7 @@ check["finite field: a malformed deadline is a typed refusal, not a crash",
    discovered here *)
 
 Clear[x, y, eps, v, w, cx, cy];
-frame = BuildAlgebraicTransportFrame[{v, w, 1 + v + w}, {v, w}, {cx, cy}];
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[{v, w, 1 + v + w}, {v, w}, {cx, cy}];
 check["the rank-three multiquadratic frame is exact",
   AssociationQ[frame] && frame["Status"] === "ExactFrame"];
 

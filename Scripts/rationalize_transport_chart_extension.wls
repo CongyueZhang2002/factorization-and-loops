@@ -7,32 +7,33 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 args = Rest[$ScriptCommandLine];
 If[Length[args] =!= 2,
   Print["Usage: rationalize_transport_chart_extension.wls " <>
-    "<specification.wl> <output-chart.wl>"];
+    "<specification.wl> <output-parametrization.wl>"];
   Exit[64]
 ];
 specificationFile = ExpandFileName[args[[1]]];
 outputFile = ExpandFileName[args[[2]]];
 If[! FileExistsQ[specificationFile],
-  Print["Chart-extension specification does not exist: ",
+  Print["Parametrization-extension specification does not exist: ",
     specificationFile];
   Exit[66]
 ];
 specification = Get[specificationFile];
 If[! AssociationQ[specification],
-  Print["Chart-extension specification must be an Association."];
+  Print["Parametrization-extension specification must be an Association."];
   Exit[65]
 ];
 
-base = Lookup[specification, "BaseChart", Missing[]];
-baseChart = Which[
+base = Lookup[specification, "BaseRationalizingParametrization", Missing[]];
+baseParametrization = Which[
   AssociationQ[base], base,
   StringQ[base] && FileExistsQ[base], Get[base],
-  StringQ[base], Lookup[FeynFacet`TransportChartCatalog[], base, None],
+  StringQ[base], Lookup[FeynFacet`RationalizingParametrizationCatalog[], base, None],
   True, None
 ];
-If[! AssociationQ[baseChart] ||
-    ! TrueQ[FeynFacet`TransportChartVerify[baseChart]["OK"]],
-  Print["Base chart is missing or failed its exact identities."];
+If[! AssociationQ[baseParametrization] ||
+    ! TrueQ[FeynFacet`VerifyRationalizingParametrization[
+      baseParametrization]["Verified"]],
+  Print["Base rationalizing parametrization is missing or invalid."];
   Exit[2]
 ];
 rootSquare = Lookup[specification, "RootSquare", Missing[]];
@@ -41,8 +42,8 @@ If[MissingQ[rootSquare],
   Exit[65]
 ];
 
-result = FeynFacet`RationalizeTransportChartExtension[
-  baseChart, rootSquare,
+result = FeynFacet`ExtendRationalizingParametrization[
+  baseParametrization, rootSquare,
   "Name" -> Lookup[specification, "Name", Automatic],
   "OutputVariables" -> Lookup[specification, "OutputVariables", Automatic],
   "AllCharts" -> Lookup[specification, "AllCharts", True],
@@ -50,9 +51,10 @@ result = FeynFacet`RationalizeTransportChartExtension[
   "TimeConstraint" -> Lookup[specification, "TimeConstraint", 1800]
 ];
 If[! AssociationQ[result] ||
-    Lookup[result, "Status", None] =!= "ExactChart" ||
-    ! TrueQ[FeynFacet`TransportChartVerify[result]["OK"]],
-  Print["No exactly verified rational chart was found: ",
+    Lookup[result, "Status", None] =!=
+      "RationalizingParametrizationVerified" ||
+    ! TrueQ[FeynFacet`VerifyRationalizingParametrization[result]["Verified"]],
+  Print["No verified rationalizing parametrization was found: ",
     InputForm[KeyDrop[result, "CandidateResults"]]];
   Exit[2]
 ];
@@ -64,10 +66,11 @@ temporaryFile = outputFile <> ".tmp";
 Put[result, temporaryFile];
 RenameFile[temporaryFile, outputFile, OverwriteTarget -> True];
 Print[InputForm[<|
-  "Status" -> "ExactChart",
+  "Status" -> "RationalizingParametrizationVerified",
   "Name" -> result["Name"],
-  "Variables" -> result["Variables"],
-  "RootCount" -> Length[result["Roots"]],
+  "ParametrizingVariables" -> result["ParametrizingVariables"],
+  "RationalizedSquareRootCount" ->
+    Length[result["RationalizedSquareRoots"]],
   "CandidateCount" -> result["RationalizeRootsCandidateCount"],
   "ExactCandidateCount" -> result["ExactCandidateCount"],
   "Output" -> outputFile|>]];

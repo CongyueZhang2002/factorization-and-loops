@@ -46,9 +46,9 @@ executionMutant = Join[directAcceptance, <|
   "SolverConfiguration" -> <|
     "Backend" -> "DifferentBackend", "Threads" -> 999,
     "PrimePolicy" -> "Different", "Cache" -> "/different/cache",
-    "SourceSHA256" -> StringRepeat["0", 64]|>,
-  "ProviderFingerprint" -> StringRepeat["f", 64],
-  "LayoutFingerprint" -> StringRepeat["e", 64]|>];
+    "SourceRevision" -> "different"|>,
+  "ProviderImplementation" -> "different",
+  "CoefficientLayoutVersion" -> 999|>];
 FTTest`FTAssert["execution metadata cannot alter block acceptance",
   FeynFacet`Private`familyRowGaugeStripAcceptanceRecordQ[
       executionMutant] ===
@@ -85,8 +85,8 @@ checkpoint = <|
   "Family" -> family, "Sector" -> sector,
   "SubSize" -> 1, "Truncation" -> 2,
   "PrevD" -> gauge,
-  "ConnectionHash" -> Hash[
-    connection /. eps -> CANONICA`eps, "SHA256", "HexString"],
+  "TruncatedConnectionMatrices" ->
+    (connection /. eps -> CANONICA`eps),
   "StripSolvers" -> {directAcceptance},
   "SolvedForms" -> solvedForms|>;
 

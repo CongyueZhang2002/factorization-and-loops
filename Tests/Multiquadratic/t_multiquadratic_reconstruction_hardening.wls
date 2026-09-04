@@ -13,7 +13,8 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
 {prepare, layoutBuilder, directProvider, reconstruct, residualImage,
-  assembleSample, discoverySolve, pilotRecord, wideScheduleQ, splitEntry} =
+  assembleSample, discoverySolve, pilotRecord, wideScheduleQ, splitEntry,
+  presentationRoots} =
   mq /@ {"multiquadraticStripPrepare",
     "multiquadraticStripAssemblyLayout",
     "multiquadraticStripDirectProvider",
@@ -23,18 +24,17 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
     "multiquadraticStripPlanDiscoverySolve",
     "multiquadraticStripPilotImageRecord",
     "multiquadraticStripWidePrimeScheduleQ",
-    "multiquadraticStripSplitBranchEntry"};
+    "multiquadraticStripSplitBranchEntry",
+    "coefficientPresentationSquareRootsInVariables"};
 
-Clear[bx, by, be];
+Clear[bx, by, be, bcx, bcy];
 badPrime = 2147483423;
 primePool = {badPrime, 2147483399, 2147483587, 2147483579};
 height = 10^12/badPrime;
 delta = 1 + bx;
-rootRecord = <|"Root" -> Sqrt[delta], "RootSquare" -> delta|>;
-frame = <|"Name" -> "AdaptiveReconstructionRank1",
-  "Kind" -> "TwoVariable", "CoefficientField" -> "Algebraic",
-  "Variables" -> {bx, by}, "Subst" -> {bx -> bx, by -> by},
-  "Roots" -> {rootRecord}|>;
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {delta}, {bx, by}, {bcx, bcy}];
+rootRecord = First[presentationRoots[frame, {bx, by}]];
 zero11 = {{{0}}, {{0}}};
 knownGauge = {{Together[height be Sqrt[delta]/((be - 1) (1 - by))]}};
 forcing = Table[{{Together[D[knownGauge[[1, 1]], {bx, by}[[mu]]]]}},
@@ -49,9 +49,10 @@ prepared = prepare[record, frame, "RootIndices" -> {1}, "OneForms" -> {},
 layout = layoutBuilder[prepared];
 provider = directProvider[prepared["Record"], prepared["Roots"],
   "Kind" -> "SplitBranch", "OneForms" -> prepared["OneForms"],
-  "GaugeDenominator" -> prepared["GaugeDenominator"],
-  "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
-  "SourceFingerprint" -> prepared["ABIFingerprint"]];
+  "GaugeDenominator" -> prepared["GaugeDenominator"]];
+
+check["B2 provider and row layout use the same coefficient data",
+  provider["CoefficientData"] === layout["CoefficientData"]];
 
 result = reconstruct[prepared, layout, provider,
   "SamplePrimes" -> Take[primePool, 2], "PrimePool" -> primePool,

@@ -1,5 +1,6 @@
-<|"DeferredPreparation" -> <|"Preparation" -> <|"Status" -> "Prepared",
-  "ABIVersion" -> "BlockEquationDeferredV1",
+<|"DeferredPreparation" -> <|"Preparation" -> <|
+  "DataType" -> "DeferredBlockEquation", "SchemaVersion" -> 2,
+  "Status" -> "Prepared",
   "Records" -> {<|"Target" -> {1, 1, 1}, "Terms" -> {
     <|"Coefficient" -> 1, "Operands" -> {
       7 + 5*Sqrt[x] + 11*Sqrt[y] + 13*Sqrt[1 + x + y] +

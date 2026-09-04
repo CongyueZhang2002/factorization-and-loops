@@ -73,8 +73,8 @@ definitionCount[name_String] := Module[{symbol = mq[name]},
 {multiply, hadamard, maskFactor, evaluateConjugates, projectConjugates,
   squareRoots, fieldDecompose, rootOrder, modRational, squareClassSquareQ} =
  mq /@ {"multiquadraticMultiply", "multiquadraticHadamardMatrix",
-   "multiquadraticMaskFactor", "multiquadraticEvaluateConjugates",
-   "multiquadraticProjectConjugates", "multiquadraticSquareRoots",
+   "multiquadraticMaskFactor", "multiquadraticEvaluateSignChangeImages",
+   "multiquadraticProjectSignChangeImages", "multiquadraticSquareRoots",
    "multiquadraticFieldDecompose", "multiquadraticStripRootOrder",
    "multiquadraticStripModRational", "multiquadraticStripSquareClassSquareQ"};
 {canonicalize, consumerSquareRoot, consumerRoot, consumerPrepare,
@@ -94,7 +94,7 @@ retired = {"familyRowGaugeFFStableKey", "familyRowGaugeFFEquivalentQ",
   "familyRowGaugeFFRootProducts", "familyRowGaugeFFProjectConjugates",
   "familyRowGaugeFFUnresolvedRoot"};
 delegated = {"multiquadraticHadamardMatrix", "multiquadraticMaskFactor",
-  "multiquadraticProjectConjugates", "multiquadraticEvaluateConjugates",
+  "multiquadraticProjectSignChangeImages", "multiquadraticEvaluateSignChangeImages",
   "multiquadraticSquareRoots", "multiquadraticStripZeroQ",
   "multiquadraticStripCanonicalText", "multiquadraticStripSquareClassSquareQ",
   "transportChartRadicalBases", "transportChartApplyRootBranches",
@@ -113,7 +113,7 @@ squarePool = {x, y, 1 + x + y, 1 - x, 1 - y, x + y, 1 + x - y, 2 + x + 3 y,
   x^2 + y, 1 + 2 x + y^2, 3 - x - 2 y, x y + 1};
 declared[squares_] := <|"Root" -> Sqrt[#], "RootSquare" -> #|> & /@ squares;
 frameOrder[squares_] := Module[{frame, order},
-  frame = BuildAlgebraicTransportFrame[squares /. {x -> v, y -> w}, {v, w},
+  frame = BuildSquareRootGeneratorsAndQuadraticRelations[squares /. {x -> v, y -> w}, {v, w},
     {cx, cy}];
   If[! AssociationQ[frame] || frame["Status"] =!= "ExactFrame",
     Return[$Failed]];

@@ -10,7 +10,8 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {forcingOf, prepare, layoutBuilder, directProvider, channels, pointRows,
   assembleSample, providerPreflight, splitPlanBuilder, splitPlanValidQ,
-  splitEntry, screenCompile, clearCaches, validateBundle} = mq /@ {
+  splitEntry, screenCompile, clearCaches, validateBundle,
+  presentationRoots, generatorExpression} = mq /@ {
     "blockEquationDeferredForcing",
     "multiquadraticStripPrepare", "multiquadraticStripAssemblyLayout",
     "multiquadraticStripDirectProvider",
@@ -23,25 +24,30 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
     "multiquadraticStripSplitBranchEntry",
     "multiquadraticStripScreenCompileScalar",
     "multiquadraticStripClearCaches",
-    "blockEquationDeferredBundleValidate"};
+    "blockEquationDeferredBundleValidate",
+    "coefficientPresentationSquareRootsInVariables",
+    "squareRootRecordExpression"};
 topSolve = mq["solveEpsFormStripMultiquadratic"];
 
-Clear[dx, dy, de];
+Clear[dx, dy, de, dsx, dsy, dcx, dcy];
 ranges = {{1}, {2}, {3, 4}};
 blockOf[i_] := First[Select[Range[Length[ranges]],
   MemberQ[ranges[[#1]], i] &]];
 delta = 1 + dx;
-rootRecord = <|"Root" -> Sqrt[delta], "RootSquare" -> delta|>;
+coefficientPresentation = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {1 + dsx}, {dsx, dsy}, {dcx, dcy}];
+rootRecord = First[presentationRoots[coefficientPresentation, {dx, dy}]];
+bundleRootRecord = Join[rootRecord, <|"SourceRadicand" -> delta|>];
 entry[mu_, i_, j_] := (de + mu + i dx + j dy)/
   ((2 + dx + Sqrt[delta])^If[mu === 1, 2, 1] (i + j));
 connection = Table[Table[If[blockOf[i] < blockOf[j], 0,
     entry[mu, i, j]], {i, 4}, {j, 4}], {mu, 2}];
 solved = <|2 -> {{(1 + dx)/(1 - dy)}, {dy/(1 + dx)}}|>;
 compat = forcingOf[connection, ranges, 3, 1, solved, {dx, dy}, de,
-  "DivisorRoots" -> {rootRecord}];
+  "DivisorRoots" -> {bundleRootRecord}];
 bundle = Lookup[compat, "DeferredBundle", <||>];
 
-check["bundle provider fixture is authenticated",
+check["bundle provider fixture is validated",
   Lookup[compat, "Status", None] === "OK" &&
     Lookup[validateBundle[bundle], "Status", None] === "BundleValid"];
 
@@ -49,41 +55,34 @@ dimensions = Rest[bundle["Dimensions"]];
 e = Table[Sqrt[delta] IdentityMatrix[dimensions[[1]]], {2}];
 c = Table[ConstantArray[0, {dimensions[[2]], dimensions[[2]]}], {2}];
 zeroForcing = ConstantArray[0, bundle["Dimensions"]];
-frame = <|"Name" -> "DeferredBundleProviderRank1",
-  "Kind" -> "TwoVariable", "CoefficientField" -> "Algebraic",
-  "Variables" -> {dx, dy}, "Subst" -> {dx -> dx, dy -> dy},
-  "Roots" -> {rootRecord}|>;
 bundleRecord = <|"Family" -> "BUNDLE_PROVIDER", "Sector" -> 3,
   "LowerSector" -> 1, "Variables" -> {dx, dy}, "Regulator" -> de,
   "Strip" -> {e, c, zeroForcing}, "DeferredBundle" -> bundle|>;
-prepared = prepare[bundleRecord, frame, "RootIndices" -> {1},
+prepared = prepare[bundleRecord, coefficientPresentation, "RootIndices" -> {1},
   "OneForms" -> {}, "GaugeDenominator" -> Automatic,
   "Support" -> {{0, 0}}, "CoefficientProvider" -> "SplitBranch"];
 layout = layoutBuilder[prepared];
 bundleSplit = directProvider[prepared["Record"], prepared["Roots"],
   "Kind" -> "SplitBranch", "OneForms" -> prepared["OneForms"],
   "GaugeDenominator" -> prepared["GaugeDenominator"],
-  "DeferredBundle" -> bundle,
-  "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
-  "SourceFingerprint" -> prepared["ABIFingerprint"]];
+  "DeferredBundle" -> bundle];
 bundleQuotient = directProvider[prepared["Record"], prepared["Roots"],
   "Kind" -> "QuotientGrade", "OneForms" -> prepared["OneForms"],
   "GaugeDenominator" -> prepared["GaugeDenominator"],
-  "DeferredBundle" -> bundle,
-  "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
-  "SourceFingerprint" -> prepared["ABIFingerprint"]];
+  "DeferredBundle" -> bundle];
 oracleRecord = Join[bundleRecord, <|"Strip" -> {e, c, compat["Forcing"]}|>];
 oracle = directProvider[oracleRecord, prepared["Roots"],
   "Kind" -> "SplitBranch", "OneForms" -> prepared["OneForms"],
   "GaugeDenominator" -> prepared["GaugeDenominator"],
-  "DeferredBundle" -> None,
-  "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
-  "SourceFingerprint" -> prepared["ABIFingerprint"]];
+  "DeferredBundle" -> None];
 
 check["bundle divisor summary supplies the automatic rational denominator",
   Lookup[prepared, "Status", None] === "PreparedMultiquadraticStripV1" &&
     AssociationQ[prepared["BundleDivisorProvenance"]] &&
-    prepared["DeferredBundleFingerprint"] === bundle["BundleFingerprint"] &&
+    bundle["SchemaVersion"] === 3 &&
+    AssociationQ[bundle["CoefficientPresentation"]] &&
+    bundle["SquareRootGeneratorIndices"] === {1} &&
+    prepared["CoefficientPresentation"] === coefficientPresentation &&
     FreeQ[prepared["GaugeDenominator"], Power[_, _Rational]]];
 
 prime = 2147483423; epsilonValue = 5; point = {3, 7};
@@ -96,7 +95,7 @@ splitPlan = splitPlanBuilder[bundleSplit, prime];
 splitPreflight = providerPreflight[bundleSplit, epsilonValue, prime, point];
 plannedBundleSplitImage = channels[bundleSplit, epsilonValue, prime, point,
   splitPreflight, splitPlan];
-check["the split plan authenticates and covers every positional occurrence",
+check["the split plan validates and covers every positional occurrence",
   splitPlanValidQ[splitPlan, bundleSplit, prime] &&
     ! TrueQ[splitPlan["PlanCacheHit"]] &&
     splitPlan["UniqueLeafCount"] < splitPlan["OccurrenceCount"] &&
@@ -127,9 +126,11 @@ check["planned and unplanned provider channels are exactly identical",
       "SplitSparseDeferredBundleCompositionSeconds"]]];
 
 cachedSplitPlan = splitPlanBuilder[bundleSplit, prime];
-check["a second fibre reuses the sealed provider-prime plan without compiling",
+check["a second fibre reuses the exact provider-prime plan without compiling",
   TrueQ[cachedSplitPlan["PlanCacheHit"]] &&
-    cachedSplitPlan["PlanFingerprint"] === splitPlan["PlanFingerprint"] &&
+    cachedSplitPlan["CoefficientData"] === splitPlan["CoefficientData"] &&
+    cachedSplitPlan["Leaves"] === splitPlan["Leaves"] &&
+    cachedSplitPlan["OccurrenceMaps"] === splitPlan["OccurrenceMaps"] &&
     cachedSplitPlan["BuildCompileInvocationCount"] === 0];
 
 samplePoints = {{3, 7}, {8, 11}, {15, 13}, {24, 17}};
@@ -144,7 +145,7 @@ plannedSample = assembleSample[layout, bundleSplit, epsilonValue, prime,
 hotFibreSample = assembleSample[layout, bundleSplit, 7, prime,
   "PointCount" -> 4, "MaximumAttempts" -> 4,
   "CandidatePoints" -> samplePoints];
-check["planned and unplanned complete samples have identical row ABI",
+check["planned and unplanned complete samples have identical row data",
   Lookup[unplannedSample, "Status", None] ===
       "AssembledMultiquadraticSampleV1" &&
     Lookup[plannedSample, "Status", None] ===
@@ -164,8 +165,7 @@ check["Automatic reuses the same plan across epsilon fibres",
       "AssembledMultiquadraticSampleV1" &&
     TrueQ[hotFibreSample["SplitSparsePlanCacheHit"]] &&
     hotFibreSample["SplitSparsePlanCompileInvocationCount"] === 0 &&
-    hotFibreSample["SplitSparsePlanFingerprint"] ===
-      splitPlan["PlanFingerprint"]];
+    hotFibreSample["CoefficientData"] === splitPlan["CoefficientData"]];
 
 reorderedPlan = ReplacePart[splitPlan, Key["Leaves"] ->
   Reverse[splitPlan["Leaves"]]];
@@ -175,21 +175,14 @@ oldOccurrence = splitPlan[
 mutatedOccurrencePlan = ReplacePart[splitPlan,
   {Key["OccurrenceMaps"], Key["Entries"], Key[entryMapKey], 1, 1, 1} ->
     1 + Mod[oldOccurrence, splitPlan["UniqueLeafCount"]]];
-oraclePreflight = providerPreflight[oracle, epsilonValue, prime, point];
 otherPrime = 2147483399;
-otherPrimePreflight = providerPreflight[bundleSplit, epsilonValue,
-  otherPrime, point];
 invalidPlans = {
-  channels[bundleSplit, epsilonValue, prime, point, splitPreflight,
-    reorderedPlan],
-  channels[bundleSplit, epsilonValue, prime, point, splitPreflight,
-    mutatedOccurrencePlan],
-  channels[oracle, epsilonValue, prime, point, oraclePreflight, splitPlan],
-  channels[bundleSplit, epsilonValue, otherPrime, point,
-    otherPrimePreflight, splitPlan]};
+  splitPlanValidQ[reorderedPlan, bundleSplit, prime],
+  splitPlanValidQ[mutatedOccurrencePlan, bundleSplit, prime],
+  splitPlanValidQ[splitPlan, oracle, prime],
+  splitPlanValidQ[splitPlan, bundleSplit, otherPrime]};
 check["reordered, occurrence-mutated, cross-provider and cross-prime plans fail closed",
-  Lookup[invalidPlans, "Status", None] ===
-    ConstantArray["InvalidSplitSparseEvaluationPlan", 4]];
+  invalidPlans === ConstantArray[False, 4]];
 
 poleExpression = 1/(dx - 3);
 poleRules = <|dx -> 3, dy -> 7, de -> epsilonValue|>;
@@ -234,51 +227,51 @@ mutated = ReplacePart[bundle,
 mutantProvider = directProvider[prepared["Record"], prepared["Roots"],
   "Kind" -> "SplitBranch", "OneForms" -> prepared["OneForms"],
   "GaugeDenominator" -> prepared["GaugeDenominator"],
-  "DeferredBundle" -> mutated,
-  "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
-  "SourceFingerprint" -> prepared["ABIFingerprint"]];
-check["a mutated deferred bundle is refused before point evaluation",
-  Lookup[mutantProvider, "Status", None] === "InvalidDeferredBundle"];
+  "DeferredBundle" -> mutated];
+mutantImage = channels[mutantProvider, epsilonValue, prime, point];
+check["changed valid bundle equations produce changed provider coefficients",
+  Lookup[validateBundle[mutated], "Status", None] === "BundleValid" &&
+    Lookup[mutantProvider, "Status", None] ===
+      "MultiquadraticDirectProviderV1" &&
+    Lookup[mutantImage, "Status", None] ===
+      "MultiquadraticPointCoefficientsV1" &&
+    mutantImage["BBar"] =!= bundleSplitImage["BBar"]];
 
 (* The production driver intentionally puts a zero tensor in BBar when the
-   authenticated deferred bundle is the forcing source.  A radical used only
-   by that bundle must therefore enter preparation through RootFrame, not be
+   validated deferred bundle is the forcing source.  A generator used only
+   by that bundle must therefore enter preparation through its coefficient
+   presentation, not be
    rejected as an extraneous explicit RootIndices request. *)
 zeroE = ConstantArray[0, {2, dimensions[[1]], dimensions[[1]]}];
 zeroC = ConstantArray[0, {2, dimensions[[2]], dimensions[[2]]}];
 forcingOnlyRecord = <|"Family" -> "BUNDLE_ROOT_CENSUS", "Sector" -> 3,
   "LowerSector" -> 1, "Variables" -> {dx, dy}, "Regulator" -> de,
   "Strip" -> {zeroE, zeroC, zeroForcing}, "DeferredBundle" -> bundle|>;
-forcingOnlyPrepared = prepare[forcingOnlyRecord, frame,
+forcingOnlyPrepared = prepare[forcingOnlyRecord, coefficientPresentation,
   "OneForms" -> {}, "GaugeDenominator" -> Automatic,
   "Support" -> {{0, 0}}, "CoefficientProvider" -> "SplitBranch"];
-forcingOnlyLayout = layoutBuilder[forcingOnlyPrepared];
 forcingOnlyProvider = directProvider[forcingOnlyPrepared["Record"],
   forcingOnlyPrepared["Roots"], "Kind" -> "SplitBranch", "OneForms" -> {},
   "GaugeDenominator" -> forcingOnlyPrepared["GaugeDenominator"],
-  "DeferredBundle" -> bundle,
-  "CoefficientABIFingerprint" ->
-    forcingOnlyLayout["CoefficientABIFingerprint"],
-  "SourceFingerprint" -> forcingOnlyPrepared["ABIFingerprint"]];
+  "DeferredBundle" -> bundle];
 forcingOnlyImage = channels[forcingOnlyProvider, epsilonValue, prime, point];
 forcingOnlyOracleRecord = Join[forcingOnlyRecord, <|
   "Strip" -> {zeroE, zeroC, compat["Forcing"]}, "DeferredBundle" -> None|>];
 forcingOnlyOracle = directProvider[forcingOnlyOracleRecord,
   forcingOnlyPrepared["Roots"], "Kind" -> "SplitBranch", "OneForms" -> {},
   "GaugeDenominator" -> forcingOnlyPrepared["GaugeDenominator"],
-  "DeferredBundle" -> None,
-  "CoefficientABIFingerprint" ->
-    forcingOnlyLayout["CoefficientABIFingerprint"],
-  "SourceFingerprint" -> forcingOnlyPrepared["ABIFingerprint"]];
+  "DeferredBundle" -> None];
 forcingOnlyOracleImage = channels[forcingOnlyOracle, epsilonValue, prime,
   point];
-check["prepare includes roots used only by an authenticated deferred forcing",
+bundleRoots = presentationRoots[bundle["CoefficientPresentation"],
+  {dx, dy}][[bundle["SquareRootGeneratorIndices"]]];
+check["prepare includes generators used only by a validated deferred forcing",
   Lookup[forcingOnlyPrepared, "Status", None] ===
       "PreparedMultiquadraticStripV1" &&
     forcingOnlyPrepared["RootCount"] === 1 &&
     forcingOnlyPrepared["RootIndices"] === {1} &&
-    Lookup[forcingOnlyPrepared["Roots"], "Root", {}] ===
-      Lookup[bundle["RootFrame"]["Roots"], "Root", {}]];
+    (generatorExpression /@ forcingOnlyPrepared["Roots"]) ===
+      (generatorExpression /@ bundleRoots)];
 check["the forcing-only bundle reaches the provider without materializing BBar",
   Lookup[forcingOnlyImage, "Status", None] ===
       "MultiquadraticPointCoefficientsV1" &&
@@ -286,7 +279,7 @@ check["the forcing-only bundle reaches the provider without materializing BBar",
     forcingOnlyImage["BBar"] =!= ConstantArray[0,
       Dimensions[forcingOnlyImage["BBar"]]]];
 
-topLevelForcingOnly = topSolve[forcingOnlyRecord, frame,
+topLevelForcingOnly = topSolve[forcingOnlyRecord, coefficientPresentation,
   "OneForms" -> Automatic,
   "AlgebraicLetters" -> {2 + dx + Sqrt[delta]},
   "AdditionalLetters" -> {}, "DLogKernels" -> 1,
@@ -306,7 +299,9 @@ check["top-level alphabet and provider keep the forcing-only bundle root",
   AssociationQ[topLevelForcingOnly] &&
     Lookup[topLevelForcingOnly, "RootIndices", None] === {1} &&
     Lookup[topLevelForcingOnly, "OneFormCount", 0] >= 1 &&
-    ! MemberQ[{"InvalidDeferredBundle", "DeferredBundleRootFrameMismatch",
+    ! MemberQ[{"InvalidDeferredBundle",
+       "DeferredBundleCoefficientPresentationMismatch",
+       "DeferredBundleRootOrderMismatch",
        "DeferredBundleRootCoverageIncomplete", "OneFormBasisFailed"},
       Lookup[topLevelForcingOnly, "Status", None]]];
 

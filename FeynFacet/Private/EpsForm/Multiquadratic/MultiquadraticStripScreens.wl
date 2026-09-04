@@ -3,7 +3,7 @@
    round 4, 2026-09-02, pure moves): the residue-only integrability screen, screen admission and compiled-form
    reuse, the two-image rejection path and evidence classifier, the full-gauge
    per-image screen and the degree-offset ladder.
-   Loads after the preceding parts (Private/LoadOrder.wl); the ABI, the
+   Loads after the preceding parts (Private/LoadOrder.wl); the shared data,
    globals and the shared utilities are in MultiquadraticStripSolve.wl. *)
 
 Begin["FeynFacet`Private`"];
@@ -447,12 +447,12 @@ multiquadraticStripScreenCompileCacheClear[] := (
 multiquadraticStripScreenCompileCached[expression_, roots_List,
     rootSymbols_List, variables_List, prime_Integer] := Module[
   {key, value, bytes},
-  key = {Hash[{expression, Lookup[roots, "RootSquare", {}], rootSymbols,
-    variables, prime}, "SHA256"]};
+  key = {expression, squareRootRecordRadicand /@ roots, rootSymbols,
+    variables, prime};
   If[KeyExistsQ[$multiquadraticStripScreenCompileCache, key],
     $multiquadraticStripScreenCompileStatistics["Hits"] =
       $multiquadraticStripScreenCompileStatistics["Hits"] + 1;
-    Return[$multiquadraticStripScreenCompileCache[key]]];
+    Return[$multiquadraticStripScreenCompileCache[[Key[key]]]]];
   value = multiquadraticStripScreenCompileScalar[expression, roots,
     rootSymbols, variables, prime];
   $multiquadraticStripScreenCompileStatistics["Misses"] =
@@ -465,7 +465,7 @@ multiquadraticStripScreenCompileCached[expression_, roots_List,
         Length[$multiquadraticStripScreenCompileCache];
     $multiquadraticStripScreenCompileCache = <||>;
     $multiquadraticStripScreenCompileCacheBytes = 0];
-  $multiquadraticStripScreenCompileCache[key] = value;
+  AssociateTo[$multiquadraticStripScreenCompileCache, key -> value];
   $multiquadraticStripScreenCompileCacheBytes =
     $multiquadraticStripScreenCompileCacheBytes + bytes;
   $multiquadraticStripScreenCompileStatistics["Bytes"] =
@@ -609,7 +609,7 @@ multiquadraticStripIntegrabilityScreen[record_Association, roots_List,
   compileSeconds = First[AbsoluteTiming[
    Block[{$multiquadraticStripScreenCompileCacheLimit = compileCacheBytes},
     deltaCompiled = multiquadraticStripScreenCompileCached[#1, {}, rootSymbols,
-        variables, prime] & /@ Lookup[roots, "RootSquare", {}];
+        variables, prime] & /@ (squareRootRecordRadicand /@ roots);
     If[multiquadraticStripDeadlineExpiredQ[deadline], expired = True];
     eCompiled = If[expired, {}, Map[compileScalar, e, {3}]];
     If[multiquadraticStripDeadlineExpiredQ[deadline], expired = True];
@@ -1012,7 +1012,7 @@ multiquadraticStripFreshResidueScreenImages[record_Association, roots_List,
   If[! MatchQ[variables, {_Symbol, _Symbol}] || ! MatchQ[epsilon, _Symbol] ||
       ! MatchQ[strip, {_List, _List, _List}],
     Return[multiquadraticStripFailure["InvalidRecordForFreshResidueImages"]]];
-  squares = Lookup[roots, "RootSquare", {}];
+  squares = squareRootRecordRadicand /@ roots;
   oneForms = Lookup[letterRecords, "OneForm", {}];
   evaluableQ[value_] := Module[{image = Quiet[Check[
       Together[{squares, oneForms} /. epsilon -> value], $Failed]]},
@@ -1491,7 +1491,7 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
   compileSeconds = First[AbsoluteTiming[
   Block[{$multiquadraticStripScreenCompileCacheLimit = compileCacheBytes},
   deltaCompiled = multiquadraticStripScreenCompileCached[#1, {}, rootSymbols,
-      variables, prime] & /@ Lookup[roots, "RootSquare", {}];
+      variables, prime] & /@ (squareRootRecordRadicand /@ roots);
   If[multiquadraticStripDeadlineExpiredQ[deadline], expired = True];
   eCompiled = If[expired, {}, Map[compileScalar, e, {3}]];
   If[multiquadraticStripDeadlineExpiredQ[deadline], expired = True];
@@ -1846,9 +1846,7 @@ multiquadraticStripGaugeScreen[ansatz_Association, opts : OptionsPattern[]] :=
         (Exponent[Together[gaugeDenominator], #1] & /@ variables),
       "SupportCount" -> supportCount, "GradeCount" -> gradeCount,
       "Dimensions" -> {upper, lower}, "RootCount" -> rank,
-      "RootSquares" -> Lookup[roots, "RootSquare", {}],
-      "ABIFingerprint" -> Lookup[ansatz, "ABIFingerprint",
-        Missing["NoPreparation"]]|>,
+      "RootSquares" -> (squareRootRecordRadicand /@ roots)|>,
     "Seconds" -> seconds|>
 ];
 multiquadraticStripGaugeScreen[___] :=
@@ -2097,8 +2095,6 @@ multiquadraticStripGaugeScreenImages[ansatz_Association,
     "Stage" -> Lookup[Last[results], "Stage", Missing["NoStage"]],
     "MatrixDimensions" -> Lookup[Last[results], "MatrixDimensions",
       Missing["NoMatrix"]],
-    "AnsatzFingerprint" -> Lookup[ansatz, "ABIFingerprint",
-      Missing["NoPreparation"]],
     "Seconds" -> Total[Lookup[results, "Seconds", 0]]|>,
     (* the ansatz a defect belongs to: without it a defect cannot
        distinguish a missing letter from too small a support *)

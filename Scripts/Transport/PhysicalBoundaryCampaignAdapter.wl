@@ -3,19 +3,20 @@
 BeginPackage["FeynFacetCampaign`PhysicalBoundary`"];
 
 BuildEndpointAutomatonBoundaryAdapter::usage =
-  "BuildEndpointAutomatonBoundaryAdapter[transport, modeMap, periodData] builds the " <>
+  "BuildEndpointAutomatonBoundaryAdapter[transport, modeMap, boundaryData] builds the " <>
   "finite endpoint-to-interior word map needed to feed singular zero modes into an " <>
   "operator or materialized observable transport for explicitly requested words.  " <>
-  "The returned coordinate maps are rational; " <>
-  "unevaluated periods are represented only by BoundaryPeriodCoefficient[id, order].";
+  "The returned coordinate maps are rational; unevaluated boundary data are represented " <>
+  "by BoundaryConstantEpsilonCoefficient[id, order] or " <>
+  "BoundaryFunctionEpsilonCoefficient[id, order], according to the boundary domain.";
 
-ComposeEndpointAutomatonPeriodWords::usage =
-  "ComposeEndpointAutomatonPeriodWords[adapter, transport, wordPairs] composes endpoint " <>
+ComposeEndpointAutomatonBoundaryCoefficientMaps::usage =
+  "ComposeEndpointAutomatonBoundaryCoefficientMaps[adapter, transport, wordPairs] composes endpoint " <>
   "connection words with prepared OperatorAutomaton demand words and returns " <>
-  "period-coordinate maps.  Unprepared demand words fail typed.";
+  "maps to boundary-data coefficients.  Unprepared demand words fail typed.";
 
 BuildGradedPhysicalEndpointTransport::usage =
-  "BuildGradedPhysicalEndpointTransport[transport, modeMap, periodData] closes the " <>
+  "BuildGradedPhysicalEndpointTransport[transport, modeMap, boundaryData] closes the " <>
   "accepted observable transport under its current-path word operators grade by grade, " <>
   "then attaches the endpoint Frobenius transport to a basis of each finite row space. " <>
   "It represents every requested-weight word without enumerating the alphabet product.";
@@ -23,7 +24,7 @@ BuildGradedPhysicalEndpointTransport::usage =
 ComposeGradedPhysicalEndpointWords::usage =
   "ComposeGradedPhysicalEndpointWords[binding, transport, wordPairs] materializes only " <>
   "the requested current-path words from a graded physical endpoint binding and returns " <>
-  "their four-segment GPL maps on one shared vector of physical period coordinates.";
+  "their four-segment GPL maps on one shared vector of boundary-data coefficients.";
 
 EndpointConnectionWord::usage =
   "EndpointConnectionWord[path, firstWord, secondWord] is the inert Chen word " <>
@@ -34,20 +35,62 @@ Begin["`Private`"];
 ClearAll[exactZeroQ, failure, leadingEpsilonOrder,
   exactAssociationLookup,
   independentEmbeddingRows, modeVector, endpointModeStatus,
-  endpointModePeriodRecord, endpointResidueMatrix, reachableWordPairs,
+  endpointBoundaryDataRecord, endpointResidueMatrix, reachableWordPairs,
   endpointDemandRowBasis, endpointDemandVisibilityRows,
   endpointDemandCoReachability, endpointModeOrderKey,
   endpointModeCoefficientData, endpointDemandOrderMatrices,
   operatorAutomatonWordMap, transportObservableWordMap,
-  stage3Entry, pruneLedger, endpointExactRowBasis,
+  boundaryDataRequirement, pruneBoundaryDataRequirements, endpointExactRowBasis,
   endpointSpecializeMatrix, endpointCurrentRowSpaces,
   endpointBasisProjectionData, endpointExpandTermColumns,
-  endpointMergeStage3Ledger, endpointCoordinateKey];
+  endpointMergeBoundaryDataRequirements, endpointCoordinateKey,
+  endpointBoundaryDataIDKey, endpointBoundaryDataID,
+  endpointBoundaryAnalyticClassKey, endpointBoundaryAnalyticClass,
+  endpointBoundaryEpsilonValuationKey, endpointBoundaryEpsilonValuation,
+  endpointBoundaryCoefficient, endpointBoundaryCoefficientRecordsKey,
+  endpointBoundaryCoefficientLabelsKey];
+
+endpointBoundaryDataIDKey["BoundaryConstant"] := "BoundaryConstantID";
+endpointBoundaryDataIDKey["BoundaryFunction"] := "BoundaryFunctionID";
+endpointBoundaryAnalyticClassKey["BoundaryConstant"] :=
+  "DeclaredBoundaryConstantAnalyticClass";
+endpointBoundaryAnalyticClassKey["BoundaryFunction"] :=
+  "DeclaredBoundaryFunctionClass";
+endpointBoundaryEpsilonValuationKey["BoundaryConstant"] :=
+  "BoundaryConstantEpsilonValuation";
+endpointBoundaryEpsilonValuationKey["BoundaryFunction"] :=
+  "BoundaryFunctionEpsilonValuation";
+endpointBoundaryDataID[mode_Association] := With[
+  {type = Lookup[mode, "BoundaryDataType", Missing["BoundaryDataType"]]},
+  Lookup[mode, endpointBoundaryDataIDKey[type], Missing[endpointBoundaryDataIDKey[type]]]
+];
+endpointBoundaryAnalyticClass[mode_Association] := With[
+  {type = Lookup[mode, "BoundaryDataType", Missing["BoundaryDataType"]]},
+  Lookup[mode, endpointBoundaryAnalyticClassKey[type],
+    Missing[endpointBoundaryAnalyticClassKey[type]]]
+];
+endpointBoundaryEpsilonValuation[mode_Association] := With[
+  {type = Lookup[mode, "BoundaryDataType", Missing["BoundaryDataType"]]},
+  Lookup[mode, endpointBoundaryEpsilonValuationKey[type],
+    Missing[endpointBoundaryEpsilonValuationKey[type]]]
+];
+endpointBoundaryCoefficient["BoundaryConstant", id_, order_] :=
+  FeynFacet`BoundaryConstantEpsilonCoefficient[id, order];
+endpointBoundaryCoefficient["BoundaryFunction", id_, order_] :=
+  FeynFacet`BoundaryFunctionEpsilonCoefficient[id, order];
+endpointBoundaryCoefficientRecordsKey["BoundaryConstant"] :=
+  "BoundaryConstantEpsilonCoefficientRecords";
+endpointBoundaryCoefficientRecordsKey["BoundaryFunction"] :=
+  "BoundaryFunctionEpsilonCoefficientRecords";
+endpointBoundaryCoefficientLabelsKey["BoundaryConstant"] :=
+  "BoundaryConstantEpsilonCoefficientLabels";
+endpointBoundaryCoefficientLabelsKey["BoundaryFunction"] :=
+  "BoundaryFunctionEpsilonCoefficientLabels";
 
 exactZeroQ[x_] := TrueQ[x === 0] || TrueQ[PossibleZeroQ[x]];
 
 (* Lookup treats a list-valued key as a list of separate keys.  Physical
-   realization IDs are commonly {family, period}, so retrieve them through
+   realization IDs are commonly compound labels such as {family, mode}, so retrieve them through
    Association Part instead. *)
 exactAssociationLookup[association_Association, key_, default_: Missing[]] :=
   If[KeyExistsQ[association, key], association[[Key[key]]], default];
@@ -89,11 +132,11 @@ modeVector[mode_Association, dimension_Integer] := Module[
       vector = Normal@SparseArray[(#[[1]] -> #[[2]]) & /@ entries, dimension],
     True,
       Return[failure["MissingEndpointModeRealization", <|
-        "PeriodID" -> Lookup[mode, "PeriodID", Missing["Absent"]]|>]]
+        "FrobeniusModeID" -> Lookup[mode, "FrobeniusModeID", Missing["Absent"]]|>]]
   ];
   If[Length[vector] =!= dimension,
     Return@failure["EndpointModeDimensionMismatch", <|
-      "PeriodID" -> Lookup[mode, "PeriodID", Missing["Absent"]],
+      "FrobeniusModeID" -> Lookup[mode, "FrobeniusModeID", Missing["Absent"]],
       "ExpectedDimension" -> dimension, "ActualDimension" -> Length[vector]|>]
   ];
   physicalToLocal = Lookup[mode, "PhysicalToLocalMode", Automatic];
@@ -106,16 +149,16 @@ modeVector[mode_Association, dimension_Integer] := Module[
       physicalToLocal . vector,
     True,
       failure["PhysicalToLocalModeInvalid", <|
-        "PeriodID" -> Lookup[mode, "PeriodID", Missing["Absent"]],
+        "FrobeniusModeID" -> Lookup[mode, "FrobeniusModeID", Missing["Absent"]],
         "ExpectedVectorLengthOrMatrixDimension" -> dimension|>]
   ]
 ];
 
 endpointModeStatus[mode_Association] := Lookup[mode, "Status", Missing["Absent"]];
 
-endpointModePeriodRecord[periodData_Association, periodID_] :=
-  exactAssociationLookup[periodData, periodID,
-    exactAssociationLookup[periodData, ToString[periodID], <||>]];
+endpointBoundaryDataRecord[boundaryData_Association, boundaryDataID_] :=
+  exactAssociationLookup[boundaryData, boundaryDataID,
+    exactAssociationLookup[boundaryData, ToString[boundaryDataID], <||>]];
 
 endpointResidueMatrix[kernels_Association, matrices_Association, variable_Symbol, endpoint_] :=
   Total[
@@ -130,15 +173,15 @@ endpointDemandRowBasis[rows_List] := Module[{reduced},
 ];
 
 endpointDemandVisibilityRows[pivotDemand_, pivotSlots_List,
-    dimension_Integer, weight_Integer, periodCoordinates_List,
+    dimension_Integer, weight_Integer, boundaryCoefficientRecords_List,
     coefficientPositions_Association] := Module[
   {orders, activeOrders, coefficientPresentQ, rows, vector},
   orders = DeleteDuplicates[pivotSlots[[All, 1]]];
   coefficientPresentQ[id_, order_] := KeyExistsQ[coefficientPositions,
     endpointModeOrderKey[id, order]];
   activeOrders = Select[orders, Function[slotOrder,
-    AnyTrue[periodCoordinates, Function[coordinate,
-      coefficientPresentQ[Lookup[coordinate, "PeriodID"],
+    AnyTrue[boundaryCoefficientRecords, Function[coordinate,
+      coefficientPresentQ[endpointBoundaryDataID[coordinate],
         slotOrder - Lookup[coordinate, "EpsilonOrder"] - weight]]]]];
   rows = Flatten[Table[
     vector = ConstantArray[0, dimension];
@@ -174,8 +217,10 @@ endpointDemandCoReachability[visibility_Association,
 endpointModeOrderKey[id_, order_Integer] := HoldComplete[id, order];
 
 endpointModeCoefficientData[modeVectors_Association, ids_List,
-    regulator_Symbol, orders_List, dimension_Integer] := Module[
-  {records, coefficientVector},
+    regulator_Symbol, orders_List, dimension_Integer,
+    boundaryDataType_String] := Module[
+  {records, coefficientVector,
+   dataIDKey = endpointBoundaryDataIDKey[boundaryDataType]},
   records = Flatten@Table[
     coefficientVector = Quiet@Check[
       (SeriesCoefficient[#, {regulator, 0, order}] & /@
@@ -184,10 +229,10 @@ endpointModeCoefficientData[modeVectors_Association, ids_List,
     If[coefficientVector === $Failed || !VectorQ[coefficientVector] ||
         Length[coefficientVector] =!= dimension,
       Return@failure["EndpointCoefficientExtractionFailed", <|
-        "PeriodID" -> id, "ModeEpsilonOrder" -> order|>]
+        "FrobeniusModeID" -> id, "ModeEpsilonOrder" -> order|>]
     ];
     If[AnyTrue[coefficientVector, Not@*exactZeroQ],
-      {<|"PeriodID" -> id, "ModeEpsilonOrder" -> order,
+      {<|dataIDKey -> id, "ModeEpsilonOrder" -> order,
         "Vector" -> (Together /@ coefficientVector)|>}, {}],
     {id, ids}, {order, orders}];
   <|
@@ -195,7 +240,7 @@ endpointModeCoefficientData[modeVectors_Association, ids_List,
     "SeedMatrix" -> If[records === {}, ConstantArray[0, {dimension, 0}],
       Transpose[Lookup[records, "Vector"]]],
     "ColumnPositions" -> AssociationThread[
-      (endpointModeOrderKey[Lookup[#, "PeriodID"],
+      (endpointModeOrderKey[Lookup[#, dataIDKey],
           Lookup[#, "ModeEpsilonOrder"]] & /@ records),
       Range[Length[records]]]
   |>
@@ -329,45 +374,57 @@ transportObservableWordMap[transport_Association, firstWord_List,
   ]
 ];
 
-(* Round 9b (T, R3's F2): a Basis sub-realization's declaration (parent
-   period, dimension, echelon basis, siblings) travels on every ledger entry
-   and period coordinate; declarationByMode is set per call. *)
-stage3Entry[family_, endpointSpec_, mode_, status_, coordinates_List, outputs_List] := <|
-  "PeriodID" -> Lookup[mode, "PeriodID", Missing["Absent"]],
-  "DegenerateEigenspace" -> Lookup[mode, "DegenerateEigenspaceDeclaration", None],
-  "Family" -> family,
-  "Limit" -> <|
-    "Variable" -> Lookup[endpointSpec, "Variable", Missing["Absent"]],
-    "Endpoint" -> Lookup[endpointSpec, "Endpoint", Missing["Absent"]],
-    "FixedRules" -> Lookup[endpointSpec, "FixedRules", {}],
-    "Stratum" -> Lookup[endpointSpec, "Stratum", Missing["Absent"]]|>,
-  "FrobeniusMode" -> <|
-    "LocalEigenvalue" -> Lookup[mode, "LocalEigenvalue", Missing["Absent"]],
-    "GeneralizedLevel" -> Lookup[mode, "GeneralizedLevel", Missing["Absent"]],
-    "Support" -> Lookup[mode, "Support", Missing["Absent"]]|>,
-  "AffectedBoundaryCoordinates" -> coordinates,
-  "DemandedOutputs" -> outputs,
-  "Status" -> status
-|>;
+boundaryDataRequirement[family_, endpointSpec_, mode_, status_,
+    coefficientRecords_List, outputs_List] := Module[
+  {type = mode["BoundaryDataType"], idKey, classKey, labelsKey},
+  idKey = endpointBoundaryDataIDKey[type];
+  classKey = endpointBoundaryAnalyticClassKey[type];
+  labelsKey = endpointBoundaryCoefficientLabelsKey[type];
+  <|"BoundaryDataType" -> type,
+    idKey -> endpointBoundaryDataID[mode],
+    "FrobeniusModeID" -> Lookup[mode, "FrobeniusModeID", Missing["Absent"]],
+    classKey -> endpointBoundaryAnalyticClass[mode],
+    "DegenerateResidueEigenspaceBasis" ->
+      Lookup[mode, "DegenerateResidueEigenspaceBasis", None],
+    "Family" -> family,
+    "PhysicalKinematicLimit" -> <|
+      "Variable" -> Lookup[endpointSpec, "Variable", Missing["Absent"]],
+      "LocalExpansionPoint" ->
+        Lookup[endpointSpec, "LocalExpansionPoint", Missing["Absent"]],
+      "FixedRules" -> Lookup[endpointSpec, "FixedRules", {}],
+      "Stratum" -> Lookup[endpointSpec, "Stratum", Missing["Absent"]]|>,
+    "FrobeniusMode" -> <|
+      "LocalEigenvalue" -> Lookup[mode, "LocalEigenvalue", Missing["Absent"]],
+      "GeneralizedLevel" -> Lookup[mode, "GeneralizedLevel", Missing["Absent"]],
+      "Support" -> Lookup[mode, "Support", Missing["Absent"]]|>,
+    labelsKey ->
+      ({endpointBoundaryDataID[#], #["EpsilonOrder"]} & /@ coefficientRecords),
+    "RequiredMasterIntegralCoefficients" -> outputs,
+    "Status" -> status|>
+];
 
-pruneLedger[ledger_List, coordinates_List, usedColumns_List] := Module[
+pruneBoundaryDataRequirements[requirements_List, coordinates_List,
+    usedColumns_List] := Module[
   {used = If[usedColumns === {}, {}, coordinates[[usedColumns]]]},
-  ledger /. entry_Association :> Module[{periodID, selected},
-    periodID = Lookup[entry, "PeriodID", Missing["Absent"]];
-    selected = Select[used, Lookup[#, "PeriodID", Missing["Absent"]] === periodID &];
-    Join[entry, <|"AffectedBoundaryCoordinates" -> selected|>]
+  requirements /. entry_Association :> Module[
+    {type = entry["BoundaryDataType"], id, selected, labelsKey},
+    id = Lookup[entry, endpointBoundaryDataIDKey[type], Missing["Absent"]];
+    labelsKey = endpointBoundaryCoefficientLabelsKey[type];
+    selected = Select[used, endpointBoundaryDataID[#] === id &];
+    Join[entry, <|labelsKey ->
+      ({endpointBoundaryDataID[#], #["EpsilonOrder"]} & /@ selected)|>]
   ]
 ];
 
 Options[BuildEndpointAutomatonBoundaryAdapter] = {
   "MaximumConnectorWeight" -> Automatic,
   "MaximumConnectorWords" -> 200000,
-  "PeriodOrderWindow" -> Automatic,
+  "BoundaryDataEpsilonOrderWindow" -> Automatic,
   "DemandWordPairs" -> {{{}, {}}}
 };
 
 BuildEndpointAutomatonBoundaryAdapter[
-    transport_Association, modeMap_Association, periodData_: <||>,
+    transport_Association, modeMap_Association, boundaryData_: <||>,
     OptionsPattern[]] := Catch@Module[
   {automaton, wordRepresentation, path, variables, regulator, family,
    letters, residues, dimension,
@@ -377,8 +434,9 @@ BuildEndpointAutomatonBoundaryAdapter[
    endpointResidue, modes, realizedModes, modeVectors, recordByID,
    knownZeroByID, statusByID, valuationByID, modeOrderByID,
    ambientSlots, embedding, pivotData, pivotRows, pivotSlots, pivotInverse,
-   maximumWeight, maximumWords, periodWindow, periodCoordinates,
-   wordPairs, wordRecord, endpointTerms, activeColumns, ledger,
+   maximumWeight, maximumWords, boundaryDataEpsilonOrderWindow,
+   boundaryCoefficientRecords, wordPairs, wordRecord, endpointTerms,
+   activeColumns, boundaryDataRequirements,
    demandedOutputs, pathDescriptor, requestedWordCount,
    weight, coordinate, id, q, mode,
    endpointAction, status, term, active,
@@ -390,7 +448,8 @@ BuildEndpointAutomatonBoundaryAdapter[
    pivotDemand, visibility, coReachability, projectedMap, rowOffset,
    currentMap, propagatedModes, demandOrderMatrices, demandOrders, modeLimit,
    coefficientOrders, coefficientData, coefficientPositions,
-   coefficientPosition, contribution, outputColumn},
+   coefficientPosition, contribution, outputColumn, boundaryDataType,
+   dataIDKey, coefficientRecordsKey, coefficientLabelsKey},
 
   automaton = Lookup[transport, "ExactOperatorAutomaton",
     Lookup[transport, "WordAutomaton", Missing["Absent"]]];
@@ -418,22 +477,22 @@ BuildEndpointAutomatonBoundaryAdapter[
     Throw@failure["MissingTransportBasePoint", <|"Path" -> path|>]
   ];
 
-  endpointSpec = Lookup[modeMap, "EndpointSpec", Missing["Absent"]];
-  If[!AssociationQ[endpointSpec] &&
-      And @@ (KeyExistsQ[modeMap, #] & /@ {"Variable", "Endpoint", "FixedRules"}),
-    endpointSpec = KeyTake[modeMap, {"Variable", "Endpoint", "FixedRules"}];
-    physicalEndpointRelation = Lookup[modeMap, "PhysicalEndpointRelation", <||>];
-    endpointSpec = Join[endpointSpec, <|
-      "Stratum" -> Lookup[physicalEndpointRelation, "Stratum", Missing["Absent"]],
-      "LocalCoordinatePower" -> Lookup[physicalEndpointRelation, "LocalPower", 1],
-      "LocalCoordinateLeadingCoefficient" ->
-        Lookup[physicalEndpointRelation, "LeadingCoefficient", 1]|>]
-  ];
+  boundaryDataType = Lookup[modeMap, "BoundaryDataType", Missing["Absent"]];
+  If[! MemberQ[{"BoundaryConstant", "BoundaryFunction"}, boundaryDataType],
+    Throw@failure["BoundaryDataTypeRequired", <||>]];
+  If[boundaryDataType === "BoundaryFunction",
+    Throw@failure["BoundaryFunctionEndpointTransportNotImplemented", <|
+      "BoundaryDomain" -> Lookup[modeMap, "BoundaryDomain", Missing[]],
+      "Reason" -> "the endpoint construction has no representation for the tangential arguments of a boundary function"|>]];
+  dataIDKey = endpointBoundaryDataIDKey[boundaryDataType];
+  coefficientRecordsKey = endpointBoundaryCoefficientRecordsKey[boundaryDataType];
+  coefficientLabelsKey = endpointBoundaryCoefficientLabelsKey[boundaryDataType];
+  endpointSpec = Lookup[modeMap, "LocalExpansionSpecification", Missing["Absent"]];
   If[!AssociationQ[endpointSpec],
     Throw@failure["MissingEndpointSpecification", <|"Family" -> family|>]
   ];
   physicalEndpointRelation = Lookup[modeMap, "PhysicalEndpointRelation", <||>];
-  modeLimit = Lookup[modeMap, "Limit", <||>];
+  modeLimit = Lookup[modeMap, "PhysicalKinematicLimit", <||>];
   endpointSpec = Join[<|
       "Stratum" -> If[AssociationQ[modeLimit],
         Lookup[modeLimit, "Stratum",
@@ -444,7 +503,7 @@ BuildEndpointAutomatonBoundaryAdapter[
         Lookup[physicalEndpointRelation, "LeadingCoefficient", 1]|>,
     endpointSpec];
   endpointVariable = Lookup[endpointSpec, "Variable", Missing["Absent"]];
-  endpoint = Lookup[endpointSpec, "Endpoint", Missing["Absent"]];
+  endpoint = Lookup[endpointSpec, "LocalExpansionPoint", Missing["Absent"]];
   fixedRules = Lookup[endpointSpec, "FixedRules", {}];
   localCoordinatePower = Lookup[endpointSpec, "LocalCoordinatePower", 1];
   localCoordinateLeadingCoefficient =
@@ -503,12 +562,13 @@ BuildEndpointAutomatonBoundaryAdapter[
       "Variable" -> secondVariable, "Endpoint" -> endpoint|>]
   ];
 
-  modes = Lookup[modeMap, "Modes", Missing["Absent"]];
+  modes = Lookup[modeMap, "FrobeniusModes", Missing["Absent"]];
   If[!ListQ[modes] || modes === {},
     Throw@failure["MissingEndpointModeRealization", <|"Family" -> family|>]
   ];
   realizedModes = Select[modes,
-    MemberQ[{"Exact", "BoundaryModeMatched"}, endpointModeStatus[#]] &];
+    MemberQ[{"Exact", "BoundaryAsymptoticsMatchedToFrobeniusMode"},
+      endpointModeStatus[#]] &];
   If[realizedModes === {},
     Throw@failure["MissingEndpointModeRealization", <|
       "Family" -> family, "ModeStatuses" -> (endpointModeStatus /@ modes)|>]
@@ -518,7 +578,7 @@ BuildEndpointAutomatonBoundaryAdapter[
       Lookup[#, "GeneralizedLevel", Missing["Absent"]] =!= 0 &],
     Throw@failure["TangentialLogModeRequired", <|
       "Reason" -> "Only ordinary zero modes can be passed to the interior automaton",
-      "PeriodIDs" -> Lookup[realizedModes, "PeriodID", Missing["Absent"]],
+      dataIDKey -> (endpointBoundaryDataID /@ realizedModes),
       (* Round 10 (T): values are inserted; a HoldForm over Module locals
          wrote FeynFacetCampaign`PhysicalBoundary`Private`...$NNN symbols
          into 39 of 40 stored endpoint records *)
@@ -529,38 +589,39 @@ BuildEndpointAutomatonBoundaryAdapter[
       "LogBranchMustBeSpecified" ->
         !exactZeroQ[localCoordinateLeadingCoefficient - 1]|>]
   ];
-  (* Round 9b (T, R3's F2): every realized mode carries its degenerate-
-     eigenspace declaration (None for an ordinary mode) *)
-  realizedModes = Map[Join[#, <|"DegenerateEigenspaceDeclaration" ->
-      FeynFacet`BoundaryDegenerateEigenspaceDeclaration[#, realizedModes]|>] &,
+  (* Every realized mode carries its degenerate-residue-eigenspace basis
+     record (None for an ordinary mode). *)
+  realizedModes = Map[Join[#, <|"DegenerateResidueEigenspaceBasis" ->
+      FeynFacet`DegenerateResidueEigenspaceBasis[#, realizedModes]|>] &,
     realizedModes];
   modeVectors = Association@Map[
     Function[currentMode,
       With[{currentVector = modeVector[currentMode, dimension]},
         If[FailureQ[currentVector], Throw[currentVector]];
-        Lookup[currentMode, "PeriodID", Missing["Absent"]] -> currentVector]],
+        endpointBoundaryDataID[currentMode] -> currentVector]],
     realizedModes];
   If[MemberQ[Keys[modeVectors], _Missing],
     Throw@failure["MissingEndpointModeRealization", <|
-      "Reason" -> "Every mode needs a PeriodID"|>]
+      "Reason" -> "Every mode needs the boundary-domain-specific identifier"|>]
   ];
   Do[
     endpointAction = Together[endpointResidue . exactAssociationLookup[
-      modeVectors, Lookup[mode, "PeriodID"]]];
+      modeVectors, endpointBoundaryDataID[mode]]];
     If[!And @@ (exactZeroQ /@ endpointAction),
       Throw@failure["EndpointModeNotTangentiallyRegular", <|
-        "PeriodID" -> Lookup[mode, "PeriodID"],
+        dataIDKey -> endpointBoundaryDataID[mode],
         "Variable" -> secondVariable, "Endpoint" -> endpoint|>]
     ],
     {mode, realizedModes}];
 
   recordByID = Association@Table[
-    Lookup[mode, "PeriodID"] -> endpointModePeriodRecord[
-      If[AssociationQ[periodData], periodData, <||>], Lookup[mode, "PeriodID"]],
+    endpointBoundaryDataID[mode] -> endpointBoundaryDataRecord[
+      If[AssociationQ[boundaryData], boundaryData, <||>],
+      endpointBoundaryDataID[mode]],
     {mode, realizedModes}];
   knownZeroByID = Association@Table[
     id -> (exactZeroQ[Lookup[SelectFirst[realizedModes,
-          Lookup[#, "PeriodID"] === id &], "KnownCoefficient", Missing["Absent"]]] ||
+          endpointBoundaryDataID[#] === id &], "KnownCoefficient", Missing["Absent"]]] ||
       MemberQ[{"KnownZero", "ExactZero"}, Lookup[
         exactAssociationLookup[recordByID, id], "Status", None]]),
     {id, Keys[modeVectors]}];
@@ -570,11 +631,11 @@ BuildEndpointAutomatonBoundaryAdapter[
     {id, Keys[modeVectors]}];
   valuationByID = Association@Table[
     id -> Lookup[exactAssociationLookup[recordByID, id], "EpsilonValuation",
-      Lookup[SelectFirst[realizedModes, Lookup[#, "PeriodID"] === id &],
-        "PeriodEpsilonValuation", 0]],
+      endpointBoundaryEpsilonValuation[
+        SelectFirst[realizedModes, endpointBoundaryDataID[#] === id &]]],
     {id, Keys[modeVectors]}];
   If[!And @@ (IntegerQ /@ Values[valuationByID]),
-    Throw@failure["MissingPeriodEpsilonValuation", <|
+    Throw@failure["MissingBoundaryDataEpsilonValuation", <|
       "Valuations" -> valuationByID|>]
   ];
   modeOrderByID = Association@Table[
@@ -603,31 +664,40 @@ BuildEndpointAutomatonBoundaryAdapter[
   pivotRows = Lookup[pivotData, "Rows"];
   pivotSlots = ambientSlots[[pivotRows]];
   pivotInverse = Lookup[pivotData, "LeftInverseOnRows"];
-  periodWindow = OptionValue["PeriodOrderWindow"];
-  If[periodWindow === Automatic,
-    periodWindow = {
+  boundaryDataEpsilonOrderWindow =
+    OptionValue["BoundaryDataEpsilonOrderWindow"];
+  If[boundaryDataEpsilonOrderWindow === Automatic,
+    boundaryDataEpsilonOrderWindow = {
       Min[Values[valuationByID]],
       Max[ambientSlots[[All, 1]]] - Min[Cases[Values[modeOrderByID], _Integer]]
     }];
-  If[!MatchQ[periodWindow, {_Integer, _Integer}] || First[periodWindow] > Last[periodWindow],
-    Throw@failure["InvalidPeriodOrderWindow", <|"PeriodOrderWindow" -> periodWindow|>]
+  If[!MatchQ[boundaryDataEpsilonOrderWindow, {_Integer, _Integer}] ||
+      First[boundaryDataEpsilonOrderWindow] >
+        Last[boundaryDataEpsilonOrderWindow],
+    Throw@failure["InvalidBoundaryDataEpsilonOrderWindow", <|
+      "BoundaryDataEpsilonOrderWindow" -> boundaryDataEpsilonOrderWindow|>]
   ];
-  periodCoordinates = Flatten@Table[
+  boundaryCoefficientRecords = Flatten@Table[
     If[TrueQ@exactAssociationLookup[knownZeroByID, id], {},
       realizationKey = Lookup[exactAssociationLookup[recordByID, id],
         "RealizationKey",
         If[TrueQ@Lookup[exactAssociationLookup[recordByID, id],
             "ClassIdentityExact", False], id,
           If[MatchQ[id, {family, __}], id, {family, id}]]];
-      Table[<|"PeriodID" -> id, "RealizationKey" -> realizationKey,
+      mode = SelectFirst[realizedModes, endpointBoundaryDataID[#] === id &];
+      Table[<|"BoundaryDataType" -> boundaryDataType,
+        dataIDKey -> id,
+        "FrobeniusModeID" -> Lookup[mode, "FrobeniusModeID", Missing["Absent"]],
+        "RealizationKey" -> realizationKey,
         "EpsilonOrder" -> q,
-        "Coefficient" -> FeynFacet`BoundaryPeriodCoefficient[realizationKey, q],
-        "DegenerateEigenspace" -> Lookup[SelectFirst[realizedModes,
-            Lookup[#, "PeriodID"] === id &, <||>],
-          "DegenerateEigenspaceDeclaration", None],
+        "Coefficient" -> endpointBoundaryCoefficient[
+          boundaryDataType, realizationKey, q],
+        "DegenerateResidueEigenspaceBasis" ->
+          Lookup[mode, "DegenerateResidueEigenspaceBasis", None],
         "Status" -> exactAssociationLookup[statusByID, id]|>,
-        {q, Max[First[periodWindow],
-          exactAssociationLookup[valuationByID, id]], Last[periodWindow]}]],
+        {q, Max[First[boundaryDataEpsilonOrderWindow],
+          exactAssociationLookup[valuationByID, id]],
+          Last[boundaryDataEpsilonOrderWindow]}]],
     {id, Keys[modeVectors]}];
   formalModeIDs = Select[Keys[modeVectors],
     ! TrueQ@exactAssociationLookup[knownZeroByID, #] &];
@@ -675,12 +745,12 @@ BuildEndpointAutomatonBoundaryAdapter[
   demandedSlotMaximum = If[demandedPivotColumns === {},
     Max[pivotSlots[[All, 1]]],
     Max[pivotSlots[[demandedPivotColumns, 1]]]];
-  requiredConnectorWeight = If[periodCoordinates === {}, 0,
+  requiredConnectorWeight = If[boundaryCoefficientRecords === {}, 0,
     Max[0, Max@Table[
-      id = Lookup[coordinate, "PeriodID"];
+      id = endpointBoundaryDataID[coordinate];
       q = Lookup[coordinate, "EpsilonOrder"];
       demandedSlotMaximum - q - exactAssociationLookup[modeOrderByID, id],
-      {coordinate, periodCoordinates}]]];
+      {coordinate, boundaryCoefficientRecords}]]];
   maximumWeight = OptionValue["MaximumConnectorWeight"];
   If[maximumWeight === Automatic, maximumWeight = requiredConnectorWeight];
   maximumWords = OptionValue["MaximumConnectorWords"];
@@ -694,23 +764,24 @@ BuildEndpointAutomatonBoundaryAdapter[
     Throw@failure["EndpointConnectorDepthInsufficient", <|
       "MaximumConnectorWeight" -> maximumWeight,
       "RequiredConnectorWeight" -> requiredConnectorWeight,
-      "Reason" -> "The requested period and observable boundary orders need higher endpoint words"|>]
+      "Reason" -> "The requested boundary-data and observable orders need higher endpoint words"|>]
   ];
   demandOrderMatrices = endpointDemandOrderMatrices[
     pivotDemand, pivotSlots, dimension];
   demandOrders = Keys[demandOrderMatrices];
   coefficientOrders = Sort@DeleteDuplicates@Flatten@Table[
     order - Lookup[coordinate, "EpsilonOrder"] - weight,
-    {order, demandOrders}, {coordinate, periodCoordinates},
+    {order, demandOrders}, {coordinate, boundaryCoefficientRecords},
     {weight, 0, maximumWeight}];
   coefficientData = endpointModeCoefficientData[modeVectors,
-    formalModeIDs, regulator, coefficientOrders, dimension];
+    formalModeIDs, regulator, coefficientOrders, dimension,
+    boundaryDataType];
   If[FailureQ[coefficientData], Throw[coefficientData]];
   seedMatrix = Lookup[coefficientData, "SeedMatrix"];
   coefficientPositions = Lookup[coefficientData, "ColumnPositions"];
   visibility = Association@Table[weight ->
     endpointDemandVisibilityRows[pivotDemand, pivotSlots, dimension,
-      weight, periodCoordinates, coefficientPositions],
+      weight, boundaryCoefficientRecords, coefficientPositions],
     {weight, 0, maximumWeight}];
   coReachability = endpointDemandCoReachability[visibility,
     firstIndices, secondIndices, matrixAssociation, maximumWeight];
@@ -727,11 +798,11 @@ BuildEndpointAutomatonBoundaryAdapter[
     Do[
       weight = Length[term[[1]]] + Length[term[[2]]];
       propagatedModes = term[[3]];
-      projectedMap = If[periodCoordinates === {},
+      projectedMap = If[boundaryCoefficientRecords === {},
         ConstantArray[0, {Length[demandMapStack], 0}],
         Transpose@Table[
-        coordinate = periodCoordinates[[coordinateColumn]];
-        id = Lookup[coordinate, "PeriodID"];
+        coordinate = boundaryCoefficientRecords[[coordinateColumn]];
+        id = endpointBoundaryDataID[coordinate];
         q = Lookup[coordinate, "EpsilonOrder"];
         outputColumn = ConstantArray[0, Length[demandMapStack]];
         Do[
@@ -743,8 +814,8 @@ BuildEndpointAutomatonBoundaryAdapter[
             outputColumn += contribution],
           {order, demandOrders}];
         Together[outputColumn],
-        {coordinateColumn, Length[periodCoordinates]}]];
-      If[Length[periodCoordinates] > 0 &&
+        {coordinateColumn, Length[boundaryCoefficientRecords]}]];
+      If[Length[boundaryCoefficientRecords] > 0 &&
           AnyTrue[Flatten[projectedMap], Not@*exactZeroQ],
         Sow[<|"EndpointFirstWord" -> term[[1]],
           "EndpointSecondWord" -> term[[2]],
@@ -759,21 +830,23 @@ BuildEndpointAutomatonBoundaryAdapter[
         active = DeleteDuplicates@Cases[
           First /@ ArrayRules[Lookup[currentTerm, "DemandProjectedMap"]],
           {_, column_Integer} :> column];
-        Select[active, 1 <= # <= Length[periodCoordinates] &]],
+        Select[active, 1 <= # <= Length[boundaryCoefficientRecords] &]],
       endpointTerms]];
-  If[activeColumns =!= Range[Length[periodCoordinates]],
+  If[activeColumns =!= Range[Length[boundaryCoefficientRecords]],
     endpointTerms = endpointTerms /. currentTerm_Association :>
       Join[currentTerm, <|"DemandProjectedMap" ->
         Lookup[currentTerm, "DemandProjectedMap"][[All, activeColumns]]|>];
-    periodCoordinates = If[activeColumns === {}, {}, periodCoordinates[[activeColumns]]]
+    boundaryCoefficientRecords = If[activeColumns === {}, {},
+      boundaryCoefficientRecords[[activeColumns]]]
   ];
 
   demandedOutputs = Lookup[transport, "PhysicalDemandPairs", {}];
-  ledger = Table[
-    id = Lookup[mode, "PeriodID"];
+  boundaryDataRequirements = Table[
+    id = endpointBoundaryDataID[mode];
     status = exactAssociationLookup[statusByID, id];
-    stage3Entry[family, endpointSpec, mode, status,
-      Select[periodCoordinates, Lookup[#, "PeriodID"] === id &], demandedOutputs],
+    boundaryDataRequirement[family, endpointSpec, mode, status,
+      Select[boundaryCoefficientRecords,
+        endpointBoundaryDataID[#] === id &], demandedOutputs],
     {mode, realizedModes}];
   pathDescriptor = <|
     "Endpoint" -> <|"Variables" -> variables,
@@ -806,6 +879,7 @@ BuildEndpointAutomatonBoundaryAdapter[
   <|
     "Status" -> "EndpointAutomatonBoundaryAdapterBuilt",
     "Family" -> family,
+    "BoundaryDataType" -> boundaryDataType,
     "ObservableWordMapProvider" -> wordRepresentation,
     "Regulator" -> regulator,
     "EndpointModeMapStatus" -> Lookup[modeMap, "Status", Missing["Absent"]],
@@ -819,10 +893,13 @@ BuildEndpointAutomatonBoundaryAdapter[
     "DemandVisibleAmbientSlotMaximum" -> demandedSlotMaximum,
     "PreparedDemandWordPairs" -> demandWordPairs,
     "PreparedDemandWordRecords" -> demandWordRecords,
-    "PeriodCoordinates" -> periodCoordinates,
+    coefficientRecordsKey -> boundaryCoefficientRecords,
+    coefficientLabelsKey ->
+      ({endpointBoundaryDataID[#], #["EpsilonOrder"]} & /@
+        boundaryCoefficientRecords),
     "EndpointWordTerms" -> endpointTerms,
     "FormalBoundaryConvention" ->
-      "Sum[EndpointConnectionWord[Path, firstWord, secondWord] Map . PeriodCoordinateVector]",
+      "Sum[EndpointConnectionWord[Path, firstWord, secondWord] Map . BoundaryDataEpsilonCoefficientVector]",
     "MaximumConnectorWeight" -> maximumWeight,
     "RequiredConnectorWeight" -> requiredConnectorWeight,
     "ConnectorDepthComplete" -> True,
@@ -837,15 +914,16 @@ BuildEndpointAutomatonBoundaryAdapter[
     "PrunedConnectorChildCount" ->
       wordRecord["FirstChildrenPruned"] +
         wordRecord["SecondChildrenPruned"],
-    "Stage3NeedsLedger" -> ledger
+    "BoundaryDataRequirements" -> boundaryDataRequirements
   |>
 ];
 
-ComposeEndpointAutomatonPeriodWords[
+ComposeEndpointAutomatonBoundaryCoefficientMaps[
     adapter_Association, transport_Association, wordPairs_List] := Catch@Module[
-  {wordRepresentation, endpointTerms, periodCoordinates, outputTerms,
-   pair, endpointTerm, map, usedColumns, ledger, family,
-   preparedRecords, prepared, rowRange},
+  {wordRepresentation, endpointTerms, boundaryCoefficientRecords, outputTerms,
+   pair, endpointTerm, map, usedColumns, boundaryDataRequirements, family,
+   preparedRecords, prepared, rowRange, boundaryDataType,
+   coefficientRecordsKey, coefficientLabelsKey},
   If[Lookup[adapter, "Status", Missing["Absent"]] =!=
       "EndpointAutomatonBoundaryAdapterBuilt",
     Throw@failure["EndpointBoundaryAdapterRequired", <||>]
@@ -868,8 +946,13 @@ ComposeEndpointAutomatonPeriodWords[
   If[!And @@ (MatchQ[#, {_List, _List}] & /@ wordPairs),
     Throw@failure["InvalidAutomatonWordRequest", <||>]
   ];
+  boundaryDataType = Lookup[adapter, "BoundaryDataType", Missing["Absent"]];
+  If[! MemberQ[{"BoundaryConstant", "BoundaryFunction"}, boundaryDataType],
+    Throw@failure["BoundaryDataTypeRequired", <||>]];
+  coefficientRecordsKey = endpointBoundaryCoefficientRecordsKey[boundaryDataType];
+  coefficientLabelsKey = endpointBoundaryCoefficientLabelsKey[boundaryDataType];
   endpointTerms = Lookup[adapter, "EndpointWordTerms", {}];
-  periodCoordinates = Lookup[adapter, "PeriodCoordinates", {}];
+  boundaryCoefficientRecords = Lookup[adapter, coefficientRecordsKey, {}];
   preparedRecords = Lookup[adapter, "PreparedDemandWordRecords", {}];
   outputTerms = Reap[
     Do[
@@ -902,18 +985,27 @@ ComposeEndpointAutomatonPeriodWords[
   usedColumns = Sort@DeleteDuplicates@Flatten[
     (Cases[First /@ ArrayRules[Lookup[#, "Map"]],
         {_, column_Integer} :> column]) & /@ outputTerms];
-  usedColumns = Select[usedColumns, 1 <= # <= Length[periodCoordinates] &];
-  ledger = pruneLedger[Lookup[adapter, "Stage3NeedsLedger", {}],
-    periodCoordinates, usedColumns];
+  usedColumns = Select[usedColumns,
+    1 <= # <= Length[boundaryCoefficientRecords] &];
+  boundaryDataRequirements = pruneBoundaryDataRequirements[
+    Lookup[adapter, "BoundaryDataRequirements", {}],
+    boundaryCoefficientRecords, usedColumns];
   <|
-    "Status" -> "EndpointAutomatonPhysicalPeriodWordsBuilt",
+    "Status" -> "EndpointAutomatonBoundaryCoefficientMapsBuilt",
     "Family" -> family,
+    "BoundaryDataType" -> boundaryDataType,
     "PhysicalDemandPairs" -> Lookup[transport, "PhysicalDemandPairs", {}],
-    "PeriodCoordinates" -> periodCoordinates,
+    coefficientRecordsKey -> boundaryCoefficientRecords,
+    coefficientLabelsKey ->
+      ({endpointBoundaryDataID[#], #["EpsilonOrder"]} & /@
+        boundaryCoefficientRecords),
     "WordMaps" -> outputTerms,
-    "Stage3NeedsLedger" -> ledger
+    "BoundaryDataRequirements" -> boundaryDataRequirements
   |>
 ];
+
+ComposeEndpointAutomatonBoundaryCoefficientMaps[___] :=
+  failure["EndpointAutomatonBoundaryCoefficientMapInputsNotWellFormed", <||>];
 
 (* The observable operator may represent tens of millions of alphabet words,
    but at every exact weight their maps occupy a finite row space.  Close
@@ -1067,9 +1159,10 @@ endpointBasisProjectionData[basis_] := Module[
 ];
 
 endpointCoordinateKey[coordinate_Association] := With[
-  {id = Lookup[coordinate, "PeriodID"],
+  {type = Lookup[coordinate, "BoundaryDataType", Missing["BoundaryDataType"]],
+   id = endpointBoundaryDataID[coordinate],
    order = Lookup[coordinate, "EpsilonOrder"]},
-  HoldComplete[id, order]];
+  HoldComplete[type, id, order]];
 
 endpointExpandTermColumns[term_Association, localCoordinates_List,
     globalIndex_Association, globalCount_Integer] := Module[
@@ -1084,27 +1177,32 @@ endpointExpandTermColumns[term_Association, localCoordinates_List,
     "Map" -> SparseArray[rules, {First[dimensions], globalCount}]|>]
 ];
 
-endpointMergeStage3Ledger[ledgers_List, coordinates_List] := Module[
+endpointMergeBoundaryDataRequirements[requirements_List] := Module[
   {entries, groups},
-  entries = Flatten[ledgers];
-  groups = GatherBy[entries, Lookup[#, "PeriodID", Missing[]] &];
-  Map[Function[group, Join[First[group], <|
-      "AffectedBoundaryCoordinates" -> DeleteDuplicates@Select[
-        Flatten[Lookup[group, "AffectedBoundaryCoordinates", {}]],
-        MemberQ[coordinates, #] &]|>]], groups]
+  entries = Flatten[requirements];
+  groups = GatherBy[entries,
+    {Lookup[#, "BoundaryDataType", Missing[]], endpointBoundaryDataID[#]} &];
+  Map[Function[group, Module[{type, labelsKey},
+    type = Lookup[First[group], "BoundaryDataType", Missing[]];
+    labelsKey = endpointBoundaryCoefficientLabelsKey[type];
+    Join[First[group], <|labelsKey ->
+      DeleteDuplicates@Flatten[Lookup[group, labelsKey, {}]]|>]
+  ]], groups]
 ];
 
 Options[BuildGradedPhysicalEndpointTransport] = {
-  "PeriodOrderWindow" -> Automatic,
+  "BoundaryDataEpsilonOrderWindow" -> Automatic,
   "MaximumConnectorWords" -> 500000
 };
 
 BuildGradedPhysicalEndpointTransport[transport_Association,
-    modeMap_Association, periodData_: <||>, OptionsPattern[]] := Catch@Module[
-  {rowSpaces, maximumWeight, spaces, maximumWords, periodWindow,
-   gradeRecords, synthetic, basis, projection, adapter, allCoordinates,
-   coordinateIndex, globalCount, grades, ledgers, globalLedger,
-   firstGrade, family},
+    modeMap_Association, boundaryData_: <||>, OptionsPattern[]] := Catch@Module[
+  {rowSpaces, maximumWeight, spaces, maximumWords,
+   boundaryDataEpsilonOrderWindow, gradeRecords, synthetic, basis,
+   projection, adapter, allCoefficientRecords, coordinateIndex, globalCount,
+   grades, requirements, boundaryDataRequirements, firstGrade, family,
+   boundaryDataType, coefficientRecordsKey, coefficientLabelsKey,
+   localCoefficientRecordsKey},
   If[! MemberQ[{"ExactObservableTransport",
         "ModularlyVerifiedObservableTransport"},
       Lookup[transport, "Status", None]],
@@ -1114,8 +1212,15 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
     Throw@failure["EndpointModeFamilyMismatch", <|
       "TransportFamily" -> family,
       "ModeFamily" -> Lookup[modeMap, "Family", Missing[]]|>]];
+  boundaryDataType = Lookup[modeMap, "BoundaryDataType", Missing[]];
+  If[! MemberQ[{"BoundaryConstant", "BoundaryFunction"}, boundaryDataType],
+    Throw@failure["BoundaryDataTypeRequired", <||>]];
+  coefficientRecordsKey = endpointBoundaryCoefficientRecordsKey[boundaryDataType];
+  coefficientLabelsKey = endpointBoundaryCoefficientLabelsKey[boundaryDataType];
+  localCoefficientRecordsKey = "Local" <> coefficientRecordsKey;
   maximumWords = OptionValue["MaximumConnectorWords"];
-  periodWindow = OptionValue["PeriodOrderWindow"];
+  boundaryDataEpsilonOrderWindow =
+    OptionValue["BoundaryDataEpsilonOrderWindow"];
   If[! IntegerQ[maximumWords] || maximumWords < 1,
     Throw@failure["InvalidConnectorWordBudget", <||>]];
   rowSpaces = endpointCurrentRowSpaces[transport];
@@ -1136,10 +1241,11 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
       "WordRepresentation" -> "MaterializedWords",
       "TwoSegmentWordMaps" -> {{{}, {}, basis}}|>];
     adapter = BuildEndpointAutomatonBoundaryAdapter[
-      synthetic, modeMap, periodData,
+      synthetic, modeMap, boundaryData,
       "MaximumConnectorWeight" -> maximumWeight - weight,
       "MaximumConnectorWords" -> maximumWords,
-      "PeriodOrderWindow" -> periodWindow,
+      "BoundaryDataEpsilonOrderWindow" ->
+        boundaryDataEpsilonOrderWindow,
       "DemandWordPairs" -> {{{}, {}}}];
     If[FailureQ[adapter] || Lookup[adapter, "Status", None] =!=
         "EndpointAutomatonBoundaryAdapterBuilt",
@@ -1148,7 +1254,7 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
     <|"CurrentWeight" -> weight, "CurrentRowBasis" -> basis,
       "ProjectionColumns" -> projection["Columns"],
       "ProjectionInverse" -> projection["Inverse"],
-      "LocalPeriodCoordinates" -> adapter["PeriodCoordinates"],
+      localCoefficientRecordsKey -> adapter[coefficientRecordsKey],
       "LocalEndpointWordTerms" -> adapter["EndpointWordTerms"],
       "RequiredConnectorWeight" -> adapter["RequiredConnectorWeight"],
       "RetainedConnectorWordCount" ->
@@ -1156,30 +1262,33 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
       "VisitedConnectorStateCount" ->
         adapter["VisitedConnectorStateCount"],
       "PrunedConnectorChildCount" -> adapter["PrunedConnectorChildCount"],
-      "Stage3NeedsLedger" -> adapter["Stage3NeedsLedger"],
+      "BoundaryDataRequirements" -> adapter["BoundaryDataRequirements"],
       "EndpointPath" -> adapter["Path"]|>,
     {weight, Keys[spaces]}];
   If[gradeRecords === {},
     Throw@failure["CurrentObservableRowSpacesEmpty", <||>]];
-  allCoordinates = DeleteDuplicatesBy[
-    Flatten[Lookup[gradeRecords, "LocalPeriodCoordinates", {}]],
+  allCoefficientRecords = DeleteDuplicatesBy[
+    Flatten[Lookup[gradeRecords, localCoefficientRecordsKey, {}]],
     endpointCoordinateKey];
   coordinateIndex = AssociationThread[
-    endpointCoordinateKey /@ allCoordinates,
-    Range[Length[allCoordinates]]];
-  globalCount = Length[allCoordinates];
+    endpointCoordinateKey /@ allCoefficientRecords,
+    Range[Length[allCoefficientRecords]]];
+  globalCount = Length[allCoefficientRecords];
   grades = Map[Function[grade, Join[
-      KeyDrop[grade, {"LocalPeriodCoordinates", "LocalEndpointWordTerms"}],
+      KeyDrop[grade, {localCoefficientRecordsKey,
+        "LocalEndpointWordTerms"}],
       <|"EndpointWordTerms" ->
         (endpointExpandTermColumns[#,
-            grade["LocalPeriodCoordinates"], coordinateIndex,
+            grade[localCoefficientRecordsKey], coordinateIndex,
             globalCount] & /@ grade["LocalEndpointWordTerms"])|>]],
     gradeRecords];
-  ledgers = Lookup[gradeRecords, "Stage3NeedsLedger", {}];
-  globalLedger = endpointMergeStage3Ledger[ledgers, allCoordinates];
+  requirements = Lookup[gradeRecords, "BoundaryDataRequirements", {}];
+  boundaryDataRequirements =
+    endpointMergeBoundaryDataRequirements[requirements];
   firstGrade = First[grades];
   <|"Status" -> "GradedPhysicalEndpointTransportBuilt",
     "Family" -> family,
+    "BoundaryDataType" -> boundaryDataType,
     "ObservableTransportStatus" -> Lookup[transport, "Status", Missing[]],
     "ObservableWordRepresentation" ->
       Lookup[transport, "WordRepresentation", Missing[]],
@@ -1188,14 +1297,13 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
     "CurrentBaseRules" -> rowSpaces["BaseRules"],
     "CurrentPath" -> Lookup[transport, "Path", <||>],
     "EndpointPath" -> firstGrade["EndpointPath"],
-    "PeriodCoordinates" -> allCoordinates,
-    "Stage3NeedsLedger" -> globalLedger,
-    (* Round 9b (T, R3's F2): the split eigenspaces of the mode map, each
-       ONE period; the sub-realization coordinates above carry the
-       declaration individually *)
-    "DegenerateEigenspaces" -> Lookup[modeMap, "DegenerateEigenspaces", {}],
-    "PeriodCountConvention" ->
-      "a degenerate eigenspace counts once; its sub-realizations are tied by one relation along the stratum",
+    coefficientRecordsKey -> allCoefficientRecords,
+    coefficientLabelsKey ->
+      ({endpointBoundaryDataID[#], #["EpsilonOrder"]} & /@
+        allCoefficientRecords),
+    "BoundaryDataRequirements" -> boundaryDataRequirements,
+    "DegenerateResidueEigenspaceBases" ->
+      Lookup[modeMap, "DegenerateResidueEigenspaceBases", {}],
     "GradesByWeight" -> AssociationThread[
       Lookup[grades, "CurrentWeight"], grades],
     "CurrentRowSpaceDimensions" -> rowSpaces["DimensionsByWeight"],
@@ -1204,8 +1312,9 @@ BuildGradedPhysicalEndpointTransport[transport_Association,
         "EndpointFirst", "EndpointSecond"},
       "WordOrientation" -> "OutermostFirst",
       "NoAlphabetCartesianEnumeration" -> True,
-      "Coefficient" ->
-        "Map . BoundaryPeriodCoefficient[RealizationKey,EpsilonOrder]"|>|>
+      "Coefficient" -> If[boundaryDataType === "BoundaryConstant",
+        "Map . BoundaryConstantEpsilonCoefficient[BoundaryConstantID,EpsilonOrder]",
+        "Map . BoundaryFunctionEpsilonCoefficient[BoundaryFunctionID,EpsilonOrder]"]|>|>
 ];
 
 BuildGradedPhysicalEndpointTransport[___] :=
@@ -1213,9 +1322,10 @@ BuildGradedPhysicalEndpointTransport[___] :=
 
 ComposeGradedPhysicalEndpointWords[binding_Association,
     transport_Association, wordPairs_List] := Catch@Module[
-  {family, coordinates, grades, baseRules, outputTerms, wordResult, map,
-   grade, columns, inverse, basisCoordinates, composed, usedColumns,
-   ledger},
+  {family, boundaryCoefficientRecords, grades, baseRules, outputTerms,
+   wordResult, map, grade, columns, inverse, basisCoordinates, composed,
+   usedColumns, boundaryDataRequirements, boundaryDataType,
+   coefficientRecordsKey, coefficientLabelsKey},
   If[Lookup[binding, "Status", None] =!=
       "GradedPhysicalEndpointTransportBuilt",
     Throw@failure["GradedPhysicalEndpointTransportRequired", <||>]];
@@ -1225,7 +1335,12 @@ ComposeGradedPhysicalEndpointWords[binding_Association,
   If[! ListQ[wordPairs] ||
       ! AllTrue[wordPairs, MatchQ[#, {_List, _List}] &],
     Throw@failure["InvalidAutomatonWordRequest", <||>]];
-  coordinates = binding["PeriodCoordinates"];
+  boundaryDataType = Lookup[binding, "BoundaryDataType", Missing[]];
+  If[! MemberQ[{"BoundaryConstant", "BoundaryFunction"}, boundaryDataType],
+    Throw@failure["BoundaryDataTypeRequired", <||>]];
+  coefficientRecordsKey = endpointBoundaryCoefficientRecordsKey[boundaryDataType];
+  coefficientLabelsKey = endpointBoundaryCoefficientLabelsKey[boundaryDataType];
+  boundaryCoefficientRecords = binding[coefficientRecordsKey];
   grades = binding["GradesByWeight"];
   baseRules = binding["CurrentBaseRules"];
   outputTerms = Reap[Do[
@@ -1271,15 +1386,21 @@ ComposeGradedPhysicalEndpointWords[binding_Association,
   usedColumns = Sort@DeleteDuplicates@Flatten[
     Cases[First /@ ArrayRules[Lookup[#, "Map"]],
         {_, column_Integer} :> column] & /@ outputTerms];
-  usedColumns = Select[usedColumns, 1 <= # <= Length[coordinates] &];
-  ledger = pruneLedger[binding["Stage3NeedsLedger"], coordinates,
+  usedColumns = Select[usedColumns,
+    1 <= # <= Length[boundaryCoefficientRecords] &];
+  boundaryDataRequirements = pruneBoundaryDataRequirements[
+    binding["BoundaryDataRequirements"], boundaryCoefficientRecords,
     usedColumns];
   <|"Status" -> "GradedPhysicalEndpointWordsBuilt",
     "Family" -> family,
+    "BoundaryDataType" -> boundaryDataType,
     "PhysicalDemandPairs" -> binding["PhysicalDemandPairs"],
-    "PeriodCoordinates" -> coordinates,
+    coefficientRecordsKey -> boundaryCoefficientRecords,
+    coefficientLabelsKey ->
+      ({endpointBoundaryDataID[#], #["EpsilonOrder"]} & /@
+        boundaryCoefficientRecords),
     "WordMaps" -> outputTerms,
-    "Stage3NeedsLedger" -> ledger,
+    "BoundaryDataRequirements" -> boundaryDataRequirements,
     "FormalResultConvention" -> binding["FormalResultConvention"]|>
 ];
 

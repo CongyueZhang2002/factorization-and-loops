@@ -20,7 +20,7 @@ state = Get[stateFile]; checkpoint = Get[stripFile];
 If[! AssociationQ[state] || ! AssociationQ[checkpoint], Exit[2]];
 variables = {Symbol["Global`x"], Symbol["Global`y"]};
 epsilon = Symbol["Global`eps"];
-frame = FeynFacet`TransportFamilyChart[family];
+frame = FeynFacet`FamilyRootData[family];
 roots = CodexTripleRootStrip`TRCurrentRoots[frame, variables];
 k = checkpoint["Sector"]; ranges = state["Ranges"];
 rows = ranges[[k]]; start = First[rows]; n = Length[state["S"]];

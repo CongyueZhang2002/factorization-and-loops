@@ -102,7 +102,7 @@ def parse_request(path: Path) -> Request:
         raise ValueError("base_count must be positive")
     grade_count = 1 << rank
     if base_count * grade_count > 4096:
-        raise ValueError("request exceeds the 4096-image neutral ABI limit")
+        raise ValueError("request exceeds the 4096-image protocol limit")
     base_rows: list[list[int]] = []
     for _ in range(base_count):
         fields = [int(value) for value in take("image ").split()]
@@ -464,9 +464,10 @@ def compile_preparation(path: Path, request: Request) -> Programs:
     top = association(text, whole)
     deferred = association(text, top["DeferredPreparation"])
     prep = association(text, deferred["Preparation"])
-    if slice_value(text, prep["Status"]) != '"Prepared"' or \
-            slice_value(text, prep["ABIVersion"]) != '"BlockEquationDeferredV1"':
-        raise ValueError("unsupported DeferredPreparation schema")
+    if slice_value(text, prep["DataType"]) != '"DeferredBlockEquation"' or \
+            slice_value(text, prep["SchemaVersion"]) != "2" or \
+            slice_value(text, prep["Status"]) != '"Prepared"':
+        raise ValueError("unsupported DeferredBlockEquation schema")
     record_spans = list_spans(text, prep["Records"])
     if not record_spans:
         raise ValueError("empty Records")
@@ -517,7 +518,7 @@ def compile_preparation(path: Path, request: Request) -> Programs:
             for c in range(1, dimensions[2] + 1):
                 expected.append((a, b, c))
     if targets != expected:
-        raise ValueError("Targets are not in lexicographic ABI order")
+        raise ValueError("Targets are not in lexicographic order")
     return Programs(
         offsets, ops, args, record_offsets, term_offsets, factors,
         tuple(constant_indices),

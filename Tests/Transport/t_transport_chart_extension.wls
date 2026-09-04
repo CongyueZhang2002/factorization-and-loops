@@ -1,19 +1,21 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
-catalog = FeynFacet`TransportChartCatalog[];
+catalog = FeynFacet`RationalizingParametrizationCatalog[];
 base = catalog["Kallen1"];
 target = catalog["Kallen12"];
-rootSquare = target["Roots"][[2]]["RootSquare"];
-pulledBack = Together[rootSquare /. base["Subst"]];
+rootSquare = target["RationalizedSquareRoots"][[2]]["SourceRadicand"];
+pulledBack = Together[
+  rootSquare /. base["SourceVariableSubstitution"]];
 extensionRules = Join[
-  target["Parents"]["Kallen1"],
-  {Sqrt[pulledBack] -> target["Roots"][[2]]["Root"]}
+  target["ParentParametrizationMaps"]["Kallen1"],
+  {Sqrt[pulledBack] ->
+    target["RationalizedSquareRoots"][[2]]["RationalRoot"]}
 ];
 
-composed = FeynFacet`ComposeTransportChartExtension[
-  base, rootSquare, extensionRules, target["Variables"]];
-automatic = FeynFacet`RationalizeTransportChartExtension[
+composed = FeynFacet`ComposeRationalizingParametrizations[
+  base, rootSquare, extensionRules, target["ParametrizingVariables"]];
+automatic = FeynFacet`ExtendRationalizingParametrization[
   base, rootSquare,
   "Name" -> "Kallen12AutomaticTest",
   "OutputVariables" -> {Global`r, Global`t},
@@ -24,20 +26,25 @@ automatic = FeynFacet`RationalizeTransportChartExtension[
 
 sameSubstitution = And @@ MapThread[
   TrueQ[Together[Last[#1] - Last[#2]] === 0] &,
-  {composed["Subst"], target["Subst"]}
+  {composed["SourceVariableSubstitution"],
+   target["SourceVariableSubstitution"]}
 ];
 tests = <|
   "KnownCompositionExact" ->
-    Lookup[composed, "Status", None] === "ExactChart",
+    Lookup[composed, "Status", None] ===
+      "RationalizingParametrizationVerified",
   "KnownCompositionMatchesCatalog" -> sameSubstitution,
   "KnownCompositionCertificate" ->
-    TrueQ[composed["ChartCertificate"]["OK"]],
+    TrueQ[composed["RationalizingParametrizationVerification"][
+      "Verified"]],
   "AutomaticExtensionExact" ->
-    Lookup[automatic, "Status", None] === "ExactChart",
+    Lookup[automatic, "Status", None] ===
+      "RationalizingParametrizationVerified",
   "AutomaticExtensionCertificate" ->
-    TrueQ[automatic["ChartCertificate"]["OK"]],
+    TrueQ[automatic["RationalizingParametrizationVerification"][
+      "Verified"]],
   "AutomaticExtensionHasTwoRoots" ->
-    Length[Lookup[automatic, "Roots", {}]] === 2
+    Length[Lookup[automatic, "RationalizedSquareRoots", {}]] === 2
 |>;
 
 Print[InputForm[tests]];

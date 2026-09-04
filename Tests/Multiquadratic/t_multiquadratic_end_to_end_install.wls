@@ -1,7 +1,7 @@
 #!/usr/bin/env wolframscript
 (* Small end-to-end promotion: internally constructed dlog -> provider-backed
    rational-in-epsilon reconstruction -> active-support certification ->
-   installable FamilyRowGauge ABI. *)
+   installable off-diagonal basis transformation. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
@@ -13,12 +13,10 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 solve = mq["solveEpsFormStripMultiquadratic"];
 rowForm = mq["familyRowGaugeDLogForm"];
 
-Clear[x, y, eps];
+Clear[x, y, eps, cx, cy];
 delta = 1 + x;
-rootRecord = <|"Root" -> Sqrt[delta], "RootSquare" -> delta|>;
-frame = <|"Name" -> "EndToEndInstallRank1", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Multiquadratic", "Variables" -> {x, y},
-  "Subst" -> {x -> x, y -> y}, "Roots" -> {rootRecord}|>;
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {delta}, {x, y}, {cx, cy}];
 
 (* The known gauge occupies the odd root grade with rational denominator Q.
    The nonzero residue on dlog(x) forces a genuinely active installed letter. *)
@@ -35,7 +33,8 @@ record = <|"Family" -> "END_TO_END_INSTALL", "Sector" -> 2,
 result = solve[record, frame,
   "CoefficientProvider" -> "SplitBranch",
   "AdditionalLetters" -> {x}, "AlgebraicLetters" -> {},
-  "GaugeDenominator" -> delta, "Support" -> {{0, 0}},
+  "GaugeDenominator" -> delta, "GaugeDenominatorFactor" -> 1,
+  "Support" -> {{0, 0}},
   "RegulatorSampleCount" -> 2, "DLogKernels" -> 1,
   "IntegrabilityScreen" -> False, "ScreenFirst" -> False,
   "GaugeScreen" -> False, "RegulatorReconstruction" -> True,
@@ -59,7 +58,7 @@ check["active support contains the certified dlog(x) contribution",
   MemberQ[Lookup[result, "Alphabet", {}], x] &&
     TrueQ[Lookup[result, "OneFormsCertified", False]] &&
     Length[Lookup[result, "ResidueMatrices", {}]] >= 1];
-check["active certification carries the full authenticated one-form payload",
+check["active certification carries the full verified one-form data",
   AllTrue[Lookup[result, "OneForms", {}], MatchQ[#1, {_, _}] &] &&
     MemberQ[Lookup[result, "OneForms", {}], oneForm]];
 check["fresh residual evidence meets the accepted 2 x 3 policy",
@@ -67,6 +66,13 @@ check["fresh residual evidence meets the accepted 2 x 3 policy",
       "InstallationEvidenceAccepted" &&
     Lookup[result["InstallationEvidence"], "ValidationPrimeCount", 0] >= 2 &&
     Lookup[result["InstallationEvidence"], "ValidationImageCount", 0] >= 6];
+check["reconstruction exposes coefficient data and mathematical image keys",
+  AssociationQ[Lookup[result["RegulatorReconstruction"],
+      "CoefficientData", None]] &&
+    With[{keys = Lookup[result["RegulatorReconstruction"],
+        "TrainingImageKeys", {}]}, keys =!= {} &&
+      AllTrue[keys, MatchQ[#, {_Integer?PrimeQ,
+        _Integer | _Rational, {_Integer, _Integer}}] &]]];
 check["top-level performs no affine solve after reconstructed fresh checks",
   Lookup[result, "PostReconstructionAffineSolveCount", -1] === 0 &&
     Lookup[result, "FullAffineSolveCount", -1] ===

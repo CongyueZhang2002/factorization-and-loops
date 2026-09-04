@@ -1,5 +1,5 @@
 (* Depth diagnostics for CF258 (and CF230) in the chart WITHOUT transporting:
-   MaxWeight -> 0 makes TransportFamilyInChart stop at DepthExceedsCap and return
+   MaxWeight -> 0 makes AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks stop at DepthExceedsCap and return
    Budget (per-pair coupling eps-orders RMin, per-block Need) and Shift (clamped
    per-block longest paths).  From those, compare three accountings of the required
    transport weight:
@@ -27,7 +27,7 @@ diag[family_, orders_] := Module[{de, blocks, r, budget, shift, need, rmin, perB
   de = readArtifact[FileNameJoin[{ftDE, "nnlo_de_" <> family <> ".wl"}]];
   blocks = familyBlocks[family];
   Print["==== ", family, ": ", Length[de["Av"]], " masters, ", Length[blocks], " blocks, Orders ", orders, " ===="];
-  r = FeynFacet`TransportFamilyInChart[
+  r = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
     <|"Family" -> family, "Basis" -> Lookup[de, "BlockBasis", None], "Av" -> de["Av"], "Aw" -> de["Aw"]|>,
     chart97, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
     "Blocks" -> blocks, "FormDirectory" -> ftClassForms,

@@ -102,9 +102,9 @@ If[longTestsQ,
 (* The CF300 (12,9) fixture                                             *)
 (* ------------------------------------------------------------------ *)
 
-FeynFacet`TransportFamilyChartLoad[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
+FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
    "Results", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
-chart = FeynFacet`TransportFamilyChart["CF300"];
+chart = FeynFacet`FamilyRootData["CF300"];
 (* FROZEN INPUT (2026-08-25): the live campaign directory rewrites this
    strip input under a running suite (it was rewritten at 13:41 by
    round 6), so the test reads an immutable copy with recorded

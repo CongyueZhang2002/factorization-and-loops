@@ -13,7 +13,7 @@ from deferred_gpu import (
 
 
 HERE = Path(__file__).resolve().parent
-FIXTURES = HERE.parents[2] / "Diagnostics" / "Fixtures"
+FIXTURES = HERE.parents[2] / "Tests" / "Multiquadratic" / "Fixtures"
 
 
 def expected(path: Path) -> list[int]:
@@ -61,7 +61,8 @@ def synthetic_batch() -> None:
         )
     preparation = (
         '<|"DeferredPreparation" -> <|"Preparation" -> <|'
-        '"Status" -> "Prepared", "ABIVersion" -> "BlockEquationDeferredV1", '
+        '"DataType" -> "DeferredBlockEquation", "SchemaVersion" -> 2, '
+        '"Status" -> "Prepared", '
         '"Records" -> {' + ",".join(records) + '}|>|>|>\n'
     )
     with tempfile.TemporaryDirectory(prefix="gpu31-deferred-test-") as directory:
@@ -119,7 +120,8 @@ def half_integer_declared_root() -> None:
     p = 2147483423
     preparation = (
         '<|"DeferredPreparation" -> <|"Preparation" -> <|'
-        '"Status" -> "Prepared", "ABIVersion" -> "BlockEquationDeferredV1", '
+        '"DataType" -> "DeferredBlockEquation", "SchemaVersion" -> 2, '
+        '"Status" -> "Prepared", '
         '"Records" -> {'
         '<|"Target" -> {1,1,1}, "Terms" -> {'
         '<|"Coefficient" -> (x^2)^(3/2), "Operands" -> {1}|>}|>,'
@@ -161,9 +163,9 @@ def power_followed_by_division() -> None:
 
 
 def main() -> None:
-    fixture("deferred_ast_rank0_smoke", "deferred_ast_rank0_smoke")
-    fixture("deferred_ast_rank0_smoke", "deferred_ast_rank0_dynamic")
-    fixture("deferred_ast_rank3_smoke", "deferred_ast_rank3_smoke")
+    fixture("deferred_ast_rank0", "deferred_ast_rank0")
+    fixture("deferred_ast_rank0", "deferred_ast_rank0_dynamic")
+    fixture("deferred_ast_rank3", "deferred_ast_rank3")
     half_integer_declared_root()
     power_followed_by_division()
     synthetic_batch()

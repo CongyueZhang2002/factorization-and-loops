@@ -253,7 +253,7 @@ check["the driver hands the sector deadline to both factorization routes",
     "\"TimeLimit\" -> Min[sectorBudget, 600], \"Deadline\" -> sectorDeadline"] === 2];
 check["Production defers the propagation inverse replay to the family certificate",
   StringContainsQ[driverSource,
-    "Lookup[factor, \"PropagationSeal\", <||>], futureAMode, ! productionQ"]];
+    "factor[\"Transformation\"], nm, {xx, yy},\n      futureAMode, ! productionQ"]];
 check["the driver has a typed, resumable stop for a regulator budget expiry",
   StringContainsQ[driverSource,
     "\"Status\" -> \"RegulatorFactorizationBudgetExhausted\""]];

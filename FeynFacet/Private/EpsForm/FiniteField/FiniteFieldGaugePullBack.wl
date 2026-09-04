@@ -78,7 +78,7 @@ finiteFieldGaugePullBackPlan[chartGauge_List, chartDenominator_,
     Return[finiteFieldGaugePullBackFailure[
       "FiniteFieldGaugePullBackPlanShapeInvalid"]]];
   rootSquares = If[rank === 0, {},
-    Lookup[roots, "RootSquare", $Failed]];
+    squareRootRecordRadicand /@ roots];
   If[! ListQ[rootSquares] || Length[rootSquares] =!= rank ||
       ! FreeQ[rootSquares, $Failed],
     Return[finiteFieldGaugePullBackFailure[

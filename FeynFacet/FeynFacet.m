@@ -120,14 +120,14 @@ CanonicalBlocksStatus::usage =
 TransportFamily::usage =
   "TransportFamily is RETIRED (overhaul 2026-09-02): the observable transport (BuildObservableTransport) is the production route; the Libra path-ordered engines live in Private_Backup; the symbol answers <|\"Status\" -> \"RouteRetired\", ...|>.";
 
-TransportFamilyInChart::usage =
-  "TransportFamilyInChart[system,chart] composes every certified diagonal-block form into one exact two-variable family frame, pulls the differential system back by the chain rule, re-derives each block epsilon form, and verifies invertibility, flatness, and the complete block-diagonal gauge identity. A rational chart uses the rational coefficient field; a frame from BuildAlgebraicTransportFrame retains its declared square roots in an exact multiquadratic field. With \"AssemblyOnly\" -> True it returns the certified whole-family transformed connection without integrating it. Otherwise it calls TransportFamily and records the chart, Jacobian, and path convention. No physical branch sign is selected.";
+AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks::usage =
+  "AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[system,coefficientPresentation] re-expresses a two-variable family differential system using either a RationalizingParametrization or SquareRootGeneratorsAndQuadraticRelations, composes the certified diagonal-block basis transformations, and re-derives every transformed diagonal connection block. The result has epsilon-form diagonal blocks and general lower off-diagonal blocks; it does not claim that the whole family is in epsilon form. The assembly verifies the block transformations, their inverses, the transformed connection equation, block lower-triangularity, and flatness according to the selected check level.";
 
 TransportPathArtifactRun::usage =
   "TransportPathArtifactRun is RETIRED (overhaul 2026-09-02): the path-transport exception seam is retired with the Libra engines; use BuildObservableTransport; the symbol answers <|\"Status\" -> \"RouteRetired\", ...|>.";
 
 LibraFamilyEpsForm::usage =
-  "LibraFamilyEpsForm is RETIRED (overhaul 2026-09-02): the whole-family Libra construction is kept, unloaded, in FeynFacet/Private_Backup/LibraEpsForm.wl. Calls return <|\"Status\" -> \"RouteRetired\", ...|>. The family completion runs through Scripts/the per-sector eps-form driver script under Scripts/, FactorFamilyRegulatorDependence and CertifyFamilyEpsilonForm.";
+  "LibraFamilyEpsForm is RETIRED (overhaul 2026-09-02): the whole-family Libra construction is kept, unloaded, in FeynFacet/Private_Backup/LibraEpsForm.wl. Calls return <|\"Status\" -> \"RouteRetired\", ...|>. The family completion runs through the per-sector epsilon-form driver, FactorFamilyRegulatorDependence, and ValidateFamilyDLogEpsilonForm.";
 
 TransportStatus::usage =
   "TransportStatus is RETIRED (overhaul 2026-09-02): status printer of the retired TransportFamily route (Private_Backup/MasterTransport.wl); the symbol answers <|\"Status\" -> \"RouteRetired\", ...|>.";
@@ -141,38 +141,38 @@ TransportQuadrature::usage =
 TransportConstant::usage =
   "TransportConstant[block,order,index] is a symbolic integration constant of TransportFamily: component index of the constant vector of the given block at the given epsilon order. The valuation constraints are linear equations on these, and the boundary-fixing stage substitutes them.";
 
-TransportChartCatalog::usage =
-  "TransportChartCatalog[] returns the named rationalizing charts of the stage-2 campaign as chart records for TransportFamilyInChart (Kallen1/2/3, Q4a/b, Bilinear115 and the joint charts Kallen12/13/23, KallenQ4a/b). Each record carries \"Roots\" (every quadratic it rationalizes with its rational root) and, for joint charts, \"Parents\" (the rational maps from the parent chart's variables). Physics bookkeeping (chamber, branch, sign of the root) is not done here.";
+RationalizingParametrizationCatalog::usage =
+  "RationalizingParametrizationCatalog[] returns the catalogued forward rational parametrizations and their displayed rationalized square roots. Catalog membership does not assert a rational inverse or birationality.";
 
-TransportChartVerify::usage =
-  "TransportChartVerify[chart] re-derives the identities that license a chart record: every declared root squared equals its RootSquare pulled back through Subst, the Jacobian determinant is nonzero, and every parent map reproduces Subst exactly. Returns an Association with \"OK\" -> True/False.";
+VerifyRationalizingParametrization::usage =
+  "VerifyRationalizingParametrization[parametrization] verifies rationality of the forward substitution and displayed roots, their square-root identities, a nonzero Jacobian, and declared parent compositions. It does not certify a rational inverse or birationality.";
 
-BuildAlgebraicTransportFrame::usage =
-  "BuildAlgebraicTransportFrame[rootSquares,{v,w},{x,y}] constructs an exact identity frame v=x, w=y over the multiquadratic field generated by Sqrt[rootSquares]. It verifies every root-square identity and the Jacobian exactly. This frame lets whole-family epsilon-form assembly retain several independent roots without requiring a nonexistent global rational parametrization; no physical branch sign is selected.";
+BuildSquareRootGeneratorsAndQuadraticRelations::usage =
+  "BuildSquareRootGeneratorsAndQuadraticRelations[rootSquares,{v,w},{x,y}] records square-root generators after the identity substitution v=x,w=y and verifies their quadratic relations. It does not assert square-class independence, a degree-2^r function field, or Galois conjugacy.";
 
-FamilyAlgebraicRootCensus::usage =
-  "FamilyAlgebraicRootCensus[assembly,frame] examines every nonzero off-diagonal block of an exactly certified family assembly and states which declared square roots occur. It reports the root-count histogram, every block containing three roots, and any radical not generated by the frame. The classification is obtained from the exact symbolic connection, not numerical samples.";
+FamilySquareRootGeneratorCensus::usage =
+  "FamilySquareRootGeneratorCensus[familySystem,rootData] classifies the square-root generators occurring in every nonzero off-diagonal connection block. It reports generator-count statistics and any radical bases not generated by the declared quadratic relations.";
 
-TransportRootSetChart::usage =
-  "TransportRootSetChart[rootSquares] returns the least complicated catalog chart that rationalizes every declared quadratic in rootSquares, None for an empty set, or Missing[\"NoRationalChart\",...] when no catalog chart exists. TransportRootSetChart[rootSquares,{a,b}] first identifies a,b with the catalog variables, so the lookup does not depend on symbol names. Equality of quadratics is checked exactly. The chart returned is written in the catalog's own source and chart variables; FeynFacet`Private`transportChartRekey[chart,{a,b},{s,t}] is the rename path that rewrites it with a,b as source variables and s,t as chart variables, and is what the DiagonalBlockEpsForm catalog retry uses.";
+LookupCataloguedRationalizingParametrizationForRoots::usage =
+  "LookupCataloguedRationalizingParametrizationForRoots[rootSquares] returns the least complicated catalogued rationalizing parametrization containing the requested radicands, None for an empty list, or Missing[\"NoCataloguedRationalizingParametrization\",...] for a catalog miss. A miss is not a nonexistence theorem.";
 
 SolveEpsFormStripInFrame::usage =
   "SolveEpsFormStripInFrame[{E,C,B},{v,w},eps,frame] identifies the square roots occurring in one off-diagonal strip, chooses the least complicated exact catalog chart containing those roots, solves the rational strip with SolveEpsFormStrip, and pulls the dlog gauge back to the original algebraic frame. It returns a gauge only after exact chart composition, branch-consistent round-trip, and transformed-one-form identities are satisfied. Epsilon factorization remains the subsequent whole-sector step. When the root set has no joint rational chart, the strip is dispatched to the direct multiquadratic engine (\"MultiquadraticDispatch\" -> True, the default; \"MultiquadraticOptions\" are passed to it). That engine returns \"Solved\" only after one rational-in-regulator gauge is reconstructed, its active dlog potentials are certified, and independent fresh provider residuals pass; otherwise it returns a typed incomplete or \"ModularConsistent\" result which the caller must not install. \"NoRationalStripChart\" is returned only when the engine itself refuses the input as outside its scope, and then carries \"MultiquadraticDispatch\" -> \"OutOfScope\" with the engine's typed refusal under \"MultiquadraticRefusal\". \"Deadline\" (an absolute AbsoluteTime[] value; Infinity, the default, is unbounded) bounds strip construction cooperatively and is handed on to the selected solver unless its option bundle already carries an explicit \"Deadline\". On expiry it returns a typed resumable \"BudgetExhausted\" record rather than $Aborted, $Failed, or an exception. \"GaugePullBackMode\" is \"Exact\" (default) or \"FiniteFieldReconstruct\"; any other name, including the retired \"MapleCanonical\" (Maple canonical gauge, overhaul 2026-09-02), is refused typed as \"InvalidGaugePullBackMode\".";
 
-ComposeTransportChartExtension::usage =
-  "ComposeTransportChartExtension[baseChart,rootSquare,extensionRules,newVariables] composes an existing exact two-variable chart with a rational parametrization of one additional square root. extensionRules must map both variables of baseChart and the pulled-back square root to rational functions of newVariables. The result is returned only when all inherited root identities, the new root identity, the parent map, and the Jacobian are verified exactly.";
+ComposeRationalizingParametrizations::usage =
+  "ComposeRationalizingParametrizations[base,rootSquare,rules,newVariables] composes a verified forward rationalizing parametrization with a rational parametrization of one additional square root and verifies the composed forward map.";
 
-RationalizeTransportChartExtension::usage =
-  "RationalizeTransportChartExtension[baseChart,rootSquare] asks RationalizeRoots for rational parametrizations of the additional root after pullback through baseChart, composes every candidate with ComposeTransportChartExtension, and returns the least complicated exactly verified chart. Options select the chart name, output variables, RationalizeRoots search breadth, and time limit. \"OutputVariables\" -> Automatic uses a fresh pair of package-private symbols, and an explicit pair that meets the base chart's own variables is refused.";
+ExtendRationalizingParametrization::usage =
+  "ExtendRationalizingParametrization[base,rootSquare] asks RationalizeRoots for candidate forward parametrizations of the pulled-back square root and returns the least complicated verified candidate. Failure to find one is not a nonexistence theorem.";
 
-TransportFamilyChartRegister::usage =
-  "TransportFamilyChartRegister[<|family -> entry, ...|>] adds per-family analytic frames to the package's chart registry, which starts EMPTY: the inventory of a campaign is project data, not package data. An entry is the name of a chart in TransportChartCatalog[], or <|\"RootSquares\" -> {polynomials in the source variables}|> for a root set with no global rational chart, or <|\"ChartAlias\" -> catalogName|> for a legacy record string that stands for a catalog chart. Every entry is validated before anything is registered, so a mistyped table registers nothing; the return value names the count, the families and the entry kinds.";
+RegisterFamilyRootData::usage =
+  "RegisterFamilyRootData[association] registers project-supplied per-family root data in an initially empty package registry. Each family is associated with either a catalogued rationalizing parametrization name or a list of source radicands for explicit square-root generators and quadratic relations.";
 
-TransportFamilyChartLoad::usage =
-  "TransportFamilyChartLoad[file] reads one Wolfram Language artifact holding a family -> frame Association with FamilyArtifactRead and registers it through TransportFamilyChartRegister. It is how a campaign hands its own chart inventory to the package.";
+LoadFamilyRootData::usage =
+  "LoadFamilyRootData[file] reads and registers a family-to-root-data association from a Wolfram Language artifact.";
 
-TransportFamilyChart::usage =
-  "TransportFamilyChart[family] returns the registered exact family frame: a rationalizing chart for one or two roots, an identity multiquadratic frame for a declared root-square list, or Missing[\"FamilyChartNotRegistered\", family] when the family has no registration. It is never None for an unregistered family, because None means \"root-free, transport in the source variables\" and would silently mistransport a rooted family. TransportFamilyChart[family,{v,w},{x,y}] states the source and chart variables; with the default {v,w} and Automatic chart variables the catalog record is returned unchanged, and any other choice is rekeyed exactly.";
+FamilyRootData::usage =
+  "FamilyRootData[family] returns the registered rationalizing parametrization or square-root-generator record for a family, or Missing[\"FamilyRootDataNotRegistered\",family]. Optional source and parametrizing variables re-express the same data without changing its mathematical content.";
 
 SolveResidueRationalGauge::usage =
   "SolveResidueRationalGauge is RETIRED (overhaul 2026-09-02): the Maple residue-gauge route; the finite-field strip route (SolveEpsFormStripFiniteField, SolveEpsFormStripInFrame) replaces it; the symbol answers <|\"Status\" -> \"RouteRetired\", ...|>.";
@@ -212,14 +212,14 @@ SolveEpsFormStripFiniteField::usage =
 InstallEpsFormStripSolution::usage =
   "InstallEpsFormStripSolution[checkpoint,record,solution,sector,lowerSector] appends one exactly verified strip gauge to a descending sector checkpoint after checking dimensions and strip order; the regulator-free alphabet and kinematics-free residues are recomputed from the solution, so a lift that is not a dlog form cannot be installed.";
 
-ExactFamilyEpsilonFormQ::usage =
-  "ExactFamilyEpsilonFormQ[record] returns True only when a whole-family epsilon-form record carries characteristic-zero exact certificates for epsilon factorization, an invertible transformation, the complete gauge identity, and flatness. It recognizes both sector-CANONICA records and Libra records without changing their analytic content, and deliberately returns False for probabilistic multiquadratic finite-field certificates.";
+ExactlyValidatedFamilyDLogEpsilonFormQ::usage =
+  "ExactlyValidatedFamilyDLogEpsilonFormQ[record] returns True only for a FamilyDLogEpsilonForm whose basis-transformation inverse, connection-transformation equation, epsilon factorization, constant-residue dlog representation, coefficient-presentation relations, and flatness were verified as characteristic-zero symbolic identities.";
 
-CertifiedFamilyEpsilonFormQ::usage =
-  "CertifiedFamilyEpsilonFormQ[record] returns True for every record accepted by ExactFamilyEpsilonFormQ and also for a standardized multiquadratic whole-family record that passed the high-confidence all-sign-sheet finite-field certificate, including independent validation points and fresh-prime residue replay.";
+ValidatedFamilyDLogEpsilonFormQ::usage =
+  "ValidatedFamilyDLogEpsilonFormQ[record] returns True for either an exactly validated FamilyDLogEpsilonForm or one whose same defining equations passed the declared random-point or finite-field validation. Probabilistic validation is never reported as exact, regardless of the number of square-root generators.";
 
-CertifyFamilyEpsilonForm::usage =
-  "CertifyFamilyEpsilonForm[record,system] recomputes the whole-family epsilon-form certificate from the differential system and the stored transformation. It verifies the chart identities, source and transformed flatness, both transformation inverses, the complete gauge identity, epsilon factorization, and constant-residue dlog reconstruction. Characteristic-zero exact results have Status \"ExactEpsilonForm\"; multiquadratic all-sign-sheet finite-field results have Status \"CertifiedEpsilonForm\" and are explicitly marked high-confidence and probabilistic. It returns a standardized record and never accepts an older stored verdict in place of these calculations.";
+ValidateFamilyDLogEpsilonForm::usage =
+  "ValidateFamilyDLogEpsilonForm[record,system] re-derives the defining equations of a candidate family dlog epsilon form from the differential system, coefficient presentation, basis transformation, letters, and constant residue matrices. IdentityMethod -> \"Symbolic\" gives exact characteristic-zero validation; \"RandomPoints\" and \"Modular\" give explicitly probabilistic validation for both rational and square-root coefficient presentations. The result contains no content digests or settings-dependent acceptance conditions.";
 
 FamilyArtifactRead::usage =
   "FamilyArtifactRead[file] reads one Wolfram Language artifact with the context path restricted to System` and Global`, so that symbols in the file never resolve into a package context loaded earlier in the session (in particular CANONICA`). Every campaign or worker read of a stored record or differential system must use this function. Returns $Failed when the file is missing or unreadable. FamilyArtifactRead[file, context] reads with the guard context explicit (default \"Global`\"); evaluation-time messages no longer discard a valid artifact, parser failures stay typed, and the collected messages are in FeynFacet`Private`$familyArtifactReadMessages (2026-08-23).";
@@ -263,26 +263,35 @@ FindObservableTransportPath::usage =
 BuildObservableTransport::usage =
   "BuildObservableTransport[familyEpsForm,demand] constructs only the iterated-integral maps that can contribute to the requested epsilon-order/master-row pairs. familyEpsForm is an exactly certified whole-family epsilon-form record. demand declares PhysicalDemandPairs (or the older Cartesian PhysicalRows and PhysicalOrders form), PhysicalValuation and Path. The routine first imposes the vanishing Laurent coefficients of the physical masters, derives the exact allowed boundary subspace, keeps its constants factored, and then propagates only nonzero projected dlog words. Every returned kernel, residue decomposition and differential invariant is checked symbolically.";
 
-BuildEndpointFrobenius::usage =
-  "BuildEndpointFrobenius[connection,spec] builds the finite local prefactor H(rho,eps) and residue R for an epsilon-form connection at a declared regular-singular endpoint, so that the local solution is H(rho,eps) rho^(eps R) c. spec gives Variable, Regulator, Endpoint, and optionally LocalVariable, LocalDirection (+1 or -1), and FixedRules; options set the retained local and epsilon orders. LocalDirection defines variable=endpoint+LocalDirection rho and includes the differential Jacobian. Non-epsilon-form or non-Fuchsian endpoints are refused with typed statuses.";
+ComputeTruncatedLocalFrobeniusExpansion::usage =
+  "ComputeTruncatedLocalFrobeniusExpansion[connection,spec] computes a finite local Frobenius prefactor H(rho,eps) and connection residue R for an epsilon-form connection, so that the retained local solution is H(rho,eps) rho^(eps R) c. spec gives Variable, Regulator, LocalExpansionPoint, and optionally LocalVariable, LocalDirection (+1 or -1), and FixedRules; options set the retained local and epsilon orders. The result records PointType as OrdinaryPoint or RegularSingularPoint. LocalDirection defines variable=LocalExpansionPoint+LocalDirection rho and includes the differential Jacobian. Non-epsilon-form or non-Fuchsian local connections are refused with typed statuses.";
 
-BuildEndpointLeveltModeConnection::usage =
-  "BuildEndpointLeveltModeConnection[normalResidue,tangentialFinite,spec] changes a regular-singular normal residue and its finite tangential connection to a supplied moving Levelt mode frame. spec gives TangentialVariable, Regulator, ModeFrame and LocalExponents. The frame may be rational in the tangential variable and regulator; its columns must diagonalize the normal residue. The result contains the equal-exponent tangential sectors and the integer/regulator split of every local exponent. Coupling between unequal exponents is refused because it requires a higher Levelt reduction rather than an ordinary boundary-mode connection.";
+TransformTangentialConnectionToNormalResidueEigenbasis::usage =
+  "TransformTangentialConnectionToNormalResidueEigenbasis[normalResidue,tangentialConnection,spec] transforms a normal connection residue and the tangential connection to a supplied moving eigenbasis of the normal residue, including the derivative of that basis. spec gives TangentialVariable, Regulator, NormalResidueEigenbasis, and LocalExponents. The eigenbasis may be rational in the tangential variable and regulator; its columns must diagonalize the normal residue. The result contains TangentialConnectionInEigenbasis, EqualExponentSectors, and the integer/regulator split of every local exponent. Coupling between unequal exponent sectors is refused.";
 
-BuildBoundaryModeMap::usage =
-  "BuildBoundaryModeMap[frobenius,transformation,spec,realizations] extends declared block residue modes to the full canonical system and normalizes them against exact physical endpoint valuations after applying transformation and the Frobenius prefactor. For PhysicalEndpointRelation t=alpha rho^kappa it retains CanonicalMode and supplies PhysicalToLocalMode=exp(eps Log[alpha] R_rho/kappa) CanonicalMode through the stored epsilon depth, including Jordan mixing. Nontrivial residue action at a leading coefficient that is not unambiguously positive requires an integer LogBranch in PhysicalEndpointRelation. The input is family-neutral; ambiguous or incompatible modes remain typed incomplete.";
+MatchBoundaryAsymptoticsToFrobeniusModes::usage =
+  "MatchBoundaryAsymptoticsToFrobeniusModes[frobenius,basisTransformation,spec,realizations] matches declared physical-limit asymptotics to local Frobenius modes after applying the basis transformation and truncated local prefactor. spec must declare BoundaryDomain as either a PhysicalBoundaryPoint or a PhysicalBoundaryStratum with its TangentialVariables; the result therefore distinguishes boundary constants from boundary functions. A relation between a physical limiting variable and the local expansion coordinate is recorded explicitly, including any required logarithm branch.";
 
-BoundaryDegenerateEigenspaceDeclaration::usage =
-  "BoundaryDegenerateEigenspaceDeclaration[mode,modes] is the machine-readable declaration carried by every ledger entry and boundary coordinate of a Basis sub-realization: parent period, direction, dimension, the echelon eigenspace basis and the sibling sub-realization IDs (one undetermined period with a rational relation); None for an ordinary mode.";
-FinishPhysicalTransport::usage =
-  "FinishPhysicalTransport[family] builds the ONE finished-transport record of Design/FinishedTransportContract_2026-09-03.md: every demanded (epsilon order, physical row) pair as an explicit sum of iterated integrals from the physical boundary point with coefficients over a named period basis, the period table and relations, and the differential-equation, boundary-matching and binding/purity certificates. Status PhysicalTransportFinished or PhysicalTransportIncomplete with the pairs and reasons.";
-PhysicalTransportFinishedQ::usage =
-  "PhysicalTransportFinishedQ[record] re-verifies a finished-transport record from the record alone: status, every demanded pair, purity of the stored expressions, and the differential-equation and boundary-matching certificates.";
-BuildTransportBoundaryVector::usage =
-  "BuildTransportBoundaryVector[modeMap,periodData,{emin,emax}] converts Laurent coefficients of GPL constants and elliptic periods into rational BoundarySelectors and a separate BoundaryConstantVector. The returned TransportBoundary can be joined into a transport source without putting special functions into its linear algebra. With \"MissingPeriodAction\" -> \"Formal\", coefficients not yet evaluated become inert BoundaryPeriodCoefficient[id,order] constants and transport can proceed with Status \"FormalTransportBoundaryVectorBuilt\"; the default \"Refuse\" retains typed incompleteness. Exact zeros and supplied exact transfer maps are substituted before unused orders are pruned. Every data result includes the demand-pruned Stage3NeedsLedger.";
+DegenerateResidueEigenspaceBasis::usage =
+  "DegenerateResidueEigenspaceBasis[mode,modes] returns the echelon basis and dimension of the degenerate normal-residue eigenspace containing mode. Degeneracy alone does not imply a relation among boundary constants or functions; such a relation must be supplied separately.";
+ConstructMasterIntegralSolution::usage =
+  "ConstructMasterIntegralSolution[family,\"InputFiles\"->files] constructs every requested epsilon coefficient of every requested physical master integral as an explicit sum of formal Chen iterated integrals multiplied by typed boundary constants or boundary functions. files explicitly names the family differential equation, requested-output coefficient operator, boundary-asymptotic matching, and regularized boundary-to-base-point evolution records. DemandCoverage and BoundaryDataStatus report independent properties of the result.";
+MasterIntegralSolutionQ::usage =
+  "MasterIntegralSolutionQ[result] revalidates a V2 MasterIntegralSolution, including coverage of every requested epsilon coefficient, allowed symbolic heads, the differential equation, and boundary-asymptotic matching.";
+ConstructBoundarySelectorMatrices::usage =
+  "ConstructBoundarySelectorMatrices[modeMatching,boundaryData,{emin,emax}] constructs the rational matrices that select the required Frobenius-mode coefficients at each epsilon order. The result preserves the explicitly declared boundary domain and reports whether its columns label boundary-constant or boundary-function coefficients.";
 
-BoundaryPeriodCoefficient::usage =
-  "BoundaryPeriodCoefficient[id,order] is an inert exact placeholder for the coefficient of eps^order in a physical boundary period not yet evaluated. It appears only in BoundaryConstantVector; transport selector matrices remain rational.";
+ConstructBoundaryValueVectorFromConstants::usage =
+  "ConstructBoundaryValueVectorFromConstants[modeMatching,boundaryConstantData,{emin,emax}] constructs the boundary-value vector at a physical boundary point. It refuses boundary-stratum input rather than treating tangential functions as constants.";
+
+ConstructBoundaryValueVectorFromFunctions::usage =
+  "ConstructBoundaryValueVectorFromFunctions[modeMatching,boundaryFunctionData,{emin,emax}] constructs the boundary-value vector on a positive-dimensional physical boundary stratum and records its tangential function space. It refuses point-boundary input.";
+
+BoundaryConstantEpsilonCoefficient::usage =
+  "BoundaryConstantEpsilonCoefficient[id,order] is an inert exact placeholder for the coefficient of epsilon^order in the boundary constant identified by id.";
+
+BoundaryFunctionEpsilonCoefficient::usage =
+  "BoundaryFunctionEpsilonCoefficient[id,order] is an inert exact placeholder for the coefficient of epsilon^order in the boundary function identified by id on a physical boundary stratum.";
 
 FormalChenIteratedIntegral::usage =
   "FormalChenIteratedIntegral[letterSequence,{variable,lowerLimit,upperLimit},curve,curvePointValues] is an inert Chen iterated integral. The letter sequence is ordered outermost first; curve is None for multiple polylogarithms and a square-free quartic for elliptic multiple polylogarithms. An optional fifth argument records a tangential-base-point prescription.";
@@ -298,15 +307,15 @@ BuildRationalEpsilonLayerEndpointResidue::usage =
   "BuildRationalEpsilonLayerEndpointResidue[source,diagonal,incomingByOrder,variable,endpoint] builds the compact block-triangular normal-residue Laurent deck when source and target diagonal blocks are in epsilon form and the incoming block is rational in epsilon. Each channel contains Letters and Residues; no full symbolic connection is assembled.";
 
 BuildRationalEpsilonLayerTransport::usage =
-  "BuildRationalEpsilonLayerTransport[source,layer,demand] transports a lower-triangular final layer whose incoming connection is rational in the regulator. The path gauge H(base)=0 removes the non-dlog part order by order through modular Hermite reduction; a declared square-free quartic Y^2=P4 uses the pair algebra h0+h1 Y and f0 du+f1 du/Y and reduces onto root-free E4 pole factors plus E4Omega0, E4OmegaInf and E4Eta2. K residues and the endpoint gauge are checked at a fresh prime, while path-free dlog input uses an exact direct route and K=0 gauge-only results remain valid. WordRepresentation selects materialized words or a lazy operator payload; SharedBoundaryCoordinates lets source and target selectors act on one common constant vector. Singular endpoints and missing rational curve-sheet values are typed non-acceptances.";
+  "BuildRationalEpsilonLayerTransport[source,layer,demand] transports a lower-triangular final block whose incoming connection is rational in epsilon. In FTarget=G+H FSource, the off-diagonal basis-transformation block H is normalized by H(base)=0 and removes the non-dlog part order by order through modular Hermite reduction. A declared square-free quartic Y^2=P4 uses the pair algebra h0+h1 Y and f0 du+f1 du/Y. The dlog remainder residues and H are validated at a fresh finite-field point; path-independent dlog input uses the exact direct route.";
 AcceptedRationalEpsilonLayerTransportQ::usage =
-  "AcceptedRationalEpsilonLayerTransportQ[result] checks the structural and semantic contract of an accepted rational-epsilon-layer transport, including consistency of its route, gauge, curve, boundary layout and word representation; it does not claim to re-prove mathematics from a result alone. AcceptedRationalEpsilonLayerTransportQ[result,source,layer,demand] re-derives the problem and verifies the direct route exactly or the rational/quartic modular route at a new prime, including the endpoint gauge; materialized words are re-enumerated, while a lazy result deliberately has none to check.";
+  "AcceptedRationalEpsilonLayerTransportQ[result] checks the structural and semantic consistency of a rational-epsilon final-block result. AcceptedRationalEpsilonLayerTransportQ[result,source,layer,demand] re-derives the problem and validates the direct route exactly or the modular route at a new finite-field point, including the off-diagonal basis-transformation block at the path endpoint.";
 BuildRationalEpsilonLayerOperator::usage =
   "BuildRationalEpsilonLayerOperator[source,layer,transport] builds a sparse lazy operator from an accepted rational-in-epsilon final-layer transport whose exact source/layer payload matches the supplied inputs. It supports independent or shared physical boundary coordinates, preserves the selected curve sheet, and keeps GPL/eMPL labels opaque until a requested accepted coefficient is materialized.";
 AcceptedRationalEpsilonLayerOperatorQ::usage =
   "AcceptedRationalEpsilonLayerOperatorQ[operator] checks the structural contract of a lazy rational-epsilon-layer operator.";
 RebaseRationalEpsilonLayerOperator::usage =
-  "RebaseRationalEpsilonLayerOperator[operator,newBase,sourceSelectors,targetSelectors] rebases an accepted sparse Chen operator using explicitly supplied physical selectors at newBase. It changes no residues and builds no dense inverse: for FTarget=G+H FSource it replaces each target selector by T_q-Sum_r H_r(newBase) S_(q-r). HAtNewBase may supply precomputed gauge coefficients when the stored endpoint value cannot be substituted; BasePointPrescription records a tangentially regularized singular base.";
+  "RebaseRationalEpsilonLayerOperator[operator,newBase,sourceSelectors,targetSelectors] rebases an accepted sparse iterated-integral coefficient operator using selectors supplied at newBase. For FTarget=G+H FSource it replaces each target selector by T_q-Sum_r H_r(newBase) S_(q-r), without changing residues or constructing a dense inverse. Option OffDiagonalTransformationBlockAtNewBase supplies H_r(newBase) when it cannot be obtained by substitution.";
 RationalEpsilonLayerWordMap::usage =
   "RationalEpsilonLayerWordMap[operator,word,boundaryOrder,outputOrder,rows] evaluates one D...D or D...D K S...S word as a sparse map on boundary coordinates.";
 RationalEpsilonLayerDemandTerms::usage =
@@ -320,7 +329,7 @@ ComposeTangentialJunctionWordMaps::usage =
 AttachTransportBoundaryToRationalLayer::usage =
   "AttachTransportBoundaryToRationalLayer[source,layer,boundary,sourceRows,targetRows] splits a full-system physical boundary selector into source and final-layer rows while preserving one shared vector of period coordinates.";
 BuildPhysicalTransportCoefficient::usage =
-  "BuildPhysicalTransportCoefficient[operator,boundary,{epsilonOrder,physicalRow},path] composes one requested lazy final-layer coefficient, the endpoint path gauge, an optional epsilon-dependent physical output gauge, marked GPL/eMPL words and the formal or exact boundary-period vector. A TangentialRegularized BasePointPrescription is carried into every nonempty inert iterated integral. It returns the paper-facing expression and the Stage-3 ledger pruned by actual transport support.";
+  "BuildPhysicalTransportCoefficient[operator,boundary,{epsilonOrder,physicalRow},path] constructs one requested final-block coefficient from its sparse iterated-integral operator, the off-diagonal basis-transformation block at the path endpoint, an optional CanonicalToPhysicalMasterIntegralMapByEpsilonOrder, and the boundary-value vector. A tangential-base-point prescription is retained in every nonempty formal iterated integral.";
 AcceptedObservableTransportQ::usage =
   "AcceptedObservableTransportQ[result] checks the required named exact certificates and, according to the representation and boundary method, every fresh modular closure, ambient-invariance and quotient-coordinate certificate. It keeps probabilistic structural acceptance distinct from an exact symbolic identity.";
 
@@ -381,11 +390,14 @@ SyntaxInformation[ValidateCanonicalForm] =
   {"ArgumentsPattern" -> {_, _., OptionsPattern[]}};
 SyntaxInformation[CanonicalBlocksStatus] =
   {"ArgumentsPattern" -> {_, OptionsPattern[]}};
-SyntaxInformation[TransportChartCatalog] = {"ArgumentsPattern" -> {}};
-SyntaxInformation[TransportChartVerify] = {"ArgumentsPattern" -> {_}};
-SyntaxInformation[TransportFamilyChartRegister] = {"ArgumentsPattern" -> {_}};
-SyntaxInformation[TransportFamilyChartLoad] = {"ArgumentsPattern" -> {_}};
-SyntaxInformation[TransportFamilyChart] = {"ArgumentsPattern" -> {_, _., _.}};
+SyntaxInformation[RationalizingParametrizationCatalog] = {"ArgumentsPattern" -> {}};
+SyntaxInformation[VerifyRationalizingParametrization] = {"ArgumentsPattern" -> {_}};
+SyntaxInformation[RegisterFamilyRootData] = {"ArgumentsPattern" -> {_}};
+SyntaxInformation[LoadFamilyRootData] = {"ArgumentsPattern" -> {_}};
+SyntaxInformation[FamilyRootData] = {"ArgumentsPattern" -> {_, _., _.}};
+SyntaxInformation[
+  AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks] =
+  {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
 SyntaxInformation[LibraFamilyEpsForm] =
   {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
 SyntaxInformation[SolveResidueRationalGauge] =
@@ -406,10 +418,11 @@ SyntaxInformation[SolveEpsFormStripFiniteField] =
   {"ArgumentsPattern" -> {_, OptionsPattern[]}};
 SyntaxInformation[InstallEpsFormStripSolution] =
   {"ArgumentsPattern" -> {_, _, _, _, _}};
-SyntaxInformation[ExactFamilyEpsilonFormQ] = {"ArgumentsPattern" -> {_}};
-SyntaxInformation[CertifiedFamilyEpsilonFormQ] =
+SyntaxInformation[ExactlyValidatedFamilyDLogEpsilonFormQ] =
   {"ArgumentsPattern" -> {_}};
-SyntaxInformation[CertifyFamilyEpsilonForm] =
+SyntaxInformation[ValidatedFamilyDLogEpsilonFormQ] =
+  {"ArgumentsPattern" -> {_}};
+SyntaxInformation[ValidateFamilyDLogEpsilonForm] =
   {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
 SyntaxInformation[BuildObservableTransportManifest] =
   {"ArgumentsPattern" -> {_, _, _, _, OptionsPattern[]}};
@@ -431,13 +444,27 @@ SyntaxInformation[GenerateDiagram] = {"ArgumentsPattern" -> {_}};
 SyntaxInformation[DimensionalShift] = {"ArgumentsPattern" -> {_, _, _, _.}};
 SyntaxInformation[BuildObservableTransport] =
   {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
-SyntaxInformation[BuildEndpointFrobenius] =
+SyntaxInformation[ComputeTruncatedLocalFrobeniusExpansion] =
   {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
-SyntaxInformation[BuildBoundaryModeMap] =
+SyntaxInformation[TransformTangentialConnectionToNormalResidueEigenbasis] =
+  {"ArgumentsPattern" -> {_, _, _}};
+SyntaxInformation[ConstructMasterIntegralSolution] =
+  {"ArgumentsPattern" -> {_, OptionsPattern[]}};
+SyntaxInformation[MasterIntegralSolutionQ] =
+  {"ArgumentsPattern" -> {_}};
+SyntaxInformation[MatchBoundaryAsymptoticsToFrobeniusModes] =
   {"ArgumentsPattern" -> {_, _, _, _}};
-SyntaxInformation[BuildTransportBoundaryVector] =
+SyntaxInformation[DegenerateResidueEigenspaceBasis] =
+  {"ArgumentsPattern" -> {_, _}};
+SyntaxInformation[ConstructBoundarySelectorMatrices] =
   {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
-SyntaxInformation[BoundaryPeriodCoefficient] =
+SyntaxInformation[ConstructBoundaryValueVectorFromConstants] =
+  {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
+SyntaxInformation[ConstructBoundaryValueVectorFromFunctions] =
+  {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
+SyntaxInformation[BoundaryConstantEpsilonCoefficient] =
+  {"ArgumentsPattern" -> {_, _}};
+SyntaxInformation[BoundaryFunctionEpsilonCoefficient] =
   {"ArgumentsPattern" -> {_, _}};
 SyntaxInformation[IteratedIntegralKernel] =
   {"ArgumentsPattern" -> {_, _, _.}};
@@ -461,17 +488,17 @@ SyntaxInformation[AttachTransportBoundaryToRationalLayer] =
   {"ArgumentsPattern" -> {_, _, _, _, _}};
 SyntaxInformation[BuildPhysicalTransportCoefficient] =
   {"ArgumentsPattern" -> {_, _, _, _, OptionsPattern[]}};
-SyntaxInformation[ComposeTransportChartExtension] =
+SyntaxInformation[ComposeRationalizingParametrizations] =
   {"ArgumentsPattern" -> {_, _, _, _}};
-SyntaxInformation[BuildAlgebraicTransportFrame] =
+SyntaxInformation[BuildSquareRootGeneratorsAndQuadraticRelations] =
   {"ArgumentsPattern" -> {_, _, _}};
-SyntaxInformation[FamilyAlgebraicRootCensus] =
+SyntaxInformation[FamilySquareRootGeneratorCensus] =
   {"ArgumentsPattern" -> {_, _}};
-SyntaxInformation[TransportRootSetChart] =
-  {"ArgumentsPattern" -> {_}};
+SyntaxInformation[LookupCataloguedRationalizingParametrizationForRoots] =
+  {"ArgumentsPattern" -> {_, _.}};
 SyntaxInformation[SolveEpsFormStripInFrame] =
   {"ArgumentsPattern" -> {_, _, _, _, OptionsPattern[]}};
-SyntaxInformation[RationalizeTransportChartExtension] =
+SyntaxInformation[ExtendRationalizingParametrization] =
   {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
 
 Options[PartialFraction] = {

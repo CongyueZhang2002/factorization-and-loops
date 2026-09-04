@@ -1,7 +1,7 @@
 #!/usr/bin/env wolframscript
-(* Round-B structural-pilot quorum: an exceptional first-prime signature is
+(* Round-B structural-pilot quorum: an exceptional first-prime pivot structure is
    isolated when the next two primes agree, cached support pilots are never
-   sampled or RREFed again, and three distinct signatures fail typed before
+   sampled or RREFed again, and three distinct pivot structures fail typed before
    any affine section is locked. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
@@ -22,11 +22,9 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
   "multiquadraticStripPilotImageRecord",
   "multiquadraticStripReconstructRegulator"};
 
-Clear[px, py, pe];
-frame = <|"Name" -> "ModalStructuralPilot", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Rational", "Variables" -> {px, py},
-  "Subst" -> {px -> px, py -> py}, "Root" -> None,
-  "RootSquare" -> None, "Roots" -> {}|>;
+Clear[px, py, pe, pcx, pcy];
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {}, {px, py}, {pcx, pcy}];
 primes = Take[FeynFacet`Private`$multiquadraticStripPrimePool, 3];
 {primeOne, primeTwo, primeThree} = primes;
 
@@ -77,26 +75,26 @@ reconstructWithPilots[fixture_Association, pilots_List, pointCount_: 2] := recon
   "PilotImages" -> pilots, "ExactVerification" -> "ProviderPoints"];
 
 (* At primeOne every gauge column vanishes; at the other primes all columns
-   pivot.  The first signature is therefore exceptional and the next two are
+   pivot.  The first pivot structure is therefore exceptional and the next two are
    the generic two-vote structure. *)
 exceptionalFixture = buildFixture[{primeOne}];
 exceptionalPilots = makePilot[exceptionalFixture, #1] & /@ primes;
-check["the adversarial pilots have one isolated signature then two agreeing",
+check["the adversarial pilots have one isolated pivot structure then two agreeing",
   exceptionalPilots[[1, "Solution", "Rank"]] === 0 &&
     exceptionalPilots[[2, "Solution", "Rank"]] === 1 &&
     exceptionalPilots[[3, "Solution", "Rank"]] === 1 &&
-    exceptionalPilots[[2, "Solution", "PivotSignature"]] ===
-      exceptionalPilots[[3, "Solution", "PivotSignature"]]];
+    exceptionalPilots[[2, "Solution", "PivotColumns"]] ===
+      exceptionalPilots[[3, "Solution", "PivotColumns"]]];
 
 exceptionalResult = reconstructWithPilots[exceptionalFixture,
   exceptionalPilots];
 check["the next two primes win and their first prime becomes the reference",
   exceptionalResult["Status"] === "ReconstructedRegulatorDependenceV1" &&
     exceptionalResult["ModalReferencePrime"] === primeTwo &&
-    exceptionalResult["ModalStructuralSignature"] ===
+    exceptionalResult["ModalStructuralStructure"] ===
       {exceptionalPilots[[2, "Solution", "Rank"]],
        exceptionalPilots[[2, "Solution", "Nullity"]],
-       exceptionalPilots[[2, "Solution", "PivotSignature"]]}];
+       exceptionalPilots[[2, "Solution", "PivotColumns"]]}];
 check["the isolated first prime remains rejected and exceptional evidence",
   MemberQ[exceptionalResult["RejectedPrimes"], primeOne] &&
     Lookup[Lookup[exceptionalResult["PrimeRejections"], primeOne, <||>],
@@ -166,14 +164,14 @@ check["a matrix admission refusal is not called modular instability",
     KeyExistsQ[resourceResult, "MaximumMatrixBytes"]];
 
 (* Each prime now kills a different column, so rank and nullity agree but the
-   pivot signature is different at all three primes. *)
+   pivot columns differ at all three primes. *)
 unstableFixture = buildFixture[primes];
 unstablePilots = makePilot[unstableFixture, #1] & /@ primes;
-check["the failure fixture exposes three distinct pivot signatures",
+check["the failure fixture exposes three distinct pivot-column sets",
   Length[DeleteDuplicates[Lookup[Lookup[unstablePilots, "Solution"],
-      "PivotSignature"]]] === 3];
+      "PivotColumns"]]] === 3];
 unstableResult = reconstructWithPilots[unstableFixture, unstablePilots];
-check["three nonrepeating signatures fail typed before normalization locks",
+check["three nonrepeating pivot structures fail typed before normalization locks",
   unstableResult["Status"] === "ModularStructureUnstable" &&
     unstableResult["DistinctPrimeCount"] === 3 &&
     unstableResult["RequiredAgreementCount"] === 2 &&

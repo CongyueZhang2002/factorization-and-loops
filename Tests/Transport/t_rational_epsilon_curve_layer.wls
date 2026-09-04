@@ -75,7 +75,7 @@ curveLabels = FeynFacet`Private`rationalLayerResidueLabel /@
 FTAssert["the family-neutral quartic recurrence reconstructs an accepted lazy transport",
   result["Status"] === "RationalEpsilonLayerTransportAccepted" &&
     result["CurveChannel"] && result["WordRepresentation"] === "LazyOperator" &&
-    result["GaugeAtEndpoint"][-1] === {{1}} &&
+    result["OffDiagonalBasisTransformationBlockAtPathEndpoint"][-1] === {{1}} &&
     MemberQ[curveLabels, {"E4Pole", 0}] &&
     AllTrue[{{"E4Omega0"}, {"E4OmegaInf"}, {"E4Eta2"}},
       MemberQ[curveLabels, #] &] &&
@@ -100,7 +100,7 @@ reconstructionMatchesQ = And @@ Flatten[Table[
       independentPrime] === 0],
   {key, Union[Keys[result["KResidues"]], Keys[image["KResidues"]]]}]];
 gaugeMatchesQ = And @@ Table[
-  With[{exact = result["GaugeAtEndpoint"][order], modular = image["HEndpoint"][order]},
+  With[{exact = result["OffDiagonalBasisTransformationBlockAtPathEndpoint"][order], modular = image["HEndpoint"][order]},
     Mod[Numerator[exact[[1, 1]]] - modular[[1, 1]] Denominator[exact[[1, 1]]],
       independentPrime] === 0], {order, prepared["Orders"]}];
 

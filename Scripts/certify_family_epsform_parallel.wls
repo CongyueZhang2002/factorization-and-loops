@@ -8,7 +8,7 @@
    Per family: candidate records are searched in the input directories
    in order; each candidate is read with the context-guarded
    FamilyArtifactRead and re-certified from the differential system by
-   CertifyFamilyEpsilonForm (never trusting a stored verdict); the
+   ValidateFamilyDLogEpsilonForm (never trusting a stored verdict); the
    first accepted exact or high-confidence finite-field candidate is written
    atomically to OUTPUT.
    The report certification_report.wl matches the serial campaign's
@@ -63,9 +63,10 @@ certifyOne[systemFile_String] := Module[
   If[FileExistsQ[outputFile],
     existing = FeynFacet`FamilyArtifactRead[outputFile];
     If[AssociationQ[existing] &&
-        FeynFacet`CertifiedFamilyEpsilonFormQ[existing],
-      acceptedStatus = If[FeynFacet`ExactFamilyEpsilonFormQ[existing],
-        "AlreadyExact", "AlreadyCertified"];
+        FeynFacet`ValidatedFamilyDLogEpsilonFormQ[existing],
+      acceptedStatus = If[
+        FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[existing],
+        "AlreadyExact", "AlreadyProbabilisticallyValidated"];
       Return[<|"Family" -> family, "Status" -> acceptedStatus,
         "File" -> outputFile, "Seconds" -> 0.|>]]];
   candidates = DeleteDuplicates @ Flatten[
@@ -83,20 +84,23 @@ certifyOne[systemFile_String] := Module[
       AppendTo[diagnostics, <|"Source" -> candidate,
         "Status" -> "Unreadable"|>];
       Continue[]];
-    certified = FeynFacet`CertifyFamilyEpsilonForm[record, system];
+    certified = FeynFacet`ValidateFamilyDLogEpsilonForm[record, system];
     If[AssociationQ[certified] &&
-        MemberQ[{"ExactEpsilonForm", "CertifiedEpsilonForm"},
+        MemberQ[{"ExactlyValidatedFamilyDLogEpsilonForm",
+            "ProbabilisticallyValidatedFamilyDLogEpsilonForm"},
           certified["Status"]] &&
-        FeynFacet`CertifiedFamilyEpsilonFormQ[certified],
+        FeynFacet`ValidatedFamilyDLogEpsilonFormQ[certified],
       FeynFacet`FamilyArtifactWrite[certified, outputFile];
       elapsed = AbsoluteTime[] - familyStart;
-      acceptedStatus = If[FeynFacet`ExactFamilyEpsilonFormQ[certified],
-        "Exact", "Certified"];
+      acceptedStatus = If[
+        FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[certified],
+        "Exact", "ProbabilisticallyValidated"];
       accepted = True;
       Break[],
       AppendTo[diagnostics, <|"Source" -> candidate,
         "Status" -> Lookup[certified, "Status", "NotAnAssociation"],
-        "Checks" -> Lookup[certified, "Checks", <||>]|>]
+        "Conditions" -> Lookup[
+          Lookup[certified, "Validation", <||>], "Conditions", <||>]|>]
     ],
     {candidate, candidates}];
   If[accepted,
@@ -125,8 +129,8 @@ Do[
     " seconds=", Round[Lookup[row, "Seconds", 0.], 0.1]],
   {row, results}];
 
-acceptedStatuses = {"Exact", "AlreadyExact", "Certified",
-  "AlreadyCertified"};
+acceptedStatuses = {"Exact", "AlreadyExact", "ProbabilisticallyValidated",
+  "AlreadyProbabilisticallyValidated"};
 report = <|
   "Status" -> If[AllTrue[results,
       MemberQ[acceptedStatuses, #Status] &],

@@ -3,8 +3,8 @@
    round 4, 2026-09-02, pure moves): preparation (root order, index ABI, support, normalizations), exact channel
    compilation, the compile architecture (intern pools, core/ansatz split),
    the compiled-assembly validator, the provider-independent row layout and
-   coefficient ABI.
-   Loads after the preceding parts (Private/LoadOrder.wl); the ABI, the
+   coefficient layout.
+   Loads after the preceding parts (Private/LoadOrder.wl); the shared data,
    globals and the shared utilities are in MultiquadraticStripSolve.wl. *)
 
 Begin["FeynFacet`Private`"];
@@ -16,7 +16,7 @@ ClearAll[
   multiquadraticStripCompileCoreKeyFromParts,
   multiquadraticStripCompileCoreKey,
   multiquadraticStripCompileOneFormKey,
-  multiquadraticStripLetterProvenanceHash,
+  multiquadraticStripLetterData,
   multiquadraticStripIntern,
   multiquadraticStripInternProbe,
   multiquadraticStripInternValidQ,
@@ -33,6 +33,7 @@ ClearAll[
   multiquadraticStripRootOrder,
   multiquadraticStripRootCensusFromFrameCensus,
   multiquadraticStripRootCensus,
+  multiquadraticStripBundleSquareRootGenerators,
   multiquadraticStripRootCensusWithBundle,
   multiquadraticStripCanonicalizeRadicals,
   multiquadraticStripRationalSquareQ,
@@ -43,7 +44,7 @@ ClearAll[
   multiquadraticStripPointRowIndex,
   multiquadraticStripColumnOrder,
   multiquadraticStripRowOrder,
-  multiquadraticStripABIPayload,
+  multiquadraticStripPreparationData,
   multiquadraticStripCoreCanonicalData,
   multiquadraticStripDecomposeForcing,
   multiquadraticStripPrepare,
@@ -53,15 +54,13 @@ ClearAll[
   multiquadraticStripDecomposeScalar,
   multiquadraticStripCompileTensor,
   multiquadraticStripFormShape,
-  multiquadraticStripSemanticPayload,
   multiquadraticStripCompile,
   multiquadraticStripCompiledValidQ,
-  multiquadraticStripCoefficientABIPayload,
+  multiquadraticStripCoefficientData,
   multiquadraticStripAssemblyLayout,
   multiquadraticStripAssemblyLayoutValidQ,
   multiquadraticStripAssemblyLayoutHotValidQ,
   multiquadraticStripAssemblyLayoutEvaluationValidQ,
-  $multiquadraticStripTrustedLayoutEvaluation,
   multiquadraticStripCompiledProvider
 ];
 
@@ -69,10 +68,9 @@ ClearAll[
 (* Preparation: root order, index ABI, support, normalizations          *)
 (* ------------------------------------------------------------------ *)
 
-(* Frame order alone is not a stable ABI across catalog edits, so the
-   selected roots are re-sorted by a canonical fingerprint of their
-   root squares.  Two roots with the same square would give one
-   generator two sign bits and are rejected. *)
+(* The coefficient presentation supplies the authoritative generator order.
+   Two generators with the same radicand would receive separate sign bits
+   for one quadratic extension and are rejected. *)
 (* 2^r independent sign automorphisms need r independent square
    classes: distinct radicands are not enough, {x, y, x y} has rank two
    and would give one generator two sign bits.  Factorization over Q
@@ -105,43 +103,34 @@ multiquadraticStripSquareClassSquareQ[expression_] := Module[
 
 multiquadraticStripRootOrder[frame_Association, variables : {_Symbol, _Symbol},
     indices_List, epsilon_Symbol] := Module[
-  {current, roots, rules, decorated, duplicates, dependent},
-  current = transportChartCurrentRoots[frame, variables];
+  {current, roots, duplicates, dependent},
+  current = coefficientPresentationSquareRootsInVariables[frame, variables];
   If[! ListQ[current], Return[multiquadraticStripFailure["InvalidMultiquadraticFrame"]]];
   If[! AllTrue[indices, IntegerQ[#1] && 1 <= #1 <= Length[current] &],
     Return[multiquadraticStripFailure["InvalidRootIndices"]]];
   roots = current[[indices]];
-  If[! AllTrue[roots, AssociationQ[#1] && KeyExistsQ[#1, "Root"] &&
-      KeyExistsQ[#1, "RootSquare"] &&
-      TrueQ[Together[#1["Root"]^2 - #1["RootSquare"]] === 0] &],
+  If[! AllTrue[roots, AssociationQ[#1] &&
+      squareRootRecordExpression[#1] =!= $Failed &&
+      squareRootRecordRadicand[#1] =!= $Failed &&
+      TrueQ[Together[squareRootRecordExpression[#1]^2 -
+        squareRootRecordRadicand[#1]] === 0] &],
     Return[multiquadraticStripFailure["InvalidRootMetadata"]]];
   duplicates = Select[Subsets[Range[Length[roots]], {2}],
-    TrueQ[Together[roots[[#1[[1]], "RootSquare"]] -
-      roots[[#1[[2]], "RootSquare"]]] === 0] &];
+    TrueQ[Together[squareRootRecordRadicand[roots[[#1[[1]]]]] -
+      squareRootRecordRadicand[roots[[#1[[2]]]]]] === 0] &];
   If[duplicates =!= {},
     Return[multiquadraticStripFailure["DuplicateRootSquares",
       <|"DuplicatePairs" -> duplicates|>]]];
   dependent = FirstCase[Rest[Subsets[Range[Length[roots]]]],
     subset_ /; multiquadraticStripSquareClassSquareQ[
-      Times @@ Lookup[roots[[subset]], "RootSquare", {}]] :> subset, None];
+      Times @@ (squareRootRecordRadicand /@ roots[[subset]])] :> subset,
+    None];
   If[dependent =!= None,
     Return[multiquadraticStripFailure["DependentRootSquares",
       <|"RootIndices" -> indices[[dependent]]|>]]];
-  rules = multiquadraticStripCanonicalRules[variables, epsilon];
-  decorated = MapThread[Function[{root, sourceIndex}, Module[{canonical},
-      canonical = ToString[InputForm[multiquadraticStripCanonicalExpression[
-        root["RootSquare"], rules]]];
-      Join[root, <|"SourceIndex" -> sourceIndex,
-        "CanonicalRootSquare" -> canonical,
-        "RootFingerprint" -> Hash[canonical, "SHA256", "HexString"]|>]]],
-    {roots, indices}];
-  decorated = SortBy[decorated,
-    {Lookup[#1, "CanonicalRootSquare", ""], Lookup[#1, "RootFingerprint", ""]} &];
-  <|"Status" -> "StableRootOrder", "Roots" -> decorated,
-    "SourceIndices" -> Lookup[decorated, "SourceIndex", {}],
-    "RootFingerprints" -> Lookup[decorated, "RootFingerprint", {}],
-    "OrderingFingerprint" -> Hash[Lookup[decorated, "CanonicalRootSquare", {}],
-      "SHA256", "HexString"]|>
+  roots = MapThread[Join[#1, <|"SourceIndex" -> #2|>] &, {roots, indices}];
+  <|"Status" -> "StableRootOrder", "Roots" -> roots,
+    "SourceIndices" -> indices|>
 ];
 
 (* Root census.  transportChartRootIndices is the package classifier and
@@ -166,7 +155,7 @@ multiquadraticStripRootCensusFromFrameCensus[frameCensus_Association,
     allRoots_List] := Module[
   {rootBases, radicals, matches, indices, unknown, denested,
    denestedIndices},
-  rootBases = Together /@ (#1["Root"]^2 & /@ allRoots);
+  rootBases = Together /@ (squareRootRecordRadicand /@ allRoots);
   radicals = Lookup[frameCensus, "RadicalBases", {}];
   matches[base_] := Flatten[Position[rootBases,
     candidate_ /; TrueQ[Together[base - candidate] === 0], {1},
@@ -220,6 +209,24 @@ multiquadraticStripRootCensus[strip_, allRoots_List] :=
   multiquadraticStripRootCensusFromFrameCensus[
     transportChartRootIndices[strip, allRoots], allRoots];
 
+multiquadraticStripBundleSquareRootGenerators[bundle_Association,
+    variables : {_Symbol, _Symbol}] := Module[
+  {presentation, roots, indices},
+  presentation = masterTransportCoefficientPresentationData[
+    Lookup[bundle, "CoefficientPresentation",
+      Missing["NoCoefficientPresentation"]], variables];
+  roots = coefficientPresentationSquareRootsInVariables[
+    presentation, variables];
+  indices = Lookup[bundle, "SquareRootGeneratorIndices", $Failed];
+  If[Lookup[presentation, "Status", None] =!= "OK" ||
+      ! ListQ[roots] || ! VectorQ[indices, IntegerQ] ||
+      ! ContainsOnly[indices, Range[Length[roots]]] ||
+      indices =!= Sort[DeleteDuplicates[indices]],
+    Return[$Failed]];
+  roots[[indices]]
+];
+multiquadraticStripBundleSquareRootGenerators[___] := $Failed;
+
 (* Extend the visible-strip census by the authenticated root frame of a
    deferred forcing bundle.  The dense BBar slot is deliberately zero on that
    route, so this union is the single shared authority used both before
@@ -249,33 +256,40 @@ multiquadraticStripRootCensusWithBundle[strip_, allRoots_List,
   If[! AssociationQ[deferredBundle],
     Return[Join[classification, <|"BundleRootIndices" -> {},
       "RequiredRootIndices" -> classification["RootIndices"]|>]]];
-  bundleRoots = Lookup[deferredBundle["RootFrame"], "Roots", {}];
+  bundleRoots = multiquadraticStripBundleSquareRootGenerators[
+    deferredBundle, variables];
+  If[! ListQ[bundleRoots],
+    Return[multiquadraticStripFailure[
+      "DeferredBundleCoefficientPresentationMismatch"]]];
   bundleIndices = Table[Module[{matches},
       matches = Flatten[Position[allRoots,
         candidate_ /; TrueQ[Quiet[Together[
-              candidate["RootSquare"] - bundleRoot["RootSquare"]]] === 0] &&
+              squareRootRecordRadicand[candidate] -
+                squareRootRecordRadicand[bundleRoot]]] === 0] &&
           TrueQ[Quiet[Together[
-              candidate["Root"] - bundleRoot["Root"]]] === 0],
+              squareRootRecordExpression[candidate] -
+                squareRootRecordExpression[bundleRoot]]] === 0],
         {1}, Heads -> False]];
       If[Length[matches] =!= 1,
         Return[multiquadraticStripFailure[
-          "DeferredBundleRootFrameMismatch",
+          "DeferredBundleSquareRootGeneratorMismatch",
           <|"BundleRoot" -> bundleRoot, "Matches" -> matches|>], Module]];
       First[matches]],
     {bundleRoot, bundleRoots}];
   If[! VectorQ[bundleIndices, IntegerQ],
     Return[FirstCase[bundleIndices, failure_Association :> failure,
-      multiquadraticStripFailure["DeferredBundleRootFrameMismatch"]]]];
+      multiquadraticStripFailure[
+        "DeferredBundleSquareRootGeneratorMismatch"]]]];
   selectedIndices = DeleteDuplicates[Join[
     classification["RootIndices"], bundleIndices]];
-  stableFrame = blockEquationDeferredRootFrame[
-    KeyTake[#1, {"Root", "RootSquare"}] & /@ allRoots[[selectedIndices]],
+  stableFrame = blockEquationDeferredValidateSquareRootGenerators[
+    allRoots[[selectedIndices]],
     variables, epsilon];
-  If[Lookup[stableFrame, "Status", None] =!= "StableRootOrder",
+  If[Lookup[stableFrame, "Status", None] =!=
+      "SquareRootGeneratorsValidated",
     Return[multiquadraticStripFailure["DeferredBundleRootUnionInvalid",
       <|"Detail" -> stableFrame|>]]];
-  requiredRootIndices = selectedIndices[[Lookup[stableFrame["Roots"],
-    "SourceIndex", {}]]];
+  requiredRootIndices = selectedIndices;
   Join[classification, <|"BundleRootIndices" -> bundleIndices,
     "RequiredRootIndices" -> requiredRootIndices|>]
 ];
@@ -301,7 +315,8 @@ multiquadraticStripCanonicalizeRadicals[expression_, allRoots_List,
     Return[<|"Status" -> "NoRadicalCanonicalizationNeeded",
       "Expression" -> expression, "Rewritten" -> 0, "Bases" -> {}|>]];
   variables = Select[DeleteDuplicates[Flatten[Variables /@
-    (Together /@ Lookup[allRoots, "RootSquare", {}])]], MatchQ[#1, _Symbol] &];
+    (Together /@ (squareRootRecordRadicand /@ allRoots))]],
+    MatchQ[#1, _Symbol] &];
   canonical = transportChartCanonicalizeDenestedRadicals[expression, allRoots,
     variables, denested];
   If[Lookup[canonical, "Status", None] =!= "OK",
@@ -392,8 +407,8 @@ multiquadraticStripCompileNormalizations[specifications_List, dimensions_List,
   compiled
 ]];
 
-(* The context-free canonical texts of the EQUATION and the ROOTS.  Both
-   the ABI payload and the compile core KEY are built from exactly these
+(* The context-free canonical forms of the differential equation and roots.
+   Both the defining-data record and the compile-core key are built from these
    three, and none of them depends on the ansatz (support, one-forms,
    gauge denominator).  Splitting them out lets prepare key and build the
    compile core BEFORE it has a payload, and then hand the same texts to
@@ -402,7 +417,7 @@ multiquadraticStripCompileNormalizations[specifications_List, dimensions_List,
 multiquadraticStripCoreCanonicalData[record_Association, roots_List,
     variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
   {rules, strip, deferredBundle, diagonalCanonical, equationCanonical,
-   bundleFingerprint, bundleValidation, deferredFastQ, deferredDimensions},
+   bundleValidation, deferredFastQ, deferredDimensions},
   rules = multiquadraticStripCanonicalRules[variables, epsilon];
   strip = Lookup[record, "Strip", $Failed];
   If[! MatchQ[strip, {_List, _List, _List}], Return[$Failed]];
@@ -427,37 +442,37 @@ multiquadraticStripCoreCanonicalData[record_Association, roots_List,
     bundleValidation = blockEquationDeferredBundleValidate[deferredBundle];
     If[Lookup[bundleValidation, "Status", None] =!= "BundleValid",
       Return[$Failed]];
-    bundleFingerprint = Lookup[deferredBundle, "BundleFingerprint", None];
-    diagonalCanonical = strip[[1 ;; 2]] /. rules;
-    If[! StringQ[bundleFingerprint] ||
-        ! multiquadraticStripContextFreeQ[diagonalCanonical],
+    diagonalCanonical = Map[
+      multiquadraticStripCanonicalExpression[#1, rules] &,
+      strip[[1 ;; 2]], {4}];
+    If[! multiquadraticStripContextFreeQ[diagonalCanonical],
       Return[$Failed]];
-    "DeferredEquationStructuralV1:" <> Hash[
-      {"DeferredEquationStructuralV1", diagonalCanonical,
-       bundleFingerprint, Dimensions /@ strip},
-      "SHA256", "HexString"],
-    ToString[InputForm[Map[
-      multiquadraticStripCanonicalText[#1, rules] &, strip, {4}]]]];
-  <|"RootCanonicalSquares" -> (multiquadraticStripCanonicalText[
-      Lookup[#1, "RootSquare", $Failed], rules] & /@ roots),
-    "RootCanonicalExpressions" -> (multiquadraticStripCanonicalText[
-      Lookup[#1, "Root", $Failed], rules] & /@ roots),
+    <|"DiagonalConnectionBlocks" -> diagonalCanonical,
+      "DeferredForcingData" ->
+        (KeyTake[deferredBundle, {"Variables", "Regulator", "Parameters",
+          "CoefficientPresentation", "Dimensions", "TargetOrder",
+          "OperandTable", "Jobs", "DivisorOccurrences", "DivisorSummary"}]
+          /. rules)|>,
+    Map[multiquadraticStripCanonicalExpression[#1, rules] &, strip, {4}]];
+  <|"RootCanonicalSquares" -> (multiquadraticStripCanonicalExpression[
+      squareRootRecordRadicand[#1], rules] & /@ roots),
+    "RootCanonicalExpressions" -> (multiquadraticStripCanonicalExpression[
+      squareRootRecordExpression[#1], rules] & /@ roots),
     "EquationCanonical" -> equationCanonical|>
 ];
 multiquadraticStripCoreCanonicalData[___] := $Failed;
 
-(* the nine-argument form is the ABI as every existing caller (and
-   multiquadraticStripPreparationValidQ, which re-derives the payload to
-   validate it) knows it; the tenth argument is a canonical-data
-   Association a caller has already paid for *)
-multiquadraticStripABIPayload[record_Association, roots_List,
+(* The tenth argument accepts canonical data a caller has already computed;
+   the shorter form derives it before recording the preparation's defining
+   data. *)
+multiquadraticStripPreparationData[record_Association, roots_List,
     variables : {_Symbol, _Symbol}, epsilon_Symbol, dimensions_List,
     gaugeDenominator_, support_List, oneForms_List,
     normalizations_List] :=
-  multiquadraticStripABIPayload[record, roots, variables, epsilon, dimensions,
+  multiquadraticStripPreparationData[record, roots, variables, epsilon, dimensions,
     gaugeDenominator, support, oneForms, normalizations, Automatic];
 
-multiquadraticStripABIPayload[record_Association, roots_List,
+multiquadraticStripPreparationData[record_Association, roots_List,
     variables : {_Symbol, _Symbol}, epsilon_Symbol, dimensions_List,
     gaugeDenominator_, support_List, oneForms_List,
     normalizations_List, canonicalData_] := Module[
@@ -470,31 +485,20 @@ multiquadraticStripABIPayload[record_Association, roots_List,
   {canonicalSquares, canonicalRoots, equationCanonical} = Lookup[canonical,
     {"RootCanonicalSquares", "RootCanonicalExpressions", "EquationCanonical"}];
   payload = <|
-    (* V2 (2026-08-23, generality audit P2): "RootSourceIndices" left the
-       hashed payload.  The DECLARATION order of a basis of square
-       classes is not mathematical data -- reversing {s,t,1-s-t} in the
-       frame leaves the canonical roots, equations, support and field
-       unchanged -- but it changed this fingerprint, so two equivalent
-       caller declarations produced ABI-incompatible artifacts and no
-       cache hit.  Nothing consumed the field; it survives as non-hashed
-       provenance in the preparation record.  The grade ordering is
-       protected by "RootCanonicalSquares" and "RootOrderingFingerprint",
-       which are computed from the canonical (sorted) order. *)
-    "Schema" -> "MultiquadraticStripPreparationV2",
+    "Schema" -> "MultiquadraticStripPreparationV3",
     "EquationCanonical" -> equationCanonical,
-    "EquationFingerprint" -> Hash[equationCanonical, "SHA256", "HexString"],
     "RootCanonicalSquares" -> canonicalSquares,
     "RootCanonicalExpressions" -> canonicalRoots,
-    "RootFingerprints" -> Hash[#1, "SHA256", "HexString"] & /@ canonicalSquares,
-    "RootOrderingFingerprint" -> Hash[canonicalSquares, "SHA256", "HexString"],
     "Dimensions" -> dimensions,
-    "GaugeDenominator" -> multiquadraticStripCanonicalText[gaugeDenominator, rules],
+    "GaugeDenominator" ->
+      multiquadraticStripCanonicalExpression[gaugeDenominator, rules],
     "GaugeSupport" -> support,
-    "OneForms" -> Map[multiquadraticStripCanonicalText[#1, rules] &, oneForms, {2}],
+    "OneForms" -> Map[
+      multiquadraticStripCanonicalExpression[#1, rules] &, oneForms, {2}],
     "Normalizations" -> Map[Join[KeyDrop[#1, "Value"],
-      <|"Value" -> multiquadraticStripCanonicalText[
+      <|"Value" -> multiquadraticStripCanonicalExpression[
         Lookup[#1, "Value", $Failed], rules]|>] &, normalizations]|>;
-  (* a payload that still names a context symbol is not an ABI *)
+  (* Persisted defining data must not depend on the caller's context. *)
   If[! FreeQ[payload, $Failed] || ! multiquadraticStripContextFreeQ[payload],
     Return[$Failed]];
   payload
@@ -606,7 +610,7 @@ Options[multiquadraticStripPrepare] = {
 (* `record` is a Module LOCAL initialized from the argument, not the
    pattern name itself: the shared field canonicalizer (round-2 item 4)
    may rewrite the strip into declared radicals, and everything after
-   that point -- the ABI payload, the stored "Record", the compile core
+     that point -- the defining data, the stored "Record", the compile core
    key, the forcing decomposition -- must see the SAME canonical strip. *)
 multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
     opts : OptionsPattern[]] := Module[
@@ -618,21 +622,23 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
    letterRecords, gaugeDenominatorFactor,
    denominatorDegrees, degreeOffset, numeratorDegrees, support, dimensions,
    gradeCount, gaugeUnknownCount, residueUnknownCount, unknownCount,
-   equationsPerPoint, normalizations, payload, fingerprint,
+   equationsPerPoint, normalizations, payload,
    coreEnabled, coreCanonical, coreDimensions, coreKey, coreConsumed = False,
-   coefficientProvider, deferredBundle, bundleRootEmbedding, bundleGauge,
+   coefficientProvider, deferredBundle, bundleRoots, bundleRootEmbedding,
+   bundleGauge,
    deferredPreparationWrapper, deferredPreparation,
-   directPreparationQ, suppliedClassification, trustedClassificationQ,
+   directPreparationQ, directPresentationData, directPresentationRoots,
+   directGeneratorIndices, suppliedClassification, trustedClassificationQ,
    refinedBundleGauge,
    provisionalDegrees, provisionalSupportCount, provisionalUnknownCount,
    provisionalEquationsPerPoint, provisionalPointCount,
    provisionalSampleEstimate,
    checkpointDirectory, checkpointMode, checkpointEnabledQ, checkpointTag,
    checkpointRecords = {},
-   checkpointRead, checkpointWrite, checkpointInputFingerprint,
-   forcingCheckpointFingerprint, checkpointChannels,
-   letterCheckpointFingerprint, checkpointLetters,
-   denominatorCheckpointFingerprint, denominatorCheckpointNorms,
+   checkpointRead, checkpointWrite, checkpointDefiningInput,
+   forcingCheckpointInput, checkpointChannels,
+   letterCheckpointInput, checkpointLetters,
+   denominatorCheckpointInput, denominatorCheckpointNorms,
    checkpointDenominator,
    deadline, prepareProgress, prepareBudget, prepareStop, prepareGuard,
    familyName, sectorId, lowerSectorId, startTime = AbsoluteTime[],
@@ -709,21 +715,33 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
       deferredPreparationWrapper], deferredPreparationWrapper];
   (* The raw native route deliberately has no DeferredBundle: its immutable
      BlockEquationDeferred preparation is the coefficient source.  The outer
-     solver has already unioned the wrapper's declared RootSquares with the
-     visible strip census.  Authenticate that same-call source by its small
-     structural seal so Prepare does not throw the union away and rescan the
-     zero BBar placeholder as a rank-one equation. *)
+     solver has already unioned the wrapper's declared square-root generators
+     with the visible strip census. *)
+  directPresentationData = If[AssociationQ[deferredPreparationWrapper],
+    masterTransportCoefficientPresentationData[
+      Lookup[deferredPreparationWrapper, "CoefficientPresentation",
+        Missing["NoCoefficientPresentation"]], variables], $Failed];
+  directPresentationRoots = If[AssociationQ[directPresentationData],
+    coefficientPresentationSquareRootsInVariables[
+      directPresentationData, variables], $Failed];
+  directGeneratorIndices = If[AssociationQ[deferredPreparationWrapper],
+    Lookup[deferredPreparationWrapper, "SquareRootGeneratorIndices", $Failed],
+    $Failed];
   directPreparationQ = AssociationQ[deferredPreparationWrapper] &&
     AssociationQ[deferredPreparation] &&
-    ListQ[Lookup[deferredPreparationWrapper, "RootSquares", $Failed]] &&
+    AssociationQ[directPresentationData] &&
+    Lookup[directPresentationData, "Status", None] === "OK" &&
+    ListQ[directPresentationRoots] &&
+    VectorQ[directGeneratorIndices, IntegerQ] &&
+    ContainsOnly[directGeneratorIndices,
+      Range[Length[directPresentationRoots]]] &&
+    directGeneratorIndices === Sort[DeleteDuplicates[directGeneratorIndices]] &&
     Lookup[deferredPreparation, "Status", None] === "Prepared" &&
-    Lookup[deferredPreparation, "ABIVersion", None] ===
-      $blockEquationDeferredABIVersion &&
     Lookup[deferredPreparation, "Variables", None] === variables &&
     Lookup[deferredPreparation, "Regulator", None] === epsilon &&
     Lookup[deferredPreparation, "Dimensions", None] ===
       Dimensions[strip[[3]]];
-  allRoots = transportChartCurrentRoots[frame, variables];
+  allRoots = coefficientPresentationSquareRootsInVariables[frame, variables];
   If[! ListQ[allRoots],
     Return[multiquadraticStripFailure["AlgebraicFrameNotWellFormed"]]];
   multiquadraticStripStageStart["prepare: root census",
@@ -734,7 +752,6 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
       "BundleRootIndices", "RequiredRootIndices"},
       KeyExistsQ[suppliedClassification, #1] &] &&
     ((AssociationQ[deferredBundle] &&
-        AssociationQ[$blockEquationDeferredTrustedBundle] &&
         Lookup[blockEquationDeferredBundleValidate[deferredBundle],
           "Status", None] === "BundleValid") || directPreparationQ);
   classification = If[trustedClassificationQ, suppliedClassification,
@@ -801,8 +818,13 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
     Return[multiquadraticStripFailure["InvalidCoefficientProvider",
       <|"CoefficientProvider" -> coefficientProvider|>]]];
   If[! MissingQ[deferredBundle],
+    bundleRoots = multiquadraticStripBundleSquareRootGenerators[
+      deferredBundle, variables];
+    If[! ListQ[bundleRoots],
+      Return[multiquadraticStripFailure[
+        "DeferredBundleCoefficientPresentationMismatch"]]];
     bundleRootEmbedding = multiquadraticStripBundleRootEmbedding[
-      Lookup[deferredBundle["RootFrame"], "Roots", {}], roots];
+      bundleRoots, roots];
     If[bundleRootEmbedding === $Failed,
       Return[multiquadraticStripFailure[
         "DeferredBundleRootOrderMismatch"]]];
@@ -860,28 +882,27 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
       ! StringFreeQ[checkpointTag, {"/", "\\", ".."}],
     Return[multiquadraticStripFailure["InvalidPrepareCheckpointTag",
       <|"CheckpointTag" -> checkpointTag|>]]];
-  (* the inputs EVERY substage of this preparation shares: this strip's
-     canonical equation text, and the canonical root order.  A substage
+  (* The mathematical inputs every substage shares: this strip's
+     canonical differential equation and ordered square-root generators. A substage
      appends whatever else it consumed. *)
   (* Production normally has persistence disabled.  In that case a
      checkpoint identity has no consumer: checkpointRead and checkpointWrite
      both return before looking at it.  Large algebraic metadata must not be
      serialized merely to manufacture a key that will be discarded. *)
-  checkpointInputFingerprint[substage_String, extra_] :=
+  checkpointDefiningInput[substage_String, extra_] :=
     If[checkpointDirectory === None || checkpointMode === "None",
       Missing["CheckpointsDisabled"],
-      multiquadraticStripFingerprint[{substage,
+      {substage,
         If[AssociationQ[coreCanonical],
           Lookup[coreCanonical, {"EquationCanonical", "RootCanonicalSquares",
             "RootCanonicalExpressions"}], $Failed],
-        coreDimensions, extra}]];
+        coreDimensions, extra}];
   (* read: Missing if persistence is off, this substage has no file, or
      the file exists and does not authenticate -- and in the last case
      the refusal is RECORDED, so a poisoned checkpoint is visible in the
      preparation rather than silently ignored *)
-  checkpointRead[substage_String, fingerprint_] := Module[
-    {file, raw, verdict, proposalVerdict = <||>, proposalQ = False,
-     suppliedFingerprint, readStatus},
+  checkpointRead[substage_String, definingInput_] := Module[
+    {file, raw, verdict, readStatus},
     If[checkpointDirectory === None ||
         ! MemberQ[{"ReadWrite", "Read"}, checkpointMode],
       Return[Missing["CheckpointsDisabled"]]];
@@ -900,39 +921,21 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
         "File" -> file|>];
       Return[Missing["CheckpointUnreadable"]]];
     verdict = multiquadraticStripPrepareCheckpointAccept[raw["Value"],
-      substage, fingerprint, variables, epsilon];
-    (* A gauge denominator is an ansatz proposal, not accepted mathematics.
-       If the exact input representation changed, an internally intact stored
-       denominator may still be tried: a bad proposal can only make the
-       solver fail to find a gauge, while the normal fresh modular residual
-       remains the sole per-block acceptance.  Forcing channels and letters
-       never receive this relaxation. *)
-    If[substage === "GaugeDenominator" &&
-        Lookup[verdict, "Status", None] ===
-          "PrepareCheckpointInputMismatch",
-      suppliedFingerprint = Lookup[raw["Value"], "InputFingerprint", None];
-      If[StringQ[suppliedFingerprint],
-        proposalVerdict = multiquadraticStripPrepareCheckpointAccept[
-          raw["Value"], substage, suppliedFingerprint, variables, epsilon];
-        proposalQ = Lookup[proposalVerdict, "Status", None] === "Accepted" &&
-          MatchQ[Lookup[proposalVerdict, "Payload", None],
-            {_, _} | {_, _, {_Integer, _Integer}}]]];
-    readStatus = If[proposalQ, "AcceptedGaugeDenominatorProposal",
-      Lookup[verdict, "Status", None]];
+      substage, definingInput, variables, epsilon];
+    readStatus = Lookup[verdict, "Status", None];
     AppendTo[checkpointRecords, <|"Substage" -> substage,
       "Action" -> "Read", "Status" -> readStatus,
-      "File" -> file, "FileSHA256" -> raw["SHA256"],
+      "File" -> file,
       "Refusal" -> KeyDrop[verdict, {"Status", "Payload"}]|>];
-    If[proposalQ, Return[proposalVerdict["Payload"]]];
     If[readStatus =!= "Accepted",
       Return[Missing["CheckpointRefused"]]];
     verdict["Payload"]];
-  checkpointWrite[substage_String, fingerprint_, payload_] := Module[
+  checkpointWrite[substage_String, definingInput_, payload_] := Module[
     {file, checkpoint, written},
     If[checkpointDirectory === None ||
         ! MemberQ[{"ReadWrite", "Write"}, checkpointMode], Return[Null]];
     checkpoint = multiquadraticStripPrepareCheckpointRecord[substage,
-      fingerprint, payload, variables, epsilon];
+      definingInput, payload, variables, epsilon];
     If[checkpoint === $Failed,
       AppendTo[checkpointRecords, <|"Substage" -> substage,
         "Action" -> "Write", "Status" -> "PrepareCheckpointNotContextFree"|>];
@@ -945,20 +948,15 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
       "Action" -> "Write",
       "Status" -> If[AssociationQ[written],
         Lookup[written, "Status", "WriteFailed"], "PrepareCheckpointWriteFailed"],
-      "File" -> file,
-      "FileSHA256" -> If[AssociationQ[written],
-        Lookup[written, "SHA256", Missing["NoHash"]], Missing["NoHash"]]|>];
+      "File" -> file|>];
     Null];
   coreKey = If[AssociationQ[coreCanonical] &&
       MatchQ[coreDimensions, {_Integer, _Integer}] &&
       FreeQ[coreCanonical, $Failed],
     multiquadraticStripCompileCoreKeyFromParts[
-      multiquadraticAlgebraABIFingerprint[],
-      Hash[coreCanonical["EquationCanonical"], "SHA256", "HexString"],
-      Hash[coreCanonical["RootCanonicalSquares"], "SHA256", "HexString"],
+      coreCanonical["EquationCanonical"],
       coreCanonical["RootCanonicalSquares"],
-      coreCanonical["RootCanonicalExpressions"], coreDimensions,
-      variables, epsilon],
+      coreCanonical["RootCanonicalExpressions"], coreDimensions],
     $Failed];
   (* before the forcing decomposition -- the stage that made this
      coverage necessary *)
@@ -970,14 +968,14 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
      the seal inside it proves the channels are the decomposition of
      THIS forcing.  A mutated channel fails the inner seal even if the
      envelope is rebuilt around it. *)
-  forcingCheckpointFingerprint = If[checkpointEnabledQ,
-    checkpointInputFingerprint["ForcingChannels", {}],
+  forcingCheckpointInput = If[checkpointEnabledQ,
+    checkpointDefiningInput["ForcingChannels", {}],
     Missing["CheckpointsDisabled"]];
   checkpointChannels = If[coefficientProvider =!= "CompiledChannel" ||
       suppliedChannels["Status"] === "Accepted",
     Missing["ChannelsSupplied"],
     Module[{stored = checkpointRead["ForcingChannels",
-        forcingCheckpointFingerprint], accept},
+        forcingCheckpointInput], accept},
       If[MissingQ[stored], Missing["NoCheckpoint"],
         accept = multiquadraticStripForcingChannelsAccept[stored, strip[[3]],
           roots, variables, epsilon];
@@ -1047,7 +1045,7 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
      belongs to its caller, not to this strip's persistence *)
   If[coefficientProvider === "CompiledChannel" &&
       suppliedChannels["Status"] =!= "Accepted" && MissingQ[checkpointChannels],
-    checkpointWrite["ForcingChannels", forcingCheckpointFingerprint,
+    checkpointWrite["ForcingChannels", forcingCheckpointInput,
       multiquadraticStripForcingChannelRecord[channelForcing, strip[[3]],
         roots, variables, epsilon]]];
   letterRecords = OptionValue["LetterRecords"];
@@ -1060,26 +1058,25 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
          strip, the root order, the letter-construction options and the
          row alphabet the record supplies -- the complete input of
          multiquadraticStripCandidateLetters. *)
-      letterCheckpointFingerprint = If[checkpointEnabledQ,
-        checkpointInputFingerprint[
+      letterCheckpointInput = If[checkpointEnabledQ,
+        checkpointDefiningInput[
           "CandidateLetters",
           {OptionValue["RegulatorSampleCount"],
            OptionValue["RegulatorSamplePool"],
-           multiquadraticStripFingerprint[OptionValue["RowAlphabet"] /.
-             multiquadraticStripCanonicalRules[variables, epsilon]],
-           multiquadraticStripFingerprint[OptionValue["AdditionalLetters"] /.
-             multiquadraticStripCanonicalRules[variables, epsilon]],
-           multiquadraticStripFingerprint[OptionValue["AlgebraicLetters"] /.
-             multiquadraticStripCanonicalRules[variables, epsilon]],
+           OptionValue["RowAlphabet"] /.
+             multiquadraticStripCanonicalRules[variables, epsilon],
+           OptionValue["AdditionalLetters"] /.
+             multiquadraticStripCanonicalRules[variables, epsilon],
+           OptionValue["AlgebraicLetters"] /.
+             multiquadraticStripCanonicalRules[variables, epsilon],
            OptionValue["MaximumNormFactors"],
            OptionValue["MaximumNormExponent"],
            Lookup[record, {"Sector", "LowerSector"}, None],
-           multiquadraticStripFingerprint[
-             Replace[Lookup[record, "StripSolvers", {}], Except[_List] :> {}] /.
-               multiquadraticStripCanonicalRules[variables, epsilon]]}],
+           Replace[Lookup[record, "StripSolvers", {}], Except[_List] :> {}] /.
+             multiquadraticStripCanonicalRules[variables, epsilon]}],
         Missing["CheckpointsDisabled"]];
       checkpointLetters = checkpointRead["CandidateLetters",
-        letterCheckpointFingerprint];
+        letterCheckpointInput];
       If[! MissingQ[checkpointLetters] &&
           Lookup[checkpointLetters, "Status", None] ===
             "MultiquadraticCandidateLettersV1",
@@ -1113,7 +1110,7 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
         Return[If[AssociationQ[letterRecords], letterRecords,
           multiquadraticStripFailure["OneFormBasisFailed"]]]];
       If[MissingQ[checkpointLetters],
-        checkpointWrite["CandidateLetters", letterCheckpointFingerprint,
+        checkpointWrite["CandidateLetters", letterCheckpointInput,
           letterRecords]];
       oneFormData = letterRecords;
       letterRecords = oneFormData["LetterRecords"],
@@ -1138,24 +1135,22 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
     "prepare: gauge denominator checkpoint identity",
     <|"enabled" -> checkpointEnabledQ,
       "norms" -> Length[denominatorCheckpointNorms]|>];
-  denominatorCheckpointFingerprint = If[checkpointEnabledQ,
-    checkpointInputFingerprint[
+  denominatorCheckpointInput = If[checkpointEnabledQ,
+    checkpointDefiningInput[
       "GaugeDenominator",
-      {multiquadraticStripFingerprint[
-         denominatorCheckpointNorms /.
-           multiquadraticStripCanonicalRules[variables, epsilon]],
-       multiquadraticStripFingerprint[OptionValue["GaugeDenominatorFactor"] /.
-         multiquadraticStripCanonicalRules[variables, epsilon]],
-       multiquadraticStripFingerprint[OptionValue["GaugeDenominator"] /.
-         multiquadraticStripCanonicalRules[variables, epsilon]],
-       "GaugeDenominatorProposalV2",
+      {denominatorCheckpointNorms /.
+         multiquadraticStripCanonicalRules[variables, epsilon],
+       OptionValue["GaugeDenominatorFactor"] /.
+         multiquadraticStripCanonicalRules[variables, epsilon],
+       OptionValue["GaugeDenominator"] /.
+         multiquadraticStripCanonicalRules[variables, epsilon],
        If[AssociationQ[deferredBundle],
-         Lookup[deferredBundle, "BundleFingerprint", None], None]}],
+         Lookup[deferredBundle, "DivisorSummary", None], None]}],
     Missing["CheckpointsDisabled"]];
   multiquadraticStripStageDone[
     "prepare: gauge denominator checkpoint identity"];
   checkpointDenominator = checkpointRead["GaugeDenominator",
-    denominatorCheckpointFingerprint];
+    denominatorCheckpointInput];
   If[MatchQ[checkpointDenominator,
       {_, _} | {_, _, {_Integer, _Integer}}],
     multiquadraticStripStageMark["prepare: gauge denominator",
@@ -1272,7 +1267,7 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
       "prepare: gauge denominator degrees",
       <|"degrees" -> denominatorDegrees|>]];
   If[MissingQ[checkpointDenominator],
-    checkpointWrite["GaugeDenominator", denominatorCheckpointFingerprint,
+    checkpointWrite["GaugeDenominator", denominatorCheckpointInput,
       {gaugeDenominatorFactor, gaugeDenominator, denominatorDegrees}]];
   degreeOffset = OptionValue["DegreeOffset"];
   If[! MatchQ[degreeOffset, {a_Integer, b_Integer} /; a >= 0 && b >= 0],
@@ -1302,22 +1297,21 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
     OptionValue["NormalizationEquations"], dimensions, gradeCount, support,
     oneForms, gaugeUnknownCount];
   If[! ListQ[normalizations], Return[normalizations]];
-  (* before the ABI payload, the last opaque stage of the preparation *)
-  If[prepareGuard["ABIPayload"], Return[prepareStop]];
+  (* Before recording the defining mathematical data. *)
+  If[prepareGuard["DefiningData"], Return[prepareStop]];
   (* the canonical equation/root texts were already paid for above, when
      the compile core was keyed; handing them over is what keeps the
      whole-strip InputForm to ONE pass *)
-  payload = multiquadraticStripABIPayload[record, roots, variables, epsilon,
+  payload = multiquadraticStripPreparationData[record, roots, variables, epsilon,
     dimensions, gaugeDenominator, support, oneForms, normalizations,
     coreCanonical];
   If[payload === $Failed,
-    Return[multiquadraticStripFailure["ContextSensitiveStripABI"]]];
-  fingerprint = multiquadraticStripFingerprint[payload];
+    Return[multiquadraticStripFailure["ContextSensitivePreparationData"]]];
   pathStatistics = multiquadraticFieldPathStatisticsDelta[pathStatisticsBefore,
     multiquadraticFieldPathStatistics[]];
   <|"Status" -> "PreparedMultiquadraticStripV1",
     "PreparationSchema" -> payload["Schema"],
-    "Record" -> record, "Frame" -> frame,
+    "Record" -> record, "CoefficientPresentation" -> frame,
     "Variables" -> variables, "Regulator" -> epsilon,
     "Roots" -> roots, "RootCount" -> Length[roots],
     "RootIndices" -> rootIndices,
@@ -1326,19 +1320,15 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
       "FrameCensusRootIndices", "FrameCensusUnclassified",
       "BundleRootIndices", "RequiredRootIndices"}],
     (* what the shared field canonicalizer rewrote, if anything: a
-       provenance field, deliberately outside the hashed ABI payload
-       (the payload already hashes the CANONICAL strip) *)
+       diagnostic field; the defining data already contains the canonical
+       differential equation. *)
     "RadicalCanonicalization" -> KeyTake[radicalCanonicalization,
       {"Status", "Rewritten", "Bases", "Signs"}],
-    (* provenance only: which declaration slot each canonical root came
-       from.  Deliberately NOT part of the hashed ABI payload (V2). *)
+    (* Which declaration slot each selected generator came from. *)
     "RootSourceIndices" -> order["SourceIndices"],
-    "RootFingerprints" -> order["RootFingerprints"],
-    "RootOrderingFingerprint" -> order["OrderingFingerprint"],
-    "RootSquares" -> Lookup[roots, "RootSquare", {}],
+    "RootSquares" -> (squareRootRecordRadicand /@ roots),
     "OneForms" -> oneForms, "OneFormMetadata" -> oneFormData,
-    (* the letter provenance and the exact forcing channels of THIS call;
-       neither is part of the hashed ABI payload, and the compiler reuses
+    (* The letters and exact forcing channels of this call; the compiler reuses
        the channels rather than decomposing the forcing again *)
     "LetterRecords" -> If[MatchQ[letterRecords, {___Association}],
       letterRecords, Missing["LettersSuppliedAsOneForms"]],
@@ -1379,17 +1369,13 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
         ! TrueQ[Lookup[Lookup[#1, "Potential", <||>], "Verified", False]] &]],
       Missing["LettersSuppliedAsOneForms"]],
     "GaugeDenominatorFactor" -> Together[gaugeDenominatorFactor],
-    (* sealed, not bare (Codex 04:30 P2): the record carries the
-       fingerprint of the forcing / root order / variables / regulator it
-       decomposes, so a consumer can fail closed instead of trusting a
-       shape *)
+    (* The record carries the mathematical forcing and ordered generators
+       it decomposes. *)
     "ForcingChannels" -> If[coefficientProvider === "CompiledChannel",
       multiquadraticStripForcingChannelRecord[channelForcing, strip[[3]],
         roots, variables, epsilon], Missing["DirectProvider"]],
     "DeferredBundle" -> If[AssociationQ[deferredBundle], deferredBundle,
       Missing["NoDeferredBundle"]],
-    "DeferredBundleFingerprint" -> If[AssociationQ[deferredBundle],
-      deferredBundle["BundleFingerprint"], Missing["NoDeferredBundle"]],
     "BundleDivisorProvenance" -> If[AssociationQ[bundleGauge],
       KeyDrop[bundleGauge, "GaugeDenominator"],
       Missing["BundleGaugeDenominatorNotUsed"]],
@@ -1406,19 +1392,14 @@ multiquadraticStripPrepare[sourceRecord_Association, frame_Association,
     "ColumnOrder" -> multiquadraticStripColumnOrder[dimensions, gradeCount,
       support, Length[oneForms]],
     "RowOrder" -> multiquadraticStripRowOrder[dimensions, gradeCount],
-    "AlgebraABIFingerprint" -> multiquadraticAlgebraABIFingerprint[],
     (* channel-decomposition telemetry of THIS preparation, not of the
        process: the scalar-local root-free fast path count and the
        algebraic (field reduction + inversion) count *)
     "RootFreeFastPathCount" -> pathStatistics["RootFreeFastPathCount"],
     "ChannelPathStatistics" -> pathStatistics,
-    (* what this preparation persisted and what it read back, with the
-       typed verdict of every authentication.  Telemetry: NOT part of
-       the hashed ABI payload and not part of the preparation
-       fingerprint, so a checkpointed preparation is byte-identical to
-       an uncheckpointed one everywhere the ABI is compared. *)
+    (* What this preparation persisted and read back. *)
     "PrepareCheckpoints" -> checkpointRecords,
-    "ABIPayload" -> payload, "ABIFingerprint" -> fingerprint|>
+    "DefiningData" -> payload|>
 ];
 multiquadraticStripPrepare[___] :=
   multiquadraticStripFailure["InvalidPrepareArguments"];
@@ -1430,7 +1411,7 @@ multiquadraticStripPreparationValidQ[preparation_Association] := Module[
   roots = Lookup[preparation, "Roots", $Failed];
   dimensions = Lookup[preparation, "Dimensions", $Failed];
   If[! ListQ[roots] || ! MatchQ[dimensions, {_Integer, _Integer}], Return[False]];
-  payload = multiquadraticStripABIPayload[preparation["Record"], roots,
+  payload = multiquadraticStripPreparationData[preparation["Record"], roots,
     preparation["Variables"], preparation["Regulator"], dimensions,
     preparation["GaugeDenominator"], preparation["GaugeSupport"],
     preparation["OneForms"], preparation["Normalizations"]];
@@ -1440,13 +1421,7 @@ multiquadraticStripPreparationValidQ[preparation_Association] := Module[
     Length[preparation["GaugeSupport"]];
   residueUnknownCount = Length[preparation["OneForms"]] (Times @@ dimensions);
   TrueQ[
-    payload === Lookup[preparation, "ABIPayload", Missing["Payload"]] &&
-    Lookup[preparation, "ABIFingerprint", Missing["Fingerprint"]] ===
-      multiquadraticStripFingerprint[payload] &&
-    Lookup[preparation, "AlgebraABIFingerprint", Missing["Algebra"]] ===
-      multiquadraticAlgebraABIFingerprint[] &&
-    Lookup[preparation, "RootOrderingFingerprint", Missing["RootOrder"]] ===
-      payload["RootOrderingFingerprint"] &&
+    payload === Lookup[preparation, "DefiningData", Missing["Data"]] &&
     Lookup[preparation, "RootCount", Missing["RootCount"]] === Length[roots] &&
     Lookup[preparation, "GradeCount", Missing["GradeCount"]] === gradeCount &&
     Lookup[preparation, "GaugeUnknownCount", Missing["Gauge"]] ===
@@ -1638,11 +1613,12 @@ multiquadraticStripInternValueBytes[value_] := N[ByteCount[value]];
    serialization and kernel round trip *)
 $multiquadraticStripCompileShardMinimum = 8;
 
-(* Both pools are FLAT Associations keyed by {pool, hash} and {pool,
+(* Both pools are flat Associations keyed by the actual held data and by
+   {pool,
    counter}: a one-level Part assignment on a symbol holding an
    Association is the only update form with a guaranteed constant-time
    semantics, and the compile does thousands of these per call. *)
-$multiquadraticStripInternCounterNames = {"Hits", "Misses", "Collisions",
+$multiquadraticStripInternCounterNames = {"Hits", "Misses",
   "Entries", "Resets", "Rejected", "Bytes", "Oversize"};
 
 multiquadraticStripInternReset[pool_String] := (
@@ -1666,18 +1642,10 @@ multiquadraticStripCompileCacheClear[] := (
 
 (* Present without computing: the shard planner needs to know which
    one-forms the pool already holds before it decides what to farm. *)
-multiquadraticStripInternProbe[pool_String, key_] := Module[{bucket, hit},
-  bucket = Lookup[$multiquadraticStripInternPools, Key[{pool, Hash[key]}], {}];
-  hit = SelectFirst[bucket, SameQ[First[#1], key] &, None];
-  If[hit === None, Missing["NotInterned"], Last[hit]]
-];
+multiquadraticStripInternProbe[pool_String, key_] :=
+  Lookup[$multiquadraticStripInternPools,
+    Key[{pool, key}], Missing["NotInterned"]];
 
-(* Hash bucket plus SameQ collision check (Codex item 2).  The hash is
-   the expression hash, never a canonical text: this pool is session
-   local, it is never serialized and it is never fingerprinted, so its
-   context sensitivity is not an ABI question.  SameQ decides, so a hash
-   collision merges nothing; two mathematically equal but structurally
-   different values simply miss, which costs time and never correctness. *)
 (* A NEGATIVE result is never cached (Codex P1, 2026-08-25).  The pools
    used to store whatever compute[] returned, $Failed included, and the
    early-core construction in prepare made that reachable on the public
@@ -1711,17 +1679,17 @@ multiquadraticStripInternValidQ[_String, value_] :=
   value =!= $Failed && FreeQ[value, $Failed];
 
 multiquadraticStripIntern[pool_String, key_, compute_] := Module[
-  {hash, bucket, hit, value, limit, byteLimit, oversizeLimit, bytes,
+  {entryKey, hit, value, limit, byteLimit, oversizeLimit, bytes,
    poolBytes, hits, misses, resets, oversize, counter},
   counter[name_String] :=
     Lookup[$multiquadraticStripInternCounters, Key[{pool, name}], 0];
-  hash = Hash[key];
-  bucket = Lookup[$multiquadraticStripInternPools, Key[{pool, hash}], {}];
-  hit = SelectFirst[bucket, SameQ[First[#1], key] &, None];
-  If[hit =!= None,
+  entryKey = Key[{pool, key}];
+  hit = Lookup[$multiquadraticStripInternPools, entryKey,
+    Missing["NotInterned"]];
+  If[! MissingQ[hit],
     $multiquadraticStripInternCounters[[Key[{pool, "Hits"}]]] =
       counter["Hits"] + 1;
-    Return[Last[hit]]];
+    Return[hit]];
   value = compute[];
   (* refused BEFORE any counter or bucket is touched: a rejected value
      leaves the pool exactly as it found it *)
@@ -1758,14 +1726,10 @@ multiquadraticStripIntern[pool_String, key_, compute_] := Module[
     $multiquadraticStripInternCounters[[Key[{pool, "Misses"}]]] = misses;
     $multiquadraticStripInternCounters[[Key[{pool, "Oversize"}]]] = oversize;
     $multiquadraticStripInternCounters[[Key[{pool, "Resets"}]]] = resets + 1;
-    poolBytes = 0;
-    bucket = {}];
+    poolBytes = 0];
   $multiquadraticStripInternCounters[[Key[{pool, "Misses"}]]] =
     counter["Misses"] + 1;
-  If[bucket =!= {},
-    $multiquadraticStripInternCounters[[Key[{pool, "Collisions"}]]] =
-      counter["Collisions"] + 1];
-  $multiquadraticStripInternPools[[Key[{pool, hash}]]] = Append[bucket, {key, value}];
+  $multiquadraticStripInternPools[[entryKey]] = value;
   $multiquadraticStripInternCounters[[Key[{pool, "Entries"}]]] =
     counter["Entries"] + 1;
   $multiquadraticStripInternCounters[[Key[{pool, "Bytes"}]]] =
@@ -1957,7 +1921,7 @@ multiquadraticStripLetterChannelData[letter_, roots_List,
     variables : {_Symbol, _Symbol}] := Module[
   {rank = Length[roots], deltas, channels, composed, inverse, result},
   deltas = If[rank === 0, {},
-    Together /@ Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]]];
+    Together /@ (squareRootRecordRadicand /@ roots)];
   If[! FreeQ[deltas, $Failed], Return[$Failed]];
   channels = Quiet[multiquadraticFieldDecompose[letter, roots]];
   If[! ListQ[channels] || Length[channels] =!= 2^rank ||
@@ -1984,38 +1948,15 @@ multiquadraticStripLetterChannelPair[letter_, roots_List,
   If[AssociationQ[data], Lookup[data, "DLogChannels", $Failed], $Failed]
 ];
 
-(* ---- COMPACT-DLOG ADMISSION (2026-08-25, Codex 14:30 P1) -----------
-
-   The compact path computes the channels of dlog(Letter) and installs
-   them as the channels of "form".  That substitution is sound only if
-   form IS dlog(Letter).  The pre-2026-08-25 gate tested
-   SameQ[record["OneForm"], form] -- i.e. that the caller passed the form
-   it had itself stored -- which is true of any self-consistent wrong
-   record and proves nothing about the dlog relation.
-
-   Two admissions are accepted, in this order:
-
-     "CertifiedTag"    the record carries the package-produced
-                       certificate minted at the site that computed the
-                       one-form from the letter, and BOTH its hashes
-                       re-derive from the letter and the form presented
-                       here.  Costs two canonical texts, no algebra.
-     "ExactDLogCheck"  dlog(Letter) is recomputed and compared to form
-                       entry by entry.  This is the exact relation, not
-                       a sample of it; it costs one Together per
-                       component and is the fallback for records this
-                       module did not build.
-
-   Anything else is REFUSED for the compact path -- a diagonal form
-   (closed, not a dlog), a record whose halves disagree, a bare form
-   with no record -- and the entry is compiled by decomposing the form
-   that was actually asked for, which is always correct.  The refusal
-   reason travels with the entry so a caller can see how many letters
-   took which route and why. *)
+(* The compact path may reuse retained channels only for a pair already
+   known to satisfy omega=dlog(L).  Package-constructed pairs record that
+   fact by construction; caller-supplied pairs reach this point only after
+   the explicit symbolic dlog equation has been verified.  The retained
+   channels are still recomposed and compared with the requested one-form
+   before use. *)
 multiquadraticStripCompactDLogAdmission[letterRecord_, form_,
     variables : {_Symbol, _Symbol}, epsilon_Symbol, mode_] := Module[
-  {letter, certificate, derived, letterChannels, formChannels,
-   certificateValidQ},
+  {letter, potential, derived},
   If[! AssociationQ[letterRecord],
     Return[<|"Admitted" -> False, "Reason" -> "NoLetterRecord"|>]];
   letter = Lookup[letterRecord, "Letter", Missing["NoLetter"]];
@@ -2024,23 +1965,18 @@ multiquadraticStripCompactDLogAdmission[letterRecord_, form_,
   If[! SameQ[Lookup[letterRecord, "OneForm", Missing["NoOneForm"]], form],
     Return[<|"Admitted" -> False,
       "Reason" -> "OneFormIsNotTheRecordOneForm"|>]];
-  certificate = Lookup[letterRecord, "DLogCertificate",
-    Missing["NoCertificate"]];
-  letterChannels = Lookup[letterRecord, "DLogLetterChannels", $Failed];
-  formChannels = Lookup[letterRecord, "DLogChannels", $Failed];
-  certificateValidQ = If[ListQ[letterChannels] && ListQ[formChannels],
-    multiquadraticStripLetterDLogCertificateValidQ[certificate, letter,
-      form, variables, epsilon, letterChannels, formChannels],
-    multiquadraticStripLetterDLogCertificateValidQ[certificate, letter,
-      form, variables, epsilon]];
-  If[mode =!= "Exact" &&
-      TrueQ[certificateValidQ],
-    Return[<|"Admitted" -> True, "Method" -> "CertifiedTag",
+  potential = Lookup[letterRecord, "Potential", <||>];
+  If[AssociationQ[potential] &&
+      Lookup[potential, "Status", None] === "PotentialVerified" &&
+      TrueQ[Lookup[potential, "Verified", False]] &&
+      SameQ[Lookup[potential, "Letter", Missing[]], letter] &&
+      SameQ[Lookup[potential, "OneForm", Missing[]], form],
+    Return[<|"Admitted" -> True, "Method" ->
+        Lookup[potential, "VerificationMethod", "ExactDLogCheck"],
       "Letter" -> letter|>]];
   If[mode === "Certified",
     Return[<|"Admitted" -> False,
-      "Reason" -> If[AssociationQ[certificate],
-        "DLogCertificateMismatch", "DLogCertificateMissing"]|>]];
+      "Reason" -> "VerifiedDLogPotentialMissing"|>]];
   derived = multiquadraticStripLetterOneForm[letter, variables];
   If[! MatchQ[derived, {_, _}],
     Return[<|"Admitted" -> False, "Reason" -> "LetterHasNoDLog"|>]];
@@ -2076,16 +2012,12 @@ multiquadraticStripCompileOneFormEntry[form : {_, _}, letterRecord_,
     compactQ_, gradeSupport_, admissionMode_] := Module[
   {channels = $Failed, admission = <|"Admitted" -> False,
      "Reason" -> "CompactRouteDisabled"|>, path, compiled, support,
-   admissible, retainedChannels, recomposed, channelCertificateQ},
+   admissible, retainedChannels, recomposed},
   If[TrueQ[compactQ],
     admission = multiquadraticStripCompactDLogAdmission[letterRecord, form,
       variables, epsilon, admissionMode];
     If[TrueQ[admission["Admitted"]],
       retainedChannels = Lookup[letterRecord, "DLogChannels", $Failed];
-      channelCertificateQ = Lookup[Lookup[letterRecord, "DLogCertificate",
-          <||>], "Schema", None] ===
-          $multiquadraticStripLetterDLogChannelSchema &&
-        Lookup[admission, "Method", None] === "CertifiedTag";
       If[MatchQ[retainedChannels, {_List, _List}] &&
           Dimensions[retainedChannels] === {2, 2^Length[roots]} &&
           FreeQ[retainedChannels, $Failed],
@@ -2098,11 +2030,8 @@ multiquadraticStripCompileOneFormEntry[form : {_, _}, letterRecord_,
         If[SameQ[recomposed, form],
           channels = retainedChannels]];
       If[! MatchQ[channels, {_List, _List}],
-        If[TrueQ[channelCertificateQ],
-          admission = <|"Admitted" -> False,
-            "Reason" -> "RetainedChannelRecompositionMismatch"|>,
-          channels = multiquadraticStripLetterChannelPair[
-            admission["Letter"], roots, variables]]];
+        channels = multiquadraticStripLetterChannelPair[
+          admission["Letter"], roots, variables]];
       If[! MatchQ[channels, {_List, _List}],
         admission = <|"Admitted" -> False,
           "Reason" -> "LetterChannelsUnavailable"|>]]];
@@ -2161,38 +2090,31 @@ multiquadraticStripCompileShardTask[dataFile_String, indices_List] := Module[
     <|"Indices" -> indices, "Entries" -> entries|>]
 ];
 
-(* ---- the one-form pool KEY (2026-08-25, Codex 14:30 "OneForm key
-   provenance").  The pre-2026-08-25 key was {prefix, form}: the SAME
+(* The one-form pool key distinguishes compact letter channels from direct
+   one-form decomposition.  The pre-2026-08-25 key was {prefix, form}: the same
    form compiled through the compact letter-channel route and through
    the decomposed-form route landed on ONE entry, so a route flip inside
    a session could serve the other route's channels, and two records
    naming DIFFERENT letters for the same stored one-form were
    indistinguishable.  The key now carries the requested ROUTE and the
-   letter's provenance hash, so an entry can only ever be served to the
+   actual letter data, so an entry can only ever be served to the
    configuration that produced it.  The stored entry additionally
    reports the route it actually took ("Path"), which the compact route
    may still downgrade after an admission refusal. *)
-multiquadraticStripLetterProvenanceHash[record_,
-    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
-  {certificate},
+multiquadraticStripLetterData[record_,
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[{rules},
   If[! AssociationQ[record], Return["NoLetterRecord"]];
-  certificate = Lookup[record, "DLogCertificate", Missing["NoCertificate"]];
-  (* the certificate already hashes the canonical letter and one-form
-     texts, so it IS the provenance and costs nothing to reuse *)
-  If[AssociationQ[certificate],
-    Return[Hash[{Lookup[record, "Kind", None], certificate},
-      "SHA256", "HexString"]]];
-  Hash[{Lookup[record, "Kind", None],
-    ToString[InputForm[Lookup[record, "Letter", Missing["NoLetter"]] /.
-      multiquadraticStripCanonicalRules[variables, epsilon]]]},
-    "SHA256", "HexString"]
+  rules = multiquadraticStripCanonicalRules[variables, epsilon];
+  {Lookup[record, "Kind", None],
+    Lookup[record, "Letter", Missing["NoLetter"]] /. rules,
+    Lookup[record, "OneForm", Missing["NoOneForm"]] /. rules}
 ];
 
 multiquadraticStripCompileOneFormKey[prefix_, form_, record_, compactQ_,
     gradeSupport_, admissionMode_, variables : {_Symbol, _Symbol},
     epsilon_Symbol] := {prefix, form,
   If[TrueQ[compactQ], "CompactLetterChannels", "DecomposedForm"],
-  multiquadraticStripLetterProvenanceHash[record, variables, epsilon],
+  multiquadraticStripLetterData[record, variables, epsilon],
   gradeSupport, admissionMode};
 
 (* The ansatz half of the split: one interned entry per one-form, keyed
@@ -2216,8 +2138,9 @@ multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
     Length[letterRecords] === Length[oneForms];
   records = If[aligned, letterRecords,
     ConstantArray[None, Length[oneForms]]];
-  prefix = {$multiquadraticStripABIVersion, variables, epsilon,
-    Lookup[roots, "Root", {}], Lookup[roots, "RootSquare", {}]};
+  prefix = {variables, epsilon,
+    squareRootRecordExpression /@ roots,
+    squareRootRecordRadicand /@ roots};
   keys = Table[
     multiquadraticStripCompileOneFormKey[prefix, oneForms[[index]],
       records[[index]], compactQ, gradeSupport, admissionMode, variables,
@@ -2244,7 +2167,7 @@ multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
         "Roots" -> (roots /. rules), "Compact" -> TrueQ[compactQ],
         "GradeSupport" -> gradeSupport, "AdmissionMode" -> admissionMode|>;
       dataFile = taskBrokerDataFile[
-        "mqcompile_" <> Hash[{prefix, oneForms}, "SHA256", "HexString"],
+        "mqcompile_" <> CreateUUID[],
         payload];
       If[StringQ[dataFile],
         groups = Partition[pending, UpTo[Ceiling[Length[pending]/shardCount]]];
@@ -2297,15 +2220,11 @@ multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
       Missing["NotRecorded"]]|>
 ];
 
-(* The core key.  Deliberately NOT the ABI fingerprint: that one carries
-   the support, the one-forms and the gauge denominator, all of which are
-   ansatz.  This one carries exactly what the core depends on -- the
-   equation, the canonical roots, the grade ABI, this source file, and
-   the chart symbols themselves, because two preparations that differ
-   only in symbol names share an EquationFingerprint (it is computed
-   from the canonical text) and must NOT share compiled channels. *)
-(* The key parts, so that PREPARE can key the core before it has an ABI
-   payload (2026-08-25).  Both callers must land on the same pool entry
+(* The core cache key contains exactly the canonical differential equation,
+   ordered generator expressions and radicands, and matrix dimensions.  The
+   ansatz support, one-forms and denominator are intentionally absent.  The
+   key parts let preparation query the core before its full defining-data
+   record exists.  Both callers must land on the same pool entry
    or the core is built twice, which is the whole defect that split
    closes.
 
@@ -2324,26 +2243,21 @@ multiquadraticStripCompileOneForms[oneForms_List, letterRecords_,
    what the grade multiplication table is built from, and a root whose
    canonical text is equal while its square differs is not reachable but
    is also not worth relying on.) *)
-multiquadraticStripCompileCoreKeyFromParts[algebraFingerprint_,
-    equationFingerprint_, rootOrderingFingerprint_, rootCanonicalSquares_,
-    rootCanonicalExpressions_, dimensions_,
-    variables : {_Symbol, _Symbol}, epsilon_Symbol] :=
-  {$multiquadraticStripABIVersion, algebraFingerprint,
-   equationFingerprint, rootOrderingFingerprint, rootCanonicalSquares,
-   rootCanonicalExpressions, dimensions, variables, epsilon};
+multiquadraticStripCompileCoreKeyFromParts[equationData_,
+    rootCanonicalSquares_, rootCanonicalExpressions_, dimensions_] :=
+  {equationData, rootCanonicalSquares, rootCanonicalExpressions, dimensions};
 
 multiquadraticStripCompileCoreKey[preparation_Association,
     variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
-  {payload = Lookup[preparation, "ABIPayload", $Failed]},
+  {payload = Lookup[preparation, "DefiningData", $Failed]},
   If[! AssociationQ[payload], Return[$Failed]];
-  If[AnyTrue[{"EquationFingerprint", "RootOrderingFingerprint",
-      "RootCanonicalSquares", "RootCanonicalExpressions", "Dimensions"},
+  If[AnyTrue[{"EquationCanonical", "RootCanonicalSquares",
+      "RootCanonicalExpressions", "Dimensions"},
       ! KeyExistsQ[payload, #1] &], Return[$Failed]];
   multiquadraticStripCompileCoreKeyFromParts[
-    Lookup[preparation, "AlgebraABIFingerprint", $Failed],
-    payload["EquationFingerprint"], payload["RootOrderingFingerprint"],
+    payload["EquationCanonical"],
     payload["RootCanonicalSquares"], payload["RootCanonicalExpressions"],
-    payload["Dimensions"], variables, epsilon]
+    payload["Dimensions"]]
 ];
 
 (* Takes the STRIP, not a preparation: prepare consumes this record too
@@ -2372,7 +2286,7 @@ multiquadraticStripCompileCoreRecord[strip_, roots_List,
           <|"Channels" -> reusedChannels, "Compiled" -> compiled|>]],
       multiquadraticStripCompileTensorInterned[bbar, 3, roots, variables,
         epsilon, "compile core: BBar"]];
-    rootSquares = Lookup[roots, "RootSquare", {}];
+    rootSquares = squareRootRecordRadicand /@ roots;
     rootSquareData = multiquadraticStripCompileTensorInterned[rootSquares, 1,
       {}, variables, epsilon];
     rootLogData = multiquadraticStripCompileTensorInterned[
@@ -2405,7 +2319,7 @@ multiquadraticStripCompileDenominatorRecord[denominator_,
         "GaugeLogDerivatives" -> denominatorLogData|>]];
   If[TrueQ[useCacheQ],
     multiquadraticStripIntern["GaugeDenominator",
-      {$multiquadraticStripABIVersion, variables, epsilon, denominator},
+      {variables, epsilon, denominator},
       Function[build[]]],
     build[]]
 ];
@@ -2434,7 +2348,7 @@ multiquadraticStripCompileLegacyCore[preparation_Association, roots_List,
       If[! FreeQ[compiled, $Failed], $Failed,
         <|"Channels" -> reusedChannels, "Compiled" -> compiled|>]],
     multiquadraticStripCompileTensor[bbar, 3, roots, variables, epsilon]];
-  rootSquares = Lookup[roots, "RootSquare", {}];
+  rootSquares = squareRootRecordRadicand /@ roots;
   rootSquareData = multiquadraticStripCompileTensor[rootSquares, 1, {},
     variables, epsilon];
   rootLogData = multiquadraticStripCompileTensor[
@@ -2468,21 +2382,9 @@ multiquadraticStripFormShape[expression_] := Which[
   True, "Scalar"
 ];
 
-multiquadraticStripSemanticPayload[assembly_Association] := KeyTake[assembly, {
-  "ABIFingerprint", "AlgebraABIFingerprint", "RootOrderingFingerprint",
-  "RootCount", "GradeCount", "Dimensions", "GaugeSupport",
-  "GaugeUnknownCount", "ResidueUnknownCount", "UnknownCount",
-  "EquationsPerPoint", "ColumnOrder", "RowOrder",
-  "ExactChannelFormsFingerprint", "CompiledFormsFingerprint",
-  "CompiledFormsShapeFingerprint",
-  (* the identity key the record carries: "ABIVersion" for every record
-     written since U3, "SourceSHA256" for a legacy one (the pre-U3 list
-     ended with that key in this position) *)
-  multiquadraticStripABIKey[assembly]}];
-
 (* "PreparationValidated" and "ForcingChannels" exist for ONE caller:
    solveEpsFormStripMultiquadratic, which has just built this preparation
-   object itself in the same call.  Re-deriving the ABI payload and
+   object itself in the same call.  Re-deriving the defining data and
    decomposing the forcing a second time then costs (measured on CF300
    (12,9)) 25 s and 807 s and can only reproduce what the preparation
    already carries.  Both default to the conservative behaviour, so a
@@ -2558,8 +2460,8 @@ multiquadraticStripCompile[preparation_Association,
   {gate, variables, epsilon, record, roots, rules, dimensions,
    coreKey, core, eData, cData, bData, oneData, rootSquareData,
    rootLogData, reusedChannels, denominatorRecord, denominatorData,
-   denominatorLogData, exactForms, compiledForms, canonicalExact, result,
-   payload, coreEnabled, compactQ, shards, legacyQ, coreSeconds,
+   denominatorLogData, exactForms, compiledForms, result,
+   coreEnabled, compactQ, shards, legacyQ, coreSeconds,
    oneFormSeconds, denominatorSeconds, statistics,
    gradeSupport, admissionMode, deadline, compileStop, compileProgress,
    compileBudget, compileGuard, poolByteLimit, poolEntryLimit,
@@ -2576,7 +2478,7 @@ multiquadraticStripCompile[preparation_Association,
         "Expected" -> "an absolute AbsoluteTime[] value, or Infinity"|>]]];
   If[! TrueQ[OptionValue["PreparationValidated"]] &&
       ! multiquadraticStripPreparationValidQ[preparation],
-    Return[multiquadraticStripFailure["InvalidPreparationABI"]]];
+    Return[multiquadraticStripFailure["InvalidPreparation"]]];
   variables = preparation["Variables"];
   epsilon = preparation["Regulator"];
   record = preparation["Record"];
@@ -2819,21 +2721,9 @@ multiquadraticStripCompile[preparation_Association,
     "GaugeLogDerivatives" -> First /@ denominatorLogData["Compiled"]|>;
   If[! FreeQ[compiledForms, $Failed],
     Return[multiquadraticStripFailure["CompiledAssemblyFormsInvalid"]]];
-  (* the exact forms carry the chart symbols: canonicalize before
-     hashing so the cache key is not the reader's context (pool defect
-     3 -- ExactChannelFormsFingerprint changed with the inspecting
-     context in the Codex original) *)
-  canonicalExact = exactForms /. rules;
-  If[! multiquadraticStripContextFreeQ[canonicalExact],
-    Return[multiquadraticStripFailure["ContextSensitiveChannelForms"]]];
   result = <|
     "Status" -> "CompiledMultiquadraticStripV1",
-    "SourceFile" -> $multiquadraticStripSourceFile,
-    "ABIVersion" -> $multiquadraticStripABIVersion,
     "Preparation" -> preparation,
-    "ABIFingerprint" -> preparation["ABIFingerprint"],
-    "AlgebraABIFingerprint" -> preparation["AlgebraABIFingerprint"],
-    "RootOrderingFingerprint" -> preparation["RootOrderingFingerprint"],
     "Record" -> record, "Roots" -> roots,
     "RootCount" -> preparation["RootCount"],
     "GradeCount" -> preparation["GradeCount"],
@@ -2850,38 +2740,25 @@ multiquadraticStripCompile[preparation_Association,
     "ColumnOrder" -> preparation["ColumnOrder"],
     "RowOrder" -> preparation["RowOrder"],
     "ExactChannelForms" -> exactForms,
-    "CompiledForms" -> compiledForms,
-    "ExactChannelFormsFingerprint" -> multiquadraticStripFingerprint[canonicalExact],
-    "CompiledFormsFingerprint" -> multiquadraticStripFingerprint[compiledForms],
-    "CompiledFormsShapeFingerprint" -> multiquadraticStripFingerprint[
-      multiquadraticStripFormShape[compiledForms]]|>;
-  payload = multiquadraticStripSemanticPayload[result];
-  (* telemetry only.  multiquadraticStripSemanticPayload is a KeyTake of
-     a fixed list, so nothing here enters AssemblyFingerprint and no
-     artifact comparison sees a wall clock. *)
+    "CompiledForms" -> compiledForms|>;
   result = Append[result, "CompileStatistics" -> Append[statistics,
     "Seconds" -> AbsoluteTime[] - startTime]];
-  Append[result, "AssemblyFingerprint" -> multiquadraticStripFingerprint[payload]]
+  result
 ];
 multiquadraticStripCompile[___] :=
   multiquadraticStripFailure["InvalidCompileArguments"];
 
 multiquadraticStripCompiledValidQ[assembly_Association] := Module[
   {dimensions, rootCount, gradeCount, support, expectedGauge, expectedResidue,
-   requiredKeys, rules, canonicalExact, abiKey},
+   requiredKeys, preparation},
   If[Lookup[assembly, "Status", None] =!= "CompiledMultiquadraticStripV1",
     Return[False]];
-  (* "ABIVersion", or the legacy "SourceSHA256" (U3 lineage) *)
-  abiKey = multiquadraticStripABIKey[assembly];
-  If[abiKey === $Failed, Return[False]];
-  requiredKeys = {"SourceFile", abiKey, "ABIFingerprint",
-    "AlgebraABIFingerprint", "RootOrderingFingerprint", "Record", "Roots",
+  requiredKeys = {"Preparation", "Record", "Roots",
     "RootCount", "GradeCount", "Variables", "Regulator", "Dimensions",
     "GaugeSupport", "OneForms", "GaugeDenominator", "Normalizations",
     "GaugeUnknownCount", "ResidueUnknownCount", "UnknownCount",
     "EquationsPerPoint", "ColumnOrder", "RowOrder", "ExactChannelForms",
-    "CompiledForms", "ExactChannelFormsFingerprint", "CompiledFormsFingerprint",
-    "CompiledFormsShapeFingerprint", "AssemblyFingerprint"};
+    "CompiledForms"};
   If[! AllTrue[requiredKeys, KeyExistsQ[assembly, #1] &], Return[False]];
   dimensions = assembly["Dimensions"];
   rootCount = assembly["RootCount"];
@@ -2893,12 +2770,11 @@ multiquadraticStripCompiledValidQ[assembly_Association] := Module[
       ! ListQ[support] || support === {}, Return[False]];
   expectedGauge = Times @@ dimensions gradeCount Length[support];
   expectedResidue = Length[assembly["OneForms"]] Times @@ dimensions;
-  rules = multiquadraticStripCanonicalRules[assembly["Variables"],
-    assembly["Regulator"]];
-  canonicalExact = assembly["ExactChannelForms"] /. rules;
+  preparation = assembly["Preparation"];
   TrueQ[
-    multiquadraticStripABIVersionValidQ[assembly] &&
-    assembly["AlgebraABIFingerprint"] === multiquadraticAlgebraABIFingerprint[] &&
+    multiquadraticStripPreparationValidQ[preparation] &&
+    SameQ[assembly["Record"], preparation["Record"]] &&
+    SameQ[assembly["Roots"], preparation["Roots"]] &&
     assembly["GaugeUnknownCount"] === expectedGauge &&
     assembly["ResidueUnknownCount"] === expectedResidue &&
     assembly["UnknownCount"] === expectedGauge + expectedResidue &&
@@ -2906,88 +2782,69 @@ multiquadraticStripCompiledValidQ[assembly_Association] := Module[
     assembly["ColumnOrder"] === multiquadraticStripColumnOrder[dimensions,
       gradeCount, support, Length[assembly["OneForms"]]] &&
     assembly["RowOrder"] === multiquadraticStripRowOrder[dimensions, gradeCount] &&
-    assembly["ExactChannelFormsFingerprint"] ===
-      multiquadraticStripFingerprint[canonicalExact] &&
-    assembly["CompiledFormsFingerprint"] ===
-      multiquadraticStripFingerprint[assembly["CompiledForms"]] &&
-    assembly["CompiledFormsShapeFingerprint"] === multiquadraticStripFingerprint[
-      multiquadraticStripFormShape[assembly["CompiledForms"]]] &&
-    assembly["AssemblyFingerprint"] === multiquadraticStripFingerprint[
-      multiquadraticStripSemanticPayload[assembly]]]
+    AssociationQ[assembly["ExactChannelForms"]] &&
+    AssociationQ[assembly["CompiledForms"]] &&
+    FreeQ[assembly["CompiledForms"], $Failed]]
 ];
 
 (* ------------------------------------------------------------------ *)
-(* Provider-independent row layout and coefficient ABI                 *)
+(* Provider-independent row layout and coefficient data                *)
 (* ------------------------------------------------------------------ *)
 
 (* A coefficient provider is compatible with a row layout only when it
-   speaks exactly the same multiquadratic basis.  The ROOT BRANCH is part
-   of that basis: Root -> -Sqrt[delta] has the same square but reverses all
-   odd grades.  Consequently this payload fingerprints both the square and
-   the chosen root expression, as well as every object whose order fixes a
-   coefficient tensor axis. *)
-multiquadraticStripCoefficientABIPayload[
+   uses the same ordered square-root generators, one-forms, dimensions and
+   denominator.  These mathematical objects are stored directly. *)
+multiquadraticStripCoefficientData[
     variables : {_Symbol, _Symbol}, epsilon_Symbol, roots_List,
     dimensions : {_Integer, _Integer}, oneForms_List,
     gaugeDenominator_] := Module[
   {rules, rootSquares, rootExpressions, canonicalSquares,
    canonicalExpressions, canonicalForms, canonicalDenominator},
   If[Min[dimensions] < 1 ||
-      ! AllTrue[roots, AssociationQ[#1] && KeyExistsQ[#1, "Root"] &&
-        KeyExistsQ[#1, "RootSquare"] &&
-        TrueQ[Together[#1["Root"]^2 - #1["RootSquare"]] === 0] &] ||
+      ! AllTrue[roots, AssociationQ[#1] &&
+        squareRootRecordExpression[#1] =!= $Failed &&
+        squareRootRecordRadicand[#1] =!= $Failed &&
+        TrueQ[Together[squareRootRecordExpression[#1]^2 -
+          squareRootRecordRadicand[#1]] === 0] &] ||
       ! MatchQ[oneForms, {} | {{_, _} ..}], Return[$Failed]];
   rules = multiquadraticStripCanonicalRules[variables, epsilon];
-  rootSquares = Lookup[roots, "RootSquare", {}];
-  rootExpressions = Lookup[roots, "Root", {}];
-  canonicalSquares = multiquadraticStripCanonicalText[#1, rules] & /@
+  rootSquares = squareRootRecordRadicand /@ roots;
+  rootExpressions = squareRootRecordExpression /@ roots;
+  canonicalSquares = multiquadraticStripCanonicalExpression[#1, rules] & /@
     rootSquares;
-  canonicalExpressions = multiquadraticStripCanonicalText[#1, rules] & /@
+  canonicalExpressions = multiquadraticStripCanonicalExpression[#1, rules] & /@
     rootExpressions;
-  canonicalForms = Map[multiquadraticStripCanonicalText[#1, rules] &,
+  canonicalForms = Map[multiquadraticStripCanonicalExpression[#1, rules] &,
     oneForms, {2}];
-  canonicalDenominator = multiquadraticStripCanonicalText[
+  canonicalDenominator = multiquadraticStripCanonicalExpression[
     gaugeDenominator, rules];
   If[! FreeQ[{canonicalSquares, canonicalExpressions, canonicalForms,
       canonicalDenominator}, $Failed], Return[$Failed]];
-  <|"Schema" -> "MultiquadraticCoefficientABIV1",
-    "Variables" -> {"x", "y"}, "Regulator" -> "epsilon",
+  <|"Schema" -> "MultiquadraticCoefficientDataV2",
     "Dimensions" -> dimensions,
     "RootSquares" -> canonicalSquares,
     "RootExpressions" -> canonicalExpressions,
-    "RootFingerprints" -> (Hash[#1, "SHA256", "HexString"] & /@
-      Transpose[{canonicalSquares, canonicalExpressions}]),
-    "RootOrderingFingerprint" -> Hash[
-      Transpose[{canonicalSquares, canonicalExpressions}], "SHA256",
-      "HexString"],
     "OneForms" -> canonicalForms,
     "GaugeDenominator" -> canonicalDenominator|>
 ];
-multiquadraticStripCoefficientABIPayload[___] := $Failed;
+multiquadraticStripCoefficientData[___] := $Failed;
 
 (* The layout owns columns, rows and normalizations, but no coefficient
    source.  In particular it does not claim that characteristic-zero
    channels were compiled. *)
 multiquadraticStripAssemblyLayout[preparation_Association] := Module[
-  {coefficientPayload, coefficientFingerprint, semantic, result},
+  {coefficientData},
   If[! multiquadraticStripPreparationValidQ[preparation],
-    Return[multiquadraticStripFailure["InvalidPreparationABI"]]];
-  coefficientPayload = multiquadraticStripCoefficientABIPayload[
+    Return[multiquadraticStripFailure["InvalidPreparation"]]];
+  coefficientData = multiquadraticStripCoefficientData[
     preparation["Variables"], preparation["Regulator"],
     preparation["Roots"], preparation["Dimensions"],
     preparation["OneForms"], preparation["GaugeDenominator"]];
-  If[coefficientPayload === $Failed,
-    Return[multiquadraticStripFailure["CoefficientABIFailed"]]];
-  coefficientFingerprint = multiquadraticStripFingerprint[
-    coefficientPayload];
-  result = <|
+  If[coefficientData === $Failed,
+    Return[multiquadraticStripFailure["CoefficientDataConstructionFailed"]]];
+  <|
     "Status" -> "MultiquadraticStripAssemblyLayoutV1",
-    "SourceFile" -> $multiquadraticStripSourceFile,
-    "ABIVersion" -> $multiquadraticStripABIVersion,
-    "ABIFingerprint" -> preparation["ABIFingerprint"],
-    "AlgebraABIFingerprint" -> preparation["AlgebraABIFingerprint"],
-    "RootOrderingFingerprint" ->
-      coefficientPayload["RootOrderingFingerprint"],
+    "Preparation" -> preparation,
     "Record" -> preparation["Record"], "Roots" -> preparation["Roots"],
     "RootCount" -> preparation["RootCount"],
     "GradeCount" -> preparation["GradeCount"],
@@ -3004,22 +2861,14 @@ multiquadraticStripAssemblyLayout[preparation_Association] := Module[
     "EquationsPerPoint" -> preparation["EquationsPerPoint"],
     "ColumnOrder" -> preparation["ColumnOrder"],
     "RowOrder" -> preparation["RowOrder"],
-    "CoefficientABIPayload" -> coefficientPayload,
-    "CoefficientABIFingerprint" -> coefficientFingerprint|>;
-  semantic = KeyTake[result, {"ABIVersion", "ABIFingerprint",
-    "AlgebraABIFingerprint", "RootOrderingFingerprint", "RootCount",
-    "GradeCount", "Dimensions", "GaugeSupport", "GaugeUnknownCount",
-    "ResidueUnknownCount", "UnknownCount", "EquationsPerPoint",
-    "ColumnOrder", "RowOrder", "CoefficientABIFingerprint"}];
-  Append[result, "LayoutFingerprint" ->
-    multiquadraticStripFingerprint[semantic]]
+    "CoefficientData" -> coefficientData|>
 ];
 multiquadraticStripAssemblyLayout[___] :=
   multiquadraticStripFailure["InvalidAssemblyLayoutArguments"];
 
 multiquadraticStripAssemblyLayoutValidQ[layout_Association] := Module[
   {dimensions, rootCount, gradeCount, support, oneForms, expectedGauge,
-   expectedResidue, coefficientPayload, coefficientFingerprint, semantic},
+   expectedResidue, coefficientData, preparation},
   If[Lookup[layout, "Status", None] =!=
       "MultiquadraticStripAssemblyLayoutV1", Return[False]];
   dimensions = Lookup[layout, "Dimensions", $Failed];
@@ -3035,27 +2884,15 @@ multiquadraticStripAssemblyLayoutValidQ[layout_Association] := Module[
       ! MatchQ[oneForms, {} | {{_, _} ..}], Return[False]];
   expectedGauge = Times @@ dimensions gradeCount Length[support];
   expectedResidue = Length[oneForms] Times @@ dimensions;
-  coefficientPayload = multiquadraticStripCoefficientABIPayload[
+  coefficientData = multiquadraticStripCoefficientData[
     layout["Variables"], layout["Regulator"], layout["Roots"], dimensions,
     oneForms, layout["GaugeDenominator"]];
-  If[coefficientPayload === $Failed, Return[False]];
-  coefficientFingerprint = multiquadraticStripFingerprint[
-    coefficientPayload];
-  semantic = KeyTake[layout, {"ABIVersion", "ABIFingerprint",
-    "AlgebraABIFingerprint", "RootOrderingFingerprint", "RootCount",
-    "GradeCount", "Dimensions", "GaugeSupport", "GaugeUnknownCount",
-    "ResidueUnknownCount", "UnknownCount", "EquationsPerPoint",
-    "ColumnOrder", "RowOrder", "CoefficientABIFingerprint"}];
+  If[coefficientData === $Failed, Return[False]];
+  preparation = Lookup[layout, "Preparation", $Failed];
   TrueQ[
-    Lookup[layout, "ABIVersion", None] ===
-      $multiquadraticStripABIVersion &&
-    Lookup[layout, "AlgebraABIFingerprint", None] ===
-      multiquadraticAlgebraABIFingerprint[] &&
-    Lookup[layout, "CoefficientABIPayload", None] === coefficientPayload &&
-    Lookup[layout, "CoefficientABIFingerprint", None] ===
-      coefficientFingerprint &&
-    Lookup[layout, "RootOrderingFingerprint", None] ===
-      coefficientPayload["RootOrderingFingerprint"] &&
+    AssociationQ[preparation] &&
+    multiquadraticStripPreparationValidQ[preparation] &&
+    Lookup[layout, "CoefficientData", None] === coefficientData &&
     layout["GaugeUnknownCount"] === expectedGauge &&
     layout["ResidueUnknownCount"] === expectedResidue &&
     layout["UnknownCount"] === expectedGauge + expectedResidue &&
@@ -3063,17 +2900,9 @@ multiquadraticStripAssemblyLayoutValidQ[layout_Association] := Module[
     layout["ColumnOrder"] === multiquadraticStripColumnOrder[dimensions,
       gradeCount, support, Length[oneForms]] &&
     layout["RowOrder"] === multiquadraticStripRowOrder[dimensions,
-      gradeCount] &&
-    Lookup[layout, "LayoutFingerprint", None] ===
-      multiquadraticStripFingerprint[semantic]]
+      gradeCount]]
 ];
 multiquadraticStripAssemblyLayoutValidQ[___] := False;
-
-(* As with coefficient providers, a layout is deeply authenticated at the
-   sampling/reconstruction boundary.  Point rows need only its immutable
-   dimensions and fingerprints; rebuilding canonical ABI payloads for every
-   point is pure repetition. *)
-$multiquadraticStripTrustedLayoutEvaluation = False;
 
 multiquadraticStripAssemblyLayoutHotValidQ[layout_Association] := TrueQ[
   Lookup[layout, "Status", None] ===
@@ -3083,15 +2912,11 @@ multiquadraticStripAssemblyLayoutHotValidQ[layout_Association] := TrueQ[
   IntegerQ[Lookup[layout, "RootCount", None]] && layout["RootCount"] >= 0 &&
   Lookup[layout, "GradeCount", None] === 2^layout["RootCount"] &&
   IntegerQ[Lookup[layout, "UnknownCount", None]] &&
-  layout["UnknownCount"] >= 0 &&
-  StringQ[Lookup[layout, "LayoutFingerprint", None]] &&
-  StringQ[Lookup[layout, "CoefficientABIFingerprint", None]]];
+  layout["UnknownCount"] >= 0];
 multiquadraticStripAssemblyLayoutHotValidQ[___] := False;
 
-multiquadraticStripAssemblyLayoutEvaluationValidQ[layout_] := If[
-  TrueQ[$multiquadraticStripTrustedLayoutEvaluation],
-  multiquadraticStripAssemblyLayoutHotValidQ[layout],
-  multiquadraticStripAssemblyLayoutValidQ[layout]];
+multiquadraticStripAssemblyLayoutEvaluationValidQ[layout_] :=
+  multiquadraticStripAssemblyLayoutHotValidQ[layout];
 
 (* A compiled-channel provider is an authenticated compatibility wrapper;
    it remains the characteristic-zero differential oracle, not a second
@@ -3105,13 +2930,11 @@ multiquadraticStripCompiledProvider[assembly_Association] := Module[
   If[! multiquadraticStripAssemblyLayoutValidQ[layout], Return[layout]];
   result = <|"Status" -> "MultiquadraticCoefficientProviderV1",
     "Kind" -> "CompiledChannel", "Assembly" -> assembly,
-    "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
+    "CoefficientData" -> layout["CoefficientData"],
     "RootCount" -> layout["RootCount"],
     "GradeCount" -> layout["GradeCount"],
     "Dimensions" -> layout["Dimensions"]|>;
-  Append[result, "ProviderFingerprint" -> multiquadraticStripFingerprint[
-    {"CompiledChannel", result["CoefficientABIFingerprint"],
-      assembly["AssemblyFingerprint"]}]]
+  result
 ];
 multiquadraticStripCompiledProvider[___] :=
   multiquadraticStripFailure["InvalidCompiledProviderArguments"];

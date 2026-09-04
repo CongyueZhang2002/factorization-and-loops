@@ -214,7 +214,7 @@ masterTransportCoefficientPresentationData[input_,
    sourceNames, declaredSourceNames, oldSourceVariables, sourceRules,
    f, g, jacobian, det,
    roots, rootChecks, generators, relationChecks,
-   sourceRelationChecks, foreignSymbols},
+   sourceRelationChecks, foreignSymbols, identityVariableMapQ},
   If[! MatchQ[sourceVariables, {_Symbol, _Symbol}],
     Return[<|"Status" -> "SourceVariablesInvalid"|>]];
   If[input === None,
@@ -288,8 +288,12 @@ masterTransportCoefficientPresentationData[input_,
   If[substitutionNames =!= sourceNames,
     Return[<|"Status" -> "CoefficientPresentationSourceVariablesMismatch",
       "Expected" -> sourceNames, "Found" -> substitutionNames|>]];
+  identityVariableMapQ = targetVariables === presentation["SourceVariables"] &&
+    substitution === Thread[presentation["SourceVariables"] ->
+      presentation["SourceVariables"]];
   If[Length[DeleteDuplicates[
-        Join[sourceNames, SymbolName /@ targetVariables]]] =!= 4,
+        Join[sourceNames, SymbolName /@ targetVariables]]] =!= 4 &&
+      ! identityVariableMapQ,
     Return[<|"Status" -> "CoefficientPresentationVariablesCollide"|>]];
   oldSourceVariables = First /@ substitution;
   sourceRules = Thread[oldSourceVariables -> sourceVariables[[{1, 2}]]];

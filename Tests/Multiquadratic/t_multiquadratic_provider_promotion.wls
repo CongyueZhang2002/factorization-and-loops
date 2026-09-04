@@ -376,10 +376,10 @@ If[Environment["FACET_RUN_MQ_CF300_PROMOTION"] === "1",
     cfPointCount = 18,
     cfOracleFingerprint = "FrozenExactBBarPlusQuotientGradeV1"},
 
-   FeynFacet`TransportFamilyChartLoad[FileNameJoin[{root,
+   FeynFacet`LoadFamilyRootData[FileNameJoin[{root,
      "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical",
      "TransportFamilyCharts.wl"}]];
-   cfChart = FeynFacet`TransportFamilyChart["CF300"];
+   cfChart = FeynFacet`FamilyRootData["CF300"];
    cfRecord = FeynFacet`FamilyArtifactRead[cf300Paths["Strip"], "Global`"];
    cfState = FeynFacet`FamilyArtifactRead[cf300Paths["StripSolvers"],
      "Global`"];

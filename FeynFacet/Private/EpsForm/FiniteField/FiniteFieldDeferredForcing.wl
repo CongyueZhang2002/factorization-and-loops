@@ -110,9 +110,9 @@ finiteFieldDeferredForcingModAt[expression_, values_Association, prime_Integer] 
 
 (* The plan binds everything the images need: the preparation and its file
    (the adapter parses the file itself), the chart substitution, the
-   Jacobian, the roots with their chart images.  Registered under a key
-   derived from the file, the chart substitution and the root images, so a
-   strip record carries only the small descriptor. *)
+   Jacobian, and the roots with their rational images.  The registry uses an
+   ephemeral identifier only to route calls within a run; it is not evidence
+   and is never used to decide mathematical compatibility. *)
 finiteFieldDeferredForcingPlan[deferredPreparation_Association,
     inputFile_String, data_Association, usedRoots_List, rootImages_List,
     chartVariables : {_Symbol, _Symbol}, variables : {_Symbol, _Symbol},
@@ -128,9 +128,7 @@ finiteFieldDeferredForcingPlan[deferredPreparation_Association,
       Length[usedRoots] =!= Length[rootImages] ||
       multiquadraticStripNativeDeferredBinary[] === None,
     Return[<|"Status" -> "DeferredForcingPlanInvalid"|>]];
-  key = Hash[{inputFile, Lookup[preparation, "Fingerprint", None],
-    data["Subst"], rootImages, Lookup[usedRoots, "RootSquare", {}]},
-    "SHA256", "HexString"];
+  key = CreateUUID["deferred-forcing-"];
   plan = <|"Status" -> "OK", "Key" -> key,
     "InputFile" -> inputFile,
     "Tables" -> finiteFieldDeferredForcingTables[data, rootImages, usedRoots,
@@ -145,26 +143,24 @@ finiteFieldDeferredForcingPlan[deferredPreparation_Association,
       "GradeCount" -> 2^Length[usedRoots], "Dimensions" -> dimensions,
       "DeferredPreparation" -> preparation,
       "DeferredPreparationFile" -> inputFile,
-      "SourceFingerprint" -> Lookup[preparation, "SourceFingerprint", None],
-      "ProviderFingerprint" -> key|>|>;
+      "ProviderID" -> key|>|>;
   $finiteFieldDeferredForcingRegistry[key] = plan;
   plan
 ];
 finiteFieldDeferredForcingPlan[___] := <|"Status" -> "DeferredForcingPlanInvalid"|>;
 
-(* R2 F2: a helper kernel (KernelPool broker) has an empty registry.  The
-   descriptor therefore carries a small serializable handle from which the
-   helper rebuilds the plan deterministically (same key: the hash reads only
-   the file, the preparation fingerprint, the chart substitution, the root
-   images and the root squares).  The rebuilt plan is "slim": it has the
+(* A helper kernel has an empty registry.  The descriptor therefore carries
+   a small serializable handle from which the helper rebuilds the same
+   mathematical plan.  The rebuilt plan is "slim": it has the
    preparation's validation fields but not its records, so it serves images
    and residual checks, never a census. *)
 finiteFieldDeferredForcingHandle[plan_Association] := <|
   "InputFile" -> plan["InputFile"],
   "Preparation" -> KeyTake[plan["Preparation"],
-    {"Status", "ABIVersion", "SourceFingerprint", "Fingerprint"}],
+    {"Status", "Variables", "Regulator", "Dimensions", "TargetOrder"}],
   "Subst" -> plan["Subst"], "Jacobian" -> plan["Jacobian"],
-  "Roots" -> (KeyTake[#, "RootSquare"] & /@ plan["Roots"]),
+  "Roots" -> (KeyTake[#, {"Generator", "QuadraticRadicand",
+      "SourceRadicand"}] & /@ plan["Roots"]),
   "RootImages" -> plan["RootImages"],
   "ChartVariables" -> plan["ChartVariables"], "Variables" -> plan["Variables"],
   "Regulator" -> plan["Regulator"], "Dimensions" -> plan["Dimensions"]|>;
@@ -179,9 +175,9 @@ finiteFieldDeferredForcingEnsurePlan[descriptor_Association] := Module[{key, han
     handle["RootImages"], handle["ChartVariables"], handle["Variables"],
     handle["Regulator"], handle["Dimensions"]];
   If[Lookup[plan, "Status", None] =!= "OK", Return[None]];
-  If[plan["Key"] =!= key,
-    KeyDropFrom[$finiteFieldDeferredForcingRegistry, plan["Key"]]; Return[None]];
-  $finiteFieldDeferredForcingRegistry[key] = Append[plan, "Slim" -> True];
+  KeyDropFrom[$finiteFieldDeferredForcingRegistry, plan["Key"]];
+  $finiteFieldDeferredForcingRegistry[key] = Join[plan,
+    <|"Key" -> key, "Slim" -> True|>];
   key
 ];
 finiteFieldDeferredForcingEnsurePlan[___] := None;
@@ -204,7 +200,8 @@ finiteFieldDeferredForcingTables[data_Association, rootImages_List, usedRoots_Li
   subst = finiteFieldDeferredForcingTable[#, chartVars] & /@ data["Subst"][[All, 2]];
   images = finiteFieldDeferredForcingTable[#, chartVars] & /@ rootImages;
   jacobian = Map[finiteFieldDeferredForcingTable[#, chartVars] &, data["Jacobian"], {2}];
-  squares = finiteFieldDeferredForcingTable[#, sourceVars] & /@ Lookup[usedRoots, "RootSquare", {}];
+  squares = finiteFieldDeferredForcingTable[#, sourceVars] & /@
+    (squareRootRecordRadicand /@ usedRoots);
   degrees[tables_] := Max /@ Transpose[Join[ConstantArray[0, {1, 3}],
     Flatten[Cases[tables, (exponents_List -> _) :> exponents, Infinity], 0]]];
   <|"Subst" -> subst, "RootImages" -> images, "Jacobian" -> jacobian,
@@ -258,7 +255,7 @@ finiteFieldDeferredForcingPreflights[plan_Association, prime_Integer,
   If[mismatch =!= None,
     Return[<|"Status" -> "DeferredForcingRootImageMismatch", "Image" -> images[[First[mismatch]]]|>]];
   Table[<|"Status" -> "MultiquadraticProviderPreflightV1", "Prime" -> prime,
-      "ProviderFingerprint" -> plan["Key"], "Point" -> sv[[All, b]], "EpsilonMod" -> images[[b, 3]],
+      "ProviderID" -> plan["Key"], "Point" -> sv[[All, b]], "EpsilonMod" -> images[[b, 3]],
       "RootSquares" -> dv[[All, b]], "RootValues" -> rv[[All, b]]|>, {b, count}]
 ];
 (* the per-point reference (AST evaluation of the chart data at every image);
@@ -267,7 +264,7 @@ finiteFieldDeferredForcingPreflightsReference[plan_Association, prime_Integer,
     images_List] := Module[{X, Y, subst, rootImages, squares, variables, epsilon},
   {X, Y} = plan["ChartVariables"]; subst = plan["Subst"];
   rootImages = plan["RootImages"]; variables = plan["Variables"];
-  squares = Lookup[plan["Roots"], "RootSquare", {}];
+  squares = squareRootRecordRadicand /@ plan["Roots"];
   epsilon = plan["Regulator"];
   Catch[Table[Module[{x = image[[1]], y = image[[2]], eps = image[[3]], values, sv, rv, dv},
       values = <|X -> x, Y -> y, epsilon -> eps|>;
@@ -280,7 +277,7 @@ finiteFieldDeferredForcingPreflightsReference[plan_Association, prime_Integer,
       If[MemberQ[dv, $Failed] || Mod[rv^2 - dv, prime] =!= ConstantArray[0, Length[rv]],
         Throw[<|"Status" -> "DeferredForcingRootImageMismatch", "Image" -> image|>, "dfp"]];
       <|"Status" -> "MultiquadraticProviderPreflightV1", "Prime" -> prime,
-        "ProviderFingerprint" -> plan["Key"], "Point" -> sv, "EpsilonMod" -> eps,
+        "ProviderID" -> plan["Key"], "Point" -> sv, "EpsilonMod" -> eps,
         "RootSquares" -> dv, "RootValues" -> rv|>],
     {image, images}], "dfp"]
 ];

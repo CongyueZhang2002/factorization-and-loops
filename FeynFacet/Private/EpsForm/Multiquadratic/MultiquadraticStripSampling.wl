@@ -4,7 +4,7 @@
    transforms and the differential certificate, the modular affine solve
    (Wolfram and native backends, constrained plans, follower and pilot images,
    the provider support ladder), unpacking and exact verification.
-   Loads after the preceding parts (Private/LoadOrder.wl); the ABI, the
+   Loads after the preceding parts (Private/LoadOrder.wl); the shared
    globals and the shared utilities are in MultiquadraticStripSolve.wl. *)
 
 Begin["FeynFacet`Private`"];
@@ -13,6 +13,7 @@ ClearAll[
   multiquadraticStripMapRationals,
   multiquadraticStripReducePolynomial,
   multiquadraticStripReduceRational,
+  multiquadraticStripCacheLookup,
   multiquadraticStripCacheInsert,
   multiquadraticStripPrimeForms,
   multiquadraticStripCollapsePolynomial,
@@ -98,6 +99,15 @@ multiquadraticStripReduceRational[rational_Association, prime_Integer] := Module
 ];
 
 SetAttributes[multiquadraticStripCacheInsert, HoldFirst];
+SetAttributes[multiquadraticStripCacheLookup, HoldFirst];
+multiquadraticStripCacheLookup[cacheSymbol_Symbol, predicate_] := Module[
+  {entry},
+  If[! AssociationQ[cacheSymbol], Return[Missing["NotFound"]]];
+  entry = SelectFirst[Values[cacheSymbol], predicate, Missing["NotFound"]];
+  If[AssociationQ[entry], Lookup[entry, "Data", Missing["NotFound"]],
+    Missing["NotFound"]]
+];
+
 multiquadraticStripCacheInsert[cacheSymbol_Symbol, key_, value_,
     maximum_Integer] := (
   If[! AssociationQ[cacheSymbol], cacheSymbol = <||>];
@@ -107,23 +117,27 @@ multiquadraticStripCacheInsert[cacheSymbol_Symbol, key_, value_,
   value);
 
 multiquadraticStripPrimeForms[assembly_Association, prime_Integer] := Module[
-  {key, forms},
+  {cached, forms, data},
   If[! multiquadraticStripCompiledValidQ[assembly] || ! PrimeQ[prime] ||
       ! (3 < prime < 2^31),
     Return[multiquadraticStripFailure["InvalidPrimeFormsInput"]]];
-  key = {assembly["AssemblyFingerprint"], prime};
-  If[KeyExistsQ[$multiquadraticStripPrimeCache, key],
-    Return[$multiquadraticStripPrimeCache[key]]];
+  cached = multiquadraticStripCacheLookup[$multiquadraticStripPrimeCache,
+    AssociationQ[#1] && Lookup[#1, "Prime", None] === prime &&
+      SameQ[Lookup[#1, "SourceForms", None], assembly["CompiledForms"]] &];
+  If[AssociationQ[cached], Return[cached]];
   forms = multiquadraticStripMapRationals[assembly["CompiledForms"],
     "MultiquadraticRationalExactV1",
     multiquadraticStripReduceRational[#1, prime] &];
   If[! FreeQ[forms, $Failed],
     Return[multiquadraticStripFailure["PrimeReductionFailed",
       <|"Prime" -> prime|>]]];
-  multiquadraticStripCacheInsert[$multiquadraticStripPrimeCache, key, <|
+  data = <|
     "Status" -> "MultiquadraticStripPrimeFormsV1",
-    "AssemblyFingerprint" -> assembly["AssemblyFingerprint"],
-    "Prime" -> prime, "Forms" -> forms|>, 8]
+    "Prime" -> prime, "Forms" -> forms|>;
+  multiquadraticStripCacheInsert[$multiquadraticStripPrimeCache,
+    CreateUUID[], <|"SourceForms" -> assembly["CompiledForms"],
+      "Prime" -> prime, "Data" -> data|>, 8];
+  data
 ];
 
 multiquadraticStripCollapsePolynomial[polynomial_Association, epsilonMod_Integer,
@@ -163,7 +177,8 @@ multiquadraticStripMaximumExponents[forms_] := Module[{polynomials, nonzero},
 ];
 
 multiquadraticStripCollapseEpsilon[assembly_Association, prime_Integer,
-    epsilonValue_] := Module[{key, primeForms, epsilonMod, forms, maximum},
+    epsilonValue_] := Module[
+  {cached, primeForms, epsilonMod, forms, maximum, data},
   If[! multiquadraticStripCompiledValidQ[assembly] || ! PrimeQ[prime] ||
       ! (3 < prime < 2^31),
     Return[multiquadraticStripFailure["InvalidCollapseInput"]]];
@@ -171,9 +186,11 @@ multiquadraticStripCollapseEpsilon[assembly_Association, prime_Integer,
   If[epsilonMod === $Failed || epsilonMod === 0,
     Return[multiquadraticStripFailure["InvalidRegulatorImage",
       <|"Prime" -> prime, "EpsilonValue" -> epsilonValue|>]]];
-  key = {assembly["AssemblyFingerprint"], prime, epsilonMod};
-  If[KeyExistsQ[$multiquadraticStripEpsilonCache, key],
-    Return[$multiquadraticStripEpsilonCache[key]]];
+  cached = multiquadraticStripCacheLookup[$multiquadraticStripEpsilonCache,
+    AssociationQ[#1] && Lookup[#1, "Prime", None] === prime &&
+      Lookup[#1, "EpsilonMod", None] === epsilonMod &&
+      SameQ[Lookup[#1, "SourceForms", None], assembly["CompiledForms"]] &];
+  If[AssociationQ[cached], Return[cached]];
   primeForms = multiquadraticStripPrimeForms[assembly, prime];
   If[Lookup[primeForms, "Status", None] =!= "MultiquadraticStripPrimeFormsV1",
     Return[primeForms]];
@@ -184,14 +201,15 @@ multiquadraticStripCollapseEpsilon[assembly_Association, prime_Integer,
     Return[multiquadraticStripFailure["RegulatorCollapseFailed",
       <|"Prime" -> prime, "EpsilonValue" -> epsilonValue|>]]];
   maximum = multiquadraticStripMaximumExponents[forms];
-  multiquadraticStripCacheInsert[$multiquadraticStripEpsilonCache, key, <|
+  data = <|
     "Status" -> "MultiquadraticStripEpsilonFormsV1",
-    "AssemblyFingerprint" -> assembly["AssemblyFingerprint"], "Prime" -> prime,
-    "EpsilonValue" -> epsilonValue, "EpsilonMod" -> epsilonMod,
-    "MaximumExponents" -> maximum, "Forms" -> forms,
-    "FormsShapeFingerprint" -> multiquadraticStripFingerprint[
-      multiquadraticStripFormShape[forms]],
-    "FormsFingerprint" -> multiquadraticStripFingerprint[forms]|>, 32]
+    "Prime" -> prime, "EpsilonValue" -> epsilonValue,
+    "EpsilonMod" -> epsilonMod, "MaximumExponents" -> maximum,
+    "Forms" -> forms|>;
+  multiquadraticStripCacheInsert[$multiquadraticStripEpsilonCache,
+    CreateUUID[], <|"SourceForms" -> assembly["CompiledForms"],
+      "Prime" -> prime, "EpsilonMod" -> epsilonMod, "Data" -> data|>, 32];
+  data
 ];
 
 multiquadraticStripPolynomialImageValidQ[polynomial_Association, prime_Integer,
@@ -222,13 +240,10 @@ multiquadraticStripRationalImageValidQ[rational_Association, prime_Integer] :=
 multiquadraticStripEpsilonFormsValidQ[assembly_Association, forms_Association,
     prime_Integer] := Module[
   {imageForms, rationalLeaves, epsilonMod, maximumExponents, expectedKeys},
-  expectedKeys = {"Status", "AssemblyFingerprint", "Prime", "EpsilonValue",
-    "EpsilonMod", "MaximumExponents", "Forms", "FormsShapeFingerprint",
-    "FormsFingerprint"};
+  expectedKeys = {"Status", "Prime", "EpsilonValue", "EpsilonMod",
+    "MaximumExponents", "Forms"};
   If[Sort[Keys[forms]] =!= Sort[expectedKeys] ||
       Lookup[forms, "Status", None] =!= "MultiquadraticStripEpsilonFormsV1" ||
-      Lookup[forms, "AssemblyFingerprint", None] =!=
-        assembly["AssemblyFingerprint"] ||
       Lookup[forms, "Prime", None] =!= prime, Return[False]];
   epsilonMod = Lookup[forms, "EpsilonMod", $Failed];
   maximumExponents = Lookup[forms, "MaximumExponents", $Failed];
@@ -243,9 +258,8 @@ multiquadraticStripEpsilonFormsValidQ[assembly_Association, forms_Association,
   TrueQ[rationalLeaves =!= {} &&
     AllTrue[rationalLeaves, multiquadraticStripRationalImageValidQ[#1, prime] &] &&
     multiquadraticStripMaximumExponents[imageForms] === maximumExponents &&
-    multiquadraticStripFingerprint[multiquadraticStripFormShape[imageForms]] ===
-      assembly["CompiledFormsShapeFingerprint"] === forms["FormsShapeFingerprint"] &&
-    multiquadraticStripFingerprint[imageForms] === forms["FormsFingerprint"]]
+    multiquadraticStripFormShape[imageForms] ===
+      multiquadraticStripFormShape[assembly["CompiledForms"]]]
 ];
 
 multiquadraticStripEvaluatePolynomial[polynomial_Association,
@@ -287,8 +301,8 @@ multiquadraticStripCharacter[signMask_Integer, grade_Integer, rank_Integer] :=
 (* ------------------------------------------------------------------ *)
 
 multiquadraticStripAssemblePointInternal[assembly_Association,
-    epsilonForms_Association, prime_Integer, point : {_Integer, _Integer},
-    validatedFingerprint_: Automatic] := Catch[Module[
+    epsilonForms_Association, prime_Integer,
+    point : {_Integer, _Integer}] := Catch[Module[
   {startTime = AbsoluteTime[], dimensions = assembly["Dimensions"],
    upperDimension, lowerDimension, gradeCount = assembly["GradeCount"],
    support = assembly["GaugeSupport"], supportCount, unknownCount,
@@ -303,10 +317,6 @@ multiquadraticStripAssemblePointInternal[assembly_Association,
    productWeight, productGrades, productWeights, rowIndex, rowCount, rows,
    right, row, gaugeRow, residueRow, residueRowExpectedWidth, assemblySeconds,
    coefficients, assembled},
-  If[validatedFingerprint =!= assembly["AssemblyFingerprint"] &&
-      ! multiquadraticStripEpsilonFormsValidQ[assembly, epsilonForms, prime],
-    Throw[multiquadraticStripFailure["InvalidRegulatorForms"],
-      "MultiquadraticStripAssemblyFailure"]];
   {upperDimension, lowerDimension} = dimensions;
   supportCount = Length[support];
   unknownCount = assembly["UnknownCount"];
@@ -484,7 +494,7 @@ multiquadraticStripAssembleSample[assembly_Association, epsilonValue_,
         If[candidateIndex > Length[candidatePoints], Break[]];
         candidatePoints[[candidateIndex]]];
       pointResult = multiquadraticStripAssemblePointInternal[assembly,
-        epsilonForms, prime, point, assembly["AssemblyFingerprint"]];
+        epsilonForms, prime, point];
       If[Lookup[pointResult, "Status", None] === "AssembledMultiquadraticPointV1" &&
           splitOnly && ! AllTrue[pointResult["DeltaValues"],
             modularResidueQ[#1, prime] &],
@@ -517,9 +527,7 @@ multiquadraticStripAssembleSample[assembly_Association, epsilonValue_,
   pointRanges = Table[{1 + (index - 1) equationCount, index equationCount},
     {index, Length[accepted]}];
   <|"Status" -> "AssembledMultiquadraticSampleV1",
-    "ABIFingerprint" -> assembly["ABIFingerprint"],
-    "AssemblyFingerprint" -> assembly["AssemblyFingerprint"],
-    "ABIVersion" -> assembly["ABIVersion"], "Prime" -> prime,
+    "Prime" -> prime,
     "EpsilonValue" -> epsilonValue, "EpsilonMod" -> epsilonForms["EpsilonMod"],
     "Matrix" -> matrix, "RightHandSide" -> right,
     "MatrixDimensions" -> Dimensions[matrix],
@@ -549,7 +557,7 @@ multiquadraticStripAssembleSample[layout_Association,
    normalizationSeconds, pointRows, pointRight, matrix, right, pointRanges,
    equationCount, preflightSeconds = 0., coefficientSeconds = 0.,
    rowSeconds = 0., largeEntryEvaluations = 0, preflightRejects = 0,
-   providerCalls = 0, imageStoreKey, trainingImageKeys,
+   providerCalls = 0, trainingImageKeys,
    splitCompileAttempts = 0, splitCompileCacheHits = 0,
    splitCompileCacheMisses = 0, splitSparseSuccesses = 0,
    splitSubstitutionFallbacks = 0, splitCompileSeconds = 0.,
@@ -596,14 +604,10 @@ multiquadraticStripAssembleSample[layout_Association,
       (Lookup[provider, "RootCount", 0] > 0 && Mod[prime, 4] =!= 3) ||
       ! (3 < prime < $multiquadraticStripWordPrimeLimit),
     Return[multiquadraticStripFailure["InvalidProviderSampleInput"]]];
-  If[layout["CoefficientABIFingerprint"] =!=
-      provider["CoefficientABIFingerprint"],
+  If[! SameQ[layout["CoefficientData"], provider["CoefficientData"]],
     Return[multiquadraticStripFailure["ProviderLayoutMismatch",
-      <|"LayoutFingerprint" -> layout["LayoutFingerprint"],
-        "ProviderFingerprint" -> provider["ProviderFingerprint"],
-        "ExpectedCoefficientABI" -> layout["CoefficientABIFingerprint"],
-        "ObservedCoefficientABI" ->
-          provider["CoefficientABIFingerprint"],
+      <|"LayoutCoefficientData" -> layout["CoefficientData"],
+        "ProviderCoefficientData" -> provider["CoefficientData"],
         "LargeEntryEvaluationCount" -> 0|>]]];
   pointCount = Replace[OptionValue["PointCount"], Automatic :>
     Max[4, Ceiling[(layout["UnknownCount"] + layout["EquationsPerPoint"])/
@@ -644,8 +648,7 @@ multiquadraticStripAssembleSample[layout_Association,
       Which[
       requestedSplitPlan === Automatic,
         {splitPlanBuildSeconds, splitPlan} = AbsoluteTiming[
-          Block[{$multiquadraticStripTrustedProviderEvaluation = True},
-            multiquadraticStripSplitSparseEvaluationPlan[provider, prime]]];
+          multiquadraticStripSplitSparseEvaluationPlan[provider, prime]];
         If[Lookup[splitPlan, "Status", None] =!=
             "MultiquadraticSplitSparseEvaluationPlanV1",
           Return[multiquadraticStripFailure[
@@ -662,11 +665,10 @@ multiquadraticStripAssembleSample[layout_Association,
       True,
         Return[multiquadraticStripFailure[
           "InvalidSplitSparseEvaluationPlan",
-          <|"ProviderFingerprint" -> provider["ProviderFingerprint"],
-            "Prime" -> prime|>]]]];
+          <|"Prime" -> prime|>]]]];
     If[splitPlan =!= Automatic &&
-        Lookup[splitPlan, "CoefficientABIFingerprint", None] =!=
-          layout["CoefficientABIFingerprint"],
+        ! SameQ[Lookup[splitPlan, "CoefficientData", None],
+          layout["CoefficientData"]],
       Return[multiquadraticStripFailure[
         "SplitSparseEvaluationPlanLayoutMismatch"]]],
     If[! MemberQ[{Automatic, None}, requestedSplitPlan],
@@ -680,16 +682,7 @@ multiquadraticStripAssembleSample[layout_Association,
   nativePreflightBatchEligible = provider["Kind"] === "SplitBranch" &&
     StringQ[multiquadraticStripNativeSparseBinary[]] &&
     maximumAttempts <= 100000;
-  imageStoreKey = multiquadraticStripFingerprint[{
-    layout["LayoutFingerprint"], provider["ProviderFingerprint"], prime,
-    epsilonValue, randomSeed, pointCount, maximumAttempts, splitOnly,
-    If[candidatePoints === Automatic, Automatic,
-      Mod[candidatePoints, prime]]}];
-  Block[{$multiquadraticStripTrustedProviderEvaluation = True,
-      $multiquadraticStripTrustedLayoutEvaluation = True,
-      $multiquadraticStripTrustedSplitSparsePlanEvaluation =
-        (splitPlan =!= Automatic)},
-   BlockRandom[
+  BlockRandom[
     SeedRandom[randomSeed, Method -> "MersenneTwister"];
     If[nativePreflightBatchEligible,
       nativeCandidatePoints = If[candidatePoints === Automatic,
@@ -908,22 +901,17 @@ multiquadraticStripAssembleSample[layout_Association,
               "LargeEntryEvaluationCount", 0]|>],
           AssociateTo[acceptedPointKeys, pointKey -> True];
           AppendTo[accepted, Join[pointResult,
-            <|"ProviderFingerprint" -> provider["ProviderFingerprint"],
-              "CoefficientABIFingerprint" ->
-                provider["CoefficientABIFingerprint"],
-              "SplitPointQ" -> preflight["SplitPointQ"],
+            <|"SplitPointQ" -> preflight["SplitPointQ"],
               "PreflightSeconds" -> preflight["PreflightSeconds"],
               "CoefficientSeconds" -> Lookup[coefficients, "Seconds", 0.],
               "LargeEntryEvaluationCount" -> Lookup[coefficients,
                 "LargeEntryEvaluationCount", 0]|>]]],
         {batchIndex, Length[preflightBatch]}]
       ]
-   ]];
+   ];
   If[Length[accepted] < pointCount,
     Return[multiquadraticStripFailure["InsufficientProviderPoints",
-      <|"LayoutFingerprint" -> layout["LayoutFingerprint"],
-        "ProviderFingerprint" -> provider["ProviderFingerprint"],
-        "AcceptedPointCount" -> Length[accepted],
+      <|"AcceptedPointCount" -> Length[accepted],
         "AttemptCount" -> attempts, "RejectedPoints" -> rejected,
         "PreflightRejectCount" -> preflightRejects,
         "LargeEntryEvaluationCount" -> largeEntryEvaluations,
@@ -942,18 +930,13 @@ multiquadraticStripAssembleSample[layout_Association,
   pointRanges = Table[{1 + (index - 1) equationCount,
     index equationCount}, {index, Length[accepted]}];
   trainingImageKeys = Table[
-    {layout["LayoutFingerprint"], provider["ProviderFingerprint"], prime,
-      epsilonValue, accepted[[index, "Point"]]},
+    {prime, epsilonValue, accepted[[index, "Point"]]},
     {index, Length[accepted]}];
   <|"Status" -> "AssembledMultiquadraticSampleV1",
-    "ABIFingerprint" -> layout["ABIFingerprint"],
-    "LayoutFingerprint" -> layout["LayoutFingerprint"],
-    "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
+    "CoefficientData" -> layout["CoefficientData"],
     "Provider" -> provider["Kind"],
-    "ProviderFingerprint" -> provider["ProviderFingerprint"],
-    "ImageStoreKey" -> imageStoreKey,
     "TrainingImageKeys" -> trainingImageKeys,
-    "ABIVersion" -> layout["ABIVersion"], "Prime" -> prime,
+    "Prime" -> prime,
     "EpsilonValue" -> epsilonValue,
     "EpsilonMod" -> multiquadraticStripModRational[epsilonValue, prime],
     "Matrix" -> matrix, "RightHandSide" -> right,
@@ -974,8 +957,6 @@ multiquadraticStripAssembleSample[layout_Association,
     "SplitSparseCompileSeconds" -> splitCompileSeconds,
     "SplitSparseEvaluationSeconds" -> splitEvaluationSeconds,
     "SplitSubstitutionFallbackSeconds" -> splitFallbackSeconds,
-    "SplitSparsePlanFingerprint" -> If[AssociationQ[splitPlan],
-      splitPlan["PlanFingerprint"], None],
     "SplitSparsePlanCacheHit" -> If[AssociationQ[splitPlan],
       TrueQ[Lookup[splitPlan, "PlanCacheHit", False]], False],
     "SplitSparsePlanUniqueLeafCount" -> If[AssociationQ[splitPlan],
@@ -1148,8 +1129,9 @@ multiquadraticStripTransformSampleToSigns[assembly_Association,
   If[! multiquadraticStripCompiledValidQ[assembly] || ! PrimeQ[prime] ||
       Mod[prime, 4] =!= 3 ||
       Lookup[sample, "Status", None] =!= "AssembledMultiquadraticSampleV1" ||
-      Lookup[sample, "AssemblyFingerprint", None] =!=
-        assembly["AssemblyFingerprint"] || sample["Prime"] =!= prime,
+      sample["Prime"] =!= prime ||
+      Lookup[sample, "ColumnOrder", None] =!= assembly["ColumnOrder"] ||
+      Lookup[sample, "RowOrder", None] =!= assembly["RowOrder"],
     Return[multiquadraticStripFailure["InvalidSampleTransformInput"]]];
   pointCount = Length[sample["AcceptedPoints"]];
   equationCount = assembly["EquationsPerPoint"];
@@ -1206,7 +1188,6 @@ multiquadraticStripTransformSampleToSigns[assembly_Association,
     rows = Join[rows, normalizationRows];
     right = Join[right, normalizationRight]];
   <|"Status" -> "TransformedMultiquadraticSampleToSignsV1", "Prime" -> prime,
-    "AssemblyFingerprint" -> assembly["AssemblyFingerprint"],
     "Rows" -> Developer`ToPackedArray[rows],
     "RightHandSide" -> Developer`ToPackedArray[right],
     "MatrixDimensions" -> Dimensions[rows], "BranchFlipMask" -> flipMask|>
@@ -1216,7 +1197,7 @@ multiquadraticStripTransformSampleToSigns[___] :=
 
 (* The independent reference: the same equations built one sign branch
    at a time by substituting +-root values into the exact strip, with no
-   channel decomposition and no compiled ABI.  It shares nothing with
+   channel decomposition and no compiled representation.  It shares nothing with
    the direct assembler except the index formulas, so agreement is a
    real differential statement. *)
 multiquadraticStripSplitPointRows[assembly_Association, epsilonValue_,
@@ -1251,7 +1232,8 @@ multiquadraticStripSplitPointRows[assembly_Association, epsilonValue_,
     Throw[multiquadraticStripFailure["InvalidRegulatorImage"],
       "MultiquadraticStripSplitFailure"]];
   deltaValues = multiquadraticStripModRational[
-      #1 /. Thread[variables -> point], prime] & /@ Lookup[roots, "RootSquare", {}];
+      #1 /. Thread[variables -> point], prime] & /@
+        (squareRootRecordRadicand /@ roots);
   If[MemberQ[deltaValues, $Failed | 0] ||
       ! AllTrue[deltaValues, modularResidueQ[#1, prime] &],
     Throw[multiquadraticStripFailure["PointNotSplitOverPrime",
@@ -1275,8 +1257,9 @@ multiquadraticStripSplitPointRows[assembly_Association, epsilonValue_,
       "MultiquadraticStripSplitFailure"]];
   deltaLogDerivatives = Table[
     value = multiquadraticStripModRational[
-      D[roots[[a, "RootSquare"]], variables[[mu]]]/roots[[a, "RootSquare"]] /.
-        Thread[variables -> point], prime];
+      D[squareRootRecordRadicand[roots[[a]]], variables[[mu]]] /
+        squareRootRecordRadicand[roots[[a]]] /.
+          Thread[variables -> point], prime];
     If[value === $Failed,
       Throw[multiquadraticStripFailure["RootLogDerivativeSingular"],
         "MultiquadraticStripSplitFailure"]];
@@ -1369,7 +1352,7 @@ multiquadraticStripDifferentialCheckPoint[assembly_Association, epsilonValue_,
       ! multiquadraticStripEpsilonFormsValidQ[assembly, epsilonForms, prime],
     Return[multiquadraticStripFailure["DifferentialRegulatorCollapseFailed"]]];
   direct = multiquadraticStripAssemblePointInternal[assembly, epsilonForms,
-    prime, point, assembly["AssemblyFingerprint"]];
+    prime, point];
   If[Lookup[direct, "Status", None] =!= "AssembledMultiquadraticPointV1",
     Return[direct]];
   deltaValues = direct["DeltaValues"];
@@ -1408,8 +1391,7 @@ multiquadraticStripDifferentialCheckPoint[___] :=
 
 (* Deterministic RREF: a particular solution with every free column
    zero, plus the nullspace basis, plus the residual check.  The pivot
-   columns are the elimination signature that must not move between
-   primes or regulator values. *)
+   columns must not move between primes or regulator values. *)
 multiquadraticStripAffineSolve[matrix_?MatrixQ, right_List, prime_Integer] :=
   Module[
   {dimensions = Dimensions[matrix], unknownCount, augmented, reduced,
@@ -1471,7 +1453,6 @@ multiquadraticStripAffineSolve[matrix_?MatrixQ, right_List, prime_Integer] :=
     "MatrixDimensions" -> dimensions, "Rank" -> Length[pivotColumns],
     "Nullity" -> Length[freeColumns], "PivotColumns" -> pivotColumns,
     "FreeColumns" -> freeColumns,
-    "PivotSignature" -> Hash[pivotColumns, "SHA256", "HexString"],
     "ParticularSolution" -> particular, "NullspaceBasis" -> nullspace|>
 ];
 multiquadraticStripAffineSolve[___] :=
@@ -1480,7 +1461,7 @@ multiquadraticStripAffineSolve[___] :=
 (* The rectangular first image is the one place where a full affine RREF is
    unavoidable.  CFFR1 is already the authenticated native adapter used by
    FiniteFieldStripSolve.wl; this layer only translates its response into the
-   multiquadratic affine ABI.  Automatic uses the declared matrix-entry
+   multiquadratic affine solve.  Automatic uses the declared matrix-entry
    threshold below.  Its fallback is deliberately narrow: adapter absence or
    execution/authentication failure may use Wolfram, but an adapter exit 5 is
    the mathematical verdict for that image and is never retried by a different
@@ -1586,9 +1567,6 @@ multiquadraticStripNativeAffineSolve[matrix_?MatrixQ, right_List,
         "PlanDiscoveryBackendUsed" -> "FLINTAffineRREF",
         "PlanDiscoveryBackendThreads" -> threads,
         "BackendFailure" -> verification,
-        "AdapterBinding" -> KeyTake[run, {"Protocol", "Nonce",
-          "RequestSHA256", "ResponseSHA256", "AdapterSourceSHA256",
-          "AdapterBinarySHA256", "Threads"}],
         "PhaseSeconds" -> <|"Adapter" -> runSeconds,
           "FullOriginalRowReplay" -> verificationSeconds|>|>]]];
   solution = <|"Status" -> "MultiquadraticAffineSolution",
@@ -1596,8 +1574,6 @@ multiquadraticStripNativeAffineSolve[matrix_?MatrixQ, right_List,
     "Rank" -> response["Rank"], "Nullity" -> response["Nullity"],
     "PivotColumns" -> response["PivotColumns"],
     "FreeColumns" -> response["FreeColumns"],
-    "PivotSignature" -> Hash[response["PivotColumns"], "SHA256",
-      "HexString"],
     "ParticularSolution" -> response["ParticularSolution"],
     "NullspaceBasis" -> response["NullspaceBasis"],
     "IndependentEquationRows" -> response["IndependentEquationRows"],
@@ -1606,9 +1582,6 @@ multiquadraticStripNativeAffineSolve[matrix_?MatrixQ, right_List,
     "PlanDiscoveryBackendRequested" -> "FLINTAffineRREF",
     "PlanDiscoveryBackendUsed" -> "FLINTAffineRREF",
     "PlanDiscoveryBackendThreads" -> run["Threads"],
-    "PlanDiscoveryBackendBinding" -> KeyTake[run, {"Protocol", "Nonce",
-      "RequestSHA256", "ResponseSHA256", "AdapterSourceSHA256",
-      "AdapterBinarySHA256", "Threads"}],
     "PhaseSeconds" -> <|"Adapter" -> runSeconds,
       "FullOriginalRowReplay" -> verificationSeconds|>,
     "PlanDiscoveryBackendSeconds" -> N[AbsoluteTime[] - startTime]|>;
@@ -1727,8 +1700,8 @@ multiquadraticStripAffineConsistencyEvidence[___] :=
   multiquadraticStripFailure["InvalidAffineConsistencyEvidenceArguments"];
 
 (* A pilot image pays for one full RREF.  It fixes three pieces of the
-   affine ABI which must not drift with the regulator or the prime: an
-   independent set of equation rows, the pivot signature, and the columns
+   affine section which must not drift with the regulator or the prime: an
+   independent set of equation rows, the pivot columns, and the columns
    which define the canonical affine section.  Later images solve the one
    square constrained core with nullity+1 right-hand sides.  The additional
    right-hand sides reconstruct a basis of the kernel in the SAME section;
@@ -1736,7 +1709,7 @@ multiquadraticStripAffineConsistencyEvidence[___] :=
    has neither risen nor fallen without doing another RREF. *)
 multiquadraticStripConstrainedPlanValidQ[plan_Association] := Module[
   {unknownCount, equationCount, rank, nullity, rows, columns, pivotColumns,
-   freeColumns, semantic},
+   freeColumns, coefficientData},
   If[Lookup[plan, "Status", None] =!=
       "MultiquadraticConstrainedAffinePlanV1", Return[False]];
   unknownCount = Lookup[plan, "UnknownCount", $Failed];
@@ -1747,6 +1720,7 @@ multiquadraticStripConstrainedPlanValidQ[plan_Association] := Module[
   columns = Lookup[plan, "NormalizationColumns", $Failed];
   pivotColumns = Lookup[plan, "PivotColumns", $Failed];
   freeColumns = Lookup[plan, "FreeColumns", $Failed];
+  coefficientData = Lookup[plan, "CoefficientData", $Failed];
   If[! IntegerQ[unknownCount] || unknownCount < 1 ||
       ! IntegerQ[equationCount] || equationCount < 1 ||
       ! IntegerQ[rank] || rank < 0 || rank > Min[unknownCount, equationCount] ||
@@ -1761,18 +1735,8 @@ multiquadraticStripConstrainedPlanValidQ[plan_Association] := Module[
       ! AllTrue[pivotColumns, 1 <= #1 <= unknownCount &] ||
       ! VectorQ[freeColumns, IntegerQ] || Length[freeColumns] =!= nullity ||
       Sort[Join[pivotColumns, freeColumns]] =!= Range[unknownCount] ||
-      ! StringQ[Lookup[plan, "PivotSignature", None]] ||
-      ! StringQ[Lookup[plan, "LayoutFingerprint", None]] ||
-      ! StringQ[Lookup[plan, "ProviderFingerprint", None]], Return[False]];
-  semantic = KeyTake[plan, {"Status", "UnknownCount", "EquationCount",
-    "Rank", "Nullity", "IndependentEquationRows", "NormalizationColumns",
-    "PivotColumns", "FreeColumns", "PivotSignature", "LayoutFingerprint",
-    "ProviderFingerprint"}];
-  semantic = Join[semantic, KeyTake[plan, {
-    "PlanDiscoveryBackendRequested", "PlanDiscoveryBackendUsed",
-    "PlanDiscoveryBackendThreads", "PlanDiscoveryBackendBinding"}]];
-  TrueQ[Lookup[plan, "PlanFingerprint", None] ===
-    multiquadraticStripFingerprint[semantic]]
+      ! AssociationQ[coefficientData], Return[False]];
+  True
 ];
 multiquadraticStripConstrainedPlanValidQ[___] := False;
 
@@ -1916,8 +1880,6 @@ multiquadraticStripConstrainedAffineSolve[matrix_?MatrixQ, right_List,
       "FullResidualExact" -> True,
       "NonzeroResidualCount" -> If[residualZero, 0,
         Count[Flatten[residual], Except[0]]],
-      "ResidualFingerprint" -> If[residualZero, None,
-        multiquadraticStripFingerprint[residual]],
       "Seconds" -> replaySeconds|>;
     AppendTo[residualCheckEvidence, certificateSummary];
     Join[certificateSummary, <|
@@ -2020,8 +1982,6 @@ multiquadraticStripConstrainedAffineSolve[matrix_?MatrixQ, right_List,
       <|"Prime" -> prime,
         "NonzeroResidualCount" -> Lookup[validation,
           "NonzeroResidualCount", Missing["NotRecorded"]],
-        "ResidualFingerprint" -> Lookup[validation,
-          "ResidualFingerprint", Missing["NotRecorded"]],
         "ConstrainedSolveBackendUsed" -> backendUsed,
         "ConstrainedSolveBackendThreads" -> backendThreads,
         "ConstrainedSolveBackendFallbackReason" ->
@@ -2038,13 +1998,11 @@ multiquadraticStripConstrainedAffineSolve[matrix_?MatrixQ, right_List,
         "FullResidualSeconds" -> residualSeconds|>]]];
   <|"Status" -> "MultiquadraticConstrainedAffineSolution",
     "Prime" -> prime, "Rank" -> rank, "Nullity" -> nullity,
-    "PivotSignature" -> plan["PivotSignature"],
     "PivotColumns" -> plan["PivotColumns"],
     "FreeColumns" -> plan["FreeColumns"],
     "NormalizationColumns" -> columns,
     "ParticularSolution" -> particular, "NullspaceBasis" -> nullspace,
     "CanonicalValues" -> particular,
-    "PlanFingerprint" -> plan["PlanFingerprint"],
     "SolvePath" -> "ConstrainedCoreMultiRHS",
     "ConstrainedSolveBackendRequested" -> Automatic,
     "ConstrainedSolveBackendUsed" -> backendUsed,
@@ -2081,9 +2039,9 @@ multiquadraticStripConstrainedAffineSolve[___] :=
 
 multiquadraticStripConstrainedPlanDiscover[matrix_?MatrixQ, right_List,
     solution_Association, normalizationColumns_List, prime_Integer,
-    layoutFingerprint_String, providerFingerprint_String,
+    coefficientData_Association,
     suppliedIndependentRows_: Automatic] := Module[
-  {dimensions = Dimensions[matrix], rank, nullity, independentRows, semantic,
+  {dimensions = Dimensions[matrix], rank, nullity, independentRows,
    plan, canonical, replay},
   If[Lookup[solution, "Status", None] =!= "MultiquadraticAffineSolution" ||
       ! PrimeQ[prime] || Length[dimensions] =!= 2 ||
@@ -2125,25 +2083,14 @@ multiquadraticStripConstrainedPlanDiscover[matrix_?MatrixQ, right_List,
     "NormalizationColumns" -> normalizationColumns,
     "PivotColumns" -> solution["PivotColumns"],
     "FreeColumns" -> solution["FreeColumns"],
-    "PivotSignature" -> solution["PivotSignature"],
-    "LayoutFingerprint" -> layoutFingerprint,
-    "ProviderFingerprint" -> providerFingerprint|>;
+    "CoefficientData" -> coefficientData|>;
   plan = Join[plan, KeyTake[solution, {
     "PlanDiscoveryBackendRequested", "PlanDiscoveryBackendUsed",
     "PlanDiscoveryBackendThreads", "PlanDiscoveryBackendSelectionReason",
-    "PlanDiscoveryBackendFallbackReason", "PlanDiscoveryBackendSeconds",
-    "PlanDiscoveryBackendBinding"}]];
-  semantic = Join[KeyTake[plan, {"Status", "UnknownCount", "EquationCount",
-    "Rank", "Nullity", "IndependentEquationRows", "NormalizationColumns",
-    "PivotColumns", "FreeColumns", "PivotSignature", "LayoutFingerprint",
-    "ProviderFingerprint"}], KeyTake[plan, {
-    "PlanDiscoveryBackendRequested", "PlanDiscoveryBackendUsed",
-    "PlanDiscoveryBackendThreads", "PlanDiscoveryBackendBinding"}]];
-  plan = Append[plan, "PlanFingerprint" ->
-    multiquadraticStripFingerprint[semantic]];
+    "PlanDiscoveryBackendFallbackReason", "PlanDiscoveryBackendSeconds"}]];
   If[! multiquadraticStripConstrainedPlanValidQ[plan],
     Return[multiquadraticStripFailure[
-      "ConstrainedPlanAuthenticationFailed"]]];
+      "ConstrainedPlanInvalid"]]];
   If[Lookup[solution, "PlanDiscoveryBackendUsed", None] ===
       "FLINTAffineRREF",
     (* finiteFieldStripCFFRVerify already replayed the imported particular
@@ -2189,13 +2136,13 @@ multiquadraticStripConstrainedAffineFallback[matrix_?MatrixQ, right_List,
     Return[multiquadraticStripFailure["ConstrainedPlanFallbackFailed",
       <|"PlanFailure" -> planned, "FullSolveFailure" -> full,
         "FullSolveSeconds" -> fullSeconds|>]]];
-  If[{full["Rank"], full["Nullity"], full["PivotSignature"]} =!=
-      {plan["Rank"], plan["Nullity"], plan["PivotSignature"]},
-    Return[multiquadraticStripFailure["ConstrainedPlanSignatureMismatch",
+  If[{full["Rank"], full["Nullity"], full["PivotColumns"]} =!=
+      {plan["Rank"], plan["Nullity"], plan["PivotColumns"]},
+    Return[multiquadraticStripFailure["ConstrainedPlanStructureMismatch",
       <|"Expected" -> {plan["Rank"], plan["Nullity"],
-          plan["PivotSignature"]},
+          plan["PivotColumns"]},
         "Observed" -> {full["Rank"], full["Nullity"],
-          full["PivotSignature"]}, "PlanFailure" -> planned|>]]];
+          full["PivotColumns"]}, "PlanFailure" -> planned|>]]];
   canonical = Quiet[NormalizeEpsFormAffineSample[
     <|"ParticularSolution" -> full["ParticularSolution"],
       "NullspaceBasis" -> full["NullspaceBasis"]|>,
@@ -2208,14 +2155,12 @@ multiquadraticStripConstrainedAffineFallback[matrix_?MatrixQ, right_List,
   <|"Status" -> "MultiquadraticConstrainedAffineFallbackSolution",
     "Prime" -> prime, "Rank" -> full["Rank"],
     "Nullity" -> full["Nullity"],
-    "PivotSignature" -> full["PivotSignature"],
     "PivotColumns" -> full["PivotColumns"],
     "FreeColumns" -> full["FreeColumns"],
     "NormalizationColumns" -> plan["NormalizationColumns"],
     "ParticularSolution" -> full["ParticularSolution"],
     "NullspaceBasis" -> full["NullspaceBasis"],
     "CanonicalValues" -> canonical["ParticularSolution"],
-    "PlanFingerprint" -> plan["PlanFingerprint"],
     "SolvePath" -> "FullAffineSameSectionFallback",
     "FallbackReason" -> Lookup[planned, "Status", None],
     "FullResidualZero" -> True, "NullspaceResidualZero" -> True,
@@ -2234,30 +2179,24 @@ multiquadraticStripConstrainedAffineFallback[___] :=
   multiquadraticStripFailure["InvalidConstrainedFallbackArguments"];
 
 (* After the modal image has fixed the affine section, each remaining image
-   is independent.  This immutable payload is the complete helper authority;
-   it binds the already authenticated layout, provider and constrained plan
-   without defining a second solver ABI. *)
+   is independent.  This immutable payload contains the layout, provider and
+   constrained plan needed by a helper. *)
 multiquadraticStripFollowerImagePayload[layout_Association,
     provider_Association, plan_Association, pointCount_, maximumAttempts_,
-    randomSeed_Integer, lockedSignature_List] := Module[{payload},
+    randomSeed_Integer] := Module[{payload},
   If[! multiquadraticStripAssemblyLayoutHotValidQ[layout] ||
       ! multiquadraticStripProviderHotValidQ[provider] ||
       ! multiquadraticStripConstrainedPlanValidQ[plan] ||
-      plan["LayoutFingerprint"] =!= layout["LayoutFingerprint"] ||
-      plan["ProviderFingerprint"] =!= provider["ProviderFingerprint"] ||
+      ! SameQ[layout["CoefficientData"], provider["CoefficientData"]] ||
+      ! SameQ[plan["CoefficientData"], layout["CoefficientData"]] ||
       ! (pointCount === Automatic || IntegerQ[pointCount] && pointCount > 0) ||
       ! (maximumAttempts === Automatic ||
-        IntegerQ[maximumAttempts] && maximumAttempts > 0) ||
-      lockedSignature =!= {plan["Rank"], plan["Nullity"],
-        plan["PivotSignature"]},
+        IntegerQ[maximumAttempts] && maximumAttempts > 0),
     Return[multiquadraticStripFailure[
       "InvalidFollowerImagePayloadArguments"]]];
   payload = <|"Schema" -> "MultiquadraticFollowerImagePayloadV1",
-    "LayoutFingerprint" -> layout["LayoutFingerprint"],
-    "ProviderFingerprint" -> provider["ProviderFingerprint"],
-    "PlanFingerprint" -> plan["PlanFingerprint"],
     "PointCount" -> pointCount, "MaximumAttempts" -> maximumAttempts,
-    "RandomSeed" -> randomSeed, "LockedSignature" -> lockedSignature,
+    "RandomSeed" -> randomSeed,
     "Layout" -> layout, "Provider" -> provider, "Plan" -> plan|>;
   payload
 ];
@@ -2275,30 +2214,22 @@ multiquadraticStripFollowerImagePayloadValidQ[payload_Association] := Module[
       ! multiquadraticStripAssemblyLayoutHotValidQ[layout] ||
       ! multiquadraticStripProviderHotValidQ[provider] ||
       ! multiquadraticStripConstrainedPlanValidQ[plan] ||
-      Lookup[payload, "LayoutFingerprint", None] =!=
-        layout["LayoutFingerprint"] ||
-      Lookup[payload, "ProviderFingerprint", None] =!=
-        provider["ProviderFingerprint"] ||
-      Lookup[payload, "PlanFingerprint", None] =!= plan["PlanFingerprint"] ||
-      plan["LayoutFingerprint"] =!= layout["LayoutFingerprint"] ||
-      plan["ProviderFingerprint"] =!= provider["ProviderFingerprint"] ||
+      ! SameQ[layout["CoefficientData"], provider["CoefficientData"]] ||
+      ! SameQ[plan["CoefficientData"], layout["CoefficientData"]] ||
       ! (Lookup[payload, "PointCount", None] === Automatic ||
         IntegerQ[Lookup[payload, "PointCount", None]] &&
           payload["PointCount"] > 0) ||
       ! (Lookup[payload, "MaximumAttempts", None] === Automatic ||
         IntegerQ[Lookup[payload, "MaximumAttempts", None]] &&
           payload["MaximumAttempts"] > 0) ||
-      ! IntegerQ[Lookup[payload, "RandomSeed", None]] ||
-      Lookup[payload, "LockedSignature", None] =!=
-        {plan["Rank"], plan["Nullity"], plan["PivotSignature"]},
+      ! IntegerQ[Lookup[payload, "RandomSeed", None]],
     Return[False]];
   True
 ];
 multiquadraticStripFollowerImagePayloadValidQ[___] := False;
 
 (* A follower task has no access to the reconstruction's caches, counters or
-   telemetry.  It returns only a fingerprint-bound image record; the sampled
-   matrix stays on the worker. *)
+   telemetry.  The sampled matrix stays on the worker. *)
 multiquadraticStripFollowerImageSolve[payload_Association,
     request_Association] := Module[
   {prime = Lookup[request, "Prime", $Failed],
@@ -2311,13 +2242,11 @@ multiquadraticStripFollowerImageSolve[payload_Association,
     Return[multiquadraticStripFailure[
       "InvalidFollowerImageSolveArguments"]]];
   {samplingTiming, sample} = AbsoluteTiming[
-    Block[{$multiquadraticStripTrustedProviderEvaluation = True,
-        $multiquadraticStripTrustedLayoutEvaluation = True},
-      multiquadraticStripAssembleSample[payload["Layout"],
-        payload["Provider"], value, prime,
-        "PointCount" -> payload["PointCount"],
-        "MaximumAttempts" -> payload["MaximumAttempts"],
-        "RandomSeed" -> payload["RandomSeed"]]]];
+    multiquadraticStripAssembleSample[payload["Layout"],
+      payload["Provider"], value, prime,
+      "PointCount" -> payload["PointCount"],
+      "MaximumAttempts" -> payload["MaximumAttempts"],
+      "RandomSeed" -> payload["RandomSeed"]]];
   If[Lookup[sample, "Status", None] =!=
       "AssembledMultiquadraticSampleV1",
     eliminationTiming = 0.;
@@ -2338,17 +2267,14 @@ multiquadraticStripFollowerImageSolve[payload_Association,
         "SolvePath" -> "ConstrainedPlanRejectedImage"|>,
       result = Join[<|"Status" -> "OK", "Prime" -> prime,
         "RegulatorValue" -> value, "EpsilonMod" -> sample["EpsilonMod"],
-        "ImageStoreKey" -> sample["ImageStoreKey"],
         "TrainingImageKeys" -> sample["TrainingImageKeys"],
         "SamplePhaseSeconds" -> sample["PhaseSeconds"],
         "Rank" -> solveResult["Rank"],
         "Nullity" -> solveResult["Nullity"],
-        "PivotSignature" -> solveResult["PivotSignature"],
         "PivotColumns" -> solveResult["PivotColumns"],
         "FreeColumns" -> solveResult["FreeColumns"],
         "CanonicalValues" -> solveResult["CanonicalValues"],
         "SolvePath" -> solveResult["SolvePath"],
-        "PlanFingerprint" -> solveResult["PlanFingerprint"],
         "FullResidualZero" -> solveResult["FullResidualZero"],
         "SamplingSeconds" -> samplingTiming,
         "EliminationSeconds" -> eliminationTiming,
@@ -2369,9 +2295,6 @@ multiquadraticStripFollowerImageSolve[payload_Association,
           "PhaseSeconds"}]]]];
   record = <|"Status" -> "MultiquadraticFollowerImageRecordV1",
     "Prime" -> prime, "RegulatorValue" -> value,
-    "LayoutFingerprint" -> payload["LayoutFingerprint"],
-    "ProviderFingerprint" -> payload["ProviderFingerprint"],
-    "PlanFingerprint" -> payload["PlanFingerprint"],
     "WorkerKernelID" -> If[IntegerQ[workerKernelID], workerKernelID, 0],
     "Result" -> result|>;
   record
@@ -2393,12 +2316,6 @@ multiquadraticStripFollowerImageAuthenticate[record_Association,
   If[Lookup[record, "Status", None] =!=
         "MultiquadraticFollowerImageRecordV1" ||
       Lookup[record, {"Prime", "RegulatorValue"}, None] =!= {prime, value} ||
-      Lookup[record, "LayoutFingerprint", None] =!=
-        payload["LayoutFingerprint"] ||
-      Lookup[record, "ProviderFingerprint", None] =!=
-        payload["ProviderFingerprint"] ||
-      Lookup[record, "PlanFingerprint", None] =!=
-        payload["PlanFingerprint"] ||
       ! IntegerQ[Lookup[record, "WorkerKernelID", None]] ||
       record["WorkerKernelID"] < 0,
     Return[multiquadraticStripFailure[
@@ -2415,21 +2332,15 @@ multiquadraticStripFollowerImageAuthenticate[record_Association,
     trainingKeys = Lookup[result, "TrainingImageKeys", $Failed];
     If[Lookup[result, "EpsilonMod", None] =!=
           multiquadraticStripModRational[value, prime] ||
-        Lookup[result, "PlanFingerprint", None] =!=
-          payload["PlanFingerprint"] ||
         {Lookup[result, "Rank", None], Lookup[result, "Nullity", None],
-          Lookup[result, "PivotSignature", None]} =!=
-          payload["LockedSignature"] ||
-        Lookup[result, "PivotColumns", None] =!=
-          payload["Plan", "PivotColumns"] ||
+          Lookup[result, "PivotColumns", None]} =!=
+          Lookup[payload["Plan"], {"Rank", "Nullity", "PivotColumns"}] ||
         Lookup[result, "FreeColumns", None] =!=
           payload["Plan", "FreeColumns"] ||
         ! multiquadraticStripFullResidualEvidenceValidQ[result, prime] ||
-        ! StringQ[Lookup[result, "ImageStoreKey", None]] ||
         ! ListQ[trainingKeys] || trainingKeys === {} ||
         ! AllTrue[trainingKeys, MatchQ[#1,
-          {payload["LayoutFingerprint"], payload["ProviderFingerprint"],
-            prime, value, {_Integer, _Integer}}] &] ||
+          {prime, value, {_Integer, _Integer}}] &] ||
         ! VectorQ[Lookup[result, "CanonicalValues", None],
           Function[item, IntegerQ[item] && 0 <= item < prime]] ||
         Length[result["CanonicalValues"]] =!=
@@ -2451,10 +2362,7 @@ multiquadraticStripFollowerImageAuthenticate[record_Association,
       "FollowerImageAuthenticationFailed",
       <|"Reason" -> "FollowerImageTimingInvalid"|>]]];
   <|"Status" -> "AuthenticatedMultiquadraticFollowerImageV1",
-    "Prime" -> prime, "RegulatorValue" -> value,
-    "LayoutFingerprint" -> payload["LayoutFingerprint"],
-    "ProviderFingerprint" -> payload["ProviderFingerprint"],
-    "PlanFingerprint" -> payload["PlanFingerprint"]|>
+    "Prime" -> prime, "RegulatorValue" -> value|>
 ];
 multiquadraticStripFollowerImageAuthenticate[___] :=
   multiquadraticStripFailure["FollowerImageAuthenticationFailed",
@@ -2505,7 +2413,7 @@ multiquadraticStripFollowerImageKernelCount[___] := 1;
 
 (* One wave gives the leading requests to free broker helpers and keeps the
    remaining share on the mission kernel.  Results are restored to request
-   order before admission.  A missing, timed-out or malformed helper result is
+   order before use.  A missing, timed-out or malformed helper result is
    recomputed locally only while the absolute reconstruction deadline remains;
    otherwise it is abandoned with typed budget evidence.  dispatcher is a
    private test seam; production uses only the TaskBroker data-file protocol. *)
@@ -2561,10 +2469,7 @@ multiquadraticStripFollowerImageWave[payload_Association, requests_List,
         "ResultRoutes" -> ConstantArray["SerialFollowerFallback",
           batchSize],
         "Seconds" -> N[AbsoluteTime[] - startTime]|>]];
-    dataKey = multiquadraticStripFingerprint[Lookup[payload,
-      {"Schema", "LayoutFingerprint", "ProviderFingerprint",
-       "PlanFingerprint", "PointCount", "MaximumAttempts", "RandomSeed",
-       "LockedSignature"}]];
+    dataKey = StringReplace[CreateUUID[], "-" -> ""];
     dataFile = taskBrokerDataFile["mqfollow_" <> dataKey, payload];
     If[! StringQ[dataFile],
       Return[<|"Status" -> "MultiquadraticFollowerImageWaveV1",
@@ -2653,9 +2558,7 @@ multiquadraticStripFollowerImageWave[___] :=
   multiquadraticStripFailure["InvalidFollowerImageWaveArguments"];
 
 (* Construct a reusable pilot envelope.  Prime and regulator metadata are
-   copied into the solution as well as the outer record.  Admission below
-   replays the actual affine equations; hashing the whole matrix and solution
-   would add no mathematical evidence. *)
+   copied into the solution as well as the outer record. *)
 multiquadraticStripPilotImageRecord[prime_Integer, value_,
     sample_Association, solution_Association] := Module[{pilot},
   If[! MatchQ[value, _Integer | _Rational],
@@ -2672,7 +2575,7 @@ multiquadraticStripPilotImageRecord[___] :=
 
 (* Full cache-admission check.  The direct residual replay proves that the
    response solves this sample, including an independent kernel basis.  The
-   free-column identity is the deterministic affine-solver ABI and proves
+   free-column identity fixes the deterministic affine section and proves
    nullspace rank without paying for another RREF. *)
 multiquadraticStripPilotImageAuthenticate[pilot_Association,
     layout_Association, provider_Association] := Module[
@@ -2689,7 +2592,10 @@ multiquadraticStripPilotImageAuthenticate[pilot_Association,
   {prime, value} = Lookup[pilot, {"Prime", "RegulatorValue"}, $Failed];
   sample = Lookup[pilot, "Sample", $Failed];
   solution = Lookup[pilot, "Solution", $Failed];
-  If[! IntegerQ[prime] || ! PrimeQ[prime] ||
+  If[! multiquadraticStripAssemblyLayoutHotValidQ[layout] ||
+      ! multiquadraticStripProviderHotValidQ[provider] ||
+      ! SameQ[layout["CoefficientData"], provider["CoefficientData"]] ||
+      ! IntegerQ[prime] || ! PrimeQ[prime] ||
       ! MatchQ[value, _Integer | _Rational] ||
       ! AssociationQ[sample] || ! AssociationQ[solution],
     Return[failure["MalformedPilotEnvelope"]]];
@@ -2701,19 +2607,12 @@ multiquadraticStripPilotImageAuthenticate[pilot_Association,
       Lookup[sample, "Prime", None] =!= prime ||
       Lookup[sample, "EpsilonValue", None] =!= value ||
       Lookup[sample, "EpsilonMod", None] =!= epsilonMod ||
-      Lookup[sample, "ABIFingerprint", None] =!=
-        layout["ABIFingerprint"] ||
-      Lookup[sample, "LayoutFingerprint", None] =!=
-        layout["LayoutFingerprint"] ||
-      Lookup[sample, "CoefficientABIFingerprint", None] =!=
-        layout["CoefficientABIFingerprint"] ||
-      Lookup[sample, "ProviderFingerprint", None] =!=
-        provider["ProviderFingerprint"] ||
+      ! SameQ[Lookup[sample, "CoefficientData", None],
+        layout["CoefficientData"]] ||
       Lookup[sample, "Provider", None] =!= provider["Kind"] ||
-      Lookup[sample, "ABIVersion", None] =!= layout["ABIVersion"] ||
       Lookup[sample, "ColumnOrder", None] =!= layout["ColumnOrder"] ||
       Lookup[sample, "RowOrder", None] =!= layout["RowOrder"],
-    Return[failure["PilotSampleKeyOrABIMismatch"]]];
+    Return[failure["PilotSampleDataMismatch"]]];
   If[Lookup[solution, "Status", None] =!=
         "MultiquadraticAffineSolution" ||
       Lookup[solution, "Prime", None] =!= prime ||
@@ -2742,9 +2641,7 @@ multiquadraticStripPilotImageAuthenticate[pilot_Association,
       ! IntegerQ[normalizationCount] || normalizationCount < 0 ||
       dimensions[[1]] =!= expectedRows ||
       ! ListQ[trainingKeys] || ! DuplicateFreeQ[trainingKeys] ||
-      trainingKeys =!= ({layout["LayoutFingerprint"],
-          provider["ProviderFingerprint"], prime, value,
-          Mod[#1, prime]} & /@ acceptedPoints) ||
+      trainingKeys =!= ({prime, value, Mod[#1, prime]} & /@ acceptedPoints) ||
       Lookup[sample, "MatrixDimensions", None] =!= dimensions ||
       Lookup[solution, "MatrixDimensions", None] =!= dimensions,
     Return[failure["PilotMatrixShapeMismatch"]]];
@@ -2760,8 +2657,6 @@ multiquadraticStripPilotImageAuthenticate[pilot_Association,
       ! VectorQ[free, IntegerQ] || Length[free] =!= nullity ||
       ! DuplicateFreeQ[Join[pivots, free]] ||
       Sort[Join[pivots, free]] =!= Range[unknownCount] ||
-      Lookup[solution, "PivotSignature", None] =!=
-        Hash[pivots, "SHA256", "HexString"] ||
       ! VectorQ[particular, IntegerQ] ||
       Length[particular] =!= unknownCount ||
       ! If[nullity === 0, nullspace === {},
@@ -2815,13 +2710,13 @@ Options[multiquadraticStripProviderSupportLadder] = {
 (* The deferred bundle's materialized BBar is a shape placeholder, so its
    support question is decided only after the authenticated provider exists.
    A rung is admitted by two usable, unanimous (prime, regulator) images
-   assembled by the production provider/row ABI.  Failed samples/evidence are
+   assembled by the production provider and row equations.  Failed samples/evidence are
    replaced from a bounded candidate schedule.  Mixed usable verdicts stop
    typed and inconclusive; only two unanimous inconsistencies may advance to
    the next rung or, at ladder exhaustion, support an obstruction.  Only
    layout/support are rebuilt: the builder supplied by the driver reuses the
    full letter records, the exact bundle-derived denominator and, whenever
-   its coefficient ABI still binds, the provider object itself. *)
+   its coefficient data still agree, the provider object itself. *)
 multiquadraticStripProviderSupportLadder[basePreparation_Association,
     baseLayout_Association, baseProvider_Association, rungBuilder_,
     opts : OptionsPattern[]] := Module[
@@ -2840,9 +2735,9 @@ multiquadraticStripProviderSupportLadder[basePreparation_Association,
   If[! multiquadraticStripPreparationValidQ[basePreparation] ||
       ! multiquadraticStripAssemblyLayoutValidQ[baseLayout] ||
       ! multiquadraticStripProviderValidQ[baseProvider] ||
-      baseLayout["ABIFingerprint"] =!= basePreparation["ABIFingerprint"] ||
-      baseLayout["CoefficientABIFingerprint"] =!=
-        baseProvider["CoefficientABIFingerprint"],
+      ! SameQ[baseLayout["Preparation"], basePreparation] ||
+      ! SameQ[baseLayout["CoefficientData"],
+        baseProvider["CoefficientData"]],
     Return[multiquadraticStripFailure[
       "InvalidProviderSupportLadderInput"]]];
   baseOffset = OptionValue["BaseDegreeOffset"];
@@ -2907,28 +2802,22 @@ multiquadraticStripProviderSupportLadder[basePreparation_Association,
     preparation = built["Preparation"];
     layout = built["Layout"];
     provider = built["Provider"];
-    If[layout["ABIFingerprint"] =!= preparation["ABIFingerprint"] ||
-        layout["CoefficientABIFingerprint"] =!=
-          provider["CoefficientABIFingerprint"],
-      Return[multiquadraticStripFailure["ProviderSupportRungABIMismatch",
-        <|"DegreeOffset" -> offset,
-          "LayoutFingerprint" -> layout["LayoutFingerprint"],
-          "ProviderFingerprint" -> provider["ProviderFingerprint"]|>],
+    If[! SameQ[layout["Preparation"], preparation] ||
+        ! SameQ[layout["CoefficientData"], provider["CoefficientData"]],
+      Return[multiquadraticStripFailure["ProviderSupportRungDataMismatch",
+        <|"DegreeOffset" -> offset|>],
         Module]];
-    providerReused = provider["ProviderFingerprint"] ===
-      baseProvider["ProviderFingerprint"];
+    providerReused = SameQ[provider, baseProvider];
     imageEvidence = {}; pilotImages = {}; unusableEvidence = {};
     attemptedImages = {};
     Do[
       If[Length[imageEvidence] >= 2, Break[]];
       AppendTo[attemptedImages, image];
       {sampleSeconds, sample} = AbsoluteTiming[
-        Block[{$multiquadraticStripTrustedProviderEvaluation = True,
-            $multiquadraticStripTrustedLayoutEvaluation = True},
-          multiquadraticStripAssembleSample[layout, provider, image[[2]],
-            image[[1]], "PointCount" -> pointCount,
-            "MaximumAttempts" -> maximumAttempts,
-            "RandomSeed" -> randomSeed + 1009 imageIndex]]];
+        multiquadraticStripAssembleSample[layout, provider, image[[2]],
+          image[[1]], "PointCount" -> pointCount,
+          "MaximumAttempts" -> maximumAttempts,
+          "RandomSeed" -> randomSeed + 1009 imageIndex]];
       If[Lookup[sample, "Status", None] =!=
           "AssembledMultiquadraticSampleV1",
         AppendTo[unusableEvidence, <|"Image" -> image,
@@ -2952,8 +2841,6 @@ multiquadraticStripProviderSupportLadder[basePreparation_Association,
       AppendTo[imageEvidence, Join[KeyDrop[evidence, {"Solution"}],
         <|"RegulatorValue" -> image[[2]],
           "AcceptedPoints" -> sample["AcceptedPoints"],
-          "LayoutFingerprint" -> layout["LayoutFingerprint"],
-          "ProviderFingerprint" -> provider["ProviderFingerprint"],
           "SamplingSeconds" -> sampleSeconds,
           "EvidenceSeconds" -> evidenceSeconds|>]];
       If[Lookup[evidence, "Status", None] ===
@@ -2985,8 +2872,6 @@ multiquadraticStripProviderSupportLadder[basePreparation_Association,
     AppendTo[rungs, <|"DegreeOffset" -> offset,
       "SupportCount" -> Length[preparation["GaugeSupport"]],
       "UnknownCount" -> preparation["UnknownCount"],
-      "LayoutFingerprint" -> layout["LayoutFingerprint"],
-      "ProviderFingerprint" -> provider["ProviderFingerprint"],
       "ProviderReused" -> providerReused,
       "ImageCount" -> Length[imageEvidence],
       "AttemptCount" -> Length[attemptedImages],
@@ -3054,7 +2939,7 @@ multiquadraticStripUnpackVector[preparation_Association, vector_List] := Module[
   {dimensions, gradeCount, support, denominator, variables, gaugeUnknownCount,
    gaugeCoefficients, gaugeChannels, residues},
   If[! multiquadraticStripPreparationValidQ[preparation],
-    Return[multiquadraticStripFailure["InvalidPreparationABI"]]];
+    Return[multiquadraticStripFailure["InvalidPreparation"]]];
   If[Length[vector] =!= preparation["UnknownCount"],
     Return[multiquadraticStripFailure["ReconstructedVectorLengthMismatch",
       <|"Expected" -> preparation["UnknownCount"],
@@ -3136,7 +3021,7 @@ multiquadraticStripExactChannelResidual[preparation_Association, vector_List,
     Return[unpacked]];
   record = preparation["Record"];
   roots = preparation["Roots"];
-  deltas = Lookup[roots, "RootSquare", {}];
+  deltas = squareRootRecordRadicand /@ roots;
   variables = preparation["Variables"];
   epsilon = preparation["Regulator"];
   epsilonImage = If[epsilonValue === Automatic, epsilon, epsilonValue];
@@ -3259,9 +3144,8 @@ multiquadraticStripPointCoefficientsValidQ[assembly_Association,
       Dimensions[Lookup[coefficients, "OneForms", {}]] ===
         {oneFormCount, 2, gradeCount}] &&
     If[layoutQ,
-      Lookup[coefficients, "CoefficientABIFingerprint", None] ===
-        assembly["CoefficientABIFingerprint"] &&
-      StringQ[Lookup[coefficients, "ProviderFingerprint", None]],
+      SameQ[Lookup[coefficients, "CoefficientData", None],
+        assembly["CoefficientData"]],
       Lookup[coefficients, "Provider", None] === "CompiledChannel"]]
 ];
 

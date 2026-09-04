@@ -231,10 +231,13 @@ check["W4 the evidence record states the failed draw",
 (* D: the public driver                                                 *)
 (* ------------------------------------------------------------------ *)
 
-frame = <|"Name" -> "Round3Rational", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Rational", "Variables" -> {ox, oy},
-  "Subst" -> {ox -> ox, oy -> oy}, "Root" -> None, "RootSquare" -> None,
-  "Roots" -> {}|>;
+frame = <|
+  "DataType" -> "SourceVariableRepresentation",
+  "SchemaVersion" -> 2,
+  "SourceVariables" -> {ox, oy},
+  "CoefficientVariables" -> {ox, oy},
+  "SourceVariableSubstitution" -> {ox -> ox, oy -> oy},
+  "DifferentialPullbackMatrix" -> IdentityMatrix[2]|>;
 (* the driver merges a SUPPLIED gauge denominator into its admitted-pole
    set (multiquadraticStripMergeGaugeDenominator): factors free of the
    chart variables are dropped, so the pool killer's regulator-only

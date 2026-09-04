@@ -24,6 +24,8 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 prime = 1000003;
 originalCheckLevel = Quiet[Environment["FACET_CHECK_LEVEL"]];
 SetEnvironment["FACET_CHECK_LEVEL" -> ""];
+coefficientData[tag_] := <|"Schema" -> "TestCoefficientDataV1",
+  "Tag" -> tag|>;
 
 (* rootRank controls the grade multiplicity of the synthetic block; the
    affine algebra itself is deliberately generic.  The first rank rows are
@@ -52,20 +54,19 @@ Do[
   nativePilot = discoverySolve[pilot["Matrix"], pilot["Right"], prime,
     Length[First[pilot["Matrix"]]], 0, "FLINTAffineRREF", 2, 0];
   check["declared root rank " <> ToString[rootRank] <>
-      " native and Wolfram affine ABIs agree exactly",
+      " native and Wolfram affine data agree exactly",
     KeyTake[nativePilot, {"Rank", "Nullity", "PivotColumns",
-        "FreeColumns", "PivotSignature", "ParticularSolution",
+        "FreeColumns", "ParticularSolution",
         "NullspaceBasis"}] ===
       KeyTake[wolframPilot, {"Rank", "Nullity", "PivotColumns",
-        "FreeColumns", "PivotSignature", "ParticularSolution",
+        "FreeColumns", "ParticularSolution",
         "NullspaceBasis"}] &&
       nativePilot["PlanDiscoveryBackendUsed"] === "FLINTAffineRREF" &&
       nativePilot["PlanDiscoveryBackendThreads"] === 2 &&
       NumericQ[nativePilot["PlanDiscoveryBackendSeconds"]]];
   pilotFull = fullSolve[pilot["Matrix"], pilot["Right"], prime];
   plan = discover[pilot["Matrix"], pilot["Right"], pilotFull,
-    pilot["NormalizationColumns"], prime,
-    "layout-r" <> ToString[rootRank], "provider-r" <> ToString[rootRank]];
+    pilot["NormalizationColumns"], prime, coefficientData[rootRank]];
   later = fixture[rootRank, 7];
   laterFull = fullSolve[later["Matrix"], later["Right"], prime];
   laterCanonical = NormalizeEpsFormAffineSample[
@@ -116,8 +117,8 @@ widePilot = wideFixture[2];
 widePilotFull = discoverySolve[widePilot["Matrix"], widePilot["Right"], prime,
   Length[First[widePilot["Matrix"]]], 0, "FLINTAffineRREF", 8, 0];
 widePlan = discover[widePilot["Matrix"], widePilot["Right"], widePilotFull,
-  widePilot["NormalizationColumns"], prime, "wide-layout",
-  "wide-provider", widePilotFull["IndependentEquationRows"]];
+  widePilot["NormalizationColumns"], prime, coefficientData["wide"],
+  widePilotFull["IndependentEquationRows"]];
 wideLater = wideFixture[9];
 widePlanned = plannedSolve[wideLater["Matrix"], wideLater["Right"], prime,
   widePlan];
@@ -196,24 +197,21 @@ pilot = fixture[3, 11];
 nativePilot = discoverySolve[pilot["Matrix"], pilot["Right"], prime,
   Length[First[pilot["Matrix"]]], 0, "FLINTAffineRREF", 3, 0];
 nativePlan = discover[pilot["Matrix"], pilot["Right"], nativePilot,
-  pilot["NormalizationColumns"], prime, "native-plan-layout",
-  "native-plan-provider", nativePilot["IndependentEquationRows"]];
+  pilot["NormalizationColumns"], prime, coefficientData["native-plan"],
+  nativePilot["IndependentEquationRows"]];
 wolframPilot = discoverySolve[pilot["Matrix"], pilot["Right"], prime,
   Length[First[pilot["Matrix"]]], 0, "Wolfram", 3, 0];
 wolframPlan = discover[pilot["Matrix"], pilot["Right"], wolframPilot,
-  pilot["NormalizationColumns"], prime, "native-plan-layout",
-  "native-plan-provider"];
+  pilot["NormalizationColumns"], prime, coefficientData["native-plan"]];
 check["native discovery translates to the exact constrained-plan semantics",
   planValidQ[nativePlan] && nativePlan["PilotReplayMethod"] ===
       "CFFRFullOriginalRowResiduals" &&
     KeyTake[nativePlan, {"Rank", "Nullity", "IndependentEquationRows",
        "NormalizationColumns", "PivotColumns", "FreeColumns",
-       "PivotSignature"}] ===
+       "CoefficientData"}] ===
      KeyTake[wolframPlan, {"Rank", "Nullity", "IndependentEquationRows",
        "NormalizationColumns", "PivotColumns", "FreeColumns",
-       "PivotSignature"}] &&
-    AssociationQ[nativePlan["PlanDiscoveryBackendBinding"]] &&
-    nativePlan["PlanFingerprint"] =!= wolframPlan["PlanFingerprint"]];
+       "CoefficientData"}]];
 
 automaticNative = discoverySolve[pilot["Matrix"], pilot["Right"], prime,
   Length[First[pilot["Matrix"]]], 0, Automatic, 4, 0];
@@ -287,12 +285,11 @@ check["one-RHS native inconsistency does not launch a homogeneous RREF",
 
 (* Make one selected pilot row vanish, but move that exact row to a
    nonselected slot.  The planned core is singular while the full affine
-   space, pivot signature, and locked section are unchanged. *)
+   space, pivot columns, and locked section are unchanged. *)
 pilot = fixture[3, 3];
 pilotFull = fullSolve[pilot["Matrix"], pilot["Right"], prime];
 plan = discover[pilot["Matrix"], pilot["Right"], pilotFull,
-  pilot["NormalizationColumns"], prime, "layout-adversarial",
-  "provider-adversarial"];
+  pilot["NormalizationColumns"], prime, coefficientData["adversarial"]];
 selected = First[plan["IndependentEquationRows"]];
 replacement = First[Complement[Range[Length[pilot["Matrix"]]],
   plan["IndependentEquationRows"]]];
@@ -319,8 +316,8 @@ check["constrained telemetry separates core solve and full residual",
       {"CoreSolve", "FullResidual"})];
 
 mutatedPlan = ReplacePart[plan, "NormalizationColumns" ->
-  Reverse[plan["NormalizationColumns"]]];
-check["a same-shape mutated plan fails authentication",
+  ConstantArray[First[plan["NormalizationColumns"]], plan["Nullity"]]];
+check["a malformed normalization-column list is rejected",
   ! TrueQ[planValidQ[mutatedPlan]] &&
     Lookup[plannedSolve[pilot["Matrix"], pilot["Right"], prime,
        mutatedPlan], "Status", None] === "InvalidConstrainedAffinePlan"];

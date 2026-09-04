@@ -51,7 +51,7 @@ FTAssert["a full physical boundary is split into one shared period basis and bou
   attached["Status"] === "TransportBoundaryAttachedToRationalLayer" &&
   transport["Status"] === "RationalEpsilonLayerTransportAccepted" &&
   transport["WordRepresentation"] === "LazyOperator" &&
-  transport["GaugeAtEndpoint"][0] === IdentityMatrix[2] &&
+  transport["OffDiagonalBasisTransformationBlockAtPathEndpoint"][0] === IdentityMatrix[2] &&
   AcceptedRationalEpsilonLayerOperatorQ[operator] &&
   operator["BoundaryLayout"] === "Shared" &&
   operator["Dimensions", "TotalBoundary"] === 4];
@@ -73,7 +73,7 @@ rebasedOperator = RebaseRationalEpsilonLayerOperator[
   operator, 1/2,
   attached["Source", "BoundarySelectors"],
   attached["Layer", "TargetBoundarySelectors"],
-  "HAtNewBase" -> <|0 -> 2/3 IdentityMatrix[2]|>,
+  "OffDiagonalTransformationBlockAtNewBase" -> <|0 -> 2/3 IdentityMatrix[2]|>,
   "BasePointPrescription" -> <|"Type" -> "TangentialRegularized",
     "LocalDirection" -> -1|>];
 rebasedCoefficient = BuildPhysicalTransportCoefficient[
@@ -99,17 +99,18 @@ FTAssert["rebasing refuses to guess a nonzero gauge value or missing selector ge
   RebaseRationalEpsilonLayerOperator[operator, 1/2,
     attached["Source", "BoundarySelectors"],
     attached["Layer", "TargetBoundarySelectors"]]["Status"] ===
-      "RationalLayerGaugeAtNewBaseRequired" &&
+      "RationalLayerOffDiagonalTransformationAtNewBaseRequired" &&
   RebaseRationalEpsilonLayerOperator[operator, 1/2,
     <|0 -> {{1}}|>, attached["Layer", "TargetBoundarySelectors"],
-    "HAtNewBase" -> <|0 -> 2/3 IdentityMatrix[2]|>]["Status"] ===
+    "OffDiagonalTransformationBlockAtNewBase" -> <|0 -> 2/3 IdentityMatrix[2]|>]["Status"] ===
       "RationalLayerRebaseSelectorsInvalid"];
 
 gauged = BuildPhysicalTransportCoefficient[operator, boundary,
   {0, 1}, <|"Variable" -> u, "BasePoint" -> 0,
     "Endpoint" -> 1|>,
-  "OutputGaugeByOrder" -> <|0 -> {{0, 1}, {1, 0}}|>];
-FTAssert["an epsilon-dependent physical output gauge is applied after F=G+H source",
+  "CanonicalToPhysicalMasterIntegralMapByEpsilonOrder" ->
+    <|0 -> {{0, 1}, {1, 0}}|>];
+FTAssert["an epsilon-dependent map from the canonical target block to physical master integrals is applied after F=G+H source",
   gauged["Expression"] ===
     BoundaryPeriodCoefficient["b", 0] +
       BoundaryPeriodCoefficient["d", 0] &&

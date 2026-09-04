@@ -23,7 +23,7 @@ chartFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_can
 FTAssert["D0 fixture CF300 (12,9) and the family chart file exist",
   FileExistsQ[inputFile] && FileExistsQ[chartFile]];
 If[! (FileExistsQ[inputFile] && FileExistsQ[chartFile]), FTSummary[]; Exit[1]];
-FeynFacet`TransportFamilyChartLoad[chartFile];
+FeynFacet`LoadFamilyRootData[chartFile];
 prime = 2147483423;
 
 (* the plan, as SolveEpsFormStripInFrame builds it *)
@@ -31,14 +31,14 @@ prime = 2147483423;
   "transportChartRootIndices", "transportChartRekey", "masterTransportChartData", "transportChartPullBackStrip"};
 record = FeynFacet`FamilyArtifactRead[inputFile, "Global`"];
 variables = record["Variables"]; epsilon = record["Regulator"]; {e, c, bbar} = record["Strip"];
-frame = FeynFacet`TransportFamilyChart[record["Family"]];
+frame = FeynFacet`FamilyRootData[record["Family"]];
 allRoots = currentRoots[frame, variables];
 dp = record["DeferredPreparation"]; prepSquares = Lookup[dp, "RootSquares", {}];
 cls = rootIndicesOf[{e, c}, allRoots];
 matchIndex[square_] := First[Flatten[Position[allRoots, r_ /; TrueQ[Together[r["RootSquare"] - square] === 0], {1}, Heads -> False]]];
 rootIndices = Sort[DeleteDuplicates[Join[cls["RootIndices"], matchIndex /@ prepSquares]]];
 usedRoots = allRoots[[rootIndices]]; rootSquares = Lookup[usedRoots, "RootSquare", {}];
-chart = FeynFacet`TransportRootSetChart[rootSquares, variables];
+chart = FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[rootSquares, variables];
 chartVariables = {Symbol["FeynFacet`Private`stripChartX"], Symbol["FeynFacet`Private`stripChartY"]};
 rekeyed = rekey[chart, variables, chartVariables]; data = chartData[rekeyed, variables];
 chartRoots = Lookup[rekeyed, "Roots", {}];
@@ -92,24 +92,26 @@ sampleRecord = <|"Strip" -> {chartEC[[1]], chartEC[[2]], ConstantArray[0, Dimens
   "Variables" -> chartVariables, "Regulator" -> epsilon, "DeferredForcing" -> descriptor|>;
 preparation = mq["finiteFieldStripPrepare"][sampleRecord];
 FTAssert["D7 the sampler's preparation carries the descriptor", AssociationQ[preparation] &&
-  AssociationQ[Lookup[preparation, "DeferredForcing", None]] && StringQ[preparation["Fingerprint"]]];
+  AssociationQ[Lookup[preparation, "DeferredForcing", None]] &&
+  AssociationQ[preparation["DefiningInput"]]];
 stripSeconds[a_] := If[AssociationQ[a], KeySelect[a,
   ! StringEndsQ[ToString[#], "Seconds"] && # =!= "SamplingImagesBatched" &], a];
 sampleOptions = {"PointCount" -> 12, "RandomSeed" -> 2540908,
   "BackendThreads" -> 2};
 (* the solving kernel's sample *)
 main = FeynFacet`SampleEpsFormStripAffine[sampleRecord, 1/13, prime, Sequence @@ sampleOptions,
-  "Preparation" -> preparation, "ExpectedFingerprint" -> preparation["Fingerprint"]];
+  "Preparation" -> preparation];
 FTAssert["D8 the solving kernel samples the DAG-route strip", AssociationQ[main]];
 (* a helper kernel: empty registry, the broker's task function, the files it reads *)
 (* the files a real broker writes under its pool directory (taskBrokerDataFile
    needs a live pool); here the same atomic writer into a fresh directory *)
 brokerDir = CreateDirectory[];
-recordFile = mq["taskBrokerPutAtomic"][sampleRecord, FileNameJoin[{brokerDir, "record_" <> preparation["Fingerprint"] <> ".wl"}]];
+recordFile = mq["taskBrokerPutAtomic"][sampleRecord,
+  FileNameJoin[{brokerDir, "record.wl"}]];
 optionsFile = mq["taskBrokerPutAtomic"][sampleOptions, FileNameJoin[{brokerDir, "opts.wl"}]];
 FeynFacet`Private`$finiteFieldDeferredForcingRegistry = <||>; setCache[<||>];
-helper = mq["taskBrokerSampleTask"][recordFile, preparation["Fingerprint"],
-  {1/13, 2/17}, prime, optionsFile];
+helper = mq["taskBrokerSampleTask"][recordFile, {1/13, 2/17}, prime,
+  optionsFile];
 FTAssert["D9 (R2 F2) a helper with an empty registry rebuilds the plan from the handle and returns the solving kernel's sample",
   ListQ[helper] && Length[helper] === 2 && AssociationQ[First[helper]] &&
     stripSeconds[First[helper]] === stripSeconds[main] &&
@@ -128,7 +130,7 @@ FeynFacet`Private`$finiteFieldDeferredForcingRegistry = <||>;
 noHandle = Join[sampleRecord, <|"DeferredForcing" -> KeyDrop[descriptor, "Handle"]|>];
 noHandlePreparation = mq["finiteFieldStripPrepare"][noHandle];
 bare = Quiet[FeynFacet`SampleEpsFormStripAffine[noHandle, 1/13, prime, Sequence @@ sampleOptions,
-  "Preparation" -> noHandlePreparation, "ExpectedFingerprint" -> noHandlePreparation["Fingerprint"]]];
+  "Preparation" -> noHandlePreparation]];
 FTAssert["D13 without a handle a helper's sample returns its typed reason",
   mq["finiteFieldDeferredForcingRuntimeFailureQ"][bare] &&
     bare["Reason"] === "DeferredForcingPlanUnknown" &&

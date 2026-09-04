@@ -23,11 +23,9 @@
         construction.  A term stores REFERENCES to its source entries
         (the gauge entry and the connection entry), so preparation
         allocates no new large expressions;
-     2. the ABI is pinned -- variable and parameter symbol keys carrying
-        their context, regulator, block indices, row/column indices,
-        feeder list and a source fingerprint.  Evaluation and
-        materialization recompute the fingerprint and fail closed on any
-        mismatch;
+     2. the defining mathematical input is stored directly -- variables,
+        parameters, regulator, block indices, row/column indices and feeder
+        list.  Evaluation and materialization compare that data directly;
      3. bad primes, denominator-zero points and unassigned symbols are
         TYPED SAMPLING REJECTIONS, never zero equations;
      4. the structural block precondition of the truncated row formula
@@ -44,9 +42,8 @@
 
    WHY THE EXACT MATERIALIZATION IS FASTER, AND STILL EXACT.
    Every operand (a gauge entry, a connection entry) is Together'd ONCE
-   and interned -- an Association keyed by the expression is a hash map
-   with SameQ collision semantics, which is exactly the interning pool
-   Codex asks for in Q1.2 -- and its denominator is factored once.  A
+   and interned -- an Association keyed by the expression uses exact SameQ
+   key semantics -- and its denominator is factored once.  A
    term's denominator is then the multiset union of two already-factored
    denominators, and the common denominator of the whole entry is the
    per-factor maximum: NO polynomial gcd is computed to find it, where
@@ -66,7 +63,7 @@
    AlgebraicOperandUnsupported rejection and falls back to exact
    materialization.  The separate chart ROUTER below supplies declared
    root placeholders, evaluates all 2^r sign sheets and projects them by
-   the shared Hadamard ABI; its samples select execution only and never
+   the shared Hadamard convention; its samples select execution only and never
    accept a solved block.
 
    THE ONE MEASURED DIFFERENCE FROM THE SYMBOLIC ROUTE, and its blast
@@ -117,8 +114,7 @@ ClearAll[
   blockEquationDeferredTermExpression,
   blockEquationDeferredUntouchedQ,
   blockEquationDeferredRecordBase,
-  blockEquationDeferredSourceFingerprint,
-  blockEquationDeferredFingerprint,
+  blockEquationDeferredPreparationQ,
   blockEquationDeferredPrepare,
   blockEquationDeferredModEvaluate,
   blockEquationDeferredModEvaluateSheets,
@@ -140,37 +136,26 @@ ClearAll[
   blockEquationDeferredBatchPlan,
   blockEquationDeferredInternTask,
   blockEquationDeferredMaterializeTask,
-  blockEquationDeferredRootFrame,
+  blockEquationDeferredValidateSquareRootGenerators,
   blockEquationDeferredGradeReduceRules,
   blockEquationDeferredGradeReduce,
   blockEquationDeferredGradeChannels,
   blockEquationDeferredAlgebraicZeroQ,
-  blockEquationDeferredFrameCanonicalize,
+  blockEquationDeferredCanonicalizeWithSquareRootGenerators,
   blockEquationDeferredFactorRootMask,
   blockEquationDeferredFactorCanonicalKey,
   blockEquationDeferredChartMaterializableQ,
   blockEquationDeferredChartDecision,
   blockEquationDeferredFactorOrbit,
   blockEquationDeferredBundleTargetOrder,
-  blockEquationDeferredBundleFingerprint,
-  blockEquationDeferredMaterializedForcingFingerprint,
-  blockEquationDeferredMaterializationCertificate,
-  blockEquationDeferredMaterializationCertificateValidate,
   blockEquationDeferredBundleValidate,
   blockEquationDeferredBundleEvaluate,
   blockEquationDeferredCanonicalPoleValuation,
   blockEquationDeferredCompileBundle,
   blockEquationDeferredCompileBundleWithCache,
-  $blockEquationDeferredTrustedBundle,
-  $blockEquationDeferredABIVersion,
-  $blockEquationDeferredBundleSchema,
-  $blockEquationDeferredMaterializationCertificateSchema
+  $blockEquationDeferredBundleSchema
 ];
 
-$blockEquationDeferredABIVersion = "BlockEquationDeferredV1";
-$blockEquationDeferredMaterializationCertificateSchema =
-  "FeynFacetDeferredMaterializationCertificateV1";
-$blockEquationDeferredTrustedBundle = None;
 
 (* ---- route ---------------------------------------------------------- *)
 
@@ -181,7 +166,7 @@ blockEquationDeferredRoute[] := Module[{value = Environment[
 
 blockEquationDeferredRouteQ[] := blockEquationDeferredRoute[] === "Deferred";
 
-(* ---- ABI ------------------------------------------------------------ *)
+(* ---- mathematical data --------------------------------------------- *)
 
 (* a symbol key that carries its context explicitly: unlike printed text
    it does not change with the reader's $ContextPath (the pool defect
@@ -211,26 +196,24 @@ blockEquationDeferredRecordBase[record_Association] :=
     term_ /; Lookup[term, "Kind", None] === "Base" :>
       First[Lookup[term, "Operands", {0}]]]];
 
-blockEquationDeferredSourceFingerprint[slices_] :=
-  Hash[{$blockEquationDeferredABIVersion, slices}, "SHA256", "HexString"];
-
-blockEquationDeferredFingerprint[preparation_Association] := Hash[
-  {$blockEquationDeferredABIVersion,
-   blockEquationDeferredSymbolKey /@ Lookup[preparation, "Variables", {}],
-   blockEquationDeferredSymbolKey[Lookup[preparation, "Regulator", None]],
-   blockEquationDeferredSymbolKey /@ Lookup[preparation, "Parameters", {}],
-   Lookup[preparation, "Sector", None],
-   Lookup[preparation, "LowerSector", None],
-   Lookup[preparation, "RowIndices", {}],
-   Lookup[preparation, "ColumnIndices", {}],
-   Lookup[preparation, "Feeders", {}],
-   Lookup[preparation, "Dimensions", {}],
-   Lookup[preparation, "SourceFingerprint", None],
-   ({#["Target"], ({Lookup[#, "Kind", None], Lookup[#, "Feeder", None],
-        Lookup[#, "Index", None], Lookup[#, "Coefficient", 1],
-        Lookup[#, "Operands", {}]} & /@ Lookup[#, "Terms", {}])} & /@
-     Lookup[preparation, "Records", {}])},
-  "SHA256", "HexString"];
+blockEquationDeferredPreparationQ[preparation_Association] := Module[
+  {variables, regulator, dimensions, records},
+  variables = Lookup[preparation, "Variables", $Failed];
+  regulator = Lookup[preparation, "Regulator", $Failed];
+  dimensions = Lookup[preparation, "Dimensions", $Failed];
+  records = Lookup[preparation, "Records", $Failed];
+  TrueQ[Lookup[preparation, "DataType", None] === "DeferredBlockEquation" &&
+    Lookup[preparation, "SchemaVersion", None] === 2 &&
+    MatchQ[variables, {_Symbol, _Symbol}] && variables[[1]] =!= variables[[2]] &&
+    SymbolQ[regulator] && ! MemberQ[variables, regulator] &&
+    MatchQ[dimensions, {_Integer?Positive, _Integer?Positive,
+      _Integer?Positive}] &&
+    MatchQ[records, {___Association}] &&
+    AllTrue[records, MatchQ[Lookup[#1, "Target", None],
+        {_Integer, _Integer, _Integer}] &&
+      MatchQ[Lookup[#1, "Terms", None], {__Association}] &]]
+];
+blockEquationDeferredPreparationQ[___] := False;
 
 (* ---- preparation ---------------------------------------------------- *)
 
@@ -245,7 +228,7 @@ blockEquationDeferredPrepare[connection_, ranges_, k_Integer, j_Integer,
   {started = AbsoluteTime[], n, rk, rj, feeders, involved, pairs,
    upper, records = {}, untouchedCount = 0, terms, base, feedTerms,
    gaugeBlock, feedBlock, gaugeRowSupport, feedColumnSupport,
-   support, dimensions, parameters, sliceFingerprint, preparation,
+   support, dimensions, parameters, preparation,
    productCount = 0, termCount = 0, mu, i, jj, m, l},
 
   If[! MatchQ[connection, {_List, _List}] ||
@@ -335,28 +318,20 @@ blockEquationDeferredPrepare[connection_, ranges_, k_Integer, j_Integer,
       ! MemberQ[variables, symbol] && symbol =!= regulator :> symbol,
     {0, Infinity}, Heads -> True]];
   parameters = SortBy[parameters, blockEquationDeferredSymbolKey];
-  sliceFingerprint = blockEquationDeferredSourceFingerprint[{
-    connection[[All, rk, rj]],
-    Table[{m, ranges[[m]], solved[m], connection[[All, ranges[[m]], rj]]},
-      {m, feeders}]}];
-
-  preparation = <|"Status" -> "Prepared",
-    "ABIVersion" -> $blockEquationDeferredABIVersion,
+  preparation = <|"DataType" -> "DeferredBlockEquation",
+    "SchemaVersion" -> 2, "Status" -> "Prepared",
     "Variables" -> variables, "Regulator" -> regulator,
     "Parameters" -> parameters,
     "Sector" -> k, "LowerSector" -> j,
     "RowIndices" -> rk, "ColumnIndices" -> rj, "Feeders" -> feeders,
     "Dimensions" -> dimensions,
     "Records" -> records,
-    "SourceFingerprint" -> sliceFingerprint,
     "Statistics" -> <|
       "CandidateEntries" -> 2 Length[rk] Length[rj],
       "Touched" -> Length[records] - untouchedCount,
       "Untouched" -> untouchedCount,
       "Products" -> productCount, "TermCount" -> termCount,
-      "PrepareSeconds" -> N[AbsoluteTime[] - started]|>|>;
-  Append[preparation,
-    "Fingerprint" -> blockEquationDeferredFingerprint[preparation]]
+      "PrepareSeconds" -> N[AbsoluteTime[] - started]|>|>
 ];
 
 blockEquationDeferredPrepare[___] := <|"Status" -> "InvalidInput"|>;
@@ -377,7 +352,7 @@ blockEquationDeferredSourceExpression[preparation_Association,
    production implementation; the row-gauge oracle
    (FamilyRowGaugeFiniteField.wl, familyRowGaugeFFModEvaluate) delegates
    to it with its own root-placeholder head, exactly as that file already
-   delegates every multiquadratic algebra operation to the neutral ABI.
+   delegates every multiquadratic algebra operation to the shared routines.
    rootHead = None means "no algebraic placeholders in this expression".
    Every failure is TYPED (Codex 3): a bad prime, a denominator-zero
    point and an unassigned symbol are sampling rejections and must never
@@ -509,15 +484,8 @@ blockEquationDeferredEvaluate[preparation_Association, point_,
   {started = AbsoluteTime[], variables, regulator, parameters,
    dimensions, records, scalarValues, image, ruleLeft, missing, extra,
    termResults, tag = Unique["blockEquationDeferredPointTag"], result},
-  If[Lookup[preparation, "Status", None] =!= "Prepared" ||
-      Lookup[preparation, "ABIVersion", None] =!=
-        $blockEquationDeferredABIVersion,
+  If[! blockEquationDeferredPreparationQ[preparation],
     Return[<|"Status" -> "InvalidPreparation"|>]];
-  (* Codex 2: the ABI is re-derived and must match, or the artifact is
-     refused -- fail closed, never best effort *)
-  If[Lookup[preparation, "Fingerprint", None] =!=
-      blockEquationDeferredFingerprint[KeyDrop[preparation, "Fingerprint"]],
-    Return[<|"Status" -> "PreparationFingerprintMismatch"|>]];
   If[! IntegerQ[prime] || prime <= 3 || prime >= 2^31 ||
       ! TrueQ[PrimeQ[prime]],
     Return[<|"Status" -> "InvalidPrime", "Prime" -> prime|>]];
@@ -564,7 +532,6 @@ blockEquationDeferredEvaluate[preparation_Association, point_,
   If[result =!= "OK", Return[result]];
   <|"Status" -> "OK", "Prime" -> prime, "Point" -> Mod[point, prime],
     "Regulator" -> epsilonValue,
-    "Fingerprint" -> preparation["Fingerprint"],
     "Image" -> image,
     "EvaluateSeconds" -> N[AbsoluteTime[] - started]|>
 ];
@@ -594,13 +561,13 @@ blockEquationDeferredNonzeroCensus[preparation_Association,
       AppendTo[rejections, KeyTake[evaluation,
         {"Status", "Target", "Point", "Prime", "Symbol", "Denominator",
          "Parameters"}]];
-      (* These refusals are properties of the FRAME or the
+      (* These refusals are properties of the coefficient presentation or the
          PREPARATION, not of the point: no further point can succeed, and
          on an algebraic frame every remaining triple would repeat the
-         same ~0.6 s ABI re-derivation for nothing.  A denominator-zero
+         same ~0.6 s structural derivation for nothing.  A denominator-zero
          point or a bad prime IS point-specific and the loop continues. *)
       If[MemberQ[{"AlgebraicOperandUnsupported", "UnsupportedExpression",
-          "MissingParameters", "PreparationFingerprintMismatch",
+          "MissingParameters",
           "InvalidPreparation"},
           Lookup[evaluation, "Status", None]],
         Break[]],
@@ -632,7 +599,7 @@ blockEquationDeferredNonzeroCensus[preparation_Association,
 blockEquationDeferredActiveGradeCensus[preparation_Association,
     roots_List] := Module[
   {started = AbsoluteTime[], variables, regulator, parameters, records,
-   rank = Length[roots], rootSquares, frame, rootHead, rootImages,
+   rank = Length[roots], rootSquares, generatorData, rootHead, rootImages,
    literalMatch, placeholder,
    canonicalTag, numericBases, numericPlaceholder,
    directPlaceholderCount = 0, canonicalizedPlaceholderCount = 0,
@@ -655,15 +622,17 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
   regulator = preparation["Regulator"];
   parameters = Lookup[preparation, "Parameters", {}];
   records = Lookup[preparation, "Records", {}];
-  rootSquares = Lookup[roots, "RootSquare", $Failed];
+  rootSquares = squareRootRecordRadicand /@ roots;
   If[! ListQ[rootSquares] || Length[rootSquares] =!= rank,
     Return[<|"Status" -> "ActiveGradeCensusInconclusive",
       "Reason" -> "InvalidRootMetadata"|>]];
   Print["[deferred-router] active-grade census start: rank ", rank,
     ", records ", Length[records]];
 
-  frame = blockEquationDeferredRootFrame[roots, variables, regulator];
-  If[Lookup[frame, "Status", None] =!= "StableRootOrder",
+  generatorData = blockEquationDeferredValidateSquareRootGenerators[
+    roots, variables, regulator];
+  If[Lookup[generatorData, "Status", None] =!=
+      "SquareRootGeneratorsValidated",
     Return[<|"Status" -> "ActiveGradeCensusInconclusive",
       "Reason" -> "InvalidRootMetadata"|>]];
   Print["[deferred-router] active-grade frame ready: ",
@@ -711,8 +680,8 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
     If[survivors === {}, directPlaceholderCount++;
       recordDenominatorRoots[direct]; Return[direct, Module]];
     canonicalizedPlaceholderCount++;
-    canonical = blockEquationDeferredFrameCanonicalize[
-      expression, frame, variables];
+    canonical = blockEquationDeferredCanonicalizeWithSquareRootGenerators[
+      expression, roots, variables];
     If[Lookup[canonical, "Status", None] =!= "OK",
       Throw[canonical, canonicalTag]];
     direct = transportChartApplyRootBranches[
@@ -831,7 +800,7 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
           Return[<|"Status" -> "ActiveGradeCensusInconclusive",
             "Reason" -> failureStatus|>]];
         Continue[]];
-      channels = Table[multiquadraticProjectConjugates[
+      channels = Table[multiquadraticProjectSignChangeImages[
           branchImages[[All, target]], rootValues, prime],
         {target, Length[records]}];
       If[AnyTrue[channels, #1 === $Failed ||
@@ -898,7 +867,7 @@ blockEquationDeferredMapleCanonicalOperandValue[expression_] := Module[
   If[radicalBases === {}, Return[$Failed]];
   scratch = FileNameJoin[{$TemporaryDirectory, "FeynFacet",
       "DeferredBundleMaple"}];
-  key = Hash[HoldComplete[expression], "SHA256", "HexString"];
+  key = StringReplace[CreateUUID[], "-" -> ""];
   (* Keep the declared square-root basis opaque to Maple.  Algebraic Normal
      may otherwise rewrite r1 r2 as Sqrt[d1 d2], which is equal but outside
      the bundle's declared frame.  Rational normalization in independent
@@ -1190,7 +1159,8 @@ blockEquationDeferredInternTask[dataFile_String, indices_List] :=
 
 (* Large singleton queues carry only the expressions used by that task.
    This avoids loading and retaining the complete operand forest on every
-   helper while preserving the shared-file ABI above for ordinary batches. *)
+   helper while preserving the shared-file data layout above for ordinary
+   batches. *)
 blockEquationDeferredInternTask[dataFile_String] :=
   Module[{data = taskBrokerRead[dataFile]},
     If[! AssociationQ[data] || ! ListQ[Lookup[data, "Expressions", None]],
@@ -1258,11 +1228,6 @@ Options[blockEquationDeferredMaterialize] = {
      in the source frame first is pure duplicate work; disabling it changes
      only representation, never the rational function. *)
   "AlgebraicCanonicalize" -> True,
-  (* Internal callers hand the immutable preparation directly from Prepare
-     to Materialize.  Re-hashing the complete record forest at that boundary
-     cannot detect a mutation and is therefore optional.  External/artifact
-     callers retain the validating default. *)
-  "ValidatePreparation" -> True,
   (* Apply a representation change before any Together/FactorList.  The
      rational-chart path uses this to substitute rational root images first,
      avoiding all source-frame multiquadratic factorization. *)
@@ -1310,14 +1275,8 @@ blockEquationDeferredMaterialize[preparation_Association,
    canonicalFarmedBatchIndices = {}, canonicalLocalBatchIndices = {},
    canonicalizeBatch, canonicalMissing = {},
    canonicalDispatchedBatches = 0},
-  If[Lookup[preparation, "Status", None] =!= "Prepared" ||
-      Lookup[preparation, "ABIVersion", None] =!=
-        $blockEquationDeferredABIVersion,
+  If[! blockEquationDeferredPreparationQ[preparation],
     Return[<|"Status" -> "InvalidPreparation"|>]];
-  If[TrueQ[OptionValue["ValidatePreparation"]] &&
-      Lookup[preparation, "Fingerprint", None] =!=
-        blockEquationDeferredFingerprint[KeyDrop[preparation, "Fingerprint"]],
-    Return[<|"Status" -> "PreparationFingerprintMismatch"|>]];
   variables = preparation["Variables"];
   regulator = preparation["Regulator"];
   parameters = Lookup[preparation, "Parameters", {}];
@@ -1747,7 +1706,7 @@ blockEquationDeferredMaterialize[___] := <|"Status" -> "InvalidInput"|>;
    measurement says one is needed -- the round-2 disposition is explicit
    that a byte bound enters only if it is measured to matter. *)
 
-$blockEquationDeferredDAGSchema = "BlockEquationDeferredDAGV1";
+$blockEquationDeferredDAGSchema = "BlockEquationDeferredDAGV2";
 $blockEquationDeferredDivisorSchema = "BlockEquationDivisorMetadataV1";
 
 blockEquationDeferredDAGRecord[preparation_Association, byteLimit_] := Module[
@@ -1756,7 +1715,7 @@ blockEquationDeferredDAGRecord[preparation_Association, byteLimit_] := Module[
   bytes = ByteCount[records];
   retained = byteLimit === Infinity || ! NumericQ[byteLimit] || bytes <= byteLimit;
   <|"Schema" -> $blockEquationDeferredDAGSchema,
-    "ABIVersion" -> Lookup[preparation, "ABIVersion", Missing["NoABIVersion"]],
+    "SchemaVersion" -> 2,
     "Variables" -> Lookup[preparation, "Variables", Missing["NoVariables"]],
     "Regulator" -> Lookup[preparation, "Regulator", Missing["NoRegulator"]],
     "Parameters" -> Lookup[preparation, "Parameters", {}],
@@ -1766,10 +1725,6 @@ blockEquationDeferredDAGRecord[preparation_Association, byteLimit_] := Module[
     "ColumnIndices" -> Lookup[preparation, "ColumnIndices", {}],
     "Feeders" -> Lookup[preparation, "Feeders", {}],
     "Dimensions" -> Lookup[preparation, "Dimensions", Missing["NoDimensions"]],
-    "SourceFingerprint" -> Lookup[preparation, "SourceFingerprint",
-      Missing["NoFingerprint"]],
-    "Fingerprint" -> Lookup[preparation, "Fingerprint",
-      Missing["NoFingerprint"]],
     "TermCount" -> Total[Length[Lookup[#, "Terms", {}]] & /@ records],
     "RecordCount" -> Length[records],
     (* MEASURED, always -- this is the number a future byte-bound
@@ -1843,7 +1798,8 @@ blockEquationDeferredDivisorMetadata[forcing_, variables_List,
      root sign flips, and its orbit norm *)
   conjugates[factor_] := DeleteDuplicates[
     Table[Quiet[Together[transportChartApplyRootBranches[factor, roots,
-      Table[If[BitGet[mask, k - 1] === 1, -1, 1] Lookup[roots[[k]], "Root", 0],
+      Table[If[BitGet[mask, k - 1] === 1, -1, 1]
+          squareRootRecordExpression[roots[[k]]],
         {k, Length[roots]}]]]],
       {mask, 0, 2^Length[roots] - 1}],
     TrueQ[Quiet[Together[#1 - #2]] === 0] &];
@@ -1889,7 +1845,7 @@ blockEquationDeferredDivisorMetadata[forcing_, variables_List,
   <|"Schema" -> $blockEquationDeferredDivisorSchema, "Status" -> "OK",
     "Variables" -> variables,
     "RadicalBases" -> radicalBases,
-    "RootFrameDeclared" -> roots =!= {},
+    "SquareRootGeneratorsDeclared" -> roots =!= {},
     "DistinctDenominators" -> Length[denominators],
     "RationalFactors" -> rationalFactors,
     "AlgebraicFactors" -> algebraicFactors,
@@ -1910,33 +1866,27 @@ blockEquationDeferredDivisorMetadata[___] := <|"Status" -> "InvalidInput"|>;
    observed radical base.  The bundle below is built from the deferred
    term records BEFORE any summation, cancellation or materialization.
 
-   THE CONTRACT (Codex A3, verbatim fields):
+   Main data:
 
-     <|"Schema" -> "BlockEquationDeferredBundleV2",
+     <|"Schema" -> "BlockEquationDeferredBundleV3",
        "Status" -> "PreparedDeferredBundle",
-       "ABIVersion", "Variables", "Regulator", "Parameters",
-       "RootFrame" -> <|"Roots", "RootFingerprints",
-         "OrderingFingerprint"|>,
+       "SchemaVersion" -> 3, "Variables", "Regulator", "Parameters",
+       "CoefficientPresentation", "SquareRootGeneratorIndices",
        "Dimensions" -> {2, nUpper, nLower},
        "TargetOrder" (complete, unique, lexicographic),
        "OperandTable" (canonical numerator, ordered denominator
-         factor/exponent pairs, active-root mask, fingerprint),
+         factor/exponent pairs and active-generator mask),
        "Jobs" (aligned with TargetOrder; terms are
          {exactCoefficient, {operandID..}}),
        "DivisorOccurrences" (source target/term/operand provenance),
-       "DivisorSummary", "SourceFingerprint",
-       "DeferredPreparation" (non-fingerprinted native-evaluator metadata),
-       "BundleFingerprint",
+       "DivisorSummary", "DeferredPreparation",
        "Statistics"|>
 
    IMMUTABILITY.  The returned bundle is plain data: no delayed rules,
    closures, mutable pool symbols or memoized downvalues -- construction
    mutates only builders local to the compiler.  Consumers treat it as
-   read-only, keep derived caches OUTSIDE it keyed by BundleFingerprint,
-   and validate it first (blockEquationDeferredBundleValidate: schema,
-   dimensions, root-order fingerprint, target coverage, operand-ID
-   bounds, recomputed bundle fingerprint).  "Statistics" carries wall
-   times and is the one field outside the fingerprint.
+   read-only and validate its schema, dimensions, generator relations,
+   target coverage, operand-ID bounds and divisor data before use.
 
    BUILD ORDER (Codex A3, mandatory): (1) canonical independent root
    records from the caller's frame -- never synthesized from observed
@@ -1966,27 +1916,27 @@ blockEquationDeferredDivisorMetadata[___] := <|"Status" -> "InvalidInput"|>;
    support census proves noncancellation.  Nothing here labels the
    source maximum as an exact forcing multiplicity. *)
 
-$blockEquationDeferredBundleSchema = "BlockEquationDeferredBundleV2";
+$blockEquationDeferredBundleSchema = "BlockEquationDeferredBundleV3";
 
-(* ---- the canonical independent root frame -------------------------- *)
+(* ---- independent square-root generators ---------------------------- *)
 
-(* The caller's root records ({<|"Root" -> Sqrt[q], "RootSquare" -> q|>
-   ..}, the shape MultiquadraticStripSolve's root order produces) are
-   validated and put into the solver's canonical order.  The dependence
+(* The caller's ordered generator records are validated without changing
+   their order.  The dependence
    test is the solver's own (multiquadraticStripSquareClassSquareQ,
    called read-only): {x, y, x y} has rank two, and a dependent set must
    be refused BEFORE any orbit is generated. *)
-blockEquationDeferredRootFrame[roots_List, variables_List, regulator_] :=
-  Module[{squares, duplicates, dependent, rules, decorated},
+blockEquationDeferredValidateSquareRootGenerators[roots_List, variables_List, regulator_] :=
+  Module[{squares, duplicates, dependent},
   If[roots === {},
-    Return[<|"Status" -> "StableRootOrder", "Roots" -> {},
-      "RootFingerprints" -> {},
-      "OrderingFingerprint" -> Hash[{}, "SHA256", "HexString"]|>]];
-  If[! AllTrue[roots, AssociationQ[#1] && KeyExistsQ[#1, "Root"] &&
-      KeyExistsQ[#1, "RootSquare"] &&
-      TrueQ[Together[#1["Root"]^2 - #1["RootSquare"]] === 0] &],
+    Return[<|"Status" -> "SquareRootGeneratorsValidated",
+      "SquareRootGenerators" -> {}|>]];
+  If[! AllTrue[roots, AssociationQ[#1] &&
+      squareRootRecordExpression[#1] =!= $Failed &&
+      squareRootRecordRadicand[#1] =!= $Failed &&
+      TrueQ[Together[squareRootRecordExpression[#1]^2 -
+        squareRootRecordRadicand[#1]] === 0] &],
     Return[<|"Status" -> "InvalidRootMetadata"|>]];
-  squares = Together /@ Lookup[roots, "RootSquare"];
+  squares = Together /@ (squareRootRecordRadicand /@ roots);
   duplicates = Select[Subsets[Range[Length[roots]], {2}],
     TrueQ[Together[squares[[#1[[1]]]] - squares[[#1[[2]]]]] === 0] &];
   If[duplicates =!= {},
@@ -1998,36 +1948,10 @@ blockEquationDeferredRootFrame[roots_List, variables_List, regulator_] :=
   If[dependent =!= None,
     Return[<|"Status" -> "DependentRootSquares",
       "RootIndices" -> dependent|>]];
-  rules = multiquadraticStripCanonicalRules[variables, regulator];
-  decorated = MapThread[Function[{root, index}, Module[
-      {canonical, canonicalRoot},
-      canonical = ToString[InputForm[
-        multiquadraticStripCanonicalExpression[root["RootSquare"], rules]]];
-      canonicalRoot = ToString[InputForm[
-        multiquadraticStripCanonicalExpression[root["Root"], rules]]];
-      Join[root, <|"SourceIndex" -> index,
-        "CanonicalRootSquare" -> canonical,
-        "CanonicalRootExpression" -> canonicalRoot,
-        "RootSquareFingerprint" ->
-          Hash[canonical, "SHA256", "HexString"],
-        (* A root branch is part of the basis ABI.  Opposite roots have
-           one square but opposite odd-grade coefficients, so a
-           square-only fingerprint can alias two incompatible bundles. *)
-        "RootFingerprint" -> Hash[{canonical, canonicalRoot}, "SHA256",
-          "HexString"]|>]]],
-    {roots, Range[Length[roots]]}];
-  decorated = SortBy[decorated,
-    {Lookup[#1, "CanonicalRootSquare", ""],
-     Lookup[#1, "CanonicalRootExpression", ""],
-     Lookup[#1, "RootFingerprint", ""]} &];
-  <|"Status" -> "StableRootOrder", "Roots" -> decorated,
-    "RootFingerprints" -> Lookup[decorated, "RootFingerprint", {}],
-    "OrderingFingerprint" -> Hash[
-      Transpose[{Lookup[decorated, "CanonicalRootSquare", {}],
-        Lookup[decorated, "CanonicalRootExpression", {}]}],
-      "SHA256", "HexString"]|>
+  <|"Status" -> "SquareRootGeneratorsValidated",
+    "SquareRootGenerators" -> roots|>
 ];
-blockEquationDeferredRootFrame[___] := <|"Status" -> "InvalidRootMetadata"|>;
+blockEquationDeferredValidateSquareRootGenerators[___] := <|"Status" -> "InvalidRootMetadata"|>;
 
 (* ---- the canonical grade algebra ------------------------------------ *)
 
@@ -2114,12 +2038,11 @@ blockEquationDeferredAlgebraicZeroQ[expr_, squares_List] := Module[
    typed RadicalOutsideDeclaredFrame; symbolic radicals with no frame at
    all are DeferredRootFrameRequired.  A numeric radicand is a constant
    of the coefficient field, as everywhere else in this repository. *)
-blockEquationDeferredFrameCanonicalize[expr_, frame_Association,
+blockEquationDeferredCanonicalizeWithSquareRootGenerators[expr_, roots_List,
     variables_List] := Module[
-  {roots, squares, oddPowers, radicals, symbolic, matched, unmatched,
+  {squares, oddPowers, radicals, symbolic, matched, unmatched,
    denested, failed, canonical, survivors, badSurvivors, indices},
-  roots = Lookup[frame, "Roots", {}];
-  squares = Together /@ (Lookup[#1, "RootSquare", 0] & /@ roots);
+  squares = Together /@ (squareRootRecordRadicand /@ roots);
   oddPowers = DeleteDuplicates[Cases[expr,
     Power[base_ /; ! NumericQ[base],
       exponent_Rational /; Denominator[exponent] > 2] :> base,
@@ -2268,9 +2191,9 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
     Return[<|"Status" -> "ChartDecisionInvalidRootIndices"|>]];
   syntacticIndices = indices;
   usedRoots = roots[[indices]];
-  rootSquares = Lookup[usedRoots, "RootSquare", {}];
+  rootSquares = squareRootRecordRadicand /@ usedRoots;
   chart = If[indices === {}, None,
-    TransportRootSetChart[rootSquares, variables]];
+    LookupCataloguedRationalizingParametrizationForRoots[rootSquares, variables]];
   (* Exact absence in the raw DAG is enough when its root union is already
      chartable.  Cancellation-sensitive modular sampling remains necessary
      only for a chartless or denested raw union. *)
@@ -2288,10 +2211,10 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
      test; otherwise retain the complete declared frame and let the exact
      bundle compiler validate it.  An inconclusive modular probe falls
      through to the older exact classifier below. *)
-  declaredRootSquares = Lookup[roots, "RootSquare", $Failed];
+  declaredRootSquares = squareRootRecordRadicand /@ roots;
   If[Length[roots] >= 2 && ListQ[declaredRootSquares] &&
       Length[declaredRootSquares] === Length[roots] &&
-      ! AssociationQ[TransportRootSetChart[declaredRootSquares, variables]],
+      ! AssociationQ[LookupCataloguedRationalizingParametrizationForRoots[declaredRootSquares, variables]],
     Print["[deferred-router] modular-first chart decision: rank ",
       Length[roots], ", records ", Length[records]];
     diagonalStarted = AbsoluteTime[];
@@ -2316,9 +2239,9 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
         reducedIndices = Sort[DeleteDuplicates[Join[diagonalIndices,
           Lookup[activeCensus, "RootIndices", {}]]]];
         reducedRoots = roots[[reducedIndices]];
-        reducedSquares = Lookup[reducedRoots, "RootSquare", {}];
+        reducedSquares = squareRootRecordRadicand /@ reducedRoots;
         reducedChart = If[reducedIndices === {}, None,
-          TransportRootSetChart[reducedSquares, variables]];
+          LookupCataloguedRationalizingParametrizationForRoots[reducedSquares, variables]];
         projectionIndices = Intersection[
           Lookup[activeCensus, "DenominatorRootIndices",
             Range[Length[roots]]],
@@ -2359,8 +2282,8 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
       properChartableQ = AnyTrue[Subsets[indices], Function[subset,
         Length[subset] < Length[indices] &&
           ContainsAll[subset, diagonalIndices] &&
-          (subset === {} || AssociationQ[TransportRootSetChart[
-            Lookup[roots[[subset]], "RootSquare", {}], variables]])]];
+          (subset === {} || AssociationQ[LookupCataloguedRationalizingParametrizationForRoots[
+            squareRootRecordRadicand /@ roots[[subset]], variables]])]];
       If[properChartableQ,
         activeCensus = blockEquationDeferredActiveGradeCensus[
           preparation, roots];
@@ -2368,9 +2291,9 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
           reducedIndices = Sort[DeleteDuplicates[Join[diagonalIndices,
             Lookup[activeCensus, "RootIndices", {}]]]];
           reducedRoots = roots[[reducedIndices]];
-          reducedSquares = Lookup[reducedRoots, "RootSquare", {}];
+          reducedSquares = squareRootRecordRadicand /@ reducedRoots;
           reducedChart = If[reducedIndices === {}, None,
-            TransportRootSetChart[reducedSquares, variables]];
+            LookupCataloguedRationalizingParametrizationForRoots[reducedSquares, variables]];
           If[(reducedIndices === {} || AssociationQ[reducedChart]) &&
               TrueQ[blockEquationDeferredChartMaterializableQ[
                 preparation, roots, reducedIndices]],
@@ -2454,104 +2377,24 @@ blockEquationDeferredFactorOrbit[factor_, squares_List] := Module[
     "NormCertificate" -> certificate|>
 ];
 
-(* ---- bundle target order, fingerprint, validation, evaluation ------- *)
+(* ---- bundle target order, validation, evaluation -------------------- *)
 
 blockEquationDeferredBundleTargetOrder[
     {two_Integer, upper_Integer, lower_Integer}] :=
   Flatten[Table[{mu, i, jj}, {mu, two}, {i, upper}, {jj, lower}], 2];
 blockEquationDeferredBundleTargetOrder[___] := $Failed;
 
-(* recomputable content fingerprint; "Statistics" (wall times) and the
-   fingerprint itself are the only fields outside it *)
-blockEquationDeferredBundleFingerprint[bundle_Association] := Hash[{
-  $blockEquationDeferredBundleSchema,
-  Lookup[bundle, "Status", None],
-  Lookup[bundle, "ABIVersion", None],
-  blockEquationDeferredSymbolKey /@ Lookup[bundle, "Variables", {}],
-  blockEquationDeferredSymbolKey[Lookup[bundle, "Regulator", None]],
-  blockEquationDeferredSymbolKey /@ Lookup[bundle, "Parameters", {}],
-  Lookup[Lookup[bundle, "RootFrame", <||>], "Roots", {}],
-  Lookup[Lookup[bundle, "RootFrame", <||>], "RootFingerprints", {}],
-  Lookup[Lookup[bundle, "RootFrame", <||>], "OrderingFingerprint", None],
-  Lookup[bundle, "Dimensions", {}],
-  Lookup[bundle, "TargetOrder", {}],
-  Lookup[bundle, "OperandTable", {}],
-  Lookup[bundle, "Jobs", {}],
-  Lookup[bundle, "DivisorOccurrences", {}],
-  Lookup[bundle, "DivisorSummary", <||>],
-  Lookup[bundle, "SourceFingerprint", None]},
-  "SHA256", "HexString"];
-
-(* A materialized BBar and its deferred bundle are two representations of
-   the same forcing.  The certificate is minted only on the materializer
-   path and binds the exact array to that bundle, so a chart may use the
-   already-materialized array without changing which equation is solved. *)
-blockEquationDeferredMaterializedForcingFingerprint[forcing_,
-    variables_List, regulator_] := Hash[{
-  $blockEquationDeferredMaterializationCertificateSchema,
-  blockEquationDeferredSymbolKey /@ variables,
-  blockEquationDeferredSymbolKey[regulator],
-  Dimensions[forcing], forcing}, "SHA256", "HexString"];
-
-blockEquationDeferredMaterializationCertificate[bundle_Association,
-    forcing_, variables_List, regulator_] := <|
-  "Schema" -> $blockEquationDeferredMaterializationCertificateSchema,
-  "BundleFingerprint" -> Lookup[bundle, "BundleFingerprint", None],
-  "ForcingFingerprint" ->
-    blockEquationDeferredMaterializedForcingFingerprint[
-      forcing, variables, regulator],
-  "Variables" -> (blockEquationDeferredSymbolKey /@ variables),
-  "Regulator" -> blockEquationDeferredSymbolKey[regulator],
-  "Dimensions" -> Dimensions[forcing]|>;
-blockEquationDeferredMaterializationCertificate[___] :=
-  <|"Status" -> "InvalidMaterializationCertificateInput"|>;
-
-blockEquationDeferredMaterializationCertificateValidate[
-    certificate_Association, bundle_Association, forcing_,
-    variables_List, regulator_] := Module[{expected},
-  expected = blockEquationDeferredMaterializationCertificate[
-    bundle, forcing, variables, regulator];
-  If[Lookup[certificate, "Schema", None] =!=
-      $blockEquationDeferredMaterializationCertificateSchema,
-    Return[<|"Status" -> "InvalidMaterializationCertificateSchema"|>]];
-  If[! SameQ[KeySort[certificate], KeySort[expected]],
-    Return[<|"Status" -> "MaterializationCertificateMismatch",
-      "Expected" -> expected,
-      "Observed" -> certificate|>]];
-  <|"Status" -> "MaterializationCertificateValid"|>
-];
-blockEquationDeferredMaterializationCertificateValidate[___] :=
-  <|"Status" -> "InvalidMaterializationCertificateInput"|>;
-
-(* every consumer's first call.  Schema, dimensions, lexicographic
-   target coverage, job alignment, operand-ID bounds, root-order
-   fingerprint and the recomputed bundle fingerprint -- the enforceable
-   content invariant WL has no const type for. *)
+(* Validate the mathematical and structural data consumed by the evaluator. *)
 blockEquationDeferredBundleValidate[bundle_Association] := Module[
   {dimensions, targetOrder, expected, jobs, operandTable, operandCount,
-   identifiers, frame, roots, variables, regulator, rules,
-   canonicalSquares, canonicalRoots, squares, recheckedFrame, summary,
+   identifiers, presentation, allRoots, rootIndices, roots, variables,
+   regulator, squares, recheckedFrame, summary,
    factors, orbits, factorCount, orbitCount, occurrences, jobIndex,
    termIndex, term, factorIndex, operandID, operandFailure, operandTag,
    occurrenceFailure, occurrenceTag},
-  (* SolveEpsFormStripInFrame performs this full validation once at its
-     public boundary.  Its synchronous multiquadratic call then scopes the
-     exact accepted association and its fingerprint here, so nested
-     prepare/provider/gauge consumers do not repeatedly traverse and re-hash
-     the same large immutable operand table.  A changed association with a
-     copied fingerprint misses SameQ and takes the full validator.  Outside
-     that dynamic scope every caller also takes the full validator. *)
-  If[AssociationQ[$blockEquationDeferredTrustedBundle] &&
-      StringQ[Lookup[$blockEquationDeferredTrustedBundle,
-        "Fingerprint", None]] &&
-      Lookup[bundle, "BundleFingerprint", None] ===
-        $blockEquationDeferredTrustedBundle["Fingerprint"] &&
-      SameQ[bundle, $blockEquationDeferredTrustedBundle["Bundle"]],
-    Return[<|"Status" -> "BundleValid"|>]];
   If[Lookup[bundle, "Schema", None] =!= $blockEquationDeferredBundleSchema ||
       Lookup[bundle, "Status", None] =!= "PreparedDeferredBundle" ||
-      Lookup[bundle, "ABIVersion", None] =!=
-        $blockEquationDeferredABIVersion,
+      Lookup[bundle, "SchemaVersion", None] =!= 3,
     Return[<|"Status" -> "InvalidBundleSchema"|>]];
   dimensions = Lookup[bundle, "Dimensions", None];
   If[! MatchQ[dimensions, {2, _Integer?Positive, _Integer?Positive}],
@@ -2570,52 +2413,31 @@ blockEquationDeferredBundleValidate[bundle_Association] := Module[
       ! AllTrue[Range[Length[jobs]],
         Lookup[jobs[[#1]], "Target", None] === targetOrder[[#1]] &],
     Return[<|"Status" -> "JobsMisaligned"|>]];
-  frame = Lookup[bundle, "RootFrame", <||>];
-  roots = Lookup[frame, "Roots", {}];
   variables = Lookup[bundle, "Variables", {}];
   regulator = Lookup[bundle, "Regulator", None];
+  presentation = Lookup[bundle, "CoefficientPresentation", $Failed];
+  allRoots = If[AssociationQ[presentation],
+    coefficientPresentationSquareRootsInVariables[presentation, variables],
+    $Failed];
+  rootIndices = Lookup[bundle, "SquareRootGeneratorIndices", $Failed];
   If[! MatchQ[variables, {_Symbol, _Symbol}] || ! SymbolQ[regulator] ||
-      ! ListQ[roots] || ! AllTrue[roots,
-        AssociationQ[#1] && KeyExistsQ[#1, "Root"] &&
-          KeyExistsQ[#1, "RootSquare"] &&
-          TrueQ[Together[#1["Root"]^2 - #1["RootSquare"]] === 0] &],
-    Return[<|"Status" -> "RootOrderFingerprintMismatch"|>]];
-  (* Re-run the mathematical frame gate: a refingerprinted artifact must
-     not be able to smuggle duplicate or dependent square classes past
-     the compiler's original check. *)
-  recheckedFrame = blockEquationDeferredRootFrame[
-    KeyTake[#1, {"Root", "RootSquare"}] & /@ roots, variables, regulator];
-  If[Lookup[recheckedFrame, "Status", None] =!= "StableRootOrder",
-    Return[<|"Status" -> "InvalidRootFrame",
+      ! ListQ[allRoots] || ! VectorQ[rootIndices, IntegerQ] ||
+      rootIndices =!= Sort[DeleteDuplicates[rootIndices]] ||
+      ! AllTrue[rootIndices, 1 <= #1 <= Length[allRoots] &],
+    Return[<|"Status" -> "SquareRootGeneratorDataInvalid"|>]];
+  roots = allRoots[[rootIndices]];
+  recheckedFrame = blockEquationDeferredValidateSquareRootGenerators[
+    roots, variables, regulator];
+  If[Lookup[recheckedFrame, "Status", None] =!=
+      "SquareRootGeneratorsValidated",
+    Return[<|"Status" -> "InvalidSquareRootGenerators",
       "Reason" -> Lookup[recheckedFrame, "Status", None]|>]];
-  rules = multiquadraticStripCanonicalRules[variables, regulator];
-  canonicalSquares = ToString[InputForm[
-      multiquadraticStripCanonicalExpression[#1["RootSquare"], rules]]] & /@
-    roots;
-  canonicalRoots = ToString[InputForm[
-      multiquadraticStripCanonicalExpression[#1["Root"], rules]]] & /@ roots;
-  If[Lookup[roots, "CanonicalRootSquare", {}] =!= canonicalSquares ||
-      Lookup[roots, "CanonicalRootExpression", {}] =!= canonicalRoots ||
-      Lookup[roots, "RootSquareFingerprint", {}] =!=
-        (Hash[#1, "SHA256", "HexString"] & /@ canonicalSquares) ||
-      Lookup[roots, "RootFingerprint", {}] =!=
-        (Hash[#1, "SHA256", "HexString"] & /@
-          Transpose[{canonicalSquares, canonicalRoots}]) ||
-      Lookup[frame, "RootFingerprints", {}] =!=
-        Lookup[roots, "RootFingerprint", {}] ||
-      roots =!= SortBy[roots,
-        {Lookup[#1, "CanonicalRootSquare", ""],
-         Lookup[#1, "CanonicalRootExpression", ""],
-         Lookup[#1, "RootFingerprint", ""]} &] ||
-      Lookup[frame, "OrderingFingerprint", None] =!= Hash[
-        Transpose[{canonicalSquares, canonicalRoots}], "SHA256", "HexString"],
-    Return[<|"Status" -> "RootOrderFingerprintMismatch"|>]];
 
   operandTable = Lookup[bundle, "OperandTable", None];
   If[! ListQ[operandTable],
     Return[<|"Status" -> "InvalidOperandTable"|>]];
   operandCount = Length[operandTable];
-  squares = Together /@ Lookup[roots, "RootSquare", {}];
+  squares = Together /@ (squareRootRecordRadicand /@ roots);
   operandTag = Unique["blockEquationDeferredOperandValidation"];
   operandFailure = Catch[Do[Module[
       {record = operandTable[[index]], recordPairs, expression,
@@ -2629,9 +2451,7 @@ blockEquationDeferredBundleValidate[bundle_Association] := Module[
           AllTrue[recordPairs,
             MatchQ[#1, {_, exponent_Integer?Positive}] &] &&
           IntegerQ[Lookup[record, "RootMask", None]] &&
-          0 <= record["RootMask"] < 2^Length[roots] &&
-          Lookup[record, "Fingerprint", None] === Hash[
-            {record["Numerator"], recordPairs}, "SHA256", "HexString"]),
+          0 <= record["RootMask"] < 2^Length[roots]),
         Throw[<|"Status" -> "InvalidOperandTable",
           "OperandID" -> index|>, operandTag]];
       (* RootMask is executable hot-path metadata, not advisory telemetry.
@@ -2651,14 +2471,7 @@ blockEquationDeferredBundleValidate[bundle_Association] := Module[
           "OperandID" -> index, "ExpectedRootMask" -> recomputedMask,
           "ObservedRootMask" -> record["RootMask"]|>, operandTag]]],
     {index, operandCount}]; None, operandTag, #1 &];
-  If[AssociationQ[operandFailure],
-    (* Preserve the historical fast integrity verdict for a stale outer
-       fingerprint.  If the caller has recomputed that fingerprint, the
-       stronger structural refusal above is the meaningful one. *)
-    If[Lookup[bundle, "BundleFingerprint", None] =!=
-        blockEquationDeferredBundleFingerprint[bundle],
-      Return[<|"Status" -> "BundleFingerprintMismatch"|>]];
-    Return[operandFailure]];
+  If[AssociationQ[operandFailure], Return[operandFailure]];
   identifiers = DeleteDuplicates[Flatten[
     Map[Function[job, Last /@ Lookup[job, "Terms", {}]], jobs]]];
   If[! AllTrue[identifiers, IntegerQ[#1] && 1 <= #1 <= operandCount &],
@@ -2720,9 +2533,6 @@ blockEquationDeferredBundleValidate[bundle_Association] := Module[
       Throw[<|"Status" -> "InvalidDivisorOccurrence"|>, occurrenceTag]],
     {occurrence, occurrences}]; None, occurrenceTag, #1 &];
   If[AssociationQ[occurrenceFailure], Return[occurrenceFailure]];
-  If[Lookup[bundle, "BundleFingerprint", None] =!=
-      blockEquationDeferredBundleFingerprint[bundle],
-    Return[<|"Status" -> "BundleFingerprintMismatch"|>]];
   <|"Status" -> "BundleValid"|>
 ];
 blockEquationDeferredBundleValidate[___] :=
@@ -2818,9 +2628,10 @@ blockEquationDeferredCompileBundle[preparation_Association,
 blockEquationDeferredCompileBundle[___] := <|"Status" -> "InvalidInput"|>;
 
 blockEquationDeferredCompileBundleWithCache[preparation_Association,
-    OptionsPattern[blockEquationDeferredCompileBundle]] := Module[
+  OptionsPattern[blockEquationDeferredCompileBundle]] := Module[
   {started = AbsoluteTime[], variables, regulator, parameters, records,
-   dimensions, rootsOption, frame, squares, targetOrder, recordFor,
+   dimensions, rootsOption, generatorData, coefficientPresentation,
+   selectedRootIndices, squares, targetOrder, recordFor,
    pool = <||>, frameCache = <||>, sourceOperandCache = <||>,
    canonicalOperandIndex = <||>, operandTable = {}, factorTable = {},
    factorExactIndex = <||>, factorCanonicalIndex = <||>, factorMatchQ,
@@ -2841,13 +2652,8 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
    prefillHandle, prefillFarmed, prefillMissing = {}, prefillFailure,
    prefillTag,
    prefillRoute = "Serial", prefillSeconds = 0.},
-  If[Lookup[preparation, "Status", None] =!= "Prepared" ||
-      Lookup[preparation, "ABIVersion", None] =!=
-        $blockEquationDeferredABIVersion,
+  If[! blockEquationDeferredPreparationQ[preparation],
     Return[{<|"Status" -> "InvalidPreparation"|>, <||>}]];
-  If[Lookup[preparation, "Fingerprint", None] =!=
-      blockEquationDeferredFingerprint[KeyDrop[preparation, "Fingerprint"]],
-    Return[{<|"Status" -> "PreparationFingerprintMismatch"|>, <||>}]];
   variables = preparation["Variables"];
   regulator = preparation["Regulator"];
   parameters = Lookup[preparation, "Parameters", {}];
@@ -2857,13 +2663,32 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
   auditMetadataQ = TrueQ[OptionValue["AuditMetadata"]];
   If[! ListQ[rootsOption],
     Return[{<|"Status" -> "InvalidRootMetadata"|>, <||>}]];
+  coefficientPresentation = algebraCoefficientPresentationNormalize[<|
+    "DataType" -> "SquareRootGeneratorsAndQuadraticRelations",
+    "SchemaVersion" -> 2,
+    "Status" -> "SquareRootGeneratorRelationsVerified",
+    "SourceVariables" -> variables,
+    "CoefficientVariables" -> variables,
+    "SourceToCoefficientVariableRules" -> Thread[variables -> variables],
+    "SquareRootGenerators" -> Map[
+      <|"Generator" -> squareRootRecordExpression[#1],
+        "QuadraticRadicand" -> squareRootRecordRadicand[#1],
+        "SourceRadicand" -> squareRootRecordRadicand[#1]|> &,
+      rootsOption]|>];
+  If[! algebraSquareRootGeneratorRelationsRecordQ[coefficientPresentation],
+    Return[{<|"Status" -> "CoefficientPresentationNotWellFormed"|>,
+      <||>}]];
+  selectedRootIndices = Range[Length[rootsOption]];
 
   (* step 1: the canonical independent root frame, or the typed refusal
      BEFORE anything else is built *)
-  frame = blockEquationDeferredRootFrame[rootsOption, variables, regulator];
-  If[Lookup[frame, "Status", None] =!= "StableRootOrder",
-    Return[{frame, <||>}]];
-  squares = Together /@ (Lookup[#1, "RootSquare", 0] & /@ frame["Roots"]);
+  generatorData = blockEquationDeferredValidateSquareRootGenerators[
+    rootsOption, variables, regulator];
+  If[Lookup[generatorData, "Status", None] =!=
+      "SquareRootGeneratorsValidated",
+    Return[{generatorData, <||>}]];
+  squares = Together /@ (squareRootRecordRadicand /@
+    generatorData["SquareRootGenerators"]);
 
   targetOrder = blockEquationDeferredBundleTargetOrder[dimensions];
   recordFor = Association[(#1["Target"] -> #1) & /@ records];
@@ -2913,8 +2738,8 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
         Function[operand, Module[{canonicalized},
           canonicalized = If[KeyExistsQ[frameCache, operand],
             frameCache[operand],
-            frameCache[operand] = blockEquationDeferredFrameCanonicalize[
-              operand, frame, variables]];
+            frameCache[operand] = blockEquationDeferredCanonicalizeWithSquareRootGenerators[
+              operand, generatorData["SquareRootGenerators"], variables]];
           If[Lookup[canonicalized, "Status", None] =!= "OK",
             Throw[canonicalized, prefillTag]];
           canonicalized["Expression"]]],
@@ -3034,8 +2859,8 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
          operandIDs = {}, termSources = {}, termValuation, operandID},
         termIndex++; termCount++;
         coefficient = Lookup[term, "Coefficient", 1];
-        coefficientData = blockEquationDeferredFrameCanonicalize[
-          coefficient, frame, variables];
+        coefficientData = blockEquationDeferredCanonicalizeWithSquareRootGenerators[
+          coefficient, generatorData["SquareRootGenerators"], variables];
         If[Lookup[coefficientData, "Status", None] =!= "OK",
           Throw[coefficientData, failTag]];
         coefficient = coefficientData["Expression"];
@@ -3059,8 +2884,8 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
               canonicalValue, canonicalMask},
              canonicalized = If[KeyExistsQ[frameCache, operand],
                frameCache[operand],
-               frameCache[operand] = blockEquationDeferredFrameCanonicalize[
-                 operand, frame, variables]];
+               frameCache[operand] = blockEquationDeferredCanonicalizeWithSquareRootGenerators[
+                 operand, generatorData["SquareRootGenerators"], variables]];
              If[Lookup[canonicalized, "Status", None] =!= "OK",
                Throw[canonicalized, failTag]];
              canonicalExpr = canonicalized["Expression"];
@@ -3110,9 +2935,7 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
                AppendTo[operandTable, <|"ID" -> identifier,
                  "Numerator" -> interned[[1]],
                  "DenominatorFactors" -> pairData,
-                 "RootMask" -> canonicalMask,
-                 "Fingerprint" -> Hash[{interned[[1]], pairData},
-                   "SHA256", "HexString"]|>]];
+                 "RootMask" -> canonicalMask|>]];
              sourceData = <|"OperandID" -> identifier,
                "Routes" -> factorRoutes, "Merged" -> mergedValuation|>;
              sourceOperandCache[operand] = sourceData]];
@@ -3154,7 +2977,7 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
      unused generators doubles every sheet and gauge grade for each one.  The
      compiler has now authenticated every operand mask and coefficient, so it
      can project the immutable bundle to its exact active subfield once. *)
-  originalRootCount = Length[frame["Roots"]];
+  originalRootCount = Length[generatorData["SquareRootGenerators"]];
   If[TrueQ[OptionValue["PruneUnusedRoots"]] && originalRootCount > 0,
     activeRootIndices = Select[Range[originalRootCount],
       BitGet[activeRootMask, #1 - 1] === 1 &];
@@ -3168,13 +2991,16 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
           {mask = projectMask[item["RootMask"]]},
           Join[item, <|"Algebraic" -> (mask =!= 0), "RootMask" -> mask|>]]],
         factorTable];
-      projectedFrame = blockEquationDeferredRootFrame[
-        KeyTake[#1, {"Root", "RootSquare"}] & /@
-          frame["Roots"][[activeRootIndices]], variables, regulator];
-      If[Lookup[projectedFrame, "Status", None] =!= "StableRootOrder",
+      projectedFrame = blockEquationDeferredValidateSquareRootGenerators[
+        generatorData["SquareRootGenerators"][[activeRootIndices]],
+        variables, regulator];
+      If[Lookup[projectedFrame, "Status", None] =!=
+          "SquareRootGeneratorsValidated",
         Return[{projectedFrame, pool}]];
-      frame = projectedFrame;
-      squares = Together /@ Lookup[frame["Roots"], "RootSquare", {}]]];
+      generatorData = projectedFrame;
+      selectedRootIndices = selectedRootIndices[[activeRootIndices]];
+      squares = Together /@ (squareRootRecordRadicand /@
+        generatorData["SquareRootGenerators"])]];
 
   (* step 5: one validated orbit per distinct algebraic factor.  Throw,
      never Return, inside Do -- the trap this file already records *)
@@ -3247,8 +3073,9 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
     "FactorMatchSeconds" -> N[factorMatchSeconds],
     "AuditMetadata" -> auditMetadataQ,
     "DeclaredRootCount" -> Length[rootsOption],
-    "BundleRootCount" -> Length[frame["Roots"]],
-    "PrunedRootCount" -> Length[rootsOption] - Length[frame["Roots"]],
+    "BundleRootCount" -> Length[generatorData["SquareRootGenerators"]],
+    "PrunedRootCount" -> Length[rootsOption] -
+      Length[generatorData["SquareRootGenerators"]],
     "OccurrenceCount" -> Length[occurrences],
     "DistinctFactors" -> Length[factorTable],
     "AlgebraicFactorCount" -> Count[factorTable, entry_ /;
@@ -3256,29 +3083,22 @@ blockEquationDeferredCompileBundleWithCache[preparation_Association,
     "FrameRewrites" -> rewrites|>;
   bundle = <|"Schema" -> $blockEquationDeferredBundleSchema,
     "Status" -> "PreparedDeferredBundle",
-    "ABIVersion" -> $blockEquationDeferredABIVersion,
+    "SchemaVersion" -> 3,
     "Variables" -> variables, "Regulator" -> regulator,
     "Parameters" -> parameters,
-    "RootFrame" -> <|"Roots" -> frame["Roots"],
-      "RootFingerprints" -> frame["RootFingerprints"],
-      "OrderingFingerprint" -> frame["OrderingFingerprint"]|>,
+    "CoefficientPresentation" -> coefficientPresentation,
+    "SquareRootGeneratorIndices" -> selectedRootIndices,
     "Dimensions" -> dimensions,
     "TargetOrder" -> targetOrder,
     "OperandTable" -> operandTable,
     "Jobs" -> jobs,
     "DivisorOccurrences" -> occurrences,
     "DivisorSummary" -> summary,
-    "SourceFingerprint" -> Lookup[preparation, "SourceFingerprint", None],
-    (* Acceleration metadata, deliberately outside BundleFingerprint: the
-       native modular evaluator reads this already-prepared raw DAG from the
-       immutable strip input file.  SourceFingerprint, which is fingerprinted
-       above, binds it to the same source equation without hashing Records a
-       second time. *)
+    (* The native modular evaluator reads this prepared raw DAG from the
+       immutable strip input file. *)
     "DeferredPreparation" -> <|"Preparation" -> preparation|>,
     "Statistics" -> statistics|>;
-  {Append[bundle,
-     "BundleFingerprint" -> blockEquationDeferredBundleFingerprint[bundle]],
-   pool}
+  {bundle, pool}
 ];
 blockEquationDeferredCompileBundleWithCache[___] :=
   {<|"Status" -> "InvalidInput"|>, <||>};
@@ -3342,7 +3162,7 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
     forcing, values, output, bundleRoots, bundle, internCache,
     materializeFunction, materializeOptions, chartDecision = <||>,
     chartFastQ = False, directPreparationQ = False,
-    directRootSquares = {}, compileBundleQ},
+    coefficientPresentation, directRootIndices = {}, compileBundleQ},
    output = OptionValue["Output"];
    If[! MemberQ[{"Bundle", "BundleAndMaterialized",
        "BundleOrMaterialized", "ChartOrBundle",
@@ -3355,6 +3175,22 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
    bundleRoots = Replace[OptionValue["BundleRoots"], Automatic :>
      If[ListQ[OptionValue["DivisorRoots"]], OptionValue["DivisorRoots"],
        {}]];
+   If[! ListQ[bundleRoots],
+     Return[<|"Status" -> "InvalidRootMetadata"|>]];
+   coefficientPresentation = algebraCoefficientPresentationNormalize[<|
+     "DataType" -> "SquareRootGeneratorsAndQuadraticRelations",
+     "SchemaVersion" -> 2,
+     "Status" -> "SquareRootGeneratorRelationsVerified",
+     "SourceVariables" -> variables,
+     "CoefficientVariables" -> variables,
+     "SourceToCoefficientVariableRules" -> Thread[variables -> variables],
+     "SquareRootGenerators" -> Map[
+       <|"Generator" -> squareRootRecordExpression[#1],
+         "QuadraticRadicand" -> squareRootRecordRadicand[#1],
+         "SourceRadicand" -> squareRootRecordRadicand[#1]|> &,
+       bundleRoots]|>];
+   If[! algebraSquareRootGeneratorRelationsRecordQ[coefficientPresentation],
+     Return[<|"Status" -> "CoefficientPresentationNotWellFormed"|>]];
    (* The routing question precedes provider construction.  On CF259
       (21,16), the old order spent 2330.6 s constructing a one-root direct
       bundle only for SolveEpsFormStripInFrame to pull it into a rational
@@ -3375,6 +3211,11 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
      Return[<|"Status" -> "PreparedChartDeferred",
        "DeferredPreparation" -> preparation,
        "Dimensions" -> preparation["Dimensions"],
+       "CoefficientPresentation" -> coefficientPresentation,
+       "SquareRootGeneratorIndices" ->
+         Lookup[chartDecision, "RootIndices", {}],
+       "ProjectionSquareRootGeneratorIndices" ->
+         Lookup[chartDecision, "ProjectionRootIndices", {}],
        "ChartDecision" -> chartDecision,
        "Census" -> <|"Status" -> "SkippedForChart",
          "AcceptedSamples" -> 0, "NonzeroProvedQ" -> False|>,
@@ -3386,11 +3227,11 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
       these declared roots or returns a typed refusal. *)
    directPreparationQ = output === "ChartOrPreparation" && ! chartFastQ;
    If[directPreparationQ,
-     directRootSquares = Lookup[chartDecision, "RootSquares",
-       If[MatchQ[bundleRoots, {___Association}],
-         Lookup[bundleRoots, "RootSquare", {}], {}]];
-     If[! ListQ[directRootSquares],
-       Return[<|"Status" -> "DirectPreparationRootFrameUnavailable",
+     directRootIndices = Lookup[chartDecision, "RootIndices",
+       Range[Length[bundleRoots]]];
+     If[! VectorQ[directRootIndices, IntegerQ] ||
+         ! ContainsOnly[directRootIndices, Range[Length[bundleRoots]]],
+       Return[<|"Status" -> "DirectPreparationSquareRootGeneratorsUnavailable",
          "ChartDecision" -> chartDecision|>]];
      (* A chartless declared root frame is consumed pointwise by the native
         deferred-AST provider.  Return the authenticated raw arithmetic DAG
@@ -3399,7 +3240,10 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
      Return[<|"Status" -> "PreparedDirectDeferred",
        "DeferredPreparation" -> preparation,
        "Dimensions" -> preparation["Dimensions"],
-       "RootSquares" -> directRootSquares,
+       "CoefficientPresentation" -> coefficientPresentation,
+       "SquareRootGeneratorIndices" ->
+         Sort[DeleteDuplicates[directRootIndices]],
+       "ProjectionSquareRootGeneratorIndices" -> {},
        "ChartDecision" -> chartDecision,
        "Census" -> <|"Status" -> "SkippedForNativeDirect",
          "AcceptedSamples" -> 0, "NonzeroProvedQ" -> False|>,
@@ -3507,11 +3351,6 @@ blockEquationDeferredForcing[connection_, ranges_, k_Integer, j_Integer,
         materialized route is unchanged until its provider consumes the
         bundle mode *)
    "DeferredBundle" -> bundle,
-    "DeferredMaterializationCertificate" ->
-      If[Lookup[bundle, "Status", None] === "PreparedDeferredBundle",
-        blockEquationDeferredMaterializationCertificate[
-          bundle, forcing, variables, regulator],
-        Missing["NoPreparedDeferredBundle"]],
     "Census" -> census, "Materialization" -> KeyDrop[materialized, "Values"],
      "ZeroForcingCandidateQ" -> ! TrueQ[census["NonzeroProvedQ"]]|>
 ];

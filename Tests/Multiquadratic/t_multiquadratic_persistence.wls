@@ -91,7 +91,7 @@ CreateDirectory[scratch, CreateIntermediateDirectories -> True];
 (* ------------------------------------------------------------------ *)
 
 Clear[x, y, eps, v, w, cx, cy];
-frame = BuildAlgebraicTransportFrame[{v, w, 1 + v + w}, {v, w}, {cx, cy}];
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[{v, w, 1 + v + w}, {v, w}, {cx, cy}];
 check["the rank-three multiquadratic frame is exact",
   AssociationQ[frame] && frame["Status"] === "ExactFrame"];
 

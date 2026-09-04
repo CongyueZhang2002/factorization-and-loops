@@ -91,7 +91,8 @@ libraEpsFormLoadBackend[requested_] := Module[
    and is not loaded; this file keeps only the Libra backend loader used
    by FamilyRegulatorFactor.  The production family completion is the
    finite-field off-diagonal route of Scripts/family_epsform_sector.wls
-   followed by FactorFamilyRegulatorDependence and CertifyFamilyEpsilonForm. *)
+   followed by FactorFamilyRegulatorDependence and
+   ValidateFamilyDLogEpsilonForm. *)
 LibraFamilyEpsForm[___] := <|"Status" -> "RouteRetired",
   "Route" -> "LibraFamilyEpsForm",
   "Replacement" -> "the per-sector eps-form driver script (Scripts/) + FactorFamilyRegulatorDependence",

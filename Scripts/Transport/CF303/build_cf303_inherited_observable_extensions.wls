@@ -24,15 +24,19 @@ specifications = {
   <|"Family" -> "CF199", "Missing" -> {{2, 1, 8}, {3, 2, 9}},
     "EndpointSpec" -> <|"Variable" -> y, "Endpoint" -> 1 - p^2,
       "FixedRules" -> {x -> p^2}, "Stratum" -> "1-v-w=0"|>,
+    "BoundaryDomain" -> <|"Type" -> "PhysicalBoundaryStratum",
+      "TangentialVariables" -> {p}|>,
     "PrescribedModeEntries" -> {{8, 2}, {9, -3}},
     "ExpectedCompletedModeEntries" -> {{8, 2}, {9, -3}},
-    "PeriodID" -> 9|>,
+    "BoundaryIntegralID" -> 9|>,
   <|"Family" -> "CF53", "Missing" -> {{2, 4, 11}, {3, 5, 12}},
     "EndpointSpec" -> <|"Variable" -> y, "Endpoint" -> p,
       "FixedRules" -> {x -> -p}, "Stratum" -> "1-v-w=0"|>,
+    "BoundaryDomain" -> <|"Type" -> "PhysicalBoundaryStratum",
+      "TangentialVariables" -> {p}|>,
     "PrescribedModeEntries" -> {{11, 2}, {12, -3}},
     "ExpectedCompletedModeEntries" -> {{11, 2}, {12, -3}, {13, -2/5}},
-    "PeriodID" -> 9|>
+    "BoundaryIntegralID" -> 9|>
 };
 
 exactZeroQ[value_] := TrueQ[value === 0] || TrueQ[PossibleZeroQ[value]];
@@ -51,7 +55,8 @@ sparseEntries[matrix_] := Cases[
 completedEndpointMode[transport_, specification_] := Module[
   {variable, endpoint, fixedRules, normalResidue, dimension,
    prescribedEntries, prescribedRows, prescribedValues, constraints,
-   vector, entries},
+   vector, entries, boundaryDomain, boundaryDataType, dataIDKey,
+   analyticClassKey, epsilonValuationKey, boundaryDataID},
   variable = specification["EndpointSpec"]["Variable"];
   endpoint = specification["EndpointSpec"]["Endpoint"];
   fixedRules = specification["EndpointSpec"]["FixedRules"];
@@ -80,30 +85,72 @@ completedEndpointMode[transport_, specification_] := Module[
       "Family" -> specification["Family"],
       "ExpectedEntries" -> specification["ExpectedCompletedModeEntries"],
       "ActualEntries" -> entries|>]]];
+  boundaryDomain = Lookup[specification, "BoundaryDomain", Missing[]];
+  boundaryDataType = Switch[Lookup[boundaryDomain, "Type", None],
+    "PhysicalBoundaryPoint", "BoundaryConstant",
+    "PhysicalBoundaryStratum", "BoundaryFunction",
+    _, Return[Failure["BoundaryDomainRequired", <|
+      "Family" -> specification["Family"]|>]]];
+  dataIDKey = If[boundaryDataType === "BoundaryConstant",
+    "BoundaryConstantID", "BoundaryFunctionID"];
+  analyticClassKey = If[boundaryDataType === "BoundaryConstant",
+    "DeclaredBoundaryConstantAnalyticClass",
+    "DeclaredBoundaryFunctionClass"];
+  epsilonValuationKey = If[boundaryDataType === "BoundaryConstant",
+    "BoundaryConstantEpsilonValuation", "BoundaryFunctionEpsilonValuation"];
+  boundaryDataID =
+    {specification["Family"], specification["BoundaryIntegralID"]};
   <|"ModeMap" -> <|
-      "Status" -> "BoundaryModeMapBuilt",
+      "Status" -> "BoundaryAsymptoticModeMatching",
       "Family" -> specification["Family"],
-      "EndpointSpec" -> specification["EndpointSpec"],
-      "Modes" -> {<|"Status" -> "BoundaryModeMatched",
-        "PeriodID" -> specification["PeriodID"],
+      "BoundaryDataType" -> boundaryDataType,
+      "BoundaryDomain" -> boundaryDomain,
+      "PhysicalKinematicLimit" -> specification["EndpointSpec", "Stratum"],
+      "LocalExpansionPoint" -> endpoint,
+      "LocalExpansionSpecification" -> <|"Variable" -> variable,
+        "LocalExpansionPoint" -> endpoint, "LocalDirection" -> 1,
+        "FixedRules" -> fixedRules|>,
+      "PhysicalEndpointRelation" -> <|
+        "Stratum" -> specification["EndpointSpec", "Stratum"],
+        "LocalPower" -> 1, "LeadingCoefficient" -> 1|>,
+      "FrobeniusModes" -> {<|
+        "Status" -> "BoundaryAsymptoticsMatchedToFrobeniusMode",
+        "BoundaryDataType" -> boundaryDataType,
+        dataIDKey -> boundaryDataID,
+        "FrobeniusModeID" -> boundaryDataID,
+        "BoundaryIntegralID" -> specification["BoundaryIntegralID"],
+        analyticClassKey -> "GPL", epsilonValuationKey -> -1,
         "CanonicalModeEntries" -> entries,
         "LocalEigenvalue" -> 0, "GeneralizedLevel" -> 0,
-        "PeriodEpsilonValuation" -> -1,
-        "Support" -> First /@ entries|>}|>,
+        "Support" -> First /@ entries|>},
+      "DegenerateResidueEigenspaceBases" -> {},
+      "BoundaryDataRequirements" -> {<|
+        "BoundaryDataType" -> boundaryDataType,
+        dataIDKey -> boundaryDataID,
+        "FrobeniusModeID" -> boundaryDataID,
+        analyticClassKey -> "GPL", "Status" -> "Unevaluated"|>}|>,
     "NormalResidueDimensions" -> Dimensions[normalResidue],
     "CompletedModeEntries" -> entries|>
 ];
 
 familyRecords = Table[Module[
-  {family, transport, form, regulator, gauge, slots, existingRows,
+  {family, transportFile, formFile, transport, form, regulator, gauge,
+   slots, existingRows,
    existingDemand, replay, missingTriples, missingPairs, missingRows,
    derivedTransport, modeResult, adapterTiming, adapter, compositionTiming,
    composition, endpointTransport, baseEmbedding, finalEmbedding},
   family = specification["Family"];
-  transport = Get[FileNameJoin[{transportDirectory,
-    "observable_transport_" <> family <> ".wl"}]];
-  form = Get[FileNameJoin[{formDirectory,
-    "family_epsform_" <> family <> ".wl"}]];
+  transportFile = FileNameJoin[{transportDirectory,
+    "observable_transport_" <> family <> ".wl"}];
+  formFile = FileNameJoin[{formDirectory,
+    "family_epsform_" <> family <> ".wl"}];
+  If[! FileExistsQ[transportFile] || ! FileExistsQ[formFile],
+    Return[<|"Family" -> family,
+      "Status" -> "FreshDifferentialEquationDataRequired",
+      "RequiredInputFiles" -> <|"ObservableTransport" -> transportFile,
+        "EpsilonForm" -> formFile|>|>, Module]];
+  transport = Get[transportFile];
+  form = Get[formFile];
   regulator = form["Regulator"];
   gauge = form["TTotal"] /. Lookup[transport, "GaugeConstantRules", {}];
   slots = transport["BoundaryAmbientSlots"];
@@ -131,13 +178,20 @@ familyRecords = Table[Module[
   endpointTransport = If[!KeyExistsQ[specification, "EndpointSpec"],
     <|"Status" -> "PhysicalModeRealizationRequired",
       "Reason" ->
-       "The CF12 class-5 soft zero mode has no accepted endpoint realization or nullity-period identity; no PeriodID is inferred"|>,
+       "The CF12 class-5 soft zero mode has no accepted boundary asymptotics or boundary-integral identity; neither a BoundaryConstantID nor a BoundaryFunctionID is inferred"|>,
     modeResult = completedEndpointMode[transport, specification];
     If[FailureQ[modeResult], Throw[modeResult]];
-    adapterTiming = AbsoluteTiming[
+    If[modeResult["ModeMap", "BoundaryDataType"] === "BoundaryFunction",
+      <|"Status" -> "BoundaryFunctionEndpointTransportNotImplemented",
+        "BoundaryDataType" -> "BoundaryFunction",
+        "ModeCompletion" -> KeyDrop[modeResult, "ModeMap"],
+        "BoundaryDataRequirements" ->
+          modeResult["ModeMap", "BoundaryDataRequirements"],
+        "Reason" -> "the source boundary is a positive-dimensional stratum parameterized by p; its boundary function cannot be replaced by a constant without an additional mathematical relation"|>,
+      adapterTiming = AbsoluteTiming[
       adapter = FeynFacetCampaign`PhysicalBoundary`BuildEndpointAutomatonBoundaryAdapter[
         derivedTransport, modeResult["ModeMap"], <||>,
-        "PeriodOrderWindow" -> {-1, 5},
+        "BoundaryDataEpsilonOrderWindow" -> {-1, 5},
         "MaximumConnectorWords" -> 500000,
         "DemandWordPairs" -> {{{}, {}}}]];
     If[FailureQ[adapter] || Lookup[adapter, "Status", None] =!=
@@ -145,13 +199,14 @@ familyRecords = Table[Module[
       Throw@Failure["EndpointBoundaryAdapterBuildFailed", <|
         "Family" -> family, "Result" -> adapter|>]];
     compositionTiming = AbsoluteTiming[
-      composition = FeynFacetCampaign`PhysicalBoundary`ComposeEndpointAutomatonPeriodWords[
+      composition = FeynFacetCampaign`PhysicalBoundary`ComposeEndpointAutomatonBoundaryCoefficientMaps[
         adapter, derivedTransport, {{{}, {}}}]];
     If[FailureQ[composition] || Lookup[composition, "Status", None] =!=
-        "EndpointAutomatonPhysicalPeriodWordsBuilt",
-      Throw@Failure["EndpointPeriodWordCompositionFailed", <|
+        "EndpointAutomatonBoundaryCoefficientMapsBuilt",
+      Throw@Failure["EndpointBoundaryCoefficientCompositionFailed", <|
         "Family" -> family, "Result" -> composition|>]];
-    <|"Status" -> "FormalPhysicalPeriodWordsBuilt",
+    <|"Status" -> "FormalBoundaryConstantCoefficientMapsBuilt",
+      "BoundaryDataType" -> "BoundaryConstant",
       "ModeCompletion" -> KeyDrop[modeResult, "ModeMap"],
       "AdapterSeconds" -> First[adapterTiming],
       "CompositionSeconds" -> First[compositionTiming],
@@ -165,9 +220,13 @@ familyRecords = Table[Module[
       "BoundaryCoordinateConvention" ->
         adapter["BoundaryCoordinateConvention"],
       "Path" -> adapter["Path"],
-      "PeriodCoordinates" -> composition["PeriodCoordinates"],
+      "BoundaryConstantEpsilonCoefficientRecords" ->
+        composition["BoundaryConstantEpsilonCoefficientRecords"],
+      "BoundaryConstantEpsilonCoefficientLabels" ->
+        composition["BoundaryConstantEpsilonCoefficientLabels"],
       "WordMaps" -> composition["WordMaps"],
-      "Stage3NeedsLedger" -> composition["Stage3NeedsLedger"]|>
+      "BoundaryDataRequirements" ->
+        composition["BoundaryDataRequirements"]|>]
   ];
   <|"Family" -> family,
     "SourceTransportStatus" -> transport["Status"],
@@ -183,15 +242,19 @@ familyRecords = Table[Module[
       "PhysicalDemandPairs" -> missingPairs,
       "InitialDemandDimensions" -> Dimensions[missingRows],
       "InitialDemandEntries" -> sparseEntries[missingRows]|>,
-    "EndpointPeriodTransport" -> endpointTransport|>
+    "EndpointBoundaryData" -> endpointTransport|>
   ],
   {specification, specifications}];
 
 result = <|
-  "Status" -> "CF303InheritedObservableExtensionsBuiltV1",
+  "Status" -> If[AllTrue[familyRecords,
+    Lookup[Lookup[#, "EndpointBoundaryData", <||>], "Status", None] ===
+      "FormalBoundaryConstantCoefficientMapsBuilt" &],
+    "CF303InheritedObservableExtensionsBuiltV2",
+    "CF303InheritedObservableExtensionsIncomplete"],
   "Family" -> "CF303",
   "Scope" ->
-   "Exactly five previously absent lower-family observable coefficients and their demanded soft-endpoint period words",
+   "Exactly five previously absent lower-family observable coefficients and their required soft-limit boundary data",
   "RequestedLowerRows" -> {
     <|"Family" -> "CF12", "OriginalRow" -> 4, "EpsilonOrder" -> 2|>,
     <|"Family" -> "CF199", "OriginalRow" -> 1, "EpsilonOrder" -> 2|>,
@@ -199,9 +262,9 @@ result = <|
     <|"Family" -> "CF53", "OriginalRow" -> 4, "EpsilonOrder" -> 2|>,
     <|"Family" -> "CF53", "OriginalRow" -> 5, "EpsilonOrder" -> 3|>},
   "Families" -> familyRecords,
-  "Stage3BoundarySemantics" -> <|
+  "BoundaryDataSemantics" -> <|
     "CF199AndCF53" ->
-     "Formal realization-local PID9 coefficients; not evaluated and not transferred",
+     "Boundary functions on the one-dimensional soft stratum; no relation reducing them to constants has been supplied",
     "CF12" ->
      "Typed incomplete until its class-5 physical soft mode is realized",
     "TargetComposition" ->
@@ -209,17 +272,19 @@ result = <|
   "CompleteForCF303TargetComposition" -> False,
   "RemainingNeeds" -> {
     "A physical realization for the CF12 class-5 soft zero mode",
-    "Evaluation or justified realization transfer for the separate CF199 and CF53 PID9 coefficient series",
+    "The tangentially dependent boundary functions for CF199 and CF53, or a proved relation reducing each to constants",
     "Composition with the regularized target G25 junction map"}
 |>;
 
 Put[result, outputPath];
-Print["PASS output=", outputPath];
-Do[Print[record["Family"], " replay=",
-    record["ExistingDemandReplay"]["Matched"], "/",
-    record["ExistingDemandReplay"]["Total"], " endpoint=",
-    KeyTake[record["EndpointPeriodTransport"], {"Status", "AdapterSeconds",
-      "VisitedConnectorStateCount", "RetainedConnectorWordCount"}]],
+Print[result["Status"], " output=", outputPath];
+Do[If[KeyExistsQ[record, "EndpointBoundaryData"],
+    Print[record["Family"], " replay=",
+      record["ExistingDemandReplay"]["Matched"], "/",
+      record["ExistingDemandReplay"]["Total"], " boundary=",
+      KeyTake[record["EndpointBoundaryData"], {"Status", "AdapterSeconds",
+        "VisitedConnectorStateCount", "RetainedConnectorWordCount"}]],
+    Print[record["Family"], " status=", record["Status"]]],
   {record, familyRecords}];
 result
 ]]

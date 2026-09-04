@@ -48,11 +48,8 @@ normalizationColumns = If[solution["Nullity"] === 0, {},
     Normal[solution["NullspaceBasis"]], preparation["GaugeUnknownCount"],
     preparation["ResidueUnknownCount"], prime]];
 plan = planDiscover[sample["Matrix"], sample["RightHandSide"], solution,
-  normalizationColumns, prime, layout["LayoutFingerprint"],
-  provider["ProviderFingerprint"]];
-signature = {plan["Rank"], plan["Nullity"], plan["PivotSignature"]};
-payload = payloadRecord[layout, provider, plan, 2, 40, 2026082711,
-  signature];
+  normalizationColumns, prime, layout["CoefficientData"]];
+payload = payloadRecord[layout, provider, plan, 2, 40, 2026082711];
 requests = {<|"Prime" -> prime, "RegulatorValue" -> 2|>,
   <|"Prime" -> prime, "RegulatorValue" -> 3|>};
 records = followerSolve[payload, #1] & /@ requests;
@@ -63,13 +60,15 @@ FTTest`FTAssert["the helper payload and both immutable records authenticate",
         ConstantArray[payload, 2], requests}],
       Lookup[#1, "Status", None] ===
         "AuthenticatedMultiquadraticFollowerImageV1" &] &&
-    AllTrue[records, Lookup[#1, "PlanFingerprint", None] ===
-        plan["PlanFingerprint"] && ! KeyExistsQ[#1["Result"], "Matrix"] &]];
+    AllTrue[records, ! KeyExistsQ[#1["Result"], "Matrix"] &&
+      AllTrue[#1["Result", "TrainingImageKeys"],
+        MatchQ[#, {_Integer, _Integer | _Rational,
+          {_Integer, _Integer}}] &] &]];
 
 mutant = records[[1]];
-mutant["Result", "PlanFingerprint"] = StringRepeat["0", 64];
+mutant["Result", "PivotColumns"] = {999};
 mutantAuthentication = followerAuthenticate[mutant, payload, requests[[1]]];
-FTTest`FTAssert["a result from another constrained plan is refused",
+FTTest`FTAssert["a result with different pivot columns is refused",
   mutantAuthentication["Status"] === "FollowerImageAuthenticationFailed" &&
     mutantAuthentication["Reason"] ===
       "FollowerImageResultCertificateInvalid"];

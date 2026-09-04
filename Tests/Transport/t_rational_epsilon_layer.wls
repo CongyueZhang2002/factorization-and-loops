@@ -106,11 +106,11 @@ symbolicOperator = BuildRationalEpsilonLayerOperator[source, symbolicLayer,
   symbolic];
 FTAssert["a symbolic path endpoint reconstructs the complete rational gauge and feeds the lazy operator",
   symbolic["Status"] === "RationalEpsilonLayerTransportAccepted" &&
-    symbolic["GaugeStatus"] === "GaugeRationalFunctionReconstructed" &&
-    symbolic["Certificate"]["GaugeRepresentation"] === "RationalFunction" &&
-    symbolic["Certificate"]["GaugeMismatches"] === 0 &&
+    symbolic["OffDiagonalTransformationBlockStatus"] === "OffDiagonalTransformationBlockRationalFunctionReconstructed" &&
+    symbolic["Certificate"]["OffDiagonalTransformationBlockRepresentation"] === "RationalFunction" &&
+    symbolic["Certificate"]["OffDiagonalTransformationBlockMismatches"] === 0 &&
     And @@ Flatten@Table[
-      Together[symbolic["GaugeAtEndpoint"][order][[i, j]] -
+      Together[symbolic["OffDiagonalBasisTransformationBlockAtPathEndpoint"][order][[i, j]] -
         (hRef[order][[i, j]] /. u -> pEnd)] === 0,
       {order, Keys[hRef]}, {i, 2}, {j, 2}] &&
     AcceptedRationalEpsilonLayerTransportQ[symbolic] &&
@@ -119,14 +119,14 @@ FTAssert["a symbolic path endpoint reconstructs the complete rational gauge and 
     AcceptedRationalEpsilonLayerOperatorQ[symbolicOperator]];
 (* the H gauge: the modular images must agree with the exact reference at the base and at a probe point *)
 hRefProbe = Map[Together, hPrev, {2}];
-With[{p = First[Keys[result["GaugeImages"]]]}, With[{img = result["GaugeImages"][p][0]},
+With[{p = First[Keys[result["OffDiagonalTransformationBlockFiniteFieldImages"]]]}, With[{img = result["OffDiagonalTransformationBlockFiniteFieldImages"][p][0]},
   Print["gauge diagnostic at u = 3, prime ", p, ": image ", InputForm[Table[Mod[(img[[i, j, 1]] /. u -> 3) PowerMod[(img[[i, j, 2]] /. u -> 3), -1, p], p], {i, 2}, {j, 2}]],
     " reference ", InputForm[Table[With[{v = hRefProbe[[i, j]] /. u -> 3}, Mod[Numerator[v] PowerMod[Denominator[v], -1, p], p]], {i, 2}, {j, 2}]],
-    " image keys ", Keys[result["GaugeImages"][p]], " image entry short ", InputForm[Short[img[[2, 1]], 2]]]]];
+    " image keys ", Keys[result["OffDiagonalTransformationBlockFiniteFieldImages"][p]], " image entry short ", InputForm[Short[img[[2, 1]], 2]]]]];
 FTAssert["the last-order gauge image agrees with the exact reference at u = 3 modulo every prime used",
-  And @@ Table[With[{p = key, img = result["GaugeImages"][key][0]},
+  And @@ Table[With[{p = key, img = result["OffDiagonalTransformationBlockFiniteFieldImages"][key][0]},
     And @@ Flatten[Table[Mod[(img[[i, j, 1]] /. u -> 3) - Numerator[hRefProbe[[i, j]] /. u -> 3] PowerMod[Denominator[hRefProbe[[i, j]] /. u -> 3], -1, p] (img[[i, j, 2]] /. u -> 3), p] === 0, {i, 2}, {j, 2}]]],
-    {key, Keys[result["GaugeImages"]]}]];
+    {key, Keys[result["OffDiagonalTransformationBlockFiniteFieldImages"]]}]];
 (* demanded words: rebuild from the reference residues with the route's own word grammar *)
 wordsRef = Association@Table[pair -> FeynFacet`Private`rationalLayerWords[pair[[1]], pair[[2]], diagonal, kRef, source,
     <|0 -> (Join[#, {0, 0}] & /@ IdentityMatrix[2]), 1 -> (Join[{0, 0}, #] & /@ {{1, 1}, {0, 1}})|>, 2, 4, 2], {pair, demand["Pairs"]}];
@@ -188,7 +188,7 @@ direct = BuildRationalEpsilonLayerTransport[source, dlogLayer, demand];
 modular = BuildRationalEpsilonLayerTransport[source, dlogLayer, demand, "IncomingRoute" -> "Modular", "PrimeCount" -> 3];
 FTAssert["a path-free incoming connection takes the exact direct route, accepted, gauge vanishing",
   direct["Status"] === "RationalEpsilonLayerTransportAccepted" && AcceptedRationalEpsilonLayerTransportQ[direct] &&
-    direct["Certificate"]["IncomingRoute"] === "IncomingDlogDirect" && direct["GaugeStatus"] === "GaugeVanishes" &&
+    direct["Certificate"]["IncomingRoute"] === "IncomingDlogDirect" && direct["OffDiagonalTransformationBlockStatus"] === "OffDiagonalTransformationBlockVanishes" &&
     TrueQ[direct["Certificate"]["Exact"]]];
 lazyDirect = BuildRationalEpsilonLayerTransport[source, dlogLayer, demand,
   "WordRepresentation" -> "LazyOperator"];
@@ -232,10 +232,10 @@ gaugeOnly = BuildRationalEpsilonLayerTransport[gaugeOnlySource, gaugeOnlyLayer,
   gaugeOnlyDemand, "PrimeCount" -> 3];
 FTAssert["K=0 with a nonzero reconstructed endpoint gauge is a valid gauge-only transport",
   gaugeOnly["Status"] === "RationalEpsilonLayerTransportAccepted" &&
-    gaugeOnly["KResidues"] === <||> && gaugeOnly["GaugeAtEndpoint"][-1] === {{1/2}} &&
-    gaugeOnly["GaugeStatus"] === "GaugeReconstructedAtEndpoint" &&
+    gaugeOnly["KResidues"] === <||> && gaugeOnly["OffDiagonalBasisTransformationBlockAtPathEndpoint"][-1] === {{1/2}} &&
+    gaugeOnly["OffDiagonalTransformationBlockStatus"] === "OffDiagonalTransformationBlockReconstructedAtPathEndpoint" &&
     gaugeOnly["Certificate"]["ResidueComparisons"] === 0 &&
-    gaugeOnly["Certificate"]["GaugeComparisons"] > 0 &&
+    gaugeOnly["Certificate"]["OffDiagonalTransformationBlockComparisons"] > 0 &&
     AcceptedRationalEpsilonLayerTransportQ[gaugeOnly] &&
     AcceptedRationalEpsilonLayerTransportQ[gaugeOnly, gaugeOnlySource, gaugeOnlyLayer, gaugeOnlyDemand]];
 lazy = BuildRationalEpsilonLayerTransport[source, layer,
@@ -331,9 +331,9 @@ FTAssert["S2b: order 2 has target words of length 2 and they enter the ODE agree
 (* ---- S3: the lifted gauge at the endpoint, exact reference SameQ, and the full
    transported value F_T = G + H F_S against the ODE for the u-DEPENDENT layer ---- *)
 FTAssert["S3: the gauge at the endpoint is reconstructed and SameQ with the exact reference at every order",
-  result["GaugeStatus"] === "GaugeReconstructedAtEndpoint" && result["Certificate"]["GaugeReconstructed"] &&
-    result["Certificate"]["GaugeComparisons"] > 0 && result["Certificate"]["GaugeMismatches"] === 0 &&
-    And @@ Table[result["GaugeAtEndpoint"][order] === Map[Together, hRef[order] /. u -> 1/4, {2}], {order, -2, 0}]];
+  result["OffDiagonalTransformationBlockStatus"] === "OffDiagonalTransformationBlockReconstructedAtPathEndpoint" && result["Certificate"]["OffDiagonalTransformationBlockReconstructed"] &&
+    result["Certificate"]["OffDiagonalTransformationBlockComparisons"] > 0 && result["Certificate"]["OffDiagonalTransformationBlockMismatches"] === 0 &&
+    And @@ Table[result["OffDiagonalBasisTransformationBlockAtPathEndpoint"][order] === Map[Together, hRef[order] /. u -> 1/4, {2}], {order, -2, 0}]];
 FTAssert["a u-dependent layer without an endpoint is refused typed",
   BuildRationalEpsilonLayerTransport[source, KeyDrop[layer, "Endpoint"], demand, "PrimeCount" -> 3]["Status"] === "EndpointRequired"];
 selS2 = source["BoundarySelectors"];
@@ -352,7 +352,7 @@ Do[fT2[n] = Module[{f, sol, rhs},
       Flatten[Table[f[i, j], {i, 2}, {j, 4}]], {u, u1, base}, WorkingPrecision -> prec, MaxSteps -> 10^6, goals];
     Table[f[i, j][u] /. First[sol], {i, 2}, {j, 4}]], {n, -2, 0}];
 transported[n_, row_] := mapped[wordSum[result, {n, row}]] +
-  Sum[(result["GaugeAtEndpoint"][m] . If[KeyExistsQ[fS2, n - m], fS2[n - m] /. u -> u1, ConstantArray[0, {2, 4}]])[[row]], {m, -2, 0}];
+  Sum[(result["OffDiagonalBasisTransformationBlockAtPathEndpoint"][m] . If[KeyExistsQ[fS2, n - m], fS2[n - m] /. u -> u1, ConstantArray[0, {2, 4}]])[[row]], {m, -2, 0}];
 gaugeDeviations = Table[{n, row, N[Norm[(fT2[n] /. u -> u1)[[row]] - transported[n, row]], 3]}, {n, -2, 0}, {row, 2}];
 Print["u-dependent layer, F_T = G + H F_S against the ODE: deviations ", gaugeDeviations];
 FTAssert["S3 end to end: on the u-dependent layer the transported value G + H F_S agrees with the ODE to 1e-9 at every demanded (order, row)",
@@ -402,11 +402,11 @@ FTAssert["N1: mathematical word changes are caught by input-backed re-enumeratio
     ! AcceptedRationalEpsilonLayerTransportQ[removed] && ! AcceptedRationalEpsilonLayerTransportQ[removed, source, layer, demand] &&
     ! AcceptedRationalEpsilonLayerTransportQ[moved] && ! AcceptedRationalEpsilonLayerTransportQ[moved, source, layer, demand] &&
     AcceptedRationalEpsilonLayerTransportQ[result, source, layer, demand] && AcceptedRationalEpsilonLayerTransportQ[direct, source, dlogLayer, demand]]];
-FTAssert["GaugeStatus is semantically bound to the route and gauge payload",
-  ! AcceptedRationalEpsilonLayerTransportQ[Join[result, <|"GaugeStatus" -> "GaugeVanishes"|>]] &&
-  ! AcceptedRationalEpsilonLayerTransportQ[Join[direct, <|"GaugeStatus" -> "GaugeReconstructedAtEndpoint"|>]] &&
-  ! AcceptedRationalEpsilonLayerTransportQ[Join[direct, <|"GaugeAtEndpoint" -> Map[# + 1 &, direct["GaugeAtEndpoint"], {3}]|>]] &&
-  ! AcceptedRationalEpsilonLayerTransportQ[Join[result, <|"Certificate" -> Join[result["Certificate"], <|"GaugeReconstructed" -> False|>]|>]]];
+FTAssert["OffDiagonalTransformationBlockStatus is semantically bound to the route and gauge payload",
+  ! AcceptedRationalEpsilonLayerTransportQ[Join[result, <|"OffDiagonalTransformationBlockStatus" -> "OffDiagonalTransformationBlockVanishes"|>]] &&
+  ! AcceptedRationalEpsilonLayerTransportQ[Join[direct, <|"OffDiagonalTransformationBlockStatus" -> "OffDiagonalTransformationBlockReconstructedAtPathEndpoint"|>]] &&
+  ! AcceptedRationalEpsilonLayerTransportQ[Join[direct, <|"OffDiagonalBasisTransformationBlockAtPathEndpoint" -> Map[# + 1 &, direct["OffDiagonalBasisTransformationBlockAtPathEndpoint"], {3}]|>]] &&
+  ! AcceptedRationalEpsilonLayerTransportQ[Join[result, <|"Certificate" -> Join[result["Certificate"], <|"OffDiagonalTransformationBlockReconstructed" -> False|>]|>]]];
 FTAssert["N2: a degenerate prime placed in the fresh-prime slot of an explicit schedule (position PrimeCount + 1) is skipped and recorded, the result accepted with the next prime as the fresh one",
   With[{r = BuildRationalEpsilonLayerTransport[source, Join[layer, <|"Incoming" -> Append[incoming, <|"Row" -> 1, "Column" -> 1, "Coefficient" -> u/(eps^2 (u^2 - 1000003)), "Letter" -> {"GPLPole", -1}|>]|>], <|"Pairs" -> {{-2, 1}}|>,
       "Primes" -> {1000033, 1000037, 1000039, 1000081, 1000099, 1000117, 1000121, 1000133, 1000151, 1000003, 1000159, 1000171}, "PrimeCount" -> 9, "MaximumPrimeCount" -> 11]},

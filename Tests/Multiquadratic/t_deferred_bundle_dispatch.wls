@@ -19,10 +19,10 @@ Clear[dbx, dby, dbe, dbcx, dbcy];
 variables = {dbx, dby};
 epsilon = dbe;
 rootSquares = {dbx, dby, 1 - dbx - dby};
-rawFrame = BuildAlgebraicTransportFrame[rootSquares, variables, {dbcx, dbcy}];
+rawFrame = BuildSquareRootGeneratorsAndQuadraticRelations[rootSquares, variables, {dbcx, dbcy}];
 FTAssert["D0 the independent triple-root frame is exact",
   Lookup[rawFrame, "Status", None] === "ExactFrame" &&
-    MissingQ[TransportRootSetChart[rootSquares, variables]]];
+    MissingQ[LookupCataloguedRationalizingParametrizationForRoots[rootSquares, variables]]];
 
 (* Deliberately scramble the catalog declaration.  The bundle compiler and
    the solver both use the canonical square/root order, not this order. *)
@@ -65,7 +65,7 @@ FTAssert["D3 forcing-only roots join the canonical frame order",
     Lookup[dispatched, "RootSquares", None] === rootSquares];
 
 fakeChart = <|"Name" -> "MustNotConsumeAPlaceholder"|>;
-forcedChart = Block[{TransportRootSetChart = Function[{squares, vars}, fakeChart]},
+forcedChart = Block[{LookupCataloguedRationalizingParametrizationForRoots = Function[{squares, vars}, fakeChart]},
   SolveEpsFormStripInFrame[placeholderStrip, variables, epsilon, frame,
     "MultiquadraticDispatch" -> False,
     "MultiquadraticOptions" -> {"DeferredBundle" -> bundle},

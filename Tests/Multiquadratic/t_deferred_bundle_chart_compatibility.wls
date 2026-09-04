@@ -13,15 +13,17 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {forcingOf, prepareDeferred, chartDecision, validateBundle, currentRoots,
   pullBundle, pullPreparation, bundleEvaluate, directAlphabet, chartRekey,
-  chartData} = mq /@ {
+  chartData, rootExpression, rootRadicand} = mq /@ {
   "blockEquationDeferredForcing", "blockEquationDeferredPrepare",
   "blockEquationDeferredChartDecision",
   "blockEquationDeferredBundleValidate",
-  "transportChartCurrentRoots", "transportChartPullBackDeferredBundle",
+  "coefficientPresentationSquareRootsInVariables",
+  "transportChartPullBackDeferredBundle",
   "transportChartPullBackDeferredPreparation",
   "blockEquationDeferredBundleEvaluate",
-  "familyRowGaugeDirectAlphabetOptions", "transportChartRekey",
-  "masterTransportChartData"};
+  "familyRowGaugeDirectAlphabetOptions", "rekeyCoefficientPresentation",
+  "masterTransportCoefficientPresentationData",
+  "squareRootRecordExpression", "squareRootRecordRadicand"};
 
 Clear[cbx, cby, cbe, cbfx, cbfy, cbtx, cbty];
 variables = {cbx, cby};
@@ -32,7 +34,7 @@ ranges = {{1}, {2}};
 
 (* Root-free forcing inside a larger declared frame. *)
 declaredSquares = {cbx, cby, 1 - cbx - cby};
-declaredFrame = BuildAlgebraicTransportFrame[
+declaredFrame = BuildSquareRootGeneratorsAndQuadraticRelations[
   declaredSquares, variables, {cbfx, cbfy}];
 declaredRoots = currentRoots[declaredFrame, variables];
 rationalConnection = {
@@ -44,15 +46,12 @@ rationalBundle = forcingOf[rationalConnection, ranges, 2, 1, <||>,
   "BundleRoots" -> declaredRoots];
 FTAssert["C1 root-free forcing compiles to an authenticated empty frame",
   Lookup[validateBundle[rationalBundle], "Status", None] === "BundleValid" &&
-    rationalBundle["RootFrame", "Roots"] === {} &&
+    rationalBundle["SquareRootGeneratorIndices"] === {} &&
     rationalBundle["Statistics", "PrunedRootCount"] === 3];
 FTAssert["C2 an empty divisor census yields the neutral direct alphabet payload",
   directAlphabet[rationalBundle] === <|
     "AdditionalLetters" -> {}, "AlgebraicLetters" -> Automatic|>];
-identityData = <|"Status" -> "OK", "Variables" -> variables,
-  "SourceVariables" -> variables,
-  "Subst" -> Thread[variables -> variables],
-  "Jacobian" -> IdentityMatrix[2], "JacobianDet" -> 1|>;
+identityData = chartData[None, variables];
 rationalPull = pullBundle[rationalBundle, identityData, {}, {}];
 FTAssert["C3 the root-free deferred forcing is reconstructed, not the placeholder",
   Lookup[rationalPull, "Status", None] === "OK" &&
@@ -60,9 +59,9 @@ FTAssert["C3 the root-free deferred forcing is reconstructed, not the placeholde
 
 (* A one-root forcing whose exact Kallen chart is in the catalog. *)
 lambda = (1 - cbx - cby)^2 - 4 cbx cby;
-oneFrame = BuildAlgebraicTransportFrame[{lambda}, variables, {cbfx, cbfy}];
+oneFrame = BuildSquareRootGeneratorsAndQuadraticRelations[{lambda}, variables, {cbfx, cbfy}];
 oneRoots = currentRoots[oneFrame, variables];
-oneRoot = oneRoots[[1, "Root"]];
+oneRoot = rootExpression[First[oneRoots]];
 oneConnection = {
   {{0, 0}, {D[oneRoot, cbx], 0}},
   {{0, 0}, {D[oneRoot, cby], 0}}
@@ -71,17 +70,22 @@ oneBundle = forcingOf[oneConnection, ranges, 2, 1, <||>, variables,
   epsilon, "Output" -> "Bundle", "BundleRoots" -> oneRoots];
 FTAssert["C4 one-root forcing retains exactly one active generator",
   Lookup[validateBundle[oneBundle], "Status", None] === "BundleValid" &&
-    Length[oneBundle["RootFrame", "Roots"]] === 1];
-chart = TransportRootSetChart[{lambda}, variables];
+    oneBundle["SquareRootGeneratorIndices"] === {1}];
+chart = LookupCataloguedRationalizingParametrizationForRoots[{lambda}, variables];
 FTAssert["C5 the active one-root set has the registered Kallen1 chart",
   AssociationQ[chart] && chart["Name"] === "Kallen1"];
 chartVariables = {cbtx, cbty};
 rekeyed = chartRekey[chart, variables, chartVariables];
 data = chartData[rekeyed, variables];
-chartRoot = SelectFirst[rekeyed["Roots"],
-  TrueQ[Together[#1["RootSquare"] - lambda] === 0] &];
-branchRoots = {<|"RootSquare" -> Together[lambda /. data["Subst"]]|>};
-rootImages = {chartRoot["Root"]};
+chartRoots = currentRoots[rekeyed, chartVariables];
+chartRoot = SelectFirst[chartRoots,
+  TrueQ[Together[Lookup[#1, "SourceRadicand", 0] - lambda] === 0] &];
+branchRoots = {<|"Generator" -> Sqrt[Together[
+      lambda /. mq["masterTransportPresentationSubstitution"][data]]],
+    "QuadraticRadicand" -> Together[
+      lambda /. mq["masterTransportPresentationSubstitution"][data]],
+    "SourceRadicand" -> lambda|>};
+rootImages = {rootExpression[chartRoot]};
 onePull = pullBundle[oneBundle, data, branchRoots, rootImages];
 materialized = bundleEvaluate[oneBundle, {}];
 referencePull = mq["transportChartPullBackStrip"][
@@ -109,8 +113,9 @@ rationalSolution = SolveEpsFormStripInFrame[
   "Verbose" -> False];
 FTAssert["C7 root-free bundle dispatch solves the reconstructed rational forcing",
   Lookup[rationalSolution, "Status", None] === "Solved" &&
-    StringStartsQ[rationalSolution["Method"], "RationalFrame/"] &&
-    rationalSolution["RootIndices"] === {} &&
+    StringStartsQ[rationalSolution["Method"],
+      "SourceVariableRepresentation/"] &&
+    rationalSolution["SquareRootGeneratorIndices"] === {} &&
     TrueQ[rationalSolution["ExactDLog"]]];
 oneSolution = SolveEpsFormStripInFrame[
   placeholderStrip, variables, epsilon, oneFrame,
@@ -120,19 +125,21 @@ oneSolution = SolveEpsFormStripInFrame[
   "Verbose" -> False];
 FTAssert["C8 chartable deferred forcing uses the rational chart and solves exactly",
   Lookup[oneSolution, "Status", None] === "Solved" &&
-    StringStartsQ[oneSolution["Method"], "RationalChart/Kallen1/"] &&
-    oneSolution["RootIndices"] === {1} &&
+    StringStartsQ[oneSolution["Method"],
+      "RationalizingParametrization/Kallen1/"] &&
+    oneSolution["SquareRootGeneratorIndices"] === {1} &&
     TrueQ[oneSolution["ExactDLog"]] &&
-    TrueQ[oneSolution["FrameCertificate", "SourceDLog"]]];
+    TrueQ[oneSolution["Validation", "SourceDLog"]]];
 
-oneMaterialized = forcingOf[oneConnection, ranges, 2, 1, <||>, variables,
-  epsilon, "Output" -> "BundleAndMaterialized",
-  "BundleRoots" -> oneRoots];
 oneChartFast = forcingOf[oneConnection, ranges, 2, 1, <||>, variables,
   epsilon, "Output" -> "ChartOrBundle", "BundleRoots" -> oneRoots];
 oneChartPreparation = <|
   "Preparation" -> oneChartFast["DeferredPreparation"],
-  "RootSquares" -> oneChartFast["ChartDecision", "RootSquares"]|>;
+  "CoefficientPresentation" -> oneChartFast["CoefficientPresentation"],
+  "SquareRootGeneratorIndices" ->
+    oneChartFast["SquareRootGeneratorIndices"],
+  "ProjectionSquareRootGeneratorIndices" ->
+    oneChartFast["ProjectionSquareRootGeneratorIndices"]|>;
 FTAssert["C9 chart-aware production bypasses provider compilation and \
 source-frame materialization",
   Lookup[oneChartFast, "Status", None] === "PreparedChartDeferred" &&
@@ -149,9 +156,9 @@ oneChartFastSolution = SolveEpsFormStripInFrame[
   "Verbose" -> False];
 FTAssert["C10 deferred preparation materializes in the chart and gives the \
 same exact gauge",
-  Lookup[oneChartFastSolution, "Status", None] === "Solved" &&
+    Lookup[oneChartFastSolution, "Status", None] === "Solved" &&
     StringStartsQ[oneChartFastSolution["Method"],
-      "RationalChart/Kallen1/"] &&
+      "RationalizingParametrization/Kallen1/"] &&
     AllTrue[Flatten[oneChartFastSolution["Gauge"] - oneSolution["Gauge"]],
       TrueQ[FeynFacet`Private`transportChartAlgebraicZeroQ[#1,
         oneRoots]] &]];
@@ -173,10 +180,10 @@ kallenSquares = {
   (1 - cbx - cby)^2 - 4 cbx cby,
   (1 + cbx - cby)^2 + 4 cbx cby,
   (1 - cbx + cby)^2 + 4 cbx cby};
-kallenFrame = BuildAlgebraicTransportFrame[
+kallenFrame = BuildSquareRootGeneratorsAndQuadraticRelations[
   kallenSquares, variables, {cbfx, cbfy}];
 kallenRoots = currentRoots[kallenFrame, variables];
-kallenRootExpressions = Lookup[kallenRoots, "Root"];
+kallenRootExpressions = rootExpression /@ kallenRoots;
 subsetConnection = {
   {{0, 0, 0}, {0, 0, 0},
     {kallenRootExpressions[[1]] + kallenRootExpressions[[3]], 0, 0}},
@@ -239,31 +246,40 @@ FTAssert["C10d canceled inactive algebraic denominators route through exact post
     ContainsAll[Lookup[denominatorDecision["ActiveGradeCensus"],
       "DenominatorRootIndices", {}], {2, 3}]];
 
-denominatorChart = TransportRootSetChart[
+denominatorChart = LookupCataloguedRationalizingParametrizationForRoots[
   denominatorDecision["RootSquares"], variables];
 denominatorRekeyed = chartRekey[
   denominatorChart, variables, chartVariables];
 denominatorData = chartData[denominatorRekeyed, variables];
-denominatorChartRoot = SelectFirst[denominatorRekeyed["Roots"],
-  TrueQ[Together[#1["RootSquare"] -
+denominatorChartRoots = currentRoots[denominatorRekeyed, chartVariables];
+denominatorChartRoot = SelectFirst[denominatorChartRoots,
+  TrueQ[Together[Lookup[#1, "SourceRadicand", 0] -
     First[denominatorDecision["RootSquares"]]] === 0] &];
 denominatorBranchRoots = {
-  <|"RootSquare" -> Together[
+  <|"Generator" -> Sqrt[Together[
+      First[denominatorDecision["RootSquares"]] /.
+        mq["masterTransportPresentationSubstitution"][denominatorData]]],
+    "QuadraticRadicand" -> Together[
     First[denominatorDecision["RootSquares"]] /.
-      denominatorData["Subst"]]|>};
-denominatorRootImages = {denominatorChartRoot["Root"]};
+      mq["masterTransportPresentationSubstitution"][denominatorData]],
+    "SourceRadicand" ->
+      First[denominatorDecision["RootSquares"]]|>};
+denominatorRootImages = {rootExpression[denominatorChartRoot]};
 denominatorDeferredRecord = <|
   "Preparation" -> denominatorPreparation,
-  "RootSquares" -> denominatorDecision["RootSquares"],
-  "ProjectionRoots" -> kallenRoots[[
-    denominatorDecision["ProjectionRootIndices"]]]|>;
+  "CoefficientPresentation" -> kallenFrame,
+  "SquareRootGeneratorIndices" -> denominatorDecision["RootIndices"],
+  "ProjectionSquareRootGeneratorIndices" ->
+    denominatorDecision["ProjectionRootIndices"]|>;
 denominatorPull = pullPreparation[denominatorDeferredRecord,
   denominatorData, denominatorBranchRoots, denominatorRootImages];
 FTAssert["C10e exact post-sum projection removes canceled inactive roots before rational solving",
   Lookup[denominatorPull, "Status", None] === "OK" &&
-    Lookup[denominatorPull["InactiveRootProjection"], "Status", None] ===
+    Lookup[denominatorPull["InactiveSquareRootGeneratorProjection"],
+      "Status", None] ===
       "ExactInactiveGradeProjection" &&
-    Lookup[denominatorPull["InactiveRootProjection"], "RootCount", None] === 2 &&
+    Lookup[denominatorPull["InactiveSquareRootGeneratorProjection"],
+      "SquareRootGeneratorCount", None] === 2 &&
     FeynFacet`Private`transportChartRadicalBases[
       denominatorPull["OneForm"]] === {} &&
     FreeQ[denominatorPull["OneForm"],
@@ -282,7 +298,7 @@ FTAssert["C10f an inconclusive active-grade census stays on the direct route",
       "ActiveGradeCensusInconclusive"];
 
 fullRootConnection = {
-  {{0, 0}, {Total[Lookup[declaredRoots, "Root"]], 0}},
+  {{0, 0}, {Total[rootExpression /@ declaredRoots], 0}},
   {{0, 0}, {0, 0}}
 };
 chartlessDirect = forcingOf[fullRootConnection, ranges, 2, 1, <||>,
@@ -291,53 +307,20 @@ chartlessDirect = forcingOf[fullRootConnection, ranges, 2, 1, <||>,
 FTAssert["C11 chartless production returns the direct provider without a \
 materialized oracle",
   Lookup[chartlessDirect, "Status", None] === "PreparedDeferredBundle" &&
-    Lookup[validateBundle[chartlessDirect], "Status", None] ===
+  Lookup[validateBundle[chartlessDirect], "Status", None] ===
       "BundleValid" &&
-    Length[chartlessDirect["RootFrame", "Roots"]] === 3];
-
-certifiedMaterializedSolution = SolveEpsFormStripInFrame[
-  {zeroPair, zeroPair, oneMaterialized["Forcing"]},
-  variables, epsilon, oneFrame,
-  "FiniteFieldFirst" -> True,
-  "FiniteFieldOptions" -> commonFiniteOptions["one_root_certified"],
-  "MultiquadraticOptions" -> {
-    "DeferredBundle" -> oneMaterialized["DeferredBundle"]},
-  "DeferredMaterializationCertificate" ->
-    oneMaterialized["DeferredMaterializationCertificate"],
-  "Verbose" -> False];
-FTAssert["C12 certified materialized forcing skips redundant bundle pullback \
-without changing the exact gauge",
-  Lookup[certifiedMaterializedSolution, "Status", None] === "Solved" &&
-    StringStartsQ[certifiedMaterializedSolution["Method"],
-      "RationalChart/Kallen1/"] &&
-    AllTrue[Flatten[certifiedMaterializedSolution["Gauge"] -
-        oneSolution["Gauge"]],
-      TrueQ[FeynFacet`Private`transportChartAlgebraicZeroQ[#1,
-        oneRoots]] &]];
-mutatedForcing = ReplacePart[oneMaterialized["Forcing"],
-  {1, 1, 1} -> 2 oneMaterialized["Forcing"][[1, 1, 1]]];
-mutatedMaterializedSolution = SolveEpsFormStripInFrame[
-  {zeroPair, zeroPair, mutatedForcing}, variables, epsilon, oneFrame,
-  "FiniteFieldFirst" -> True,
-  "FiniteFieldOptions" -> commonFiniteOptions["one_root_mutated"],
-  "MultiquadraticOptions" -> {
-    "DeferredBundle" -> oneMaterialized["DeferredBundle"]},
-  "DeferredMaterializationCertificate" ->
-    oneMaterialized["DeferredMaterializationCertificate"],
-  "Verbose" -> False];
-FTAssert["C13 a mutated BBar cannot reuse a bundle materialization certificate",
-  Lookup[mutatedMaterializedSolution, "Status", None] ===
-    "InvalidDeferredMaterializationCertificate"];
+    chartlessDirect["SquareRootGeneratorIndices"] === {1, 2, 3}];
 
 plainRationalSolution = SolveEpsFormStripInFrame[
   {zeroPair, zeroPair, {{{1}}, {{0}}}}, variables, epsilon, declaredFrame,
   "FiniteFieldFirst" -> True,
   "FiniteFieldOptions" -> commonFiniteOptions["plain_rational"],
   "Verbose" -> False];
-FTAssert["C14 an ordinary nonzero rational strip still uses RationalFrame",
+FTAssert["C12 an ordinary nonzero rational strip still uses RationalFrame",
   Lookup[plainRationalSolution, "Status", None] === "Solved" &&
-    StringStartsQ[plainRationalSolution["Method"], "RationalFrame/"] &&
-    plainRationalSolution["RootIndices"] === {} &&
+    StringStartsQ[plainRationalSolution["Method"],
+      "SourceVariableRepresentation/"] &&
+    plainRationalSolution["SquareRootGeneratorIndices"] === {} &&
     TrueQ[plainRationalSolution["ExactDLog"]]];
 
 (* A chartless full-rank bundle remains on the direct-provider contract;

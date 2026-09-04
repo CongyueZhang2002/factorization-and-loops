@@ -219,7 +219,7 @@ FTAssert["B6 a legacy channel certificate with a changed channel hash or a malfo
    C. compiled assemblies (the fixture of t_multiquadratic_persistence)
    ================================================================== *)
 
-frame = BuildAlgebraicTransportFrame[{v, w, 1 + v + w}, {v, w}, {cx, cy}];
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[{v, w, 1 + v + w}, {v, w}, {cx, cy}];
 FTAssert["C0a the rank-three multiquadratic frame is exact",
   AssociationQ[frame] && frame["Status"] === "ExactFrame"];
 

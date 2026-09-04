@@ -969,7 +969,7 @@ rekeyCoefficientPresentation[input_Association,
   {presentation, kind, oldSubstitution, oldSourceVariables,
    oldTargetVariables, sourceRules, variableRules, substitution, roots,
    generators, relationChecks, sourceRelationChecks,
-   jacobianDeterminant, verified, result},
+   jacobianDeterminant, verified, result, identityVariableMapQ},
   presentation = algebraCoefficientPresentationNormalize[input];
   If[MemberQ[{
       "LegacyCoefficientPresentationSchemaUnsupported",
@@ -1003,8 +1003,15 @@ rekeyCoefficientPresentation[input_Association,
         Thread[sourceVariables -> sourceVariables],
       "DifferentialPullbackMatrix" -> IdentityMatrix[2],
       "JacobianDeterminant" -> 1|>]];
+  identityVariableMapQ = sourceVariables === targetVariables &&
+    Lookup[presentation, "SourceVariables", None] ===
+      Lookup[presentation, "CoefficientVariables", None] &&
+    Lookup[presentation, "SourceToCoefficientVariableRules", None] ===
+      Thread[Lookup[presentation, "SourceVariables", {}] ->
+        Lookup[presentation, "SourceVariables", {}]];
   If[Length[DeleteDuplicates[SymbolName /@
-        Join[sourceVariables, targetVariables]]] =!= 4,
+        Join[sourceVariables, targetVariables]]] =!= 4 &&
+      ! identityVariableMapQ,
     Return[<|"Status" ->
       "CoefficientPresentationVariablesCollide"|>]];
   If[! algebraCoefficientPresentationMapRationalQ[presentation],

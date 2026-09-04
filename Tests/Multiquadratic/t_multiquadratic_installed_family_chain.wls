@@ -33,7 +33,7 @@ Clear[v, w, x, y, eps];
 sourceVariables = {v, w};
 variables = {x, y};
 sourceSquares = {1 + v, 1 + w, 1 + v + w};
-frame = FeynFacet`BuildAlgebraicTransportFrame[
+frame = FeynFacet`BuildSquareRootGeneratorsAndQuadraticRelations[
   sourceSquares, sourceVariables, variables];
 roots = currentRoots[frame, variables];
 declaredRoots = Lookup[roots, "Root", {}];
@@ -191,7 +191,7 @@ check["C5 row installation and regulator factor compose in gauge order",
 factorConnection = Lookup[factor, "Connection", $Failed];
 familyRecord = If[ListQ[factorConnection] && MatrixQ[totalTransformation],
   <|"Family" -> "PlantedInstalledRank3Chain",
-    "Chart" -> frame["Name"], "ChartRecord" -> frame,
+    "CoefficientPresentation" -> frame,
     "Variables" -> variables, "Regulator" -> eps,
     "Blocks" -> {{1}, {2}}, "Ranges" -> {{1}, {2}},
     "TTotal" -> totalTransformation, "TTotalInverse" -> totalInverse,
@@ -213,18 +213,19 @@ certificateOptions = Sequence[
   "MultiquadraticMaxPrimeAttempts" -> 24,
   "MultiquadraticMaxPointAttempts" -> 240];
 certified = If[KeyExistsQ[familyRecord, "TTotal"],
-  FeynFacet`CertifyFamilyEpsilonForm[
+  FeynFacet`ValidateFamilyDLogEpsilonForm[
     familyRecord, system, certificateOptions],
   <|"Status" -> "UpstreamFactorFailure"|>];
-certificate = Lookup[certified, "EpsilonFormCertificate", <||>];
-modular = Lookup[certificate, "Modular", <||>];
+validation = Lookup[certified, "Validation", <||>];
+modular = Lookup[validation, "SamplingEvidence", <||>];
 
 check["C6 the installed and factored family is high-confidence certified",
-  Lookup[certified, "Status", None] === "CertifiedEpsilonForm" &&
-    FeynFacet`CertifiedFamilyEpsilonFormQ[certified] &&
-    TrueQ[Lookup[certificate, "Certified", False]] &&
-    Lookup[certificate, "CertificationLevel", None] ===
-      "HighConfidenceFiniteField"];
+  Lookup[certified, "Status", None] ===
+      "ProbabilisticallyValidatedFamilyDLogEpsilonForm" &&
+    FeynFacet`ValidatedFamilyDLogEpsilonFormQ[certified] &&
+    TrueQ[Lookup[validation, "Probabilistic", False]] &&
+    ! TrueQ[Lookup[validation, "Exact", True]] &&
+    Lookup[validation, "Method", None] === "FiniteFieldEvaluation"];
 check["C6 every certificate point checks all eight rank-three sheets",
   Lookup[modular, "RootCount", 0] === 3 &&
     Lookup[modular, "GradeCount", 0] === 8 &&
@@ -245,7 +246,8 @@ check["C6 the rational lift is replayed at disjoint fresh primes",
 (* Change one active dlog residue while retaining the alphabet and the
    authenticated cumulative transformation.  The altered target is still
    a perfectly good dlog form, so rejection must come from the mathematical
-   gauge identity rather than from a missing-letter/schema shortcut. *)
+   connection-transformation equation rather than from a
+   missing-letter/schema shortcut. *)
 mutationForm = If[MatchQ[Lookup[solved, "OneForms", {}], {{_, _} ..}],
   First[solved["OneForms"]], $Failed];
 mutatedRecord = If[AssociationQ[familyRecord] &&
@@ -254,16 +256,17 @@ mutatedRecord = If[AssociationQ[familyRecord] &&
     familyRecord["EpsFormX", 2, 1] + eps mutationForm[[1]]]],
   <|"Status" -> "MutationFixtureUnavailable"|>];
 mutated = If[KeyExistsQ[mutatedRecord, "TTotal"],
-  FeynFacet`CertifyFamilyEpsilonForm[
+  FeynFacet`ValidateFamilyDLogEpsilonForm[
     mutatedRecord, system, certificateOptions],
   <|"Status" -> "MutationFixtureUnavailable"|>];
-mutationChecks = Lookup[mutated, "Checks", <||>];
-mutationModular = Lookup[mutated, "Modular", <||>];
+mutationChecks = Lookup[Lookup[mutated, "Validation", <||>],
+  "Conditions", <||>];
 check["N1 an active mathematical residue mutation is rejected",
-  MemberQ[{"EpsilonFormCertificationFailed", "ModularCertificateFailed"},
+  MemberQ[{"FamilyDLogEpsilonFormValidationFailed",
+      "FiniteFieldValidationFailed"},
       Lookup[mutated, "Status", None]] &&
-    ! TrueQ[Lookup[mutationChecks, "GaugeIdentity",
-      Lookup[mutationModular, "GaugeIdentity", False]]]];
+    ! TrueQ[Lookup[mutationChecks,
+      "ConnectionTransformationEquation", False]]];
 
 Print["t_multiquadratic_installed_family_chain: ", pass, " OK, ", fail,
   " FAIL"];

@@ -1,6 +1,7 @@
 (* Lazy word operator for a rational-in-epsilon final layer.
 
-   BuildRationalEpsilonLayerTransport determines the path gauge H and the
+   BuildRationalEpsilonLayerTransport determines the off-diagonal
+   basis-transformation block H along the path and the
    dlog remainder K.  Enumerating every Chen word is unnecessary and becomes
    exponential at the weights needed by hard families.  This module keeps the
    finite operator data and evaluates one requested word by sparse matrix
@@ -97,7 +98,7 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
    targetBoundaryCount, sharedBoundaryQ, boundaryLayout, diagonal,
    diagonalMatrices, diagonalTokens,
    sourceMatrices, sourceTokens, incoming, incomingMatrices,
-   incomingTokens, gauge, gaugeMatrices, gaugeTokens, dimensions, window,
+   incomingTokens, offDiagonalBlockAtPathEndpoint, offDiagonalBlockMatrices, offDiagonalTokens, dimensions, window,
    pathVariable, basePoint, endpoint, curve, boundaryBinding,
    sourceBindingRows, targetBindingRows, boundaryCoordinateKeys,
    operatorSourcePayload, operatorLayerPayload, declaredCurvePointValues,
@@ -195,13 +196,13 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
   incomingMatrices = AssociationThread[incomingTokens,
     SparseArray /@ Values[incoming]];
 
-  gauge = Lookup[transport, "GaugeAtEndpoint", <||>];
-  If[! AssociationQ[gauge] || ! AllTrue[Values[gauge],
+  offDiagonalBlockAtPathEndpoint = Lookup[transport, "OffDiagonalBasisTransformationBlockAtPathEndpoint", <||>];
+  If[! AssociationQ[offDiagonalBlockAtPathEndpoint] || ! AllTrue[Values[offDiagonalBlockAtPathEndpoint],
       MatrixQ[#] && Dimensions[#] ===
         {targetDimension, sourceDimension} &],
-    Return[<|"Status" -> "RationalLayerGaugeOperatorInvalid"|>]];
-  gaugeTokens = ({"H", #} &) /@ Keys[gauge];
-  gaugeMatrices = AssociationThread[gaugeTokens, SparseArray /@ Values[gauge]];
+    Return[<|"Status" -> "RationalLayerOffDiagonalTransformationOperatorInvalid"|>]];
+  offDiagonalTokens = ({"H", #} &) /@ Keys[offDiagonalBlockAtPathEndpoint];
+  offDiagonalBlockMatrices = AssociationThread[offDiagonalTokens, SparseArray /@ Values[offDiagonalBlockAtPathEndpoint]];
 
   boundaryLayout = If[sharedBoundaryQ, "Shared", "Independent"];
   pathVariable = Lookup[transport, "PathVariable",
@@ -254,8 +255,8 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
     "IncomingLabels" -> AssociationThread[incomingTokens,
       (rationalLayerResidueLabel /@ Keys[incoming])],
     "IncomingMatrices" -> incomingMatrices,
-    "GaugeTokens" -> gaugeTokens,
-    "GaugeMatrices" -> gaugeMatrices,
+    "OffDiagonalTransformationTokens" -> offDiagonalTokens,
+    "OffDiagonalTransformationBlockCoefficientsByToken" -> offDiagonalBlockMatrices,
     "SourceTokens" -> sourceTokens,
     "SourceLabels" -> AssociationThread[sourceTokens, sourceLetters],
     "SourceMatrices" -> sourceMatrices,
@@ -277,7 +278,7 @@ AcceptedRationalEpsilonLayerOperatorQ[operator_] :=
     Lookup[operator, "BoundaryLayout", None]] &&
   AssociationQ[Lookup[operator, "DiagonalMatrices", None]] &&
   AssociationQ[Lookup[operator, "IncomingMatrices", None]] &&
-  AssociationQ[Lookup[operator, "GaugeMatrices", None]] &&
+  AssociationQ[Lookup[operator, "OffDiagonalTransformationBlockCoefficientsByToken", None]] &&
   AssociationQ[Lookup[operator, "SourceMatrices", None]] &&
   MatchQ[Lookup[operator, "DemandPairs", None],
     {{_Integer, _Integer} ..}] &&
@@ -286,7 +287,7 @@ AcceptedRationalEpsilonLayerOperatorQ[operator_] :=
   AssociationQ[Lookup[operator, "OperatorLayer", None]];
 
 Options[RebaseRationalEpsilonLayerOperator] = {
-  "HAtNewBase" -> Automatic,
+  "OffDiagonalTransformationBlockAtNewBase" -> Automatic,
   "BasePointPrescription" -> None
 };
 
@@ -304,8 +305,8 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
     OptionsPattern[]] := Catch@Module[
   {fail, dimensions, sourceDimension, targetDimension, sourceColumns,
    targetColumns, layout, commonColumns, sourceCommon, targetCommon,
-   zeroSource, zeroTarget, gaugeEndpoint, gaugeAtNewBase, gaugeOrders,
-   expectedGaugeOrders, sourceOrders, targetOrders, correctedOrders,
+   zeroSource, zeroTarget, offDiagonalBlockAtOldEndpoint, offDiagonalBlockAtNewBase, offDiagonalOrders,
+   expectedOffDiagonalOrders, sourceOrders, targetOrders, correctedOrders,
    correctedTarget, path, variable, oldBase, oldEndpoint, rebased,
    binding, basePointPrescription, rebasedPath},
   fail[status_, extra_: <||>] := Throw[Join[<|"Status" -> status|>, extra]];
@@ -341,33 +342,33 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
           "LocalDirection", Missing[]]]),
     fail["RationalLayerBasePointPrescriptionInvalid"]];
 
-  gaugeEndpoint = Lookup[operator, "GaugeMatrices", <||>];
-  If[! AssociationQ[gaugeEndpoint] ||
-      ! AllTrue[Normal[gaugeEndpoint],
+  offDiagonalBlockAtOldEndpoint = Lookup[operator, "OffDiagonalTransformationBlockCoefficientsByToken", <||>];
+  If[! AssociationQ[offDiagonalBlockAtOldEndpoint] ||
+      ! AllTrue[Normal[offDiagonalBlockAtOldEndpoint],
         MatchQ[First[#], {"H", _Integer}] && MatrixQ[Last[#]] &&
           Dimensions[Last[#]] === {targetDimension, sourceDimension} &],
-    fail["RationalLayerGaugeOperatorInvalid"]];
-  expectedGaugeOrders = If[gaugeEndpoint === <||>, {},
-    Keys[gaugeEndpoint][[All, 2]]];
-  gaugeAtNewBase = OptionValue["HAtNewBase"];
-  If[gaugeAtNewBase === Automatic,
-    If[gaugeEndpoint =!= <||> && newBase =!= oldEndpoint &&
+    fail["RationalLayerOffDiagonalTransformationOperatorInvalid"]];
+  expectedOffDiagonalOrders = If[offDiagonalBlockAtOldEndpoint === <||>, {},
+    Keys[offDiagonalBlockAtOldEndpoint][[All, 2]]];
+  offDiagonalBlockAtNewBase = OptionValue["OffDiagonalTransformationBlockAtNewBase"];
+  If[offDiagonalBlockAtNewBase === Automatic,
+    If[offDiagonalBlockAtOldEndpoint =!= <||> && newBase =!= oldEndpoint &&
         (! MatchQ[oldEndpoint, _Symbol] ||
-          FreeQ[Values[gaugeEndpoint], oldEndpoint]) &&
-        AnyTrue[Values[gaugeEndpoint], rationalLayerOperatorNonzeroQ],
-      fail["RationalLayerGaugeAtNewBaseRequired"]];
-    gaugeAtNewBase = Association@KeyValueMap[
+          FreeQ[Values[offDiagonalBlockAtOldEndpoint], oldEndpoint]) &&
+        AnyTrue[Values[offDiagonalBlockAtOldEndpoint], rationalLayerOperatorNonzeroQ],
+      fail["RationalLayerOffDiagonalTransformationAtNewBaseRequired"]];
+    offDiagonalBlockAtNewBase = Association@KeyValueMap[
       #1[[2]] -> SparseArray[Normal[#2] /.
           oldEndpoint -> newBase] &,
-      gaugeEndpoint],
-    If[! AssociationQ[gaugeAtNewBase] ||
-        Sort[Keys[gaugeAtNewBase]] =!= Sort[expectedGaugeOrders] ||
-        ! AllTrue[Values[gaugeAtNewBase], MatrixQ[#] &&
+      offDiagonalBlockAtOldEndpoint],
+    If[! AssociationQ[offDiagonalBlockAtNewBase] ||
+        Sort[Keys[offDiagonalBlockAtNewBase]] =!= Sort[expectedOffDiagonalOrders] ||
+        ! AllTrue[Values[offDiagonalBlockAtNewBase], MatrixQ[#] &&
           Dimensions[#] === {targetDimension, sourceDimension} &],
-      fail["RationalLayerGaugeAtNewBaseInvalid"]];
-    gaugeAtNewBase = Map[SparseArray, gaugeAtNewBase]
+      fail["RationalLayerOffDiagonalTransformationAtNewBaseInvalid"]];
+    offDiagonalBlockAtNewBase = Map[SparseArray, offDiagonalBlockAtNewBase]
   ];
-  gaugeOrders = Keys[Select[gaugeAtNewBase,
+  offDiagonalOrders = Keys[Select[offDiagonalBlockAtNewBase,
     rationalLayerOperatorNonzeroQ]];
 
   layout = operator["BoundaryLayout"];
@@ -390,11 +391,11 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
   sourceOrders = Keys[sourceCommon];
   targetOrders = Keys[targetCommon];
   correctedOrders = Union[targetOrders,
-    Flatten[Table[r + q, {r, gaugeOrders}, {q, sourceOrders}]]];
+    Flatten[Table[r + q, {r, offDiagonalOrders}, {q, sourceOrders}]]];
   correctedTarget = Association@Table[q -> SparseArray[
       Lookup[targetCommon, q, zeroTarget] - Total[
-        Table[gaugeAtNewBase[r] .
-          Lookup[sourceCommon, q - r, zeroSource], {r, gaugeOrders}]]],
+        Table[offDiagonalBlockAtNewBase[r] .
+          Lookup[sourceCommon, q - r, zeroSource], {r, offDiagonalOrders}]]],
     {q, correctedOrders}];
 
   binding = If[layout === "Shared" &&
@@ -426,7 +427,7 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
         Map[SparseArray, sourceSelectors],
       "PhysicalTargetBoundarySelectors" ->
         Map[SparseArray, targetSelectors],
-      "HAtNewBase" -> gaugeAtNewBase|>|>];
+      "OffDiagonalTransformationBlockAtNewBase" -> offDiagonalBlockAtNewBase|>|>];
   If[! AcceptedRationalEpsilonLayerOperatorQ[rebased],
     fail["RationalLayerRebaseConstructionFailed"]];
   rebased
@@ -522,16 +523,17 @@ Options[RationalEpsilonLayerDemandTerms] = {
 };
 
 (* Enumerate only one requested coefficient.  The stored word is the
-   sequence of integration kernels, outermost first.  Endpoint-gauge terms
+   sequence of integration kernels, outermost first.  Terms from the
+   off-diagonal transformation block at the path endpoint
    carry no H letter because H(endpoint) is an algebraic coefficient, not an
    integration kernel. *)
 RationalEpsilonLayerDemandTerms[operator_Association,
     {outputOrder_Integer, requestedRows_}, OptionsPattern[]] := Catch@Module[
   {fail, dimensions, rows, maximumTerms, maximumStates, sharedBoundaryQ,
    embedSource, embedTarget, sourceTokens, diagonalTokens, incomingTokens,
-   gaugeTokens, sourceStates = <||>, growSource, appendTerm, termStore, terms,
+   offDiagonalTokens, sourceStates = <||>, growSource, appendTerm, termStore, terms,
    count = 0, targetState, diagonalStates, incomingState, sourceState,
-   a, b, q, incomingOrder, gaugeOrder, labels, labelledWord},
+   a, b, q, incomingOrder, offDiagonalOrder, labels, labelledWord},
   fail[status_, extra_: <||>] := Throw[Join[<|"Status" -> status|>, extra]];
   If[! AcceptedRationalEpsilonLayerOperatorQ[operator],
     fail["RationalEpsilonLayerOperatorNotAccepted"]];
@@ -561,7 +563,7 @@ RationalEpsilonLayerDemandTerms[operator_Association,
   sourceTokens = operator["SourceTokens"];
   diagonalTokens = operator["DiagonalTokens"];
   incomingTokens = operator["IncomingTokens"];
-  gaugeTokens = operator["GaugeTokens"];
+  offDiagonalTokens = operator["OffDiagonalTransformationTokens"];
   labels = Join[operator["DiagonalLabels"], operator["IncomingLabels"],
     operator["SourceLabels"]];
   labelledWord[word_] := Lookup[labels, Key[#], Missing["UnknownToken", #]] & /@ word;
@@ -587,7 +589,7 @@ RationalEpsilonLayerDemandTerms[operator_Association,
       {{{}, SparseArray[operator["SourceBoundarySelectors"][order]]}},
       Max[0, outputOrder - order - Min[Join[
         If[incomingTokens === {}, {}, incomingTokens[[All, 2]]],
-        If[gaugeTokens === {}, {}, gaugeTokens[[All, 2]]], {0}]]]]
+        If[offDiagonalTokens === {}, {}, offDiagonalTokens[[All, 2]]], {0}]]]]
   ];
 
   (* Homogeneous target-boundary words. *)
@@ -629,18 +631,19 @@ RationalEpsilonLayerDemandTerms[operator_Association,
       {q, Keys[operator["SourceBoundarySelectors"]]}],
     {incomingToken, incomingTokens}];
 
-  (* Endpoint gauge H_r times the transported source. *)
+  (* Off-diagonal transformation block H_r at the path endpoint, multiplied
+     by the transported source. *)
   Do[
-    gaugeOrder = gaugeToken[[2]];
+    offDiagonalOrder = offDiagonalToken[[2]];
     Do[
-      b = outputOrder - q - gaugeOrder;
+      b = outputOrder - q - offDiagonalOrder;
       If[b < 0 || b + 1 > Length[growSource[q]], Continue[]];
-      Do[appendTerm["EndpointGauge", Reverse[sourceState[[1]]], q,
-          embedSource[operator["GaugeMatrices"][gaugeToken] . sourceState[[2]]],
-          <|"GaugeOrder" -> gaugeOrder|>],
+      Do[appendTerm["OffDiagonalTransformationAtPathEndpoint", Reverse[sourceState[[1]]], q,
+          embedSource[operator["OffDiagonalTransformationBlockCoefficientsByToken"][offDiagonalToken] . sourceState[[2]]],
+          <|"OffDiagonalTransformationOrder" -> offDiagonalOrder|>],
         {sourceState, growSource[q][[b + 1]]}],
       {q, Keys[operator["SourceBoundarySelectors"]]}],
-    {gaugeToken, gaugeTokens}];
+    {offDiagonalToken, offDiagonalTokens}];
 
   terms = Table[termStore[index], {index, count}];
   <|"Status" -> "RationalEpsilonLayerDemandTermsBuilt",

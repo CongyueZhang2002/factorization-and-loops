@@ -109,7 +109,7 @@ AttachTransportBoundaryToRationalLayer[___] :=
   <|"Status" -> "TransportBoundaryLayerInputsNotWellFormed"|>;
 
 Options[BuildPhysicalTransportCoefficient] = {
-  "OutputGaugeByOrder" -> Automatic,
+  "CanonicalToPhysicalMasterIntegralMapByEpsilonOrder" -> Automatic,
   "CompositeDefinitions" -> <||>,
   "MaximumTerms" -> Infinity,
   "MaximumStates" -> 200000,
@@ -122,7 +122,7 @@ BuildPhysicalTransportCoefficient[operator_Association,
     path_Association, OptionsPattern[]] := Catch@Module[
   {fail, dimensions, constants, variable, base, endpoint, curve,
    curvePointValues, basePointPrescription,
-   definitions, outputGauge, gaugeOrders, physicalDimension,
+   definitions, canonicalToPhysicalMap, mapOrders, physicalDimension,
    maximumExpandedTerms, expandQ, rawStore, rawCount = 0,
    demandTerms, matrix, vector, letterSequence, expanded, expandedStore,
    expandedCount = 0, merged, surviving, activeColumns, stage3,
@@ -201,19 +201,22 @@ BuildPhysicalTransportCoefficient[operator_Association,
   definitions = OptionValue["CompositeDefinitions"];
   If[! AssociationQ[definitions],
     fail["CompositeLetterDefinitionsInvalid"]];
-  outputGauge = Replace[OptionValue["OutputGaugeByOrder"],
+  canonicalToPhysicalMap = Replace[
+    OptionValue["CanonicalToPhysicalMasterIntegralMapByEpsilonOrder"],
     Automatic -> <|0 -> IdentityMatrix[dimensions["Target"]]|>];
-  If[! AssociationQ[outputGauge] || outputGauge === <||> ||
-      ! AllTrue[Keys[outputGauge], IntegerQ] ||
-      ! AllTrue[Values[outputGauge], MatrixQ[#] &&
+  If[! AssociationQ[canonicalToPhysicalMap] ||
+      canonicalToPhysicalMap === <||> ||
+      ! AllTrue[Keys[canonicalToPhysicalMap], IntegerQ] ||
+      ! AllTrue[Values[canonicalToPhysicalMap], MatrixQ[#] &&
         Dimensions[#][[2]] === dimensions["Target"] &],
-    fail["PhysicalOutputGaugeInvalid"]];
-  physicalDimension = Dimensions[First[Values[outputGauge]]][[1]];
-  If[! AllTrue[Values[outputGauge],
+    fail["CanonicalToPhysicalMasterIntegralMapInvalid"]];
+  physicalDimension = Dimensions[
+    First[Values[canonicalToPhysicalMap]]][[1]];
+  If[! AllTrue[Values[canonicalToPhysicalMap],
         Dimensions[#][[1]] === physicalDimension &] ||
       ! 1 <= outputRow <= physicalDimension,
     fail["PhysicalOutputRowInvalid"]];
-  gaugeOrders = Keys[outputGauge];
+  mapOrders = Keys[canonicalToPhysicalMap];
   maximumExpandedTerms = OptionValue["MaximumExpandedTerms"];
   expandQ = TrueQ[OptionValue["ExpandFactorLetters"]];
   If[! (maximumExpandedTerms === Infinity ||
@@ -222,11 +225,11 @@ BuildPhysicalTransportCoefficient[operator_Association,
 
   Do[
     activeTargetRows = DeleteDuplicates[
-      SparseArray[outputGauge[gaugeOrder][[{outputRow}, All]]][
+      SparseArray[canonicalToPhysicalMap[mapOrder][[{outputRow}, All]]][
         "NonzeroPositions"][[All, 2]]];
     If[activeTargetRows === {}, Continue[]];
     demandTerms = RationalEpsilonLayerDemandTerms[operator,
-      {outputOrder - gaugeOrder, activeTargetRows},
+      {outputOrder - mapOrder, activeTargetRows},
       "MaximumTerms" -> OptionValue["MaximumTerms"],
       "MaximumStates" -> OptionValue["MaximumStates"]];
     If[Lookup[demandTerms, "Status", None] =!=
@@ -234,14 +237,15 @@ BuildPhysicalTransportCoefficient[operator_Association,
       fail[Lookup[demandTerms, "Status",
         "RationalLayerDemandFailed"], KeyDrop[demandTerms, "Status"]]];
     Do[
-      matrix = outputGauge[gaugeOrder][[{outputRow}, activeTargetRows]] .
+      matrix = canonicalToPhysicalMap[mapOrder][
+          [{outputRow}, activeTargetRows]] .
         term["Coefficient"];
       If[! physicalTransportNonzeroQ[matrix], Continue[]];
       rawCount++;
       rawStore[rawCount] = <|"LetterSequence" -> term["Word"],
         "Coefficient" -> First[Normal[matrix]]|>,
       {term, demandTerms["Terms"]}],
-    {gaugeOrder, gaugeOrders}];
+    {mapOrder, mapOrders}];
 
   Do[
     letterSequence = rawStore[index]["LetterSequence"];

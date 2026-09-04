@@ -13,7 +13,7 @@
 #include <unistd.h>
 #include <omp.h>
 
-/* Native backend for BlockEquationDeferredV1 point images.
+/* Native backend for DeferredBlockEquation V2 point images.
 
    CLI:
      flint_deferred_ast_eval INPUT.wl REQUEST.txt OUTPUT.bin
@@ -935,7 +935,9 @@ static enum status_code load_records(const unsigned char *data, size_t size,
     expression_t **expressions_out, size_t *expression_count_out,
     size_t *term_total_out, uint64_t dimensions[3]) {
     span_t whole = {data, data + size}, deferred, preparation,
-           status_span, version_span, *record_spans = NULL;
+           data_type_span, schema_version_span, status_span,
+           *record_spans = NULL;
+    uint64_t schema_version = 0;
     size_t record_count = 0, record_index, expression_count = 0,
            expression_capacity = 0, term_total = 0;
     expression_t *expressions = NULL;
@@ -943,9 +945,13 @@ static enum status_code load_records(const unsigned char *data, size_t size,
     if (!association_after_key(whole, "\"DeferredPreparation\"", &deferred) ||
         !association_after_key(deferred, "\"Preparation\"", &preparation) ||
         !scalar_after_key(preparation, "\"Status\"", &status_span) ||
-        !scalar_after_key(preparation, "\"ABIVersion\"", &version_span) ||
+        !scalar_after_key(preparation, "\"DataType\"", &data_type_span) ||
+        !scalar_after_key(preparation, "\"SchemaVersion\"",
+                          &schema_version_span) ||
         !normalized_span_string(status_span, "\"Prepared\"") ||
-        !normalized_span_string(version_span, "\"BlockEquationDeferredV1\"") ||
+        !normalized_span_string(data_type_span, "\"DeferredBlockEquation\"") ||
+        !uint_span(schema_version_span, &schema_version) ||
+        schema_version != 2 ||
         !list_after_key(preparation, "\"Records\"", &record_spans, &record_count) ||
         record_count == 0 || record_count > MAX_RECORDS) return ST_PREPARATION_SCHEMA;
     records = calloc(record_count, sizeof(*records));
@@ -1006,7 +1012,7 @@ static enum status_code load_records(const unsigned char *data, size_t size,
         }
         free(terms);
     }
-    /* TargetOrder is an ABI, not telemetry.  Require the complete
+    /* Target order is structural data, not telemetry.  Require the complete
        lexicographic {form,row,column} rectangle before an adapter may reshape
        the returned channel stream. */
     if (dimensions[0] > SIZE_MAX / dimensions[1] ||

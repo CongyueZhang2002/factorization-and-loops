@@ -27,17 +27,27 @@
 ClearAll[
   familyCertCompile, familyCertCompileMatrix, familyCertPowers, familyCertPolyValue,
   familyCertValue, familyCertDerivativeValue, familyCertMatrixValue, familyCertMatrixDerivativeValue,
+  familyCertPresentationSubstitution,
+  familyCertPresentationDifferentialPullbackMatrix,
   familyCertDegree, familyCertLetters, familyCertRationalReconstruct,
   familyCertDegMul, familyCertDegDeriv, familyCertDegAdd, familyCertDegCompose, familyCertBounds,
   familyCertCharacteristicZeroPoint, familyCertificateModular
   , familyCertMQFailure, familyCertMQModRational, familyCertMQSquareRoot,
-  familyCertMQPrepare, familyCertMQIndependentColumns,
-  familyCertMQAuthenticateRegulatorRootFrames,
+  familyCertMQNormalizeRootRecord, familyCertMQPrepare,
+  familyCertMQIndependentColumns,
+  familyCertMQValidateRegulatorRootFrames,
   familyCertMQPivotSignature, familyCertMQSelectModalPivotTrials,
   familyCertMQTrial, familyCertMQReconstructResidues,
   familyCertMQValidateResiduesAtTrial,
   familyCertificateMultiquadratic
 ];
+
+familyCertPresentationSubstitution[presentation_Association] := Lookup[
+  presentation, "SourceVariableSubstitution",
+  Lookup[presentation, "SourceToCoefficientVariableRules", $Failed]];
+familyCertPresentationDifferentialPullbackMatrix[
+    presentation_Association] := Lookup[
+  presentation, "DifferentialPullbackMatrix", $Failed];
 
 (* ---- compilation ---- *)
 
@@ -131,14 +141,16 @@ familyCertMatMul[a_, b_, n_] := familyCertDegAdd[ConstantArray[familyCertDegMul[
 (* per-identity numerator-degree bounds; a_ = {n, d} of the source in the
    variables it is evaluated in, map_ = degree of the chart map (0: none) *)
 familyCertBounds[dS_, dSi_, dB_, dA_, dL_, n_Integer, map_Integer, dMapJac_] := Module[
-  {one = {0, 0}, inv, gauge, flat, epsf, dlog, src, aChart, dSd, dBd, aC},
+  {one = {0, 0}, inv, connectionTransformation, flat, epsf, dlog,
+   src, aChart, dSd, dBd, aC},
   inv = familyCertDegAdd[{familyCertMatMul[dS, dSi, n], one}];
   (* the chart connection: A_v d_x f + A_w d_x g with A composed with the map *)
   aChart = If[map > 0,
     familyCertDegAdd[{familyCertDegMul[familyCertDegCompose[dA, map], dMapJac],
       familyCertDegMul[familyCertDegCompose[dA, map], dMapJac]}], dA];
   dSd = familyCertDegDeriv[dS];
-  gauge = familyCertDegAdd[{familyCertMatMul[familyCertMatMul[dSi, aChart, n], dS, n],
+  connectionTransformation = familyCertDegAdd[{
+    familyCertMatMul[familyCertMatMul[dSi, aChart, n], dS, n],
     familyCertMatMul[dSi, dSd, n], dB}];
   dBd = familyCertDegDeriv[dB];
   flat = familyCertDegAdd[{dBd, dBd, familyCertMatMul[dB, dB, n], familyCertMatMul[dB, dB, n]}];
@@ -148,7 +160,9 @@ familyCertBounds[dS_, dSi_, dB_, dA_, dL_, n_Integer, map_Integer, dMapJac_] := 
   aC = dA; src = familyCertDegAdd[{familyCertDegDeriv[aC], familyCertDegDeriv[aC],
     familyCertMatMul[aC, aC, n], familyCertMatMul[aC, aC, n]}];
   src = If[map > 0, familyCertDegCompose[src, map], src];
-  <|"Inverse" -> inv[[1]], "Gauge" -> gauge[[1]], "Flatness" -> flat[[1]],
+  <|"Inverse" -> inv[[1]],
+    "ConnectionTransformation" -> connectionTransformation[[1]],
+    "Flatness" -> flat[[1]],
     "EpsFactored" -> epsf[[1]], "DLog" -> dlog[[1]], "SourceFlatness" -> src[[1]]|>];
 
 (* one exact characteristic-zero evaluation of the matrix identities (guards
@@ -167,8 +181,11 @@ familyCertCharacteristicZeroPoint[s_, si_, b1_, b2_, av_, aw_, variables_, regul
   dB = eval[D[b1, variables[[2]]] - D[b2, variables[[1]]], rules];
   dSx = eval[D[s, variables[[1]]], rules]; dSy = eval[D[s, variables[[2]]], rules];
   If[AssociationQ[chart],
-    map = Thread[sourceVariables -> (Last /@ chart["Subst"] /. rules)];
-    jac = Quiet[Check[Map[Together[# /. rules] &, chart["Jacobian"], {2}], $Failed]];
+    map = Thread[sourceVariables -> (Last /@
+      familyCertPresentationSubstitution[chart] /. rules)];
+    jac = Quiet[Check[Map[Together[# /. rules] &,
+      familyCertPresentationDifferentialPullbackMatrix[chart], {2}],
+      $Failed]];
     A1 = eval[av, Join[map, {Last[rules]}]]; A2 = eval[aw, Join[map, {Last[rules]}]];
     If[MemberQ[{jac, A1, A2}, $Failed], Return[<|"OK" -> False, "Reason" -> "PointRejected"|>]];
     {A1, A2} = {A1 jac[[1, 1]] + A2 jac[[2, 1]], A1 jac[[1, 2]] + A2 jac[[2, 2]]},
@@ -229,7 +246,7 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
     cB1 = familyCertCompileMatrix[b1, symbols]; cB2 = familyCertCompileMatrix[b2, symbols];
     cAv = familyCertCompileMatrix[av, srcSymbols]; cAw = familyCertCompileMatrix[aw, srcSymbols];
     If[chartQ,
-      {f, g} = Last /@ chart["Subst"];
+      {f, g} = Last /@ familyCertPresentationSubstitution[chart];
       cF = familyCertCompile[f, symbols]; cG = familyCertCompile[g, symbols]];
     letters = familyCertLetters[{b1, b2}, variables, regulator];
     cL = familyCertCompile[#, symbols] & /@ letters]];
@@ -250,14 +267,18 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
   termsMax = Max[degS[[5]], degSi[[5]], degB[[5]], degA[[5]], degL[[5]], 1];
   While[pHigh^2 termsMax >= 2^62 && pHigh > 2^16, pHigh = pHigh/2; pLow = pLow/2];
   (* --- primes (distinct), trials --- *)
-  checks = <|"TransformationInverse" -> False, "GaugeIdentity" -> False, "Flatness" -> False,
+  checks = <|"TransformationInverse" -> False,
+    "ConnectionTransformationEquation" -> False, "Flatness" -> False,
     "EpsFactored" -> False, "DLog" -> False, "ConstantResidues" -> False, "SourceFlatness" -> False|>;
   Module[{perPrime = <||>, allOK = <||>, target = OptionValue["Primes"], runTrials},
     (* each trial: a distinct prime; rank-deficient dlog design -> discard the prime *)
     runTrials[dlogOnly_: False] := While[Length[trials] < target && primeTries < 4 target,
       primeTries++;
       Module[{p, done = 0, tries = 0, pt, pw, spw, S, Si, B1, B2, dSx, dSy, dB, A1, A2, Av, Aw, v0, w0, jac,
-          e2, B1b, B2b, ok, idOK = <|"TransformationInverse" -> True, "GaugeIdentity" -> True, "Flatness" -> True,
+          e2, B1b, B2b, ok,
+          idOK = <|"TransformationInverse" -> True,
+            "ConnectionTransformationEquation" -> True,
+            "Flatness" -> True,
             "EpsFactored" -> True, "SourceFlatness" -> True|>,
           trainRows = {}, trainRhs = {}, valRows = {}, valRhs = {}, K = None, rank = 0, phase = "train",
           lval, lvx, lvy, pts = {}, trained = 0, validated = 0, dlogOK, rankOK},
@@ -327,7 +348,9 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
           (* the point is accepted: identities *)
           AppendTo[pts, {pt, e2}];
           If[! ok[S . Si - IdentityMatrix[n]] || ! ok[Si . S - IdentityMatrix[n]], idOK["TransformationInverse"] = False];
-          If[! ok[Si . Mod[A1 . S, p] - Si . dSx - B1] || ! ok[Si . Mod[A2 . S, p] - Si . dSy - B2], idOK["GaugeIdentity"] = False];
+          If[! ok[Si . Mod[A1 . S, p] - Si . dSx - B1] ||
+              ! ok[Si . Mod[A2 . S, p] - Si . dSy - B2],
+            idOK["ConnectionTransformationEquation"] = False];
           If[! ok[dB + B1 . B2 - B2 . B1], idOK["Flatness"] = False];
           If[! ok[e2 B1 - pt[[3]] B1b] || ! ok[e2 B2 - pt[[3]] B2b], idOK["EpsFactored"] = False];
           done++;
@@ -369,7 +392,10 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
       trouble["NotEnoughPrimes"] = Length[trials]; bad = True];
     (* verdicts: every trial must pass *)
     If[! bad,
-      Do[checks[k] = AllTrue[Select[trials, ! TrueQ[#["DlogOnly"]] &], TrueQ[#["Identities"][k]] &], {k, {"TransformationInverse", "GaugeIdentity", "Flatness", "EpsFactored", "SourceFlatness"}}];
+      Do[checks[k] = AllTrue[Select[trials,
+          ! TrueQ[#["DlogOnly"]] &], TrueQ[#["Identities"][k]] &],
+        {k, {"TransformationInverse", "ConnectionTransformationEquation",
+          "Flatness", "EpsFactored", "SourceFlatness"}}];
       checks["DLog"] = AllTrue[trials, TrueQ[#["DlogConsistent"]] &];
       (* residues: CRT over the primes, rational reconstruction, verification at every prime (sticky) *)
       If[letters === {},
@@ -397,7 +423,12 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
               {rec, verified} = reconstruct[]];
             (* the verdicts must hold at every prime used (matrix identities
                on the full trials, the dlog statement on all) *)
-            Do[checks[k] = AllTrue[Select[trials, ! TrueQ[#["DlogOnly"]] &], TrueQ[#["Identities"][k]] &], {k, {"TransformationInverse", "GaugeIdentity", "Flatness", "EpsFactored", "SourceFlatness"}}];
+            Do[checks[k] = AllTrue[Select[trials,
+                ! TrueQ[#["DlogOnly"]] &],
+              TrueQ[#["Identities"][k]] &],
+              {k, {"TransformationInverse",
+                "ConnectionTransformationEquation", "Flatness",
+                "EpsFactored", "SourceFlatness"}}];
             checks["DLog"] = AllTrue[trials, TrueQ[#["DlogConsistent"]] &];
             If[MatrixQ[rec] && verified,
               residueRecon = Table[Partition[rec[[a]], n], {a, Length[letters]}];
@@ -412,7 +443,9 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
     charZero = familyCertCharacteristicZeroPoint[s, si, b1, b2, av, aw, variables, regulator, chart, sourceVariables,
       letters, If[ListQ[residueRecon], residueRecon, None]];
     If[! TrueQ[charZero["MatrixIdentities"]],
-      checks["TransformationInverse"] = checks["GaugeIdentity"] = checks["Flatness"] = checks["EpsFactored"] = False;
+      checks["TransformationInverse"] =
+        checks["ConnectionTransformationEquation"] =
+        checks["Flatness"] = checks["EpsFactored"] = False;
       trouble["CharacteristicZeroGuard"] = Lookup[charZero, "Reason", "MatrixIdentitiesFailed"]];
     If[! TrueQ[charZero["DLog"]],
       checks["DLog"] = checks["ConstantResidues"] = False;
@@ -427,6 +460,10 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
       vPts = If[trials === {}, 0, Min[#["ValidationPoints"] & /@ trials]],
       iPts = If[trials === {}, 0, Min[#["Points"] & /@ Select[trials, ! TrueQ[#["DlogOnly"]] &]]]},
     Join[checks, <|
+      "Status" -> If[And @@ (TrueQ /@ Values[checks]) &&
+          FreeQ[letters, regulator],
+        "FiniteFieldValidationPassed", "FiniteFieldValidationFailed"],
+      "Method" -> "FiniteFieldEvaluationOfRationalFunctions",
       "Letters" -> letters, "LettersEpsFree" -> FreeQ[letters, regulator],
       "Residues" -> residueRecon, "ResiduesVerifiedAtAllPrimes" -> residueVerified,
       "DegreeBounds" -> bounds, "DegreeBound" -> Max[Values[bounds]],
@@ -434,7 +471,11 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
       "Primes" -> primes, "PrimeRange" -> {pLow, pHigh}, "Seed" -> seed, "Trials" -> trials,
       "PointsPerPrime" -> pointsPerPrime, "PointsDone" -> (KeyTake[#, {"Points", "TrainingPoints", "ValidationPoints", "DlogRank", "Letters"}] & /@ trials),
       (* ordinary identities: every accepted point tests a fixed polynomial *)
-      "ErrorBoundIdentities" -> If[nPrimes === 0, 1, Min[1, N[8 n^2 (Max[bounds["Inverse"], bounds["Gauge"], bounds["Flatness"], bounds["EpsFactored"], bounds["SourceFlatness"]]/pMin)^(iPts nPrimes), 3]]],
+      "ErrorBoundIdentities" -> If[nPrimes === 0, 1,
+        Min[1, N[8 n^2 (Max[bounds["Inverse"],
+          bounds["ConnectionTransformation"], bounds["Flatness"],
+          bounds["EpsFactored"], bounds["SourceFlatness"]]/pMin)^(
+            iPts nPrimes), 3]]],
       (* dlog: only the validation points count *)
       "ErrorBoundDLog" -> If[nPrimes === 0, 1, Min[1, N[2 n^2 (bounds["DLog"]/pMin)^(vPts nPrimesDlog), 3]]],
       "BadCharacteristicGuard" -> If[TrueQ[OptionValue["CharacteristicZeroGuard"]], "OneExactRationalPoint", "None"],
@@ -446,7 +487,7 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
 ];
 
 (* ------------------------------------------------------------------ *)
-(* Whole-family certificate in a declared multiquadratic source frame. *)
+(* Whole-family finite-field validation with declared square-root generators. *)
 (* ------------------------------------------------------------------ *)
 
 (* This is deliberately a verifier, not a second solver.  The expensive
@@ -455,70 +496,84 @@ familyCertificateModular[{b1_, b2_}, s_, si_,
    embeddings rho_i -> +/-sqrt(delta_i) is then evaluated.  Matrix products
    are formed only after evaluation.  Thus the certificate proves the same
    identities as familyCertificateModular, but never asks Together to
-   multiply full matrices containing radicals. *)
+   multiply full matrices containing radicals.  It is probabilistic evidence,
+   not a characteristic-zero identity proof. *)
 
 familyCertMQFailure[status_String, detail_: <||>] := Join[
   <|"Status" -> status, "Probabilistic" -> True,
-    "CoefficientField" -> "Multiquadratic"|>,
+    "CoefficientPresentationType" ->
+      "SquareRootGeneratorsAndQuadraticRelations"|>,
   If[AssociationQ[detail], detail, <|"Detail" -> detail|>]];
 
-(* Authenticate every graded root frame carried by regulator
-   factorization before adding its generators to the certificate field.
-   Recomputing the evidence catches altered counts, branches, ordering,
-   numeric classes or fingerprints.  The union is then revalidated as one
-   independent square-class basis; duplicate generators shared with the
-   chart frame are merged by their exact root square. *)
-familyCertMQAuthenticateRegulatorRootFrames[baseRoots_List, frames_List,
+(* Normalize every square-root generator to the single coefficient-
+   presentation record used throughout the package. *)
+familyCertMQNormalizeRootRecord[root_Association] := Module[
+  {generator, radicand},
+  generator = squareRootRecordExpression[root];
+  radicand = squareRootRecordRadicand[root];
+  If[MissingQ[generator] || MissingQ[radicand], Return[$Failed]];
+  Join[KeyTake[root, {"FormalGenerator"}], <|
+    "Generator" -> generator, "QuadraticRadicand" -> radicand,
+    "SourceRadicand" -> Lookup[root, "SourceRadicand", radicand]|>]
+];
+familyCertMQNormalizeRootRecord[_] := $Failed;
+
+(* Re-derive the defining quadratic relations and square-class independence
+   of every root frame carried by regulator factorization.  Acceptance uses
+   these mathematical relations directly; no content digest or execution
+   setting participates in the decision.  Duplicate generators shared with
+   the coefficient presentation are merged by exact equality of their
+   radicands before the combined set is revalidated. *)
+familyCertMQValidateRegulatorRootFrames[baseRoots_List, frames_List,
     variables : {_Symbol, _Symbol}, regulator_Symbol,
     rankLimit_Integer] := Module[
-  {required, frame, recomputed, authenticated = {}, combined, merged, stable},
-  required = {"Schema", "Status", "RootCount", "GradeCount",
-    "MaximumRank", "RootFingerprints", "OrderingFingerprint",
-    "NumericRootIndices", "NumericRootSquares", "FrameFingerprint"};
+  {frame, frameRoots, validated = {}, combined, merged, stable,
+   normalizedBase},
+  normalizedBase = familyCertMQNormalizeRootRecord /@ baseRoots;
+  If[! FreeQ[normalizedBase, $Failed],
+    Return[familyCertMQFailure["SquareRootGeneratorMetadataInvalid"]]];
   Do[
     frame = frames[[frameIndex]];
-    If[! AssociationQ[frame] ||
-        Lookup[frame, "Schema", None] =!=
-          "FamilyRegulatorGradedRootFrameV1" ||
-        ! ListQ[Lookup[frame, "Roots", $Failed]],
+    If[! AssociationQ[frame] || ! ListQ[Lookup[frame, "Roots", $Failed]],
       Return[familyCertMQFailure["RegulatorRootFrameMetadataInvalid",
         <|"FrameIndex" -> frameIndex|>], Module]];
-    recomputed = familyRegulatorGradedFrameEvidence[
-      frame["Roots"], variables, regulator];
-    If[Lookup[recomputed, "Status", None] =!= "StableRootFrame" ||
-        KeyTake[frame, required] =!= KeyTake[recomputed, required],
-      Return[familyCertMQFailure["RegulatorRootFrameAuthenticationFailed",
-        <|"FrameIndex" -> frameIndex,
-          "Expected" -> KeyDrop[recomputed, "Roots"],
-          "Observed" -> KeyDrop[frame, "Roots"]|>], Module]];
-    AppendTo[authenticated, recomputed],
+    frameRoots = familyCertMQNormalizeRootRecord /@ frame["Roots"];
+    If[! FreeQ[frameRoots, $Failed],
+      Return[familyCertMQFailure["RegulatorRootFrameMetadataInvalid",
+        <|"FrameIndex" -> frameIndex|>], Module]];
+    stable = familyRegulatorGradedRootFrame[frameRoots];
+    If[Lookup[stable, "Status", None] =!= "StableRootFrame" ||
+        AnyTrue[Lookup[stable, "RootSquares", {}],
+          ! FreeQ[#1, regulator] &],
+      Return[familyCertMQFailure["RegulatorRootFrameRelationsInvalid",
+        <|"FrameIndex" -> frameIndex, "RelationCheck" -> stable|>],
+        Module]];
+    AppendTo[validated, stable["Roots"]],
     {frameIndex, Length[frames]}];
-  combined = Join[baseRoots, Flatten[Lookup[authenticated, "Roots", {}], 1]];
+  combined = Join[normalizedBase, Flatten[validated, 1]];
   merged = Fold[Function[{kept, root},
       If[AnyTrue[kept, TrueQ[Quiet[Together[
-            #1["RootSquare"] - root["RootSquare"]]] === 0] &],
-        kept, Append[kept, KeyTake[root, {"Root", "RootSquare"}]]]],
+            squareRootRecordRadicand[#1] -
+              squareRootRecordRadicand[root]]] === 0] &],
+        kept, Append[kept, root]]],
     {}, combined];
   If[Length[merged] > rankLimit,
     Return[familyCertMQFailure["RootRankTooLarge",
       <|"RootCount" -> Length[merged], "RootRankLimit" -> rankLimit,
         "ProducerMaximumRank" -> $familyRegulatorMaximumGradedRank|>]]];
-  stable = blockEquationDeferredRootFrame[merged, variables, regulator];
-  If[Lookup[stable, "Status", None] =!= "StableRootOrder",
+  stable = familyRegulatorGradedRootFrame[merged];
+  If[Lookup[stable, "Status", None] =!= "StableRootFrame",
     Return[familyCertMQFailure[
       Lookup[stable, "Status", "InvalidCombinedRootFrame"],
       <|"RootFrame" -> stable|>]]];
-  <|"Status" -> "AuthenticatedRegulatorRootFrames",
+  <|"Status" -> "ValidatedRegulatorRootFrames",
     "Roots" -> stable["Roots"],
     "RootCount" -> Length[stable["Roots"]],
     "GradeCount" -> 2^Length[stable["Roots"]],
-    "RootFingerprints" -> stable["RootFingerprints"],
-    "OrderingFingerprint" -> stable["OrderingFingerprint"],
-    "EvidenceCount" -> Length[authenticated],
-    "EvidenceFingerprints" -> Lookup[authenticated, "FrameFingerprint", {}],
+    "RegulatorRootFrameCount" -> Length[validated],
     "RootRankLimit" -> rankLimit|>
 ];
-familyCertMQAuthenticateRegulatorRootFrames[___] :=
+familyCertMQValidateRegulatorRootFrames[___] :=
   familyCertMQFailure["RegulatorRootFrameMetadataInvalid"];
 
 familyCertMQModRational[value_, prime_Integer] := Module[{q, numerator, denominator},
@@ -545,17 +600,22 @@ familyCertMQSquareRoot[value_Integer, prime_Integer] :=
    class is not silently synthesized and is therefore an undeclared root. *)
 familyCertMQPrepare[objects_Association, roots_List,
     variables : {_Symbol, _Symbol}, regulator_Symbol, rankLimit_Integer] := Module[
-  {frame, orderedRoots, census, denested, canonical, rootSymbols, polynomialized,
+  {normalizedRoots, frame, orderedRoots, census, denested, canonical,
+   rootSymbols, polynomialized,
    surviving, numericClasses, numericClassIndices, undeclaredNumericClasses,
    rootImage, normalObjects, canonicalObjects,
    polynomializedObjects, polynomializeEntry, vectorKeys,
    compiledObjects, compileEntry, evaluationVariables, compiledLeaves,
    maximumExponents},
-  If[rankLimit < 0 || Length[roots] > rankLimit,
+  normalizedRoots = familyCertMQNormalizeRootRecord /@ roots;
+  If[! FreeQ[normalizedRoots, $Failed],
+    Return[familyCertMQFailure["SquareRootGeneratorMetadataInvalid"]]];
+  If[rankLimit < 0 || Length[normalizedRoots] > rankLimit,
     Return[familyCertMQFailure["RootRankTooLarge",
-      <|"RootCount" -> Length[roots], "RootRankLimit" -> rankLimit|>]]];
-  frame = blockEquationDeferredRootFrame[roots, variables, regulator];
-  If[Lookup[frame, "Status", None] =!= "StableRootOrder",
+      <|"RootCount" -> Length[normalizedRoots],
+        "RootRankLimit" -> rankLimit|>]]];
+  frame = familyRegulatorGradedRootFrame[normalizedRoots];
+  If[Lookup[frame, "Status", None] =!= "StableRootFrame",
     Return[familyCertMQFailure[Lookup[frame, "Status", "InvalidRootFrame"],
       <|"RootFrame" -> frame|>]]];
   orderedRoots = frame["Roots"];
@@ -564,7 +624,8 @@ familyCertMQPrepare[objects_Association, roots_List,
      but skipped by the branch substitution. *)
   normalObjects = Map[Replace[#, sparse_SparseArray :> Normal[sparse],
       {0, Infinity}] &, objects];
-  If[AnyTrue[Lookup[orderedRoots, "RootSquare", {}], ! FreeQ[#, regulator] &],
+  If[AnyTrue[squareRootRecordRadicand /@ orderedRoots,
+      ! FreeQ[#, regulator] &],
     Return[familyCertMQFailure["RegulatorDependentRootSquare"]]];
   census = transportChartRootIndices[Values[normalObjects], orderedRoots];
   If[! AssociationQ[census], Return[familyCertMQFailure["RootCensusFailed"]]];
@@ -575,8 +636,8 @@ familyCertMQPrepare[objects_Association, roots_List,
   numericClassIndices = Table[FirstCase[
       Subsets[Range[Length[orderedRoots]]],
       subset_ /; TrueQ[multiquadraticStripSquareClassSquareQ[
-        Together[numericClass/Times @@ Lookup[
-          orderedRoots[[subset]], "RootSquare", {}]]]] :> subset,
+        Together[numericClass/Times @@
+          (squareRootRecordRadicand /@ orderedRoots[[subset]])]]] :> subset,
       None],
     {numericClass, numericClasses}];
   undeclaredNumericClasses = Pick[numericClasses,
@@ -584,7 +645,8 @@ familyCertMQPrepare[objects_Association, roots_List,
   If[undeclaredNumericClasses =!= {},
     Return[familyCertMQFailure["UndeclaredNumericRootClasses",
       <|"SquareClasses" -> undeclaredNumericClasses,
-        "DeclaredRootSquares" -> Lookup[orderedRoots, "RootSquare", {}]|>]]];
+        "DeclaredRootSquares" ->
+          (squareRootRecordRadicand /@ orderedRoots)|>]]];
   denested = Lookup[census, "DenestedRadicalBases", <||>];
   canonical = If[denested === <||>,
     <|"Status" -> "OK", "Expression" -> Values[normalObjects],
@@ -602,10 +664,10 @@ familyCertMQPrepare[objects_Association, roots_List,
   rootImage[base_] := rootImage[base] = Module[{scale, index},
     index = SelectFirst[Range[Length[orderedRoots]],
       transportChartRootBranchScale[base,
-        orderedRoots[[#]]["RootSquare"]] =!= None &, None];
+        squareRootRecordRadicand[orderedRoots[[#]]]] =!= None &, None];
     If[index === None, None,
       scale = transportChartRootBranchScale[base,
-        orderedRoots[[index]]["RootSquare"]];
+        squareRootRecordRadicand[orderedRoots[[index]]]];
       scale rootSymbols[[index]]]];
   canonicalObjects = AssociationThread[Keys[normalObjects],
     canonical["Expression"]];
@@ -632,7 +694,8 @@ familyCertMQPrepare[objects_Association, roots_List,
   If[surviving =!= {},
     Return[familyCertMQFailure["UndeclaredRadicalsAfterDenesting",
       <|"RadicalBases" -> surviving,
-        "DeclaredRootSquares" -> Lookup[orderedRoots, "RootSquare", {}],
+        "DeclaredRootSquares" ->
+          (squareRootRecordRadicand /@ orderedRoots),
         "DenestedRadicalBases" -> Keys[denested],
         "PerObjectRadicals" -> Select[
           Map[transportChartRadicalBases,
@@ -671,8 +734,6 @@ familyCertMQPrepare[objects_Association, roots_List,
     "Roots" -> orderedRoots, "RootSymbols" -> rootSymbols,
     "RootCount" -> Length[orderedRoots],
     "GradeCount" -> 2^Length[orderedRoots],
-    "RootFingerprints" -> frame["RootFingerprints"],
-    "RootOrderingFingerprint" -> frame["OrderingFingerprint"],
     "RootCensus" -> Join[KeyTake[census,
       {"RootIndices", "RadicalBases", "DenestedRadicalBases"}],
       <|"RootIndices" -> Sort[DeleteDuplicates[Join[
@@ -708,9 +769,7 @@ familyCertMQPivotSignature[trial_Association] := Module[
   signature = {rank, pivots};
   <|"Status" -> "DLogPivotSignature", "Prime" -> prime,
     "Rank" -> rank, "PivotColumns" -> pivots,
-    "Signature" -> signature,
-    "SignatureFingerprint" ->
-      Hash[signature, "SHA256", "HexString"]|>
+    "Signature" -> signature|>
 ];
 familyCertMQPivotSignature[___] :=
   familyCertMQFailure["DLogPivotSignatureInvalid"];
@@ -734,7 +793,6 @@ familyCertMQSelectModalPivotTrials[trials_List, quorum_Integer] := Module[
         item]]];
   groups = GatherBy[evidence, Lookup[#1, "Signature", Missing[]] &];
   groupCounts = (<|"Signature" -> First[#1]["Signature"],
-      "SignatureFingerprint" -> First[#1]["SignatureFingerprint"],
       "Count" -> Length[#1]|> &) /@ groups;
   maximum = If[groups === {}, 0, Max[Length /@ groups]];
   modes = Select[groups, Length[#1] === maximum &];
@@ -753,7 +811,6 @@ familyCertMQSelectModalPivotTrials[trials_List, quorum_Integer] := Module[
        Lookup[#1, "PivotColumns", Missing[]]} =!= signature &];
   <|"Status" -> "ModalDLogPivotSignature",
     "Signature" -> signature,
-    "SignatureFingerprint" -> reference["SignatureFingerprint"],
     "Rank" -> reference["Rank"],
     "PivotColumns" -> reference["PivotColumns"],
     "Quorum" -> quorum, "VoteCount" -> maximum,
@@ -779,7 +836,8 @@ familyCertMQSelectModalPivotTrials[___] :=
    p == 7 (mod 12).  Now only admissible primes are drawn (bounded raw
    draws) and only trials consume the budget. *)
 familyCertMQNumericRootSquares[roots_List] :=
-  Select[Lookup[roots, "RootSquare", {}], MatchQ[#, _Integer | _Rational] &];
+  Select[squareRootRecordRadicand /@ roots,
+    MatchQ[#, _Integer | _Rational] &];
 familyCertMQPrimeAdmissibleQ[numericSquares_List, p_Integer] :=
   AllTrue[numericSquares, Function[c, With[
     {a = Mod[Numerator[c], p], b = Mod[Denominator[c], p]},
@@ -837,7 +895,8 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
   n = Length[objects["S"]]; dimension = n;
   target = trainingPoints + validationPoints;
   identityChecks = <|"TransformationInverse" -> True,
-    "GaugeIdentity" -> True, "Flatness" -> True,
+    "ConnectionTransformationEquation" -> True,
+    "Flatness" -> True,
     "EpsFactored" -> True, "SourceFlatness" -> True|>;
   ok[matrix_] := AllTrue[Flatten[Mod[matrix, prime]], # === 0 &];
   While[accepted < target && attempts < maxPointAttempts,
@@ -846,7 +905,7 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
     If[point[[3]] === 0, Continue[]];
     scalarRules = Thread[Append[variables, regulator] -> point];
     deltaValues = familyCertMQModRational[# /. scalarRules, prime] & /@
-      Lookup[roots, "RootSquare", {}];
+      (squareRootRecordRadicand /@ roots);
     If[MemberQ[deltaValues, $Failed], Continue[]];
     rootValues = familyCertMQSquareRoot[#, prime] & /@ deltaValues;
     If[MemberQ[rootValues, $Failed], Continue[]];
@@ -878,18 +937,20 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
         pointIdentity["TransformationInverse"] &&
         ok[S . Si - IdentityMatrix[dimension]] &&
         ok[Si . S - IdentityMatrix[dimension]];
-      pointIdentity["GaugeIdentity"] = pointIdentity["GaugeIdentity"] &&
+      pointIdentity["ConnectionTransformationEquation"] =
+        pointIdentity["ConnectionTransformationEquation"] &&
         ok[Si . A1 . S - Si . dSx - B1] &&
         ok[Si . A2 . S - Si . dSy - B2];
       pointIdentity["SourceFlatness"] = pointIdentity["SourceFlatness"] &&
         ok[dAvw - dAwv + Av . Aw - Aw . Av];
-      (* For an invertible gauge, the gauge identity transports the source
-         curvature covariantly.  Re-differentiating the two enormous final
+      (* For an invertible basis transformation, its connection-
+         transformation equation transports the source curvature
+         covariantly.  Re-differentiating the two enormous final
          epsilon-form matrices proves no additional statement and dominated
          CF300's otherwise modular certificate. *)
       pointIdentity["Flatness"] = pointIdentity["Flatness"] &&
         pointIdentity["TransformationInverse"] &&
-        pointIdentity["GaugeIdentity"] &&
+        pointIdentity["ConnectionTransformationEquation"] &&
         pointIdentity["SourceFlatness"];
       pointIdentity["EpsFactored"] = pointIdentity["EpsFactored"] &&
         ok[epsilon2 B1 - point[[3]] B1b] &&
@@ -940,8 +1001,6 @@ familyCertMQTrial[prepared_Association, variables : {_Symbol, _Symbol},
     "ValidationRhs" -> validationRhs,
     "DLogRank" -> Length[pivotColumns],
     "DLogPivotSignature" -> {Length[pivotColumns], pivotColumns},
-    "DLogPivotSignatureFingerprint" ->
-      Hash[{Length[pivotColumns], pivotColumns}, "SHA256", "HexString"],
     "TrainingPoints" -> trainingPoints,
     "ValidationPoints" -> validationPoints,
     "PointAttempts" -> attempts, "Points" -> pointRecords,
@@ -1031,7 +1090,8 @@ familyCertMQValidateResiduesAtTrial[reconstruction_Association,
       ! (zero[trainingRhs] && zero[validationRhs]),
     Return[familyCertMQFailure["FreshPrimeZeroAlphabetReplayFailed",
       <|"Prime" -> prime|>]]];
-  requiredChecks = {"TransformationInverse", "GaugeIdentity", "Flatness",
+  requiredChecks = {"TransformationInverse",
+    "ConnectionTransformationEquation", "Flatness",
     "EpsFactored", "SourceFlatness", "DLog", "ConstantResidues"};
   If[! AllTrue[requiredChecks,
       TrueQ[Lookup[trial["Checks"], #, False]] &],
@@ -1067,7 +1127,7 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
   {trainingPoints, requestedTrainingPoints, trainingPointFloor,
    validationPoints, requestedPrimes, maxPrimes,
    freshValidationPrimes, maxPrimeAttempts, maxPointAttempts, rankLimit,
-   regulatorRootFrames, authenticatedRootFrame,
+   regulatorRootFrames, validatedRootFrame,
    pivotSignatureQuorum, pivotSignaturePilotPrimes,
    seed, jacobian, subst,
    objects, prepared, trials = {}, pivotPilotTrials = {},
@@ -1120,8 +1180,8 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
     Return[familyCertMQFailure["LettersDependOnRegulator"]]];
   seed = Replace[OptionValue["Seed"], Automatic :> RandomInteger[{1, 2^31 - 1}]];
   SeedRandom[seed];
-  subst = chart["Subst"];
-  jacobian = chart["Jacobian"];
+  subst = familyCertPresentationSubstitution[chart];
+  jacobian = familyCertPresentationDifferentialPullbackMatrix[chart];
   (* Differentiate before the chart substitution.  This is the source
      connection's curvature, not the derivative of a pulled-back scalar. *)
   objects = <|
@@ -1134,10 +1194,10 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
     "Letters" -> letters,
     "LetterX" -> ({D[#, variables[[1]]]/#} & /@ letters),
     "LetterY" -> ({D[#, variables[[2]]]/#} & /@ letters)|>;
-  authenticatedRootFrame = familyCertMQAuthenticateRegulatorRootFrames[
+  validatedRootFrame = familyCertMQValidateRegulatorRootFrames[
     roots, regulatorRootFrames, variables, regulator, rankLimit];
-  If[Lookup[authenticatedRootFrame, "Status", None] =!=
-      "AuthenticatedRegulatorRootFrames", Return[authenticatedRootFrame]];
+  If[Lookup[validatedRootFrame, "Status", None] =!=
+      "ValidatedRegulatorRootFrames", Return[validatedRootFrame]];
   (* One kinematic point contributes two one-form rows on every sign sheet.
      A smaller training design cannot determine a generic coefficient vector
      in the supplied alphabet: CF300's old 3-point design found a spurious
@@ -1145,7 +1205,7 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
      seven points exposed the stable rank 23 and validated.  Size the design
      before sampling; held-out points remain disjoint acceptance evidence. *)
   trainingPointFloor = 1 + Ceiling[Length[letters]/
-    (2 2^authenticatedRootFrame["RootCount"])];
+    (2 2^validatedRootFrame["RootCount"])];
   trainingPoints = Max[trainingPoints, trainingPointFloor];
   If[trainingPoints + validationPoints > maxPointAttempts,
     Return[familyCertMQFailure["TrainingDesignExceedsPointBudget", <|
@@ -1153,7 +1213,7 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
       "RequiredTrainingPoints" -> trainingPoints,
       "ValidationPoints" -> validationPoints,
       "MaxPointAttempts" -> maxPointAttempts|>]]];
-  prepared = familyCertMQPrepare[objects, authenticatedRootFrame["Roots"],
+  prepared = familyCertMQPrepare[objects, validatedRootFrame["Roots"],
     variables, regulator, rankLimit];
   If[Lookup[prepared, "Status", None] =!= "PreparedMultiquadraticCertificate",
     Return[prepared]];
@@ -1255,7 +1315,8 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
       "PivotCoefficientTable" -> Missing["DLogInconsistent"]|>];
   crtCandidateOK = dlogTrialsOK && AllTrue[trials, Function[one,
     And @@ (TrueQ[Lookup[one["Checks"], #, False]] & /@
-      {"TransformationInverse", "GaugeIdentity", "Flatness",
+      {"TransformationInverse", "ConnectionTransformationEquation",
+       "Flatness",
        "EpsFactored", "SourceFlatness", "DLog", "ConstantResidues"})]];
   (* Only a candidate which passed every CRT-prime identity reaches the
      unseen-prime gate.  A known-negative record keeps its negative verdict
@@ -1296,7 +1357,8 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
   checks = AssociationMap[Function[key,
       AllTrue[allTrials, Function[one,
         TrueQ[Lookup[one["Checks"], key, False]]]]],
-    {"TransformationInverse", "GaugeIdentity", "Flatness",
+    {"TransformationInverse", "ConnectionTransformationEquation",
+     "Flatness",
      "EpsFactored", "SourceFlatness", "DLog", "ConstantResidues"}];
   checks["LettersEpsFree"] = FreeQ[letters, regulator];
   checks["FreshLiftValidation"] = ! crtCandidateOK ||
@@ -1312,21 +1374,23 @@ familyCertificateMultiquadratic[{b1_, b2_}, s_, si_,
     {"Coefficients", "TrainingRows", "TrainingRhs",
      "ValidationRows", "ValidationRhs"}];
   Join[checks, <|
-    "Status" -> If[allTrue, "CertifiedMultiquadraticFamily", "CertificateFailed"],
-    "CoefficientField" -> "Multiquadratic",
+    "Status" -> If[allTrue, "FiniteFieldValidationPassed",
+      "FiniteFieldValidationFailed"],
+    "CoefficientPresentationType" ->
+      "SquareRootGeneratorsAndQuadraticRelations",
     "Method" -> "AllSignSheetsAtFreshSplitPoints",
     "Probabilistic" -> True, "Seed" -> seed,
     "RootCount" -> prepared["RootCount"],
     "GradeCount" -> prepared["GradeCount"],
     "RootIndicesUsed" -> rootsUsed,
-    "RootFingerprints" -> prepared["RootFingerprints"],
-    "RootOrderingFingerprint" -> prepared["RootOrderingFingerprint"],
+    "SquareRootGenerators" ->
+      (<|"Generator" -> #1["Generator"],
+          "QuadraticRadicand" -> #1["QuadraticRadicand"]|> & /@
+        prepared["Roots"]),
     "RootRankLimit" -> rankLimit,
     "ProducerMaximumRootRank" -> $familyRegulatorMaximumGradedRank,
-    "RegulatorRootFrameEvidenceCount" ->
-      authenticatedRootFrame["EvidenceCount"],
-    "RegulatorRootFrameEvidenceFingerprints" ->
-      authenticatedRootFrame["EvidenceFingerprints"],
+    "RegulatorRootFrameCount" ->
+      validatedRootFrame["RegulatorRootFrameCount"],
     "DenestedRadicals" -> prepared["DenestedRadicals"],
     "AllRootSheetsChecked" -> AllTrue[trials,
       #1["AllSheetsPerPoint"] === prepared["GradeCount"] &],

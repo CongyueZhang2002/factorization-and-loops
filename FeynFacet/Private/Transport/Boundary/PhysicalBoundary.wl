@@ -1,26 +1,84 @@
 (* ::Package:: *)
 
-(* Singular physical endpoints are not ordinary evaluation points.  This
-   module supplies the missing three-step boundary map:
+(* Singular physical limits are not ordinary evaluation points.  This
+   module supplies the local-solution and physical-boundary construction:
 
      epsilon-form connection -> local Frobenius prefactor and residue,
-     physical endpoint asymptotics -> normalized canonical modes,
-     exact period coefficients -> boundary selectors and constants.
+     physical-limit asymptotics -> normalized canonical Frobenius modes,
+     boundary constants/functions -> boundary selectors and values.
 
-   The selectors are rational matrices, so transport remains linear in a
-   vector of exact boundary constants.  GPL constants and elliptic periods
-   therefore share the same transport engine without being conflated. *)
+   A PhysicalBoundaryPoint gives boundary constants.  A
+   PhysicalBoundaryStratum gives functions of its declared tangential
+   variables.  These are distinct record types; no generic identifier is
+   emitted for both.  Genuine cycle periods may occur as values of boundary
+   constants or functions, but the coefficient placeholders themselves are
+   not called periods. *)
 
-Clear[BuildEndpointFrobenius, BuildEndpointLeveltModeConnection,
-  BuildBoundaryModeMap,
-  BuildTransportBoundaryVector, BoundaryPeriodCoefficient,
-  BoundaryDegenerateEigenspaceDeclaration];
+Clear[ComputeTruncatedLocalFrobeniusExpansion,
+  TransformTangentialConnectionToNormalResidueEigenbasis,
+  MatchBoundaryAsymptoticsToFrobeniusModes,
+  ConstructBoundarySelectorMatrices,
+  ConstructBoundaryValueVectorFromConstants,
+  ConstructBoundaryValueVectorFromFunctions,
+  BoundaryConstantEpsilonCoefficient,
+  BoundaryFunctionEpsilonCoefficient, DegenerateResidueEigenspaceBasis];
 ClearAll[boundaryExactZeroQ, boundaryCanonicalMatrix,
   boundaryFiniteQ, boundaryParticularSolution, boundaryLocalOrder,
   boundaryLeadingCoefficient, boundaryModeExtension,
   boundarySelectModeExtension,
   boundaryEpsilonValuation, boundaryExactCoefficientQ,
-  boundaryUnambiguouslyPositiveQ];
+  boundaryUnambiguouslyPositiveQ, boundaryDataTypeFromDomain,
+  boundaryDataIDKey, boundaryAnalyticClassKey,
+  boundaryEpsilonValuationKey, boundaryTypedID,
+  boundaryModeDataID, boundaryModeAnalyticClass,
+  boundaryModeEpsilonValuation, boundaryModeCoefficient,
+  boundaryModeCoefficientPattern, boundaryModeIdentifier,
+  boundaryConstructValueVectorAndSelectorMatrices,
+  boundarySelectorResult, boundaryValueResult];
+
+boundaryDataTypeFromDomain[domain_Association] := Switch[
+  Lookup[domain, "Type", Missing[]],
+  "PhysicalBoundaryPoint", "BoundaryConstant",
+  "PhysicalBoundaryStratum",
+    If[MatchQ[Lookup[domain, "TangentialVariables", Missing[]], {__Symbol}],
+      "BoundaryFunction", Missing["TangentialVariablesRequired"]],
+  _, Missing["BoundaryDomainType"]
+];
+boundaryDataTypeFromDomain[___] := Missing["BoundaryDomain"];
+
+boundaryDataIDKey["BoundaryConstant"] := "BoundaryConstantID";
+boundaryDataIDKey["BoundaryFunction"] := "BoundaryFunctionID";
+boundaryAnalyticClassKey["BoundaryConstant"] :=
+  "DeclaredBoundaryConstantAnalyticClass";
+boundaryAnalyticClassKey["BoundaryFunction"] :=
+  "DeclaredBoundaryFunctionClass";
+boundaryEpsilonValuationKey["BoundaryConstant"] :=
+  "BoundaryConstantEpsilonValuation";
+boundaryEpsilonValuationKey["BoundaryFunction"] :=
+  "BoundaryFunctionEpsilonValuation";
+boundaryTypedID[type_, id_] := <|boundaryDataIDKey[type] -> id|>;
+
+boundaryModeDataID[mode_Association] := With[
+  {type = Lookup[mode, "BoundaryDataType", Missing[]]},
+  Lookup[mode, boundaryDataIDKey[type], Missing[boundaryDataIDKey[type]]]
+];
+boundaryModeAnalyticClass[mode_Association] := With[
+  {type = Lookup[mode, "BoundaryDataType", Missing[]]},
+  Lookup[mode, boundaryAnalyticClassKey[type], Missing[boundaryAnalyticClassKey[type]]]
+];
+boundaryModeEpsilonValuation[mode_Association] := With[
+  {type = Lookup[mode, "BoundaryDataType", Missing[]]},
+  Lookup[mode, boundaryEpsilonValuationKey[type], Missing[boundaryEpsilonValuationKey[type]]]
+];
+boundaryModeIdentifier[mode_Association] :=
+  Lookup[mode, "FrobeniusModeID", Missing["FrobeniusModeID"]];
+
+boundaryModeCoefficient["BoundaryConstant", id_, order_] :=
+  BoundaryConstantEpsilonCoefficient[id, order];
+boundaryModeCoefficient["BoundaryFunction", id_, order_] :=
+  BoundaryFunctionEpsilonCoefficient[id, order];
+boundaryModeCoefficientPattern :=
+  _BoundaryConstantEpsilonCoefficient | _BoundaryFunctionEpsilonCoefficient;
 
 boundaryExactZeroQ[value_] :=
   AllTrue[Flatten[{Normal[value]}],
@@ -90,14 +148,15 @@ boundaryLeadingCoefficient[expression_, order_Integer,
     variable_Symbol] :=
   Together[Limit[expression/variable^order, variable -> 0]];
 
-Options[BuildEndpointFrobenius] = {
+Options[ComputeTruncatedLocalFrobeniusExpansion] = {
   "MaximumSeriesOrder" -> 4,
   "MaximumEpsilonOrder" -> 3
 };
 
-BuildEndpointFrobenius[connection_?MatrixQ, spec_Association,
+ComputeTruncatedLocalFrobeniusExpansion[connection_?MatrixQ, spec_Association,
     OptionsPattern[]] := Catch@Module[
-  {fail, matrix, dimension, variable, regulator, localVariable, endpoint,
+  {fail, matrix, dimension, variable, regulator, localVariable,
+   localExpansionPoint, pointType,
    localDirection, fixedRules, maximumSeriesOrder, maximumEpsilonOrder, normalized,
    residue, regularConnection, regularCoefficients, h, zero, source,
    prefactorCoefficients, regularTruncation, prefactorTruncation,
@@ -107,29 +166,29 @@ BuildEndpointFrobenius[connection_?MatrixQ, spec_Association,
   matrix = Normal[connection];
   If[Length[Dimensions[matrix]] =!= 2 ||
       Dimensions[matrix][[1]] =!= Dimensions[matrix][[2]],
-    fail["EndpointConnectionNotSquare"]
+    fail["LocalConnectionNotSquare"]
   ];
   dimension = Length[matrix];
   variable = Lookup[spec, "Variable", Missing[]];
   regulator = Lookup[spec, "Regulator", Missing[]];
   localVariable = Lookup[spec, "LocalVariable", Global`rho];
-  endpoint = Lookup[spec, "Endpoint", Missing[]];
+  localExpansionPoint = Lookup[spec, "LocalExpansionPoint", Missing[]];
   localDirection = Lookup[spec, "LocalDirection", 1];
   fixedRules = Lookup[spec, "FixedRules", {}];
   maximumSeriesOrder = OptionValue["MaximumSeriesOrder"];
   maximumEpsilonOrder = OptionValue["MaximumEpsilonOrder"];
   If[! MatchQ[variable, _Symbol] || ! MatchQ[regulator, _Symbol] ||
-      ! MatchQ[localVariable, _Symbol] || MissingQ[endpoint] ||
-      ! FreeQ[endpoint, variable] || ! ListQ[fixedRules] ||
+      ! MatchQ[localVariable, _Symbol] || MissingQ[localExpansionPoint] ||
+      ! FreeQ[localExpansionPoint, variable] || ! ListQ[fixedRules] ||
       ! MemberQ[{-1, 1}, localDirection] ||
       ! IntegerQ[maximumSeriesOrder] || maximumSeriesOrder < 1 ||
       ! IntegerQ[maximumEpsilonOrder] || maximumEpsilonOrder < 0 ||
       ! DuplicateFreeQ[{variable, regulator, localVariable}],
-    fail["EndpointSpecificationInvalid"]
+    fail["LocalFrobeniusExpansionSpecificationInvalid"]
   ];
   normalized = boundaryCanonicalMatrix[
     localDirection (matrix /. fixedRules /.
-        variable -> endpoint + localDirection localVariable)/
+        variable -> localExpansionPoint + localDirection localVariable)/
       regulator];
   If[! FreeQ[normalized, regulator],
     fail["ConnectionNotEpsilonForm"]
@@ -140,14 +199,14 @@ BuildEndpointFrobenius[connection_?MatrixQ, spec_Association,
     normalized, {2}];
   If[! boundaryFiniteQ[residue] ||
       ! FreeQ[residue, localVariable | regulator],
-    fail["EndpointNotFuchsian"]
+    fail["ConnectionNotFuchsianAtLocalExpansionPoint"]
   ];
   regularConnection = boundaryCanonicalMatrix[
     normalized - residue/localVariable];
   If[! boundaryFiniteQ@Map[
       Quiet[Check[Limit[#, localVariable -> 0], Indeterminate]] &,
       regularConnection, {2}],
-    fail["EndpointNotFuchsian"]
+    fail["ConnectionNotFuchsianAtLocalExpansionPoint"]
   ];
   regularCoefficients = Association@Table[order ->
       boundaryCanonicalMatrix@Map[
@@ -157,7 +216,7 @@ BuildEndpointFrobenius[connection_?MatrixQ, spec_Association,
         regularConnection, {2}],
     {order, 0, maximumSeriesOrder - 1}];
   If[! boundaryFiniteQ[Values[regularCoefficients]],
-    fail["EndpointNotFuchsian"]
+    fail["ConnectionNotFuchsianAtLocalExpansionPoint"]
   ];
 
   zero = ConstantArray[0, {dimension, dimension}];
@@ -204,16 +263,19 @@ BuildEndpointFrobenius[connection_?MatrixQ, spec_Association,
     {seriesOrder, -1, maximumSeriesOrder - 1},
     {epsilonOrder, 0, maximumEpsilonOrder}];
   If[! boundaryExactZeroQ[residualCoefficients],
-    fail["FrobeniusRecurrenceFailed"]
+    fail["TruncatedLocalFrobeniusRecurrenceFailed"]
   ];
+  pointType = If[boundaryExactZeroQ[residue],
+    "OrdinaryPoint", "RegularSingularPoint"];
   <|
-    "Status" -> "EndpointFrobeniusBuilt",
+    "Status" -> "TruncatedLocalFrobeniusExpansionComputed",
     "Dimension" -> dimension,
     "Variable" -> variable,
     "Regulator" -> regulator,
     "LocalVariable" -> localVariable,
     "LocalDirection" -> localDirection,
-    "Endpoint" -> endpoint,
+    "LocalExpansionPoint" -> localExpansionPoint,
+    "PointType" -> pointType,
     "FixedRules" -> fixedRules,
     "MaximumSeriesOrder" -> maximumSeriesOrder,
     "MaximumEpsilonOrder" -> maximumEpsilonOrder,
@@ -226,60 +288,64 @@ BuildEndpointFrobenius[connection_?MatrixQ, spec_Association,
   |>
 ];
 
-BuildEndpointFrobenius[___] :=
-  <|"Status" -> "EndpointFrobeniusInputInvalid"|>;
+ComputeTruncatedLocalFrobeniusExpansion[___] :=
+  <|"Status" -> "TruncatedLocalFrobeniusExpansionInputsNotWellFormed"|>;
 
-BuildEndpointLeveltModeConnection[normalResidue_?MatrixQ,
-    tangentialFinite_?MatrixQ, spec_Association] := Catch@Module[
-  {fail, dimension, variable, regulator, frame, exponents, inverse,
-   expectedResidue, residueInFrame, frameDerivative, connection,
-   exponentGroups, crossSectorPositions, exponentData},
+TransformTangentialConnectionToNormalResidueEigenbasis[
+    normalResidue_?MatrixQ, tangentialConnection_?MatrixQ,
+    spec_Association] := Catch@Module[
+  {fail, dimension, variable, regulator, eigenbasis, exponents,
+   inverseEigenbasis, expectedResidue, residueInEigenbasis,
+   eigenbasisDerivative, tangentialConnectionInEigenbasis,
+   equalExponentGroups, unequalExponentCouplings, exponentData},
   fail[status_, extra_: <||>] :=
     Throw[Join[<|"Status" -> status|>, extra]];
   dimension = Length[normalResidue];
   If[dimension < 1 || Dimensions[normalResidue] =!= {dimension, dimension} ||
-      Dimensions[tangentialFinite] =!= {dimension, dimension},
-    fail["EndpointLeveltDimensionsInvalid"]
+      Dimensions[tangentialConnection] =!= {dimension, dimension},
+    fail["NormalResidueAndTangentialConnectionDimensionsInvalid"]
   ];
   variable = Lookup[spec, "TangentialVariable", Missing[]];
   regulator = Lookup[spec, "Regulator", Missing[]];
-  frame = Lookup[spec, "ModeFrame", Missing[]];
+  eigenbasis = Lookup[spec, "NormalResidueEigenbasis", Missing[]];
   exponents = Lookup[spec, "LocalExponents", Missing[]];
   If[! MatchQ[variable, _Symbol] || ! MatchQ[regulator, _Symbol] ||
-      variable === regulator || ! MatrixQ[frame] ||
-      Dimensions[frame] =!= {dimension, dimension} ||
+      variable === regulator || ! MatrixQ[eigenbasis] ||
+      Dimensions[eigenbasis] =!= {dimension, dimension} ||
       ! ListQ[exponents] || Length[exponents] =!= dimension ||
       ! FreeQ[exponents, variable] ||
-      ! FreeQ[{normalResidue, tangentialFinite, frame, exponents}, _Real],
-    fail["EndpointLeveltSpecificationInvalid"]
+      ! FreeQ[{normalResidue, tangentialConnection, eigenbasis, exponents}, _Real],
+    fail["NormalResidueEigenbasisSpecificationInvalid"]
   ];
-  inverse = Quiet[Check[Inverse[frame], $Failed]];
-  If[inverse === $Failed || ! MatrixQ[inverse] ||
-      ! boundaryFiniteQ[inverse],
-    fail["EndpointLeveltModeFrameSingular"]
+  inverseEigenbasis = Quiet[Check[Inverse[eigenbasis], $Failed]];
+  If[inverseEigenbasis === $Failed || ! MatrixQ[inverseEigenbasis] ||
+      ! boundaryFiniteQ[inverseEigenbasis],
+    fail["NormalResidueEigenbasisSingular"]
   ];
-  inverse = boundaryCanonicalMatrix[inverse];
+  inverseEigenbasis = boundaryCanonicalMatrix[inverseEigenbasis];
   expectedResidue = DiagonalMatrix[exponents];
-  residueInFrame = boundaryCanonicalMatrix[
-    inverse.normalResidue.frame];
-  If[! boundaryExactZeroQ[residueInFrame - expectedResidue],
-    fail["EndpointLeveltModeFrameInvalid", <|
-      "ResidueInFrame" -> residueInFrame,
+  residueInEigenbasis = boundaryCanonicalMatrix[
+    inverseEigenbasis.normalResidue.eigenbasis];
+  If[! boundaryExactZeroQ[residueInEigenbasis - expectedResidue],
+    fail["NormalResidueEigenbasisInvalid", <|
+      "NormalResidueInEigenbasis" -> residueInEigenbasis,
       "ExpectedResidue" -> expectedResidue|>]
   ];
-  frameDerivative = Map[D[#, variable] &, frame, {2}];
-  connection = boundaryCanonicalMatrix[
-    inverse.tangentialFinite.frame - inverse.frameDerivative];
-  exponentGroups = Gather[Range[dimension],
+  eigenbasisDerivative = Map[D[#, variable] &, eigenbasis, {2}];
+  tangentialConnectionInEigenbasis = boundaryCanonicalMatrix[
+    inverseEigenbasis.tangentialConnection.eigenbasis -
+      inverseEigenbasis.eigenbasisDerivative];
+  equalExponentGroups = Gather[Range[dimension],
     boundaryExactZeroQ[exponents[[#1]] - exponents[[#2]]] &];
-  crossSectorPositions = Select[
+  unequalExponentCouplings = Select[
     Flatten[Table[{row, column}, {row, dimension}, {column, dimension}], 1],
     ! boundaryExactZeroQ[exponents[[First[#]]] -
           exponents[[Last[#]]]] &&
-      ! boundaryExactZeroQ[connection[[First[#], Last[#]]]] &];
-  If[crossSectorPositions =!= {},
-    fail["EndpointLeveltSectorsCoupled", <|
-      "Positions" -> crossSectorPositions,
+      ! boundaryExactZeroQ[
+        tangentialConnectionInEigenbasis[[First[#], Last[#]]]] &];
+  If[unequalExponentCouplings =!= {},
+    fail["UnequalExponentSectorsCoupled", <|
+      "Positions" -> unequalExponentCouplings,
       "LocalExponents" -> exponents|>]
   ];
   exponentData = Map[Function[exponent, Module[{integerPart, remainder},
@@ -290,27 +356,30 @@ BuildEndpointLeveltModeConnection[normalResidue_?MatrixQ,
         "AffineInRegulator" -> FreeQ[remainder, regulator]|>
     ]], exponents];
   <|
-    "Status" -> "EndpointLeveltModeConnectionBuilt",
+    "Status" -> "TangentialConnectionTransformedToNormalResidueEigenbasis",
     "Dimension" -> dimension,
     "TangentialVariable" -> variable,
     "Regulator" -> regulator,
-    "ModeFrame" -> frame,
-    "InverseModeFrame" -> inverse,
+    "NormalResidueEigenbasis" -> eigenbasis,
+    "InverseNormalResidueEigenbasis" -> inverseEigenbasis,
     "LocalExponents" -> exponents,
     "ExponentData" -> exponentData,
-    "NormalResidueInModeFrame" -> residueInFrame,
-    "TangentialConnection" -> connection,
-    "ExponentSectors" -> Map[Function[indices, <|
+    "NormalResidueInEigenbasis" -> residueInEigenbasis,
+    "TangentialConnectionInEigenbasis" ->
+      tangentialConnectionInEigenbasis,
+    "EqualExponentSectors" -> Map[Function[indices, <|
         "Indices" -> indices,
         "Exponent" -> exponents[[First[indices]]],
-        "TangentialConnection" -> connection[[indices, indices]]|>],
-      exponentGroups],
-    "CrossExponentCoupling" -> False
+        "TangentialConnectionInEigenbasis" ->
+          tangentialConnectionInEigenbasis[[indices, indices]]|>],
+      equalExponentGroups],
+    "UnequalExponentCoupling" -> False
   |>
 ];
 
-BuildEndpointLeveltModeConnection[___] :=
-  <|"Status" -> "EndpointLeveltModeConnectionInputsNotWellFormed"|>;
+TransformTangentialConnectionToNormalResidueEigenbasis[___] :=
+  <|"Status" ->
+    "TangentialConnectionToNormalResidueEigenbasisInputsNotWellFormed"|>;
 
 boundaryModeExtension[residue_, canonicalRows_, constraintRows_,
     eigenvalue_, maximumLevel_, suppliedSeed_] := Module[
@@ -445,34 +514,48 @@ boundarySelectModeExtension[residue_, transformationLocal_, prefactor_,
     "Vector" -> vector|>
 ];
 
-BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
+MatchBoundaryAsymptoticsToFrobeniusModes[frobenius_Association, transformation_?MatrixQ,
     spec_Association, realizations_List] := Catch@Module[
-  {fail, dimension, residue, regulator, variable, localVariable, endpoint,
+  {fail, dimension, residue, regulator, variable, localVariable, localExpansionPoint,
    localDirection, fixedRules, relation, localPower, endpointCoefficient, family, limit,
    transformationLocal, prefactor, buildMode, modes, physicalDimension,
-   periodIDs, maximumSeriesOrder, maximumEpsilonOrder, initialLedger,
-   logBranch},
+   boundaryDataIDs, maximumSeriesOrder, maximumEpsilonOrder,
+   boundaryDataRequirements, logBranch, boundaryDomain, boundaryDataType,
+   dataIDKey, analyticClassKey, epsilonValuationKey},
   fail[status_, extra_: <||>] :=
     Throw[Join[<|"Status" -> status|>, extra]];
-  If[Lookup[frobenius, "Status", None] =!= "EndpointFrobeniusBuilt",
-    fail["EndpointFrobeniusRequired"]
+  If[Lookup[frobenius, "Status", None] =!=
+      "TruncatedLocalFrobeniusExpansionComputed",
+    fail["TruncatedLocalFrobeniusExpansionRequired"]
   ];
   dimension = frobenius["Dimension"];
   residue = frobenius["Residue"];
   regulator = frobenius["Regulator"];
   variable = frobenius["Variable"];
   localVariable = frobenius["LocalVariable"];
-  endpoint = frobenius["Endpoint"];
+  localExpansionPoint = frobenius["LocalExpansionPoint"];
   localDirection = Lookup[frobenius, "LocalDirection", 1];
   maximumSeriesOrder = frobenius["MaximumSeriesOrder"];
   maximumEpsilonOrder = frobenius["MaximumEpsilonOrder"];
   fixedRules = Lookup[spec, "FixedRules", frobenius["FixedRules"]];
   relation = Lookup[spec, "PhysicalEndpointRelation", Missing[]];
+  boundaryDomain = Lookup[spec, "BoundaryDomain", Missing[]];
+  boundaryDataType = boundaryDataTypeFromDomain[boundaryDomain];
   family = Lookup[spec, "Family", Missing[]];
   limit = Lookup[spec, "Limit", relation];
   If[MissingQ[family] || MissingQ[limit],
     fail["BoundaryContextRequired"]
   ];
+  If[MissingQ[boundaryDataType],
+    fail["BoundaryDomainRequired", <|
+      "RequiredForm" -> <|"Type" ->
+        "PhysicalBoundaryPoint | PhysicalBoundaryStratum",
+        "TangentialVariables" ->
+          "required and nonempty for PhysicalBoundaryStratum"|>|>]
+  ];
+  dataIDKey = boundaryDataIDKey[boundaryDataType];
+  analyticClassKey = boundaryAnalyticClassKey[boundaryDataType];
+  epsilonValuationKey = boundaryEpsilonValuationKey[boundaryDataType];
   If[! AssociationQ[relation] ||
       ! KeyExistsQ[relation, "LocalPower"] ||
       ! KeyExistsQ[relation, "LeadingCoefficient"],
@@ -488,7 +571,7 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
   ];
   transformationLocal = boundaryCanonicalMatrix[
     Normal[transformation] /. fixedRules /.
-      variable -> endpoint + localDirection localVariable];
+      variable -> localExpansionPoint + localDirection localVariable];
   If[Dimensions[transformationLocal][[2]] =!= dimension,
     fail["EndpointTransformationDimensionMismatch"]
   ];
@@ -499,7 +582,8 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
     frobenius["FrobeniusPrefactorCoefficients"]];
 
   buildMode[realization_, given_: None] := Module[
-    {periodID, periodClass, periodEpsilonValuation, canonicalRows,
+    {boundaryDataID, declaredAnalyticClass, boundaryDataEpsilonValuation,
+     frobeniusModeID, idFields, modeFailure, canonicalRows,
      physicalRows, constraintRows, demandedOutputs, exponent,
      integerValuation, maximumLevel, suppliedSeed, eigenvalue,
      extension, vector, mapped, selected, orders, expectedOrder,
@@ -512,11 +596,22 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
     If[! AssociationQ[realization],
       Return[<|"Status" -> "BoundaryRealizationInvalid"|>]
     ];
-    periodID = If[given === None, Lookup[realization, "PeriodID", Missing[]],
-      given["PeriodID"]];
-    periodClass = Lookup[realization, "PeriodClass", Missing[]];
-    periodEpsilonValuation = Lookup[realization,
-      "PeriodEpsilonValuation", Missing[]];
+    boundaryDataID = If[given === None,
+      Lookup[realization, dataIDKey, Missing[]],
+      given["BoundaryDataID"]];
+    frobeniusModeID = If[given === None,
+      Lookup[realization, "FrobeniusModeID", boundaryDataID],
+      given["FrobeniusModeID"]];
+    declaredAnalyticClass = Lookup[realization, analyticClassKey, Missing[]];
+    boundaryDataEpsilonValuation = Lookup[realization,
+      epsilonValuationKey, Missing[]];
+    idFields = Join[boundaryTypedID[boundaryDataType, boundaryDataID],
+      <|"FrobeniusModeID" -> frobeniusModeID|>,
+      If[KeyExistsQ[realization, "BoundaryIntegralID"],
+        <|"BoundaryIntegralID" -> realization["BoundaryIntegralID"]|>,
+        <||>]];
+    modeFailure[status_, extra_: <||>] :=
+      Join[<|"Status" -> status|>, idFields, extra];
     canonicalRows = Lookup[realization, "CanonicalRows", Missing[]];
     physicalRows = Lookup[realization, "PhysicalRows", Missing[]];
     demandedOutputs = Lookup[realization, "DemandedOutputs", {}];
@@ -524,12 +619,11 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
     integerValuation = Lookup[realization, "IntegerValuation", Missing[]];
     maximumLevel = Lookup[realization, "LogLevel", 0];
     suppliedSeed = Lookup[realization, "CanonicalSeed", Automatic];
-    If[MissingQ[periodID] ||
-        ! MemberQ[{"GPL", "Elliptic"}, periodClass] ||
-        ! IntegerQ[periodEpsilonValuation] || ! ListQ[demandedOutputs] ||
+    If[MissingQ[boundaryDataID] || MissingQ[frobeniusModeID] ||
+        ! MemberQ[{"GPL", "Elliptic"}, declaredAnalyticClass] ||
+        ! IntegerQ[boundaryDataEpsilonValuation] || ! ListQ[demandedOutputs] ||
         ! AllTrue[demandedOutputs, MatchQ[#, {_Integer, _Integer}] &],
-      Return[<|"Status" -> "BoundaryPeriodDescriptionInvalid",
-        "PeriodID" -> periodID|>]
+      Return[modeFailure["BoundaryDataDescriptionInvalid"]]
     ];
     If[! MatchQ[canonicalRows, {__Integer}] ||
         ! DuplicateFreeQ[canonicalRows] ||
@@ -537,41 +631,36 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
         ! MatchQ[physicalRows, {__Integer}] ||
         ! DuplicateFreeQ[physicalRows] ||
         ! AllTrue[physicalRows, 1 <= # <= physicalDimension &],
-      Return[<|"Status" -> "BoundaryModeRowsInvalid",
-        "PeriodID" -> periodID|>]
+      Return[modeFailure["BoundaryModeRowsInvalid"]]
     ];
     constraintRows = Lookup[realization, "ConstraintRows",
       Range[Max[canonicalRows]]];
     If[! MatchQ[constraintRows, {__Integer}] ||
         ! DuplicateFreeQ[constraintRows] ||
         ! AllTrue[constraintRows, 1 <= # <= dimension &],
-      Return[<|"Status" -> "BoundaryModeConstraintsInvalid",
-        "PeriodID" -> periodID|>]
+      Return[modeFailure["BoundaryModeConstraintsInvalid"]]
     ];
     If[! MatchQ[exponent, _Integer | _Rational] ||
         ! IntegerQ[integerValuation] ||
         ! IntegerQ[maximumLevel] || maximumLevel < 0,
-      Return[<|"Status" -> "BoundaryModePowersInvalid",
-        "PeriodID" -> periodID|>]
+      Return[modeFailure["BoundaryModePowersInvalid"]]
     ];
     (* Round 9b (T, R3's F4): the policy is validated up front; a typo can
        no longer silently disable the split *)
-    policy = Lookup[realization, "DegenerateEigenspacePolicy", "Refuse"];
+    policy = Lookup[realization, "DegenerateResidueEigenspacePolicy", "Refuse"];
     If[! MemberQ[{"Refuse", "Basis"}, policy],
-      Return[<|"Status" -> "DegenerateEigenspacePolicyInvalid",
-        "PeriodID" -> periodID, "Policy" -> policy,
-        "AllowedPolicies" -> {"Refuse", "Basis"}|>]
+      Return[modeFailure["DegenerateResidueEigenspacePolicyInvalid", <|
+        "Policy" -> policy,
+        "AllowedPolicies" -> {"Refuse", "Basis"}|>]]
     ];
     expectedOrder = localPower integerValuation;
     If[! IntegerQ[expectedOrder],
-      Return[<|"Status" -> "PhysicalValuationNotIntegral",
-        "PeriodID" -> periodID|>]
+      Return[modeFailure["PhysicalValuationNotIntegral"]]
     ];
     If[expectedOrder > maximumSeriesOrder,
-      Return[<|"Status" -> "FrobeniusDepthInsufficient",
-        "PeriodID" -> periodID,
+      Return[modeFailure["FrobeniusDepthInsufficient", <|
         "NeededSeriesOrder" -> expectedOrder,
-        "AvailableSeriesOrder" -> maximumSeriesOrder|>]
+        "AvailableSeriesOrder" -> maximumSeriesOrder|>]]
     ];
     eigenvalue = Together[localPower exponent];
     extension = Which[
@@ -586,38 +675,38 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
     (* A genuinely multi-dimensional admissible eigenspace is refused typed
        by default.  Under the realization's explicit policy "Basis" every
        direction of the canonical admissible basis becomes its own exact
-       sub-realization {.. periodID .., k}: the physical solution has one
-       coefficient per direction at this point, and the Stage-3 ledger says
-       so (DegenerateEigenspace).  Nothing selects a direction silently. *)
+       sub-realization.  The resulting coefficients remain independent unless
+       an explicit BoundaryRelation is supplied; eigenspace degeneracy alone
+       does not imply a relation.  Nothing selects a direction silently. *)
     If[extension["Status"] === "AmbiguousPhysicalEigenspace" &&
         policy === "Basis" &&
         ListQ[Lookup[extension, "AdmissibleBasis", None]],
       basis = extension["AdmissibleBasis"];
-      subID[k_] := If[ListQ[periodID], Append[periodID, k], {periodID, k}];
+      subID[k_] := If[ListQ[boundaryDataID], Append[boundaryDataID, k],
+        {boundaryDataID, k}];
       Return[Table[buildMode[realization, <|"Extension" -> basis[[k]],
-          "PeriodID" -> subID[k], "Direction" -> k,
-          "Dimension" -> Length[basis], "ParentPeriodID" -> periodID,
+          "BoundaryDataID" -> subID[k], "FrobeniusModeID" -> subID[k],
+          "Direction" -> k, "Dimension" -> Length[basis],
+          "ParentBoundaryDataID" -> boundaryDataID,
           "EigenspaceBasis" -> Map[Together /@ #["Vector"][[canonicalRows]] &,
             basis]|>],
         {k, Length[basis]}]]
     ];
     If[extension["Status"] =!= "Exact",
-      Return[Join[<|"PeriodID" -> periodID,
-          "PeriodClass" -> periodClass|>, extension]]
+      Return[Join[idFields, <|analyticClassKey -> declaredAnalyticClass|>,
+        extension]]
     ];
     vector = extension["Vector"];
     mapped = Together /@ (transformationLocal.prefactor.vector);
     selected = mapped[[physicalRows]];
     orders = boundaryLocalOrder[#, localVariable] & /@ selected;
     If[MemberQ[orders, $Failed],
-      Return[<|"Status" -> "PhysicalModeNotRationalAtEndpoint",
-        "PeriodID" -> periodID|>]
+      Return[modeFailure["PhysicalModeNotRationalAtLocalExpansionPoint"]]
     ];
     candidates = Flatten@Position[orders, expectedOrder];
     If[candidates === {},
-      Return[<|"Status" -> "PhysicalValuationMismatch",
-        "PeriodID" -> periodID, "ComputedOrders" -> orders,
-        "ExpectedOrder" -> expectedOrder|>]
+      Return[modeFailure["PhysicalValuationMismatch", <|
+        "ComputedOrders" -> orders, "ExpectedOrder" -> expectedOrder|>]]
     ];
     requestedNormalizationRow = Lookup[realization,
       "NormalizationPhysicalRow", Automatic];
@@ -627,16 +716,14 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
         physicalRows[[#]] === requestedNormalizationRow &, None]
     ];
     If[normalizationIndex === None,
-      Return[<|"Status" -> "NormalizationRowInvalid",
-        "PeriodID" -> periodID|>]
+      Return[modeFailure["NormalizationRowInvalid"]]
     ];
     expectedLeading = Together[endpointCoefficient^integerValuation];
     actualLeading = boundaryLeadingCoefficient[
       selected[[normalizationIndex]], expectedOrder, localVariable];
     If[boundaryExactZeroQ[actualLeading] ||
         ! boundaryFiniteQ[actualLeading],
-      Return[<|"Status" -> "ModeNormalizationFailed",
-        "PeriodID" -> periodID|>]
+      Return[modeFailure["ModeNormalizationFailed"]]
     ];
     normalization = Together[expectedLeading/actualLeading];
     normalizedVector = Together /@ (normalization vector);
@@ -654,8 +741,7 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
         ! MemberQ[normalizedOrders, expectedOrder] ||
         ! AnyTrue[normalizedLeading,
           boundaryExactZeroQ[# - expectedLeading] &],
-      Return[<|"Status" -> "BoundaryModeValidationFailed",
-        "PeriodID" -> periodID|>]
+      Return[modeFailure["BoundaryModeValidationFailed"]]
     ];
     (* If t = alpha rho^kappa, then the physical and local Frobenius
        constants differ by exp(eps Log[alpha] R_rho/kappa).  Keep the
@@ -666,13 +752,11 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       normalizedVector,
       If[logBranch === Automatic,
         If[! boundaryUnambiguouslyPositiveQ[endpointCoefficient],
-          Return[<|"Status" -> "PhysicalEndpointLogBranchRequired",
-            "PeriodID" -> periodID|>]
+          Return[modeFailure["PhysicalLimitLogBranchRequired"]]
         ];
         coordinateLog = Log[endpointCoefficient],
         If[! IntegerQ[logBranch],
-          Return[<|"Status" -> "PhysicalEndpointLogBranchInvalid",
-            "PeriodID" -> periodID|>]
+          Return[modeFailure["PhysicalLimitLogBranchInvalid"]]
         ];
         coordinateLog = Log[endpointCoefficient] + 2 Pi I logBranch
       ];
@@ -681,11 +765,11 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
           MatrixPower[residue, order].normalizedVector,
         {order, 1, maximumEpsilonOrder}])
     ];
-    With[{record = <|
-      "Status" -> "BoundaryModeMatched",
-      "PeriodID" -> periodID,
-      "PeriodClass" -> periodClass,
-      "PeriodEpsilonValuation" -> periodEpsilonValuation,
+    With[{record = Join[<|
+      "Status" -> "BoundaryAsymptoticsMatchedToFrobeniusMode",
+      "BoundaryDataType" -> boundaryDataType,
+      analyticClassKey -> declaredAnalyticClass,
+      epsilonValuationKey -> boundaryDataEpsilonValuation,
       "CanonicalRows" -> canonicalRows,
       "ConstraintRows" -> constraintRows,
       "PhysicalRows" -> physicalRows,
@@ -699,85 +783,110 @@ BuildBoundaryModeMap[frobenius_Association, transformation_?MatrixQ,
       "PhysicalToLocalMode" -> physicalToLocalMode,
       "PhysicalLocalOrders" -> normalizedOrders,
       "PhysicalLeadingCoefficients" -> normalizedLeading
-    |>},
+    |>, idFields]},
       If[given === None, record,
-        Join[record, <|"ParentPeriodID" -> given["ParentPeriodID"],
+        Join[record, <|
+          If[boundaryDataType === "BoundaryConstant",
+            "ParentBoundaryConstantID", "ParentBoundaryFunctionID"] ->
+              given["ParentBoundaryDataID"],
           "EigenspaceDirection" -> given["Direction"],
           "EigenspaceDimension" -> given["Dimension"],
           "EigenspaceBasis" -> given["EigenspaceBasis"]|>]]]
   ];
 
   modes = Flatten[buildMode /@ realizations];
-  periodIDs = DeleteCases[Lookup[modes, "PeriodID", Missing[]],
-    _Missing];
-  If[! DuplicateFreeQ[periodIDs],
-    fail["DuplicateBoundaryPeriodID", <|"PeriodIDs" -> periodIDs|>]
+  boundaryDataIDs = DeleteCases[boundaryModeDataID /@ modes, _Missing];
+  If[! DuplicateFreeQ[boundaryDataIDs],
+    fail[If[boundaryDataType === "BoundaryConstant",
+        "DuplicateBoundaryConstantID", "DuplicateBoundaryFunctionID"],
+      <|If[boundaryDataType === "BoundaryConstant",
+          "BoundaryConstantIDs", "BoundaryFunctionIDs"] -> boundaryDataIDs|>]
   ];
-  initialLedger = Map[Function[mode, <|
-      "PeriodID" -> Lookup[mode, "PeriodID", Missing[]],
-      "PeriodClass" -> Lookup[mode, "PeriodClass", Missing[]],
+  boundaryDataRequirements = Map[Function[mode, Join[<|
+      "BoundaryDataType" -> boundaryDataType,
+      "FrobeniusModeID" -> boundaryModeIdentifier[mode],
+      analyticClassKey -> boundaryModeAnalyticClass[mode],
       "Family" -> family,
-      "Limit" -> limit,
+      "PhysicalKinematicLimit" -> limit,
+      "BoundaryDomain" -> boundaryDomain,
       "FrobeniusMode" -> KeyTake[mode,
         {"CanonicalRows", "LocalEigenvalue", "GeneralizedLevel"}],
-      "AffectedBoundaryCoordinates" -> {},
-      "DemandedOutputs" -> Lookup[mode, "DemandedOutputs", {}],
+      If[boundaryDataType === "BoundaryConstant",
+        "AffectedBoundaryConstantEpsilonCoefficientLabels",
+        "AffectedBoundaryFunctionEpsilonCoefficientLabels"] -> {},
+      "RequiredMasterIntegralCoefficients" -> Lookup[mode, "DemandedOutputs", {}],
       "Status" -> "Unevaluated",
-      "DegenerateEigenspace" ->
-        BoundaryDegenerateEigenspaceDeclaration[mode, modes],
+      "DegenerateResidueEigenspaceBasis" ->
+        DegenerateResidueEigenspaceBasis[mode, modes],
       "Problem" -> If[Lookup[mode, "Status", None] ===
-        "BoundaryModeMatched", "PeriodDataRequired",
-        Lookup[mode, "Status", "BoundaryModeIncomplete"]]|>], modes];
+        "BoundaryAsymptoticsMatchedToFrobeniusMode",
+          If[boundaryDataType === "BoundaryConstant",
+            "BoundaryConstantRequired", "BoundaryFunctionRequired"],
+        Lookup[mode, "Status", "BoundaryModeIncomplete"]]|>,
+      boundaryTypedID[boundaryDataType, boundaryModeDataID[mode]]]], modes];
   <|
     "Status" -> If[AllTrue[modes,
-      Lookup[#, "Status", None] === "BoundaryModeMatched" &],
-      "BoundaryModeMapBuilt", "BoundaryModeMapIncomplete"],
+      Lookup[#, "Status", None] ===
+        "BoundaryAsymptoticsMatchedToFrobeniusMode" &],
+      "BoundaryAsymptoticModeMatching",
+      "BoundaryAsymptoticModeMatchingIncomplete"],
     "Family" -> family,
-    "Limit" -> limit,
+    "PhysicalKinematicLimit" -> limit,
+    "BoundaryDomain" -> boundaryDomain,
+    "BoundaryDataType" -> boundaryDataType,
     "Dimension" -> dimension,
     "PhysicalDimension" -> physicalDimension,
     "Regulator" -> regulator,
     "MaximumSeriesOrder" -> maximumSeriesOrder,
     "MaximumEpsilonOrder" -> maximumEpsilonOrder,
     "LocalVariable" -> localVariable,
-    "Endpoint" -> endpoint,
-    "EndpointSpec" -> <|"Variable" -> variable,
-      "Endpoint" -> endpoint, "LocalDirection" -> localDirection,
+    "LocalExpansionPoint" -> localExpansionPoint,
+    "LocalExpansionSpecification" -> <|"Variable" -> variable,
+      "LocalExpansionPoint" -> localExpansionPoint,
+      "LocalDirection" -> localDirection,
       "FixedRules" -> fixedRules|>,
     "PhysicalEndpointRelation" -> relation,
-    "Modes" -> modes,
-    "DegenerateEigenspaces" -> DeleteDuplicates[
-      KeyTake[#, {"ParentPeriodID", "EigenspaceDimension"}] & /@
-        Select[modes, KeyExistsQ[#, "ParentPeriodID"] &]],
-    "Stage3NeedsLedger" -> initialLedger
+    "FrobeniusModes" -> modes,
+    "DegenerateResidueEigenspaceBases" -> DeleteDuplicates[
+      DeleteCases[DegenerateResidueEigenspaceBasis[#, modes] & /@ modes,
+        None | _Missing]],
+    "BoundaryDataRequirements" -> boundaryDataRequirements
   |>
 ];
 
-BuildBoundaryModeMap[___] :=
-  <|"Status" -> "BoundaryModeMapInputInvalid"|>;
+MatchBoundaryAsymptoticsToFrobeniusModes[___] :=
+  <|"Status" -> "BoundaryAsymptoticModeMatchingInputInvalid"|>;
 
-(* Round 9b (T, R3's F2): the machine-readable declaration that a mode
-   record is one direction of a degenerate admissible eigenspace realized
-   under the Basis policy.  It travels with every needs-ledger entry and
-   every boundary coordinate that mentions the sub-realization, so that a
-   Stage-3 consumer sees ONE undetermined period (the parent) whose
-   sub-realization coefficients are tied by a relation along the stratum,
-   never independent periods.  None for an ordinary mode. *)
-BoundaryDegenerateEigenspaceDeclaration[mode_Association, modes_List] :=
-  If[! KeyExistsQ[mode, "ParentPeriodID"], None,
-    With[{siblings = Select[modes,
-        Lookup[#, "ParentPeriodID", None] === mode["ParentPeriodID"] &]},
-      <|"ParentPeriodID" -> mode["ParentPeriodID"],
-        "EigenspaceDirection" -> mode["EigenspaceDirection"],
-        "EigenspaceDimension" -> mode["EigenspaceDimension"],
-        "CanonicalRows" -> Lookup[mode, "CanonicalRows", Missing[]],
-        "SubRealizationPeriodIDs" -> Lookup[siblings, "PeriodID"],
-        "EigenspaceBasis" -> Lookup[mode, "EigenspaceBasis",
-          Table[Lookup[sibling, "CanonicalMode"][[
-            Lookup[sibling, "CanonicalRows"]]], {sibling, siblings}]],
-        "PeriodCount" -> 1,
-        "Meaning" -> "one undetermined direction of the parent period, realized as this eigenspace basis; the sub-realizations' coefficients are tied by one relation along the stratum (a Stage-3 datum); count the parent once in any period tally"|>]];
-BoundaryDegenerateEigenspaceDeclaration[___] := None;
+(* A basis for a degenerate admissible residue eigenspace.  It records the
+   independent directions only.  No relation among their boundary constants
+   or functions is inferred from degeneracy. *)
+DegenerateResidueEigenspaceBasis[mode_Association, modes_List] := Module[
+  {type = Lookup[mode, "BoundaryDataType", Missing[]], parentKey,
+   parentID, siblings},
+  parentKey = Switch[type,
+    "BoundaryConstant", "ParentBoundaryConstantID",
+    "BoundaryFunction", "ParentBoundaryFunctionID",
+    _, Return[None]];
+  If[! KeyExistsQ[mode, parentKey], Return[None]];
+  parentID = mode[parentKey];
+  siblings = Select[modes,
+    Lookup[#, parentKey, None] === parentID &];
+  Join[<|
+    "BoundaryDataType" -> type,
+    parentKey -> parentID,
+    "EigenspaceDimension" -> mode["EigenspaceDimension"],
+    "CanonicalRows" -> Lookup[mode, "CanonicalRows", Missing[]],
+    "FrobeniusModeIDs" -> (boundaryModeIdentifier /@ siblings),
+    "EigenspaceBasis" -> Lookup[mode, "EigenspaceBasis",
+      Table[Lookup[sibling, "CanonicalMode"][[
+        Lookup[sibling, "CanonicalRows"]]], {sibling, siblings}]],
+    "IndependentBoundaryDataCount" -> Length[siblings],
+    "BoundaryRelations" -> {},
+    "Meaning" -> "the displayed vectors form independent admissible directions of a degenerate residue eigenspace; no relation among their boundary coefficients is implied"|>,
+    boundaryTypedID[type, boundaryModeDataID[mode]],
+    <|"EigenspaceDirection" -> mode["EigenspaceDirection"]|>]
+];
+DegenerateResidueEigenspaceBasis[___] := None;
 
 boundaryEpsilonValuation[vector_List, regulator_Symbol] := Module[
   {orders = DeleteCases[
@@ -789,78 +898,110 @@ boundaryExactCoefficientQ[value_, regulator_Symbol] :=
   FreeQ[value, regulator | _Real | _Missing | Indeterminate |
     ComplexInfinity | DirectedInfinity[_]];
 
-Options[BuildTransportBoundaryVector] = {
-  "MissingPeriodAction" -> "Refuse"
+Options[boundaryConstructValueVectorAndSelectorMatrices] = {
+  "MissingBoundaryDataAction" -> "Refuse"
 };
 
-BuildTransportBoundaryVector[modeMap_Association, periodData_,
+boundaryConstructValueVectorAndSelectorMatrices[modeMap_Association, boundaryData_,
     window : {_Integer, _Integer}, OptionsPattern[]] := Catch@Module[
   {fail, low = window[[1]], high = window[[2]], action, formalActionQ,
    modes, regulator, dimension, records, normalizedRecords, recordIDs,
    missingGPL = {}, missingElliptic = {}, invalid = {}, depthProblems = {},
    windowProblems = {}, tangentialProblems = {}, coordinates = {},
-   modeValues = {}, needsLedger = {},
-   appendLedger, markMissing, resolveCoefficients, addCoordinates,
+   modeValues = {}, boundaryDataRequirements = {},
+   appendRequirement, markMissing, resolveCoefficients, addCoordinates,
    modeValuation, expectedValuation, activeDemand, targetHigh,
    requiredHigh, requiredOrders, potentialCoordinates, actualCoordinates,
    record, recordStatus, coefficientData, missingOrders, resolved,
    activeClasses = {}, selectorForOrder, selectors, constants,
-   boundaryVectors, functionSpace, dataStatus, incompleteStatus},
+   boundaryVectors, functionSpace, dataStatus, incompleteStatus,
+   boundaryDataType, dataIDKey, analyticClassKey, coefficientLabelsKey,
+   coefficientRecordsKey, valueVectorKey, family, physicalLimit,
+   modeID, modeClass, normalizedRecord},
   fail[status_, extra_: <||>] :=
     Throw[Join[<|"Status" -> status|>, extra]];
-  action = OptionValue["MissingPeriodAction"];
+  action = OptionValue["MissingBoundaryDataAction"];
   formalActionQ = action === "Formal";
   If[low > high || ! MemberQ[{"Refuse", "Formal"}, action],
     fail["BoundaryEpsilonWindowInvalid"]
   ];
-  If[Lookup[modeMap, "Status", None] =!= "BoundaryModeMapBuilt",
-    fail["CompleteBoundaryModeMapRequired",
-      <|"Stage3NeedsLedger" ->
-        Lookup[modeMap, "Stage3NeedsLedger", {}]|>]
+  If[Lookup[modeMap, "Status", None] =!= "BoundaryAsymptoticModeMatching",
+    fail["CompleteBoundaryAsymptoticModeMatchingRequired",
+      <|"BoundaryDataRequirements" ->
+        Lookup[modeMap, "BoundaryDataRequirements", {}]|>]
   ];
-  modes = modeMap["Modes"];
+  boundaryDataType = Lookup[modeMap, "BoundaryDataType", Missing[]];
+  If[! MemberQ[{"BoundaryConstant", "BoundaryFunction"}, boundaryDataType],
+    fail["BoundaryDataTypeRequired"]];
+  dataIDKey = boundaryDataIDKey[boundaryDataType];
+  analyticClassKey = boundaryAnalyticClassKey[boundaryDataType];
+  coefficientLabelsKey = If[boundaryDataType === "BoundaryConstant",
+    "BoundaryConstantEpsilonCoefficientLabels",
+    "BoundaryFunctionEpsilonCoefficientLabels"];
+  coefficientRecordsKey = If[boundaryDataType === "BoundaryConstant",
+    "BoundaryConstantEpsilonCoefficientRecords",
+    "BoundaryFunctionEpsilonCoefficientRecords"];
+  valueVectorKey = If[boundaryDataType === "BoundaryConstant",
+    "BoundaryConstantVector", "BoundaryFunctionVector"];
+  family = modeMap["Family"];
+  physicalLimit = modeMap["PhysicalKinematicLimit"];
+  modes = modeMap["FrobeniusModes"];
   regulator = modeMap["Regulator"];
   dimension = modeMap["Dimension"];
   records = Which[
-    AssociationQ[periodData], periodData,
-    ListQ[periodData] && AllTrue[periodData, AssociationQ] &&
-        AllTrue[periodData, KeyExistsQ[#, "PeriodID"] &],
-      recordIDs = Lookup[periodData, "PeriodID"];
+    AssociationQ[boundaryData], boundaryData,
+    ListQ[boundaryData] && AllTrue[boundaryData, AssociationQ] &&
+        AllTrue[boundaryData, KeyExistsQ[#, dataIDKey] &],
+      recordIDs = Lookup[boundaryData, dataIDKey];
       If[! DuplicateFreeQ[recordIDs],
-        fail["BoundaryPeriodDataInvalid",
-          <|"Reason" -> "DuplicatePeriodID"|>]
+        fail["BoundaryDataInvalid",
+          <|"Reason" -> If[boundaryDataType === "BoundaryConstant",
+            "DuplicateBoundaryConstantID", "DuplicateBoundaryFunctionID"]|>]
       ];
-      Association@Table[item["PeriodID"] -> item,
-        {item, periodData}],
-    True, fail["BoundaryPeriodDataInvalid"]
+      Association@Table[
+        item[dataIDKey] -> item,
+        {item, boundaryData}],
+    True, fail["BoundaryDataInvalid"]
   ];
   normalizedRecords = Association@KeyValueMap[
-    #1 -> If[AssociationQ[#2] && ! KeyExistsQ[#2, "PeriodID"],
-      Join[<|"PeriodID" -> #1|>, #2], #2] &, records];
-  appendLedger[mode_, demand_, status_, affected_, data_: <||>] :=
-    AppendTo[needsLedger, Join[<|
-      "PeriodID" -> mode["PeriodID"],
-      "PeriodClass" -> mode["PeriodClass"],
-      "Family" -> modeMap["Family"],
-      "Limit" -> modeMap["Limit"],
+    Function[{id, item},
+      normalizedRecord = If[AssociationQ[item], item, <||>];
+      id -> Join[
+        <|dataIDKey -> Lookup[normalizedRecord, dataIDKey, id],
+          analyticClassKey -> Lookup[normalizedRecord, analyticClassKey,
+            Missing[]]|>,
+        KeyDrop[normalizedRecord,
+          {dataIDKey, analyticClassKey}]]],
+    records];
+  appendRequirement[mode_, demand_, status_, affected_, data_: <||>] :=
+    AppendTo[boundaryDataRequirements, Join[<|
+      "BoundaryDataType" -> boundaryDataType,
+      "FrobeniusModeID" -> boundaryModeIdentifier[mode],
+      analyticClassKey -> boundaryModeAnalyticClass[mode],
+      "Family" -> family,
+      "PhysicalKinematicLimit" -> physicalLimit,
+      "BoundaryDomain" -> modeMap["BoundaryDomain"],
       "FrobeniusMode" -> <|
         "CanonicalRows" -> mode["CanonicalRows"],
         "LocalEigenvalue" -> mode["LocalEigenvalue"],
         "GeneralizedLevel" -> mode["GeneralizedLevel"]|>,
-      "AffectedBoundaryCoordinates" -> affected,
-      "DemandedOutputs" -> demand,
-      "DegenerateEigenspace" ->
-        BoundaryDegenerateEigenspaceDeclaration[mode, modes],
-      "Status" -> status|>, data]];
+      coefficientLabelsKey -> affected,
+      "RequiredMasterIntegralCoefficients" -> demand,
+      "DegenerateResidueEigenspaceBasis" ->
+        DegenerateResidueEigenspaceBasis[mode, modes],
+      "Status" -> status|>, boundaryTypedID[boundaryDataType,
+        boundaryModeDataID[mode]], data]];
   markMissing[mode_, orders_] :=
-    If[mode["PeriodClass"] === "GPL",
+    If[boundaryModeAnalyticClass[mode] === "GPL",
       AppendTo[missingGPL,
-        <|"PeriodID" -> mode["PeriodID"], "Orders" -> orders|>],
+        Join[boundaryTypedID[boundaryDataType, boundaryModeDataID[mode]],
+          <|"EpsilonOrders" -> orders|>]],
       AppendTo[missingElliptic,
-        <|"PeriodID" -> mode["PeriodID"], "Orders" -> orders|>]];
+        Join[boundaryTypedID[boundaryDataType, boundaryModeDataID[mode]],
+          <|"EpsilonOrders" -> orders|>]]];
   resolveCoefficients[mode_, data_Association, orders_List] :=
     Association@Table[order -> If[KeyExistsQ[data, order], data[order],
-      BoundaryPeriodCoefficient[mode["PeriodID"], order]],
+      boundaryModeCoefficient[boundaryDataType, boundaryModeDataID[mode], order]],
       {order, orders}];
   addCoordinates[mode_, data_Association, orders_List] := Module[
     {affected = {}, value},
@@ -868,22 +1009,26 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
       value = data[order];
       If[! boundaryExactZeroQ[value],
         AppendTo[coordinates, <|
-          "PeriodID" -> mode["PeriodID"],
-          "PeriodClass" -> mode["PeriodClass"],
+          "BoundaryDataType" -> boundaryDataType,
+          dataIDKey -> boundaryModeDataID[mode],
+          "FrobeniusModeID" -> boundaryModeIdentifier[mode],
+          analyticClassKey -> boundaryModeAnalyticClass[mode],
           "EpsilonOrder" -> order,
-          "DegenerateEigenspace" ->
-            BoundaryDegenerateEigenspaceDeclaration[mode, modes],
+          "DegenerateResidueEigenspaceBasis" ->
+            DegenerateResidueEigenspaceBasis[mode, modes],
           "Value" -> value|>];
         AppendTo[modeValues, <|"Mode" -> mode["CanonicalMode"],
           "EpsilonOrder" -> order|>];
-        AppendTo[affected, {mode["PeriodID"], order}]
+        AppendTo[affected, {boundaryModeDataID[mode], order}]
       ],
       {order, orders}];
-    If[affected =!= {}, AppendTo[activeClasses, mode["PeriodClass"]]];
+    If[affected =!= {}, AppendTo[activeClasses, boundaryModeAnalyticClass[mode]]];
     affected
   ];
 
   Do[
+    modeID = boundaryModeDataID[mode];
+    modeClass = boundaryModeAnalyticClass[mode];
     (* A mode absent from the already-pruned demand can require no boundary
        coefficient and therefore gets no needs-ledger row. *)
     activeDemand = DeleteDuplicates@Select[mode["DemandedOutputs"],
@@ -892,11 +1037,11 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
     If[activeDemand === {}, Continue[]];
     modeValuation = boundaryEpsilonValuation[
       mode["CanonicalMode"], regulator];
-    expectedValuation = mode["PeriodEpsilonValuation"];
+    expectedValuation = boundaryModeEpsilonValuation[mode];
     If[modeValuation === $Failed || ! IntegerQ[modeValuation],
-      AppendTo[invalid, <|"PeriodID" -> mode["PeriodID"],
-        "Reason" -> "CanonicalModeNotRationalInRegulator"|>];
-      appendLedger[mode, activeDemand, "Unevaluated", {},
+      AppendTo[invalid, Join[boundaryTypedID[boundaryDataType, modeID],
+        <|"Reason" -> "CanonicalModeNotRationalInRegulator"|>]];
+      appendRequirement[mode, activeDemand, "Unevaluated", {},
         <|"Problem" -> "CanonicalModeNotRationalInRegulator"|>];
       Continue[]
     ];
@@ -904,8 +1049,7 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
     requiredHigh = targetHigh - modeValuation;
     requiredOrders = If[expectedValuation <= requiredHigh,
       Range[expectedValuation, requiredHigh], {}];
-    potentialCoordinates =
-      {mode["PeriodID"], #} & /@ requiredOrders;
+    potentialCoordinates = {modeID, #} & /@ requiredOrders;
     If[requiredOrders === {}, Continue[]];
     (* The local solution is H(rho,eps) rho^(eps R)c.  A rational boundary
        selector represents it without extra tangential data only for an
@@ -915,12 +1059,12 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
     If[Lookup[mode, "GeneralizedLevel", Missing[]] =!= 0 ||
         ! boundaryExactZeroQ[
           Lookup[mode, "LocalEigenvalue", Missing[]]],
-      AppendTo[tangentialProblems, <|
-        "PeriodID" -> mode["PeriodID"],
+      AppendTo[tangentialProblems, Join[
+        boundaryTypedID[boundaryDataType, modeID], <|
         "LocalEigenvalue" -> Lookup[mode, "LocalEigenvalue", Missing[]],
         "GeneralizedLevel" ->
-          Lookup[mode, "GeneralizedLevel", Missing[]]|>];
-      appendLedger[mode, activeDemand, "Unevaluated",
+          Lookup[mode, "GeneralizedLevel", Missing[]]|>]];
+      appendRequirement[mode, activeDemand, "Unevaluated",
         potentialCoordinates, <|
           "Problem" -> "TangentialLogModeRequired",
           "LocalEigenvalue" ->
@@ -930,54 +1074,56 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
       Continue[]
     ];
     If[expectedValuation + modeValuation < low,
-      AppendTo[windowProblems, <|"PeriodID" -> mode["PeriodID"],
+      AppendTo[windowProblems, Join[boundaryTypedID[boundaryDataType, modeID], <|
         "NeededMinimumOrder" -> expectedValuation + modeValuation,
-        "AvailableMinimumOrder" -> low|>];
-      appendLedger[mode, activeDemand, "Unevaluated",
+        "AvailableMinimumOrder" -> low|>]];
+      appendRequirement[mode, activeDemand, "Unevaluated",
         potentialCoordinates,
         <|"Problem" -> "BoundaryEpsilonWindowTooNarrow"|>];
       Continue[]
     ];
     If[targetHigh - expectedValuation >
         modeMap["MaximumEpsilonOrder"],
-      AppendTo[depthProblems, <|"PeriodID" -> mode["PeriodID"],
+      AppendTo[depthProblems, Join[boundaryTypedID[boundaryDataType, modeID], <|
         "NeededEpsilonOrder" -> targetHigh - expectedValuation,
-        "AvailableEpsilonOrder" -> modeMap["MaximumEpsilonOrder"]|>];
-      appendLedger[mode, activeDemand, "Unevaluated",
+        "AvailableEpsilonOrder" -> modeMap["MaximumEpsilonOrder"]|>]];
+      appendRequirement[mode, activeDemand, "Unevaluated",
         potentialCoordinates,
         <|"Problem" -> "FrobeniusDepthInsufficient"|>];
       Continue[]
     ];
-    record = Lookup[normalizedRecords, mode["PeriodID"], Missing[]];
+    record = Lookup[normalizedRecords, modeID, Missing[]];
     If[MissingQ[record] || ! AssociationQ[record],
       If[formalActionQ,
         resolved = resolveCoefficients[mode, <||>, requiredOrders];
         actualCoordinates = addCoordinates[mode, resolved, requiredOrders],
         markMissing[mode, requiredOrders];
         actualCoordinates = potentialCoordinates];
-      appendLedger[mode, activeDemand, "Unevaluated",
+      appendRequirement[mode, activeDemand, "Unevaluated",
         actualCoordinates];
       Continue[]
     ];
-    If[Lookup[record, "PeriodID", mode["PeriodID"]] =!=
-        mode["PeriodID"],
-      AppendTo[invalid, <|"PeriodID" -> mode["PeriodID"],
-        "Reason" -> "PeriodIDMismatch"|>];
-      appendLedger[mode, activeDemand, "Unevaluated",
-        potentialCoordinates, <|"Problem" -> "PeriodIDMismatch"|>];
+    If[Lookup[record, dataIDKey, modeID] =!= modeID,
+      AppendTo[invalid, Join[boundaryTypedID[boundaryDataType, modeID],
+        <|"Reason" -> If[boundaryDataType === "BoundaryConstant",
+          "BoundaryConstantIDMismatch", "BoundaryFunctionIDMismatch"]|>]];
+      appendRequirement[mode, activeDemand, "Unevaluated",
+        potentialCoordinates, <|"Problem" -> If[boundaryDataType === "BoundaryConstant",
+          "BoundaryConstantIDMismatch", "BoundaryFunctionIDMismatch"]|>];
       Continue[]
     ];
-    If[Lookup[record, "PeriodClass", None] =!= mode["PeriodClass"],
-      AppendTo[invalid, <|"PeriodID" -> mode["PeriodID"],
-        "Reason" -> "PeriodClassMismatch"|>];
-      appendLedger[mode, activeDemand, "Unevaluated",
+    If[Lookup[record, analyticClassKey, None] =!= modeClass,
+      AppendTo[invalid, Join[boundaryTypedID[boundaryDataType, modeID],
+        <|"Reason" -> "DeclaredBoundaryAnalyticClassMismatch"|>]];
+      appendRequirement[mode, activeDemand, "Unevaluated",
         potentialCoordinates,
-        <|"Problem" -> "PeriodClassMismatch"|>];
+        <|"Problem" -> "DeclaredBoundaryAnalyticClassMismatch"|>];
       Continue[]
     ];
     recordStatus = Lookup[record, "Status", None];
     If[recordStatus === "ExactZero",
-      appendLedger[mode, activeDemand, "KnownZero", {}];
+      appendRequirement[mode, activeDemand, "KnownZero", {},
+        KeyTake[record, {"BoundaryIntegralID"}]];
       Continue[]
     ];
     If[recordStatus === "Transferable",
@@ -986,16 +1132,16 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
           ! AllTrue[Lookup[coefficientData,
               Intersection[Keys[coefficientData], requiredOrders]],
             boundaryExactCoefficientQ[#, regulator] &],
-        AppendTo[invalid, <|"PeriodID" -> mode["PeriodID"],
-          "Reason" -> "TransferMapInvalid"|>];
-        appendLedger[mode, activeDemand, "Transferable",
+        AppendTo[invalid, Join[boundaryTypedID[boundaryDataType, modeID],
+          <|"Reason" -> "TransferMapInvalid"|>]];
+        appendRequirement[mode, activeDemand, "Transferable",
           potentialCoordinates, <|"Problem" -> "TransferMapInvalid"|>];
         Continue[]
       ];
       missingOrders = Complement[requiredOrders, Keys[coefficientData]];
       If[missingOrders =!= {} && ! formalActionQ,
         markMissing[mode, missingOrders];
-        appendLedger[mode, activeDemand, "Transferable",
+        appendRequirement[mode, activeDemand, "Transferable",
           potentialCoordinates,
           Join[KeyTake[record, {"TransferFrom"}],
             <|"MissingOrders" -> missingOrders|>]];
@@ -1004,7 +1150,7 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
       resolved = resolveCoefficients[mode, coefficientData,
         requiredOrders];
       actualCoordinates = addCoordinates[mode, resolved, requiredOrders];
-      appendLedger[mode, activeDemand, "Transferable",
+      appendRequirement[mode, activeDemand, "Transferable",
         actualCoordinates,
         Join[KeyTake[record, {"TransferFrom"}],
           If[missingOrders === {}, <||>,
@@ -1017,41 +1163,41 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
         actualCoordinates = addCoordinates[mode, resolved, requiredOrders],
         markMissing[mode, requiredOrders];
         actualCoordinates = potentialCoordinates];
-      appendLedger[mode, activeDemand, "Unevaluated",
+      appendRequirement[mode, activeDemand, "Unevaluated",
         actualCoordinates];
       Continue[]
     ];
     If[Lookup[record, "Valuation", Missing[]] =!=
         expectedValuation ||
         ! AssociationQ[Lookup[record, "Coefficients", Missing[]]],
-      AppendTo[invalid, <|"PeriodID" -> mode["PeriodID"],
-        "Reason" -> "PeriodSeriesInvalid",
+      AppendTo[invalid, Join[boundaryTypedID[boundaryDataType, modeID], <|
+        "Reason" -> "BoundaryEpsilonSeriesInvalid",
         "ExpectedValuation" -> expectedValuation,
-        "ActualValuation" -> Lookup[record, "Valuation", Missing[]]|>];
-      appendLedger[mode, activeDemand, "Unevaluated",
+        "ActualValuation" -> Lookup[record, "Valuation", Missing[]]|>]];
+      appendRequirement[mode, activeDemand, "Unevaluated",
         potentialCoordinates,
-        <|"Problem" -> "PeriodSeriesInvalid"|>];
+        <|"Problem" -> "BoundaryEpsilonSeriesInvalid"|>];
       Continue[]
     ];
     coefficientData = record["Coefficients"];
     If[! AllTrue[Lookup[coefficientData,
           Intersection[Keys[coefficientData], requiredOrders]],
         boundaryExactCoefficientQ[#, regulator] &&
-          FreeQ[#, _BoundaryPeriodCoefficient] &] ||
+          FreeQ[#, boundaryModeCoefficientPattern] &] ||
         (MemberQ[requiredOrders, expectedValuation] &&
           KeyExistsQ[coefficientData, expectedValuation] &&
           boundaryExactZeroQ[coefficientData[expectedValuation]]),
-      AppendTo[invalid, <|"PeriodID" -> mode["PeriodID"],
-        "Reason" -> "PeriodCoefficientsNotExact"|>];
-      appendLedger[mode, activeDemand, "Unevaluated",
+      AppendTo[invalid, Join[boundaryTypedID[boundaryDataType, modeID],
+        <|"Reason" -> "BoundaryCoefficientsNotExact"|>]];
+      appendRequirement[mode, activeDemand, "Unevaluated",
         potentialCoordinates,
-        <|"Problem" -> "PeriodCoefficientsNotExact"|>];
+        <|"Problem" -> "BoundaryCoefficientsNotExact"|>];
       Continue[]
     ];
     missingOrders = Complement[requiredOrders, Keys[coefficientData]];
     If[missingOrders =!= {} && ! formalActionQ,
       markMissing[mode, missingOrders];
-      appendLedger[mode, activeDemand, "Unevaluated",
+      appendRequirement[mode, activeDemand, "Unevaluated",
         potentialCoordinates,
         <|"MissingOrders" -> missingOrders|>];
       Continue[]
@@ -1059,7 +1205,7 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
     resolved = resolveCoefficients[mode, coefficientData,
       requiredOrders];
     actualCoordinates = addCoordinates[mode, resolved, requiredOrders];
-    appendLedger[mode, activeDemand,
+    appendRequirement[mode, activeDemand,
       If[missingOrders === {}, "KnownExact", "Unevaluated"],
       actualCoordinates,
       If[missingOrders === {}, <||>,
@@ -1067,48 +1213,58 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
     {mode, modes}];
   If[tangentialProblems =!= {},
     Return[<|"Status" -> "TangentialLogModeRequired",
-      "Family" -> modeMap["Family"], "Limit" -> modeMap["Limit"],
+      "Family" -> family, "PhysicalKinematicLimit" -> physicalLimit,
+      "BoundaryDataType" -> boundaryDataType,
       "RequestedWindow" -> window, "Problems" -> tangentialProblems,
-      "Stage3NeedsLedger" -> needsLedger|>, Module]
+      "BoundaryDataRequirements" -> boundaryDataRequirements|>, Module]
   ];
   If[windowProblems =!= {},
     Return[<|"Status" -> "BoundaryEpsilonWindowTooNarrow",
-      "Family" -> modeMap["Family"], "Limit" -> modeMap["Limit"],
+      "Family" -> family, "PhysicalKinematicLimit" -> physicalLimit,
+      "BoundaryDataType" -> boundaryDataType,
       "RequestedWindow" -> window, "Problems" -> windowProblems,
-      "Stage3NeedsLedger" -> needsLedger|>, Module]
+      "BoundaryDataRequirements" -> boundaryDataRequirements|>, Module]
   ];
   If[depthProblems =!= {},
     Return[<|"Status" -> "FrobeniusDepthInsufficient",
-      "Family" -> modeMap["Family"], "Limit" -> modeMap["Limit"],
+      "Family" -> family, "PhysicalKinematicLimit" -> physicalLimit,
+      "BoundaryDataType" -> boundaryDataType,
       "RequestedWindow" -> window, "Problems" -> depthProblems,
-      "Stage3NeedsLedger" -> needsLedger|>, Module]
+      "BoundaryDataRequirements" -> boundaryDataRequirements|>, Module]
   ];
   If[invalid =!= {},
-    Return[<|"Status" -> "BoundaryPeriodDataInvalid",
-      "Family" -> modeMap["Family"], "Limit" -> modeMap["Limit"],
+    Return[<|"Status" -> "BoundaryDataInvalid",
+      "Family" -> family, "PhysicalKinematicLimit" -> physicalLimit,
+      "BoundaryDataType" -> boundaryDataType,
       "RequestedWindow" -> window, "Problems" -> invalid,
-      "Stage3NeedsLedger" -> needsLedger|>, Module]
+      "BoundaryDataRequirements" -> boundaryDataRequirements|>, Module]
   ];
   If[missingGPL =!= {} || missingElliptic =!= {},
     incompleteStatus = Which[
       missingGPL =!= {} && missingElliptic =!= {},
         "BoundaryDataIncomplete",
-      missingGPL =!= {}, "GPLBoundaryConstantsIncomplete",
-      True, "EllipticBoundaryPeriodsIncomplete"];
+      missingGPL =!= {}, If[boundaryDataType === "BoundaryConstant",
+        "GPLBoundaryConstantsIncomplete", "GPLBoundaryFunctionsIncomplete"],
+      True, If[boundaryDataType === "BoundaryConstant",
+        "EllipticBoundaryConstantsIncomplete", "EllipticBoundaryFunctionsIncomplete"]];
     Return[<|"Status" -> incompleteStatus,
-      "Family" -> modeMap["Family"], "Limit" -> modeMap["Limit"],
-      "MissingGPLConstants" -> missingGPL,
-      "MissingEllipticPeriods" -> missingElliptic,
+      "Family" -> family, "PhysicalKinematicLimit" -> physicalLimit,
+      "BoundaryDataType" -> boundaryDataType,
+      If[boundaryDataType === "BoundaryConstant",
+        "MissingGPLBoundaryConstants", "MissingGPLBoundaryFunctions"] -> missingGPL,
+      If[boundaryDataType === "BoundaryConstant",
+        "MissingEllipticBoundaryConstants", "MissingEllipticBoundaryFunctions"] -> missingElliptic,
       "RequestedWindow" -> window,
-      "Stage3NeedsLedger" -> needsLedger|>, Module]
+      "BoundaryDataRequirements" -> boundaryDataRequirements|>, Module]
   ];
 
   (* Preserve a one-column zero boundary so downstream transport retains a
      well-formed constant-vector space even when every physical mode is
      exactly zero. *)
   If[coordinates === {},
-    coordinates = {<|"PeriodID" -> None, "PeriodClass" -> "Zero",
-      "EpsilonOrder" -> 0, "Value" -> 0|>};
+    coordinates = {<|"BoundaryDataType" -> boundaryDataType,
+      dataIDKey -> None, "FrobeniusModeID" -> None,
+      analyticClassKey -> "Zero", "EpsilonOrder" -> 0, "Value" -> 0|>};
     modeValues = {<|"Mode" -> ConstantArray[0, dimension],
       "EpsilonOrder" -> 0|>}
   ];
@@ -1123,7 +1279,7 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
   If[! AllTrue[Values[selectors],
       MatrixQ[#, MatchQ[#, _Integer | _Rational] &] &],
     fail["BoundarySelectorFieldNotRational",
-      <|"Stage3NeedsLedger" -> needsLedger|>]
+      <|"BoundaryDataRequirements" -> boundaryDataRequirements|>]
   ];
   constants = Lookup[coordinates, "Value"];
   boundaryVectors = Association@Table[
@@ -1133,30 +1289,115 @@ BuildTransportBoundaryVector[modeMap_Association, periodData_,
     MemberQ[activeClasses, "Elliptic"], "GPL+Elliptic",
     MemberQ[activeClasses, "GPL"], "GPL",
     True, "Zero"];
-  dataStatus = If[FreeQ[constants, _BoundaryPeriodCoefficient],
-    If[MemberQ[Lookup[needsLedger, "Status", {}], "Transferable"],
+  dataStatus = If[FreeQ[constants, boundaryModeCoefficientPattern],
+    If[MemberQ[Lookup[boundaryDataRequirements, "Status", {}], "Transferable"],
       "ExactWithTransfers", "Exact"], "FormalNotEvaluated"];
   <|
     "Status" -> If[dataStatus === "FormalNotEvaluated",
-      "FormalTransportBoundaryVectorBuilt",
-      "TransportBoundaryVectorBuilt"],
-    "Family" -> modeMap["Family"],
-    "Limit" -> modeMap["Limit"],
+      "FormalBoundaryValueVectorAndSelectorMatricesConstructed",
+      "BoundaryValueVectorAndSelectorMatricesConstructed"],
+    "Family" -> family,
+    "PhysicalKinematicLimit" -> physicalLimit,
+    "BoundaryDomain" -> modeMap["BoundaryDomain"],
+    "BoundaryDataType" -> boundaryDataType,
     "Dimension" -> dimension,
     "Regulator" -> regulator,
     "Window" -> window,
     "FunctionSpace" -> functionSpace,
     "BoundaryDataStatus" -> dataStatus,
-    "BoundaryCoordinates" -> coordinates,
-    "DegenerateEigenspaces" -> Lookup[modeMap, "DegenerateEigenspaces", {}],
-    "BoundaryConstantVector" -> constants,
-    "BoundarySelectors" -> selectors,
-    "BoundaryVector" -> boundaryVectors,
-    "TransportBoundary" -> <|"Dimension" -> dimension,
-      "BoundarySelectors" -> selectors|>,
-    "Stage3NeedsLedger" -> needsLedger
+    coefficientRecordsKey -> coordinates,
+    coefficientLabelsKey -> ({Lookup[#, dataIDKey], #["EpsilonOrder"]} & /@ coordinates),
+    "DegenerateResidueEigenspaceBases" ->
+      Lookup[modeMap, "DegenerateResidueEigenspaceBases", {}],
+    valueVectorKey -> constants,
+    "BoundarySelectorMatricesByEpsilonOrder" -> selectors,
+    "BoundaryValueVectorByEpsilonOrder" -> boundaryVectors,
+    "BoundaryDataRequirements" -> boundaryDataRequirements
   |>
 ];
 
-BuildTransportBoundaryVector[___] :=
-  <|"Status" -> "TransportBoundaryVectorInputInvalid"|>;
+boundaryConstructValueVectorAndSelectorMatrices[___] :=
+  <|"Status" -> "BoundaryValueAndSelectorInputsInvalid"|>;
+
+Options[ConstructBoundarySelectorMatrices] = {
+  "MissingBoundaryDataAction" -> "Refuse"
+};
+ConstructBoundarySelectorMatrices[modeMatching_Association, boundaryData_,
+    window : {_Integer, _Integer}, OptionsPattern[]] := Module[
+  {result = boundaryConstructValueVectorAndSelectorMatrices[modeMatching,
+      boundaryData, window, "MissingBoundaryDataAction" ->
+        OptionValue["MissingBoundaryDataAction"]], labelsKey},
+  If[! AssociationQ[result] ||
+      ! MemberQ[{"BoundaryValueVectorAndSelectorMatricesConstructed",
+        "FormalBoundaryValueVectorAndSelectorMatricesConstructed"},
+        Lookup[result, "Status", None]], Return[result]];
+  labelsKey = If[result["BoundaryDataType"] === "BoundaryConstant",
+    "BoundaryConstantEpsilonCoefficientLabels",
+    "BoundaryFunctionEpsilonCoefficientLabels"];
+  Join[KeyTake[result, {"Family", "PhysicalKinematicLimit",
+      "BoundaryDomain", "BoundaryDataType", "Regulator", "Window",
+      labelsKey, "DegenerateResidueEigenspaceBases",
+      "BoundaryDataRequirements"}], <|
+    "Status" -> If[result["BoundaryDataStatus"] === "FormalNotEvaluated",
+      "FormalBoundarySelectorMatricesConstructed",
+      "BoundarySelectorMatricesConstructed"],
+    "BoundarySelectorMatricesByEpsilonOrder" ->
+      result["BoundarySelectorMatricesByEpsilonOrder"]|>]
+];
+ConstructBoundarySelectorMatrices[___] :=
+  <|"Status" -> "BoundarySelectorMatrixInputsInvalid"|>;
+
+boundaryValueResult[requiredType_, modeMatching_Association, boundaryData_,
+    window_, action_] := Module[
+  {result = boundaryConstructValueVectorAndSelectorMatrices[modeMatching,
+      boundaryData, window, "MissingBoundaryDataAction" -> action],
+   labelsKey, recordsKey, vectorKey},
+  If[! AssociationQ[result], Return[result]];
+  If[Lookup[result, "BoundaryDataType", None] =!= requiredType,
+    Return[<|"Status" -> If[requiredType === "BoundaryConstant",
+      "PhysicalBoundaryPointRequired", "PhysicalBoundaryStratumRequired"],
+      "ActualBoundaryDataType" -> Lookup[result, "BoundaryDataType", Missing[]]|>]];
+  If[! MemberQ[{"BoundaryValueVectorAndSelectorMatricesConstructed",
+      "FormalBoundaryValueVectorAndSelectorMatricesConstructed"},
+      Lookup[result, "Status", None]], Return[result]];
+  labelsKey = If[requiredType === "BoundaryConstant",
+    "BoundaryConstantEpsilonCoefficientLabels",
+    "BoundaryFunctionEpsilonCoefficientLabels"];
+  recordsKey = If[requiredType === "BoundaryConstant",
+    "BoundaryConstantEpsilonCoefficientRecords",
+    "BoundaryFunctionEpsilonCoefficientRecords"];
+  vectorKey = If[requiredType === "BoundaryConstant",
+    "BoundaryConstantVector", "BoundaryFunctionVector"];
+  Join[KeyTake[result, {"Family", "PhysicalKinematicLimit",
+      "BoundaryDomain", "BoundaryDataType", "Regulator", "Window",
+      "FunctionSpace", "BoundaryDataStatus", labelsKey, recordsKey,
+      vectorKey, "DegenerateResidueEigenspaceBases",
+      "BoundaryValueVectorByEpsilonOrder", "BoundaryDataRequirements"}], <|
+    "Status" -> If[result["BoundaryDataStatus"] === "FormalNotEvaluated",
+      If[requiredType === "BoundaryConstant",
+        "FormalBoundaryConstantValueVectorConstructed",
+        "FormalBoundaryFunctionValueVectorConstructed"],
+      If[requiredType === "BoundaryConstant",
+        "BoundaryConstantValueVectorConstructed",
+        "BoundaryFunctionValueVectorConstructed"]]|>]
+];
+
+Options[ConstructBoundaryValueVectorFromConstants] = {
+  "MissingBoundaryDataAction" -> "Refuse"
+};
+ConstructBoundaryValueVectorFromConstants[modeMatching_Association,
+    boundaryConstantData_, window : {_Integer, _Integer}, OptionsPattern[]] :=
+  boundaryValueResult["BoundaryConstant", modeMatching,
+    boundaryConstantData, window, OptionValue["MissingBoundaryDataAction"]];
+ConstructBoundaryValueVectorFromConstants[___] :=
+  <|"Status" -> "BoundaryConstantValueVectorInputsInvalid"|>;
+
+Options[ConstructBoundaryValueVectorFromFunctions] = {
+  "MissingBoundaryDataAction" -> "Refuse"
+};
+ConstructBoundaryValueVectorFromFunctions[modeMatching_Association,
+    boundaryFunctionData_, window : {_Integer, _Integer}, OptionsPattern[]] :=
+  boundaryValueResult["BoundaryFunction", modeMatching,
+    boundaryFunctionData, window, OptionValue["MissingBoundaryDataAction"]];
+ConstructBoundaryValueVectorFromFunctions[___] :=
+  <|"Status" -> "BoundaryFunctionValueVectorInputsInvalid"|>;

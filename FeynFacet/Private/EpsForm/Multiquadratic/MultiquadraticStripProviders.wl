@@ -5,7 +5,7 @@
    plans, the native sparse/deferred/row backends, the chart-forcing
    provider, preflight, provider channels, and the conservative and bundle
    gauge denominators.
-   Loads after the preceding parts (Private/LoadOrder.wl); the ABI, the
+   Loads after the preceding parts (Private/LoadOrder.wl); the schema, the
    globals and the shared utilities are in MultiquadraticStripSolve.wl. *)
 
 Begin["FeynFacet`Private`"];
@@ -14,7 +14,6 @@ ClearAll[
   multiquadraticStripProviderValidQ,
   multiquadraticStripProviderHotValidQ,
   multiquadraticStripProviderEvaluationValidQ,
-  $multiquadraticStripTrustedProviderEvaluation,
   multiquadraticStripProviderPreflight,
   multiquadraticStripCompiledProviderChannels,
   multiquadraticStripModularInverse,
@@ -31,7 +30,6 @@ ClearAll[
   $multiquadraticStripSplitSparseCompilation,
   $multiquadraticStripSplitSparsePlanCache,
   $multiquadraticStripSplitSparseExactPlanCache,
-  $multiquadraticStripTrustedSplitSparsePlanEvaluation,
   multiquadraticStripSplitSparseEvaluationPlan,
   multiquadraticStripSplitSparseEvaluationPlanValidQ,
   multiquadraticStripSplitSparseEvaluationPlanHotValidQ,
@@ -92,7 +90,7 @@ ClearAll[
 
    A Walsh-Hadamard transform over the branches recovers c_S r_S, and
    division by the nonzero r_S recovers c_S -- which is exactly
-   multiquadraticProjectConjugates in the algebra module.  Simple,
+   multiquadraticProjectSignChangeImages in the algebra module.  Simple,
    independently checkable, and validated against the frozen block.  It
    needs a split point.
 
@@ -115,7 +113,7 @@ ClearAll[
    Most scalar entries of a rank-3 bundle use fewer than three
    generators.  The active subset is determined once per entry, the
    evaluation runs in that local subfield of rank d' <= d, and the local
-   channels are lifted to the declared global grade ABI with
+   channels are lifted to the declared global grade order with
    multiquadraticLiftLocalChannels.  A rank-one scalar does not pay
    rank-three costs because the family declares three roots. *)
 
@@ -282,11 +280,11 @@ multiquadraticStripEntryActiveRoots[entry_, roots_List] := Module[{bases},
   Sort[DeleteDuplicates[Flatten[Table[
     Select[Range[Length[roots]],
       transportChartRootBranchScale[base,
-        Lookup[roots[[#1]], "RootSquare", 0]] =!= None &],
+        squareRootRecordRadicand[roots[[#1]]]] =!= None &],
     {base, bases}]]]]
 ];
 
-(* Convert authenticated bit-mask metadata to the ordered local root subset.
+(* Convert validated bit-mask metadata to the ordered local root subset.
    This is deliberately a tiny integer operation: operand masks were already
    recomputed by blockEquationDeferredBundleValidate, so the direct provider
    must not repeat a symbolic radical census for every interned operand. *)
@@ -295,18 +293,21 @@ multiquadraticStripRootMaskActiveRoots[mask_Integer, rank_Integer] /;
   Select[Range[rank], BitGet[mask, #1 - 1] === 1 &];
 multiquadraticStripRootMaskActiveRoots[___] := $Failed;
 
-(* Embed the bundle's own canonical root frame into the solver's canonical
-   root frame.  Bundle compilation deliberately prunes roots absent from the
-   deferred forcing, while E and C may still require them; equality of the two
-   frames is therefore too strong.  Exact root and square matching preserves
-   the declared branch, and unique positions give the mask relabelling below. *)
+(* Embed the bundle's ordered square-root generators into the solver's ordered
+   square-root generators.  Bundle compilation deliberately prunes generators
+   absent from the deferred forcing, while E and C may still require them;
+   equality of the two lists is therefore too strong.  Exact generator and
+   quadratic-radicand matching preserves the declared sign, and unique
+   positions give the mask relabelling below. *)
 multiquadraticStripBundleRootEmbedding[bundleRoots_List, roots_List] :=
  Module[{positions},
   positions = Table[Module[{matches = Select[Range[Length[roots]],
        TrueQ[Quiet[Together[
-           roots[[#1, "RootSquare"]] - bundleRoot["RootSquare"]]] === 0] &&
+           squareRootRecordRadicand[roots[[#1]]] -
+             squareRootRecordRadicand[bundleRoot]]] === 0] &&
          TrueQ[Quiet[Together[
-           roots[[#1, "Root"]] - bundleRoot["Root"]]] === 0] &]},
+           squareRootRecordExpression[roots[[#1]]] -
+             squareRootRecordExpression[bundleRoot]]] === 0] &]},
       If[Length[matches] === 1, First[matches], $Failed]],
     {bundleRoot, bundleRoots}];
   If[VectorQ[positions, IntegerQ] && DuplicateFreeQ[positions], positions,
@@ -315,25 +316,42 @@ multiquadraticStripBundleRootEmbedding[bundleRoots_List, roots_List] :=
 multiquadraticStripBundleRootEmbedding[___] := $Failed;
 
 (* Immutable, derived hot-path data for one deferred bundle.  Operand masks
-   come from the validator-authenticated table.  Coefficients have no bundle
+   come from the validator-checked table.  Coefficients have no bundle
    mask field, so canonicalize composite radicals and compute their masks once
-   when the provider is constructed.  The public provider validator
-   recomputes this record; trusted point loops only read the sealed copy. *)
+   when the provider is constructed.  The full provider validator recomputes
+   this record; hot point loops only read the derived copy. *)
 multiquadraticStripBundleLocalData[bundle_Association, roots_List,
     variables : {_Symbol, _Symbol}] := Catch[Module[
-  {rank = Length[roots], frame, bundleRoots, bundleRank,
+  {rank = Length[roots], bundlePresentation, bundlePresentationRoots,
+   bundleGeneratorIndices, bundleRoots, bundleRank,
    bundleRootEmbedding, squares, operands, expressions, localMasks,
    localActiveRoots, masks, activeRoots, coefficientData, tag},
   tag = Unique["MultiquadraticBundleLocalDataFailure"];
-  frame = Lookup[bundle, "RootFrame", <||>];
-  bundleRoots = Lookup[frame, "Roots", None];
-  bundleRootEmbedding = If[ListQ[bundleRoots],
-    multiquadraticStripBundleRootEmbedding[bundleRoots, roots], $Failed];
+  bundlePresentation = masterTransportCoefficientPresentationData[
+    Lookup[bundle, "CoefficientPresentation",
+      Missing["NoCoefficientPresentation"]], variables];
+  bundlePresentationRoots =
+    coefficientPresentationSquareRootsInVariables[
+      bundlePresentation, variables];
+  bundleGeneratorIndices = Lookup[bundle,
+    "SquareRootGeneratorIndices", $Failed];
+  If[Lookup[bundlePresentation, "Status", None] =!= "OK" ||
+      ! ListQ[bundlePresentationRoots] ||
+      ! VectorQ[bundleGeneratorIndices, IntegerQ] ||
+      ! ContainsOnly[bundleGeneratorIndices,
+        Range[Length[bundlePresentationRoots]]] ||
+      bundleGeneratorIndices =!=
+        Sort[DeleteDuplicates[bundleGeneratorIndices]],
+    Throw[multiquadraticStripFailure[
+      "DeferredBundleCoefficientPresentationMismatch"], tag]];
+  bundleRoots = bundlePresentationRoots[[bundleGeneratorIndices]];
+  bundleRootEmbedding = multiquadraticStripBundleRootEmbedding[
+    bundleRoots, roots];
   If[bundleRootEmbedding === $Failed,
     Throw[multiquadraticStripFailure[
       "DeferredBundleRootOrderMismatch"], tag]];
   bundleRank = Length[bundleRoots];
-  squares = Together /@ Lookup[roots, "RootSquare", {}];
+  squares = Together /@ (squareRootRecordRadicand /@ roots);
   operands = Lookup[bundle, "OperandTable", {}];
   expressions = Map[Function[operand,
     operand["Numerator"]/Times @@
@@ -350,8 +368,9 @@ multiquadraticStripBundleLocalData[bundle_Association, roots_List,
   masks = Total[2^(#1 - 1)] & /@ activeRoots;
   coefficientData = Map[Function[job,
       Map[Function[term, Module[{canonical, expression, mask, active},
-        canonical = blockEquationDeferredFrameCanonicalize[
-          First[term], frame, variables];
+        canonical =
+          blockEquationDeferredCanonicalizeWithSquareRootGenerators[
+            First[term], bundleRoots, variables];
         If[Lookup[canonical, "Status", None] =!= "OK",
           Throw[Join[multiquadraticStripFailure[
             "BundleCoefficientCanonicalizationFailed"],
@@ -393,7 +412,7 @@ multiquadraticStripQuotientGradeEntry[entry_, roots_List, activeIndices_List,
   localDeltas = deltaValues[[activeIndices]];
   (* local grade unit vector of root k: mask 2^(k-1), index mask + 1 *)
   radicalRules = Table[
-    {Lookup[roots[[activeIndices[[k]]]], "RootSquare", 0],
+    {squareRootRecordRadicand[roots[[activeIndices[[k]]]]],
      UnitVector[2^Length[activeIndices], 2^(k - 1) + 1]},
     {k, Length[activeIndices]}];
   evaluated = multiquadraticStripModularGradeEvaluate[entry, scalarRules,
@@ -409,7 +428,7 @@ multiquadraticStripQuotientGradeEntry[entry_, roots_List, activeIndices_List,
 ];
 
 (* Stable formal roots for the sparse branch compiler.  They are implementation
-   variables, never part of a provider or coefficient ABI, and the compile
+   variables, never part of provider coefficient data, and the compile
    cache is reset on every load of this source. *)
 $multiquadraticStripSplitRootSymbols = Table[
   Unique["FeynFacet`Private`mqSplitRoot$"],
@@ -417,7 +436,6 @@ $multiquadraticStripSplitRootSymbols = Table[
 $multiquadraticStripSplitSparseCompilation = True;
 $multiquadraticStripSplitSparsePlanCache = <||>;
 $multiquadraticStripSplitSparseExactPlanCache = <||>;
-$multiquadraticStripTrustedSplitSparsePlanEvaluation = False;
 
 (* THE SPLIT FAST PATH.  Applying root branches and point rules directly is
    cheap for a small expression but still walks the entire raw tree once per
@@ -426,7 +444,7 @@ $multiquadraticStripTrustedSplitSparsePlanEvaluation = False;
    representation we need: replace the active radicals by formal roots once,
    compile the resulting rational function to sparse modular monomials once
    per prime, then evaluate each sign by packed dot products.  Its cache is
-   expression/root/variable/prime authenticated and byte bounded.
+   expression/root/variable/prime data exact and byte bounded.
 
    Compilation is only an optimization.  Any compile or evaluation refusal
    takes the historical substitution path, and that path retains the recursive
@@ -493,7 +511,7 @@ multiquadraticStripSplitBranchEntry[entry_, roots_List, activeIndices_List,
       If[IntegerQ[fast], fast,
         fallbackMethod = "GradeEvaluator";
         radicalRules = Table[
-          {Lookup[roots[[activeIndices[[k]]]], "RootSquare", 0],
+          {squareRootRecordRadicand[roots[[activeIndices[[k]]]]],
             {Mod[signs[[k]] localRoots[[k]], prime]}},
           {k, localRank}];
         evaluated = multiquadraticStripModularGradeEvaluate[entry, scalarRules,
@@ -508,7 +526,7 @@ multiquadraticStripSplitBranchEntry[entry_, roots_List, activeIndices_List,
     method = fallbackMethod;
     If[! VectorQ[branchValues, IntegerQ], Return[branchValues]]];
   (* Walsh-Hadamard back to channels, then divide by the evaluated r_S *)
-  channels = multiquadraticProjectConjugates[branchValues,
+  channels = multiquadraticProjectSignChangeImages[branchValues,
     Mod[localRoots, prime], prime];
   If[channels === $Failed,
     Return[<|"Status" -> "BranchProjectionFailed"|>]];
@@ -547,18 +565,16 @@ Options[multiquadraticStripDirectProvider] = {
   "Kind" -> "QuotientGrade",
   "OneForms" -> {},
   "GaugeDenominator" -> 1,
-  "DeferredBundle" -> Automatic,
-  "CoefficientABIFingerprint" -> Automatic,
-  "SourceFingerprint" -> Automatic
+  "DeferredBundle" -> Automatic
 };
 
 multiquadraticStripDirectProvider[record_Association, roots_List,
     opts : OptionsPattern[]] := Module[
   {gate, kind, variables, epsilon, strip, entries, activeRoots, oneForms,
    gaugeDenominator, gaugeLog, rootLog, oneFormActive, dimensions,
-   coefficientPayload, coefficientFingerprint, requestedFingerprint,
-   sourceFingerprint, canonicalData, result, deferredBundle,
-   bundleValidation, bundleFingerprint = None, bundleRootEmbedding,
+   coefficientData, result, deferredBundle,
+   bundleValidation, bundlePresentation, bundlePresentationRoots,
+   bundleGeneratorIndices, bundleRootEmbedding,
    bundleLocalData = Missing["NoDeferredBundle"],
    startTime = AbsoluteTime[]},
   gate = multiquadraticStripProductionOptionGate[{opts},
@@ -581,12 +597,28 @@ multiquadraticStripDirectProvider[record_Association, roots_List,
     If[Lookup[bundleValidation, "Status", None] =!= "BundleValid",
       Return[multiquadraticStripFailure["InvalidDeferredBundle",
         <|"Detail" -> bundleValidation|>]]];
+    bundlePresentation = masterTransportCoefficientPresentationData[
+      Lookup[deferredBundle, "CoefficientPresentation",
+        Missing["NoCoefficientPresentation"]], variables];
+    bundlePresentationRoots =
+      coefficientPresentationSquareRootsInVariables[
+        bundlePresentation, variables];
+    bundleGeneratorIndices = Lookup[deferredBundle,
+      "SquareRootGeneratorIndices", $Failed];
+    If[Lookup[bundlePresentation, "Status", None] =!= "OK" ||
+        ! ListQ[bundlePresentationRoots] ||
+        ! VectorQ[bundleGeneratorIndices, IntegerQ] ||
+        ! ContainsOnly[bundleGeneratorIndices,
+          Range[Length[bundlePresentationRoots]]] ||
+        bundleGeneratorIndices =!=
+          Sort[DeleteDuplicates[bundleGeneratorIndices]],
+      Return[multiquadraticStripFailure[
+        "DeferredBundleCoefficientPresentationMismatch"]]];
     bundleRootEmbedding = multiquadraticStripBundleRootEmbedding[
-      Lookup[deferredBundle["RootFrame"], "Roots", {}], roots];
+      bundlePresentationRoots[[bundleGeneratorIndices]], roots];
     If[bundleRootEmbedding === $Failed,
       Return[multiquadraticStripFailure[
         "DeferredBundleRootOrderMismatch"]]];
-    bundleFingerprint = deferredBundle["BundleFingerprint"];
     bundleLocalData = multiquadraticStripBundleLocalData[deferredBundle,
       roots, variables];
     If[Lookup[bundleLocalData, "Status", None] =!=
@@ -607,28 +639,11 @@ multiquadraticStripDirectProvider[record_Association, roots_List,
   gaugeDenominator = Together[OptionValue["GaugeDenominator"]];
   If[TrueQ[gaugeDenominator === 0],
     Return[multiquadraticStripFailure["ZeroGaugeDenominator"]]];
-  coefficientPayload = multiquadraticStripCoefficientABIPayload[
+  coefficientData = multiquadraticStripCoefficientData[
     variables, epsilon, roots, dimensions, oneForms, gaugeDenominator];
-  If[coefficientPayload === $Failed,
-    Return[multiquadraticStripFailure["CoefficientABIFailed"]]];
-  coefficientFingerprint = multiquadraticStripFingerprint[
-    coefficientPayload];
-  requestedFingerprint = OptionValue["CoefficientABIFingerprint"];
-  If[requestedFingerprint =!= Automatic &&
-      requestedFingerprint =!= coefficientFingerprint,
-    Return[multiquadraticStripFailure["ProviderLayoutMismatch",
-      <|"Expected" -> requestedFingerprint,
-        "Observed" -> coefficientFingerprint|>]]];
-  sourceFingerprint = OptionValue["SourceFingerprint"];
-  If[sourceFingerprint === Automatic,
-    canonicalData = multiquadraticStripCoreCanonicalData[record, roots,
-      variables, epsilon];
-    If[! AssociationQ[canonicalData],
-      Return[multiquadraticStripFailure["ProviderSourceFingerprintFailed"]]];
-    sourceFingerprint = Hash[canonicalData["EquationCanonical"], "SHA256",
-      "HexString"]];
-  If[! StringQ[sourceFingerprint],
-    Return[multiquadraticStripFailure["InvalidProviderSourceFingerprint"]]];
+  If[coefficientData === $Failed,
+    Return[multiquadraticStripFailure[
+      "CoefficientDataConstructionFailed"]]];
   entries = If[AssociationQ[deferredBundle],
     <|"E" -> strip[[1]], "C" -> strip[[2]]|>,
     <|"E" -> strip[[1]], "C" -> strip[[2]], "BBar" -> strip[[3]]|>];
@@ -642,8 +657,8 @@ multiquadraticStripDirectProvider[record_Association, roots_List,
      point. *)
   gaugeLog = Table[Together[D[gaugeDenominator, variables[[mu]]]/
     gaugeDenominator], {mu, 2}];
-  rootLog = Table[Together[D[Lookup[roots[[a]], "RootSquare", 1],
-      variables[[mu]]]/Lookup[roots[[a]], "RootSquare", 1]],
+  rootLog = Table[Together[D[squareRootRecordRadicand[roots[[a]]],
+      variables[[mu]]]/squareRootRecordRadicand[roots[[a]]]],
     {a, Length[roots]}, {mu, 2}];
   result = <|"Status" -> "MultiquadraticDirectProviderV1",
     "Kind" -> kind, "Roots" -> roots, "RootCount" -> Length[roots],
@@ -653,7 +668,6 @@ multiquadraticStripDirectProvider[record_Association, roots_List,
     "Entries" -> entries, "ActiveRoots" -> activeRoots,
     "DeferredBundle" -> If[AssociationQ[deferredBundle], deferredBundle,
       Missing["NoDeferredBundle"]],
-    "DeferredBundleFingerprint" -> bundleFingerprint,
     "BundleOperandExpressions" -> If[AssociationQ[bundleLocalData],
       bundleLocalData["OperandExpressions"],
       Missing["NoDeferredBundle"]],
@@ -673,21 +687,19 @@ multiquadraticStripDirectProvider[record_Association, roots_List,
     "OneForms" -> oneForms, "OneFormActiveRoots" -> oneFormActive,
     "GaugeDenominator" -> gaugeDenominator,
     "GaugeLogDerivatives" -> gaugeLog, "RootLogDerivatives" -> rootLog,
-    "CoefficientABIPayload" -> coefficientPayload,
-    "CoefficientABIFingerprint" -> coefficientFingerprint,
-    "SourceFingerprint" -> sourceFingerprint,
+    "CoefficientData" -> coefficientData,
     "ActiveRootHistogram" -> Counts[Flatten[
       Values[Map[Length, activeRoots, {4}]]]],
     "CensusSeconds" -> AbsoluteTime[] - startTime|>;
-  Append[result, "ProviderFingerprint" -> multiquadraticStripFingerprint[
-    {kind, coefficientFingerprint, sourceFingerprint, bundleFingerprint}]]
+  result
 ];
 multiquadraticStripDirectProvider[___] :=
   multiquadraticStripFailure["InvalidDirectProviderArguments"];
 
 multiquadraticStripProviderValidQ[provider_Association] := Module[
-  {kind, assembly, payload, coefficientFingerprint, expectedProvider,
-   bundle, bundleValidation, bundleLocalData},
+  {kind, assembly, coefficientData, expectedProvider, bundle,
+   bundleValidation, bundleLocalData, expectedActiveRoots,
+   expectedOneFormActiveRoots, expectedGaugeLog, expectedRootLog},
   kind = Lookup[provider, "Kind", None];
   Which[
     Lookup[provider, "Status", None] ===
@@ -695,25 +707,18 @@ multiquadraticStripProviderValidQ[provider_Association] := Module[
       assembly = Lookup[provider, "Assembly", $Failed];
       If[! multiquadraticStripCompiledValidQ[assembly], Return[False]];
       expectedProvider = multiquadraticStripCompiledProvider[assembly];
-      TrueQ[KeyTake[provider, {"Status", "Kind", "CoefficientABIFingerprint",
-          "RootCount", "GradeCount", "Dimensions", "ProviderFingerprint"}] ===
-        KeyTake[expectedProvider, {"Status", "Kind",
-          "CoefficientABIFingerprint", "RootCount", "GradeCount",
-          "Dimensions", "ProviderFingerprint"}]],
+      TrueQ[provider === expectedProvider],
     Lookup[provider, "Status", None] === "MultiquadraticDirectProviderV1" &&
         MemberQ[{"SplitBranch", "QuotientGrade"}, kind],
-      payload = multiquadraticStripCoefficientABIPayload[
+      coefficientData = multiquadraticStripCoefficientData[
         provider["Variables"], provider["Regulator"], provider["Roots"],
         provider["Dimensions"], provider["OneForms"],
         provider["GaugeDenominator"]];
-      If[payload === $Failed, Return[False]];
-      coefficientFingerprint = multiquadraticStripFingerprint[payload];
+      If[coefficientData === $Failed, Return[False]];
       bundle = Lookup[provider, "DeferredBundle", None];
       If[AssociationQ[bundle],
         bundleValidation = blockEquationDeferredBundleValidate[bundle];
-        If[Lookup[bundleValidation, "Status", None] =!= "BundleValid" ||
-            Lookup[provider, "DeferredBundleFingerprint", None] =!=
-              Lookup[bundle, "BundleFingerprint", None],
+        If[Lookup[bundleValidation, "Status", None] =!= "BundleValid",
           Return[False]];
         bundleLocalData = multiquadraticStripBundleLocalData[bundle,
           provider["Roots"], provider["Variables"]];
@@ -737,30 +742,38 @@ multiquadraticStripProviderValidQ[provider_Association] := Module[
               "BundleCoefficientActiveRoots" ->
                 bundleLocalData["CoefficientActiveRoots"]|>,
           Return[False]],
-        If[Lookup[provider, "DeferredBundleFingerprint", None] =!= None,
-          Return[False]]];
-      TrueQ[provider["CoefficientABIPayload"] === payload &&
-        provider["CoefficientABIFingerprint"] === coefficientFingerprint &&
+        If[! MissingQ[bundle], Return[False]]];
+      expectedActiveRoots = Map[
+        multiquadraticStripEntryActiveRoots[#1, provider["Roots"]] &,
+        provider["Entries"], {4}];
+      expectedOneFormActiveRoots = Map[
+        multiquadraticStripEntryActiveRoots[#1, provider["Roots"]] &,
+        provider["OneForms"], {2}];
+      expectedGaugeLog = Table[Together[
+        D[provider["GaugeDenominator"], provider["Variables"][[mu]]] /
+          provider["GaugeDenominator"]], {mu, 2}];
+      expectedRootLog = Table[Together[
+        D[squareRootRecordRadicand[provider["Roots"][[a]]],
+            provider["Variables"][[mu]]] /
+          squareRootRecordRadicand[provider["Roots"][[a]]]],
+        {a, Length[provider["Roots"]]}, {mu, 2}];
+      TrueQ[provider["CoefficientData"] === coefficientData &&
         provider["RootCount"] === Length[provider["Roots"]] &&
         provider["GradeCount"] === 2^provider["RootCount"] &&
-        provider["ProviderFingerprint"] === multiquadraticStripFingerprint[
-          {kind, coefficientFingerprint, provider["SourceFingerprint"],
-            Lookup[provider, "DeferredBundleFingerprint", None]}]],
+        provider["ActiveRoots"] === expectedActiveRoots &&
+        provider["OneFormActiveRoots"] === expectedOneFormActiveRoots &&
+        provider["GaugeLogDerivatives"] === expectedGaugeLog &&
+        provider["RootLogDerivatives"] === expectedRootLog],
     True, False]
 ];
 multiquadraticStripProviderValidQ[___] := False;
 
-(* A provider is authenticated once at an API boundary.  Recomputing the
-   coefficient ABI and deeply validating a deferred DAG at every sampled
-   point made bundle validation part of the finite-field hot loop.  Inside a
-   dynamically scoped, already-authenticated evaluation this predicate checks
-   only the small immutable seal.  Public/private entry points still use the
-   full validator above. *)
-$multiquadraticStripTrustedProviderEvaluation = False;
-
+(* Hot loops check only shape and direct mathematical data.  Callers entering
+   a sampling or plan-construction boundary run the full validator once; point
+   preflights then reuse the already validated immutable provider value. *)
 multiquadraticStripProviderHotValidQ[provider_Association] := Module[
   {kind = Lookup[provider, "Kind", None], status, rootCount, gradeCount,
-   dimensions, bundle, bundleFingerprint, expectedFingerprint, assembly},
+   dimensions, bundle, assembly},
   status = Lookup[provider, "Status", None];
   rootCount = Lookup[provider, "RootCount", $Failed];
   gradeCount = Lookup[provider, "GradeCount", $Failed];
@@ -768,45 +781,26 @@ multiquadraticStripProviderHotValidQ[provider_Association] := Module[
   If[! IntegerQ[rootCount] || rootCount < 0 ||
       gradeCount =!= 2^rootCount ||
       ! MatchQ[dimensions, {_Integer, _Integer}] || Min[dimensions] < 1 ||
-      ! StringQ[Lookup[provider, "CoefficientABIFingerprint", None]] ||
-      ! StringQ[Lookup[provider, "ProviderFingerprint", None]],
+      ! AssociationQ[Lookup[provider, "CoefficientData", None]],
     Return[False]];
   Which[
     status === "MultiquadraticCoefficientProviderV1" &&
         kind === "CompiledChannel",
       assembly = Lookup[provider, "Assembly", $Failed];
-      If[! AssociationQ[assembly] ||
-          ! StringQ[Lookup[assembly, "AssemblyFingerprint", None]],
-        Return[False]];
-      expectedFingerprint = multiquadraticStripFingerprint[{
-        "CompiledChannel", provider["CoefficientABIFingerprint"],
-        assembly["AssemblyFingerprint"]}];
-      TrueQ[provider["ProviderFingerprint"] === expectedFingerprint],
+      AssociationQ[assembly],
     status === "MultiquadraticDirectProviderV1" &&
         MemberQ[{"SplitBranch", "QuotientGrade"}, kind],
       If[! ListQ[Lookup[provider, "Roots", $Failed]] ||
-          Length[provider["Roots"]] =!= rootCount ||
-          ! StringQ[Lookup[provider, "SourceFingerprint", None]],
+          Length[provider["Roots"]] =!= rootCount,
         Return[False]];
       bundle = Lookup[provider, "DeferredBundle", None];
-      bundleFingerprint = Lookup[provider, "DeferredBundleFingerprint", None];
-      If[AssociationQ[bundle],
-        If[! StringQ[bundleFingerprint] ||
-            Lookup[bundle, "BundleFingerprint", None] =!= bundleFingerprint,
-          Return[False]],
-        If[bundleFingerprint =!= None, Return[False]]];
-      expectedFingerprint = multiquadraticStripFingerprint[{kind,
-        provider["CoefficientABIFingerprint"],
-        provider["SourceFingerprint"], bundleFingerprint}];
-      TrueQ[provider["ProviderFingerprint"] === expectedFingerprint],
+      AssociationQ[bundle] || MissingQ[bundle],
     True, False]
 ];
 multiquadraticStripProviderHotValidQ[___] := False;
 
-multiquadraticStripProviderEvaluationValidQ[provider_] := If[
-  TrueQ[$multiquadraticStripTrustedProviderEvaluation],
-  multiquadraticStripProviderHotValidQ[provider],
-  multiquadraticStripProviderValidQ[provider]];
+multiquadraticStripProviderEvaluationValidQ[provider_] :=
+  multiquadraticStripProviderHotValidQ[provider];
 
 (* A SplitBranch plan binds one provider and prime to UNIQUE
    (expression, active-root subset) leaves plus integer occurrence maps.
@@ -816,34 +810,36 @@ multiquadraticStripProviderEvaluationValidQ[provider_] := If[
    fallback. *)
 multiquadraticStripSplitSparseEvaluationPlan[provider_Association,
     prime_Integer] := Module[
-  {startTime = AbsoluteTime[], cacheKey, cached, roots, scalarVariables,
+  {startTime = AbsoluteTime[], providerCacheData, cached, roots,
+   scalarVariables,
    leaves = {}, buckets = <||>, register, entries, entryActive, entryMaps,
    registerAtLevel, oneFormMap, bundle, operandMap = {}, coefficientMap = {},
    operandTable = {}, structuredOperands = <||>, compileLeaf, compileSeconds,
    compiled, compileInvocationCount = 0, compiledLeafCount, plan,
-   occurrenceCount, exactCacheKey, exactCached, exactLeaves,
+   occurrenceCount, exactCached, exactLeaves,
    exactPlanCacheHit = False, exactCompileSeconds = 0., leafIndex},
-  If[! multiquadraticStripProviderEvaluationValidQ[provider] ||
+  If[! multiquadraticStripProviderValidQ[provider] ||
       Lookup[provider, "Kind", None] =!= "SplitBranch" ||
       ! PrimeQ[prime] ||
       ! (3 < prime < $multiquadraticStripWordPrimeLimit),
     Return[multiquadraticStripFailure[
       "InvalidSplitSparseEvaluationPlanInput"]]];
-  cacheKey = StringJoin["SplitSparsePlan:",
-    provider["ProviderFingerprint"], ":", ToString[prime]];
-  If[KeyExistsQ[$multiquadraticStripSplitSparsePlanCache, cacheKey],
-    cached = $multiquadraticStripSplitSparsePlanCache[cacheKey];
-    If[multiquadraticStripSplitSparseEvaluationPlanHotValidQ[cached,
-        provider, prime],
-      Return[Join[cached, <|"PlanCacheHit" -> True,
-        "BuildCompileInvocationCount" -> 0,
-        "BuildSeconds" -> N[AbsoluteTime[] - startTime]|>]],
-      KeyDropFrom[$multiquadraticStripSplitSparsePlanCache, cacheKey]]];
+  providerCacheData = KeyDrop[provider, "CensusSeconds"];
+  cached = multiquadraticStripCacheLookup[
+    $multiquadraticStripSplitSparsePlanCache,
+    SameQ[Lookup[#1, "ProviderData", Missing[]], providerCacheData] &&
+      Lookup[#1, "Prime", None] === prime &];
+  If[AssociationQ[cached] &&
+      multiquadraticStripSplitSparseEvaluationPlanHotValidQ[
+        cached, provider, prime],
+    Return[Join[cached, <|"PlanCacheHit" -> True,
+      "BuildCompileInvocationCount" -> 0,
+      "BuildSeconds" -> N[AbsoluteTime[] - startTime]|>]]];
   roots = provider["Roots"];
   scalarVariables = Join[provider["Variables"], {provider["Regulator"]}];
-  exactCacheKey = provider["ProviderFingerprint"];
-  exactCached = Lookup[$multiquadraticStripSplitSparseExactPlanCache,
-    exactCacheKey, Missing["NotFound"]];
+  exactCached = multiquadraticStripCacheLookup[
+    $multiquadraticStripSplitSparseExactPlanCache,
+    SameQ[Lookup[#1, "ProviderData", Missing[]], providerCacheData] &];
   If[AssociationQ[exactCached],
     leaves = exactCached["Leaves"];
     entryMaps = exactCached["OccurrenceMaps", "Entries"];
@@ -854,7 +850,7 @@ multiquadraticStripSplitSparseEvaluationPlan[provider_Association,
     exactPlanCacheHit = True,
     register[expression_, activeIndices_List] := Module[
       {bucketKey, candidates, index},
-      bucketKey = Hash[{expression, activeIndices}];
+      bucketKey = HoldComplete[expression, activeIndices];
       candidates = Lookup[buckets, bucketKey, {}];
       index = SelectFirst[candidates,
         SameQ[leaves[[#1, "Expression"]], expression] &&
@@ -911,11 +907,13 @@ multiquadraticStripSplitSparseEvaluationPlan[provider_Association,
         MapIndexed[compileLeaf[#1, First[#2]] &, leaves],
         ConstantArray[$Failed, Length[leaves]]]];
     multiquadraticStripCacheInsert[
-      $multiquadraticStripSplitSparseExactPlanCache, exactCacheKey,
-      <|"Leaves" -> leaves, "ExactLeaves" -> exactLeaves,
-        "OccurrenceMaps" -> <|"Entries" -> entryMaps,
-          "OneForms" -> oneFormMap, "BundleOperands" -> operandMap,
-          "BundleCoefficients" -> coefficientMap|>|>, 2]];
+      $multiquadraticStripSplitSparseExactPlanCache,
+      CreateUUID["SplitSparseExactPlan-"],
+      <|"ProviderData" -> providerCacheData,
+        "Data" -> <|"Leaves" -> leaves, "ExactLeaves" -> exactLeaves,
+          "OccurrenceMaps" -> <|"Entries" -> entryMaps,
+            "OneForms" -> oneFormMap, "BundleOperands" -> operandMap,
+            "BundleCoefficients" -> coefficientMap|>|>|>, 2]];
   leaves = MapIndexed[Function[{leaf, position},
     leafIndex = First[position];
     If[TrueQ[$multiquadraticStripSplitSparseCompilation],
@@ -932,8 +930,7 @@ multiquadraticStripSplitSparseEvaluationPlan[provider_Association,
     Values[entryMaps], {oneFormMap, operandMap, coefficientMap}]];
   plan = <|"Status" -> "MultiquadraticSplitSparseEvaluationPlanV1",
     "Schema" -> "MultiquadraticSplitSparseEvaluationPlanV1",
-    "ProviderFingerprint" -> provider["ProviderFingerprint"],
-    "CoefficientABIFingerprint" -> provider["CoefficientABIFingerprint"],
+    "CoefficientData" -> provider["CoefficientData"],
     "Prime" -> prime, "RootCount" -> provider["RootCount"],
     "Leaves" -> leaves,
     "OccurrenceMaps" -> <|"Entries" -> entryMaps,
@@ -948,11 +945,13 @@ multiquadraticStripSplitSparseEvaluationPlan[provider_Association,
     "ExactPlanCacheHit" -> exactPlanCacheHit,
     "ExactCompileSeconds" -> exactCompileSeconds,
     "PlanCacheHit" -> False,
-    "BuildCompileInvocationCount" -> compileInvocationCount,
-    "PlanFingerprint" -> cacheKey|>;
+    "BuildCompileInvocationCount" -> compileInvocationCount|>;
   plan = Append[plan, "BuildSeconds" -> N[AbsoluteTime[] - startTime]];
   multiquadraticStripCacheInsert[$multiquadraticStripSplitSparsePlanCache,
-    cacheKey, plan, 8]
+    CreateUUID["SplitSparsePlan-"],
+    <|"ProviderData" -> providerCacheData, "Prime" -> prime,
+      "Data" -> plan|>, 8];
+  plan
 ];
 multiquadraticStripSplitSparseEvaluationPlan[___] :=
   multiquadraticStripFailure[
@@ -973,14 +972,11 @@ multiquadraticStripSplitSparseEvaluationPlanHotValidQ[plan_Association,
     Lookup[plan, "Schema", None] ===
       "MultiquadraticSplitSparseEvaluationPlanV1" &&
     Lookup[provider, "Kind", None] === "SplitBranch" &&
-    Lookup[plan, "ProviderFingerprint", None] ===
-      Lookup[provider, "ProviderFingerprint", Missing["NoProvider"]] &&
-    Lookup[plan, "CoefficientABIFingerprint", None] ===
-      Lookup[provider, "CoefficientABIFingerprint", Missing["NoABI"]] &&
+    SameQ[Lookup[plan, "CoefficientData", None],
+      Lookup[provider, "CoefficientData", Missing["NoCoefficientData"]]] &&
     Lookup[plan, "Prime", None] === prime && PrimeQ[prime] &&
     Lookup[plan, "RootCount", None] === Lookup[provider, "RootCount", None] &&
     ListQ[leaves] && AssociationQ[maps] &&
-    StringQ[Lookup[plan, "PlanFingerprint", None]] &&
     VectorQ[indices, IntegerQ[#1] && 1 <= #1 <= Length[leaves] &]]
 ];
 multiquadraticStripSplitSparseEvaluationPlanHotValidQ[___] := False;
@@ -989,7 +985,7 @@ multiquadraticStripSplitSparseEvaluationPlanValidQ[plan_Association,
     provider_Association, prime_Integer] := Module[
   {leaves, maps, entryMaps, match, matchAtLevel, entries, active, entryOK,
    oneFormOK, bundle, operandOK, coefficientOK, leafOK},
-  If[! multiquadraticStripProviderHotValidQ[provider] ||
+  If[! multiquadraticStripProviderValidQ[provider] ||
       ! multiquadraticStripSplitSparseEvaluationPlanHotValidQ[plan,
         provider, prime], Return[False]];
   leaves = plan["Leaves"]; maps = plan["OccurrenceMaps"];
@@ -1038,17 +1034,14 @@ multiquadraticStripSplitSparseEvaluationPlanValidQ[plan_Association,
     plan["UniqueLeafCount"] === Length[leaves] &&
     plan["OccurrenceCount"] === Total[Length[Flatten[#1]] & /@
       Join[Values[entryMaps], {maps["OneForms"], maps["BundleOperands"],
-        maps["BundleCoefficients"]}]] &&
-    plan["PlanFingerprint"] === StringJoin["SplitSparsePlan:",
-      provider["ProviderFingerprint"], ":", ToString[prime]]]
+        maps["BundleCoefficients"]}]]]
 ];
 multiquadraticStripSplitSparseEvaluationPlanValidQ[___] := False;
 
 multiquadraticStripSplitSparseEvaluationPlanEvaluationValidQ[plan_,
-    provider_, prime_] := If[
-  TrueQ[$multiquadraticStripTrustedSplitSparsePlanEvaluation],
-  multiquadraticStripSplitSparseEvaluationPlanHotValidQ[plan, provider, prime],
-  multiquadraticStripSplitSparseEvaluationPlanValidQ[plan, provider, prime]];
+    provider_, prime_] :=
+  multiquadraticStripSplitSparseEvaluationPlanHotValidQ[
+    plan, provider, prime];
 
 multiquadraticStripSplitSparsePlannedEntry[plan_Association,
     index_Integer, provider_Association, scalarRules_Association,
@@ -1160,7 +1153,7 @@ multiquadraticStripNativeSparseEvaluateBatch[plan_Association,
         Lookup[#1, "Status", None] ===
             "MultiquadraticProviderPreflightV1" &&
           Lookup[#1, "Prime", None] === prime &&
-          Length[Lookup[#1, "RootValues", {}]] === rootCount &],
+          Length[Lookup[#1, "SquareRootGeneratorValues", {}]] === rootCount &],
     Return[multiquadraticStripFailure[
       "InvalidNativeSparseBatchInput"]]];
   result = Catch[
@@ -1175,7 +1168,7 @@ multiquadraticStripNativeSparseEvaluateBatch[plan_Association,
         "NativeSparsePlanWriteFailed"], tag]];
     rows = Join[Lookup[#1, "Point", {}],
         {Lookup[#1, "EpsilonMod", $Failed]},
-        Lookup[#1, "RootValues", {}]] & /@ preflights;
+        Lookup[#1, "SquareRootGeneratorValues", {}]] & /@ preflights;
     {pointWriteSeconds, result} = AbsoluteTiming[Quiet[Check[
       stream = OpenWrite[pointFile, BinaryFormat -> True];
       BinaryWrite[stream, ToCharacterCode["MQSE1Q1\000"],
@@ -1244,30 +1237,31 @@ multiquadraticStripNativeDeferredBinary[] := With[{file = FileNameJoin[{
     "flint_deferred_ast_eval"}]}, If[FileExistsQ[file], file, None]];
 
 multiquadraticStripAttachDeferredPreparation[provider_Association,
-    preparation_Association, inputFile_String] := Module[{seal},
-  (* The caller has just constructed the provider and the ordinary boundary
-     immediately below performs the one full validation.  Re-running the
-     bundle traversal here would make attachment itself duplicate the large
-     provider work; the immutable small seal is sufficient at this seam. *)
-  If[! multiquadraticStripProviderHotValidQ[provider] ||
+    preparation_Association, inputFile_String] := Module[
+  {preparationData, filePayload, filePreparations},
+  If[! multiquadraticStripProviderValidQ[provider] ||
       ! FileExistsQ[inputFile] ||
-      Lookup[preparation, "Status", None] =!= "Prepared" ||
-      Lookup[preparation, "ABIVersion", None] =!=
-        $blockEquationDeferredABIVersion ||
+      ! TrueQ[blockEquationDeferredPreparationQ[preparation]] ||
       Lookup[preparation, "Variables", None] =!= provider["Variables"] ||
       Lookup[preparation, "Regulator", None] =!= provider["Regulator"] ||
       Lookup[preparation, "Dimensions", None] =!=
-        Prepend[provider["Dimensions"], 2] ||
-      Lookup[preparation, "SourceFingerprint", None] =!=
-        provider["SourceFingerprint"],
+        Prepend[provider["Dimensions"], 2],
     Return[multiquadraticStripFailure[
       "InvalidDeferredPreparationProvider"]]];
+  filePayload = Quiet[Check[FamilyArtifactRead[inputFile], $Failed]];
+  filePreparations = DeleteDuplicates[Cases[filePayload,
+    candidate_Association /;
+        TrueQ[blockEquationDeferredPreparationQ[candidate]] :> candidate,
+    {0, Infinity}], SameQ];
+  If[! AnyTrue[filePreparations, SameQ[#1, preparation] &],
+    Return[multiquadraticStripFailure[
+      "DeferredPreparationFileDataMismatch"]]];
   (* Never attach the large Records forest to a provider that is serialized
-     for every image.  Its existing source fingerprint and this small shape
-     seal identify the immutable file; no second full-payload hash is made. *)
-  seal = KeyTake[preparation, {"Status", "ABIVersion", "SourceFingerprint",
+     for every image.  The V2 type and mathematical dimensions are the small
+     runtime data; the exactly checked preparation file remains authoritative. *)
+  preparationData = KeyTake[preparation, {"DataType", "SchemaVersion", "Status",
     "Variables", "Regulator", "Dimensions"}];
-  Join[provider, <|"DeferredPreparation" -> seal,
+  Join[provider, <|"DeferredPreparation" -> preparationData,
     "DeferredPreparationFile" -> inputFile|>]
 ];
 multiquadraticStripAttachDeferredPreparation[___] :=
@@ -1290,31 +1284,32 @@ multiquadraticStripNativeDeferredWriteRequest[file_String,
       Lookup[#1, "Status", None] ===
           "MultiquadraticProviderPreflightV1" &&
         Lookup[#1, "Prime", None] === prime &&
-        Lookup[#1, "ProviderFingerprint", None] ===
-          provider["ProviderFingerprint"] &&
-        Length[Lookup[#1, "RootSquares", {}]] === Length[roots] &&
-        Length[Lookup[#1, "RootValues", {}]] === Length[roots] &],
+        SameQ[Lookup[#1, "CoefficientData", None],
+          provider["CoefficientData"]] &&
+        Length[Lookup[#1, "QuadraticRadicands", {}]] === Length[roots] &&
+        Length[Lookup[#1, "SquareRootGeneratorValues", {}]] ===
+          Length[roots] &],
     Return[multiquadraticStripFailure[
       "InvalidNativeDeferredPreflightBatch", <|
         "Statuses" -> Lookup[preflights, "Status", None],
         "ObservedPrimes" -> Lookup[preflights, "Prime", None],
         "ExpectedPrime" -> prime,
-        "ObservedProviderFingerprints" ->
-          Lookup[preflights, "ProviderFingerprint", None],
-        "ExpectedProviderFingerprint" ->
-          Lookup[provider, "ProviderFingerprint", None],
-        "RootSquareCounts" ->
-          (Length[Lookup[#1, "RootSquares", {}]] & /@ preflights),
-        "RootValueCounts" ->
-          (Length[Lookup[#1, "RootValues", {}]] & /@ preflights),
+        "CoefficientDataMatches" ->
+          (SameQ[Lookup[#1, "CoefficientData", None],
+              provider["CoefficientData"]] & /@ preflights),
+        "QuadraticRadicandCounts" ->
+          (Length[Lookup[#1, "QuadraticRadicands", {}]] & /@ preflights),
+        "SquareRootGeneratorValueCounts" ->
+          (Length[Lookup[#1, "SquareRootGeneratorValues", {}]] & /@
+            preflights),
         "ExpectedRootCount" -> Length[roots]|>]]];
-  rootLines = ("root " <> ToString[Lookup[#1, "RootSquare", $Failed],
+  rootLines = ("root " <> ToString[squareRootRecordRadicand[#1],
       InputForm, PageWidth -> Infinity]) & /@ roots;
   imageLines = Function[preflight,
       "image " <> StringRiffle[ToString /@ Join[
         preflight["Point"], {preflight["EpsilonMod"]},
-        Flatten[Transpose[{preflight["RootSquares"],
-          preflight["RootValues"]}]]], " "]] /@ preflights;
+        Flatten[Transpose[{preflight["QuadraticRadicands"],
+          preflight["SquareRootGeneratorValues"]}]]], " "]] /@ preflights;
   lines = Join[{"DeferredASTRequestV1", "prime " <> ToString[prime],
       "variables " <> StringRiffle[
         SymbolName /@ Join[variables, {regulator}], " "],
@@ -1443,11 +1438,10 @@ multiquadraticStripNativeDeferredEvaluateBatch[provider_Association,
   inputFile = Lookup[provider, "DeferredPreparationFile", None];
   If[! StringQ[binary] || ! AssociationQ[preparation] ||
       ! StringQ[inputFile] || ! FileExistsQ[inputFile] ||
+      Lookup[preparation, "DataType", None] =!= "DeferredBlockEquation" ||
+      Lookup[preparation, "SchemaVersion", None] =!= 2 ||
       Lookup[preparation, "Status", None] =!= "Prepared" ||
-      Lookup[preparation, "ABIVersion", None] =!=
-        $blockEquationDeferredABIVersion ||
-      Lookup[preparation, "SourceFingerprint", None] =!=
-        provider["SourceFingerprint"] || preflights === {},
+      preflights === {},
     Return[multiquadraticStripFailure[
       "InvalidNativeDeferredBatchInput"]]];
   prime = Lookup[First[preflights], "Prime", $Failed];
@@ -1494,8 +1488,7 @@ multiquadraticStripChartForcingProvider[sourceProvider_Association,
     sourceRootImages_List] := Module[
   {sourceVariables, targetVariables, regulator, sourceRoots, substitution,
    substitutionValues, suppliedJacobian, jacobian, jacobianDet,
-   pulledSourceSquares, rootImageChannels, rootIdentities, fingerprint,
-   chartSeal},
+   pulledSourceSquares, rootImageChannels, rootIdentities},
   If[! multiquadraticStripProviderValidQ[sourceProvider] ||
       ! AssociationQ[Lookup[sourceProvider, "DeferredPreparation", None]] ||
       ! StringQ[Lookup[sourceProvider, "DeferredPreparationFile", None]] ||
@@ -1505,11 +1498,12 @@ multiquadraticStripChartForcingProvider[sourceProvider_Association,
     Return[multiquadraticStripFailure[
       "InvalidChartForcingSourceProvider"]]];
   sourceVariables = Lookup[sourceProvider, "Variables", $Failed];
-  targetVariables = Lookup[chartData, "Variables", $Failed];
+  targetVariables = masterTransportPresentationVariables[chartData];
   regulator = Lookup[sourceProvider, "Regulator", $Failed];
   sourceRoots = Lookup[sourceProvider, "Roots", $Failed];
-  substitution = Lookup[chartData, "Subst", $Failed];
-  suppliedJacobian = Lookup[chartData, "Jacobian", Automatic];
+  substitution = masterTransportPresentationSubstitution[chartData];
+  suppliedJacobian = Lookup[chartData, "DifferentialPullbackMatrix",
+    Automatic];
   If[! MatchQ[sourceVariables, {_Symbol, _Symbol}] ||
       ! MatchQ[targetVariables, {_Symbol, _Symbol}] ||
       ! MatchQ[regulator, _Symbol] ||
@@ -1518,7 +1512,11 @@ multiquadraticStripChartForcingProvider[sourceProvider_Association,
       ! MatchQ[substitution, {_Rule, _Rule}] ||
       First /@ substitution =!= sourceVariables ||
       ! AllTrue[targetRoots,
-        KeyExistsQ[#1, "Root"] && KeyExistsQ[#1, "RootSquare"] &],
+        AssociationQ[#1] &&
+          ! MissingQ[squareRootRecordExpression[#1]] &&
+          ! MissingQ[squareRootRecordRadicand[#1]] &&
+          TrueQ[Together[squareRootRecordExpression[#1]^2 -
+            squareRootRecordRadicand[#1]] === 0] &],
     Return[multiquadraticStripFailure[
       "InvalidChartForcingFrame"]]];
   substitutionValues = Last /@ substitution;
@@ -1540,7 +1538,7 @@ multiquadraticStripChartForcingProvider[sourceProvider_Association,
     Return[multiquadraticStripFailure[
       "ChartForcingJacobianDegenerate"]]];
   pulledSourceSquares = Quiet[Check[
-    Together /@ (Lookup[sourceRoots, "RootSquare", $Failed] /.
+    Together /@ ((squareRootRecordRadicand /@ sourceRoots) /.
       substitution), $Failed]];
   If[pulledSourceSquares === $Failed ||
       ! FreeQ[pulledSourceSquares, $Failed],
@@ -1563,34 +1561,30 @@ multiquadraticStripChartForcingProvider[sourceProvider_Association,
       ! FreeQ[rootImageChannels, $Failed],
     Return[multiquadraticStripFailure[
       "ChartForcingRootImageFieldMismatch"]]];
-  chartSeal = <|"Status" -> "OK", "Variables" -> targetVariables,
-    "SourceVariables" -> sourceVariables, "Subst" -> substitution,
-    "Jacobian" -> jacobian, "JacobianDet" -> jacobianDet|>;
-  fingerprint = multiquadraticStripFingerprint[{
-    "NativeDeferredChart", sourceProvider["ProviderFingerprint"],
-    targetRoots, chartSeal, sourceRootImages, rootImageChannels}];
   <|"Status" -> "MultiquadraticChartForcingProviderV1",
     "Kind" -> "NativeDeferredChart", "SourceProvider" -> sourceProvider,
     "Variables" -> targetVariables, "Regulator" -> regulator,
     "Roots" -> targetRoots, "RootCount" -> Length[targetRoots],
     "GradeCount" -> 2^Length[targetRoots],
     "Dimensions" -> sourceProvider["Dimensions"],
-    "ChartData" -> chartSeal, "SourceRootImages" -> sourceRootImages,
+    "CoefficientData" -> sourceProvider["CoefficientData"],
+    "CoefficientPresentation" -> chartData,
+    "SourceRootImages" -> sourceRootImages,
     "SourceRootImageChannels" -> rootImageChannels,
-    "ProviderFingerprint" -> fingerprint|>
+    "JacobianDeterminant" -> jacobianDet|>
 ];
 multiquadraticStripChartForcingProvider[___] :=
   multiquadraticStripFailure[
     "InvalidChartForcingProviderArguments"];
 
 multiquadraticStripChartForcingProviderValidQ[provider_Association] := Module[
-  {expected, sourceProvider, chartData, targetRoots, sourceRootImages, keys},
+  {expected, sourceProvider, chartData, targetRoots, sourceRootImages},
   If[Lookup[provider, "Status", None] =!=
         "MultiquadraticChartForcingProviderV1" ||
       Lookup[provider, "Kind", None] =!= "NativeDeferredChart",
     Return[False]];
   sourceProvider = Lookup[provider, "SourceProvider", $Failed];
-  chartData = Lookup[provider, "ChartData", $Failed];
+  chartData = Lookup[provider, "CoefficientPresentation", $Failed];
   targetRoots = Lookup[provider, "Roots", $Failed];
   sourceRootImages = Lookup[provider, "SourceRootImages", $Failed];
   If[! AssociationQ[sourceProvider] || ! AssociationQ[chartData] ||
@@ -1599,25 +1593,21 @@ multiquadraticStripChartForcingProviderValidQ[provider_Association] := Module[
     targetRoots, chartData, sourceRootImages];
   If[Lookup[expected, "Status", None] =!=
       "MultiquadraticChartForcingProviderV1", Return[False]];
-  keys = {"Status", "Kind", "Variables", "Regulator", "Roots",
-    "RootCount", "GradeCount", "Dimensions", "ChartData",
-    "SourceRootImages", "SourceRootImageChannels",
-    "ProviderFingerprint"};
-  TrueQ[KeyTake[provider, keys] === KeyTake[expected, keys]]
+  TrueQ[provider === expected]
 ];
 multiquadraticStripChartForcingProviderValidQ[___] := False;
 
 (* The screen validates the full wrapper once.  Point evaluation subsequently
-   checks only this immutable small seal; the source evaluator retains its own
-   authenticated preparation and request checks. *)
+   checks only this immutable small data record; the source evaluator retains
+   its own preparation and request validation. *)
 multiquadraticStripChartForcingProviderHotValidQ[provider_Association] :=
- Module[{sourceProvider, roots, sourceRoots, channels, chartData, fingerprint},
+ Module[{sourceProvider, roots, sourceRoots, channels, chartData},
   sourceProvider = Lookup[provider, "SourceProvider", $Failed];
   roots = Lookup[provider, "Roots", $Failed];
   sourceRoots = If[AssociationQ[sourceProvider],
     Lookup[sourceProvider, "Roots", $Failed], $Failed];
   channels = Lookup[provider, "SourceRootImageChannels", $Failed];
-  chartData = Lookup[provider, "ChartData", $Failed];
+  chartData = Lookup[provider, "CoefficientPresentation", $Failed];
   If[Lookup[provider, "Status", None] =!=
         "MultiquadraticChartForcingProviderV1" ||
       Lookup[provider, "Kind", None] =!= "NativeDeferredChart" ||
@@ -1631,16 +1621,16 @@ multiquadraticStripChartForcingProviderHotValidQ[provider_Association] :=
       Lookup[provider, "Dimensions", None] =!=
         Lookup[sourceProvider, "Dimensions", Missing["NoDimensions"]] ||
       ! AssociationQ[chartData] ||
-      Lookup[chartData, "Variables", None] =!=
+      masterTransportPresentationVariables[chartData] =!=
         Lookup[provider, "Variables", Missing["NoVariables"]] ||
+      ! SameQ[Lookup[provider, "CoefficientData", None],
+        Lookup[sourceProvider, "CoefficientData",
+          Missing["NoCoefficientData"]]] ||
       ! MatchQ[channels, {___List}] ||
       Length[channels] =!= Length[sourceRoots] ||
       ! AllTrue[channels, Length[#1] === 2^Length[roots] &],
     Return[False]];
-  fingerprint = multiquadraticStripFingerprint[{
-    "NativeDeferredChart", sourceProvider["ProviderFingerprint"], roots,
-    chartData, provider["SourceRootImages"], channels}];
-  TrueQ[fingerprint === Lookup[provider, "ProviderFingerprint", None]]
+  True
 ];
 multiquadraticStripChartForcingProviderHotValidQ[___] := False;
 
@@ -1652,11 +1642,9 @@ multiquadraticStripChartForcingPreflight[provider_Association, epsilonValue_,
    evaluateScalar, sourcePoint, jacobian, jacobianDet, targetDeltaValues,
    sourceRootImageChannels, sourceRootImageChannelValues,
    targetSheetMonomials, sourceRootSheetValues, sourcePreflight,
-   sourceRootSquares, failure},
+  sourceRootSquares, failure},
   failure[status_String, data_: <||>] := multiquadraticStripFailure[status,
-    Join[<|"ProviderFingerprint" -> Lookup[provider,
-        "ProviderFingerprint", Missing["NoProviderFingerprint"]],
-      "Prime" -> prime, "RegulatorValue" -> epsilonValue,
+    Join[<|"Prime" -> prime, "RegulatorValue" -> epsilonValue,
       "Point" -> Mod[targetPoint, prime],
       "PreflightSeconds" -> N[AbsoluteTime[] - startTime]|>, data]];
   If[! multiquadraticStripChartForcingProviderHotValidQ[provider] ||
@@ -1667,7 +1655,7 @@ multiquadraticStripChartForcingPreflight[provider_Association, epsilonValue_,
   regulator = provider["Regulator"];
   targetRoots = provider["Roots"];
   sourceRoots = sourceProvider["Roots"];
-  chartData = provider["ChartData"];
+  chartData = provider["CoefficientPresentation"];
   epsilonMod = multiquadraticStripModRational[epsilonValue, prime];
   If[epsilonMod === $Failed || epsilonMod === 0 ||
       Length[targetRootValues] =!= Length[targetRoots] ||
@@ -1683,11 +1671,13 @@ multiquadraticStripChartForcingPreflight[provider_Association, epsilonValue_,
     If[Lookup[evaluated, "Status", None] =!= "OK" ||
         Length[Lookup[evaluated, "Channels", {}]] =!= 1,
       $Failed, First[evaluated["Channels"]]]];
-  sourcePoint = evaluateScalar /@ (Last /@ chartData["Subst"]);
-  jacobian = Map[evaluateScalar, chartData["Jacobian"], {2}];
-  jacobianDet = evaluateScalar[chartData["JacobianDet"]];
-  targetDeltaValues = evaluateScalar /@ Lookup[targetRoots,
-    "RootSquare", {}];
+  sourcePoint = evaluateScalar /@
+    (Last /@ masterTransportPresentationSubstitution[chartData]);
+  jacobian = Map[evaluateScalar,
+    chartData["DifferentialPullbackMatrix"], {2}];
+  jacobianDet = evaluateScalar[chartData["JacobianDeterminant"]];
+  targetDeltaValues = evaluateScalar /@
+    (squareRootRecordRadicand /@ targetRoots);
   If[! VectorQ[sourcePoint, IntegerQ] ||
       ! MatrixQ[jacobian, IntegerQ] || Dimensions[jacobian] =!= {2, 2} ||
       ! IntegerQ[jacobianDet] || jacobianDet === 0 ||
@@ -1724,23 +1714,24 @@ multiquadraticStripChartForcingPreflight[provider_Association, epsilonValue_,
       "MultiquadraticProviderPreflightV1",
     Return[failure["ChartForcingSourcePreflightFailed",
       <|"Detail" -> sourcePreflight|>]]];
-  sourceRootSquares = Lookup[sourcePreflight, "RootSquares", {}];
+  sourceRootSquares = Lookup[sourcePreflight, "QuadraticRadicands", {}];
   If[Length[sourceRootSquares] =!= Length[sourceRoots] ||
       ! AllTrue[Range[Length[sourceRoots]], Mod[
           sourceRootSheetValues[[1, #1]]^2 - sourceRootSquares[[#1]],
           prime] === 0 &],
-    Return[failure["ChartForcingSourceRootAuthenticationFailed"]]];
+    Return[failure["ChartForcingSourceSquareRootImageMismatch"]]];
   sourcePreflight = Join[sourcePreflight, <|
-    "RootValues" -> First[sourceRootSheetValues], "SplitPointQ" -> True|>];
+    "SquareRootGeneratorValues" -> First[sourceRootSheetValues],
+    "SplitPointQ" -> True|>];
   <|"Status" -> "MultiquadraticChartForcingPreflightV1",
-    "ProviderFingerprint" -> provider["ProviderFingerprint"],
+    "CoefficientData" -> provider["CoefficientData"],
     "Prime" -> prime, "RegulatorValue" -> epsilonValue,
     "EpsilonMod" -> epsilonMod, "Point" -> Mod[targetPoint, prime],
-    "TargetRootValues" -> Mod[targetRootValues, prime],
+    "TargetSquareRootGeneratorValues" -> Mod[targetRootValues, prime],
     "SourceRootSheetValues" -> sourceRootSheetValues,
     "SourcePreflight" -> sourcePreflight,
     "Jacobian" -> Mod[jacobian, prime],
-    "JacobianDet" -> Mod[jacobianDet, prime],
+    "JacobianDeterminant" -> Mod[jacobianDet, prime],
     "PreflightSeconds" -> N[AbsoluteTime[] - startTime]|>
 ];
 multiquadraticStripChartForcingPreflight[___] :=
@@ -1772,7 +1763,7 @@ multiquadraticStripChartForcingFoldTensor[tensor_,
         sourceRootSheetValues[[sheet, a]], 1], {a, sourceRank}],
       {grade, 1, sourceGradeCount}],
     {sheet, targetGradeCount}];
-  fold[channelVector_List] := multiquadraticProjectConjugates[
+  fold[channelVector_List] := multiquadraticProjectSignChangeImages[
     Mod[sourceSheetMonomials . channelVector, prime],
     Mod[targetRootValues, prime], prime];
   mapLevel = Length[dimensions] - 1;
@@ -1797,8 +1788,8 @@ multiquadraticStripNativeDeferredChartEvaluateBatch[
       preflights === {} || ! AllTrue[preflights,
         Lookup[#1, "Status", None] ===
             "MultiquadraticChartForcingPreflightV1" &&
-          Lookup[#1, "ProviderFingerprint", None] ===
-            provider["ProviderFingerprint"] &],
+          SameQ[Lookup[#1, "CoefficientData", None],
+            provider["CoefficientData"]] &],
     Return[multiquadraticStripFailure[
       "InvalidNativeDeferredChartBatchInput"]]];
   prime = Lookup[First[preflights], "Prime", $Failed];
@@ -1821,18 +1812,18 @@ multiquadraticStripNativeDeferredChartEvaluateBatch[
     sourceDerivatives = native["BBarDerivativeBatch"][[All, base]];
     foldedBBar = multiquadraticStripChartForcingFoldTensor[sourceBBar,
       preflights[[base, "SourceRootSheetValues"]],
-      preflights[[base, "TargetRootValues"]], prime];
+      preflights[[base, "TargetSquareRootGeneratorValues"]], prime];
     sourceCurl = Mod[sourceDerivatives[[2, 1]] -
       sourceDerivatives[[1, 2]], prime];
     foldedCurl = multiquadraticStripChartForcingFoldTensor[sourceCurl,
       preflights[[base, "SourceRootSheetValues"]],
-      preflights[[base, "TargetRootValues"]], prime];
+      preflights[[base, "TargetSquareRootGeneratorValues"]], prime];
     If[foldedBBar === $Failed || foldedCurl === $Failed,
       Return[multiquadraticStripFailure[
         "NativeDeferredChartGradeFoldFailed",
         <|"BaseIndex" -> base|>]]];
     jacobian = preflights[[base, "Jacobian"]];
-    jacobianDet = preflights[[base, "JacobianDet"]];
+    jacobianDet = preflights[[base, "JacobianDeterminant"]];
     chartBBar = {
       Mod[jacobian[[1, 1]] foldedBBar[[1]] +
         jacobian[[2, 1]] foldedBBar[[2]], prime],
@@ -1879,7 +1870,7 @@ multiquadraticStripNativePreflightBatch[provider_Association,
       ! Between[threads, {1, 8}],
     Return[multiquadraticStripFailure[
       "InvalidNativePreflightBatchInput"]]];
-  expressions = Join[Lookup[provider["Roots"], "RootSquare", {}],
+  expressions = Join[squareRootRecordRadicand /@ provider["Roots"],
     {provider["GaugeDenominator"]}, provider["GaugeLogDerivatives"],
     Flatten[provider["RootLogDerivatives"]]];
   {compileSeconds, compiled} = AbsoluteTiming[
@@ -1894,7 +1885,8 @@ multiquadraticStripNativePreflightBatch[provider_Association,
   dummy = Map[<|"Status" -> "MultiquadraticProviderPreflightV1",
       "Prime" -> prime, "Point" -> Mod[#1, prime],
       "EpsilonMod" -> epsilonMod,
-      "RootValues" -> ConstantArray[1, rootCount]|> &, points];
+      "SquareRootGeneratorValues" ->
+        ConstantArray[1, rootCount]|> &, points];
   native = multiquadraticStripNativeSparseEvaluateBatch[nativePlan, dummy,
     threads];
   If[Lookup[native, "Status", None] =!=
@@ -1908,8 +1900,7 @@ multiquadraticStripNativePreflightBatch[provider_Association,
       deltas, denominator, gaugeLog, rootLog, splitQ, rootValues,
       failure},
     failure[status_String, data_: <||>] := multiquadraticStripFailure[status,
-      Join[<|"ProviderFingerprint" -> provider["ProviderFingerprint"],
-        "Prime" -> prime, "RegulatorValue" -> epsilonValue,
+      Join[<|"Prime" -> prime, "RegulatorValue" -> epsilonValue,
         "Point" -> point, "PreflightRejected" -> True,
         "LargeEntryEvaluationCount" -> 0,
         "PreflightSeconds" -> perPointSeconds|>, data]];
@@ -1923,26 +1914,25 @@ multiquadraticStripNativePreflightBatch[provider_Association,
       ArrayReshape[Drop[scalars, rootCount + 3], {rootCount, 2}]];
     If[MemberQ[deltas, 0],
       Return[failure["DegenerateRootImage",
-        <|"DeltaValues" -> deltas|>]]];
+        <|"QuadraticRadicandValues" -> deltas|>]]];
     If[denominator === 0,
       Return[failure["ZeroGaugeDenominator"]]];
     splitQ = AllTrue[deltas, modularResidueQ[#1, prime] &];
     If[! splitQ,
       Return[failure["PointNotSplitOverPrime",
-        <|"DeltaValues" -> deltas|>]]];
+        <|"QuadraticRadicandValues" -> deltas|>]]];
     rootValues = multiquadraticSquareRoots[deltas, prime];
     If[rootValues === $Failed,
       Return[failure["ModularSquareRootFailed"]]];
     <|"Status" -> "MultiquadraticProviderPreflightV1",
       "Provider" -> "SplitBranch",
-      "ProviderFingerprint" -> provider["ProviderFingerprint"],
-      "CoefficientABIFingerprint" ->
-        provider["CoefficientABIFingerprint"],
+      "CoefficientData" -> provider["CoefficientData"],
       "Prime" -> prime, "RegulatorValue" -> epsilonValue,
       "EpsilonMod" -> epsilonMod, "Point" -> point,
       "ScalarRules" -> Join[AssociationThread[variables, point],
         <|epsilon -> epsilonMod|>],
-      "RootSquares" -> deltas, "RootValues" -> rootValues,
+      "QuadraticRadicands" -> deltas,
+      "SquareRootGeneratorValues" -> rootValues,
       "SplitPointQ" -> True, "GaugeDenominator" -> denominator,
       "GaugeLogDerivatives" -> gaugeLog,
       "RootLogDerivatives" -> rootLog,
@@ -2002,7 +1992,7 @@ multiquadraticStripNativeRowAssembleBatch[assembly_Association,
     payload = Flatten[{
           Lookup[#1, "Point", {}], Lookup[#1,
             {"EpsilonMod", "GaugeDenominator"}, {$Failed, $Failed}],
-          Lookup[#1, "RootSquares", {}],
+          Lookup[#1, "QuadraticRadicands", {}],
           Lookup[#1, "GaugeLogDerivatives", {}],
           Lookup[#1, "RootLogDerivatives", {}], Lookup[#1, "E", {}],
           Lookup[#1, "C", {}], Lookup[#1, "BBar", {}],
@@ -2067,21 +2057,14 @@ multiquadraticStripNativeRowAssembleBatch[___] :=
 multiquadraticStripPointResult[assembly_Association,
     coefficients_Association, rows_List, right_List, assemblySeconds_] :=
   <|"Status" -> "AssembledMultiquadraticPointV1",
-    "AssemblyFingerprint" -> Lookup[assembly, "AssemblyFingerprint",
-      Missing["NotCompiled"]],
-    "LayoutFingerprint" -> Lookup[assembly, "LayoutFingerprint",
-      Missing["LegacyCompiledOracle"]],
-    "CoefficientABIFingerprint" -> Lookup[coefficients,
-      "CoefficientABIFingerprint", Missing["LegacyCompiledOracle"]],
-    "ProviderFingerprint" -> Lookup[coefficients, "ProviderFingerprint",
-      Missing["LegacyCompiledOracle"]],
+    "CoefficientData" -> coefficients["CoefficientData"],
     "Prime" -> coefficients["Prime"],
     "Provider" -> Lookup[coefficients, "Provider", "CompiledChannel"],
     "EpsilonValue" -> Lookup[coefficients, "RegulatorValue",
       Missing["NoRegulatorValue"]],
     "EpsilonMod" -> coefficients["EpsilonMod"],
     "Point" -> coefficients["Point"],
-    "DeltaValues" -> coefficients["RootSquares"],
+    "QuadraticRadicandValues" -> coefficients["QuadraticRadicands"],
     "Rows" -> Developer`ToPackedArray[rows],
     "RightHandSide" -> Developer`ToPackedArray[right],
     "MatrixDimensions" -> Dimensions[rows],
@@ -2095,7 +2078,7 @@ multiquadraticStripPointResult[assembly_Association,
 multiquadraticStripPointResult[___] :=
   multiquadraticStripFailure["InvalidPointResultArguments"];
 
-(* Cheap authenticated point preflight.  It evaluates only the root
+(* Cheap validated point preflight.  It evaluates only the root
    squares, the gauge denominator and their logarithmic derivatives.  A
    split provider rejects a nonsplit point here, before one large matrix
    entry is touched.  The returned primitives are reused by the full
@@ -2109,9 +2092,7 @@ multiquadraticStripProviderPreflight[provider_Association, epsilonValue_,
    requiredYExponents, x, y, xPowers, yPowers, primitiveForms,
    primitiveEvaluated, failure},
   failure[status_String, data_: <||>] := multiquadraticStripFailure[status,
-    Join[<|"ProviderFingerprint" -> Lookup[provider,
-        "ProviderFingerprint", Missing["NoProviderFingerprint"]],
-      "Prime" -> prime, "RegulatorValue" -> epsilonValue,
+    Join[<|"Prime" -> prime, "RegulatorValue" -> epsilonValue,
       "Point" -> Mod[point, prime], "PreflightRejected" -> True,
       "LargeEntryEvaluationCount" -> 0,
       "PreflightSeconds" -> N[AbsoluteTime[] - startTime]|>, data]];
@@ -2165,12 +2146,11 @@ multiquadraticStripProviderPreflight[provider_Association, epsilonValue_,
     splitQ = AllTrue[deltaValues, modularResidueQ[#1, prime] &];
     Return[<|"Status" -> "MultiquadraticProviderPreflightV1",
       "Provider" -> kind,
-      "ProviderFingerprint" -> provider["ProviderFingerprint"],
-      "CoefficientABIFingerprint" ->
-        provider["CoefficientABIFingerprint"],
+      "CoefficientData" -> provider["CoefficientData"],
       "Prime" -> prime, "RegulatorValue" -> epsilonValue,
       "EpsilonMod" -> epsilonMod, "Point" -> {x, y},
-      "RootSquares" -> deltaValues, "RootValues" -> If[splitQ,
+      "QuadraticRadicands" -> deltaValues,
+      "SquareRootGeneratorValues" -> If[splitQ,
         multiquadraticSquareRoots[deltaValues, prime],
         ConstantArray[0, Length[deltaValues]]],
       "SplitPointQ" -> splitQ,
@@ -2190,11 +2170,13 @@ multiquadraticStripProviderPreflight[provider_Association, epsilonValue_,
       scalarRules, {}, {}, prime];
     If[Lookup[evaluated, "Status", None] =!= "OK", $Failed,
       First[evaluated["Channels"]]]];
-  deltaValues = Table[evaluateScalar[Lookup[roots[[k]], "RootSquare", 0]],
+  deltaValues = Table[evaluateScalar[
+      squareRootRecordRadicand[roots[[k]]]],
     {k, rank}];
   If[MemberQ[deltaValues, $Failed],
-    Return[failure["RootSquareNotEvaluable",
-      <|"RootIndices" -> Flatten[Position[deltaValues, $Failed]]|>]]];
+    Return[failure["QuadraticRadicandNotEvaluable",
+      <|"SquareRootGeneratorIndices" ->
+        Flatten[Position[deltaValues, $Failed]]|>]]];
   If[MemberQ[deltaValues, 0],
     Return[failure["DegenerateRootImage",
       <|"DeltaValues" -> deltaValues|>]]];
@@ -2215,12 +2197,11 @@ multiquadraticStripProviderPreflight[provider_Association, epsilonValue_,
     Return[failure["ModularSquareRootFailed"]]];
   <|"Status" -> "MultiquadraticProviderPreflightV1",
     "Provider" -> kind,
-    "ProviderFingerprint" -> provider["ProviderFingerprint"],
-    "CoefficientABIFingerprint" -> provider["CoefficientABIFingerprint"],
+    "CoefficientData" -> provider["CoefficientData"],
     "Prime" -> prime, "RegulatorValue" -> epsilonValue,
     "EpsilonMod" -> epsilonMod, "Point" -> Mod[point, prime],
-    "ScalarRules" -> scalarRules, "RootSquares" -> deltaValues,
-    "RootValues" -> rootValues, "SplitPointQ" -> splitQ,
+    "ScalarRules" -> scalarRules, "QuadraticRadicands" -> deltaValues,
+    "SquareRootGeneratorValues" -> rootValues, "SplitPointQ" -> splitQ,
     "GaugeDenominator" -> denominatorValue,
     "GaugeLogDerivatives" -> gaugeLogValues,
     "RootLogDerivatives" -> rootLogValues,
@@ -2240,8 +2221,8 @@ multiquadraticStripCompiledProviderChannels[provider_Association,
       provider["Kind"] =!= "CompiledChannel" ||
       Lookup[preflight, "Status", None] =!=
         "MultiquadraticProviderPreflightV1" ||
-      Lookup[preflight, "ProviderFingerprint", None] =!=
-        provider["ProviderFingerprint"],
+      ! SameQ[Lookup[preflight, "CoefficientData", None],
+        provider["CoefficientData"]],
     Return[multiquadraticStripFailure["InvalidCompiledProviderPreflight"]]];
   assembly = provider["Assembly"];
   prime = preflight["Prime"];
@@ -2253,7 +2234,6 @@ multiquadraticStripCompiledProviderChannels[provider_Association,
   If[! AssociationQ[evaluated],
     Return[multiquadraticStripFailure["RationalChannelPole",
       <|"Prime" -> prime, "Point" -> preflight["Point"],
-        "ProviderFingerprint" -> provider["ProviderFingerprint"],
         "LargeEntryEvaluationCount" -> 0|>]]];
   evaluated = Join[preflight["PrimitiveValues"], evaluated];
   entryCount = Total[Times @@ Dimensions[#1] & /@
@@ -2263,16 +2243,16 @@ multiquadraticStripCompiledProviderChannels[provider_Association,
     "Point" -> preflight["Point"],
     "RegulatorValue" -> preflight["RegulatorValue"],
     "EpsilonMod" -> preflight["EpsilonMod"],
-    "RootSquares" -> preflight["RootSquares"],
-    "RootValues" -> preflight["RootValues"],
+    "QuadraticRadicands" -> preflight["QuadraticRadicands"],
+    "SquareRootGeneratorValues" ->
+      preflight["SquareRootGeneratorValues"],
     "SplitPointQ" -> preflight["SplitPointQ"],
     "GaugeDenominator" -> preflight["GaugeDenominator"],
     "GaugeLogDerivatives" -> evaluated["GaugeLogDerivatives"],
     "RootLogDerivatives" -> evaluated["RootLogDerivatives"],
     "E" -> evaluated["E"], "C" -> evaluated["C"],
     "BBar" -> evaluated["BBar"], "OneForms" -> evaluated["OneForms"],
-    "CoefficientABIFingerprint" -> provider["CoefficientABIFingerprint"],
-    "ProviderFingerprint" -> provider["ProviderFingerprint"],
+    "CoefficientData" -> provider["CoefficientData"],
     "PreflightSeconds" -> preflight["PreflightSeconds"],
     "LargeEntryEvaluationCount" -> entryCount,
     "EntryEvaluationCount" -> entryCount,
@@ -2282,9 +2262,9 @@ multiquadraticStripCompiledProviderChannels[provider_Association,
 multiquadraticStripCompiledProviderChannels[___] :=
   multiquadraticStripFailure["InvalidCompiledProviderChannelArguments"];
 
-(* Evaluate the deferred forcing DAG at one authenticated point.  SplitBranch
+(* Evaluate the deferred forcing DAG at one validated point.  SplitBranch
    evaluates each operand and coefficient only on the sign orbit of its local
-   active subfield, lifts those channels to the global ABI, and assembles jobs
+   active subfield, lifts those channels to the global grade order, and assembles jobs
    with quotient-algebra multiplication.  Thus a root-free operand costs one
    scalar image and a rank-one operand costs two even in a rank-three frame.
    QuotientGrade retains its existing one-grade-evaluation-per-entry route.
@@ -2309,9 +2289,7 @@ multiquadraticStripBundleProviderChannels[provider_Association,
    compositionSeconds = 0.},
   tag = Unique["MultiquadraticBundleProviderFailure"];
   If[! multiquadraticStripProviderEvaluationValidQ[provider] ||
-      ! AssociationQ[bundle] ||
-      bundle["BundleFingerprint"] =!=
-        provider["DeferredBundleFingerprint"],
+      ! AssociationQ[bundle],
     Throw[multiquadraticStripFailure["InvalidDeferredBundle"], tag]];
   expressions = provider["BundleOperandExpressions"];
   operandActiveRoots = provider["BundleOperandActiveRoots"];
@@ -2321,8 +2299,8 @@ multiquadraticStripBundleProviderChannels[provider_Association,
   dimensions = bundle["Dimensions"];
   rank = provider["RootCount"]; gradeCount = provider["GradeCount"];
   prime = preflight["Prime"]; scalarRules = preflight["ScalarRules"];
-  deltaValues = preflight["RootSquares"];
-  rootValues = preflight["RootValues"];
+  deltaValues = preflight["QuadraticRadicands"];
+  rootValues = preflight["SquareRootGeneratorValues"];
   kind = provider["Kind"];
   plannedQ = splitPlan =!= Automatic;
   If[plannedQ,
@@ -2366,7 +2344,6 @@ multiquadraticStripBundleProviderChannels[provider_Association,
     Return[<|"Status" -> "MultiquadraticBundleChannelsV1",
       "BBar" -> ArrayReshape[targetChannels,
         Append[dimensions, gradeCount]],
-      "BundleFingerprint" -> bundle["BundleFingerprint"],
       "OperandEvaluationCount" -> operandScalarCount,
       "CoefficientEvaluationCount" -> coefficientScalarCount,
       "OperandEntryEvaluationCount" -> evaluationCount,
@@ -2388,7 +2365,6 @@ multiquadraticStripBundleProviderChannels[provider_Association,
       "SplitSubstitutionFallbackSeconds" -> 0.,
       "OccurrenceGatherSeconds" -> gatherSeconds,
       "CompositionSeconds" -> compositionSeconds,
-      "SplitSparsePlanFingerprint" -> splitPlan["PlanFingerprint"],
       "OperandLocalRankHistogram" -> Counts[Length /@ operandActiveRoots],
       "CoefficientLocalRankHistogram" -> Counts[
         Length /@ Flatten[coefficientActiveRoots, 1]],
@@ -2447,7 +2423,8 @@ multiquadraticStripBundleProviderChannels[provider_Association,
       {jobIndex, Length[jobs]}];
     globalSheetScalarCount = gradeCount (evaluationCount + coefficientCount),
     radicalRules = Table[
-      {roots[[k, "RootSquare"]], UnitVector[gradeCount, 2^(k - 1) + 1]},
+      {squareRootRecordRadicand[roots[[k]]],
+        UnitVector[gradeCount, 2^(k - 1) + 1]},
       {k, rank}];
     evaluateGrade[expression_] := Module[{evaluated},
       evaluated = multiquadraticStripModularGradeEvaluate[expression,
@@ -2473,7 +2450,6 @@ multiquadraticStripBundleProviderChannels[provider_Association,
   <|"Status" -> "MultiquadraticBundleChannelsV1",
     "BBar" -> ArrayReshape[targetChannels,
       Append[dimensions, gradeCount]],
-    "BundleFingerprint" -> bundle["BundleFingerprint"],
     (* Historical counts continue to mean actual scalar work on the split
        route; explicit entry counts remove any ambiguity for telemetry. *)
     "OperandEvaluationCount" -> If[kind === "SplitBranch",
@@ -2520,15 +2496,15 @@ multiquadraticStripPlannedProviderChannels[provider_Association,
    occurrenceCount, entryCount},
   If[Lookup[preflight, "Status", None] =!=
         "MultiquadraticProviderPreflightV1" ||
-      Lookup[preflight, "ProviderFingerprint", None] =!=
-        Lookup[provider, "ProviderFingerprint", None] ||
+      ! SameQ[Lookup[preflight, "CoefficientData", None],
+        Lookup[provider, "CoefficientData", None]] ||
       ! multiquadraticStripSplitSparseEvaluationPlanEvaluationValidQ[
         plan, provider, prime],
     Return[multiquadraticStripFailure[
       "InvalidSplitSparseEvaluationPlan"]]];
   scalarRules = preflight["ScalarRules"];
-  deltaValues = preflight["RootSquares"];
-  rootValues = preflight["RootValues"];
+  deltaValues = preflight["QuadraticRadicands"];
+  rootValues = preflight["SquareRootGeneratorValues"];
   If[suppliedLeafChannels === Automatic,
     {leafEvaluationSeconds, leafResults} = AbsoluteTiming[MapIndexed[
       multiquadraticStripSplitSparsePlannedEntry[plan, First[#2], provider,
@@ -2553,7 +2529,6 @@ multiquadraticStripPlannedProviderChannels[provider_Association,
     Return[Join[<|"Status" -> Lookup[bad, "Status",
           "SplitSparsePlannedLeafFailed"],
         "SplitSparsePlanLeafIndex" -> badIndex,
-        "SplitSparsePlanFingerprint" -> plan["PlanFingerprint"],
         "Prime" -> prime,
         "RegulatorValue" -> preflight["RegulatorValue"],
         "Point" -> preflight["Point"],
@@ -2592,17 +2567,15 @@ multiquadraticStripPlannedProviderChannels[provider_Association,
     "Point" -> preflight["Point"],
     "RegulatorValue" -> preflight["RegulatorValue"],
     "EpsilonMod" -> preflight["EpsilonMod"],
-    "RootSquares" -> deltaValues, "RootValues" -> rootValues,
+    "QuadraticRadicands" -> deltaValues,
+    "SquareRootGeneratorValues" -> rootValues,
     "SplitPointQ" -> preflight["SplitPointQ"],
     "GaugeDenominator" -> preflight["GaugeDenominator"],
     "GaugeLogDerivatives" -> preflight["GaugeLogDerivatives"],
     "RootLogDerivatives" -> preflight["RootLogDerivatives"],
     "E" -> values["E"], "C" -> values["C"],
     "BBar" -> values["BBar"], "OneForms" -> oneFormValues,
-    "CoefficientABIFingerprint" -> provider["CoefficientABIFingerprint"],
-    "ProviderFingerprint" -> provider["ProviderFingerprint"],
-    "DeferredBundleFingerprint" -> Lookup[provider,
-      "DeferredBundleFingerprint", None],
+    "CoefficientData" -> provider["CoefficientData"],
     "BundleOperandEvaluationCount" -> If[AssociationQ[bundleChannels],
       Lookup[bundleChannels, "OperandEvaluationCount", 0], 0],
     "BundleCoefficientEvaluationCount" -> If[AssociationQ[bundleChannels],
@@ -2637,7 +2610,6 @@ multiquadraticStripPlannedProviderChannels[provider_Association,
     "SplitSparseCompileSeconds" -> 0.,
     "SplitSparseEvaluationSeconds" -> sparseSeconds,
     "SplitSubstitutionFallbackSeconds" -> fallbackSeconds,
-    "SplitSparsePlanFingerprint" -> plan["PlanFingerprint"],
     "SplitSparseUniqueLeafCount" -> Length[plan["Leaves"]],
     "SplitSparseOccurrenceCount" -> occurrenceCount,
     "SplitSparseUniqueLeafEvaluationSeconds" -> leafEvaluationSeconds,
@@ -2655,18 +2627,19 @@ multiquadraticStripPlannedProviderChannels[___] :=
     "InvalidPlannedProviderChannelArguments"];
 
 (* ONE point, ONE regulator image, ONE prime: every coefficient value the
-   row assembler consumes.  Four arguments construct the authenticated
+   row assembler consumes.  Four arguments construct the validated
    preflight; the five-argument form reuses one already drawn by the
    sampler.  A typed rejection of the point is never a zero value. *)
 multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
     prime_Integer, point : {_Integer, _Integer}] := Module[{preflight},
+  If[! multiquadraticStripProviderValidQ[provider],
+    Return[multiquadraticStripFailure["InvalidCoefficientProvider"]]];
   preflight = multiquadraticStripProviderPreflight[provider, epsilonValue,
     prime, point];
   If[Lookup[preflight, "Status", None] =!=
       "MultiquadraticProviderPreflightV1", preflight,
-    Block[{$multiquadraticStripTrustedProviderEvaluation = True},
-      multiquadraticStripProviderChannels[provider, epsilonValue, prime,
-        point, preflight]]]
+    multiquadraticStripProviderChannels[provider, epsilonValue, prime,
+      point, preflight]]
 ];
 
 multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
@@ -2683,8 +2656,8 @@ multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
     splitEvaluationSeconds = 0., splitFallbackSeconds = 0.},
   If[Lookup[preflight, "Status", None] =!=
         "MultiquadraticProviderPreflightV1" ||
-      Lookup[preflight, "ProviderFingerprint", None] =!=
-        Lookup[provider, "ProviderFingerprint", None] ||
+      ! SameQ[Lookup[preflight, "CoefficientData", None],
+        Lookup[provider, "CoefficientData", None]] ||
       Lookup[preflight, "Prime", None] =!= prime ||
       Lookup[preflight, "RegulatorValue", None] =!= epsilonValue ||
       Lookup[preflight, "Point", None] =!= Mod[point, prime],
@@ -2708,8 +2681,8 @@ multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
     Return[multiquadraticStripPlannedProviderChannels[provider, preflight,
       splitPlan]]];
   scalarRules = preflight["ScalarRules"];
-  deltaValues = preflight["RootSquares"];
-  rootValues = preflight["RootValues"];
+  deltaValues = preflight["QuadraticRadicands"];
+  rootValues = preflight["SquareRootGeneratorValues"];
   tag = Unique["MultiquadraticDirectProviderEntryFailure"];
   evaluateEntry[entry_, activeIndices_] := Module[{result},
     entryCount++;
@@ -2722,7 +2695,6 @@ multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
       Throw[Join[<|"Status" -> Lookup[result, "Status",
           "ProviderRejected"], "Point" -> Mod[point, prime],
         "Prime" -> prime, "RegulatorValue" -> epsilonValue,
-        "ProviderFingerprint" -> provider["ProviderFingerprint"],
         "LargeEntryEvaluationCount" -> entryCount|>,
         KeyDrop[result, "Status"]], tag]];
     If[kind === "SplitBranch",
@@ -2755,7 +2727,6 @@ multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
             "BundleProviderRejected"],
           "Point" -> Mod[point, prime], "Prime" -> prime,
           "RegulatorValue" -> epsilonValue,
-          "ProviderFingerprint" -> provider["ProviderFingerprint"],
           "LargeEntryEvaluationCount" -> entryCount +
             Lookup[bundleChannels, "OperandEvaluationCount", 0]|>,
           KeyDrop[bundleChannels, "Status"]], tag]];
@@ -2784,7 +2755,8 @@ multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
       "Provider" -> kind, "Prime" -> prime,
       "Point" -> Mod[point, prime], "RegulatorValue" -> epsilonValue,
       "EpsilonMod" -> preflight["EpsilonMod"],
-      "RootSquares" -> deltaValues, "RootValues" -> rootValues,
+      "QuadraticRadicands" -> deltaValues,
+      "SquareRootGeneratorValues" -> rootValues,
       "SplitPointQ" -> preflight["SplitPointQ"],
       "GaugeDenominator" -> preflight["GaugeDenominator"],
       "GaugeLogDerivatives" -> preflight["GaugeLogDerivatives"],
@@ -2795,10 +2767,7 @@ multiquadraticStripProviderChannels[provider_Association, epsilonValue_,
       "ForcingProvider" -> If[nativeDeferredForcingQ,
         "NativeDeferredASTPending", kind],
       "OneForms" -> oneFormValues,
-      "CoefficientABIFingerprint" -> provider["CoefficientABIFingerprint"],
-      "ProviderFingerprint" -> provider["ProviderFingerprint"],
-      "DeferredBundleFingerprint" -> Lookup[provider,
-        "DeferredBundleFingerprint", None],
+      "CoefficientData" -> provider["CoefficientData"],
       "BundleOperandEvaluationCount" -> If[AssociationQ[bundleChannels],
         Lookup[bundleChannels, "OperandEvaluationCount", 0], 0],
       "BundleCoefficientEvaluationCount" -> If[AssociationQ[bundleChannels],
@@ -2884,7 +2853,8 @@ multiquadraticStripConservativeGaugeDenominator[strip_, roots_List,
     Return[1]];
   conjugates[factor_] := DeleteDuplicates[
     Table[Quiet[Together[transportChartApplyRootBranches[factor, roots,
-      Table[If[BitGet[mask, k - 1] === 1, -1, 1] Lookup[roots[[k]], "Root", 0],
+      Table[If[BitGet[mask, k - 1] === 1, -1, 1]
+        squareRootRecordExpression[roots[[k]]],
         {k, Length[roots]}]]]],
       {mask, 0, 2^Length[roots] - 1}],
     TrueQ[Quiet[Together[#1 - #2]] === 0] &];
@@ -2979,7 +2949,6 @@ multiquadraticStripBundleGaugeDenominator[bundle_Association,
     "ForcingFactor" -> forcingFactor, "LetterFactor" -> letterFactor,
     "DivisorRecords" -> records,
     "DivisorSummary" -> summary,
-    "BundleFingerprint" -> bundle["BundleFingerprint"],
     "GaugeDenominatorDegrees" -> mergeData["GaugeDenominatorDegrees"],
     "FactorCount" -> Length[factors], "OrbitCount" -> Length[orbits],
     "ProvenanceGroupCount" -> Length[keyGroups],
@@ -3020,8 +2989,7 @@ multiquadraticStripBundleExactChannelTask[dataFile_String,
 multiquadraticStripBundleExactChannelTask[___] := $Failed;
 
 multiquadraticStripBundleExactChannels[forcing_, roots_List,
-    variables : {_Symbol, _Symbol}, epsilon_Symbol,
-    bundleFingerprint_String] := Module[
+    variables : {_Symbol, _Symbol}, epsilon_Symbol] := Module[
   {startTime = AbsoluteTime[], dimensions = Dimensions[forcing], entries,
    gradeCount = 2^Length[roots], rules, inverseRules, payload, dataFile,
    free = 0, workerCount, groups, helperGroups, localGroup, codes, handle,
@@ -3046,10 +3014,7 @@ multiquadraticStripBundleExactChannels[forcing_, roots_List,
   helperGroups = Most[groups];
   localGroup = Last[groups];
   dataFile = If[helperGroups === {}, None,
-    taskBrokerDataFile["mqbundlechannels_" <>
-      Hash[{"BundleExactChannelsV1", $multiquadraticStripABIVersion,
-        bundleFingerprint, Lookup[roots, "RootSquare", {}] /. rules},
-        "SHA256", "HexString"], payload]];
+    taskBrokerDataFile[CreateUUID["mqbundlechannels-"], payload]];
   If[helperGroups =!= {} && StringQ[dataFile],
     codes = Table[
       "FeynFacet`Private`multiquadraticStripBundleExactChannelTask[" <>
@@ -3101,16 +3066,13 @@ multiquadraticStripBundleRefinedGaugeDenominator[bundle_Association,
     letterRecords_: {}] := Module[
   {startTime = AbsoluteTime[], evaluated, exactChannels, forcingFactor,
    letterFactor, denominator},
-  (* The caller has already authenticated the bundle while constructing the
-     conservative denominator.  Repeating that scan here adds no mathematics. *)
   evaluated = blockEquationDeferredBundleEvaluate[bundle, {},
-    "Validate" -> False, "ExpressionTransform" -> Identity];
+    "ExpressionTransform" -> Identity];
   If[Lookup[evaluated, "Status", None] =!= "OK",
     Return[multiquadraticStripFailure[
       "BundleExactMaterializationFailed"]]];
   exactChannels = multiquadraticStripBundleExactChannels[
-    evaluated["Image"], roots, variables, epsilon,
-    Lookup[bundle, "BundleFingerprint", "UnfingerprintedBundle"]];
+    evaluated["Image"], roots, variables, epsilon];
   If[Lookup[exactChannels, "Status", None] =!=
       "BundleExactForcingChannelsV1", Return[exactChannels]];
   forcingFactor = multiquadraticRationalGaugeDenominator[
@@ -3132,8 +3094,7 @@ multiquadraticStripBundleRefinedGaugeDenominator[bundle_Association,
     "EntryCount" -> exactChannels["EntryCount"],
     "BrokerHelperCount" -> exactChannels["BrokerHelperCount"],
     "ChannelSeconds" -> exactChannels["Seconds"],
-    "Seconds" -> N[AbsoluteTime[] - startTime],
-    "BundleFingerprint" -> Lookup[bundle, "BundleFingerprint", None]|>
+    "Seconds" -> N[AbsoluteTime[] - startTime]|>
 ];
 multiquadraticStripBundleRefinedGaugeDenominator[___] :=
   multiquadraticStripFailure[

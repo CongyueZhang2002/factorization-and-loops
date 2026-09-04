@@ -66,9 +66,11 @@ familyRecords = Table[
   form = Get[FileNameJoin[{inputDirectory,
     "family_epsform_" <> family <> ".wl"}]];
   timing = AbsoluteTiming[frobenius = TimeConstrained[
-    BuildEndpointFrobenius[form[specification["ConnectionKey"]],
+    ComputeTruncatedLocalFrobeniusExpansion[
+      form[specification["ConnectionKey"]],
       <|"Variable" -> specification["Variable"], "Regulator" -> eps,
-        "LocalVariable" -> rho, "Endpoint" -> specification["Endpoint"],
+        "LocalVariable" -> rho,
+        "LocalExpansionPoint" -> specification["Endpoint"],
         "LocalDirection" -> specification["Direction"],
         "FixedRules" -> specification["FixedRules"]|>,
       "MaximumSeriesOrder" -> specification["MaximumSeriesOrder"],
@@ -76,7 +78,8 @@ familyRecords = Table[
     600, $Aborted]];
   If[frobenius === $Aborted,
     Print["FAIL timeout family=", family]; Quit[2]];
-  If[Lookup[frobenius, "Status", None] =!= "EndpointFrobeniusBuilt",
+  If[Lookup[frobenius, "Status", None] =!=
+      "TruncatedLocalFrobeniusExpansionComputed",
     Print["FAIL family=", family, " result=", InputForm[frobenius]];
     Quit[3]];
   selected = specification["SelectedCanonicalRows"];

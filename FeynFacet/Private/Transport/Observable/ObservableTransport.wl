@@ -50,13 +50,10 @@ ClearAll[
   observableTransportNonsingularQ,
   observableTransportFamilyFromFile,
   observableTransportWriteAtomic,
-  observableTransportCoefficientField,
+  observableTransportCoefficientPresentationType,
   observableTransportPointAdmissibleQ,
   observableTransportAdmissibleSamples,
   $observableTransportSampleFractions,
-  observableTransportCoefficientFieldDeclared,
-  observableTransportRadicalFieldNames,
-  observableTransportEpsilonValuationFingerprint,
   observableTransportCanonicalRadicals,
   observableTransportAlgebraicZeroQ,
   observableTransportEpsilonOrderAtPoint,
@@ -68,6 +65,7 @@ ClearAll[
   observableTransportCertifyEpsilonValuations,
   observableTransportCertifyEpsilonValuationsFile,
   observableTransportEpsilonValuationCertificateShapeQ,
+  observableTransportEpsilonValuationCertificateMatchesRecordQ,
   observableTransportEpsilonValuationStatus,
   observableTransportEpsilonValuationCertificateBoundQ,
   $observableTransportValuationTrialCount,
@@ -103,69 +101,20 @@ observableTransportStructuralZeroMatrixQ[m_] :=
   AllTrue[Flatten[{Normal[m]}], TrueQ[# === 0] &];
 
 
-(* Coefficient field of a family record (overhaul 2026-09-02; round 4,
-   Codex review: "coefficient-field fallback is incomplete").
-   Resolution order: an explicit declaration -- the record's own
-   "CoefficientField", the chart record, the epsilon-form certificate --
-   and, only for records that are NOT transport-ready, a legacy
-   inference over EVERY computational field (letters, TTotal,
-   TTotalInverse, the epsilon-form matrices, the dlog letters and
-   residues, the chart roots): "Rational" when all are free of radicals,
-   otherwise Missing["CoefficientFieldRequired", fields] naming the
-   radical fields.  A transport-ready record (compact dlog
-   representation, never materialized as full matrices) must declare its
-   field: Missing["CoefficientFieldDeclarationRequired"].  History: the
-   02:43 revision read the field only from record["ChartRecord"] and
-   refused the certified ordinary-family records, which carry it in
-   their certificate; the 08:38 revision inferred from Letters and
-   TTotal alone, so a radical in TTotalInverse or a residue made a
-   record "Rational". *)
-observableTransportCoefficientFieldDeclared[record_Association] := Module[
-  {chartRecord = Lookup[record, "ChartRecord", <||>],
-   certificate = Lookup[record, "EpsilonFormCertificate", <||>],
-   fields = {"Rational", "Multiquadratic"}},
-  Which[
-    MemberQ[fields, Lookup[record, "CoefficientField", None]],
-      record["CoefficientField"],
-    AssociationQ[chartRecord] &&
-      MemberQ[fields, Lookup[chartRecord, "CoefficientField", None]],
-      chartRecord["CoefficientField"],
-    AssociationQ[certificate] &&
-      MemberQ[fields, Lookup[certificate, "CoefficientField", None]],
-      certificate["CoefficientField"],
-    True, None]
+(* The coefficient presentation is explicit.  In particular, a list of
+   square-root generators is not called a multiquadratic field unless its
+   square classes have separately been proved independent. *)
+observableTransportCoefficientPresentationType[record_Association] := Module[
+  {presentation = Lookup[record, "CoefficientPresentation", <||>], type},
+  type = Lookup[presentation, "DataType", None];
+  Switch[type,
+    "SourceVariableRepresentation" | "RationalizingParametrization",
+      "Rational",
+    "SquareRootGeneratorsAndQuadraticRelations", type,
+    _, Missing["CoefficientPresentationRequired"]]
 ];
-
-(* Names of the computational fields of a record that carry a radical
-   (Power[_, _Rational] or Sqrt); the legacy inference inspects all. *)
-observableTransportRadicalFieldNames[record_Association] := Module[
-  {dlog = Lookup[record, "DLog", <||>],
-   chartRecord = Lookup[record, "ChartRecord", <||>], candidates},
-  candidates = {
-    "Letters" -> Lookup[record, "Letters", {}],
-    "TTotal" -> Lookup[record, "TTotal", {}],
-    "TTotalInverse" -> Lookup[record, "TTotalInverse", {}],
-    "EpsFormX" -> Lookup[record, "EpsFormX", {}],
-    "EpsFormY" -> Lookup[record, "EpsFormY", {}],
-    "DLog/Letters" -> If[AssociationQ[dlog], Lookup[dlog, "Letters", {}], {}],
-    "DLog/Residues" -> If[AssociationQ[dlog], Lookup[dlog, "Residues", {}], {}],
-    "ChartRecord/Roots" -> If[AssociationQ[chartRecord],
-      Lookup[chartRecord, "Roots", {}], {}]};
-  First /@ Select[candidates,
-    ! FreeQ[Last[#], Power[_, _Rational] | Sqrt[_]] &]
-];
-
-observableTransportCoefficientField[record_Association] := Module[
-  {declared = observableTransportCoefficientFieldDeclared[record],
-   radicalFields},
-  If[declared =!= None, Return[declared]];
-  If[Lookup[record, "Status", None] === "TransportReadyEpsilonConnection",
-    Return[Missing["CoefficientFieldDeclarationRequired"]]];
-  radicalFields = observableTransportRadicalFieldNames[record];
-  If[radicalFields === {}, "Rational",
-    Missing["CoefficientFieldRequired", radicalFields]]
-];
-observableTransportCoefficientField[___] := Missing["CoefficientField"];
+observableTransportCoefficientPresentationType[___] :=
+  Missing["CoefficientPresentationRequired"];
 
 (* Admissible sample points for rank and residue sampling (overhaul
    2026-09-02, goal 9).  The fixed default samples are fine for rational
@@ -222,23 +171,10 @@ $observableTransportSampleFractions = {2/5, 3/5, 4/7, 3/11, 4/13, 2/9,
    observation is refused, a claim at or below it is accepted (a lower
    claim is conservative: it only adds zero coefficients).  Three
    independent points must agree.  No symbolic valuation scan is
-   performed.  The certificate stores a fingerprint of the record's
-   TTotal, TTotalInverse and Ranges (structural Hash, whose value is
-   version-dependent: $VersionNumber is recorded, and a mismatch is a
-   typed refusal, never a silent re-trust). *)
+   performed.  Validation is bound to the actual transformation matrices by
+   re-evaluating the recorded sample points; no surrogate identifier is used. *)
 
 $observableTransportValuationTrialCount = 3;
-
-observableTransportEpsilonValuationFingerprint[record_Association] := <|
-  "Version" -> 1,
-  "Dimension" -> Length[Lookup[record, "TTotal", {}]],
-  "Ranges" -> Lookup[record, "Ranges", Missing["Ranges"]],
-  "Variables" -> ToString[Lookup[record, "Variables", Missing[]], InputForm],
-  "Regulator" -> ToString[Lookup[record, "Regulator", Missing[]], InputForm],
-  "TTotalHash" -> Hash[Normal[Lookup[record, "TTotal", Missing["TTotal"]]]],
-  "TTotalInverseHash" ->
-    Hash[Normal[Lookup[record, "TTotalInverse", Missing["TTotalInverse"]]]],
-  "HashVersion" -> $VersionNumber|>;
 
 (* Numeric radicals in canonical form: Power[r, n/2] with r a nonzero
    rational becomes rational * Sqrt[s]^(0 or 1) with s a square-free
@@ -574,7 +510,7 @@ observableTransportCertifyEpsilonValuations[record_Association,
    letters, dlog, rootSquares, claimed, claimedTMin, claimedBlockLower,
    trialCount, seed, maximumAttempts, trials = {}, rejected = {},
    attempts = 0, point, trial, observedTMin, observedBlockLower, tight,
-   certificate, valuations, fingerprint},
+   certificate, valuations},
   variables = Lookup[record, "Variables", Missing[]];
   eps = Lookup[record, "Regulator", Missing[]];
   tTotal = Lookup[record, "TTotal", Missing[]];
@@ -591,10 +527,11 @@ observableTransportCertifyEpsilonValuations[record_Association,
       Except[_List] -> {}], {}]];
   (* the declared root squares in the CURRENT variables, as the transport
      itself resolves them; a chart without roots contributes none *)
-  rootSquares = Quiet[Check[transportChartCurrentRoots[
-    Lookup[record, "ChartRecord", <||>], variables], $Failed]];
+  rootSquares = Quiet[Check[coefficientPresentationSquareRootsInVariables[
+    Lookup[record, "CoefficientPresentation", <||>], variables], $Failed]];
   rootSquares = Replace[rootSquares,
-    {roots : {__Association} :> Lookup[roots, "RootSquare", {}], _ -> {}}];
+    {roots : {__Association} :> (squareRootRecordRadicand /@ roots),
+      _ -> {}}];
   rootSquares = Select[rootSquares, ! FreeQ[#, Alternatives @@ variables] &];
   trialCount = Replace[OptionValue["Trials"],
     Automatic -> $observableTransportValuationTrialCount];
@@ -652,7 +589,6 @@ observableTransportCertifyEpsilonValuations[record_Association,
         "Trials" -> trials|>]]];
   tight = claimedTMin === observedTMin &&
     claimedBlockLower === observedBlockLower;
-  fingerprint = observableTransportEpsilonValuationFingerprint[record];
   certificate = <|
     "Status" -> "RationalPointEpsilonValuationCertificate",
     "Version" -> 1,
@@ -667,7 +603,6 @@ observableTransportCertifyEpsilonValuations[record_Association,
     "Trials" -> trials, "RejectedTrials" -> rejected,
     "Seed" -> seed,
     "RootSquares" -> rootSquares,
-    "Fingerprint" -> fingerprint,
     "Seconds" -> N[AbsoluteTime[] - start]|>;
   valuations = Join[If[AssociationQ[claimed], claimed, <||>], <|
     "TMin" -> claimedTMin, "BlockLower" -> claimedBlockLower,
@@ -707,12 +642,35 @@ observableTransportEpsilonValuationCertificateShapeQ[certificate_,
       Lookup[#, "TMin", Missing[]] === certificate["ObservedTMin"] &&
       Lookup[#, "BlockLower", Missing[]] ===
         certificate["ObservedBlockLower"] &] &&
-  DuplicateFreeQ[Lookup[certificate["Trials"], "Point"]] &&
-  AssociationQ[Lookup[certificate, "Fingerprint", None]];
+  DuplicateFreeQ[Lookup[certificate["Trials"], "Point"]];
+
+observableTransportEpsilonValuationCertificateMatchesRecordQ[
+    record_Association, certificate_Association] := Module[
+  {variables, eps, tTotal, tInverse, ranges, exhaustive, trials},
+  variables = Lookup[record, "Variables", Missing[]];
+  eps = Lookup[record, "Regulator", Missing[]];
+  tTotal = Lookup[record, "TTotal", Missing[]];
+  tInverse = Lookup[record, "TTotalInverse", Missing[]];
+  ranges = Lookup[record, "Ranges", Missing[]];
+  If[! MatchQ[variables, {_Symbol, _Symbol}] || ! MatchQ[eps, _Symbol] ||
+      ! MatrixQ[tTotal] || ! MatrixQ[tInverse] || ! ListQ[ranges],
+    Return[False]];
+  exhaustive = Lookup[certificate, "Method", None] ===
+    "ExactUnivariateOrderAtRandomRationalPoints";
+  trials = observableTransportExactPointValuations[
+      tTotal, tInverse, ranges, variables, eps, #, exhaustive] & /@
+    Lookup[Lookup[certificate, "Trials", {}], "Point", {}];
+  AllTrue[trials,
+    Lookup[#, "Status", None] === "ExactPointValuationsEvaluated" &&
+      Lookup[#, "TMin", Missing[]] === certificate["ObservedTMin"] &&
+      Lookup[#, "BlockLower", Missing[]] ===
+        certificate["ObservedBlockLower"] &]
+];
+observableTransportEpsilonValuationCertificateMatchesRecordQ[___] := False;
 
 (* Typed status of a record's transport epsilon valuations. *)
 observableTransportEpsilonValuationStatus[record_Association] := Module[
-  {valuations, certificate, ranges, fingerprint, stored},
+  {valuations, certificate, ranges},
   valuations = Lookup[record, "TransportEpsilonValuations",
     Missing["NotAvailable"]];
   If[MissingQ[valuations],
@@ -737,11 +695,10 @@ observableTransportEpsilonValuationStatus[record_Association] := Module[
       "CertificateTMin" -> Lookup[certificate, "TMin", Missing[]],
       "CertificateObservedTMin" ->
         Lookup[certificate, "ObservedTMin", Missing[]]|>]];
-  fingerprint = observableTransportEpsilonValuationFingerprint[record];
-  stored = certificate["Fingerprint"];
-  If[stored =!= fingerprint,
-    Return[<|"Status" -> "TransportEpsilonValuationCertificateMismatch",
-      "StoredFingerprint" -> stored, "RecordFingerprint" -> fingerprint|>]];
+  If[! observableTransportEpsilonValuationCertificateMatchesRecordQ[
+      record, certificate],
+    Return[<|"Status" ->
+      "TransportEpsilonValuationDefiningDataMismatch"|>]];
   <|"Status" -> "TransportEpsilonValuationsCertified",
     "TMin" -> valuations["TMin"], "BlockLower" -> valuations["BlockLower"],
     "Tight" -> TrueQ[Lookup[certificate, "Tight", False]],
@@ -758,7 +715,7 @@ observableTransportEpsilonValuationCertificateBoundQ[source_, certificate_,
     source === "FamilyRecord",
       observableTransportEpsilonValuationCertificateShapeQ[certificate,
         valuations["TMin"], valuations["BlockLower"]] &&
-      TrueQ[Lookup[certificate, "FingerprintVerified", False]],
+      TrueQ[Lookup[certificate, "DefiningDataRevalidated", False]],
     source === "ComputedFromGauge",
       Lookup[certificate, "Status", None] === "ExactGaugeValuationScan" &&
       TrueQ[Lookup[certificate, "Accepted", False]] &&
@@ -804,7 +761,7 @@ observableTransportCertifyEpsilonValuationsFile[file_String,
 
 
 
-(* CertifyFamilyEpsilonForm and ExactFamilyEpsilonFormQ moved to
+(* ValidateFamilyDLogEpsilonForm and the validation predicates moved to
    FamilyEpsForm.wl on 2026-08-20. *)
 
 (* Default family-name extractor (generality pass 2026-08-23): the family
@@ -892,14 +849,14 @@ BuildObservableTransportManifest[
         record = Quiet[Check[Get[file], $Failed]];
         <|"Family" -> name, "Priority" -> priority,
           "File" -> ExpandFileName[file],
-          "Certified" -> CertifiedFamilyEpsilonFormQ[record],
-          "Exact" -> ExactFamilyEpsilonFormQ[record]|>]
+          "Validated" -> ValidatedFamilyDLogEpsilonFormQ[record],
+          "Exact" -> ExactlyValidatedFamilyDLogEpsilonFormQ[record]|>]
     ]];
   grouped = GroupBy[candidateRows, #Family &];
   Do[
     records = SortBy[Lookup[grouped, family, {}],
       {#Priority &, #File &}];
-    certifiedRecords = Select[records, TrueQ[#Certified] &];
+    certifiedRecords = Select[records, TrueQ[#Validated] &];
     If[certifiedRecords === {},
       If[records =!= {}, AssociateTo[rejected, family -> records]],
       AssociateTo[selected, family -> First[certifiedRecords]];
@@ -988,8 +945,8 @@ Options[FindObservableTransportPath] = {
 };
 
 FindObservableTransportPath[record_Association, OptionsPattern[]] := Module[
-  {variables, letters, coefficientField, fractions, candidates, selected,
-   admissibleQ, chartRecord, rootSquares, automaticCandidatesQ,
+  {variables, letters, presentationType, fractions, candidates, selected,
+   admissibleQ, coefficientPresentation, rootSquares, automaticCandidatesQ,
    baseCandidates, targetCandidates, rationalSquareQ,
    splitBaseQ, splitSelected, target},
   variables = Lookup[record, "Variables", Missing[]];
@@ -1007,12 +964,12 @@ FindObservableTransportPath[record_Association, OptionsPattern[]] := Module[
   ];
   (* round 4: a record whose field cannot be resolved is refused here,
      not silently treated as rational *)
-  coefficientField = observableTransportCoefficientField[record];
-  If[MissingQ[coefficientField],
-    Return[<|"Status" -> "CoefficientFieldRequired",
-      "CoefficientField" -> coefficientField|>]
+  presentationType = observableTransportCoefficientPresentationType[record];
+  If[MissingQ[presentationType],
+    Return[<|"Status" -> "CoefficientPresentationRequired",
+      "CoefficientPresentationType" -> presentationType|>]
   ];
-  admissibleQ = If[coefficientField === "Multiquadratic",
+  admissibleQ = If[presentationType === "SquareRootGeneratorsAndQuadraticRelations",
     Function[point,
       observableTransportRecordRegularQ[record,
         Thread[variables -> point]]],
@@ -1027,13 +984,12 @@ FindObservableTransportPath[record_Association, OptionsPattern[]] := Module[
      The bounded rational-height grid is family neutral; if it finds no
      usable split base, retain the former regular-path choice below. *)
   splitSelected = Missing["NoSplitRegularPath"];
-  If[coefficientField === "Multiquadratic",
-    chartRecord = Lookup[record, "ChartRecord", <||>];
-    rootSquares = If[AssociationQ[chartRecord],
-      Quiet[Check[
-        Together /@ (Lookup[Lookup[chartRecord, "Roots", {}],
-            "RootSquare", {}] /. Lookup[chartRecord, "Subst", {}]),
-        {}]], {}];
+  If[presentationType === "SquareRootGeneratorsAndQuadraticRelations",
+    coefficientPresentation = Lookup[record, "CoefficientPresentation", <||>];
+    rootSquares = Quiet[Check[
+      squareRootRecordRadicand /@
+        coefficientPresentationSquareRootsInVariables[
+          coefficientPresentation, variables], {}]];
     If[rootSquares =!= {},
       rationalSquareQ[value_] := MatchQ[value, _Integer | _Rational] &&
         TrueQ[value > 0] && IntegerQ[Sqrt[Numerator[value]]] &&
@@ -2149,6 +2105,7 @@ BuildObservableTransport[record_Association, demand_Association,
    laurentOverrun,
    physicalDemand, physicalOrder, component,
    demandedMap, familyCertificate, recordDLog, certificateDLog,
+   constantResidues,
    certifiedDLog, residueDLogSource, residueProbabilistic,
    reconstructableCertificateDLogQ, certificateLetterReconstruction,
    residueRecord, residueRecordUsableQ, usableDLogQ,
@@ -2164,29 +2121,38 @@ BuildObservableTransport[record_Association, demand_Association,
    recordTransportReadyQ, computedDLogQ, epsFormRepresentation,
    compactDLogActiveIndices, compactDLogConnection,
    compactResidueSupport, firstSupport, stabilized,
-   coefficientField, gaugeConstants, gaugeConstantRules, resultStatus,
+   presentationType, gaugeConstants, gaugeConstantRules, resultStatus,
    probabilisticCertificates, structuralProbabilisticCertificates,
    algebraicRootRecords, rankFailure},
 
   start = AbsoluteTime[];
   verbose = TrueQ[OptionValue["Verbose"]];
   status = Lookup[record, "Status", Missing[]];
-  variables = Lookup[record, "Variables", Missing[]];
-  eps = Lookup[record, "Regulator", Missing[]];
+  variables = Lookup[record, "CoefficientVariables", Missing[]];
+  eps = Lookup[record, "DimensionalRegulator", Missing[]];
   If[! MatchQ[variables, {_Symbol, _Symbol}] || ! MatchQ[eps, _Symbol],
     Return[<|"Status" -> "TwoVariableRecordRequired"|>, Module]
   ];
-  dimension = Lookup[record, "Dim", Length[Lookup[record, "TTotal", {}]]];
-  ranges = Lookup[record, "Ranges", Missing[]];
-  tTotal = Lookup[record, "TTotal", Missing[]];
-  tInverse = Lookup[record, "TTotalInverse", Missing[]];
+  tTotal = Lookup[record, "BasisTransformationMatrix", Missing[]];
+  tInverse = Lookup[record, "CachedInverseBasisTransformationMatrix",
+    Missing[]];
+  dimension = If[MatrixQ[tTotal], Length[tTotal], 0];
+  ranges = Lookup[record, "IrreducibleDiagonalBlocks", Missing[]];
   letters = Lookup[record, "Letters", Missing[]];
-  recordDLog = Lookup[record, "DLog", <||>];
-  epsFormRepresentation = Lookup[record, "EpsFormRepresentation", "ExplicitMatrices"];
-  coefficientField = observableTransportCoefficientField[record];
-  If[! MemberQ[{"Rational", "Multiquadratic"}, coefficientField],
-    Return[<|"Status" -> "ObservableTransportCoefficientFieldMissingOrInvalid",
-      "CoefficientField" -> coefficientField|>, Module]
+  constantResidues = Lookup[record, "ConstantResidueMatrices", Missing[]];
+  recordDLog = <|
+    "Valid" -> True,
+    "Variables" -> variables,
+    "Regulator" -> eps,
+    "Dimension" -> dimension,
+    "Letters" -> letters,
+    "Residues" -> constantResidues,
+    "ConstantResidues" -> True|>;
+  epsFormRepresentation = "ConstantResidueDLog";
+  presentationType = observableTransportCoefficientPresentationType[record];
+  If[! MemberQ[{"Rational", "SquareRootGeneratorsAndQuadraticRelations"}, presentationType],
+    Return[<|"Status" -> "ObservableTransportCoefficientPresentationMissingOrInvalid",
+      "CoefficientPresentationType" -> presentationType|>, Module]
   ];
   computedDLogQ[value_] := AssociationQ[value] &&
     Lookup[value, "Status", None] === "ComputedDLogResidues" &&
@@ -2195,7 +2161,7 @@ BuildObservableTransport[record_Association, demand_Association,
     Lookup[value, "Variables", Missing[]] === variables &&
     Lookup[value, "Regulator", Missing[]] === eps &&
     Lookup[value, "Dimension", Missing[]] === dimension &&
-    Lookup[value, "CoefficientField", Missing[]] === coefficientField &&
+    Lookup[value, "CoefficientPresentationType", Missing[]] === presentationType &&
     ListQ[Lookup[value, "Letters", None]] &&
     ListQ[Lookup[value, "Residues", None]] &&
     Length[value["Letters"]] === Length[value["Residues"]] &&
@@ -2204,34 +2170,32 @@ BuildObservableTransport[record_Association, demand_Association,
     TrueQ[Lookup[value, "ConstantResidues", False]] &&
     TrueQ[Lookup[value, "PointwiseReplay", False]] &&
     TrueQ[Lookup[value, "FreshPrimeValidation", False]];
-  recordExactQ = ExactFamilyEpsilonFormQ[record];
-  recordCertifiedQ = CertifiedFamilyEpsilonFormQ[record];
-  recordTransportReadyQ =
-    status === "TransportReadyEpsilonConnection" &&
-    epsFormRepresentation === "ConstantResidueDLog" &&
-    TrueQ[Lookup[Lookup[record, "BlockAssemblyEvidence", <||>],
-      "CompletePairCoverage", False]] && computedDLogQ[recordDLog];
-  If[! (recordCertifiedQ || recordExactQ || recordTransportReadyQ),
+  recordExactQ = ExactlyValidatedFamilyDLogEpsilonFormQ[record];
+  recordCertifiedQ = ValidatedFamilyDLogEpsilonFormQ[record];
+  recordTransportReadyQ = False;
+  If[! (recordCertifiedQ || recordExactQ),
     Return[<|"Status" -> "FamilyEpsilonFormInputNotReady",
-      "RecordStatus" -> status,
-      "ComputedDLogReady" -> computedDLogQ[recordDLog]|>, Module]
+      "RecordStatus" -> status|>, Module]
   ];
-  epsConnections = {
-    Lookup[record, "EpsFormX", Missing[]],
-    Lookup[record, "EpsFormY", Missing[]]
-  };
-  algebraicRootRecords = If[coefficientField === "Multiquadratic",
-    Quiet[Check[transportChartCurrentRoots[
-      Lookup[record, "ChartRecord", <||>], variables], $Failed]], {}];
-  If[coefficientField === "Multiquadratic" &&
+  If[! ListQ[letters] || ! ListQ[constantResidues] ||
+      Length[letters] =!= Length[constantResidues] ||
+      ! AllTrue[constantResidues,
+        MatrixQ[#] && Dimensions[#] === {dimension, dimension} &],
+    Return[<|"Status" -> "FamilyDLogDataIncomplete"|>, Module]];
+  epsConnections = Table[
+    eps If[letters === {}, ConstantArray[0, {dimension, dimension}],
+      Total[MapThread[(D[#1, variable]/#1) Normal[#2] &,
+        {letters, constantResidues}]]],
+    {variable, variables}];
+  algebraicRootRecords = If[presentationType === "SquareRootGeneratorsAndQuadraticRelations",
+    Quiet[Check[coefficientPresentationSquareRootsInVariables[
+      Lookup[record, "CoefficientPresentation", <||>], variables], $Failed]], {}];
+  If[presentationType === "SquareRootGeneratorsAndQuadraticRelations" &&
       (! ListQ[algebraicRootRecords] || algebraicRootRecords === {}),
-    Return[<|"Status" -> "MultiquadraticRootFrameUnavailable"|>, Module]
-  ];
-  If[! AllTrue[epsConnections, MatrixQ] && recordTransportReadyQ,
-    letters = recordDLog["Letters"]
+    Return[<|"Status" -> "SquareRootGeneratorDataUnavailable"|>, Module]
   ];
   If[! ListQ[ranges] || ! MatrixQ[tTotal] || ! MatrixQ[tInverse] ||
-      (! recordTransportReadyQ && ! AllTrue[epsConnections, MatrixQ]) ||
+      ! AllTrue[epsConnections, MatrixQ] ||
       ! ListQ[letters],
     Return[<|"Status" -> "IncompleteFamilyEpsilonFormRecord"|>, Module]
   ];
@@ -2259,12 +2223,11 @@ BuildObservableTransport[record_Association, demand_Association,
   If[gaugeConstantRules =!= {},
     tTotal = tTotal /. gaugeConstantRules;
     tInverse = tInverse /. gaugeConstantRules;
-    If[recordTransportReadyQ,
-      recordDLog = Join[recordDLog, <|
-        "Letters" -> (recordDLog["Letters"] /. gaugeConstantRules),
-        "Residues" -> (recordDLog["Residues"] /.
-          gaugeConstantRules)|>],
-      epsConnections = epsConnections /. gaugeConstantRules];
+    recordDLog = Join[recordDLog, <|
+      "Letters" -> (recordDLog["Letters"] /. gaugeConstantRules),
+      "Residues" -> (recordDLog["Residues"] /.
+        gaugeConstantRules)|>];
+    epsConnections = epsConnections /. gaugeConstantRules;
     letters = letters /. gaugeConstantRules
   ];
 
@@ -2285,7 +2248,7 @@ BuildObservableTransport[record_Association, demand_Association,
       Return[ConstantArray[0, {dimension, dimension}], Module]];
     (* Preserve declared radical representatives literally.  Cancel may
        extract square factors and thereby change the registered root frame. *)
-    kernels = If[coefficientField === "Multiquadratic",
+    kernels = If[presentationType === "SquareRootGeneratorsAndQuadraticRelations",
       (((D[#, direction]/# /. rules) scale) &) /@
         recordDLog["Letters"][[indices]],
       (observableTransportCancel[
@@ -2364,11 +2327,10 @@ BuildObservableTransport[record_Association, demand_Association,
       {1/7, 1/11}, {2/7, 2/11}, {3/7, 3/11}, {4/7, 5/11},
       {5/7, 7/11}, {1/5, 2/9}, {2/5, 4/9}
     }];
-  (* Round 4 (Codex review, correctness point 1): valuations carried by
-     the record are used only when they are CERTIFIED -- bound to this
-     record's TTotal, TTotalInverse and Ranges by the fingerprint of the
-     modular certificate (observableTransportCertifyEpsilonValuations)
-     and never above the observed minimum orders.  Uncertified,
+  (* Valuations carried by the record are used only after the recorded
+     sample points are re-evaluated on this record's actual transformation
+     matrices and block ranges, and never above the observed minimum orders.
+     Unvalidated,
      malformed or mismatched valuations are refused with the typed
      status of observableTransportEpsilonValuationStatus, and the accept
      predicate requires the certificate again on the result.  A record
@@ -2386,7 +2348,7 @@ BuildObservableTransport[record_Association, demand_Association,
     blockLower = valuationRecord["BlockLower"];
     valuationSource = "FamilyRecord";
     valuationCertificate = Join[valuationStatus["Certificate"],
-      <|"FingerprintVerified" -> True|>],
+      <|"DefiningDataRevalidated" -> True|>],
     If[recordTransportReadyQ,
       Return[<|"Status" -> "TransportEpsilonValuationsRequired"|>,
         Module]];
@@ -2428,7 +2390,7 @@ BuildObservableTransport[record_Association, demand_Association,
      the run stops with a typed exhaustion status -- the former code kept
      the original samples, some of them proved inadmissible. *)
   sampleExhaustion = None;
-  If[coefficientField === "Multiquadratic" && OptionValue["RankSamples"] === Automatic,
+  If[presentationType === "SquareRootGeneratorsAndQuadraticRelations" && OptionValue["RankSamples"] === Automatic,
     Module[{rootSquaresHere = Lookup[algebraicRootRecords, "RootSquare", {}],
         lettersHere = Replace[letters, Except[_List] -> {}],
         rankPoint, admissibleRank, residueAdmissible, candidatesRank,
@@ -2473,14 +2435,14 @@ BuildObservableTransport[record_Association, demand_Association,
   If[sampleExhaustion =!= None,
     Return[Join[sampleExhaustion, <|
       "Family" -> Lookup[record, "Family", Missing[]],
-      "CoefficientField" -> coefficientField,
+      "CoefficientPresentationType" -> presentationType,
       "LetterCount" -> Length[Replace[letters, Except[_List] -> {}]],
       "RootSquareCount" -> Length[Lookup[algebraicRootRecords, "RootSquare", {}]]|>],
       Module]
   ];
   firstSupport = If[recordTransportReadyQ,
     compactResidueSupport[firstVariable],
-    firstConnection = If[coefficientField === "Multiquadratic",
+    firstConnection = If[presentationType === "SquareRootGeneratorsAndQuadraticRelations",
     (* The certified epsilon form is already an exact dlog connection.
        Specializing eps -> 1 extracts its epsilon-independent coefficient
        without first creating syntactically uncancelled expr/eps entries.
@@ -2858,7 +2820,6 @@ BuildObservableTransport[record_Association, demand_Association,
   ];
 
   familyCertificate = Lookup[record, "EpsilonFormCertificate", <||>];
-  recordDLog = Lookup[record, "DLog", <||>];
   certificateDLog = Lookup[familyCertificate, "DLog", <||>];
   usableDLogQ[value_] := AssociationQ[value] &&
     TrueQ[Lookup[value, "Valid", False]] &&
@@ -2885,15 +2846,15 @@ BuildObservableTransport[record_Association, demand_Association,
     recordExactQ && usableDLogQ[certificateDLog],
       residueDLogSource = "ExactCertificate";
       certificateDLog,
-    coefficientField === "Multiquadratic" && recordCertifiedQ &&
+    presentationType === "SquareRootGeneratorsAndQuadraticRelations" && recordCertifiedQ &&
         ! recordExactQ && AssociationQ[familyCertificate] &&
         TrueQ[Lookup[familyCertificate, "Certified", False]] &&
         TrueQ[Lookup[familyCertificate, "Exact", True] === False] &&
         TrueQ[Lookup[familyCertificate, "Probabilistic", False]] &&
         Lookup[familyCertificate, "CertificationLevel", None] ===
           "HighConfidenceFiniteField" &&
-        Lookup[familyCertificate, "CoefficientField", None] ===
-          "Multiquadratic" &&
+        Lookup[familyCertificate, "CoefficientPresentationType", None] ===
+          "SquareRootGeneratorsAndQuadraticRelations" &&
         Lookup[familyCertificate, "IdentityMethod", None] === "Modular" &&
         AssociationQ[Lookup[familyCertificate, "Modular", <||>]] &&
         Lookup[familyCertificate["Modular"], "Status", None] ===
@@ -2950,7 +2911,7 @@ BuildObservableTransport[record_Association, demand_Association,
     ! ListQ[Lookup[value, "Residues", None]];
   certificateLetterReconstruction = None;
   If[! residueRecordUsableQ[residueRecord] &&
-      coefficientField === "Rational" &&
+      presentationType === "Rational" &&
       (recordExactQ || recordCertifiedQ) &&
       reconstructableCertificateDLogQ[certificateDLog],
     certificateLetterReconstruction =
@@ -2982,8 +2943,8 @@ BuildObservableTransport[record_Association, demand_Association,
      A missing dlog decomposition is an input/computation failure. *)
   If[! residueRecordUsableQ[residueRecord],
     Return[<|
-      "Status" -> If[coefficientField === "Multiquadratic",
-        "MultiquadraticDLogResiduesRequired", "DLogResiduesRequired"],
+      "Status" -> If[presentationType === "SquareRootGeneratorsAndQuadraticRelations",
+        "SquareRootDLogResiduesRequired", "DLogResiduesRequired"],
       "Reason" -> "NoProductionSymbolicFallback",
       "FamilyEpsilonFormCertified" -> recordCertifiedQ,
       "FamilyEpsilonFormExact" -> recordExactQ,
@@ -3081,8 +3042,8 @@ BuildObservableTransport[record_Association, demand_Association,
         "IdentityExact" -> ! residueProbabilistic,
         "IdentityCertified" -> True,
         "Probabilistic" -> residueProbabilistic|>,
-    coefficientField === "Multiquadratic",
-      <|"Status" -> "MultiquadraticDLogResiduesRequired",
+    presentationType === "SquareRootGeneratorsAndQuadraticRelations",
+      <|"Status" -> "SquareRootDLogResiduesRequired",
         "Reason" -> "NoProductionSymbolicFallback"|>,
     True,
       observableTransportKernelDecomposition[
@@ -3094,7 +3055,7 @@ BuildObservableTransport[record_Association, demand_Association,
   ambientInvarianceCertificate = Missing["NotRequired"];
   If[boundaryEvolution === "AmbientBasePoint" && constraintRank > 0,
     ambientInvarianceCertificate = If[
-      coefficientField === "Multiquadratic",
+      presentationType === "SquareRootGeneratorsAndQuadraticRelations",
       observableTransportModularAlgebraicCovariantSubspaceInclusion[
         extendedConstraintMatrix, liftedSecond, secondVariable,
         {secondVariable},
@@ -3155,8 +3116,8 @@ BuildObservableTransport[record_Association, demand_Association,
         <|"Status" -> "ComputedDLogResidues", "Accepted" -> True,
           "Exact" -> False, "Probabilistic" -> True,
           "Source" -> "DLogComputation",
-          "CoefficientField" -> Lookup[certifiedDLog,
-            "CoefficientField", Missing[]],
+          "CoefficientPresentationType" -> Lookup[certifiedDLog,
+            "CoefficientPresentationType", Missing[]],
           "IdentityMethod" -> Lookup[certifiedDLog,
             "IdentityMethod", Missing[]],
           "Backend" -> Lookup[certifiedDLog, "Backend", Missing[]],
@@ -3179,8 +3140,8 @@ BuildObservableTransport[record_Association, demand_Association,
           "Source" -> "EpsilonFormCertificate",
           "CertificationLevel" -> Lookup[familyCertificate,
             "CertificationLevel", Missing[]],
-          "CoefficientField" -> Lookup[familyCertificate,
-            "CoefficientField", Missing[]],
+          "CoefficientPresentationType" -> Lookup[familyCertificate,
+            "CoefficientPresentationType", Missing[]],
           "IdentityMethod" -> Lookup[familyCertificate,
             "IdentityMethod", Missing[]],
           "Method" -> Lookup[familyCertificate["Modular"],
@@ -3215,9 +3176,9 @@ BuildObservableTransport[record_Association, demand_Association,
     Return[<|"Status" -> "InvalidWordRepresentation"|>, Module]
   ];
   If[wordRepresentation === "CompactAutomaton" &&
-      coefficientField =!= "Rational",
+      presentationType =!= "Rational",
     Return[<|"Status" -> "CompactAutomatonRequiresRationalField",
-      "CoefficientField" -> coefficientField|>, Module]
+      "CoefficientPresentationType" -> presentationType|>, Module]
   ];
   If[verbose, observableTransportMilestone["Observable transport word representation: ",
     wordRepresentation, "; materialized upper bound ", wordCountBound,
@@ -3313,7 +3274,7 @@ BuildObservableTransport[record_Association, demand_Association,
     "Family" -> Lookup[record, "Family", Missing[]],
     "Variables" -> variables,
     "Regulator" -> eps,
-    "CoefficientField" -> coefficientField,
+    "CoefficientPresentationType" -> presentationType,
     "PhysicalRows" -> physicalLabels,
     "PhysicalDemandPairs" -> physicalDemandPairs,
     "PhysicalValuation" -> valuation,
@@ -3433,7 +3394,7 @@ observableTransportReconstructedResidueCertificate[residueRecord_Association] :=
   Join[<|"Status" -> "ReconstructedCertificateLetterResidues",
     "Accepted" -> True, "Exact" -> False, "Probabilistic" -> True,
     "Source" -> "CertificateLetterModularReconstruction",
-    "CoefficientField" -> "Rational",
+    "CoefficientPresentationType" -> "Rational",
     "ConstantResidues" -> True, "ResiduesVerifiedAtAllPrimes" -> True,
     (* Round 9b (T, R3's F1): what the reconstruction proves itself is
        span membership at random (point, eps) samples, eps-linearity at
@@ -3460,7 +3421,7 @@ observableTransportReconstructedResidueCertificateQ[certificate_] :=
     "CertificateLetterModularReconstruction" &&
   Lookup[certificate, "Method", None] ===
     "ModularResidueReconstructionOnCertificateLetters" &&
-  Lookup[certificate, "CoefficientField", None] === "Rational" &&
+  Lookup[certificate, "CoefficientPresentationType", None] === "Rational" &&
   TrueQ[Lookup[certificate, "Accepted", False]] &&
   TrueQ[Lookup[certificate, "Probabilistic", False]] &&
   TrueQ[Lookup[certificate, "Exact", True] === False] &&
@@ -3509,10 +3470,9 @@ AcceptedObservableTransportQ[result_] := Module[
       ! AllTrue[requiredExact,
         KeyExistsQ[certificates, #] && TrueQ[certificates[#]] &],
     Return[False]];
-  (* round 4: the epsilon valuations the transport used must be the ones
-     its certificate names -- the record's modular certificate (fingerprint
-     verified) or the exact gauge scan; a result without the certificate
-     is refused *)
+  (* The epsilon valuations used here must be the ones established from the
+     supplied transformation matrices, either by recorded-point re-evaluation
+     or by an exact scan. *)
   If[! observableTransportEpsilonValuationCertificateBoundQ[
       Lookup[result, "TransportEpsilonValuationSource", None],
       Lookup[result, "TransportEpsilonValuationCertificate", Missing[]],
@@ -3567,7 +3527,7 @@ AcceptedObservableTransportQ[result_] := Module[
           "ReconstructedCertificateLetterResidues",
         observableTransportReconstructedResidueCertificateQ[certificate],
       Lookup[certificate, "Status", None] === "ComputedDLogResidues",
-        Lookup[certificate, "CoefficientField", None] === "Multiquadratic" &&
+        Lookup[certificate, "CoefficientPresentationType", None] === "SquareRootGeneratorsAndQuadraticRelations" &&
         Lookup[certificate, "IdentityMethod", None] ===
           "FiniteFieldPointwise" &&
         TrueQ[Lookup[certificate, "FreshPrimeValidation", False]] &&
@@ -3576,7 +3536,7 @@ AcceptedObservableTransportQ[result_] := Module[
         Lookup[certificate, "CRTPrimes", {}] =!= {} &&
         IntegerQ[Lookup[certificate, "FreshValidationPrime", Missing[]]],
       Lookup[certificate, "Status", None] === "CertifiedDLogResidues",
-        Lookup[certificate, "CoefficientField", None] === "Multiquadratic" &&
+        Lookup[certificate, "CoefficientPresentationType", None] === "SquareRootGeneratorsAndQuadraticRelations" &&
         Lookup[certificate, "CertificationLevel", None] ===
           "HighConfidenceFiniteField" &&
         Lookup[certificate, "IdentityMethod", None] === "Modular" &&
@@ -3872,8 +3832,8 @@ ReconstructObservableTransportWordMaps[result_Association,
    finalEmbedding, firstState, secondState},
   If[! AcceptedObservableTransportQ[result],
     Return[<|"Status" -> "ObservableTransportNotAccepted"|>]];
-  If[Lookup[result, "CoefficientField", "Rational"] =!= "Rational",
-    Return[<|"Status" -> "RationalCoefficientFieldRequired"|>]];
+  If[Lookup[result, "CoefficientPresentationType", "Rational"] =!= "Rational",
+    Return[<|"Status" -> "RationalCoefficientPresentationRequired"|>]];
   If[! MatchQ[wordPairs, {{_List, _List} ...}],
     Return[<|"Status" -> "ObservableWordBatchInvalid"|>]];
   If[wordPairs === {},

@@ -3,7 +3,7 @@
    round 4, 2026-09-02, pure moves): artifact persistence (raw load separate from validation), option gates,
    cache clearing, and the top-level entry point
    solveEpsFormStripMultiquadratic with its terminal acceptance.
-   Loads after the preceding parts (Private/LoadOrder.wl); the ABI, the
+   Loads after the preceding parts (Private/LoadOrder.wl); shared data,
    globals and the shared utilities are in MultiquadraticStripSolve.wl. *)
 
 Begin["FeynFacet`Private`"];
@@ -31,8 +31,7 @@ multiquadraticStripArtifactWrite[value_, file_String] := Module[
   temporary = file <> ".partial-" <> ToString[$ProcessID];
   Put[value, temporary];
   RenameFile[temporary, file, OverwriteTarget -> True];
-  <|"Status" -> "MultiquadraticArtifactWritten", "File" -> file,
-    "SHA256" -> FileHash[file, "SHA256", "HexString"]|>
+  <|"Status" -> "MultiquadraticArtifactWritten", "File" -> file|>
 ];
 
 (* Raw hydration only.  The artifact context is explicit and its
@@ -56,8 +55,7 @@ multiquadraticStripArtifactLoadRaw[file_String, context_String] := Module[
       <|"File" -> file, "Messages" -> ToString[messages]|>]]];
   <|"Status" -> "RawMultiquadraticArtifact", "File" -> file,
     "Context" -> context, "Value" -> value,
-    "Messages" -> ToString[messages],
-    "SHA256" -> FileHash[file, "SHA256", "HexString"]|>
+    "Messages" -> ToString[messages]|>
 ];
 
 multiquadraticStripReadPreparedArtifact[file_String,
@@ -73,17 +71,14 @@ multiquadraticStripReadPreparedArtifact[file_String,
     Lookup[value, "Status", None] === "PreparedMultiquadraticStripV1",
       If[multiquadraticStripPreparationValidQ[value],
         <|"Status" -> "HydratedMultiquadraticPreparation", "File" -> file,
-          "Context" -> context, "Preparation" -> value,
-          "ABIFingerprint" -> value["ABIFingerprint"]|>,
-        multiquadraticStripFailure["ArtifactPreparationABIInvalid",
+          "Context" -> context, "Preparation" -> value|>,
+        multiquadraticStripFailure["ArtifactPreparationInvalid",
           <|"File" -> file|>]],
     Lookup[value, "Status", None] === "CompiledMultiquadraticStripV1",
       If[multiquadraticStripCompiledValidQ[value],
         <|"Status" -> "HydratedMultiquadraticAssembly", "File" -> file,
-          "Context" -> context, "Assembly" -> value,
-          "AssemblyFingerprint" -> value["AssemblyFingerprint"],
-          "ABILineage" -> multiquadraticStripABILineage[value]|>,
-        multiquadraticStripFailure["ArtifactAssemblyABIInvalid",
+          "Context" -> context, "Assembly" -> value|>,
+        multiquadraticStripFailure["ArtifactAssemblyInvalid",
           <|"File" -> file|>]],
     True,
       multiquadraticStripFailure["ArtifactSchemaUnknown",
@@ -183,14 +178,11 @@ Options[solveEpsFormStripMultiquadratic] = DeleteDuplicatesBy[Join[
      RAW forcing denominators and the alphabet norms with no channel
      decomposition at all, run BEFORE the exact preparation it screens.
 
-     Automatic = "Advisory": the screen is run and its verdict recorded,
-     and it NEVER stops the block.  The superset argument is sound (see
-     multiquadraticStripConservativeGaugeDenominator), so True is
-     admissible and stops on a CONFIRMED obstruction -- but no real block
-     has yet been screened both ways under this wave's no-family-run
-     gate, and a negative verdict needs evidence like a positive one.
-     False skips it. *)
-  "ScreenFirst" -> Automatic,
+     This is an optional obstruction study, not part of production solving.
+     True runs it and stops on a confirmed inconsistency within the tested
+     ansatz; False skips it.  Production must not pay for an advisory screen
+     that cannot affect the result. *)
+  "ScreenFirst" -> False,
   "ScreenFirstDegreeOffset" -> Automatic,
   (* the screen-validated escalation ladder, run ONLY when the screen at
      the configured "DegreeOffset" reports a CONFIRMED defect.  Automatic
@@ -218,10 +210,10 @@ Options[solveEpsFormStripMultiquadratic] = DeleteDuplicatesBy[Join[
   "ReconstructionMaximumTotalDegree" -> 64,
   "ReconstructionUnseenPrimeCount" -> 2,
   "ReconstructionFreshPointwiseChecksPerPrime" -> 3,
-  (* True = verify the reconstructed GENERIC object in the differential
-     equation (the mathematical statement); "AtSampledValues" = the same
-     identity at the sampled regulator values only; False = modular
-     certificates only. *)
+  (* Production validates the reconstructed object at fresh kinematic and
+     regulator points over primes not used for reconstruction.  Explicit True
+     remains available for an offline symbolic study, but Automatic never
+     selects it. *)
   "RegulatorReconstructionCheck" -> Automatic,
   (* absolute AbsoluteTime[] value; Infinity = unbounded (the default,
      so every existing caller is unchanged) *)
@@ -297,19 +289,20 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
    assembly, layout, provider, providerRecord, coefficientProvider,
    reconstructionEnabled,
    primes, widePrimeSchedule, regulatorValues, heldOutPrime, heldOutRegulatorValue,
-   allPrimes, samples = <||>, solutions = <||>, sample, solution, signature,
-   signatures = {}, lifts = <||>, exactChecks = <||>, heldOutSolution,
+   allPrimes, samples = <||>, solutions = <||>, sample, solution, structure,
+   lifts = <||>, exactChecks = <||>, heldOutSolution,
    freshProviderChecks, freshReference, branchCertificate, branchMask,
    transformedSample, differential, liftedVector, unpacked, prime,
    regulatorValue, samplerOptions, deadline, budgetProgress,
    budgetExhausted, enrich, variables, epsilon, strip, allRoots, classification,
    deferredBundle, deferredASTWrapper, deferredASTPreparation,
-   deferredASTInputFile, deferredASTSourceQ, deferredASTRootSquares,
-   deferredASTRootIndices, deferredASTSelectedIndices,
-   deferredASTStableFrame, slimDeferredLayout,
+   deferredASTInputFile, deferredASTSourceQ, deferredASTPresentation,
+   deferredASTPresentationRoots, deferredASTGeneratorIndices,
+   deferredASTRoots, deferredASTRootIndices, deferredASTSelectedIndices,
+   deferredASTGeneratorValidation, slimDeferredLayout,
    bundleIndices,
    requiredRootIndices, rootIndices, order,
-    suppliedRootClassification, trustedRootClassificationQ,
+    suppliedRootClassification, suppliedRootClassificationValidQ,
     screenRoots, letterRecords, letterData, screen,
     screenRegulatorValue, prepareOptions, gaugeScreen, gaugeLadder,
     deferredProviderLadder, ladderImages, ladderValues, rungBuilder,
@@ -470,69 +463,86 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
   screen = <|"Status" -> "IntegrabilityScreenSkipped"|>;
   If[MatchQ[variables, {_Symbol, _Symbol}] && MatchQ[epsilon, _Symbol] &&
       MatchQ[strip, {_List, _List, _List}],
-    allRoots = transportChartCurrentRoots[frame, variables];
+    allRoots = coefficientPresentationSquareRootsInVariables[frame, variables];
     If[ListQ[allRoots],
       suppliedRootClassification = OptionValue["RootClassification"];
-      trustedRootClassificationQ =
+      suppliedRootClassificationValidQ =
         AssociationQ[suppliedRootClassification] &&
         AssociationQ[deferredBundle] &&
-        AssociationQ[$blockEquationDeferredTrustedBundle] &&
         Lookup[blockEquationDeferredBundleValidate[deferredBundle],
           "Status", None] === "BundleValid" &&
         AllTrue[{"RadicalBases", "UnclassifiedRadicalBases"},
           KeyExistsQ[suppliedRootClassification, #1] &];
       multiquadraticStripStageStart["outer root census",
-        <|"supplied" -> trustedRootClassificationQ|>];
+        <|"supplied" -> suppliedRootClassificationValidQ|>];
       classification = multiquadraticStripRootCensusWithBundle[strip, allRoots,
         variables, epsilon, deferredBundle,
-        If[trustedRootClassificationQ, suppliedRootClassification,
+        If[suppliedRootClassificationValidQ, suppliedRootClassification,
           Automatic]];
       (* The dense BBar is a zero-shape placeholder on the raw native route,
-         exactly as it is for a DeferredBundle.  Union the root squares bound
-         by the authenticated preparation wrapper before alphabet/grade
+         exactly as it is for a DeferredBundle.  Union the square-root
+         generators bound by the preparation wrapper before alphabet/grade
          construction; otherwise the visible strip silently collapses a
          genuine rank-3 forcing to the diagonal's rank-1 field. *)
       If[deferredASTSourceQ && ! AssociationQ[deferredBundle],
-        deferredASTRootSquares = Lookup[deferredASTWrapper,
-          "RootSquares", Missing["NoRootSquares"]];
-        If[! ListQ[deferredASTRootSquares],
+        deferredASTPresentation = masterTransportCoefficientPresentationData[
+          Lookup[deferredASTWrapper, "CoefficientPresentation",
+            Missing["NoCoefficientPresentation"]], variables];
+        deferredASTPresentationRoots =
+          coefficientPresentationSquareRootsInVariables[
+            deferredASTPresentation, variables];
+        deferredASTGeneratorIndices = Lookup[deferredASTWrapper,
+          "SquareRootGeneratorIndices", $Failed];
+        If[Lookup[deferredASTPresentation, "Status", None] =!= "OK" ||
+            ! ListQ[deferredASTPresentationRoots] ||
+            ! VectorQ[deferredASTGeneratorIndices, IntegerQ] ||
+            ! ContainsOnly[deferredASTGeneratorIndices,
+              Range[Length[deferredASTPresentationRoots]]] ||
+            deferredASTGeneratorIndices =!=
+              Sort[DeleteDuplicates[deferredASTGeneratorIndices]],
           Return[multiquadraticStripFailure[
-            "DeferredPreparationRootFrameMissing"]]];
+            "DeferredPreparationCoefficientPresentationInvalid"]]];
+        deferredASTRoots =
+          deferredASTPresentationRoots[[deferredASTGeneratorIndices]];
         deferredASTRootIndices = Table[Module[{matches},
             matches = Flatten[Position[allRoots,
               candidate_ /; TrueQ[Quiet[Together[
-                    candidate["RootSquare"] - square]] === 0],
+                    squareRootRecordExpression[candidate] -
+                      squareRootRecordExpression[root]]] === 0] &&
+                  TrueQ[Quiet[Together[
+                    squareRootRecordRadicand[candidate] -
+                      squareRootRecordRadicand[root]]] === 0],
               {1}, Heads -> False]];
             If[Length[matches] =!= 1,
               Return[multiquadraticStripFailure[
-                "DeferredPreparationRootFrameMismatch",
-                <|"RootSquare" -> square, "Matches" -> matches|>],
+                "DeferredPreparationSquareRootGeneratorMismatch",
+                <|"SquareRootGenerator" -> root,
+                  "Matches" -> matches|>],
                 Module]];
             First[matches]],
-          {square, deferredASTRootSquares}];
+          {root, deferredASTRoots}];
         If[! VectorQ[deferredASTRootIndices, IntegerQ],
           Return[FirstCase[deferredASTRootIndices,
             failure_Association :> failure,
             multiquadraticStripFailure[
-              "DeferredPreparationRootFrameMismatch"]]]];
+              "DeferredPreparationSquareRootGeneratorMismatch"]]]];
         deferredASTSelectedIndices = DeleteDuplicates[Join[
           Lookup[classification, "RootIndices", {}],
           deferredASTRootIndices]];
-        deferredASTStableFrame = blockEquationDeferredRootFrame[
-          KeyTake[#1, {"Root", "RootSquare"}] & /@
+        deferredASTGeneratorValidation =
+          blockEquationDeferredValidateSquareRootGenerators[
             allRoots[[deferredASTSelectedIndices]], variables, epsilon];
-        If[Lookup[deferredASTStableFrame, "Status", None] =!=
-            "StableRootOrder",
+        If[Lookup[deferredASTGeneratorValidation, "Status", None] =!=
+            "SquareRootGeneratorsValidated",
           Return[multiquadraticStripFailure[
-            "DeferredPreparationRootUnionInvalid",
-            <|"Detail" -> deferredASTStableFrame|>]]];
+            "DeferredPreparationSquareRootGeneratorUnionInvalid",
+            <|"Detail" -> deferredASTGeneratorValidation|>]]];
         classification = Join[classification, <|
           "BundleRootIndices" -> deferredASTRootIndices,
-          "RequiredRootIndices" ->
-            deferredASTSelectedIndices[[Lookup[
-              deferredASTStableFrame["Roots"], "SourceIndex", {}]]]|>]];
+          "RequiredRootIndices" -> deferredASTSelectedIndices|>]];
       multiquadraticStripStageDone["outer root census",
-        <|"source" -> If[trustedRootClassificationQ, "SameCall", "Fresh"]|>];
+        <|"source" -> If[suppliedRootClassificationValidQ,
+          "SameCall", "Fresh"]|>];
       If[! KeyExistsQ[classification, "UnclassifiedRadicalBases"],
         Return[classification]];
       (* the shared field canonicalizer, ahead of the alphabet and both
@@ -674,7 +684,7 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
   (* ---------------------------------------------------------------- *)
   screenFirst = <|"Status" -> "ScreenFirstSkipped"|>;
   If[! AssociationQ[deferredBundle] &&
-      Replace[OptionValue["ScreenFirst"], Automatic :> "Advisory"] =!= False &&
+      TrueQ[OptionValue["ScreenFirst"]] &&
       ListQ[screenRoots] && MatchQ[letterRecords, {__Association}],
     screenFirstOffset = Replace[OptionValue["ScreenFirstDegreeOffset"],
       Automatic :> Module[{ladder = Replace[OptionValue["DegreeOffsetLadder"],
@@ -939,8 +949,6 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
               "ConfiguredImageCount", Missing["NotRecorded"]],
             "FreshImageCount" -> Lookup[gaugeScreen, "FreshImageCount",
               Missing["NotRecorded"]],
-            "AnsatzFingerprint" -> Lookup[preparation, "ABIFingerprint",
-              Missing["NoPreparation"]],
             "Ansatz" -> Lookup[gaugeScreen, "Ansatz", Missing["NoAnsatz"]],
             "ContractNote" -> StringJoin[
               "the complete affine gauge system carries a rank defect at ",
@@ -958,7 +966,7 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
               "; the compile it screens would reproduce exactly this defect, ",
               "and the witness names which residue demand is unmet.  This is ",
               "a HIGH-CONFIDENCE MODULAR obstruction WITHIN THE STATED ",
-              "ALPHABET, SUPPORT AND DENOMINATOR ANSATZ (fingerprint above), ",
+              "ALPHABET, SUPPORT AND DENOMINATOR ANSATZ, ",
               "not a theorem over Q(eps): each image is exact for its own ",
               "specialized system, and genericity rests on the images being ",
               "independent, not on a proved epsilon-degree bound.  A ",
@@ -1011,8 +1019,8 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
               "Seconds" -> AbsoluteTime[] - startTime|>]]]]]]];
   If[multiquadraticStripDeadlineExpiredQ[deadline],
     Return[budgetExhausted["GaugeScreen"]]];
-  (* the preparation object was built in THIS call: its ABI payload is
-     the one just computed and its forcing channels are exact, so the
+  (* The preparation object was built in this call and its forcing channels
+     are reused directly, so the
      compiler neither re-derives the payload nor decomposes the forcing
      a second time (post-mortem item 5) *)
   multiquadraticStripStageStart[If[coefficientProvider === "CompiledChannel",
@@ -1059,14 +1067,7 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
       "OneForms" -> preparation["OneForms"],
       "GaugeDenominator" -> preparation["GaugeDenominator"],
       "DeferredBundle" -> If[deferredASTSourceQ, None,
-        Lookup[preparation, "DeferredBundle", Automatic]],
-      "CoefficientABIFingerprint" ->
-        layout["CoefficientABIFingerprint"],
-      "SourceFingerprint" -> If[deferredASTSourceQ &&
-          AssociationQ[deferredASTPreparation],
-        Lookup[deferredASTPreparation, "SourceFingerprint",
-          preparation["ABIFingerprint"]],
-        preparation["ABIFingerprint"]]];
+        Lookup[preparation, "DeferredBundle", Automatic]]];
     If[deferredASTSourceQ,
       provider = multiquadraticStripAttachDeferredPreparation[provider,
         deferredASTPreparation, deferredASTInputFile]]];
@@ -1137,13 +1138,13 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
         multiquadraticStripAssemblyLayout[nextPreparation]];
       If[! multiquadraticStripAssemblyLayoutValidQ[nextLayout],
         Return[nextLayout, Module]];
-      If[nextLayout["CoefficientABIFingerprint"] =!=
-          reusableProvider["CoefficientABIFingerprint"],
+      If[! SameQ[nextLayout["CoefficientData"],
+          reusableProvider["CoefficientData"]],
         Return[multiquadraticStripFailure[
-          "ProviderSupportCoefficientABIChanged",
+          "ProviderSupportCoefficientDataChanged",
           <|"DegreeOffset" -> offset,
-            "Expected" -> reusableProvider["CoefficientABIFingerprint"],
-            "Observed" -> nextLayout["CoefficientABIFingerprint"]|>],
+            "Expected" -> reusableProvider["CoefficientData"],
+            "Observed" -> nextLayout["CoefficientData"]|>],
           Module]];
       <|"Preparation" -> nextPreparation, "Layout" -> nextLayout,
         "Provider" -> reusableProvider|>]];
@@ -1196,8 +1197,7 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
   If[multiquadraticStripDeadlineExpiredQ[deadline],
     Return[budgetExhausted["Preparation"]]];
   widePrimeSchedule = If[OptionValue["SamplePrimes"] === Automatic,
-    Block[{$multiquadraticStripTrustedProviderEvaluation = True},
-      multiquadraticStripWidePrimeScheduleQ[provider]], False];
+    multiquadraticStripWidePrimeScheduleQ[provider], False];
   primes = Replace[OptionValue["SamplePrimes"], Automatic :>
     If[widePrimeSchedule,
       $multiquadraticStripWideDefaultPrimes,
@@ -1284,8 +1284,7 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
       "PilotImages" -> reconstructionPilotImages,
       "ExactVerification" -> Replace[
         OptionValue["RegulatorReconstructionCheck"], Automatic :>
-          If[coefficientProvider === "CompiledChannel", True,
-            "ProviderPoints"]],
+          "ProviderPoints"],
       "Deadline" -> deadline, "Verbose" -> verbose];
     multiquadraticStripStageDone["regulator reconstruction",
       <|"status" -> Lookup[reconstruction, "Status", None],
@@ -1302,8 +1301,8 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
   If[! reconstructedQ,
     Return[enrich[Join[reconstruction,
       <|"SolutionContract" -> "RegulatorReconstructionIncomplete"|>]]]];
-  signature = Lookup[reconstruction, {"Rank", "Nullity",
-    "PivotSignature"}, Missing["NotReconstructed"]];
+  structure = Lookup[reconstruction, {"Rank", "Nullity",
+    "PivotColumns"}, Missing["NotReconstructed"]];
   unpacked = <|"Status" -> "UnpackedMultiquadraticSolution",
     "GaugeChannels" -> reconstruction["GaugeChannels"],
     "Gauge" -> reconstruction["Gauge"],
@@ -1327,10 +1326,9 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
   heldOutRegulatorValue = freshReference["RegulatorValue"];
   heldOutSolution = <|
     "Status" -> "SupersededByReconstructionFreshChecks",
-    "Rank" -> signature[[1]], "Nullity" -> signature[[2]],
+    "Rank" -> structure[[1]], "Nullity" -> structure[[2]],
     "PivotColumns" -> reconstruction["PivotColumns"],
     "FreeColumns" -> reconstruction["FreeColumns"],
-    "PivotSignature" -> signature[[3]],
     "FreshCheckCount" -> Length[freshProviderChecks],
     "FreshPrimes" -> DeleteDuplicates[Lookup[freshProviderChecks, "Prime"]],
     "Evidence" -> "AuthenticatedReconstructionProviderResiduals"|>;
@@ -1414,16 +1412,13 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
       "FullAffineSolveCount" -> Lookup[reconstruction,
         "FullAffineSolveCount", Missing["NotRecorded"]],
       "PostReconstructionAffineSolveCount" -> 0,
-      "DeferredBundleFingerprint" -> Lookup[preparation,
-        "DeferredBundleFingerprint", Missing["NoDeferredBundle"]],
       "AdoptedDegreeOffset" -> adoptedDegreeOffset,
       "IntegrabilityScreen" -> KeyTake[screen, {"Status", "Reason"}],
       "GaugeScreen" -> If[AssociationQ[gaugeScreen],
         KeyTake[gaugeScreen, {"Status", "Reason"}],
         <|"Status" -> "GaugeScreenSkipped"|>],
       "RegulatorReconstruction" -> KeyTake[reconstruction,
-        {"Status", "Method", "Provider", "ProviderFingerprint",
-         "LayoutFingerprint", "ReconstructedVectorFingerprint",
+        {"Status", "Method", "Provider", "CoefficientData",
          "SamplePrimes", "UnseenPrimes", "RegulatorValues",
          "LearnedRegulatorSampleCount", "PrimeRegulatorImageCounts",
          "RegulatorScheduleGrowths", "HeldOutValidation",
@@ -1449,9 +1444,10 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
           "StructuralPilotEvidence", "StructuralPilotPrimeCount",
           "StructuralPilotRREFCount", "StructuralPilotNewSampleCount",
           "StructuralPilotNewFullAffineSolveCount",
-          "StructuralPilotCacheHitCount", "ModalStructuralSignature",
+          "StructuralPilotCacheHitCount", "ModalStructuralStructure",
           "ModalReferencePrime", "ModalReferenceRegulatorValue",
-          "ImagePhaseRecords", "PhaseSeconds", "Seconds"}],
+          "ImagePhaseRecords", "TrainingImageKeys", "PhaseSeconds",
+          "Seconds"}],
       "DeferredProviderSupportLadder" -> If[
         AssociationQ[deferredProviderLadder],
         KeyDrop[deferredProviderLadder,
@@ -1492,8 +1488,8 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
     "InstallationAttempt" -> installable,
     "ContractNote" -> "the reconstructed provider solution is modularly consistent but did not satisfy the active-support installation gate; it is recorded and not installed as a solved epsilon form.",
     "RegulatorReconstruction" -> KeyTake[reconstruction,
-      {"Status", "Method", "Provider", "ProviderFingerprint",
-       "CoefficientABIFingerprint", "SamplePrimes", "UnseenPrime",
+      {"Status", "Method", "Provider", "CoefficientData", "SamplePrimes",
+       "UnseenPrime",
        "RegulatorValues",
        "NormalizationColumns", "DegreeHistogram", "MaximumRegulatorDegree",
        "ResiduesKinematicsFree", "ResiduesRegulatorFree",
@@ -1520,7 +1516,7 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
        "StructuralPilotPrimeCount", "StructuralPilotRREFCount",
        "StructuralPilotNewSampleCount",
        "StructuralPilotNewFullAffineSolveCount",
-       "StructuralPilotCacheHitCount", "ModalStructuralSignature",
+       "StructuralPilotCacheHitCount", "ModalStructuralStructure",
        "ModalReferencePrime", "ModalReferenceRegulatorValue",
        "FollowerImageKernelCountRequested",
        "FollowerImageMaximumConcurrency",
@@ -1528,7 +1524,7 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
        "FollowerImageParallelWaveCount", "FollowerImageSerialWaveCount",
        "FollowerImageParallelCount", "FollowerImageSerialCount",
        "FollowerImageWaveRecords", "ImagePhaseRecords",
-       "TrainingImageKeys", "ImageStoreKeys", "PhaseSeconds", "Seconds"}],
+       "TrainingImageKeys", "PhaseSeconds", "Seconds"}],
     "RegulatorGauge" -> Lookup[reconstruction, "Gauge",
       Missing["NotReconstructed"]],
     "RegulatorGaugeChannels" -> Lookup[reconstruction, "GaugeChannels",
@@ -1597,19 +1593,10 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
       <|"Status" -> "DeferredProviderSupportLadderNotRun"|>],
     "UnknownCount" -> preparation["UnknownCount"],
     "EquationsPerPoint" -> preparation["EquationsPerPoint"],
-    "ABIFingerprint" -> preparation["ABIFingerprint"],
-    "AlgebraABIFingerprint" -> preparation["AlgebraABIFingerprint"],
     "PreparationSchema" -> Lookup[preparation, "PreparationSchema",
       Missing["PreparationSchema"]],
-    "AssemblyFingerprint" -> If[AssociationQ[assembly],
-      Lookup[assembly, "AssemblyFingerprint", Missing["NotCompiled"]],
-      Missing["DirectProviderDoesNotCompileChannels"]],
-    "LayoutFingerprint" -> layout["LayoutFingerprint"],
-    "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
     "CoefficientProvider" -> provider["Kind"],
-    "ProviderFingerprint" -> provider["ProviderFingerprint"],
-    "Rank" -> signature[[1]], "Nullity" -> signature[[2]],
-    "PivotSignature" -> signature[[3]],
+    "Rank" -> structure[[1]], "Nullity" -> structure[[2]],
     "PivotColumns" -> reconstruction["PivotColumns"],
     "FullAffineSolveCount" -> Lookup[reconstruction,
       "FullAffineSolveCount", Missing["NotRecorded"]],
@@ -1619,7 +1606,7 @@ solveEpsFormStripMultiquadratic[sourceRecord_Association, frame_Association,
     "HeldOutRegulatorValue" -> heldOutRegulatorValue,
     "HeldOutSolution" -> heldOutSolution,
     "ModularSolutions" -> Association[KeyValueMap[
-      #1 -> KeyTake[#2, {"Rank", "Nullity", "PivotSignature",
+      #1 -> KeyTake[#2, {"Rank", "Nullity", "PivotColumns",
         "ParticularSolution"}] &, solutions]],
     "ExactLift" -> Association[KeyValueMap[
       #1 -> Lookup[#2, "Status", None] &, lifts]],

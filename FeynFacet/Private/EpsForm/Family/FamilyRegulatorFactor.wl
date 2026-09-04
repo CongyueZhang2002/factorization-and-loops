@@ -18,7 +18,6 @@ Clear[FactorFamilyRegulatorDependence];
 ClearAll[familyRegulatorFactoredQ, familyRegulatorSpecialize,
   familyRegulatorConjugate, familyRegulatorSparseDot,
   familyRegulatorConjugateDeferred, familyRegulatorSparseDotDeferred,
-  familyRegulatorPropagationSeal,
   familyRegulatorPropagateTruncation, familyRegulatorPointFactoredQ,
   familyRegulatorSampleFactoredQ,
   familyRegulatorFactorFromPointEvaluator,
@@ -95,27 +94,6 @@ familyRegulatorConjugateDeferred[inverse_List, matrix_List,
   familyRegulatorSparseDotDeferred[inverse, matrix, True],
   transformation, False];
 
-(* The seal is created inside the accepted factor routine, where the input
-   prefix is authoritative.  The propagation helper recomputes it before
-   installing any caller-supplied transformed prefix. *)
-familyRegulatorPropagationSeal[
-    inputPrefix : {_List, _List}, transformedPrefix : {_List, _List},
-    inverse_List, transformation_List] := Module[{payload},
-  payload = <|
-    "Schema" -> "FeynFacetRegulatorPropagationSeal",
-    "SchemaVersion" -> 1,
-    "InputPrefixSHA256" ->
-      Hash[inputPrefix, "SHA256", "HexString"],
-    "TransformedPrefixSHA256" ->
-      Hash[transformedPrefix, "SHA256", "HexString"],
-    "InverseSHA256" -> Hash[inverse, "SHA256", "HexString"],
-    "TransformationSHA256" ->
-      Hash[transformation, "SHA256", "HexString"]|>;
-  Join[payload, <|"Fingerprint" ->
-    Hash[KeySort[payload], "SHA256", "HexString"]|>]
-];
-familyRegulatorPropagationSeal[___] := $Failed;
-
 (* Propagate a constant regulator factor found and certified on the leading
    prefix.  For G = diag(T,I) and a block-lower-triangular connection,
      G^-1 A G = {{T^-1 A00 T, 0}, {A10 T, A11}}.
@@ -127,12 +105,12 @@ familyRegulatorPropagationSeal[___] := $Failed;
 familyRegulatorPropagateTruncation[
     connection : {_List, _List}, transformedPrefix : {_List, _List},
     inverse_List, transformation_List, prefix_Integer?Positive,
-    variables : {_Symbol, _Symbol}, seal_,
+    variables : {_Symbol, _Symbol},
     futureMode_: "Together", validateInverse_: True] := Module[
   {n, futureRows, upperRightZeroQ, newConnection = connection,
    transformationColumnSupport, left, leftRowSupport, support, terms,
    value, products = 0, touched = 0, deferred = 0, singleTerm = 0,
-   tFull, tInverse, inverseExactQ, expectedSeal, mu, i, j},
+   tFull, tInverse, inverseExactQ, transformedPrefixExactQ, mu, i, j},
   If[! And @@ (MatrixQ /@ connection) ||
       Dimensions[connection[[1]]] =!= Dimensions[connection[[2]]] ||
       Length[connection[[1]]] =!= Length[First[connection[[1]]]],
@@ -157,12 +135,15 @@ familyRegulatorPropagateTruncation[
     Return[<|"Status" ->
       "RegulatorTransformationInverseInvalid"|>]];
   If[TrueQ[validateInverse],
-    expectedSeal = familyRegulatorPropagationSeal[
-      connection[[All, Range[prefix], Range[prefix]]],
-      transformedPrefix, inverse, transformation];
-    If[expectedSeal === $Failed || ! SameQ[seal, expectedSeal],
-      Return[<|"Status" -> "RegulatorPropagationSealMismatch"|>]],
-    expectedSeal = Missing["DeferredToFamilyCertificate"]];
+    transformedPrefixExactQ = And @@ (AllTrue[
+      Flatten[Map[Together, #, {2}]], SameQ[#, 0] &] & /@ (
+        (familyRegulatorConjugate[inverse, #, transformation] & /@
+          connection[[All, Range[prefix], Range[prefix]]]) -
+        transformedPrefix));
+    If[! transformedPrefixExactQ,
+      Return[<|"Status" ->
+        "RegulatorTransformedPrefixEquationInvalid"|>]],
+    transformedPrefixExactQ = Missing["DeferredToFamilyValidation"]];
   If[! MemberQ[{"Together", "Deferred"}, futureMode],
     Return[<|"Status" -> "InvalidFutureAMode",
       "Actual" -> futureMode|>]];
@@ -551,10 +532,6 @@ using the Wolfram backend"];
     "ValidationMode" -> validationMode,
     "ExactEpsFactorization" -> If[deferAcceptanceQ,
       Missing["DeferredToFamilyCertificate"], True],
-    "PropagationSeal" -> If[deferAcceptanceQ,
-      Missing["DeferredToFamilyCertificate"],
-      familyRegulatorPropagationSeal[
-        {ax, ay}, {newAx, newAy}, inverse, transformation]],
     "UseFermat" -> backend["UseFermat"], "Seconds" -> AbsoluteTime[] - start|>
 ];
 
@@ -563,7 +540,7 @@ using the Wolfram backend"];
 (* ------------------------------------------------------------------ *)
 (* WHY.  CF259 stopped typed at rows 1..23 (2026-08-25 07:50): the three
    declared roots of the completed 41x41 truncation have NO joint
-   rational chart (TransportRootSetChart is Missing["NoRationalChart"];
+   rational chart (LookupCataloguedRationalizingParametrizationForRoots is Missing["NoRationalChart"];
    the triple cover is a K3 surface, not a rational one), so the chart
    route of FactorFamilyRegulatorDependenceInFrame has nothing to pull
    back to.  The constant T(eps) must therefore be found in the graded
@@ -612,8 +589,7 @@ ClearAll[familyRegulatorNonSquareRationalQ, familyRegulatorGradedRoots,
   familyRegulatorGradedDecomposeTask,
   familyRegulatorGradedPointFactoredQ, familyRegulatorModularImage,
   familyRegulatorGradedCorroborate, familyRegulatorGradedSpotCheck,
-  familyRegulatorGradedSampleMatrix, $familyRegulatorMaximumGradedRank,
-  $familyRegulatorGradedSampleCache, $familyRegulatorGradedSampleCacheLimit];
+  $familyRegulatorMaximumGradedRank];
 
 (* rank 3 declared roots + the square classes of the numeric constants a
    denesting can introduce (CF259 carries Sqrt[2]); the neutral algebra
@@ -632,13 +608,15 @@ familyRegulatorNonSquareRationalQ[value_] :=
    the caller's established root order. *)
 familyRegulatorGradedRootFrame[roots_List] := Module[
   {squares, duplicates, dependent},
-  If[! AllTrue[roots, AssociationQ[#1] && KeyExistsQ[#1, "Root"] &&
-      KeyExistsQ[#1, "RootSquare"] &&
-      (TrueQ[Together[#1["Root"]^2 - #1["RootSquare"]] === 0] ||
+  If[! AllTrue[roots, AssociationQ[#1] &&
+      ! MissingQ[squareRootRecordExpression[#1]] &&
+      ! MissingQ[squareRootRecordRadicand[#1]] &&
+      (TrueQ[Together[squareRootRecordExpression[#1]^2 -
+          squareRootRecordRadicand[#1]] === 0] ||
         (TrueQ[Lookup[#1, "FormalGenerator", False]] &&
-          MatchQ[#1["Root"], _Symbol])) &],
+          MatchQ[squareRootRecordExpression[#1], _Symbol])) &],
     Return[<|"Status" -> "InvalidRootMetadata"|>]];
-  squares = Together /@ Lookup[roots, "RootSquare", {}];
+  squares = Together /@ (squareRootRecordRadicand /@ roots);
   duplicates = Select[Subsets[Range[Length[roots]], {2}],
     TrueQ[Together[squares[[#1[[1]]]] - squares[[#1[[2]]]]] === 0] &];
   If[duplicates =!= {},
@@ -655,43 +633,35 @@ familyRegulatorGradedRootFrame[roots_List] := Module[
 ];
 familyRegulatorGradedRootFrame[___] := <|"Status" -> "InvalidRootMetadata"|>;
 
-(* Persistable, self-authenticating description of the actual graded field.
-   The factorizer may extend the chart roots by independent numeric square
-   classes, so RootIndices/RootSquares from the chart alone are not enough to
-   replay a later whole-family certificate.  The shared canonical root-frame
-   builder supplies branch-sensitive fingerprints and a stable ordering; the
-   remaining fields bind the exponential grade ABI and its resource ceiling. *)
+(* Persistable description of the ordered square-root generators used by the
+   grade decomposition.  The displayed generator list is authoritative and
+   is compared directly by consumers. *)
 familyRegulatorGradedFrameEvidence[roots_List,
     variables : {_Symbol, _Symbol}, regulator_Symbol] := Module[
-  {frame, numericIndices, semantic},
+  {frame, numericIndices},
   If[Length[roots] > $familyRegulatorMaximumGradedRank,
     Return[<|"Status" -> "GradedRankTooLarge", "Rank" -> Length[roots],
       "MaximumRank" -> $familyRegulatorMaximumGradedRank|>]];
-  frame = blockEquationDeferredRootFrame[roots, variables, regulator];
-  If[Lookup[frame, "Status", None] =!= "StableRootOrder", Return[frame]];
-  If[AnyTrue[Lookup[frame["Roots"], "RootSquare", {}],
+  frame = familyRegulatorGradedRootFrame[roots];
+  If[Lookup[frame, "Status", None] =!= "StableRootFrame", Return[frame]];
+  If[AnyTrue[squareRootRecordRadicand /@ frame["Roots"],
       ! FreeQ[#1, regulator] &],
     Return[<|"Status" -> "RegulatorDependentRootSquare"|>]];
   numericIndices = Flatten[Position[
-    Lookup[frame["Roots"], "RootSquare", {}],
+    squareRootRecordRadicand /@ frame["Roots"],
     value_ /; familyRegulatorNonSquareRationalQ[value], {1},
     Heads -> False]];
-  semantic = <|
-    "Schema" -> "FamilyRegulatorGradedRootFrameV1",
+  <|
+    "DataType" -> "SquareRootGradeDecompositionData",
+    "SchemaVersion" -> 2,
     "Status" -> "StableRootFrame",
     "Roots" -> frame["Roots"],
     "RootCount" -> Length[frame["Roots"]],
     "GradeCount" -> 2^Length[frame["Roots"]],
     "MaximumRank" -> $familyRegulatorMaximumGradedRank,
-    "RootFingerprints" -> frame["RootFingerprints"],
-    "OrderingFingerprint" -> frame["OrderingFingerprint"],
     "NumericRootIndices" -> numericIndices,
     "NumericRootSquares" ->
-      Lookup[frame["Roots"][[numericIndices]], "RootSquare", {}]|>;
-  Append[semantic, "FrameFingerprint" -> Hash[KeyTake[semantic,
-    {"Schema", "RootCount", "GradeCount", "MaximumRank",
-     "RootFingerprints", "OrderingFingerprint", "NumericRootIndices",
-     "NumericRootSquares"}], "SHA256", "HexString"]]
+      (squareRootRecordRadicand /@ frame["Roots"][[numericIndices]])|>
 ];
 familyRegulatorGradedFrameEvidence[___] :=
   <|"Status" -> "InvalidRootMetadata"|>;
@@ -708,7 +678,8 @@ familyRegulatorGradedRoots[usedRoots_List, numericClasses_List] := Module[
   classes = Select[DeleteDuplicates[Together /@ numericClasses],
     familyRegulatorNonSquareRationalQ];
   candidates = Join[usedRoots,
-    Map[<|"Root" -> Sqrt[#], "RootSquare" -> #|> &, classes]];
+    Map[<|"Generator" -> Sqrt[#], "QuadraticRadicand" -> #,
+      "SourceRadicand" -> #|> &, classes]];
   frame = familyRegulatorGradedRootFrame[candidates];
   If[Lookup[frame, "Status", None] =!= "StableRootFrame", frame,
     frame["Roots"]]
@@ -744,8 +715,8 @@ familyRegulatorGradedTreeDecompose[expression_, roots_List] := Module[
   {rank = Length[roots], deltas, rootImages, dimension, one,
    containsRootQ, power, evaluate, result},
   If[rank > $familyRegulatorMaximumGradedRank, Return[$Failed]];
-  deltas = Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]];
-  rootImages = Lookup[roots, "Root", ConstantArray[$Failed, rank]];
+  deltas = squareRootRecordRadicand /@ roots;
+  rootImages = squareRootRecordExpression /@ roots;
   If[Length[deltas] =!= rank || Length[rootImages] =!= rank ||
       ! FreeQ[{deltas, rootImages}, $Failed], Return[$Failed]];
   dimension = 2^rank;
@@ -804,10 +775,10 @@ familyRegulatorGradedDecomposeUnchecked[expression_, roots_List,
    denominatorChannels, denominatorInverse, channels, reconstructed,
    difference, formalQ, treeChannels, termChannels, active, localChannels},
   If[rank > $familyRegulatorMaximumGradedRank, Return[$Failed]];
-  deltas = Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]];
+  deltas = squareRootRecordRadicand /@ roots;
   If[Length[deltas] =!= rank || ! FreeQ[deltas, $Failed], Return[$Failed]];
   deltas = Together /@ deltas;
-  rootImages = Lookup[roots, "Root", ConstantArray[$Failed, rank]];
+  rootImages = squareRootRecordExpression /@ roots;
   If[! FreeQ[rootImages, $Failed], Return[$Failed]];
   formalQ = AnyTrue[roots,
     TrueQ[Lookup[#1, "FormalGenerator", False]] &];
@@ -863,7 +834,8 @@ familyRegulatorGradedDecomposeUnchecked[expression_, roots_List,
       denominatorInverse, deltas]];
   If[Length[channels] =!= 2^rank, Return[$Failed]];
   If[! TrueQ[validateRoundTrip], Return[channels]];
-  reconstructed = multiquadraticToExpression[channels, Lookup[roots, "Root", {}]];
+  reconstructed = multiquadraticToExpression[channels,
+    squareRootRecordExpression /@ roots];
   difference = reconstructed - expression;
   If[! (TrueQ[Together[difference] === 0] ||
         TrueQ[transportChartAlgebraicZeroQ[difference, roots] === True]),
@@ -896,7 +868,8 @@ familyRegulatorGradedPointSample[connection : {_List, _List}, tags_List,
      explicit Sqrt[rational] values here lets Mathematica collapse products
      such as r1 r2 into a new radical spelling and loses the grade basis. *)
   pointRoots = MapThread[
-    <|"Root" -> #1, "RootSquare" -> #2, "FormalGenerator" -> True|> &,
+    <|"Generator" -> #1, "QuadraticRadicand" -> #2,
+      "SourceRadicand" -> #2, "FormalGenerator" -> True|> &,
     {tags, deltas}];
   specialized = connection /. rule;
   (* Reuse the exact sparse grade engine after specialization.  It interns
@@ -1109,8 +1082,7 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
       batchSeconds = First[AbsoluteTiming[
         If[dispatcher === Automatic,
           dataFile = taskBrokerDataFile[
-            "frfgrade_v2_" <> Hash[{unique, roots, validateRoundTrip},
-              "SHA256", "HexString"],
+            CreateUUID["frfgrade-v2-"],
             <|"Expressions" -> unique, "Roots" -> roots,
               "ValidateRoundTrip" -> validateRoundTrip|>];
           codes = StringJoin[
@@ -1163,44 +1135,6 @@ familyRegulatorGradedMatrices[connection : {_List, _List}, roots_List,
       "DecomposeSeconds" -> N[AbsoluteTime[] - started]|>|>
 ];
 
-(* Sampling a grade component at a rational chart point.  The channels
-   come out of the decomposition already Together-normalized, so a zero
-   entry needs no work at all -- and a grade component of a real
-   connection is very sparse (CF259 rows 1..23: 336 nonzero entries of
-   1681, spread over 16 grades).  Skipping the zeros is what keeps the
-   ladder affordable at 2 * 2^k matrices per point instead of 2.
-
-   MEMOIZED per (grade component, point) since 2026-08-25 (Codex 08:30
-   performance item 1, second half).  The point ladder {1, 2, 4, 8}
-   rebuilds every prefix: at 8 points it samples 1 + 2 + 4 + 8 = 15
-   point-sets where 8 distinct ones exist.  The key is a SHA-256
-   fingerprint of the component, the point and the regulator symbol with
-   its context -- the same fingerprint discipline the artifact ABIs of
-   this repository use -- and the cache stores only the SAMPLED matrix,
-   which is a matrix of rational functions of the regulator alone and far
-   smaller than the two-variable component; keeping the component itself
-   would pin the whole grade decomposition of every family a persistent
-   pool subkernel has served.  The pool is bounded for the same reason. *)
-$familyRegulatorGradedSampleCache = <||>;
-$familyRegulatorGradedSampleCacheLimit = 128;
-
-familyRegulatorGradedSampleMatrix[matrix_List, rule_List, epsilon_Symbol] :=
-  Module[{key, hit, sampled},
-    key = Hash[{matrix, rule, Context[epsilon], SymbolName[epsilon]},
-      "SHA256", "HexString"];
-    hit = Lookup[$familyRegulatorGradedSampleCache, Key[key], None];
-    If[hit =!= None, Return[hit]];
-    sampled = Map[Function[entry,
-      If[TrueQ[entry === 0], 0, Together[(entry /. rule)/epsilon]]],
-      matrix, {2}];
-    If[Length[$familyRegulatorGradedSampleCache] >=
-        $familyRegulatorGradedSampleCacheLimit,
-      $familyRegulatorGradedSampleCache = Take[
-        $familyRegulatorGradedSampleCache,
-        -Quotient[$familyRegulatorGradedSampleCacheLimit, 2]]];
-    $familyRegulatorGradedSampleCache[key] = sampled;
-    sampled];
-
 (* the rational route's cheap point gate, per grade component *)
 familyRegulatorGradedPointFactoredQ[inverse_List, gradeMatrices_List,
     candidate_List, rules_List, epsilon_Symbol] :=
@@ -1238,7 +1172,7 @@ familyRegulatorGradedCorroborate[gradeMatrices_List, roots_List,
    rootProducts, epsilonValues, conjugatedByValue, sheetVerdicts,
    gradeVerdicts, ok = True, seed = 0, tries, x0, y0, matrices, tMatrix,
    tInverse, image, identityOK, sheets},
-  deltas = Together /@ Lookup[roots, "RootSquare", ConstantArray[$Failed, rank]];
+  deltas = Together /@ (squareRootRecordRadicand /@ roots);
   If[! FreeQ[deltas, $Failed], Return[<|"Status" -> "CorroborationRootsInvalid"|>]];
   gradeCount = 2^rank;
   masks = multiquadraticBasisMasks[rank];
@@ -1414,7 +1348,7 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
    numericGradeCount = 0, skippedStages = {}, rootFrame,
    gradedFrameEvidence, validationMode, deferAcceptanceQ,
    evaluated, rootTags, taggedConnection, rootSquares,
-   sourceConjugationSeconds = 0.},
+   sourceConjugationSeconds = 0., sampleMatrix},
   If[! (MatrixQ[ax] && MatrixQ[ay] && Dimensions[ax] === Dimensions[ay] &&
       Length[ax] === Length[First[ax]]),
     Message[FactorFamilyRegulatorDependenceMultiquadratic::input];
@@ -1430,7 +1364,7 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
      whose square is a plain non-square rational is a CONSTANT of the
      coefficient field: the completeness caveat of Codex 0830 P2 is
      about exactly these, and a refusal has to say so. *)
-  numericGradeCount = Count[Lookup[roots, "RootSquare", {}],
+  numericGradeCount = Count[squareRootRecordRadicand /@ roots,
     value_ /; familyRegulatorNonSquareRationalQ[value]];
   If[rank > $familyRegulatorMaximumGradedRank,
     Return[<|"Status" -> "GradedRankTooLarge", "Rank" -> rank,
@@ -1466,7 +1400,7 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
     taggedConnection = Map[
       transportChartApplyRootBranches[#1, roots, rootTags] &,
       {ax, ay}];
-    rootSquares = Lookup[roots, "RootSquare", {}];
+    rootSquares = squareRootRecordRadicand /@ roots;
     evaluated = familyRegulatorFactorFromPointEvaluator[
       Function[{pointRules}, familyRegulatorGradedPointSample[
         taggedConnection, rootTags, rootSquares, pointRules]],
@@ -1518,7 +1452,6 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
         "CompositionSpotCheck" -> Missing["DeferredToFamilyCertificate"],
         "ModularCorroboration" -> Missing["DeferredToFamilyCertificate"],
         "UseFermat" -> evaluated["UseFermat"],
-        "PropagationSeal" -> Missing["DeferredToFamilyCertificate"],
         "Seconds" -> AbsoluteTime[] - start|>]];
     log["sample-first route returned ",
       If[AssociationQ[evaluated], Lookup[evaluated, "Status", "Unknown"],
@@ -1574,6 +1507,14 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
   If[valid === {},
     Return[<|"Status" -> "NoAdmissibleSamplePoint", "Rank" -> rank,
       "Seconds" -> AbsoluteTime[] - start|>]];
+  (* The point ladder repeatedly uses nested prefixes.  Memoize by the local
+     grade and point indices, which are the exact mathematical coordinates
+     of this call; the cache disappears when this factorization returns. *)
+  sampleMatrix[a_Integer, k_Integer] := sampleMatrix[a, k] =
+    Map[Function[entry,
+      If[TrueQ[entry === 0], 0,
+        Together[(entry /. valid[[k]])/epsilon]]],
+      activeMatrices[[a]], {2}];
   fermatRequested = OptionValue["UseFermat"];
   backend = libraEpsFormLoadBackend[fermatRequested];
   If[backend["Status"] =!= "OK",
@@ -1591,8 +1532,8 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
       expired = True; Break[]];
     Module[{matrices, result, candidate, ok = False, gate = False, seconds},
       matrices = DeleteCases[
-        Flatten[Table[familyRegulatorGradedSampleMatrix[activeMatrices[[a]],
-          valid[[k]], epsilon], {k, count}, {a, Length[activeMatrices]}], 1],
+        Flatten[Table[sampleMatrix[a, k], {k, count},
+          {a, Length[activeMatrices]}], 1],
         matrix_ /; AllTrue[Flatten[matrix], TrueQ[#1 === 0] &]];
       log["FactorDependence on ", Length[matrices], " sampled grade matrices (",
         count, " points)"];
@@ -1644,7 +1585,8 @@ FactorFamilyRegulatorDependenceMultiquadratic[{ax_List, ay_List},
         "Reason" -> "no rational grade-zero transformation was found; \
 this solver admits T over Q(eps) only, while the declared constant field \
 carries numeric square classes in which a valid constant T may live",
-        "NumericGradeGenerators" -> Select[Lookup[roots, "RootSquare", {}],
+        "NumericGradeGenerators" -> Select[
+          squareRootRecordRadicand /@ roots,
           familyRegulatorNonSquareRationalQ],
         "NumericGradeGeneratorCount" -> numericGradeCount,
         "Complete" -> False, "Rank" -> rank, "GradeCount" -> gradeCount,
@@ -1767,10 +1709,6 @@ carries numeric square classes in which a valid constant T may live",
     "CompositionSpotCheck" -> spot,
     "ModularCorroboration" -> corroboration,
     "UseFermat" -> backend["UseFermat"],
-    "PropagationSeal" -> If[deferAcceptanceQ,
-      Missing["DeferredToFamilyCertificate"],
-      familyRegulatorPropagationSeal[
-        {ax, ay}, {newAx, newAy}, inverse, transformation]],
     "Seconds" -> AbsoluteTime[] - start|>
 ];
 FactorFamilyRegulatorDependenceMultiquadratic[___] :=
@@ -1786,7 +1724,7 @@ FactorFamilyRegulatorDependenceMultiquadratic[___] :=
 familyRegulatorLiteralRootClassification[expression_, roots_List] := Module[
   {rootSquares, radicals, indices = {}, numericClasses = {}, unmatched = {},
    index, split, numericClass},
-  rootSquares = Lookup[roots, "RootSquare", $Failed];
+  rootSquares = squareRootRecordRadicand /@ roots;
   If[! ListQ[rootSquares] || Length[rootSquares] =!= Length[roots] ||
       ! FreeQ[rootSquares, $Failed],
     Return[<|"Status" -> "LiteralRootFrameInvalid"|>]];
@@ -1878,7 +1816,7 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     Return[<|"Status" -> "AlreadyEpsFactored", "Transformation" -> IdentityMatrix[n],
       "Inverse" -> IdentityMatrix[n], "Connection" -> {ax, ay}, "RootIndices" -> {},
       "Chart" -> None, "Seconds" -> 0.|>]];
-  allRoots = transportChartCurrentRoots[frame, variables];
+  allRoots = coefficientPresentationSquareRootsInVariables[frame, variables];
   If[allRoots === $Failed, Return[<|"Status" -> "AlgebraicFrameNotWellFormed"|>]];
   {classificationSeconds, literalClassification} = AbsoluteTiming[
     familyRegulatorLiteralRootClassification[{ax, ay}, allRoots]];
@@ -1946,8 +1884,8 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
         "RadicalCanonicalization" -> canonicalRecord,
         "NumericRadicalClasses" -> numericClasses|>], inner]]];
   usedRoots = allRoots[[rootIndices]];
-  rootSquares = Lookup[usedRoots, "RootSquare", {}];
-  chart = TransportRootSetChart[rootSquares, variables];
+  rootSquares = squareRootRecordRadicand /@ usedRoots;
+  chart = LookupCataloguedRationalizingParametrizationForRoots[rootSquares, variables];
   If[! AssociationQ[chart],
     (* No joint rational chart (CF259 rows 1..23, 2026-08-25: the triple
        cover of {q1, q2, q3} is a K3 surface).  The constant T(eps) is
@@ -1973,7 +1911,8 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
           Lookup[multiquadratic, "Method", "Unknown"],
         "Chart" -> None, "RootIndices" -> rootIndices,
         "RootSquares" -> rootSquares,
-        "GradedRootSquares" -> Lookup[gradedRoots, "RootSquare", {}],
+        "GradedRootSquares" ->
+          (squareRootRecordRadicand /@ gradedRoots),
         "RadicalCanonicalization" -> canonicalRecord,
         "NumericRadicalClasses" -> numericClasses,
         "SourceFrameEpsFactored" -> Lookup[multiquadratic,
@@ -1981,14 +1920,6 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
           Missing["DeferredToFamilyCertificate"]],
         "InverseExact" -> Lookup[multiquadratic, "ExactInverse",
           Missing["DeferredToFamilyCertificate"]],
-        (* the seal is taken on the caller's own input prefix, exactly as
-           on the chart route: the propagation helper recomputes it from
-           the connection it is given *)
-        "PropagationSeal" -> If[deferAcceptanceQ,
-          Missing["DeferredToFamilyCertificate"],
-          familyRegulatorPropagationSeal[
-            {ax, ay}, multiquadratic["Connection"],
-            multiquadratic["Inverse"], multiquadratic["Transformation"]]],
         "Seconds" -> AbsoluteTime[] - start|>]]];
     (* a deadline expiry inside the graded route is NOT the typed
        terminal: "NoRationalChart" says the block is unsolvable by both
@@ -1999,10 +1930,11 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
       Return[Join[multiquadratic,
         <|"RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
           "Chart" -> None,
-          "GradedRootSquares" -> Lookup[gradedRoots, "RootSquare", {}]|>]]];
+          "GradedRootSquares" ->
+            (squareRootRecordRadicand /@ gradedRoots)|>]]];
     Return[<|"Status" -> "NoRationalChart", "RootIndices" -> rootIndices,
       "RootSquares" -> rootSquares,
-      "GradedRootSquares" -> Lookup[gradedRoots, "RootSquare", {}],
+      "GradedRootSquares" -> (squareRootRecordRadicand /@ gradedRoots),
       "RadicalCanonicalization" -> canonicalRecord,
       "NumericRadicalClasses" -> numericClasses,
       "MultiquadraticFactorization" -> If[AssociationQ[multiquadratic],
@@ -2012,16 +1944,21 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
       "Seconds" -> AbsoluteTime[] - start|>]];
   chartVariables = {Symbol["FeynFacet`Private`regulatorChartX"],
     Symbol["FeynFacet`Private`regulatorChartY"]};
-  rekeyed = transportChartRekey[chart, variables, chartVariables];
-  data = masterTransportChartData[rekeyed, variables];
+  rekeyed = rekeyCoefficientPresentation[chart, variables, chartVariables];
+  data = masterTransportCoefficientPresentationData[rekeyed, variables];
   If[Lookup[data, "Status", None] =!= "OK", Return[data]];
-  chartRoots = Lookup[rekeyed, "Roots", {}];
+  chartRoots = Lookup[data, "RationalizedSquareRoots", {}];
   rootImages = Table[Module[{matching = SelectFirst[chartRoots,
-      TrueQ[Together[#["RootSquare"] - usedRoots[[i]]["RootSquare"]] === 0] &,
+      TrueQ[Together[#["SourceRadicand"] -
+        squareRootRecordRadicand[usedRoots[[i]]]] === 0] &,
       Missing["RootNotRationalized"]]},
-    If[MissingQ[matching], matching, matching["Root"]]], {i, Length[usedRoots]}];
+    If[MissingQ[matching], matching, matching["RationalRoot"]]],
+    {i, Length[usedRoots]}];
   If[AnyTrue[rootImages, MissingQ], Return[<|"Status" -> "ChartRootMapMissing"|>]];
-  chartBranchRoots = Map[<|"RootSquare" -> Together[#["RootSquare"] /. data["Subst"]]|> &, usedRoots];
+  chartBranchRoots = Map[
+    <|"QuadraticRadicand" -> Together[
+      squareRootRecordRadicand[#] /.
+        data["SourceVariableSubstitution"]]|> &, usedRoots];
   (* Order matters (measured 2026-08-24 on the 27x27 CF303 truncation:
      the old order did not finish this pullback in 50 minutes).  Together
      applied while the entries still carry radicals RATIONALIZES radical
@@ -2055,10 +1992,12 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
       n, chartVariables, epsilon, Sequence @@ factorOptions],
     components = Map[
       Function[matrix, Map[Together, transportChartApplyRootBranches[
-        matrix /. data["Subst"], chartBranchRoots, rootImages], {2}]],
+        matrix /. data["SourceVariableSubstitution"], chartBranchRoots,
+        rootImages], {2}]],
       {canonicalAx, canonicalAy}];
     chartConnection = masterTransportPullBackOneForm[
-      components[[1]], components[[2]], data["Jacobian"]];
+      components[[1]], components[[2]],
+      data["DifferentialPullbackMatrix"]];
     (* Numeric radicals survive the chart by construction: they are
        constants, not functions of the chart variables, and a chart cannot
        and need not rationalize them.  Only a SYMBOLIC radical left in the
@@ -2112,12 +2051,6 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     "Chart" -> chart["Name"], "RootIndices" -> rootIndices, "Points" -> inner["Points"],
     "Transformation" -> transformation, "Inverse" -> inverse,
     "Connection" -> {newAx, newAy}, "Attempts" -> inner["Attempts"],
-    (* the seal is taken on the caller's own input prefix: the
-       propagation helper recomputes it from the connection it is given *)
-    "PropagationSeal" -> If[deferAcceptanceQ,
-      Missing["DeferredToFamilyCertificate"],
-      familyRegulatorPropagationSeal[
-        {ax, ay}, {newAx, newAy}, inverse, transformation]],
     "RadicalCanonicalization" -> canonicalRecord,
     "NumericRadicalClasses" -> numericClasses,
     "SourceFrameEpsFactored" -> factoredQ, "InverseExact" -> inverseQ,

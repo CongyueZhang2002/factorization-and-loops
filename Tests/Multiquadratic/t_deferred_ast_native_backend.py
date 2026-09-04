@@ -132,8 +132,8 @@ def main():
         input_path = pathlib.Path(directory) / "input.wl"
         input_path.write_text(
             '<|"DeferredPreparation" -> <|"Preparation" -> <|'
-            '"Status" -> "Prepared", "ABIVersion" -> '
-            '"BlockEquationDeferredV1", "Records" -> {<|'
+            '"DataType" -> "DeferredBlockEquation", "SchemaVersion" -> 2, '
+            '"Status" -> "Prepared", "Records" -> {<|'
             '"Target" -> {1,1,1}, "Terms" -> {<|'
             '"Coefficient" -> 1, "Operands" -> {Sqrt[x]}|>}|>}|>|>|>'
         )
@@ -146,8 +146,8 @@ def main():
         input_path = pathlib.Path(directory) / "input.wl"
         input_path.write_text(
             '<|"DeferredPreparation" -> <|"Preparation" -> <|'
-            '"Status" -> "Prepared", "ABIVersion" -> '
-            '"BlockEquationDeferredV1", "Records" -> {<|'
+            '"DataType" -> "DeferredBlockEquation", "SchemaVersion" -> 2, '
+            '"Status" -> "Prepared", "Records" -> {<|'
             '"Target" -> {1,1,1}, "Terms" -> {<|'
             '"Coefficient" -> 1, "Operands" -> {(x+y)^(1/2)}|>}|>}|>|>|>'
         )
@@ -167,8 +167,8 @@ def main():
         input_path = pathlib.Path(directory) / "input.wl"
         input_path.write_text(
             '<|"DeferredPreparation" -> <|"Preparation" -> <|'
-            '"Status" -> "Prepared", "ABIVersion" -> '
-            '"BlockEquationDeferredV1", "Records" -> {<|'
+            '"DataType" -> "DeferredBlockEquation", "SchemaVersion" -> 2, '
+            '"Status" -> "Prepared", "Records" -> {<|'
             '"Target" -> {1,1}, "Terms" -> {<|'
             '"Coefficient" -> 1, "Operands" -> {x}|>}|>}|>|>|>'
         )
@@ -177,6 +177,34 @@ def main():
             FIXTURE / "deferred_ast_rank0_request.txt", 7,
         )
 
+    schema_refusals = [
+        '"Status" -> "Prepared", '
+        '"ABIVersion" -> "BlockEquationDeferredV1", ',
+        '"DataType" -> "WrongType", "SchemaVersion" -> 2, '
+        '"Status" -> "Prepared", ',
+        '"DataType" -> "DeferredBlockEquation", "Status" -> "Prepared", ',
+        '"DataType" -> "DeferredBlockEquation", "SchemaVersion" -> 1, '
+        '"Status" -> "Prepared", ',
+        '"DataType" -> "DeferredBlockEquation", "SchemaVersion" -> "2", '
+        '"Status" -> "Prepared", ',
+        '"DataType" -> "DeferredBlockEquation", "SchemaVersion" -> 2.0, '
+        '"Status" -> "Prepared", ',
+    ]
+    for index, header in enumerate(schema_refusals):
+        with tempfile.TemporaryDirectory(
+                prefix=f"deferred-ast-schema-refusal-{index}-") as directory:
+            input_path = pathlib.Path(directory) / "input.wl"
+            input_path.write_text(
+                '<|"DeferredPreparation" -> <|"Preparation" -> <|'
+                + header
+                + '"Records" -> {<|"Target" -> {1,1,1}, "Terms" -> {'
+                  '<|"Coefficient" -> 1, "Operands" -> {x}|>}|>}|>|>|>'
+            )
+            refusal(
+                args.binary, input_path,
+                FIXTURE / "deferred_ast_rank0_request.txt", 7,
+            )
+
     print(
         "PASS deferred_ast_native_backend",
         f"rank0_base={rank0[2]}",
@@ -184,7 +212,7 @@ def main():
         f"rank3_grades={rank3[3]}",
         f"half_power_grades={half_powers[3]}",
         f"wide_prime={wide[0]}",
-        "typed_refusals=5",
+        "typed_refusals=11",
     )
 
 

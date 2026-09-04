@@ -1,62 +1,30 @@
-(* Fail-closed conversion of a reconstructed provider-backed
-   multiquadratic strip into the compact row-gauge solution ABI.  This
-   layer solves nothing: it authenticates the reconstruction, exact active
-   dlog support, and independent residual evidence before publishing an
+(* Conversion of a reconstructed provider-backed multiquadratic strip into
+   the compact off-diagonal basis-transformation result.  This layer solves
+   nothing: it checks the reconstructed mathematical data, active dlog
+   support, and independent residual evidence before publishing an
    installable object. *)
 
 ClearAll[$multiquadraticStripInstallationSchema,
-  $multiquadraticStripReconstructedVectorSchema,
   multiquadraticStripInstallFailure,
-  multiquadraticStripReconstructedVectorFingerprint,
   multiquadraticStripInstallationEvidence,
   multiquadraticStripBuildInstallableSolution];
 
 $multiquadraticStripInstallationSchema =
   "InstallableMultiquadraticDLogV1";
-$multiquadraticStripReconstructedVectorSchema =
-  "MultiquadraticReconstructedVectorV1";
 
 multiquadraticStripInstallFailure[status_String,
     detail_Association : <||>] :=
   Join[<|"Status" -> status,
     "Module" -> "MultiquadraticInstallation"|>, detail];
 
-(* The vector seal binds the generic rational-in-regulator vector to the
-   exact layout and provider that reconstructed it. *)
-multiquadraticStripReconstructedVectorFingerprint[vector_List,
-    layoutFingerprint_String, providerFingerprint_String] :=
-  multiquadraticStripFingerprint[<|
-    "Schema" -> $multiquadraticStripReconstructedVectorSchema,
-    "LayoutFingerprint" -> layoutFingerprint,
-    "ProviderFingerprint" -> providerFingerprint,
-    "Vector" -> vector|>];
-multiquadraticStripReconstructedVectorFingerprint[___] := $Failed;
-
 (* Accept either an exact generic residual or provider-backed fresh images.
-   In both cases the evidence names the same layout, provider and generic
-   reconstructed vector.  Pointwise independence is recomputed from the
-   concrete image keys; advisory booleans are deliberately ignored. *)
+   Pointwise independence is recomputed from the concrete prime, regulator
+   and kinematic points; implementation identities are irrelevant. *)
 multiquadraticStripInstallationEvidence[evidence_Association,
     reconstruction_Association, minimumPrimes_Integer?Positive,
     minimumImages_Integer?Positive] := Module[
-  {layoutFingerprint, provider, providerFingerprint, vectorFingerprint,
-   status, checks, trainingKeys, validationKeys, validationPrimes,
+  {status, checks, trainingKeys, validationKeys, validationPrimes,
    samplePrimes, declaredPrimes, keyValidQ, checkValidQ},
-  layoutFingerprint = Lookup[reconstruction, "LayoutFingerprint", None];
-  provider = Lookup[reconstruction, "Provider", None];
-  providerFingerprint = Lookup[reconstruction, "ProviderFingerprint", None];
-  vectorFingerprint = Lookup[reconstruction,
-    "ReconstructedVectorFingerprint", None];
-  If[! StringQ[layoutFingerprint] || ! StringQ[provider] ||
-      ! StringQ[providerFingerprint] || ! StringQ[vectorFingerprint] ||
-      Lookup[evidence, "LayoutFingerprint", None] =!= layoutFingerprint ||
-      Lookup[evidence, "Provider", None] =!= provider ||
-      Lookup[evidence, "ProviderFingerprint", None] =!=
-        providerFingerprint ||
-      Lookup[evidence, "ReconstructedVectorFingerprint", None] =!=
-        vectorFingerprint,
-    Return[multiquadraticStripInstallFailure[
-      "InstallationEvidenceFingerprintMismatch"]]];
   status = Lookup[evidence, "Status", None];
   If[status === "ExactChannelResidualZero",
     Return[<|"Status" -> "InstallationEvidenceAccepted",
@@ -73,11 +41,10 @@ multiquadraticStripInstallationEvidence[evidence_Association,
       ! VectorQ[samplePrimes, PrimeQ],
     Return[multiquadraticStripInstallFailure[
       "IndependentResidualEvidenceInsufficient"]]];
-  keyValidQ[key_] := ListQ[key] && Length[key] === 5 &&
-    key[[1]] === layoutFingerprint && key[[2]] === providerFingerprint &&
-    PrimeQ[key[[3]]] &&
-    MatchQ[key[[4]], _Integer | _Rational] &&
-    MatchQ[key[[5]], {_Integer, _Integer}];
+  keyValidQ[key_] := ListQ[key] && Length[key] === 3 &&
+    PrimeQ[key[[1]]] &&
+    MatchQ[key[[2]], _Integer | _Rational] &&
+    MatchQ[key[[3]], {_Integer, _Integer}];
   If[! AllTrue[trainingKeys, keyValidQ],
     Return[multiquadraticStripInstallFailure[
       "IndependentResidualEvidenceInsufficient"]]];
@@ -92,14 +59,9 @@ multiquadraticStripInstallationEvidence[evidence_Association,
         ! TrueQ[Lookup[item, "Passed", False]] || ! PrimeQ[prime] ||
         ! MatchQ[regulatorValue, _Integer | _Rational] ||
         ! MatchQ[points, {{_Integer, _Integer} ..}] ||
-        ! ListQ[keys] || ! DuplicateFreeQ[keys] ||
-        Lookup[item, "LayoutFingerprint", None] =!= layoutFingerprint ||
-        Lookup[item, "ProviderFingerprint", None] =!= providerFingerprint ||
-        Lookup[item, "ReconstructedVectorFingerprint", None] =!=
-          vectorFingerprint,
+        ! ListQ[keys] || ! DuplicateFreeQ[keys],
       Return[False]];
-    expectedKeys = ({layoutFingerprint, providerFingerprint, prime,
-        regulatorValue, #1} &) /@ Mod[points, prime];
+    expectedKeys = ({prime, regulatorValue, #1} &) /@ Mod[points, prime];
     keys === expectedKeys && AllTrue[keys, keyValidQ]
   ];
   If[! AllTrue[checks, checkValidQ],
@@ -115,7 +77,7 @@ multiquadraticStripInstallationEvidence[evidence_Association,
       Sort[declaredPrimes] =!= Sort[validationPrimes] ||
       ! AllTrue[validationPrimes, Function[prime,
         Count[validationKeys,
-          key_ /; key[[3]] === prime] >= minimumImages]],
+          key_ /; key[[1]] === prime] >= minimumImages]],
     Return[multiquadraticStripInstallFailure[
       "IndependentResidualEvidenceInsufficient"]]];
   <|"Status" -> "InstallationEvidenceAccepted",
@@ -140,8 +102,7 @@ multiquadraticStripBuildInstallableSolution[
     OptionsPattern[]] := Module[
   {minimumPrimes, minimumImages, variables, epsilon, vector, gauge,
    allResidues, gaugeChannels, unpacked, preparationForms,
-   layoutFingerprint, providerFingerprint,
-   vectorFingerprint, expectedVectorFingerprint, computedIndices, indices,
+   computedIndices, indices,
    records, forms, residues, letters, zeroEntryQ, zeroMatrixQ,
    payloadEqualQ,
    potentialValidQ, acceptedEvidence, exactDLog},
@@ -160,31 +121,20 @@ multiquadraticStripBuildInstallableSolution[
   vector = Lookup[reconstruction, "Vector", None];
   gauge = Lookup[reconstruction, "Gauge", None];
   allResidues = Lookup[reconstruction, "Residues", None];
-  layoutFingerprint = Lookup[reconstruction, "LayoutFingerprint", None];
-  providerFingerprint = Lookup[reconstruction, "ProviderFingerprint", None];
-  vectorFingerprint = Lookup[reconstruction,
-    "ReconstructedVectorFingerprint", None];
   If[! MatchQ[variables, {_Symbol, _Symbol}] || ! SymbolQ[epsilon] ||
       ! VectorQ[vector] || ! MatrixQ[gauge] ||
       Dimensions[gauge] =!= dimensions || ! ListQ[allResidues] ||
       ! AllTrue[allResidues,
         MatrixQ[#1] && Dimensions[#1] === dimensions &] ||
       ! FreeQ[allResidues, Alternatives @@ variables] ||
-      ! StringQ[Lookup[reconstruction, "Provider", None]] ||
-      ! StringQ[layoutFingerprint] || ! StringQ[providerFingerprint],
+      ! StringQ[Lookup[reconstruction, "Provider", None]],
     Return[multiquadraticStripInstallFailure[
       "ReconstructedSolutionShapeInvalid"]]];
-  expectedVectorFingerprint =
-    multiquadraticStripReconstructedVectorFingerprint[vector,
-      layoutFingerprint, providerFingerprint];
-  If[! StringQ[vectorFingerprint] ||
-      vectorFingerprint =!= expectedVectorFingerprint,
-    Return[multiquadraticStripInstallFailure[
-      "ReconstructedVectorFingerprintMismatch"]]];
 
-  (* The vector is the reconstructed mathematical object; Gauge, Residues
+  (* The vector is the reconstructed mathematical object; the basis-
+     transformation block, residues
      and the active dlog payload are only views of that vector in the
-     preparation ABI.  Re-derive those views at the installation boundary
+     preparation layout.  Re-derive those views at the installation boundary
      instead of trusting separately supplied fields from a stale or mutated
      reconstruction record. *)
   If[! multiquadraticStripPreparationValidQ[preparation] ||
@@ -251,16 +201,14 @@ multiquadraticStripBuildInstallableSolution[
         "ResidueShapes" -> (Dimensions /@ residues)|>]]];
 
   letters = Lookup[#1, "Letter", Missing["NoLetter"]] & /@ records;
-  potentialValidQ[record_, form_] := Module[{potential, expectedKey},
+  potentialValidQ[record_, form_] := Module[{potential, letter},
     potential = Lookup[record, "Potential", <||>];
-    expectedKey = multiquadraticStripPotentialPairKey[
-      Lookup[record, "Letter", Missing["NoLetter"]], form,
-      variables, epsilon];
+    letter = Lookup[record, "Letter", Missing["NoLetter"]];
     AssociationQ[potential] &&
       Lookup[potential, "Status", None] === "PotentialVerified" &&
       TrueQ[Lookup[potential, "Verified", False]] &&
-      StringQ[expectedKey] &&
-      Lookup[potential, "PairKey", None] === expectedKey
+      SameQ[Lookup[potential, "Letter", Missing[]], letter] &&
+      payloadEqualQ[{Lookup[potential, "OneForm", Missing[]]}, {form}]
   ];
   If[MemberQ[letters, _Missing] || ! FreeQ[letters, epsilon] ||
       ! FreeQ[forms, epsilon] ||
@@ -295,10 +243,7 @@ multiquadraticStripBuildInstallableSolution[
     "LettersEpsFree" -> True,
     "ResiduesKinematicsFree" -> True,
     "ResiduesEpsFree" -> FreeQ[residues, epsilon],
-    "LayoutFingerprint" -> layoutFingerprint,
     "Provider" -> reconstruction["Provider"],
-    "ProviderFingerprint" -> providerFingerprint,
-    "ReconstructedVectorFingerprint" -> vectorFingerprint,
     "Verification" -> evidence,
     "InstallationEvidence" -> acceptedEvidence,
     "Reconstruction" -> KeyTake[reconstruction,

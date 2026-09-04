@@ -74,7 +74,6 @@ ClearAll[
   canonicalBlocksOrbitCandidates,
   canonicalBlocksOrbitKey,
   canonicalBlocksMatchOrbit,
-  canonicalBlocksContentAddress,
   canonicalBlocksFamilyBlocks,
   canonicalBlocksTriangularityCertificate,
   canonicalBlocksTotalDegree,
@@ -365,12 +364,6 @@ canonicalBlocksMatchOrbit[repNormalized_, repNormalizedSwapped_,
     result
   ];
 
-(* StringTake, not Part: Hash[..., "HexString"] returns a String, and
-   Part on a String never evaluates -- it leaves an unevaluated
-   expression that silently poisons every downstream key. *)
-canonicalBlocksContentAddress[key_] :=
-  "blk" <> StringTake[Hash[key, "SHA256", "HexString"], 24];
-
 canonicalBlocksHistogram[values_] := SortBy[Tally[values], First];
 
 (* --- stage 1a: block decomposition -------------------------------- *)
@@ -580,7 +573,7 @@ Options[ClassifyBlocks] = {
 ClassifyBlocks[input_, OptionsPattern[]] := Catch[
   Module[{blocks, variables, regulator, maximum, progress, interval, output,
       count, normalized, normalizedSwapped, invariants, buckets, classes,
-      provisional, assignment, order, addresses, record},
+      provisional, assignment, order, classIDs, record},
     blocks = Which[
       AssociationQ[input] && KeyExistsQ[input, "Blocks"], input["Blocks"],
       ListQ[input] && AllTrue[input, AssociationQ], input,
@@ -677,23 +670,20 @@ ClassifyBlocks[input_, OptionsPattern[]] := Catch[
         "Representative" -> #[[1]]["Representative"],
         "Members" -> Union[Flatten[#[[All, "Members"]]]]|> &];
 
-    (* Integer labels are a convenience only; they are assigned after
-       the partition exists, in a reproducible order, and every record
-       also carries its content address. *)
+    (* Integer labels are assigned after the mathematical partition exists,
+       in a reproducible order. *)
     classes = SortBy[classes,
       {blocks[[#["Representative"]]]["Dim"] &,
         blocks[[#["Representative"]]]["Family"] &,
         blocks[[#["Representative"]]]["Rows"] &}];
 
     classes = Table[
-      Module[{entry = classes[[c]], index, rep, key, address},
+      Module[{entry = classes[[c]], index, rep, key},
         index = entry["Representative"];
         rep = blocks[[index]];
         key = entry["Key"];
-        address = canonicalBlocksContentAddress[key];
         If[progress,
           Print["[ClassifyBlocks] class=", c,
-            " address=", address,
             " dim=", rep["Dim"],
             " size=", Length[entry["Members"]],
             " rep=", rep["Family"], ":", rep["Rows"]]];
@@ -701,7 +691,6 @@ ClassifyBlocks[input_, OptionsPattern[]] := Catch[
           "Format" -> "FeynFacet-BlockClass",
           "FormatVersion" -> $canonicalBlocksArtifactVersion,
           "ClassID" -> c,
-          "ContentAddress" -> address,
           "OrbitKey" -> key,
           "Dim" -> rep["Dim"],
           "Variables" -> variables,
@@ -734,14 +723,13 @@ ClassifyBlocks[input_, OptionsPattern[]] := Catch[
       ],
       {c, Length[classes]}];
 
-    addresses = #["ContentAddress"] & /@ classes;
+    classIDs = Range[Length[classes]];
     assignment = Flatten @ Table[
       Table[<|
         "Family" -> m["Family"],
         "Rows" -> m["Rows"],
         "Dim" -> classes[[c]]["Dim"],
         "ClassID" -> c,
-        "ContentAddress" -> classes[[c]]["ContentAddress"],
         "Swap" -> m["Swap"],
         "Permutation" -> m["Permutation"]
       |>, {m, classes[[c]]["Members"]}],
@@ -756,8 +744,8 @@ ClassifyBlocks[input_, OptionsPattern[]] := Catch[
       "Regulator" -> regulator,
       "BlockCount" -> count,
       "ClassCount" -> Length[classes],
-      "ClassOrder" -> addresses,
-      "Classes" -> AssociationThread[addresses -> classes],
+      "ClassOrder" -> classIDs,
+      "Classes" -> AssociationThread[classIDs -> classes],
       "Assignment" -> assignment,
       "DimensionHistogram" ->
         canonicalBlocksHistogram[#["Dim"] & /@ classes],
@@ -1002,7 +990,7 @@ canonicalBlocksClassList[input_] := Which[
 ];
 
 canonicalBlocksClassLabel[class_] :=
-  Lookup[class, "ClassID", Lookup[class, "ContentAddress", "unknown"]];
+  Lookup[class, "ClassID", "unknown"];
 
 (* --- the babysitter contract -------------------------------------- *)
 
@@ -1028,7 +1016,6 @@ CanonicalBlocksStatus[directory_String, OptionsPattern[]] := Catch[
         ok = If[validate, TrueQ[ValidateCanonicalForm[record]], Missing["NotChecked"]];
         <|
           "ClassID" -> Lookup[record, "ClassID", None],
-          "ContentAddress" -> Lookup[record, "ContentAddress", "-"],
           "Dim" -> Lookup[record, "Dim", "-"],
           "AnsatzDegree" -> Lookup[record, "AnsatzDegree", "-"],
           "Frame" -> Lookup[record, "Frame",
@@ -1042,7 +1029,6 @@ CanonicalBlocksStatus[directory_String, OptionsPattern[]] := Catch[
     If[printQ,
       Do[
         Print["[CanonicalBlocksStatus] class=", row["ClassID"],
-          " address=", row["ContentAddress"],
           " dim=", row["Dim"],
           " status=DONE",
           " degree=", row["AnsatzDegree"],
@@ -1060,7 +1046,6 @@ CanonicalBlocksStatus[directory_String, OptionsPattern[]] := Catch[
           Do[
             Print["[CanonicalBlocksStatus] class=",
               canonicalBlocksClassLabel[class],
-              " address=", Lookup[class, "ContentAddress", "-"],
               " dim=", Lookup[class, "Dim", "-"],
               " status=MISSING"],
             {class, missing}]];

@@ -48,7 +48,7 @@ blocks = ({#["Rows"], #["ClassID"]} &) /@
   Select[assignments, Lookup[#, "Family", None] === family &];
 If[blocks === {}, Print["No block assignments for ", family]; Exit[65]];
 
-frame = FeynFacet`TransportFamilyChart[family];
+frame = FeynFacet`FamilyRootData[family];
 If[! AssociationQ[frame] ||
     Lookup[frame, "CoefficientField", None] =!= "Multiquadratic",
   Print[family, " does not have a declared multiquadratic frame"];
@@ -60,9 +60,9 @@ system = <|"Family" -> family,
   "Av" -> de["Av"], "Aw" -> de["Aw"]|>;
 
 start = AbsoluteTime[];
-result = FeynFacet`TransportFamilyInChart[system, frame,
+result = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[system, frame,
   "SourceVariables" -> {v, w}, "Regulator" -> eps,
-  "AssemblyOnly" -> True, "Blocks" -> blocks,
+  "Blocks" -> blocks,
   "FormDirectory" -> formDirectory, "Verbose" -> True];
 
 If[! AssociationQ[result] || result["Status"] =!=
@@ -72,9 +72,9 @@ If[! AssociationQ[result] || result["Status"] =!=
   Exit[1]
 ];
 
-census = FeynFacet`FamilyAlgebraicRootCensus[
+census = FeynFacet`FamilySquareRootGeneratorCensus[
   result["FamilyDifferentialSystem"], frame];
-If[census["Status"] =!= "ExactRootCensus",
+If[census["Status"] =!= "ExactSquareRootGeneratorCensus",
   Print[family, " root census failed: ", InputForm[census]];
   Exit[1]
 ];
@@ -90,5 +90,6 @@ Print[family, " family system assembled with epsilon-form diagonal blocks: ",
   result["FamilyDifferentialSystem"]["N"], " masters, ",
   Length[result["FamilyDifferentialSystem"]["Blocks"]],
   " blocks, root counts ",
-  InputForm[census["RootCountHistogram"]], ", maximum ",
-  census["MaximumRootCount"], ", ", Round[result["TotalSeconds"], 0.01], " s"];
+  InputForm[census["SquareRootGeneratorCountHistogram"]], ", maximum ",
+  census["MaximumSquareRootGeneratorCount"], ", ",
+  Round[result["TotalSeconds"], 0.01], " s"];

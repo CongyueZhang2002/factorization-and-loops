@@ -80,10 +80,15 @@ FTAssert["zero forcing bypasses a missing joint root chart",
   AssociationQ[zeroNoChartSolution] &&
     zeroNoChartSolution["Status"] === "Solved" &&
     zeroNoChartSolution["Method"] === "ZeroForcing" &&
-    zeroNoChartSolution["RootIndices"] === {2, 3} &&
+    zeroNoChartSolution["SquareRootGeneratorIndices"] === {2, 3} &&
+    zeroNoChartSolution["CoefficientPresentation", "DataType"] ===
+      "SquareRootGeneratorsAndQuadraticRelations" &&
     zeroNoChartSolution["Gauge"] === {{0}} &&
-    TrueQ[zeroNoChartSolution["FrameCertificate", "Exact"]] &&
-    zeroNoChartSolution["FrameCertificate", "SamplingEntered"] === False];
+    zeroNoChartSolution["Validation", "Method"] === "Exact" &&
+    TrueQ[zeroNoChartSolution["Validation", "Passed"]] &&
+    zeroNoChartSolution["Validation", "SamplingEntered"] === False &&
+    Intersection[Keys[zeroNoChartSolution],
+      {"Chart", "FrameCertificate", "RootIndices", "RootSquares"}] === {}];
 
 (* {lambda1, 4 v + w^2} was the negative control here until 2026-08-24,
    when the iterated-pencil chart KallenQ4a was derived for exactly that
@@ -117,13 +122,20 @@ stripSolution = SolveEpsFormStripInFrame[
   "Verbose" -> False];
 FTAssert["a one-root algebraic strip is solved in its rational chart and pulled back exactly",
   AssociationQ[stripSolution] && stripSolution["Status"] === "Solved" &&
-    StringStartsQ[stripSolution["Method"], "RationalChart/Kallen1/"] &&
+    StringStartsQ[stripSolution["Method"],
+      "RationalizingParametrization/Kallen1/"] &&
+    stripSolution["CoefficientPresentation", "DataType"] ===
+      "SquareRootGeneratorsAndQuadraticRelations" &&
+    stripSolution["SquareRootGeneratorIndices"] === {1} &&
     TrueQ[stripSolution["ExactDLog"]] &&
-    TrueQ[stripSolution["FrameCertificate"]["CoordinateComposition"]] &&
-    TrueQ[stripSolution["FrameCertificate"]["GaugeRoundTrip"]] &&
-    TrueQ[stripSolution["FrameCertificate"]["TransformedOneFormPullBack"]] &&
-    TrueQ[stripSolution["FrameCertificate"]["SourceDLog"]] &&
-    TrueQ[stripSolution["FrameCertificate"]["Exact"]]];
+    TrueQ[stripSolution["Validation"]["CoordinateComposition"]] &&
+    TrueQ[stripSolution["Validation"]["GaugeRoundTrip"]] &&
+    TrueQ[stripSolution["Validation"]["TransformedOneFormPullBack"]] &&
+    TrueQ[stripSolution["Validation"]["SourceDLog"]] &&
+    stripSolution["Validation"]["Method"] === "Exact" &&
+    TrueQ[stripSolution["Validation"]["Passed"]] &&
+    Intersection[Keys[stripSolution],
+      {"Chart", "FrameCertificate", "RootIndices", "RootSquares"}] === {}];
 
 FTAssert["exact chart pullback remains the default",
   ("GaugePullBackMode" /.
@@ -135,6 +147,15 @@ invalidPullBackMode = SolveEpsFormStripInFrame[
 FTAssert["an unknown gauge pullback mode is refused before solving",
   AssociationQ[invalidPullBackMode] &&
     invalidPullBackMode["Status"] === "InvalidGaugePullBackMode"];
+
+legacyPresentationResult = SolveEpsFormStripInFrame[
+  algebraicStrip, {v, w}, eps,
+  <|"Variables" -> {v, w}, "Subst" -> {v -> v, w -> w},
+    "Roots" -> {}|>, "Verbose" -> False];
+FTAssert["the strip solver refuses a V1 coefficient presentation by type",
+  AssociationQ[legacyPresentationResult] &&
+    legacyPresentationResult["Status"] ===
+      "LegacyCoefficientPresentationSchemaUnsupported"];
 
 data = FeynFacet`Private`masterTransportCoefficientPresentationData[
   generatorData, {v, w}];

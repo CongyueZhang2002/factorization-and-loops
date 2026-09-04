@@ -26,9 +26,12 @@ x = Symbol["Global`gpmx"];
 y = Symbol["Global`gpmy"];
 eps = Symbol["Global`eps"];
 
-frame = BuildAlgebraicTransportFrame[{(1 - v - w)^2 - 4 v w}, {v, w}, {x, y}];
-FTAssert["the one-root frame is exact",
-  AssociationQ[frame] && frame["Status"] === "ExactFrame"];
+coefficientPresentation = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {(1 - v - w)^2 - 4 v w}, {v, w}, {x, y}];
+FTAssert["the one-generator quadratic relation is verified",
+  AssociationQ[coefficientPresentation] &&
+    coefficientPresentation["Status"] ===
+      "SquareRootGeneratorRelationsVerified"];
 
 strip = {{{{0}}, {{0}}}, {{{0}}, {{0}}},
   {{{eps/(v - 1)}}, {{eps/(w - 1)}}}};
@@ -37,7 +40,8 @@ FTAssert["(a) the default gauge pull-back mode is Exact",
   ("GaugePullBackMode" /. Options[FeynFacet`SolveEpsFormStripInFrame]) === "Exact"];
 
 allowed = {"Exact", "FiniteFieldReconstruct"};
-refusal[mode_] := SolveEpsFormStripInFrame[strip, {v, w}, eps, frame,
+refusal[mode_] := SolveEpsFormStripInFrame[
+  strip, {v, w}, eps, coefficientPresentation,
   "GaugePullBackMode" -> mode, "Verbose" -> False];
 
 maple = refusal["MapleCanonical"];

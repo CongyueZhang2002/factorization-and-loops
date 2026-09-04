@@ -100,7 +100,7 @@ log["raw (v,w) system: eps-dependent denominator factors of Aw: ",
   epsDenFactors[de["Aw"]]];
 
 log["assembling in the chart (MaxWeight -> 0: no transport)"];
-{asmSeconds, r} = AbsoluteTiming[FeynFacet`TransportFamilyInChart[
+{asmSeconds, r} = AbsoluteTiming[FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
    <|"Family" -> family, "Basis" -> Lookup[de, "BlockBasis", None],
      "Av" -> de["Av"], "Aw" -> de["Aw"]|>,
    chart97, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,

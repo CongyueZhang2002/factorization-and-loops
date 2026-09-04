@@ -15,10 +15,10 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
   "blockEquationDeferredPrepare", "blockEquationDeferredCompileBundle",
   "blockEquationDeferredBundleValidate",
   "blockEquationDeferredBundleFingerprint",
-  "blockEquationDeferredFrameCanonicalize",
+  "blockEquationDeferredCanonicalizeWithSquareRootGenerators",
   "multiquadraticStripDirectProvider",
   "multiquadraticStripProviderChannels",
-  "multiquadraticStripModRational", "multiquadraticProjectConjugates",
+  "multiquadraticStripModRational", "multiquadraticProjectSignChangeImages",
   "multiquadraticStripFingerprint"};
 applyBranches = mq["transportChartApplyRootBranches"];
 
@@ -211,7 +211,7 @@ check["a strict active root subset is retained in canonical order",
    production bundle contains only roots active in the forcing, so its frame
    may be empty or a strict subframe.  Provider masks must be lifted from that
    local frame into the solver's canonical root order. *)
-globalFrame = mq["blockEquationDeferredRootFrame"][declaredRoots,
+globalFrame = mq["blockEquationDeferredValidateSquareRootGenerators"][declaredRoots,
   {lx, ly}, le];
 globalRoots = globalFrame["Roots"];
 emptyProvider = buildProvider[prunedRational, "SplitBranch", globalRoots];

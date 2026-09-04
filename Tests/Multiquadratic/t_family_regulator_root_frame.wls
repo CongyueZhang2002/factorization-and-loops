@@ -73,7 +73,7 @@ check["generic independent numeric square classes are explicit graded generators
     Length[genericNumericEvidence["NumericRootIndices"]] === 2];
 check["whole-family certification resolves its Automatic ceiling from the graded producer",
   ("MultiquadraticRootRankLimit" /.
-      Options[FeynFacet`CertifyFamilyEpsilonForm]) === Automatic &&
+      Options[FeynFacet`ValidateFamilyDLogEpsilonForm]) === Automatic &&
     evidence5["MaximumRank"] === 5];
 
 source = Import[FeynFacet`Private`feynFacetPrivateFile["FamilyRegulatorFactor.wl"], "Text"];

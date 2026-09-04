@@ -178,8 +178,7 @@ familyRowGaugeSolverFailureSummary[candidate_] := Module[
     "Prime", "MatrixDimensions", "InconsistentRows", "Rank", "Nullity",
     "UnknownCount", "GaugeDenominator", "GaugeSupport", "OneFormCount"};
   bounded[value_] := If[ByteCount[value] <= 4096, value,
-    <|"Elided" -> True, "ByteCount" -> ByteCount[value],
-      "SHA256" -> Hash[value, "SHA256", "HexString"]|>];
+    <|"Elided" -> True, "ByteCount" -> ByteCount[value]|>];
   Which[
     candidate === $Failed,
       <|"Schema" -> "FeynFacetStripSolverFailureSummary",
@@ -359,8 +358,8 @@ familyRowGaugeHydrateResume[
     frame_Association, ranges_List, scratch_String,
     currentConnection : {_List, _List}, OptionsPattern[]] := Module[
   {started = AbsoluteTime[], diskCheckpoint, nk, rowSize,
-   lowerBlockSizes, currentTruncation, expectedConnectionHash,
-   currentConnectionHash, summaries, keys, familyIdentityQ,
+   lowerBlockSizes, currentTruncation, checkpointConnection,
+   summaries, keys, familyIdentityQ,
    checkpointForms, reconstructedPrevD, forms, formsValidQ,
    fullCoverageQ, installedRow = Automatic,
    acceptanceRecords},
@@ -384,17 +383,16 @@ familyRowGaugeHydrateResume[
   diskCheckpoint = If[FileExistsQ[checkpointFile],
     FeynFacet`FamilyArtifactRead[checkpointFile],
     Missing["NoCheckpoint"]];
-  expectedConnectionHash = Lookup[checkpoint, "ConnectionHash", None];
+  checkpointConnection = Lookup[checkpoint,
+    "TruncatedConnectionMatrices", Missing["NoConnectionMatrices"]];
   currentTruncation = currentConnection[[All, 1 ;; nk, 1 ;; nk]] /.
     epsilon -> CANONICA`eps;
-  currentConnectionHash = Hash[currentTruncation, "SHA256", "HexString"];
   If[! SameQ[diskCheckpoint, checkpoint] ||
-      ! StringQ[expectedConnectionHash] ||
-      currentConnectionHash =!= expectedConnectionHash,
+      ! SameQ[currentTruncation, checkpointConnection],
     Return[<|"Status" -> "ResumeHydrationCheckpointIdentityMismatch",
       "DiskSameQ" -> SameQ[diskCheckpoint, checkpoint],
-      "CurrentConnectionHashSameQ" ->
-        (currentConnectionHash === expectedConnectionHash),
+      "CurrentConnectionMatricesSameQ" ->
+        SameQ[currentTruncation, checkpointConnection],
       "ActivateInstalledRow" -> False|>]];
 
   summaries = Lookup[checkpoint, "StripSolvers", {}];

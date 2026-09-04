@@ -6,7 +6,8 @@
    layer diagonal D = eps Sum D_a w_a are dlog with constant residue
    matrices; the incoming connection B(eps, u) = Sum_n eps^n B_n(u) du is a
    rational function of eps whose orders are rational one-forms that are
-   NOT dlog.  The path gauge F_T = G + H F_S with H(base) = 0 removes the
+   NOT dlog.  The off-diagonal basis-transformation block in
+   F_T = G + H F_S, normalized by H(base) = 0, removes the
    non-dlog part order by order,
 
      K_n = B_n + D_1 H_(n-1) - H_(n-1) S_1 - dH_n,   K_n dlog,
@@ -40,7 +41,7 @@ ClearAll[
   rationalLayerModularFunction,
   rationalLayerModularPolynomial,
   rationalLayerReconstructFunction,
-  rationalLayerGaugeFunctionCheck,
+  rationalLayerOffDiagonalTransformationFunctionCheck,
   rationalLayerHermite,
   rationalLayerEllipticHermite,
   rationalLayerPartialFractions,
@@ -230,10 +231,11 @@ rationalLayerReconstructFunction[images : {{_, _} ..}, primes : {__Integer},
 ];
 rationalLayerReconstructFunction[___] := $Failed;
 
-(* One held-out prime and one regular random point certify the lifted gauge.
+(* One held-out prime and one regular random point validate the reconstructed
+   off-diagonal transformation block.
    This is deliberately pointwise: production does not rematerialize a
    characteristic-zero polynomial identity merely to check the lift. *)
-rationalLayerGaugeFunctionCheck[exact_Association, image_Association,
+rationalLayerOffDiagonalTransformationFunctionCheck[exact_Association, image_Association,
     orders_List, u_Symbol, prime_Integer, seed_Integer] := Module[
   {points, point = None, exactValue, imageValue, comparisons = 0,
    mismatches = 0, regularQ},
@@ -247,7 +249,7 @@ rationalLayerGaugeFunctionCheck[exact_Association, image_Association,
     {j, Length[First[exact[order]]]}];
   point = SelectFirst[points, regularQ, None];
   If[point === None,
-    Return[<|"Status" -> "GaugeValidationPointUnavailable"|>]];
+    Return[<|"Status" -> "OffDiagonalTransformationBlockValidationPointUnavailable"|>]];
   Do[
     exactValue = With[{value = Together[exact[order][[i, j]]] /. u -> point},
       Mod[Numerator[value] PowerMod[Denominator[value], -1, prime], prime]];
@@ -258,7 +260,7 @@ rationalLayerGaugeFunctionCheck[exact_Association, image_Association,
     If[exactValue =!= imageValue, mismatches++],
     {order, orders}, {i, Length[exact[order]]},
     {j, Length[First[exact[order]]]}];
-  <|"Status" -> "GaugeFunctionChecked", "Point" -> point,
+  <|"Status" -> "OffDiagonalTransformationBlockChecked", "Point" -> point,
     "Comparisons" -> comparisons, "Mismatches" -> mismatches|>
 ];
 
@@ -468,7 +470,7 @@ rationalLayerRecurrenceImage[laurent_Association, diagonal_List, source_Associat
       {i, d}, {j, n}];
     If[failure =!= None, Break[]];
     hImages[order] = h;
-    (* S3: the gauge at the endpoint, H_n(u1) modulo the prime; a
+    (* S3: the off-diagonal block H_n(u1) at the path endpoint modulo the prime; a
        denominator vanishing there makes the prime bad (skipped by the
        caller), not the route wrong *)
     If[endpoint =!= None,
@@ -743,7 +745,7 @@ Options[BuildRationalEpsilonLayerTransport] = {
   "MaximumWords" -> Infinity,
   "MaximumStates" -> 200000,
   "IncomingRoute" -> Automatic,
-  "GaugeRepresentation" -> Automatic,
+  "OffDiagonalTransformationBlockRepresentation" -> Automatic,
   "WordRepresentation" -> Automatic,
   "PrepareOnly" -> False,
   "Verbose" -> False
@@ -758,13 +760,13 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
    sourceBoundaryCount, targetBoundaryCount, demandPairs, words, maximumWeight,
    verbose, fail, kExact, certificate, laurentCoefficient, hImageCount = 0, sourceStates, directQ,
    weightByOrder, letterDecomposition, neededWeight, weightCapped, cappedPairs,
-   endpoint, gaugeAtEndpoint = <||>, gaugeComparisons = 0, gaugeMismatches = 0, probePoints,
+   endpoint, offDiagonalBlockAtPathEndpoint = <||>, offDiagonalTransformationComparisons = 0, offDiagonalTransformationMismatches = 0, probePoints,
    skippedPrimes = {}, scheduleIndex, regularization, targetSelectorInput,
    primeCount, maximumPrimeCount, primeSchedule, activeIncomingOrders,
    wordRepresentation, sharedBoundaryQ, curveQ, curvePointValues,
    curveBaseValue = None, curveEndpointValue = None, curvePoints,
-   recurrenceImage, operatorSource, operatorLayer, gaugeRepresentation,
-   gaugeFunctions = <||>, gaugeFunctionCheck = <||>},
+   recurrenceImage, operatorSource, operatorLayer, offDiagonalTransformationRepresentation,
+   offDiagonalBlockCoefficients = <||>, offDiagonalTransformationCheck = <||>},
   verbose = TrueQ[OptionValue["Verbose"]];
   fail[status_, extra_: <||>] := Throw[Join[<|"Status" -> status|>, extra]];
   seed = OptionValue["Seed"];
@@ -847,28 +849,28 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
     fail["IncomingNotRationalInEpsilon"]];
   directQ = OptionValue["IncomingRoute"] =!= "Modular" && AllTrue[coefficients, FreeQ[#, u] &];
   endpoint = Lookup[layer, "Endpoint", Lookup[demand, "Endpoint", None]];
-  gaugeRepresentation = Replace[OptionValue["GaugeRepresentation"],
+  offDiagonalTransformationRepresentation = Replace[OptionValue["OffDiagonalTransformationBlockRepresentation"],
     Automatic -> Which[
       MatchQ[endpoint, _Integer | _Rational], "EndpointValue",
       MatchQ[endpoint, _Symbol] && endpoint =!= None && endpoint =!= u,
         "RationalFunction",
       True, "EndpointValue"]];
-  If[! MemberQ[{"EndpointValue", "RationalFunction"}, gaugeRepresentation],
-    fail["GaugeRepresentationInvalid"]];
-  If[! directQ && gaugeRepresentation === "EndpointValue" &&
+  If[! MemberQ[{"EndpointValue", "RationalFunction"}, offDiagonalTransformationRepresentation],
+    fail["OffDiagonalTransformationBlockRepresentationInvalid"]];
+  If[! directQ && offDiagonalTransformationRepresentation === "EndpointValue" &&
       ! MatchQ[endpoint, _Integer | _Rational],
     fail["EndpointRequired", <|"Reason" ->
-      "endpoint-value gauge reconstruction needs a rational endpoint"|>]];
-  If[! directQ && gaugeRepresentation === "RationalFunction" &&
+      "reconstructing the off-diagonal transformation block at a path endpoint requires a rational endpoint"|>]];
+  If[! directQ && offDiagonalTransformationRepresentation === "RationalFunction" &&
       !(MatchQ[endpoint, _Symbol] && endpoint =!= None && endpoint =!= u),
     fail["SymbolicEndpointRequired", <|"Endpoint" -> endpoint|>]];
   curvePointValues = Lookup[layer, "CurvePointValues", <||>];
   If[curveQ && (! AssociationQ[curvePointValues] ||
       ! AllTrue[Keys[curvePointValues], MatchQ[#, _Integer | _Rational] &]),
     fail["CurvePointValuesInvalid"]];
-  If[curveQ && gaugeRepresentation === "RationalFunction" && ! directQ,
-    fail["CurveGaugeFunctionNotImplemented", <|"Reason" ->
-      "a symbolic elliptic gauge also needs the endpoint curve sheet"|>]];
+  If[curveQ && offDiagonalTransformationRepresentation === "RationalFunction" && ! directQ,
+    fail["CurveOffDiagonalTransformationFunctionNotImplemented", <|"Reason" ->
+      "a symbolic elliptic off-diagonal transformation block also requires the curve value at the path endpoint"|>]];
   If[curveQ,
     curvePoints = DeleteDuplicates[Cases[labels, {"E4Pole", point_} :> point]];
     curvePointValues = Join[curvePointValues, Association@Table[point ->
@@ -876,7 +878,8 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
         Automatic :> Sqrt[Together[curve /. u -> point]]], {point, curvePoints}]];
     If[! directQ,
       If[! MatchQ[endpoint, _Integer | _Rational],
-        fail["EndpointRequired", <|"Reason" -> "a curve-valued gauge needs a declared endpoint"|>]];
+        fail["EndpointRequired", <|"Reason" ->
+          "a curve-valued off-diagonal transformation block requires a declared path endpoint"|>]];
       curveBaseValue = rationalLayerCurvePointValue[base, curve, u,
         Lookup[layer, "CurvePointValues", <||>]];
       curveEndpointValue = rationalLayerCurvePointValue[endpoint, curve, u,
@@ -957,7 +960,8 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
   (* When every incoming coefficient is free of the path
      variable, each B_n is a combination of the declared dlog letters with
      NUMERICAL coefficients, Omega_n = B_n (H_(n-1) = 0 inductively) and
-     the Hermite gauge vanishes identically: the K residues are the exact
+     the Hermite-reduced off-diagonal transformation block vanishes
+     identically: the K residues are the exact
      Laurent coefficients on the letters' own factors -- no modular image
      or reconstruction.  "IncomingRoute" -> "Modular" forces the sealed
      circuit for a cross-check. *)
@@ -1006,7 +1010,7 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
       "Diagonal" -> diagonal, "Source" -> source, "PathVariable" -> u, "Regulator" -> eps,
       "BasePoint" -> base, "Endpoint" -> endpoint, "Window" -> {low, high}, "Rows" -> rows,
       "DemandPairs" -> demandPairs, "Dimensions" -> {d, n},
-      "GaugeRepresentation" -> gaugeRepresentation,
+      "OffDiagonalTransformationBlockRepresentation" -> offDiagonalTransformationRepresentation,
       "WordRepresentation" -> wordRepresentation,
       "SharedBoundaryCoordinates" -> sharedBoundaryQ,
       "CurveQ" -> curveQ, "Curve" -> curve,
@@ -1023,11 +1027,11 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
   recurrenceImage[prime_] := If[curveQ,
     rationalLayerCurveRecurrenceImage[laurent, diagonal, source, factors, u,
       curve, curvePointValues, base, curveBaseValue, orders, prime,
-      If[gaugeRepresentation === "EndpointValue", endpoint, None],
+      If[offDiagonalTransformationRepresentation === "EndpointValue", endpoint, None],
       curveEndpointValue],
     rationalLayerRecurrenceImage[laurent, diagonal, source, factors, u, base,
       orders, prime,
-      If[gaugeRepresentation === "EndpointValue", endpoint, None]]];
+      If[offDiagonalTransformationRepresentation === "EndpointValue", endpoint, None]]];
   If[! directQ,
   (* Seeded prime schedule: add images until every coordinate reconstructs
      (lift-and-verify) or the declared maximum is reached. *)
@@ -1078,12 +1082,13 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
           Break[]];
         reconstructed[key] = lifted,
         {key, keys}];
-      (* The gauge is either lifted at one rational endpoint, or coefficientwise
+      (* The off-diagonal block is either lifted at one rational path
+         endpoint, or coefficientwise
          as a rational function when the endpoint is the remaining kinematic
          variable. *)
-      gaugeAtEndpoint = <||>; gaugeFunctions = <||>;
+      offDiagonalBlockAtPathEndpoint = <||>; offDiagonalBlockCoefficients = <||>;
       If[converged,
-        If[gaugeRepresentation === "EndpointValue",
+        If[offDiagonalTransformationRepresentation === "EndpointValue",
           Do[
             lifted = Table[Table[
                 With[{residues = Table[images[[pi]]["HEndpoint"][order][[i, j]],
@@ -1094,7 +1099,7 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
                 {j, n}], {i, d}];
             If[! FreeQ[lifted, $Failed], converged = False;
               failingKey = {"Gauge", order}; Break[]];
-            gaugeAtEndpoint[order] = lifted,
+            offDiagonalBlockAtPathEndpoint[order] = lifted,
             {order, orders}],
           Do[
             lifted = Table[Table[
@@ -1104,7 +1109,7 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
                 {j, n}], {i, d}];
             If[! FreeQ[lifted, $Failed], converged = False;
               failingKey = {"GaugeFunction", order}; Break[]];
-            gaugeFunctions[order] = lifted,
+            offDiagonalBlockCoefficients[order] = lifted,
             {order, orders}]]];
       If[! converged,
         If[needed >= maximumPrimeCount,
@@ -1131,19 +1136,20 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
   If[verbose, observableTransportMilestone["Rational layer: ", Length[primes], " prime images of the recurrence, ",
     Length[keys], " residue keys reconstructed, ", Round[AbsoluteTime[] - start, 0.1], " s"]];
   (* fresh-prime validation *)
-  gaugeComparisons = 0; gaugeMismatches = 0;
-  If[gaugeRepresentation === "EndpointValue",
-    Do[With[{image = freshImage["HEndpoint"][order], exact = gaugeAtEndpoint[order]},
-        Do[gaugeComparisons++;
+  offDiagonalTransformationComparisons = 0; offDiagonalTransformationMismatches = 0;
+  If[offDiagonalTransformationRepresentation === "EndpointValue",
+    Do[With[{image = freshImage["HEndpoint"][order], exact = offDiagonalBlockAtPathEndpoint[order]},
+        Do[offDiagonalTransformationComparisons++;
           If[Mod[Numerator[exact[[i, j]]] - image[[i, j]] Denominator[exact[[i, j]]], freshPrime] =!= 0,
-            gaugeMismatches++], {i, d}, {j, n}]], {order, orders}],
-    gaugeFunctionCheck = rationalLayerGaugeFunctionCheck[gaugeFunctions,
+            offDiagonalTransformationMismatches++], {i, d}, {j, n}]], {order, orders}],
+    offDiagonalTransformationCheck = rationalLayerOffDiagonalTransformationFunctionCheck[offDiagonalBlockCoefficients,
       freshImage["HImages"], orders, u, freshPrime, seed];
-    If[Lookup[gaugeFunctionCheck, "Status", None] =!= "GaugeFunctionChecked",
-      fail[Lookup[gaugeFunctionCheck, "Status", "GaugeFunctionValidationFailed"]]];
-    gaugeComparisons = gaugeFunctionCheck["Comparisons"];
-    gaugeMismatches = gaugeFunctionCheck["Mismatches"]];
-  If[gaugeMismatches > 0, fail["FreshPrimeValidationFailed", <|"Gauge" -> True, "Mismatches" -> gaugeMismatches, "Comparisons" -> gaugeComparisons|>]];
+    If[Lookup[offDiagonalTransformationCheck, "Status", None] =!= "OffDiagonalTransformationBlockChecked",
+      fail[Lookup[offDiagonalTransformationCheck, "Status",
+        "OffDiagonalTransformationBlockValidationFailed"]]];
+    offDiagonalTransformationComparisons = offDiagonalTransformationCheck["Comparisons"];
+    offDiagonalTransformationMismatches = offDiagonalTransformationCheck["Mismatches"]];
+  If[offDiagonalTransformationMismatches > 0, fail["FreshPrimeValidationFailed", <|"Gauge" -> True, "Mismatches" -> offDiagonalTransformationMismatches, "Comparisons" -> offDiagonalTransformationComparisons|>]];
   Do[
     With[{image = Lookup[freshImage["KResidues"], Key[key], ConstantArray[0, {d, n}]], exact = reconstructed[key]},
       Do[comparisons++;
@@ -1152,9 +1158,9 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
     {key, Union[keys, Keys[freshImage["KResidues"]]]}];
   If[mismatches > 0, fail["FreshPrimeValidationFailed", <|"Mismatches" -> mismatches, "Comparisons" -> comparisons|>]];
   ];   (* end of the modular route *)
-  If[! directQ && gaugeRepresentation === "RationalFunction",
-    gaugeAtEndpoint = Association@KeyValueMap[
-      #1 -> Map[# /. u -> endpoint &, #2, {2}] &, gaugeFunctions]];
+  If[! directQ && offDiagonalTransformationRepresentation === "RationalFunction",
+    offDiagonalBlockAtPathEndpoint = Association@KeyValueMap[
+      #1 -> Map[# /. u -> endpoint &, #2, {2}] &, offDiagonalBlockCoefficients]];
   hImageCount = If[images === {}, 0, Total[Length /@ Lookup[images, "HImages"]]];
   sourceBoundaryCount = Length[First[Values[source["BoundarySelectors"]]][[1]]];
   {targetSelectors, targetBoundaryCount} =
@@ -1210,12 +1216,12 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
     "Primes" -> primes, "FreshValidationPrime" -> freshPrime,
     "ResidueComparisons" -> comparisons, "ResidueMismatches" -> mismatches,
     "ReconstructedResidueKeys" -> Length[keys],
-    "GaugeImages" -> hImageCount,
-    "GaugeReconstructed" -> ! directQ,
-    "GaugeRepresentation" -> If[directQ, "Zero",
-      gaugeRepresentation],
-    "GaugeComparisons" -> gaugeComparisons, "GaugeMismatches" -> gaugeMismatches,
-    "GaugeValidationPoint" -> Lookup[gaugeFunctionCheck, "Point", None],
+    "OffDiagonalTransformationBlockFiniteFieldImages" -> hImageCount,
+    "OffDiagonalTransformationBlockReconstructed" -> ! directQ,
+    "OffDiagonalTransformationBlockRepresentation" -> If[directQ, "Zero",
+      offDiagonalTransformationRepresentation],
+    "OffDiagonalTransformationBlockComparisons" -> offDiagonalTransformationComparisons, "OffDiagonalTransformationBlockMismatches" -> offDiagonalTransformationMismatches,
+    "OffDiagonalTransformationBlockValidationPoint" -> Lookup[offDiagonalTransformationCheck, "Point", None],
     "Endpoint" -> endpoint,
     "Alphabet" -> gate["Verdicts"],
     "PoleFactors" -> factors,
@@ -1236,14 +1242,14 @@ BuildRationalEpsilonLayerTransport[source_Association, layer_Association,
     "OperatorLayer" -> operatorLayer,
     "RegularizationRequired" -> regularization,
     "KResidues" -> reconstructed,
-    "GaugeImages" -> If[directQ, <||>, Association@Table[primes[[pi]] -> images[[pi]]["HImages"], {pi, Length[primes]}]],
-    "GaugeAtEndpoint" -> If[directQ, Association@Table[order -> ConstantArray[0, {d, n}], {order, orders}], gaugeAtEndpoint],
-    "GaugeFunctions" -> If[! directQ && gaugeRepresentation === "RationalFunction",
-      gaugeFunctions, <||>],
+    "OffDiagonalTransformationBlockFiniteFieldImages" -> If[directQ, <||>, Association@Table[primes[[pi]] -> images[[pi]]["HImages"], {pi, Length[primes]}]],
+    "OffDiagonalBasisTransformationBlockAtPathEndpoint" -> If[directQ, Association@Table[order -> ConstantArray[0, {d, n}], {order, orders}], offDiagonalBlockAtPathEndpoint],
+    "OffDiagonalBasisTransformationBlockCoefficients" -> If[! directQ && offDiagonalTransformationRepresentation === "RationalFunction",
+      offDiagonalBlockCoefficients, <||>],
     "Endpoint" -> endpoint,
-    "GaugeStatus" -> Which[directQ, "GaugeVanishes",
-      gaugeRepresentation === "RationalFunction", "GaugeRationalFunctionReconstructed",
-      True, "GaugeReconstructedAtEndpoint"],
+    "OffDiagonalTransformationBlockStatus" -> Which[directQ, "OffDiagonalTransformationBlockVanishes",
+      offDiagonalTransformationRepresentation === "RationalFunction", "OffDiagonalTransformationBlockRationalFunctionReconstructed",
+      True, "OffDiagonalTransformationBlockReconstructedAtPathEndpoint"],
     "DemandedWords" -> words,
     "WordRepresentation" -> wordRepresentation,
     "SharedBoundaryCoordinates" -> sharedBoundaryQ,
@@ -1273,18 +1279,18 @@ rationalLayerCertificateShapeQ[certificate_] := AssociationQ[certificate] &&
       IntegerQ[Lookup[certificate, "FreshValidationPrime", None]] &&
       PrimeQ[certificate["FreshValidationPrime"]] &&
       ! MemberQ[certificate["Primes"], certificate["FreshValidationPrime"]] &&
-      TrueQ[Lookup[certificate, "GaugeReconstructed", False]] &&
-      IntegerQ[Lookup[certificate, "GaugeComparisons", None]] &&
-      certificate["GaugeComparisons"] > 0 &&
-      Lookup[certificate, "GaugeMismatches", -1] === 0 &&
+      TrueQ[Lookup[certificate, "OffDiagonalTransformationBlockReconstructed", False]] &&
+      IntegerQ[Lookup[certificate, "OffDiagonalTransformationBlockComparisons", None]] &&
+      certificate["OffDiagonalTransformationBlockComparisons"] > 0 &&
+      Lookup[certificate, "OffDiagonalTransformationBlockMismatches", -1] === 0 &&
       MemberQ[{"EndpointValue", "RationalFunction"},
-        Lookup[certificate, "GaugeRepresentation", "EndpointValue"]],
+        Lookup[certificate, "OffDiagonalTransformationBlockRepresentation", "EndpointValue"]],
     Lookup[certificate, "IncomingRoute", None] === "IncomingDlogDirect",
       TrueQ[certificate["Exact"]] && certificate["Probabilistic"] === False &&
       Lookup[certificate, "Primes", None] === {} &&
       Lookup[certificate, "FreshValidationPrime", Missing[]] === None &&
-      Lookup[certificate, "GaugeReconstructed", True] === False &&
-      Lookup[certificate, "GaugeRepresentation", "Zero"] === "Zero",
+      Lookup[certificate, "OffDiagonalTransformationBlockReconstructed", True] === False &&
+      Lookup[certificate, "OffDiagonalTransformationBlockRepresentation", "Zero"] === "Zero",
     True, False];
 
 (* One argument checks the accepted record's structural and semantic contract.
@@ -1292,8 +1298,8 @@ rationalLayerCertificateShapeQ[certificate_] := AssociationQ[certificate] &&
    the four-argument form for a fresh modular evaluation (or exact direct
    reconstruction) against the inputs. *)
 AcceptedRationalEpsilonLayerTransportQ[result_] := Module[
-  {certificate, route, window, orders, rows, gauge, gaugeFunctions,
-   gaugeRepresentation, gaugeDimensions,
+  {certificate, route, window, orders, rows, offDiagonalBlockAtPathEndpoint, offDiagonalBlockCoefficients,
+   offDiagonalTransformationRepresentation, offDiagonalBlockDimensions,
    kResidues, words, demandPairs, regularization, wordRepresentation,
    sharedBoundaryQ, operatorSource, operatorLayer, sourceDimension,
    sourceSelectors, targetSelectors, sourceWidth, targetWidth},
@@ -1305,9 +1311,9 @@ AcceptedRationalEpsilonLayerTransportQ[result_] := Module[
   window = Lookup[result, "Window", None];
   rows = Lookup[result, "Rows", None];
   demandPairs = Lookup[result, "DemandPairs", None];
-  gauge = Lookup[result, "GaugeAtEndpoint", None];
-  gaugeFunctions = Lookup[result, "GaugeFunctions", <||>];
-  gaugeRepresentation = Lookup[certificate, "GaugeRepresentation",
+  offDiagonalBlockAtPathEndpoint = Lookup[result, "OffDiagonalBasisTransformationBlockAtPathEndpoint", None];
+  offDiagonalBlockCoefficients = Lookup[result, "OffDiagonalBasisTransformationBlockCoefficients", <||>];
+  offDiagonalTransformationRepresentation = Lookup[certificate, "OffDiagonalTransformationBlockRepresentation",
     If[Lookup[certificate, "IncomingRoute", None] === "IncomingDlogDirect",
       "Zero", "EndpointValue"]];
   kResidues = Lookup[result, "KResidues", None];
@@ -1321,7 +1327,7 @@ AcceptedRationalEpsilonLayerTransportQ[result_] := Module[
       ! ListQ[rows] || rows === {} ||
       ! MatchQ[demandPairs, {{_Integer, _Integer} ..}] || ! DuplicateFreeQ[demandPairs] ||
       ! AllTrue[demandPairs, 1 <= #[[2]] <= Length[rows] &] ||
-      ! AssociationQ[gauge] || ! AssociationQ[gaugeFunctions] ||
+      ! AssociationQ[offDiagonalBlockAtPathEndpoint] || ! AssociationQ[offDiagonalBlockCoefficients] ||
       ! AssociationQ[kResidues] ||
       ! MemberQ[{"MaterializedWords", "LazyOperator"}, wordRepresentation] ||
       ! BooleanQ[sharedBoundaryQ] ||
@@ -1388,13 +1394,13 @@ AcceptedRationalEpsilonLayerTransportQ[result_] := Module[
         ! AllTrue[Values[words], ListQ],
       words =!= None], Return[False]];
   orders = Range[window[[1]], window[[2]]];
-  If[Sort[Keys[gauge]] =!= orders ||
-      ! AllTrue[Values[gauge], MatrixQ[#] && Dimensions[#][[1]] === Length[rows] &&
+  If[Sort[Keys[offDiagonalBlockAtPathEndpoint]] =!= orders ||
+      ! AllTrue[Values[offDiagonalBlockAtPathEndpoint], MatrixQ[#] && Dimensions[#][[1]] === Length[rows] &&
         Dimensions[#][[2]] >= 1 &], Return[False]];
-  gaugeDimensions = Dimensions[First[Values[gauge]]];
-  If[gaugeDimensions =!= {Length[rows], sourceDimension} ||
-      ! AllTrue[Values[gauge], Dimensions[#] === gaugeDimensions &] ||
-      ! AllTrue[Values[kResidues], MatrixQ[#] && Dimensions[#] === gaugeDimensions &],
+  offDiagonalBlockDimensions = Dimensions[First[Values[offDiagonalBlockAtPathEndpoint]]];
+  If[offDiagonalBlockDimensions =!= {Length[rows], sourceDimension} ||
+      ! AllTrue[Values[offDiagonalBlockAtPathEndpoint], Dimensions[#] === offDiagonalBlockDimensions &] ||
+      ! AllTrue[Values[kResidues], MatrixQ[#] && Dimensions[#] === offDiagonalBlockDimensions &],
     Return[False]];
   If[regularization =!= <|"BasePoint" -> {}, "Endpoint" -> {}|> ||
       Lookup[certificate, "RegularizationRequired", None] =!= regularization ||
@@ -1403,48 +1409,49 @@ AcceptedRationalEpsilonLayerTransportQ[result_] := Module[
   route = certificate["IncomingRoute"];
   Which[
     route === "IncomingDlogDirect",
-      Lookup[result, "GaugeStatus", None] === "GaugeVanishes" &&
-      Lookup[result, "GaugeImages", None] === <||> &&
-      gaugeFunctions === <||> && gaugeRepresentation === "Zero" &&
-      AllTrue[Values[gauge], AllTrue[Flatten[#], # === 0 &] &],
+      Lookup[result, "OffDiagonalTransformationBlockStatus", None] === "OffDiagonalTransformationBlockVanishes" &&
+      Lookup[result, "OffDiagonalTransformationBlockFiniteFieldImages", None] === <||> &&
+      offDiagonalBlockCoefficients === <||> && offDiagonalTransformationRepresentation === "Zero" &&
+      AllTrue[Values[offDiagonalBlockAtPathEndpoint], AllTrue[Flatten[#], # === 0 &] &],
     route === "SealedModularCircuit",
-      AssociationQ[Lookup[result, "GaugeImages", None]] &&
-      Sort[Keys[result["GaugeImages"]]] === Sort[certificate["Primes"]] &&
-      AllTrue[Values[result["GaugeImages"]], AssociationQ[#] && Sort[Keys[#]] === orders &] &&
-      Lookup[certificate, "GaugeImages", -1] === Length[orders] Length[certificate["Primes"]] &&
+      AssociationQ[Lookup[result, "OffDiagonalTransformationBlockFiniteFieldImages", None]] &&
+      Sort[Keys[result["OffDiagonalTransformationBlockFiniteFieldImages"]]] === Sort[certificate["Primes"]] &&
+      AllTrue[Values[result["OffDiagonalTransformationBlockFiniteFieldImages"]], AssociationQ[#] && Sort[Keys[#]] === orders &] &&
+      Lookup[certificate, "OffDiagonalTransformationBlockFiniteFieldImages", -1] === Length[orders] Length[certificate["Primes"]] &&
       Which[
-        gaugeRepresentation === "EndpointValue",
-          Lookup[result, "GaugeStatus", None] === "GaugeReconstructedAtEndpoint" &&
+        offDiagonalTransformationRepresentation === "EndpointValue",
+          Lookup[result, "OffDiagonalTransformationBlockStatus", None] === "OffDiagonalTransformationBlockReconstructedAtPathEndpoint" &&
           MatchQ[Lookup[result, "Endpoint", None], _Integer | _Rational] &&
-          gaugeFunctions === <||>,
-        gaugeRepresentation === "RationalFunction",
-          Lookup[result, "GaugeStatus", None] === "GaugeRationalFunctionReconstructed" &&
+          offDiagonalBlockCoefficients === <||>,
+        offDiagonalTransformationRepresentation === "RationalFunction",
+          Lookup[result, "OffDiagonalTransformationBlockStatus", None] === "OffDiagonalTransformationBlockRationalFunctionReconstructed" &&
           MatchQ[Lookup[result, "Endpoint", None], _Symbol] &&
           result["Endpoint"] =!= None && result["Endpoint"] =!= result["PathVariable"] &&
-          Sort[Keys[gaugeFunctions]] === orders &&
-          AllTrue[Values[gaugeFunctions], MatrixQ[#] && Dimensions[#] === gaugeDimensions &] &&
-          gauge === Association@KeyValueMap[
+          Sort[Keys[offDiagonalBlockCoefficients]] === orders &&
+          AllTrue[Values[offDiagonalBlockCoefficients], MatrixQ[#] && Dimensions[#] === offDiagonalBlockDimensions &] &&
+          offDiagonalBlockAtPathEndpoint === Association@KeyValueMap[
             #1 -> Map[# /. result["PathVariable"] -> result["Endpoint"] &, #2, {2}] &,
-            gaugeFunctions],
+            offDiagonalBlockCoefficients],
         True, False],
     True, False]
 ];
 
 (* Four arguments re-derive the prepared problem from the supplied inputs,
-   then re-verify the residues and gauge: exactly on the direct route, at a
+   then re-verify the residues and off-diagonal transformation block: exactly
+   on the direct route, at a
    new prime on the modular route. *)
 AcceptedRationalEpsilonLayerTransportQ[result_, source_Association, layer_Association, demand_Association] := Module[
   {certificate, prepared, newPrime = None, image = None, candidate, trial,
    excludedPrimes, d, n, ok, wordsAgreeQ, expectedOperatorSource,
-   expectedOperatorLayer, gaugeCheck},
+   expectedOperatorLayer, offDiagonalBlockCheck},
   If[! AcceptedRationalEpsilonLayerTransportQ[result], Return[False]];
   certificate = result["Certificate"];
   prepared = BuildRationalEpsilonLayerTransport[source, layer, demand, "PrepareOnly" -> True,
     "Seed" -> Lookup[certificate, "Seed", 20260902],
     "IncomingRoute" -> If[Lookup[certificate, "IncomingRoute", None] === "SealedModularCircuit", "Modular", Automatic],
-    "GaugeRepresentation" -> If[
+    "OffDiagonalTransformationBlockRepresentation" -> If[
       Lookup[certificate, "IncomingRoute", None] === "IncomingDlogDirect",
-      Automatic, Lookup[certificate, "GaugeRepresentation",
+      Automatic, Lookup[certificate, "OffDiagonalTransformationBlockRepresentation",
         If[MatchQ[Lookup[result, "Endpoint", None], _Integer | _Rational],
           "EndpointValue", "RationalFunction"]]],
     "WordRepresentation" -> Lookup[result, "WordRepresentation", Automatic]];
@@ -1470,8 +1477,8 @@ AcceptedRationalEpsilonLayerTransportQ[result_, source_Association, layer_Associ
   (* N1: the payload fields must be the inputs' *)
   If[prepared["Endpoint"] =!= Lookup[result, "Endpoint", None] || prepared["Rows"] =!= Lookup[result, "Rows", None] ||
       prepared["BasePoint"] =!= Lookup[result, "BasePoint", None] || prepared["DemandPairs"] =!= Lookup[result, "DemandPairs", None] ||
-      (! prepared["DirectQ"] && prepared["GaugeRepresentation"] =!=
-        Lookup[certificate, "GaugeRepresentation", "EndpointValue"]) ||
+      (! prepared["DirectQ"] && prepared["OffDiagonalTransformationBlockRepresentation"] =!=
+        Lookup[certificate, "OffDiagonalTransformationBlockRepresentation", "EndpointValue"]) ||
       prepared["WordRepresentation"] =!= Lookup[result, "WordRepresentation", None] ||
       prepared["SharedBoundaryCoordinates"] =!= Lookup[result, "SharedBoundaryCoordinates", None] ||
       prepared["CurveQ"] =!= Lookup[result, "CurveChannel", None] ||
@@ -1522,11 +1529,11 @@ AcceptedRationalEpsilonLayerTransportQ[result_, source_Association, layer_Associ
           prepared["Factors"], prepared["PathVariable"], prepared["Curve"],
           prepared["CurvePointValues"], prepared["BasePoint"], prepared["CurveBaseValue"],
           prepared["Orders"], candidate,
-          If[prepared["GaugeRepresentation"] === "EndpointValue",
+          If[prepared["OffDiagonalTransformationBlockRepresentation"] === "EndpointValue",
             prepared["Endpoint"], None], prepared["CurveEndpointValue"]],
         rationalLayerRecurrenceImage[prepared["Laurent"], prepared["Diagonal"], prepared["Source"],
           prepared["Factors"], prepared["PathVariable"], prepared["BasePoint"], prepared["Orders"], candidate,
-          If[prepared["GaugeRepresentation"] === "EndpointValue",
+          If[prepared["OffDiagonalTransformationBlockRepresentation"] === "EndpointValue",
             prepared["Endpoint"], None]]];
       If[Lookup[trial, "Status", None] === "RecurrenceImageEvaluated",
         newPrime = candidate; image = trial; Break[]],
@@ -1537,16 +1544,16 @@ AcceptedRationalEpsilonLayerTransportQ[result_, source_Association, layer_Associ
       With[{exact = Lookup[result["KResidues"], Key[key], ConstantArray[0, {d, n}]], img = Lookup[image["KResidues"], Key[key], ConstantArray[0, {d, n}]]},
         Table[Mod[Numerator[exact[[i, j]]] - img[[i, j]] Denominator[exact[[i, j]]], newPrime] === 0, {i, d}, {j, n}]],
       {key, Union[Keys[result["KResidues"]], Keys[image["KResidues"]]]}]];
-  If[prepared["GaugeRepresentation"] === "EndpointValue",
+  If[prepared["OffDiagonalTransformationBlockRepresentation"] === "EndpointValue",
     ok = ok && And @@ Flatten[Table[
-        With[{exact = result["GaugeAtEndpoint"][order], img = image["HEndpoint"][order]},
+        With[{exact = result["OffDiagonalBasisTransformationBlockAtPathEndpoint"][order], img = image["HEndpoint"][order]},
           Table[Mod[Numerator[exact[[i, j]]] - img[[i, j]] Denominator[exact[[i, j]]], newPrime] === 0,
             {i, d}, {j, n}]], {order, prepared["Orders"]}]],
-    gaugeCheck = rationalLayerGaugeFunctionCheck[result["GaugeFunctions"],
+    offDiagonalBlockCheck = rationalLayerOffDiagonalTransformationFunctionCheck[result["OffDiagonalBasisTransformationBlockCoefficients"],
       image["HImages"], prepared["Orders"], prepared["PathVariable"],
       newPrime, Lookup[certificate, "Seed", 0] + 104729];
-    ok = ok && Lookup[gaugeCheck, "Status", None] === "GaugeFunctionChecked" &&
-      Lookup[gaugeCheck, "Mismatches", -1] === 0];
+    ok = ok && Lookup[offDiagonalBlockCheck, "Status", None] === "OffDiagonalTransformationBlockChecked" &&
+      Lookup[offDiagonalBlockCheck, "Mismatches", -1] === 0];
   ok && (result["WordRepresentation"] === "LazyOperator" ||
     wordsAgreeQ[result["KResidues"]])
 ];

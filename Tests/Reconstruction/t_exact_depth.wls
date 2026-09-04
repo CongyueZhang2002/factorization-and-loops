@@ -264,7 +264,7 @@ record97 = hardRecord[97, "CF258", {18, 19, 20, 21}];
 cf258 = readArtifact[FileNameJoin[{ftDE, "nnlo_de_CF258.wl"}]];
 hardRows97 = {18, 19, 20, 21};
 
-{rSeconds, r97} = AbsoluteTiming[FeynFacet`TransportFamilyInChart[
+{rSeconds, r97} = AbsoluteTiming[FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
   <|"Family" -> "CF258_B97", "Av" -> cf258["Av"][[hardRows97, hardRows97]],
     "Aw" -> cf258["Aw"][[hardRows97, hardRows97]]|>,
   chart97, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
@@ -299,7 +299,7 @@ own: W = demand - kmin for the single block, and kmin is KMinPerBlock",
 
 (* ------------------------------------------------------------------ O *)
 
-optionExact = FeynFacet`TransportFamilyInChart[
+optionExact = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
   <|"Family" -> "CF258_B97", "Av" -> cf258["Av"][[hardRows97, hardRows97]],
     "Aw" -> cf258["Aw"][[hardRows97, hardRows97]]|>,
   chart97, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
@@ -328,7 +328,7 @@ recursion, and BOTH numbers are recorded",
    monomial (MEASURED on CF230: 243 s against 56 s for all the rest of
    the pre-transport arithmetic).  A run that does not ask for the number
    must not pay for it. *)
-defaultRun = FeynFacet`TransportFamilyInChart[
+defaultRun = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
   <|"Family" -> "CF258_B97", "Av" -> cf258["Av"][[hardRows97, hardRows97]],
     "Aw" -> cf258["Aw"][[hardRows97, hardRows97]]|>,
   chart97, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
@@ -346,7 +346,7 @@ silently absent key, and the clamped weight is still reported",
     Lookup[defaultRun, "Requested", None] ===
       Lookup[defaultRun, "ClampedWeight", None]];
 
-badRule = FeynFacet`TransportFamilyInChart[
+badRule = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
   <|"Family" -> "CF258_B97", "Av" -> cf258["Av"][[hardRows97, hardRows97]],
     "Aw" -> cf258["Aw"][[hardRows97, hardRows97]]|>,
   chart97, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
@@ -464,7 +464,7 @@ is reported as the route taken",
    and BOTH quantities so the difference can be read off a run, and it
    does not refuse. *)
 Module[{bw, regraded},
-  bw = FeynFacet`TransportFamilyInChart[
+  bw = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
     <|"Family" -> "CF258_B97", "Av" -> cf258["Av"][[hardRows97, hardRows97]],
       "Aw" -> cf258["Aw"][[hardRows97, hardRows97]]|>,
     chart97, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,

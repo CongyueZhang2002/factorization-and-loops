@@ -87,7 +87,7 @@ symbolicRadicalBases[expression_] := DeleteDuplicates[Cases[expression,
 lambda1[a_, b_] := (1 - a - b)^2 - 4 a b;
 (* the CF303 root set: lambda2, lambda3 and 1 - 4 v w *)
 sourceSquares = {lambda1[-v, w], lambda1[v, -w], 1 - 4 v w};
-frame = BuildAlgebraicTransportFrame[sourceSquares, {v, w}, {x, y}];
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[sourceSquares, {v, w}, {x, y}];
 FTAssert["the CF303-shaped multiquadratic frame is exact",
   AssociationQ[frame] && frame["Status"] === "ExactFrame" &&
     Length[frame["Roots"]] === 3 &&
@@ -266,11 +266,11 @@ FTAssert["(d) the fixture matches its SHA-256 provenance manifest",
       StringContainsQ[#, "cf303_frozen_rows27.wl"] &];
     entry = If[lines === {}, None, First[StringSplit[First[lines]]]];
     StringQ[entry] && entry === FileHash[stateFile, "SHA256", "HexString"]]];
-registration = TransportFamilyChartLoad[
+registration = LoadFamilyRootData[
   FileNameJoin[{results, "TransportFamilyCharts.wl"}]];
 FTAssert["(d) the project family-chart inventory registers",
   registration["Status"] === "FamilyChartsRegistered"];
-cf303Frame = TransportFamilyChart["CF303"];
+cf303Frame = FamilyRootData["CF303"];
 FTAssert["(d) CF303 is registered on a rank-3 multiquadratic frame",
   AssociationQ[cf303Frame] && cf303Frame["Status"] === "ExactFrame" &&
     cf303Frame["Name"] === "Multiquadratic3"];
@@ -318,7 +318,7 @@ truncation unchanged",
     cf303Canonical["Rewrites"] === <||> &&
     cf303Canonical["Expression"] === truncation];
 FTAssert["(d) the used root pair selects the catalogued chart Kallen23",
-  Module[{chart = TransportRootSetChart[
+  Module[{chart = LookupCataloguedRationalizingParametrizationForRoots[
       Lookup[cf303Roots[[cf303Class["RootIndices"]]], "RootSquare", {}], {x, y}]},
     AssociationQ[chart] && chart["Name"] === "Kallen23"]];
 

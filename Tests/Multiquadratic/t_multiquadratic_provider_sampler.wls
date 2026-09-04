@@ -1,6 +1,6 @@
 #!/usr/bin/env wolframscript
-(* Round-B B1 acceptance: one provider-independent layout, one coefficient
-   ABI and one row/sample assembler.  The fixture has a known rank-one
+(* Round-B B1 acceptance: one provider-independent layout, one exact
+   coefficient-data record and one row/sample assembler.  The fixture has a known rank-one
    algebraic gauge G = eps Sqrt[1+x]/(1-y), E=C=0 and Bbar=dG. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
@@ -24,12 +24,10 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
   "multiquadraticStripAssemblePointRows",
   "multiquadraticStripReconstructRegulator"};
 
-Clear[px, py, pe];
+Clear[px, py, pe, psx, psy, pcx, pcy];
 delta = 1 + px;
-rootRecord = <|"Root" -> Sqrt[delta], "RootSquare" -> delta|>;
-frame = <|"Name" -> "ProviderSamplerRank1", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Algebraic", "Variables" -> {px, py},
-  "Subst" -> {px -> px, py -> py}, "Roots" -> {rootRecord}|>;
+coefficientPresentation = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {1 + psx}, {psx, psy}, {pcx, pcy}];
 zero11 = {{{0}}, {{0}}};
 knownGauge = {{Together[pe Sqrt[delta]/(1 - py)]}};
 forcing = Table[{{Together[D[knownGauge[[1, 1]], {px, py}[[mu]]]]}},
@@ -38,24 +36,20 @@ record = <|"Family" -> "PROVIDER_SAMPLER", "Sector" -> 2,
   "LowerSector" -> 1, "Variables" -> {px, py}, "Regulator" -> pe,
   "Strip" -> {zero11, zero11, forcing}|>;
 
-prepared = prepare[record, frame, "RootIndices" -> {1}, "OneForms" -> {},
+prepared = prepare[record, coefficientPresentation, "RootIndices" -> {1}, "OneForms" -> {},
   "GaugeDenominator" -> 1 - py, "Support" -> {{0, 0}}];
 assembly = compile[prepared, "PreparationValidated" -> True];
-directPrepared = prepare[record, frame, "RootIndices" -> {1},
+directPrepared = prepare[record, coefficientPresentation, "RootIndices" -> {1},
   "OneForms" -> {}, "GaugeDenominator" -> 1 - py,
   "Support" -> {{0, 0}}, "CoefficientProvider" -> "SplitBranch"];
 layout = layoutBuilder[directPrepared];
 compiled = compiledProvider[assembly];
 split = directProvider[directPrepared["Record"], directPrepared["Roots"],
   "Kind" -> "SplitBranch", "OneForms" -> directPrepared["OneForms"],
-  "GaugeDenominator" -> directPrepared["GaugeDenominator"],
-  "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
-  "SourceFingerprint" -> directPrepared["ABIFingerprint"]];
+  "GaugeDenominator" -> directPrepared["GaugeDenominator"]];
 quotient = directProvider[directPrepared["Record"], directPrepared["Roots"],
   "Kind" -> "QuotientGrade", "OneForms" -> directPrepared["OneForms"],
-  "GaugeDenominator" -> directPrepared["GaugeDenominator"],
-  "CoefficientABIFingerprint" -> layout["CoefficientABIFingerprint"],
-  "SourceFingerprint" -> directPrepared["ABIFingerprint"]];
+  "GaugeDenominator" -> directPrepared["GaugeDenominator"]];
 
 check["B1 preparation, compiled oracle and layout are valid",
   Lookup[prepared, "Status", None] === "PreparedMultiquadraticStripV1" &&
@@ -65,11 +59,10 @@ check["B1 preparation, compiled oracle and layout are valid",
   TrueQ[layoutValid[layout]]];
 check["B1 direct preparation deliberately carries no forcing channels",
   MissingQ[directPrepared["ForcingChannels"]] &&
-    directPrepared["CoefficientProvider"] === "SplitBranch" &&
-    directPrepared["ABIFingerprint"] === prepared["ABIFingerprint"]];
-check["B1 all three providers carry the same coefficient ABI",
-  SameQ @@ Lookup[{compiled, split, quotient},
-    "CoefficientABIFingerprint"]];
+    directPrepared["CoefficientProvider"] === "SplitBranch"];
+check["B1 all three providers carry the layout's exact coefficient data",
+  SameQ @@ Prepend[Lookup[{compiled, split, quotient},
+    "CoefficientData"], layout["CoefficientData"]]];
 
 prime = 2147483423;
 splitPoints = Take[Select[Tuples[Range[2, 80], 2],
@@ -101,7 +94,7 @@ check["B1 complete matrices and right-hand sides agree",
       quotientSample["Matrix"] &&
     compiledSample["RightHandSide"] === splitSample["RightHandSide"] ===
       quotientSample["RightHandSide"]];
-check["B1 row, column and training-image ABIs agree",
+check["B1 row and column orders and training-image sets agree",
   compiledSample["RowOrder"] === splitSample["RowOrder"] ===
       quotientSample["RowOrder"] &&
     compiledSample["ColumnOrder"] === splitSample["ColumnOrder"] ===
@@ -128,8 +121,8 @@ check["B1 regulator reconstruction consumes the provider-backed sampler",
   Lookup[reconstruction, "Status", None] ===
       "ReconstructedRegulatorDependenceV1" &&
     reconstruction["Provider"] === "SplitBranch" &&
-    reconstruction["LayoutFingerprint"] === layout["LayoutFingerprint"] &&
-    reconstruction["ProviderFingerprint"] === split["ProviderFingerprint"]];
+    reconstruction["CoefficientData"] === layout["CoefficientData"] ===
+      split["CoefficientData"]];
 check["B1 the generic provider reconstruction is the known gauge",
   TrueQ[Together[reconstruction["Gauge"][[1, 1]] -
       knownGauge[[1, 1]]] === 0] &&
@@ -154,7 +147,7 @@ check["B1 the sampler preserves the zero-large-evaluation rejection",
     Lookup[First[nonsplitSample["RejectedPoints"]], "FailureReason", None] ===
       "PointNotSplitOverPrime"];
 
-otherPrepared = prepare[record, frame, "RootIndices" -> {1},
+otherPrepared = prepare[record, coefficientPresentation, "RootIndices" -> {1},
   "OneForms" -> {}, "GaugeDenominator" -> 1 + py,
   "Support" -> {{0, 0}}, "CoefficientProvider" -> "SplitBranch"];
 otherLayout = layoutBuilder[otherPrepared];

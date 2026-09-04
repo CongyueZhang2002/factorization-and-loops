@@ -6,7 +6,8 @@
    `?Symbol` empty for them. *)
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
-symbols = System`Names["FeynFacet`*"];
+symbols = Select[System`Names["FeynFacet`*"],
+  ! StringEndsQ[#, "$"] &];
 usageQ[name_] := StringQ[ToExpression[name <> "::usage"]];
 missing = Select[symbols, ! usageQ[#] &];
 checks = <|
@@ -15,8 +16,9 @@ checks = <|
   "CutKeepsHoldAll" -> Attributes[FeynFacet`Cut] === {HoldAll},
   "PartialFractionKeepsOptions" -> Options[FeynFacet`PartialFraction] =!= {},
   "PublicDefinitionsLoaded" -> AllTrue[{FeynFacet`DiagonalBlockEpsForm,
-    FeynFacet`SolveEpsFormStripFiniteField, FeynFacet`TransportFamilyChart,
-    FeynFacet`CertifyFamilyEpsilonForm, FeynFacet`SimplifyHardCoefficients},
+    FeynFacet`SolveEpsFormStripFiniteField, FeynFacet`FamilyRootData,
+    FeynFacet`ValidateFamilyDLogEpsilonForm,
+    FeynFacet`SimplifyHardCoefficients},
     Length[DownValues[#]] > 0 &]
 |>;
 Print[InputForm[checks]];
