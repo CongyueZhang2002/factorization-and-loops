@@ -1,6 +1,5 @@
-(* Stage 2: the catalog of rationalizing charts, the per-family chart
-   assignment, and the composition of a class record's own chart with a
-   target chart.
+(* Geometry data for the catalogued rationalizing parametrizations,
+   per-family root data, and composition of forward parametrizations.
 
    WHY (measured 2026-08-17, coordinator census over all 91 families;
    scratch chart_census / conic_census / alphabet missions, recorded in
@@ -20,9 +19,10 @@
        and a class member may carry the v<->w image of its
        representative's quadratic (measured: CF53/CF57 host classes
        90/93/91 with lambda2, CF48/CF52 host class 98 with v^2 + 4 w).
-     * A family needs ONE chart in which every class form it hosts is
-       rational.  Single-root families take the chart of their root;
-       two-root families take a JOINT chart built on the Kallen chart by
+     * A family may use one parametrization in which every class form it
+       hosts is rational.  Single-root families use the parametrization of
+       their root; two-root families use a joint parametrization built on
+       the Kallen parametrization by
        a rational point on the second conic (derived and verified
        exactly 2026-08-17 01:42, pool mission jcharts2); the three
        triple-root families (CF259, CF300, CF303) are not covered here
@@ -34,13 +34,12 @@
        Charts exist to make the block transformations rational, nothing
        else.
 
-   Every chart in the catalog carries the exact identities that license
-   it (root^2 == RootSquare o Subst, Jacobian nondegenerate) and
-   TransportChartVerify re-derives them; nothing is believed from the
-   record.
+   Every catalog entry carries forward square-root identities and a
+   nondegenerate Jacobian.  VerifyRationalizingParametrization re-derives
+   those claims and checks rationality.  It does not certify an inverse.
 
    Physics bookkeeping (chamber, branch, sign of the root) is NOT done
-   here -- same discipline as TransportFamilyInChart: the chart and its
+   here -- same discipline as AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks: the chart and its
    Jacobian determinant are recorded so that stage 3 can choose.
 
    Layer position (round 7, 2026-09-02): this file IS the Geometry layer
@@ -57,19 +56,52 @@
    the usage messages FeynFacet.m defines before loading this file
    (found 2026-08-21). Clear still drops their definitions, so re-Get of
    this file stays clean. *)
-Clear[TransportChartCatalog, TransportChartVerify, ComposeTransportChartExtension, RationalizeTransportChartExtension, TransportFamilyChartRegister, TransportFamilyChartLoad, TransportFamilyChart];
+Clear[
+  FeynFacet`RationalizingParametrizationCatalog,
+  FeynFacet`VerifyRationalizingParametrization,
+  FeynFacet`LookupCataloguedRationalizingParametrizationForRoots,
+  FeynFacet`BuildSquareRootGeneratorsAndQuadraticRelations,
+  FeynFacet`ComposeRationalizingParametrizations,
+  FeynFacet`ExtendRationalizingParametrization,
+  FeynFacet`RegisterFamilyRootData,
+  FeynFacet`LoadFamilyRootData,
+  FeynFacet`FamilyRootData,
+  FeynFacet`FamilySquareRootGeneratorCensus
+];
 ClearAll[
-  masterTransportChartByName,
+  rationalizingParametrizationCatalogDefinitions,
+  rationalizingParametrizationCatalogRecord,
+  rationalizingParametrizationNormalize,
+  rationalizingParametrizationRekey,
+  squareRootGeneratorDataNormalize,
+  masterTransportRationalizingParametrizationByName,
   masterTransportComposeTwoVariableRecord,
   masterTransportRecordCoordinateMap,
-  observableTransportSourceFrameQ,
-  observableTransportRecordChart,
+  familyCoefficientPresentationFromRecord,
   transportChartRationalExpressionQ,
   transportChartLoadRationalizeRoots,
   transportChartExtensionCandidates,
-  transportFamilyChartEntryKind,
-  transportFamilyChartAlias
+  familyRootDataEntryNormalize,
+  familyRootDataEntryKind
 ];
+
+FeynFacet`RationalizingParametrizationCatalog::usage =
+  "RationalizingParametrizationCatalog[] returns the catalogued forward rational parametrizations together with their displayed rationalized square roots. VerifyRationalizingParametrization re-derives the stated identities; catalog membership alone is not a birationality or nonexistence claim.";
+
+FeynFacet`VerifyRationalizingParametrization::usage =
+  "VerifyRationalizingParametrization[parametrization] verifies rationality of the forward substitution and rationalized roots, the square-root identities, a nonzero Jacobian, and declared parent compositions. It does not certify a rational inverse or birationality.";
+
+FeynFacet`LookupCataloguedRationalizingParametrizationForRoots::usage =
+  "LookupCataloguedRationalizingParametrizationForRoots[rootSquares] returns the least complicated catalogued rationalizing parametrization containing the requested radicands, or Missing[\"NoCataloguedRationalizingParametrization\",...] when the catalog has no such entry. A miss is not a nonexistence result.";
+
+FeynFacet`BuildSquareRootGeneratorsAndQuadraticRelations::usage =
+  "BuildSquareRootGeneratorsAndQuadraticRelations[rootSquares,{v,w},{x,y}] records explicit square-root generators after the identity variable substitution and verifies only their quadratic relations. It does not assert square-class independence, a function field, or Galois conjugacy.";
+
+FeynFacet`ComposeRationalizingParametrizations::usage =
+  "ComposeRationalizingParametrizations[base,rootSquare,rules,newVariables] composes a verified forward rationalizing parametrization with a rational parametrization of one additional square root and re-verifies the resulting forward map.";
+
+FeynFacet`ExtendRationalizingParametrization::usage =
+  "ExtendRationalizingParametrization[base,rootSquare] asks RationalizeRoots for forward rational parametrizations of the pulled-back root and returns the least complicated verified result. Failure to find one is not a nonexistence theorem.";
 
 
 
@@ -90,27 +122,24 @@ transportChartLambda1[v_, w_] := (1 - v - w)^2 - 4 v w;
 transportChartLambda2[v_, w_] := transportChartLambda1[-v, w];
 transportChartLambda3[v_, w_] := transportChartLambda1[v, -w];
 
-TransportChartCatalog[] := With[
+rationalizingParametrizationCatalogDefinitions[] := With[
   {v = $transportChartV, w = $transportChartW, x = $transportChartX,
    y = $transportChartY, s = $transportChartS, u = $transportChartU,
    p = $transportChartP, t = $transportChartT},
   Module[{k1, k2, k3, q4a, q4b, b115, k12, k13, k23, x12, x13, x23,
     k3b115k, k3b115a, k2b115, k3b115, kq4av, kq4a, kq4b},
   (* ---- single-root charts ------------------------------------------ *)
-  k1 = <|"Name" -> "Kallen1", "Kind" -> "TwoVariable", "Variables" -> {x, y},
-    "Subst" -> {v -> x y, w -> (1 - x) (1 - y)},
-    "Root" -> x - y, "RootSquare" -> transportChartLambda1[v, w],
-    "Roots" -> {<|"Root" -> x - y, "RootSquare" -> transportChartLambda1[v, w]|>},
+  k1 = <|"Name" -> "Kallen1", "Kind" -> "TwoVariable", "ParametrizingVariables" -> {x, y},
+    "SourceVariableSubstitution" -> {v -> x y, w -> (1 - x) (1 - y)},
+    "RationalizedSquareRoots" -> {<|"RationalRoot" -> x - y, "SourceRadicand" -> transportChartLambda1[v, w]|>},
     "Notes" -> "sqrt(lambda1) = x - y, lambda1 = (1-v-w)^2 - 4 v w; Jacobian det x - y"|>;
-  k2 = <|"Name" -> "Kallen2", "Kind" -> "TwoVariable", "Variables" -> {x, y},
-    "Subst" -> {v -> -x y, w -> (1 - x) (1 - y)},
-    "Root" -> x - y, "RootSquare" -> transportChartLambda2[v, w],
-    "Roots" -> {<|"Root" -> x - y, "RootSquare" -> transportChartLambda2[v, w]|>},
+  k2 = <|"Name" -> "Kallen2", "Kind" -> "TwoVariable", "ParametrizingVariables" -> {x, y},
+    "SourceVariableSubstitution" -> {v -> -x y, w -> (1 - x) (1 - y)},
+    "RationalizedSquareRoots" -> {<|"RationalRoot" -> x - y, "SourceRadicand" -> transportChartLambda2[v, w]|>},
     "Notes" -> "lambda2(v,w) = lambda1(-v,w) = (x-y)^2"|>;
-  k3 = <|"Name" -> "Kallen3", "Kind" -> "TwoVariable", "Variables" -> {x, y},
-    "Subst" -> {v -> x y, w -> -(1 - x) (1 - y)},
-    "Root" -> x - y, "RootSquare" -> transportChartLambda3[v, w],
-    "Roots" -> {<|"Root" -> x - y, "RootSquare" -> transportChartLambda3[v, w]|>},
+  k3 = <|"Name" -> "Kallen3", "Kind" -> "TwoVariable", "ParametrizingVariables" -> {x, y},
+    "SourceVariableSubstitution" -> {v -> x y, w -> -(1 - x) (1 - y)},
+    "RationalizedSquareRoots" -> {<|"RationalRoot" -> x - y, "SourceRadicand" -> transportChartLambda3[v, w]|>},
     "Notes" -> "lambda3(v,w) = lambda1(v,-w) = (x-y)^2"|>;
   (* The Q4 charts keep the OTHER kinematic variable as a chart
      variable (v = p or w = p) and rationalize the root through the
@@ -121,52 +150,46 @@ TransportChartCatalog[] := With[
      path variable (not admissible as algebraic letters); with p linear
      in the frozen variable every letter of these families is of degree
      <= 2 in s (letters quadratic in s: roots algebraic in p, admissible). *)
-  q4a = <|"Name" -> "Q4a", "Kind" -> "TwoVariable", "Variables" -> {p, s},
-    "Subst" -> {v -> p, w -> (p - s^2)/s},
-    "Root" -> (p + s^2)/s, "RootSquare" -> 4 v + w^2,
-    "Roots" -> {<|"Root" -> (p + s^2)/s, "RootSquare" -> 4 v + w^2|>},
+  q4a = <|"Name" -> "Q4a", "Kind" -> "TwoVariable", "ParametrizingVariables" -> {p, s},
+    "SourceVariableSubstitution" -> {v -> p, w -> (p - s^2)/s},
+    "RationalizedSquareRoots" -> {<|"RationalRoot" -> (p + s^2)/s, "SourceRadicand" -> 4 v + w^2|>},
     "Notes" -> "4 v + w^2 = t^2 with the first kinematic variable kept, v = p: t = (p + s^2)/s; Jacobian det -(p + s^2)/s^2"|>;
-  q4b = <|"Name" -> "Q4b", "Kind" -> "TwoVariable", "Variables" -> {p, s},
-    "Subst" -> {v -> (p - s^2)/s, w -> p},
-    "Root" -> (p + s^2)/s, "RootSquare" -> v^2 + 4 w,
-    "Roots" -> {<|"Root" -> (p + s^2)/s, "RootSquare" -> v^2 + 4 w|>},
+  q4b = <|"Name" -> "Q4b", "Kind" -> "TwoVariable", "ParametrizingVariables" -> {p, s},
+    "SourceVariableSubstitution" -> {v -> (p - s^2)/s, w -> p},
+    "RationalizedSquareRoots" -> {<|"RationalRoot" -> (p + s^2)/s, "SourceRadicand" -> v^2 + 4 w|>},
     "Notes" -> "the v<->w image, v^2 + 4 w = t^2 with w = p kept; Jacobian det (p + s^2)/s^2"|>;
-  b115 = <|"Name" -> "Bilinear115", "Kind" -> "TwoVariable", "Variables" -> {p, u},
-    "Subst" -> {v -> p, w -> (1 - u^2)/(4 p)},
-    "Root" -> u, "RootSquare" -> 1 - 4 v w,
-    "Roots" -> {<|"Root" -> u, "RootSquare" -> 1 - 4 v w|>},
+  b115 = <|"Name" -> "Bilinear115", "Kind" -> "TwoVariable", "ParametrizingVariables" -> {p, u},
+    "SourceVariableSubstitution" -> {v -> p, w -> (1 - u^2)/(4 p)},
+    "RationalizedSquareRoots" -> {<|"RationalRoot" -> u, "SourceRadicand" -> 1 - 4 v w|>},
     "Notes" -> "one-variable in u, u^2 = 1 - 4 v w; Jacobian det -u/(2p)"|>;
   (* ---- joint charts (derived 2026-08-17 by a rational point on the
           second conic in the base Kallen chart, verified exactly) ------ *)
   x12 = -2 (-3 y + s y + 2 y^2)/(-1 + s^2 + 4 y - 4 y^2);
-  k12 = <|"Name" -> "Kallen12", "Kind" -> "TwoVariable", "Variables" -> {y, s},
-    "Subst" -> {v -> Together[x12 y], w -> Together[(1 - x12) (1 - y)]},
-    "Root" -> Together[x12 - y], "RootSquare" -> transportChartLambda1[v, w],
-    "Roots" -> {
-      <|"Root" -> Together[x12 - y], "RootSquare" -> transportChartLambda1[v, w]|>,
-      <|"Root" -> Together[y + s x12], "RootSquare" -> transportChartLambda2[v, w]|>},
-    "Parents" -> <|"Kallen1" -> {x -> x12, y -> y}|>,
+  k12 = <|"Name" -> "Kallen12", "Kind" -> "TwoVariable", "ParametrizingVariables" -> {y, s},
+    "SourceVariableSubstitution" -> {v -> Together[x12 y], w -> Together[(1 - x12) (1 - y)]},
+    "RationalizedSquareRoots" -> {
+      <|"RationalRoot" -> Together[x12 - y], "SourceRadicand" -> transportChartLambda1[v, w]|>,
+      <|"RationalRoot" -> Together[y + s x12], "SourceRadicand" -> transportChartLambda2[v, w]|>},
+    "ParentParametrizationMaps" -> <|"Kallen1" -> {x -> x12, y -> y}|>,
     "Notes" -> "Kallen1 base; the line z = y + s x through the rational point \
 (x, z) = (0, y) of z^2 = lambda2|_{Kallen1}; sqrt(lambda1) = x - y, \
 sqrt(lambda2) = y + s x"|>;
   x13 = (1 + s) (-3 + s + 2 y)/(-1 + s^2 + 4 y - 4 y^2);
-  k13 = <|"Name" -> "Kallen13", "Kind" -> "TwoVariable", "Variables" -> {y, s},
-    "Subst" -> {v -> Together[x13 y], w -> Together[(1 - x13) (1 - y)]},
-    "Root" -> Together[x13 - y], "RootSquare" -> transportChartLambda1[v, w],
-    "Roots" -> {
-      <|"Root" -> Together[x13 - y], "RootSquare" -> transportChartLambda1[v, w]|>,
-      <|"Root" -> Together[(1 - y) + s (x13 - 1)], "RootSquare" -> transportChartLambda3[v, w]|>},
-    "Parents" -> <|"Kallen1" -> {x -> x13, y -> y}|>,
+  k13 = <|"Name" -> "Kallen13", "Kind" -> "TwoVariable", "ParametrizingVariables" -> {y, s},
+    "SourceVariableSubstitution" -> {v -> Together[x13 y], w -> Together[(1 - x13) (1 - y)]},
+    "RationalizedSquareRoots" -> {
+      <|"RationalRoot" -> Together[x13 - y], "SourceRadicand" -> transportChartLambda1[v, w]|>,
+      <|"RationalRoot" -> Together[(1 - y) + s (x13 - 1)], "SourceRadicand" -> transportChartLambda3[v, w]|>},
+    "ParentParametrizationMaps" -> <|"Kallen1" -> {x -> x13, y -> y}|>,
     "Notes" -> "Kallen1 base; the line z = (1-y) + s (x-1) through the rational \
 point (x, z) = (1, 1-y) of z^2 = lambda3|_{Kallen1}"|>;
   x23 = (-3 + s) (1 + s - 2 y)/(-1 + s^2);
-  k23 = <|"Name" -> "Kallen23", "Kind" -> "TwoVariable", "Variables" -> {y, s},
-    "Subst" -> {v -> Together[-x23 y], w -> Together[(1 - x23) (1 - y)]},
-    "Root" -> Together[x23 - y], "RootSquare" -> transportChartLambda2[v, w],
-    "Roots" -> {
-      <|"Root" -> Together[x23 - y], "RootSquare" -> transportChartLambda2[v, w]|>,
-      <|"Root" -> Together[(1 + y) + s (x23 - 1)], "RootSquare" -> transportChartLambda3[v, w]|>},
-    "Parents" -> <|"Kallen2" -> {x -> x23, y -> y}|>,
+  k23 = <|"Name" -> "Kallen23", "Kind" -> "TwoVariable", "ParametrizingVariables" -> {y, s},
+    "SourceVariableSubstitution" -> {v -> Together[-x23 y], w -> Together[(1 - x23) (1 - y)]},
+    "RationalizedSquareRoots" -> {
+      <|"RationalRoot" -> Together[x23 - y], "SourceRadicand" -> transportChartLambda2[v, w]|>,
+      <|"RationalRoot" -> Together[(1 + y) + s (x23 - 1)], "SourceRadicand" -> transportChartLambda3[v, w]|>},
+    "ParentParametrizationMaps" -> <|"Kallen2" -> {x -> x23, y -> y}|>,
     "Notes" -> "Kallen2 base; the line z = (1+y) + s (x-1) through the rational \
 point (x, z) = (1, 1+y) of z^2 = lambda3|_{Kallen2}"|>;
   (* lambda3 together with the bilinear root sqrt(1-4 v w).  Begin with
@@ -187,32 +210,28 @@ point (x, z) = (1, 1+y) of z^2 = lambda3|_{Kallen2}"|>;
      the same chart variables and rationalized roots. *)
   k2b115 = <|
     "Name" -> "Kallen2Bilinear115", "Kind" -> "TwoVariable",
-    "Variables" -> {p, u},
-    "Subst" -> {v -> Together[-k3b115a p],
+    "ParametrizingVariables" -> {p, u},
+    "SourceVariableSubstitution" -> {v -> Together[-k3b115a p],
       w -> Together[(1 - k3b115a) (1 - p)]},
-    "Root" -> Together[k3b115a - p],
-    "RootSquare" -> transportChartLambda2[v, w],
-    "Roots" -> {
-      <|"Root" -> Together[k3b115a - p],
-        "RootSquare" -> transportChartLambda2[v, w]|>,
-      <|"Root" -> Together[1 + u k3b115a],
-        "RootSquare" -> 1 - 4 v w|>},
-    "Parents" -> <|"Kallen2" -> {x -> k3b115a, y -> p}|>,
+    "RationalizedSquareRoots" -> {
+      <|"RationalRoot" -> Together[k3b115a - p],
+        "SourceRadicand" -> transportChartLambda2[v, w]|>,
+      <|"RationalRoot" -> Together[1 + u k3b115a],
+        "SourceRadicand" -> 1 - 4 v w|>},
+    "ParentParametrizationMaps" -> <|"Kallen2" -> {x -> k3b115a, y -> p}|>,
     "Notes" -> "the simultaneous source sign image of Kallen3Bilinear115: \
 lambda2(v,w)=lambda3(-v,-w), while 1-4vw is invariant"|>;
   k3b115 = <|
     "Name" -> "Kallen3Bilinear115", "Kind" -> "TwoVariable",
-    "Variables" -> {p, u},
-    "Subst" -> {v -> Together[k3b115a p],
+    "ParametrizingVariables" -> {p, u},
+    "SourceVariableSubstitution" -> {v -> Together[k3b115a p],
       w -> Together[-(1 - k3b115a) (1 - p)]},
-    "Root" -> Together[k3b115a - p],
-    "RootSquare" -> transportChartLambda3[v, w],
-    "Roots" -> {
-      <|"Root" -> Together[k3b115a - p],
-        "RootSquare" -> transportChartLambda3[v, w]|>,
-      <|"Root" -> Together[1 + u k3b115a],
-        "RootSquare" -> 1 - 4 v w|>},
-    "Parents" -> <|"Kallen3" -> {x -> k3b115a, y -> p}|>,
+    "RationalizedSquareRoots" -> {
+      <|"RationalRoot" -> Together[k3b115a - p],
+        "SourceRadicand" -> transportChartLambda3[v, w]|>,
+      <|"RationalRoot" -> Together[1 + u k3b115a],
+        "SourceRadicand" -> 1 - 4 v w|>},
+    "ParentParametrizationMaps" -> <|"Kallen3" -> {x -> k3b115a, y -> p}|>,
     "Notes" -> "Kallen3 base v=a p, w=-(1-a)(1-p); imposing \
 sqrt(1-4 v w)=1+u a gives a=(4 p(1-p)-2u)/(u^2+4 p(1-p))"|>;
   (* ---- joint charts for {lambda1, 4 v + w^2} and its v<->w image,
@@ -240,42 +259,38 @@ sqrt(1-4 v w)=1+u a gives a=(4 p(1-p)-2u)/(u^2+4 p(1-p))"|>;
      the roles of v and w exchanged (sqrt(v^2 + 4 w) = v + t first) and
      produce v_b = w_a, w_b = v_a with both root images unchanged. *)
   kq4av = (t^2 (2 + t)^2 - s^2)/(4 (t - 2) s - 4 t (t^2 - 4 t - 4));
-  kq4a = <|"Name" -> "KallenQ4a", "Kind" -> "TwoVariable", "Variables" -> {s, t},
-    "Subst" -> {v -> Together[kq4av], w -> Together[(4 kq4av - t^2)/(2 t)]},
-    "Root" -> Together[(2 (t - 2) kq4av + s)/(2 t)],
-    "RootSquare" -> transportChartLambda1[v, w],
-    "Roots" -> {
-      <|"Root" -> Together[(2 (t - 2) kq4av + s)/(2 t)],
-        "RootSquare" -> transportChartLambda1[v, w]|>,
-      <|"Root" -> Together[(4 kq4av + t^2)/(2 t)],
-        "RootSquare" -> 4 v + w^2|>},
+  kq4a = <|"Name" -> "KallenQ4a", "Kind" -> "TwoVariable", "ParametrizingVariables" -> {s, t},
+    "SourceVariableSubstitution" -> {v -> Together[kq4av], w -> Together[(4 kq4av - t^2)/(2 t)]},
+    "RationalizedSquareRoots" -> {
+      <|"RationalRoot" -> Together[(2 (t - 2) kq4av + s)/(2 t)],
+        "SourceRadicand" -> transportChartLambda1[v, w]|>,
+      <|"RationalRoot" -> Together[(4 kq4av + t^2)/(2 t)],
+        "SourceRadicand" -> 4 v + w^2|>},
     (* Exact inverse from the two declared roots.  The generic chart
        composer validates every returned branch against Subst before it
        is used; recording the pencil inverse here avoids asking Solve to
        invert this high-degree rational presentation from scratch. *)
-    "InverseByRoots" -> Function[{sourceValues, rootValues},
+    "InverseParametrizationByRootValues" -> Function[{sourceValues, rootValues},
       With[{tau = rootValues[[2]] - sourceValues[[2]]},
         {Together[2 tau rootValues[[1]] -
           2 (tau - 2) sourceValues[[1]]], Together[tau]}]],
-    "Parents" -> <|"Q4a" -> {p -> Together[kq4av], s -> t/2}|>,
+    "ParentParametrizationMaps" -> <|"Q4a" -> {p -> Together[kq4av], s -> t/2}|>,
     "Notes" -> "iterated pencil: sqrt(4 v + w^2) = w + t gives \
 w = (4 v - t^2)/(2 t); lambda1 pulls back to N(v,t)/(4 t^2) with a square \
 leading coefficient, and sqrt(N) = 2 (t-2) v + s solves for v linearly; \
 sqrt(lambda1) = (2 (t-2) v + s)/(2 t), sqrt(4 v + w^2) = (4 v + t^2)/(2 t)"|>;
-  kq4b = <|"Name" -> "KallenQ4b", "Kind" -> "TwoVariable", "Variables" -> {s, t},
-    "Subst" -> {v -> Together[(4 kq4av - t^2)/(2 t)], w -> Together[kq4av]},
-    "Root" -> Together[(2 (t - 2) kq4av + s)/(2 t)],
-    "RootSquare" -> transportChartLambda1[v, w],
-    "Roots" -> {
-      <|"Root" -> Together[(2 (t - 2) kq4av + s)/(2 t)],
-        "RootSquare" -> transportChartLambda1[v, w]|>,
-      <|"Root" -> Together[(4 kq4av + t^2)/(2 t)],
-        "RootSquare" -> v^2 + 4 w|>},
-    "InverseByRoots" -> Function[{sourceValues, rootValues},
+  kq4b = <|"Name" -> "KallenQ4b", "Kind" -> "TwoVariable", "ParametrizingVariables" -> {s, t},
+    "SourceVariableSubstitution" -> {v -> Together[(4 kq4av - t^2)/(2 t)], w -> Together[kq4av]},
+    "RationalizedSquareRoots" -> {
+      <|"RationalRoot" -> Together[(2 (t - 2) kq4av + s)/(2 t)],
+        "SourceRadicand" -> transportChartLambda1[v, w]|>,
+      <|"RationalRoot" -> Together[(4 kq4av + t^2)/(2 t)],
+        "SourceRadicand" -> v^2 + 4 w|>},
+    "InverseParametrizationByRootValues" -> Function[{sourceValues, rootValues},
       With[{tau = rootValues[[2]] - sourceValues[[1]]},
         {Together[2 tau rootValues[[1]] -
           2 (tau - 2) sourceValues[[2]]], Together[tau]}]],
-    "Parents" -> <|"Q4b" -> {p -> Together[kq4av], s -> t/2}|>,
+    "ParentParametrizationMaps" -> <|"Q4b" -> {p -> Together[kq4av], s -> t/2}|>,
     "Notes" -> "the v<->w image of KallenQ4a: sqrt(v^2 + 4 w) = v + t \
 gives v = (4 w - t^2)/(2 t), the pulled-back lambda1 is the SAME N with v \
 replaced by w (lambda1 is v<->w symmetric), and sqrt(N) = 2 (t-2) w + s \
@@ -288,114 +303,195 @@ sqrt(v^2 + 4 w) = (4 w + t^2)/(2 t)"|>;
     "KallenQ4a" -> kq4a, "KallenQ4b" -> kq4b|>
 ]];
 
-masterTransportChartByName[name_String] := Lookup[TransportChartCatalog[], name, None];
+(* Catalog definitions already use the V2 mathematical field names.  This
+   constructor adds the common discriminator and source-variable data once;
+   it is not a reader for historical artifacts. *)
+rationalizingParametrizationCatalogRecord[definition_Association] := Join[
+  <|
+    "DataType" -> "RationalizingParametrization",
+    "SchemaVersion" -> 2,
+    "Status" -> "RationalizingParametrizationDeclared",
+    "SourceVariables" ->
+      First /@ definition["SourceVariableSubstitution"],
+    "ParentParametrizations" -> <||>|>,
+  definition];
+
+rationalizingParametrizationNormalize[record_Association] := Module[
+  {normalized = algebraCoefficientPresentationNormalize[record]},
+  If[Lookup[normalized, "DataType", None] =!=
+      "RationalizingParametrization",
+    Return[normalized]];
+  Join[normalized, KeyTake[record,
+    {"ParametrizationExtensionData",
+     "RationalizingParametrizationVerification"}]]
+];
+
+FeynFacet`RationalizingParametrizationCatalog[] :=
+  Map[rationalizingParametrizationCatalogRecord,
+    rationalizingParametrizationCatalogDefinitions[]];
+
+masterTransportRationalizingParametrizationByName[name_String] :=
+  Lookup[FeynFacet`RationalizingParametrizationCatalog[], name, None];
 
 (* Moved verbatim from Transport/Observable/ObservableTransport.wl (round 7,
    2026-09-02): a record's chart resolved against the catalog; the source
    frame is named, never a chart.  FamilyEpsForm.wl (EpsForm) and the
    observable transport both use it. *)
-observableTransportSourceFrameQ[value_] := Module[
-  {name = ToLowerCase@StringReplace[ToString[value, InputForm],
-      Except[LetterCharacter | DigitCharacter] -> ""]},
-  MemberQ[{"sourcevw", "sourcevwx", "sourcevwy", "source"}, name]
+familyCoefficientPresentationFromRecord[record_Association,
+    Automatic] := Lookup[record, "CoefficientPresentation", None];
+
+familyCoefficientPresentationFromRecord[record_Association,
+    presentation_] := presentation;
+
+(* Re-derive exactly what a forward rationalizing parametrization proves.
+   Rationality of both the source-coordinate images and the displayed root
+   images is part of the gate.  No inverse is checked here, so neither the
+   result nor its status uses "change of variables", "birational", or
+   "chart". *)
+FeynFacet`VerifyRationalizingParametrization[input_Association] := Module[
+  {parametrization, vars, subst, sourceVariables, f, g, jac, det, roots,
+   substitutionRationalChecks, rootRationalChecks, rootChecks, parentMaps,
+  parentParametrizations, parentChecks, verified},
+  parametrization = rationalizingParametrizationNormalize[input];
+  If[Lookup[parametrization, "DataType", None] =!=
+      "RationalizingParametrization",
+    Return[Join[parametrization, <|"Verified" -> False|>]]];
+  vars = parametrization["ParametrizingVariables"];
+  subst = parametrization["SourceVariableSubstitution"];
+  roots = parametrization["RationalizedSquareRoots"];
+  If[! MatchQ[vars, {_Symbol, _Symbol}] ||
+      ! MatchQ[subst, {_Rule, _Rule}] || ! ListQ[roots],
+    Return[<|"Status" -> "RationalizingParametrizationNotWellFormed",
+      "Verified" -> False|>]];
+  sourceVariables = First /@ subst;
+  {f, g} = Together /@ (Last /@ subst);
+  substitutionRationalChecks =
+    transportChartRationalExpressionQ[#, vars] & /@ {f, g};
+  rootRationalChecks =
+    transportChartRationalExpressionQ[#1["RationalRoot"], vars] & /@ roots;
+  jac = {{D[f, vars[[1]]], D[f, vars[[2]]]},
+    {D[g, vars[[1]]], D[g, vars[[2]]]}};
+  det = Together[Det[jac]];
+  rootChecks = Table[
+    TrueQ[Together[root["RationalRoot"]^2 -
+      (root["SourceRadicand"] /.
+        Thread[sourceVariables -> {f, g}])] === 0],
+    {root, roots}];
+  parentMaps = parametrization["ParentParametrizationMaps"];
+  parentParametrizations = parametrization["ParentParametrizations"];
+  parentChecks = Association @ KeyValueMap[
+    Function[{parentName, map},
+      Module[{parent = Lookup[parentParametrizations, parentName,
+          masterTransportRationalizingParametrizationByName[parentName]],
+        parentSubstitution, pf, pg},
+        If[parent === None || ! AssociationQ[parent], parentName -> False,
+          parent = rationalizingParametrizationNormalize[parent];
+          parentSubstitution = parent["SourceVariableSubstitution"];
+          If[! MatchQ[parentSubstitution, {_Rule, _Rule}],
+            parentName -> False,
+            {pf, pg} = Last /@ parentSubstitution;
+            parentName ->
+              (TrueQ[Together[(pf /. map) - f] === 0] &&
+               TrueQ[Together[(pg /. map) - g] === 0])]]]],
+    parentMaps];
+  verified = AllTrue[substitutionRationalChecks, TrueQ] &&
+    AllTrue[rootRationalChecks, TrueQ] &&
+    AllTrue[rootChecks, TrueQ] && ! TrueQ[det === 0] &&
+    AllTrue[Values[parentChecks], TrueQ];
+  <|
+    "DataType" -> "RationalizingParametrizationValidation",
+    "SchemaVersion" -> 2,
+    "Status" -> If[verified, "RationalizingParametrizationVerified",
+      "RationalizingParametrizationVerificationFailed"],
+    "Verified" -> verified,
+    "Name" -> Lookup[parametrization, "Name", "?"],
+    "SourceCoordinateImagesRational" -> substitutionRationalChecks,
+    "RationalizedRootImagesRational" -> rootRationalChecks,
+    "RationalizedSquareRootIdentities" -> rootChecks,
+    "JacobianDeterminant" -> Factor[det],
+    "ParentParametrizationIdentities" -> parentChecks,
+    "RationalInverseVerified" -> False,
+    "BirationalityVerified" -> False
+  |>
 ];
+FeynFacet`VerifyRationalizingParametrization[___] :=
+  <|"Status" -> "InvalidRationalizingParametrizationArguments",
+    "Verified" -> False|>;
 
-observableTransportRecordChart[record_Association, Automatic] := Module[
-  {chartRecord = Lookup[record, "ChartRecord", Missing["NotAvailable"]],
-   chart = Lookup[record, "Chart", None],
-   frame = Lookup[record, "Frame", None]},
-  Which[
-    AssociationQ[chartRecord], chartRecord,
-    observableTransportSourceFrameQ[frame] ||
-      observableTransportSourceFrameQ[chart], None,
-    chart === None || MissingQ[chart], None,
-    StringQ[chart], Lookup[TransportChartCatalog[], chart, $Failed],
-    AssociationQ[chart], chart,
-    True, $Failed
-  ]
-];
-
-observableTransportRecordChart[record_Association, chart_] := chart;
-
-(* exact re-derivation of what a chart record claims.
-   The SOURCE variables are read from the record's own substitution, not
-   from the package's Global v/w (generality pass 2026-08-23): a frame
-   built by BuildAlgebraicTransportFrame in a caller's symbols declares
-   its root squares in THOSE symbols, and verifying it against v/w
-   compared two different expressions and refused a correct frame.  For
-   every catalog chart the substitution keys ARE v and w, so this is the
-   same computation as before. *)
-TransportChartVerify[chart_Association] := Module[
-  {vars, subst, sourceVariables, f, g, jac, det, roots, rootChecks, parents,
-    parentCharts, parentChecks, ok},
-    vars = chart["Variables"]; subst = chart["Subst"];
-    sourceVariables = First /@ subst;
-    {f, g} = Together /@ (Last /@ subst);
-    jac = {{D[f, vars[[1]]], D[f, vars[[2]]]}, {D[g, vars[[1]]], D[g, vars[[2]]]}};
-    det = Together[Det[jac]];
-    roots = Lookup[chart, "Roots", {<|"Root" -> chart["Root"], "RootSquare" -> chart["RootSquare"]|>}];
-    rootChecks = Table[
-      TrueQ[Together[r["Root"]^2 -
-        (r["RootSquare"] /. Thread[sourceVariables -> {f, g}])] === 0],
-      {r, roots}];
-    parents = Lookup[chart, "Parents", <||>];
-    parentCharts = Lookup[chart, "ParentCharts", <||>];
-    parentChecks = Association @ KeyValueMap[
-      Function[{parentName, map},
-        Module[{parent = Lookup[parentCharts, parentName,
-            masterTransportChartByName[parentName]], pf, pg},
-          If[parent === None, parentName -> False,
-            {pf, pg} = Last /@ parent["Subst"];
-            parentName -> (TrueQ[Together[(pf /. map) - f] === 0] &&
-              TrueQ[Together[(pg /. map) - g] === 0])]]],
-      parents];
-    ok = AllTrue[rootChecks, TrueQ] && ! TrueQ[det === 0] &&
-      AllTrue[Values[parentChecks], TrueQ];
-    <|"OK" -> ok, "Name" -> Lookup[chart, "Name", "?"], "RootIdentities" -> rootChecks,
-      "JacobianDet" -> Factor[det], "ParentMaps" -> parentChecks|>];
-
-BuildAlgebraicTransportFrame[rootSquares_List,
-    sourceVariables : {_Symbol, _Symbol},
-    chartVariables : {_Symbol, _Symbol}] := Module[
-  {substitution, pulledSquares, roots, chart, certificate, name},
+FeynFacet`BuildSquareRootGeneratorsAndQuadraticRelations[
+    rootSquares_List, sourceVariables : {_Symbol, _Symbol},
+    coefficientVariables : {_Symbol, _Symbol}] := Module[
+  {substitution, pulledSquares, generators, relationChecks,
+   jacobianDeterminant, verified},
   If[Length[DeleteDuplicates[SymbolName /@
-        Join[sourceVariables, chartVariables]]] =!= 4,
-    Return[<|"Status" -> "AlgebraicFrameVariablesCollide"|>]];
-  substitution = Thread[sourceVariables -> chartVariables];
+        Join[sourceVariables, coefficientVariables]]] =!= 4,
+    Return[<|"Status" -> "SquareRootGeneratorVariablesCollide"|>]];
+  substitution = Thread[sourceVariables -> coefficientVariables];
   pulledSquares = Together /@ (rootSquares /. substitution);
-  roots = MapThread[
-    <|"Root" -> Sqrt[#1], "RootSquare" -> #2|> &,
+  generators = MapThread[
+    <|
+      "Generator" -> Sqrt[#1],
+      "QuadraticRadicand" -> #1,
+      "SourceRadicand" -> #2
+    |> &,
     {pulledSquares, rootSquares}];
-  name = "Multiquadratic" <> ToString[Length[roots]];
-  chart = <|
-    "Name" -> name,
-    "Kind" -> "TwoVariable",
-    "FieldKind" -> "Multiquadratic",
-    "CoefficientField" -> "Multiquadratic",
-    "Variables" -> chartVariables,
-    "Subst" -> substitution,
-    "Root" -> If[roots === {}, None, roots[[1, "Root"]]],
-    "RootSquare" -> If[roots === {}, None, roots[[1, "RootSquare"]]],
-    "Roots" -> roots,
-    "Notes" -> "identity change of variables with every declared square root retained exactly"
-  |>;
-  certificate = TransportChartVerify[chart];
-  If[! TrueQ[certificate["OK"]],
-    Return[<|"Status" -> "AlgebraicFrameIdentityFailed",
-      "Frame" -> chart, "Certificate" -> certificate|>]];
-  Join[chart, <|"Status" -> "ExactFrame",
-    "ChartCertificate" -> certificate|>]
+  relationChecks = TrueQ[Together[
+      #1["Generator"]^2 - #1["QuadraticRadicand"]] === 0] & /@
+    generators;
+  jacobianDeterminant = Together@Det@Table[
+    D[Last[substitution[[i]]], coefficientVariables[[j]]],
+    {i, 2}, {j, 2}];
+  verified = AllTrue[relationChecks, TrueQ] &&
+    ! TrueQ[jacobianDeterminant === 0];
+  <|
+    "DataType" -> "SquareRootGeneratorsAndQuadraticRelations",
+    "SchemaVersion" -> 2,
+    "Status" -> If[verified, "SquareRootGeneratorRelationsVerified",
+      "SquareRootGeneratorRelationVerificationFailed"],
+    "SourceVariables" -> sourceVariables,
+    "CoefficientVariables" -> coefficientVariables,
+    "SourceToCoefficientVariableRules" -> substitution,
+    "SquareRootGenerators" -> generators,
+    "QuadraticRelationVerification" -> <|
+      "Verified" -> verified,
+      "PerGenerator" -> relationChecks,
+      "CoordinateJacobianDeterminant" -> Factor[jacobianDeterminant]|>,
+    "SquareClassIndependenceStatus" -> "NotChecked",
+    "SquareClassIndependenceVerified" -> False,
+    "SignChangeImageInterpretation" -> "FormalGeneratorSignChangesOnly",
+    "GaloisConjugatesCertified" -> False
+  |>
 ];
+FeynFacet`BuildSquareRootGeneratorsAndQuadraticRelations[___] :=
+  <|"Status" -> "InvalidSquareRootGeneratorArguments"|>;
 
-FamilyAlgebraicRootCensus[assembly_Association, frame_Association] := Module[
-  {roots, zeroBlockQ, blocks, ranges,
+(* The family census accepts only the canonical V2 generator presentation.
+   V1 records are refused typed rather than normalized into a guessed
+   mathematical object. *)
+squareRootGeneratorDataNormalize[data_Association] := If[
+  Lookup[data, "DataType", None] ===
+      "SquareRootGeneratorsAndQuadraticRelations" &&
+    Lookup[data, "SchemaVersion", None] === 2 &&
+    ListQ[Lookup[data, "SquareRootGenerators", $Failed]] &&
+    KeyExistsQ[data, "SourceToCoefficientVariableRules"],
+  algebraCoefficientPresentationNormalize[data],
+  <|"Status" -> "LegacyCoefficientPresentationSchemaUnsupported"|>];
+
+FeynFacet`FamilySquareRootGeneratorCensus[assembly_Association,
+    generatorData_Association] := Module[
+  {normalizedData, generatorRecords, zeroBlockQ, blocks, ranges,
    connection, records, unmatched},
   If[Lookup[assembly, "Status", None] =!= "OK" ||
       ! ListQ[Lookup[assembly, "Blocks", None]] ||
       ! ListQ[Lookup[assembly, "Ranges", None]],
     Return[<|"Status" -> "FamilyAssemblyInvalid"|>]];
-  roots = Lookup[frame, "Roots", {}];
-  If[! ListQ[roots], Return[<|"Status" -> "AlgebraicFrameRootsInvalid"|>]];
+  normalizedData = squareRootGeneratorDataNormalize[generatorData];
+  If[Lookup[normalizedData, "Status", None] ===
+      "LegacyCoefficientPresentationSchemaUnsupported",
+    Return[normalizedData]];
+  generatorRecords = Lookup[normalizedData, "SquareRootGenerators", $Failed];
+  If[! ListQ[generatorRecords],
+    Return[<|"Status" -> "SquareRootGeneratorDataInvalid"|>]];
   zeroBlockQ[expr_] := AllTrue[Flatten[expr],
     TrueQ[Together[#] === 0] &];
   blocks = assembly["Blocks"];
@@ -406,11 +502,13 @@ FamilyAlgebraicRootCensus[assembly_Association, frame_Association] := Module[
       Module[{block, classification},
         block = connection[[All, ranges[[i]], ranges[[j]]]];
         If[zeroBlockQ[block], Nothing,
-          classification = transportChartRootIndices[block, roots];
+          classification = transportChartRootIndices[
+            block, generatorRecords];
           <|"BlockPair" -> {i, j},
             "FamilyRows" -> {blocks[[i]], blocks[[j]]},
-            "RootIndices" -> classification["RootIndices"],
-            "RootCount" -> Length[classification["RootIndices"]],
+            "SquareRootGeneratorIndices" -> classification["RootIndices"],
+            "SquareRootGeneratorCount" ->
+              Length[classification["RootIndices"]],
             "RadicalBases" -> classification["RadicalBases"],
             "UnclassifiedRadicalBases" ->
               classification["UnclassifiedRadicalBases"],
@@ -422,14 +520,18 @@ FamilyAlgebraicRootCensus[assembly_Association, frame_Association] := Module[
     {i, Length[blocks]}, {j, Length[blocks]}], 1];
   unmatched = DeleteDuplicates[Flatten[
     Lookup[records, "UnclassifiedRadicalBases", {}]]];
-  <|"Status" -> If[unmatched === {}, "ExactRootCensus",
+  <|"Status" -> If[unmatched === {},
+      "ExactSquareRootGeneratorCensus",
       "UnclassifiedRadicals"],
     "Family" -> Lookup[assembly, "Family", None],
-    "RootSquares" -> Lookup[roots, "RootSquare", {}],
+    "SourceRadicands" -> Lookup[generatorRecords, "SourceRadicand", {}],
     "NonzeroOffDiagonalBlocks" -> Length[records],
-    "RootCountHistogram" -> Counts[Lookup[records, "RootCount", {}]],
-    "MaximumRootCount" -> Max[Append[Lookup[records, "RootCount", {}], 0]],
-    "ThreeRootBlocks" -> Select[records, #["RootCount"] >= 3 &],
+    "SquareRootGeneratorCountHistogram" ->
+      Counts[Lookup[records, "SquareRootGeneratorCount", {}]],
+    "MaximumSquareRootGeneratorCount" ->
+      Max[Append[Lookup[records, "SquareRootGeneratorCount", {}], 0]],
+    "BlocksWithAtLeastThreeSquareRootGenerators" ->
+      Select[records, #["SquareRootGeneratorCount"] >= 3 &],
     "UnclassifiedRadicalBases" -> unmatched,
     (* radicands accepted by exact denesting rather than by a direct
        match (2026-08-24): classified, but not literally declared *)
@@ -440,61 +542,84 @@ FamilyAlgebraicRootCensus[assembly_Association, frame_Association] := Module[
     "Blocks" -> records|>
 ];
 
-TransportRootSetChart[rootSquares_List,
+FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[
+    rootSquares_List,
     sourceVariables : {_Symbol, _Symbol}] := Module[
   {wanted, candidates},
   wanted = DeleteDuplicates[Together /@
     (rootSquares /. Thread[sourceVariables ->
       {$transportChartV, $transportChartW}])];
   If[wanted === {}, Return[None]];
-  candidates = Select[Values[TransportChartCatalog[]], Function[chart,
-    Module[{chartRoots = Lookup[chart, "Roots", {}], chartSquares},
-      If[Length[chartRoots] < Length[wanted], False,
-        chartSquares = Together /@ Lookup[chartRoots, "RootSquare", {}];
-        AllTrue[wanted, Function[q, AnyTrue[chartSquares,
+  candidates = Select[
+    Values[FeynFacet`RationalizingParametrizationCatalog[]],
+    Function[parametrization,
+    Module[{rationalizedRoots = Lookup[parametrization,
+        "RationalizedSquareRoots", {}], cataloguedRadicands},
+      If[Length[rationalizedRoots] < Length[wanted], False,
+        cataloguedRadicands = Together /@
+          Lookup[rationalizedRoots, "SourceRadicand", {}];
+        AllTrue[wanted, Function[q, AnyTrue[cataloguedRadicands,
           Function[candidate,
             TrueQ[Together[q - candidate] === 0]]]]]]]]];
   If[candidates === {},
-    Missing["NoRationalChart", wanted],
+    Missing["NoCataloguedRationalizingParametrization", wanted],
     First[SortBy[candidates,
-      {Function[chart, Length[Lookup[chart, "Roots", {}]]],
-       Function[chart, LeafCount[Lookup[chart, "Subst", {}]]]}]]]
+      {Function[parametrization,
+         Length[Lookup[parametrization,
+           "RationalizedSquareRoots", {}]]],
+       Function[parametrization,
+         LeafCount[Lookup[parametrization,
+           "SourceVariableSubstitution", {}]]]}]]]
 ];
 
-TransportRootSetChart[rootSquares_List] := TransportRootSetChart[
-  rootSquares, {$transportChartV, $transportChartW}];
+FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[
+    rootSquares_List] :=
+  FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[
+    rootSquares, {$transportChartV, $transportChartW}];
+FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[___] :=
+  <|"Status" -> "InvalidRationalizingParametrizationLookupArguments"|>;
 
+(* Input-only V1 wrapper.  A catalog miss deliberately uses the new Missing
+   tag, which states absence from this finite catalog and nothing stronger. *)
 transportChartRationalExpressionQ[expr_, variables_List] :=
   FreeQ[Unevaluated[expr], _Root |
     Power[_, exponent_Rational /; Denominator[exponent] > 1]] &&
   PolynomialQ[Numerator[Together[expr]], variables] &&
   PolynomialQ[Denominator[Together[expr]], variables];
 
-ComposeTransportChartExtension[baseChart_Association, rootSquare_,
-    extensionRules_List, newVariables : {_Symbol, _Symbol}] := Module[
-  {baseVariables, sourceVariables, baseSubst, pullBack, variableRules,
-   rootRules, extensionRootRule, extensionRoot, subst, inheritedRoots,
-   roots, parentName, name, chart, certificate},
+FeynFacet`ComposeRationalizingParametrizations[
+    baseInput_Association, rootSquare_, extensionRules_List,
+    newVariables : {_Symbol, _Symbol}] := Module[
+  {baseParametrization, baseVariables, sourceVariables, baseSubstitution,
+   pullBack, variableRules, rootRules, extensionRootRule, extensionRoot,
+   substitution, inheritedRoots, roots, parentName, name,
+   parametrization, verification},
 
-  baseVariables = Lookup[baseChart, "Variables", Missing[]];
-  baseSubst = Lookup[baseChart, "Subst", Missing[]];
+  baseParametrization = rationalizingParametrizationNormalize[baseInput];
+  If[Lookup[baseParametrization, "DataType", None] =!=
+      "RationalizingParametrization",
+    Return[baseParametrization]];
+  baseVariables = Lookup[baseParametrization,
+    "ParametrizingVariables", Missing[]];
+  baseSubstitution = Lookup[baseParametrization,
+    "SourceVariableSubstitution", Missing[]];
   If[! MatchQ[baseVariables, {_Symbol, _Symbol}] ||
-      ! MatchQ[baseSubst, {_Rule, _Rule}],
-    Return[<|"Status" -> "BaseChartNotWellFormed"|>]
+      ! MatchQ[baseSubstitution, {_Rule, _Rule}],
+    Return[<|"Status" -> "BaseRationalizingParametrizationNotWellFormed"|>]
   ];
-  sourceVariables = First /@ baseSubst;
-  pullBack = Together[rootSquare /. baseSubst];
+  sourceVariables = First /@ baseSubstitution;
+  pullBack = Together[rootSquare /. baseSubstitution];
   variableRules = Select[extensionRules,
     MemberQ[baseVariables, First[#]] &];
   If[Sort[First /@ variableRules] =!= Sort[baseVariables],
-    Return[<|"Status" -> "ExtensionVariablesNotMapped",
+    Return[<|"Status" -> "BaseParametrizingVariablesNotMapped",
       "Expected" -> baseVariables|>]
   ];
   variableRules = Table[
     variable -> (variable /. variableRules), {variable, baseVariables}];
   If[! AllTrue[Last /@ variableRules,
       transportChartRationalExpressionQ[#, newVariables] &],
-    Return[<|"Status" -> "ExtensionMapNotRational"|>]
+    Return[<|"Status" -> "ExtensionParametrizationNotRational"|>]
   ];
 
   rootRules = Select[extensionRules,
@@ -506,58 +631,63 @@ ComposeTransportChartExtension[baseChart_Association, rootSquare_,
         Last[#] /. variableRules, newVariables] &,
     Missing["NoRootRule"]];
   If[MissingQ[extensionRootRule],
-    Return[<|"Status" -> "ExtensionRootNotMapped",
-      "PulledBackRootSquare" -> pullBack|>]
+    Return[<|"Status" -> "AdditionalSquareRootNotRationalized",
+      "PulledBackRadicand" -> pullBack|>]
   ];
   extensionRoot = Together[Last[extensionRootRule] /. variableRules];
 
-  subst = Map[
+  substitution = Map[
     Function[rule, First[rule] -> Together[Last[rule] /. variableRules]],
-    baseSubst];
-  If[! AllTrue[Last /@ subst,
+    baseSubstitution];
+  If[! AllTrue[Last /@ substitution,
       transportChartRationalExpressionQ[#, newVariables] &],
-    Return[<|"Status" -> "ComposedMapNotRational"|>]
+    Return[<|"Status" -> "ComposedParametrizationNotRational"|>]
   ];
-  inheritedRoots = Lookup[baseChart, "Roots",
-    {<|"Root" -> baseChart["Root"],
-       "RootSquare" -> baseChart["RootSquare"]|>}];
+  inheritedRoots = Lookup[baseParametrization,
+    "RationalizedSquareRoots", {}];
   inheritedRoots = Map[
-    <|"Root" -> Together[#["Root"] /. variableRules],
-      "RootSquare" -> #["RootSquare"]|> &,
+    <|"RationalRoot" ->
+        Together[#["RationalRoot"] /. variableRules],
+      "SourceRadicand" -> #["SourceRadicand"]|> &,
     inheritedRoots];
   roots = Append[inheritedRoots,
-    <|"Root" -> extensionRoot, "RootSquare" -> rootSquare|>];
-  parentName = Lookup[baseChart, "Name", "BaseChart"];
-  name = parentName <> "+" <>
-    StringTake[IntegerString[Hash[rootSquare, "SHA256"], 16], 12];
-  chart = <|
-    "Status" -> "Candidate",
+    <|"RationalRoot" -> extensionRoot,
+      "SourceRadicand" -> rootSquare|>];
+  parentName = Lookup[baseParametrization, "Name",
+    "BaseRationalizingParametrization"];
+  name = parentName <> "+AdditionalRoot" <> ToString[Length[roots]];
+  parametrization = <|
+    "DataType" -> "RationalizingParametrization",
+    "SchemaVersion" -> 2,
+    "Status" -> "RationalizingParametrizationCandidate",
     "Name" -> name,
     "Kind" -> "TwoVariable",
-    "Variables" -> newVariables,
+    "ParametrizingVariables" -> newVariables,
     "SourceVariables" -> sourceVariables,
-    "Subst" -> subst,
-    "Root" -> extensionRoot,
-    "RootSquare" -> rootSquare,
-    "Roots" -> roots,
-    "Parents" -> <|parentName -> variableRules|>,
-    "ParentCharts" -> <|parentName -> baseChart|>,
-    "Extension" -> <|
-      "BaseChart" -> parentName,
-      "PulledBackRootSquare" -> pullBack,
+    "SourceVariableSubstitution" -> substitution,
+    "RationalizedSquareRoots" -> roots,
+    "ParentParametrizationMaps" -> <|parentName -> variableRules|>,
+    "ParentParametrizations" ->
+      <|parentName -> baseParametrization|>,
+    "ParametrizationExtensionData" -> <|
+      "BaseParametrization" -> parentName,
+      "PulledBackRadicand" -> pullBack,
       "Rules" -> extensionRules|>
   |>;
-  certificate = TransportChartVerify[chart];
-  If[! TrueQ[certificate["OK"]],
-    Return[<|"Status" -> "ExtensionIdentityFailed",
-      "Chart" -> chart, "Certificate" -> certificate|>]
+  verification = FeynFacet`VerifyRationalizingParametrization[
+    parametrization];
+  If[! TrueQ[verification["Verified"]],
+    Return[<|"Status" -> "RationalizingParametrizationExtensionFailed",
+      "RationalizingParametrization" -> parametrization,
+      "RationalizingParametrizationVerification" -> verification|>]
   ];
-  Join[chart, <|"Status" -> "ExactChart",
-    "ChartCertificate" -> certificate|>]
+  Join[parametrization,
+    <|"Status" -> "RationalizingParametrizationVerified",
+      "RationalizingParametrizationVerification" -> verification|>]
 ];
 
-ComposeTransportChartExtension[___] :=
-  <|"Status" -> "InvalidChartExtensionArguments"|>;
+FeynFacet`ComposeRationalizingParametrizations[___] :=
+  <|"Status" -> "InvalidRationalizingParametrizationCompositionArguments"|>;
 
 transportChartLoadRationalizeRoots[] := Module[{file, function},
   function = ToExpression["RationalizeRoots`RationalizeRoot"];
@@ -575,30 +705,37 @@ transportChartExtensionCandidates[raw_, baseVariables_List] :=
       ContainsAll[First /@ rules, baseVariables] :> rules,
     {0, Infinity}], SameTest -> SameQ];
 
-Options[RationalizeTransportChartExtension] = {
+Options[FeynFacet`ExtendRationalizingParametrization] = {
   "Name" -> Automatic,
   "OutputVariables" -> Automatic,
   "AllCharts" -> True,
   "AllPoints" -> True,
   "TimeConstraint" -> 1800
 };
-
-RationalizeTransportChartExtension[baseChart_Association, rootSquare_,
+FeynFacet`ExtendRationalizingParametrization[
+    baseInput_Association, rootSquare_,
     OptionsPattern[]] := Module[
-  {baseVariables, baseSubst, pullBack, outputVariables, allCharts,
-   allPoints, timeConstraint, raw, candidates, charts, exactCharts,
+  {baseParametrization, baseVariables, baseSubstitution, pullBack,
+   outputVariables, allCharts, allPoints, timeConstraint, raw, candidates,
+   parametrizations, verifiedParametrizations,
    selected, requestedName},
 
   If[! transportChartLoadRationalizeRoots[],
     Return[<|"Status" -> "RationalizeRootsUnavailable"|>]
   ];
-  baseVariables = Lookup[baseChart, "Variables", Missing[]];
-  baseSubst = Lookup[baseChart, "Subst", Missing[]];
+  baseParametrization = rationalizingParametrizationNormalize[baseInput];
+  If[Lookup[baseParametrization, "DataType", None] =!=
+      "RationalizingParametrization",
+    Return[baseParametrization]];
+  baseVariables = Lookup[baseParametrization,
+    "ParametrizingVariables", Missing[]];
+  baseSubstitution = Lookup[baseParametrization,
+    "SourceVariableSubstitution", Missing[]];
   If[! MatchQ[baseVariables, {_Symbol, _Symbol}] ||
-      ! MatchQ[baseSubst, {_Rule, _Rule}],
-    Return[<|"Status" -> "BaseChartNotWellFormed"|>]
+      ! MatchQ[baseSubstitution, {_Rule, _Rule}],
+    Return[<|"Status" -> "BaseRationalizingParametrizationNotWellFormed"|>]
   ];
-  pullBack = Together[rootSquare /. baseSubst];
+  pullBack = Together[rootSquare /. baseSubstitution];
   (* C4 (generality pass 2026-08-23): the default output variables were
      Global`r and Global`t, which collide with any caller working in those
      symbols (and with packages that dump short names into Global`).  The
@@ -613,7 +750,7 @@ RationalizeTransportChartExtension[baseChart_Association, rootSquare_,
     Return[<|"Status" -> "InvalidOutputVariables"|>]
   ];
   If[Intersection[outputVariables, baseVariables] =!= {},
-    Return[<|"Status" -> "OutputVariablesCollideWithBaseChart",
+    Return[<|"Status" -> "OutputVariablesCollideWithBaseParametrization",
       "OutputVariables" -> outputVariables,
       "BaseVariables" -> baseVariables|>]
   ];
@@ -633,226 +770,264 @@ RationalizeTransportChartExtension[baseChart_Association, rootSquare_,
   If[raw === $TimedOut,
     Return[<|"Status" -> "RationalizationTimedOut",
       "Seconds" -> timeConstraint,
-      "PulledBackRootSquare" -> pullBack|>]
+      "PulledBackRadicand" -> pullBack|>]
   ];
   candidates = transportChartExtensionCandidates[raw, baseVariables];
-  charts = ComposeTransportChartExtension[
-      baseChart, rootSquare, #, outputVariables] & /@ candidates;
-  exactCharts = Select[charts,
-    Lookup[#, "Status", None] === "ExactChart" &];
-  If[exactCharts === {},
-    Return[<|"Status" -> "NoExactRationalExtension",
-      "PulledBackRootSquare" -> pullBack,
+  parametrizations = FeynFacet`ComposeRationalizingParametrizations[
+      baseParametrization, rootSquare, #, outputVariables] & /@ candidates;
+  verifiedParametrizations = Select[parametrizations,
+    Lookup[#, "Status", None] ===
+      "RationalizingParametrizationVerified" &];
+  If[verifiedParametrizations === {},
+    Return[<|"Status" -> "NoVerifiedRationalizingParametrizationFound",
+      "PulledBackRadicand" -> pullBack,
       "CandidateCount" -> Length[candidates],
-      "CandidateResults" -> charts|>]
+      "CandidateResults" -> parametrizations,
+      "NonexistenceProved" -> False|>]
   ];
-  selected = First@MinimalBy[exactCharts,
-    LeafCount[Lookup[#, "Subst", {}]] +
-      LeafCount[Lookup[#, "Roots", {}]] &];
+  selected = First@MinimalBy[verifiedParametrizations,
+    LeafCount[Lookup[#, "SourceVariableSubstitution", {}]] +
+      LeafCount[Lookup[#, "RationalizedSquareRoots", {}]] &];
   requestedName = OptionValue["Name"];
   If[StringQ[requestedName], selected["Name"] = requestedName];
   Join[selected, <|
     "RationalizeRootsCandidateCount" -> Length[candidates],
-    "ExactCandidateCount" -> Length[exactCharts]|>]
+    "VerifiedCandidateCount" -> Length[verifiedParametrizations]|>]
 ];
 
-(* ------------------------------------------------------------------ *)
-(*  The per-family chart REGISTRY                                       *)
-(* ------------------------------------------------------------------ *)
-(* Generality pass 2026-08-23 (user directive: the package is general,
-   the inventory is project data).  The literal per-family table that
-   lived here until then -- 47 entries of the ppHX NNLO double-real
-   inventory, measured 2026-08-17 from the class assignment, the class
-   forms and each family's raw alphabet -- was moved verbatim to
-   ppHX_NNLO_DoubleReal/Results/UU_08_10_canonical/TransportFamilyCharts.wl
-   after an entry-by-entry round trip (44 catalog-chart names identical
-   and present in TransportChartCatalog[], 3 root-square lists
-   Together-zero against the package table).  The package now ships an
-   EMPTY registry; a campaign registers its own inventory.
+FeynFacet`ExtendRationalizingParametrization[___] :=
+  <|"Status" -> "InvalidRationalizingParametrizationExtensionArguments"|>;
 
-   A registered value is one of
-     "ChartName"    a key of TransportChartCatalog[];
-     "RootSquares"  <|"RootSquares" -> {polynomials in the source
-                    variables}|>, the exact multiquadratic identity frame
-                    for a root set with no global rational chart;
-     "ChartAlias"   <|"ChartAlias" -> catalog name|>, a legacy record
-                    string (a descriptive substitution) that stands for a
-                    catalog chart -- the table this replaces lived in
-                    FamilyEpsForm.wl until 2026-08-23 (A3).
-   An UNREGISTERED family is Missing["FamilyChartNotRegistered", family],
-   never None: None means "root-free, transport in the source variables"
-   and would silently mistransport a rooted family whose registration is
-   merely absent. *)
-$transportFamilyChartRegistry = <||>;
+(* ------------------------------------------------------------------ *)
+(*  Per-family root data registry                                      *)
+(* ------------------------------------------------------------------ *)
+(* The live registry stores either a catalogued rationalizing-parametrization
+   name or source radicands for explicit square-root generators and quadratic
+   relations.  Generated V1 registries are regenerated, not normalized here. *)
+$familyRootDataRegistry = <||>;
 
-transportFamilyChartEntryKind[value_] := Module[{squares, alias},
+familyRootDataEntryNormalize[value_] := Which[
+  ! AssociationQ[value],
+    <|"Status" -> "FamilyRootDataEntryNotAssociation",
+      "Head" -> ToString[Head[value], InputForm]|>,
+  KeyExistsQ[value, "SourceRadicands"], value,
+  KeyExistsQ[value, "RationalizingParametrizationName"], value,
+  AnyTrue[{"RootSquares", "ChartAlias",
+      "RationalizingParametrizationAlias"}, KeyExistsQ[value, #] &],
+    <|"Status" -> "LegacyFamilyRootDataSchemaUnsupported"|>,
+  True,
+    <|"Status" -> "FamilyRootDataEntryKeysNotRecognized",
+      "Keys" -> Keys[value]|>
+];
+
+familyRootDataEntryKind[value_Association] := Module[
+  {radicands, name},
   Which[
-    StringQ[value],
-      If[KeyExistsQ[TransportChartCatalog[], value], "ChartName",
-        <|"Status" -> "ChartNameNotInCatalog", "Value" -> value|>],
-    ! AssociationQ[value],
-      <|"Status" -> "EntryNotStringOrAssociation",
-        "Head" -> ToString[Head[value], InputForm]|>,
-    KeyExistsQ[value, "RootSquares"],
-      If[Keys[value] =!= {"RootSquares"},
-        Return[<|"Status" -> "RootSquareEntryHasExtraKeys",
+    KeyExistsQ[value, "Status"], value,
+    KeyExistsQ[value, "SourceRadicands"],
+      If[Keys[value] =!= {"SourceRadicands"},
+        Return[<|"Status" -> "SourceRadicandEntryHasExtraKeys",
           "Keys" -> Keys[value]|>]];
-      squares = value["RootSquares"];
+      radicands = value["SourceRadicands"];
       Which[
-        ! ListQ[squares] || squares === {},
-          <|"Status" -> "RootSquaresNotANonemptyList"|>,
-        ! AllTrue[squares, FreeQ[#, _Root | Power[_, _Rational]] &],
-          <|"Status" -> "RootSquareContainsRadicals"|>,
-        ! AllTrue[squares, PolynomialQ[#, Variables[#]] &],
-          <|"Status" -> "RootSquareNotPolynomial"|>,
-        ! AllTrue[squares, Variables[#] =!= {} &],
-          <|"Status" -> "RootSquareHasNoVariables"|>,
-        True, "RootSquares"],
-    KeyExistsQ[value, "ChartAlias"],
-      alias = value["ChartAlias"];
-      If[Keys[value] =!= {"ChartAlias"},
-        Return[<|"Status" -> "ChartAliasEntryHasExtraKeys",
+        ! ListQ[radicands] || radicands === {},
+          <|"Status" -> "SourceRadicandsNotANonemptyList"|>,
+        ! AllTrue[radicands,
+            FreeQ[#, _Root | Power[_, _Rational]] &],
+          <|"Status" -> "SourceRadicandContainsRadicals"|>,
+        ! AllTrue[radicands, PolynomialQ[#, Variables[#]] &],
+          <|"Status" -> "SourceRadicandNotPolynomial"|>,
+        ! AllTrue[radicands, Variables[#] =!= {} &],
+          <|"Status" -> "SourceRadicandHasNoVariables"|>,
+        True, "SquareRootGeneratorsAndQuadraticRelations"],
+    KeyExistsQ[value, "RationalizingParametrizationName"],
+      name = value["RationalizingParametrizationName"];
+      If[Keys[value] =!= {"RationalizingParametrizationName"},
+        Return[<|"Status" ->
+          "RationalizingParametrizationNameEntryHasExtraKeys",
           "Keys" -> Keys[value]|>]];
-      If[StringQ[alias] && KeyExistsQ[TransportChartCatalog[], alias],
-        "ChartAlias",
-        <|"Status" -> "ChartAliasNotInCatalog", "Value" -> alias|>],
+      If[StringQ[name] &&
+          KeyExistsQ[FeynFacet`RationalizingParametrizationCatalog[], name],
+        "RationalizingParametrization",
+        <|"Status" -> "RationalizingParametrizationNameNotInCatalog",
+          "Value" -> name|>],
     True,
-      <|"Status" -> "EntryKeysNotRecognized", "Keys" -> Keys[value]|>]
+      <|"Status" -> "FamilyRootDataEntryKeysNotRecognized",
+        "Keys" -> Keys[value]|>]
 ];
 
-(* All or nothing: a rejected entry registers nothing, so a partly
-   mistyped project table cannot leave the session half configured. *)
-TransportFamilyChartRegister[entries_Association] := Module[
-  {kinds, invalid},
+FeynFacet`RegisterFamilyRootData[entries_Association] := Module[
+  {normalizedEntries, kinds, invalid},
   If[! AllTrue[Keys[entries], StringQ],
-    Return[<|"Status" -> "FamilyChartKeysNotStrings",
+    Return[<|"Status" -> "FamilyRootDataKeysNotStrings",
       "Keys" -> Select[Keys[entries], ! StringQ[#] &]|>]];
+  normalizedEntries = Association @ KeyValueMap[
+    #1 -> familyRootDataEntryNormalize[#2] &, entries];
   kinds = Association @ KeyValueMap[
-    #1 -> transportFamilyChartEntryKind[#2] &, entries];
+    #1 -> familyRootDataEntryKind[#2] &, normalizedEntries];
   invalid = Select[kinds, ! StringQ[#] &];
   If[invalid =!= <||>,
-    Return[<|"Status" -> "InvalidFamilyChartEntries",
+    Return[<|"Status" -> "InvalidFamilyRootDataEntries",
       "Invalid" -> invalid|>]];
-  $transportFamilyChartRegistry = Join[
-    $transportFamilyChartRegistry, entries];
-  <|"Status" -> "FamilyChartsRegistered",
-    "Registered" -> Length[entries],
-    "Families" -> Sort[Keys[entries]],
+  $familyRootDataRegistry = Join[$familyRootDataRegistry, normalizedEntries];
+  <|"Status" -> "FamilyRootDataRegistered",
+    "Registered" -> Length[normalizedEntries],
+    "Families" -> Sort[Keys[normalizedEntries]],
     "Kinds" -> Counts[Values[kinds]],
-    "RegistrySize" -> Length[$transportFamilyChartRegistry]|>
+    "RegistrySize" -> Length[$familyRootDataRegistry]|>
 ];
-TransportFamilyChartRegister[___] :=
-  <|"Status" -> "InvalidFamilyChartRegistration"|>;
+FeynFacet`RegisterFamilyRootData[___] :=
+  <|"Status" -> "InvalidFamilyRootDataRegistration"|>;
 
-TransportFamilyChartLoad[file_String] := Module[{value},
+FeynFacet`LoadFamilyRootData[file_String] := Module[{value},
   If[! FileExistsQ[file],
-    Return[<|"Status" -> "FamilyChartFileMissing", "File" -> file|>]];
+    Return[<|"Status" -> "FamilyRootDataFileMissing", "File" -> file|>]];
   value = FamilyArtifactRead[file];
   If[! AssociationQ[value],
-    Return[<|"Status" -> "FamilyChartFileNotAnAssociation",
+    Return[<|"Status" -> "FamilyRootDataFileNotAnAssociation",
       "File" -> file|>]];
-  Join[TransportFamilyChartRegister[value], <|"File" -> file|>]
+  Join[FeynFacet`RegisterFamilyRootData[value], <|"File" -> file|>]
 ];
-TransportFamilyChartLoad[___] :=
-  <|"Status" -> "InvalidFamilyChartRegistration"|>;
+FeynFacet`LoadFamilyRootData[___] :=
+  <|"Status" -> "InvalidFamilyRootDataRegistration"|>;
 
-(* the catalog name a legacy record string stands for, or Missing *)
-transportFamilyChartAlias[value_String] := Module[
-  {entry = Lookup[$transportFamilyChartRegistry, value, Missing[]]},
-  If[AssociationQ[entry] && StringQ[Lookup[entry, "ChartAlias", None]] &&
-      KeyExistsQ[TransportChartCatalog[], entry["ChartAlias"]],
-    entry["ChartAlias"], Missing["ChartAliasNotRegistered", value]]];
-transportFamilyChartAlias[___] := Missing["ChartAliasNotRegistered"];
-
-TransportFamilyChart[family_String] := TransportFamilyChart[family,
-  {$transportChartV, $transportChartW}, Automatic];
-
-TransportFamilyChart[family_String,
-    sourceVariables : {_Symbol, _Symbol}] :=
-  TransportFamilyChart[family, sourceVariables, Automatic];
-
-TransportFamilyChart[family_String,
+rationalizingParametrizationRekey[input_Association,
     sourceVariables : {_Symbol, _Symbol},
-    chartVariables : ({_Symbol, _Symbol} | Automatic)] := Module[
-  {entry, kind, record, targetVariables},
-  entry = Lookup[$transportFamilyChartRegistry, family,
-    Missing["FamilyChartNotRegistered", family]];
-  If[MissingQ[entry], Return[Missing["FamilyChartNotRegistered", family]]];
-  kind = transportFamilyChartEntryKind[entry];
+    parametrizingVariables : {_Symbol, _Symbol}] := Module[
+  {parametrization, oldSubstitution, oldSourceVariables,
+   oldParametrizingVariables, sourceRules, variableRules, substitution,
+   roots, result},
+  parametrization = rationalizingParametrizationNormalize[input];
+  If[Lookup[parametrization, "DataType", None] =!=
+      "RationalizingParametrization",
+    Return[parametrization]];
+  oldSubstitution = parametrization["SourceVariableSubstitution"];
+  oldParametrizingVariables = parametrization["ParametrizingVariables"];
+  If[! MatchQ[oldSubstitution, {_Rule, _Rule}] ||
+      ! MatchQ[oldParametrizingVariables, {_Symbol, _Symbol}],
+    Return[<|"Status" -> "RationalizingParametrizationNotWellFormed"|>]];
+  oldSourceVariables = First /@ oldSubstitution;
+  sourceRules = Thread[oldSourceVariables -> sourceVariables];
+  variableRules = Thread[oldParametrizingVariables -> parametrizingVariables];
+  substitution = Map[
+    Function[rule, (First[rule] /. sourceRules) ->
+      Together[Last[rule] /. variableRules]], oldSubstitution];
+  roots = Map[
+    <|"RationalRoot" -> Together[#["RationalRoot"] /. variableRules],
+      "SourceRadicand" ->
+        Together[#["SourceRadicand"] /. sourceRules]|> &,
+    parametrization["RationalizedSquareRoots"]];
+  result = <|
+    "DataType" -> "RationalizingParametrization",
+    "SchemaVersion" -> 2,
+    "Status" -> "RationalizingParametrizationDeclared",
+    "Name" -> Lookup[parametrization, "Name",
+        "RationalizingParametrization"] <> "Rekeyed",
+    "Kind" -> "TwoVariable",
+    "SourceVariables" -> sourceVariables,
+    "ParametrizingVariables" -> parametrizingVariables,
+    "SourceVariableSubstitution" -> substitution,
+    "RationalizedSquareRoots" -> roots,
+    "ParentParametrizationMaps" -> <||>,
+    "ParentParametrizations" -> <||>
+  |>;
+  If[KeyExistsQ[parametrization, "InverseParametrizationByRootValues"],
+    result = Append[result, "InverseParametrizationByRootValues" ->
+      parametrization["InverseParametrizationByRootValues"]]];
+  result
+];
+
+FeynFacet`FamilyRootData[family_String] := FeynFacet`FamilyRootData[family,
+  {$transportChartV, $transportChartW}, Automatic];
+FeynFacet`FamilyRootData[family_String,
+    sourceVariables : {_Symbol, _Symbol}] :=
+  FeynFacet`FamilyRootData[family, sourceVariables, Automatic];
+FeynFacet`FamilyRootData[family_String,
+    sourceVariables : {_Symbol, _Symbol},
+    parametrizingVariables : ({_Symbol, _Symbol} | Automatic)] := Module[
+  {entry, kind, record, targetVariables, name},
+  entry = Lookup[$familyRootDataRegistry, family,
+    Missing["FamilyRootDataNotRegistered", family]];
+  If[MissingQ[entry], Return[Missing["FamilyRootDataNotRegistered", family]]];
+  kind = familyRootDataEntryKind[entry];
   If[! StringQ[kind],
-    Return[Join[<|"Status" -> "RegisteredFamilyChartInvalid",
+    Return[Join[<|"Status" -> "RegisteredFamilyRootDataInvalid",
       "Family" -> family|>, kind]]];
   Switch[kind,
-    "RootSquares",
-      targetVariables = Replace[chartVariables,
+    "SquareRootGeneratorsAndQuadraticRelations",
+      targetVariables = Replace[parametrizingVariables,
         Automatic -> {$transportChartX, $transportChartY}];
-      BuildAlgebraicTransportFrame[
-        entry["RootSquares"] /. Thread[
+      FeynFacet`BuildSquareRootGeneratorsAndQuadraticRelations[
+        entry["SourceRadicands"] /. Thread[
           {$transportChartV, $transportChartW} -> sourceVariables],
         sourceVariables, targetVariables],
-    "ChartName" | "ChartAlias",
-      record = masterTransportChartByName[
-        If[kind === "ChartAlias", entry["ChartAlias"], entry]];
-      (* the catalog record is written in the package's own source and
-         chart variables; only a caller asking for other symbols pays the
-         rekey (which drops "Parents"/"Notes" by construction) *)
-      If[chartVariables === Automatic &&
+    "RationalizingParametrization",
+      name = entry["RationalizingParametrizationName"];
+      record = masterTransportRationalizingParametrizationByName[name];
+      If[parametrizingVariables === Automatic &&
           sourceVariables === {$transportChartV, $transportChartW},
         record,
-        transportChartRekey[record, sourceVariables,
-          Replace[chartVariables,
-            Automatic -> Lookup[record, "Variables",
+        rationalizingParametrizationRekey[record, sourceVariables,
+          Replace[parametrizingVariables,
+            Automatic -> Lookup[record, "ParametrizingVariables",
               {$transportChartX, $transportChartY}]]]],
-    _, Missing["FamilyChartNotRegistered", family]]
+    _, Missing["FamilyRootDataNotRegistered", family]]
 ];
 
-(* Compose a class record written in ITS OWN two-variable chart with a
-   TARGET two-variable chart that rationalizes the record's root:
-   solve the record's substitution for the record's variables using the
-   target chart's rational roots (all signs), and accept a candidate only
-   if the record's Subst at that candidate reproduces the target Subst
-   EXACTLY.  Charts may provide an analytic InverseByRoots; otherwise the
-   kernel's Solve is the fallback.  The acceptance is always the forward
-   identity, never the declared inverse or Solve's return shape.
-
-   record chart:  <|"Variables" -> {x', y'}, "Subst" -> {v -> f(x',y'), w -> g(x',y')},
-                    "Root" -> rho(x',y'), "RootSquare" -> Q(v,w)|>
-   target data:   masterTransportChartData's record ("Subst", "Variables",
-                  "Roots" or "Root"/"RootSquare")
-   Returns <|"Status" -> "OK", "Map" -> {x' -> ..., y' -> ...}, "Images" -> {...},
-             "Sign" -> +-1|> or a named refusal. *)
-masterTransportComposeTwoVariableRecord[recordChart_Association,
+(* Express the parameters of one rationalizing parametrization through a
+   second coefficient presentation.  Candidate inverse images are accepted
+   only when forward substitution reproduces both source-coordinate images
+   exactly.  A declared inverse is a candidate generator, never trusted as
+   the proof. *)
+masterTransportComposeTwoVariableRecord[recordParametrization_Association,
     targetData_Association, sourceVariables_List] := Module[
   {recVars, recSubst, recRoot, recSquare, tgtVars, tf, tg, tgtRoots,
    matching, recRoots, inverseByRoots, rootMatches, declaredCandidates,
-   candidates, verified, eqs, coefficientField, compositionZeroQ,
+   candidates, verified, eqs, presentationKind, compositionZeroQ,
    route = "Solve"},
-  recVars = Lookup[recordChart, "Variables", $Failed];
-  recSubst = Lookup[recordChart, "Subst", $Failed];
-  recRoot = Lookup[recordChart, "Root", None];
-  recSquare = Lookup[recordChart, "RootSquare", None];
+  recVars = Lookup[recordParametrization, "ParametrizingVariables", $Failed];
+  recSubst = Lookup[recordParametrization,
+    "SourceVariableSubstitution", $Failed];
+  recRoots = Lookup[recordParametrization, "RationalizedSquareRoots", {}];
+  recRoot = If[recRoots === {}, None,
+    recRoots[[1, "RationalRoot"]]];
+  recSquare = If[recRoots === {}, None,
+    recRoots[[1, "SourceRadicand"]]];
   If[! MatchQ[recVars, {_Symbol, _Symbol}] || ! MatchQ[recSubst, {_Rule, _Rule}],
-    Return[<|"Status" -> "RecordChartNotWellFormed"|>]];
-  tgtVars = targetData["Variables"];
-  coefficientField = Lookup[targetData, "CoefficientField", "Rational"];
-  {tf, tg} = Together /@ (Last /@ targetData["Subst"]);
-  tgtRoots = Lookup[targetData, "Roots", None];
-  If[! ListQ[tgtRoots],
-    tgtRoots = If[Lookup[targetData, "Root", None] === None, {},
-      {<|"Root" -> targetData["Root"], "RootSquare" -> targetData["RootSquare"]|>}]];
-  recRoots = Lookup[recordChart, "Roots", {}];
+    Return[<|"Status" -> "RecordRationalizingParametrizationNotWellFormed"|>]];
+  presentationKind = Lookup[targetData, "PresentationKind", None];
+  tgtVars = masterTransportPresentationVariables[targetData];
+  {tf, tg} = Together /@
+    (Last /@ masterTransportPresentationSubstitution[targetData]);
+  tgtRoots = Switch[presentationKind,
+    "RationalizingParametrization",
+      <|"Expression" -> #1["RationalRoot"],
+        "SourceRadicand" -> #1["SourceRadicand"]|> & /@
+        Lookup[targetData, "RationalizedSquareRoots", {}],
+    "SquareRootGeneratorsAndQuadraticRelations",
+      <|"Expression" -> #1["Generator"],
+        "SourceRadicand" -> #1["SourceRadicand"]|> & /@
+        Lookup[targetData, "SquareRootGenerators", {}],
+    _, {}];
   compositionZeroQ[expression_] := If[
-    coefficientField === "Multiquadratic",
-    TrueQ[transportChartAlgebraicZeroQ[expression, tgtRoots]],
+    presentationKind === "SquareRootGeneratorsAndQuadraticRelations",
+    TrueQ[transportChartAlgebraicZeroQ[expression,
+      Switch[presentationKind,
+        "SquareRootGeneratorsAndQuadraticRelations",
+          targetData["SquareRootGenerators"],
+        _, {}]]],
     TrueQ[Together[expression] === 0]];
-  inverseByRoots = Lookup[recordChart, "InverseByRoots", None];
+  inverseByRoots = Lookup[recordParametrization,
+    "InverseParametrizationByRootValues", None];
   rootMatches = If[ListQ[recRoots], Table[
     SelectFirst[tgtRoots,
-      TrueQ[Together[#1["RootSquare"] - recRoot["RootSquare"]] === 0] &,
+      TrueQ[Together[#1["SourceRadicand"] -
+        recRoot["SourceRadicand"]] === 0] &,
       Missing["RootNotAvailable"]], {recRoot, recRoots}], {}];
   (* the target root that rationalizes the RECORD's quadratic *)
   matching = If[recSquare === None || recRoot === None, {},
-    Select[tgtRoots, TrueQ[Together[#["RootSquare"] - recSquare] === 0] &]];
+    Select[tgtRoots,
+      TrueQ[Together[#["SourceRadicand"] - recSquare] === 0] &]];
   (* the record's variables are renamed to FRESH symbols before solving:
      a joint chart keeps the parent's y as its own y, so the record's y
      and the target's y are the same symbol, and Solve would otherwise be
@@ -869,7 +1044,8 @@ masterTransportComposeTwoVariableRecord[recordChart_Association,
         recRoots =!= {} && AllTrue[rootMatches, AssociationQ],
       DeleteDuplicates[Function[signs, Module[{images},
         images = Quiet[Check[inverseByRoots[{tf, tg},
-          MapThread[Times, {signs, Lookup[rootMatches, "Root"]}]], $Failed]];
+          MapThread[Times, {signs,
+            Lookup[rootMatches, "Expression"]}]], $Failed]];
         If[MatchQ[images, {_, _}], Thread[fresh -> images], Nothing]]]
         /@ Tuples[{1, -1}, Length[recRoots]]], {}];
     candidates = If[declaredCandidates =!= {},
@@ -883,225 +1059,114 @@ masterTransportComposeTwoVariableRecord[recordChart_Association,
            candidate as {{rules}} and the identity check below then compared
            a LIST -- measured 2026-08-17 03:20 on class 79 in Kallen23) *)
         Flatten[Table[
-          Quiet[Solve[Append[eqs, rhoRec == sign m["Root"]], fresh]],
+          Quiet[Solve[Append[eqs, rhoRec == sign m["Expression"]], fresh]],
           {m, matching}, {sign, {1, -1}}], 2]]];
     candidates = Select[candidates,
       Which[
-        coefficientField === "Rational" || matching === {},
+        presentationKind === "RationalizingParametrization" ||
+            matching === {},
           FreeQ[#, Power[_, _Rational] | _Root],
-        coefficientField === "Multiquadratic",
+        presentationKind ===
+            "SquareRootGeneratorsAndQuadraticRelations",
           FreeQ[#, _Root],
         True, False] &];
     verified = Select[candidates,
       compositionZeroQ[(fRec /. #) - tf] &&
       compositionZeroQ[(gRec /. #) - tg] &];
     If[verified === {},
-      Return[<|"Status" -> "TwoVariableChartsNotComposable",
+      Return[<|"Status" -> "TwoVariableParametrizationsNotComposable",
         "RecordVariables" -> recVars, "TargetVariables" -> tgtVars,
         "MatchingRoots" -> Length[matching], "Candidates" -> Length[candidates],
         "Route" -> route|>]];
     <|"Status" -> "OK",
-      "Map" -> Map[Together, First[verified] /. back, {2}],
-      "Images" -> Map[Together, fresh /. First[verified]],
-      "Candidates" -> Length[candidates], "Verified" -> Length[verified],
+      "CoefficientVariableRules" ->
+        Map[Together, First[verified] /. back, {2}],
+      "CoefficientVariableImages" ->
+        Map[Together, fresh /. First[verified]],
+      "CandidateCount" -> Length[candidates],
+      "VerifiedCandidateCount" -> Length[verified],
       "Route" -> route|>]];
 
-(* Moved here verbatim from Transport/MasterTransport.wl (layer pass,
-   2026-09-02): the record-to-chart coordinate map composes a class
-   record's own chart with the target chart, which needs
-   masterTransportComposeTwoVariableRecord above.  Its callers are
-   SolveEpsFormStripInFrame (this file) and the class-form pullback in
-   MasterTransport.wl (Transport, loaded later). *)
-
-(* The record's own coordinates as rational functions of the chart
-   variables, plus the exact identity that licenses the composition.
-   Three frames, one uniform answer {m1(x,y), m2(x,y)}:
-
-     rational frame       {f, g}                       (identity check)
-     target chart         {x, y}                       (Subst must match)
-     single-conic chart   {f, tmap} or {tmap, f}       (linear root solve,
-                                                        then the exact
-                                                        chart identity) *)
-masterTransportRecordCoordinateMap[record_Association, data_Association,
-    conicRoute_] := Module[
-  {sourceVariables, chartVariables, sourceNames, chartNames, recVariables,
-   recNames, recChart, recSubst, f, g, fixed, parameter, fixedIndex,
-   conicSubst, conicRoot, rootPulled, a, b, candidates, accepted, other,
-   otherName, identity},
+(* A diagonal-block record is either written in
+   the source variables or carries one complete two-variable rationalizing
+   parametrization.  Former one-variable conic records are regenerated using
+   the corresponding two-variable catalog entry. *)
+masterTransportRecordCoordinateMap[record_Association,
+    data_Association] := Module[
+  {sourceVariables, targetVariables, sourceNames, targetNames,
+   targetSubstitution, targetImages, recordVariables, recordNames,
+   recordParametrization, recordSubstitution, recordSourceNames,
+   recordParametrizingNames, identity, composed},
   sourceVariables = data["SourceVariables"];
-  chartVariables = data["Variables"];
+  targetVariables = masterTransportPresentationVariables[data];
+  targetSubstitution = masterTransportPresentationSubstitution[data];
+  targetImages = Together /@ (Last /@ targetSubstitution);
   sourceNames = SymbolName /@ sourceVariables;
-  chartNames = SymbolName /@ chartVariables;
-  {f, g} = Last /@ data["Subst"];
-  recVariables = Lookup[record, "Variables", sourceVariables];
-  (* --- frame 4: a ONE-VARIABLE root record (class 115: Variables {u},
-         Chart <|"Definition" -> u^2 == 1 - 4 v w, ...|>).  Its T depends
-         on u alone; in a target chart that rationalizes the same
-         quadratic, u is the chart's rational root (either sign) and the
-         identity root^2 == RootSquare o Subst licenses the map. ---------- *)
-  If[MatchQ[recVariables, {_Symbol}] && AssociationQ[Lookup[record, "Chart", None]] &&
-     MatchQ[Lookup[record["Chart"], "Definition", None], _Equal],
-    Module[{u, definition, square, roots, tf, tg, matching},
-      u = recVariables[[1]];
-      definition = record["Chart"]["Definition"];
-      (* Definition is u^2 == Q(v,w) or Q(v,w) == u^2 *)
-      square = Which[
-        TrueQ[Together[First[definition] - u^2] === 0], Last[definition],
-        TrueQ[Together[Last[definition] - u^2] === 0], First[definition],
-        True, $Failed];
-      If[square === $Failed,
-        Return[<|"Status" -> "ClassFormOneVariableDefinitionNotSquare"|>]];
-      {tf, tg} = Last /@ data["Subst"];
-      roots = Lookup[data, "Roots", {}];
-      matching = Select[roots, TrueQ[Together[#["RootSquare"] - square] === 0] &&
-        TrueQ[Together[#["Root"]^2 - (square /. {sourceVariables[[1]] -> tf,
-          sourceVariables[[2]] -> tg})] === 0] &];
-      If[matching === {},
-        Return[<|"Status" -> "ClassFormOneVariableRootNotRationalized",
-          "Definition" -> definition|>]];
-      Return[<|"Status" -> "OK", "Frame" -> "OneVariableRoot",
-        "Map" -> {u -> First[matching]["Root"]},
-        "Images" -> {First[matching]["Root"]},
-        "CompositionIdentity" ->
-          "target root^2 equals the record's Definition square pulled back \
-through the target Subst (exact); the record's single variable is that root",
-        "CompositionExact" -> True|>]]];
-  If[! MatchQ[recVariables, {_Symbol, _Symbol}],
-    Return[<|"Status" -> "ClassFormVariablesInvalid"|>]];
-  recNames = SymbolName /@ recVariables;
-  recChart = Lookup[record, "Chart", None];
-  If[MissingQ[recChart], recChart = None];
-  (* a bare rule list is accepted as a chart substitution, which is how
-     the hard-class artifacts store it *)
-  recSubst = Which[
-    AssociationQ[recChart], Lookup[recChart, "Subst", None],
-    MatchQ[recChart, {_Rule, _Rule}], recChart,
-    True, None];
-
-  (* --- frame 1: rational, Variables {v,w} and no chart -------------- *)
-  If[recNames === sourceNames && (recChart === None || recChart === Null),
-    Return[<|"Status" -> "OK", "Frame" -> "Rational",
-      "Map" -> {recVariables[[1]] -> f, recVariables[[2]] -> g},
-      "Images" -> {f, g},
-      "CompositionIdentity" -> "by construction (record frame = source frame)",
-      "CompositionExact" -> True|>]];
-
-  (* --- frame 2: already the target chart ---------------------------- *)
-  If[recNames === chartNames,
-    If[! MatchQ[recSubst, {_Rule, _Rule}],
-      Return[<|"Status" -> "ClassFormChartMissingSubstitution"|>]];
-    (* the stored chart must be THE target chart, entry by entry and
-       exactly; a record in a different two-variable chart is a different
-       frame and is refused rather than used *)
-    identity = And @@ Table[
-      Module[{nm = SymbolName[First[recSubst[[i]]]], target},
-        target = Which[
-          nm === sourceNames[[1]], f,
-          nm === sourceNames[[2]], g,
-          True, $Failed];
-        target =!= $Failed &&
-          TrueQ[Together[Last[recSubst[[i]]] - target] === 0]],
-      {i, Length[recSubst]}];
-    If[TrueQ[identity],
-      Return[<|"Status" -> "OK", "Frame" -> "TargetChart",
-        "Map" -> {recVariables[[1]] -> chartVariables[[1]],
-                  recVariables[[2]] -> chartVariables[[2]]},
-        "Images" -> chartVariables,
-        "CompositionIdentity" ->
-          "stored Subst equals the target chart Subst (exact)",
-        "CompositionExact" -> True|>]]];
-
-  (* --- frame 2b: a DIFFERENT two-variable chart that the target chart
-         composes with rationally (a joint chart of TransportCharts.wl
-         rationalizes the record's root, or the record's chart is the
-         target's parent).  The record's variables are solved for with
-         the target's rational root and the result is accepted only if
-         the record's Subst reproduces the target Subst EXACTLY. ------ *)
-  If[MatchQ[recSubst, {_Rule, _Rule}] && AssociationQ[recChart] &&
-     Lookup[recChart, "Kind", "TwoVariable"] === "TwoVariable" &&
-     ! KeyExistsQ[recChart, "Fixed"],
-    Module[{composed},
-      composed = masterTransportComposeTwoVariableRecord[
-        Join[recChart, <|"Variables" -> recVariables, "Subst" -> recSubst|>],
-        data, sourceVariables];
-      If[AssociationQ[composed] && composed["Status"] === "OK",
-        Return[<|"Status" -> "OK", "Frame" -> "TwoVariableComposition",
-          "Map" -> composed["Map"], "Images" -> composed["Images"],
-          "CompositionRoute" -> Lookup[composed, "Route", "Solve"],
-          "CompositionIdentity" ->
-            "record Subst at the solved record variables equals the target \
-chart Subst (exact); record variables obtained from the target's rational \
-root of the record's RootSquare",
-          "CompositionExact" -> True|>],
-        Return[<|"Status" -> "ClassFormChartIsADifferentChart",
-          "Composition" -> composed|>]]]];
-
-  (* --- frame 3: single-conic chart ---------------------------------- *)
-  If[AssociationQ[recChart] && ! MissingQ[Lookup[recChart, "Fixed", Missing[]]] &&
-      ! MissingQ[Lookup[recChart, "Root", Missing[]]],
-    If[conicRoute === False,
-      Return[<|"Status" -> "ClassFormConicChartRefused"|>]];
-    fixed = recChart["Fixed"];
-    fixedIndex = Position[recNames, SymbolName[fixed]];
-    If[Length[fixedIndex] =!= 1,
-      Return[<|"Status" -> "ClassFormConicFixedVariableNotFound"|>]];
-    fixedIndex = fixedIndex[[1, 1]];
-    parameter = recVariables[[3 - fixedIndex]];
-    other = If[SymbolName[fixed] === sourceNames[[1]], sourceVariables[[2]],
-      sourceVariables[[1]]];
-    otherName = SymbolName[other];
-    conicSubst = Lookup[recChart, "Subst", None];
-    If[! MatchQ[conicSubst, _Rule],
-      Return[<|"Status" -> "ClassFormConicSubstitutionInvalid"|>]];
-    If[SymbolName[First[conicSubst]] =!= otherName,
-      Return[<|"Status" -> "ClassFormConicSubstitutionInvalid"|>]];
-    If[data["Root"] === None && Lookup[data, "Roots", {}] === {},
-      Return[<|"Status" -> "ClassFormConicChartNotPullable",
-        "Reason" -> "the target chart declares no rational Root"|>]];
-    (* the conic Root is the algebraic function the target chart
-       rationalizes; equate and solve LINEARLY for the conic parameter *)
-    conicRoot = Together[recChart["Root"] /.
-      {sourceVariables[[1]] -> f, sourceVariables[[2]] -> g}];
-    conicRoot = Together[conicRoot /. If[SymbolName[fixed] === sourceNames[[1]],
-      fixed -> f, fixed -> g]];
-    If[! PolynomialQ[conicRoot, parameter] ||
-       Exponent[conicRoot, parameter] =!= 1,
-      Return[<|"Status" -> "ClassFormConicChartNotPullable",
-        "Reason" -> "the conic Root is not linear in the chart parameter"|>]];
-    a = Together[Coefficient[conicRoot, parameter, 1]];
-    b = Together[conicRoot - a parameter];
-    If[TrueQ[a === 0],
-      Return[<|"Status" -> "ClassFormConicChartNotPullable",
-        "Reason" -> "the conic Root does not involve the chart parameter"|>]];
-    (* every root the target chart declares is tried, both signs: a joint
-       chart rationalizes several quadratics and the record does not say
-       which one it needs -- the exact identity below decides *)
-    candidates = DeleteDuplicates[Flatten[Table[
-      Together[(sign r - b)/a],
-      {r, DeleteDuplicates[Join[
-        If[data["Root"] === None, {}, {data["Root"]}],
-        (#["Root"] & /@ Lookup[data, "Roots", {}])]]},
-      {sign, {1, -1}}]]];
-    accepted = Select[candidates,
-      TrueQ[Together[(Last[conicSubst] /.
-        {parameter -> #, fixed -> If[SymbolName[fixed] === sourceNames[[1]], f, g]}) -
-        If[otherName === sourceNames[[2]], g, f]] === 0] &];
-    If[accepted === {},
-      Return[<|"Status" -> "ClassFormConicChartNotPullable",
-        "Reason" -> "neither root branch reproduces the target chart substitution",
-        "Candidates" -> candidates|>]];
-    Return[<|"Status" -> "OK", "Frame" -> "SingleConicChart",
-      "Map" -> {fixed -> If[SymbolName[fixed] === sourceNames[[1]], f, g],
-                parameter -> First[accepted]},
-      "Images" -> If[fixedIndex === 1,
-        {If[SymbolName[fixed] === sourceNames[[1]], f, g], First[accepted]},
-        {First[accepted], If[SymbolName[fixed] === sourceNames[[1]], f, g]}],
-      "Parameter" -> parameter,
-      "ParameterMap" -> First[accepted],
-      "Branch" -> If[First[accepted] === First[candidates], "+", "-"],
-      "CompositionIdentity" ->
-        "conic Subst at the solved parameter equals the target chart Subst (exact)",
-      "CompositionExact" -> True|>]];
-
-  <|"Status" -> "ClassFormFrameUnknown", "RecordVariables" -> recNames|>
+  targetNames = SymbolName /@ targetVariables;
+  recordVariables = Lookup[record, "CoefficientVariables", $Failed];
+  If[! MatchQ[recordVariables, {_Symbol, _Symbol}],
+    Return[<|"Status" ->
+      "LegacyDiagonalBlockCoefficientVariableSchemaUnsupported"|>]];
+  recordNames = SymbolName /@ recordVariables;
+  recordParametrization = Lookup[record,
+    "RationalizingParametrization", None];
+  If[recordParametrization === None || recordParametrization === Null,
+    If[recordNames =!= sourceNames,
+      Return[<|"Status" ->
+        "DiagonalBlockSourceVariableRepresentationMismatch",
+        "Expected" -> sourceNames, "Found" -> recordNames|>]];
+    Return[<|
+      "Status" -> "OK",
+      "CoordinateRepresentation" -> "SourceVariables",
+      "CoefficientVariableRules" -> Thread[recordVariables -> targetImages],
+      "CoefficientVariableImages" -> targetImages,
+      "CompositionStatement" ->
+        "the diagonal-block coefficients are written in the source variables",
+      "CompositionVerified" -> True|>]
+  ];
+  If[! masterTransportRationalizingParametrizationRecordQ[
+      recordParametrization],
+    Return[<|"Status" ->
+      "DiagonalBlockRationalizingParametrizationNotWellFormed"|>]];
+  recordSubstitution =
+    recordParametrization["SourceVariableSubstitution"];
+  recordSourceNames = SymbolName /@ (First /@ recordSubstitution);
+  recordParametrizingNames = SymbolName /@
+    recordParametrization["ParametrizingVariables"];
+  If[recordSourceNames =!= sourceNames ||
+      recordParametrizingNames =!= recordNames,
+    Return[<|"Status" ->
+      "DiagonalBlockRationalizingParametrizationVariablesMismatch"|>]];
+  identity = recordNames === targetNames && And @@ MapThread[
+    TrueQ[Together[#1 - #2] === 0] &,
+    {Last /@ recordSubstitution, targetImages}];
+  If[identity,
+    Return[<|
+      "Status" -> "OK",
+      "CoordinateRepresentation" ->
+        "SelectedRationalizingParametrization",
+      "CoefficientVariableRules" ->
+        Thread[recordVariables -> targetVariables],
+      "CoefficientVariableImages" -> targetVariables,
+      "CompositionStatement" ->
+        "the diagonal block and family use the same rationalizing parametrization",
+      "CompositionVerified" -> True|>]
+  ];
+  composed = masterTransportComposeTwoVariableRecord[
+    recordParametrization, data, sourceVariables];
+  If[! AssociationQ[composed] || composed["Status"] =!= "OK",
+    Return[<|"Status" ->
+      "DiagonalBlockRationalizingParametrizationNotComposable",
+      "Composition" -> composed|>]];
+  <|
+    "Status" -> "OK",
+    "CoordinateRepresentation" ->
+      "ComposedRationalizingParametrizations",
+    "CoefficientVariableRules" -> composed["CoefficientVariableRules"],
+    "CoefficientVariableImages" ->
+      composed["CoefficientVariableImages"],
+    "CompositionRoute" -> Lookup[composed, "Route", "Solve"],
+    "CompositionStatement" ->
+      "substitution of the solved coefficient variables reproduces the selected family parametrization",
+    "CompositionVerified" -> True|>
 ];

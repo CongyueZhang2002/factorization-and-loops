@@ -14,53 +14,67 @@ lambda1 = (1 - v - w)^2 - 4 v w;
 lambda2 = (1 + v - w)^2 + 4 v w;
 lambda3 = (1 - v + w)^2 + 4 v w;
 
-frame = BuildAlgebraicTransportFrame[
+generatorData = BuildSquareRootGeneratorsAndQuadraticRelations[
   {lambda1, lambda2, lambda3}, {v, w}, {x, y}];
 
-FTAssert["the multiquadratic frame is exported",
-  StringQ[BuildAlgebraicTransportFrame::usage]];
-FTAssert["all three root-square identities and the identity Jacobian are exact",
-  AssociationQ[frame] && frame["Status"] === "ExactFrame" &&
-    TrueQ[frame["ChartCertificate"]["OK"]] &&
-    frame["ChartCertificate"]["RootIdentities"] === {True, True, True} &&
-    TrueQ[Together[frame["ChartCertificate"]["JacobianDet"] - 1] === 0]];
+FTAssert["the square-root generator constructor is exported",
+  StringQ[BuildSquareRootGeneratorsAndQuadraticRelations::usage]];
+FTAssert["all three quadratic relations and the identity Jacobian are exact",
+  AssociationQ[generatorData] &&
+    generatorData["Status"] === "SquareRootGeneratorRelationsVerified" &&
+    TrueQ[generatorData["QuadraticRelationVerification", "Verified"]] &&
+    generatorData["QuadraticRelationVerification", "PerGenerator"] ===
+      {True, True, True} &&
+    TrueQ[Together[
+      generatorData["QuadraticRelationVerification",
+        "CoordinateJacobianDeterminant"] - 1] === 0] &&
+    generatorData["SquareClassIndependenceStatus"] === "NotChecked" &&
+    generatorData["GaloisConjugatesCertified"] === False];
 
-(* The per-family chart inventory is PROJECT data since 2026-08-23: the
-   package ships an empty registry, so this test registers the project's
-   own table before asking for its three-root families. *)
-projectChartFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
-  "UU_08_10_canonical", "TransportFamilyCharts.wl"}];
-projectChartRegistration = FeynFacet`TransportFamilyChartLoad[projectChartFile];
-FTAssert["the project's family chart table registers",
-  Lookup[projectChartRegistration, "Status", None] === "FamilyChartsRegistered"];
+(* Family root data is project input.  This test registers the live schema
+   directly; generated V1 campaign artifacts are regenerated separately. *)
+projectRootDataRegistration = FeynFacet`RegisterFamilyRootData[<|
+  "CF259" -> <|"SourceRadicands" -> {lambda1, lambda3, 4 v + w^2}|>,
+  "CF300" -> <|"SourceRadicands" -> {lambda2, lambda3, 1 - 4 v w}|>,
+  "CF303" -> <|"SourceRadicands" -> {lambda2, lambda3, 1 - 4 v w}|>
+|>];
+FTAssert["the project's family root data registers",
+  Lookup[projectRootDataRegistration, "Status", None] ===
+    "FamilyRootDataRegistered"];
 
-familyFrames = TransportFamilyChart /@ {"CF259", "CF300", "CF303"};
-FTAssert["the three-root inventory resolves to exact multiquadratic frames",
-  AllTrue[familyFrames,
-    AssociationQ[#] && #["Status"] === "ExactFrame" &&
-      TrueQ[#["ChartCertificate"]["OK"]] &&
-      Length[#["Roots"]] === 3 &]];
+familyGeneratorData = FamilyRootData /@ {"CF259", "CF300", "CF303"};
+FTAssert["the three-root inventory resolves to verified generator relations",
+  AllTrue[familyGeneratorData,
+    AssociationQ[#] &&
+      #["Status"] === "SquareRootGeneratorRelationsVerified" &&
+      TrueQ[#["QuadraticRelationVerification", "Verified"]] &&
+      Length[#["SquareRootGenerators"]] === 3 &]];
 
-orderingFrame = First[familyFrames];
-orderingRoots = orderingFrame["Roots"];
+orderingGeneratorData = First[familyGeneratorData];
+orderingRoots = orderingGeneratorData["SquareRootGenerators"];
 orderingForward = FeynFacet`Private`transportChartRootIndices[
-  {orderingRoots[[1, "Root"]], orderingRoots[[3, "Root"]]},
+  {orderingRoots[[1, "Generator"]],
+   orderingRoots[[3, "Generator"]]},
   orderingRoots];
 orderingReverse = FeynFacet`Private`transportChartRootIndices[
-  {orderingRoots[[3, "Root"]], orderingRoots[[1, "Root"]]},
+  {orderingRoots[[3, "Generator"]],
+   orderingRoots[[1, "Generator"]]},
   orderingRoots];
-FTAssert["root-channel indices follow frame order, not expression order",
+FTAssert["root-channel indices follow generator order, not expression order",
   orderingForward["RootIndices"] === {1, 3} &&
     orderingReverse["RootIndices"] === {1, 3}];
 
-cf300Roots = FeynFacet`Private`transportChartCurrentRoots[
-  familyFrames[[2]], {v, w}];
+cf300Roots =
+  FeynFacet`Private`coefficientPresentationSquareRootsInVariables[
+  familyGeneratorData[[2]], {v, w}];
 zeroNoChartStrip = {
-  {{{cf300Roots[[2, "Root"]]}}, {{cf300Roots[[2, "Root"]]}}},
-  {{{cf300Roots[[3, "Root"]]}}, {{cf300Roots[[3, "Root"]]}}},
+  {{{cf300Roots[[2, "Generator"]]}},
+    {{cf300Roots[[2, "Generator"]]}}},
+  {{{cf300Roots[[3, "Generator"]]}},
+    {{cf300Roots[[3, "Generator"]]}}},
   {{{0}}, {{0}}}};
 zeroNoChartSolution = SolveEpsFormStripInFrame[
-  zeroNoChartStrip, {v, w}, eps, familyFrames[[2]],
+  zeroNoChartStrip, {v, w}, eps, familyGeneratorData[[2]],
   "FiniteFieldFirst" -> True, "Verbose" -> False];
 FTAssert["zero forcing bypasses a missing joint root chart",
   AssociationQ[zeroNoChartSolution] &&
@@ -76,16 +90,18 @@ FTAssert["zero forcing bypasses a missing joint root chart",
    pair (Tests/Multiquadratic/t_kallen_q4_chart.wls); the negative control moved to a
    pair that still has no joint chart. *)
 FTAssert["exact root-set lookup selects the known joint charts",
-  TransportRootSetChart[{lambda1, lambda3}]["Name"] === "Kallen13" &&
-    TransportRootSetChart[{lambda2, lambda3}]["Name"] === "Kallen23" &&
-    TransportRootSetChart[{lambda1, 4 v + w^2}]["Name"] === "KallenQ4a" &&
-    TransportRootSetChart[{lambda1, v^2 + 4 w}]["Name"] === "KallenQ4b" &&
-    MissingQ[TransportRootSetChart[{lambda1, 1 - 4 v w}]]];
+  LookupCataloguedRationalizingParametrizationForRoots[{lambda1, lambda3}]["Name"] === "Kallen13" &&
+    LookupCataloguedRationalizingParametrizationForRoots[{lambda2, lambda3}]["Name"] === "Kallen23" &&
+    LookupCataloguedRationalizingParametrizationForRoots[{lambda1, 4 v + w^2}]["Name"] === "KallenQ4a" &&
+    LookupCataloguedRationalizingParametrizationForRoots[{lambda1, v^2 + 4 w}]["Name"] === "KallenQ4b" &&
+    MatchQ[LookupCataloguedRationalizingParametrizationForRoots[
+      {lambda1, 1 - 4 v w}],
+      Missing["NoCataloguedRationalizingParametrization", _]]];
 
 a = Symbol["Global`arbitraryA"];
 b = Symbol["Global`arbitraryB"];
 FTAssert["root-set lookup is independent of the source variable names",
-  TransportRootSetChart[
+  LookupCataloguedRationalizingParametrizationForRoots[
     {lambda1 /. {v -> a, w -> b}, lambda3 /. {v -> a, w -> b}},
     {a, b}]["Name"] === "Kallen13"];
 
@@ -94,7 +110,7 @@ zeroOneForm = {ConstantArray[0, {1, 1}], ConstantArray[0, {1, 1}]};
 algebraicStrip = {zeroOneForm, zeroOneForm,
   {D[knownGauge, v], D[knownGauge, w]}};
 stripSolution = SolveEpsFormStripInFrame[
-  algebraicStrip, {v, w}, eps, frame,
+  algebraicStrip, {v, w}, eps, generatorData,
   "CANONICANumeratorDegrees" -> {0, 1, 2, 3},
   "CANONICATimeLimit" -> 30, "CANONICAKernels" -> 1,
   "MapleTimeLimit" -> 60, "MapleResidueKernels" -> 1,
@@ -114,33 +130,106 @@ FTAssert["exact chart pullback remains the default",
       Options[FeynFacet`SolveEpsFormStripInFrame]) === "Exact"];
 
 invalidPullBackMode = SolveEpsFormStripInFrame[
-  algebraicStrip, {v, w}, eps, frame,
+  algebraicStrip, {v, w}, eps, generatorData,
   "GaugePullBackMode" -> "NotAMode", "Verbose" -> False];
 FTAssert["an unknown gauge pullback mode is refused before solving",
   AssociationQ[invalidPullBackMode] &&
     invalidPullBackMode["Status"] === "InvalidGaugePullBackMode"];
 
-data = FeynFacet`Private`masterTransportChartData[frame, {v, w}];
-FTAssert["chart data retains the declared multiquadratic coefficient field",
+data = FeynFacet`Private`masterTransportCoefficientPresentationData[
+  generatorData, {v, w}];
+FTAssert["core data preserves the generator-and-relation presentation",
   data["Status"] === "OK" &&
-    data["CoefficientField"] === "Multiquadratic"];
+    data["PresentationKind"] ===
+      "SquareRootGeneratorsAndQuadraticRelations" &&
+    data["CoefficientVariables"] === {x, y} &&
+    data["SourceToCoefficientVariableRules"] === {v -> x, w -> y} &&
+    AllTrue[data["SquareRootGenerators"],
+      Sort[Keys[#]] ===
+        Sort[{"Generator", "QuadraticRadicand", "SourceRadicand"}] &] &&
+    TrueQ[data["QuadraticRelationVerification", "Verified"]] &&
+    data["SquareClassIndependenceStatus"] === "NotChecked" &&
+    data["GaloisConjugatesCertified"] === False &&
+    Intersection[Keys[data],
+      {"Variables", "Subst", "Roots", "Root", "RootSquare",
+       "CoefficientField", "Frame", "Chart", "QuadraticRelations",
+       "GeneratorOrdering", "GeneratorExpression", "GeneratorIndex"}] === {}];
 
-(* A two-variable Kallen chart must compose with the identity algebraic
-   frame through the declared square root, without inventing another
-   algebraic extension. *)
-kallen = TransportChartCatalog[]["Kallen1"];
-kallenRecord = <|"Variables" -> kallen["Variables"], "Chart" -> kallen|>;
+hybridGeneratorData = Append[generatorData, "Frame" -> "LegacyLeak"];
+normalizedHybridData =
+  FeynFacet`Private`masterTransportCoefficientPresentationData[
+    hybridGeneratorData, {v, w}];
+legacyPresentation = <|"Variables" -> {x, y},
+  "Subst" -> {v -> x, w -> y}, "Roots" -> {}|>;
+legacyPresentationResult =
+  FeynFacet`Private`masterTransportCoefficientPresentationData[
+    legacyPresentation, {v, w}];
+FTAssert["the core strips hybrid legacy keys and refuses a V1-only record",
+  normalizedHybridData["Status"] === "OK" &&
+    ! KeyExistsQ[normalizedHybridData, "Frame"] &&
+    legacyPresentationResult["Status"] ===
+      "LegacyCoefficientPresentationSchemaUnsupported"];
+
+contradictoryGenerator = ReplacePart[generatorData,
+  {"SquareRootGenerators", 1, "QuadraticRadicand"} -> 17];
+contradictoryGeneratorResult =
+  FeynFacet`Private`masterTransportCoefficientPresentationData[
+    contradictoryGenerator, {v, w}];
+ambiguousPresentation = Join[generatorData,
+  RationalizingParametrizationCatalog[]["Kallen1"]];
+ambiguousPresentationResult =
+  FeynFacet`Private`masterTransportCoefficientPresentationData[
+    ambiguousPresentation, {v, w}];
+FTAssert["the core refuses contradictory or ambiguous canonical presentations",
+  contradictoryGeneratorResult["Status"] ===
+      "SquareRootGeneratorRelationVerificationFailed" &&
+    ambiguousPresentationResult["Status"] ===
+      "CoefficientPresentationSchemaAmbiguous"];
+
+sourceVariableData =
+  FeynFacet`Private`masterTransportCoefficientPresentationData[
+    None, {v, w}];
+FTAssert["None denotes the unchanged source-variable representation",
+  sourceVariableData["Status"] === "OK" &&
+    sourceVariableData["PresentationKind"] === "SourceVariables" &&
+    sourceVariableData["CoefficientVariables"] === {v, w} &&
+    sourceVariableData["SourceVariableSubstitution"] === {v -> v, w -> w} &&
+    sourceVariableData["DifferentialPullbackMatrix"] === IdentityMatrix[2] &&
+    sourceVariableData["JacobianDeterminant"] === 1 &&
+    Intersection[Keys[sourceVariableData],
+      {"RationalizedSquareRoots", "SquareRootGenerators",
+       "QuadraticRelations"}] === {}];
+sourceVariableDataRoundTrip =
+  FeynFacet`Private`masterTransportCoefficientPresentationData[
+    sourceVariableData, {v, w}];
+nonidentitySourceVariableData = ReplacePart[sourceVariableData,
+  "DifferentialPullbackMatrix" -> {{1, 1}, {0, 1}}];
+nonidentitySourceVariableResult =
+  FeynFacet`Private`masterTransportCoefficientPresentationData[
+    nonidentitySourceVariableData, {v, w}];
+FTAssert["the explicit source-variable case is idempotent and requires the identity map",
+  sourceVariableDataRoundTrip === sourceVariableData &&
+    nonidentitySourceVariableResult["Status"] ===
+      "SourceVariableRepresentationIdentityFailed"];
+
+(* A Kallen rationalizing parametrization must compose with the declared
+   square-root generators without inventing another algebraic extension. *)
+kallen = RationalizingParametrizationCatalog[]["Kallen1"];
+kallenRecord = <|
+  "CoefficientVariables" -> kallen["ParametrizingVariables"],
+  "RationalizingParametrization" -> kallen|>;
 composition = FeynFacet`Private`masterTransportRecordCoordinateMap[
-  kallenRecord, data, Automatic];
-FTAssert["a rational Kallen chart composes exactly into the multiquadratic frame",
+  kallenRecord, data];
+FTAssert["a rational Kallen parametrization composes with generator data",
   AssociationQ[composition] && composition["Status"] === "OK" &&
-    TrueQ[composition["CompositionExact"]]];
+    TrueQ[composition["CompositionVerified"]] &&
+    Intersection[Keys[composition], {"Frame", "Chart", "Map", "Images"}] === {}];
 
 (* The old rational-only gate is tested on an exact flat system whose
    basis transformation contains sqrt(1-4vw).  The multiquadratic call
    must retain the radical and re-derive the epsilon form; the rational
    call must refuse the same transformation. *)
-q = 1 - 4 v w;
+q = lambda1;
 t = {{Sqrt[q], 0}, {0, 1}};
 ti = Simplify[Inverse[t]];
 ev = eps {{1, 0}, {0, 2}}/v;
@@ -149,54 +238,95 @@ av = Map[Together, t . ev . ti + D[t, v] . ti, {2}];
 aw = Map[Together, t . ew . ti + D[t, w] . ti, {2}];
 system = <|"Family" -> "MultiquadraticToy", "Av" -> av, "Aw" -> aw|>;
 pulledSystem = FeynFacet`Private`masterTransportPullBackSystem[
-  system, frame, "SourceVariables" -> {v, w}];
-record = <|"Variables" -> {v, w}, "Transformation" -> t,
-  "EpsForm" -> {ev, ew}|>;
+  system, generatorData, "SourceVariables" -> {v, w}];
+record = <|
+  "CoefficientVariables" -> {v, w},
+  "BasisTransformationMatrix" -> t,
+  "InverseBasisTransformationMatrix" -> ti,
+  "RationalizingParametrization" -> None|>;
 
 accepted = FeynFacet`Private`masterTransportPullBackClassForm[
-  record, frame, "SourceVariables" -> {v, w}, "Regulator" -> eps,
+  record, generatorData, "SourceVariables" -> {v, w}, "Regulator" -> eps,
   "BlockSystem" -> {pulledSystem["Ax"], pulledSystem["Ay"]},
-  "CoefficientField" -> "Multiquadratic"];
+  "Swap" -> False];
+incompleteGeneratorData = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {lambda2, lambda3}, {v, w}, {x, y}];
 refused = FeynFacet`Private`masterTransportPullBackClassForm[
-  record, frame, "SourceVariables" -> {v, w}, "Regulator" -> eps,
+  record, incompleteGeneratorData,
+  "SourceVariables" -> {v, w}, "Regulator" -> eps,
   "BlockSystem" -> {pulledSystem["Ax"], pulledSystem["Ay"]},
-  "CoefficientField" -> "Rational"];
+  "Swap" -> False];
+nonrationalInKallen2 = FeynFacet`Private`masterTransportPullBackClassForm[
+  record, RationalizingParametrizationCatalog[]["Kallen2"],
+  "SourceVariables" -> {v, w}, "Regulator" -> eps,
+  "BlockSystem" -> {pulledSystem["Ax"], pulledSystem["Ay"]},
+  "Swap" -> False];
 
-FTAssert["an algebraic basis transformation is accepted only in the declared field",
-  accepted["Status"] === "OK" &&
-    accepted["Certificate"]["CoefficientField"] === "Multiquadratic" &&
-    accepted["Certificate"]["TransformationRationalInChart"] === False &&
+FTAssert["an algebraic basis transformation is accepted only in the declared square-root algebra",
+  accepted["Status"] === "DiagonalBlockDLogEpsilonFormReexpressed" &&
+    accepted["Certificate"]["CoefficientPresentationKind"] ===
+      "SquareRootGeneratorsAndQuadraticRelations" &&
+    accepted["Certificate"][
+      "BasisTransformationRationalInCoefficientVariables"] === False &&
+    TrueQ[accepted["Certificate"][
+      "BasisTransformationUsesOnlyDeclaredSquareRootGenerators"]] &&
     TrueQ[accepted["Certificate"]["TransformationInverseVerified"]] &&
     TrueQ[accepted["Certificate"]["EpsFormLinear"]] &&
-    TrueQ[accepted["Certificate"]["StoredEpsFormPullbackMatches"]] &&
-    refused["Status"] === "ClassFormTransformationNotRationalInChart"];
+    refused["Status"] ===
+      "BasisTransformationOutsideDeclaredSquareRootAlgebra" &&
+    nonrationalInKallen2["Status"] ===
+      "BasisTransformationNotRationalInParametrizingVariables"];
 
-assembled = TransportFamilyInChart[system, frame,
+assembled = AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
+  system, generatorData,
   "SourceVariables" -> {v, w}, "Regulator" -> eps,
-  "AssemblyOnly" -> True,
-  "Blocks" -> {{{1, 2}, <|"Type" -> "EpsForm", "T" -> t,
-    "Ev" -> ev, "Ew" -> ew|>}}, "Verbose" -> False];
-FTAssert["assembly-only returns the exactly certified whole-family connection",
-  AssociationQ[assembled] && assembled["Status"] === "ExactFamilyAssembly" &&
-    assembled["Assembly"]["Status"] === "OK" &&
+  "Blocks" -> {{{1, 2}, record}}, "Verbose" -> False];
+FTAssert["assembly-only returns the family system with certified epsilon-form diagonal blocks",
+  AssociationQ[assembled] && assembled["Status"] ===
+      "FamilyDifferentialSystemAssembledWithEpsilonFormDiagonalBlocks" &&
+    assembled["FamilyDifferentialSystem"]["Status"] === "OK" &&
     And @@ (TrueQ /@ Values[
-      KeyTake[assembled["Assembly"]["Certificate"],
+      KeyTake[assembled["FamilyDifferentialSystem"]["Certificate"],
         {"BlockLowerTriangular", "FlatnessOriginal",
           "DiagonalEqualsDeclaredForm", "EpsFormLinear",
           "TransformationInverseVerified"}]]) &&
     MemberQ[{"Verified", "ByGaugeCovariance"},
-      assembled["Assembly"]["Certificate"]["FlatnessConjugatedRoute"]]];
+      assembled["FamilyDifferentialSystem"]["Certificate"]["FlatnessConjugatedRoute"]]];
+
+rootFreeRecord = <|
+  "CoefficientVariables" -> {v, w},
+  "BasisTransformationMatrix" -> IdentityMatrix[2],
+  "InverseBasisTransformationMatrix" -> IdentityMatrix[2],
+  "CachedTransformedConnectionMatrices" -> {ev, ew}|>;
+rootFreeSystem = <|"Family" -> "RootFreeToy", "Av" -> ev, "Aw" -> ew|>;
+rootFreeAssembly =
+  AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
+    rootFreeSystem, None,
+    "SourceVariables" -> {v, w}, "Regulator" -> eps,
+    "Blocks" -> {{{1, 2}, rootFreeRecord}}, "Verbose" -> False];
+FTAssert["a root-free assembly records the unchanged source-variable representation",
+  AssociationQ[rootFreeAssembly] && rootFreeAssembly["Status"] ===
+      "FamilyDifferentialSystemAssembledWithEpsilonFormDiagonalBlocks" &&
+    rootFreeAssembly["CoefficientPresentation", "DataType"] ===
+      "SourceVariableRepresentation" &&
+    rootFreeAssembly["CoefficientPresentation",
+      "SourceVariableSubstitution"] === {v -> v, w -> w} &&
+    Intersection[Keys[rootFreeAssembly],
+      {"RationalizingParametrization",
+       "SquareRootGeneratorsAndQuadraticRelations"}] === {}];
 
 censusAssembly = <|"Status" -> "OK", "Family" -> "RootCensusToy",
   "Blocks" -> {{1}, {2}}, "Ranges" -> {{1}, {2}},
-  "Apv" -> {{0, 0}, {1/frame["Roots"][[1]]["Root"], 0}},
+  "Apv" -> {{0, 0},
+    {1/generatorData["SquareRootGenerators"][[1]][
+      "Generator"], 0}},
   "Apw" -> ConstantArray[0, {2, 2}]|>;
-census = FamilyAlgebraicRootCensus[censusAssembly, frame];
-FTAssert["the root census classifies every radical against the declared field",
-  census["Status"] === "ExactRootCensus" &&
+census = FamilySquareRootGeneratorCensus[censusAssembly, generatorData];
+FTAssert["the root census classifies every radical against the declared generators",
+  census["Status"] === "ExactSquareRootGeneratorCensus" &&
     census["UnclassifiedRadicalBases"] === {} &&
-    census["MaximumRootCount"] === 1 &&
-    census["RootCountHistogram"] === <|1 -> 1|>];
+    census["MaximumSquareRootGeneratorCount"] === 1 &&
+    census["SquareRootGeneratorCountHistogram"] === <|1 -> 1|>];
 
 (* Exact entrywise substitution is the expensive chart-gauge transport
    primitive.  Its broker and serial routes must be SameQ, not merely equal

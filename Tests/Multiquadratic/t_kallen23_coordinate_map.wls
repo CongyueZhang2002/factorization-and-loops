@@ -53,21 +53,24 @@ cf303RootSquares = {
   (1 + vv - ww)^2 + 4 vv ww,
   (1 - vv + ww)^2 + 4 vv ww,
   1 - 4 vv ww};
-registration = FeynFacet`TransportFamilyChartRegister[
-  <|"CF303CoordinateMapTest" -> <|"RootSquares" -> cf303RootSquares|>|>];
-check["the three-root test frame registers",
-  Lookup[registration, "Status", None], "FamilyChartsRegistered"];
-frame = FeynFacet`TransportFamilyChart["CF303CoordinateMapTest"];
-check["the registered frame is a multiquadratic identity frame",
-  AssociationQ[frame] && Lookup[frame, "CoefficientField", None] ===
-    "Multiquadratic", True];
-variables = frame["Variables"];
+registration = FeynFacet`RegisterFamilyRootData[
+  <|"CF303CoordinateMapTest" ->
+    <|"SourceRadicands" -> cf303RootSquares|>|>];
+check["the three-root generator presentation registers",
+  Lookup[registration, "Status", None], "FamilyRootDataRegistered"];
+frame = FeynFacet`FamilyRootData["CF303CoordinateMapTest"];
+check["the registered data is a V2 square-root-generator presentation",
+  AssociationQ[frame] && Lookup[frame, "DataType", None] ===
+    "SquareRootGeneratorsAndQuadraticRelations" &&
+    Lookup[frame, "SchemaVersion", None] === 2, True];
+variables = {vv, ww};
 {xv, yv} = variables;
-allRoots = fp["transportChartCurrentRoots"][frame, variables];
+allRoots = fp["coefficientPresentationSquareRootsInVariables"][
+  frame, variables];
 check["the frame carries three declared roots", Length[allRoots], 3];
 usedRoots = allRoots[[{1, 2}]];
-rootSquares = Lookup[usedRoots, "RootSquare", {}];
-{q1, q2, q3} = Lookup[allRoots, "RootSquare", {}];
+rootSquares = Lookup[usedRoots, "QuadraticRadicand", {}];
+{q1, q2, q3} = Lookup[allRoots, "QuadraticRadicand", {}];
 r1 = Sqrt[q1]; r2 = Sqrt[q2];
 algebraicZeroQ = fp["transportChartAlgebraicZeroQ"];
 
@@ -99,31 +102,36 @@ check["A6b a radical-free nonzero is False",
   algebraicZeroQ[xv/(1 + xv), allRoots], False];
 
 (* ------- B: canonicalization of the real Kallen23 inverse -------- *)
-chart = FeynFacet`TransportRootSetChart[rootSquares, variables];
+chart = FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[rootSquares, variables];
 check["the two-root subset of CF303 is the catalogued Kallen23 chart",
   AssociationQ[chart] && Lookup[chart, "Name", None] === "Kallen23", True];
 chartVariables = {Symbol["FeynFacet`Private`kallen23TestX"],
   Symbol["FeynFacet`Private`kallen23TestY"]};
-rekeyed = fp["transportChartRekey"][chart, variables, chartVariables];
-data = fp["masterTransportChartData"][rekeyed, variables];
+rekeyed = fp["rekeyCoefficientPresentation"][
+  chart, variables, chartVariables];
+data = fp["masterTransportCoefficientPresentationData"][
+  rekeyed, variables];
 check["the chart data is well formed", Lookup[data, "Status", None], "OK"];
-chartRoots = Lookup[rekeyed, "Roots", {}];
+chartRoots = Lookup[rekeyed, "RationalizedSquareRoots", {}];
 rootImages = Table[Module[{matching = SelectFirst[chartRoots,
-     TrueQ[Together[#1["RootSquare"] - usedRoots[[i]]["RootSquare"]] === 0] &,
+     TrueQ[Together[#1["SourceRadicand"] -
+       usedRoots[[i]]["SourceRadicand"]] === 0] &,
      Missing["RootNotRationalized"]]},
-   If[MissingQ[matching], matching, matching["Root"]]], {i, Length[usedRoots]}];
+   If[MissingQ[matching], matching, matching["RationalRoot"]]],
+  {i, Length[usedRoots]}];
 check["both declared roots become RATIONAL images in the chart",
   AllTrue[rootImages, ! MissingQ[#1] && FreeQ[#1, Power[_, _Rational]] &], True];
-identityData = <|"Status" -> "OK", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Multiquadratic", "Variables" -> variables,
-  "SourceVariables" -> variables, "Subst" -> Thread[variables -> variables],
-  "Jacobian" -> IdentityMatrix[2], "JacobianDet" -> 1,
-  "Root" -> allRoots[[1]]["Root"], "RootSquare" -> allRoots[[1]]["RootSquare"],
-  "Roots" -> allRoots|>;
+identityData = fp["masterTransportCoefficientPresentationData"][
+  frame, variables];
 coordinateMap = fp["masterTransportRecordCoordinateMap"][
-  <|"Variables" -> chartVariables, "Chart" -> rekeyed|>, identityData,
-  Automatic];
-rawImages = Last /@ coordinateMap["Map"];
+  <|"CoefficientVariables" -> chartVariables,
+    "RationalizingParametrization" -> rekeyed|>, identityData];
+presentationToVariables = Thread[
+  frame["CoefficientVariables"] -> variables];
+rawCoordinateRules = coordinateMap["CoefficientVariableRules"] /.
+  presentationToVariables;
+rawImages = coordinateMap["CoefficientVariableImages"] /.
+  presentationToVariables;
 check["the RAW inverse map carries a radical the declared field does not name",
   AnyTrue[Cases[rawImages, Power[base_, _Rational] :> Together[base],
     {0, Infinity}],
@@ -160,7 +168,8 @@ roundTrip[gauge_, map_, images_] := Select[Tuples[{1, -1}, 2],
     branchImages = MapThread[Times, {signs, images}];
     branchedGauge = fp["transportChartApplyRootBranches"][
       Map[Together, gauge /. map, {2}], usedRoots, branchImages];
-    zeroMatrixQ[(branchedGauge /. data["Subst"]) - gauge]]]];
+    zeroMatrixQ[(branchedGauge /.
+      data["SourceVariableSubstitution"]) - gauge]]]];
 canonicalMap = MapThread[Rule, {chartVariables, canon["Images"]}];
 gaugeOne = {{1/(cx - cy)}};
 gaugeTwo = {{cx^2 cy^3/((cx - cy) (1 + cx) (1 - cy)), cy/(1 + cx)},
@@ -173,7 +182,7 @@ check["C2 it is accepted for a 2x2 gauge as well",
 refusals = {};
 check["C3 the RAW nested map is rejected at EVERY branch (the production \
 failure of CF303 {17,12})",
-  roundTrip[gaugeOne, coordinateMap["Map"], rootImages], {}];
+  roundTrip[gaugeOne, rawCoordinateRules, rootImages], {}];
 check["C3b and it is refused TYPED as an undeclared radical, never silently \
 answered False", refusals =!= {}, True];
 

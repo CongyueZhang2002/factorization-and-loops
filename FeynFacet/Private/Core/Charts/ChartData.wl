@@ -1,92 +1,35 @@
-(* FeynFacet/Private/Core/Charts/ChartData.wl -- split out of Core/Base/Core.wl in round 5
-   (2026-09-02, substructure ruling): the chart-record data (masterTransportChartData)
-   and the chain-rule pullbacks of one-forms and systems into a two-variable
-   chart (from Transport in round 4).
-   Verbatim moves of whole top-level statements; loads after Base/Core.wl
-   (Private/LoadOrder.wl), inside the FeynFacet`Private` context. *)
+(* Canonical two-variable coefficient representations and exact pullback
+   of matrix-valued one-forms.  The live cases distinguish unchanged
+   source variables, a rationalizing parametrization, and a presentation
+   by an ordered list of square-root generators, each carrying its
+   quadratic relation.  Generated V1
+   records are refused rather than guessed into a mathematical object. *)
 
 Begin["FeynFacet`Private`"];
 
 ClearAll[
   masterTransportFreeSymbols,
   masterTransportRationalQ,
-  masterTransportChartRecordQ,
-  masterTransportChartData,
+  masterTransportCoefficientPresentationNormalize,
+  masterTransportSourceVariableRepresentationRecordQ,
+  masterTransportRationalizingParametrizationRecordQ,
+  masterTransportSquareRootGeneratorRelationsRecordQ,
+  masterTransportCoefficientPresentationData,
+  masterTransportPresentationVariables,
+  masterTransportPresentationSubstitution,
   masterTransportPullBackOneForm,
   masterTransportMapTogetherSubstitute,
   masterTransportPullBackSystem
 ];
 
 (* ------------------------------------------------------------------ *)
-(*  Two-variable chart pullback                                         *)
+(*  Two-variable coefficient-presentation pullback                     *)
 (* ------------------------------------------------------------------ *)
 
-(* Frames, continued.  Stage 1 certifies three kinds of class form:
-
-     rational frame       Variables {v,w}, no chart;
-     single-conic chart   Variables {v,t}, Chart <|Fixed, Subst, Root|>,
-                          which rationalizes ONE quadratic locus;
-     two-variable chart   Variables {x,y}, Chart <|"Kind" ->
-                          "TwoVariable", "Subst" -> {v -> f(x,y),
-                          w -> g(x,y)}, "Root" -> ...|>, which
-                          rationalizes the Kallen root globally
-                          (classes 97 and 77: v = x y, w = (1-x)(1-y),
-                          sqrt(lambda) = x - y).
-
-   A family whose hard block only has a form of the third kind cannot be
-   transported in (v,w) at all -- no rational T exists there.  The WHOLE
-   family is therefore moved into the chart (the system by the chain
-   rule, every block's transformation by composition with the chart's
-   coordinate map) and the EXISTING TransportFamily runs in (x,y).
-
-   This layer does that and nothing else.  It makes no chamber, no
-   branch and no sign choice; it records the chart, including the
-   Jacobian determinant d(v,w)/d(x,y) -- x - y for the class-97 chart --
-   under "ChartNotes", so that a later stage can.
-
-   Everything is re-derived.  A stored "EpsForm" is read as provenance
-   and COMPARED, never used: the chart epsilon-form is computed from the
-   pulled-back BLOCK SYSTEM as T^-1 A T - T^-1 dT, exactly as the
-   assembly does it, and a record whose frame cannot be composed with
-   the target chart is refused by name rather than used in the wrong
-   frame.
-
-   Class equivalence is a basis permutation optionally composed with
-   v <-> w, so the composition also TRIES that swap -- in this chart the
-   involution (x,y) -> (1-x,1-y) -- and lets the exact re-derivation
-   decide.  See masterTransportChartSwapData for the measured members.
-
-   Composing a single-conic chart with the target chart needs no square
-   root and is therefore done rather than refused: the conic record's
-   "Root" is the same algebraic function that the target chart
-   rationalizes, so setting it equal to the target chart's rational
-   "Root" and solving for the conic parameter is ONE LINEAR SOLVE.  The
-   solve is a candidate only; what licenses it is the exact identity
-   that the conic chart's own substitution, evaluated at that parameter,
-   reproduces the target chart's substitution.  Both signs of the root
-   are tried and the one that satisfies the identity is recorded.  When
-   neither does, the record is refused with a named status and no square
-   root is ever introduced.  (Measured for the conic chart of classes
-   49/95, w = (-t + t^2 + t v)/(t - 1) with Root = 2t + v - 1 - w:
-   t = 1 - y in the class-97 chart, exactly.)
-
-   Path note -- measured, and not incidental.  The pulled-back alphabet
-   contains letters that are BILINEAR in (x,y): x + y - x y for class
-   97, x + y - 2 x y for the pullback of 1 - v - w.  On a generic
-   straight segment in (x,y) such a letter is QUADRATIC in the path
-   parameter, and masterTransportMonicCheck refuses the connection
-   (status PathDenominatorsNotLinear) -- correctly, because the word
-   backends admit linear denominators only.  On an AXIS-ALIGNED segment,
-   one chart variable held at its symbolic target value, every letter of
-   the pulled-back alphabet is linear in tau again.
-   TransportFamilyInChart therefore defaults to an axis-aligned path and
-   says so in "ChartNotes".  The per-order check against the original
-   family differential equation is then a statement about the path
-   direction; the two-directional statements -- flatness of the chart
-   system, and each diagonal block equalling its declared form in BOTH
-   chart variables -- come from the assembly certificate as usual, and
-   the pullback certificate carries the exact flatness of the chart
-   system in its own right. *)
+(* This layer verifies the forward coordinate map, its nondegenerate
+   Jacobian, and the displayed square-root identities before applying the
+   chain rule.  It neither chooses analytic branches nor promotes formal
+   square-root generators to independent field generators. *)
 
 masterTransportFreeSymbols[expr_] := DeleteDuplicates @ Cases[expr,
   s_Symbol /; Context[s] =!= "System`", {0, Infinity}, Heads -> True];
@@ -98,78 +41,352 @@ masterTransportRationalQ[e_, vars_List] := Module[{x},
   PolynomialQ[Numerator[x], vars] && PolynomialQ[Denominator[x], vars]
 ];
 
-masterTransportChartRecordQ[chart_] :=
-  AssociationQ[chart] &&
-  MatchQ[Lookup[chart, "Variables", $Failed], {_Symbol, _Symbol}] &&
-  MatchQ[Lookup[chart, "Subst", $Failed], {_Rule, _Rule}] &&
-  Lookup[chart, "Kind", "TwoVariable"] === "TwoVariable";
+(* Generated V1 objects may be regenerated, so an Association is accepted
+   only as one of the three discriminated V2 coefficient-presentation
+   schemas.  A legacy record is refused typed rather than guessed into a
+   mathematical object.  None is also accepted by the resolver as a request
+   to construct the unchanged-source-variables record. *)
+masterTransportCoefficientPresentationNormalize[input_Association] := Which[
+  MemberQ[{"LegacyCoefficientPresentationSchemaUnsupported",
+      "CoefficientPresentationSchemaAmbiguous"},
+    Lookup[input, "Status", None]],
+    <|"Status" -> Lookup[input, "Status"]|>,
+  Lookup[input, "DataType", None] === "SourceVariableRepresentation" &&
+      Lookup[input, "SchemaVersion", None] === 2 &&
+      MatchQ[Lookup[input, "SourceVariables", $Failed],
+        {_Symbol, _Symbol}] &&
+      MatchQ[Lookup[input, "CoefficientVariables", $Failed],
+        {_Symbol, _Symbol}] &&
+      MatchQ[Lookup[input, "SourceVariableSubstitution", $Failed],
+        {_Rule, _Rule}] &&
+      MatrixQ[Lookup[input, "DifferentialPullbackMatrix", $Failed]],
+    <|
+      "DataType" -> "SourceVariableRepresentation",
+      "SchemaVersion" -> 2,
+      "Status" -> Lookup[input, "Status", "OK"],
+      "SourceVariables" -> input["SourceVariables"],
+      "CoefficientVariables" -> input["CoefficientVariables"],
+      "SourceVariableSubstitution" -> input["SourceVariableSubstitution"],
+      "DifferentialPullbackMatrix" ->
+        input["DifferentialPullbackMatrix"],
+      "JacobianDeterminant" -> Lookup[input, "JacobianDeterminant", 1]|>,
+  KeyExistsQ[input, "RationalizedSquareRoots"] &&
+      KeyExistsQ[input, "ParametrizingVariables"] &&
+      KeyExistsQ[input, "SourceVariableSubstitution"] &&
+      KeyExistsQ[input, "SquareRootGenerators"] &&
+      KeyExistsQ[input, "SourceToCoefficientVariableRules"],
+    <|"Status" -> "CoefficientPresentationSchemaAmbiguous"|>,
+  KeyExistsQ[input, "QuadraticRelations"] ||
+      (ListQ[Lookup[input, "SquareRootGenerators", $Failed]] &&
+        AnyTrue[input["SquareRootGenerators"], Function[generator,
+          AssociationQ[generator] &&
+            AnyTrue[{"GeneratorIndex", "GeneratorExpression"},
+              KeyExistsQ[generator, #] &]]]),
+    <|"Status" -> "LegacyCoefficientPresentationSchemaUnsupported"|>,
+  Lookup[input, "DataType", None] === "RationalizingParametrization" &&
+      Lookup[input, "SchemaVersion", None] === 2 &&
+      MatchQ[Lookup[input, "SourceVariables", $Failed],
+        {_Symbol, _Symbol}] &&
+      ListQ[Lookup[input, "RationalizedSquareRoots", $Failed]] &&
+      KeyExistsQ[input, "ParametrizingVariables"] &&
+      KeyExistsQ[input, "SourceVariableSubstitution"],
+    Join[<|
+      "DataType" -> "RationalizingParametrization",
+      "SchemaVersion" -> 2,
+      "Status" -> Lookup[input, "Status",
+        "RationalizingParametrizationDeclared"],
+      "Name" -> Lookup[input, "Name",
+        "UnnamedRationalizingParametrization"],
+      "Kind" -> Lookup[input, "Kind", "TwoVariable"],
+      "SourceVariables" -> Lookup[input, "SourceVariables",
+        First /@ input["SourceVariableSubstitution"]],
+      "ParametrizingVariables" -> input["ParametrizingVariables"],
+      "SourceVariableSubstitution" -> input["SourceVariableSubstitution"],
+      "RationalizedSquareRoots" -> Map[
+        <|"RationalRoot" -> Lookup[#, "RationalRoot", Missing[]],
+          "SourceRadicand" -> Lookup[#, "SourceRadicand", Missing[]]|> &,
+        input["RationalizedSquareRoots"]],
+      "ParentParametrizationMaps" ->
+        Lookup[input, "ParentParametrizationMaps", <||>],
+      "ParentParametrizations" ->
+        Map[If[AssociationQ[#],
+            masterTransportCoefficientPresentationNormalize[#], #] &,
+          Lookup[input, "ParentParametrizations", <||>]]|>,
+      KeyTake[input, {"InverseParametrizationByRootValues", "Notes"}]],
+  Lookup[input, "DataType", None] ===
+      "SquareRootGeneratorsAndQuadraticRelations" &&
+      Lookup[input, "SchemaVersion", None] === 2 &&
+      MatchQ[Lookup[input, "SourceVariables", $Failed],
+        {_Symbol, _Symbol}] &&
+      MatchQ[Lookup[input, "CoefficientVariables", $Failed],
+        {_Symbol, _Symbol}] &&
+      ListQ[Lookup[input, "SquareRootGenerators", $Failed]] &&
+      KeyExistsQ[input, "SourceToCoefficientVariableRules"],
+    Module[{generators},
+      generators = Map[
+        <|"Generator" -> Lookup[#, "Generator", Missing[]],
+          "QuadraticRadicand" ->
+            Lookup[#, "QuadraticRadicand", Missing[]],
+          "SourceRadicand" -> Lookup[#, "SourceRadicand", Missing[]]|> &,
+        input["SquareRootGenerators"]];
+      <|
+        "DataType" -> "SquareRootGeneratorsAndQuadraticRelations",
+        "SchemaVersion" -> 2,
+        "Status" -> Lookup[input, "Status",
+          "SquareRootGeneratorRelationsUnverified"],
+        "SourceVariables" -> Lookup[input, "SourceVariables", Missing[]],
+        "CoefficientVariables" ->
+          Lookup[input, "CoefficientVariables", Missing[]],
+        "SourceToCoefficientVariableRules" ->
+          input["SourceToCoefficientVariableRules"],
+        "SquareRootGenerators" -> generators,
+        "SquareClassIndependenceStatus" -> "NotChecked",
+        "SquareClassIndependenceVerified" -> False,
+        "SignChangeImageInterpretation" ->
+          "FormalGeneratorSignChangesOnly",
+        "GaloisConjugatesCertified" -> False|>],
+  AnyTrue[{"Variables", "Subst", "Roots", "RootSquare", "FieldKind",
+      "CoefficientField", "GeneratorOrdering"}, KeyExistsQ[input, #] &] ||
+      MemberQ[{"SourceVariableRepresentation",
+        "RationalizingParametrization",
+        "SquareRootGeneratorsAndQuadraticRelations"},
+        Lookup[input, "DataType", None]],
+    <|"Status" -> "LegacyCoefficientPresentationSchemaUnsupported"|>,
+  True, <|"Status" -> "CoefficientPresentationNotWellFormed"|>
+];
 
-(* Resolve a chart record against the caller's source symbols.  The
-   chart's own Subst is re-keyed onto the CALLER's symbols by
-   SymbolName, so that a chart read from a file and a system read from
-   another file cannot end up in different contexts and silently
-   substitute nothing (trap P2, in its chart form). *)
-masterTransportChartData[chart_, sourceVariables_List] := Module[
-  {chartVariables, subst, substNames, sourceNames, f, g, jacobian, det,
-   root, rootSquare, rootOK},
-  If[! masterTransportChartRecordQ[chart],
-    Return[<|"Status" -> "ChartNotWellFormed"|>]];
-  chartVariables = chart["Variables"];
+masterTransportSourceVariableRepresentationRecordQ[input_] :=
+  AssociationQ[input] &&
+  Lookup[input, "DataType", None] === "SourceVariableRepresentation" &&
+  Lookup[input, "SchemaVersion", None] === 2 &&
+  MatchQ[Lookup[input, "SourceVariables", $Failed], {_Symbol, _Symbol}] &&
+  MatchQ[Lookup[input, "CoefficientVariables", $Failed], {_Symbol, _Symbol}] &&
+  MatchQ[Lookup[input, "SourceVariableSubstitution", $Failed],
+    {_Rule, _Rule}] &&
+  MatrixQ[Lookup[input, "DifferentialPullbackMatrix", $Failed]];
+
+masterTransportRationalizingParametrizationRecordQ[input_] :=
+  AssociationQ[input] &&
+  Lookup[input, "DataType", None] === "RationalizingParametrization" &&
+  Lookup[input, "SchemaVersion", None] === 2 &&
+  MatchQ[Lookup[input, "SourceVariables", $Failed], {_Symbol, _Symbol}] &&
+  MatchQ[Lookup[input, "ParametrizingVariables", $Failed],
+    {_Symbol, _Symbol}] &&
+  MatchQ[Lookup[input, "SourceVariableSubstitution", $Failed],
+    {_Rule, _Rule}] &&
+  ListQ[Lookup[input, "RationalizedSquareRoots", $Failed]];
+
+masterTransportSquareRootGeneratorRelationsRecordQ[input_] :=
+  AssociationQ[input] &&
+  Lookup[input, "DataType", None] ===
+    "SquareRootGeneratorsAndQuadraticRelations" &&
+  Lookup[input, "SchemaVersion", None] === 2 &&
+  MatchQ[Lookup[input, "SourceVariables", $Failed], {_Symbol, _Symbol}] &&
+  MatchQ[Lookup[input, "CoefficientVariables", $Failed],
+    {_Symbol, _Symbol}] &&
+  MatchQ[Lookup[input, "SourceToCoefficientVariableRules", $Failed],
+    {_Rule, _Rule}] &&
+  ListQ[Lookup[input, "SquareRootGenerators", $Failed]];
+
+masterTransportPresentationVariables[data_Association] := Switch[
+  Lookup[data, "PresentationKind", None],
+  "SourceVariables", data["SourceVariables"],
+  "RationalizingParametrization", data["ParametrizingVariables"],
+  "SquareRootGeneratorsAndQuadraticRelations", data["CoefficientVariables"],
+  _, $Failed
+];
+
+masterTransportPresentationSubstitution[data_Association] := Switch[
+  Lookup[data, "PresentationKind", None],
+  "SourceVariables", data["SourceVariableSubstitution"],
+  "RationalizingParametrization", data["SourceVariableSubstitution"],
+  "SquareRootGeneratorsAndQuadraticRelations",
+    data["SourceToCoefficientVariableRules"],
+  _, $Failed
+];
+
+(* Resolve a live representation against the caller's source symbols.
+   The map is re-keyed by SymbolName so records read from a different
+   context cannot silently fail to substitute. *)
+masterTransportCoefficientPresentationData[input_,
+    sourceVariables_List] := Module[
+  {presentation, kind, targetVariables, substitution, substitutionNames,
+   sourceNames, declaredSourceNames, oldSourceVariables, sourceRules,
+   f, g, jacobian, det,
+   roots, rootChecks, generators, relationChecks,
+   sourceRelationChecks, foreignSymbols},
+  If[! MatchQ[sourceVariables, {_Symbol, _Symbol}],
+    Return[<|"Status" -> "SourceVariablesInvalid"|>]];
+  If[input === None,
+    Return[<|
+      "DataType" -> "SourceVariableRepresentation",
+      "SchemaVersion" -> 2,
+      "Status" -> "OK",
+      "PresentationKind" -> "SourceVariables",
+      "SourceVariables" -> sourceVariables,
+      "CoefficientVariables" -> sourceVariables,
+      "SourceVariableSubstitution" ->
+        Thread[sourceVariables -> sourceVariables],
+      "DifferentialPullbackMatrix" -> IdentityMatrix[2],
+      "JacobianDeterminant" -> 1|>]];
+  If[! AssociationQ[input],
+    Return[<|"Status" -> "CoefficientPresentationNotWellFormed"|>]];
+  presentation = masterTransportCoefficientPresentationNormalize[input];
+  If[MemberQ[{
+      "LegacyCoefficientPresentationSchemaUnsupported",
+      "CoefficientPresentationSchemaAmbiguous"},
+      Lookup[presentation, "Status", None]],
+    Return[presentation]];
+  kind = Which[
+    masterTransportSourceVariableRepresentationRecordQ[presentation],
+      "SourceVariables",
+    masterTransportRationalizingParametrizationRecordQ[presentation],
+      "RationalizingParametrization",
+    masterTransportSquareRootGeneratorRelationsRecordQ[presentation],
+      "SquareRootGeneratorsAndQuadraticRelations",
+    True, None];
+  If[kind === None,
+    Return[<|"Status" -> "CoefficientPresentationNotWellFormed"|>]];
+  If[kind === "SourceVariables",
+    sourceNames = SymbolName /@ sourceVariables[[{1, 2}]];
+    If[SymbolName /@ presentation["SourceVariables"] =!= sourceNames ||
+        SymbolName /@ presentation["CoefficientVariables"] =!= sourceNames,
+      Return[<|"Status" ->
+        "SourceVariableRepresentationVariablesMismatch"|>]];
+    If[presentation["CoefficientVariables"] =!=
+          presentation["SourceVariables"] ||
+        presentation["SourceVariableSubstitution"] =!=
+          Thread[presentation["SourceVariables"] ->
+            presentation["SourceVariables"]] ||
+        presentation["DifferentialPullbackMatrix"] =!= IdentityMatrix[2] ||
+        Lookup[presentation, "JacobianDeterminant", 1] =!= 1,
+      Return[<|"Status" ->
+        "SourceVariableRepresentationIdentityFailed"|>]];
+    Return[<|
+      "DataType" -> "SourceVariableRepresentation",
+      "SchemaVersion" -> 2,
+      "Status" -> "OK",
+      "PresentationKind" -> "SourceVariables",
+      "SourceVariables" -> sourceVariables[[{1, 2}]],
+      "CoefficientVariables" -> sourceVariables[[{1, 2}]],
+      "SourceVariableSubstitution" ->
+        Thread[sourceVariables[[{1, 2}]] -> sourceVariables[[{1, 2}]]],
+      "DifferentialPullbackMatrix" -> IdentityMatrix[2],
+      "JacobianDeterminant" -> 1|>]];
+  targetVariables = If[kind === "RationalizingParametrization",
+    presentation["ParametrizingVariables"],
+    presentation["CoefficientVariables"]];
+  substitution = If[kind === "RationalizingParametrization",
+    presentation["SourceVariableSubstitution"],
+    presentation["SourceToCoefficientVariableRules"]];
   sourceNames = SymbolName /@ sourceVariables[[{1, 2}]];
-  subst = chart["Subst"];
-  substNames = SymbolName /@ (First /@ subst);
-  If[substNames =!= sourceNames,
-    Return[<|"Status" -> "ChartVariablesMismatch", "Expected" -> sourceNames,
-      "Found" -> substNames|>]];
-  If[Length[DeleteDuplicates[Join[sourceNames, SymbolName /@ chartVariables]]] =!= 4,
-    Return[<|"Status" -> "ChartVariablesCollide"|>]];
-  {f, g} = Together /@ (Last /@ subst);
-  If[! AllTrue[{f, g}, masterTransportRationalQ[#, chartVariables] &],
-    Return[<|"Status" -> "ChartNotRational"|>]];
-  If[Complement[masterTransportFreeSymbols[{f, g}], chartVariables] =!= {},
-    Return[<|"Status" -> "ChartCarriesForeignSymbols",
-      "Symbols" -> Complement[masterTransportFreeSymbols[{f, g}], chartVariables]|>]];
+  declaredSourceNames = SymbolName /@ presentation["SourceVariables"];
+  If[declaredSourceNames =!= sourceNames,
+    Return[<|"Status" -> "CoefficientPresentationSourceVariablesMismatch",
+      "Expected" -> sourceNames, "Found" -> declaredSourceNames|>]];
+  substitutionNames = SymbolName /@ (First /@ substitution);
+  If[substitutionNames =!= sourceNames,
+    Return[<|"Status" -> "CoefficientPresentationSourceVariablesMismatch",
+      "Expected" -> sourceNames, "Found" -> substitutionNames|>]];
+  If[Length[DeleteDuplicates[
+        Join[sourceNames, SymbolName /@ targetVariables]]] =!= 4,
+    Return[<|"Status" -> "CoefficientPresentationVariablesCollide"|>]];
+  oldSourceVariables = First /@ substitution;
+  sourceRules = Thread[oldSourceVariables -> sourceVariables[[{1, 2}]]];
+  {f, g} = Together /@ (Last /@ substitution);
+  If[! AllTrue[{f, g}, masterTransportRationalQ[#, targetVariables] &],
+    Return[<|"Status" -> "CoefficientPresentationMapNotRational"|>]];
+  foreignSymbols = Complement[masterTransportFreeSymbols[{f, g}],
+    targetVariables];
+  If[foreignSymbols =!= {},
+    Return[<|"Status" -> "CoefficientPresentationCarriesForeignSymbols",
+      "Symbols" -> foreignSymbols|>]];
+  substitution = Thread[sourceVariables[[{1, 2}]] -> {f, g}];
   jacobian = Map[Together, {
-    {D[f, chartVariables[[1]]], D[f, chartVariables[[2]]]},
-    {D[g, chartVariables[[1]]], D[g, chartVariables[[2]]]}}, {2}];
+    {D[f, targetVariables[[1]]], D[f, targetVariables[[2]]]},
+    {D[g, targetVariables[[1]]], D[g, targetVariables[[2]]]}}, {2}];
   det = Together[Det[jacobian]];
-  If[TrueQ[det === 0], Return[<|"Status" -> "ChartJacobianDegenerate"|>]];
-  root = Lookup[chart, "Root", None];
-  rootSquare = Lookup[chart, "RootSquare", None];
-  (* If the chart declares both, the rationalization statement itself is
-     an exact identity and is checked here rather than believed. *)
-  rootOK = If[root === None || rootSquare === None || MissingQ[root] ||
-      MissingQ[rootSquare], None,
-    TrueQ[Together[root^2 - (rootSquare /. {sourceVariables[[1]] -> f,
-      sourceVariables[[2]] -> g})] === 0]];
-  If[rootOK === False, Return[<|"Status" -> "ChartRootSquareInconsistent"|>]];
-  (* A chart may rationalize SEVERAL quadratics (the joint charts of
-     TransportCharts.wl): every declared root is checked against its own
-     RootSquare, exactly, and carried through under "Roots" so that a
-     conic record can be composed with whichever root it needs. *)
-  Module[{roots, rootsOK},
-    roots = Lookup[chart, "Roots", None];
-    If[! ListQ[roots],
-      roots = If[root === None || rootSquare === None || MissingQ[root] || MissingQ[rootSquare],
-        {}, {<|"Root" -> root, "RootSquare" -> rootSquare|>}]];
-    rootsOK = AllTrue[roots, TrueQ[Together[#["Root"]^2 - (#["RootSquare"] /.
-      {sourceVariables[[1]] -> f, sourceVariables[[2]] -> g})] === 0] &];
-    If[! rootsOK, Return[<|"Status" -> "ChartRootSquareInconsistent", "Roots" -> roots|>]];
-    <|"Status" -> "OK", "Kind" -> Lookup[chart, "Kind", "TwoVariable"],
-      "Name" -> Lookup[chart, "Name", None],
-      "CoefficientField" -> Lookup[chart, "CoefficientField", "Rational"],
-      "Variables" -> chartVariables, "SourceVariables" -> sourceVariables[[{1, 2}]],
-      "Subst" -> {sourceVariables[[1]] -> f, sourceVariables[[2]] -> g},
-      "Jacobian" -> jacobian, "JacobianDet" -> det,
-      "Root" -> If[MissingQ[root], None, root],
-      "RootSquare" -> If[MissingQ[rootSquare], None, rootSquare],
-      "RootSquareConsistent" -> rootOK,
-      "Roots" -> roots,
-      "Parents" -> Lookup[chart, "Parents", <||>]|>]
+  If[TrueQ[det === 0],
+    Return[<|"Status" -> "CoefficientPresentationJacobianDegenerate"|>]];
+  If[kind === "RationalizingParametrization",
+    roots = Map[
+      <|"RationalRoot" -> #["RationalRoot"],
+        "SourceRadicand" -> Together[#["SourceRadicand"] /. sourceRules]|> &,
+      presentation["RationalizedSquareRoots"]];
+    If[! AllTrue[roots,
+        masterTransportRationalQ[#["RationalRoot"], targetVariables] &],
+      Return[<|"Status" ->
+        "RationalizingParametrizationRootImageNotRational"|>]];
+    rootChecks = TrueQ[Together[#["RationalRoot"]^2 -
+          (#["SourceRadicand"] /. substitution)] === 0] & /@ roots;
+    If[! AllTrue[rootChecks, TrueQ],
+      Return[<|"Status" ->
+        "RationalizingParametrizationSquareRootIdentityFailed",
+        "RationalizedSquareRoots" -> roots|>]];
+    Return[Join[<|
+      "DataType" -> "RationalizingParametrization",
+      "SchemaVersion" -> 2,
+      "Status" -> "OK",
+      "PresentationKind" -> "RationalizingParametrization",
+      "Name" -> Lookup[presentation, "Name", None],
+      "Kind" -> Lookup[presentation, "Kind", "TwoVariable"],
+      "ParametrizingVariables" -> targetVariables,
+      "SourceVariables" -> sourceVariables[[{1, 2}]],
+      "SourceVariableSubstitution" -> substitution,
+      "DifferentialPullbackMatrix" -> jacobian,
+      "JacobianDeterminant" -> det,
+      "RationalizedSquareRoots" -> roots,
+      "RationalizedSquareRootIdentities" -> rootChecks,
+      "ParentParametrizationMaps" ->
+        Lookup[presentation, "ParentParametrizationMaps", <||>],
+      "ParentParametrizations" ->
+        Lookup[presentation, "ParentParametrizations", <||>]|>,
+      KeyTake[presentation,
+        {"InverseParametrizationByRootValues", "Notes"}]]]];
+  generators = Map[
+    Function[generator,
+      <|"Generator" -> generator["Generator"],
+        "QuadraticRadicand" -> generator["QuadraticRadicand"],
+        "SourceRadicand" ->
+          Together[generator["SourceRadicand"] /. sourceRules]|>],
+    presentation["SquareRootGenerators"]];
+  If[! AllTrue[generators, AssociationQ[#] &&
+      ContainsAll[Keys[#],
+        {"Generator", "QuadraticRadicand", "SourceRadicand"}] &],
+    Return[<|"Status" -> "SquareRootGeneratorRecordNotWellFormed"|>]];
+  relationChecks = TrueQ[Together[#["Generator"]^2 -
+        #["QuadraticRadicand"]] === 0] & /@ generators;
+  sourceRelationChecks = TrueQ[Together[#["QuadraticRadicand"] -
+        (#["SourceRadicand"] /. substitution)] === 0] & /@ generators;
+  If[! AllTrue[Join[relationChecks, sourceRelationChecks], TrueQ],
+    Return[<|"Status" -> "SquareRootGeneratorRelationVerificationFailed",
+      "GeneratorRelations" -> relationChecks,
+      "SourceRadicandRelations" -> sourceRelationChecks|>]];
+  <|
+    "DataType" -> "SquareRootGeneratorsAndQuadraticRelations",
+    "SchemaVersion" -> 2,
+    "Status" -> "OK",
+    "PresentationKind" ->
+      "SquareRootGeneratorsAndQuadraticRelations",
+    "SourceVariables" -> sourceVariables[[{1, 2}]],
+    "CoefficientVariables" -> targetVariables,
+    "SourceToCoefficientVariableRules" -> substitution,
+    "DifferentialPullbackMatrix" -> jacobian,
+    "JacobianDeterminant" -> det,
+    "SquareRootGenerators" -> generators,
+    "QuadraticRelationVerification" -> <|
+      "Verified" -> True,
+      "PerGenerator" -> relationChecks,
+      "SourceRadicandRelations" -> sourceRelationChecks|>,
+    "SquareClassIndependenceStatus" -> "NotChecked",
+    "SquareClassIndependenceVerified" -> False,
+    "SignChangeImageInterpretation" ->
+      "FormalGeneratorSignChangesOnly",
+    "GaloisConjugatesCertified" -> False|>
 ];
 
 (* Chain rule for a matrix-valued 1-form.  av, aw are already expressed
-   in the chart variables; the tangent factors come from the chart
+   in the coefficient variables; the tangent factors come from the
    Jacobian and are NOT substituted into anything (same discipline as
    masterTransportPathMatrix). *)
 masterTransportPullBackOneForm[av_, aw_, jacobian_] := {
@@ -213,28 +430,33 @@ Options[masterTransportPullBackSystem] = {
   "FlatnessCheck" -> True
 };
 
-masterTransportPullBackSystem[system_Association, chart_,
+masterTransportPullBackSystem[system_Association, presentation_,
     opts : OptionsPattern[]] := Module[
   {sourceVariables, data, av, aw, avc, awc, ax, ay, x, y, flatSource,
-   flatChart, surviving},
+   flatPulledBack, surviving, substitution, differentialPullback,
+   relationVerification},
   sourceVariables = OptionValue["SourceVariables"];
   If[sourceVariables === Automatic,
     sourceVariables = masterTransportDefaultVariables[]];
-  If[! MatchQ[sourceVariables, {_Symbol, __Symbol}],
+  If[! MatchQ[sourceVariables, {_Symbol, _Symbol}],
     Return[<|"Status" -> "SourceVariablesInvalid"|>]];
-  data = If[AssociationQ[chart] && Lookup[chart, "Status", None] === "OK" &&
-      KeyExistsQ[chart, "Jacobian"], chart,
-    masterTransportChartData[chart, sourceVariables]];
+  (* Re-derive the map and every displayed relation even when the caller
+     supplies an already enriched record.  Status -> "OK" is not itself a
+     certificate and must not bypass schema verification. *)
+  data = masterTransportCoefficientPresentationData[
+    presentation, sourceVariables];
   If[data["Status"] =!= "OK", Return[data]];
-  {x, y} = data["Variables"];
+  {x, y} = masterTransportPresentationVariables[data];
+  substitution = masterTransportPresentationSubstitution[data];
+  differentialPullback = data["DifferentialPullbackMatrix"];
   av = Lookup[system, "Av", $Failed];
   aw = Lookup[system, "Aw", $Failed];
   If[! (MatrixQ[av] && MatrixQ[aw] && Dimensions[av] === Dimensions[aw] &&
         Length[av] === Length[First[av]]),
     Return[<|"Status" -> "SystemNotASquareMatrixPair"|>]];
   (* Refuse a non-flat source outright: the chain rule would produce a
-     chart system whose own flatness check then fails for a reason that
-     has nothing to do with the chart. *)
+     pulled-back system whose own flatness check then fails for an
+     unrelated reason. *)
   (* Production checks flatness once, after pullback, in the assembly
      certificate.  Building the same 41x41 curvature before substitution
      was a second full matrix-product pass and dominated CF303. *)
@@ -245,33 +467,48 @@ masterTransportPullBackSystem[system_Association, chart_,
         av . aw - aw . av]];
   If[flatSource === False,
     Return[<|"Status" -> "SourceSystemNotFlat"|>]];
-  {avc, awc} = masterTransportMapTogetherSubstitute[{av, aw}, data["Subst"]];
-  surviving = Cases[{avc, awc},
-    s_Symbol /; MemberQ[SymbolName /@ sourceVariables[[{1, 2}]], SymbolName[s]],
-    {0, Infinity}, Heads -> True];
+  {avc, awc} = masterTransportMapTogetherSubstitute[
+    {av, aw}, substitution];
+  surviving = If[data["PresentationKind"] === "SourceVariables", {},
+    Cases[{avc, awc},
+      s_Symbol /; MemberQ[SymbolName /@ sourceVariables[[{1, 2}]],
+        SymbolName[s]],
+      {0, Infinity}, Heads -> True]];
   If[surviving =!= {},
     Return[<|"Status" -> "SourceVariablesSurviveSubstitution",
       "Symbols" -> DeleteDuplicates[surviving]|>]];
-  {ax, ay} = masterTransportPullBackOneForm[avc, awc, data["Jacobian"]];
-  flatChart = If[TrueQ[OptionValue["FlatnessCheck"]],
+  {ax, ay} = masterTransportPullBackOneForm[
+    avc, awc, differentialPullback];
+  flatPulledBack = If[TrueQ[OptionValue["FlatnessCheck"]],
     masterTransportZeroMatQ[D[ax, y] - D[ay, x] + ax . ay - ay . ax],
     "NotPerformed"];
-  If[flatChart =!= "NotPerformed" && ! TrueQ[flatChart],
-    Return[<|"Status" -> "ChartSystemNotFlat"|>]];
-  <|"Status" -> "OK",
-    "System" -> Join[KeyDrop[system, {"Av", "Aw"}], <|"Av" -> ax, "Aw" -> ay|>],
-    "Ax" -> ax, "Ay" -> ay, "Variables" -> {x, y}, "Chart" -> data,
-    "Certificate" -> <|
-      "SourceFlat" -> flatSource,
-      "SourceFlatRoute" -> If[MissingQ[flatSource],
+  If[flatPulledBack =!= "NotPerformed" && ! TrueQ[flatPulledBack],
+    Return[<|"Status" -> "PulledBackSystemNotFlat"|>]];
+  relationVerification = Switch[data["PresentationKind"],
+    "SourceVariables", "NotApplicable",
+    "RationalizingParametrization",
+      AllTrue[data["RationalizedSquareRootIdentities"], TrueQ],
+    "SquareRootGeneratorsAndQuadraticRelations",
+      TrueQ[data["QuadraticRelationVerification", "Verified"]],
+    _, False];
+  Join[
+    <|"Status" -> "OK",
+      "System" -> Join[KeyDrop[system, {"Av", "Aw"}],
+        <|"Av" -> ax, "Aw" -> ay|>],
+      "Ax" -> ax, "Ay" -> ay,
+      "CoefficientVariables" -> {x, y},
+      "CoefficientPresentation" -> data|>,
+    <|"Certificate" -> <|
+      "SourceSystemFlat" -> flatSource,
+      "SourceSystemFlatnessRoute" -> If[MissingQ[flatSource],
         "DeferredToAssemblyCertificate", "ExactRationalFunction"],
-      "ChartFlat" -> flatChart,
-      "ChartRational" -> True,
-      "RootSquareConsistent" -> data["RootSquareConsistent"],
+      "PulledBackSystemFlat" -> flatPulledBack,
+      "SourceCoordinateImagesRational" -> True,
+      "DisplayedSquareRootRelationsVerified" -> relationVerification,
       "ChainRule" ->
         "Ax = Av d_x v + Aw d_x w, Ay = Av d_y v + Aw d_y w (Together'd)",
-      "JacobianDet" -> data["JacobianDet"],
-      "Exact" -> True|>|>
+      "JacobianDeterminant" -> data["JacobianDeterminant"],
+      "Exact" -> True|>|>]
 ];
 
 End[];

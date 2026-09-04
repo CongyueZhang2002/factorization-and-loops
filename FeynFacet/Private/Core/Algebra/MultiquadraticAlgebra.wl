@@ -1,40 +1,39 @@
-(* The neutral multiquadratic (extension-field) algebra (2026-08-23).
+(* The quadratic-generator quotient algebra (2026-08-23).
 
-   One ABI for every consumer of a multiquadratic coefficient frame
-   Q(sqrt(delta_1),...,sqrt(delta_r)): the grade masks, the character
+   One explicit ordering convention for computations with declared
+   generators r_i and relations
+   r_i^2 = delta_i: the grade masks, the character
    table, the xor-graded product with r_i^2 = delta_i, the derivative
    rule, reduction of a polynomial in the root symbols to the grade
-   basis, conjugate evaluation and projection, the split-point test,
+   monomials, formal sign-change evaluation and projection, the split-point test,
    modular square roots, and the F2 grade lattice.
+
+   This algebra becomes the usual multiquadratic field representation only
+   after square-class independence has been established separately.  Nothing
+   in this file promotes formal sign changes to Galois automorphisms.
 
    Source: Exchange/Codex/2026-08-22/04_triple_root_campaign/
    TripleRootAlgebra.wl (Codex, audited).  Semantics are preserved
    exactly; only the names are rehoused in FeynFacet`Private` and the
    two rank-0 fixes named in the promotion handoff are made explicit.
 
-   Ordering is an ABI, not an implementation detail.  Grade mask bit i
-   always denotes declared root i, so the caller -- not this file --
-   owns the root order (transportChartRootIndices keeps the frame
-   order for exactly this reason).  A consumer records
-   multiquadraticAlgebraABIFingerprint[]: it is computed from formal
-   System` symbols only, so it is independent of the reader's
-   $Context/$ContextPath (package bug handoff 2026-08-23, pool defect
-   3 forbids context-sensitive fingerprints). *)
+   Ordering is mathematical data, not an implementation detail.  Grade mask bit i
+   always denotes declared generator i, so the caller -- not this file --
+   owns the generator declaration order.  The ordered list itself is the
+   source of truth; it is checked directly. *)
 
 Begin["FeynFacet`Private`"];
 
 ClearAll[
-  $multiquadraticAlgebraABIFingerprintCache,
   multiquadraticBasisMasks, multiquadraticMaskFactor,
   multiquadraticParity, multiquadraticHadamardMatrix,
   multiquadraticCharacteristicNormalize, multiquadraticIntegerDataQ,
   multiquadraticMultiply,
   multiquadraticDerivative, multiquadraticToExpression,
-  multiquadraticFromPolynomial, multiquadraticEvaluateConjugates,
-  multiquadraticProjectConjugates,
+  multiquadraticFromPolynomial, multiquadraticEvaluateSignChangeImages,
+  multiquadraticProjectSignChangeImages,
   multiquadraticSquareRoots, multiquadraticGradeClosure,
   multiquadraticActiveRank, multiquadraticAlgebraProbe,
-  multiquadraticAlgebraABIFingerprint,
   $multiquadraticAlgebraProbeRank
 ];
 
@@ -129,7 +128,8 @@ multiquadraticFromPolynomial[expr_, roots_List, deltas_List] /;
     Together /@ out
   ];
 
-multiquadraticEvaluateConjugates[a_List, rootValues_List, modulus_: 0] /;
+multiquadraticEvaluateSignChangeImages[
+    a_List, rootValues_List, modulus_: 0] /;
     Length[a] == 2^Length[rootValues] :=
   Module[{weighted, result},
     weighted = MapThread[#1 #2 &,
@@ -141,7 +141,8 @@ multiquadraticEvaluateConjugates[a_List, rootValues_List, modulus_: 0] /;
         $Failed]]
   ];
 
-multiquadraticProjectConjugates[values_List, rootValues_List, modulus_: 0] /;
+multiquadraticProjectSignChangeImages[
+    values_List, rootValues_List, modulus_: 0] /;
     Length[values] == 2^Length[rootValues] :=
   Module[{rank = Length[rootValues], rootProducts, weighted},
     rootProducts = multiquadraticMaskFactor[#, rootValues] & /@
@@ -156,7 +157,6 @@ multiquadraticProjectConjugates[values_List, rootValues_List, modulus_: 0] /;
         {weighted, Mod[rootProducts, modulus]}], modulus]
     ]
   ];
-
 
 (* p = 3 (mod 4) only; the returned representative is the raw
    exponentiation, NOT the smaller of the two roots.  The sign
@@ -184,10 +184,9 @@ multiquadraticActiveRank[masks_List, rank_Integer?NonNegative] :=
       Modulus -> 2]
   ];
 
-(* The ABI probe: ordering (masks, character table) and semantics
-   (one product, one derivative) at every supported rank, written in
-   formal System` symbols so that InputForm -- and therefore the hash
-   -- carries no context. *)
+(* The explicit semantics probe: ordering (masks, character table) and
+   one product and derivative at every supported rank.  Tests compare
+   this mathematical data directly with SameQ. *)
 multiquadraticAlgebraProbe[] := Module[
   {deltas, a, b},
   Table[
@@ -204,41 +203,32 @@ multiquadraticAlgebraProbe[] := Module[
     {rank, 0, $multiquadraticAlgebraProbeRank}]
 ];
 
-(* The fingerprint is a constant of the loaded package: it is computed once
-   and memoized (overhaul 2026-09-02, certification audit item 1).  It used
-   to run the symbolic probe and a full InputForm on EVERY call, and it is
-   called from the validity predicates that run per sample and per prime.
-   A failed probe is not memoized, so a context problem stays visible.
-   The memo is keyed by $ContextPath (review risk R5, 2026-09-02): the
-   probe's text depends on the reader's context, and a package loaded
-   later in the session (CANONICA, Libra) changes the path, so the
-   fingerprint is recomputed for every new path rather than reused. *)
-$multiquadraticAlgebraABIFingerprintCache = None;
-multiquadraticAlgebraABIFingerprint[] := Module[{probe, symbols, value},
-  If[MatchQ[$multiquadraticAlgebraABIFingerprintCache, {_List, _String}] &&
-      $multiquadraticAlgebraABIFingerprintCache[[1]] === $ContextPath,
-    Return[$multiquadraticAlgebraABIFingerprintCache[[2]]]];
-  probe = multiquadraticAlgebraProbe[];
-  symbols = DeleteDuplicates[Cases[probe, symbol_Symbol :> symbol,
-    {0, Infinity}, Heads -> True]];
-  (* a fingerprint whose text depends on the reader's context is not an
-     ABI (package bug handoff 2026-08-23, pool defect 3) *)
-  If[! AllTrue[symbols, Context[#] === "System`" &], Return[$Failed]];
-  value = Hash[ToString[InputForm[probe]], "SHA256", "HexString"];
-  $multiquadraticAlgebraABIFingerprintCache = {$ContextPath, value};
-  value
-];
-
 (* ------------------------------------------------------------------ *)
-(*  Root and radical algebra of rationalizing charts                    *)
-(*  (moved here verbatim from Geometry/TransportCharts.wl, layer pass   *)
+(*  Square-root and radical algebra of coefficient presentations       *)
+(*  (moved from Geometry/TransportCharts.wl, layer pass                 *)
 (*  2026-09-02: EpsForm loads before Geometry and these are the         *)
 (*  helpers every EpsForm solver calls -- radical bases, exact          *)
-(*  denesting, root classification, branch application, the algebraic   *)
-(*  zero test and the chart re-keying; nothing here knows the catalog)  *)
+(*  denesting, generator classification, sign-image application, the    *)
+(*  algebraic zero test and presentation re-keying; no catalog logic)   *)
 (* ------------------------------------------------------------------ *)
 
 ClearAll[
+  squareRootRecordExpression,
+  squareRootRecordRadicand,
+  algebraCoefficientPresentationNormalize,
+  algebraSourceVariableRepresentationRecordQ,
+  algebraRationalizingParametrizationRecordQ,
+  algebraSquareRootGeneratorRelationsRecordQ,
+  algebraRationalFunctionQ,
+  algebraCoefficientPresentationMapRationalQ,
+  algebraSourceVariableRepresentationIdentityVerifiedQ,
+  algebraRationalizedSquareRootImagesRationalQ,
+  algebraSquareRootGeneratorRadicandsRationalQ,
+  algebraRationalizedSquareRootIdentitiesVerifiedQ,
+  algebraSquareRootGeneratorIdentitiesVerifiedQ,
+  coefficientPresentationSquareRootRecords,
+  rekeyCoefficientPresentation,
+  coefficientPresentationSquareRootsInVariables,
   transportChartRadicalBases,
   transportChartNumericSquareClass,
   transportChartSquareSplit,
@@ -248,12 +238,310 @@ ClearAll[
   transportChartDenestSign,
   transportChartCanonicalizeDenestedRadicals,
   transportChartRootIndices,
-  transportChartRekey,
-  transportChartCurrentRoots,
   transportChartRootBranchScale,
   transportChartApplyRootBranches,
   transportChartDeclaredRadicalGenerators,
   transportChartAlgebraicZeroQ
+];
+
+squareRootRecordExpression[record_Association] := Lookup[record,
+  "Generator", Lookup[record, "RationalRoot",
+    Missing["SquareRootExpressionNotAvailable"]]];
+
+squareRootRecordRadicand[record_Association] := Which[
+  KeyExistsQ[record, "QuadraticRadicand"], record["QuadraticRadicand"],
+  KeyExistsQ[record, "RationalRoot"], Together[record["RationalRoot"]^2],
+  True, Missing["SquareRootRadicandNotAvailable"]
+];
+
+(* Algebra loads before Core/Charts, so its V2 discriminator is kept
+   self-contained.  Generated V1 records are a typed refusal. *)
+algebraCoefficientPresentationNormalize[input_Association] := Which[
+  MemberQ[{"LegacyCoefficientPresentationSchemaUnsupported",
+      "CoefficientPresentationSchemaAmbiguous"},
+    Lookup[input, "Status", None]],
+    <|"Status" -> Lookup[input, "Status"]|>,
+  KeyExistsQ[input, "QuadraticRelations"] ||
+      (ListQ[Lookup[input, "SquareRootGenerators", $Failed]] &&
+        AnyTrue[input["SquareRootGenerators"], Function[generator,
+          AssociationQ[generator] &&
+            AnyTrue[{"GeneratorIndex", "GeneratorExpression"},
+              KeyExistsQ[generator, #] &]]]),
+    <|"Status" -> "LegacyCoefficientPresentationSchemaUnsupported"|>,
+  Lookup[input, "DataType", None] === "SourceVariableRepresentation" &&
+      Lookup[input, "SchemaVersion", None] === 2 &&
+      MatchQ[Lookup[input, "SourceVariables", $Failed],
+        {_Symbol, _Symbol}] &&
+      MatchQ[Lookup[input, "CoefficientVariables", $Failed],
+        {_Symbol, _Symbol}] &&
+      MatchQ[Lookup[input, "SourceVariableSubstitution", $Failed],
+        {_Rule, _Rule}] &&
+      MatrixQ[Lookup[input, "DifferentialPullbackMatrix", $Failed]],
+    <|
+      "DataType" -> "SourceVariableRepresentation",
+      "SchemaVersion" -> 2,
+      "Status" -> Lookup[input, "Status", "OK"],
+      "SourceVariables" -> input["SourceVariables"],
+      "CoefficientVariables" -> input["CoefficientVariables"],
+      "SourceVariableSubstitution" -> input["SourceVariableSubstitution"],
+      "DifferentialPullbackMatrix" ->
+        input["DifferentialPullbackMatrix"],
+      "JacobianDeterminant" -> Lookup[input, "JacobianDeterminant", 1]|>,
+  KeyExistsQ[input, "RationalizedSquareRoots"] &&
+      KeyExistsQ[input, "ParametrizingVariables"] &&
+      KeyExistsQ[input, "SourceVariableSubstitution"] &&
+      KeyExistsQ[input, "SquareRootGenerators"] &&
+      KeyExistsQ[input, "SourceToCoefficientVariableRules"],
+    <|"Status" -> "CoefficientPresentationSchemaAmbiguous"|>,
+  Lookup[input, "DataType", None] === "RationalizingParametrization" &&
+      Lookup[input, "SchemaVersion", None] === 2 &&
+      MatchQ[Lookup[input, "SourceVariables", $Failed],
+        {_Symbol, _Symbol}] &&
+      ListQ[Lookup[input, "RationalizedSquareRoots", $Failed]] &&
+      KeyExistsQ[input, "ParametrizingVariables"] &&
+      KeyExistsQ[input, "SourceVariableSubstitution"],
+    Join[<|
+      "DataType" -> "RationalizingParametrization",
+      "SchemaVersion" -> 2,
+      "Status" -> Lookup[input, "Status",
+        "RationalizingParametrizationDeclared"],
+      "Name" -> Lookup[input, "Name",
+        "UnnamedRationalizingParametrization"],
+      "Kind" -> Lookup[input, "Kind", "TwoVariable"],
+      "ParametrizingVariables" -> input["ParametrizingVariables"],
+      "SourceVariables" -> Lookup[input, "SourceVariables",
+        First /@ input["SourceVariableSubstitution"]],
+      "SourceVariableSubstitution" -> input["SourceVariableSubstitution"],
+      "RationalizedSquareRoots" -> Map[
+        <|"RationalRoot" -> Lookup[#, "RationalRoot", Missing[]],
+          "SourceRadicand" -> Lookup[#, "SourceRadicand", Missing[]]|> &,
+        input["RationalizedSquareRoots"]],
+      "ParentParametrizationMaps" ->
+        Lookup[input, "ParentParametrizationMaps", <||>],
+      "ParentParametrizations" ->
+        Map[If[AssociationQ[#],
+            algebraCoefficientPresentationNormalize[#], #] &,
+          Lookup[input, "ParentParametrizations", <||>]]|>,
+      KeyTake[input, {"InverseParametrizationByRootValues", "Notes"}]],
+  Lookup[input, "DataType", None] ===
+      "SquareRootGeneratorsAndQuadraticRelations" &&
+      Lookup[input, "SchemaVersion", None] === 2 &&
+      MatchQ[Lookup[input, "SourceVariables", $Failed],
+        {_Symbol, _Symbol}] &&
+      MatchQ[Lookup[input, "CoefficientVariables", $Failed],
+        {_Symbol, _Symbol}] &&
+      ListQ[Lookup[input, "SquareRootGenerators", $Failed]] &&
+      KeyExistsQ[input, "SourceToCoefficientVariableRules"],
+    Module[{generators},
+      generators = Map[
+        <|"Generator" -> Lookup[#, "Generator", Missing[]],
+          "QuadraticRadicand" ->
+            Lookup[#, "QuadraticRadicand", Missing[]],
+          "SourceRadicand" -> Lookup[#, "SourceRadicand", Missing[]]|> &,
+        input["SquareRootGenerators"]];
+      <|
+        "DataType" -> "SquareRootGeneratorsAndQuadraticRelations",
+        "SchemaVersion" -> 2,
+        "Status" -> Lookup[input, "Status",
+          "SquareRootGeneratorRelationsUnverified"],
+        "SourceVariables" -> Lookup[input, "SourceVariables", Missing[]],
+        "CoefficientVariables" ->
+          Lookup[input, "CoefficientVariables", Missing[]],
+        "SourceToCoefficientVariableRules" ->
+          input["SourceToCoefficientVariableRules"],
+        "SquareRootGenerators" -> generators,
+        "SquareClassIndependenceStatus" -> "NotChecked",
+        "SquareClassIndependenceVerified" -> False,
+        "SignChangeImageInterpretation" ->
+          "FormalGeneratorSignChangesOnly",
+        "GaloisConjugatesCertified" -> False|>],
+  AnyTrue[{"Variables", "Subst", "Roots", "RootSquare", "FieldKind",
+      "CoefficientField", "GeneratorOrdering"}, KeyExistsQ[input, #] &] ||
+      MemberQ[{"SourceVariableRepresentation",
+        "RationalizingParametrization",
+        "SquareRootGeneratorsAndQuadraticRelations"},
+        Lookup[input, "DataType", None]],
+    <|"Status" -> "LegacyCoefficientPresentationSchemaUnsupported"|>,
+  True, <|"Status" -> "CoefficientPresentationNotWellFormed"|>
+];
+
+algebraSourceVariableRepresentationRecordQ[input_] :=
+  AssociationQ[input] &&
+  Lookup[input, "DataType", None] === "SourceVariableRepresentation" &&
+  Lookup[input, "SchemaVersion", None] === 2 &&
+  MatchQ[Lookup[input, "SourceVariables", $Failed], {_Symbol, _Symbol}] &&
+  MatchQ[Lookup[input, "CoefficientVariables", $Failed],
+    {_Symbol, _Symbol}] &&
+  MatchQ[Lookup[input, "SourceVariableSubstitution", $Failed],
+    {_Rule, _Rule}] &&
+  MatrixQ[Lookup[input, "DifferentialPullbackMatrix", $Failed]];
+
+algebraRationalizingParametrizationRecordQ[input_] :=
+  AssociationQ[input] &&
+  Lookup[input, "DataType", None] === "RationalizingParametrization" &&
+  Lookup[input, "SchemaVersion", None] === 2 &&
+  MatchQ[Lookup[input, "SourceVariables", $Failed], {_Symbol, _Symbol}] &&
+  MatchQ[Lookup[input, "ParametrizingVariables", $Failed],
+    {_Symbol, _Symbol}] &&
+  MatchQ[Lookup[input, "SourceVariableSubstitution", $Failed],
+    {_Rule, _Rule}] &&
+  ListQ[Lookup[input, "RationalizedSquareRoots", $Failed]];
+
+algebraSquareRootGeneratorRelationsRecordQ[input_] :=
+  AssociationQ[input] &&
+  Lookup[input, "DataType", None] ===
+    "SquareRootGeneratorsAndQuadraticRelations" &&
+  Lookup[input, "SchemaVersion", None] === 2 &&
+  MatchQ[Lookup[input, "SourceVariables", $Failed], {_Symbol, _Symbol}] &&
+  MatchQ[Lookup[input, "CoefficientVariables", $Failed],
+    {_Symbol, _Symbol}] &&
+  MatchQ[Lookup[input, "SourceToCoefficientVariableRules", $Failed],
+    {_Rule, _Rule}] &&
+  ListQ[Lookup[input, "SquareRootGenerators", $Failed]];
+
+algebraRationalFunctionQ[expression_, variables_List] := Module[{value},
+  value = Together[expression];
+  FreeQ[value,
+    Power[_, _Rational] | _Root | Log | Hypergeometric2F1] &&
+    PolynomialQ[Numerator[value], variables] &&
+    PolynomialQ[Denominator[value], variables]
+];
+
+algebraCoefficientPresentationMapRationalQ[
+    presentation_Association] := Module[{variables, substitution},
+  {variables, substitution} = Which[
+    Lookup[presentation, "DataType", None] ===
+        "SourceVariableRepresentation",
+      {Lookup[presentation, "SourceVariables", $Failed],
+       Lookup[presentation, "SourceVariableSubstitution", $Failed]},
+    KeyExistsQ[presentation, "RationalizedSquareRoots"],
+      {Lookup[presentation, "ParametrizingVariables", $Failed],
+       Lookup[presentation, "SourceVariableSubstitution", $Failed]},
+    KeyExistsQ[presentation, "SquareRootGenerators"],
+      {Lookup[presentation, "CoefficientVariables", $Failed],
+       Lookup[presentation, "SourceToCoefficientVariableRules", $Failed]},
+    True, {$Failed, $Failed}];
+  MatchQ[variables, {_Symbol, _Symbol}] &&
+    MatchQ[substitution, {_Rule, _Rule}] &&
+    AllTrue[Last /@ substitution,
+      algebraRationalFunctionQ[#, variables] &]
+];
+
+algebraSourceVariableRepresentationIdentityVerifiedQ[
+    presentation_Association] := Module[
+  {sourceVariables, coefficientVariables, substitution, pullback},
+  sourceVariables = Lookup[presentation, "SourceVariables", $Failed];
+  coefficientVariables = Lookup[presentation,
+    "CoefficientVariables", $Failed];
+  substitution = Lookup[presentation,
+    "SourceVariableSubstitution", $Failed];
+  pullback = Lookup[presentation, "DifferentialPullbackMatrix", $Failed];
+  MatchQ[sourceVariables, {_Symbol, _Symbol}] &&
+    coefficientVariables === sourceVariables &&
+    substitution === Thread[sourceVariables -> sourceVariables] &&
+    pullback === IdentityMatrix[2] &&
+    Lookup[presentation, "JacobianDeterminant", 1] === 1
+];
+
+algebraRationalizedSquareRootImagesRationalQ[
+    presentation_Association] := Module[{variables, roots},
+  variables = Lookup[presentation, "ParametrizingVariables", $Failed];
+  roots = Lookup[presentation, "RationalizedSquareRoots", $Failed];
+  MatchQ[variables, {_Symbol, _Symbol}] && ListQ[roots] &&
+    AllTrue[roots, AssociationQ[#] &&
+      algebraRationalFunctionQ[
+        Lookup[#, "RationalRoot", Missing[]], variables] &]
+];
+
+algebraSquareRootGeneratorRadicandsRationalQ[
+    presentation_Association] := Module[{variables, generators},
+  variables = Lookup[presentation, "CoefficientVariables", $Failed];
+  generators = Lookup[presentation, "SquareRootGenerators", $Failed];
+  MatchQ[variables, {_Symbol, _Symbol}] && ListQ[generators] &&
+    AllTrue[generators, AssociationQ[#] &&
+      algebraRationalFunctionQ[
+        Lookup[#, "QuadraticRadicand", Missing[]], variables] &]
+];
+
+algebraRationalizedSquareRootIdentitiesVerifiedQ[
+    presentation_Association] := Module[
+  {variables, substitution, roots},
+  variables = Lookup[presentation, "ParametrizingVariables", $Failed];
+  substitution = Lookup[presentation,
+    "SourceVariableSubstitution", $Failed];
+  roots = Lookup[presentation, "RationalizedSquareRoots", $Failed];
+  MatchQ[variables, {_Symbol, _Symbol}] &&
+    MatchQ[substitution, {_Rule, _Rule}] && ListQ[roots] &&
+    algebraCoefficientPresentationMapRationalQ[presentation] &&
+    algebraRationalizedSquareRootImagesRationalQ[presentation] &&
+    AllTrue[roots, Function[root,
+      AssociationQ[root] &&
+        TrueQ[Together[
+          Lookup[root, "RationalRoot", Missing[]]^2 -
+            (Lookup[root, "SourceRadicand", Missing[]] /.
+              substitution)] === 0]]]
+];
+
+algebraSquareRootGeneratorIdentitiesVerifiedQ[
+    presentation_Association] := Module[
+  {variables, substitution, generators},
+  variables = Lookup[presentation, "CoefficientVariables", $Failed];
+  substitution = Lookup[presentation,
+    "SourceToCoefficientVariableRules", $Failed];
+  generators = Lookup[presentation, "SquareRootGenerators", $Failed];
+  MatchQ[variables, {_Symbol, _Symbol}] &&
+    MatchQ[substitution, {_Rule, _Rule}] && ListQ[generators] &&
+    algebraCoefficientPresentationMapRationalQ[presentation] &&
+    algebraSquareRootGeneratorRadicandsRationalQ[presentation] &&
+    AllTrue[generators, Function[generator,
+      AssociationQ[generator] &&
+        TrueQ[Together[
+          Lookup[generator, "Generator", Missing[]]^2 -
+            Lookup[generator, "QuadraticRadicand", Missing[]]] === 0] &&
+        TrueQ[Together[
+          Lookup[generator, "QuadraticRadicand", Missing[]] -
+            (Lookup[generator, "SourceRadicand", Missing[]] /.
+              substitution)] === 0]]]
+];
+
+coefficientPresentationSquareRootRecords[input_Association] := Module[
+  {presentation = algebraCoefficientPresentationNormalize[input]},
+  If[MemberQ[{
+      "LegacyCoefficientPresentationSchemaUnsupported",
+      "CoefficientPresentationSchemaAmbiguous"},
+      Lookup[presentation, "Status", None]],
+    Return[presentation]];
+  If[algebraSourceVariableRepresentationRecordQ[presentation],
+    Return[If[
+      algebraSourceVariableRepresentationIdentityVerifiedQ[presentation],
+      {}, <|"Status" ->
+        "SourceVariableRepresentationIdentityFailed"|>]]];
+  If[(KeyExistsQ[presentation, "RationalizedSquareRoots"] ||
+       KeyExistsQ[presentation, "SquareRootGenerators"]) &&
+      ! algebraCoefficientPresentationMapRationalQ[presentation],
+    Return[<|"Status" -> "CoefficientPresentationMapNotRational"|>]];
+  If[ListQ[Lookup[presentation, "RationalizedSquareRoots", $Failed]] &&
+      ! algebraRationalizedSquareRootImagesRationalQ[presentation],
+    Return[<|"Status" ->
+      "RationalizingParametrizationRootImageNotRational"|>]];
+  If[ListQ[Lookup[presentation, "SquareRootGenerators", $Failed]] &&
+      ! algebraSquareRootGeneratorRadicandsRationalQ[presentation],
+    Return[<|"Status" ->
+      "SquareRootGeneratorQuadraticRadicandNotRational"|>]];
+  If[ListQ[Lookup[presentation, "SquareRootGenerators", $Failed]] &&
+      ! algebraSquareRootGeneratorIdentitiesVerifiedQ[presentation],
+    Return[<|"Status" ->
+      "SquareRootGeneratorRelationVerificationFailed"|>]];
+  If[ListQ[Lookup[presentation, "RationalizedSquareRoots", $Failed]] &&
+      ! algebraRationalizedSquareRootIdentitiesVerifiedQ[presentation],
+    Return[<|"Status" ->
+      "RationalizingParametrizationSquareRootIdentityFailed"|>]];
+  Which[
+    ListQ[Lookup[presentation, "SquareRootGenerators", $Failed]],
+      presentation["SquareRootGenerators"],
+    ListQ[Lookup[presentation, "RationalizedSquareRoots", $Failed]],
+      presentation["RationalizedSquareRoots"],
+    True, $Failed]
 ];
 
 
@@ -277,8 +565,8 @@ transportChartRadicalBases[expr_] := Module[{raw},
 
      q2 (u + v Sqrt[q1]),  u = 1+2x+x^2+2xy+y^2, v = 1+x+y,
 
-   and bare numeric radicands (Sqrt[2]).  Both live in the declared
-   multiquadratic field: with w^2 = u^2 - v^2 q1 = (2y)^2 exactly,
+   and bare numeric radicands (Sqrt[2]).  Both reduce in the displayed
+   quadratic-relation quotient: with w^2 = u^2 - v^2 q1 = (2y)^2 exactly,
    u + w = (1+x+y)^2, hence 2 (u + v Sqrt[q1]) = ((1+x+y) + Sqrt[q1])^2
    and the radicand's square class is 2 q2 -- declared root 2 times the
    numeric class 2, no new field extension.  Refusing such a connection
@@ -385,10 +673,11 @@ transportChartSquareClassData[expr_, rootBases_List] := Module[
        "Rewrite" -> expression in declared radicals, up to a global sign,
        "SquareIdentity" -> True, "Witness" -> <|"u","v","w","Square"|>|>
    or one of the typed refusals "NotDenestable" (with a "Reason") and
-   "NestedMultiRootRadical".  The variables are the chart variables of
-   the frame; the algorithm itself is variable-agnostic and treats any
-   other symbol (the regulator, say) as a parameter of the coefficient
-   field. *)
+       "NestedMultiRootRadical".  The variables are the coefficient
+   variables of the presentation; the algorithm itself is
+   variable-agnostic and treats any other symbol (the regulator, say) as
+   a coefficient-ring parameter.  RootIndices and InnerRootIndices are
+   retained only as a private compatibility ABI for internal callers. *)
 transportChartDenestRadicalBase[base_, roots_List, variables_List] := Module[
   {rootBases, symbols, substitute, reduceRules, reduce, toRatio, zeroQ,
    ratio, num, den, normal, list, numeric, sign, n, d, k, m, hPoly, rFree,
@@ -397,7 +686,7 @@ transportChartDenestRadicalBase[base_, roots_List, variables_List] := Module[
    witness, check},
   If[! MatchQ[variables, {___Symbol}],
     Return[<|"Status" -> "NotDenestable", "Reason" -> "InvalidVariables"|>]];
-  rootBases = Together /@ (#["Root"]^2 & /@ roots);
+  rootBases = Together /@ (squareRootRecordExpression[#]^2 & /@ roots);
 
   (* (i) a purely numeric radicand is chart independent *)
   If[NumericQ[base] && FreeQ[base, _Complex],
@@ -563,7 +852,7 @@ transportChartDenestSign[base_, rewrite_, roots_List,
     variables : {__Symbol}, pointCount_Integer: 2] := Module[
   {rootBases, candidates, signs = {}, used = {}, tolerance = 10^-20,
    precision = 30},
-  rootBases = Together /@ (#["Root"]^2 & /@ roots);
+  rootBases = Together /@ (squareRootRecordExpression[#]^2 & /@ roots);
   candidates = Table[Thread[variables ->
       PadRight[{Prime[k + 2]/Prime[k + 12], Prime[2 k + 3]/Prime[2 k + 17]},
         Length[variables], 1/(k + 3)]], {k, 1, 60}];
@@ -594,7 +883,7 @@ transportChartDenestSign[base_, rewrite_, roots_List,
 
 (* Rewrite every denested SYMBOLIC radical of an expression in terms of
    the declared radicals (numeric radicands are already constants of the
-   coefficient field and are left alone).  The classification is exact;
+   coefficient ring and are left alone).  The classification is exact;
    each rewrite carries its numerically fixed global sign. *)
 transportChartCanonicalizeDenestedRadicals[expr_, roots_List,
     variables : {__Symbol}, denested_Association] := Module[
@@ -633,7 +922,7 @@ transportChartCanonicalizeDenestedRadicals[expr_, roots_List,
 transportChartRootIndices[expr_, roots_List] := Module[
   {rootBases, radicals, matches, indices, unknown, denested, denestedBases,
    numericClasses, variables},
-  rootBases = Together /@ (#["Root"]^2 & /@ roots);
+  rootBases = Together /@ (squareRootRecordExpression[#]^2 & /@ roots);
   radicals = transportChartRadicalBases[expr];
   (* level 1 only, no heads: an all-level Position tests SUBexpressions of
      each root square, so a radical equal to a subexpression of another
@@ -642,17 +931,17 @@ transportChartRootIndices[expr_, roots_List] := Module[
      multiquadratic port's census differential, 2026-08-23) *)
   matches[base_] := Flatten[Position[rootBases, candidate_ /;
     TrueQ[Together[base - candidate] === 0], {1}, Heads -> False]];
-  (* Root grade masks are an artifact ABI: discovery order can change
+  (* Generator grade masks are a private ABI: discovery order can change
      when an algebraically identical expression is reordered.  Keep the
-     declared frame order so channel 2^i always names the same root. *)
+     declared generator order so channel 2^i always names the same generator. *)
   indices = Sort[DeleteDuplicates[Flatten[matches /@ radicals]]];
   unknown = Select[radicals, matches[#] === {} &];
   (* 2026-08-24: a radicand that is not itself a declared square may
-     still lie in the declared field (nested or numeric).  Such a base is
+     still reduce in the displayed relation quotient.  Such a base is
      denested exactly, contributes the declared roots of its square class
      AND the declared roots surviving inside its rewrite, and leaves the
      unclassified list.  Discovery order is untouched and the declared
-     frame order still fixes the grade mask, so recorded masks stay
+     generator order still fixes the grade mask, so recorded masks stay
      valid; the index set can only GAIN correctly classified entries. *)
   variables = DeleteDuplicates[Flatten[Variables /@ rootBases]];
   variables = Select[variables, MatchQ[#, _Symbol] &];
@@ -674,47 +963,211 @@ transportChartRootIndices[expr_, roots_List] := Module[
 ];
 
 
-transportChartRekey[chart_Association, sourceVariables : {_Symbol, _Symbol},
-    chartVariables : {_Symbol, _Symbol}] := Module[
-  {oldSubstitution, oldSource, oldVariables, sourceRules, variableRules,
-   substitution, roots},
-  oldSubstitution = Lookup[chart, "Subst", $Failed];
-  oldVariables = Lookup[chart, "Variables", $Failed];
-  If[! MatchQ[oldSubstitution, {_Rule, _Rule}] ||
-      ! MatchQ[oldVariables, {_Symbol, _Symbol}],
-    Return[<|"Status" -> "ChartNotWellFormed"|>]];
-  oldSource = First /@ oldSubstitution;
-  sourceRules = Thread[oldSource -> sourceVariables];
-  variableRules = Thread[oldVariables -> chartVariables];
+rekeyCoefficientPresentation[input_Association,
+    sourceVariables : {_Symbol, _Symbol},
+    targetVariables : {_Symbol, _Symbol}] := Module[
+  {presentation, kind, oldSubstitution, oldSourceVariables,
+   oldTargetVariables, sourceRules, variableRules, substitution, roots,
+   generators, relationChecks, sourceRelationChecks,
+   jacobianDeterminant, verified, result},
+  presentation = algebraCoefficientPresentationNormalize[input];
+  If[MemberQ[{
+      "LegacyCoefficientPresentationSchemaUnsupported",
+      "CoefficientPresentationSchemaAmbiguous"},
+      Lookup[presentation, "Status", None]],
+    Return[presentation]];
+  kind = Which[
+    algebraSourceVariableRepresentationRecordQ[presentation],
+      "SourceVariables",
+    algebraRationalizingParametrizationRecordQ[presentation],
+      "RationalizingParametrization",
+    algebraSquareRootGeneratorRelationsRecordQ[presentation],
+      "SquareRootGeneratorsAndQuadraticRelations",
+    True, None];
+  If[kind === None,
+    Return[<|"Status" -> "CoefficientPresentationNotWellFormed"|>]];
+  If[kind === "SourceVariables",
+    If[! algebraSourceVariableRepresentationIdentityVerifiedQ[presentation],
+      Return[<|"Status" ->
+        "SourceVariableRepresentationIdentityFailed"|>]];
+    If[targetVariables =!= sourceVariables,
+      Return[<|"Status" ->
+        "SourceVariableRepresentationCannotUseDistinctCoefficientVariables"|>]];
+    Return[<|
+      "DataType" -> "SourceVariableRepresentation",
+      "SchemaVersion" -> 2,
+      "Status" -> "OK",
+      "SourceVariables" -> sourceVariables,
+      "CoefficientVariables" -> sourceVariables,
+      "SourceVariableSubstitution" ->
+        Thread[sourceVariables -> sourceVariables],
+      "DifferentialPullbackMatrix" -> IdentityMatrix[2],
+      "JacobianDeterminant" -> 1|>]];
+  If[Length[DeleteDuplicates[SymbolName /@
+        Join[sourceVariables, targetVariables]]] =!= 4,
+    Return[<|"Status" ->
+      "CoefficientPresentationVariablesCollide"|>]];
+  If[! algebraCoefficientPresentationMapRationalQ[presentation],
+    Return[<|"Status" -> "CoefficientPresentationMapNotRational"|>]];
+  If[kind === "RationalizingParametrization" &&
+      ! algebraRationalizedSquareRootImagesRationalQ[presentation],
+    Return[<|"Status" ->
+      "RationalizingParametrizationRootImageNotRational"|>]];
+  If[kind === "SquareRootGeneratorsAndQuadraticRelations" &&
+      ! algebraSquareRootGeneratorRadicandsRationalQ[presentation],
+    Return[<|"Status" ->
+      "SquareRootGeneratorQuadraticRadicandNotRational"|>]];
+  If[kind === "SquareRootGeneratorsAndQuadraticRelations" &&
+      ! algebraSquareRootGeneratorIdentitiesVerifiedQ[presentation],
+    Return[<|"Status" ->
+      "SquareRootGeneratorRelationVerificationFailed"|>]];
+  If[kind === "RationalizingParametrization" &&
+      ! algebraRationalizedSquareRootIdentitiesVerifiedQ[presentation],
+    Return[<|"Status" ->
+      "RationalizingParametrizationSquareRootIdentityFailed"|>]];
+  oldSubstitution = If[kind === "RationalizingParametrization",
+    presentation["SourceVariableSubstitution"],
+    presentation["SourceToCoefficientVariableRules"]];
+  oldTargetVariables = If[kind === "RationalizingParametrization",
+    presentation["ParametrizingVariables"],
+    presentation["CoefficientVariables"]];
+  oldSourceVariables = First /@ oldSubstitution;
+  sourceRules = Thread[oldSourceVariables -> sourceVariables];
+  variableRules = Thread[oldTargetVariables -> targetVariables];
   substitution = Map[
     Function[rule, (First[rule] /. sourceRules) ->
       Together[Last[rule] /. variableRules]], oldSubstitution];
-  roots = Map[
-    <|"Root" -> Together[#["Root"] /. variableRules],
-      "RootSquare" -> Together[#["RootSquare"] /. sourceRules]|> &,
-    Lookup[chart, "Roots", {}]];
-  Join[<|"Name" -> Lookup[chart, "Name", "Chart"] <> "Rekeyed",
-    "Kind" -> "TwoVariable", "CoefficientField" -> "Rational",
-    "Variables" -> chartVariables, "Subst" -> substitution,
-    "Root" -> If[roots === {}, None, roots[[1]]["Root"]],
-    "RootSquare" -> If[roots === {}, None, roots[[1]]["RootSquare"]],
-    "Roots" -> roots|>, KeyTake[chart, {"InverseByRoots"}]]
+  jacobianDeterminant = Together@Det@Table[
+    D[Last[substitution[[i]]], targetVariables[[j]]],
+    {i, 2}, {j, 2}];
+  If[TrueQ[jacobianDeterminant === 0],
+    Return[<|"Status" ->
+      "CoefficientPresentationJacobianDegenerate"|>]];
+  If[kind === "RationalizingParametrization",
+    roots = Map[
+      <|"RationalRoot" -> Together[#["RationalRoot"] /. variableRules],
+        "SourceRadicand" ->
+          Together[#["SourceRadicand"] /. sourceRules]|> &,
+      presentation["RationalizedSquareRoots"]];
+    If[! AllTrue[roots, TrueQ[Together[#1["RationalRoot"]^2 -
+          (#1["SourceRadicand"] /. substitution)] === 0] &],
+      Return[<|"Status" ->
+        "RationalizingParametrizationSquareRootIdentityFailed"|>]];
+    result = <|
+      "DataType" -> "RationalizingParametrization",
+      "SchemaVersion" -> 2,
+      "Status" -> "RationalizingParametrizationDeclared",
+      "Name" -> Lookup[presentation, "Name",
+          "RationalizingParametrization"] <> "Rekeyed",
+      "Kind" -> "TwoVariable",
+      "SourceVariables" -> sourceVariables,
+      "ParametrizingVariables" -> targetVariables,
+      "SourceVariableSubstitution" -> substitution,
+      "RationalizedSquareRoots" -> roots,
+      "ParentParametrizationMaps" -> <||>,
+      "ParentParametrizations" -> <||>
+    |>;
+    If[KeyExistsQ[presentation, "InverseParametrizationByRootValues"],
+      result = Append[result, "InverseParametrizationByRootValues" ->
+        presentation["InverseParametrizationByRootValues"]]];
+    Return[result]];
+  generators = Map[
+    <|"Generator" -> Together[#["Generator"] /. variableRules],
+      "QuadraticRadicand" ->
+        Together[#["QuadraticRadicand"] /. variableRules],
+      "SourceRadicand" ->
+        Together[#["SourceRadicand"] /. sourceRules]|> &,
+    presentation["SquareRootGenerators"]];
+  relationChecks = TrueQ[Together[#["Generator"]^2 -
+        #["QuadraticRadicand"]] === 0] & /@ generators;
+  sourceRelationChecks = TrueQ[Together[#["QuadraticRadicand"] -
+        (#["SourceRadicand"] /. substitution)] === 0] & /@ generators;
+  verified = AllTrue[Join[relationChecks, sourceRelationChecks], TrueQ] &&
+    ! TrueQ[jacobianDeterminant === 0];
+  <|
+    "DataType" -> "SquareRootGeneratorsAndQuadraticRelations",
+    "SchemaVersion" -> 2,
+    "Status" -> If[verified,
+      "SquareRootGeneratorRelationsVerified",
+      "SquareRootGeneratorRelationVerificationFailed"],
+    "SourceVariables" -> sourceVariables,
+    "CoefficientVariables" -> targetVariables,
+    "SourceToCoefficientVariableRules" -> substitution,
+    "SquareRootGenerators" -> generators,
+    "QuadraticRelationVerification" -> <|
+      "Verified" -> verified,
+      "PerGenerator" -> relationChecks,
+      "SourceRadicandRelations" -> sourceRelationChecks,
+      "CoordinateJacobianDeterminant" ->
+        Factor[jacobianDeterminant]|>,
+    "SquareClassIndependenceStatus" -> "NotChecked",
+    "SquareClassIndependenceVerified" -> False,
+    "SignChangeImageInterpretation" ->
+      "FormalGeneratorSignChangesOnly",
+    "GaloisConjugatesCertified" -> False|>
 ];
 
-
-transportChartCurrentRoots[frame_Association,
+coefficientPresentationSquareRootsInVariables[input_Association,
     variables : {_Symbol, _Symbol}] := Module[
-  {frameVariables, substitution, variableRules},
-  frameVariables = Lookup[frame, "Variables", $Failed];
-  substitution = Lookup[frame, "Subst", $Failed];
-  If[! MatchQ[frameVariables, {_Symbol, _Symbol}] ||
-      ! MatchQ[substitution, {_Rule, _Rule}], Return[$Failed]];
-  variableRules = Thread[frameVariables -> variables];
-  Map[
-    <|"Root" -> Together[#["Root"] /. variableRules],
-      "RootSquare" -> Together[(#["RootSquare"] /. substitution) /.
-        variableRules]|> &,
-    Lookup[frame, "Roots", {}]]
+  {presentation, kind, presentationVariables, substitution, variableRules},
+  presentation = algebraCoefficientPresentationNormalize[input];
+  kind = Which[
+    algebraSourceVariableRepresentationRecordQ[presentation],
+      "SourceVariables",
+    algebraRationalizingParametrizationRecordQ[presentation],
+      "RationalizingParametrization",
+    algebraSquareRootGeneratorRelationsRecordQ[presentation],
+      "SquareRootGeneratorsAndQuadraticRelations",
+    True, None];
+  If[MemberQ[{
+      "LegacyCoefficientPresentationSchemaUnsupported",
+      "CoefficientPresentationSchemaAmbiguous"},
+      Lookup[presentation, "Status", None]],
+    Return[presentation]];
+  If[kind === None, Return[$Failed]];
+  If[kind === "SourceVariables",
+    Return[If[
+      algebraSourceVariableRepresentationIdentityVerifiedQ[presentation],
+      {}, <|"Status" ->
+        "SourceVariableRepresentationIdentityFailed"|>]]];
+  If[! algebraCoefficientPresentationMapRationalQ[presentation],
+    Return[<|"Status" -> "CoefficientPresentationMapNotRational"|>]];
+  If[kind === "RationalizingParametrization" &&
+      ! algebraRationalizedSquareRootImagesRationalQ[presentation],
+    Return[<|"Status" ->
+      "RationalizingParametrizationRootImageNotRational"|>]];
+  If[kind === "SquareRootGeneratorsAndQuadraticRelations" &&
+      ! algebraSquareRootGeneratorRadicandsRationalQ[presentation],
+    Return[<|"Status" ->
+      "SquareRootGeneratorQuadraticRadicandNotRational"|>]];
+  If[kind === "SquareRootGeneratorsAndQuadraticRelations" &&
+      ! algebraSquareRootGeneratorIdentitiesVerifiedQ[presentation],
+    Return[<|"Status" ->
+      "SquareRootGeneratorRelationVerificationFailed"|>]];
+  If[kind === "RationalizingParametrization" &&
+      ! algebraRationalizedSquareRootIdentitiesVerifiedQ[presentation],
+    Return[<|"Status" ->
+      "RationalizingParametrizationSquareRootIdentityFailed"|>]];
+  presentationVariables = If[kind === "RationalizingParametrization",
+    presentation["ParametrizingVariables"],
+    presentation["CoefficientVariables"]];
+  substitution = If[kind === "RationalizingParametrization",
+    presentation["SourceVariableSubstitution"],
+    presentation["SourceToCoefficientVariableRules"]];
+  variableRules = Thread[presentationVariables -> variables];
+  If[kind === "RationalizingParametrization",
+    Map[
+      <|"RationalRoot" -> Together[#["RationalRoot"] /. variableRules],
+        "QuadraticRadicand" -> Together[
+          (#["SourceRadicand"] /. substitution) /. variableRules],
+        "SourceRadicand" -> #["SourceRadicand"]|> &,
+      presentation["RationalizedSquareRoots"]],
+    Map[
+      <|"Generator" -> Together[#["Generator"] /. variableRules],
+        "QuadraticRadicand" -> Together[
+          #["QuadraticRadicand"] /. variableRules],
+        "SourceRadicand" -> #["SourceRadicand"]|> &,
+      presentation["SquareRootGenerators"]]]
 ];
 
 (* The radicand carried by an expression need not be the declared root
@@ -753,7 +1206,8 @@ transportChartApplyRootBranches[expr_, roots_List, images_List] := Module[
   (* one Together per distinct (radicand, root) pair, not one per
      occurrence: the same radical appears in most entries of a connection *)
   scale[base_, index_] := scale[base, index] =
-    transportChartRootBranchScale[base, roots[[index]]["RootSquare"]];
+    transportChartRootBranchScale[base,
+      squareRootRecordRadicand[roots[[index]]]];
   Fold[Function[{current, index},
     current /. Power[base_, exponent_Rational] :>
       Module[{factor = If[Denominator[exponent] === 2,
@@ -763,7 +1217,7 @@ transportChartApplyRootBranches[expr_, roots_List, images_List] := Module[
     expr, Range[Length[roots]]]];
 
 (* ------------------------------------------------------------------ *)
-(*  Canonical comparison over the declared multiquadratic field        *)
+(*  Comparison in the displayed quadratic-relation quotient            *)
 (* ------------------------------------------------------------------ *)
 (* WHY (2026-08-25, CF303 off-diagonal block {17,12}).  Every acceptance
    test of the in-frame strip construction below reduced to
@@ -786,16 +1240,16 @@ transportChartApplyRootBranches[expr_, roots_List, images_List] := Module[
    conjugation and the numerator is reduced as a polynomial.  This is the
    same reduction transportChartDenestRadicalBase uses internally.
 
-   It is STRICTER than the Together test, never weaker: a genuinely
-   unequal pair has a nonzero reduced numerator (the declared squares are
-   independent generators of the frame -- a dependency among them could
-   only make the test reject more, never accept more), and a radical that
-   is NOT in the declared field returns $Failed so the caller refuses
-   with a TYPED status instead of reading a false negative as failure. *)
+   This is a sound one-sided identity test without an independence claim:
+   reduction to zero modulo the displayed relations proves equality after
+   every specialization satisfying those relations.  Additional relations
+   among dependent generators can make it reject an actual zero, never
+   accept a false zero.  A radical outside the displayed generators returns
+   $Failed rather than being misclassified. *)
 
 transportChartDeclaredRadicalGenerators[expr_, roots_List] := Module[
   {rootBases, radicals, records, unmatched = {}},
-  rootBases = Together /@ Lookup[roots, "RootSquare", {}];
+  rootBases = Together /@ (squareRootRecordRadicand /@ roots);
   radicals = transportChartRadicalBases[expr];
   records = Map[Function[base, Module[{index = 0, scale = None, split},
       Do[scale = transportChartRootBranchScale[base, rootBases[[i]]];
@@ -826,8 +1280,9 @@ transportChartDeclaredRadicalGenerators[expr_, roots_List] := Module[
           accumulated, Append[accumulated, class]]],
       {}, #["Class"] & /@ Values[Association[records]]]|>];
 
-(* True / False / $Failed.  $Failed means "not decidable in the declared
-   field" and is NEVER a synonym for False. *)
+(* True / False / $Failed.  $Failed means "not decidable from the
+   displayed generators and quadratic relations" and is never a synonym
+   for False. *)
 transportChartAlgebraicZeroQ[expr_, roots_List] := Module[
   {together, generatorData, records, classes, symbols, classIndex,
    substitute, reduceRules, reduce, converted, nu, de, i},

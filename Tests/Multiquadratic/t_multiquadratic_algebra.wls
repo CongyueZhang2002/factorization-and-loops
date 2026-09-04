@@ -11,7 +11,7 @@
        the derivative of the composed expression (it must carry
        d(r_i)/r_i = dlog(delta_i)/2 for every active root);
      - the character table is its own inverse up to the group order and
-       conjugate evaluation followed by projection is the identity,
+       formal sign-change evaluation followed by projection is the identity,
        in characteristic zero and modulo two primes;
      - characteristic-zero arithmetic, reduced coordinate by coordinate
        to F_p, equals the arithmetic done in F_p, at two primes, and a
@@ -23,10 +23,9 @@
        power is rejected rather than reported as a rational channel;
      - grade closure and the F2 active rank are the stated lattice
        values;
-     - the ABI fingerprint is a 64-character hash that does not change
-       between two loads of the module and does not change with the
-       reader's $Context/$ContextPath (the probe must contain System`
-       symbols only).
+     - the explicit algebra semantics probe is compared directly with
+       SameQ across contexts and across two loads; no hash substitutes for
+       the mathematical ordering and operations.
    The module is loaded directly, not through FeynFacet.m: it is not
    registered there yet. *)
 
@@ -45,16 +44,16 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
 
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {basisMasks, maskFactor, hadamard, multiply, derivative, toExpression,
-  fromPolynomial, evaluateConjugates, projectConjugates,
-  squareRoots, gradeClosure, activeRank, abiFingerprint, algebraProbe} =
+  fromPolynomial, evaluateSignChangeImages, projectSignChangeImages,
+  squareRoots, gradeClosure, activeRank, algebraProbe} =
  mq /@ {"multiquadraticBasisMasks", "multiquadraticMaskFactor",
    "multiquadraticHadamardMatrix", "multiquadraticMultiply",
    "multiquadraticDerivative", "multiquadraticToExpression",
-   "multiquadraticFromPolynomial", "multiquadraticEvaluateConjugates",
-   "multiquadraticProjectConjugates",
+   "multiquadraticFromPolynomial",
+   "multiquadraticEvaluateSignChangeImages",
+   "multiquadraticProjectSignChangeImages",
    "multiquadraticSquareRoots", "multiquadraticGradeClosure",
-   "multiquadraticActiveRank", "multiquadraticAlgebraABIFingerprint",
-   "multiquadraticAlgebraProbe"};
+   "multiquadraticActiveRank", "multiquadraticAlgebraProbe"};
 
 Clear[x, y];
 zeroQ[expression_] := AllTrue[Flatten[{expression}], TrueQ[Together[#] === 0] &];
@@ -89,8 +88,9 @@ Do[
          multiply[a, derivative[b, deltas, x], deltas])]];
     check["rank " <> ToString[rank] <> ": character table is its own inverse",
       hadamard[rank] . hadamard[rank] === 2^rank IdentityMatrix[2^rank]];
-    check["rank " <> ToString[rank] <> ": conjugate round trip in characteristic zero",
-      zeroQ[projectConjugates[evaluateConjugates[a, roots], roots] - a]];
+    check["rank " <> ToString[rank] <> ": sign-change-image round trip in characteristic zero",
+      zeroQ[projectSignChangeImages[
+        evaluateSignChangeImages[a, roots], roots] - a]];
     product = fromPolynomial[
       Expand[toExpression[a, roots] toExpression[b, roots] /.
         Thread[roots -> Take[{\[FormalR], \[FormalS], \[FormalT]}, rank]]],
@@ -117,21 +117,23 @@ Do[
       ": product agrees with characteristic zero",
       reduce[exact, prime] === image];
     rootValues = Take[{4, 9, 25}, rank];
-    values = evaluateConjugates[reduce[a, prime], rootValues, prime];
+    values = evaluateSignChangeImages[
+      reduce[a, prime], rootValues, prime];
     check["rank " <> ToString[rank] <> " mod " <> ToString[prime] <>
-      ": conjugate evaluation agrees with characteristic zero",
-      reduce[evaluateConjugates[a, rootValues], prime] === values];
+      ": sign-change evaluation agrees with characteristic zero",
+      reduce[evaluateSignChangeImages[a, rootValues], prime] === values];
     check["rank " <> ToString[rank] <> " mod " <> ToString[prime] <>
-      ": conjugate projection inverts evaluation",
-      projectConjugates[values, rootValues, prime] === reduce[a, prime]];
+      ": sign-change projection inverts evaluation",
+      projectSignChangeImages[values, rootValues, prime] ===
+        reduce[a, prime]];
   ],
   {rank, 0, 3}, {prime, primes}];
 
 check["a rational vector handed to the modular product fails closed",
   multiply[{2/3, 1}, {1, 1}, {5}, 10007] === $Failed];
-check["a rational vector handed to modular conjugate evaluation fails closed",
-  evaluateConjugates[{2/3, 1}, {4}, 10007] === $Failed &&
-    projectConjugates[{2/3, 1}, {4}, 10007] === $Failed];
+check["a rational vector handed to modular sign-change evaluation fails closed",
+  evaluateSignChangeImages[{2/3, 1}, {4}, 10007] === $Failed &&
+    projectSignChangeImages[{2/3, 1}, {4}, 10007] === $Failed];
 
 check["rank 0 reduction returns the sole rational channel",
   fromPolynomial[(1 + x)/y, {}, {}] === {(1 + x)/y}];
@@ -177,25 +179,20 @@ check["modular square roots fail closed on a nonresidue",
 check["modular square roots accept the empty rank-0 list",
   squareRoots[{}, 103] === {}];
 
-(* ABI fingerprint: stable across loads and independent of context *)
-firstFingerprint = abiFingerprint[];
-check["ABI fingerprint is a SHA256 hex string",
-  StringQ[firstFingerprint] && StringLength[firstFingerprint] === 64 &&
-    StringMatchQ[firstFingerprint, RegularExpression["[0-9a-f]{64}"]]];
-check["ABI probe contains System` symbols only",
-  AllTrue[DeleteDuplicates[Cases[algebraProbe[], symbol_Symbol :> symbol,
+(* Explicit ordered semantics: direct SameQ, never a digest comparison. *)
+firstProbe = algebraProbe[];
+check["algebra probe contains System` symbols only",
+  AllTrue[DeleteDuplicates[Cases[firstProbe, symbol_Symbol :> symbol,
     {0, Infinity}, Heads -> True]], Context[#] === "System`" &]];
-check["ABI fingerprint does not depend on the reader's context",
+check["algebra probe is SameQ in different reader contexts",
   Block[{$Context = "Global`", $ContextPath = {"System`"}},
-      abiFingerprint[]] === firstFingerprint &&
+      algebraProbe[]] === firstProbe &&
     Block[{$Context = "FeynFacet`MultiquadraticProbe`",
         $ContextPath = {"System`", "FeynFacet`MultiquadraticProbe`"}},
-      abiFingerprint[]] === firstFingerprint];
+      algebraProbe[]] === firstProbe];
 Get[FeynFacet`Private`feynFacetPrivateFile["MultiquadraticAlgebra.wl"]];
-check["ABI fingerprint is stable across two loads of the module",
-  abiFingerprint[] === firstFingerprint];
-check["the strip module records the same algebra ABI fingerprint",
-  FeynFacet`Private`multiquadraticAlgebraABIFingerprint[] === firstFingerprint];
+check["algebra probe is SameQ across two loads of the module",
+  algebraProbe[] === firstProbe];
 
 Print["t_multiquadratic_algebra: ", pass, " OK, ", fail, " FAIL"];
 Exit[If[fail === 0, 0, 1]];

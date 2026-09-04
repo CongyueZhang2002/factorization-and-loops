@@ -10,7 +10,7 @@
 
      TransportFamily  -- the whole stage, returning the symbolic
        solution with symbolic constants;
-     TransportFamilyInChart -- the same stage for a family whose hard
+     AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks -- the same stage for a family whose hard
        block is only an epsilon-form in a two-variable chart: it moves
        the WHOLE family into the chart and calls TransportFamily there;
      TransportStatus  -- one greppable line per block, for a watchdog.
@@ -18,7 +18,7 @@
    Usage of the chart entry point (classes 97 = CF258_B9 and
    77 = CF230_B1, chart v = x y, w = (1-x)(1-y), sqrt(lambda) = x - y):
 
-     TransportFamilyInChart[
+     AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
        <|"Family" -> "CF258", "Av" -> av, "Aw" -> aw|>,
        <|"Kind" -> "TwoVariable", "Variables" -> {x, y},
          "Subst" -> {v -> x y, w -> (1 - x) (1 - y)},
@@ -238,7 +238,6 @@ ClearAll[
   masterTransportPullBackClassFormOnce,
   masterTransportPullBackClassForm,
   masterTransportChartBlockSpec,
-  masterTransportChartNotes,
   masterTransportDepthBudget,
   masterTransportDepthBudgetFromTable,
   masterTransportEpsShift,
@@ -1476,14 +1475,14 @@ masterTransportClassFormBlock[resolved_, rows_, av_, aw_, eps_, variables_] :=
        transformation used in the WRONG FRAME, and the only thing standing
        between it and a silently wrong Ev/Ew would be the epsilon-form
        gate, which names the symptom rather than the cause.  Only
-       TransportFamilyInChart may consume these records. *)
+       AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks may consume these records. *)
     chart = Lookup[record, "Chart", None];
     If[AssociationQ[chart] && Lookup[chart, "Kind", None] === "TwoVariable",
       Return[<|"Status" -> "ClassFormTwoVariableChartNeedsChartTransport",
         "Rows" -> rows, "ClassID" -> Lookup[resolved, "ClassID", None],
         "Chart" -> Lookup[chart, "Subst", None],
         "Hint" -> "this class is an epsilon-form only in a two-variable \
-chart; transport the whole family with TransportFamilyInChart"|>]];
+chart; transport the whole family with AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks"|>]];
     (* A record whose own frame is not the frame this stage is working
        in is refused next, also by name. *)
     recordVariables = Lookup[record, "Variables", variables[[{1, 2}]]];
@@ -1497,13 +1496,13 @@ chart; transport the whole family with TransportFamilyInChart"|>]];
         "Rows" -> rows, "ClassID" -> Lookup[resolved, "ClassID", None],
         "RecordVariables" -> recordVariables,
         "Hint" -> "this class is an epsilon-form only in one variable u with \
-u^2 a quadratic in (v,w); transport the whole family with TransportFamilyInChart \
+u^2 a quadratic in (v,w); transport the whole family with AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks \
 in a chart that rationalizes it (TransportCharts.wl)"|>]];
     If[MatchQ[recordVariables, {_Symbol, _Symbol}] &&
        (SymbolName /@ recordVariables) =!= (SymbolName /@ variables[[{1, 2}]]),
       Return[<|"Status" -> "ClassFormChartNotPullable", "Rows" -> rows,
         "RecordVariables" -> recordVariables,
-        "Hint" -> "the record is in another frame; TransportFamilyInChart \
+        "Hint" -> "the record is in another frame; AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks \
 transports the whole family in that frame"|>]];
     chart = Lookup[record, "Chart", None];
     If[chart =!= None && chart =!= Null && AssociationQ[chart],
@@ -1560,10 +1559,8 @@ Options[masterTransportPullBackClassForm] = {
   "SourceVariables" -> Automatic,
   "Regulator" -> Automatic,
   "BlockSystem" -> None,
-  "ConicChartRoute" -> Automatic,
   "Swap" -> Automatic,
-  "ClassID" -> None,
-  "CoefficientField" -> Automatic
+  "ClassID" -> None
 };
 
 (* The v <-> w swap, and why it is part of composing a class form with a
@@ -1589,47 +1586,78 @@ Options[masterTransportPullBackClassForm] = {
    so a wrong guess cannot pass; what the attempt buys is that a genuine
    swap member is transported instead of refused. *)
 masterTransportChartSwapData[data_Association] :=
-  Module[{f, g, sourceVariables, chartVariables, jacobian},
+  Module[{f, g, sourceVariables, presentationVariables, substitution,
+    substitutionKey, jacobian},
     sourceVariables = data["SourceVariables"];
-    chartVariables = data["Variables"];
-    {f, g} = Last /@ data["Subst"];
+    presentationVariables = masterTransportPresentationVariables[data];
+    substitution = masterTransportPresentationSubstitution[data];
+    substitutionKey = Switch[data["PresentationKind"],
+      "SourceVariables", "SourceVariableSubstitution",
+      "RationalizingParametrization", "SourceVariableSubstitution",
+      "SquareRootGeneratorsAndQuadraticRelations",
+        "SourceToCoefficientVariableRules"];
+    {f, g} = Last /@ substitution;
     jacobian = Map[Together, {
-      {D[g, chartVariables[[1]]], D[g, chartVariables[[2]]]},
-      {D[f, chartVariables[[1]]], D[f, chartVariables[[2]]]}}, {2}];
-    Join[data, <|
-      "Subst" -> {sourceVariables[[1]] -> g, sourceVariables[[2]] -> f},
-      "Jacobian" -> jacobian, "JacobianDet" -> Together[Det[jacobian]],
-      "Swapped" -> True|>]
+      {D[g, presentationVariables[[1]]],
+        D[g, presentationVariables[[2]]]},
+      {D[f, presentationVariables[[1]]],
+        D[f, presentationVariables[[2]]]}}, {2}];
+    Join[data, Association[
+      substitutionKey -> {sourceVariables[[1]] -> g,
+        sourceVariables[[2]] -> f},
+      "DifferentialPullbackMatrix" -> jacobian,
+      "JacobianDeterminant" -> Together[Det[jacobian]],
+      "SourceVariablesSwapped" -> True]]
   ];
 
 
 masterTransportPullBackClassFormOnce[rec_Association, data_Association,
-    eps_Symbol, blockSystem_, conicRoute_, classID_, swapped_,
-    coefficientField_] := Module[
+    eps_Symbol, blockSystem_, classID_, swapped_,
+    presentationKind_] := Module[
   {coordinates, x, y, t, tx, detTx, tInverse, inverseOK, ax, ay, ex, ey,
    epsLinear, stored, storedPulled, matches, jacobian, images, foreign,
    evaluate, identity, result, repChart, permutation,
-   rationalTransformation, recordVariables, recordAlphabet, pulledAlphabet},
-  If[! MemberQ[{"Rational", "Multiquadratic"}, coefficientField],
-    Return[<|"Status" -> "ClassFormCoefficientFieldInvalid",
-      "CoefficientField" -> coefficientField|>]];
-  {x, y} = data["Variables"];
-  coordinates = masterTransportRecordCoordinateMap[rec, data, conicRoute];
+   rationalTransformation, recordVariables, recordAlphabet, pulledAlphabet,
+   rootClassification, declaredSquareRootGeneratorsOnly, storedResidues},
+  If[! MemberQ[{"SourceVariables", "RationalizingParametrization",
+      "SquareRootGeneratorsAndQuadraticRelations"}, presentationKind],
+    Return[<|"Status" -> "ClassFormCoefficientPresentationKindInvalid",
+      "PresentationKind" -> presentationKind|>]];
+  {x, y} = masterTransportPresentationVariables[data];
+  coordinates = masterTransportRecordCoordinateMap[rec, data];
   If[coordinates["Status"] =!= "OK", Return[coordinates]];
-  t = Lookup[rec, "Transformation", $Failed];
-  If[! MatrixQ[t], Return[<|"Status" -> "ClassFormNoTransformation"|>]];
-  images = coordinates["Images"];
-  tx = Map[Together, t /. coordinates["Map"], {2}];
+  t = Lookup[rec, "BasisTransformationMatrix", $Failed];
+  If[! MatrixQ[t],
+    Return[<|"Status" -> "DiagonalBlockBasisTransformationMissing"|>]];
+  images = coordinates["CoefficientVariableImages"];
+  tx = Map[Together,
+    t /. coordinates["CoefficientVariableRules"], {2}];
   foreign = Complement[masterTransportFreeSymbols[tx], {x, y, eps}];
   If[foreign =!= {},
     Return[<|"Status" -> "ClassFormCarriesForeignSymbols", "Symbols" -> foreign|>]];
   rationalTransformation =
     AllTrue[Flatten[tx], masterTransportRationalQ[#, {x, y}] &];
-  If[coefficientField === "Rational" && ! TrueQ[rationalTransformation],
-    Return[<|"Status" -> "ClassFormTransformationNotRationalInChart"|>]];
+  If[MemberQ[{"SourceVariables", "RationalizingParametrization"},
+      presentationKind] &&
+      ! TrueQ[rationalTransformation],
+    Return[<|"Status" ->
+      "BasisTransformationNotRationalInParametrizingVariables"|>]];
+  rootClassification = If[presentationKind ===
+      "SquareRootGeneratorsAndQuadraticRelations",
+    transportChartRootIndices[tx, data["SquareRootGenerators"]], <||>];
+  declaredSquareRootGeneratorsOnly = presentationKind =!=
+      "SquareRootGeneratorsAndQuadraticRelations" ||
+    (Lookup[rootClassification, "UnclassifiedRadicalBases", {}] === {} &&
+      VectorQ[Lookup[rootClassification, "RootIndices", {}], IntegerQ]);
+  If[! TrueQ[declaredSquareRootGeneratorsOnly],
+    Return[<|"Status" ->
+      "BasisTransformationOutsideDeclaredSquareRootAlgebra",
+      "UnclassifiedRadicands" -> Lookup[rootClassification,
+        "UnclassifiedRadicalBases", {}]|>]];
   detTx = Together[Det[tx]];
   If[TrueQ[detTx === 0],
-    Return[<|"Status" -> "ClassFormTransformationSingularInChart"|>]];
+    Return[<|"Status" ->
+      "DiagonalBlockBasisTransformationSingular"|>]];
   (* The inverse is computed once and RE-MULTIPLIED OUT, both ways, so
      that handing it to the assembly is a certified shortcut and not a
      trusted one -- the same discipline as a closed-form sector's
@@ -1655,7 +1683,19 @@ masterTransportPullBackClassFormOnce[rec_Association, data_Association,
      describe this block as it stands, and that is a refusal, not a note.
      It is pulled back HERE, before the gate, because it is also what the
      member's basis permutation is recovered from (below). *)
-  stored = Lookup[rec, "EpsForm", None];
+  stored = Lookup[rec, "CachedTransformedConnectionMatrices", None];
+  recordVariables = Lookup[rec, "CoefficientVariables",
+    First /@ coordinates["CoefficientVariableRules"]];
+  recordAlphabet = Lookup[rec, "Letters", Missing["NotStored"]];
+  storedResidues = Lookup[rec, "ConstantResidueMatrices",
+    Missing["NotStored"]];
+  If[! MatchQ[stored, {_?MatrixQ, _?MatrixQ}] &&
+      ListQ[recordAlphabet] && ListQ[storedResidues] &&
+      Length[recordAlphabet] === Length[storedResidues],
+    stored = Table[
+      eps Total[MapThread[#1 D[Log[#2], recordVariables[[j]]] &,
+        {storedResidues, recordAlphabet}]],
+      {j, 2}]];
   storedPulled = None;
   If[MatchQ[stored, {_?MatrixQ, _?MatrixQ}] &&
       Dimensions[stored[[1]]] === Dimensions[tx] &&
@@ -1664,8 +1704,11 @@ masterTransportPullBackClassFormOnce[rec_Association, data_Association,
       {D[images[[1]], x], D[images[[1]], y]},
       {D[images[[2]], x], D[images[[2]], y]}}, {2}];
     storedPulled = masterTransportPullBackOneForm[
-      Map[Together, stored[[1]] /. coordinates["Map"], {2}],
-      Map[Together, stored[[2]] /. coordinates["Map"], {2}], jacobian]];
+      Map[Together,
+        stored[[1]] /. coordinates["CoefficientVariableRules"], {2}],
+      Map[Together,
+        stored[[2]] /. coordinates["CoefficientVariableRules"], {2}],
+      jacobian]];
   (* A dlog alphabet pulls back functorially: dlog L becomes
        dlog (L o chart).
      Preserve that information while the class chart is still known.
@@ -1674,15 +1717,14 @@ masterTransportPullBackClassFormOnce[rec_Association, data_Association,
      form later loses the conjugate letters and made the whole-family
      multiquadratic dlog certificate fail despite every gauge identity
      passing (CF300, 2026-08-29). *)
-  recordVariables = Lookup[rec, "Variables", First /@ coordinates["Map"]];
-  recordAlphabet = Lookup[rec, "Alphabet", Missing["NotStored"]];
   If[! ListQ[recordAlphabet] && MatchQ[stored, {_?MatrixQ, _?MatrixQ}] &&
       ListQ[recordVariables],
     recordAlphabet = Quiet[Check[
       familyCertLetters[stored, recordVariables, eps], {}]]];
   pulledAlphabet = If[ListQ[recordAlphabet],
     DeleteDuplicates[DeleteCases[
-      Quiet[Check[Together[#1 /. coordinates["Map"]], $Failed]] & /@
+      Quiet[Check[Together[
+        #1 /. coordinates["CoefficientVariableRules"]], $Failed]] & /@
         Select[recordAlphabet, FreeQ[#1, eps] &], $Failed]],
     {}];
 
@@ -1733,28 +1775,42 @@ masterTransportPullBackClassFormOnce[rec_Association, data_Association,
   epsLinear = result["EpsFormLinear"];
   matches = result["Matches"];
   If[! TrueQ[epsLinear],
-    Return[<|"Status" -> "ClassFormNotEpsFormInChart",
-      "ClassID" -> classID, "Frame" -> coordinates["Frame"],
+    Return[<|"Status" ->
+        "DiagonalBlockNotEpsilonFactorizedAfterReexpression",
+      "ClassID" -> classID,
+      "CoordinateRepresentation" ->
+        coordinates["CoordinateRepresentation"],
       "PermutationTried" -> permutation|>]];
   If[matches =!= None && ! TrueQ[matches],
-    Return[<|"Status" -> "ClassFormStoredEpsFormMismatch",
-      "ClassID" -> classID, "Frame" -> coordinates["Frame"],
+    Return[<|"Status" -> "StoredDiagonalBlockEpsilonFormMismatch",
+      "ClassID" -> classID,
+      "CoordinateRepresentation" ->
+        coordinates["CoordinateRepresentation"],
       "PermutationTried" -> permutation|>]];
 
-  <|"Status" -> "OK", "Type" -> "EpsForm", "T" -> result["T"],
-    "TInverse" -> result["TInverse"],
-    "Ev" -> ex, "Ew" -> ey,
-    "Alphabet" -> pulledAlphabet,
-    "Source" -> "chart-pullback", "ClassID" -> classID,
-    "Frame" -> coordinates["Frame"], "Variables" -> {x, y},
+  <|"DataType" -> "DiagonalBlockDLogEpsilonForm",
+    "SchemaVersion" -> 2,
+    "Status" -> "DiagonalBlockDLogEpsilonFormReexpressed",
+    "BasisTransformationMatrix" -> result["T"],
+    "InverseBasisTransformationMatrix" -> result["TInverse"],
+    "CachedTransformedConnectionMatrices" -> {ex, ey},
+    "Letters" -> pulledAlphabet,
+    "Source" -> "coefficient-variable-reexpression", "ClassID" -> classID,
+    "CoordinateRepresentation" ->
+      coordinates["CoordinateRepresentation"],
+    "CoefficientVariables" -> {x, y},
     "Coordinates" -> coordinates, "Swapped" -> swapped,
     "Permutation" -> result["Permutation"],
     "Certificate" -> <|
-      "Frame" -> coordinates["Frame"],
-      "CompositionExact" -> coordinates["CompositionExact"],
-      "CompositionIdentity" -> coordinates["CompositionIdentity"],
-      "CoefficientField" -> coefficientField,
-      "TransformationRationalInChart" -> rationalTransformation,
+      "CoordinateRepresentation" ->
+        coordinates["CoordinateRepresentation"],
+      "CompositionVerified" -> coordinates["CompositionVerified"],
+      "CompositionStatement" -> coordinates["CompositionStatement"],
+      "CoefficientPresentationKind" -> presentationKind,
+      "BasisTransformationRationalInCoefficientVariables" ->
+        rationalTransformation,
+      "BasisTransformationUsesOnlyDeclaredSquareRootGenerators" ->
+        declaredSquareRootGeneratorsOnly,
       "TransformationInvertible" -> True,
       "TransformationInverseVerified" -> inverseOK,
       "EpsFormReDerivedFromBlockSystem" -> True,
@@ -1765,27 +1821,26 @@ masterTransportPullBackClassFormOnce[rec_Association, data_Association,
       "Exact" -> True|>|>
 ];
 
-masterTransportPullBackClassForm[record_Association, chart_,
+masterTransportPullBackClassForm[record_Association, coefficientPresentation_,
     opts : OptionsPattern[]] := Module[
   {sourceVariables, data, eps, rec, swap, attempts, results, found, attempt,
-   coefficientField},
+   presentationKind, presentationVariables},
   sourceVariables = OptionValue["SourceVariables"];
   If[sourceVariables === Automatic,
     sourceVariables = masterTransportDefaultVariables[]];
-  data = If[AssociationQ[chart] && Lookup[chart, "Status", None] === "OK" &&
-      KeyExistsQ[chart, "Jacobian"], chart,
-    masterTransportChartData[chart, sourceVariables]];
+  data = masterTransportCoefficientPresentationData[
+    coefficientPresentation, sourceVariables];
   If[data["Status"] =!= "OK", Return[data]];
-  coefficientField = OptionValue["CoefficientField"];
-  If[coefficientField === Automatic,
-    coefficientField = Lookup[data, "CoefficientField", "Rational"]];
-  If[! MemberQ[{"Rational", "Multiquadratic"}, coefficientField],
-    Return[<|"Status" -> "ClassFormCoefficientFieldInvalid",
-      "CoefficientField" -> coefficientField|>]];
+  presentationKind = Lookup[data, "PresentationKind", None];
+  If[! MemberQ[{"SourceVariables", "RationalizingParametrization",
+      "SquareRootGeneratorsAndQuadraticRelations"}, presentationKind],
+    Return[<|"Status" -> "ClassFormCoefficientPresentationKindInvalid",
+      "PresentationKind" -> presentationKind|>]];
+  presentationVariables = masterTransportPresentationVariables[data];
   eps = OptionValue["Regulator"];
   If[eps === Automatic,
     eps = masterTransportDetectRegulator[record,
-      Join[data["SourceVariables"], data["Variables"]]]];
+      Join[data["SourceVariables"], presentationVariables]]];
   If[! MatchQ[eps, _Symbol],
     Return[<|"Status" -> "ClassFormRegulatorUnresolved"|>]];
   (* One normalization for the whole record, by SymbolName, before any
@@ -1793,7 +1848,7 @@ masterTransportPullBackClassForm[record_Association, chart_,
      and eps, and substituting the caller's symbols into a record written
      with different ones matches nothing while reporting success. *)
   rec = masterTransportNormalize[record, eps,
-    Join[data["SourceVariables"], data["Variables"]]];
+    Join[data["SourceVariables"], presentationVariables]];
   swap = OptionValue["Swap"];
   attempts = Switch[swap, True, {True}, False, {False}, _, {False, True}];
   (* M2: no Return inside the Do -- it would return from the Do, and an
@@ -1803,10 +1858,11 @@ masterTransportPullBackClassForm[record_Association, chart_,
     If[found === None,
       attempt = masterTransportPullBackClassFormOnce[rec,
         If[TrueQ[s], masterTransportChartSwapData[data], data], eps,
-        OptionValue["BlockSystem"], OptionValue["ConicChartRoute"],
-        OptionValue["ClassID"], TrueQ[s], coefficientField];
+        OptionValue["BlockSystem"], OptionValue["ClassID"], TrueQ[s],
+        presentationKind];
       results = Append[results, attempt];
-      If[AssociationQ[attempt] && attempt["Status"] === "OK",
+      If[AssociationQ[attempt] && attempt["Status"] ===
+          "DiagonalBlockDLogEpsilonFormReexpressed",
         found = attempt]],
     {s, attempts}];
   (* the UNSWAPPED refusal is the one reported, because it names what the
@@ -1821,8 +1877,7 @@ masterTransportPullBackClassForm[record_Association, chart_,
    system, so the eps-form statement is made twice, independently, from
    the same system. *)
 masterTransportChartBlockSpec[specification_, rows_List, ax_, ay_,
-    data_Association, eps_Symbol, formDirectory_, conicRoute_,
-    coefficientField_] := Module[
+    data_Association, eps_Symbol, formDirectory_] := Module[
   {record, file, classID, blockSystem, pulled, loaded},
   blockSystem = {ax[[rows, rows]], ay[[rows, rows]]};
   classID = None;
@@ -1853,26 +1908,21 @@ variables and its form is certified by the assembly as usual"|>|>],
       Return[<|"Status" -> "ChartClosedFormSectorNotSupported", "Rows" -> rows,
         "Reason" -> "a fundamental matrix is certified in its own frame; \
 pulling one back is not a rational operation and is not attempted here"|>],
-    AssociationQ[specification] && KeyExistsQ[specification, "Record"],
+    AssociationQ[specification] &&
+        KeyExistsQ[specification, "DiagonalBlockDLogEpsilonForm"],
       classID = Lookup[specification, "ClassID", None];
-      specification["Record"],
-    AssociationQ[specification] && KeyExistsQ[specification, "Transformation"],
+      specification["DiagonalBlockDLogEpsilonForm"],
+    AssociationQ[specification] &&
+        MatrixQ[Lookup[specification, "BasisTransformationMatrix", $Failed]],
       classID = Lookup[specification, "ClassID", None];
       specification,
-    AssociationQ[specification] && MatrixQ[Lookup[specification, "T", $Failed]],
-      (* an explicit {"Type" -> "EpsForm", "T" -> ...} provider, given in
-         the SOURCE frame *)
-      Join[<|"Transformation" -> specification["T"],
-        "Variables" -> data["SourceVariables"]|>,
-        If[MatrixQ[Lookup[specification, "Ev", $Failed]] &&
-           MatrixQ[Lookup[specification, "Ew", $Failed]],
-          <|"EpsForm" -> {specification["Ev"], specification["Ew"]}|>, <||>]],
-    True, Return[<|"Status" -> "ChartUnknownProvider", "Rows" -> rows|>]];
+    True, Return[<|"Status" -> "DiagonalBlockProviderUnknown",
+      "Rows" -> rows|>]];
   pulled = masterTransportPullBackClassForm[record, data,
     "SourceVariables" -> data["SourceVariables"], "Regulator" -> eps,
-    "BlockSystem" -> blockSystem, "ConicChartRoute" -> conicRoute,
-    "ClassID" -> classID, "CoefficientField" -> coefficientField];
-  If[pulled["Status"] =!= "OK",
+    "BlockSystem" -> blockSystem,
+    "ClassID" -> classID];
+  If[pulled["Status"] =!= "DiagonalBlockDLogEpsilonFormReexpressed",
     Return[Join[pulled, <|"Rows" -> rows, "ClassID" -> classID|>]]];
   (* Ev, Ew and TInverse travel with the specification because they were
      just derived and CERTIFIED here (the inverse re-multiplied out both
@@ -1882,40 +1932,14 @@ pulling one back is not a rational operation and is not attempted here"|>],
      statement is still made twice, independently, and what is saved is
      one redundant 4x4 symbolic inverse per hard block, not a check. *)
   <|"Status" -> "OK", "Rows" -> rows, "ClassID" -> classID,
-    "Spec" -> <|"Type" -> "EpsForm", "T" -> pulled["T"],
-      "TInverse" -> pulled["TInverse"],
-      "Ev" -> pulled["Ev"], "Ew" -> pulled["Ew"],
-      "Alphabet" -> Lookup[pulled, "Alphabet", {}]|>,
+    "Spec" -> <|"Type" -> "EpsForm",
+      "T" -> pulled["BasisTransformationMatrix"],
+      "TInverse" -> pulled["InverseBasisTransformationMatrix"],
+      "Ev" -> pulled["CachedTransformedConnectionMatrices"][[1]],
+      "Ew" -> pulled["CachedTransformedConnectionMatrices"][[2]],
+      "Alphabet" -> Lookup[pulled, "Letters", {}]|>,
     "Form" -> pulled, "Certificate" -> pulled["Certificate"]|>
 ];
-
-masterTransportChartNotes[data_Association, basePoint_, target_,
-    direction_] := <|
-  "Kind" -> data["Kind"],
-  "Variables" -> data["Variables"],
-  "SourceVariables" -> data["SourceVariables"],
-  "Subst" -> data["Subst"],
-  "Jacobian" -> data["Jacobian"],
-  (* d(v,w)/d(x,y).  For v = x y, w = (1-x)(1-y) this is x - y, the same
-     rational function as sqrt(lambda) in this chart -- which is why the
-     chart rationalizes it, and which a later stage needs in order to
-     choose a chamber and a branch. *)
-  "JacobianDet" -> data["JacobianDet"],
-  "Root" -> data["Root"],
-  "RootSquare" -> data["RootSquare"],
-  "RootSquareConsistent" -> data["RootSquareConsistent"],
-  "Path" -> <|"Direction" -> direction, "BasePoint" -> basePoint,
-    "Target" -> target,
-    "Reason" -> "the pulled-back alphabet carries bilinear letters \
-(x + y - x y, x + y - 2 x y), which are quadratic in the path parameter on a \
-generic straight segment and linear on an axis-aligned one",
-    "DECheckDirection" -> "the per-order check against the original family \
-differential equation is made along this segment; the two-directional \
-statements are the assembly certificate (flatness, diagonal blocks equal to \
-their declared forms in BOTH chart variables)"|>,
-  "PhysicsBookkeeping" -> "none is done here: no chamber, no branch and no \
-sign choice; the chart and its Jacobian determinant are recorded so that a \
-later stage can make them"|>;
 
 (* ------------------------------------------------------------------ *)
 (*  (C4)  depth-budget arithmetic and the checkable-order rule          *)
@@ -2397,7 +2421,7 @@ masterTransportAxisBasePoints[variables_List, anchor_] :=
 
 (* A base-point option is a point, Automatic (= the two axis-aligned
    directions at the given anchor), or an explicit list of candidate
-   points -- the form TransportFamilyInChart uses to hand its own two
+   points -- the form AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks uses to hand its own two
    chart directions down.  The list form is recognised BEFORE the point
    form, because a two-element list of points also matches {_, _}. *)
 masterTransportBasePointCandidates[value_, variables_List, anchor_] := Which[
@@ -3663,72 +3687,78 @@ masterTransportCardSetting[explicit_, card_, key_, builtin_] :=
   If[explicit =!= Automatic, explicit,
     If[AssociationQ[card], Lookup[card, key, builtin], builtin]];
 
-Options[TransportFamilyInChart] = Join[
-  {"SourceVariables" -> Automatic,
-   "CoefficientField" -> Automatic,
-   "AssemblyOnly" -> False,
-   "ConicChartRoute" -> Automatic,
-   "PathDirection" -> Automatic,
-   "PathAnchor" -> 1/2,
-   "BasePoint" -> Automatic},
-  FilterRules[Options[TransportFamily], Except["Variables" | "BasePoint"]]];
+Options[AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks] = {
+  "SourceVariables" -> Automatic,
+  "Blocks" -> Automatic,
+  "FormDirectory" -> None,
+  "Regulator" -> Automatic,
+  "Verbose" -> False
+};
 
-TransportFamilyInChart[system_, chart_, opts : OptionsPattern[]] := Catch[
+AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
+    system_, rootData_, opts : OptionsPattern[]] := Catch[
   Module[{sourceVariables, data, eps, normalized, pullback, chartSystem,
     chartVariables, blockSpecification, blocks, specs, resolved, failures,
-    basePoint, target, direction, anchor, formDirectory, verbose, result,
-    start, notes, forms, conicRoute, directionPoint, chosenBase,
-    coefficientField, assembled},
+    formDirectory, verbose, start, forms, presentationKind, assembled},
     start = AbsoluteTime[];
     verbose = TrueQ[OptionValue["Verbose"]];
     (* OptionValue is resolved once, in the body, and never from inside a
        nested Table or Function where the enclosing definition is no
        longer the innermost one. *)
-    conicRoute = OptionValue["ConicChartRoute"];
     sourceVariables = masterTransportResolveVariables[OptionValue["SourceVariables"]];
     If[sourceVariables === $Failed,
-      masterTransportFail[TransportFamilyInChart, "option", "SourceVariables",
-        OptionValue["SourceVariables"], TransportFamilyInChart]];
+      masterTransportFail[
+        AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks,
+        "option", "SourceVariables", OptionValue["SourceVariables"],
+        AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks]];
     If[! AssociationQ[system],
-      masterTransportFail[TransportFamilyInChart, "option", "input", system,
-        TransportFamilyInChart]];
-    data = masterTransportChartData[chart, sourceVariables];
+      masterTransportFail[
+        AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks,
+        "option", "input", system,
+        AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks]];
+    data = masterTransportCoefficientPresentationData[
+      rootData, sourceVariables];
     If[data["Status"] =!= "OK",
-      Return[<|"Status" -> "ChartRefused", "Chart" -> data,
+      Return[<|"Status" -> "FamilyRootDataRefused", "RootData" -> data,
         "Family" -> Lookup[system, "Family", None]|>, Module]];
-    coefficientField = OptionValue["CoefficientField"];
-    If[coefficientField === Automatic,
-      coefficientField = Lookup[data, "CoefficientField", "Rational"]];
-    If[! MemberQ[{"Rational", "Multiquadratic"}, coefficientField],
-      Return[<|"Status" -> "ChartCoefficientFieldInvalid",
-        "CoefficientField" -> coefficientField,
+    presentationKind = Lookup[data, "PresentationKind", None];
+    If[! MemberQ[{"SourceVariables", "RationalizingParametrization",
+        "SquareRootGeneratorsAndQuadraticRelations"}, presentationKind],
+      Return[<|"Status" -> "CoefficientPresentationKindInvalid",
+        "PresentationKind" -> presentationKind,
         "Family" -> Lookup[system, "Family", None]|>, Module]];
-    chartVariables = data["Variables"];
+    chartVariables = masterTransportPresentationVariables[data];
 
     eps = masterTransportResolveRegulator[OptionValue["Regulator"],
       {Lookup[system, "Av", 0], Lookup[system, "Aw", 0]}, sourceVariables];
     If[eps === $Failed || ! MatchQ[eps, _Symbol],
-      masterTransportFail[TransportFamilyInChart, "regulator",
+      masterTransportFail[
+        AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks,
+        "regulator",
         Lookup[system, "Family", system]]];
     (* P2 again: normalize BEFORE any pullback and long before a backend
        package can claim v, w, x, y or eps for itself. *)
     normalized = masterTransportNormalize[system, eps,
       Join[sourceVariables[[{1, 2}]], chartVariables]];
 
-    masterTransportLog[verbose, "chart: ", data["Subst"],
-      ", det d(v,w)/d(x,y) = ", data["JacobianDet"]];
+    masterTransportLog[verbose, "coefficient presentation: ",
+      masterTransportPresentationSubstitution[data],
+      ", Jacobian determinant = ", data["JacobianDeterminant"]];
 
     pullback = masterTransportPullBackSystem[normalized, data,
       "SourceVariables" -> sourceVariables,
       "FlatnessCheck" -> (masterTransportCheckLevel[] =!= "Production")];
     If[pullback["Status"] =!= "OK",
-      Return[<|"Status" -> "ChartPullBackFailed", "Reason" -> pullback["Status"],
-        "PullBack" -> <|"System" -> pullback|>, "Chart" -> data,
+      Return[<|"Status" -> "DifferentialSystemReexpressionFailed",
+        "Reason" -> pullback["Status"],
+        "DifferentialSystemReexpression" -> <|"System" -> pullback|>,
+        "RootData" -> rootData,
         "Family" -> Lookup[system, "Family", None],
         "Seconds" -> AbsoluteTime[] - start|>, Module]];
     chartSystem = pullback["System"];
-    masterTransportLog[verbose, "  system pulled back: flat(chart) ",
-      pullback["Certificate"]["ChartFlat"]];
+    masterTransportLog[verbose,
+      "  differential system re-expressed: flat after substitution ",
+      pullback["Certificate"]["PulledBackSystemFlat"]];
 
     formDirectory = OptionValue["FormDirectory"];
     If[formDirectory === Automatic, formDirectory = None];
@@ -3743,8 +3773,7 @@ TransportFamilyInChart[system_, chart_, opts : OptionsPattern[]] := Catch[
     resolved = Table[
       Module[{r},
         r = masterTransportChartBlockSpec[specs[[i]], blocks[[i]],
-          pullback["Ax"], pullback["Ay"], data, eps, formDirectory,
-          conicRoute, coefficientField];
+          pullback["Ax"], pullback["Ay"], data, eps, formDirectory];
         (* per-block progress with everything a rate needs: which block,
            its dimension, the verdict, the frame it composed through, and
            the SIZE of the object just produced *)
@@ -3761,77 +3790,47 @@ TransportFamilyInChart[system_, chart_, opts : OptionsPattern[]] := Catch[
         r],
       {i, Length[blocks]}];
     failures = Select[Transpose[{blocks, resolved}], #[[2]]["Status"] =!= "OK" &];
-    (* fail closed: a family is transported in the chart only when EVERY
-       block's form was pulled back and re-verified there *)
+    (* Every diagonal-block form is re-expressed in the selected
+       coefficient presentation and re-derived from that block's
+       differential equation before it enters the family assembly. *)
     If[failures =!= {},
-      Return[<|"Status" -> "ChartPullBackFailed",
+      Return[<|"Status" -> "DiagonalBlockReexpressionFailed",
         "Reason" -> "ClassFormNotPullable",
-        "PullBack" -> <|"System" -> pullback["Certificate"],
+        "DifferentialSystemReexpression" -> <|
+          "System" -> pullback["Certificate"],
           "Forms" -> resolved|>,
-        "Failures" -> failures, "Chart" -> data,
-        "ChartNotes" -> masterTransportChartNotes[data, None, None, "none"],
+        "Failures" -> failures, "RootData" -> rootData,
         "Family" -> Lookup[system, "Family", None],
         "Seconds" -> AbsoluteTime[] - start|>, Module]];
 
-    (* Which chart axis the path runs along.  "PathDirection" -> "First"
-       freezes the SECOND chart variable at its symbolic target and moves
-       the first from the anchor, "Second" is the mirror image, and
-       Automatic (the default) hands BOTH down as candidates and lets the
-       monic gate in TransportFamily choose -- the same trial the (v,w)
-       entry point makes, for the same measured reason (a letter that is
-       bilinear in the chart variables is linear on one axis and need not
-       be on the other).  The direction that was actually taken is read
-       back off the result and recorded in "ChartNotes". *)
-    direction = OptionValue["PathDirection"];
-    anchor = OptionValue["PathAnchor"];
-    directionPoint[d_] := Switch[d,
-      "First", {anchor, chartVariables[[2]]},
-      "Second", {chartVariables[[1]], anchor},
-      _, {anchor, anchor}];
-    basePoint = OptionValue["BasePoint"];
-    If[basePoint === Automatic,
-      basePoint = If[direction === Automatic,
-        {directionPoint["First"], directionPoint["Second"]},
-        directionPoint[direction]]];
-    target = OptionValue["Target"];
-    If[target === Automatic, target = chartVariables];
-
     forms = Association @ Table[
       blocks[[i]] -> resolved[[i]]["Certificate"], {i, Length[blocks]}];
-    If[TrueQ[OptionValue["AssemblyOnly"]],
-      assembled = masterTransportAssemble[chartSystem, eps, chartVariables,
-        "Blocks" -> Table[{blocks[[i]], resolved[[i]]["Spec"]},
-          {i, Length[blocks]}],
-        "FormDirectory" -> None, "Verbose" -> verbose];
-      If[! AssociationQ[assembled] || assembled["Status"] =!= "OK" ||
-          ! TrueQ[masterTransportCertificateOK[assembled]],
-        Return[<|"Status" -> "ChartAssemblyFailed",
-          "Assembly" -> assembled, "Chart" -> data,
-          "PullBack" -> <|"System" -> pullback["Certificate"],
-            "Forms" -> forms|>,
-          "Family" -> Lookup[system, "Family", None],
-          "Seconds" -> AbsoluteTime[] - start|>, Module]];
-      Return[<|"Status" ->
-          "FamilyDifferentialSystemAssembledWithEpsilonFormDiagonalBlocks",
+    assembled = masterTransportAssemble[chartSystem, eps, chartVariables,
+      "Blocks" -> Table[{blocks[[i]], resolved[[i]]["Spec"]},
+        {i, Length[blocks]}],
+      "FormDirectory" -> None, "Verbose" -> verbose];
+    If[! AssociationQ[assembled] || assembled["Status"] =!= "OK" ||
+        ! TrueQ[masterTransportCertificateOK[assembled]],
+      Return[<|"Status" -> "FamilyDifferentialSystemAssemblyFailed",
+        "FamilyDifferentialSystem" -> assembled,
+        "RootData" -> rootData,
+        "DifferentialSystemReexpression" -> <|
+          "System" -> pullback["Certificate"], "Forms" -> forms|>,
         "Family" -> Lookup[system, "Family", None],
-        "FamilyDifferentialSystem" -> assembled, "Chart" -> data,
-        "PullBack" -> <|"System" -> pullback["Certificate"],
-          "Forms" -> forms|>,
-        "SourceVariables" -> sourceVariables[[{1, 2}]],
-        "ChartSeconds" -> AbsoluteTime[] - start|>, Module]];
-    (* The path-ordered transport of the chart system (TransportFamily,
-       engines Monolithic/Blockwise) is RETIRED (user decision U1,
-       2026-09-02): the observable transport (BuildObservableTransport on
-       a transport-ready family record) is the production route.  The
-       assembly mode above stays; a transport request answers typed. *)
-    <|"Status" -> "RouteRetired",
-      "Route" -> "TransportFamilyInChart/PathOrderedTransport",
-      "Replacement" -> "BuildObservableTransport on the family's transport-ready record (Transport/ObservableTransport.wl)",
-      "Note" -> "the Libra path-ordered engines live in FeynFacet/Private_Backup (2026-09-02)",
-      "Chart" -> data,
-      "PullBack" -> <|"System" -> pullback["Certificate"], "Forms" -> forms|>,
+        "Seconds" -> AbsoluteTime[] - start|>, Module]];
+    <|
+      "DataType" ->
+        "FamilyDifferentialSystemWithEpsilonFormDiagonalBlocks",
+      "SchemaVersion" -> 2,
+      "Status" ->
+        "FamilyDifferentialSystemAssembledWithEpsilonFormDiagonalBlocks",
       "Family" -> Lookup[system, "Family", None],
-      "Seconds" -> AbsoluteTime[] - start|>
+      "CoefficientPresentation" -> data,
+      "FamilyDifferentialSystem" -> assembled,
+      "DifferentialSystemReexpression" -> <|
+        "System" -> pullback["Certificate"], "Forms" -> forms|>,
+      "SourceVariables" -> sourceVariables[[{1, 2}]],
+      "AssemblySeconds" -> AbsoluteTime[] - start|>
   ],
   $masterTransportFailure
 ];

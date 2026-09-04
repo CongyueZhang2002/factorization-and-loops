@@ -42,7 +42,7 @@
           gives v_b = w_a and w_b = v_a with BOTH root images unchanged;
           the derived record is exactly the catalog record of KallenQ4b.
 
-   A. Both certificates pass: TransportChartVerify returns OK for
+   A. Both certificates pass: VerifyRationalizingParametrization returns OK for
       KallenQ4a and KallenQ4b, with every declared root identity True and
       the parent map (Q4a resp. Q4b at {p -> v(s,t), s -> t/2}) True.
 
@@ -52,7 +52,7 @@
 
    C. The Jacobian determinant d(v,w)/d(s,t) is not identically zero.
 
-   E. Matching.  TransportRootSetChart returns KallenQ4a for
+   E. Matching.  LookupCataloguedRationalizingParametrizationForRoots returns KallenQ4a for
       {lambda1, 4v+w^2}, KallenQ4b for {lambda1, v^2+4w}, in either
       order and in caller-chosen source symbols; and
       Missing["NoRationalChart"] for {lambda1, 1 + v^3}.
@@ -111,7 +111,7 @@
 
 Get[FileNameJoin[{DirectoryName[DirectoryName[$InputFileName]], "TestKit.wl"}]];
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
-If[Names["FeynFacet`TransportChartCatalog"] === {},
+If[Names["FeynFacet`RationalizingParametrizationCatalog"] === {},
   Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]]];
 Needs["FTTest`"];
 
@@ -130,7 +130,7 @@ lambda1[a_, b_] := (1 - a - b)^2 - 4 a b;
 q3a[a_, b_] := 4 a + b^2;
 q3b[a_, b_] := a^2 + 4 b;
 
-catalog = FeynFacet`TransportChartCatalog[];
+catalog = FeynFacet`RationalizingParametrizationCatalog[];
 kq4a = Lookup[catalog, "KallenQ4a", Missing["NotInCatalog"]];
 kq4b = Lookup[catalog, "KallenQ4b", Missing["NotInCatalog"]];
 FTAssert["catalog carries KallenQ4a and KallenQ4b",
@@ -173,17 +173,21 @@ derivedW = Together[wOfVT /. vv -> derivedV];
 derivedRoot1 = Together[(2 (tt - 2) derivedV + ss)/(2 tt)];
 derivedRoot3 = Together[(4 derivedV + tt^2)/(2 tt)];
 FTAssert["D5a KallenQ4a Subst is the derived (v(s,t), w(s,t))",
-  kq4a["Variables"] === {ss, tt} &&
-  (First /@ kq4a["Subst"]) === {vv, ww} &&
-  zeroQ[Last[kq4a["Subst"][[1]]] - derivedV] &&
-  zeroQ[Last[kq4a["Subst"][[2]]] - derivedW]];
+  kq4a["ParametrizingVariables"] === {ss, tt} &&
+  (First /@ kq4a["SourceVariableSubstitution"]) === {vv, ww} &&
+  zeroQ[Last[kq4a["SourceVariableSubstitution"][[1]]] - derivedV] &&
+  zeroQ[Last[kq4a["SourceVariableSubstitution"][[2]]] - derivedW]];
 FTAssert["D5b KallenQ4a root images are the derived sqrt(lambda1), \
 sqrt(4v+w^2)",
-  Length[kq4a["Roots"]] === 2 &&
-  zeroQ[kq4a["Roots"][[1]]["Root"] - derivedRoot1] &&
-  zeroQ[kq4a["Roots"][[1]]["RootSquare"] - lambda1[vv, ww]] &&
-  zeroQ[kq4a["Roots"][[2]]["Root"] - derivedRoot3] &&
-  zeroQ[kq4a["Roots"][[2]]["RootSquare"] - q3a[vv, ww]]];
+  Length[kq4a["RationalizedSquareRoots"]] === 2 &&
+  zeroQ[kq4a["RationalizedSquareRoots"][[1]]["RationalRoot"] -
+    derivedRoot1] &&
+  zeroQ[kq4a["RationalizedSquareRoots"][[1]]["SourceRadicand"] -
+    lambda1[vv, ww]] &&
+  zeroQ[kq4a["RationalizedSquareRoots"][[2]]["RationalRoot"] -
+    derivedRoot3] &&
+  zeroQ[kq4a["RationalizedSquareRoots"][[2]]["SourceRadicand"] -
+    q3a[vv, ww]]];
 
 (* D6: the mirror, derived by running the SAME two pencils on v^2 + 4 w,
    which is quadratic in v with leading coefficient 1. *)
@@ -213,48 +217,62 @@ FTAssert["D6e the mirror exchanges the images: v_b = w_a, w_b = v_a",
 FTAssert["D6f both root images are unchanged by the mirror",
   zeroQ[derivedRoot1B - derivedRoot1] && zeroQ[derivedRoot3B - derivedRoot3]];
 FTAssert["D6g KallenQ4b Subst and root images are the derived mirror",
-  kq4b["Variables"] === {ss, tt} && (First /@ kq4b["Subst"]) === {vv, ww} &&
-  zeroQ[Last[kq4b["Subst"][[1]]] - derivedVB] &&
-  zeroQ[Last[kq4b["Subst"][[2]]] - derivedWB] &&
-  Length[kq4b["Roots"]] === 2 &&
-  zeroQ[kq4b["Roots"][[1]]["Root"] - derivedRoot1B] &&
-  zeroQ[kq4b["Roots"][[1]]["RootSquare"] - lambda1[vv, ww]] &&
-  zeroQ[kq4b["Roots"][[2]]["Root"] - derivedRoot3B] &&
-  zeroQ[kq4b["Roots"][[2]]["RootSquare"] - q3b[vv, ww]]];
+  kq4b["ParametrizingVariables"] === {ss, tt} &&
+  (First /@ kq4b["SourceVariableSubstitution"]) === {vv, ww} &&
+  zeroQ[Last[kq4b["SourceVariableSubstitution"][[1]]] - derivedVB] &&
+  zeroQ[Last[kq4b["SourceVariableSubstitution"][[2]]] - derivedWB] &&
+  Length[kq4b["RationalizedSquareRoots"]] === 2 &&
+  zeroQ[kq4b["RationalizedSquareRoots"][[1]]["RationalRoot"] -
+    derivedRoot1B] &&
+  zeroQ[kq4b["RationalizedSquareRoots"][[1]]["SourceRadicand"] -
+    lambda1[vv, ww]] &&
+  zeroQ[kq4b["RationalizedSquareRoots"][[2]]["RationalRoot"] -
+    derivedRoot3B] &&
+  zeroQ[kq4b["RationalizedSquareRoots"][[2]]["SourceRadicand"] -
+    q3b[vv, ww]]];
 
 (* ---- A. the certificates ------------------------------------------ *)
-certificateA = FeynFacet`TransportChartVerify[kq4a];
-certificateB = FeynFacet`TransportChartVerify[kq4b];
-Print["KallenQ4a certificate: ", InputForm[KeyDrop[certificateA, "JacobianDet"]]];
-Print["KallenQ4b certificate: ", InputForm[KeyDrop[certificateB, "JacobianDet"]]];
+certificateA = FeynFacet`VerifyRationalizingParametrization[kq4a];
+certificateB = FeynFacet`VerifyRationalizingParametrization[kq4b];
+Print["KallenQ4a certificate: ", InputForm[
+  KeyDrop[certificateA, "JacobianDeterminant"]]];
+Print["KallenQ4b certificate: ", InputForm[
+  KeyDrop[certificateB, "JacobianDeterminant"]]];
 FTAssert["A1 KallenQ4a certificate OK",
-  TrueQ[certificateA["OK"]] && certificateA["RootIdentities"] === {True, True}];
+  TrueQ[certificateA["Verified"]] &&
+    certificateA["RationalizedSquareRootIdentities"] === {True, True}];
 FTAssert["A2 KallenQ4a parent map Q4a at {p -> v(s,t), s -> t/2} exact",
-  certificateA["ParentMaps"] === <|"Q4a" -> True|>];
+  certificateA["ParentParametrizationIdentities"] === <|"Q4a" -> True|>];
 FTAssert["A3 KallenQ4b certificate OK",
-  TrueQ[certificateB["OK"]] && certificateB["RootIdentities"] === {True, True}];
+  TrueQ[certificateB["Verified"]] &&
+    certificateB["RationalizedSquareRootIdentities"] === {True, True}];
 FTAssert["A4 KallenQ4b parent map Q4b at {p -> w(s,t), s -> t/2} exact",
-  certificateB["ParentMaps"] === <|"Q4b" -> True|>];
+  certificateB["ParentParametrizationIdentities"] === <|"Q4b" -> True|>];
 
 (* ---- B. the identities, re-derived from the record ---------------- *)
-pullBack[chart_, expr_] := Together[expr /. chart["Subst"]];
+pullBack[parametrization_, expr_] := Together[
+  expr /. parametrization["SourceVariableSubstitution"]];
 FTAssert["B1 KallenQ4a: lambda1 pulled back == (recorded root)^2",
-  zeroQ[pullBack[kq4a, lambda1[vv, ww]] - kq4a["Roots"][[1]]["Root"]^2]];
+  zeroQ[pullBack[kq4a, lambda1[vv, ww]] -
+    kq4a["RationalizedSquareRoots"][[1]]["RationalRoot"]^2]];
 FTAssert["B2 KallenQ4a: 4 v + w^2 pulled back == (recorded root)^2",
-  zeroQ[pullBack[kq4a, q3a[vv, ww]] - kq4a["Roots"][[2]]["Root"]^2]];
+  zeroQ[pullBack[kq4a, q3a[vv, ww]] -
+    kq4a["RationalizedSquareRoots"][[2]]["RationalRoot"]^2]];
 FTAssert["B3 KallenQ4b: lambda1 pulled back == (recorded root)^2",
-  zeroQ[pullBack[kq4b, lambda1[vv, ww]] - kq4b["Roots"][[1]]["Root"]^2]];
+  zeroQ[pullBack[kq4b, lambda1[vv, ww]] -
+    kq4b["RationalizedSquareRoots"][[1]]["RationalRoot"]^2]];
 FTAssert["B4 KallenQ4b: v^2 + 4 w pulled back == (recorded root)^2",
-  zeroQ[pullBack[kq4b, q3b[vv, ww]] - kq4b["Roots"][[2]]["Root"]^2]];
-FTAssert["B5 the primary Root/RootSquare pair agrees with Roots[[1]]",
-  zeroQ[kq4a["Root"] - kq4a["Roots"][[1]]["Root"]] &&
-  zeroQ[kq4a["RootSquare"] - kq4a["Roots"][[1]]["RootSquare"]] &&
-  zeroQ[kq4b["Root"] - kq4b["Roots"][[1]]["Root"]] &&
-  zeroQ[kq4b["RootSquare"] - kq4b["Roots"][[1]]["RootSquare"]]];
+  zeroQ[pullBack[kq4b, q3b[vv, ww]] -
+    kq4b["RationalizedSquareRoots"][[2]]["RationalRoot"]^2]];
+FTAssert["B5 no duplicate primary-root fields survive in V2",
+  Intersection[Keys[kq4a], {"Root", "RootSquare", "Roots"}] === {} &&
+  Intersection[Keys[kq4b], {"Root", "RootSquare", "Roots"}] === {}];
 
 (* ---- C. the Jacobian ---------------------------------------------- *)
-jacobianDet[chart_] := Module[{f, g, vars = chart["Variables"]},
-  {f, g} = Together /@ (Last /@ chart["Subst"]);
+jacobianDet[parametrization_] := Module[
+  {f, g, vars = parametrization["ParametrizingVariables"]},
+  {f, g} = Together /@
+    (Last /@ parametrization["SourceVariableSubstitution"]);
   Together[Det[{{D[f, vars[[1]]], D[f, vars[[2]]]},
     {D[g, vars[[1]]], D[g, vars[[2]]]}}]]];
 detA = jacobianDet[kq4a]; detB = jacobianDet[kq4b];
@@ -269,33 +287,34 @@ FTAssert["C3 the two Jacobian determinants differ by the v<->w sign",
 chartName[r_] := If[AssociationQ[r], r["Name"],
   If[MissingQ[r], "Missing:" <> ToString[First[r]], ToString[InputForm[r]]]];
 FTAssert["E1 {lambda1, 4v+w^2} resolves to KallenQ4a",
-  chartName[FeynFacet`TransportRootSetChart[
+  chartName[FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[
     {lambda1[vv, ww], q3a[vv, ww]}]] === "KallenQ4a"];
 FTAssert["E2 {4v+w^2, lambda1} (reversed) resolves to KallenQ4a",
-  chartName[FeynFacet`TransportRootSetChart[
+  chartName[FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[
     {q3a[vv, ww], lambda1[vv, ww]}]] === "KallenQ4a"];
 FTAssert["E3 {lambda1, v^2+4w} resolves to KallenQ4b",
-  chartName[FeynFacet`TransportRootSetChart[
+  chartName[FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[
     {lambda1[vv, ww], q3b[vv, ww]}]] === "KallenQ4b"];
 FTAssert["E4 {v^2+4w, lambda1} (reversed) resolves to KallenQ4b",
-  chartName[FeynFacet`TransportRootSetChart[
+  chartName[FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[
     {q3b[vv, ww], lambda1[vv, ww]}]] === "KallenQ4b"];
 FTAssert["E5 the lookup is symbol-name independent (source variables x, y)",
-  chartName[FeynFacet`TransportRootSetChart[
+  chartName[FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[
     {lambda1[xx, yy], q3a[xx, yy]}, {xx, yy}]] === "KallenQ4a" &&
-  chartName[FeynFacet`TransportRootSetChart[
+  chartName[FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[
     {lambda1[xx, yy], q3b[xx, yy]}, {xx, yy}]] === "KallenQ4b"];
-FTAssert["E6 {lambda1, 1 + v^3} is Missing[\"NoRationalChart\"]",
-  MatchQ[FeynFacet`TransportRootSetChart[{lambda1[vv, ww], 1 + vv^3}],
-    Missing["NoRationalChart", _]]];
+FTAssert["E6 {lambda1, 1 + v^3} is absent from the finite catalog",
+  MatchQ[FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[{lambda1[vv, ww], 1 + vv^3}],
+    Missing["NoCataloguedRationalizingParametrization", _]]];
 
 (* ---- R. catalog regression ---------------------------------------- *)
 (* the six distinct quadratics the catalog rationalizes, named rather
    than enumerated, so the table does not depend on catalog order *)
 catalogSquares = {lambda1[vv, ww], lambda1[-vv, ww], lambda1[vv, -ww],
   q3a[vv, ww], q3b[vv, ww], 1 - 4 vv ww};
-distinctSquares = DeleteDuplicates[Together /@ (#["RootSquare"] & /@
-  Flatten[Lookup[Values[catalog], "Roots", {}]])];
+distinctSquares = DeleteDuplicates[Together /@
+  (#["SourceRadicand"] & /@
+    Flatten[Lookup[Values[catalog], "RationalizedSquareRoots", {}]])];
 FTAssert["R0 the catalog rationalizes exactly these six quadratics",
   Length[distinctSquares] === 6 &&
   AllTrue[catalogSquares,
@@ -310,16 +329,19 @@ expectedResolution = <|
   {4} -> "Q4a", {5} -> "Q4b", {6} -> "Bilinear115",
   {1, 2} -> "Kallen12", {1, 3} -> "Kallen13",
   {1, 4} -> "KallenQ4a" (* NEW *), {1, 5} -> "KallenQ4b" (* NEW *),
-  {1, 6} -> "Missing:NoRationalChart",
+  {1, 6} -> "Missing:NoCataloguedRationalizingParametrization",
   {2, 3} -> "Kallen23",
-  {2, 4} -> "Missing:NoRationalChart", {2, 5} -> "Missing:NoRationalChart",
+  {2, 4} -> "Missing:NoCataloguedRationalizingParametrization",
+  {2, 5} -> "Missing:NoCataloguedRationalizingParametrization",
   {2, 6} -> "Kallen2Bilinear115",
-  {3, 4} -> "Missing:NoRationalChart", {3, 5} -> "Missing:NoRationalChart",
+  {3, 4} -> "Missing:NoCataloguedRationalizingParametrization",
+  {3, 5} -> "Missing:NoCataloguedRationalizingParametrization",
   {3, 6} -> "Kallen3Bilinear115",
-  {4, 5} -> "Missing:NoRationalChart", {4, 6} -> "Missing:NoRationalChart",
-  {5, 6} -> "Missing:NoRationalChart"|>;
+  {4, 5} -> "Missing:NoCataloguedRationalizingParametrization",
+  {4, 6} -> "Missing:NoCataloguedRationalizingParametrization",
+  {5, 6} -> "Missing:NoCataloguedRationalizingParametrization"|>;
 measuredResolution = Association @ Table[
-  index -> chartName[FeynFacet`TransportRootSetChart[
+  index -> chartName[FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[
     catalogSquares[[index]], {vv, ww}]],
   {index, Keys[expectedResolution]}];
 Print["resolution differences against the expected catalog: ", InputForm[
@@ -330,23 +352,26 @@ FTAssert["R1 all 21 singleton and pair resolutions match the catalog contract",
   measuredResolution === expectedResolution];
 FTAssert["R2 every catalog chart still resolves its OWN root set to itself",
   AllTrue[Keys[catalog], Function[name,
-    chartName[FeynFacet`TransportRootSetChart[
-      #["RootSquare"] & /@ catalog[name]["Roots"], {vv, ww}]] === name]]];
-FTAssert["R3 every catalog chart still passes TransportChartVerify",
-  AllTrue[Values[catalog], TrueQ[FeynFacet`TransportChartVerify[#]["OK"]] &]];
+    chartName[FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[
+      #["SourceRadicand"] & /@
+        catalog[name]["RationalizedSquareRoots"], {vv, ww}]] === name]]];
+FTAssert["R3 every catalog chart still passes VerifyRationalizingParametrization",
+  AllTrue[Values[catalog],
+    TrueQ[FeynFacet`VerifyRationalizingParametrization[#]["Verified"]] &]];
 
-(* ---- I. analytic inverse used by gauge pull-back ------------------ *)
-inverseComposition[chart_, squares_] := Module[{roots, identityData},
-  roots = <|"Root" -> Sqrt[#], "RootSquare" -> #|> & /@ squares;
-  identityData = <|"Status" -> "OK", "Kind" -> "TwoVariable",
-    "CoefficientField" -> "Multiquadratic", "Variables" -> {vv, ww},
-    "SourceVariables" -> {vv, ww}, "Subst" -> {vv -> vv, ww -> ww},
-    "Jacobian" -> IdentityMatrix[2], "JacobianDet" -> 1,
-    "Root" -> roots[[1]]["Root"],
-    "RootSquare" -> roots[[1]]["RootSquare"], "Roots" -> roots|>;
+(* ---- I. declared inverse used by basis-transformation pullback ----- *)
+inverseComposition[parametrization_, squares_] := Module[
+  {generatorData, presentationData},
+  generatorData = BuildSquareRootGeneratorsAndQuadraticRelations[
+    squares, {vv, ww}, {xx, yy}];
+  presentationData =
+    FeynFacet`Private`masterTransportCoefficientPresentationData[
+      generatorData, {vv, ww}];
   FeynFacet`Private`masterTransportRecordCoordinateMap[
-    <|"Variables" -> chart["Variables"], "Chart" -> chart|>,
-    identityData, Automatic]];
+    <|"CoefficientVariables" ->
+        parametrization["ParametrizingVariables"],
+      "RationalizingParametrization" -> parametrization|>,
+    presentationData]];
 {inverseASeconds, inverseA} = AbsoluteTiming[TimeConstrained[
   inverseComposition[kq4a, {lambda1[vv, ww], q3a[vv, ww]}],
   5, $TimedOut]];
@@ -362,13 +387,15 @@ FTAssert["I1 both KallenQ4 charts use their declared root inverse",
   inverseA["CompositionRoute"] === "DeclaredInverseByRoots" &&
   inverseB["CompositionRoute"] === "DeclaredInverseByRoots"];
 inverseZeroQ[result_, chart_, squares_] := If[
-  ! AssociationQ[result] || ! MatchQ[Lookup[result, "Images", None], {_, _}],
+  ! AssociationQ[result] ||
+      ! MatchQ[Lookup[result, "CoefficientVariableImages", None], {_, _}],
   False,
   Module[{roots, images, forward},
-    roots = <|"Root" -> Sqrt[#], "RootSquare" -> #|> & /@ squares;
-    images = result["Images"];
-    forward = (Last /@ chart["Subst"]) /.
-      Thread[chart["Variables"] -> images];
+    roots = <|"Generator" -> Sqrt[#], "QuadraticRadicand" -> #,
+      "SourceRadicand" -> #|> & /@ squares;
+    images = result["CoefficientVariableImages"] /. {xx -> vv, yy -> ww};
+    forward = (Last /@ chart["SourceVariableSubstitution"]) /.
+      Thread[chart["ParametrizingVariables"] -> images];
     And @@ MapThread[
       TrueQ[FeynFacet`Private`transportChartAlgebraicZeroQ[#1 - #2,
         roots]] &, {forward, {vv, ww}}]]];
@@ -397,30 +424,30 @@ FTAssert["S3 a non-square, negative or symbolic ratio is refused",
    has the numeric factor, the DECLARED root square does not *)
 FTAssert["S4 the branch rule substitutes c * image and is exact",
   zeroQ[applyBranches[Sqrt[4 xx + yy^2],
-      {<|"RootSquare" -> (4 xx + yy^2)/4|>}, {rr}] - 2 rr] &&
+      {<|"QuadraticRadicand" -> (4 xx + yy^2)/4|>}, {rr}] - 2 rr] &&
   zeroQ[applyBranches[Sqrt[4 xx + yy^2],
-      {<|"RootSquare" -> 4 (4 xx + yy^2)|>}, {rr}] - rr/2] &&
+      {<|"QuadraticRadicand" -> 4 (4 xx + yy^2)|>}, {rr}] - rr/2] &&
   zeroQ[applyBranches[Sqrt[4 xx + yy^2],
-      {<|"RootSquare" -> 4 xx + yy^2|>}, {rr}] - rr]];
+      {<|"QuadraticRadicand" -> 4 xx + yy^2|>}, {rr}] - rr]];
 FTAssert["S5 the branch rule is a no-op on an unrelated or non-square radical",
   applyBranches[Sqrt[1 + xx^3],
-    {<|"RootSquare" -> 4 xx + yy^2|>}, {rr}] === Sqrt[1 + xx^3] &&
+    {<|"QuadraticRadicand" -> 4 xx + yy^2|>}, {rr}] === Sqrt[1 + xx^3] &&
   applyBranches[Sqrt[4 xx + yy^2],
-    {<|"RootSquare" -> 2 (4 xx + yy^2)|>}, {rr}] === Sqrt[4 xx + yy^2]];
+    {<|"QuadraticRadicand" -> 2 (4 xx + yy^2)|>}, {rr}] === Sqrt[4 xx + yy^2]];
 FTAssert["S6 half-integer powers of any order are carried",
   zeroQ[applyBranches[(4 xx + yy^2)^(3/2),
-      {<|"RootSquare" -> 4 xx + yy^2|>}, {rr}] - rr^3] &&
+      {<|"QuadraticRadicand" -> 4 xx + yy^2|>}, {rr}] - rr^3] &&
   zeroQ[applyBranches[(4 xx + yy^2)^(3/2),
-      {<|"RootSquare" -> (4 xx + yy^2)/4|>}, {rr}] - 8 rr^3] &&
+      {<|"QuadraticRadicand" -> (4 xx + yy^2)/4|>}, {rr}] - 8 rr^3] &&
   zeroQ[applyBranches[1/Sqrt[4 xx + yy^2],
-      {<|"RootSquare" -> (4 xx + yy^2)/4|>}, {rr}] - 1/(2 rr)]];
+      {<|"QuadraticRadicand" -> (4 xx + yy^2)/4|>}, {rr}] - 1/(2 rr)]];
 (* the measured statement: pulling the CF259 root pair back through
    KallenQ4a leaves radicands 16 and 4 times the declared squares *)
-chartData = FeynFacet`Private`masterTransportChartData[
-  FeynFacet`Private`transportChartRekey[kq4a, {xx, yy},
+chartData = FeynFacet`Private`masterTransportCoefficientPresentationData[
+  FeynFacet`Private`rekeyCoefficientPresentation[kq4a, {xx, yy},
     {Symbol["Global`chartS"], Symbol["Global`chartT"]}], {xx, yy}];
 pulledSquares = Together /@ ({lambda1[vv, ww], q3a[vv, ww]} /.
-  {vv -> xx, ww -> yy} /. chartData["Subst"]);
+  {vv -> xx, ww -> yy} /. chartData["SourceVariableSubstitution"]);
 carriedBases = Table[First[radicalBases[Sqrt[q]]], {q, pulledSquares}];
 Print["carried base / declared square = ", InputForm[
   Table[Together[carriedBases[[i]]/pulledSquares[[i]]], {i, 2}]]];
@@ -449,10 +476,10 @@ If[! (FileExistsQ[stateFile] && FileExistsQ[familyChartFile] &&
     Select[{stateFile, familyChartFile, manifestFile}, ! FileExistsQ[#] &]],
   Module[{registration, frame, state, rowBound, truncation, allRoots,
       classification, rootSquares, chart, factor, seconds, status},
-    registration = FeynFacet`TransportFamilyChartLoad[familyChartFile];
+    registration = FeynFacet`LoadFamilyRootData[familyChartFile];
     FTAssert["T1 the campaign's family charts register",
       Lookup[registration, "Status", None] === "FamilyChartsRegistered"];
-    frame = FeynFacet`TransportFamilyChart["CF259"];
+    frame = FeynFacet`FamilyRootData["CF259"];
     FTAssert["T2 CF259's registered frame is the exact three-root \
 multiquadratic identity frame",
       AssociationQ[frame] && Lookup[frame, "Status", None] === "ExactFrame" &&
@@ -502,7 +529,7 @@ undeclared radical",
       classification["UnclassifiedRadicalBases"] === {}];
     rootSquares = Lookup[allRoots[[classification["RootIndices"]]],
       "RootSquare", {}];
-    chart = FeynFacet`TransportRootSetChart[rootSquares, {xx, yy}];
+    chart = FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[rootSquares, {xx, yy}];
     FTAssert["T6 that root pair now resolves to KallenQ4a (it was \
 Missing[\"NoRationalChart\"], which is what stopped the solve)",
       AssociationQ[chart] && chart["Name"] === "KallenQ4a"];
