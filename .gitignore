@@ -81,6 +81,16 @@ __pycache__/
 ppHX_NNLO_DoubleReal/Kira/
 FeynFacet/Backends/flint/bin
 
+# --- Superseded generated differential-equation data -----------------------
+# A dated local archive keeps pre-V2 artifacts available for comparison while
+# preventing them from becoming an interface for live package code.  Only the
+# archive description and inventory are versioned; the payload is recoverable
+# from the commit before the V2 reset or can be regenerated from Pairs,
+# KiraResult.wl and Masters.
+Stale/DifferentialEquationData/*/*
+!Stale/DifferentialEquationData/*/README.md
+!Stale/DifferentialEquationData/*/INVENTORY.tsv
+
 # --- Large run-data files (> 5 MB; regenerable, kept locally; listed 2026-08-23) ---
 /Codex/TwoRootCF254Sector9Lower/CF254_9_6_residue_data.wl
 /Codex/TwoRootCF254Sector9Lower/CF254_9_7_residue_data.wl
