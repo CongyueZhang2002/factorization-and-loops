@@ -13,7 +13,7 @@ ClearAll[
   finiteFieldStripDegreeOffsetLadder,
   finiteFieldStripPrimeForms,
   $finiteFieldStripPrimeFormCache,
-  finiteFieldStripFingerprint,
+  finiteFieldStripDefiningInput,
   finiteFieldStripIndependentRows,
   finiteFieldStripProbeOrder,
   finiteFieldStripReservePrimes,
@@ -37,9 +37,6 @@ ClearAll[
   finiteFieldStripUnseenPrimeResidualQ,
   finiteFieldStripFLINTBinary,
   finiteFieldStripCFFRBinary,
-  finiteFieldStripCFFRSource,
-  $finiteFieldStripCFFRAdapterHashCache,
-  finiteFieldStripCFFRAdapterHashes,
   finiteFieldStripCFFRFailure,
   finiteFieldStripCFFRNonce,
   finiteFieldStripCFFRRequest,
@@ -49,16 +46,13 @@ ClearAll[
   finiteFieldStripCFFRDirectory,
   finiteFieldStripCFFRRun,
   finiteFieldStripCFFRDiscoverPlan,
-  finiteFieldStripCFFRPlanBindingValidQ,
   finiteFieldStripBackendQ,
   finiteFieldStripBackendDecision,
   finiteFieldStripBackendConfiguration,
   finiteFieldStripPlanDiscoveryBackendDecision,
   finiteFieldStripCoreSolutionQ,
-  finiteFieldStripEliminationPlanFingerprint,
   finiteFieldStripEliminationPlanArtifactIdentity,
-  finiteFieldStripBackendArtifactIdentity,
-  finiteFieldStripSealEliminationPlan,
+  finiteFieldStripCompleteEliminationPlan,
   finiteFieldStripValidateEliminationPlan,
   finiteFieldStripModularArtifactValidQ,
   finiteFieldStripFLINTSolve,
@@ -131,68 +125,15 @@ finiteFieldStripFLINTBinary[] := With[{file = FileNameJoin[{$feynFacetDirectory,
 
 (* CFFR1 rectangular affine-RREF adapter: FeynFacet/Backends/flint
    (build.sh, PROTOCOL_CFFR1.md), the plan-discovery backend of
-   Design/CFFR1Backend.md.  A sibling of the CFFA4 locator above and
-   nothing more: the two adapters share no writer, no parser and no
-   fallback semantics -- CFFR1 binds a nonce and the adapter's immutable
-   hashes, and an explicit request never falls back. *)
+   Design/CFFR1Backend.md.  The two adapters share no writer, parser, or
+   fallback semantics.  CFFR1 binds each response to its live request with
+   an echoed nonce and then verifies the returned affine solution directly. *)
 finiteFieldStripCFFRBinary[] := With[{file = FileNameJoin[{$feynFacetDirectory,
     "Backends", "flint", "bin", "flint_affine_rref"}]},
   If[FileExistsQ[file], file, None]];
 
-finiteFieldStripCFFRSource[] := With[{file = FileNameJoin[{$feynFacetDirectory,
-    "Backends", "flint", "flint_affine_rref.c"}]},
-  If[FileExistsQ[file], file, None]];
-
 finiteFieldStripCFFRFailure[status_String, data_Association: <||>] :=
   Join[<|"Status" -> status, "Protocol" -> "CFFR1"|>, data];
-
-$finiteFieldStripCFFRAdapterHashCache = <||>;
-
-(* item 5 of the design note: the adapter source and binary hashes are
-   the plan's immutable binding.  They are computed once per session and
-   cached under the binary's path, and re-checked on every discovery: a
-   binary replaced mid-session is a typed failure, never a plan that
-   silently belongs to another executable. *)
-finiteFieldStripCFFRAdapterHashes[] := Module[{binary, source, current, stamp, cached},
-  binary = finiteFieldStripCFFRBinary[];
-  source = finiteFieldStripCFFRSource[];
-  If[! StringQ[binary] || ! FileExistsQ[binary],
-    Return[finiteFieldStripCFFRFailure["CFFRAdapterBinaryUnavailable",
-      <|"AdapterBinary" -> If[StringQ[binary], binary, None]|>]]];
-  If[! StringQ[source] || ! FileExistsQ[source],
-    Return[finiteFieldStripCFFRFailure["CFFRAdapterSourceUnavailable",
-      <|"AdapterSource" -> If[StringQ[source], source, None]|>]]];
-  (* Overhaul 2026-09-02 (certification audit item 5): the code re-read
-     and re-hashed the binary and the source on EVERY call (once per
-     sample), while the comment promised once per session.  The hashes
-     are now computed once and re-verified only when the files' size or
-     modification date changes; a changed hash is still the typed
-     failure it always was. *)
-  (* The change (ctime) date is part of the stamp: a replacement that
-     preserves size and modification date (cp -p, a rebuild plus touch -r)
-     still changes it, so such a binary is re-hashed and refused as the
-     typed CFFRAdapterHashChanged failure (review finding D4, 2026-09-02). *)
-  stamp = <|"AdapterBinary" -> binary, "AdapterSource" -> source,
-    "BinaryBytes" -> FileByteCount[binary],
-    "BinaryDate" -> FileDate[binary, "Modification"],
-    "BinaryChange" -> FileDate[binary, "Change"],
-    "SourceBytes" -> FileByteCount[source],
-    "SourceDate" -> FileDate[source, "Modification"],
-    "SourceChange" -> FileDate[source, "Change"]|>;
-  cached = Lookup[$finiteFieldStripCFFRAdapterHashCache, binary, None];
-  If[AssociationQ[cached] && Lookup[cached, "Stamp", None] === stamp,
-    Return[Join[<|"Status" -> "OK"|>, cached["Hashes"]]]];
-  current = <|"AdapterBinary" -> binary, "AdapterSource" -> source,
-    "AdapterBinarySHA256" -> FileHash[binary, "SHA256", "HexString"],
-    "AdapterSourceSHA256" -> FileHash[source, "SHA256", "HexString"]|>;
-  If[AssociationQ[cached] && cached["Hashes"] =!= current,
-    Return[finiteFieldStripCFFRFailure["CFFRAdapterHashChanged",
-      <|"CachedAdapterHashes" -> cached["Hashes"],
-        "CurrentAdapterHashes" -> current|>]]];
-  $finiteFieldStripCFFRAdapterHashCache[binary] =
-    <|"Stamp" -> stamp, "Hashes" -> current|>;
-  Join[<|"Status" -> "OK"|>, current]
-];
 
 (* Backend controls only the fixed constrained core.  Plan discovery is a
    separate contract below; an explicit fixed-core request never changes
@@ -270,25 +211,14 @@ finiteFieldStripPlanDiscoveryBackendDecision[requested_] := Which[
 ];
 
 finiteFieldStripBackendConfiguration[requested_, threads_] := Module[
-  {decision, binary, source, payload},
+  {decision},
   decision = finiteFieldStripBackendDecision[requested, threads, 0];
   If[Lookup[decision, "Status", None] =!= "OK", Return[decision]];
-  binary = finiteFieldStripFLINTBinary[];
-  source = feynFacetPrivateFile["FiniteFieldStripSolve.wl"];
-  If[! StringQ[source] || ! FileExistsQ[source],
-    Return[<|"Status" -> "BackendSourceUnavailable"|>]];
-  payload = <|
+  <|
     "Schema" -> "FeynFacetFiniteFieldFixedCoreBackendConfiguration",
-    "SchemaVersion" -> 1, "Contract" -> "FixedConstrainedCore",
+    "SchemaVersion" -> 2, "Contract" -> "FixedConstrainedCore",
     "BackendProtocol" -> "CFFA4V1/CFFA4X1OrWolfram",
-    "BackendRequested" -> requested, "BackendThreads" -> threads,
-    "FiniteFieldStripSolveSHA256" ->
-      FileHash[source, "SHA256", "HexString"],
-    "FLINTBinarySHA256" -> If[
-      MemberQ[{Automatic, "FLINT"}, requested] && StringQ[binary],
-      FileHash[binary, "SHA256", "HexString"], None]|>;
-  Join[payload, <|"Fingerprint" ->
-    Hash[KeySort[payload], "SHA256", "HexString"]|>]
+    "BackendRequested" -> requested, "BackendThreads" -> threads|>
 ];
 finiteFieldStripBackendConfiguration[___] :=
   <|"Status" -> "InvalidBackendConfigurationArguments"|>;
@@ -303,42 +233,7 @@ finiteFieldStripCoreSolutionQ[core_, rhs_, solution_, prime_Integer] :=
 
 $finiteFieldStripEliminationPlanSchema =
   "FeynFacetFiniteFieldStripEliminationPlan";
-$finiteFieldStripEliminationPlanSchemaVersion = 1;
-$finiteFieldStripEliminationPlanSolverProvenance = <|
-  "Discoverer" -> "WolframMatrixRankNullSpace",
-  "IndependentRows" -> "WolframLeftNullspacePivots",
-  "PlanDiscoveryBackend" -> "Wolfram",
-  "Implementation" -> "FiniteFieldStripSolve",
-  "ImplementationVersion" -> 1|>;
-$finiteFieldStripEliminationPlanRequiredKeys = {
-  "Status", "PlanSchema", "PlanSchemaVersion", "PlanFingerprint",
-  "PreparationFingerprint", "SolverProvenance",
-  "PlanDiscoveryBackendRequested", "PlanDiscoveryBackendUsed",
-  "NormalizationColumns", "IndependentEquationRows", "GenericRank",
-  "Nullity", "UnknownCount", "GaugeUnknownCount", "FreeResidueCount",
-  "GaugeNumeratorDegrees", "GaugeDenominatorDegrees", "GaugeSupport",
-  "PilotPrime"};
-
-(* Design/CFFR1Backend.md item 5: a plan discovered by the native adapter
-   carries, inside the fingerprinted payload, the adapter identity and
-   the exact wire objects it was read from.  These keys are required for
-   "FLINTAffineRREF" and forbidden for "Wolfram". *)
-$finiteFieldStripEliminationPlanCFFRSolverProvenance = <|
-  "Discoverer" -> "FLINTAffineRREFAdapterCFFR1",
-  "IndependentRows" -> "FLINTRREFRowPermutation",
-  "PlanDiscoveryBackend" -> "FLINTAffineRREF",
-  "Implementation" -> "FiniteFieldStripSolve",
-  "ImplementationVersion" -> 1|>;
-$finiteFieldStripCFFRPlanBindingKeys = {
-  "AdapterSourceSHA256", "AdapterBinarySHA256", "Protocol", "Nonce",
-  "RequestSHA256", "ResponseSHA256", "Threads"};
-$finiteFieldStripEliminationPlanCFFRRequiredKeys = Join[
-  $finiteFieldStripEliminationPlanRequiredKeys,
-  $finiteFieldStripCFFRPlanBindingKeys];
-
-finiteFieldStripEliminationPlanFingerprint[plan_Association] := Hash[
-  KeySort[KeyDrop[plan, "PlanFingerprint"]], "SHA256", "HexString"];
-
+$finiteFieldStripEliminationPlanSchemaVersion = 2;
 (* Modular interpolation depends on the affine section, not on which row
    basis, nonce, thread count, or adapter transcript discovered it.  Rank
    plus the normalization columns uniquely identify that section. *)
@@ -346,121 +241,44 @@ finiteFieldStripEliminationPlanArtifactIdentity[plan_Association] :=
   KeyTake[plan, {"GenericRank", "NormalizationColumns"}];
 finiteFieldStripEliminationPlanArtifactIdentity[___] := None;
 
-(* Native thread allocation is execution telemetry.  It cannot change an
-   exact modular solution, so it must not invalidate completed primes when
-   the dynamic pool is rebalanced on a resume. *)
-finiteFieldStripBackendArtifactIdentity[configuration_Association] :=
-  KeyDrop[configuration, {"BackendThreads", "Fingerprint"}];
-finiteFieldStripBackendArtifactIdentity[___] := None;
-
-finiteFieldStripSealEliminationPlan[plan_Association,
-    preparationFingerprint_String,
-    planDiscoveryBackend_: "Wolfram",
-    binding_Association: <||>] := Module[
-  {payload, decision, used, provenance, expectedBindingKeys},
+(* The reusable plan contains the mathematical affine section and the
+   defining strip input.  How it was computed is retained only as telemetry;
+   it is never part of the consistency decision. *)
+finiteFieldStripCompleteEliminationPlan[plan_Association,
+    definingInput_Association, planDiscoveryBackend_: "Wolfram"] := Module[
+  {decision, used},
   decision = finiteFieldStripPlanDiscoveryBackendDecision[
     planDiscoveryBackend];
   If[Lookup[decision, "Status", None] =!= "OK", Return[decision]];
   used = decision["PlanDiscoveryBackendUsed"];
-  provenance = If[used === "FLINTAffineRREF",
-    $finiteFieldStripEliminationPlanCFFRSolverProvenance,
-    $finiteFieldStripEliminationPlanSolverProvenance];
-  expectedBindingKeys = If[used === "FLINTAffineRREF",
-    Sort[$finiteFieldStripCFFRPlanBindingKeys], {}];
-  If[Sort[Keys[binding]] =!= expectedBindingKeys,
-    Return[<|"Status" -> "PlanAdapterBindingInvalid",
-      "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
-      "PlanDiscoveryBackendUsed" -> used,
-      "BindingKeys" -> Sort[Keys[binding]],
-      "ExpectedBindingKeys" -> expectedBindingKeys|>]];
-  payload = Join[plan, <|
+  Join[KeyTake[plan, {
+      "Status", "NormalizationColumns", "IndependentEquationRows",
+      "GenericRank", "Nullity", "UnknownCount", "GaugeUnknownCount",
+      "FreeResidueCount", "GaugeNumeratorDegrees",
+      "GaugeDenominatorDegrees", "GaugeSupport", "PilotPrime"}], <|
     "PlanSchema" -> $finiteFieldStripEliminationPlanSchema,
     "PlanSchemaVersion" -> $finiteFieldStripEliminationPlanSchemaVersion,
-    "PreparationFingerprint" -> preparationFingerprint,
-    "SolverProvenance" -> provenance,
+    "DefiningInput" -> definingInput,
     "PlanDiscoveryBackendRequested" -> planDiscoveryBackend,
-    "PlanDiscoveryBackendUsed" -> used|>, binding];
-  Join[payload, <|"PlanFingerprint" ->
-    finiteFieldStripEliminationPlanFingerprint[payload]|>]
+    "PlanDiscoveryBackendUsed" -> used|>]
 ];
-
-(* the shape of the sealed adapter binding, plus the session identity
-   check: a plan sealed against a different adapter binary than the one
-   this session hashed is refused rather than reused *)
-finiteFieldStripCFFRPlanBindingValidQ[plan_Association] := Module[
-  {cached, hexQ, nonce, threads},
-  hexQ[value_] := StringQ[value] && StringLength[value] === 64 &&
-    StringMatchQ[value, RegularExpression["[0-9a-f]{64}"]];
-  nonce = Lookup[plan, "Nonce", None];
-  threads = Lookup[plan, "Threads", None];
-  (* the session cache stores <|"Stamp", "Hashes"|> per binary
-     (overhaul 2026-09-02); the binding check compares the hashes *)
-  cached = Lookup[Lookup[$finiteFieldStripCFFRAdapterHashCache,
-    Replace[finiteFieldStripCFFRBinary[], None -> Missing["NoAdapter"]],
-    <||>], "Hashes", <||>];
-  TrueQ[
-    Lookup[plan, "Protocol", None] === "CFFR1" &&
-    hexQ[Lookup[plan, "AdapterSourceSHA256", None]] &&
-    hexQ[Lookup[plan, "AdapterBinarySHA256", None]] &&
-    hexQ[Lookup[plan, "RequestSHA256", None]] &&
-    hexQ[Lookup[plan, "ResponseSHA256", None]] &&
-    IntegerQ[nonce] && Between[nonce, {1, 2^128 - 1}] &&
-    IntegerQ[threads] && Between[threads, {1, 8}] &&
-    (cached === <||> ||
-      (Lookup[cached, "AdapterSourceSHA256", None] ===
-         plan["AdapterSourceSHA256"] &&
-       Lookup[cached, "AdapterBinarySHA256", None] ===
-         plan["AdapterBinarySHA256"]))]
-];
-finiteFieldStripCFFRPlanBindingValidQ[___] := False;
 
 finiteFieldStripValidateEliminationPlan[plan_,
     matrixDimensions : {equationCount_Integer?NonNegative,
       unknownCount_Integer?NonNegative}, gaugeUnknownCount_Integer,
     freeResidueCount_Integer, numeratorDegrees_List,
     denominatorDegrees_List, support_List,
-    preparationFingerprint_String] := Module[
-  {fail, strictIncreasingQ, rows, columns, rank, nullity, pilotPrime,
-   backend, requiredKeys, provenance},
+    definingInput_Association] := Module[
+  {fail, strictIncreasingQ, rows, columns, rank, nullity, pilotPrime},
   fail[status_String] := <|"Status" -> status|>;
   strictIncreasingQ[values_] := VectorQ[values, IntegerQ] &&
     values === Sort[DeleteDuplicates[values]];
   If[plan === None, Return[fail["NoEliminationPlan"]]];
   If[! AssociationQ[plan], Return[fail["PlanNotAssociation"]]];
-  (* the sealed key set and provenance depend on the discovery backend:
-     the native plan carries the adapter binding of item 5 in addition to
-     the historical keys, and nothing else may differ *)
-  backend = Lookup[plan, "PlanDiscoveryBackendUsed", None];
-  {requiredKeys, provenance} = Switch[backend,
-    "Wolfram", {$finiteFieldStripEliminationPlanRequiredKeys,
-      $finiteFieldStripEliminationPlanSolverProvenance},
-    "FLINTAffineRREF", {$finiteFieldStripEliminationPlanCFFRRequiredKeys,
-      $finiteFieldStripEliminationPlanCFFRSolverProvenance},
-    _, {None, None}];
-  If[requiredKeys === None,
-    Return[fail["PlanSolverProvenanceMismatch"]]];
-  If[Sort[Keys[plan]] =!= Sort[requiredKeys],
-    Return[fail["PlanSchemaKeysMismatch"]]];
-  If[Lookup[plan, "Status", None] =!= "OK" ||
-      Lookup[plan, "PlanSchema", None] =!=
-        $finiteFieldStripEliminationPlanSchema ||
-      Lookup[plan, "PlanSchemaVersion", None] =!=
-        $finiteFieldStripEliminationPlanSchemaVersion,
-    Return[fail["PlanSchemaVersionMismatch"]]];
-  If[! SameQ[Lookup[plan, "SolverProvenance", None], provenance] ||
-      Lookup[plan, "PlanDiscoveryBackendRequested", None] =!= backend,
-    Return[fail["PlanSolverProvenanceMismatch"]]];
-  If[backend === "FLINTAffineRREF" &&
-      ! finiteFieldStripCFFRPlanBindingValidQ[plan],
-    Return[fail["PlanAdapterBindingMismatch"]]];
-  If[Lookup[plan, "PreparationFingerprint", None] =!=
-      preparationFingerprint,
-    Return[fail["PlanPreparationFingerprintMismatch"]]];
-  If[! StringQ[Lookup[plan, "PlanFingerprint", None]] ||
-      StringLength[plan["PlanFingerprint"]] =!= 64 ||
-      plan["PlanFingerprint"] =!=
-        finiteFieldStripEliminationPlanFingerprint[plan],
-    Return[fail["PlanFingerprintMismatch"]]];
+  If[Lookup[plan, "Status", None] =!= "OK",
+    Return[fail["PlanStatusInvalid"]]];
+  If[! SameQ[Lookup[plan, "DefiningInput", None], definingInput],
+    Return[fail["PlanDefiningInputMismatch"]]];
   If[Lookup[plan, "UnknownCount", None] =!= unknownCount ||
       Lookup[plan, "GaugeUnknownCount", None] =!= gaugeUnknownCount ||
       Lookup[plan, "FreeResidueCount", None] =!= freeResidueCount ||
@@ -493,18 +311,17 @@ finiteFieldStripValidateEliminationPlan[plan_,
 (* A completed modular image is mathematical data.  Reuse is tied to the
    connection, ansatz support and affine section; the backend, binary,
    thread allocation and plan discoverer are execution provenance only. *)
-finiteFieldStripModularArtifactValidQ[artifact_, recordFingerprint_,
+finiteFieldStripModularArtifactValidQ[artifact_, definingInput_,
     selectedOffset_, selectedShell_, gaugeSupport_, planIdentity_] := Module[
   {artifactPlanIdentity},
   If[! AssociationQ[artifact], Return[False]];
   artifactPlanIdentity = Lookup[artifact, "EliminationPlanIdentity",
-    KeyTake[artifact, {"GenericRank", "NormalizationColumns"}]];
+    Missing["Absent"]];
   TrueQ[
-    Lookup[artifact, "RecordFingerprint", Missing[]] ===
-      recordFingerprint &&
+    SameQ[Lookup[artifact, "DefiningInput", Missing[]], definingInput] &&
     Lookup[artifact, "SelectedNumeratorDegreeOffset", Missing[]] ===
       selectedOffset &&
-    Lookup[artifact, "SelectedSupportShell", "Rectangle"] ===
+    Lookup[artifact, "SelectedSupportShell", Missing[]] ===
       selectedShell &&
     Lookup[artifact, "GaugeSupport", Missing[]] === gaugeSupport &&
     SameQ[artifactPlanIdentity, planIdentity]]
@@ -553,19 +370,14 @@ finiteFieldStripFLINTSolve[core_, rhs_, prime_Integer, threads_Integer] := Modul
    divergent field; nothing here falls back to the Wolfram discoverer.
    --------------------------------------------------------------------- *)
 
-(* A 128-bit nonce binds one response to one request: a stale or replayed
-   response file cannot be mistaken for this call's answer.  Wolfram
-   14.2.1 exposes no cryptographic Method for RandomInteger (checked
-   2026-08-23), so the bytes come from the operating system's CSPRNG;
-   the hashed RandomInteger path is used only when that device cannot be
-   read.  A zero nonce is invalid on the wire. *)
+(* A 128-bit nonce binds one response to one live request: a stale response
+   file cannot be mistaken for this call's answer.  A zero nonce is invalid
+   on the wire. *)
 finiteFieldStripCFFRNonce[] := Module[{bytes, value},
   bytes = Quiet[Check[BinaryReadList["/dev/urandom", "Byte", 16], $Failed]];
   value = If[ListQ[bytes] && Length[bytes] === 16 &&
       VectorQ[bytes, IntegerQ],
-    FromDigits[Mod[bytes, 256], 256],
-    Hash[{RandomInteger[{0, 2^128 - 1}], CreateUUID[], AbsoluteTime[],
-      $ProcessID, $SessionID}, "SHA256"]];
+    FromDigits[Mod[bytes, 256], 256], RandomInteger[{1, 2^128 - 1}]];
   value = Mod[value, 2^128];
   If[value === 0, 1, value]
 ];
@@ -627,8 +439,7 @@ finiteFieldStripCFFRWriteRequest[request_Association, file_String] := Module[
     FileByteCount[file] === expected, $Failed]];
   If[stream =!= None, Quiet[Close[stream]]];
   If[TrueQ[written],
-    <|"Status" -> "OK", "RequestFile" -> file, "ByteCount" -> expected,
-      "RequestSHA256" -> FileHash[file, "SHA256", "HexString"]|>,
+    <|"Status" -> "OK", "RequestFile" -> file, "ByteCount" -> expected|>,
     finiteFieldStripCFFRFailure["CFFRRequestWriteFailed",
       <|"RequestFile" -> file|>]]
 ];
@@ -749,8 +560,7 @@ finiteFieldStripCFFRResponse[file_String, request_Association] := Module[
     "ParticularSolution" -> particular, "NullspaceBasis" -> nullspace,
     "RowMinorInverse" -> rowMinorInverse,
     "NormalizationMinorInverse" -> normalizationMinorInverse,
-    "ResponseFile" -> file,
-    "ResponseSHA256" -> FileHash[file, "SHA256", "HexString"]|>
+    "ResponseFile" -> file|>
 ];
 finiteFieldStripCFFRResponse[___] :=
   finiteFieldStripCFFRFailure["CFFRResponseParserArgumentsInvalid"];
@@ -824,11 +634,12 @@ finiteFieldStripCFFRDirectory[directory_] := Which[
    box's 8 P-cores. *)
 finiteFieldStripCFFRRun[matrix_, rightHandSide_, prime_Integer,
     preference_List, threads_Integer, directory_] := Module[
-  {hashes, resolved, owned, tag, requestFile, responseFile, request,
+  {binary, resolved, owned, tag, requestFile, responseFile, request,
    written, process, exitCode, parsed, threadArgument, result, cleanup,
    failure},
-  hashes = finiteFieldStripCFFRAdapterHashes[];
-  If[Lookup[hashes, "Status", None] =!= "OK", Return[hashes]];
+  binary = finiteFieldStripCFFRBinary[];
+  If[! StringQ[binary] || ! FileExistsQ[binary],
+    Return[finiteFieldStripCFFRFailure["CFFRAdapterBinaryUnavailable"]]];
   {resolved, owned} = finiteFieldStripCFFRDirectory[directory];
   If[! StringQ[resolved],
     Return[finiteFieldStripCFFRFailure["CFFRArtifactDirectoryUnavailable",
@@ -852,7 +663,7 @@ finiteFieldStripCFFRRun[matrix_, rightHandSide_, prime_Integer,
       "ResponseFile" -> responseFile|>]]];
   threadArgument = Max[1, Min[threads, 8]];
   process = Quiet[Check[RunProcess[taskBrokerNativeCommand[
-    {hashes["AdapterBinary"], requestFile, responseFile,
+    {binary, requestFile, responseFile,
       ToString[threadArgument]}, threadArgument]], $Failed]];
   exitCode = If[AssociationQ[process], Lookup[process, "ExitCode", -1], -1];
   If[exitCode =!= 0,
@@ -865,7 +676,6 @@ finiteFieldStripCFFRRun[matrix_, rightHandSide_, prime_Integer,
         "MatrixDimensions" -> Lookup[request, {"Rows", "Columns"}],
         "RequestFile" -> If[exitCode === 5, Missing["Deleted"], requestFile],
         "ResponseFile" -> If[exitCode === 5, Missing["Deleted"], responseFile],
-        "RequestSHA256" -> written["RequestSHA256"],
         "Nonce" -> request["Nonce"], "Threads" -> threadArgument|>];
     If[exitCode === 5, cleanup[]];
     Return[failure]];
@@ -873,18 +683,13 @@ finiteFieldStripCFFRRun[matrix_, rightHandSide_, prime_Integer,
     Append[request, "AdapterExitCode" -> exitCode]];
   If[Lookup[parsed, "Status", None] =!= "OK",
     Return[Join[parsed, <|"RequestFile" -> requestFile,
-      "RequestSHA256" -> written["RequestSHA256"],
       "Nonce" -> request["Nonce"], "Threads" -> threadArgument|>]]];
   result = <|"Status" -> "OK", "Protocol" -> "CFFR1",
     "Request" -> KeyDrop[request, {"Matrix", "RightHandSide"}],
     "Response" -> KeyDrop[parsed, "ResponseFile"],
     "AdapterExitCode" -> exitCode,
-    "AdapterBinary" -> hashes["AdapterBinary"],
-    "AdapterBinarySHA256" -> hashes["AdapterBinarySHA256"],
-    "AdapterSourceSHA256" -> hashes["AdapterSourceSHA256"],
+    "AdapterBinary" -> binary,
     "Nonce" -> request["Nonce"],
-    "RequestSHA256" -> written["RequestSHA256"],
-    "ResponseSHA256" -> parsed["ResponseSHA256"],
     "Threads" -> threadArgument|>;
   cleanup[];
   result
@@ -894,10 +699,9 @@ finiteFieldStripCFFRRun[___] :=
 
 (* Plan discovery through the adapter: one call returns rank/nullity, the
    pivot/free partition, an independent row basis and the normalization
-   columns.  The plan it returns is the same object
-   finiteFieldStripDiscoverPlan produces, plus the "Binding" the caller
-   seals with (item 5).  `expectedRank` is the discovery-side rank the
-   caller already knows (Automatic to skip that cross-check). *)
+   columns.  The plan it returns has the same mathematical data as
+   finiteFieldStripDiscoverPlan.  `expectedRank` is the discovery-side rank
+   the caller already knows (Automatic to skip that cross-check). *)
 finiteFieldStripCFFRDiscoverPlan[matrix_, rightHandSide_,
     gaugeUnknownCount_Integer, freeResidueCount_Integer,
     numeratorDegrees_List, denominatorDegrees_List, prime_Integer,
@@ -921,9 +725,7 @@ finiteFieldStripCFFRDiscoverPlan[matrix_, rightHandSide_,
   verification = finiteFieldStripCFFRVerify[matrix, rightHandSide, prime,
     response, expectedRank];
   If[Lookup[verification, "Status", None] =!= "OK",
-    Return[Join[verification, <|"Nonce" -> run["Nonce"],
-      "RequestSHA256" -> run["RequestSHA256"],
-      "ResponseSHA256" -> run["ResponseSHA256"]|>]]];
+    Return[Join[verification, <|"Nonce" -> run["Nonce"]|>]]];
   <|"Status" -> "OK",
     "NormalizationColumns" -> response["NormalizationColumns"],
     "IndependentEquationRows" -> response["IndependentEquationRows"],
@@ -937,14 +739,7 @@ finiteFieldStripCFFRDiscoverPlan[matrix_, rightHandSide_,
     "PivotColumns" -> response["PivotColumns"],
     "FreeColumns" -> response["FreeColumns"],
     "ParticularSolution" -> response["ParticularSolution"],
-    "NullspaceBasis" -> response["NullspaceBasis"],
-    "Binding" -> <|
-      "AdapterSourceSHA256" -> run["AdapterSourceSHA256"],
-      "AdapterBinarySHA256" -> run["AdapterBinarySHA256"],
-      "Protocol" -> "CFFR1", "Nonce" -> run["Nonce"],
-      "RequestSHA256" -> run["RequestSHA256"],
-      "ResponseSHA256" -> run["ResponseSHA256"],
-      "Threads" -> run["Threads"]|>|>
+    "NullspaceBasis" -> response["NullspaceBasis"]|>
 ];
 finiteFieldStripCFFRDiscoverPlan[___] :=
   finiteFieldStripCFFRFailure["CFFRDiscoveryArgumentsInvalid"];
@@ -965,7 +760,6 @@ Options[SampleEpsFormStripAffine] = {
   "RandomSeed" -> 2540908,
   "DeferredForcingWaveValues" -> None,
   "Preparation" -> Automatic,
-  "ExpectedFingerprint" -> Automatic,
   "EliminationPlan" -> None,
   "DiscoverPlan" -> False,
   (* where the CFFR1 plan-discovery adapter stages its request and
@@ -1056,28 +850,24 @@ finiteFieldStripDiscoverPlan[matrix_, rank_Integer, nullspace_List,
 ];
 
 (* O1 (2026-08-20): the regulator- and prime-independent setup of one
-   off-diagonal block -- alphabet (a CANONICA call), dlog table,
-   residue layout, forcing coefficients, denominator factor census and
-   gauge denominator -- measured at 35% of the CF254 (9,6) solve when
-   rebuilt on every sample. It is computed once here, fingerprinted,
-   and reused by every sample of every prime. The contents are exactly
-   what the per-call code computed before; nothing in the acceptance
-   changes. *)
-finiteFieldStripFingerprint[record_Association] := Module[
-  {base, dlogRecords},
-  base = {record["Strip"], record["Variables"],
-    SymbolName[record["Regulator"]],
-    Lookup[record, "GaugeDenominatorFactor", 1],
-    Lookup[record, "ExtraLetters", {}],
-    (* round 8 pass 3: a deferred forcing is identified by its plan key and
-       census; the Strip slot is a zero placeholder on that route *)
-    Lookup[record, "DeferredForcing", None]};
+   off-diagonal block -- alphabet, dlog table, residue layout, forcing
+   coefficients, denominator factor census and transformation-block
+   denominator -- is computed once and reused by every sample.  Reuse is
+   decided from the defining mathematical input itself. *)
+finiteFieldStripDefiningInput[record_Association] := Module[
+  {input, dlogRecords},
+  input = <|
+    "Strip" -> record["Strip"],
+    "Variables" -> record["Variables"],
+    "Regulator" -> record["Regulator"],
+    "BasisTransformationDenominatorFactor" ->
+      Lookup[record, "GaugeDenominatorFactor", 1],
+    "ExtraLetters" -> Lookup[record, "ExtraLetters", {}],
+    "DeferredForcing" -> Lookup[record, "DeferredForcing", None]|>;
   dlogRecords = Lookup[record, "DLogRecords", Automatic];
-  (* Preserve the historical key exactly when the new mathematical payload
-     is absent; old prime/plan artifacts remain reusable. *)
-  Hash[If[dlogRecords === Automatic, base,
-    Append[base, KeyTake[#, {"Letter", "OneForm"}] & /@ dlogRecords]],
-    "SHA256", "HexString"]
+  If[dlogRecords === Automatic, input,
+    Append[input, "DLogOneForms" ->
+      (KeyTake[#, {"Letter", "OneForm"}] & /@ dlogRecords)]]
 ];
 
 finiteFieldStripPrepare[record_Association] := Module[
@@ -1234,7 +1024,10 @@ finiteFieldStripPrepare[record_Association] := Module[
        Map[rational, dlog, {2}],
        rational[gaugeDenominator],
        rational /@ (D[gaugeDenominator, #] & /@ variables)}]];
-  <|"Fingerprint" -> finiteFieldStripFingerprint[record],
+  <|"DefiningInput" -> finiteFieldStripDefiningInput[record],
+    (* Used only to keep in-memory numeric tables separate.  It is never
+       written as mathematical evidence and never participates in resume. *)
+    "SamplingCacheID" -> StringDelete[CreateUUID[], "-"],
     "DeferredForcing" -> deferredForcing,
     "SymbolicForms" -> symbolicForms,
     "Variables" -> variables, "Regulator" -> epsilon,
@@ -1309,19 +1102,19 @@ finiteFieldStripSupportLadder[preparation_Association, numeratorDegrees_List, ki
           Append[Range[0, Total[numeratorDegrees] - bound - 1], "Rectangle"]]]
   ];
 
-(* per-prime reduction of the symbolic forms, memoized by (fingerprint,
+(* per-prime reduction of the symbolic forms, memoized by (preparation,
    prime): each polynomial becomes {xExponents, yExponents,
    coefficientMatrix} where row m holds the mod-p coefficients of
    eps^0..eps^K for monomial m; a sample collapses it with the powers of
    its regulator value *)
 $finiteFieldStripPrimeFormCache = <||>;
-(* per-(fingerprint, prime, point) evaluations of the uncollapsed prime
+(* per-(preparation, prime, point) evaluations of the uncollapsed prime
    forms, shared by the regulator samples of a prime (round 8) *)
 $finiteFieldStripPointValueCache = <||>;
 
 finiteFieldStripPrimeForms[preparation_Association, prime_Integer] :=
  Module[{key, modNumber, reducePoly, reduceRational, forms},
-  key = {preparation["Fingerprint"], prime};
+  key = {preparation["SamplingCacheID"], prime};
   If[KeyExistsQ[$finiteFieldStripPrimeFormCache, key],
     Return[$finiteFieldStripPrimeFormCache[key]]];
   modNumber[value_] := Mod[Mod[Numerator[value], prime] PowerMod[
@@ -1383,7 +1176,7 @@ SampleEpsFormStripAffine[
    preparation, preparationReused, eliminationPlan, discoverPlanQ,
    planCompatible, selector, core, rhsMatrix, solutionMatrix,
    constrainedSeconds, normalizationOK, planResult, nativePlanResult,
-   nativePlanHandledQ = False, sealedPlan, discard,
+   nativePlanHandledQ = False, completedPlan, discard,
    maximumExponents, tableExponents, blockLength, collapsePoly,
    collapseRational, support, supportX, supportY, backendUsed = None,
    backendRequested, backendThreads, backendDecision,
@@ -1435,13 +1228,12 @@ SampleEpsFormStripAffine[
      2026-08-20 assessment could not see it. *)
   setupStart = AbsoluteTime[];
   preparation = OptionValue["Preparation"];
-  (* the strong guard hashes the whole strip (~0.5 s on a 1.5 MB
-     record, measured 2026-08-20); a caller that prepared the record
-     itself passes the fingerprint it computed once instead *)
+  (* A supplied preparation is reusable only for the same defining
+     mathematical input.  SameQ is normally pointer-fast here because the
+     preparation was constructed from this record in the calling kernel. *)
   preparationReused = AssociationQ[preparation] &&
-    Lookup[preparation, "Fingerprint", None] ===
-      Replace[OptionValue["ExpectedFingerprint"],
-        Automatic :> finiteFieldStripFingerprint[record]];
+    SameQ[Lookup[preparation, "DefiningInput", None],
+      finiteFieldStripDefiningInput[record]];
   If[! preparationReused,
     preparation = finiteFieldStripPrepare[record];
     If[preparation === $Failed,
@@ -1631,7 +1423,7 @@ SampleEpsFormStripAffine[
     yPowers = Table[PowerMod[Mod[yValue, prime], power, prime],
       {power, 0, tableExponents[[2]]}];
     If[kFormsQ,
-      pointKey = {preparation["Fingerprint"], prime, xValue, yValue};
+      pointKey = {preparation["SamplingCacheID"], prime, xValue, yValue};
       kValues = Lookup[$finiteFieldStripPointValueCache, Key[pointKey], None];
       If[kValues === None,
         kValues = {
@@ -1782,7 +1574,7 @@ SampleEpsFormStripAffine[
   planValidation = finiteFieldStripValidateEliminationPlan[
     eliminationPlan, Dimensions[matrix], gaugeUnknownCount,
     Length[freeResidues], numeratorDegrees, denominatorDegrees, support,
-    preparation["Fingerprint"]];
+    preparation["DefiningInput"]];
   planCompatible = solveAffineQ &&
     Lookup[planValidation, "Status", None] === "OK";
   discard = None;
@@ -1810,19 +1602,18 @@ SampleEpsFormStripAffine[
          they are the valid solution of this first regulator image. *)
       particularSolution = nativePlanResult["ParticularSolution"];
       nullspaceBasis = nativePlanResult["NullspaceBasis"];
-      sealedPlan = finiteFieldStripSealEliminationPlan[
+      completedPlan = finiteFieldStripCompleteEliminationPlan[
         Join[KeyDrop[nativePlanResult,
-            {"Binding", "PivotColumns", "FreeColumns",
+            {"PivotColumns", "FreeColumns",
              "ParticularSolution", "NullspaceBasis"}],
           <|"GaugeSupport" -> support|>],
-        preparation["Fingerprint"], planDiscoveryBackend,
-        nativePlanResult["Binding"]];
-      (* Never leave the adapter's raw OK payload live after sealing was
-         attempted.  A sealing refusal is the result and must propagate. *)
-      nativePlanResult = sealedPlan;
-      If[AssociationQ[sealedPlan] && Lookup[sealedPlan, "Status", None] === "OK",
-        planResult = sealedPlan;
-        rank = sealedPlan["GenericRank"];
+        preparation["DefiningInput"], planDiscoveryBackend];
+      (* Never leave the adapter's raw OK payload live after completing the
+         reusable plan.  A refusal is the result and must propagate. *)
+      nativePlanResult = completedPlan;
+      If[AssociationQ[completedPlan] && Lookup[completedPlan, "Status", None] === "OK",
+        planResult = completedPlan;
+        rank = completedPlan["GenericRank"];
         augmentedRank = rank;
         rankSeconds = 0.; augmentedRankSeconds = 0.;
         linearSolveSeconds = 0.; nullspaceSeconds = 0.;
@@ -2006,9 +1797,9 @@ SampleEpsFormStripAffine[
           gaugeUnknownCount, Length[freeResidues], numeratorDegrees,
           denominatorDegrees, prime]];
       If[AssociationQ[planResult] && planResult["Status"] === "OK",
-        planResult = finiteFieldStripSealEliminationPlan[
+        planResult = finiteFieldStripCompleteEliminationPlan[
           Join[planResult, <|"GaugeSupport" -> support|>],
-          preparation["Fingerprint"], planDiscoveryBackend]];
+          preparation["DefiningInput"], planDiscoveryBackend]];
       affineData = Join[affineData, <|"EliminationPlan" -> planResult,
         "PlanDiscoverySeconds" -> planSeconds,
         "PlanDiscoveryBackendUsed" -> planDiscoveryBackendUsed|>]]];
@@ -2973,7 +2764,7 @@ SolveEpsFormStripFiniteField[record_Association,
    modularData = {},
    currentEpsilonSamples, currentConstructionCount,
    currentMaximumTotalDegree, adaptivePlan,
-   solution = $Failed, file, seconds, loadFile, recordFingerprint,
+   solution = $Failed, file, seconds, loadFile, definingInput,
    fullRetry, loopExit, preparation, eliminationPlan, pilotSample,
    supportKind, supportStrategy, shells, selectedShell = "Rectangle", supportOptions, probeCount = 0,
    regulatorSampling, initialConstruction, heldOutCount, unseenPrimeCheck,
@@ -2991,8 +2782,7 @@ SolveEpsFormStripFiniteField[record_Association,
    nativeProbeFailure, deferredFailureOf, deferredFailure,
    cachedSimplexProbe = Missing["NotProbed"],
    suppliedPreparation, suppliedEliminationPlan,
-   eliminationPlanFingerprint = None,
-   eliminationPlanIdentity = None, backendArtifactIdentity = None,
+   eliminationPlanIdentity = None,
    solveStart = AbsoluteTime[], deadline, budgetStop = None,
    budgetProgress, budgetExhausted},
   If[! finiteFieldStripRecordQ[record],
@@ -3036,8 +2826,6 @@ SolveEpsFormStripFiniteField[record_Association,
   If[Lookup[backendConfiguration, "Schema", None] =!=
       "FeynFacetFiniteFieldFixedCoreBackendConfiguration",
     Return[backendConfiguration]];
-  backendArtifactIdentity =
-    finiteFieldStripBackendArtifactIdentity[backendConfiguration];
   planDiscoveryBackend = OptionValue["PlanDiscoveryBackend"];
   planDiscoveryDecision = finiteFieldStripPlanDiscoveryBackendDecision[
     planDiscoveryBackend];
@@ -3130,7 +2918,7 @@ SolveEpsFormStripFiniteField[record_Association,
   maximumTotalDegree = OptionValue["MaximumTotalDegree"];
   artifactDirectory = OptionValue["ArtifactDirectory"];
   artifactPrefix = OptionValue["ArtifactPrefix"];
-  recordFingerprint = Hash[record, "SHA256", "HexString"];
+  definingInput = finiteFieldStripDefiningInput[record];
   minimumPrimeCount = OptionValue["MinimumPrimeCount"];
   adaptivePrimeSampling = TrueQ[OptionValue["AdaptivePrimeSampling"]];
   adaptiveValidationMargin = OptionValue["AdaptiveValidationMargin"];
@@ -3210,11 +2998,11 @@ SolveEpsFormStripFiniteField[record_Association,
     suppliedPreparation === Automatic,
       finiteFieldStripPrepare[record],
     AssociationQ[suppliedPreparation] &&
-        Lookup[suppliedPreparation, "Fingerprint", None] ===
-          finiteFieldStripFingerprint[record],
+        SameQ[Lookup[suppliedPreparation, "DefiningInput", None],
+          definingInput],
       suppliedPreparation,
     True,
-      Return[<|"Status" -> "PreparedResumeFingerprintMismatch"|>]];
+      Return[<|"Status" -> "PreparationDefiningInputMismatch"|>]];
   If[preparation === $Failed,
     Message[SolveEpsFormStripFiniteField::failed]; Return[$Failed]];
   log["Prepared strip sampling once in ",
@@ -3269,8 +3057,7 @@ SolveEpsFormStripFiniteField[record_Association,
             "EliminationPlan" -> If[
               AssociationQ[suppliedEliminationPlan],
               suppliedEliminationPlan, None],
-            "Preparation" -> preparation,
-            "ExpectedFingerprint" -> preparation["Fingerprint"]];
+            "Preparation" -> preparation];
           If[shell === 0 && supportKind === Automatic &&
               TrueQ[Lookup[preparation["SupportCensus"], "CertifiedQ", False]] &&
               AssociationQ[probes[shell]],
@@ -3347,8 +3134,7 @@ SolveEpsFormStripFiniteField[record_Association,
             suppliedEliminationPlan, None],
           "RandomSeed" -> freshSeed,
           "ArtifactDirectory" -> artifactDirectory,
-          "Preparation" -> preparation,
-          "ExpectedFingerprint" -> preparation["Fingerprint"]];
+          "Preparation" -> preparation];
         failure = nativeProbeFailure[freshProbe];
         If[AssociationQ[failure],
           budgetStop = failure,
@@ -3389,7 +3175,7 @@ SolveEpsFormStripFiniteField[record_Association,
           ! AssociationQ[suppliedEliminationPlan],
         "EliminationPlan" -> If[AssociationQ[suppliedEliminationPlan],
           suppliedEliminationPlan, None],
-        "Preparation" -> preparation, "ExpectedFingerprint" -> preparation["Fingerprint"]];
+        "Preparation" -> preparation];
       failure = nativeProbeFailure[probe];
       If[AssociationQ[failure], Return[failure]];
       If[AssociationQ[probe] && TrueQ[probe["Consistent"]],
@@ -3441,8 +3227,7 @@ SolveEpsFormStripFiniteField[record_Association,
             "PlanDiscoveryBackend" -> planDiscoveryBackend,
             "SolveAffineSystem" -> True, "DiscoverPlan" -> True,
             "ArtifactDirectory" -> artifactDirectory,
-            "Preparation" -> preparation,
-            "ExpectedFingerprint" -> preparation["Fingerprint"]]]];
+            "Preparation" -> preparation]]];
       deferredFailure = deferredFailureOf[pilotSample];
       If[finiteFieldDeferredForcingRuntimeFailureQ[deferredFailure],
         Return[deferredFailure]];
@@ -3502,7 +3287,7 @@ SolveEpsFormStripFiniteField[record_Association,
           "PlanDiscoveryBackend" -> planDiscoveryBackend,
           "SolveAffineSystem" -> True, "DiscoverPlan" -> True,
           "ArtifactDirectory" -> artifactDirectory,
-          "Preparation" -> preparation, "ExpectedFingerprint" -> preparation["Fingerprint"]];
+          "Preparation" -> preparation];
         deferredFailure = deferredFailureOf[learnedPilot];
         If[finiteFieldDeferredForcingRuntimeFailureQ[deferredFailure],
           Return[deferredFailure]];
@@ -3569,10 +3354,7 @@ SolveEpsFormStripFiniteField[record_Association,
     "PlanDiscoveryBackend" -> planDiscoveryBackend,
     "SolveAffineSystem" -> True,
     "Preparation" -> preparation,
-    "ExpectedFingerprint" -> preparation["Fingerprint"],
     "EliminationPlan" -> eliminationPlan};
-  eliminationPlanFingerprint = If[AssociationQ[eliminationPlan],
-    Lookup[eliminationPlan, "PlanFingerprint", None], None];
   eliminationPlanIdentity =
     finiteFieldStripEliminationPlanArtifactIdentity[eliminationPlan];
   currentEpsilonSamples = epsilonSamples;
@@ -3605,7 +3387,7 @@ SolveEpsFormStripFiniteField[record_Association,
     If[StringQ[file] && FileExistsQ[file],
       interpolation = FamilyArtifactRead[file];
       If[! finiteFieldStripModularArtifactValidQ[interpolation,
-          recordFingerprint, selectedOffset, selectedShell,
+          definingInput, selectedOffset, selectedShell,
           Lookup[eliminationPlan, "GaugeSupport", None],
           eliminationPlanIdentity],
         log["Stale modular interpolation for prime ", prime, " ignored (another record or ansatz)"];
@@ -3803,11 +3585,9 @@ SolveEpsFormStripFiniteField[record_Association,
           "HeldOutInterpolateSeconds" -> heldOutInterpolateSeconds,
           "SelectedNumeratorDegreeOffset" -> selectedOffset,
           "SelectedSupportShell" -> selectedShell,
-          "RecordFingerprint" -> recordFingerprint,
-          "EliminationPlanFingerprint" -> eliminationPlanFingerprint,
+          "DefiningInput" -> definingInput,
           "EliminationPlanIdentity" -> eliminationPlanIdentity,
           "BackendConfiguration" -> backendConfiguration,
-          "BackendArtifactIdentity" -> backendArtifactIdentity,
           "PlanDiscoveryBackend" -> planDiscoveryBackend,
           (* M0 census: per-sample stage timers persisted with the
              prime artifact, so every production run is self-
@@ -4018,7 +3798,6 @@ SolveEpsFormStripFiniteField[record_Association,
   Join[solution, <|
     "Method" -> "SimultaneousFiniteFieldAffinePDE",
     "EliminationPlan" -> eliminationPlan,
-    "EliminationPlanFingerprint" -> eliminationPlanFingerprint,
     "BackendRequested" -> OptionValue["Backend"],
     "BackendThreads" -> OptionValue["BackendThreads"],
     "BackendConfiguration" -> backendConfiguration,

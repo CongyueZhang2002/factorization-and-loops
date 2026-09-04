@@ -40,7 +40,7 @@ checks["Support136"] = Length[support] === 136 && Max[Total /@ support] === 15;
 checks["LadderEndsAtRectangle"] = Last[FeynFacet`Private`finiteFieldStripSupportLadder[prep, prep["DenominatorDegrees"] + {1, 0}]] === "Rectangle";
 probe = FeynFacet`SampleEpsFormStripAffine[fixture, 1/21, 1000003,
   "NumeratorDegreeOffset" -> {1, 0}, "SolveAffineSystem" -> False,
-  "Preparation" -> prep, "ExpectedFingerprint" -> prep["Fingerprint"]];
+  "Preparation" -> prep];
 checks["SparseProbeConsistent"] = AssociationQ[probe] && TrueQ[probe["Consistent"]] &&
   probe["GaugeUnknownCount"] + probe["FreeResidueCount"] === 596 && probe["GaugeSupportCount"] === 136;
 
@@ -120,7 +120,7 @@ Module[{files, modular, lifted, opts, bad, bad2},
   checks["A4ArtifactsLiftUnverified"] = Length[files] === 7 && AssociationQ[lifted] && lifted["Status"] === "LiftedUnverified" &&
     lifted["CertificationMode"] === "HeldOut" && Length[lifted["LiftedVector"]] === 548;
   opts = {"PointCount" -> Automatic, "NumeratorDegreeOffset" -> {1, 0}, "Support" -> Automatic, "SupportShell" -> 0,
-    "SolveAffineSystem" -> True, "Preparation" -> prep, "ExpectedFingerprint" -> prep["Fingerprint"]};
+    "SolveAffineSystem" -> True, "Preparation" -> prep};
   checks["UnseenPrimeAcceptsTrueLift"] = AssociationQ[lifted] &&
     FeynFacet`Private`finiteFieldStripUnseenPrimeResidualQ[fixture, lifted, prep, 2147483399, 43/63, opts];
   If[AssociationQ[lifted],
@@ -138,7 +138,7 @@ Module[{sol, wide = 2305843009213693951, probeWide, solWide},
   checks["ReservePrimeOutsideSchedule"] = AssociationQ[sol] && TrueQ[sol["ExactPfaffianResidualsZero"]] &&
     PrimeQ[sol["UnseenPrime"]] && ! MemberQ[{2147483399, 2147483353, 2147483323}, sol["UnseenPrime"]] && sol["UnseenPrime"] < 2^31;
   probeWide = Quiet[Check[FeynFacet`SampleEpsFormStripAffine[fixture, 1/21, wide, "NumeratorDegreeOffset" -> {1, 0},
-    "SolveAffineSystem" -> False, "Preparation" -> prep, "ExpectedFingerprint" -> prep["Fingerprint"]], "messaged",
+    "SolveAffineSystem" -> False, "Preparation" -> prep], "messaged",
     FeynFacet`SampleEpsFormStripAffine::width], FeynFacet`SampleEpsFormStripAffine::width];
   solWide = Quiet[Check[FeynFacet`SolveEpsFormStripFiniteField[record, Sequence @@ Join[{"Primes" -> {wide}}, DeleteCases[common, "Primes" -> _]]],
     "messaged", FeynFacet`SampleEpsFormStripAffine::width], FeynFacet`SampleEpsFormStripAffine::width];
@@ -158,7 +158,7 @@ Module[{strip, prep, sample, sol, t},
     "UU_08_10_canonical", "BenchmarkStripBackends", "fixtures", "cf254_strips_2026-08-19", "CF254_12_11_input.wl"}]];
   prep = FeynFacet`PrepareEpsFormStripSampling[strip];
   sample = FeynFacet`SampleEpsFormStripAffine[strip, 1/21, 2147483647, "NumeratorDegreeOffset" -> {1, 0},
-    "SolveAffineSystem" -> False, "Preparation" -> prep, "ExpectedFingerprint" -> prep["Fingerprint"]];
+    "SolveAffineSystem" -> False, "Preparation" -> prep];
   checks["Dim3BlockTableExponentsSmall"] = AssociationQ[sample] && Dimensions[strip["Strip"][[3, 1]]] === {1, 3} &&
     MatchQ[sample["TableExponents"], {a_Integer, b_Integer} /; a < 40 && b < 40];
   {t, sol} = AbsoluteTiming[FeynFacet`SolveEpsFormStripFiniteField[strip, "KernelCount" -> 1, "Verbose" -> False]];

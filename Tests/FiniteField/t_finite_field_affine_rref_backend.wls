@@ -1,7 +1,7 @@
 #!/usr/bin/env wolframscript
 (* CFFR1 plan-discovery backend ("PlanDiscoveryBackend" ->
    "FLINTAffineRREF"), Design/CFFR1Backend.md, wire format
-   FeynFacet/Backends/flint/PROTOCOL_CFFR1.md.  The seven cases of the
+   FeynFacet/Backends/flint/PROTOCOL_CFFR1.md.  The cases are:
    design note:
      (a) the native plan agrees with the Wolfram plan on rank/nullity,
          pivot/free columns and normalization columns;
@@ -11,8 +11,8 @@
      (d) a flipped byte in the echoed nonce is a typed failure;
      (e) an inconsistent affine system is adapter exit 5, surfaced as
          InconsistentModularSystem, with no response artifact written;
-     (f) the sealed plan carries every binding field of item 5 inside its
-         fingerprint, and validates;
+     (f) the reusable plan carries its defining mathematical input and
+         validates directly against the coefficient layout;
      (g) follower solves on a CFFR-discovered plan reproduce the
          Wolfram-plan solution exactly at two primes.
    The designed system has a two-dimensional kernel whose RESIDUE columns
@@ -36,15 +36,7 @@ writeBytes[file_, bytes_] := Module[{stream},
   Close[stream]; file];
 
 binary = FeynFacet`Private`finiteFieldStripCFFRBinary[];
-source = FeynFacet`Private`finiteFieldStripCFFRSource[];
-adapterHashes = FeynFacet`Private`finiteFieldStripCFFRAdapterHashes[];
-check["adapter located and hashed once per session",
-  StringQ[binary] && StringQ[source] &&
-    adapterHashes["Status"] === "OK" &&
-    adapterHashes["AdapterSourceSHA256"] ===
-      FileHash[source, "SHA256", "HexString"] &&
-    adapterHashes["AdapterBinarySHA256"] ===
-      FileHash[binary, "SHA256", "HexString"]];
+check["adapter binary is available", StringQ[binary] && FileExistsQ[binary]];
 check["the option surface accepts exactly Wolfram and FLINTAffineRREF",
   FeynFacet`Private`finiteFieldStripPlanDiscoveryBackendDecision[
       "FLINTAffineRREF"] ===
@@ -142,12 +134,11 @@ solveOptions = {"Primes" -> {1000003},
   "MaximumTotalDegree" -> 4, "MinimumPrimeCount" -> 1,
   "ArtifactDirectory" -> FileNameJoin[{scratch, "solve"}],
   "Verbose" -> False};
-{decisionAbsent, hashesAbsent, runAbsent, solveAbsent, solveNoLocator} =
+{decisionAbsent, runAbsent, solveAbsent, solveNoLocator} =
   Block[{FeynFacet`Private`finiteFieldStripCFFRBinary},
     FeynFacet`Private`finiteFieldStripCFFRBinary[] := missingBinary;
     {FeynFacet`Private`finiteFieldStripPlanDiscoveryBackendDecision[
        "FLINTAffineRREF"],
-     FeynFacet`Private`finiteFieldStripCFFRAdapterHashes[],
      FeynFacet`Private`finiteFieldStripCFFRRun[matrix, rightHandSide,
        prime, preference, 1, scratch],
      FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
@@ -158,10 +149,8 @@ solveOptions = {"Primes" -> {1000003},
        FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
          "PlanDiscoveryBackend" -> "FLINTAffineRREF",
          Sequence @@ solveOptions]]}];
-check["(b) a nonexistent adapter path is a typed hash failure",
-  Lookup[hashesAbsent, "Status", None] ===
-      "CFFRAdapterBinaryUnavailable" &&
-    Lookup[runAbsent, "Status", None] ===
+check["(b) a nonexistent adapter path is a typed failure",
+  Lookup[runAbsent, "Status", None] ===
       "CFFRAdapterBinaryUnavailable" &&
     Lookup[decisionAbsent, "Status", None] === "OK"];
 check["(b) an absent adapter makes the decision unavailable",
@@ -181,35 +170,6 @@ check["(b) the solve propagates the typed failure and never falls back",
     Lookup[solveNoLocator, "Status", None] ===
       "PlanDiscoveryBackendUnavailable" &&
     Lookup[solveNoLocator, "PlanDiscoveryBackendUsed", None] === None];
-check["(b) the real adapter is untouched",
-  FeynFacet`Private`finiteFieldStripCFFRBinary[] === binary &&
-    FileHash[binary, "SHA256", "HexString"] ===
-      adapterHashes["AdapterBinarySHA256"]];
-
-(* item 5: the hashes are cached per session, and a binary replaced
-   after that is a typed failure rather than a plan sealed against an
-   executable nobody hashed.  A COPY of the adapter is mutated here; the
-   real bin/ is never written to. *)
-adapterCopy = CopyFile[binary, FileNameJoin[{scratch, "adapter_copy"}],
-  OverwriteTarget -> True];
-{copyHashes, mutatedHashes, mutatedRun} =
-  Block[{FeynFacet`Private`finiteFieldStripCFFRBinary},
-    FeynFacet`Private`finiteFieldStripCFFRBinary[] := adapterCopy;
-    Module[{first, second, run},
-      first = FeynFacet`Private`finiteFieldStripCFFRAdapterHashes[];
-      With[{stream = OpenAppend[adapterCopy, BinaryFormat -> True]},
-        BinaryWrite[stream, {0}, "UnsignedInteger8"]; Close[stream]];
-      second = FeynFacet`Private`finiteFieldStripCFFRAdapterHashes[];
-      run = FeynFacet`Private`finiteFieldStripCFFRRun[matrix,
-        rightHandSide, prime, preference, 1, scratch];
-      {first, second, run}]];
-check["a binary whose hash changes mid-session is a typed failure",
-  Lookup[copyHashes, "Status", None] === "OK" &&
-    copyHashes["AdapterBinarySHA256"] ===
-      adapterHashes["AdapterBinarySHA256"] &&
-    Lookup[mutatedHashes, "Status", None] === "CFFRAdapterHashChanged" &&
-    Lookup[mutatedRun, "Status", None] === "CFFRAdapterHashChanged"];
-
 (* (c) and (d): a captured response, corrupted on disk and re-parsed *)
 captureNonce = FeynFacet`Private`finiteFieldStripCFFRNonce[];
 captureRequest = FeynFacet`Private`finiteFieldStripCFFRRequest[matrix,
@@ -227,9 +187,7 @@ check["captured response parses and echoes the nonce",
   Lookup[captureWritten, "Status", None] === "OK" &&
     captureProcess["ExitCode"] === 0 &&
     Lookup[captureParsed, "Status", None] === "OK" &&
-    captureParsed["Nonce"] === captureNonce &&
-    captureParsed["ResponseSHA256"] ===
-      FileHash[captureResponseFile, "SHA256", "HexString"]];
+    captureParsed["Nonce"] === captureNonce];
 truncatedPayload = FeynFacet`Private`finiteFieldStripCFFRResponse[
   writeBytes[FileNameJoin[{scratch, "truncated_payload.bin"}],
     captureBytes[[1 ;; -9]]], captureRequest];
@@ -299,12 +257,10 @@ gaugeRecord = <|"Variables" -> {xGauge, yGauge}, "Regulator" -> epsGauge,
       D[{{xGauge + yGauge}}, {xGauge, yGauge}[[mu]]]], {mu, 2}]}|>;
 gaugePreparation = FeynFacet`PrepareEpsFormStripSampling[gaugeRecord];
 sampleCommon = {"PointCount" -> 10, "NumeratorDegreeOffset" -> {0, 0},
-  "SolveAffineSystem" -> True, "Preparation" -> gaugePreparation,
-  "ExpectedFingerprint" -> gaugePreparation["Fingerprint"]};
+  "SolveAffineSystem" -> True, "Preparation" -> gaugePreparation};
 syntheticCommon = {"PointCount" -> 8,
   "NumeratorDegreeOffset" -> {1, 0}, "SolveAffineSystem" -> True,
-  "Preparation" -> preparation,
-  "ExpectedFingerprint" -> preparation["Fingerprint"]};
+  "Preparation" -> preparation};
 nativePilot = FeynFacet`SampleEpsFormStripAffine[gaugeRecord, 1/21,
   prime, Sequence @@ sampleCommon, "DiscoverPlan" -> True,
   "PlanDiscoveryBackend" -> "FLINTAffineRREF",
@@ -343,101 +299,65 @@ check["(a) the two discoverers agree on a strip pilot with nullity 1",
     sealed["NormalizationColumns"] ===
       sealedWolfram["NormalizationColumns"] &&
     First[sealed["NormalizationColumns"]] <= sealed["GaugeUnknownCount"]];
-bindingKeys = {"AdapterSourceSHA256", "AdapterBinarySHA256", "Protocol",
-  "Nonce", "RequestSHA256", "ResponseSHA256", "Threads"};
 validate[plan_, sample_] :=
   FeynFacet`Private`finiteFieldStripValidateEliminationPlan[plan,
     sample["MatrixDimensions"], sample["GaugeUnknownCount"],
     sample["FreeResidueCount"], sample["GaugeNumeratorDegrees"],
     sample["GaugeDenominatorDegrees"], sample["GaugeSupport"],
-    gaugePreparation["Fingerprint"]];
-check["(f) the native pilot sealed a plan and named the backend",
+    gaugePreparation["DefiningInput"]];
+check["(f) the native pilot completed a plan and named the backend",
   Lookup[sealed, "Status", None] === "OK" &&
     sealed["PlanDiscoveryBackendRequested"] === "FLINTAffineRREF" &&
     sealed["PlanDiscoveryBackendUsed"] === "FLINTAffineRREF" &&
     Lookup[nativePilot, "PlanDiscoveryBackendUsed", None] ===
       "FLINTAffineRREF"];
-check["(f) the sealed plan carries every binding field of item 5",
-  AllTrue[bindingKeys, KeyExistsQ[sealed, #] &] &&
-    sealed["Protocol"] === "CFFR1" &&
-    sealed["AdapterSourceSHA256"] ===
-      adapterHashes["AdapterSourceSHA256"] &&
-    sealed["AdapterBinarySHA256"] ===
-      adapterHashes["AdapterBinarySHA256"] &&
-    IntegerQ[sealed["Nonce"]] && 0 < sealed["Nonce"] < 2^128 &&
-    StringLength[sealed["RequestSHA256"]] === 64 &&
-    StringLength[sealed["ResponseSHA256"]] === 64 &&
-    sealed["Threads"] === 2];
-check["(f) the key set is the Wolfram one plus exactly the binding",
-  Sort[Complement[Keys[sealed], Keys[sealedWolfram]]] ===
-      Sort[bindingKeys] &&
-    Complement[Keys[sealedWolfram], Keys[sealed]] === {}];
-check["(f) the binding is inside the plan fingerprint",
-  sealed["PlanFingerprint"] ===
-      FeynFacet`Private`finiteFieldStripEliminationPlanFingerprint[
-        sealed] &&
-    FeynFacet`Private`finiteFieldStripEliminationPlanFingerprint[
-        Join[sealed, <|"Nonce" -> sealed["Nonce"] + 1|>]] =!=
-      sealed["PlanFingerprint"]];
+check["(f) both plans store the defining mathematical input",
+  sealed["DefiningInput"] === gaugePreparation["DefiningInput"] &&
+    sealedWolfram["DefiningInput"] === gaugePreparation["DefiningInput"]];
 planArtifactIdentity =
   FeynFacet`Private`finiteFieldStripEliminationPlanArtifactIdentity[
     sealed];
-backendConfiguration2 =
-  FeynFacet`Private`finiteFieldStripBackendConfiguration[Automatic, 2];
-backendConfiguration7 =
-  FeynFacet`Private`finiteFieldStripBackendConfiguration[Automatic, 7];
-backendArtifactIdentity =
-  FeynFacet`Private`finiteFieldStripBackendArtifactIdentity[
-    backendConfiguration7];
-legacyArtifact = <|
-  "RecordFingerprint" -> "same-record",
+artifact = <|
+  "DefiningInput" -> gaugePreparation["DefiningInput"],
   "SelectedNumeratorDegreeOffset" -> {0, 0},
   "SelectedSupportShell" -> 0,
   "GaugeSupport" -> sealed["GaugeSupport"],
-  "GenericRank" -> sealed["GenericRank"],
-  "NormalizationColumns" -> sealed["NormalizationColumns"],
-  "EliminationPlanFingerprint" -> sealed["PlanFingerprint"],
-  "BackendConfiguration" -> backendConfiguration2,
-  "PlanDiscoveryBackend" -> "FLINTAffineRREF"|>;
+  "EliminationPlanIdentity" -> planArtifactIdentity|>;
 check["resumable prime identity ignores every execution detail",
   planArtifactIdentity ===
       KeyTake[sealed, {"GenericRank", "NormalizationColumns"}] &&
     planArtifactIdentity ===
       FeynFacet`Private`finiteFieldStripEliminationPlanArtifactIdentity[
-        Join[sealed, <|"Nonce" -> sealed["Nonce"] + 1,
-          "Threads" -> 7,
+        Join[sealed, <|"PlanDiscoveryBackendUsed" -> "Wolfram",
           "IndependentEquationRows" ->
             Reverse[sealed["IndependentEquationRows"]]|>]] &&
-    FeynFacet`Private`finiteFieldStripBackendArtifactIdentity[
-        backendConfiguration2] === backendArtifactIdentity &&
     FeynFacet`Private`finiteFieldStripModularArtifactValidQ[
-      Join[legacyArtifact, <|
-        "BackendArtifactIdentity" -> <|"ForeignBinary" -> True|>,
+      Join[artifact, <|
+        "BackendConfiguration" -> <|"BackendThreads" -> 7|>,
         "PlanDiscoveryBackend" -> "Wolfram"|>],
-      "same-record", {0, 0}, 0, sealed["GaugeSupport"],
+      gaugePreparation["DefiningInput"], {0, 0}, 0,
+      sealed["GaugeSupport"],
       planArtifactIdentity] &&
     ! FeynFacet`Private`finiteFieldStripModularArtifactValidQ[
-      Join[legacyArtifact, <|"NormalizationColumns" -> {}|>],
-      "same-record", {0, 0}, 0, sealed["GaugeSupport"],
+      Join[artifact, <|"EliminationPlanIdentity" ->
+        <|"GenericRank" -> sealed["GenericRank"],
+          "NormalizationColumns" -> {}|>|>],
+      gaugePreparation["DefiningInput"], {0, 0}, 0,
+      sealed["GaugeSupport"],
       planArtifactIdentity] &&
     ! FeynFacet`Private`finiteFieldStripModularArtifactValidQ[
-      legacyArtifact, "same-record", {0, 0}, 0,
+      artifact, gaugePreparation["DefiningInput"], {0, 0}, 0,
       Reverse[sealed["GaugeSupport"]], planArtifactIdentity]];
-tamperedBinding = Module[{payload},
-  payload = KeyDrop[Join[sealed,
-    <|"AdapterBinarySHA256" -> StringRepeat["0", 64]|>],
-    "PlanFingerprint"];
-  Join[payload, <|"PlanFingerprint" ->
-    FeynFacet`Private`finiteFieldStripEliminationPlanFingerprint[
-      payload]|>]];
-check["(f) the sealed plan validates; a re-sealed foreign adapter does not",
+changedInputPlan = Join[sealed, <|"DefiningInput" ->
+  preparation["DefiningInput"]|>];
+check["(f) plans validate against their mathematical input and layout",
   Lookup[validate[sealed, nativePilot], "Status", None] === "OK" &&
     Lookup[validate[sealedWolfram, wolframPilot], "Status", None] ===
       "OK" &&
-    Lookup[validate[tamperedBinding, nativePilot], "Status", None] ===
-      "PlanAdapterBindingMismatch" &&
-    Lookup[validate[KeyDrop[sealed, "Nonce"], nativePilot], "Status",
-      None] === "PlanSchemaKeysMismatch"];
+    Lookup[validate[changedInputPlan, nativePilot], "Status", None] ===
+      "PlanDefiningInputMismatch" &&
+    Lookup[validate[Join[sealed, <|"GaugeUnknownCount" -> 1|>],
+      nativePilot], "Status", None] === "PlanUnknownLayoutMismatch"];
 
 (* (g) follower solves on the CFFR-discovered plan reproduce the
    Wolfram-plan solution exactly at two primes, on both fixtures *)
@@ -491,6 +411,21 @@ check["(g) a whole block solves through the native plan discovery",
     TrueQ[nativeSolution["DLogFormCertified"]] &&
     Lookup[nativeSolution, "PlanDiscoveryBackendUsed", None] ===
       "FLINTAffineRREF"];
+artifactResume = FeynFacet`SolveEpsFormStripFiniteField[syntheticRecord,
+  "PlanDiscoveryBackend" -> "FLINTAffineRREF", "BackendThreads" -> 7,
+  Sequence @@ solveOptions];
+check["completed primes resume across an execution-thread change",
+  AssociationQ[artifactResume] && artifactResume["PrimeWallSeconds"] === {} &&
+    artifactResume["Gauge"] === nativeSolution["Gauge"] &&
+    artifactResume["ResidueMatrices"] === nativeSolution["ResidueMatrices"]];
+changedRecord = ReplacePart[syntheticRecord,
+  {"Strip", 3, 1, 1, 1} -> 2 (1 - epsCFFR xCFFR)];
+changedInputSolution = FeynFacet`SolveEpsFormStripFiniteField[changedRecord,
+  "PlanDiscoveryBackend" -> "FLINTAffineRREF", Sequence @@ solveOptions];
+check["a changed connection does not reuse the completed prime",
+  AssociationQ[changedInputSolution] &&
+    Length[changedInputSolution["PrimeWallSeconds"]] === 1 &&
+    changedInputSolution["Gauge"] === {{2 xCFFR}}];
 
 resumeOptions = DeleteCases[solveOptions,
   HoldPattern[("NumeratorDegreeOffsets" | "ArtifactDirectory") -> _]];

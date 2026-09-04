@@ -7,7 +7,7 @@ root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
 prepare = FeynFacet`Private`finiteFieldStripPrepare;
-fingerprint = FeynFacet`Private`finiteFieldStripFingerprint;
+definingInput = FeynFacet`Private`finiteFieldStripDefiningInput;
 
 Clear[tx, ty, te];
 strip = {
@@ -24,8 +24,6 @@ dlogRecords = {
 
 automatic = prepare[record];
 precomputed = prepare[Join[record, <|"DLogRecords" -> dlogRecords|>]];
-legacyFingerprint = Hash[{strip, {tx, ty}, SymbolName[te], 1, {}},
-  "SHA256", "HexString"];
 
 zeroCoordinate = <|"Numerator" -> {0}, "Denominator" -> {1},
   "Degrees" -> {-Infinity, 0}, "ConstructionNullity" -> 1,
@@ -76,7 +74,9 @@ checks = <|
     precomputed["DLogBasisRoute"] === "Precomputed" &&
     precomputed["PrecomputedDLogCount"] === 2 &&
     precomputed["DerivedDLogCount"] === 0,
-  "LegacyFingerprintUnchanged" -> fingerprint[record] === legacyFingerprint,
+  "PreparationStoresDefiningInput" ->
+    automatic["DefiningInput"] === definingInput[record] &&
+    precomputed["DefiningInput"]["DLogOneForms"] === dlogRecords,
   "LiftUsesStoredAlphabet" -> AssociationQ[lifted] &&
     lifted["Alphabet"] === storedAlphabet,
   "LiftUsesStoredGaugeDenominator" -> AssociationQ[lifted] &&

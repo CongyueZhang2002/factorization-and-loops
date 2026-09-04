@@ -5,14 +5,24 @@
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
-record = FeynFacet`FamilyArtifactRead[FileNameJoin[{root,
-  "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical",
-  "BenchmarkStripBackends", "fixtures", "fixture_CF254_9_6.wl"}]];
-If[! AssociationQ[record], Print["fixture unreadable"]; Exit[1]];
+Clear[xConstrained, yConstrained, epsConstrained];
+dlog[letter_] := {D[Log[letter], xConstrained],
+  D[Log[letter], yConstrained]};
+letters = {xConstrained, yConstrained, 1 - xConstrained - yConstrained};
+diagonal = Table[
+  Sum[{{{1}}, {{-1}}, {{2}}}[[a]] dlog[letters[[a]]][[mu]],
+    {a, Length[letters]}], {mu, 2}];
+record = <|"Variables" -> {xConstrained, yConstrained},
+  "Regulator" -> epsConstrained,
+  "Strip" -> {diagonal, diagonal, Table[Together[
+    epsConstrained Sum[{{{1}}, {{2}}, {{-3}}}[[a]] *
+        dlog[letters[[a]]][[mu]], {a, Length[letters]}] +
+      D[{{xConstrained + yConstrained}},
+        {xConstrained, yConstrained}[[mu]]]], {mu, 2}]}|>;
 prep = FeynFacet`PrepareEpsFormStripSampling[record];
 prime = 1000003;
-common = {"NumeratorDegreeOffset" -> {1, 0}, "Preparation" -> prep,
-  "ExpectedFingerprint" -> prep["Fingerprint"]};
+common = {"PointCount" -> 10, "NumeratorDegreeOffset" -> {0, 0},
+  "Preparation" -> prep};
 
 pilot = FeynFacet`SampleEpsFormStripAffine[record, 1/21, prime,
   "DiscoverPlan" -> True, Sequence @@ common];

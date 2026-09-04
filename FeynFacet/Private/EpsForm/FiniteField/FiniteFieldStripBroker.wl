@@ -2,8 +2,8 @@
    task, the memory-bounded worker cap and the mission-side batch that
    replaces ParallelMap over regulator values.  Moved here verbatim from
    Infrastructure/TaskBroker.wl (layer pass 2026-09-02): these three
-   functions call SampleEpsFormStripAffine, finiteFieldStripPrepare and
-   finiteFieldStripFingerprint (FiniteFieldStripSolve.wl, EpsForm), and
+   functions call SampleEpsFormStripAffine and finiteFieldStripPrepare
+   (FiniteFieldStripSolve.wl, EpsForm), and
    the generic broker (Infrastructure) must not reference EpsForm.  The
    helper kernels evaluate taskBrokerSampleTask by its full name
    FeynFacet`Private`taskBrokerSampleTask from the task code string, so
@@ -18,18 +18,20 @@ ClearAll[
 
 (* helper side: one task = several regulator values of one prime on the
    same strip; record, preparation and options are read once per kernel *)
-taskBrokerSampleTask[recordFile_String, fingerprint_String, values_List, prime_Integer, optionsFile_String] :=
+taskBrokerSampleTask[recordFile_String, values_List, prime_Integer,
+    optionsFile_String] :=
  Module[{record, preparation, options},
   record = taskBrokerRead[recordFile];
   options = DeleteCases[taskBrokerRead[optionsFile],
     "DeferredForcingWaveValues" -> _];
-  preparation = taskBrokerCached[{"preparation", fingerprint},
+  preparation = taskBrokerCached[{"preparation", recordFile},
     Module[{p = finiteFieldStripPrepare[record]},
-      If[AssociationQ[p] && p["Fingerprint"] === fingerprint, p, $Failed]]];
+      If[AssociationQ[p] && SameQ[p["DefiningInput"],
+          finiteFieldStripDefiningInput[record]], p, $Failed]]];
   If[preparation === $Failed, Return[$Failed]];
   SampleEpsFormStripAffine[record, #, prime,
     "DeferredForcingWaveValues" -> values, Sequence @@ options,
-    "Preparation" -> preparation, "ExpectedFingerprint" -> fingerprint] & /@ values];
+    "Preparation" -> preparation] & /@ values];
 
 (* A fixed-core sample holds a dense modular matrix in Wolfram and another
    native copy while FLINT solves it.  The peak scales quadratically with the
@@ -63,14 +65,20 @@ taskBrokerSampleWorkerLimit[___] := 1;
    task that fails is recomputed locally, so the result is exactly what
    the serial path would have produced. *)
 taskBrokerSampleBatch[record_Association, values_List, prime_Integer, sampleOptions_List] :=
- Module[{fingerprint, recordFile, options, optionsFile, free, batches,
+ Module[{preparation, cacheID, recordFile, options, optionsFile, free, batches,
    workerCount, requestedWorkers, threadsPerWorker, balancedOptions,
    codes, handle, local, recomputed,
    results, flat, retry},
-  fingerprint = Replace[Lookup[sampleOptions, "ExpectedFingerprint", Automatic],
-    Automatic :> finiteFieldStripFingerprint[record]];
-  recordFile = taskBrokerDataFile["record_" <> fingerprint, record];
-  balancedOptions = sampleOptions /. Rule["BackendThreads",
+  preparation = Lookup[sampleOptions, "Preparation", Automatic];
+  If[! AssociationQ[preparation] ||
+      ! SameQ[Lookup[preparation, "DefiningInput", None],
+        finiteFieldStripDefiningInput[record]],
+    preparation = finiteFieldStripPrepare[record]];
+  If[! AssociationQ[preparation], Return[$Failed]];
+  cacheID = preparation["SamplingCacheID"];
+  recordFile = taskBrokerDataFile["record_" <> cacheID, record];
+  balancedOptions = Append[DeleteCases[sampleOptions, "Preparation" -> _],
+      "Preparation" -> preparation] /. Rule["BackendThreads",
       requested_Integer] :> Rule["BackendThreads",
         taskBrokerNativeThreadLimit[requested]];
   balancedOptions = DeleteCases[balancedOptions,
@@ -98,11 +106,10 @@ taskBrokerSampleBatch[record_Association, values_List, prime_Integer, sampleOpti
   balancedOptions = sampleOptions /. Rule["BackendThreads",
       requested_Integer] :> Rule["BackendThreads",
         Min[requested, threadsPerWorker]];
-  options = DeleteCases[balancedOptions,
-    ("Preparation" | "ExpectedFingerprint") -> _];
-  optionsFile = taskBrokerDataFile["opts_" <> fingerprint <> "_" <>
-    Hash[options, "SHA256", "HexString"], options];
-  codes = StringJoin["FeynFacet`Private`taskBrokerSampleTask[\"", recordFile, "\", \"", fingerprint, "\", ",
+  options = DeleteCases[balancedOptions, "Preparation" -> _];
+  optionsFile = taskBrokerDataFile["opts_" <> cacheID <> "_" <>
+    StringDelete[CreateUUID[], "-"], options];
+  codes = StringJoin["FeynFacet`Private`taskBrokerSampleTask[\"", recordFile, "\", ",
     ToString[#, InputForm], ", ", ToString[prime], ", \"", optionsFile, "\"]"] & /@ Most[batches];
   handle = taskBrokerSubmit[codes, "Label" -> "ff" <> ToString[prime]];
   local = SampleEpsFormStripAffine[record, #, prime,
