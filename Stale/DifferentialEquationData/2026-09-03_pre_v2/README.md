@@ -16,9 +16,20 @@ payload is reproducible run data.
 The following regeneration inputs deliberately remain live:
 
 - `Pairs/`: saved pre-IBP pair data;
-- `KiraStream/` and `KiraResult.wl`: reduction output;
-- `Masters/`: master-integral definitions;
+- `KiraStream/`: the canonical streamed reduction output;
+- `CanonicalRegistry.wl` and `CanonicalRegistry.wxf`: the upstream topology-
+  family registry used before differential-equation construction;
+- the finite-field trace manifest and Kira `masters.final` files, which define
+  the actual master-integral list;
 - the process cards and all package source.
+
+The archived `Masters/` directory is historical path-solution output despite
+its name: its Wolfram records use `Format -> "FeynFacetTransportedFamily"` and
+`FormatVersion -> 1`.  It is not a regeneration input.
+
+The archived `KiraResult.wl` is a monolithic materialization of `KiraStream/`,
+not a second source of reduction truth.  Live code should consume the streamed
+store so the reduction is represented once.
 
 Regeneration under schema V2 starts from those inputs.  Each regenerated
 mathematical stage must record wall time and peak resident memory in a separate

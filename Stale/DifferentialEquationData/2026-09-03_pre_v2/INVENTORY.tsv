@@ -19,8 +19,8 @@ PhysicalEndpointTransport	directory	1511107	40	0
 PhysicalEndpointTransport_2026-09-03_T	directory	438185	1	0
 PhysicalEndpointTransport_2026-09-03_round9	directory	2559566	79	0
 FinishedTransport_2026-09-03_T	directory	242668	1	0
-CanonicalRegistry.wl	file	178841	1	0
-CanonicalRegistry.wxf	file	6332455	1	0
+Masters	directory	281125747	182	0
+KiraResult.wl	file	869224007	1	0
 MasterCoefficientValuations.wl	file	51972	1	0
 TransportDepthLedger.md	file	19984	1	0
 TransportDepthLedger.wl	file	460080	1	0

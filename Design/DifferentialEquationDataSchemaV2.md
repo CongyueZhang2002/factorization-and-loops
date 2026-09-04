@@ -53,7 +53,26 @@ arbitrary number of variables in the current implementation.
 ## 2. Coefficient presentations
 
 There is no common `Chart` or `Frame` record.  A discriminated union contains
-one of two mathematically different objects.
+one of three mathematically different objects.  A containing record stores the
+selected object once under `CoefficientPresentation`; its `DataType` selects
+the case.  It does not repeat the same object under several case-specific
+keys.
+
+### Unchanged source variables
+
+```wl
+<|
+  "DataType" -> "SourceVariableRepresentation",
+  "SchemaVersion" -> 2,
+  "SourceVariables" -> {x1, x2},
+  "CoefficientVariables" -> {x1, x2},
+  "SourceVariableSubstitution" -> {x1 -> x1, x2 -> x2},
+  "DifferentialPullbackMatrix" -> IdentityMatrix[2]
+|>
+```
+
+This is the root-free case.  It is not called an identity rationalizing
+parametrization because no rationalization is being performed.
 
 ### Rationalizing parametrization
 
@@ -62,6 +81,7 @@ one of two mathematically different objects.
   "DataType" -> "RationalizingParametrization",
   "SchemaVersion" -> 2,
   "Name" -> "...",
+  "SourceVariables" -> {x1, x2},
   "ParametrizingVariables" -> {z1, z2},
   "SourceVariableSubstitution" -> {x1 -> f1, x2 -> f2},
   "RationalizedSquareRoots" -> {
@@ -163,17 +183,43 @@ ansatz-independent no-go result.
   "Status" ->
     "FamilyDifferentialSystemAssembledWithEpsilonFormDiagonalBlocks",
   "FamilyDifferentialSystem" -> <|...|>,
+  "CoefficientPresentation" -> <|...|>,
   "BasisTransformationMatrix" -> Ttotal,
   "InverseBasisTransformationMatrix" -> TtotalInv,
-  "DiagonalBlockDLogEpsilonForms" -> {...},
-  "RationalizingParametrization" -> <|...|>
+  "DiagonalBlockDLogEpsilonForms" -> {...}
 |>
 ```
 
-For a generator presentation, the last key is instead
-`SquareRootGeneratorsAndQuadraticRelations`.  The status deliberately does not
-say that the whole family is in epsilon form: lower off-diagonal connection
-blocks may still be general.
+The status deliberately does not say that the whole family is in epsilon
+form: lower off-diagonal connection blocks may still be general.
+
+After every required off-diagonal basis-transformation block has been found,
+the stronger result is a separate object:
+
+```wl
+<|
+  "DataType" -> "FamilyDLogEpsilonForm",
+  "SchemaVersion" -> 2,
+  "Family" -> "CF...",
+  "CoefficientPresentation" -> <|...|>,
+  "KinematicVariables" -> {z1, z2},
+  "DimensionalRegulator" -> eps,
+  "MasterIntegralBasis" -> {...},
+  "BlockDecomposition" -> <|...|>,
+  "BasisTransformationMatrix" -> Ttotal,
+  "InverseBasisTransformationMatrix" -> TtotalInv,
+  "Letters" -> {phi1, ...},
+  "ConstantResidueMatrices" -> {R1, ...},
+  "Status" -> "FamilyDLogEpsilonFormValidated",
+  "Validation" -> <|...|>
+|>
+```
+
+This type is emitted only when the complete transformed connection is
+`eps Sum[Ri dlog[phii]]`.  A rational-in-epsilon block that is not reducible to
+this form remains a distinct block-triangular differential system and is
+solved by variation of constants; it is never relabelled as a family dlog
+epsilon form.
 
 ## 7. Boundary data and master-integral solution
 
@@ -225,4 +271,25 @@ Live code writes only V2.  V1 generated artifacts are moved intact to a dated
 function, the result is the typed refusal `LegacyDifferentialEquationSchemaUnsupported`.
 Regeneration starts from the preserved reduction/master inputs and records the
 wall time and peak memory of every mathematical stage as the new performance
-baseline.
+baseline.  The pre-V2 payload is at
+`Stale/DifferentialEquationData/2026-09-03_pre_v2`.
+
+Performance data are stored beside, not inside, the mathematical result:
+
+```wl
+<|
+  "DataType" -> "ComputationMetrics",
+  "SchemaVersion" -> 2,
+  "MathematicalStage" -> "...",
+  "Family" -> "CF...",
+  "WallTimeSeconds" -> 0.,
+  "PeakResidentMemoryBytes" -> 0,
+  "WolframKernelCount" -> 1,
+  "NativeThreadCount" -> 0
+|>
+```
+
+Metrics, backend choices, thread counts and file locations do not participate
+in mathematical identity, resumption, or acceptance.  Live V2 data contain no
+settings or content fingerprints.  A result is resumed from its explicit
+mathematical inputs, completed blocks and their validation records.
