@@ -3,8 +3,8 @@
    A singular-boundary mode basis supplies one shared vector of period
    coordinates.  The final-layer operator supplies sparse word maps.  This
    module composes them only for one requested epsilon order and physical row,
-   applies an optional epsilon-dependent output gauge, and expands factor
-   letters only in the surviving words. *)
+   applies an optional epsilon-dependent output basis transformation, and
+   expands factor letters only in the surviving letter sequences. *)
 
 Clear[AttachTransportBoundaryToRationalLayer,
   BuildPhysicalTransportCoefficient];
@@ -124,7 +124,7 @@ BuildPhysicalTransportCoefficient[operator_Association,
    curvePointValues, basePointPrescription,
    definitions, outputGauge, gaugeOrders, physicalDimension,
    maximumExpandedTerms, expandQ, rawStore, rawCount = 0,
-   demandTerms, matrix, vector, word, expanded, expandedStore,
+   demandTerms, matrix, vector, letterSequence, expanded, expandedStore,
    expandedCount = 0, merged, surviving, activeColumns, stage3,
    paperTerms, functionSpace, expression, integral, binding,
    coordinateKeys, boundarySelectors, operatorPath, activeTargetRows,
@@ -238,25 +238,29 @@ BuildPhysicalTransportCoefficient[operator_Association,
         term["Coefficient"];
       If[! physicalTransportNonzeroQ[matrix], Continue[]];
       rawCount++;
-      rawStore[rawCount] = <|"Word" -> term["Word"],
+      rawStore[rawCount] = <|"LetterSequence" -> term["Word"],
         "Coefficient" -> First[Normal[matrix]]|>,
       {term, demandTerms["Terms"]}],
     {gaugeOrder, gaugeOrders}];
 
   Do[
-    word = rawStore[index]["Word"];
+    letterSequence = rawStore[index]["LetterSequence"];
     vector = rawStore[index]["Coefficient"];
     expanded = If[expandQ,
-      ExpandTransportWordLetters[word, variable, curve, definitions],
-      <|"Status" -> "TransportWordExpanded", "Terms" -> {{1, word}}|>];
-    If[Lookup[expanded, "Status", None] =!= "TransportWordExpanded",
-      fail[Lookup[expanded, "Status", "TransportWordExpansionFailed"],
+      ExpandIteratedIntegralLetterSequence[
+        letterSequence, variable, curve, definitions],
+      <|"Status" -> "IteratedIntegralLetterSequenceExpanded",
+        "Terms" -> {{1, letterSequence}}|>];
+    If[Lookup[expanded, "Status", None] =!=
+        "IteratedIntegralLetterSequenceExpanded",
+      fail[Lookup[expanded, "Status",
+          "IteratedIntegralLetterSequenceExpansionFailed"],
         KeyDrop[expanded, "Status"]]];
     Do[
       expandedCount++;
       If[maximumExpandedTerms =!= Infinity &&
           expandedCount > maximumExpandedTerms,
-        fail["PhysicalWordExpansionCapped",
+        fail["PhysicalIteratedIntegralExpansionCapped",
           <|"MaximumExpandedTerms" -> maximumExpandedTerms,
             "ExpandedTermsBuilt" -> expandedCount - 1|>]];
       expandedStore[expandedCount] = expandedTerm[[2]] ->
@@ -275,19 +279,19 @@ BuildPhysicalTransportCoefficient[operator_Association,
   integral[w_List] := If[basePointPrescription === None,
     With[{wordValue = w, pathValue = {variable, base, endpoint},
         curveValue = curve, pointValues = curvePointValues},
-      FeynFacet`TransportIteratedIntegral[
+      FeynFacet`FormalChenIteratedIntegral[
         wordValue, pathValue, curveValue, pointValues]],
     With[{wordValue = w, pathValue = {variable, base, endpoint},
         curveValue = curve, pointValues = curvePointValues,
         prescription = basePointPrescription},
-      FeynFacet`TransportIteratedIntegral[
+      FeynFacet`FormalChenIteratedIntegral[
         wordValue, pathValue, curveValue, pointValues, prescription]]];
-  paperTerms = KeyValueMap[Function[{markedWord, coefficientVector},
-      <|"Word" -> markedWord,
+  paperTerms = KeyValueMap[Function[{markedPointSequence, coefficientVector},
+      <|"LetterSequence" -> markedPointSequence,
         "CoefficientVector" -> Normal[coefficientVector],
         "BoundaryCoefficient" ->
           Total[Normal[coefficientVector] constants],
-        "Function" -> integral[markedWord]|>], surviving];
+        "Function" -> integral[markedPointSequence]|>], surviving];
   expression = Total[(#1["BoundaryCoefficient"] #1["Function"] &) /@
     paperTerms];
   functionSpace = If[AnyTrue[Keys[surviving],

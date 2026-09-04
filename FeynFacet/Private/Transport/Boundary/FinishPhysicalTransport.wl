@@ -338,7 +338,7 @@ finishStructuralDifferentialCertificate[transport_, form_, legs_, slots_List, va
     "DLogIdentityChecks" -> identityChecks, "DLogIdentityMismatches" -> identityMismatches, "Failures" -> Take[failures, UpTo[10]],
     "Variables" -> variables, "Points" -> points, "Primes" -> primes,
     "Flatness" -> Lookup[form, "Flatness", Missing[]],
-    "Argument" -> "every stored word W = TransportIteratedIntegral[{a, w'}, ...] has d W = kernel_a W'; the coefficients are products of the letter residues (lifted letter matrices, checked exactly) and the connection is Sum_a kernel_a R_a (checked at random points modulo fresh primes on the x-leg at a generic point and on the y-leg along x = x0); with the certified flatness the explicit sum satisfies the connection everywhere"|>
+    "Argument" -> "every stored formal Chen iterated integral I[a,rest] satisfies d I[a,rest] = kernel_a I[rest]; the coefficients are products of the letter residues (lifted letter matrices, checked exactly) and the connection is Sum_a kernel_a R_a (checked at random points modulo fresh primes on the x-leg at a generic point and on the y-leg along x = x0); with the certified flatness the explicit sum satisfies the connection everywhere"|>
 ];
 
 finishPeriodSymbol[family_String, index_Integer] := Symbol["FeynFacetPeriod`" <> family <> "`P" <> ToString[index]];
@@ -353,7 +353,8 @@ finishExpandCompositeWord[indices_List, leg_] := Module[{expanded = {{1, {}}}},
 
 SetAttributes[finishInertWord, HoldAll];
 finishInertWord[letters_, variable_, from_, to_, prescription_] :=
-  TransportIteratedIntegral @@ {letters, {variable, from, to}, None, prescription};
+  FormalChenIteratedIntegral @@
+    {letters, {variable, from, to}, None, prescription};
 
 (* one composed term -> list of {coefficient (rational function), period
    index list -> handled by caller, word product}; words with an empty
@@ -441,12 +442,13 @@ finishDerivativeTerms[table_Association, variable_Symbol, legVariablePosition_] 
     With[{word = key[[1]], period = key[[2]]},
       If[! finishZeroQ[D[coefficient, variable]], Sow[{word, period} -> D[coefficient, variable]]];
       With[{pieces = If[Head[word] === Times, List @@ word, {word}]},
-        Do[If[MatchQ[piece, TransportIteratedIntegral[_List, {variable, _, variable}, ___]],
+        Do[If[MatchQ[piece,
+            FormalChenIteratedIntegral[_List, {variable, _, variable}, ___]],
             With[{letters = piece[[1]], rest = DeleteCases[pieces, piece, 1, 1]},
               If[letters =!= {},
                 Sow[{If[Length[letters] === 1, Times @@ rest,
                     Times @@ Append[rest, finishInertWord @@ {Rest[letters], variable, piece[[2, 2]], variable, piece[[4]]}]], period} ->
-                  coefficient TransportLetterKernel[First[letters], variable]]]]],
+                  coefficient IteratedIntegralKernel[First[letters], variable]]]]],
           {piece, pieces}]]]], table]][[2]];
   If[sown === {}, <||>, Merge[sown[[1]], Total]]
 ];
@@ -495,12 +497,14 @@ finishDifferentialCertificate[canonicalTables_Association, slots_List, form_, tr
         mismatches++; AppendTo[failures, <|"Slot" -> slot, "Equation" -> x, "Key" -> key, "Value" -> Short[values]|>]],
       {key, Union[Keys[lhs], Keys[rhs]]}];
     (* y-equation on the line x = x0: only words with an empty x-leg survive *)
-    lhs = finishDerivativeTerms[KeySelect[canonicalTables[slot], FreeQ[#[[1]], TransportIteratedIntegral[_, {x, _, x}, ___]] &], y, 2];
+    lhs = finishDerivativeTerms[KeySelect[canonicalTables[slot],
+        FreeQ[#[[1]], FormalChenIteratedIntegral[_, {x, _, x}, ___]] &], y, 2];
     lhs = Map[Together[# /. x -> x0] &, lhs];
     rhs = Merge[Flatten[Table[With[{lower = {p - 1, l}},
         If[KeyExistsQ[canonicalTables, lower] && ! finishCheapZeroQ[ay[[k, l]] /. x -> x0, {y}],
           KeyValueMap[#1 -> Together[(ay[[k, l]] /. x -> x0) (#2 /. x -> x0)] &,
-            KeySelect[canonicalTables[lower], FreeQ[#[[1]], TransportIteratedIntegral[_, {x, _, x}, ___]] &]],
+            KeySelect[canonicalTables[lower],
+              FreeQ[#[[1]], FormalChenIteratedIntegral[_, {x, _, x}, ___]] &]],
           {}]],
       {l, Length[ay]}], 1], Total];
     Do[
@@ -541,14 +545,17 @@ finishFingerprint[value_] := Hash[value /. {(k_String -> _) /; StringContainsQ[k
 
 finishAllowedSymbolQ[symbol_Symbol, variables_List, periodSymbols_List] :=
   MemberQ[variables, symbol] || MemberQ[periodSymbols, symbol] ||
-  MemberQ[{TransportIteratedIntegral, TransportAlgebraicRoot, TransportLetterKernel, Plus, Times, Power, List, Rational, Integer, None, True, False, Association, Rule, Complex}, symbol];
+  MemberQ[{FormalChenIteratedIntegral, AlgebraicMarkedPoint,
+      IteratedIntegralKernel, Plus, Times, Power, List, Rational, Integer,
+      None, True, False, Association, Rule, Complex}, symbol];
 
 finishPurityCheck[expressions_List, variables_List, periodSymbols_List] := Module[{symbols, offending},
   symbols = DeleteDuplicates[Cases[expressions, s_Symbol :> s, {0, Infinity}, Heads -> True]];
   offending = Select[symbols, ! finishAllowedSymbolQ[#, variables, periodSymbols] &];
   offending = Join[offending, Select[symbols, StringContainsQ[SymbolName[#], "$"] || StringContainsQ[Context[#], "Private`"] &]];
   <|"Status" -> If[offending === {}, "ExpressionsPure", "ExpressionsImpure"], "Offending" -> DeleteDuplicates[offending],
-    "AllowedHeads" -> {TransportIteratedIntegral, TransportAlgebraicRoot, TransportLetterKernel}, "Variables" -> variables|>
+    "AllowedHeads" -> {FormalChenIteratedIntegral, AlgebraicMarkedPoint,
+      IteratedIntegralKernel}, "Variables" -> variables|>
 ];
 
 (* the period table: definition from the mode map, status from the census
@@ -779,9 +786,9 @@ FinishPhysicalTransport[family_String, OptionsPattern[]] := Catch@Module[
       "Target" -> Thread[variables -> variables], "LegsOutermostFirst" -> {"CurrentFirst", "CurrentSecond", "EndpointFirst", "EndpointSecond"},
       "Legs" -> Map[KeyTake[#, {"Variable", "From", "To", "FixedRules", "Note"}] &, legs],
       "Prescriptions" -> prescriptions,
-      "WordConvention" -> "TransportIteratedIntegral[letters (outermost first), {variable, from, to}, None, prescription]; a product of leg words is one word along the concatenated path"|>,
+      "IteratedIntegralConvention" -> "FormalChenIteratedIntegral[letterSequence (outermost first), {variable, lowerLimit, upperLimit}, None, prescription]. A product of the four segment integrals is retained as a product; it is not identified with one iterated integral on the concatenated path."|>,
     "Letters" -> Map[<|"AlphabetIndices" -> #["AlphabetIndices"], "Kernels" -> #["Kernels"], "BaseLetters" -> #["Letters"],
-      "KernelOfLetter" -> "TransportLetterKernel[label, variable]"|> &, legs],
+      "KernelOfLetter" -> "IteratedIntegralKernel[label, variable]"|> &, legs],
     "DemandedPairs" -> demanded,
     "Expressions" -> expressions,
     "Terms" -> Map[#["Table"] &, physicalTables],

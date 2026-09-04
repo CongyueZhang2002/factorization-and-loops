@@ -284,14 +284,14 @@ BuildTransportBoundaryVector::usage =
 BoundaryPeriodCoefficient::usage =
   "BoundaryPeriodCoefficient[id,order] is an inert exact placeholder for the coefficient of eps^order in a physical boundary period not yet evaluated. It appears only in BoundaryConstantVector; transport selector matrices remain rational.";
 
-TransportIteratedIntegral::usage =
-  "TransportIteratedIntegral[word,{variable,base,endpoint},curve,curvePointValues] is the inert paper-facing iterated integral of a marked-point GPL/eMPL word. An optional fifth BasePointPrescription argument records tangential regularization at a singular base without multiplying a second Frobenius factor. The word is outermost first; curve is None for GPLs and a square-free quartic for elliptic words, while curvePointValues records the selected rational sheet values used by the transport.";
-TransportAlgebraicRoot::usage =
-  "TransportAlgebraicRoot[coefficients,index] denotes an indexed algebraic root of a polynomial whose ascending coefficient list may contain spectator kinematics.";
-TransportLetterKernel::usage =
-  "TransportLetterKernel[label,variable,curve] returns the one-form coefficient represented by a GPLPole, GPLFactor, E4Pole, E4Factor, E4Omega0, E4OmegaInf or E4Eta2 label.";
-ExpandTransportWordLetters::usage =
-  "ExpandTransportWordLetters[word,variable,curve,definitions] expands only one requested root-free factor/composite word into standard marked-point GPL/eMPL letters.";
+FormalChenIteratedIntegral::usage =
+  "FormalChenIteratedIntegral[letterSequence,{variable,lowerLimit,upperLimit},curve,curvePointValues] is an inert Chen iterated integral. The letter sequence is ordered outermost first; curve is None for multiple polylogarithms and a square-free quartic for elliptic multiple polylogarithms. An optional fifth argument records a tangential-base-point prescription.";
+AlgebraicMarkedPoint::usage =
+  "AlgebraicMarkedPoint[coefficients,index] denotes an indexed marked point defined as a root of a polynomial whose ascending coefficient list may contain spectator kinematic variables.";
+IteratedIntegralKernel::usage =
+  "IteratedIntegralKernel[label,variable,curve] returns the coefficient of the integration one-form represented by a GPLPole, GPLFactor, E4Pole, E4Factor, E4Omega0, E4OmegaInf or E4Eta2 label.";
+ExpandIteratedIntegralLetterSequence::usage =
+  "ExpandIteratedIntegralLetterSequence[letterSequence,variable,curve,definitions] expands one requested sequence of factor or composite letters into marked-point letters for multiple or elliptic multiple polylogarithms.";
 BuildCompactEndpointResidue::usage =
   "BuildCompactEndpointResidue[letters,residueMatrices,variable,endpoint] computes the exact simple-pole residue directly from aligned sparse square or rectangular matrices in the inert GPL/eMPL alphabet, without constructing a symbolic connection. Options declare a quartic Curve and CompositeDefinitions.";
 BuildRationalEpsilonLayerEndpointResidue::usage =
@@ -439,9 +439,9 @@ SyntaxInformation[BuildTransportBoundaryVector] =
   {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
 SyntaxInformation[BoundaryPeriodCoefficient] =
   {"ArgumentsPattern" -> {_, _}};
-SyntaxInformation[TransportLetterKernel] =
+SyntaxInformation[IteratedIntegralKernel] =
   {"ArgumentsPattern" -> {_, _, _.}};
-SyntaxInformation[ExpandTransportWordLetters] =
+SyntaxInformation[ExpandIteratedIntegralLetterSequence] =
   {"ArgumentsPattern" -> {_, _, _., _.}};
 SyntaxInformation[BuildCompactEndpointResidue] =
   {"ArgumentsPattern" -> {_, _, _, _, OptionsPattern[]}};

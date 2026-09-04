@@ -142,7 +142,7 @@ FTAssert["a genuine mixed transport keeps its surviving eMPL word explicit and s
   AcceptedRationalEpsilonLayerOperatorQ[ellipticOperator] &&
   ellipticCoefficient["FunctionSpace"] === "GPL+Elliptic" &&
   ! FreeQ[ellipticCoefficient["Expression"],
-    TransportIteratedIntegral[{{"E4Omega0"}}, ___]] &&
+    FormalChenIteratedIntegral[{{"E4Omega0"}}, ___]] &&
   ellipticCoefficient["Stage3", "ActiveBoundaryCoordinates"] ===
     {{"a", 0}}];
 
@@ -161,7 +161,7 @@ tangentialFunction = tangentialEllipticCoefficient["Terms"][[1]]["Function"];
 FTAssert["a singular-base word carries its tangential prescription in the paper-facing integral",
   tangentialEllipticCoefficient["Status"] ===
       "PhysicalTransportCoefficientBuilt" &&
-  Head[tangentialFunction] === FeynFacet`TransportIteratedIntegral &&
+  Head[tangentialFunction] === FeynFacet`FormalChenIteratedIntegral &&
   First[List @@ tangentialFunction] === {{"E4Omega0"}} &&
   Last[List @@ tangentialFunction] ===
     <|"Type" -> "TangentialRegularized", "LocalDirection" -> 1|>];

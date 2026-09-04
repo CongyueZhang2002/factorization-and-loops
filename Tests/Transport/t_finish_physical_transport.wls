@@ -80,10 +80,10 @@ FTAssert["the synthetic family is finished with the three certificates and re-ve
 symbolOf[id_, order_] := With[{entry = SelectFirst[Lookup[finished, "PeriodBasis", {}], #["PeriodID"] === {family, id} && #["EpsilonOrder"] === order &, None]},
   If[entry === None, None, entry["Symbol"]]];
 prescriptions = Lookup[Lookup[finished, "Path", <||>], "Prescriptions", <||>];
-wordCurrentX = TransportIteratedIntegral @@ {{{"GPLPole", 0}}, {x, 3, x}, None, prescriptions["Current"]};
-wordCurrentY = TransportIteratedIntegral @@ {{{"GPLPole", 0}}, {y, 1/2, y}, None, prescriptions["Current"]};
-wordEndpointX = TransportIteratedIntegral @@ {{{"GPLPole", 0}}, {x, 2, 3}, None, prescriptions["Endpoint"]};
-wordEndpointY = TransportIteratedIntegral @@ {{{"GPLPole", 0}}, {y, 1, 1/2}, None, prescriptions["Endpoint"]};
+wordCurrentX = FormalChenIteratedIntegral @@ {{{"GPLPole", 0}}, {x, 3, x}, None, prescriptions["Current"]};
+wordCurrentY = FormalChenIteratedIntegral @@ {{{"GPLPole", 0}}, {y, 1/2, y}, None, prescriptions["Current"]};
+wordEndpointX = FormalChenIteratedIntegral @@ {{{"GPLPole", 0}}, {x, 2, 3}, None, prescriptions["Endpoint"]};
+wordEndpointY = FormalChenIteratedIntegral @@ {{{"GPLPole", 0}}, {y, 1, 1/2}, None, prescriptions["Endpoint"]};
 expected = <|{0, 1} -> symbolOf[1, 0], {1, 1} -> symbolOf[1, 1], {0, 2} -> symbolOf[2, 0],
   {1, 2} -> symbolOf[2, 1] + symbolOf[1, 0] (wordEndpointY + wordEndpointX + wordCurrentY + wordCurrentX)|>;
 If[Lookup[finished, "Status", None] === "PhysicalTransportFinished",
