@@ -22,7 +22,17 @@ while true; do
       released=0; cmdstr="$*"
       release() { if [ "$released" = 0 ]; then released=1; echo "seat $seat released $(date +%T) exit=${1:-signal} :: $cmdstr" >> "$S/seat_log.txt"; fi; }
       trap 'release killed; exit 143' TERM INT HUP
-      timeout --signal=KILL "$T" taskset -c "${CPUS[$seat]}" "$@"; code=$?
+      # memory allowance (2026-09-03: a finisher probe reached 31 GB and was OOM-killed,
+      # its twin 28 GB): the job's process tree is killed when its resident set passes
+      # MEM_GB gigabytes (default 20), recorded as exit 138
+      timeout --signal=KILL "$T" taskset -c "${CPUS[$seat]}" "$@" & jobpid=$!
+      memlimit=$(( ${MEM_GB:-20} * 1048576 ))
+      ( while kill -0 $jobpid 2>/dev/null; do
+          tot=0; for c in $(pgrep -g $(ps -o pgid= -p $jobpid 2>/dev/null | tr -d ' ') 2>/dev/null); do r=$(awk '/VmRSS/ {print $2}' /proc/$c/status 2>/dev/null); tot=$((tot + ${r:-0})); done
+          if [ "$tot" -gt "$memlimit" ]; then echo "seat $seat MEMORY ALLOWANCE $(date +%T): $((tot/1048576)) GB > ${MEM_GB:-20} GB, killing :: $cmdstr" >> "$S/seat_log.txt"; pkill -KILL -g $(ps -o pgid= -p $jobpid | tr -d ' ') 2>/dev/null; break; fi
+          sleep 5; done ) & memwatch=$!
+      wait $jobpid; code=$?; kill $memwatch 2>/dev/null; wait $memwatch 2>/dev/null
+      grep -q "MEMORY ALLOWANCE $(date +%H)" "$S/seat_log.txt" 2>/dev/null && [ "$code" = 137 ] && code=138
       release $code
       flock -u $fd; exec {fd}>&-
       exit $code

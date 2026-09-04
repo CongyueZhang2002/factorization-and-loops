@@ -824,6 +824,8 @@ User: "I don't understand why there's 2 kind of transport? There should only be 
 
 Work: T implements `FinishPhysicalTransport` and `PhysicalTransportFinishedQ` on the existing per-coefficient composer, fixes the leaked-symbol defect in the endpoint builder, proves it on CF97 (exact DE check) and CF385; M prepares the campaign driver and runs the finisher on every family with the round-9 inputs into `PhysicalTransport_2026-09-03/`, with a table finished / typed-incomplete per family; docs and HANDOFF re-worded (stage accepted, never transported, for intermediates); adversarial review before "finished".
 
+Incident 17:45: T's finisher probe on CF385 was OOM-killed by Linux at 31.4 GB resident after 277 s (the seat log's exit 137 was not the time cap); its twin on the other seat reached 28 GB and was killed by PID (it had dropped to 1.1 GB at the moment of the kill, so it may have been past its peak). The seat launcher now enforces a memory allowance per job (process tree above MEM_GB, default 20 GB, killed, exit 138, "MEMORY ALLOWANCE" line); rule for the finisher: caps and a per-pair memory estimate before expansion, typed `WordExpansionMemoryCap` instead of exhausting memory, peak RSS reported per run; CF97 before CF385.
+
 Results: filled in as the agents report.
 
 ## Deliberately not done
