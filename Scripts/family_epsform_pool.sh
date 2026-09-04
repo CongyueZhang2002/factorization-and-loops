@@ -10,17 +10,19 @@
 #     (LaunchKernels::subnopar) and no second main is used;
 #   - at most N-2 families run concurrently (the rest queue), so at least
 #     two helpers are always free;
-#   - each solved family is certified (CertifyFamilyEpsilonForm) into
-#     FamilyEpsFormsCertified/ by a pool mission.
+#   - the family mission performs the whole-family validation and writes one
+#     V2 FamilyDLogEpsilonForm; the accepted record is then installed in the
+#     campaign's validated-record directory without a second validation run.
 # Missions are submitted with the fresh_ prefix (2026-08-23, user decision):
-# the subkernel that ran a family's solve or certificate is closed and
+# the subkernel that ran a family's solve and validation is closed and
 # replaced afterwards, so no campaign state (Global symbols, package
 # contexts, basis pollution -- BuildBasis::length on cert_CF385) survives
 # into the next family.  Cost: one FACET preload per mission (~seconds)
 # against multi-minute solves.
 # Usage: family_epsform_pool.sh <output-root> <pooldir> <nkernels> <family> [family ...]
 # Env:   FACET_CPU_LIST (default 0,1,6,7,8,9,18,19 = the P-cores),
-#        FACET_RATIONAL_MAPLE_BUDGET (default 300), FACET_SECTOR_BUDGET (1800)
+#        FACET_RATIONAL_MAPLE_BUDGET (default 300), FACET_SECTOR_BUDGET (1800),
+#        FACET_FAMILY_DATA_DIRECTORY and FACET_CLASS_FORM_DIRECTORY
 # Progress: Scripts/tworoot_status.sh <output-root>
 set -u
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -31,13 +33,14 @@ export POOL="$pool"
 export FACET_TASK_BROKER="$pool"
 export FACET_KERNEL_COUNT=1
 export FACET_RATIONAL_MAPLE_BUDGET="${FACET_RATIONAL_MAPLE_BUDGET:-300}"
-# checks stay separate from the calculation (user decision 2026-08-22): blocks
-# are accepted on the modular residual, the exact statement is the family
-# certificate run below; set FACET_CHECK_LEVEL=Development to restore the
-# exact intermediate checks
+# Production validates each constructed block and the final family equation
+# at independent finite-field points. Development uses characteristic-zero
+# identities instead.
 export FACET_CHECK_LEVEL="${FACET_CHECK_LEVEL:-Production}"
 sector_budget="${FACET_SECTOR_BUDGET:-1800}"
 cpus="${FACET_CPU_LIST:-0,1,6,7,8,9,18,19}"
+family_data_directory="${FACET_FAMILY_DATA_DIRECTORY:-$R}"
+class_form_directory="${FACET_CLASS_FORM_DIRECTORY:-}"
 export FACET_MQ_NATIVE_THREADS="${FACET_MQ_NATIVE_THREADS:-8}"
 (( nk < 1 )) && { echo "need at least 1 subkernel"; exit 64; }
 # families in flight: leave two helpers for the task broker when there are
@@ -53,7 +56,7 @@ if [[ ! "$native_core_count" =~ ^[0-9]+$ ]] || (( native_core_count < 1 )); then
   exit 64
 fi
 export FACET_NATIVE_CORE_COUNT="$native_core_count"
-mkdir -p "$out" "$pool"
+mkdir -p "$out" "$pool" "$certified"
 mkdir -p "$pool/control"
 native_core_file="$pool/control/native_cores"
 printf '%s\n' "$native_core_count" > "$native_core_file.$$"
@@ -69,38 +72,64 @@ if ! { [[ -f "$pool/pool.pid" ]] && kill -0 "$(cat "$pool/pool.pid")" 2>/dev/nul
 fi
 echo "pool: $(grep -o 'running [0-9]* (license' "$pool/pool.log" | tail -1); families at once: $maxfam; native cores: $native_core_count"
 
-run_family() {   # submit, wait, certify -- one family, sequential
-  local family="$1" t0; t0=$(date +%s)
+validated_v2_record() {
+  local record="$1"
+  [[ -f "$record" ]] &&
+    grep -q '"DataType" -> "FamilyDLogEpsilonForm"' "$record" &&
+    grep -q '"SchemaVersion" -> 2' "$record" &&
+    grep -q '"Status" -> "FamilyDLogEpsilonFormValidated"' "$record"
+}
+
+run_family() {   # submit and wait for one validated family result
+  local family="$1" t0 mission; t0=$(date +%s)
+  mission="fresh_sol_${family}_${BASHPID}"
   mkdir -p "$out/$family"
-  ln -sfn "$pool/logs/fresh_sol_$family.log" "$out/$family/run.log"
-  FACET_RESOURCE_GROUP="$family" FACET_RESOURCE_ROLE=family \
-    "$root/Scripts/kpsubmit.sh" "fresh_sol_$family" "$root/Scripts/family_epsform_sector.wls" \
-    "$family" "$out/$family" "$sector_budget" standard 30 > /dev/null
-  printf '%s\tsolving\t%s\t-\t-\tmission fresh_sol_%s\n' "$family" "$(date --iso-8601=seconds)" "$family" >> "$status"
-  "$root/Scripts/kpwait.sh" "fresh_sol_$family" 259200 > "$out/${family}_solve.status" 2>&1
+  ln -sfn "$pool/logs/$mission.log" "$out/$family/run.log"
+  local worker_arguments=(
+    "$family" "$out/$family" "$sector_budget" standard 30 ""
+    "$family_data_directory" "$class_form_directory"
+  )
+  if ! FACET_RESOURCE_GROUP="$family" FACET_RESOURCE_ROLE=family \
+      "$root/Scripts/kpsubmit.sh" "$mission" \
+        "$root/Scripts/family_epsform_sector.wls" \
+        "${worker_arguments[@]}" > /dev/null; then
+    printf '%s\tsubmission-failed\t-\t%s\t%d\tkpsubmit failed\n' \
+      "$family" "$(date --iso-8601=seconds)" \
+      "$(( $(date +%s) - t0 ))" >> "$status"
+    return 1
+  fi
+  printf '%s\tsolving\t%s\t-\t-\tmission %s\n' "$family" \
+    "$(date --iso-8601=seconds)" "$mission" >> "$status"
+  "$root/Scripts/kpwait.sh" "$mission" 259200 > "$out/${family}_solve.status" 2>&1
   local record="$out/$family/family_epsform_$family.wl"
   if ! grep -q '"Status" -> "OK"' "$out/${family}_solve.status" || [[ ! -f "$record" ]]; then
     printf '%s\tsolve-failed\t-\t%s\t%d\t%s\n' "$family" "$(date --iso-8601=seconds)" "$(( $(date +%s) - t0 ))" \
-      "$(grep -o '"Status" -> "[A-Z0-9]*"' "$out/${family}_solve.status" | head -1)" >> "$status"; return
+      "$(grep -o '"Status" -> "[A-Z0-9]*"' "$out/${family}_solve.status" | head -1)" >> "$status"; return 1
   fi
-  printf '%s\tcertifying\t-\t-\t%d\tmission fresh_cert_%s\n' "$family" "$(( $(date +%s) - t0 ))" "$family" >> "$status"
-  FACET_RESOURCE_GROUP="$family" FACET_RESOURCE_ROLE=family \
-    "$root/Scripts/kpsubmit.sh" "fresh_cert_$family" "$root/Scripts/certify_family_epsform_record.wls" \
-    "$record" "$R/DifferentialEquations/nnlo_de_$family.wl" "$certified/family_epsform_$family.wl" > /dev/null
-  "$root/Scripts/kpwait.sh" "fresh_cert_$family" 86400 > "$out/${family}_certify.status" 2>&1
-  ln -sfn "$pool/logs/fresh_cert_$family.log" "$out/${family}_certify.log"
-  local verdict; verdict="$(grep -o 'CERTIFY.*' "$pool/logs/fresh_cert_$family.log" | tail -1 | cut -c1-120)"
-  printf '%s\t%s\t-\t%s\t%d\t%s\n' "$family" \
-    "$(grep -q 'exact=True' <<<"$verdict" && echo certified || echo certify-failed)" \
-    "$(date --iso-8601=seconds)" "$(( $(date +%s) - t0 ))" "$verdict" >> "$status"
+  if ! validated_v2_record "$record"; then
+    printf '%s\tvalidation-failed\t-\t%s\t%d\tinvalid V2 family result\n' \
+      "$family" "$(date --iso-8601=seconds)" "$(( $(date +%s) - t0 ))" >> "$status"
+    return 1
+  fi
+  local destination="$certified/family_epsform_$family.wl"
+  local partial="$destination.partial-$BASHPID"
+  if ! cp "$record" "$partial" || ! mv -f "$partial" "$destination"; then
+    printf '%s\tinstallation-failed\t-\t%s\t%d\t%s\n' "$family" \
+      "$(date --iso-8601=seconds)" "$(( $(date +%s) - t0 ))" \
+      "$destination" >> "$status"
+    return 1
+  fi
+  printf '%s\tvalidated\t-\t%s\t%d\t%s\n' "$family" \
+    "$(date --iso-8601=seconds)" "$(( $(date +%s) - t0 ))" "$destination" >> "$status"
+  return 0
 }
 
 # waves: at most maxfam families in flight; a slot frees when a family finishes
-pids=(); queue=()
+failures=0
+queue=()
+# Every requested family re-enters the worker: only validation against the
+# current differential system can accept a result, not a stored status alone.
 for family in "${families[@]}"; do
-  if [[ -f "$certified/family_epsform_$family.wl" ]]; then
-    printf '%s\tcertified-existing\t-\t-\t0\tskip\n' "$family" >> "$status"; continue
-  fi
   queue+=("$family")
 done
 running=""   # space-separated PIDs of run_family subshells (no array: an
@@ -108,7 +137,13 @@ running=""   # space-separated PIDs of run_family subshells (no array: an
              # the loop never ended -- found 2026-08-22 on the CF34 test)
 while true; do
   live=""; n=0
-  for p in $running; do kill -0 "$p" 2>/dev/null && { live="$live $p"; n=$((n+1)); }; done
+  for p in $running; do
+    if kill -0 "$p" 2>/dev/null; then
+      live="$live $p"; n=$((n+1))
+    elif ! wait "$p"; then
+      failures=$((failures + 1))
+    fi
+  done
   running="$live"
   while (( n < maxfam && ${#queue[@]} > 0 )); do
     family="${queue[0]}"; queue=("${queue[@]:1}")
@@ -119,4 +154,5 @@ while true; do
 done
 printf 'ALL\tdone\t-\t%s\t-\t-\n' "$(date --iso-8601=seconds)" >> "$status"
 touch "$pool/control/stop"
-echo "campaign finished; pool asked to stop"
+echo "campaign finished with $failures incomplete families; pool asked to stop"
+exit "$failures"

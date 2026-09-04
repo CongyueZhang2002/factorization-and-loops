@@ -301,7 +301,7 @@ source = Join[<|"Letters" -> {{"GPLPole", -1}},
   <|"BoundarySelectors" ->
     boundarySelectors["BoundarySelectorMatricesByEpsilonOrder"]|>];
 layer = <|"Rows" -> {3}, "PathVariable" -> u,
-  "Regulator" -> eps, "BasePoint" -> 0, "Endpoint" -> 1/2,
+  "Regulator" -> eps, "BasePoint" -> 0, "PathEndpoint" -> 1/2,
   "Diagonal" -> {{{"GPLPole", -1}, {{0}}}},
   "Incoming" -> {
     <|"Row" -> 1, "Column" -> 1, "Coefficient" -> eps,
@@ -309,10 +309,11 @@ layer = <|"Rows" -> {3}, "PathVariable" -> u,
     <|"Row" -> 1, "Column" -> 2, "Coefficient" -> eps,
       "Letter" -> {"GPLPole", -1}|>}
 |>;
-consumed = BuildRationalEpsilonLayerTransport[source, layer,
-  <|"Pairs" -> {{1, 1}}|>];
-FTAssert["the boundary selector matrices are consumed directly by the rational layer transport",
-  consumed["Status"] === "RationalEpsilonLayerTransportAccepted" &&
+consumed = SolveRationalEpsilonDependentBlockByVariationOfConstants[source, layer,
+  <|"RequestedOutputPairs" -> {{1, 1}}|>];
+FTAssert["the boundary selector matrices are consumed directly by the rational-epsilon-dependent-block solution",
+  consumed["Status"] ===
+    "RationalEpsilonDependentBlockSolutionAccepted" &&
     consumed["BoundaryColumns"] === 5];
 
 gplOnly = ConstructBoundaryValueVectorFromConstants[modeMap,
@@ -391,11 +392,11 @@ formalSource = Join[<|"Letters" -> {{"GPLPole", -1}},
     "Residues" -> {{{0, 0}, {0, 0}}}, "Dimension" -> 2|>,
   <|"BoundarySelectors" ->
     formalBoundarySelectors["BoundarySelectorMatricesByEpsilonOrder"]|>];
-formalConsumed = BuildRationalEpsilonLayerTransport[formalSource, layer,
-  <|"Pairs" -> {{1, 1}}|>];
-FTAssert["transport proceeds unchanged with formal GPL and elliptic boundary constants",
+formalConsumed = SolveRationalEpsilonDependentBlockByVariationOfConstants[formalSource, layer,
+  <|"RequestedOutputPairs" -> {{1, 1}}|>];
+FTAssert["the block solution proceeds unchanged with formal GPL and elliptic boundary constants",
   formalConsumed["Status"] ===
-      "RationalEpsilonLayerTransportAccepted" &&
+      "RationalEpsilonDependentBlockSolutionAccepted" &&
     formalConsumed["BoundaryColumns"] === 4];
 
 transferredBoundary = ConstructBoundaryValueVectorFromConstants[prunedModeMap, <|

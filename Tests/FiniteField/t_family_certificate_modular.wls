@@ -31,7 +31,8 @@ check["symbolic identities are exact",
 check["finite-field identities are validated but not exact",
   FeynFacet`ValidatedFamilyDLogEpsilonFormQ[modular] &&
     ! FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[modular] &&
-    modular["Validation", "Method"] === "FiniteFieldEvaluation"];
+    modular["Validation", "Method"] ===
+      "ProbabilisticFiniteFieldSampling"];
 check["random rational points are validated but not exact",
   FeynFacet`ValidatedFamilyDLogEpsilonFormQ[randomPoints] &&
     ! FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[randomPoints] &&
@@ -39,9 +40,11 @@ check["random rational points are validated but not exact",
       "RandomRationalPointEvaluation"];
 
 forged = ReplacePart[modular, {
-  "Status" -> "ExactlyValidatedFamilyDLogEpsilonForm",
-  {"Validation", "Exact"} -> True}];
-check["a status and exact-flag rewrite cannot convert sampled evidence",
+  {"Validation", "Exact"} -> True,
+  {"Validation", "Probabilistic"} -> False,
+  {"Validation", "Method"} ->
+    "CharacteristicZeroSymbolicIdentity"}];
+check["validation flags and method cannot convert sampled evidence without characteristic-zero residuals",
   ! FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[forged]];
 
 badCandidate = ReplacePart[candidate,

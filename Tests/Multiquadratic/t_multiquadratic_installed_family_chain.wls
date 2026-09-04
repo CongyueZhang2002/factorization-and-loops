@@ -27,7 +27,7 @@ solve = mq["solveEpsFormStripMultiquadratic"];
 rowForm = mq["familyRowGaugeDLogForm"];
 rowApply = mq["familyRowGaugeApply"];
 decompose = mq["multiquadraticFieldDecompose"];
-currentRoots = mq["transportChartCurrentRoots"];
+currentRoots = mq["coefficientPresentationSquareRootsInVariables"];
 
 Clear[v, w, x, y, eps];
 sourceVariables = {v, w};
@@ -36,9 +36,9 @@ sourceSquares = {1 + v, 1 + w, 1 + v + w};
 frame = FeynFacet`BuildSquareRootGeneratorsAndQuadraticRelations[
   sourceSquares, sourceVariables, variables];
 roots = currentRoots[frame, variables];
-declaredRoots = Lookup[roots, "Root", {}];
+declaredRoots = Lookup[roots, "Generator", {}];
 
-check["C0 the planted transport frame has three independent roots",
+check["C0 the planted presentation has three square-root generators",
   AssociationQ[frame] && ListQ[roots] && Length[roots] === 3 &&
     Length[declaredRoots] === 3];
 
@@ -221,11 +221,12 @@ modular = Lookup[validation, "SamplingEvidence", <||>];
 
 check["C6 the installed and factored family is high-confidence certified",
   Lookup[certified, "Status", None] ===
-      "ProbabilisticallyValidatedFamilyDLogEpsilonForm" &&
+      "FamilyDLogEpsilonFormValidated" &&
     FeynFacet`ValidatedFamilyDLogEpsilonFormQ[certified] &&
     TrueQ[Lookup[validation, "Probabilistic", False]] &&
     ! TrueQ[Lookup[validation, "Exact", True]] &&
-    Lookup[validation, "Method", None] === "FiniteFieldEvaluation"];
+    Lookup[validation, "Method", None] ===
+      "ProbabilisticFiniteFieldSampling"];
 check["C6 every certificate point checks all eight rank-three sheets",
   Lookup[modular, "RootCount", 0] === 3 &&
     Lookup[modular, "GradeCount", 0] === 8 &&

@@ -108,8 +108,15 @@ finishReadInputs[inputFiles_] := Module[
 finishBasisTransformationMatrix[form_Association] :=
   Lookup[form, "BasisTransformationMatrix", $Failed];
 
-finishDiagonalBlocks[form_Association] :=
-  Lookup[form, "IrreducibleDiagonalBlocks", $Failed];
+finishDiagonalBlocks[form_Association] := Module[
+  {decomposition = Lookup[form, "BlockDecomposition", Missing[]]},
+  If[! AssociationQ[decomposition] ||
+      Lookup[decomposition, "DataType", None] =!=
+        "FamilyDifferentialSystemBlockDecomposition" ||
+      Lookup[decomposition, "SchemaVersion", None] =!= 2,
+    Return[$Failed]];
+  Lookup[decomposition, "IrreducibleDiagonalBlocks", $Failed]
+];
 
 finishDLogConnectionMatrices[form_Association] := Module[
   {variables, regulator, letters, residues, dimension},
@@ -327,6 +334,12 @@ finishStructuralDifferentialCertificate[transport_, form_, legs_, slots_List, va
           m[[i, j]] === If[row[[1]] === column[[1]] + 1, r[[row[[2]], column[[2]]]], 0]],
         {i, Length[slots]}, {j, Length[slots]}]], TrueQ]]],
     {a, Length[firstIndices]}];
+  Do[With[{m = Normal[automaton["SecondOperatorMatrices"][[a]]], r = residues[[secondIndices[[a]]]]},
+    liftChecks = Append[liftChecks, AllTrue[Flatten[Table[
+        With[{row = slots[[i]], column = slots[[j]]},
+          m[[i, j]] === If[row[[1]] === column[[1]] + 1, r[[row[[2]], column[[2]]]], 0]],
+        {i, Length[slots]}, {j, Length[slots]}]], TrueQ]]],
+    {a, Length[secondIndices]}];
   If[! AllTrue[liftChecks, TrueQ], liftFailures = Position[liftChecks, False]];
   (* (b) the dlog identities at random points modulo primes *)
   connections = finishDLogConnectionMatrices[form];
@@ -545,13 +558,25 @@ finishDifferentialCertificate[canonicalTables_Association, slots_List, form_, tr
     lhs = finishDerivativeTerms[KeySelect[canonicalTables[slot],
         FreeQ[#[[1]], FormalChenIteratedIntegral[_, {x, _, x}, ___]] &], y, 2];
     lhs = Map[Together[# /. x -> x0] &, lhs];
-    rhs = Merge[Flatten[Table[With[{lower = {p - 1, l}},
-        If[KeyExistsQ[canonicalTables, lower] && ! finishCheapZeroQ[ay[[k, l]] /. x -> x0, {y}],
-          KeyValueMap[#1 -> Together[(ay[[k, l]] /. x -> x0) (#2 /. x -> x0)] &,
-            KeySelect[canonicalTables[lower],
-              FreeQ[#[[1]], FormalChenIteratedIntegral[_, {x, _, x}, ___]] &]],
-          {}]],
+    rhs = Merge[Flatten[Table[With[{lower = {p - 1, l},
+          coefficient = ay[[k, l]] /. x -> x0},
+        If[KeyExistsQ[canonicalTables, lower],
+          If[finishCheapZeroQ[coefficient, {y}], {},
+            KeyValueMap[#1 -> Together[coefficient (#2 /. x -> x0)] &,
+              KeySelect[canonicalTables[lower],
+                FreeQ[#[[1]], FormalChenIteratedIntegral[_, {x, _, x}, ___]] &]]],
+          If[lowerQ[lower] || finishCheapZeroQ[coefficient, {y}], {},
+            {"MissingSlot" -> lower}]]],
       {l, Length[ay]}], 1], Total];
+    If[KeyExistsQ[rhs, "MissingSlot"],
+      AppendTo[failures, <|"Slot" -> slot,
+        "Equation" -> y, "Line" -> (x -> x0),
+        "Reason" -> "SlotMissingNotBelowValuation",
+        "Missing" -> Table[
+          If[! KeyExistsQ[canonicalTables, {p - 1, l}] &&
+              ! lowerQ[{p - 1, l}] &&
+              ! finishCheapZeroQ[ay[[k, l]] /. x -> x0, {y}],
+            {p - 1, l}, Nothing], {l, Length[ay]}]|>]; Continue[]];
     Do[
       difference = Lookup[lhs, Key[key], 0] - Lookup[rhs, Key[key], 0];
       values = entryValue[difference /. x -> x0]; identities++;
@@ -939,7 +964,7 @@ ConstructMasterIntegralSolution[family_String, OptionsPattern[]] := Catch@Module
     "FamilyDLogEpsilonFormForValidation" -> KeyTake[form, {
       "DataType", "SchemaVersion", "CoefficientPresentation",
       "CoefficientVariables", "DimensionalRegulator",
-      "IrreducibleDiagonalBlocks", "BasisTransformationMatrix",
+      "BlockDecomposition", "BasisTransformationMatrix",
       "Letters", "ConstantResidueMatrices", "Validation"}],
     "TLaurentFunctionals" -> tLaurent,
     "TransportEpsilonValuations" -> Lookup[transport, "TransportEpsilonValuations", <||>],

@@ -36,9 +36,7 @@ record = Join[input, <|
   FeynFacet`ValidateFamilyDLogEpsilonForm[record, system]];
 Print["validation in ", Round[t3, 0.1], " s: ", certified["Status"],
   " ", Lookup[Lookup[certified, "Validation", <||>], "Conditions", "?"]];
-If[MemberQ[{"ExactlyValidatedFamilyDLogEpsilonForm",
-      "ProbabilisticallyValidatedFamilyDLogEpsilonForm"},
-      certified["Status"]] &&
+If[certified["Status"] === "FamilyDLogEpsilonFormValidated" &&
     FeynFacet`ValidatedFamilyDLogEpsilonFormQ[certified],
   Put[certified, outputFile <> ".partial"]; RenameFile[outputFile <> ".partial", outputFile, OverwriteTarget -> True];
   Print["VALIDATE family=", family, " validated=True method=",

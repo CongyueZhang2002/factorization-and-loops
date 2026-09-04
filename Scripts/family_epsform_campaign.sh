@@ -44,13 +44,12 @@ campaign_log="$output_root/campaign.log"
 campaign_table="$output_root/campaign.tsv"
 printf 'family\tresult\texit_code\trecord\n' > "$campaign_table"
 
-exact_record() {
+validated_v2_record() {
   local record="$1"
   [[ -f "$record" ]] &&
-    grep -q '"Status" -> "ExactEpsilonForm"' "$record" &&
-    grep -q '"GateVerdict" -> True' "$record" &&
-    grep -q '"GaugeIdentity" -> True' "$record" &&
-    grep -q '"Flatness" -> True' "$record"
+    grep -q '"DataType" -> "FamilyDLogEpsilonForm"' "$record" &&
+    grep -q '"SchemaVersion" -> 2' "$record" &&
+    grep -q '"Status" -> "FamilyDLogEpsilonFormValidated"' "$record"
 }
 
 printf '[campaign] CPU affinity %s; %d families\n' \
@@ -58,17 +57,13 @@ printf '[campaign] CPU affinity %s; %d families\n' \
   tee -a "$campaign_log"
 
 failures=0
+# A stored status alone does not establish the defining equation against the
+# current differential system. Re-enter the worker so its V2 validator makes
+# that mathematical decision; completed sector checkpoints remain reusable.
 for family in "${families[@]}"; do
   family_directory="$output_root/$family"
   record="$family_directory/family_epsform_$family.wl"
   mkdir -p "$family_directory"
-
-  if exact_record "$record"; then
-    printf '[campaign] %s already has an exact family record\n' "$family" |
-      tee -a "$campaign_log"
-    printf '%s\texact-existing\t0\t%s\n' "$family" "$record" >> "$campaign_table"
-    continue
-  fi
 
   printf '[campaign] %s started %s\n' "$family" "$(date --iso-8601=seconds)" |
     tee -a "$campaign_log"
@@ -86,10 +81,10 @@ for family in "${families[@]}"; do
   code=${PIPESTATUS[0]}
   set -e
 
-  if (( code == 0 )) && exact_record "$record"; then
-    printf '[campaign] %s exact %s\n' "$family" "$(date --iso-8601=seconds)" |
+  if (( code == 0 )) && validated_v2_record "$record"; then
+    printf '[campaign] %s validated %s\n' "$family" "$(date --iso-8601=seconds)" |
       tee -a "$campaign_log"
-    printf '%s\texact-new\t0\t%s\n' "$family" "$record" >> "$campaign_table"
+    printf '%s\tvalidated-new\t0\t%s\n' "$family" "$record" >> "$campaign_table"
   else
     failures=$((failures + 1))
     printf '[campaign] %s incomplete (exit %d); retained checkpoints\n' \

@@ -83,9 +83,8 @@ Do[
       Continue[]];
     certified = FeynFacet`ValidateFamilyDLogEpsilonForm[record, system];
     If[AssociationQ[certified] &&
-        MemberQ[{"ExactlyValidatedFamilyDLogEpsilonForm",
-            "ProbabilisticallyValidatedFamilyDLogEpsilonForm"},
-          certified["Status"]] &&
+        Lookup[certified, "Status", None] ===
+          "FamilyDLogEpsilonFormValidated" &&
         FeynFacet`ValidatedFamilyDLogEpsilonFormQ[certified],
       writeAtomic[certified, outputFile];
       elapsed = AbsoluteTime[] - familyStart;

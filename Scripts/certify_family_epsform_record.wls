@@ -1,10 +1,11 @@
 If[Length[$ScriptCommandLine] =!= 4,
-  Print["usage: wolframscript -file certify_family_epsform_record.wls RECORD SYSTEM OUTPUT"];
+  Print["usage: wolframscript -file certify_family_epsform_record.wls WORKING_RESULT V2_SYSTEM OUTPUT"];
   Exit[2]
 ];
 
 root = DirectoryName[DirectoryName[ExpandFileName[$InputFileName]]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}]];
 
 {recordFile, systemFile, outputFile} = Rest[$ScriptCommandLine];
 (* The per-family chart inventory -- including the legacy chart-alias
@@ -17,7 +18,8 @@ familyChartFile = FileNameJoin[{
   "TransportFamilyCharts.wl"}];
 If[FileExistsQ[familyChartFile],
   familyChartRegistration = FeynFacet`LoadFamilyRootData[familyChartFile];
-  If[Lookup[familyChartRegistration, "Status", None] =!= "FamilyChartsRegistered",
+  If[Lookup[familyChartRegistration, "Status", None] =!=
+      "FamilyRootDataRegistered",
     Print["CERTIFY family chart registration refused: ",
       InputForm[familyChartRegistration]];
     Exit[2]]];
@@ -29,18 +31,23 @@ If[! AssociationQ[record] || ! AssociationQ[system],
   Exit[3]
 ];
 
+systemReference = <|
+  "RelativePath" -> FileNameJoin[
+    {FileNameTake[DirectoryName[ExpandFileName[systemFile]]],
+      FileNameTake[systemFile]}],
+  "DataType" -> "FamilyDifferentialSystem",
+  "SchemaVersion" -> 2,
+  "Family" -> Lookup[system, "Family", Missing["NotGiven"]]|>;
 {seconds, certified} = AbsoluteTiming[
-  FeynFacet`ValidateFamilyDLogEpsilonForm[record, system]
+  FeynFacetCampaign`BuildValidatedFamilyDLogEpsilonFormV2[
+    record, system, systemReference, "IdentityMethod" -> "Modular"]
 ];
 If[! AssociationQ[certified],
   Print["CERTIFY result is not an Association"];
   Exit[4]
 ];
 
-If[MemberQ[{"ExactlyValidatedFamilyDLogEpsilonForm",
-      "ProbabilisticallyValidatedFamilyDLogEpsilonForm"},
-      certified["Status"]] &&
-    FeynFacet`ValidatedFamilyDLogEpsilonFormQ[certified],
+If[certified["Status"] === "FamilyDLogEpsilonFormValidated",
   outputDirectory = DirectoryName[ExpandFileName[outputFile]];
   If[! DirectoryQ[outputDirectory],
     CreateDirectory[outputDirectory, CreateIntermediateDirectories -> True]];

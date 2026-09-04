@@ -213,13 +213,13 @@ InstallEpsFormStripSolution::usage =
   "InstallEpsFormStripSolution[checkpoint,record,solution,sector,lowerSector] appends one exactly verified strip gauge to a descending sector checkpoint after checking dimensions and strip order; the regulator-free alphabet and kinematics-free residues are recomputed from the solution, so a lift that is not a dlog form cannot be installed.";
 
 ExactlyValidatedFamilyDLogEpsilonFormQ::usage =
-  "ExactlyValidatedFamilyDLogEpsilonFormQ[record] returns True only for a FamilyDLogEpsilonForm whose basis-transformation inverse, connection-transformation equation, epsilon factorization, constant-residue dlog representation, coefficient-presentation relations, and flatness were verified as characteristic-zero symbolic identities.";
+  "ExactlyValidatedFamilyDLogEpsilonFormQ[record] returns True only when a FamilyDLogEpsilonForm with Status \"FamilyDLogEpsilonFormValidated\" carries characteristic-zero symbolic validation of its basis-transformation inverse, connection-transformation equation, epsilon factorization, constant-residue dlog representation, coefficient-presentation relations, and flatness. Validation strength is read from Validation, not from Status.";
 
 ValidatedFamilyDLogEpsilonFormQ::usage =
-  "ValidatedFamilyDLogEpsilonFormQ[record] returns True for either an exactly validated FamilyDLogEpsilonForm or one whose same defining equations passed the declared random-point or finite-field validation. Probabilistic validation is never reported as exact, regardless of the number of square-root generators.";
+  "ValidatedFamilyDLogEpsilonFormQ[record] returns True when a FamilyDLogEpsilonForm with Status \"FamilyDLogEpsilonFormValidated\" carries internally consistent exact or probabilistic evidence for its defining equations. Validation strength is read from Validation; probabilistic evidence is never reported as exact, regardless of the number of square-root generators.";
 
 ValidateFamilyDLogEpsilonForm::usage =
-  "ValidateFamilyDLogEpsilonForm[record,system] re-derives the defining equations of a candidate family dlog epsilon form from the differential system, coefficient presentation, basis transformation, letters, and constant residue matrices. IdentityMethod -> \"Symbolic\" gives exact characteristic-zero validation; \"RandomPoints\" and \"Modular\" give explicitly probabilistic validation for both rational and square-root coefficient presentations. The result contains no content digests or settings-dependent acceptance conditions.";
+  "ValidateFamilyDLogEpsilonForm[record,system] re-derives the defining equations of a candidate family dlog epsilon form from the differential system, coefficient presentation, ordered diagonal blocks, basis transformation, letters, and constant residue matrices. Every accepted result has Status \"FamilyDLogEpsilonFormValidated\". IdentityMethod -> \"Symbolic\" records characteristic-zero validation; \"RandomPoints\" records random-rational-point evidence; and \"Modular\" records Method \"ProbabilisticFiniteFieldSampling\" for both rational and square-root coefficient presentations. The result contains no content digests or settings-dependent acceptance conditions.";
 
 FamilyArtifactRead::usage =
   "FamilyArtifactRead[file] reads one Wolfram Language artifact with the context path restricted to System` and Global`, so that symbols in the file never resolve into a package context loaded earlier in the session (in particular CANONICA`). Every campaign or worker read of a stored record or differential system must use this function. Returns $Failed when the file is missing or unreadable. FamilyArtifactRead[file, context] reads with the guard context explicit (default \"Global`\"); evaluation-time messages no longer discard a valid artifact, parser failures stay typed, and the collected messages are in FeynFacet`Private`$familyArtifactReadMessages (2026-08-23).";
@@ -307,33 +307,35 @@ ExpandIteratedIntegralLetterSequence::usage =
   "ExpandIteratedIntegralLetterSequence[letterSequence,variable,curve,definitions] expands one requested sequence of factor or composite letters into marked-point letters for multiple or elliptic multiple polylogarithms.";
 BuildCompactEndpointResidue::usage =
   "BuildCompactEndpointResidue[letters,residueMatrices,variable,endpoint] computes the exact simple-pole residue directly from aligned sparse square or rectangular matrices in the inert GPL/eMPL alphabet, without constructing a symbolic connection. Options declare a quartic Curve and CompositeDefinitions.";
-BuildRationalEpsilonLayerEndpointResidue::usage =
-  "BuildRationalEpsilonLayerEndpointResidue[source,diagonal,incomingByOrder,variable,endpoint] builds the compact block-triangular normal-residue Laurent deck when source and target diagonal blocks are in epsilon form and the incoming block is rational in epsilon. Each channel contains Letters and Residues; no full symbolic connection is assembled.";
+ComputeRationalEpsilonDependentBlockConnectionResidueAtLocalExpansionPoint::usage =
+  "ComputeRationalEpsilonDependentBlockConnectionResidueAtLocalExpansionPoint[source,diagonal,incomingByOrder,variable,localExpansionPoint] computes the block-triangular Laurent coefficients of the connection residue at a local expansion point when the source and target diagonal blocks are in epsilon form and the incoming block is rational in epsilon. Each channel contains Letters and Residues; no full symbolic connection is assembled.";
 
-BuildRationalEpsilonLayerTransport::usage =
-  "BuildRationalEpsilonLayerTransport[source,layer,demand] transports a lower-triangular final block whose incoming connection is rational in epsilon. In FTarget=G+H FSource, the off-diagonal basis-transformation block H is normalized by H(base)=0 and removes the non-dlog part order by order through modular Hermite reduction. A declared square-free quartic Y^2=P4 uses the pair algebra h0+h1 Y and f0 du+f1 du/Y. The dlog remainder residues and H are validated at a fresh finite-field point; path-independent dlog input uses the exact direct route.";
-AcceptedRationalEpsilonLayerTransportQ::usage =
-  "AcceptedRationalEpsilonLayerTransportQ[result] checks the structural and semantic consistency of a rational-epsilon final-block result. AcceptedRationalEpsilonLayerTransportQ[result,source,layer,demand] re-derives the problem and validates the direct route exactly or the modular route at a new finite-field point, including the off-diagonal basis-transformation block at the path endpoint.";
-BuildRationalEpsilonLayerOperator::usage =
-  "BuildRationalEpsilonLayerOperator[source,layer,transport] builds a sparse lazy operator from an accepted rational-in-epsilon final-layer transport whose exact source/layer payload matches the supplied inputs. It supports independent or shared physical boundary coordinates, preserves the selected curve sheet, and keeps GPL/eMPL labels opaque until a requested accepted coefficient is materialized.";
-AcceptedRationalEpsilonLayerOperatorQ::usage =
-  "AcceptedRationalEpsilonLayerOperatorQ[operator] checks the structural contract of a lazy rational-epsilon-layer operator.";
-RebaseRationalEpsilonLayerOperator::usage =
-  "RebaseRationalEpsilonLayerOperator[operator,newBase,sourceSelectors,targetSelectors] rebases an accepted sparse iterated-integral coefficient operator using selectors supplied at newBase. For FTarget=G+H FSource it replaces each target selector by T_q-Sum_r H_r(newBase) S_(q-r), without changing residues or constructing a dense inverse. Option OffDiagonalTransformationBlockAtNewBase supplies H_r(newBase) when it cannot be obtained by substitution.";
-RationalEpsilonLayerWordMap::usage =
-  "RationalEpsilonLayerWordMap[operator,word,boundaryOrder,outputOrder,rows] evaluates one D...D or D...D K S...S word as a sparse map on boundary coordinates.";
-RationalEpsilonLayerDemandTerms::usage =
-  "RationalEpsilonLayerDemandTerms[operator,{outputOrder,rows}] constructs only the nonzero word maps for one coefficient covered by the transport's accepted DemandPairs, including the endpoint-gauge H S...S contribution. MaximumTerms and MaximumStates are fail-closed resource caps.";
+SolveRationalEpsilonDependentBlockByVariationOfConstants::usage =
+  "SolveRationalEpsilonDependentBlockByVariationOfConstants[source,block,requestedOutputs] solves a lower-triangular rational-epsilon-dependent block by variation of constants. In FTarget=G+H FSource, the off-diagonal basis-transformation block H is normalized by H(base)=0 and removes the non-dlog part order by order through modular Hermite reduction. A declared square-free quartic Y^2=P4 uses the pair algebra h0+h1 Y and f0 du+f1 du/Y. VariationOfConstantsMethod is recorded as ExactDLogDecomposition for path-independent dlog input or FiniteFieldHermiteReductionAndReconstruction for the finite-field recurrence, which is validated at a fresh finite-field point.";
+RationalEpsilonDependentBlockSolutionQ::usage =
+  "RationalEpsilonDependentBlockSolutionQ[result] checks the schema and internal consistency of a rational-epsilon-dependent-block solution record. Use VerifyRationalEpsilonDependentBlockSolution to re-evaluate its defining equations against source and block inputs.";
+VerifyRationalEpsilonDependentBlockSolution::usage =
+  "VerifyRationalEpsilonDependentBlockSolution[result,source,block,requestedOutputs] re-derives the problem and verifies the direct solution exactly or the modular solution at a new finite-field point, including the off-diagonal basis-transformation block at the path endpoint.";
+ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientOperator::usage =
+  "ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientOperator[source,block,solution] constructs a sparse iterated-integral coefficient operator from a verified rational-epsilon-dependent-block solution whose source and block payloads match the supplied inputs. It supports independent or shared boundary coordinates and keeps multiple- and elliptic-polylogarithm letters opaque until a requested coefficient is constructed.";
+RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ::usage =
+  "RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ[operator] checks the structural contract of a rational-epsilon-dependent-block iterated-integral coefficient operator.";
+ChangeRationalEpsilonDependentBlockSolutionBasePoint::usage =
+  "ChangeRationalEpsilonDependentBlockSolutionBasePoint[operator,newBasePoint,sourceSelectors,targetSelectors] changes the lower integration limit and initial-data selectors of the same differential system. For FTarget=G+H FSource it replaces each target selector by T_q-Sum_r H_r(newBasePoint) S_(q-r), without changing residues or constructing a dense inverse. Option OffDiagonalTransformationBlockAtNewBase supplies H_r(newBasePoint) when it cannot be obtained by substitution.";
+ComputeRationalEpsilonDependentBlockIteratedIntegralCoefficientMatrix::usage =
+  "ComputeRationalEpsilonDependentBlockIteratedIntegralCoefficientMatrix[operator,operatorTokenSequence,boundaryOrder,outputOrder,rows] computes the sparse coefficient matrix represented by one D...D or D...D K S...S operator-token sequence and returns its corresponding iterated-integral letter sequence explicitly.";
+ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientMap::usage =
+  "ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientMap[operator,{outputOrder,rows}] constructs the nonzero iterated-integral coefficient map for requested master-integral rows and one epsilon order, including the H S...S contribution from the off-diagonal basis-transformation block at the path endpoint. MaximumTerms and MaximumStates are fail-closed resource caps.";
 BuildTangentialJunctionBinding::usage =
   "BuildTangentialJunctionBinding[spec] builds a family-neutral singular-junction record from epsilon-order decks for the source-mode map, the complete target-G-mode map and the regularized downstream inverse selectors. It refuses until the target G representation and the rho^0/rho^1 intertwining-jet evidence are complete.";
 AcceptedTangentialJunctionBindingQ::usage =
   "AcceptedTangentialJunctionBindingQ[binding] checks the structural contract of a TangentialJunctionBindingV1 record.";
 ComposeTangentialJunctionWordMaps::usage =
   "ComposeTangentialJunctionWordMaps[binding,upstreamTerms,downstreamTerms,outputOrder] contracts demanded sparse maps across a regularized tangential junction. It preserves each ordered {upstream word,downstream word} pair, epsilon-order routing and the original Stage-3 boundary coordinates without shuffle expansion or dense transport materialization.";
-AttachTransportBoundaryToRationalLayer::usage =
-  "AttachTransportBoundaryToRationalLayer[source,layer,boundary,sourceRows,targetRows] splits a full-system physical boundary selector into source and final-layer rows while preserving one shared vector of period coordinates.";
-BuildPhysicalTransportCoefficient::usage =
-  "BuildPhysicalTransportCoefficient[operator,boundary,{epsilonOrder,physicalRow},path] constructs one requested final-block coefficient from its sparse iterated-integral operator, the off-diagonal basis-transformation block at the path endpoint, an optional CanonicalToPhysicalMasterIntegralMapByEpsilonOrder, and the boundary-value vector. A tangential-base-point prescription is retained in every nonempty formal iterated integral.";
+AttachBoundarySelectorsToRationalEpsilonDependentBlock::usage =
+  "AttachBoundarySelectorsToRationalEpsilonDependentBlock[source,block,boundarySelectorData,sourceRows,targetRows] splits full-system boundary selector matrices into source and rational-epsilon-dependent-block rows while preserving their shared boundary-constant or boundary-function epsilon-coefficient labels.";
+ConstructMasterIntegralEpsilonExpansionCoefficient::usage =
+  "ConstructMasterIntegralEpsilonExpansionCoefficient[operator,boundaryValueData,{epsilonOrder,masterIntegralRow},path] constructs one requested master-integral epsilon-expansion coefficient from its iterated-integral coefficient operator, the off-diagonal basis-transformation block at the path endpoint, an optional CanonicalToPhysicalMasterIntegralMapByEpsilonOrder, and the boundary-value vector. A tangential-base-point prescription is retained in every nonempty formal iterated integral.";
 AcceptedObservableTransportQ::usage =
   "AcceptedObservableTransportQ[result] checks the required named exact certificates and, according to the representation and boundary method, every fresh modular closure, ambient-invariance and quotient-coordinate certificate. It keeps probabilistic structural acceptance distinct from an exact symbolic identity.";
 
@@ -480,21 +482,31 @@ SyntaxInformation[ExpandIteratedIntegralLetterSequence] =
   {"ArgumentsPattern" -> {_, _, _., _.}};
 SyntaxInformation[BuildCompactEndpointResidue] =
   {"ArgumentsPattern" -> {_, _, _, _, OptionsPattern[]}};
-SyntaxInformation[BuildRationalEpsilonLayerOperator] =
+SyntaxInformation[ComputeRationalEpsilonDependentBlockConnectionResidueAtLocalExpansionPoint] =
+  {"ArgumentsPattern" -> {_, _, _, _, _, OptionsPattern[]}};
+SyntaxInformation[SolveRationalEpsilonDependentBlockByVariationOfConstants] =
+  {"ArgumentsPattern" -> {_, _, _, OptionsPattern[]}};
+SyntaxInformation[RationalEpsilonDependentBlockSolutionQ] =
+  {"ArgumentsPattern" -> {_}};
+SyntaxInformation[VerifyRationalEpsilonDependentBlockSolution] =
+  {"ArgumentsPattern" -> {_, _, _, _}};
+SyntaxInformation[ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientOperator] =
   {"ArgumentsPattern" -> {_, _, _}};
-SyntaxInformation[RebaseRationalEpsilonLayerOperator] =
+SyntaxInformation[RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ] =
+  {"ArgumentsPattern" -> {_}};
+SyntaxInformation[ChangeRationalEpsilonDependentBlockSolutionBasePoint] =
   {"ArgumentsPattern" -> {_, _, _, _, OptionsPattern[]}};
-SyntaxInformation[RationalEpsilonLayerWordMap] =
+SyntaxInformation[ComputeRationalEpsilonDependentBlockIteratedIntegralCoefficientMatrix] =
   {"ArgumentsPattern" -> {_, _, _, _, _.}};
-SyntaxInformation[RationalEpsilonLayerDemandTerms] =
+SyntaxInformation[ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientMap] =
   {"ArgumentsPattern" -> {_, _, OptionsPattern[]}};
 SyntaxInformation[BuildTangentialJunctionBinding] =
   {"ArgumentsPattern" -> {_}};
 SyntaxInformation[ComposeTangentialJunctionWordMaps] =
   {"ArgumentsPattern" -> {_, _, _, _}};
-SyntaxInformation[AttachTransportBoundaryToRationalLayer] =
+SyntaxInformation[AttachBoundarySelectorsToRationalEpsilonDependentBlock] =
   {"ArgumentsPattern" -> {_, _, _, _, _}};
-SyntaxInformation[BuildPhysicalTransportCoefficient] =
+SyntaxInformation[ConstructMasterIntegralEpsilonExpansionCoefficient] =
   {"ArgumentsPattern" -> {_, _, _, _, OptionsPattern[]}};
 SyntaxInformation[ComposeRationalizingParametrizations] =
   {"ArgumentsPattern" -> {_, _, _, _}};

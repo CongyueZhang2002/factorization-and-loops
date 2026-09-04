@@ -1,18 +1,20 @@
-(* Compact normal residue of a block-triangular rational-in-epsilon layer.
+(* Connection residue of a block-triangular rational-epsilon-dependent
+   subsystem at a local expansion point.
 
    The source and target diagonal blocks are in epsilon form, while the
    incoming block is supplied as a Laurent deck in epsilon.  Each channel is
    reduced directly from inert letters; no characteristic-zero connection is
    assembled. *)
 
-Clear[BuildRationalEpsilonLayerEndpointResidue];
+Clear[ComputeRationalEpsilonDependentBlockConnectionResidueAtLocalExpansionPoint];
 
-Options[BuildRationalEpsilonLayerEndpointResidue] =
+Options[ComputeRationalEpsilonDependentBlockConnectionResidueAtLocalExpansionPoint] =
   Options[BuildCompactEndpointResidue];
 
-BuildRationalEpsilonLayerEndpointResidue[source_Association,
+ComputeRationalEpsilonDependentBlockConnectionResidueAtLocalExpansionPoint[
+    source_Association,
     diagonal_Association, incomingByOrder_Association,
-    variable_Symbol, endpoint_, OptionsPattern[]] := Catch@Module[
+    variable_Symbol, localExpansionPoint_, OptionsPattern[]] := Catch@Module[
   {fail, curve, definitions, build, sourceResult, diagonalResult,
    incomingResults, sourceDimension, targetDimension, sourceResidue,
    diagonalResidue, incomingResidues, orders, zeroSource, zeroTarget,
@@ -26,24 +28,25 @@ BuildRationalEpsilonLayerEndpointResidue[source_Association,
       ! AllTrue[Join[{source, diagonal}, Values[incomingByOrder]],
         AssociationQ[#] && ListQ[Lookup[#, "Letters", Missing[]]] &&
           ListQ[Lookup[#, "Residues", Missing[]]] &],
-    fail["RationalLayerEndpointResidueInputInvalid"]];
+    fail["RationalEpsilonDependentBlockConnectionResidueInputInvalid"]];
 
   build[channel_Association] := BuildCompactEndpointResidue[
-    channel["Letters"], channel["Residues"], variable, endpoint,
+    channel["Letters"], channel["Residues"], variable,
+    localExpansionPoint,
     "Curve" -> curve, "CompositeDefinitions" -> definitions];
   sourceResult = build[source];
   If[sourceResult["Status"] =!= "CompactEndpointResidueBuilt",
-    fail["RationalLayerSourceEndpointResidueFailed",
+    fail["SourceConnectionResidueComputationFailed",
       <|"Cause" -> sourceResult|>]];
   diagonalResult = build[diagonal];
   If[diagonalResult["Status"] =!= "CompactEndpointResidueBuilt",
-    fail["RationalLayerDiagonalEndpointResidueFailed",
+    fail["TargetDiagonalBlockConnectionResidueComputationFailed",
       <|"Cause" -> diagonalResult|>]];
   incomingResults = Association@KeyValueMap[#1 -> build[#2] &,
     incomingByOrder];
   If[AnyTrue[Values[incomingResults],
       Lookup[#, "Status", None] =!= "CompactEndpointResidueBuilt" &],
-    fail["RationalLayerIncomingEndpointResidueFailed",
+    fail["IncomingBlockConnectionResidueComputationFailed",
       <|"Failures" -> Select[incomingResults,
         Lookup[#, "Status", None] =!= "CompactEndpointResidueBuilt" &]|>]];
 
@@ -53,12 +56,12 @@ BuildRationalEpsilonLayerEndpointResidue[source_Association,
       ! MatchQ[diagonalResult["MatrixDimensions"],
         {_Integer?Positive, _Integer?Positive}] ||
       ! SameQ @@ diagonalResult["MatrixDimensions"],
-    fail["RationalLayerEndpointDiagonalDimensionsInvalid"]];
+    fail["DiagonalBlockConnectionResidueDimensionsInvalid"]];
   sourceDimension = First[sourceResult["MatrixDimensions"]];
   targetDimension = First[diagonalResult["MatrixDimensions"]];
   If[! AllTrue[Values[incomingResults],
       #MatrixDimensions === {targetDimension, sourceDimension} &],
-    fail["RationalLayerEndpointIncomingDimensionsInvalid"]];
+    fail["IncomingBlockConnectionResidueDimensionsInvalid"]];
 
   sourceResidue = sourceResult["Residue"];
   diagonalResidue = diagonalResult["Residue"];
@@ -75,21 +78,20 @@ BuildRationalEpsilonLayerEndpointResidue[source_Association,
     }], {order, orders}];
 
   <|
-    "Status" -> "RationalEpsilonLayerEndpointResidueBuilt",
+    "Status" ->
+      "RationalEpsilonDependentBlockConnectionResidueComputed",
     "Variable" -> variable,
-    "Endpoint" -> endpoint,
+    "LocalExpansionPoint" -> localExpansionPoint,
     "Dimensions" -> <|"Source" -> sourceDimension,
       "Target" -> targetDimension,
       "Total" -> sourceDimension + targetDimension|>,
-    "Source" -> sourceResult,
-    "Diagonal" -> diagonalResult,
-    "IncomingByOrder" -> incomingResults,
-    "SourceResidue" -> sourceResidue,
-    "DiagonalResidue" -> diagonalResidue,
-    "IncomingResiduesByOrder" -> incomingResidues,
-    "FullResiduesByOrder" -> fullResidues
+    "SourceConnectionResidue" -> sourceResidue,
+    "TargetDiagonalBlockConnectionResidue" -> diagonalResidue,
+    "IncomingConnectionResiduesByEpsilonOrder" -> incomingResidues,
+    "BlockConnectionResiduesByEpsilonOrder" -> fullResidues
   |>
 ];
 
-BuildRationalEpsilonLayerEndpointResidue[___] :=
-  <|"Status" -> "RationalLayerEndpointResidueInputsNotWellFormed"|>;
+ComputeRationalEpsilonDependentBlockConnectionResidueAtLocalExpansionPoint[___] :=
+  <|"Status" ->
+    "RationalEpsilonDependentBlockConnectionResidueInputsNotWellFormed"|>;

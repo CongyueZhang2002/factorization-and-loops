@@ -575,7 +575,7 @@ ValidateFamilyDLogEpsilonForm[record_Association, system_Association,
   validationMethod = Switch[identityMethod,
     "Symbolic", "CharacteristicZeroSymbolicIdentity",
     "RandomPoints", "RandomRationalPointEvaluation",
-    "Modular", "FiniteFieldEvaluation",
+    "Modular", "ProbabilisticFiniteFieldSampling",
     _, "UnsupportedIdentityMethod"];
   validation = Join[<|
     "SchemaVersion" -> 2,
@@ -628,9 +628,7 @@ ValidateFamilyDLogEpsilonForm[record_Association, system_Association,
   outputBase = <|
     "DataType" -> "FamilyDLogEpsilonForm",
     "SchemaVersion" -> 2,
-    "Status" -> If[exact,
-      "ExactlyValidatedFamilyDLogEpsilonForm",
-      "ProbabilisticallyValidatedFamilyDLogEpsilonForm"],
+    "Status" -> "FamilyDLogEpsilonFormValidated",
     "Family" -> Lookup[normalizedRecord, "Family", Missing["NotGiven"]],
     "CoefficientPresentation" -> outputPresentation,
     "CoefficientVariables" -> variables,
@@ -660,9 +658,9 @@ ExactlyValidatedFamilyDLogEpsilonFormQ[record_Association] := Module[
   conditions = Lookup[validation, "Conditions", <||>];
   residuals = Lookup[validation, "CharacteristicZeroResiduals", <||>];
   Lookup[record, "DataType", None] === "FamilyDLogEpsilonForm" &&
-    Lookup[record, "SchemaVersion", 0] >= 2 &&
+    Lookup[record, "SchemaVersion", None] === 2 &&
     Lookup[record, "Status", None] ===
-      "ExactlyValidatedFamilyDLogEpsilonForm" &&
+      "FamilyDLogEpsilonFormValidated" &&
     AssociationQ[validation] && AssociationQ[conditions] &&
     TrueQ[Lookup[validation, "Exact", False]] &&
     ! TrueQ[Lookup[validation, "Probabilistic", True]] &&
@@ -683,7 +681,7 @@ ValidatedFamilyDLogEpsilonFormQ[record_Association] := Module[
   method = Lookup[validation, "Method", None];
   evidence = Lookup[validation, "SamplingEvidence", <||>];
   evidenceConsistent = Switch[method,
-    "FiniteFieldEvaluation",
+    "ProbabilisticFiniteFieldSampling",
       AssociationQ[evidence] &&
         Lookup[evidence, "Status", None] ===
           "FiniteFieldValidationPassed" &&
@@ -698,13 +696,14 @@ ValidatedFamilyDLogEpsilonFormQ[record_Association] := Module[
         Lookup[evidence, "Points", 0] > 0,
     _, False];
   Lookup[record, "DataType", None] === "FamilyDLogEpsilonForm" &&
-    Lookup[record, "SchemaVersion", 0] >= 2 &&
+    Lookup[record, "SchemaVersion", None] === 2 &&
     Lookup[record, "Status", None] ===
-      "ProbabilisticallyValidatedFamilyDLogEpsilonForm" &&
+      "FamilyDLogEpsilonFormValidated" &&
     AssociationQ[validation] && AssociationQ[conditions] &&
     ! TrueQ[Lookup[validation, "Exact", True]] &&
     TrueQ[Lookup[validation, "Probabilistic", False]] &&
-    MemberQ[{"RandomRationalPointEvaluation", "FiniteFieldEvaluation"},
+    MemberQ[{"RandomRationalPointEvaluation",
+        "ProbabilisticFiniteFieldSampling"},
       method] && evidenceConsistent && Length[conditions] > 0 &&
     And @@ (TrueQ /@ Values[conditions])
 ];

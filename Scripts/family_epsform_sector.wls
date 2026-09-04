@@ -17,9 +17,11 @@
         differential variables before it is composed.  Each checked strip is
         written atomically, so an interrupted sector resumes from that gauge.
      C. Apply CANONICA`TransformDlogToEpsForm to the completed sector row.
-   Family acceptance (unchanged): exact gauge identity T^-1 A T - T^-1 dT
-   == A', flatness of A', A'/eps eps-free entrywise, both variables; then a
-   route-2-consumable FamilyEpsForms record.
+   Family acceptance is the package family dlog epsilon-form validator. In
+   Production it evaluates the defining identities at independent finite-
+   field points and records a probabilistic result; in Development it uses
+   characteristic-zero symbolic identities. Only the validated V2
+   FamilyDLogEpsilonForm is persisted.
    Usage: family_epsform_sector.wls <family> <outdir>
           [sectorBudget=1800] [tag] [directSectorBudget=30] [chartFile]
           [familyDataDirectory] [classFormDirectory] *)
@@ -27,6 +29,7 @@ $HistoryLength = 0;
 driverFile = ExpandFileName[$InputFileName];
 root = ParentDirectory[DirectoryName[driverFile]];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
+Get[FileNameJoin[{root, "Scripts", "family_dlog_epsilon_form_v2.wl"}]];
 (* pool subkernels keep state: clear the Global` symbols CANONICA and earlier
    missions leave behind (they broke AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks on a reused
    subkernel: "assembly failed" on kernel 26, 2026-08-18) *)
@@ -77,14 +80,10 @@ chartFile = If[Length[args] >= 6 && StringLength[args[[6]]] > 0,
    degrees 0-3 -> Maple -> finite field).  Measured on 20 real CF254 strips
    (BenchmarkStripBackends/StripMethods_2026-08-21): finite field 20/20 in
    872 s total; CANONICA ladder 15/20 in 2790 s; Maple 13/20, never faster. *)
-(* Check level (FACET_CHECK_LEVEL): "Development" (default; every block
-   checked exactly, per-sector exact identities, the script's own family
-   gate) or "Production" (user decision 2026-08-22: checks stay separate
-   from the calculation -- blocks are accepted on the modular residual,
-   the per-sector exact identities and the script's family gate are
-   skipped, and the single exact statement is
-   ValidateFamilyDLogEpsilonForm,
-   run afterwards by the driver). *)
+(* Check level (FACET_CHECK_LEVEL): "Development" (default; every block and
+   the final family are checked symbolically) or "Production" (blocks and
+   the final family are validated at finite-field points; sampled identities
+   are recorded as probabilistic for every coefficient presentation). *)
 checkLevel = Module[{value = Environment["FACET_CHECK_LEVEL"]},
   If[StringQ[value] && value === "Production", "Production", "Development"]];
 productionQ = checkLevel === "Production";
@@ -218,6 +217,17 @@ ftData = If[Length[args] >= 7 && StringLength[args[[7]]] > 0,
   discoverFamilyDataDirectory[family]];
 classFormDirectory = If[Length[args] >= 8 && StringLength[args[[8]]] > 0,
   ExpandFileName[args[[8]]], FileNameJoin[{ftData, "ClassForms"}]];
+differentialSystemFile = FileNameJoin[{ftData, "DifferentialEquations",
+  "nnlo_de_" <> family <> ".wl"}];
+differentialSystem = readArtifact[differentialSystemFile];
+system = FeynFacetCampaign`FamilyDifferentialSystemWorkingViewV2[
+  differentialSystem];
+If[Lookup[system, "Status", None] =!=
+    "FamilyDifferentialSystemWorkingViewConstructed",
+  log["!! V2 family differential system refused: ", system];
+  Exit[2]];
+{vv, ww} = differentialSystem["KinematicVariables"];
+ee = system["Regulator"];
 (* The per-family transport-chart inventory is PROJECT data (generality
    pass 2026-08-23, A1): the package ships an empty registry and the
    campaign's own table travels with its family data.  A family that is
@@ -252,7 +262,7 @@ chart = If[StringQ[chartFile],
   If[! FileExistsQ[chartFile],
     log["!! chart file does not exist: ", chartFile]; Exit[2]];
   readArtifact[chartFile],
-  FeynFacet`FamilyRootData[family]];
+  FeynFacet`FamilyRootData[family, {vv, ww}]];
 (* None  = registered as root-free (transport in the source variables).
    Missing["FamilyChartNotRegistered", family] = no declaration at all:
    the identity frame is used PROVISIONALLY and the assembled connection
@@ -269,8 +279,8 @@ If[chart === None || chartNotRegisteredQ,
     "DataType" -> "SourceVariableRepresentation",
     "SchemaVersion" -> 2,
     "SourceVariables" -> {vv, ww},
-    "CoefficientVariables" -> {xx, yy},
-    "SourceVariableSubstitution" -> {vv -> xx, ww -> yy},
+    "CoefficientVariables" -> {vv, ww},
+    "SourceVariableSubstitution" -> {vv -> vv, ww -> ww},
     "DifferentialPullbackMatrix" -> IdentityMatrix[2]
   |>
 ];
@@ -370,12 +380,10 @@ If[AssociationQ[cachedState] &&
      it reproduces the cached connection at random points. *)
   If[KeyExistsQ[cachedState, "Blocks"],
     assemblyBlocks = cachedState["Blocks"],
-    Module[{de0, sys0, rec0, asm0, fresh, pt, zeroAt},
+    Module[{rec0, asm0, fresh, pt, zeroAt},
       log["cached state has no block order; recomputing the assembly to recover it"];
-      de0 = readArtifact[FileNameJoin[{ftData, "DifferentialEquations", "nnlo_de_" <> family <> ".wl"}]];
-      sys0 = <|"Family" -> family, "Basis" -> de0["BlockBasis"], "Av" -> de0["Av"], "Aw" -> de0["Aw"]|>;
       rec0 = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[
-        sys0, chart, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
+        system, chart, "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
         "Blocks" -> blocks, "FormDirectory" -> classFormDirectory,
         "Verbose" -> False];
       If[! (AssociationQ[rec0] &&
@@ -394,10 +402,6 @@ If[AssociationQ[cachedState] &&
     "Blocks" -> assemblyBlocks|>;
   log["using cached original connection from exact sector ",
     cachedState["Sector"]],
-  de = readArtifact[FileNameJoin[{ftData, "DifferentialEquations",
-      "nnlo_de_" <> family <> ".wl"}]];
-  system = <|"Family" -> family, "Basis" -> de["BlockBasis"],
-    "Av" -> de["Av"], "Aw" -> de["Aw"]|>;
   rec = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[system, chart,
     "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
     "Blocks" -> blocks,
@@ -509,13 +513,8 @@ If[! KeyExistsQ[state, "DiagonalAlphabets"] &&
    of these letters. *)
 If[! KeyExistsQ[state, "DiagonalAlphabets"],
   log["recovering transported diagonal alphabets for the older checkpoint"];
-  Module[{deAlphabet, systemAlphabet, recAlphabet, assemblyAlphabet},
-    deAlphabet = readArtifact[FileNameJoin[{ftData, "DifferentialEquations",
-      "nnlo_de_" <> family <> ".wl"}]];
-    systemAlphabet = <|"Family" -> family,
-      "Basis" -> deAlphabet["BlockBasis"], "Av" -> deAlphabet["Av"],
-      "Aw" -> deAlphabet["Aw"]|>;
-    recAlphabet = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[systemAlphabet, chart,
+  Module[{recAlphabet, assemblyAlphabet},
+    recAlphabet = FeynFacet`AssembleFamilyDifferentialSystemWithEpsilonFormDiagonalBlocks[system, chart,
       "SourceVariables" -> {vv, ww}, "Regulator" -> ee,
       "Blocks" -> blocks,
       "FormDirectory" -> classFormDirectory,
@@ -1786,9 +1785,9 @@ If[MatrixQ[tdiagChart] && MatrixQ[tdiagChartInverse],
   ttotalAbsolute = S; ttotalAbsoluteInverse = Sinv;
   ttotalBasis = "AssembledConnection"];
 (* Regulator factorizations were constructed in the working {xx,yy}
-   variables.  Rebind their graded-root evidence to the final record's
-   {c1,c2} variables and recompute the canonical fingerprints, so the
-   whole-family certifier authenticates exactly what the artifact carries. *)
+   variables. Rebind their graded-root evidence to the final record's
+   {c1,c2} variables so the whole-family validator checks the same
+   quadratic relations that the sector calculation used. *)
 Clear[finalRegulatorFactorizationRecord];
 finalRegulatorFactorizationRecord[entry_Association] := Module[
   {mapped = entry /. fromXY, evidence, roots, refreshed},
@@ -1806,32 +1805,40 @@ finalRegulatorFactorizations = finalRegulatorFactorizationRecord /@
 finalRegulatorFactorization = Replace[
   Lookup[state, "RegulatorFactorization", Missing["Absent"]],
   association_Association :> finalRegulatorFactorizationRecord[association]];
-out = <|"Family" -> family,
-  "Method" -> "SectorCANONICA+ExactStripSolver",
+workingResult = <|"Family" -> family,
   "CoefficientPresentation" -> coefficientPresentationForResume,
-  "CoefficientPresentationValidation" -> chartCertificate,
   "Variables" -> {c1, c2}, "Regulator" -> ee,
   "Ranges" -> ranges, "Blocks" -> assembly["Blocks"],
   "TTotal" -> ttotalAbsolute, "TTotalInverse" -> ttotalAbsoluteInverse,
-  "TBlockDiagonal" -> tdiagChart, "TTotalBasis" -> ttotalBasis,
-  "S" -> S, "EpsFormX" -> Ap[[1]], "EpsFormY" -> Ap[[2]],
-  "Letters" -> letters, "GateVerdict" -> verdict,
-  "GaugeIdentity" -> gauge, "GaugeIdentityRoute" -> gaugeRoute,
-  "Flatness" -> flatness, "FlatnessRoute" -> flatnessRoute,
-  "Triangular" -> True, "TTotalInvertible" -> finalInverse,
-  "SectorCertificates" -> state["SectorCertificates"],
-  "StripSolvers" -> state["StripSolvers"],
+  "EpsFormX" -> Ap[[1]], "EpsFormY" -> Ap[[2]],
+  "Letters" -> letters,
   "RegulatorFactorizations" -> finalRegulatorFactorizations,
-  "RegulatorFactorization" -> finalRegulatorFactorization,
-  "RowGaugePropagationPolicy" -> If[productionQ,
-    "DeferredExactBlockProducts", "Together"],
-  "Status" -> Which[verdict === True, "ExactEpsilonForm",
-    verdict === "DeferredToFamilyCertificate", "CandidateEpsilonForm",
-    True, "Incomplete"],
-  "CheckLevel" -> checkLevel,
-  "WallSeconds" -> AbsoluteTime[] - start,
-  "Provenance" -> "Complete-sector CANONICA first. For an unresolved sector, CANONICA NextEquationD constructs each strip. In Production, a complete materialized current row is installed when available; otherwise the exact current-row block formula is retained without redundant symbolic normalization. Future connection and inverse basis-transformation row corrections likewise retain exact block sums. ValidateFamilyDLogEpsilonForm is the sole whole-family validation and distinguishes characteristic-zero symbolic identities from probabilistic finite-field evidence. Development retains Together propagation and its exact intermediate checks."|>;
-putAtomic[out, FileNameJoin[{outdir, "family_epsform_" <> family <> ".wl"}]];
-log["written family_epsform_", family, ".wl; GateVerdict ", verdict, "; wall ", Round[AbsoluteTime[] - start], " s"];
+  "RegulatorFactorization" -> finalRegulatorFactorization|>;
+If[! MemberQ[{True, "DeferredToFamilyCertificate"}, verdict],
+  log["!! completed sector result did not satisfy its configured " <>
+    "construction conditions"];
+  If[ownedKernels =!= {}, Quiet[CloseKernels[ownedKernels]]];
+  Exit[1]];
+systemReference = <|
+  "RelativePath" -> FileNameJoin[{"DifferentialEquations",
+    FileNameTake[differentialSystemFile]}],
+  "DataType" -> "FamilyDifferentialSystem",
+  "SchemaVersion" -> 2,
+  "Family" -> family|>;
+validationMethod = If[productionQ, "Modular", "Symbolic"];
+out = FeynFacetCampaign`BuildValidatedFamilyDLogEpsilonFormV2[
+  workingResult, differentialSystem, systemReference,
+  "IdentityMethod" -> validationMethod];
+If[! AssociationQ[out] ||
+    Lookup[out, "Status", None] =!= "FamilyDLogEpsilonFormValidated",
+  log["!! whole-family validation failed: ",
+    If[AssociationQ[out], Lookup[out, "Status", "Unknown"], Head[out]]];
+  If[ownedKernels =!= {}, Quiet[CloseKernels[ownedKernels]]];
+  Exit[1]];
+putAtomic[out,
+  FileNameJoin[{outdir, "family_epsform_" <> family <> ".wl"}]];
+log["written V2 family dlog epsilon form; validation method ",
+  out["Validation"]["Method"], "; wall ",
+  Round[AbsoluteTime[] - start], " s"];
 If[ownedKernels =!= {}, Quiet[CloseKernels[ownedKernels]]];
-Exit[If[verdict === True || verdict === "DeferredToFamilyCertificate", 0, 1]]
+Exit[0]

@@ -16,7 +16,7 @@ rfValue[{numerator_, denominator_}, point_, q_] :=
   Mod[(numerator /. u -> point) PowerMod[denominator /. u -> point, -1, q], q];
 rfExpression[{numerator_, denominator_}] := numerator/denominator;
 modValue[expression_, point_, q_] := rfValue[
-  FeynFacet`Private`rationalLayerModularFunction[expression, u, q], point, q];
+  FeynFacet`Private`rationalEpsilonDependentBlockModularFunction[expression, u, q], point, q];
 
 (* First exercise the elliptic reduction itself.  The primitive has a repeated
    pole, while an added simple-pole and cohomology term force every output
@@ -24,9 +24,9 @@ modValue[expression_, point_, q_] := rfValue[
 g = (u - 1)/(u + 3);
 ellipticInput = Together[curve D[g, u] + D[curve, u] g/2 +
   (2 + 3 u)/(u + 1) + 5 + 7 u + 11 u^2];
-curveImage = FeynFacet`Private`rationalLayerModularPolynomial[curve, u, prime];
-inputImage = FeynFacet`Private`rationalLayerModularFunction[ellipticInput, u, prime];
-reduction = FeynFacet`Private`rationalLayerEllipticHermite[
+curveImage = FeynFacet`Private`rationalEpsilonDependentBlockModularPolynomial[curve, u, prime];
+inputImage = FeynFacet`Private`rationalEpsilonDependentBlockModularFunction[ellipticInput, u, prime];
+reduction = FeynFacet`Private`rationalEpsilonDependentBlockEllipticHermite[
   inputImage, curveImage, u, prime];
 reducedExpression = With[
   {primitive = rfExpression[reduction["Primitive"]],
@@ -58,7 +58,7 @@ layer = <|
   "PathVariable" -> u,
   "Regulator" -> eps,
   "BasePoint" -> 1,
-  "Endpoint" -> 2,
+  "PathEndpoint" -> 2,
   "Curve" -> curve,
   "CurvePointValues" -> <|0 -> 1, 1 -> 2, 2 -> 5|>,
   "Diagonal" -> diagonal,
@@ -66,32 +66,32 @@ layer = <|
     "Coefficient" -> forcing/eps, "Letter" -> {"E4Omega0"}|>},
   "TargetBoundarySelectors" -> <|0 -> {{1}}|>
 |>;
-demand = <|"Pairs" -> {{-1, 1}, {0, 1}}|>;
-result = BuildRationalEpsilonLayerTransport[source, layer, demand,
-  "IncomingRoute" -> "Modular", "WordRepresentation" -> "LazyOperator",
+demand = <|"RequestedOutputPairs" -> {{-1, 1}, {0, 1}}|>;
+result = SolveRationalEpsilonDependentBlockByVariationOfConstants[source, layer, demand,
+  "VariationOfConstantsMethod" -> "FiniteFieldHermiteReductionAndReconstruction", "IteratedIntegralCoefficientRepresentation" -> "LazyCoefficientOperator",
   "PrimeCount" -> 3, "MaximumPrimeCount" -> 12];
-curveLabels = FeynFacet`Private`rationalLayerResidueLabel /@
+curveLabels = FeynFacet`Private`rationalEpsilonDependentBlockResidueLabel /@
   Keys[Lookup[result, "KResidues", <||>]];
-FTAssert["the family-neutral quartic recurrence reconstructs an accepted lazy transport",
-  result["Status"] === "RationalEpsilonLayerTransportAccepted" &&
-    result["CurveChannel"] && result["WordRepresentation"] === "LazyOperator" &&
+FTAssert["the family-neutral quartic recurrence reconstructs an accepted lazy rational-epsilon-dependent-block solution",
+  result["Status"] === "RationalEpsilonDependentBlockSolutionAccepted" &&
+    result["CurveChannel"] && result["IteratedIntegralCoefficientRepresentation"] === "LazyCoefficientOperator" &&
     result["OffDiagonalBasisTransformationBlockAtPathEndpoint"][-1] === {{1}} &&
     MemberQ[curveLabels, {"E4Pole", 0}] &&
     AllTrue[{{"E4Omega0"}, {"E4OmegaInf"}, {"E4Eta2"}},
       MemberQ[curveLabels, #] &] &&
-    AcceptedRationalEpsilonLayerTransportQ[result] &&
-    AcceptedRationalEpsilonLayerTransportQ[result, source, layer, demand]];
+    RationalEpsilonDependentBlockSolutionQ[result] &&
+    VerifyRationalEpsilonDependentBlockSolution[result, source, layer, demand]];
 
-prepared = BuildRationalEpsilonLayerTransport[source, layer, demand,
-  "IncomingRoute" -> "Modular", "WordRepresentation" -> "LazyOperator",
+prepared = SolveRationalEpsilonDependentBlockByVariationOfConstants[source, layer, demand,
+  "VariationOfConstantsMethod" -> "FiniteFieldHermiteReductionAndReconstruction", "IteratedIntegralCoefficientRepresentation" -> "LazyCoefficientOperator",
   "PrepareOnly" -> True];
 independentPrime = 1000033;
-image = FeynFacet`Private`rationalLayerCurveRecurrenceImage[
+image = FeynFacet`Private`rationalEpsilonDependentBlockCurveRecurrenceImage[
   prepared["Laurent"], prepared["Diagonal"], prepared["Source"],
   prepared["Factors"], prepared["PathVariable"], prepared["Curve"],
   prepared["CurvePointValues"], prepared["BasePoint"],
   prepared["CurveBaseValue"], prepared["Orders"], independentPrime,
-  prepared["Endpoint"], prepared["CurveEndpointValue"]];
+  prepared["PathEndpoint"], prepared["CurveValueAtPathEndpoint"]];
 
 reconstructionMatchesQ = And @@ Flatten[Table[
   With[{exact = Lookup[result["KResidues"], Key[key], {{0}}],
@@ -112,14 +112,14 @@ formProduct[h_, form_] := With[
 differentiate[h_] := With[{h0 = rfExpression[h[[1]]], h1 = rfExpression[h[[2]]]},
   {D[h0, u], curveImage D[h1, u] + D[curveImage, u] h1/2}];
 kForm[order_] := Total /@ Transpose[Prepend[
-  Table[With[{label = FeynFacet`Private`rationalLayerResidueLabel[key],
+  Table[With[{label = FeynFacet`Private`rationalEpsilonDependentBlockResidueLabel[key],
       coefficient = image["KResidues"][key][[1, 1]]},
-    coefficient FeynFacet`Private`rationalLayerLetterPair[
+    coefficient FeynFacet`Private`rationalEpsilonDependentBlockLetterPair[
       label, u, curve, prepared["CurvePointValues"]]],
     {key, Select[Keys[image["KResidues"]], First[#] === order &]}], {0, 0}]];
-dForm = FeynFacet`Private`rationalLayerLetterPair[
+dForm = FeynFacet`Private`rationalEpsilonDependentBlockLetterPair[
   diagonal[[1, 1]], u, curve, prepared["CurvePointValues"]];
-sForm = FeynFacet`Private`rationalLayerLetterPair[
+sForm = FeynFacet`Private`rationalEpsilonDependentBlockLetterPair[
   source["Letters"][[1]], u, curve, prepared["CurvePointValues"]];
 previous = {{0, 1}, {0, 1}};
 differentialChecks = Reap[Do[
@@ -130,18 +130,18 @@ differentialChecks = Reap[Do[
   Do[Sow[And @@ Table[modValue[lhs[[channel]] - rhs[[channel]], point,
       independentPrime] === 0, {channel, 2}]], {point, {3, 4, 5}}];
   previous = current, {order, prepared["Orders"]}]][[2, 1]];
-FTAssert["reconstructed K and endpoint gauge match an unused prime, whose pair recurrence satisfies the differential identity at independent points",
+FTAssert["reconstructed K and off-diagonal basis-transformation block at the path endpoint match an unused prime, whose pair recurrence satisfies the differential identity at independent points",
   image["Status"] === "RecurrenceImageEvaluated" && reconstructionMatchesQ &&
     gaugeMatchesQ && And @@ differentialChecks];
 
 FTAssert["quartic channel refusals remain typed at unsupported branch poles and missing rational sheet data",
-  FeynFacet`Private`rationalLayerEllipticHermite[
-    FeynFacet`Private`rationalLayerModularFunction[1/u, u, prime],
-    FeynFacet`Private`rationalLayerModularPolynomial[u (u - 1) (u^2 + 1), u, prime],
+  FeynFacet`Private`rationalEpsilonDependentBlockEllipticHermite[
+    FeynFacet`Private`rationalEpsilonDependentBlockModularFunction[1/u, u, prime],
+    FeynFacet`Private`rationalEpsilonDependentBlockModularPolynomial[u (u - 1) (u^2 + 1), u, prime],
     u, prime]["Status"] === "CurveBranchPoleNotSupported" &&
-  BuildRationalEpsilonLayerTransport[source,
+  SolveRationalEpsilonDependentBlockByVariationOfConstants[source,
     Join[layer, <|"Curve" -> u^4 + u + 1, "CurvePointValues" -> <||>|>],
-    demand, "IncomingRoute" -> "Modular", "WordRepresentation" -> "LazyOperator"]["Status"] ===
+    demand, "VariationOfConstantsMethod" -> "FiniteFieldHermiteReductionAndReconstruction", "IteratedIntegralCoefficientRepresentation" -> "LazyCoefficientOperator"]["Status"] ===
       "CurvePointValueRequired"];
 
 FTReport[];

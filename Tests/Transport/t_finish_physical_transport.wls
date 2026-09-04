@@ -35,8 +35,17 @@ system = <|"Family" -> family,
 record = ValidateFamilyDLogEpsilonForm[candidate, system,
   "SourceVariables" -> {x, y}, "IdentityMethod" -> "Symbolic"];
 If[Lookup[record, "Status", None] =!=
-    "ExactlyValidatedFamilyDLogEpsilonForm",
+    "FamilyDLogEpsilonFormValidated",
   Print["FORM: ", InputForm[record]]];
+record = Join[KeyDrop[record, "IrreducibleDiagonalBlocks"],
+  <|"BlockDecomposition" -> <|
+    "DataType" -> "FamilyDifferentialSystemBlockDecomposition",
+    "SchemaVersion" -> 2,
+    "FamilyDifferentialSystemReference" -> <|
+      "RelativePath" -> "finish_toy_system.wl",
+      "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+      "Family" -> family|>,
+    "IrreducibleDiagonalBlocks" -> {{1}, {2}}|>|>];
 path = <|"FirstVariable" -> x, "SecondVariable" -> y, "FirstBase" -> 3, "SecondBase" -> 1/2, "FirstTargetSample" -> 4|>;
 demand = <|"PhysicalRows" -> {1, 2}, "PhysicalOrders" -> {0, 1}, "PhysicalValuation" -> 0, "Path" -> path|>;
 transport = BuildObservableTransport[record, demand, "BoundaryEvolution" -> "AmbientBasePoint", "WordRepresentation" -> "OperatorAutomaton"];
@@ -175,5 +184,37 @@ FTAssert["a leaked symbol or a changed status is refused by the predicate",
   ! MasterIntegralSolutionQ[tampered] &&
     ! MasterIntegralSolutionQ[
       Join[solution, <|"Status" -> "MasterIntegralSolutionIncomplete"|>]]];
+
+(* Both path segments are part of the same differential-system solution.
+   Altering the second-segment coefficient operator must therefore be caught
+   just as altering the first segment would be. *)
+tamperedSecondOperator = ReplacePart[modularSolution,
+  {"StructuralCheckData", "ExactOperatorAutomaton",
+      "SecondOperatorMatrices", 1, 1, 1} ->
+    modularSolution["StructuralCheckData", "ExactOperatorAutomaton",
+      "SecondOperatorMatrices", 1, 1, 1] + 1];
+FTAssert["the structural differential-equation validation covers the second path segment",
+  ! MasterIntegralSolutionQ[tamperedSecondOperator]];
+
+(* A missing lower epsilon coefficient is allowed only below a proven
+   valuation.  This fixture couples solely through the second variable, so
+   it detects an asymmetric first/second-equation implementation. *)
+secondVariableOnlyForm = <|
+  "BlockDecomposition" -> record["BlockDecomposition"],
+  "BasisTransformationMatrix" -> IdentityMatrix[2],
+  "CoefficientVariables" -> {x, y}, "DimensionalRegulator" -> eps,
+  "Letters" -> {y},
+  "ConstantResidueMatrices" -> {{{0, 0}, {1, 0}}}|>;
+missingSecondVariableLower =
+  Catch[FeynFacet`Private`finishDifferentialCertificate[
+    <|{1, 2} -> <||>|>, {{1, 2}}, secondVariableOnlyForm,
+    <|"Regulator" -> eps, "TransportEpsilonValuations" -> <||>|>,
+    <|"CurrentFirst" -> <|"Variable" -> x, "From" -> 2|>,
+      "CurrentSecond" -> <|"Variable" -> y|>|>, "Method" -> "Exact",
+    "Variables" -> {x, y}]];
+FTAssert["a missing lower coefficient in the second differential equation is refused",
+  Lookup[missingSecondVariableLower, "Status", None] ===
+    "DifferentialEquationValidationFailed" &&
+    Lookup[First[missingSecondVariableLower["Failures"]], "Equation", None] === y];
 DeleteDirectory[directory, DeleteContents -> True];
 FTReport[];

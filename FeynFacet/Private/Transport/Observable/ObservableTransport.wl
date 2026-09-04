@@ -51,6 +51,7 @@ ClearAll[
   observableTransportFamilyFromFile,
   observableTransportWriteAtomic,
   observableTransportCoefficientPresentationType,
+  observableTransportIrreducibleDiagonalBlocks,
   observableTransportPointAdmissibleQ,
   observableTransportAdmissibleSamples,
   $observableTransportSampleFractions,
@@ -115,6 +116,19 @@ observableTransportCoefficientPresentationType[record_Association] := Module[
 ];
 observableTransportCoefficientPresentationType[___] :=
   Missing["CoefficientPresentationRequired"];
+
+observableTransportIrreducibleDiagonalBlocks[record_Association] := Module[
+  {decomposition = Lookup[record, "BlockDecomposition", Missing[]]},
+  If[! AssociationQ[decomposition] ||
+      Lookup[decomposition, "DataType", None] =!=
+        "FamilyDifferentialSystemBlockDecomposition" ||
+      Lookup[decomposition, "SchemaVersion", None] =!= 2,
+    Return[Missing["BlockDecompositionRequired"]]];
+  Lookup[decomposition, "IrreducibleDiagonalBlocks",
+    Missing["IrreducibleDiagonalBlocksRequired"]]
+];
+observableTransportIrreducibleDiagonalBlocks[___] :=
+  Missing["BlockDecompositionRequired"];
 
 (* Admissible sample points for rank and residue sampling (overhaul
    2026-09-02, goal 9).  The fixed default samples are fine for rational
@@ -2137,7 +2151,7 @@ BuildObservableTransport[record_Association, demand_Association,
   tInverse = Lookup[record, "CachedInverseBasisTransformationMatrix",
     Missing[]];
   dimension = If[MatrixQ[tTotal], Length[tTotal], 0];
-  ranges = Lookup[record, "IrreducibleDiagonalBlocks", Missing[]];
+  ranges = observableTransportIrreducibleDiagonalBlocks[record];
   letters = Lookup[record, "Letters", Missing[]];
   constantResidues = Lookup[record, "ConstantResidueMatrices", Missing[]];
   recordDLog = <|

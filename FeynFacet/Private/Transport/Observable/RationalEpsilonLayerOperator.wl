@@ -1,36 +1,38 @@
-(* Lazy word operator for a rational-in-epsilon final layer.
+(* Lazy iterated-integral coefficient operator for a
+   rational-epsilon-dependent block.
 
-   BuildRationalEpsilonLayerTransport determines the off-diagonal
+   SolveRationalEpsilonDependentBlockByVariationOfConstants determines the
+   off-diagonal
    basis-transformation block H along the path and the
    dlog remainder K.  Enumerating every Chen word is unnecessary and becomes
    exponential at the weights needed by hard families.  This module keeps the
-   finite operator data and evaluates one requested word by sparse matrix
+   finite operator data and evaluates one requested letter sequence by sparse matrix
    products.  It is independent of the letter class: GPL and elliptic letters
    are opaque labels here, so the same operator serves either channel once the
    corresponding residues have been constructed. *)
 
-Clear[BuildRationalEpsilonLayerOperator,
-  AcceptedRationalEpsilonLayerOperatorQ,
-  RebaseRationalEpsilonLayerOperator,
-  RationalEpsilonLayerWordMap,
-  RationalEpsilonLayerDemandTerms];
+Clear[ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientOperator,
+  RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ,
+  ChangeRationalEpsilonDependentBlockSolutionBasePoint,
+  ComputeRationalEpsilonDependentBlockIteratedIntegralCoefficientMatrix,
+  ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientMap];
 
 ClearAll[
-  rationalLayerOperatorNonzeroQ,
-  rationalLayerOperatorBoundaryColumns,
-  rationalLayerOperatorFold,
-  rationalLayerOperatorRowSelection,
-  rationalLayerOperatorRequestedRows,
-  rationalLayerOperatorDemandCoveredQ,
-  rationalLayerOperatorNonzeroRows,
-  rationalLayerOperatorGrow,
-  rationalLayerOperatorSelectorColumns
+  rationalEpsilonDependentBlockOperatorNonzeroQ,
+  rationalEpsilonDependentBlockOperatorBoundaryColumns,
+  rationalEpsilonDependentBlockOperatorFold,
+  rationalEpsilonDependentBlockOperatorRowSelection,
+  rationalEpsilonDependentBlockOperatorRequestedRows,
+  rationalEpsilonDependentBlockOperatorRequestedOutputCoveredQ,
+  rationalEpsilonDependentBlockOperatorNonzeroRows,
+  rationalEpsilonDependentBlockOperatorGrow,
+  rationalEpsilonDependentBlockOperatorSelectorColumns
 ];
 
-rationalLayerOperatorNonzeroQ[m_] :=
+rationalEpsilonDependentBlockOperatorNonzeroQ[m_] :=
   Length[SparseArray[m]["NonzeroPositions"]] > 0;
 
-rationalLayerOperatorBoundaryColumns[selectors_Association] := Module[
+rationalEpsilonDependentBlockOperatorBoundaryColumns[selectors_Association] := Module[
   {dimensions = Dimensions /@ Values[selectors]},
   If[dimensions === {} || ! AllTrue[dimensions,
       MatchQ[#, {_Integer, _Integer}] &] ||
@@ -38,9 +40,9 @@ rationalLayerOperatorBoundaryColumns[selectors_Association] := Module[
     Missing["InvalidBoundarySelectors"], First[dimensions][[2]]]
 ];
 
-rationalLayerOperatorSelectorColumns[selectors_Association,
+rationalEpsilonDependentBlockOperatorSelectorColumns[selectors_Association,
     rows_Integer] := Module[
-  {columns = rationalLayerOperatorBoundaryColumns[selectors]},
+  {columns = rationalEpsilonDependentBlockOperatorBoundaryColumns[selectors]},
   If[MissingQ[columns] || selectors === <||> ||
       ! VectorQ[Keys[selectors], IntegerQ] ||
       ! AllTrue[Values[selectors],
@@ -50,49 +52,51 @@ rationalLayerOperatorSelectorColumns[selectors_Association,
 
 (* word is outermost first; multiplication starts at the boundary selector,
    hence the reverse traversal. *)
-rationalLayerOperatorFold[matrices_Association, tokens_List, seed_] :=
+rationalEpsilonDependentBlockOperatorFold[matrices_Association, tokens_List, seed_] :=
   Fold[Lookup[matrices, Key[#2], Missing["UnknownLetter", #2]] . #1 &,
     seed, Reverse[tokens]];
 
-rationalLayerOperatorRowSelection[matrix_, All] := matrix;
-rationalLayerOperatorRowSelection[matrix_, row_Integer] /;
+rationalEpsilonDependentBlockOperatorRowSelection[matrix_, All] := matrix;
+rationalEpsilonDependentBlockOperatorRowSelection[matrix_, row_Integer] /;
     1 <= row <= Dimensions[matrix][[1]] := matrix[[{row}, All]];
-rationalLayerOperatorRowSelection[matrix_, rows_List] /;
+rationalEpsilonDependentBlockOperatorRowSelection[matrix_, rows_List] /;
     VectorQ[rows, IntegerQ] && DuplicateFreeQ[rows] &&
       AllTrue[rows, 1 <= # <= Dimensions[matrix][[1]] &] :=
   matrix[[rows, All]];
-rationalLayerOperatorRowSelection[_, _] := $Failed;
+rationalEpsilonDependentBlockOperatorRowSelection[_, _] := $Failed;
 
-rationalLayerOperatorRequestedRows[dimension_Integer, All] := Range[dimension];
-rationalLayerOperatorRequestedRows[dimension_Integer, row_Integer] /;
+rationalEpsilonDependentBlockOperatorRequestedRows[dimension_Integer, All] := Range[dimension];
+rationalEpsilonDependentBlockOperatorRequestedRows[dimension_Integer, row_Integer] /;
     1 <= row <= dimension := {row};
-rationalLayerOperatorRequestedRows[dimension_Integer, rows_List] /;
+rationalEpsilonDependentBlockOperatorRequestedRows[dimension_Integer, rows_List] /;
     VectorQ[rows, IntegerQ] && DuplicateFreeQ[rows] &&
       AllTrue[rows, 1 <= # <= dimension &] := rows;
-rationalLayerOperatorRequestedRows[_, _] := $Failed;
+rationalEpsilonDependentBlockOperatorRequestedRows[_, _] := $Failed;
 
-rationalLayerOperatorDemandCoveredQ[operator_Association, order_Integer,
-    rows_List] := Module[{pairs = Lookup[operator, "DemandPairs", {}]},
+rationalEpsilonDependentBlockOperatorRequestedOutputCoveredQ[operator_Association, order_Integer,
+    rows_List] := Module[
+  {pairs = Lookup[operator, "RequestedOutputPairs", {}]},
   AllTrue[rows, MemberQ[pairs, {order, #}] &]
 ];
 
-rationalLayerOperatorNonzeroRows[matrix_] :=
+rationalEpsilonDependentBlockOperatorNonzeroRows[matrix_] :=
   DeleteDuplicates[SparseArray[matrix]["NonzeroPositions"][[All, 1]]];
 
-rationalLayerOperatorGrow[states_List, tokens_List,
+rationalEpsilonDependentBlockOperatorGrow[states_List, tokens_List,
     matrices_Association, maximumStates_] := Module[{next},
   next = Select[Flatten[Table[
       {Append[state[[1]], token], matrices[token] . state[[2]]},
       {state, states}, {token, tokens}], 1],
-    rationalLayerOperatorNonzeroQ[#[[2]]] &];
+    rationalEpsilonDependentBlockOperatorNonzeroQ[#[[2]]] &];
   If[Length[next] > maximumStates,
-    <|"Status" -> "RationalLayerStateGrowthCapped",
+    <|"Status" -> "IteratedIntegralCoefficientOperatorStateGrowthCapped",
       "StateCount" -> Length[next], "MaximumStates" -> maximumStates|>,
     next]
 ];
 
-BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
-    transport_Association] := Module[
+ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientOperator[
+    source_Association, layer_Association,
+    solution_Association] := Module[
   {sourceDimension, sourceLetters, sourceResidues, sourceSelectors,
    sourceBoundaryCount, rows, targetDimension, targetSelectors,
    targetBoundaryCount, sharedBoundaryQ, boundaryLayout, diagonal,
@@ -100,13 +104,14 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
    sourceMatrices, sourceTokens, incoming, incomingMatrices,
    incomingTokens, offDiagonalBlockAtPathEndpoint, offDiagonalBlockMatrices, offDiagonalTokens, dimensions, window,
    pathVariable, basePoint, endpoint, curve, boundaryBinding,
-   sourceBindingRows, targetBindingRows, boundaryCoordinateKeys,
+   sourceBindingRows, targetBindingRows, boundaryDataType,
+   boundaryCoefficientLabels, boundaryCoefficientLabelsKey,
    operatorSourcePayload, operatorLayerPayload, declaredCurvePointValues,
-   basicLayerPayload},
+   verificationDemand},
 
-  If[! AcceptedRationalEpsilonLayerTransportQ[transport],
-    Return[<|"Status" -> "RationalEpsilonLayerTransportNotAccepted"|>]];
-
+  If[! RationalEpsilonDependentBlockSolutionQ[solution],
+    Return[<|"Status" ->
+      "RationalEpsilonDependentBlockSolutionRequired"|>]];
   sourceDimension = Lookup[source, "Dimension", Missing[]];
   sourceLetters = Lookup[source, "Letters", Missing[]];
   sourceResidues = Lookup[source, "Residues", Missing[]];
@@ -115,15 +120,17 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
       ! ListQ[sourceLetters] || ! ListQ[sourceResidues] ||
       Length[sourceLetters] =!= Length[sourceResidues] ||
       ! AssociationQ[sourceSelectors],
-    Return[<|"Status" -> "RationalLayerSourceOperatorInvalid"|>]];
+    Return[<|"Status" ->
+      "RationalEpsilonDependentBlockSourceSystemInvalid"|>]];
   sourceBoundaryCount =
-    rationalLayerOperatorBoundaryColumns[sourceSelectors];
+    rationalEpsilonDependentBlockOperatorBoundaryColumns[sourceSelectors];
   If[MissingQ[sourceBoundaryCount] ||
       ! AllTrue[sourceResidues,
         Dimensions[#] === {sourceDimension, sourceDimension} &] ||
       ! AllTrue[Values[sourceSelectors],
         Dimensions[#][[1]] === sourceDimension &],
-    Return[<|"Status" -> "RationalLayerSourceOperatorInvalid"|>]];
+    Return[<|"Status" ->
+      "RationalEpsilonDependentBlockSourceSystemInvalid"|>]];
 
   rows = Lookup[layer, "Rows", Missing[]];
   targetDimension = If[ListQ[rows], Length[rows], 0];
@@ -132,11 +139,26 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
       ! AllTrue[diagonal,
         MatchQ[#, {_List, _?MatrixQ}] &&
           Dimensions[#[[2]]] === {targetDimension, targetDimension} &],
-    Return[<|"Status" -> "RationalLayerDiagonalOperatorInvalid"|>]];
+    Return[<|"Status" ->
+      "RationalEpsilonDependentBlockDiagonalBlockInvalid"|>]];
 
-  operatorSourcePayload = Lookup[transport, "OperatorSource", None];
-  operatorLayerPayload = Lookup[transport, "OperatorLayer", None];
-  basicLayerPayload = <|"Rows" -> rows, "Diagonal" -> diagonal,
+  curve = Lookup[layer, "Curve", None];
+  declaredCurvePointValues = Lookup[layer, "CurvePointValues", <||>];
+  If[curve =!= None && ! AssociationQ[declaredCurvePointValues],
+    Return[<|"Status" ->
+      "RationalEpsilonDependentBlockCurvePointValuesInvalid"|>]];
+  verificationDemand = <|
+    "RequestedOutputPairs" -> solution["RequestedOutputPairs"],
+    "PathEndpoint" -> Lookup[solution, "PathEndpoint", None]|>;
+  If[! TrueQ[VerifyRationalEpsilonDependentBlockSolution[
+      solution, source, layer, verificationDemand]],
+    Return[<|"Status" ->
+      "RationalEpsilonDependentBlockSolutionVerificationFailed"|>]];
+
+  operatorSourcePayload = <|"Dimension" -> sourceDimension,
+    "Letters" -> sourceLetters, "Residues" -> sourceResidues,
+    "BoundarySelectors" -> sourceSelectors|>;
+  operatorLayerPayload = <|"Rows" -> rows, "Diagonal" -> diagonal,
     "TargetBoundarySelectors" -> Lookup[layer,
       "TargetBoundarySelectors", <|0 -> IdentityMatrix[targetDimension]|>],
     "SharedBoundaryCoordinates" ->
@@ -144,47 +166,39 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
     "PathVariable" -> Lookup[layer, "PathVariable", Missing["PathVariable"]],
     "Regulator" -> Lookup[layer, "Regulator", Missing["Regulator"]],
     "BasePoint" -> Lookup[layer, "BasePoint", Missing["BasePoint"]],
-    "Endpoint" -> Lookup[layer, "Endpoint", Missing["Endpoint"]]|>;
-  If[operatorSourcePayload =!= <|"Dimension" -> sourceDimension,
-        "Letters" -> sourceLetters, "Residues" -> sourceResidues,
-        "BoundarySelectors" -> sourceSelectors|> ||
-      ! AssociationQ[operatorLayerPayload] ||
-      KeyTake[operatorLayerPayload, Keys[basicLayerPayload]] =!=
-        basicLayerPayload,
-    Return[<|"Status" -> "RationalLayerTransportInputMismatch"|>]];
-  curve = Lookup[operatorLayerPayload, "Curve", None];
-  declaredCurvePointValues = Lookup[layer, "CurvePointValues", <||>];
-  If[curve =!= None &&
-      (Lookup[layer, "Curve", None] =!= curve ||
-       ! AssociationQ[declaredCurvePointValues] ||
-       KeyTake[Lookup[operatorLayerPayload, "CurvePointValues", <||>],
-          Keys[declaredCurvePointValues]] =!= declaredCurvePointValues),
-    Return[<|"Status" -> "RationalLayerTransportInputMismatch"|>]];
+    "PathEndpoint" -> Lookup[layer, "PathEndpoint",
+      Missing["PathEndpoint"]],
+    "Curve" -> curve,
+    "CurvePointValues" -> If[curve === None, <||>,
+      declaredCurvePointValues]|>;
 
   sharedBoundaryQ = TrueQ[Lookup[layer, "SharedBoundaryCoordinates", False]];
   If[sharedBoundaryQ,
     targetSelectors = Lookup[layer, "TargetBoundarySelectors", Missing[]];
     targetBoundaryCount = If[AssociationQ[targetSelectors],
-      rationalLayerOperatorBoundaryColumns[targetSelectors], Missing[]],
+      rationalEpsilonDependentBlockOperatorBoundaryColumns[targetSelectors], Missing[]],
     {targetSelectors, targetBoundaryCount} =
-      rationalLayerTargetSelectors[layer, targetDimension]
+      rationalEpsilonDependentBlockTargetSelectors[layer, targetDimension]
   ];
   If[! AssociationQ[targetSelectors] ||
       ! IntegerQ[targetBoundaryCount] || targetBoundaryCount < 1 ||
       ! AllTrue[Values[targetSelectors],
         Dimensions[#] === {targetDimension, targetBoundaryCount} &] ||
       (sharedBoundaryQ && targetBoundaryCount =!= sourceBoundaryCount),
-    Return[<|"Status" -> "RationalLayerTargetBoundaryInvalid"|>]];
+    Return[<|"Status" ->
+      "RationalEpsilonDependentBlockTargetBoundarySelectorsInvalid"|>]];
 
-  incoming = Lookup[transport, "KResidues", Missing[]];
-  window = Lookup[transport, "Window", Missing[]];
+  incoming = Lookup[solution, "KResidues", Missing[]];
+  window = Lookup[solution, "Window", Missing[]];
   If[! AssociationQ[incoming] || ! MatchQ[window, {_Integer, _Integer}],
-    Return[<|"Status" -> "RationalLayerResidueOperatorInvalid"|>]];
+    Return[<|"Status" ->
+      "RationalEpsilonDependentBlockDLogRemainderResiduesInvalid"|>]];
   If[! AllTrue[Normal[incoming],
       MatchQ[First[#], {_Integer, _, _Integer}] &&
         MatrixQ[Last[#]] &&
         Dimensions[Last[#]] === {targetDimension, sourceDimension} &],
-    Return[<|"Status" -> "RationalLayerResidueOperatorInvalid"|>]];
+    Return[<|"Status" ->
+      "RationalEpsilonDependentBlockDLogRemainderResiduesInvalid"|>]];
 
   diagonalTokens = MapIndexed[{"D", First[#2]} &, diagonal];
   diagonalMatrices = AssociationThread[diagonalTokens,
@@ -196,33 +210,41 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
   incomingMatrices = AssociationThread[incomingTokens,
     SparseArray /@ Values[incoming]];
 
-  offDiagonalBlockAtPathEndpoint = Lookup[transport, "OffDiagonalBasisTransformationBlockAtPathEndpoint", <||>];
+  offDiagonalBlockAtPathEndpoint = Lookup[solution, "OffDiagonalBasisTransformationBlockAtPathEndpoint", <||>];
   If[! AssociationQ[offDiagonalBlockAtPathEndpoint] || ! AllTrue[Values[offDiagonalBlockAtPathEndpoint],
       MatrixQ[#] && Dimensions[#] ===
         {targetDimension, sourceDimension} &],
-    Return[<|"Status" -> "RationalLayerOffDiagonalTransformationOperatorInvalid"|>]];
+    Return[<|"Status" ->
+      "RationalEpsilonDependentBlockOffDiagonalBasisTransformationBlockInvalid"|>]];
   offDiagonalTokens = ({"H", #} &) /@ Keys[offDiagonalBlockAtPathEndpoint];
   offDiagonalBlockMatrices = AssociationThread[offDiagonalTokens, SparseArray /@ Values[offDiagonalBlockAtPathEndpoint]];
 
   boundaryLayout = If[sharedBoundaryQ, "Shared", "Independent"];
-  pathVariable = Lookup[transport, "PathVariable",
+  pathVariable = Lookup[solution, "PathVariable",
     Lookup[layer, "PathVariable", Missing["PathVariable"]]];
-  basePoint = Lookup[transport, "BasePoint",
+  basePoint = Lookup[solution, "BasePoint",
     Lookup[layer, "BasePoint", Missing["BasePoint"]]];
-  endpoint = Lookup[transport, "Endpoint",
-    Lookup[layer, "Endpoint", Missing["Endpoint"]]];
-  curve = Lookup[transport, "Curve", curve];
-  sourceBindingRows = Lookup[source, "PhysicalBoundaryRows", Missing[]];
-  targetBindingRows = Lookup[layer, "PhysicalBoundaryRows", Missing[]];
-  boundaryCoordinateKeys = Lookup[source, "BoundaryCoordinateKeys", Missing[]];
+  endpoint = Lookup[solution, "PathEndpoint",
+    Lookup[layer, "PathEndpoint", Missing["PathEndpoint"]]];
+  curve = Lookup[solution, "Curve", curve];
+  sourceBindingRows = Lookup[source, "BoundarySelectorSourceRows", Missing[]];
+  targetBindingRows = Lookup[layer, "BoundarySelectorTargetRows", Missing[]];
+  boundaryDataType = Lookup[source, "BoundaryDataType", Missing[]];
+  boundaryCoefficientLabelsKey = If[boundaryDataType === "BoundaryConstant",
+    "BoundaryConstantEpsilonCoefficientLabels",
+    "BoundaryFunctionEpsilonCoefficientLabels"];
+  boundaryCoefficientLabels = Lookup[source,
+    boundaryCoefficientLabelsKey, Missing[]];
   boundaryBinding = If[sharedBoundaryQ &&
       MatchQ[sourceBindingRows, {__Integer}] &&
       MatchQ[targetBindingRows, {__Integer}] &&
-      ListQ[boundaryCoordinateKeys],
-    <|"Dimension" -> Lookup[source, "PhysicalBoundaryDimension", Missing[]],
+      MemberQ[{"BoundaryConstant", "BoundaryFunction"}, boundaryDataType] &&
+      ListQ[boundaryCoefficientLabels],
+    <|"Dimension" -> Lookup[source, "BoundarySelectorDimension", Missing[]],
+      "BoundaryDataType" -> boundaryDataType,
       "SourceRows" -> sourceBindingRows,
       "TargetRows" -> targetBindingRows,
-      "CoordinateKeys" -> boundaryCoordinateKeys|>, None];
+      boundaryCoefficientLabelsKey -> boundaryCoefficientLabels|>, None];
 
   dimensions = <|"Source" -> sourceDimension,
     "Target" -> targetDimension,
@@ -232,16 +254,17 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
       sourceBoundaryCount + targetBoundaryCount]|>;
 
   <|
-    "Status" -> "RationalEpsilonLayerOperatorAccepted",
+    "Status" ->
+      "RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorConstructed",
     "Rows" -> rows,
     "Window" -> window,
-    "DemandPairs" -> transport["DemandPairs"],
-    "OperatorSource" -> transport["OperatorSource"],
-    "OperatorLayer" -> transport["OperatorLayer"],
+    "RequestedOutputPairs" -> solution["RequestedOutputPairs"],
+    "CoefficientOperatorSourceSystem" -> operatorSourcePayload,
+    "CoefficientOperatorTargetBlock" -> operatorLayerPayload,
     "BoundaryLayout" -> boundaryLayout,
-    "PhysicalBoundaryBinding" -> boundaryBinding,
+    "BoundarySelectorBinding" -> boundaryBinding,
     "Path" -> <|"Variable" -> pathVariable, "BasePoint" -> basePoint,
-      "Endpoint" -> endpoint, "Curve" -> curve,
+      "PathEndpoint" -> endpoint, "Curve" -> curve,
       "CurvePointValues" ->
         Lookup[operatorLayerPayload, "CurvePointValues", <||>]|>,
     "Dimensions" -> dimensions,
@@ -253,26 +276,27 @@ BuildRationalEpsilonLayerOperator[source_Association, layer_Association,
     "DiagonalMatrices" -> diagonalMatrices,
     "IncomingTokens" -> incomingTokens,
     "IncomingLabels" -> AssociationThread[incomingTokens,
-      (rationalLayerResidueLabel /@ Keys[incoming])],
+      (rationalEpsilonDependentBlockResidueLabel /@ Keys[incoming])],
     "IncomingMatrices" -> incomingMatrices,
     "OffDiagonalTransformationTokens" -> offDiagonalTokens,
     "OffDiagonalTransformationBlockCoefficientsByToken" -> offDiagonalBlockMatrices,
     "SourceTokens" -> sourceTokens,
     "SourceLabels" -> AssociationThread[sourceTokens, sourceLetters],
     "SourceMatrices" -> sourceMatrices,
-    "WordGrammar" -> "D...D, D...D K_r S...S, or H_r S...S",
-    "WordOrientation" -> "OutermostFirst",
-    "TransportProbabilistic" ->
-      TrueQ[Lookup[Lookup[transport, "Certificate", <||>],
+    "IteratedIntegralLetterSequenceGrammar" ->
+      "D...D, D...D K_r S...S, or H_r S...S",
+    "IteratedIntegralLetterSequenceOrientation" -> "OutermostFirst",
+    "SolutionValidationProbabilistic" ->
+      TrueQ[Lookup[Lookup[solution, "Certificate", <||>],
         "Probabilistic", False]]
   |>
 ];
 
-AcceptedRationalEpsilonLayerOperatorQ[operator_] :=
+RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ[operator_] :=
   AssociationQ[operator] &&
   Lookup[operator, "Status", None] ===
-    "RationalEpsilonLayerOperatorAccepted" &&
-  Lookup[operator, "WordGrammar", None] ===
+    "RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorConstructed" &&
+  Lookup[operator, "IteratedIntegralLetterSequenceGrammar", None] ===
     "D...D, D...D K_r S...S, or H_r S...S" &&
   MemberQ[{"Shared", "Independent"},
     Lookup[operator, "BoundaryLayout", None]] &&
@@ -280,13 +304,13 @@ AcceptedRationalEpsilonLayerOperatorQ[operator_] :=
   AssociationQ[Lookup[operator, "IncomingMatrices", None]] &&
   AssociationQ[Lookup[operator, "OffDiagonalTransformationBlockCoefficientsByToken", None]] &&
   AssociationQ[Lookup[operator, "SourceMatrices", None]] &&
-  MatchQ[Lookup[operator, "DemandPairs", None],
+  MatchQ[Lookup[operator, "RequestedOutputPairs", None],
     {{_Integer, _Integer} ..}] &&
-  DuplicateFreeQ[operator["DemandPairs"]] &&
-  AssociationQ[Lookup[operator, "OperatorSource", None]] &&
-  AssociationQ[Lookup[operator, "OperatorLayer", None]];
+  DuplicateFreeQ[operator["RequestedOutputPairs"]] &&
+  AssociationQ[Lookup[operator, "CoefficientOperatorSourceSystem", None]] &&
+  AssociationQ[Lookup[operator, "CoefficientOperatorTargetBlock", None]];
 
-Options[RebaseRationalEpsilonLayerOperator] = {
+Options[ChangeRationalEpsilonDependentBlockSolutionBasePoint] = {
   "OffDiagonalTransformationBlockAtNewBase" -> Automatic,
   "BasePointPrescription" -> None
 };
@@ -301,7 +325,8 @@ Options[RebaseRationalEpsilonLayerOperator] = {
 
    Independent source/target coordinates are embedded into one common
    boundary vector because G(e) mixes the two spaces. *)
-RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
+ChangeRationalEpsilonDependentBlockSolutionBasePoint[
+    operator_Association, newBase_,
     sourceSelectors_Association, targetSelectors_Association,
     OptionsPattern[]] := Catch@Module[
   {fail, dimensions, sourceDimension, targetDimension, sourceColumns,
@@ -311,29 +336,29 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
    correctedTarget, path, variable, oldBase, oldEndpoint, rebased,
    binding, basePointPrescription, rebasedPath},
   fail[status_, extra_: <||>] := Throw[Join[<|"Status" -> status|>, extra]];
-  If[! AcceptedRationalEpsilonLayerOperatorQ[operator],
-    fail["RationalEpsilonLayerOperatorNotAccepted"]];
+  If[! RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ[operator],
+    fail["RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorRequired"]];
   dimensions = operator["Dimensions"];
   If[! AssociationQ[dimensions] ||
       ! MatchQ[Lookup[dimensions, {"Source", "Target", "TotalBoundary"}],
         {_Integer?Positive, _Integer?Positive, _Integer?Positive}],
-    fail["RationalLayerOperatorDimensionsInvalid"]];
+    fail["RationalEpsilonDependentBlockCoefficientOperatorDimensionsInvalid"]];
   sourceDimension = dimensions["Source"];
   targetDimension = dimensions["Target"];
-  sourceColumns = rationalLayerOperatorSelectorColumns[
+  sourceColumns = rationalEpsilonDependentBlockOperatorSelectorColumns[
     sourceSelectors, sourceDimension];
-  targetColumns = rationalLayerOperatorSelectorColumns[
+  targetColumns = rationalEpsilonDependentBlockOperatorSelectorColumns[
     targetSelectors, targetDimension];
   If[MissingQ[sourceColumns] || MissingQ[targetColumns],
-    fail["RationalLayerRebaseSelectorsInvalid"]];
+    fail["RationalEpsilonDependentBlockBasePointChangeSelectorsInvalid"]];
   path = Lookup[operator, "Path", <||>];
   variable = Lookup[path, "Variable", Missing[]];
   oldBase = Lookup[path, "BasePoint", Missing[]];
-  oldEndpoint = Lookup[path, "Endpoint", Missing[]];
+  oldEndpoint = Lookup[path, "PathEndpoint", Missing[]];
   If[! MatchQ[variable, _Symbol] || MissingQ[oldBase] ||
       MissingQ[oldEndpoint] || MissingQ[newBase] ||
       ! FreeQ[newBase, variable],
-    fail["RationalLayerRebasePointInvalid"]];
+    fail["RationalEpsilonDependentBlockBasePointChangePointInvalid"]];
   basePointPrescription = OptionValue["BasePointPrescription"];
   If[basePointPrescription =!= None &&
       ! (AssociationQ[basePointPrescription] &&
@@ -341,14 +366,14 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
           "TangentialRegularized" &&
         MemberQ[{-1, 1}, Lookup[basePointPrescription,
           "LocalDirection", Missing[]]]),
-    fail["RationalLayerBasePointPrescriptionInvalid"]];
+    fail["RationalEpsilonDependentBlockBasePointPrescriptionInvalid"]];
 
   offDiagonalBlockAtOldEndpoint = Lookup[operator, "OffDiagonalTransformationBlockCoefficientsByToken", <||>];
   If[! AssociationQ[offDiagonalBlockAtOldEndpoint] ||
       ! AllTrue[Normal[offDiagonalBlockAtOldEndpoint],
         MatchQ[First[#], {"H", _Integer}] && MatrixQ[Last[#]] &&
           Dimensions[Last[#]] === {targetDimension, sourceDimension} &],
-    fail["RationalLayerOffDiagonalTransformationOperatorInvalid"]];
+    fail["RationalEpsilonDependentBlockOffDiagonalBasisTransformationBlockInvalid"]];
   expectedOffDiagonalOrders = If[offDiagonalBlockAtOldEndpoint === <||>, {},
     Keys[offDiagonalBlockAtOldEndpoint][[All, 2]]];
   offDiagonalBlockAtNewBase = OptionValue["OffDiagonalTransformationBlockAtNewBase"];
@@ -356,8 +381,8 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
     If[offDiagonalBlockAtOldEndpoint =!= <||> && newBase =!= oldEndpoint &&
         (! MatchQ[oldEndpoint, _Symbol] ||
           FreeQ[Values[offDiagonalBlockAtOldEndpoint], oldEndpoint]) &&
-        AnyTrue[Values[offDiagonalBlockAtOldEndpoint], rationalLayerOperatorNonzeroQ],
-      fail["RationalLayerOffDiagonalTransformationAtNewBaseRequired"]];
+        AnyTrue[Values[offDiagonalBlockAtOldEndpoint], rationalEpsilonDependentBlockOperatorNonzeroQ],
+      fail["OffDiagonalBasisTransformationBlockAtNewBasePointRequired"]];
     offDiagonalBlockAtNewBase = Association@KeyValueMap[
       #1[[2]] -> SparseArray[Normal[#2] /.
           oldEndpoint -> newBase] &,
@@ -366,16 +391,16 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
         Sort[Keys[offDiagonalBlockAtNewBase]] =!= Sort[expectedOffDiagonalOrders] ||
         ! AllTrue[Values[offDiagonalBlockAtNewBase], MatrixQ[#] &&
           Dimensions[#] === {targetDimension, sourceDimension} &],
-      fail["RationalLayerOffDiagonalTransformationAtNewBaseInvalid"]];
+      fail["OffDiagonalBasisTransformationBlockAtNewBasePointInvalid"]];
     offDiagonalBlockAtNewBase = Map[SparseArray, offDiagonalBlockAtNewBase]
   ];
   offDiagonalOrders = Keys[Select[offDiagonalBlockAtNewBase,
-    rationalLayerOperatorNonzeroQ]];
+    rationalEpsilonDependentBlockOperatorNonzeroQ]];
 
   layout = operator["BoundaryLayout"];
   If[layout === "Shared",
     If[sourceColumns =!= targetColumns,
-      fail["RationalLayerSharedRebaseSelectorsInvalid"]];
+      fail["SharedBoundarySelectorsAtNewBasePointInvalid"]];
     commonColumns = sourceColumns;
     sourceCommon = Map[SparseArray, sourceSelectors];
     targetCommon = Map[SparseArray, targetSelectors],
@@ -401,14 +426,14 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
 
   binding = If[layout === "Shared" &&
       sourceColumns === dimensions["TotalBoundary"],
-    Lookup[operator, "PhysicalBoundaryBinding", None], None];
+    Lookup[operator, "BoundarySelectorBinding", None], None];
   rebasedPath = Join[KeyDrop[path, "BasePointPrescription"],
     <|"BasePoint" -> newBase|>,
     If[AssociationQ[basePointPrescription],
       <|"BasePointPrescription" -> basePointPrescription|>, <||>]];
   rebased = Join[operator, <|
     "BoundaryLayout" -> "Shared",
-    "PhysicalBoundaryBinding" -> binding,
+    "BoundarySelectorBinding" -> binding,
     "Path" -> rebasedPath,
     "Dimensions" -> Join[dimensions, <|
       "SourceBoundary" -> commonColumns,
@@ -416,130 +441,152 @@ RebaseRationalEpsilonLayerOperator[operator_Association, newBase_,
       "TotalBoundary" -> commonColumns|>],
     "SourceBoundarySelectors" -> sourceCommon,
     "TargetBoundarySelectors" -> correctedTarget,
-    "Rebase" -> <|
-      "Status" -> "ExactLazyChenRebase",
+    "BasePointChange" -> <|
+      "Status" -> "IteratedIntegralCoefficientOperatorBasePointChanged",
       "Method" -> "SameDifferentialEquationWithNewBasePoint",
       "MathematicalStatement" ->
         "The residue coefficient operator is unchanged; the formal iterated integrals and initial-data selectors use the new lower limit",
       "OriginalBasePoint" -> oldBase,
       "NewBasePoint" -> newBase,
       "BasePointPrescription" -> basePointPrescription,
-      "Endpoint" -> oldEndpoint,
+      "PathEndpoint" -> oldEndpoint,
       "OriginalBoundaryLayout" -> layout,
-      "PhysicalSourceBoundarySelectors" ->
+      "SourceBoundarySelectorsAtNewBasePoint" ->
         Map[SparseArray, sourceSelectors],
-      "PhysicalTargetBoundarySelectors" ->
+      "TargetBoundarySelectorsAtNewBasePoint" ->
         Map[SparseArray, targetSelectors],
       "OffDiagonalTransformationBlockAtNewBase" -> offDiagonalBlockAtNewBase|>|>];
-  If[! AcceptedRationalEpsilonLayerOperatorQ[rebased],
-    fail["RationalLayerRebaseConstructionFailed"]];
+  If[! RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ[rebased],
+    fail["RationalEpsilonDependentBlockBasePointChangeFailed"]];
   rebased
 ];
 
-RebaseRationalEpsilonLayerOperator[___] :=
-  <|"Status" -> "RationalLayerRebaseInputsNotWellFormed"|>;
+ChangeRationalEpsilonDependentBlockSolutionBasePoint[___] :=
+  <|"Status" ->
+    "RationalEpsilonDependentBlockBasePointChangeInputsNotWellFormed"|>;
 
-RationalEpsilonLayerWordMap[operator_Association, word_List,
+ComputeRationalEpsilonDependentBlockIteratedIntegralCoefficientMatrix[
+    operator_Association, operatorTokenSequence_List,
     boundaryOrder_Integer, outputOrder_Integer, rows_: All] := Module[
   {diagonalTokens, incomingTokens, sourceTokens, incomingPositions,
    prefix, incomingToken, tail, incomingOrder, seed, map,
-   dimensions, selected, sharedBoundaryQ, requestedRows},
+   dimensions, selected, sharedBoundaryQ, requestedRows, labels,
+   iteratedIntegralLetterSequence},
 
-  If[! AcceptedRationalEpsilonLayerOperatorQ[operator],
-    Return[<|"Status" -> "RationalEpsilonLayerOperatorNotAccepted"|>]];
+  If[! RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ[operator],
+    Return[<|"Status" ->
+      "RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorRequired"|>]];
   dimensions = operator["Dimensions"];
-  requestedRows = rationalLayerOperatorRequestedRows[
+  requestedRows = rationalEpsilonDependentBlockOperatorRequestedRows[
     dimensions["Target"], rows];
   If[requestedRows === $Failed,
-    Return[<|"Status" -> "RationalLayerRowsInvalid"|>]];
-  If[! rationalLayerOperatorDemandCoveredQ[operator, outputOrder,
+    Return[<|"Status" -> "RequestedMasterIntegralRowsInvalid"|>]];
+  If[! rationalEpsilonDependentBlockOperatorRequestedOutputCoveredQ[operator, outputOrder,
       requestedRows],
-    Return[<|"Status" -> "RationalLayerDemandOutsideAcceptedPairs",
-      "Demand" -> {outputOrder, rows}|>]];
+    Return[<|"Status" -> "RequestedOutputOutsideSolvedPairs",
+      "RequestedOutput" -> {outputOrder, rows}|>]];
   sharedBoundaryQ = operator["BoundaryLayout"] === "Shared";
   diagonalTokens = operator["DiagonalTokens"];
   incomingTokens = operator["IncomingTokens"];
   sourceTokens = operator["SourceTokens"];
-  incomingPositions = Flatten@Position[word,
+  incomingPositions = Flatten@Position[operatorTokenSequence,
     token_ /; MemberQ[incomingTokens, token], {1}];
 
   Which[
     incomingPositions === {},
-      If[! AllTrue[word, MemberQ[diagonalTokens, #] &] ||
-          outputOrder - boundaryOrder =!= Length[word] ||
+      If[! AllTrue[operatorTokenSequence,
+            MemberQ[diagonalTokens, #] &] ||
+          outputOrder - boundaryOrder =!= Length[operatorTokenSequence] ||
           ! KeyExistsQ[operator["TargetBoundarySelectors"], boundaryOrder],
-        Return[<|"Status" -> "WordOutsideLayerGrammar"|>]];
+        Return[<|"Status" ->
+          "IteratedIntegralOperatorTokenSequenceOutsideBlockGrammar"|>]];
       seed = operator["TargetBoundarySelectors"][boundaryOrder];
-      map = rationalLayerOperatorFold[
-        operator["DiagonalMatrices"], word, seed];
+      map = rationalEpsilonDependentBlockOperatorFold[
+        operator["DiagonalMatrices"], operatorTokenSequence, seed];
       If[! sharedBoundaryQ,
         map = ArrayFlatten[{{ConstantArray[0,
             {dimensions["Target"], dimensions["SourceBoundary"]}], map}}]],
 
     Length[incomingPositions] === 1,
-      incomingToken = word[[First[incomingPositions]]];
-      prefix = Take[word, First[incomingPositions] - 1];
-      tail = Drop[word, First[incomingPositions]];
+      incomingToken = operatorTokenSequence[[First[incomingPositions]]];
+      prefix = Take[operatorTokenSequence, First[incomingPositions] - 1];
+      tail = Drop[operatorTokenSequence, First[incomingPositions]];
       incomingOrder = incomingToken[[2]];
       If[! AllTrue[prefix, MemberQ[diagonalTokens, #] &] ||
           ! AllTrue[tail, MemberQ[sourceTokens, #] &] ||
           outputOrder - boundaryOrder =!=
             Length[prefix] + incomingOrder + Length[tail] ||
           ! KeyExistsQ[operator["SourceBoundarySelectors"], boundaryOrder],
-        Return[<|"Status" -> "WordOutsideLayerGrammar"|>]];
-      seed = rationalLayerOperatorFold[
+        Return[<|"Status" ->
+          "IteratedIntegralOperatorTokenSequenceOutsideBlockGrammar"|>]];
+      seed = rationalEpsilonDependentBlockOperatorFold[
         operator["SourceMatrices"], tail,
         operator["SourceBoundarySelectors"][boundaryOrder]];
       map = operator["IncomingMatrices"][incomingToken] . seed;
-      map = rationalLayerOperatorFold[
+      map = rationalEpsilonDependentBlockOperatorFold[
         operator["DiagonalMatrices"], prefix, map];
       If[! sharedBoundaryQ,
         map = ArrayFlatten[{{map, ConstantArray[0,
             {dimensions["Target"], dimensions["TargetBoundary"]}]}}]],
 
     True,
-      Return[<|"Status" -> "WordOutsideLayerGrammar"|>]
+      Return[<|"Status" ->
+        "IteratedIntegralOperatorTokenSequenceOutsideBlockGrammar"|>]
   ];
 
   If[! MatrixQ[map] ||
       Dimensions[map] =!= {dimensions["Target"],
         dimensions["TotalBoundary"]} ||
       ! FreeQ[map, _Missing],
-    Return[<|"Status" -> "RationalLayerWordProductFailed"|>]];
-  selected = rationalLayerOperatorRowSelection[SparseArray[map], requestedRows];
+    Return[<|"Status" ->
+      "IteratedIntegralCoefficientMatrixProductFailed"|>]];
+  selected = rationalEpsilonDependentBlockOperatorRowSelection[SparseArray[map], requestedRows];
   If[selected === $Failed,
-    Return[<|"Status" -> "RationalLayerRowsInvalid"|>]];
-  <|"Status" -> "RationalEpsilonLayerWordMap",
+    Return[<|"Status" -> "RequestedMasterIntegralRowsInvalid"|>]];
+  labels = Join[operator["DiagonalLabels"], operator["IncomingLabels"],
+    operator["SourceLabels"]];
+  iteratedIntegralLetterSequence = Lookup[labels, Key[#],
+      Missing["UnknownOperatorToken", #]] & /@ operatorTokenSequence;
+  If[! FreeQ[iteratedIntegralLetterSequence, _Missing],
+    Return[<|"Status" ->
+      "IteratedIntegralOperatorTokenSequenceInvalid"|>]];
+  <|"Status" ->
+      "RationalEpsilonDependentBlockIteratedIntegralCoefficientMatrixComputed",
     "BoundaryOrder" -> boundaryOrder,
     "OutputOrder" -> outputOrder,
-    "Word" -> word,
+    "IteratedIntegralOperatorTokenSequence" -> operatorTokenSequence,
+    "IteratedIntegralLetterSequence" -> iteratedIntegralLetterSequence,
     "Rows" -> requestedRows,
-    "Map" -> SparseArray[selected]|>
+    "IteratedIntegralCoefficientMatrix" -> SparseArray[selected]|>
 ];
 
-RationalEpsilonLayerWordMap[___] :=
-  <|"Status" -> "RationalEpsilonLayerWordInputsNotWellFormed"|>;
+ComputeRationalEpsilonDependentBlockIteratedIntegralCoefficientMatrix[___] :=
+  <|"Status" ->
+    "IteratedIntegralCoefficientMatrixInputsNotWellFormed"|>;
 
-Options[RationalEpsilonLayerDemandTerms] = {
+Options[ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientMap] = {
   "MaximumTerms" -> Infinity,
   "MaximumStates" -> 200000
 };
 
-(* Enumerate only one requested coefficient.  The stored word is the
-   sequence of integration kernels, outermost first.  Terms from the
+(* Construct the coefficient map for one requested epsilon order and set of
+   master-integral rows. The key is the sequence of integration kernels,
+   outermost first. Contributions from the
    off-diagonal transformation block at the path endpoint
-   carry no H letter because H(endpoint) is an algebraic coefficient, not an
+   carry no H letter because H at the path endpoint is an algebraic coefficient, not an
    integration kernel. *)
-RationalEpsilonLayerDemandTerms[operator_Association,
+ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientMap[
+    operator_Association,
     {outputOrder_Integer, requestedRows_}, OptionsPattern[]] := Catch@Module[
   {fail, dimensions, rows, maximumTerms, maximumStates, sharedBoundaryQ,
    embedSource, embedTarget, sourceTokens, diagonalTokens, incomingTokens,
    offDiagonalTokens, sourceStates = <||>, growSource, appendTerm, termStore, terms,
    count = 0, targetState, diagonalStates, incomingState, sourceState,
-   a, b, q, incomingOrder, offDiagonalOrder, labels, labelledWord},
+   a, b, q, incomingOrder, offDiagonalOrder, labels, labelledSequence,
+   coefficientMap},
   fail[status_, extra_: <||>] := Throw[Join[<|"Status" -> status|>, extra]];
-  If[! AcceptedRationalEpsilonLayerOperatorQ[operator],
-    fail["RationalEpsilonLayerOperatorNotAccepted"]];
+  If[! RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ[operator],
+    fail["RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorRequired"]];
   dimensions = operator["Dimensions"];
   rows = Which[
     requestedRows === All, Range[dimensions["Target"]],
@@ -547,15 +594,15 @@ RationalEpsilonLayerDemandTerms[operator_Association,
       {requestedRows},
     MatchQ[requestedRows, {__Integer}] && DuplicateFreeQ[requestedRows] &&
       AllTrue[requestedRows, 1 <= # <= dimensions["Target"] &], requestedRows,
-    True, fail["RationalLayerRowsInvalid"]];
-  If[! rationalLayerOperatorDemandCoveredQ[operator, outputOrder, rows],
-    fail["RationalLayerDemandOutsideAcceptedPairs",
-      <|"Demand" -> {outputOrder, requestedRows}|>]];
+    True, fail["RequestedMasterIntegralRowsInvalid"]];
+  If[! rationalEpsilonDependentBlockOperatorRequestedOutputCoveredQ[operator, outputOrder, rows],
+    fail["RequestedOutputOutsideSolvedPairs",
+      <|"RequestedOutput" -> {outputOrder, requestedRows}|>]];
   maximumTerms = OptionValue["MaximumTerms"];
   maximumStates = OptionValue["MaximumStates"];
   If[! (maximumTerms === Infinity || IntegerQ[maximumTerms] && maximumTerms >= 1) ||
       ! IntegerQ[maximumStates] || maximumStates < 1,
-    fail["RationalLayerDemandLimitsInvalid"]];
+    fail["IteratedIntegralCoefficientMapLimitsInvalid"]];
   sharedBoundaryQ = operator["BoundaryLayout"] === "Shared";
   embedSource[m_] := If[sharedBoundaryQ, m,
     ArrayFlatten[{{m, ConstantArray[0,
@@ -569,24 +616,31 @@ RationalEpsilonLayerDemandTerms[operator_Association,
   offDiagonalTokens = operator["OffDiagonalTransformationTokens"];
   labels = Join[operator["DiagonalLabels"], operator["IncomingLabels"],
     operator["SourceLabels"]];
-  labelledWord[word_] := Lookup[labels, Key[#], Missing["UnknownToken", #]] & /@ word;
+  labelledSequence[sequence_] :=
+    Lookup[labels, Key[#], Missing["UnknownToken", #]] & /@ sequence;
   appendTerm[kind_, word_, boundaryOrder_, matrix_, extra_: <||>] := Module[
     {selected = SparseArray[matrix[[rows, All]]], wordLabels},
-    If[! rationalLayerOperatorNonzeroQ[selected], Return[Null]];
+    If[! rationalEpsilonDependentBlockOperatorNonzeroQ[selected], Return[Null]];
     count++;
     If[maximumTerms =!= Infinity && count > maximumTerms,
-      fail["RationalLayerTermEnumerationCapped",
-        <|"MaximumTerms" -> maximumTerms, "TermsBuilt" -> count - 1|>]];
-    wordLabels = labelledWord[word];
-    If[! FreeQ[wordLabels, _Missing], fail["RationalLayerWordLabelMissing"]];
-    termStore[count] = Join[<|"Kind" -> kind, "WordTokens" -> word,
-      "Word" -> wordLabels, "BoundaryOrder" -> boundaryOrder,
-      "Rows" -> rows, "Coefficient" -> selected|>, extra]
+      fail["IteratedIntegralCoefficientMapConstructionCapped",
+        <|"MaximumTerms" -> maximumTerms,
+          "ContributionsConstructed" -> count - 1|>]];
+    wordLabels = labelledSequence[word];
+    If[! FreeQ[wordLabels, _Missing],
+      fail["IteratedIntegralLetterSequenceLabelMissing"]];
+    termStore[count] = Join[<|
+      "ContributionType" -> kind,
+      "IteratedIntegralLetterTokens" -> word,
+      "IteratedIntegralLetterSequence" -> wordLabels,
+      "BoundaryOrder" -> boundaryOrder,
+      "Rows" -> rows,
+      "IteratedIntegralCoefficientMatrix" -> selected|>, extra]
   ];
   growSource[order_] := If[KeyExistsQ[sourceStates, order],
     sourceStates[order],
     sourceStates[order] = NestList[
-      Function[states, Module[{next = rationalLayerOperatorGrow[states,
+      Function[states, Module[{next = rationalEpsilonDependentBlockOperatorGrow[states,
           sourceTokens, operator["SourceMatrices"], maximumStates]},
         If[AssociationQ[next], fail[next["Status"], KeyDrop[next, "Status"]], next]]],
       {{{}, SparseArray[operator["SourceBoundarySelectors"][order]]}},
@@ -595,12 +649,12 @@ RationalEpsilonLayerDemandTerms[operator_Association,
         If[offDiagonalTokens === {}, {}, offDiagonalTokens[[All, 2]]], {0}]]]]
   ];
 
-  (* Homogeneous target-boundary words. *)
+  (* Homogeneous target-boundary letter sequences. *)
   Do[
     a = outputOrder - q;
     If[a >= 0,
       diagonalStates = Nest[
-        Function[states, Module[{next = rationalLayerOperatorGrow[states,
+        Function[states, Module[{next = rationalEpsilonDependentBlockOperatorGrow[states,
             diagonalTokens, operator["DiagonalMatrices"], maximumStates]},
           If[AssociationQ[next], fail[next["Status"], KeyDrop[next, "Status"]], next]]],
         {{{}, SparseArray[operator["TargetBoundarySelectors"][q]]}}, a];
@@ -608,7 +662,7 @@ RationalEpsilonLayerDemandTerms[operator_Association,
           embedTarget[targetState[[2]]]], {targetState, diagonalStates}]],
     {q, Keys[operator["TargetBoundarySelectors"]]}];
 
-  (* One incoming dlog transition, with arbitrary source and target words. *)
+  (* One incoming dlog transition, with arbitrary source and target sequences. *)
   Do[
     incomingOrder = incomingToken[[2]];
     Do[
@@ -619,9 +673,9 @@ RationalEpsilonLayerDemandTerms[operator_Association,
         Do[
           incomingState = {Append[sourceState[[1]], incomingToken],
             operator["IncomingMatrices"][incomingToken] . sourceState[[2]]};
-          If[! rationalLayerOperatorNonzeroQ[incomingState[[2]]], Continue[]];
+          If[! rationalEpsilonDependentBlockOperatorNonzeroQ[incomingState[[2]]], Continue[]];
           diagonalStates = Nest[
-            Function[states, Module[{next = rationalLayerOperatorGrow[states,
+            Function[states, Module[{next = rationalEpsilonDependentBlockOperatorGrow[states,
                 diagonalTokens, operator["DiagonalMatrices"], maximumStates]},
               If[AssociationQ[next], fail[next["Status"], KeyDrop[next, "Status"]], next]]],
             {incomingState}, a];
@@ -649,11 +703,21 @@ RationalEpsilonLayerDemandTerms[operator_Association,
     {offDiagonalToken, offDiagonalTokens}];
 
   terms = Table[termStore[index], {index, count}];
-  <|"Status" -> "RationalEpsilonLayerDemandTermsBuilt",
-    "Demand" -> {outputOrder, requestedRows}, "Rows" -> rows,
-    "BoundaryLayout" -> operator["BoundaryLayout"], "Terms" -> terms,
-    "TermCount" -> Length[terms]|>
+  coefficientMap = If[terms === {}, <||>, Merge[
+    (Association[#["IteratedIntegralLetterSequence"] ->
+        #["IteratedIntegralCoefficientMatrix"]] &) /@ terms,
+    SparseArray[Total[#]] &]];
+  coefficientMap = Select[coefficientMap,
+    rationalEpsilonDependentBlockOperatorNonzeroQ];
+  <|"Status" ->
+      "RationalEpsilonDependentBlockIteratedIntegralCoefficientMapConstructed",
+    "RequestedEpsilonOrderAndMasterIntegralRows" -> {outputOrder, rows},
+    "BoundaryLayout" -> operator["BoundaryLayout"],
+    "IteratedIntegralCoefficientMap" -> coefficientMap,
+    "ContributionCount" -> Length[terms],
+    "LetterSequenceCount" -> Length[coefficientMap]|>
 ];
 
-RationalEpsilonLayerDemandTerms[___] :=
-  <|"Status" -> "RationalEpsilonLayerDemandInputsNotWellFormed"|>;
+ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientMap[___] :=
+  <|"Status" ->
+    "IteratedIntegralCoefficientMapInputsNotWellFormed"|>;

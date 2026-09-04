@@ -5,7 +5,7 @@ conditions = <|"BasisTransformationInverse" -> True,
   "ConnectionTransformationEquation" -> True,
   "EpsilonFactorized" -> True, "DLogRepresentation" -> True|>;
 exact = <|"DataType" -> "FamilyDLogEpsilonForm", "SchemaVersion" -> 2,
-  "Status" -> "ExactlyValidatedFamilyDLogEpsilonForm",
+  "Status" -> "FamilyDLogEpsilonFormValidated",
   "Validation" -> <|"Exact" -> True,
     "Probabilistic" -> False,
     "Method" -> "CharacteristicZeroSymbolicIdentity",
@@ -17,9 +17,10 @@ exact = <|"DataType" -> "FamilyDLogEpsilonForm", "SchemaVersion" -> 2,
       "TransformedConnectionFlatness" -> {{0}},
       "DLogReconstruction" -> {{{0}}}|>|>|>;
 probabilistic = Join[KeyDrop[exact, "Validation"], <|
-  "Status" -> "ProbabilisticallyValidatedFamilyDLogEpsilonForm",
+  "Status" -> "FamilyDLogEpsilonFormValidated",
   "Validation" -> <|"Exact" -> False, "Probabilistic" -> True,
-    "Method" -> "FiniteFieldEvaluation", "Conditions" -> conditions,
+    "Method" -> "ProbabilisticFiniteFieldSampling",
+    "Conditions" -> conditions,
     "SamplingEvidence" -> <|
       "Status" -> "FiniteFieldValidationPassed",
       "Probabilistic" -> True|>|>|>];
@@ -28,6 +29,20 @@ failedCondition = ReplacePart[exact,
     False];
 wrongMethod = ReplacePart[probabilistic,
   {"Validation", "Method"} -> "CharacteristicZeroSymbolicIdentity"];
+legacyFiniteFieldMethod = ReplacePart[probabilistic,
+  {"Validation", "Method"} -> "FiniteFieldEvaluation"];
+legacyStatus = ReplacePart[exact,
+  "Status" -> "ExactlyValidatedFamilyDLogEpsilonForm"];
+v2BlockRecord = Join[exact, <|"BlockDecomposition" -> <|
+  "DataType" -> "FamilyDifferentialSystemBlockDecomposition",
+  "SchemaVersion" -> 2,
+  "FamilyDifferentialSystemReference" -> <|
+    "RelativePath" -> "synthetic_family_system.wl",
+    "DataType" -> "FamilyDifferentialSystem", "SchemaVersion" -> 2,
+    "Family" -> "Synthetic"|>,
+  "IrreducibleDiagonalBlocks" -> {{1}}|>|>];
+legacyBlockRecord = Join[exact,
+  <|"IrreducibleDiagonalBlocks" -> {{1}}|>];
 
 tests = <|
   "ExactlyValidated" ->
@@ -40,7 +55,18 @@ tests = <|
   "FalseConditionRejected" ->
     ! FeynFacet`ExactlyValidatedFamilyDLogEpsilonFormQ[failedCondition],
   "InconsistentMethodRejected" ->
-    ! FeynFacet`ValidatedFamilyDLogEpsilonFormQ[wrongMethod]
+    ! FeynFacet`ValidatedFamilyDLogEpsilonFormQ[wrongMethod],
+  "LegacyFiniteFieldMethodRejected" ->
+    ! FeynFacet`ValidatedFamilyDLogEpsilonFormQ[
+      legacyFiniteFieldMethod],
+  "LegacyStrengthStatusRejected" ->
+    ! FeynFacet`ValidatedFamilyDLogEpsilonFormQ[legacyStatus],
+  "ObservableConsumerUsesNestedBlockDecomposition" ->
+    FeynFacet`Private`observableTransportIrreducibleDiagonalBlocks[
+      v2BlockRecord] === {{1}},
+  "ObservableConsumerHasNoTopLevelBlockFallback" ->
+    MissingQ[FeynFacet`Private`observableTransportIrreducibleDiagonalBlocks[
+      legacyBlockRecord]]
 |>;
 
 Print[InputForm[tests]];

@@ -1,114 +1,138 @@
-(* Requested physical coefficients from the lazy final-layer operator.
+(* Requested master-integral epsilon-expansion coefficients from the lazy
+   rational-epsilon-dependent-block coefficient operator.
 
-   A singular-boundary mode basis supplies one shared vector of period
-   coordinates.  The final-layer operator supplies sparse word maps.  This
-   module composes them only for one requested epsilon order and physical row,
+   Boundary-value data supply one shared vector of boundary-constant or
+   boundary-function epsilon coefficients. The block operator supplies sparse
+   iterated-integral coefficient maps. This
+   module composes them only for one requested epsilon order and master-integral row,
    applies an optional epsilon-dependent output basis transformation, and
    expands factor letters only in the surviving letter sequences. *)
 
-Clear[AttachTransportBoundaryToRationalLayer,
-  BuildPhysicalTransportCoefficient];
-ClearAll[physicalTransportNonzeroQ, physicalTransportActiveColumns,
-  physicalTransportLedger];
+Clear[AttachBoundarySelectorsToRationalEpsilonDependentBlock,
+  ConstructMasterIntegralEpsilonExpansionCoefficient];
+ClearAll[masterIntegralCoefficientNonzeroQ,
+  masterIntegralCoefficientActiveColumns,
+  masterIntegralCoefficientBoundaryRequirements];
 
-physicalTransportNonzeroQ[value_] :=
+masterIntegralCoefficientNonzeroQ[value_] :=
   Length[SparseArray[value]["NonzeroPositions"]] > 0;
 
-physicalTransportActiveColumns[vectors_List] := If[vectors === {}, {},
+masterIntegralCoefficientActiveColumns[vectors_List] := If[vectors === {}, {},
   Sort@DeleteDuplicates@Flatten[
     SparseArray[#]["NonzeroPositions"][[All, 1]] & /@ vectors]];
 
-physicalTransportLedger[boundary_Association, activeColumns_List] := Module[
-  {coordinates, activeCoordinates, ledger, filtered},
-  coordinates = Lookup[boundary, "BoundaryCoordinates", {}];
-  If[! ListQ[coordinates] ||
-      ! AllTrue[activeColumns, 1 <= # <= Length[coordinates] &],
-    Return[<|"Status" -> "Stage3LedgerUnavailable"|>]];
-  activeCoordinates = If[activeColumns === {}, {},
-    ({#["PeriodID"], #["EpsilonOrder"]} &) /@
-      coordinates[[activeColumns]]];
-  ledger = Lookup[boundary, "Stage3NeedsLedger", {}];
+masterIntegralCoefficientBoundaryRequirements[
+    boundary_Association, activeColumns_List] := Module[
+  {boundaryDataType, recordsKey, labelsKey, valueVectorKey,
+   records, activeLabels, requirements, filtered},
+  boundaryDataType = Lookup[boundary, "BoundaryDataType", Missing[]];
+  If[! MemberQ[{"BoundaryConstant", "BoundaryFunction"}, boundaryDataType],
+    Return[<|"Status" -> "BoundaryDataTypeRequired"|>]];
+  recordsKey = If[boundaryDataType === "BoundaryConstant",
+    "BoundaryConstantEpsilonCoefficientRecords",
+    "BoundaryFunctionEpsilonCoefficientRecords"];
+  labelsKey = If[boundaryDataType === "BoundaryConstant",
+    "BoundaryConstantEpsilonCoefficientLabels",
+    "BoundaryFunctionEpsilonCoefficientLabels"];
+  valueVectorKey = If[boundaryDataType === "BoundaryConstant",
+    "BoundaryConstantVector", "BoundaryFunctionVector"];
+  records = Lookup[boundary, recordsKey, {}];
+  If[! ListQ[records] ||
+      ! AllTrue[activeColumns, 1 <= # <= Length[records] &],
+    Return[<|"Status" -> "BoundaryDataRequirementsUnavailable"|>]];
+  activeLabels = If[activeColumns === {}, {},
+    Lookup[boundary, labelsKey, {}][[activeColumns]]];
+  requirements = Lookup[boundary, "BoundaryDataRequirements", {}];
   filtered = Select[Map[Function[item, Module[{affected},
       affected = Intersection[
-        Lookup[item, "AffectedBoundaryCoordinates", {}],
-        activeCoordinates];
-      Join[item, <|"AffectedBoundaryCoordinates" -> affected|>]
-    ]], ledger],
-    Lookup[#, "AffectedBoundaryCoordinates", {}] =!= {} &];
-  <|"Status" -> "Stage3NeedsPrunedByTransport",
+        Lookup[item, labelsKey, {}], activeLabels];
+      Join[item, <|labelsKey -> affected|>]
+    ]], requirements], Lookup[#, labelsKey, {}] =!= {} &];
+  <|"Status" -> "BoundaryDataRequirementsRestrictedToActiveCoefficients",
+    "BoundaryDataType" -> boundaryDataType,
     "ActiveBoundaryColumns" -> activeColumns,
-    "ActiveBoundaryCoordinates" -> activeCoordinates,
-    "UnevaluatedCoordinates" -> Cases[
-      Transpose[{coordinates, Lookup[boundary,
-        "BoundaryConstantVector", {}]}][[activeColumns]],
-      {coordinate_, value_ /; ! FreeQ[value, _BoundaryPeriodCoefficient]} :>
-        <|"PeriodID" -> coordinate["PeriodID"],
-          "PeriodClass" -> coordinate["PeriodClass"],
-          "EpsilonOrder" -> coordinate["EpsilonOrder"],
-          "Placeholder" -> value|>],
-    "Ledger" -> filtered|>
+    "ActiveBoundaryEpsilonCoefficientLabels" -> activeLabels,
+    "UnevaluatedBoundaryDataCoefficients" -> Cases[
+      Transpose[{records,
+        Lookup[boundary, valueVectorKey, {}]}][[activeColumns]],
+      {record_, value_ /;
+          ! FreeQ[value, _BoundaryConstantEpsilonCoefficient |
+            _BoundaryFunctionEpsilonCoefficient]} :>
+        Join[KeyTake[record, {"BoundaryDataType", "BoundaryConstantID",
+            "BoundaryFunctionID", "DeclaredBoundaryConstantAnalyticClass",
+            "DeclaredBoundaryFunctionClass", "EpsilonOrder"}],
+          <|
+          "Placeholder" -> value|>]],
+    "BoundaryDataRequirements" -> filtered|>
 ];
 
-(* Split a full-system physical boundary selector into source and final-layer
-   rows without duplicating its period coordinates. *)
-AttachTransportBoundaryToRationalLayer[source_Association,
-    layer_Association, boundary_Association, sourceRows_List,
+(* Split full-system boundary selector matrices into source and block rows
+   without duplicating their boundary-data coefficient labels. *)
+AttachBoundarySelectorsToRationalEpsilonDependentBlock[source_Association,
+    layer_Association, boundarySelectors_Association, sourceRows_List,
     targetRows_List] := Catch@Module[
-  {fail, status, dimension, selectors, columnCounts, coordinates, sourceDimension,
-   targetDimension, sourceSelectors, targetSelectors},
+  {fail, status, dimension, selectors, columnCounts, labels,
+   labelsKey, boundaryDataType, sourceDimension, targetDimension,
+   sourceSelectors, targetSelectors},
   fail[name_, extra_: <||>] := Throw[Join[<|"Status" -> name|>, extra]];
-  status = Lookup[boundary, "Status", None];
-  If[! MemberQ[{"TransportBoundaryVectorBuilt",
-        "FormalTransportBoundaryVectorBuilt"}, status],
-    fail["TransportBoundaryVectorRequired"]];
-  dimension = Lookup[boundary, "Dimension", Missing[]];
-  selectors = Lookup[boundary, "BoundarySelectors", Missing[]];
+  status = Lookup[boundarySelectors, "Status", None];
+  If[! MemberQ[{"BoundarySelectorMatricesConstructed",
+        "FormalBoundarySelectorMatricesConstructed"}, status],
+    fail["BoundarySelectorMatricesRequired"]];
+  boundaryDataType = Lookup[boundarySelectors, "BoundaryDataType", Missing[]];
+  If[! MemberQ[{"BoundaryConstant", "BoundaryFunction"}, boundaryDataType],
+    fail["BoundaryDataTypeRequired"]];
+  labelsKey = If[boundaryDataType === "BoundaryConstant",
+    "BoundaryConstantEpsilonCoefficientLabels",
+    "BoundaryFunctionEpsilonCoefficientLabels"];
+  labels = Lookup[boundarySelectors, labelsKey, Missing[]];
+  selectors = Lookup[boundarySelectors,
+    "BoundarySelectorMatricesByEpsilonOrder", Missing[]];
   sourceDimension = Lookup[source, "Dimension", Missing[]];
   targetDimension = Length[Lookup[layer, "Rows", {}]];
-  If[! IntegerQ[dimension] || dimension < 1 ||
-      ! AssociationQ[selectors] || selectors === <||> ||
+  If[! AssociationQ[selectors] || selectors === <||> ||
       ! IntegerQ[sourceDimension] || sourceDimension < 1 ||
       targetDimension < 1 || Length[sourceRows] =!= sourceDimension ||
       Length[targetRows] =!= targetDimension ||
       ! DuplicateFreeQ[Join[sourceRows, targetRows]] ||
+      ! AllTrue[Values[selectors], MatrixQ[#] &],
+    fail["BoundarySelectorBlockRowLayoutInvalid"]];
+  dimension = First[Dimensions /@ Values[selectors]][[1]];
+  If[dimension < 1 ||
       ! AllTrue[Join[sourceRows, targetRows],
         IntegerQ[#] && 1 <= # <= dimension &] ||
       ! AllTrue[Values[selectors],
-        MatrixQ[#] && Dimensions[#][[1]] === dimension &],
-    fail["TransportBoundaryLayerLayoutInvalid"]];
+      Dimensions[#][[1]] === dimension &],
+    fail["BoundarySelectorBlockRowLayoutInvalid"]];
   columnCounts = DeleteDuplicates[Dimensions[#][[2]] & /@ Values[selectors]];
-  coordinates = Lookup[boundary, "BoundaryCoordinates", Missing[]];
-  If[Length[columnCounts] =!= 1 ||
-      Length[Lookup[boundary, "BoundaryConstantVector", {}]] =!=
-        First[columnCounts] || ! ListQ[coordinates] ||
-      Length[coordinates] =!= First[columnCounts] ||
-      ! AllTrue[coordinates, AssociationQ[#] &&
-        KeyExistsQ[#, "PeriodID"] && KeyExistsQ[#, "EpsilonOrder"] &],
-    fail["TransportBoundaryColumnLayoutInvalid"]];
+  If[Length[columnCounts] =!= 1 || ! ListQ[labels] ||
+      Length[labels] =!= First[columnCounts],
+    fail["BoundarySelectorCoefficientColumnLayoutInvalid"]];
   sourceSelectors = Association@KeyValueMap[
     #1 -> SparseArray[#2[[sourceRows, All]]] &, selectors];
   targetSelectors = Association@KeyValueMap[
     #1 -> SparseArray[#2[[targetRows, All]]] &, selectors];
-  <|"Status" -> "TransportBoundaryAttachedToRationalLayer",
+  <|"Status" ->
+      "BoundarySelectorsAttachedToRationalEpsilonDependentBlock",
     "Source" -> Join[source,
       <|"BoundarySelectors" -> sourceSelectors,
-        "PhysicalBoundaryRows" -> sourceRows,
-        "PhysicalBoundaryDimension" -> dimension,
-        "BoundaryCoordinateKeys" ->
-          ({#["PeriodID"], #["EpsilonOrder"]} &) /@
-            coordinates|>],
-    "Layer" -> Join[layer, <|
+        "BoundarySelectorSourceRows" -> sourceRows,
+        "BoundarySelectorDimension" -> dimension,
+        "BoundaryDataType" -> boundaryDataType,
+        labelsKey -> labels|>],
+    "Block" -> Join[layer, <|
       "TargetBoundarySelectors" -> targetSelectors,
-      "PhysicalBoundaryRows" -> targetRows,
+      "BoundarySelectorTargetRows" -> targetRows,
       "SharedBoundaryCoordinates" -> True|>],
-    "Boundary" -> boundary,
+    "BoundarySelectorData" -> boundarySelectors,
     "SourceRows" -> sourceRows, "TargetRows" -> targetRows|>
 ];
 
-AttachTransportBoundaryToRationalLayer[___] :=
-  <|"Status" -> "TransportBoundaryLayerInputsNotWellFormed"|>;
+AttachBoundarySelectorsToRationalEpsilonDependentBlock[___] :=
+  <|"Status" ->
+    "BoundarySelectorBlockAttachmentInputsNotWellFormed"|>;
 
-Options[BuildPhysicalTransportCoefficient] = {
+Options[ConstructMasterIntegralEpsilonExpansionCoefficient] = {
   "CanonicalToPhysicalMasterIntegralMapByEpsilonOrder" -> Automatic,
   "CompositeDefinitions" -> <||>,
   "MaximumTerms" -> Infinity,
@@ -117,63 +141,76 @@ Options[BuildPhysicalTransportCoefficient] = {
   "ExpandFactorLetters" -> True
 };
 
-BuildPhysicalTransportCoefficient[operator_Association,
+ConstructMasterIntegralEpsilonExpansionCoefficient[operator_Association,
     boundary_Association, {outputOrder_Integer, outputRow_Integer},
     path_Association, OptionsPattern[]] := Catch@Module[
   {fail, dimensions, constants, variable, base, endpoint, curve,
    curvePointValues, basePointPrescription,
    definitions, canonicalToPhysicalMap, mapOrders, physicalDimension,
    maximumExpandedTerms, expandQ, rawStore, rawCount = 0,
-   demandTerms, matrix, vector, letterSequence, expanded, expandedStore,
-   expandedCount = 0, merged, surviving, activeColumns, stage3,
-   paperTerms, functionSpace, expression, integral, binding,
-   coordinateKeys, boundarySelectors, operatorPath, activeTargetRows,
-   rebase, boundSourceSelectors, boundTargetSelectors},
+   coefficientMapResult, coefficientMap, matrix, vector, letterSequence,
+   expanded, expandedStore, expandedCount = 0, merged, surviving,
+   activeColumns, activeBoundaryRequirements, iteratedIntegralTerms,
+   functionSpace, expression, integral, binding, boundaryDataType,
+   coefficientLabelsKey, valueVectorKey, coefficientLabels, operatorPath,
+   activeTargetRows, basePointChange, boundSourceSelectors,
+   boundTargetSelectors},
   fail[name_, extra_: <||>] := Throw[Join[<|"Status" -> name|>, extra]];
-  If[! AcceptedRationalEpsilonLayerOperatorQ[operator],
-    fail["RationalEpsilonLayerOperatorRequired"]];
-  If[! MemberQ[{"TransportBoundaryVectorBuilt",
-        "FormalTransportBoundaryVectorBuilt"},
+  If[! RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorQ[operator],
+    fail["RationalEpsilonDependentBlockIteratedIntegralCoefficientOperatorRequired"]];
+  If[! MemberQ[{"BoundaryConstantValueVectorConstructed",
+        "FormalBoundaryConstantValueVectorConstructed",
+        "BoundaryFunctionValueVectorConstructed",
+        "FormalBoundaryFunctionValueVectorConstructed"},
       Lookup[boundary, "Status", None]],
-    fail["TransportBoundaryVectorRequired"]];
+    fail["BoundaryValueVectorRequired"]];
   dimensions = operator["Dimensions"];
-  constants = Lookup[boundary, "BoundaryConstantVector", Missing[]];
+  boundaryDataType = Lookup[boundary, "BoundaryDataType", Missing[]];
+  If[! MemberQ[{"BoundaryConstant", "BoundaryFunction"}, boundaryDataType],
+    fail["BoundaryDataTypeRequired"]];
+  coefficientLabelsKey = If[boundaryDataType === "BoundaryConstant",
+    "BoundaryConstantEpsilonCoefficientLabels",
+    "BoundaryFunctionEpsilonCoefficientLabels"];
+  valueVectorKey = If[boundaryDataType === "BoundaryConstant",
+    "BoundaryConstantVector", "BoundaryFunctionVector"];
+  constants = Lookup[boundary, valueVectorKey, Missing[]];
+  coefficientLabels = Lookup[boundary, coefficientLabelsKey, Missing[]];
   If[! ListQ[constants] ||
-      Length[constants] =!= dimensions["TotalBoundary"],
-    fail["PhysicalBoundaryDimensionMismatch"]];
-  binding = Lookup[operator, "PhysicalBoundaryBinding", None];
-  rebase = Lookup[operator, "Rebase", None];
-  boundSourceSelectors = If[AssociationQ[rebase] &&
-      Lookup[rebase, "Status", None] === "ExactLazyChenRebase",
-    Lookup[rebase, "PhysicalSourceBoundarySelectors", Missing[]],
+      ! ListQ[coefficientLabels] ||
+      Length[constants] =!= dimensions["TotalBoundary"] ||
+      Length[coefficientLabels] =!= Length[constants],
+    fail["BoundaryValueVectorDimensionMismatch"]];
+  binding = Lookup[operator, "BoundarySelectorBinding", None];
+  basePointChange = Lookup[operator, "BasePointChange", None];
+  boundSourceSelectors = If[AssociationQ[basePointChange] &&
+      Lookup[basePointChange, "Status", None] ===
+        "IteratedIntegralCoefficientOperatorBasePointChanged",
+    Lookup[basePointChange, "SourceBoundarySelectorsAtNewBasePoint",
+      Missing[]],
     operator["SourceBoundarySelectors"]];
-  boundTargetSelectors = If[AssociationQ[rebase] &&
-      Lookup[rebase, "Status", None] === "ExactLazyChenRebase",
-    Lookup[rebase, "PhysicalTargetBoundarySelectors", Missing[]],
+  boundTargetSelectors = If[AssociationQ[basePointChange] &&
+      Lookup[basePointChange, "Status", None] ===
+        "IteratedIntegralCoefficientOperatorBasePointChanged",
+    Lookup[basePointChange, "TargetBoundarySelectorsAtNewBasePoint",
+      Missing[]],
     operator["TargetBoundarySelectors"]];
-  coordinateKeys = ({#["PeriodID"], #["EpsilonOrder"]} &) /@
-    Lookup[boundary, "BoundaryCoordinates", {}];
-  boundarySelectors = Lookup[boundary, "BoundarySelectors", <||>];
   If[! AssociationQ[binding] ||
-      Lookup[binding, "Dimension", None] =!= Lookup[boundary, "Dimension", None] ||
-      Lookup[binding, "CoordinateKeys", None] =!= coordinateKeys ||
-      ! AssociationQ[boundarySelectors] ||
-      Sort[Keys[operator["SourceBoundarySelectors"]]] =!=
-        Sort[Keys[boundarySelectors]] ||
+      Lookup[binding, "Dimension", None] =!=
+        Total[{Length[binding["SourceRows"]],
+          Length[binding["TargetRows"]]}] ||
+      Lookup[binding, "BoundaryDataType", None] =!= boundaryDataType ||
+      Lookup[binding, coefficientLabelsKey, None] =!= coefficientLabels ||
       ! AssociationQ[boundSourceSelectors] ||
       ! AssociationQ[boundTargetSelectors] ||
-      Sort[Keys[boundSourceSelectors]] =!= Sort[Keys[boundarySelectors]] ||
-      Sort[Keys[boundTargetSelectors]] =!= Sort[Keys[boundarySelectors]] ||
-      ! AllTrue[Keys[boundarySelectors], Function[order,
-        Normal[boundSourceSelectors[order]] ===
-          Normal[boundarySelectors[order][[binding["SourceRows"], All]]] &&
-        Normal[boundTargetSelectors[order]] ===
-          Normal[boundarySelectors[order][[binding["TargetRows"], All]]]
-      ]],
-    fail["PhysicalBoundaryNotBoundToOperator"]];
+      Sort[Keys[boundSourceSelectors]] =!=
+        Sort[Keys[boundTargetSelectors]] ||
+      ! AllTrue[Join[Values[boundSourceSelectors],
+          Values[boundTargetSelectors]],
+        MatrixQ[#] && Dimensions[#][[2]] === Length[constants] &],
+    fail["BoundaryValueVectorNotBoundToCoefficientOperator"]];
   variable = Lookup[path, "Variable", Missing[]];
   base = Lookup[path, "BasePoint", Missing[]];
-  endpoint = Lookup[path, "Endpoint", Missing[]];
+  endpoint = Lookup[path, "PathEndpoint", Missing[]];
   curve = Lookup[path, "Curve", None];
   curvePointValues = Lookup[path, "CurvePointValues", <||>];
   basePointPrescription = Lookup[path, "BasePointPrescription", None];
@@ -188,16 +225,16 @@ BuildPhysicalTransportCoefficient[operator_Association,
             "TangentialRegularized" &&
           MemberQ[{-1, 1}, Lookup[basePointPrescription,
             "LocalDirection", Missing[]]])),
-    fail["PhysicalTransportPathInvalid"]];
+    fail["MasterIntegralSolutionPathInvalid"]];
   operatorPath = Lookup[operator, "Path", <||>];
   If[Lookup[operatorPath, "Variable", Missing[]] =!= variable ||
       Lookup[operatorPath, "BasePoint", Missing[]] =!= base ||
-      Lookup[operatorPath, "Endpoint", Missing[]] =!= endpoint ||
+      Lookup[operatorPath, "PathEndpoint", Missing[]] =!= endpoint ||
       Lookup[operatorPath, "Curve", None] =!= curve ||
       Lookup[operatorPath, "CurvePointValues", <||>] =!= curvePointValues ||
       Lookup[operatorPath, "BasePointPrescription", None] =!=
         basePointPrescription,
-    fail["PhysicalTransportPathDoesNotMatchOperator"]];
+    fail["MasterIntegralSolutionPathDoesNotMatchCoefficientOperator"]];
   definitions = OptionValue["CompositeDefinitions"];
   If[! AssociationQ[definitions],
     fail["CompositeLetterDefinitionsInvalid"]];
@@ -215,41 +252,48 @@ BuildPhysicalTransportCoefficient[operator_Association,
   If[! AllTrue[Values[canonicalToPhysicalMap],
         Dimensions[#][[1]] === physicalDimension &] ||
       ! 1 <= outputRow <= physicalDimension,
-    fail["PhysicalOutputRowInvalid"]];
+    fail["MasterIntegralRowInvalid"]];
   mapOrders = Keys[canonicalToPhysicalMap];
   maximumExpandedTerms = OptionValue["MaximumExpandedTerms"];
   expandQ = TrueQ[OptionValue["ExpandFactorLetters"]];
   If[! (maximumExpandedTerms === Infinity ||
       IntegerQ[maximumExpandedTerms] && maximumExpandedTerms >= 1),
-    fail["PhysicalExpandedTermLimitInvalid"]];
+    fail["MasterIntegralExpandedTermLimitInvalid"]];
 
   Do[
     activeTargetRows = DeleteDuplicates[
       SparseArray[canonicalToPhysicalMap[mapOrder][[{outputRow}, All]]][
         "NonzeroPositions"][[All, 2]]];
     If[activeTargetRows === {}, Continue[]];
-    demandTerms = RationalEpsilonLayerDemandTerms[operator,
+    coefficientMapResult =
+      ConstructRationalEpsilonDependentBlockIteratedIntegralCoefficientMap[
+      operator,
       {outputOrder - mapOrder, activeTargetRows},
       "MaximumTerms" -> OptionValue["MaximumTerms"],
       "MaximumStates" -> OptionValue["MaximumStates"]];
-    If[Lookup[demandTerms, "Status", None] =!=
-        "RationalEpsilonLayerDemandTermsBuilt",
-      fail[Lookup[demandTerms, "Status",
-        "RationalLayerDemandFailed"], KeyDrop[demandTerms, "Status"]]];
-    Do[
+    If[Lookup[coefficientMapResult, "Status", None] =!=
+        "RationalEpsilonDependentBlockIteratedIntegralCoefficientMapConstructed",
+      fail[Lookup[coefficientMapResult, "Status",
+        "IteratedIntegralCoefficientMapConstructionFailed"],
+        KeyDrop[coefficientMapResult, "Status"]]];
+    coefficientMap = coefficientMapResult[
+      "IteratedIntegralCoefficientMap"];
+    KeyValueMap[Function[{sequence, coefficientMatrix},
       matrix = canonicalToPhysicalMap[mapOrder][
           [{outputRow}, activeTargetRows]] .
-        term["Coefficient"];
-      If[! physicalTransportNonzeroQ[matrix], Continue[]];
-      rawCount++;
-      rawStore[rawCount] = <|"LetterSequence" -> term["Word"],
-        "Coefficient" -> First[Normal[matrix]]|>,
-      {term, demandTerms["Terms"]}],
+        coefficientMatrix;
+      If[masterIntegralCoefficientNonzeroQ[matrix],
+        rawCount++;
+        rawStore[rawCount] = <|
+          "IteratedIntegralLetterSequence" -> sequence,
+          "IteratedIntegralCoefficientVector" ->
+            First[Normal[matrix]]|>]], coefficientMap],
     {mapOrder, mapOrders}];
 
   Do[
-    letterSequence = rawStore[index]["LetterSequence"];
-    vector = rawStore[index]["Coefficient"];
+    letterSequence =
+      rawStore[index]["IteratedIntegralLetterSequence"];
+    vector = rawStore[index]["IteratedIntegralCoefficientVector"];
     expanded = If[expandQ,
       ExpandIteratedIntegralLetterSequence[
         letterSequence, variable, curve, definitions],
@@ -264,7 +308,7 @@ BuildPhysicalTransportCoefficient[operator_Association,
       expandedCount++;
       If[maximumExpandedTerms =!= Infinity &&
           expandedCount > maximumExpandedTerms,
-        fail["PhysicalIteratedIntegralExpansionCapped",
+        fail["MasterIntegralIteratedIntegralExpansionCapped",
           <|"MaximumExpandedTerms" -> maximumExpandedTerms,
             "ExpandedTermsBuilt" -> expandedCount - 1|>]];
       expandedStore[expandedCount] = expandedTerm[[2]] ->
@@ -273,48 +317,54 @@ BuildPhysicalTransportCoefficient[operator_Association,
     {index, rawCount}];
   merged = If[expandedCount === 0, <||>,
     Merge[Table[expandedStore[index], {index, expandedCount}], Total]];
-  surviving = Select[merged, physicalTransportNonzeroQ];
-  activeColumns = physicalTransportActiveColumns[Normal /@ Values[surviving]];
-  stage3 = physicalTransportLedger[boundary, activeColumns];
-  If[Lookup[stage3, "Status", None] =!=
-      "Stage3NeedsPrunedByTransport",
-    fail["Stage3LedgerUnavailable"]];
+  surviving = Select[merged, masterIntegralCoefficientNonzeroQ];
+  activeColumns = masterIntegralCoefficientActiveColumns[
+    Normal /@ Values[surviving]];
+  activeBoundaryRequirements =
+    masterIntegralCoefficientBoundaryRequirements[boundary, activeColumns];
+  If[Lookup[activeBoundaryRequirements, "Status", None] =!=
+      "BoundaryDataRequirementsRestrictedToActiveCoefficients",
+    fail["BoundaryDataRequirementsUnavailable"]];
   integral[{}] := 1;
   integral[w_List] := If[basePointPrescription === None,
-    With[{wordValue = w, pathValue = {variable, base, endpoint},
+    With[{sequenceValue = w, pathValue = {variable, base, endpoint},
         curveValue = curve, pointValues = curvePointValues},
       FeynFacet`FormalChenIteratedIntegral[
-        wordValue, pathValue, curveValue, pointValues]],
-    With[{wordValue = w, pathValue = {variable, base, endpoint},
+        sequenceValue, pathValue, curveValue, pointValues]],
+    With[{sequenceValue = w, pathValue = {variable, base, endpoint},
         curveValue = curve, pointValues = curvePointValues,
         prescription = basePointPrescription},
       FeynFacet`FormalChenIteratedIntegral[
-        wordValue, pathValue, curveValue, pointValues, prescription]]];
-  paperTerms = KeyValueMap[Function[{markedPointSequence, coefficientVector},
-      <|"LetterSequence" -> markedPointSequence,
-        "CoefficientVector" -> Normal[coefficientVector],
-        "BoundaryCoefficient" ->
+        sequenceValue, pathValue, curveValue, pointValues, prescription]]];
+  iteratedIntegralTerms = KeyValueMap[
+    Function[{markedPointSequence, coefficientVector},
+      <|"IteratedIntegralLetterSequence" -> markedPointSequence,
+        "BoundaryValueCoefficientVector" -> Normal[coefficientVector],
+        "BoundaryValueCoefficient" ->
           Total[Normal[coefficientVector] constants],
-        "Function" -> integral[markedPointSequence]|>], surviving];
-  expression = Total[(#1["BoundaryCoefficient"] #1["Function"] &) /@
-    paperTerms];
+        "FormalIteratedIntegral" -> integral[markedPointSequence]|>],
+    surviving];
+  expression = Total[(#1["BoundaryValueCoefficient"] *
+        #1["FormalIteratedIntegral"] &) /@ iteratedIntegralTerms];
   functionSpace = If[AnyTrue[Keys[surviving],
       ! FreeQ[#, {head_String, ___} /;
         StringStartsQ[head, "E4"]] &], "GPL+Elliptic", "GPL"];
-  <|"Status" -> "PhysicalTransportCoefficientBuilt",
-    "Demand" -> {outputOrder, outputRow},
+  <|"Status" -> "MasterIntegralEpsilonExpansionCoefficientConstructed",
+    "EpsilonOrder" -> outputOrder,
+    "MasterIntegralRow" -> outputRow,
     "FunctionSpace" -> functionSpace,
     "BoundaryDataStatus" -> Lookup[boundary, "BoundaryDataStatus", None],
     "Path" -> <|"Variable" -> variable, "BasePoint" -> base,
-      "Endpoint" -> endpoint, "Curve" -> curve,
+      "PathEndpoint" -> endpoint, "Curve" -> curve,
       "CurvePointValues" -> curvePointValues,
       "BasePointPrescription" -> basePointPrescription|>,
     "RawTermCount" -> rawCount,
-    "PaperTermCount" -> Length[paperTerms],
-    "Terms" -> paperTerms,
+    "IteratedIntegralTermCount" -> Length[iteratedIntegralTerms],
+    "IteratedIntegralTerms" -> iteratedIntegralTerms,
     "Expression" -> expression,
-    "Stage3" -> stage3|>
+    "ActiveBoundaryDataRequirements" -> activeBoundaryRequirements|>
 ];
 
-BuildPhysicalTransportCoefficient[___] :=
-  <|"Status" -> "PhysicalTransportCoefficientInputsNotWellFormed"|>;
+ConstructMasterIntegralEpsilonExpansionCoefficient[___] :=
+  <|"Status" ->
+    "MasterIntegralEpsilonExpansionCoefficientInputsNotWellFormed"|>;
