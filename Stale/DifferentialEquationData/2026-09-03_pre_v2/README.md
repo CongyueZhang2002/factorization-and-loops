@@ -21,6 +21,8 @@ The following regeneration inputs deliberately remain live:
   family registry used before differential-equation construction;
 - the finite-field trace manifest and Kira `masters.final` files, which define
   the actual master-integral list;
+- `ppHX_NNLO_DoubleReal/InputData/UU_08_10_canonical/HardFunctionMasterCoefficientEpsilonValuations.wl`,
+  the V2 form of the exact hard-function coefficient valuations;
 - the process cards and all package source.
 
 The archived `Masters/` directory is historical path-solution output despite
@@ -30,6 +32,11 @@ its name: its Wolfram records use `Format -> "FeynFacetTransportedFamily"` and
 The archived `KiraResult.wl` is a monolithic materialization of `KiraStream/`,
 not a second source of reduction truth.  Live code should consume the streamed
 store so the reduction is represented once.
+
+The archived `Scripts/Transport/CF303/Artifacts/` directory contains the V1
+CF303 boundary-analysis outputs that formerly lived beside executable scripts.
+`HistoricalNotes/` contains contemporary design discussion, not machine input.
+Neither location is part of the V2 data flow.
 
 Regeneration under schema V2 starts from those inputs.  Each regenerated
 mathematical stage must record wall time and peak resident memory in a separate
