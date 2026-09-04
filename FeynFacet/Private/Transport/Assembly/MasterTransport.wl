@@ -851,11 +851,14 @@ hypergeometric tower; no series truncation and no numerical substitution.",
        "Rejected"          a residual is nonzero, or a required check
                            could not be completed.
 
-   The inverse identity is required SYMBOLICALLY in every accepted case,
-   including "AnalyticCandidate" -- Phi^-1 is constructed here by
-   Together[Inverse[phi]] and its verification is rational algebra, so a
-   failure there is a genuine defect rather than a limitation of
-   Simplify on contiguous relations.
+   The inverse identity is required SYMBOLICALLY even for candidate
+   evidence -- Phi^-1 is constructed here by Together[Inverse[phi]] and
+   its verification is rational algebra, so a failure there is a genuine
+   defect rather than a limitation of Simplify on contiguous relations.
+   A matrix is accepted for assembly only when the differential identities
+   have also reached "Exact".  "AnalyticCandidate" is deliberately an
+   incomplete result and never supplies a basis transformation or a
+   declared zero connection to downstream code.
 
    A route that could not be performed makes the block "Rejected"; it
    never counts as a pass. *)
@@ -990,13 +993,30 @@ masterTransportClosedFormSector[record_Association, av_, aw_, eps_,
       "Reason" -> If[! TrueQ[exactI], "PhiInverseNotVerified", "PhiNotVerified"],
       "Checks" -> checks|>]];
 
+  If[exactness === "AnalyticCandidate",
+    Return[<|"Status" -> "AnalyticCandidate", "Type" -> "ClosedFormSector",
+      "Exactness" -> "AnalyticCandidate",
+      "Reason" -> "DifferentialIdentityNotValidated",
+      "Candidate" -> <|"HomogeneousSolutionMatrix" -> phi,
+        "Inverse" -> phiInverse|>,
+      "Source" -> "closed-form", "Frame" -> frame, "Checks" -> checks|>]];
+
   <|"Status" -> "OK", "Type" -> "ClosedFormSector",
-    "Exactness" -> exactness,
+    "Exactness" -> "Exact",
     "T" -> phi, "TInverse" -> phiInverse,
     "Ev" -> ConstantArray[0, {dim, dim}],
     "Ew" -> ConstantArray[0, {dim, dim}],
     "Source" -> "closed-form", "Frame" -> frame, "Checks" -> checks|>
 ];
+
+(* A closed-form sector is an accepted block provider only after the
+   differential identity has been established by an exact package route.
+   Keeping this check at the assembly boundary also rejects legacy or custom
+   provider records that combine Status -> "OK" with candidate evidence. *)
+masterTransportAcceptedBlockFormQ[form_] :=
+  AssociationQ[form] && Lookup[form, "Status", None] === "OK" &&
+    (Lookup[form, "Type", None] =!= "ClosedFormSector" ||
+      Lookup[form, "Exactness", None] === "Exact");
 
 (* Resolve one block's provider into {T, Ev, Ew} plus provenance. *)
 masterTransportBlockProvider[specification_, av_, aw_, eps_, variables_,
@@ -1157,9 +1177,10 @@ masterTransportAssemble[system_Association, eps_Symbol, variables_List,
         resolved = masterTransportClassFormBlock[resolved, rows, sav, saw, eps, variables]];
       resolved],
     {i, nb}];
-  If[! AllTrue[forms, AssociationQ[#] && #["Status"] === "OK" &],
+  If[! AllTrue[forms, masterTransportAcceptedBlockFormQ],
     Return[<|"Status" -> "FormFailed", "Blocks" -> blocks,
-      "Failures" -> Select[Transpose[{blocks, forms}], #[[2]]["Status"] =!= "OK" &]|>]];
+      "Failures" -> Select[Transpose[{blocks, forms}],
+        ! masterTransportAcceptedBlockFormQ[#[[2]]] &]|>]];
 
   tInverse = Table[
     If[MissingQ[forms[[i]]["TInverse"]] || forms[[i]]["TInverse"] === Automatic,
@@ -1172,7 +1193,8 @@ masterTransportAssemble[system_Association, eps_Symbol, variables_List,
     {i, nb}];
   inversePerBlock = Table[
     If[forms[[i]]["Type"] === "ClosedFormSector",
-      TrueQ[Lookup[forms[[i]]["Checks"], "ExactInverse", False]],
+      forms[[i]]["Exactness"] === "Exact" &&
+        TrueQ[Lookup[forms[[i]]["Checks"], "ExactInverse", False]],
       zeroMat[
         forms[[i]]["T"] . tInverse[[i]] -
           IdentityMatrix[Length[forms[[i]]["T"]]]] &&
@@ -1198,7 +1220,8 @@ masterTransportAssemble[system_Association, eps_Symbol, variables_List,
              cannot be performed must never be reported as failed OR as
              passed.  It is taken from the sector record instead, which
              is a re-verification and not a stored flag. *)
-          If[i === j && forms[[i]]["Type"] === "ClosedFormSector",
+          If[i === j && forms[[i]]["Type"] === "ClosedFormSector" &&
+              forms[[i]]["Exactness"] === "Exact",
             dim = Length[ranges[[i]]];
             conjugated[{i, j}] = {ConstantArray[0, {dim, dim}],
               ConstantArray[0, {dim, dim}]},
@@ -1231,7 +1254,8 @@ masterTransportAssemble[system_Association, eps_Symbol, variables_List,
     If[forms[[i]]["Type"] === "ClosedFormSector",
       (* established by masterTransportClosedFormSector, whose route is
          recorded in forms[[i]]["Checks"] *)
-      TrueQ[forms[[i]]["Status"] === "OK"],
+      TrueQ[forms[[i]]["Status"] === "OK"] &&
+        TrueQ[forms[[i]]["Exactness"] === "Exact"],
       zeroMat[conjugated[{i, i}][[1]] - forms[[i]]["Ev"]] &&
       zeroMat[conjugated[{i, i}][[2]] - forms[[i]]["Ew"]]],
     {i, nb}];
@@ -3787,9 +3811,10 @@ TransportFamilyInChart[system_, chart_, opts : OptionsPattern[]] := Catch[
             "Forms" -> forms|>,
           "Family" -> Lookup[system, "Family", None],
           "Seconds" -> AbsoluteTime[] - start|>, Module]];
-      Return[<|"Status" -> "ExactFamilyAssembly",
+      Return[<|"Status" ->
+          "FamilyDifferentialSystemAssembledWithEpsilonFormDiagonalBlocks",
         "Family" -> Lookup[system, "Family", None],
-        "Assembly" -> assembled, "Chart" -> data,
+        "FamilyDifferentialSystem" -> assembled, "Chart" -> data,
         "PullBack" -> <|"System" -> pullback["Certificate"],
           "Forms" -> forms|>,
         "SourceVariables" -> sourceVariables[[{1, 2}]],

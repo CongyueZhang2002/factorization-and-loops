@@ -65,13 +65,15 @@ result = FeynFacet`TransportFamilyInChart[system, frame,
   "AssemblyOnly" -> True, "Blocks" -> blocks,
   "FormDirectory" -> formDirectory, "Verbose" -> True];
 
-If[! AssociationQ[result] || result["Status"] =!= "ExactFamilyAssembly",
+If[! AssociationQ[result] || result["Status"] =!=
+    "FamilyDifferentialSystemAssembledWithEpsilonFormDiagonalBlocks",
   Print[family, " assembly failed: ",
     InputForm[KeyTake[result, {"Status", "Family", "Failures"}]]];
   Exit[1]
 ];
 
-census = FeynFacet`FamilyAlgebraicRootCensus[result["Assembly"], frame];
+census = FeynFacet`FamilyAlgebraicRootCensus[
+  result["FamilyDifferentialSystem"], frame];
 If[census["Status"] =!= "ExactRootCensus",
   Print[family, " root census failed: ", InputForm[census]];
   Exit[1]
@@ -84,7 +86,9 @@ result = Join[result, <|"RootCensus" -> census,
   "TotalSeconds" -> AbsoluteTime[] - start|>];
 writeAtomic[result, outputFile];
 
-Print[family, " exact family assembly: ", result["Assembly"]["N"],
-  " masters, ", Length[result["Assembly"]["Blocks"]], " blocks, root counts ",
+Print[family, " family system assembled with epsilon-form diagonal blocks: ",
+  result["FamilyDifferentialSystem"]["N"], " masters, ",
+  Length[result["FamilyDifferentialSystem"]["Blocks"]],
+  " blocks, root counts ",
   InputForm[census["RootCountHistogram"]], ", maximum ",
   census["MaximumRootCount"], ", ", Round[result["TotalSeconds"], 0.01], " s"];

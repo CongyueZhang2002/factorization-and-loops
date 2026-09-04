@@ -64,14 +64,19 @@ assemble[level_] := Block[{FeynFacet`Private`masterTransportCheckLevel = (level 
     "PhysicalValuation" -> 0, "Orders" -> {0, 1}, "TransportBackend" -> "Libra", "MaxWeight" -> 0, "Verbose" -> False]];
 {tD, dev} = AbsoluteTiming[assemble["Development"]];
 {tP, prod} = AbsoluteTiming[assemble["Production"]];
-If[! (AssociationQ[dev] && dev["Status"] === "ExactFamilyAssembly"), Print["development assembly: ", If[AssociationQ[dev], KeyDrop[dev, "Assembly"], dev]]];
+If[! (AssociationQ[dev] && dev["Status"] ===
+    "FamilyDifferentialSystemAssembledWithEpsilonFormDiagonalBlocks"),
+  Print["development assembly: ",
+    If[AssociationQ[dev], KeyDrop[dev, "FamilyDifferentialSystem"], dev]]];
 checks["AssemblyBothModesSucceed"] = AssociationQ[dev] && AssociationQ[prod] &&
-  dev["Status"] === "ExactFamilyAssembly" && prod["Status"] === "ExactFamilyAssembly";
+  dev["Status"] === "FamilyDifferentialSystemAssembledWithEpsilonFormDiagonalBlocks" &&
+  prod["Status"] === "FamilyDifferentialSystemAssembledWithEpsilonFormDiagonalBlocks";
 checks["AssemblyProductionSameConnection"] = checks["AssemblyBothModesSucceed"] &&
-  dev["Assembly"]["Apv"] === prod["Assembly"]["Apv"] && dev["Assembly"]["Apw"] === prod["Assembly"]["Apw"];
+  dev["FamilyDifferentialSystem"]["Apv"] === prod["FamilyDifferentialSystem"]["Apv"] &&
+  dev["FamilyDifferentialSystem"]["Apw"] === prod["FamilyDifferentialSystem"]["Apw"];
 checks["AssemblyProductionLabelled"] = checks["AssemblyBothModesSucceed"] &&
-  prod["Assembly"]["Certificate"]["CheckLevel"] === "Production" &&
-  dev["Assembly"]["Certificate"]["CheckLevel"] === "Development";
+  prod["FamilyDifferentialSystem"]["Certificate"]["CheckLevel"] === "Production" &&
+  dev["FamilyDifferentialSystem"]["Certificate"]["CheckLevel"] === "Development";
 Print["CF34 assembly seconds: development ", Round[tD, 0.1], " production ", Round[tP, 0.1]];
 Print[InputForm[checks]];
 Print["failed: ", Keys[Select[checks, ! TrueQ[#] &]]];
