@@ -1,0 +1,98 @@
+\section{Analytic evaluation of cut master integrals}
+\label{sec:analytic-masters}
+
+IBP reduction determines the rational coefficients but does not evaluate the
+masters.  For each master we retain the physical cut momenta, their energy
+orientations, the ordinary propagators, the physical chamber, and the
+normalization of the integration measure.  The required output is a
+meromorphic analytic function of $\eps$ and the invariants.
+
+\subsection{Physical parameterizations and branches}
+
+Momentum-conservation delta functions are eliminated exactly, after which a
+Lorentz frame or a Feynman-parameter representation may be chosen for the
+remaining integrations.  Every change of variables is accompanied by its
+Jacobian and by the image of the physical domain.  Before any Laurent
+expansion, each noninteger power is written as
+\begin{equation}
+ X^\alpha=\exp[\alpha\log X]
+ \label{eq:real-power-definition}
+\end{equation}
+with the sign of $X$ fixed in the stated chamber.  If a powered base crosses
+zero inside the contour, the integral is divided into regions or treated with
+its explicit causal boundary value.  Algebraic replacements such as
+$(-X)^\alpha\to X^\alpha$ are never made without this analysis.
+
+\subsection{Direct integration and differential equations}
+
+When the reduced parameter density is linearly reducible, its Laurent
+coefficients are integrated exactly with sector decomposition followed by
+hyperlogarithmic integration.  \SubTropica\ is used for the analytic sector
+expansion and \HyperInt-compatible functions for the resulting iterated
+integrals~\cite{Giroux:2026tgd,Panzer:2014caa}.  This route returns analytic
+coefficients, not values at fixed kinematics.
+
+When direct integration is not efficient, a vector of masters
+$\boldsymbol M(\boldsymbol x,\eps)$ is differentiated with respect to the
+physical invariants and reduced by the same IBP rules:
+\begin{equation}
+ \dd\boldsymbol M=A(\boldsymbol x,\eps)\boldsymbol M.
+ \label{eq:master-differential-system}
+\end{equation}
+The exact integrability condition
+\begin{equation}
+ \dd A-A\wedge A=0
+ \label{eq:flatness-condition}
+\end{equation}
+is checked before solving the system.  Rational transformations are then used
+to reach Fuchsian or canonical form when possible
+\cite{Henn:2013pwa,Meyer:2017joq}.  The solution is fixed by analytic boundary
+data obtained from a simpler cut phase space, a regular kinematic point, or a
+controlled expansion by regions.  A numerical boundary value may check this
+derivation but does not replace it.
+
+\subsection{Four distinct relations among masters}
+
+Several reductions of the boundary workload are useful, but they are not the
+same statement.  Let $I_i(\boldsymbol x,\eps)$ denote powered cut integrals.
+
+First, $I_i\sim_{\mathrm{pow}}I_j$ when an invertible momentum change and an
+allowed external relabeling map the complete measure, contour, oriented cuts,
+ordinary denominators, and every propagator power of $I_i$ into those of
+$I_j$.  This is equality of the integrals after the corresponding kinematic
+substitution.
+
+Second, $I_i\sim_{\mathrm{den}}I_j$ when the same kind of map identifies the
+sets of positive-power denominator slots while powers are ignored.  This
+classifies denominator geometry but does not prove equality of powered
+integrals.
+
+Third, a set $S$ is closed under differentiation in variables
+$\boldsymbol x$ when
+\begin{equation}
+ \partial_{x_r}I_i\in
+ \operatorname{span}_{\mathbb Q(\boldsymbol x,\eps)}S
+ \qquad
+ \text{for every }I_i\in S\text{ and every }x_r.
+ \label{eq:de-closure-definition}
+\end{equation}
+This determines which masters must be solved together.  Differential coupling
+does not imply that their boundary constants are equal.
+
+Finally, two scalar boundary integrals represent the same boundary period
+when an invertible change of integration variables maps the contour, measure,
+integrand, normalization, and branch of one into the other.  We denote this by
+$B_i\sim_{\partial}B_j$.  This is the relation that reduces the number of
+independent analytic boundary integrations.  Section~\ref{sec:nlo-example}
+shows explicitly that six NLO masters occupy two maximal nontrivial
+denominator classes but require only one non-elementary boundary period once
+the cut bubble is known.
+
+\subsection{Independent numerical comparison}
+
+For a physical point away from singular surfaces, the analytic Laurent
+coefficients are compared with \AMFlow\ values generated from the same family
+and normalization~\cite{Liu:2020kpc}.  Agreement is required coefficient by
+coefficient to a declared precision.  This tests the analytic expression and
+its branch choice; it does not determine the function or supply missing
+boundary constants.

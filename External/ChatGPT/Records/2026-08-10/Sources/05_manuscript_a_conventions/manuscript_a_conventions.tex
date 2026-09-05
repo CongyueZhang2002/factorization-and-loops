@@ -1,0 +1,85 @@
+\section{Conventions and normalizations}
+\label{app:conventions}
+
+We use
+\begin{equation}
+ g^{\mu\nu}=\operatorname{diag}(1,-1,-1,-1),
+ \qquad D=4-2\eps,
+ \qquad \varepsilon^{0123}=+1.
+ \label{eq:metric-and-dimension}
+\end{equation}
+For a vector $a$, $\not\!a=\gamma_\mu a^\mu$, and
+\begin{equation}
+ i\sigma^{ab}=-\frac12[\not\!a,\not\!b].
+ \label{eq:sigma-convention}
+\end{equation}
+The BMHV chirality matrix is
+\begin{equation}
+ \gamma_5=\frac{i}{4!}\varepsilon_{\mu\nu\rho\sigma}
+ \bar\gamma^\mu\bar\gamma^\nu\bar\gamma^\rho\bar\gamma^\sigma,
+ \qquad
+ \{\gamma_5,\bar\gamma^\mu\}=0,
+ \qquad
+ [\gamma_5,\widehat\gamma^\mu]=0.
+ \label{eq:bmhv-gamma5}
+\end{equation}
+All external hadron momenta, light-cone vectors, and polarization vectors are
+four dimensional.  Integration momenta are (D) dimensional.
+
+The physical loop measure is $\dd^D\ell/(2\pi)^D$.  The scalar-integral
+normalization used by the IBP and dimensional-recurrence formulas is
+\begin{equation}
+ [\dd^D\ell]_{\rm IBP}=\frac{\dd^D\ell}{i\pi^{D/2}}.
+ \label{eq:ibp-measure}
+\end{equation}
+For an $L$-fold integral with $N_C$ cuts represented by
+$2\pi\mathcal C_+$, the conversion is
+\begin{equation}
+ I_{\rm phys}
+ =\left(\frac{i\pi^{D/2}}{(2\pi)^D}\right)^L
+ (2\pi)^{N_C}I_{\rm IBP}.
+ \label{eq:ibp-physical-conversion}
+\end{equation}
+This factor changes neither the cut energy orientation nor the ordinary
+propagator prescription.
+
+The $\overline{\mathrm{MS}}$ scale factor used in the existing NLO real
+calculation is
+\begin{equation}
+ \left(\frac{\mu^2e^{\gamma_E}}{4\pi}\right)^\eps.
+ \label{eq:msbar-scale-factor}
+\end{equation}
+It is written explicitly when real, virtual, and collinear terms are combined.
+
+The plus distribution is defined by
+\begin{equation}
+ \int_0^1\dd w\,\mathcal D_m(w)\varphi(w)
+ =\int_0^1\dd w\,
+ \frac{\log^m(1-w)}{1-w}[\varphi(w)-\varphi(1)]
+ \label{eq:plus-test-function}
+\end{equation}
+for every smooth test function $\varphi$.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{0.22\textwidth}Y@{}}
+\toprule
+Symbol & Meaning\\
+\midrule
+$(P_A,P_B,P_h)$ & Incoming and identified hadron momenta.\\
+$(k_a,k_b,k_c)$ & Incoming and identified parton momenta.\\
+$(x_a,x_b,z_h)$ & Collinear momentum fractions.\\
+$(S,T,U)$ & Hadronic Mandelstam invariants.\\
+$(s,t,u)$ & Partonic Mandelstam invariants.\\
+$(q,Q^2)$ & Recoil momentum and $Q^2=q^2=s+t+u$.\\
+$(v,w,x)$ & Single-inclusive variables with $x=1-w$.\\
+$\mathcal C_+^{(n)}$ & Positive-energy cut of propagator power $n$.\\
+$\mathcal D_m(w)$ & $[\log^m(1-w)/(1-w)]_+$.\\
+$H^{\mathsf P,(n)}$ & Partonic hard coefficient multiplying
+$\alpha_s^{n+2}$.\\
+\bottomrule
+\end{tabularx}
+\caption{Principal symbols used in the manuscript.}
+\label{tab:symbols}
+\end{table}

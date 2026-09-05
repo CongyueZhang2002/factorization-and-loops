@@ -1,0 +1,231 @@
+\section{Factorized observable, kinematics, and hard-function definition}
+\label{sec:factorized-observable}
+
+\subsection{Hadronic observable and perturbative expansion}
+
+We consider
+\begin{equation}
+ A(P_A,S_A)+B(P_B,S_B)\longrightarrow h(P_h,S_h)+X,
+ \label{eq:hadronic-process}
+\end{equation}
+with hadron masses neglected in the short-distance coefficient.  The
+single-particle invariant cross section is
+\begin{equation}
+ \mathcal I_h^{\mathsf P}(P_h)
+ :=E_h\frac{\dd^3\sigma^{\mathsf P}}{\dd^3\bm P_h},
+ \qquad
+ \mathsf P\in\{\mathsf{UU},\mathsf{LL},\mathsf{TT}\}.
+ \label{eq:invariant-observable}
+\end{equation}
+Hadron $B$ is unpolarized; the two letters label the polarization of
+hadron $A$ and of the observed hadron $h$, respectively.
+
+At leading twist, the factorized cross section may be written as
+\begin{equation}
+ \mathcal I_h^{\mathsf P}
+ =\sum_{a,b,c}\int\dd x_a\,\dd x_b\,\dd z_h\;
+ \mathcal J_h\,
+ \mathscr F_{ab\to c}^{\mathsf P}(x_a,x_b,z_h;\mu_F)
+ \frac{1}{x_ax_bz_h^2}\,
+ \mathcal H_{ab\to c}^{\mathsf P}
+ (s,t,u;\mu_R,\mu_F,\eps).
+ \label{eq:factorized-cross-section}
+\end{equation}
+Here $\mathcal J_h$ contains the remaining Jacobian associated with the
+chosen hadronic variables after the displayed fraction monomial has been
+removed.  This notation is equivalent to the conventional
+single-inclusive formula of Ref.~\cite{Aversa:1988vb}; it makes explicit the
+factor whose cancellation is tested when the hard coefficient is extracted.
+The distribution products $\mathscr F^{\mathsf P}$ are given below.
+
+We keep the QCD coupling normalization explicit,
+\begin{equation}
+ \mathcal H^{\mathsf P}
+ =\alpha_s^2(\mu_R)H^{\mathsf P,(0)}
+ +\alpha_s^3(\mu_R)H^{\mathsf P,(1)}
+ +\alpha_s^4(\mu_R)H^{\mathsf P,(2)}+\cdots .
+ \label{eq:hard-perturbative-expansion}
+\end{equation}
+Factors of $2\pi$, the flux, initial-state averages, and the
+$\overline{\mathrm{MS}}$ scale factor are part of the stated normalization
+of each $H^{(n)}$; they are not absorbed into a second definition of the
+coupling.  The present paper develops the exact real-emission and
+master-integral ingredients.  A complete fixed-order hard function additionally
+requires the virtual, ultraviolet-renormalization, and collinear-factorization
+terms in this same convention.
+
+\subsection{Hadronic and partonic kinematics}
+
+Define
+\begin{equation}
+ S=(P_A+P_B)^2,
+ \qquad T=(P_A-P_h)^2,
+ \qquad U=(P_B-P_h)^2,
+ \label{eq:hadronic-invariants}
+\end{equation}
+and the collinear map
+\begin{equation}
+ k_a=x_aP_A,
+ \qquad k_b=x_bP_B,
+ \qquad P_h=z_hk_c,
+ \qquad 0<x_a,x_b,z_h<1.
+ \label{eq:collinear-map}
+\end{equation}
+The partonic invariants are
+\begin{equation}
+ s=(k_a+k_b)^2,
+ \qquad t=(k_a-k_c)^2,
+ \qquad u=(k_b-k_c)^2,
+ \label{eq:partonic-invariants}
+\end{equation}
+so that
+\begin{equation}
+ s=x_ax_bS,
+ \qquad t=\frac{x_a}{z_h}T,
+ \qquad u=\frac{x_b}{z_h}U.
+ \label{eq:hadronic-partonic-map}
+\end{equation}
+The total recoil momentum and its invariant mass are
+\begin{equation}
+ q=k_a+k_b-k_c,
+ \qquad Q^2=q^2=s+t+u.
+ \label{eq:recoil-invariant}
+\end{equation}
+For real emission we work in the chamber
+\begin{equation}
+ s>0,\quad t<0,\quad u<0,\quad Q^2>0,\quad
+ s+t>0,\quad s+u>0,\quad t+u<0.
+ \label{eq:physical-chamber}
+\end{equation}
+All noninteger powers of positive quantities use the real logarithm in this
+chamber.
+
+The single-inclusive variables are
+\begin{equation}
+ v=1+\frac{t}{s},
+ \qquad w=-\frac{u}{s+t},
+ \qquad x=1-w,
+ \label{eq:vw-definitions}
+\end{equation}
+with inverse map
+\begin{equation}
+ t=-s(1-v),
+ \qquad u=-svw=-sv(1-x),
+ \qquad Q^2=sv(1-w)=svx.
+ \label{eq:vw-inverse}
+\end{equation}
+Thus $s>0$, $0<v,w<1$, and the real-emission endpoint is
+\begin{equation}
+ w\to1^-,\qquad x\to0^+,
+ \qquad v\ \text{fixed}.
+ \label{eq:real-endpoint}
+\end{equation}
+
+\subsection{Leading-twist polarization projections}
+
+For each collinear direction $r\in\{A,B,h\}$, let
+$n_r^2=\bar n_r^2=0$ and $n_r\cdot\bar n_r=1$.  The physical transverse
+spins obey
+\begin{equation}
+ S_{AT}\cdot n_A=S_{AT}\cdot\bar n_A=0,
+ \qquad
+ S_{hT}\cdot n_h=S_{hT}\cdot\bar n_h=0.
+ \label{eq:transverse-spin-conditions}
+\end{equation}
+They are hadronic vectors; the partonic polarization information enters
+through the leading-twist correlators.
+
+For $\chi=q,\bar q$, define $\eta_q=1$ and
+$\eta_{\bar q}=-1$.  With
+$i\sigma^{ab}=-[\not\!a,\not\!b]/2$, the distribution and fragmentation
+correlators are
+\begin{align}
+ \Phi_{\chi/H}(x;\lambda_H,S_{HT})
+ =\frac12\bigl[&f_1^{\chi/H}(x)\not\!n_H
+ +\eta_\chi\lambda_Hg_{1L}^{\chi/H}(x)
+   \gamma_5\not\!n_H
+ +h_1^{\chi/H}(x)i\sigma^{n_HS_{HT}}\gamma_5\bigr],
+ \label{eq:pdf-correlator}\\
+ \Delta_{h/\chi}(z_h;\lambda_h,S_{hT})
+ =\frac12\bigl[&D_1^{h/\chi}(z_h)\not\!n_h
+ +\eta_\chi\lambda_hG_{1L}^{h/\chi}(z_h)
+   \gamma_5\not\!n_h
+ +H_1^{h/\chi}(z_h)i\sigma^{n_hS_{hT}}\gamma_5\bigr].
+ \label{eq:ff-correlator}
+\end{align}
+The antiquark convention therefore changes the helicity term but not the
+unpolarized or transversity term.  These are the standard collinear
+leading-twist structures~\cite{Bacchetta:2006tn}.  The BMHV definition of
+$\gamma_5$ is given in Appendix~\ref{app:conventions}.
+
+The three distribution products in Eq.~\eqref{eq:factorized-cross-section}
+are
+\begin{align}
+ \mathscr F^{\mathsf{UU}}_{ab\to c}
+ &=f_1^{a/A}(x_a)f_1^{b/B}(x_b)D_1^{h/c}(z_h),
+ \notag\\
+ \mathscr F^{\mathsf{LL}}_{ab\to c}
+ &=g_{1L}^{a/A}(x_a)f_1^{b/B}(x_b)G_{1L}^{h/c}(z_h),
+ \notag\\
+ \mathscr F^{\mathsf{TT}}_{ab\to c}
+ &=h_1^{a/A}(x_a)f_1^{b/B}(x_b)H_1^{h/c}(z_h).
+ \label{eq:polarized-distribution-products}
+\end{align}
+The LL hard part multiplies $\lambda_A\lambda_h$.  The TT hard tensor is
+contracted with $S_{AT}^\mu S_{hT}^\nu$ and then decomposed into independent
+physical azimuthal structures.  Each scalar coefficient in that decomposition
+is treated as a separate hard function.
+
+\subsection{Analytic content of the hard function}
+
+After the distribution product, the convolution Jacobian, and the displayed
+fraction monomial in Eq.~\eqref{eq:factorized-cross-section} are removed, the
+hard function depends only on the partonic invariants, scales, color factors,
+and $\eps$.  At fixed $(s,t,u)$, it therefore satisfies
+\begin{equation}
+ \frac{\partial H^{\mathsf P,(n)}}{\partial x_a}
+ =\frac{\partial H^{\mathsf P,(n)}}{\partial x_b}
+ =\frac{\partial H^{\mathsf P,(n)}}{\partial z_h}=0.
+ \label{eq:fraction-independence}
+\end{equation}
+For UU and LL it is also independent of every auxiliary light-cone and
+hadronic basis vector.  For TT the same statement applies to each scalar
+coefficient after projection onto the physical azimuthal basis.  A common
+scalar factor may be removed temporarily during exact algebra, but it is
+restored before endpoint analysis; in particular, a factor
+$(Q^2)^{-\eps}=(sv)^{-\eps}(1-w)^{-\eps}$ cannot be discarded.
+
+Before expanding in $\eps$, write the real-emission endpoint terms as
+\begin{equation}
+ H_{\mathrm{real}}^{\mathsf P,(n)}(v,w,\eps)
+ =H_{\mathrm{reg}}^{\mathsf P,(n)}(v,w,\eps)
+ +\sum_{r=1}^{N_{\mathrm{end}}}
+ C_r^{\mathsf P,(n)}(v,\eps)(1-w)^{-1-a_r\eps},
+ \qquad a_r>0.
+ \label{eq:unexpanded-endpoint-form}
+\end{equation}
+The branches $a_r$ and coefficients $C_r$ are extracted from the exact
+reconstructed expression.  Defining
+\begin{equation}
+ \mathcal D_m(w)=\left[\frac{\log^m(1-w)}{1-w}\right]_+,
+ \label{eq:plus-distributions}
+\end{equation}
+meromorphic continuation gives
+\begin{equation}
+ (1-w)^{-1-a\eps}
+ =-\frac{\delta(1-w)}{a\eps}
+ +\sum_{m=0}^{\infty}\frac{(-a\eps)^m}{m!}\mathcal D_m(w).
+ \label{eq:endpoint-distribution-identity}
+\end{equation}
+Only after Eq.~\eqref{eq:unexpanded-endpoint-form} is established do we form
+the fixed-order decomposition
+\begin{equation}
+ H^{\mathsf P,(n)}
+ =H_\delta^{\mathsf P,(n)}(v)\delta(1-w)
+ +\sum_{m=0}^{m_{\max}}H_m^{\mathsf P,(n)}(v)\mathcal D_m(w)
+ +H_{\mathrm{reg}}^{\mathsf P,(n)}(v,w).
+ \label{eq:hard-distributional-form}
+\end{equation}
+The coefficients in Eq.~\eqref{eq:hard-distributional-form} are exact
+analytic functions.  Numerical values at chosen points can test them but do
+not define them.

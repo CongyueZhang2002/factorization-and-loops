@@ -1,0 +1,129 @@
+\section{From amplitudes to cut integral families}
+\label{sec:cut-families}
+
+\subsection{Ordered amplitude interferences}
+
+At a fixed perturbative order, the elementary object is an ordered pair
+\begin{equation}
+ \mathcal W_{ij}
+ =\sum_{\text{colors, spins}}
+ \mathcal M_i\,\mathcal M_j^*.
+ \label{eq:ordered-interference}
+\end{equation}
+The ordering matters whenever the two sides contain virtual loops, since the
+ordinary propagators of $\mathcal M_i$ and $\mathcal M_j^*$ carry opposite
+causal boundary values.  Ordinary spin and polarization sums are performed
+first.  Spin sums on collinear parton lines associated with an incoming or
+identified hadron are then replaced by the correlators in
+Eqs.~\eqref{eq:pdf-correlator} and \eqref{eq:ff-correlator}.  This gives a
+Dirac- and color-contracted numerator in $D=4-2\eps$ dimensions while
+preserving the declared polarization channel.
+
+For $m$ unobserved real partons with momenta $k_r$, the physical phase
+space is
+\begin{equation}
+ \dd\Phi_m(q;\{k_r\})
+ =(2\pi)^D\delta^{(D)}\!\left(q-\sum_{r=1}^m k_r\right)
+ \prod_{r=1}^m
+ \frac{\dd^Dk_r}{(2\pi)^{D-1}}\delta_+(k_r^2),
+ \label{eq:physical-m-particle-phase-space}
+\end{equation}
+where $\delta_+(k^2)=\theta(k^0)\delta(k^2)$.  One phase-space momentum is
+eliminated with the momentum-conservation delta function before families are
+constructed.  The remaining positive-energy constraints are retained as
+distinguished cut lines.
+
+\subsection{Reverse unitarity and causal sectors}
+
+For a cut momentum $q_c$, denominator $D_c=q_c^2-m_c^2$, and energy
+orientation $\xi_c=\pm1$, define
+\begin{equation}
+ \mathcal C_{\xi_c}^{(n)}(D_c)
+ =\frac{\theta(\xi_cq_c^0)}{2\pi i}
+ \left[\frac{1}{(D_c-i0)^n}-\frac{1}{(D_c+i0)^n}\right]
+ =\theta(\xi_cq_c^0)
+ \frac{(-1)^{n-1}}{(n-1)!}\delta^{(n-1)}(D_c).
+ \label{eq:oriented-cut}
+\end{equation}
+Reverse unitarity treats these distributions as propagator slots under IBP
+differentiation~\cite{Anastasiou:2002yz}.  In particular, a squared cut is a
+derivative of the same on-shell constraint; it is not a second cut particle.
+The cut-family condition is
+\begin{equation}
+ I(\nu_1,\ldots,\nu_N)=0
+ \quad\text{if}\quad
+ \nu_c\leq0\ \text{for any designated cut slot }c.
+ \label{eq:cut-family-condition}
+\end{equation}
+
+Three causal cases are kept distinct.  A virtual loop belonging to the
+amplitude carries the Feynman prescription, while a virtual loop belonging to
+the conjugate amplitude carries its complex conjugate.  A denominator that
+contains virtual momenta from both sides is not assigned a prescription by
+algebraic guesswork.  The present construction rejects such a family unless a
+separate contour derivation is supplied.  An ordinary denominator containing
+only external and real phase-space momenta needs no $i0$ label when its sign
+is fixed on the closed physical phase space.  Appendix~\ref{app:fixed-sign}
+gives a finite criterion for massless two-beam kinematics.  A zero on a soft
+or collinear boundary is allowed; denominators whose sign changes in the
+interior are rejected.
+
+\subsection{Cut-preserving partial fractions}
+
+The literal propagators of one ordered interference need not be linearly
+independent as polynomials in the scalar products of the integration
+momenta.  Suppose
+\begin{equation}
+ c_0+\sum_{j=1}^{N}c_jD_j=0,
+ \label{eq:denominator-linear-relation}
+\end{equation}
+with coefficients independent of the integration momenta.  Standard
+multivariate partial fractions decompose the product of denominators into
+terms containing independent subsets~\cite{Feng:2012iq}.  For cut integrals,
+the algebra is performed subject to Eq.~\eqref{eq:cut-family-condition}: every
+surviving term must contain every physical cut with positive power.  This is
+why cut propagators cannot be treated as ordinary factors and filtered only
+after partial fractioning.
+
+The order of the construction is
+\begin{equation}
+ \text{literal denominators}
+ \longrightarrow
+ \text{cut-preserving partial fractions}
+ \longrightarrow
+ \text{independent denominator subsets}
+ \longrightarrow
+ \text{complete scalar-product families}.
+ \label{eq:family-construction-order}
+\end{equation}
+Only in the last step are irreducible scalar products added as auxiliary
+slots.  This avoids choosing a process-specific expected family before the
+amplitude algebra has shown which denominators actually occur.  Any new
+auxiliary denominator that contains no virtual loop momentum is subjected to
+the same fixed-sign criterion as a literal real-emission denominator.
+
+\subsection{BMHV tensors and dimension recurrences}
+
+Polarized traces are evaluated in the BMHV scheme
+\cite{Breitenlohner:1977hr}.  The metric and every integration momentum split
+as
+\begin{equation}
+ g_D^{\mu\nu}=\bar g^{\mu\nu}+\widehat g^{\mu\nu},
+ \qquad
+ \ell_r^\mu=\bar\ell_r^\mu+\widehat\ell_r^\mu,
+ \qquad
+ \bar g^\mu{}_{\mu}=4,
+ \qquad
+ \widehat g^\mu{}_{\mu}=D-4.
+ \label{eq:bmhv-split-main}
+\end{equation}
+External hadron momenta, light-cone directions, and spin vectors are declared
+four dimensional.  Evanescent scalar products therefore occur only among
+integration momenta.  Tensor integration converts a monomial of total
+evanescent rank $2r$ into scalar integrals in $D+2r$ dimensions.  Tarasov
+dimension recurrences then express those shifted-dimensional integrals in the
+same $D$-dimensional families~\cite{Tarasov:1996br}.  The recurrence is
+performed before the final IBP reduction, so the objects submitted to
+\Kira\ are ordinary $D$-dimensional scalar integrals with the original cut
+slots intact.  Appendix~\ref{app:bmhv-dimension-shift} states the normalization
+and the checks needed for this step.

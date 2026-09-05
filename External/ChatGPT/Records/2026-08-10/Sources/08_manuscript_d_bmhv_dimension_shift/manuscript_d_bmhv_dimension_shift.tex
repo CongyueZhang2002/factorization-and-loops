@@ -1,0 +1,58 @@
+\section{BMHV projectors and dimension recurrences}
+\label{app:bmhv-dimension-shift}
+
+The BMHV decomposition is orthogonal,
+\begin{equation}
+ \bar g^{\mu\rho}\widehat g_{\rho}{}^{\nu}=0,
+ \qquad
+ \bar g^\mu{}_{\mu}=4,
+ \qquad
+ \widehat g^\mu{}_{\mu}=-2\eps.
+ \label{eq:bmhv-orthogonal-metrics}
+\end{equation}
+For an integration momentum $\ell$, define
+\(\mu_\ell^2=-\widehat\ell^2\).  With the normalized measure in
+Eq.~\eqref{eq:ibp-measure}, a one-loop scalar integrand whose external vectors
+are four dimensional obeys
+\begin{equation}
+ \int\frac{\dd^D\ell}{i\pi^{D/2}}
+ (\mu_\ell^2)^r F(\ell)
+ =(-\eps)_r
+ \int\frac{\dd^{D+2r}\ell}{i\pi^{(D+2r)/2}}F(\ell),
+ \qquad r\in\mathbb Z_{\geq0},
+ \label{eq:one-loop-dimension-shift}
+\end{equation}
+where $(a)_r=\Gamma(a+r)/\Gamma(a)$.  The shifted integral contains the same
+denominator polynomials and cut slots, interpreted in $D+2r$ dimensions.
+
+At several loops, mixed contractions
+${\widehat\ell_i\cdot\widehat\ell_j}$ are generated as well as powers of
+$\mu_{\ell_i}^2$.  Introduce Schwinger parameters for the complete family.
+The Gaussian integral over the evanescent components expresses every rank
+(2r) monomial as a polynomial in cofactors of the loop quadratic-form matrix
+and gives scalar integrals in (D+2r) dimensions.  Symbolically,
+\begin{equation}
+ I^{(D)}_{\mathcal F}[P_{2r}(\widehat\ell)]
+ =\mathcal D_{P_{2r}}(\boldsymbol\nu,D),
+ I_{\mathcal F}^{(D+2r)}(\boldsymbol\nu),
+ \label{eq:multiloop-evanescent-shift}
+\end{equation}
+where $\mathcal D_{P_{2r}}$ is the exact Tarasov raising operator for the
+chosen topology.  It changes propagator powers according to the same Schwinger
+polynomial; it is not a universal replacement of
+$\widehat\ell_i\cdot\widehat\ell_j$ by a number.
+
+Tarasov recurrences then lower the dimension,
+\begin{equation}
+ I_{\mathcal F}^{(D+2r)}(\boldsymbol\nu)
+ =\sum_{a}T_a(\boldsymbol\nu,D,\{s_{ij}\})
+ I_{\mathcal F}^{(D)}(\boldsymbol\nu+\Delta\boldsymbol\nu_a),
+ \label{eq:tarasov-lowering}
+\end{equation}
+with rational $T_a$.  Terms in which a mandatory cut obtains nonpositive
+power vanish by Eq.~\eqref{eq:cut-family-condition}.  The recurrence is
+checked by substituting the shifted-dimension representation back into the
+Schwinger-parametric identity and by verifying that no evanescent scalar
+product remains.  Coefficients originating in the original Dirac trace stay
+at $D=4-2\eps$; only the scalar integral in
+Eq.~\eqref{eq:multiloop-evanescent-shift} is dimension shifted.

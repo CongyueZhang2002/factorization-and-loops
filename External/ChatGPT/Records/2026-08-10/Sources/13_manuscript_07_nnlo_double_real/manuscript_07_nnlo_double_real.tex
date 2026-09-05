@@ -1,0 +1,335 @@
+\section{NNLO double-real sector}
+\label{sec:nnlo-double-real}
+
+The NNLO double-real contribution contains two independent phase-space
+momenta after momentum conservation.  The amplitude algebra and IBP reduction
+are complete for the saved unpolarized process.  The remaining physics problem
+is the analytic evaluation of the resulting cut masters and their assembly
+with the exact rational coefficients.
+
+\subsection{Master and boundary classification}
+
+Exact IBP reduction gives
+\begin{equation}
+ N_{\rm master}^{\rm NNLO}=342.
+ \label{eq:nnlo-master-count}
+\end{equation}
+Applying the relations defined in
+Section~\ref{sec:analytic-masters} gives
+\begin{equation}
+ N_{\rm pow}^{\rm NNLO}=130,
+ \qquad
+ N_{\rm den}^{\rm NNLO}=82.
+ \label{eq:nnlo-equivalence-counts}
+\end{equation}
+One denominator class is the elementary cut-volume class.  Among the other
+81 classes, 17 are maximal under inclusion of their positive-power
+denominator sets:
+\begin{equation}
+ N_{\rm max,nontrivial}^{\rm NNLO}=17.
+ \label{eq:nnlo-maximal-class-count}
+\end{equation}
+These 17 classes are useful starting points for differential systems, but
+Eq.~\eqref{eq:nnlo-maximal-class-count} is not the number of scalar boundary
+constants.  That number is obtained only after the differential systems have
+been constructed, their local modes constrained by the physical contour, and
+period identities under $\sim_\partial$ established.
+
+\subsection{Exact reconstruction of a hard master coefficient}
+
+The IBP coefficient of one representative NNLO master receives 1129 rational
+contributions from the ordered diagram pairs.  After removing an exact common
+monomial, the coefficient was reconstructed with a \Ratracer\ operation graph
+and \FireFly\ finite-field interpolation.  Reconstructions with independent
+prime sequences gave the same rational function.  Evaluating the original
+operation graph and the reconstructed result in a further prime field gave
+zero difference, and an independent characteristic-zero substitution gave
+the same result.  This establishes that the reconstruction is an exact
+rational identity for this coefficient.  It does not evaluate the associated
+master integral and is not used as evidence that every NNLO coefficient has
+already been reconstructed.
+
+\subsection{A coupled eight-master three-particle-cut family}
+
+We now give a fully analytic example with two dimensionless invariants.  Let
+the massless momenta obey
+\begin{equation}
+ k_a^2=k_b^2=k_c^2=0,
+ \qquad
+ 2k_a\cdot k_b=s,
+ \qquad
+ -2k_a\cdot k_c=t,
+ \qquad
+ -2k_b\cdot k_c=u,
+ \label{eq:nnlo-worked-kinematics}
+\end{equation}
+and define
+\begin{equation}
+ P=k_a+k_b-k_c,
+ \qquad
+ x=-\frac{t}{s},
+ \qquad
+ y=-\frac{u}{s},
+ \qquad
+ \Delta=1-x-y=\frac{P^2}{s}.
+ \label{eq:nnlo-worked-variables}
+\end{equation}
+The solution is constructed in the chamber
+\begin{equation}
+ 0<y<(1-x)^2<1-x<1.
+ \label{eq:nnlo-worked-chamber}
+\end{equation}
+
+The top master is the physical integral
+\begin{align}
+ G_7(s,t,u;\eps)={}&
+ \int\dd^Dk_e\,\dd^Dk_f\,
+ \frac{
+  \delta_+(k_e^2)\delta_+(k_f^2)
+  \delta_+((P-k_e-k_f)^2)
+ }{
+  (P-k_e)^2(P-k_f)^2
+  (k_a-k_c-k_f)^2(k_a-k_e)^2}.
+ \label{eq:nnlo-top-physical-integral}
+\end{align}
+All four ordinary denominators have a fixed sign on the closed physical phase
+space.  The first two are invariant masses of sums of future-directed emitted
+momenta and are nonnegative.  The last denominator is
+$(k_a-k_e)^2=-2k_a\cdot k_e\leq0$.  Momentum conservation writes the third
+as $(k_b-k_e-k_g)^2\leq0$, where $k_g=P-k_e-k_f$; the inequality is the
+subset case of Appendix~\ref{app:fixed-sign}.  Hence no ordinary $i0$
+choice enters Eq.~\eqref{eq:nnlo-top-physical-integral}.
+
+Embed the integral in the family
+\begin{align}
+ D_1&=k_e^2,&
+ D_2&=k_f^2,&
+ D_3&=(P-k_e-k_f)^2,\notag\\
+ D_4&=k_a\cdot k_f,&
+ D_5&=k_b\cdot k_e,&
+ D_6&=(P-k_e)^2,\notag\\
+ D_7&=(P-k_f)^2,&
+ D_8&=(k_a-k_c-k_f)^2,&
+ D_9&=(k_a-k_e)^2.
+ \label{eq:nnlo-family-denominators}
+\end{align}
+The first three slots are cuts and $D_4,D_5$ are irreducible scalar
+products.  With
+\begin{equation}
+ I_{\boldsymbol\nu}
+ =\int\dd^Dk_e\,\dd^Dk_f
+ \prod_{j=1}^{3}\mathcal C_+^{(\nu_j)}(D_j)
+ \prod_{j=4}^{9}D_j^{-\nu_j},
+ \label{eq:nnlo-worked-family}
+\end{equation}
+cut-aware IBP closes on
+\begin{equation}
+\begin{aligned}
+ G_1&=I_{111000000},&
+ G_2&=I_{111000010},&
+ G_3&=I_{111000011},&
+ G_4&=I_{112000011},\\
+ G_5&=I_{111001010},&
+ G_6&=I_{111001011},&
+ G_7&=I_{111001111},&
+ G_8&=I_{112001111}.
+\end{aligned}
+\label{eq:nnlo-eight-master-basis}
+\end{equation}
+The top sector $(G_7,G_8)$ is genuinely coupled.  The second integral has a
+differentiated third cut, not a fourth physical cut line.
+
+\subsection{Canonical differential system}
+
+After the homogeneous powers of (s) are removed, exact invariant
+differentiation and IBP reduction give
+\begin{equation}
+ \dd\boldsymbol J
+ =\left[A_x(x,y,\eps)\dd x+A_y(x,y,\eps)\dd y\right]
+ \boldsymbol J,
+ \label{eq:nnlo-raw-differential-system}
+\end{equation}
+with
+\begin{equation}
+ \partial_xA_y-\partial_yA_x+A_yA_x-A_xA_y=0.
+ \label{eq:nnlo-flatness}
+\end{equation}
+A rank-one double pole at $\Delta=0$ occurs only in the top block.  It is
+removed by
+\begin{equation}
+ M_{\rm top}
+ =\mathbf1_2+
+ \frac{2\eps y(1-y)(2+3\eps)}{(1+\eps)\Delta}E_{21}.
+ \label{eq:nnlo-moser-transformation}
+\end{equation}
+The subsequent rational basis change $\boldsymbol J=T\boldsymbol F$ gives
+\begin{equation}
+ \dd\boldsymbol F
+ =\eps\sum_{a=1}^{6}R_a\,\dd\log\phi_a\,\boldsymbol F,
+ \qquad
+ \{\phi_a\}=
+ \{x,1-x,y,1-y,1-x-y,(1-x)^2-y\},
+ \label{eq:nnlo-canonical-system}
+\end{equation}
+where the $R_a$ are constant matrices.  Every letter has fixed sign along
+the real transport path used below.
+
+\subsection{Boundary modes and the independent period}
+
+The boundary $y\to0^+$ is nonuniform.  At $x\to0^+$ its physical
+Frobenius expansion contains
+\begin{equation}
+ x^0,
+ \qquad x^{-\eps},
+ \qquad x^{-2\eps}.
+ \label{eq:nnlo-boundary-modes}
+\end{equation}
+The lower-sector normalizations reduce to beta and gamma functions.  If
+\begin{equation}
+ \boldsymbol B_\lambda(x)
+ =x^\lambda(b_0+xb_1+\mathcal O(x^2)),
+ \qquad
+ A(x)=\frac{A_{-1}}{x}+A_0+\mathcal O(x),
+ \label{eq:nnlo-frobenius-expansion}
+\end{equation}
+then
+\begin{equation}
+ \left[(\lambda+1)\mathbf1-A_{-1}\right]b_1=A_0b_0.
+ \label{eq:nnlo-frobenius-recurrence}
+\end{equation}
+The boundary-to-canonical map has
+$C(x)=C_{-1}/x+C_0+\mathcal O(x)$, so the finite vector is
+\begin{equation}
+ f_\lambda=C_0b_0+C_{-1}b_1.
+ \label{eq:nnlo-finite-boundary-match}
+\end{equation}
+Keeping only $b_0$ would miss a finite contribution.
+
+After the lower modes are fixed, one independent top-sector period remains.
+A manifestly real representation is
+\begin{align}
+ r_{\rm top}(\eps)={}&-
+ \frac{\Gamma(2-2\eps)\Gamma(3-3\eps)}
+      {\eps\Gamma(-2\eps)\Gamma(1-\eps)^3}
+ \int_0^1\dd\alpha\,\dd\beta\,\dd\gamma\;
+ \alpha^{-1-\eps}\beta^{-1-\eps}\gamma^{-1-\eps}
+ \notag\\[-1mm]
+ &\times(1-\alpha)^{-1-2\eps}(1-\beta)^{-1-2\eps}
+ (1-\alpha\beta)^{2\eps}(1-\alpha\beta\gamma)^\eps.
+ \label{eq:nnlo-corner-period}
+\end{align}
+Every powered base is positive for $0<\alpha,\beta,\gamma<1$.  Exact
+endpoint resolution and hyperlogarithmic integration give
+\begin{align}
+ r_{\rm top}(\eps)={}&-\frac{10}{\eps^3}
+ +\frac{65}{\eps^2}-\frac{135}{\eps}+90-8\zeta_3
+ \notag\\
+ &+\eps\left(52\zeta_3-\frac{2\pi^4}{3}\right)
+ +\eps^2\left(\frac{13\pi^4}{3}-108\zeta_3-288\zeta_5\right)
+ +\mathcal O(\eps^3).
+ \label{eq:nnlo-corner-period-series}
+\end{align}
+This is the only new period in this family beyond the beta- and gamma-function
+data.
+
+\subsection{Analytic solution and numerical comparison}
+
+The canonical boundary is transported along
+\begin{equation}
+ (0,0)\longrightarrow(x,0)\longrightarrow(x,y).
+ \label{eq:nnlo-transport-path}
+\end{equation}
+The first segment has letters $\{0,1\}$; the second has
+$\{0,1,1-x,(1-x)^2\}$.  The chamber
+\eqref{eq:nnlo-worked-chamber} places the endpoint below every nonzero letter,
+so no singular letter is crossed.  Ordered Chen integrals solve the system,
+\begin{equation}
+ \boldsymbol F(x,y)
+ =U_y(x;y)U_x(x)\boldsymbol F_\partial,
+ \qquad
+ U=P\exp\!\left[\eps\int\sum_aR_a\dd\log\phi_a\right].
+ \label{eq:nnlo-ordered-transport}
+\end{equation}
+The residue matrices do not commute, so the path and word order are part of
+the result.
+
+Normalize by
+\begin{equation}
+ \mathcal N_0(\eps)=s^{-1+2\eps}G_1(s,0,0;\eps),
+ \qquad
+ \widehat G_7=\frac{s^{3+2\eps}G_7}{\mathcal N_0}.
+ \label{eq:nnlo-top-normalization}
+\end{equation}
+Then
+\begin{equation}
+ \widehat G_7(x,y;\eps)
+ =\sum_{n=-3}^{2}\eps^ng_n(x,y)+\mathcal O(\eps^3),
+ \qquad g_{-4}=0,
+ \label{eq:nnlo-top-series}
+\end{equation}
+with
+\begin{equation}
+ g_{-3}=-\frac{5}{\Delta^2},
+ \label{eq:nnlo-gminus3}
+\end{equation}
+\begin{equation}
+ g_{-2}=\frac{1}{\Delta^2}
+ \left[\frac{65}{2}-4\mathcal G(0;x)+10\mathcal G(1;x)
+ -6\mathcal G(1;y)+20\mathcal G(1-x;y)\right].
+ \label{eq:nnlo-gminus2}
+\end{equation}
+Here
+\begin{equation}
+ \mathcal G(a_1,\ldots,a_n;z)
+ =\int_0^z\frac{\dd t}{t-a_1}\mathcal G(a_2,\ldots,a_n;t),
+ \qquad \mathcal G(;z)=1,
+ \label{eq:nnlo-gpl-definition}
+\end{equation}
+with tangential regularization at zero.  The coefficients through
+$\eps^2$ are exact iterated-integral expressions retained in the ancillary
+file \texttt{ancillary/NNLO\_three\_particle\_cut\_master.wl}.
+
+At $s=10$, $x=3/10$, and $y=1/5$, define
+\begin{equation}
+ R(\eps)=s^4\frac{G_7}{G_1}
+ =\sum_{n=-4}^{2}r_n\eps^n+\mathcal O(\eps^3).
+ \label{eq:nnlo-fixed-point-ratio}
+\end{equation}
+The analytic expression and an independently generated \AMFlow\ calculation
+give the coefficients in Table~\ref{tab:nnlo-amflow}.
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{@{}cr@{}}
+\toprule
+$n$ & $r_n$\\
+\midrule
+$-4$ & $0$\\
+$-3$ & $-40$\\
+$-2$ & $282.32024127181498559344$\\
+$-1$ & $-662.90998166471340573018$\\
+$0$ & $418.83703822298626042003$\\
+$1$ & $-12.21808964614470122794$\\
+$2$ & $-32.81177029956454278367$\\
+\bottomrule
+\end{tabular}
+\caption{Laurent coefficients of Eq.~\eqref{eq:nnlo-fixed-point-ratio}.
+The analytic and \AMFlow\ values agree to relative precision $10^{-12}$.}
+\label{tab:nnlo-amflow}
+\end{table}
+
+Two additional stored families have been solved through $\eps^2$ by the
+same differential-equation and boundary-period procedure and compared with
+independent \AMFlow\ values.  They demonstrate reuse of the method across
+distinct families but do not complete the 342-master basis.
+
+\subsection{Remaining analytic work}
+
+The current counts identify which integrals occur and which denominator
+classes are maximal.  They do not yet determine all scalar boundary periods
+for the 342-master system.  The next analytic step is to construct the
+differential closures of the 17 maximal nontrivial classes, determine their
+physical local modes, and quotient their boundary data by exact period
+identities.  Only after all required masters are known analytically can their
+rational coefficients be assembled and the NNLO endpoint distributions be
+extracted.

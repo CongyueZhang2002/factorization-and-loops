@@ -1,0 +1,34 @@
+\section{Alternative methods and their domain of validity}
+\label{app:alternative-methods}
+
+Several related methods are useful in restricted circumstances but do not
+replace the analytic cut-master calculation described above.
+
+\paragraph{A single global discontinuity.}
+The discontinuity of an uncut forward integral sums the physical cuts allowed
+in the chosen channel.  It equals a desired multi-particle cut only when a
+Cutkosky analysis proves that every other cut is absent or can be separated.
+For a general family with several physical cuts, one global discontinuity does
+not identify the required cut integral and can combine different phase-space
+regions.
+
+\paragraph{Numerical differential equations.}
+\AMFlow\ evaluates masters at fixed kinematic points with high precision.  It
+is valuable for comparing Laurent coefficients and diagnosing boundary data,
+but a collection of fixed-point values does not provide the analytic function
+or its endpoint branches.
+
+\paragraph{Direct phase-space integration.}
+For linearly reducible parameter densities, direct analytic integration is a
+main route and is used in Section~\ref{sec:analytic-masters}.  It becomes less
+efficient when several endpoint regions overlap or when a coupled family has
+many scales.  Differential equations then reduce the direct integrations to a
+smaller set of boundary periods.
+
+\paragraph{A precomputed library of exact masters.}
+Known master formulas can shorten a calculation, but they cannot define a
+general workflow because the required denominator families are discovered
+from the amplitudes.  Whenever a known result is used, its measure, cuts,
+branch, and normalization must be mapped explicitly to the family appearing
+in the hard coefficient.
+

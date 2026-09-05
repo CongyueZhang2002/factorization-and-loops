@@ -1,0 +1,993 @@
+# CF303 Rank One Alphabet
+
+## Question
+
+Continue the existing Assess Multiquadratic Pipeline assessment. This is a context-bearing checkpoint, not a fresh problem.
+
+Current exact status:
+
+1. The immutable pinned CF300 sector 12->9 strip has now been solved exactly after a birational two-root chart. The finite-field reconstruction, independent ordinary-derivative pullback, exact Pfaffian/dlog checks, common-row support test, source-field injectivity proof, and unipotent block transformation manifest all pass. The FeynFacet package was not modified.
+
+2. We resumed CF303 from a preserved sector-16 state. Sector 17 strips to 16, 15, 14, and 13 have all recomputed and passed construction primes, held-out samples, an unseen prime, and numerical Pfaffian residuals. We are waiting for the exact row-gauge stage/next algebraic stop.
+
+3. CF303's full coefficient field has the three square roots lambda2, lambda3, and sqrt(1-4 v w). Any pair is rationalizable: the catalog covers lambda2+lambda3, while the CF300 V2 chart (or x<->y swap) covers lambda3+sqrt(1-4vw) or lambda2+sqrt(1-4vw). After either pair chart the full field is rank one, K=Q(p,q)(R), R^2=F(p,q), rather than an eight-grade rank-three field.
+
+4. The current package direct multiquadratic solver already accepts an explicit "OneForms" basis and can reconstruct the gauge/residues, branch-check it, and exact-check channel residuals. Its Automatic basis is deliberately only closed one-forms, so terminal success is ModularConsistent with SolutionContract -> OneFormsNotCertified; it will not install because the package contract requires explicit letters L_a and exact identities dlog(L_a)=omega_a.
+
+We want an external, package-read-only mathematical solution first. My proposed rank-one closure route is:
+
+- pull all certified diagonal class alphabets into the chosen pair chart;
+- preserve forcing-entry potentials rather than merely differentiating and discarding them;
+- generate algebraic letter candidates L=A+B R from irreducible pole/zero divisors of forcing entries and their conjugates/norms A^2-B^2 F;
+- compute dlog(L) exactly in the two-grade basis {1,R};
+- solve a constant-coefficient span problem for every diagonal and forcing one-form;
+- run the existing finite-field solve with that explicit OneForms basis;
+- map residues back to letters and verify the full strip exactly, including the R->-R branch and the source/chart pullback.
+
+Please assess this route adversarially. In particular:
+
+A. Is it mathematically sufficient to certify an epsilon-form strip over K on a generic open set, or is there another theorem-level condition beyond exact dlog identities, constant residues, exact gauge residual, and birational pullback/injectivity?
+
+B. Give the most efficient deterministic algorithm for discovering a finite set of letters A+B R from a supplied finite set of closed one-forms over K. Please distinguish a practical candidate generator from a completeness theorem. Should we work via pole divisors/residues and norms, via integrating the two grades, via an S-unit computation on R^2=F, or another method?
+
+C. What exact adversarial checks best prevent false promotion (missed exact part, hidden non-logarithmic differential, branch/orientation error, norm-only collapse, or a letter that is zero/undefined generically)?
+
+D. If F defines a positive-genus curve over Q(p) or Q(q), can that obstruct a dlog representation of the particular strip one-forms even though the original differential equation is expected to admit epsilon form? How should we test for that obstruction early without Mathematica and without launching a broad chart search?
+
+Please return a prioritized next experiment that can be run on the first captured CF303 algebraic strip, and state clear pass/fail criteria. Do not assume we may edit the package.
+
+## Pro response
+
+Decisive assessment
+
+The proposed rank-one closure route is mathematically sound as an acceptance route, but the discovery stage should be tightened:
+
+Pull known letters first, reduce the actual matrix-valued form space, split each remaining form into Galois-even and Galois-odd parts, and test divisorial logarithmic integrability before generating broad A+BR candidates.
+
+Searching factors and norms is a useful candidate generator, but it is not a completeness theorem. A rigorous failure requires either a principal-divisor/de Rham obstruction or an exact inconsistency certificate.
+
+The external explicit-OneForms route is also aligned with the package’s existing safety contract: the report explicitly states that a direct strip solver must not claim Solved until every closed one-form has a verified compatible dlog potential. 
+
+codex_overnight_optimization_tr…
+
+A. Is the route theorem-level sufficient?
+
+Let
+
+k=Q(p,q),K=k(R),R
+2
+=F(p,q),
+
+and let τ denote the nontrivial automorphism
+
+τ(R)=−R.
+
+For an off-diagonal strip, suppose the exact transformation satisfies
+
+B
+new
+	​
+
+=
+B
++ϵ(EG−GC)−dG=ϵ
+a
+∑
+	​
+
+M
+a
+	​
+
+dlogL
+a
+	​
+
+,
+
+with
+
+L
+a
+	​
+
+∈K
+×
+,M
+a
+	​
+
+∈Mat(Q).
+
+The following conditions are sufficient:
+
+F is squarefree-normalized and nonsquare in k, or the field is reduced to its actual lower degree.
+
+The chart gives an exact birational function-field isomorphism and commutes with both derivations.
+
+The full basis transformation U is exactly invertible; for the strip convention this is the already established unipotent identity, not invertibility of G.
+
+The transformation equation holds exactly in both dp and dq components.
+
+Every M
+a
+	​
+
+ is independent of p,q,ϵ; the only ϵ-dependence of the new strip is the overall factor.
+
+Every identity
+
+ω
+a
+	​
+
+=dlogL
+a
+	​
+
+
+holds in the two-grade field K=k⊕kR.
+
+Each L
+a
+	​
+
+ is a nonzero element of K, with all chart, letter, and gauge denominators included in the declared exceptional set.
+
+The exact source/chart pullback and R↦−R conjugation checks pass.
+
+Under these conditions, no additional geometric theorem is required. This is an exact epsilon-factorized dlog strip on the stated generic open set. Henn’s canonical setup is precisely based on factorizing the regulator and representing the kinematic connection through fixed differential forms; here the stronger dlog property is being checked directly rather than inferred. 
+arXiv
+
+Flatness is inherited from the source connection under an exact invertible gauge transformation. An independent check of
+
+dΩ=0,Ω∧Ω=0,Ω=
+a
+∑
+	​
+
+M
+a
+	​
+
+dlogL
+a
+	​
+
+,
+
+is nevertheless a strong implementation oracle, not an additional theorem-level assumption.
+
+Important distinction
+
+If the explicit dlog step fails but the exact equation
+
+B
+new
+	​
+
+=ϵ
+a
+∑
+	​
+
+M
+a
+	​
+
+ω
+a
+	​
+
+
+holds for closed algebraic one-forms ω
+a
+	​
+
+, then the strip is still epsilon-factorized. It is not yet certified as an algebraic-dlog canonical strip and therefore does not meet the current package installation contract.
+
+Positive-genus examples can admit epsilon-factorized differential equations while requiring period-normalized bases or non-dlog kernels. Thus “epsilon form exists” does not imply “an alphabet L
+a
+	​
+
+∈K
+×
+ exists.” 
+arXiv
+
+B. Most efficient deterministic letter-discovery algorithm
+First reduce the object being integrated
+
+Do not automatically demand that every raw forcing form supplied by an intermediate representation be individually logarithmic.
+
+Flatten all matrix entries of the diagonal and forcing connections, and compute the minimal Q-vector space
+
+W⊂Ω
+K
+1
+	​
+
+
+actually needed to represent those matrix-valued connections. Remove:
+
+duplicate forms;
+
+constant linear dependencies;
+
+forms whose matrix coefficients cancel identically;
+
+forms used only in an intermediate decomposition.
+
+Only a basis of W needs to be integrated.
+
+This avoids a false negative in which a redundant raw form is non-dlog although the complete matrix-valued connection has a dlog representation.
+
+A useful simplification
+
+Under the intended rational-constant residue contract, if
+
+ω=
+j
+∑
+	​
+
+c
+j
+	​
+
+dlogL
+j
+	​
+
+,c
+j
+	​
+
+∈Q,
+
+then for some positive integer m,
+
+mω=dlogL,L=
+j
+∏
+	​
+
+L
+j
+mc
+j
+	​
+
+	​
+
+∈K
+×
+.
+
+Thus each scalar basis form can be tested as a logarithmic derivative of a single field element after clearing rational coefficients. A shared alphabet can later be recovered by factoring the resulting L's and reusing common factors.
+
+This fails only if the allowed constants are genuinely outside Q; in that case one should first decompose over a basis of the exact constant field.
+
+Galois trace/anti-trace decomposition
+
+Every field element is of the form
+
+L=A+BR,A,B∈k.
+
+Its norm is
+
+N(L)=Lτ(L)=A
+2
+−B
+2
+F.
+
+The exact logarithmic derivative is
+
+dlog(A+BR)=
+2
+1
+	​
+
+dlog(A
+2
+−B
+2
+F)+
+A
+2
+−B
+2
+F
+R
+	​
+
+(AdB−BdA+
+2F
+AB
+	​
+
+dF).
+	​
+
+
+Therefore:
+
+dlogL+dlogτ(L)=dlogN(L).
+
+This immediately separates discovery into two problems:
+
+the invariant part is controlled by rational norms;
+
+the anti-invariant part records how divisors split between the R and −R sheets.
+
+A norm-only search is necessarily blind to the anti-invariant part.
+
+Recommended practical algorithm
+Step 1: pull existing letters, not only their derivatives
+
+For every certified diagonal alphabet letter and every forcing entry whose potential is already known as an algebraic letter:
+
+pull the letter itself into the pair chart;
+
+normalize it to A+BR;
+
+compute its conjugate and norm;
+
+verify its dlog independently.
+
+This is the highest-value source of letters.
+
+A caution: if “potential” means merely
+
+ω=dϕ
+
+for an algebraic or rational ϕ, that does not make ϕ a letter. Generally,
+
+dϕ
+
+=dlogL
+
+for algebraic L. Such a potential identifies an exact, non-logarithmic part unless an explicit L∈K
+×
+ satisfies dϕ=dlogL.
+
+Step 2: split the residual forms
+
+For each residual form,
+
+ω=ω
++
++ω
+−
+,
+
+where
+
+ω
++
+=
+2
+ω+τ(ω)
+	​
+
+,ω
+−
+=
+2
+ω−τ(ω)
+	​
+
+.
+
+Solve the rational trace part first using:
+
+pulled rational letters;
+
+irreducible rational pole factors;
+
+norms of pulled algebraic letters;
+
+divisors at infinity.
+
+Only then generate algebraic letters for the unsolved anti-invariant part.
+
+Step 3: compute divisorial pole data
+
+On the normalization of
+
+R
+2
+=F(p,q),
+
+including the relevant divisors at infinity, determine for each residual form:
+
+every irreducible pole divisor;
+
+pole order;
+
+residue;
+
+whether the divisor is ramified, inert, or split under K/k.
+
+For a rational divisor h(p,q)=0, splitting can be tested by factoring
+
+(h,R
+2
+−F)
+
+in the normalized coordinate ring, or equivalently by checking whether F becomes a square in the function field of h=0.
+
+If
+
+F≡s
+2
+(modh),
+
+then the two primes are locally
+
+P
+±
+	​
+
+=(h,R∓s).
+
+Unequal residues at P
++
+	​
+
+ and P
+−
+	​
+
+ prove that rational norms alone cannot span the form.
+
+Step 4: form the residue divisor
+
+If all residues are rational, choose m so that all residues of mω are integers and form
+
+D
+ω
+	​
+
+=
+P
+∑
+	​
+
+mRes
+P
+	​
+
+(ω)P.
+
+If
+
+mω=dlogL,
+
+then necessarily
+
+D
+ω
+	​
+
+=div(L).
+
+Therefore:
+
+if D
+ω
+	​
+
+ is not principal, no algebraic dlog representation exists;
+
+if it is principal, recover L, normalize it to A+BR, and check
+
+mω−dlogL=0
+
+exactly.
+
+That last equality is essential. Principality of the residue divisor alone does not exclude an additional holomorphic or second-kind differential.
+
+Step 5: solve only targeted norm equations
+
+When a principal function is not recovered directly, use the divisor data to solve a bounded norm equation
+
+A
+2
+−B
+2
+F=N,
+
+where the support and exponents of N are fixed by the observed rational divisors.
+
+This is much better than enumerating arbitrary low-degree A,B. The local valuations determine:
+
+which rational factors can occur in N;
+
+their allowed exponents;
+
+which split sheet must carry each zero or pole;
+
+degree bounds at infinity.
+
+Step 6: exact constant span
+
+Compute every candidate dlogL
+j
+	​
+
+ in the basis
+
+{dp,dq,Rdp,Rdq},
+
+clear rational denominators, and solve
+
+ω
+i
+	​
+
+=
+j
+∑
+	​
+
+c
+ij
+	​
+
+dlogL
+j
+	​
+
+,c
+ij
+	​
+
+∈Q.
+
+Then verify every identity exactly. Remove multiplicative redundancies using the constant nullspace among the dlogs.
+
+What is practical, and what is complete?
+Practical candidate generator
+
+The following is high-yield but not complete:
+
+pulled source letters;
+
+forcing-entry letters;
+
+irreducible pole factors;
+
+conjugates and norms;
+
+low-degree norm equations prescribed by local divisor data.
+
+It can miss a principal function whose divisor uses auxiliary components that cancel in the final differential.
+
+Completeness theorem
+
+Let 
+X
+ be a smooth projective model of R
+2
+=F, and let S contain all poles and boundary divisors. Put
+
+U=
+X
+∖S.
+
+A complete computation requires:
+
+the S-unit group
+
+O(U)
+×
+/Q
+×
+,
+
+equivalently the kernel of
+
+Div
+S
+	​
+
+(
+X
+)⟶Pic(
+X
+);
+
+the image of its logarithmic derivative in the closed logarithmic one-forms;
+
+the algebraic de Rham class of the residue-free remainder.
+
+On curves, divisor principality, Riemann–Roch spaces, differential spaces, and recovery of principal functions are standard exact computations; Magma exposes these operations directly. 
+Magma
++1
+ Trager’s and Bronstein’s algebraic-integration methods use Hermite reduction, residues, and principality to decide elementary/logarithmic integrability. 
+DSpace at MIT
++1
+
+On the full two-dimensional surface this global S-unit/Picard computation is substantially heavier. It should be reserved for a genuine residual obstruction, not used as tonight’s first candidate generator.
+
+C. Exact adversarial checks
+Failure mode	Required exact gate
+Missed exact part	After the dlog span is solved, require the full remainder to be identically zero. “Closed,” “exact,” or numerically zero is insufficient.
+Hidden non-logarithmic differential	On the normalized model, require all poles to be logarithmic. A genuine second- or higher-order pole cannot occur in dlogL.
+Nonconstant residues	Every divisorial residue and every matrix coefficient multiplying a dlog must be independent of p,q,ϵ.
+Branch error	Verify τ(dlogL)=dlogτ(L) and the full strip under R↦−R. Include a wrong-branch mutant.
+Orientation error	Verify the exact package convention 
+B
++ϵ(EG−GC)−dG. Mutants with GE−CG, +dG, or inverse Jacobian pullback must fail.
+Norm-only collapse	Check the full two-grade derivative of L, not only dlogN(L). Separately compare invariant and anti-invariant parts.
+Invalid letter	After common-denominator normalization, verify N(L)=A
+2
+−B
+2
+F
+
+≡0. Bind all letter denominators and include their zero loci in the open-set certificate.
+Singular affine model artifact	Squarefree-normalize F and evaluate pole orders on the normalization, especially at ramification and infinity.
+Redundant or fake alphabet	Compute the exact constant nullspace of the candidate dlogs and remove multiplicative dependencies. Redundancy is harmless but must not hide a missing direction.
+Sampling nullspace mistaken for functional nullspace	Every gauge and residue null vector must pass unseen points, unseen primes, both R-branches, and exact characteristic-zero equations.
+Incomplete form target	Reduce the actual matrix-valued connection to a minimal scalar form basis before attempting letter closure.
+Failure hidden by pullback	Verify the source/chart function-field isomorphism and then verify the exact source-frame residual, not just chart-space equality.
+Flatness assembly error	Independently verify the full transformed block’s flatness, although exact gauge transformation theoretically preserves it.
+
+A useful additional identity for every candidate is
+
+dlogL+dlogτ(L)−dlogN(L)=0.
+
+This detects several sign, norm, and differentiation errors simultaneously.
+
+D. Positive-genus obstruction
+Yes, it can obstruct the dlog representation
+
+Suppose one regards p as a parameter and considers the generic fiber
+
+C
+p
+	​
+
+:R
+2
+=F(p,q)
+
+over Q(p).
+
+If F is squarefree of degree three or four in q, the generic fiber is genus one. If it has degree five or six, the generic hyperelliptic fiber is generally genus two, after accounting correctly for infinity.
+
+A positive-genus fiber does not by itself rule out the particular dlog letters needed by the strip. Many individual functions L∈K
+×
+ still exist and have valid logarithmic derivatives.
+
+It does introduce two possible obstructions:
+
+Divisor-class obstruction: the residue divisor of a proposed logarithmic form need not be principal, even after multiplication by an integer.
+
+Cohomological obstruction: after all residues are removed, a nonzero holomorphic or second-kind differential may remain.
+
+Either obstruction proves that the particular form is not a rational constant combination of dlogL with L∈K
+×
+.
+
+This does not contradict an expected epsilon-factorized differential equation. Elliptic Feynman-integral systems can require period normalizations and elliptic or modular integration kernels rather than algebraic dlogs. 
+arXiv
+
+Earliest decisive test without Mathematica
+
+Use the projection giving the lowest generic genus, normally the variable in which F has degree three or four.
+
+For every residual form
+
+ω=udp+vdq,
+
+restrict it to the generic fiber:
+
+dp=0,η=v(p,q,R)dq.
+
+Then perform exact algebraic-function Hermite reduction:
+
+η=df+η
+log
+	​
+
++η
+red
+	​
+
+,
+
+where:
+
+η
+log
+	​
+
+ has simple poles and explicit residues;
+
+η
+red
+	​
+
+ is represented in a de Rham basis of the smooth curve.
+
+The decision gates are:
+
+A nonzero higher-pole remainder: not dlog.
+
+A nonrational or kinematically varying residue: not a constant-coefficient dlog.
+
+A residue divisor that is not Q-principal: not dlog.
+
+A nonzero η
+red
+	​
+
+ after subtracting the recovered logarithmic derivative: not dlog.
+
+The superelliptic integration literature implements precisely the divisor/principality and reduced-differential logic behind this test. 
+arXiv
+
+Fast specialization screen
+
+If generic-function-field reduction is initially inconvenient, specialize
+
+p=p
+0
+	​
+
+∈Q
+
+at one or more exact good values such that:
+
+F(p
+0
+	​
+
+,q) is squarefree;
+
+no chart, strip, or candidate denominator degenerates;
+
+all relevant divisors remain distinct.
+
+A global identity
+
+ω=∑c
+j
+	​
+
+dlogL
+j
+	​
+
+
+would specialize to a corresponding identity on every such good fiber. Therefore a rigorous non-principality or nonzero-de Rham-remainder result on one good exact fiber disproves the global algebraic-dlog representation.
+
+A successful specialization is only evidence; it is not a global proof.
+
+No broad chart search follows from a genuine obstruction
+
+Existence of
+
+ω=∑c
+j
+	​
+
+dlogL
+j
+	​
+
+,L
+j
+	​
+
+∈K
+×
+,
+
+is invariant under birational coordinate changes of the same function field. A rigorous divisor or de Rham obstruction in K will not be cured by choosing a different pair chart. Another chart may reduce expression swell, but not change the theorem-level existence question.
+
+Prioritized first-strip experiment
+Experiment: CF303RankOneLetterClosureProbeV1
+
+This should be an external, immutable, package-read-only campaign.
+
+Gate 1: capture and field certification
+
+After CF303 reaches its first algebraic stop:
+
+freeze the exact strip, diagonal blocks, recursive forcing data, and state hashes;
+
+recompute the dependency-closed root census;
+
+choose the pair chart;
+
+prove the chart/inverse identities;
+
+prove
+
+K=Q(p,q)(R),R
+2
+=F,
+
+with F squarefree and nonsquare;
+
+independently verify the differential pullback.
+
+If only one or two roots are active, rationalize those roots completely and skip the rank-one closure machinery.
+
+The earlier report already established that CF303 shares the CF300 ordered three-root field but requires fresh family-specific states, preparations, and strip captures. 
+
+codex_overnight_optimization_tr…
+
+Gate 2: minimal form-space construction
+
+Flatten the exact diagonal and forcing connections into a minimal Q-basis
+
+W=⟨ω
+1
+	​
+
+,…,ω
+m
+	​
+
+⟩.
+
+Persist both projection maps:
+
+original matrix entries →W;
+
+W→ original matrix entries.
+
+Fail if the reduction is not exact.
+
+Gate 3: pulled-letter seed test
+
+Pull:
+
+every certified diagonal letter;
+
+every genuine forcing letter or source potential already known to be a dlog;
+
+their necessary conjugates and norms.
+
+Compute all dlogs exactly and test whether they span W.
+
+Pass: every ω
+i
+	​
+
+ has an exact constant-coefficient representation.
+
+Proceed directly to the finite-field gauge solve.
+
+Fail: retain only the exact residual subspace W
+rem
+	​
+
+. Do not enlarge the entire alphabet.
+
+Gate 4: early logarithmic-obstruction test
+
+For every form in W
+rem
+	​
+
+:
+
+split invariant and anti-invariant grades;
+
+compute all finite and infinite pole divisors;
+
+verify logarithmic pole order;
+
+compute exact residues;
+
+run the lowest-genus generic-fiber Hermite/principality test.
+
+Sharp outcomes:
+
+NonLogarithmicPole: stop the algebraic-dlog search for the present form space.
+
+NonConstantResidue: stop.
+
+NonPrincipalResidueDivisor: stop; this is a theorem-level obstruction.
+
+NonzeroDeRhamRemainder: stop; this is a theorem-level obstruction.
+
+LogarithmicCandidateRecoverable: recover the principal function L=A+BR.
+
+Do not switch pair charts after a theorem-level obstruction merely to search for the same identity in different coordinates.
+
+Gate 5: targeted candidate completion
+
+For forms not resolved directly:
+
+use their residue divisors to prescribe a norm support;
+
+solve only the resulting bounded equations
+
+A
+2
+−B
+2
+F=N;
+
+verify the full dlog identity;
+
+rerun the exact constant span of W.
+
+Pass: all of W is exactly spanned.
+
+Fail: report OneFormsNotCertified with the exact unresolved form or obstruction. Do not interpret a large failed factor census as a theorem.
+
+Gate 6: existing finite-field gauge solve
+
+Invoke the current solver with the explicit certified OneForms.
+
+Require:
+
+stable generic consistency across construction primes and regulator images;
+
+fixed normalization/nullspace convention;
+
+held-out points and an unseen prime;
+
+both R branches;
+
+exact characteristic-zero gauge residual.
+
+A modularly consistent gauge with an incomplete dlog span remains only ModularConsistent, not solved.
+
+Gate 7: exact external acceptance
+
+Call the strip solved externally only after all of the following pass:
+
+B
++ϵ(EG−GC)−dG=ϵ
+a
+∑
+	​
+
+M
+a
+	​
+
+dlogL
+a
+	​
+
+
+in both differential components and both grades;
+
+τ(residual)=0;
+
+the source/chart pullback and inverse are exact;
+
+the unipotent transformation has its exact two-sided inverse;
+
+all M
+a
+	​
+
+ are constant and ϵ-independent;
+
+all letters are nonzero elements of K on a declared nonempty generic open set.
+
+Tonight’s routing decision
+
+First: pull and test the already known diagonal and forcing letters.
+
+Second: run residue/principality and generic-fiber reduction only on the unresolved form subspace.
+
+Third: generate targeted A+BR letters from the resulting divisor data.
+
+Fourth: feed the certified explicit alphabet to the existing solver.
+
+Stop immediately on a nonprincipal residue divisor or nonzero de Rham remainder; those are mathematical obstructions, not calls for a larger candidate census.
+
+This is the shortest route that can produce either an exact solved CF303 strip or an exact, informative reason why algebraic dlogs over the rank-one field are insufficient.

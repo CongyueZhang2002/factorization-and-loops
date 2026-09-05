@@ -1,0 +1,77 @@
+\section{Cut-aware topology equivalence}
+\label{app:topology-equivalence}
+
+A cut topology is specified by
+\begin{equation}
+ \mathcal T=(\boldsymbol D,\boldsymbol\ell,\boldsymbol p,\mathcal K;
+ C,\boldsymbol\xi,\mathcal S,\boldsymbol{\mathfrak m}),
+ \label{eq:cut-topology-record}
+\end{equation}
+where $\boldsymbol D=(D_1,\ldots,D_N)$ is the ordered family,
+$\boldsymbol\ell$ and $\boldsymbol p$ are the integration and external
+momenta, $\mathcal K$ contains the external kinematic relations, $C$ is the
+set of cut slots, and $\xi_c=\pm1$ is the cut energy orientation.  The
+partition $\mathcal S$ distinguishes phase-space, forward-virtual, and
+conjugate-virtual integration momenta.  The optional labels
+$\mathfrak m_i$ record a measured or otherwise distinguished line.
+
+Two records $\mathcal T$ and $\mathcal T'$ are equivalent when there is an
+affine map
+\begin{equation}
+ \ell_r=\sum_sA_{rs}\ell'_s+\sum_aB_{ra}p_a,
+ \qquad A_{rs},B_{ra}\in\mathbb Q,
+ \qquad |\det A|=1,
+ \label{eq:topology-affine-map}
+\end{equation}
+and a permutation $\pi\in S_N$ such that
+\begin{equation}
+ D_i(\ell,p)\big|_{\eqref{eq:topology-affine-map}}
+ \stackrel{\mathcal K}{=}D'_{\pi(i)}(\ell',p).
+ \label{eq:topology-denominator-map}
+\end{equation}
+No slot-dependent multiplicative factor is allowed.  The map must satisfy
+\begin{equation}
+ \pi(C)=C',
+ \qquad
+ q_i\big|_{\eqref{eq:topology-affine-map}}
+ =s_iq'_{\pi(i)},
+ \qquad
+ \xi'_{\pi(i)}=s_i\xi_i,
+ \qquad s_i=\pm1,
+ \label{eq:topology-cut-map}
+\end{equation}
+for every cut slot.  It must also preserve the members of $\mathcal S$ and
+transport each defined label $\mathfrak m_i$ to
+$\mathfrak m'_{\pi(i)}$.  The determinant condition preserves the
+dimensionally regulated measure.
+
+If the source indices are $\boldsymbol\nu$, the exact change of variables
+gives
+\begin{equation}
+ I_{\mathcal T}(\nu_1,\ldots,\nu_N)
+ =I_{\mathcal T'}
+ (\nu_{\pi^{-1}(1)},\ldots,\nu_{\pi^{-1}(N)}).
+ \label{eq:topology-index-map}
+\end{equation}
+This is the powered-integral equivalence used to reuse an IBP reduction.
+
+For example, consider
+\begin{align}
+ \boldsymbol D_A&=(\ell_1^2,\ell_2^2,(\ell_1-\ell_2)^2,
+ (\ell_1-p)^2,(\ell_1+\ell_2-p)^2),\notag\\
+ \boldsymbol D_B&=(r_1^2,r_2^2,(r_1-r_2)^2,
+ (r_2-p)^2,(r_1+r_2-p)^2).
+ \label{eq:topology-example-families}
+\end{align}
+The map $\ell_1=r_2$, $\ell_2=r_1$ has determinant $-1$ and induces
+$\pi=(12)$.  If slots 1 and 2 are cuts with orientations
+$(+1,-1)$ in $A$ and $(-1,+1)$ in $B$, and the remaining sector and
+line labels agree, then
+\begin{equation}
+ I_A(\nu_1,\nu_2,\nu_3,\nu_4,\nu_5)
+ =I_B(\nu_2,\nu_1,\nu_3,\nu_4,\nu_5).
+ \label{eq:topology-example-identity}
+\end{equation}
+Keeping the orientations $(+1,-1)$ in both records would violate
+Eq.~\eqref{eq:topology-cut-map}, even though the quadratic denominators still
+match.

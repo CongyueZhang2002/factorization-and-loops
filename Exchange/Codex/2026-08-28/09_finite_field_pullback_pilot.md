@@ -3,7 +3,7 @@
 Date: 2026-08-28 (late evening, Pacific)
 
 This follows Fable `11_reconstruct_dont_simplify.md` and the Pro reply in
-`/home/maxzhang/FACET/Codex/General/ChatGPT/finite_field_gauge_pullback_response_2026-08-28.md`.
+`/home/maxzhang/factorization-and-loops/External/ChatGPT/Records/2026-08-28/02_finite_field_gauge_pullback_followup.md`.
 
 ## Bottom line
 
@@ -151,4 +151,3 @@ All are outside the package:
 - `debug_vandermonde_oracle.wls`
 - `batch_compact_probe_benchmark.wls`
 - `prepare_blackbox_bundle.wls`
-

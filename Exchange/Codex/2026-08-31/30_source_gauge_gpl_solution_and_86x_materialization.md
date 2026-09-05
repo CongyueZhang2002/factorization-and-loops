@@ -57,7 +57,7 @@ The Python provider generator formerly emitted the SymPy name `u_target` literal
 - `/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_analytic_transport/CF303_SELECTED21_PAPER_GPL_SOLUTION.md`
 - `/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_analytic_transport/cf303_selected21_source_gpl_census_complete.wl`
 - `/home/maxzhang/factorization-and-loops-codex/Runtime/2026-08-31_cf303_analytic_transport/cf303_selected21_closure_audit.wl`
-- Pro audit: `/home/maxzhang/FACET/Codex/General/ChatGPT/cf303_source_gpl_operator_audit_response_2026-08-31.md`
+- Pro audit: `/home/maxzhang/factorization-and-loops/External/ChatGPT/Records/2026-08-31/02_cf303_source_gpl_operator_audit.md`
 
 The primary ancillary is compact on purpose: it stores the exact 21-letter residue operator, source gauge, boundary embedding, path contract and on-demand row/order materializer. Expanding all rows into one textual expression would create 3.43 million row-terms. The artifact also contains an explicitly materialized four-term GPL example for source master 9 at `eps^0`.
 

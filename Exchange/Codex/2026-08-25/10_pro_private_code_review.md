@@ -3,7 +3,7 @@
 **Date received:** 2026-08-25/26 PDT  
 **Conversation:** existing `Assess Multiquadratic Pipeline` Pro chat  
 **Code reviewed:** supplied archive of `f3738b1eac5d00537630dffb248855f3bc22975c`, including all 34 files under `FeynFacet/Private`  
-**Independence:** this is a condensed, method-only extraction of Pro's response. Codex's conclusions and benchmark were not added. The full raw response remains at `/home/maxzhang/FACET/Codex/General/ChatGPT/private_hardening_review_20260825/pro_response.md`.
+**Independence:** this is a condensed, method-only extraction of Pro's response. Codex's conclusions and benchmark were not added. The full exchange remains at `/home/maxzhang/factorization-and-loops/External/ChatGPT/Records/2026-08-25/01_private_hardening_review.md`.
 
 The original response also discussed persistence and deadline hardening. Those sections are omitted here because the requested review is the actual mathematics, algorithms, generality, and performance.
 

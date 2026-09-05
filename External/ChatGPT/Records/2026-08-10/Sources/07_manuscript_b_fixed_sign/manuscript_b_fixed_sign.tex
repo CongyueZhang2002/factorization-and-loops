@@ -1,0 +1,82 @@
+\section{Fixed-sign theorem for non-virtual denominators}
+\label{app:fixed-sign}
+
+Let $k_a,k_b$ be future-directed incoming null momenta and let
+$p_1,\ldots,p_n$ be future-directed outgoing null momenta, with
+\begin{equation}
+ k_a+k_b=\sum_{i=1}^{n}p_i,
+ \qquad s=2k_a\cdot k_b>0.
+ \label{eq:sign-theorem-kinematics}
+\end{equation}
+For real $a,b,c_i$, define
+\begin{equation}
+ Q=ak_a+bk_b+\sum_{i=1}^{n}c_ip_i,
+ \qquad
+ \mu_{ij}=(a+c_i)(b+c_j),
+ \quad i\ne j.
+ \label{eq:sign-theorem-Q}
+\end{equation}
+Then, on the closure of the physical massless phase space,
+\begin{equation}
+ \min_{i\ne j}\mu_{ij}
+ \leq\frac{Q^2}{s}\leq
+ \max_{i\ne j}\mu_{ij},
+ \label{eq:fixed-sign-bound}
+\end{equation}
+and both bounds are attained as boundary limits.  Therefore $Q^2\geq0$ if
+all $\mu_{ij}\geq0$, and $Q^2\leq0$ if all
+$\mu_{ij}\leq0$.  Equality on a soft or collinear boundary is allowed.  If
+the set $\{\mu_{ij}\}$ contains both signs, the theorem does not certify the
+denominator.
+
+To prove Eq.~\eqref{eq:fixed-sign-bound}, introduce
+\begin{equation}
+ x_i=\frac{2k_b\cdot p_i}{s},
+ \qquad
+ y_i=\frac{2k_a\cdot p_i}{s},
+ \qquad
+ z_{ij}=\frac{2p_i\cdot p_j}{s}=z_{ji}.
+ \label{eq:sign-edge-data}
+\end{equation}
+These quantities are nonnegative and obey
+\begin{equation}
+ \sum_i x_i=\sum_i y_i=1,
+ \qquad
+ x_i+y_i=\sum_{j\ne i}z_{ij},
+ \qquad
+ \sum_{i<j}z_{ij}=1.
+ \label{eq:sign-edge-relations}
+\end{equation}
+For a subset $A\subseteq\{1,\ldots,n\}$, let
+$K_A=\sum_{i\in A}p_i$.  Since $k_b-K_A$ is the difference between one
+incoming beam and a subset of the outgoing momenta,
+\begin{equation}
+ (k_b-K_A)^2\leq0
+ \quad\Longrightarrow\quad
+ \sum_{i<j\in A}z_{ij}\leq\sum_{i\in A}x_i.
+ \label{eq:subset-inequality}
+\end{equation}
+The analogous inequality holds with $x_i$ replaced by $y_i$.  These are
+the max-flow/min-cut conditions for nonnegative numbers
+$\lambda_{ij}$, $i\ne j$, satisfying
+\begin{equation}
+ \lambda_{ij}+\lambda_{ji}=z_{ij},
+ \qquad
+ \sum_{j\ne i}\lambda_{ij}=x_i,
+ \qquad
+ \sum_{i\ne j}\lambda_{ij}=y_j,
+ \qquad
+ \sum_{i\ne j}\lambda_{ij}=1.
+ \label{eq:edge-orientation}
+\end{equation}
+Expanding $Q^2$ and using these marginals gives
+\begin{equation}
+ \frac{Q^2}{s}
+ =\sum_{i\ne j}\lambda_{ij}(a+c_i)(b+c_j)
+ =\sum_{i\ne j}\lambda_{ij}\mu_{ij}.
+ \label{eq:sign-convex-combination}
+\end{equation}
+Thus $Q^2/s$ is a convex combination of the $\mu_{ij}$, proving the
+bounds.  The boundary in which $p_i\to k_a$, $p_j\to k_b$, and all other
+outgoing momenta become soft gives $Q^2/s\to\mu_{ij}$.  Every extremal value
+is therefore a physical boundary limit.

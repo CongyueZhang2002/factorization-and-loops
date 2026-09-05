@@ -35,8 +35,11 @@ Rewritten at every change of state; the detailed goal ledger is under
   requests archived pre-V2 class-form inputs.
 - Coordination: the GPT Pro bridge now lives in `External/ChatGPT`; its
   tracked `gpt-6-pro` conversation state lives in the ignored
-  `Codex/General/ChatGPT` runtime directory. Both were moved from FACET into
-  this workspace.
+  `Codex/General/ChatGPT` runtime directory. Permanent exchanges and their
+  supporting source packets are organized chronologically under
+  `External/ChatGPT/Records/YYYY-MM-DD/NN_summary_name.md`, with the question
+  and Pro response in the same numbered file. The bridge and
+  state were moved from FACET into this workspace.
 - Next work: finish the positive-dimensional boundary-function consumer and
   remaining package-facing terminology migration; complete CF303 in V2 form;
   close one representative at each square-root count; then launch all-family

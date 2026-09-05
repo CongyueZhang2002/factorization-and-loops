@@ -1,0 +1,45 @@
+\section{Introduction}
+\label{sec:introduction}
+
+Single-inclusive hadron production probes short-distance QCD together with
+parton distributions and fragmentation functions.  At fixed order, its hard
+parts contain several structures that cannot be reconstructed from values at
+isolated phase-space points: Laurent poles in dimensional regularization,
+noninteger powers at the real-emission endpoint, distributions in the
+partonic variable $w$, and, for polarized observables, evanescent BMHV
+tensors.  An analytic calculation must preserve these structures from the
+amplitude to the final coefficient.
+
+The purpose of this work is to organize that calculation as one connected
+chain.  Feynman amplitudes and their conjugates are projected onto the
+leading-twist collinear density matrices.  The real phase space is represented
+by positive-energy cuts, and literal propagators are partial fractioned before
+integral families are chosen.  Cut-aware integration-by-parts (IBP) identities
+reduce the result to master integrals.  Their coefficients are reconstructed
+exactly over finite fields, while the masters themselves are evaluated as
+analytic functions by direct parametric integration or by differential
+equations with analytic boundary data.  Numerical evaluations enter only as
+independent comparisons.
+
+The NLO real-emission problem provides a complete analytic example of the
+master-integral part of this chain.  Its six masters reduce to one cut bubble
+and one generic top function evaluated at five kinematic arguments.  A
+triangular differential system fixes that function from one boundary value,
+and its connection formula separates the endpoint branches before the
+$\eps$ expansion.  For the NNLO double-real sector considered here, exact
+IBP reduction gives 342 masters.  We distinguish powered-integral identities,
+denominator identities, differential coupling, and equality of boundary
+periods; these notions answer different questions and lead to different
+counts.  One genuinely coupled eight-master family is solved through
+$\mathcal O(\eps^2)$ as a worked NNLO example.
+
+The paper follows the calculation rather than the software layout.
+Section~\ref{sec:factorized-observable} defines the observable, kinematics,
+polarization projections, and hard coefficient.
+Section~\ref{sec:cut-families} derives the cut families from ordered amplitude
+interferences.  Section~\ref{sec:ibp-coefficients} discusses IBP reduction and
+exact rational master coefficients.  Section~\ref{sec:analytic-masters}
+describes the analytic evaluation of the cut masters.
+Sections~\ref{sec:nlo-example} and \ref{sec:nnlo-double-real} give the NLO and
+NNLO examples.  Reproducibility conditions and the present scope are stated in
+Section~\ref{sec:reproducibility}.

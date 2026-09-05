@@ -4,7 +4,7 @@ The existing ChatGPT Classics Pro conversation returned its evaluation for
 request `51883daa-ea7f-4c7a-88f8-b89e8c23ac78`.  The prompt SHA256 is
 `ce50b4c184ddf1cba3c50ba67577429462b8fba6c9b0295ffd940acbc04f4278`;
 the complete response is preserved at
-`/home/maxzhang/FACET/Codex/General/ChatGPT/current_workflow_evaluation_response_2026-08-23.md`
+`/home/maxzhang/factorization-and-loops/External/ChatGPT/Records/2026-08-23/01_current_workflow_evaluation.md`
 with SHA256
 `4429b8d4d0eb6bb55f07bdabb741a6eebc5d5467b28acb0a1394ae9823e46ee3`.
 This note is Codex's independent assessment, not an automatic acceptance of

@@ -62,4 +62,4 @@ Outside KernelPool, `KernelCount -> 8` used `ParallelMap`, and every subkernel i
 - `FeynFacet/Private/FamilyRowGauge.wl` and `Scripts/family_epsform_sector.wls` — mathematical-only active resume admission.
 - `Tests/Transport/t_finite_field_gauge_pullback.wls` — rank-zero, rank-two and in-frame integration coverage.
 
-Pro's independent review is stored at `/home/maxzhang/FACET/Codex/General/ChatGPT/finite_field_gauge_pullback_response_2026-08-28.md`. It endorsed quotient-grade compact evaluation, 31-bit primes and multi-output FLINT, and warned against norm over-clearing; the live measurements confirm direct reduced common-denominator reconstruction is the right primary route here.
+Pro's independent review is stored at `/home/maxzhang/factorization-and-loops/External/ChatGPT/Records/2026-08-28/02_finite_field_gauge_pullback_followup.md`. It endorsed quotient-grade compact evaluation, 31-bit primes and multi-output FLINT, and warned against norm over-clearing; the live measurements confirm direct reduced common-denominator reconstruction is the right primary route here.

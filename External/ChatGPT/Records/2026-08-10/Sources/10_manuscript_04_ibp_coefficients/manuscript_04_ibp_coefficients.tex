@@ -1,0 +1,96 @@
+\section{IBP reduction and exact master coefficients}
+\label{sec:ibp-coefficients}
+
+\subsection{Cut-decorated topology equivalence}
+
+Many ordered diagram pairs generate families related by loop-momentum
+changes.  Reusing an IBP reduction requires more than equality of the
+quadratic denominator polynomials.  We call two cut families equivalent when
+an affine transformation
+\begin{equation}
+ \ell_r=\sum_{s=1}^{L}A_{rs}\ell'_s+\sum_aB_{ra}p_a,
+ \qquad A_{rs},B_{ra}\in\mathbb Q,
+ \qquad |\det A|=1,
+ \label{eq:affine-loop-map-main}
+\end{equation}
+maps their ordered denominators into each other up to a slot permutation,
+preserves every propagator power, maps each cut momentum together with its
+energy orientation, and preserves the partition into phase-space,
+forward-virtual, and conjugate-virtual integration momenta.  It must also
+preserve any measured-line label.  Under these conditions the change of
+variables proves an exact identity between the powered cut integrals.
+Appendix~\ref{app:topology-equivalence} gives the full criterion and an
+explicit two-loop example.
+
+This relation is stronger than equality of uncut graphs and weaker than
+equality of measured cross-section terms.  The latter also requires the same
+numerator projection and measurement assignment.  The distinction prevents a
+loop routing or a reversal of a cut momentum from silently changing the
+physical integral.
+
+\subsection{Cut-aware IBP reduction}
+
+For a complete family $\mathcal F=\{D_1,\ldots,D_N\}$, IBP identities are
+\begin{equation}
+ 0=\int\prod_{r=1}^{L}\dd^D\ell_r\,
+ \frac{\partial}{\partial\ell_i^\mu}
+ \left[v^\mu\prod_{j=1}^{N}D_j^{-\nu_j}\right].
+ \label{eq:ibp-identity}
+\end{equation}
+The designated cut slots obey Eq.~\eqref{eq:cut-family-condition} throughout
+the reduction; they are not imposed on an uncut result afterward.  Solving
+the resulting linear system gives
+\begin{equation}
+ I_{\mathcal F}(\boldsymbol\nu)
+ =\sum_{a=1}^{N_M}
+ R_{\boldsymbol\nu a}(s_{ij},D)\,M_a,
+ \label{eq:ibp-reduction}
+\end{equation}
+where every $R_{\boldsymbol\nu a}$ is rational in the invariants and in
+$D$.  We use \Kira\ for this exact reduction
+\cite{Maierhofer:2017gsa,Klappert:2020nbg}.  Equivalent families are reduced
+once, and Eq.~\eqref{eq:affine-loop-map-main} transports the index vector back
+to all members of the class.
+
+\subsection{Finite-field reconstruction of master coefficients}
+
+After the IBP rules have been inserted, the coefficient of a master is a sum
+of many rational contributions,
+\begin{equation}
+ C_a(\boldsymbol x,D)
+ =\sum_{r}c_{ar}(\boldsymbol x,D),
+ \label{eq:master-coefficient-sum}
+\end{equation}
+where $\boldsymbol x$ denotes a dimensionless invariant basis.  Direct
+symbolic addition can generate intermediate expressions far larger than the
+final rational function.  Instead, the rational operation graph is recorded
+with \Ratracer\ and evaluated over finite fields.  \FireFly\ reconstructs the
+multivariate rational function from those modular images
+\cite{Magerya:2022bcf,Klappert:2019emp}.  The reconstruction is accepted only
+after substitution into an independent prime field and an exact
+characteristic-zero comparison wherever the latter is tractable.
+
+No special functions are reconstructed at this stage.  Gamma functions,
+branch-sensitive powers, and spin tensors are separated from the rational
+operation graph and carried as exact prefactors.  This makes the reconstructed
+object precisely the rational coefficient $C_a$, rather than a numerical
+fit to the full hard function.
+
+\subsection{Extraction of the partonic coefficient}
+
+The reduced expression is assembled master by master,
+\begin{equation}
+ \widehat{\mathcal C}^{\mathsf P,(n)}
+ =\mathscr F^{\mathsf P}
+ \frac{1}{x_ax_bz_h^2}
+ \sum_a C_a^{\mathsf P,(n)}(s,t,u,\eps)M_a(s,t,u,\eps).
+ \label{eq:post-ibp-hard-coefficient}
+\end{equation}
+The exact hadronic-to-partonic substitutions in
+Eq.~\eqref{eq:hadronic-partonic-map} are applied before the scalar hard
+coefficient is declared.  After the distribution product and displayed
+fraction monomial are divided out, the result must satisfy
+Eq.~\eqref{eq:fraction-independence}.  Residual dependence on a momentum
+fraction, an auxiliary light-cone direction, an integration momentum, or an
+unreduced scalar product terminates the calculation.  The same criterion is
+applied separately to each physical TT azimuthal coefficient.

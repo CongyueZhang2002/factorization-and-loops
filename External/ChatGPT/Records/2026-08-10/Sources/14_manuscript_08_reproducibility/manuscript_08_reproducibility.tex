@@ -1,0 +1,76 @@
+\section{Reproducibility and failure conditions}
+\label{sec:reproducibility}
+
+Each stage produces a mathematical object together with conditions that can be
+checked independently.  Table~\ref{tab:stage-criteria} summarizes the required
+evidence.  A failed condition terminates the calculation; it is not repaired
+by silently changing a branch, dropping a cut, or inserting a known answer.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{0.20\textwidth}YY@{}}
+\toprule
+Stage & Object & Required evidence\\
+\midrule
+Collinear projection
+& Dirac- and color-contracted ordered interference
+& Correct UU, LL, or TT distribution product; no undeclared spin vector or
+  distribution remains.\\
+Physical phase space
+& Oriented cut integral
+& Momentum conservation, positive-energy cuts, and physical measure agree
+  with Eq.~\eqref{eq:physical-m-particle-phase-space}.\\
+Partial fractions
+& Sum of independent denominator products
+& Exact equality to the literal propagator product; every term retains every
+  mandatory cut.\\
+Causal classification
+& Ordinary and cut denominators with stated boundary values
+& Each non-virtual denominator has a fixed sign, and every virtual loop
+  belongs to one declared side of the interference.\\
+BMHV reduction
+& $D$-dimensional scalar integrals
+& No evanescent scalar product remains after the dimension recurrences; cut
+  slots and normalization are unchanged.\\
+IBP reduction
+& Rational coefficients multiplying masters
+& Reinsertion of the reduction rules reproduces every target; no target or
+  nonpositive cut power remains.\\
+Finite-field reconstruction
+& Exact rational master coefficient
+& Independent prime sequence and an unused-prime identity; exact comparison
+  when tractable.\\
+Master evaluation
+& Analytic Laurent function
+& Differential equations or direct integration, analytic boundary data,
+  stated contour and branch, and an independent numerical comparison.\\
+Hard reconstruction
+& $H^{(n)}(v,w,\eps)$
+& Independence of momentum fractions and auxiliary vectors; exact endpoint
+  branches identified before the distributional expansion.\\
+\bottomrule
+\end{tabularx}
+\caption{Mathematical objects and acceptance criteria along the calculation.}
+\label{tab:stage-criteria}
+\end{table}
+
+The analytic result and the numerical comparison are kept separate.  An
+\AMFlow\ value records the family, propagator powers, cut prescription,
+dimension, physical point, and normalization used in the comparison.  An
+analytic master record additionally contains the exact parameterization or
+differential system, boundary data, branch chamber, and Laurent expression.
+The latter is the result used in the hard function.
+
+For long rational coefficients, the reconstruction record contains the exact
+input operation graph, variable ordering, removed monomial, prime sequence,
+and verification primes.  These data allow the rational identity to be tested
+without retaining the much larger intermediate symbolic sum.  They do not
+encode any master-integral value.
+
+The present evidence establishes the six-master NLO real-emission basis, the
+two exact NLO endpoint branches, the UU singular fixed-order comparison, the
+342-master NNLO double-real reduction, one exact NNLO hard master coefficient,
+and the analytic eight-master family in
+Section~\ref{sec:nnlo-double-real}.  It does not yet establish the analytic
+evaluation of every NNLO master or a complete NNLO hard function.

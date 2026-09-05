@@ -1,0 +1,283 @@
+\section{NLO cut masters and endpoint reconstruction}
+\label{sec:nlo-example}
+
+The NLO real-emission sector is simple enough to solve fully while retaining
+the same cuts, branches, and normalizations needed at higher orders.  It also
+shows why the number of masters, the number of denominator classes, and the
+number of independent boundary periods are different quantities.
+
+\subsection{Two-particle cut and six-master basis}
+
+Let $k_a,k_b,k_c$ be future-directed massless parton momenta and
+$q=k_a+k_b-k_c$.  The invariants and chamber are those of
+Eqs.~\eqref{eq:partonic-invariants}--\eqref{eq:physical-chamber}.  With one
+independent emitted momentum $k$, define
+\begin{equation}
+ \dd\Phi_2(q;k,q-k)
+ =(2\pi)^{2-D}\dd^Dk\,
+ \delta_+(k^2)\delta_+((q-k)^2).
+ \label{eq:nlo-two-body-measure}
+\end{equation}
+Its integral is
+\begin{equation}
+ \Phi_2(Q^2,\eps)
+ =\frac{(4\pi)^\eps}{8\pi}
+  \frac{\Gamma(1-\eps)}{\Gamma(2-2\eps)}(Q^2)^{-\eps}.
+ \label{eq:nlo-two-body-volume}
+\end{equation}
+It is convenient to remove
+\begin{equation}
+ \mathcal P_2(Q^2,\eps)
+ =\frac{(4\pi)^\eps\Gamma(1-\eps)}
+        {16\pi^2\Gamma(1-2\eps)}(Q^2)^{-\eps},
+ \qquad
+ \Phi_2=\frac{2\pi}{1-2\eps}\mathcal P_2.
+ \label{eq:nlo-reduced-phase-space-factor}
+\end{equation}
+No hidden factor $\mu^{2\eps}$ is included in either expression.
+
+For $\sigma_i=\pm1$ and external vectors $R_i$, introduce
+\begin{align}
+ \widehat B(\eps)
+ &=\mathcal P_2^{-1}\int\dd\Phi_2,
+ \label{eq:nlo-bubble-definition}\\
+ \widehat T[\sigma_1,R_1;\sigma_2,R_2]
+ &=\mathcal P_2^{-1}\int\dd\Phi_2\,
+ \frac{1}{(\sigma_1k+R_1)^2(\sigma_2k+R_2)^2}.
+ \label{eq:nlo-top-definition}
+\end{align}
+The signs $\sigma_i$ specify momentum flow, not an $i0$ prescription.
+The ordinary denominators have no interior zero in the chamber
+\eqref{eq:physical-chamber}; their two boundary values coincide.
+
+The six reduced masters are $\widehat B$ and
+\begin{equation}
+\begin{aligned}
+ \widehat T_{ac}&=\widehat T[-1,k_a;+1,k_c],
+ &\widehat T_{ab}&=\widehat T[-1,k_a;-1,k_b],\\
+ \widehat T_{abb}&=\widehat T[-1,k_a;-1,k_a-k_c],
+ &\widehat T_{cb}&=\widehat T[+1,k_c;-1,k_b],\\
+ \widehat T_{cbb}&=\widehat T[+1,k_c;-1,k_a-k_c].
+\end{aligned}
+\label{eq:nlo-five-top-masters}
+\end{equation}
+They form three powered-integral classes and three denominator classes.  The
+cut-only bubble class is contained in each of two maximal nontrivial
+denominator classes, giving
+\begin{equation}
+ N_{\rm master}^{\rm NLO}=6,
+ \qquad N_{\rm pow}^{\rm NLO}=3,
+ \qquad N_{\rm den}^{\rm NLO}=3,
+ \qquad N_{\rm max}^{\rm NLO}=2.
+ \label{eq:nlo-class-counts}
+\end{equation}
+
+\subsection{One generic top integral}
+
+Write $L_j(k)=\sigma_jk+R_j$ and define
+\begin{equation}
+ \Lambda_j=R_j^2+\sigma_jq\cdot R_j,
+ \qquad
+ \Delta_j=(q\cdot R_j)^2-q^2R_j^2.
+ \label{eq:nlo-lambda-delta}
+\end{equation}
+For every line in Eq.~\eqref{eq:nlo-five-top-masters}, either $R_j^2=0$ or
+$(q+\sigma_jR_j)^2=0$.  Hence $\Lambda_j^2=\Delta_j$, and the angular
+dependence is described by one cross ratio
+\begin{equation}
+ z=\frac{1+\chi_{12}}{2},
+ \qquad
+ \chi_{12}=\sigma_1\sigma_2
+ \frac{(q\cdot R_1)(q\cdot R_2)-q^2R_1\cdot R_2}
+      {\Lambda_1\Lambda_2}.
+ \label{eq:nlo-cross-ratio}
+\end{equation}
+The physical chamber implies $0<z<1$.
+
+After the two cuts fix the energy and radial magnitude of $k$, the bubble
+and top reduce to
+\begin{align}
+ \widehat B(\eps)&=\frac{2\pi}{1-2\eps},
+ \label{eq:nlo-bubble-result}\\
+ \widehat T(z,\eps;\Lambda_1,\Lambda_2)
+ &=\frac{\pi}{\Lambda_1\Lambda_2}
+ \int_0^\infty\dd y\,
+ \frac{(1+y)^\eps}{1+(1-z)y}
+ \notag\\
+ &=-\frac{\pi}{\eps\Lambda_1\Lambda_2}
+ {}_2F_1(1,1;1-\eps;z).
+ \label{eq:nlo-generic-top}
+\end{align}
+The integral representation converges for $\operatorname{Re}\eps<0$.  Since
+$1+(1-z)y>0$ for $y>0$ and $0<z<1$, it fixes a real branch before
+meromorphic continuation in $\eps$.
+
+The five physical top masters are obtained from one function by the
+substitutions
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{@{}ccl@{}}
+\toprule
+Integral & $z_\alpha$ & $(\Lambda_{\alpha,1},\Lambda_{\alpha,2})$\\
+\midrule
+$\widehat T_{ac}$
+& $\displaystyle\frac{su}{(s+t)(t+u)}$
+& $\displaystyle\left(-\frac{s+t}{2},-\frac{t+u}{2}\right)$\\[2mm]
+$\widehat T_{ab}$
+& $\displaystyle\frac{tu}{(s+t)(s+u)}$
+& $\displaystyle\left(-\frac{s+t}{2},-\frac{s+u}{2}\right)$\\[2mm]
+$\widehat T_{abb}$
+& $\displaystyle\frac{sQ^2}{(s+t)(s+u)}$
+& $\displaystyle\left(-\frac{s+t}{2},-\frac{s+u}{2}\right)$\\[2mm]
+$\widehat T_{cb}$
+& $\displaystyle\frac{st}{(s+u)(t+u)}$
+& $\displaystyle\left(-\frac{t+u}{2},-\frac{s+u}{2}\right)$\\[2mm]
+$\widehat T_{cbb}$
+& $\displaystyle\frac{uQ^2}{(s+u)(t+u)}$
+& $\displaystyle\left(-\frac{t+u}{2},-\frac{s+u}{2}\right)$\\
+\bottomrule
+\end{tabular}
+\caption{The five NLO top masters as substitutions into the generic angular
+integral in Eq.~\eqref{eq:nlo-generic-top}.}
+\label{tab:nlo-top-maps}
+\end{table}
+
+\subsection{Differential equation and boundary value}
+
+Normalize the bubble to unity and remove the propagator scales,
+\begin{equation}
+ b=\frac{1-2\eps}{2\pi}\widehat B=1,
+ \qquad
+ h(z,\eps)=\frac{\Lambda_1\Lambda_2}{\pi}\widehat T.
+ \label{eq:nlo-normalized-bubble-top}
+\end{equation}
+Using $\tau=y/(1+y)$, one has
+\begin{equation}
+ h(z,\eps)=\int_0^1\frac{\dd\tau\,(1-\tau)^{-1-\eps}}
+ {1-z\tau}.
+ \label{eq:nlo-euler-integral}
+\end{equation}
+The integral of the total derivative
+\begin{equation}
+ \frac{\dd}{\dd\tau}
+ \left[\frac{\tau(1-\tau)^{-\eps}}{1-z\tau}\right]
+ \label{eq:nlo-angular-total-derivative}
+\end{equation}
+vanishes for $\operatorname{Re}\eps<0$.  It yields the triangular system
+\begin{equation}
+ \frac{\partial}{\partial z}
+ \begin{pmatrix}b\\h\end{pmatrix}
+ =
+ \begin{pmatrix}
+ 0&0\\[1mm]
+ \dfrac{1}{z(1-z)}&\dfrac{z+\eps}{z(1-z)}
+ \end{pmatrix}
+ \begin{pmatrix}b\\h\end{pmatrix}.
+ \label{eq:nlo-triangular-system}
+\end{equation}
+The integrating factor $z^{-\eps}(1-z)^{1+\eps}$ gives
+\begin{equation}
+ h=z^\eps(1-z)^{-1-\eps}
+ \left[C(\eps)+\int_0^z\dd\xi\,
+ \xi^{-1-\eps}(1-\xi)^\eps\right].
+ \label{eq:nlo-general-de-solution}
+\end{equation}
+The convergent cut integral has
+$h(0,\eps)=-1/\eps$.  Its homogeneous term behaves as
+$C(\eps)z^\eps$, which diverges as $z\to0^+$ for
+$\operatorname{Re}\eps<0$.  Therefore
+\begin{equation}
+ C(\eps)=0,
+ \qquad
+ h(z,\eps)=-\frac1\eps{}_2F_1(1,1;1-\eps;z).
+ \label{eq:nlo-physical-de-solution}
+\end{equation}
+The five top masters thus need one generic boundary period.  Including the
+elementary bubble volume,
+\begin{equation}
+ N_{\rm analytic\ inputs}^{\rm NLO}=2,
+ \qquad
+ N_{\rm non\text{-}elementary\ boundary\ periods}^{\rm NLO}=1.
+ \label{eq:nlo-boundary-count}
+\end{equation}
+
+\subsection{Connection formula and endpoint branches}
+
+Let $\rho=1-z$.  The exact connection formula is
+\begin{align}
+ h(z,\eps)={}&-\frac{1}{1+\eps}
+ {}_2F_1(1,1;2+\eps;\rho)
+ \notag\\
+ &-\frac{\Gamma(1-\eps)\Gamma(1+\eps)}{\eps}
+ z^\eps\rho^{-1-\eps}.
+ \label{eq:nlo-connection-formula}
+\end{align}
+Both $z$ and $\rho$ are positive in the physical interval, so the regular
+and singular modes in Eq.~\eqref{eq:nlo-connection-formula} are separated on
+the real branch without a power-expansion rule.
+
+Under the map in Eq.~\eqref{eq:vw-inverse}, the five cross ratios become
+\begin{equation}
+\begin{aligned}
+ z_{ac}&=\frac{1-x}{1-vx},
+ &z_{ab}&=\frac{(1-v)(1-x)}{1-v+vx},
+ &z_{abb}&=\frac{x}{1-v+vx},\\
+ z_{cb}&=\frac{1-v}{(1-v+vx)(1-vx)},
+ &z_{cbb}&=\frac{v^2x(1-x)}{(1-v+vx)(1-vx)}.
+\end{aligned}
+\label{eq:nlo-cross-ratios-endpoint}
+\end{equation}
+Thus $z_{ac},z_{ab},z_{cb}\to1$, whereas
+$z_{abb},z_{cbb}\to0$.  The common phase-space factor contributes
+$(Q^2)^{-\eps}=(sv)^{-\eps}x^{-\eps}$.  Consequently the individual
+masters contain the modes
+\begin{equation}
+ x^{-\eps},
+ \qquad x^{-1-2\eps}.
+ \label{eq:nlo-individual-master-modes}
+\end{equation}
+Rational hard-scattering coefficients may shift the integer part of an
+exponent but not its coefficient of $\eps$.  After the complete diagram sum,
+the singular real coefficient has the form
+\begin{equation}
+ \mathcal R_{\rm sing}(v,x,\eps)
+ =C_1(v,\eps)x^{-1-\eps}
+ +C_2(v,\eps)x^{-1-2\eps}.
+ \label{eq:nlo-two-endpoint-branches}
+\end{equation}
+Applying Eq.~\eqref{eq:endpoint-distribution-identity} gives
+\begin{align}
+ \mathcal R_{\rm sing}={}&
+ -\delta(1-w)\left(\frac{C_1}{\eps}+\frac{C_2}{2\eps}\right)
+ +(C_1+C_2)\mathcal D_0(w)
+ \notag\\
+ &-\eps(C_1+2C_2)\mathcal D_1(w)
+ +\frac{\eps^2}{2}(C_1+4C_2)\mathcal D_2(w)+\cdots .
+ \label{eq:nlo-two-branch-distribution}
+\end{align}
+The Laurent expansions of $C_1$ and $C_2$ are inserted only after this
+step.  In particular, a $1/\eps$ pole in either coefficient produces a
+$1/\eps^2$ contribution multiplying $\delta(1-w)$.
+
+\subsection{Combination with the remaining NLO terms}
+
+Reverse unitarity determines the real contribution only.  In the convention
+used by the existing UU calculation, the singular NLO coefficient is assembled
+as
+\begin{equation}
+ H_{\mathsf{UU}}^{(1)}
+ =H_{\mathsf{UU},\rm real}^{(1)}
+ +H_{\mathsf{UU},\rm virt+UV}^{(1)}
+ -H_{\mathsf{UU},\rm coll}^{(1)},
+ \label{eq:nlo-uu-assembly}
+\end{equation}
+where $H_{\rm coll}$ denotes the positive convolution kernel that is
+subtracted in the chosen factorization convention.  The stored analytic
+calculation gives exact zero for the differences between the resulting
+$\mathcal D_1$, $\mathcal D_0$, and $\delta(1-w)$ coefficients and the
+independent unpolarized result of Ref.~\cite{Aversa:1988vb}.  This comparison
+fixes the relative signs and normalization of the real, virtual, and collinear
+terms in the UU channel.  The full regular remainder and the corresponding
+LL and TT fixed-order combinations are separate tasks; they are not inferred
+from this distributional comparison.

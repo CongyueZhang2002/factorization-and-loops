@@ -1,0 +1,590 @@
+# CF303 Sector19 Checkpoint Followup
+
+## Question
+
+Continue the existing Assess Multiquadratic Pipeline evaluation with this new checkpoint. Please retain all prior context.
+
+Exact results since the last inquiry:
+
+1. CF303 sector 17 is fully solved in the Kallen23 chart. Its 16 lower strips have an aggregate exact certificate. Twelve are newly exact-dlog certified; four inherited strips are pinned by their exact frame certificates. The row gauge is nontrivial but entirely rational in Kallen23. Regulator factorization remains a family-level task.
+
+2. CF303 sector 18 is completely solved and independently certified. Every one of its 17 block gauges is exactly zero. Only the 18->11 and 18->1 forcing blocks are nonzero, and both are already exact dlog forms with the identity gauge. No third-root grade occurs anywhere in its direct blocks or diagonals.
+
+3. A full direct/diagonal census of sector 19 found no sqrt(1-4xy) dependence. More importantly, the raw A_{19,17} block is structurally zero, so the nontrivial sector-17 row gauge cannot propagate into row 19. Sector 18's cumulative gauge is exactly zero. These are checked as fail-closed preconditions.
+
+4. The sector-19 chart-only campaign is live. D_{19,18} is nonzero and exact-dlog certified. D_{19,17}=0 exactly. The 19->16,15,14,13 strips become zero forcing after the D_{19,18} recurrence. The current 19->12 rational strip has leaf count about 298k; its finite-field census began with total degree 15 and 2,384 unknowns (136 monomials) before support learning. All operands are mapped locally; connections behind zero gauges are not transformed. A residual third-root activation would stop and emit an exact rank-one witness.
+
+Please assess, concisely but technically:
+
+A. Is the decoupling argument sufficient: A_{19,17}=0 implies the prior sector-17 gauge leaves the entire future row 19 unchanged, while the identity sector-18 gauge adds nothing? Identify any overlooked right-action, derivative, or DAD term under the package's lower-block-triangular row-gauge convention.
+
+B. For a large rational strip like 19->12, after a certified support census, what is the safest performance lever: support learning, multi-prime batching, solving by output row/column, exploiting the already-known D_{19,18} recurrence structure, or another exact decomposition? Give a prioritized recommendation that preserves exact certificates.
+
+C. State the minimal cross-strip certificate needed here, where only D_{19,18} is active and all intervening gauges are zero.
+
+D. If a later lower connection first activates the residual rank-one grade, should the campaign transition immediately to k(R), or first test whether multiplication by the active D_{19,18} cancels the odd grade in the assembled forcing? Specify the mathematically correct order of operations.
+
+## Pro response
+
+A. Decoupling is sufficient only in the direct sense
+
+Let the installed sector-17 row transformation be
+
+U
+17
+	​
+
+=I+N
+17
+	​
+
+,(N
+17
+	​
+
+)
+17,j
+	​
+
+=D
+17,j
+	​
+
+.
+
+For a future row i>17,
+
+(A
+(17)
+)
+i,j
+	​
+
+=A
+i,j
+	​
+
++A
+i,17
+	​
+
+D
+17,j
+	​
+
+.
+
+Hence
+
+A
+19,17
+	​
+
+=0⟹(A
+(17)
+)
+19,j
+	​
+
+=A
+19,j
+	​
+
+.
+
+There is no direct derivative term in row 19, because dN
+17
+	​
+
+ has support only in row 17. There is also no single-transformation NAN term affecting row 19 under strict block-lower-triangularity. Sector 18’s identity row gauge contributes no further conjugation or derivative term.
+
+However, one indirect path must be retained:
+
+(A
+(17)
+)
+18,j
+	​
+
+=A
+18,j
+	​
+
++A
+18,17
+	​
+
+D
+17,j
+	​
+
+.
+
+After installing D
+19,18
+	​
+
+, the lower row-19 forcing is
+
+F
+19,j
+	​
+
+=(A
+(17)
+)
+19,j
+	​
+
+−D
+19,18
+	​
+
+(A
+(17)
+)
+18,j
+	​
+
+.
+
+In the original pre-sector-17 frame this is
+
+F
+19,j
+	​
+
+=A
+19,j
+	​
+
+−D
+19,18
+	​
+
+A
+18,j
+	​
+
+−D
+19,18
+	​
+
+A
+18,17
+	​
+
+D
+17,j
+	​
+
+.
+	​
+
+
+Thus:
+
+A
+19,17
+	​
+
+=0 proves that U
+17
+	​
+
+ does not directly alter row 19.
+
+It does not permit using raw pre-sector-17 A
+18,j
+	​
+
+ in the D
+19,18
+	​
+
+ recurrence.
+
+The apparent DAD term is already included if the campaign uses the certified post-sector-17 sector-18 frame.
+
+This is the only material caveat. If the cached sector-18 blocks are pinned by their exact frame certificates, the decoupling argument is complete.
+
+B. Performance priorities for 19→12
+1. Preserve the one-product recurrence DAG
+
+Keep
+
+F
+19,12
+	​
+
+=A
+19,12
+(17)
+	​
+
+−D
+19,18
+	​
+
+A
+18,12
+(17)
+	​
+
+
+as two independently mapped operands plus one modular product. Cache D
+19,18
+	​
+
+ and the sector-18 operand. Do not construct a global symbolic Together.
+
+This remains the highest-value structural optimization and matches the report’s exact sparse/additive propagation design. 
+
+codex_overnight_optimization_tr…
+
+ The report specifically identifies base + sum(products) evaluation, rather than whole-block normalization, as the winning production route. 
+
+codex_overnight_optimization_tr…
+
+2. Certified support learning
+
+After the degree-15 census, learn support under the fixed constrained-normalization plan using at least two independent prime/regulator images.
+
+The reduced support is admissible only if:
+
+the learned support is stable across images;
+
+all columns used by genuine nullspace directions are retained;
+
+the reduced solution satisfies the full original 2384-unknown equations at unseen images;
+
+the final characteristic-zero strip residual is exact.
+
+Do not classify a coefficient as structurally zero from one modular representative when the affine system has nonzero nullity.
+
+3. Dependency-graph decomposition, not naive row/column splitting
+
+The operator
+
+G⟼E
+19
+	​
+
+G−GC
+12
+	​
+
+
+generally couples gauge entries across both rows and columns. Residue variables may couple otherwise separate matrix entries as well.
+
+Construct the exact bipartite dependency graph of:
+
+gauge-entry coefficients;
+
+residue coefficients;
+
+strip equations.
+
+Solve disconnected components independently only if this graph actually separates. This is the safe form of output-row/output-column decomposition. Blind per-row or per-column solving is not certified unless E
+19
+	​
+
+, C
+12
+	​
+
+, and the residue incidence prove that decoupling.
+
+4. Multi-prime batching
+
+Batch primes and regulator images only after the support and elimination plan are stable. Reuse:
+
+accepted chart points;
+
+monomial tables;
+
+cached operand images;
+
+the constrained elimination plan.
+
+This improves throughput but does not reduce the mathematical system. It ranks below support reduction and exact component decomposition.
+
+C. Minimal cross-strip certificate
+
+For the current 19→12 recursion, the minimum certificate is:
+
+Exact 19→18 strip certificate
+
+D
+19,18
+	​
+
+
+with its fixed normalization, chart, sheet, dlog form, and hashes.
+
+Exact zero-gauge list
+
+D
+19,17
+	​
+
+=D
+19,16
+	​
+
+=D
+19,15
+	​
+
+=D
+19,14
+	​
+
+=D
+19,13
+	​
+
+=0.
+
+Pinned sector-18 frame
+Every A
+18,j
+(17)
+	​
+
+ used in the recurrence must be the post-sector-17 block certified during sector 18—not an untransformed source block.
+
+Exact forcing identity
+
+F
+19,j
+	​
+
+=A
+19,j
+(17)
+	​
+
+−D
+19,18
+	​
+
+A
+18,j
+(17)
+	​
+
+	​
+
+
+for each checkpointed lower block.
+
+Direct decoupling identity
+
+A
+19,17
+	​
+
+=0⟹A
+19,j
+(17)
+	​
+
+=A
+19,j
+	​
+
+.
+
+Cumulative row transformation
+With
+
+N
+19,18
+	​
+
+=D
+19,18
+	​
+
+,U
+19
+	​
+
+=I+N
+19
+	​
+
+,
+
+verify
+
+N
+19
+2
+	​
+
+=0,U
+19
+−1
+	​
+
+=I−N
+19
+	​
+
+,U
+19
+−1
+	​
+
+U
+19
+	​
+
+=I.
+
+Frame continuity
+Bind the sector-17, sector-18, Kallen23, sheet, D
+19,18
+	​
+
+, and current checkpoint hashes. This prevents mixing raw and accumulated-frame operands.
+
+No separate derivative term belongs in the lower j<18 recurrence; dD
+19,18
+	​
+
+ occurs only in the solved 19→18 block.
+
+D. Test cancellation before promoting to k(R)
+
+Do not transition merely because one newly mapped operand contains the residual root.
+
+First map all operands into
+
+K=k(R),R
+2
+=F,
+
+embed the existing rational gauge as
+
+D
+19,18
+	​
+
+=d
+0
+	​
+
++0R,
+
+and assemble the complete recurrence in two-grade arithmetic:
+
+A
+19,j
+(17)
+	​
+
+=a
+0
+	​
+
++a
+1
+	​
+
+R,A
+18,j
+(17)
+	​
+
+=b
+0
+	​
+
++b
+1
+	​
+
+R.
+
+Then
+
+F
+19,j
+	​
+
+=(a
+0
+	​
+
+−d
+0
+	​
+
+b
+0
+	​
+
+)+(a
+1
+	​
+
+−d
+0
+	​
+
+b
+1
+	​
+
+)R.
+
+The activation test is
+
+a
+1
+	​
+
+−d
+0
+	​
+
+b
+1
+	​
+
+=
+?
+0
+	​
+
+
+exactly after all recurrence terms have been summed.
+
+If the odd grade cancels, and both diagonal blocks E
+19
+	​
+
+ and C
+j
+	​
+
+ are also grade zero, remain in the rational Kallen23 solver.
+
+If the assembled forcing has a nonzero odd grade, transition to k(R).
+
+If either diagonal block has a nonzero odd grade, transition even when the forcing happens to be rational, because the strip operator E
+19
+	​
+
+G−GC
+j
+	​
+
+ itself acts over k(R).
+
+Therefore the typed rank-one stop should carry a witness for a nonzero odd component of the dependency-closed assembled strip—forcing, diagonals, and required one-forms—not merely a radical found in an individual leaf.
+
+The accumulated rational gauges then embed unchanged in grade zero; no source-frame row recomputation is required.

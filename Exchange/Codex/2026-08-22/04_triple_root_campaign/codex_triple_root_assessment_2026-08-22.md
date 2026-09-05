@@ -151,7 +151,7 @@ ChatGPT Classic Pro was queried through the existing FACET bridge. Its independe
 The full response is stored in FACET at:
 
 ```text
-/home/maxzhang/FACET/Codex/General/ChatGPT/pro_triple_root_response_2026-08-22.md
+/home/maxzhang/factorization-and-loops/External/ChatGPT/Records/2026-08-22/01_triple_root.md
 ```
 
 ## Immediate work item
