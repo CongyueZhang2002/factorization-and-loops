@@ -87,14 +87,9 @@ The rank-zero constrained-core path emitted a `Join::normal1` warning during
 the adversarial pilot test.  The construction now handles a rank-zero matrix
 as the normalization selector itself; the test remains 8/0 and is warning-free.
 
-## Source evidence
+## Permanent record
 
-- Previous `(27,23)`:
-  `/tmp/codex-v2-cf259-pool-20260904ae/logs/fresh_sol_CF259_1339363.log`
-- Current `(27,23)`:
-  `/tmp/cf259_27_23_current_benchmark_summary.wl`
-- Current `(27,21)` and `(27,20)`:
-  `/tmp/codex-v2-cf259-pool-20260904ag/logs/fresh_sol_CF259_1369626.log`
-- Previous and current `(27,19)`:
-  `/tmp/codex-v2-cf259-pool-20260904ag/logs/fresh_sol_CF259_1369626.log` and
-  `/tmp/codex-v2-cf259-pool-20260904ah/logs/fresh_sol_CF259_1382230.log`
+The transient logs used to extract these numbers were removed during the
+September disk cleanup. The measurements and their comparison conditions are
+retained here and in `Design/PerformanceBaselines_2026-09-04.md`; the large
+finite-field request matrices are not required to reproduce the calculation.
