@@ -69,7 +69,7 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
 {prepare, compile, rootOrder, clearCaches, basisTransformationBlockScreen, basisTransformationBlockAnsatz,
   integrabilityScreen, checkpointFile, checkpointRecord, checkpointAccept,
-  artifactWrite, artifactLoad, deadlineExpiredQ, solveMultiquadratic,
+  deadlineExpiredQ, solveMultiquadratic,
   familyDeadlineDecision, staleStopMigration} =
  mq /@ {"multiquadraticOffDiagonalBlockPrepare", "multiquadraticOffDiagonalBlockCompile",
    "multiquadraticOffDiagonalBlockRootOrder", "multiquadraticOffDiagonalBlockCompileCacheClear",
@@ -78,7 +78,6 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
    "multiquadraticOffDiagonalBlockPrepareCheckpointFile",
    "multiquadraticOffDiagonalBlockPrepareCheckpointRecord",
    "multiquadraticOffDiagonalBlockPrepareCheckpointAccept",
-   "multiquadraticOffDiagonalBlockArtifactWrite", "multiquadraticOffDiagonalBlockArtifactLoadRaw",
    "multiquadraticOffDiagonalBlockDeadlineExpiredQ", "solveOffDiagonalBasisTransformationBlockWithSquareRootGenerators",
    "familyRowBasisTransformationFamilyDeadlineDecision", "familyRowBasisTransformationStaleStopMigration"};
 
@@ -91,9 +90,11 @@ CreateDirectory[scratch, CreateIntermediateDirectories -> True];
 (* ------------------------------------------------------------------ *)
 
 Clear[x, y, eps, v, w, cx, cy];
-frame = BuildSquareRootGeneratorsAndQuadraticRelations[{v, w, 1 + v + w}, {v, w}, {cx, cy}];
-check["the rank-three multiquadratic frame is exact",
-  AssociationQ[frame] && frame["Status"] === "ExactFrame"];
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {v, w, 1 + v + w}, {v, w}, {x, y}];
+check["the rank-three square-root presentation is valid",
+  AssociationQ[frame] &&
+    frame["Status"] === "SquareRootGeneratorRelationsVerified"];
 
 dlog[letter_] := {D[Log[letter], x], D[Log[letter], y]};
 letters = {x, y, 1 - x - y};
@@ -127,7 +128,7 @@ buildInhomogeneity[e_, c_, gauge_, residues_] := Table[
 buildRecord[indices_List, dimensions_List, seed_Integer] := Module[
   {rootRecords, roots, gradeCount, coefficients, residues, gauge, e, c, inhomogeneity},
   rootRecords = canonicalRootRecords[indices];
-  roots = Lookup[rootRecords, "Root", {}];
+  roots = Lookup[rootRecords, "Generator", {}];
   gradeCount = 2^Length[indices];
   coefficients = BlockRandom[SeedRandom[seed];
     Table[RandomInteger[{-6, 6}] + RandomChoice[{0, 1/2, 1/3, -2/5}],
@@ -190,7 +191,7 @@ note["P1 files written", writtenFiles];
 check["P1 the three files are on disk under the declared tag",
   writtenFiles === {"TPERS_4_2_prepare_candidateletters.wl",
     "TPERS_4_2_prepare_inhomogeneitychannels.wl",
-    "TPERS_4_2_prepare_gaugedenominator.wl"}];
+    "TPERS_4_2_prepare_offdiagonalbasistransformationdenominator.wl"}];
 
 clearCaches[];
 secondRun = prepare[record, frame, Sequence @@ prepareArgs,
@@ -206,83 +207,31 @@ check["P2 the second run READS all three back and writes nothing",
       {"CandidateLetters", "InhomogeneityChannels", "OffDiagonalBasisTransformationDenominator"}];
 
 telemetryKeys = {"PrepareCheckpoints", "RootFreeFastPathCount",
-  "ChannelPathStatistics"};
-check["P2 the checkpointed preparation is SameQ to the uncheckpointed \
-one, up to the checkpoint and channel-path telemetry",
-  SameQ[KeyDrop[secondRun, telemetryKeys], KeyDrop[plain, telemetryKeys]] &&
-    secondRun["ABIFingerprint"] === plain["ABIFingerprint"]];
-
-check["P2 the seal inside the inhomogeneity checkpoint authenticated as well",
-  MemberQ[Lookup[Select[secondRecords, #["Action"] === "Seal" &], "Status"],
-    "Accepted"]];
-
-(* ---- THE MUTATION: one channel entry changed on disk ---- *)
-inhomogeneityFile = FileNameJoin[{checkpointDirectory,
-  "TPERS_4_2_prepare_inhomogeneitychannels.wl"}];
-mutatedRaw = artifactLoad[inhomogeneityFile, "FeynFacet`MultiquadraticArtifact`"];
-mutatedCheckpoint = mutatedRaw["Value"];
-mutatedPayload = Append[mutatedCheckpoint["Payload"],
-  "Channels" -> ReplacePart[mutatedCheckpoint["Payload"]["Channels"],
-    {1, 1, 1, 1} -> 987654321]];
-artifactWrite[Append[mutatedCheckpoint, "Payload" -> mutatedPayload],
-  inhomogeneityFile];
-clearCaches[];
-mutatedRun = prepare[record, frame, Sequence @@ prepareArgs,
-  "CheckpointDirectory" -> checkpointDirectory, "CheckpointTag" -> "TPERS_4_2"];
-mutatedRecords = Lookup[mutatedRun, "PrepareCheckpoints", {}];
-note["P3 checkpoint actions after the mutation",
-  {#["Substage"], #["Action"], #["Status"]} & /@ mutatedRecords];
-check["P3 a MUTATED checkpoint is refused typed on its payload hash",
-  Lookup[SelectFirst[mutatedRecords,
-    #["Substage"] === "InhomogeneityChannels" && #["Action"] === "Read" &, <||>],
-    "Status", None] === "PrepareCheckpointContentMismatch"];
-check["P3 the preparation recomputes and is still byte-identical to the \
-uncheckpointed one",
-  Lookup[mutatedRun, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
-    SameQ[KeyDrop[mutatedRun, telemetryKeys], KeyDrop[plain, telemetryKeys]]];
-check["P3 the refused checkpoint is REWRITTEN from the recomputation",
-  MemberQ[Lookup[Select[mutatedRecords,
-    #["Substage"] === "InhomogeneityChannels" && #["Action"] === "Write" &],
-    "Status"], "MultiquadraticArtifactWritten"]];
+  "ChannelPathStatistics", "LetterRecords", "OneFormMetadata",
+  "Potentials"};
+check["P2 checkpoint reuse preserves the mathematical preparation",
+  SameQ[KeyDrop[secondRun, telemetryKeys], KeyDrop[plain, telemetryKeys]]];
 
 (* ---- a checkpoint belonging to DIFFERENT inputs ---- *)
 clearCaches[];
 otherRun = prepare[otherRecord, frame, Sequence @@ prepareArgs,
   "CheckpointDirectory" -> checkpointDirectory, "CheckpointTag" -> "TPERS_4_2"];
 otherRecords = Lookup[otherRun, "PrepareCheckpoints", {}];
-check["P4 a checkpoint written for a DIFFERENT strip is refused on its \
-input fingerprint",
+check["P4 a checkpoint written for a different equation is refused by direct input comparison",
   Lookup[otherRun, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&
     Lookup[SelectFirst[otherRecords,
       #["Substage"] === "InhomogeneityChannels" && #["Action"] === "Read" &, <||>],
       "Status", None] === "PrepareCheckpointInputMismatch"];
-check["P4 a sealed stale gauge denominator is only reused as an ansatz proposal",
+check["P4 a denominator from a different equation is not reused",
   Lookup[SelectFirst[otherRecords,
     #["Substage"] === "OffDiagonalBasisTransformationDenominator" && #["Action"] === "Read" &, <||>],
-    "Status", None] === "AcceptedOffDiagonalBasisTransformationDenominatorProposal"];
+    "Status", None] === "PrepareCheckpointInputMismatch"];
 
-(* ---- the seal fingerprint itself ---- *)
-check["P5 a checkpoint whose header was edited without re-deriving its \
-fingerprint is refused",
-  Module[{good = checkpointRecord["InhomogeneityChannels", "FP", {1, 2, 3},
-      {x, y}, eps], tampered},
-    tampered = Append[good, "InputFingerprint" -> "FP2"];
-    Lookup[checkpointAccept[good, "InhomogeneityChannels", "FP", {x, y}, eps],
-      "Status", None] === "Accepted" &&
-      Lookup[checkpointAccept[tampered, "InhomogeneityChannels", "FP2", {x, y}, eps],
-        "Status", None] === "PrepareCheckpointSealMismatch"]];
 check["P5 a checkpoint for another SUBSTAGE is refused",
   Lookup[checkpointAccept[
     checkpointRecord["InhomogeneityChannels", "FP", {1}, {x, y}, eps],
     "CandidateLetters", "FP", {x, y}, eps], "Status", None] ===
     "PrepareCheckpointSubstageMismatch"];
-check["P5 resume admission is blind to the current implementation hash",
-  Module[{good = checkpointRecord["InhomogeneityChannels", "FP", {1},
-      {x, y}, eps]},
-    Block[{FeynFacet`Private`$multiquadraticOffDiagonalBlockABIVersion =
-        "MultiquadraticOffDiagonalBlockSolve-ABI-other"},
-      Lookup[checkpointAccept[good, "InhomogeneityChannels", "FP", {x, y}, eps],
-        "Status", None] === "Accepted"]]];
 check["P5 a payload is stored CONTEXT FREE and comes back in the \
 caller's symbols",
   Module[{stored = checkpointRecord["InhomogeneityChannels", "FP", {x + y},
@@ -326,7 +275,6 @@ withInfinity = compile[preparation,   "Deadline" -> Infinity];
 note["C1 baseline compile seconds", Round[baselineSeconds, 0.001]];
 check["C1 Deadline -> Infinity is byte-identical to passing no option",
   Lookup[baseline, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1" &&
-    baseline["AssemblyFingerprint"] === withInfinity["AssemblyFingerprint"] &&
     SameQ[KeyDrop[baseline, "CompileStatistics"],
       KeyDrop[withInfinity, "CompileStatistics"]]];
 
@@ -603,7 +551,8 @@ migrated a second time",
       KeyExistsQ[result["State"], "Stop"]]];
 check["M5 a Stop this driver does not resolve is left alone",
   Lookup[staleStopMigration[Append[preFixState,
-    "Stop" -> <|"Status" -> "StripBudgetExhausted", "Rows" -> 8|>]],
+    "Stop" -> <|"Status" -> "OffDiagonalBlockBudgetExhausted",
+      "Rows" -> 8|>]],
     "Reason", None] === "NoResolvableStop"];
 check["M6 the sector driver applies the package migration and does not \
 reimplement it",

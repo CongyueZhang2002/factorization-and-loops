@@ -20,10 +20,13 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 
 Clear[slx, sly, sle];
 variables = {slx, sly};
-frame = <|"Name" -> "SupportEvidenceRankZero", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Rational", "Variables" -> variables,
-  "Subst" -> {slx -> slx, sly -> sly}, "Root" -> None,
-  "RootSquare" -> None, "Roots" -> {}|>;
+frame = <|
+  "DataType" -> "SourceVariableRepresentation",
+  "SchemaVersion" -> 2,
+  "SourceVariables" -> variables,
+  "CoefficientVariables" -> variables,
+  "SourceVariableSubstitution" -> {slx -> slx, sly -> sly},
+  "DifferentialPullbackMatrix" -> IdentityMatrix[2]|>;
 zero = {{{0}}, {{0}}};
 record = <|"Family" -> "SUPPORT_EVIDENCE_TEST", "Sector" -> 2,
   "LowerSector" -> 1, "Variables" -> variables, "Regulator" -> sle,

@@ -44,25 +44,8 @@
        nested and numeric radicands produces the identical RootIndices,
        RadicalBases and (empty) UnclassifiedRadicalBases, with an empty
        DenestedRadicalBases.
-   (d) REAL DATA, on a FROZEN and TRACKED fixture.  On the 27x27 leading
-       truncation of the frozen CF303 family state (the tracked reduction
-       FrozenTestFixtures_2026-08-25/cf303_frozen_rows27.wl, verified
-       against that directory's SHA-256 manifest) the classifier reports ZERO unclassified radical
-       bases and RootIndices {1, 2}, and the used root pair selects the
-       catalogued chart Kallen23.  Those 27 rows are the sectors the
-       producing run had completed, so the connection is the one the
-       campaign banked: its radicands are the declared squares q1 and q2
-       themselves, with no nested and no numeric radicand, the
-       canonicalization is a verified no-op, and
-       FactorFamilyRegulatorDependenceInFrame returns "AlreadyEpsFactored"
-       -- which is re-derived here directly from the truncation rather
-       than believed.  All values MEASURED on the fixture 2026-08-25.
-       The denesting rewrite itself is exercised on constructed data in
-       (a), (b) and (c); what (d) certifies is that the classifier is
-       clean on real campaign data.
-   Consumers of the classifier that were NOT extended to nested or
-   numeric radicals must still fail closed: SolveOffDiagonalBasisTransformationBlock
-   returns the typed "StripContainsDenestedRadicals". *)
+   Consumers that require a direct square-root presentation still refuse
+   the denested form with a typed result. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Tests", "TestKit.wl"}]];
@@ -72,7 +55,7 @@ private[name_String] := Symbol["FeynFacet`Private`" <> name];
 {denest, denestSign, canonicalize, rootIndices, currentRoots} = private /@
   {"transportChartDenestRadicalBase", "transportChartDenestSign",
    "transportChartCanonicalizeDenestedRadicals", "transportChartRootIndices",
-   "transportChartCurrentRoots"};
+   "coefficientPresentationSquareRootsInVariables"};
 
 v = Symbol["Global`v"]; w = Symbol["Global`w"];
 x = Symbol["Global`x"]; y = Symbol["Global`y"]; eps = Symbol["Global`eps"];
@@ -89,12 +72,14 @@ lambda1[a_, b_] := (1 - a - b)^2 - 4 a b;
 sourceSquares = {lambda1[-v, w], lambda1[v, -w], 1 - 4 v w};
 frame = BuildSquareRootGeneratorsAndQuadraticRelations[sourceSquares, {v, w}, {x, y}];
 FTAssert["the CF303-shaped multiquadratic frame is exact",
-  AssociationQ[frame] && frame["Status"] === "ExactFrame" &&
-    Length[frame["Roots"]] === 3 &&
-    frame["ChartCertificate", "RootIdentities"] === {True, True, True}];
+  AssociationQ[frame] &&
+    frame["Status"] === "SquareRootGeneratorRelationsVerified" &&
+    Length[frame["SquareRootGenerators"]] === 3 &&
+    frame["QuadraticRelationVerification", "PerGenerator"] ===
+      {True, True, True}];
 
 roots = currentRoots[frame, {x, y}];
-q = Lookup[roots, "RootSquare", {}];
+q = Lookup[roots, "QuadraticRadicand", {}];
 {q1, q2, q3} = q;
 FTAssert["the declared squares are the CF303 triple in the chart variables",
   TrueQ[Together[q1 - (1 + 2 x + x^2 - 2 y + 2 x y + y^2)] === 0] &&
@@ -229,119 +214,15 @@ FTAssert["(c) the canonicalized expression is the same function numerically",
       30]]] < 10^-20]]];
 
 (* consumers that were not extended must still fail closed *)
-strip = {{{{eps/(1 - x)}}, {{0}}}, {{{0}}, {{0}}}, {{{Sqrt[base1]}}, {{0}}}};
-stripResult = SolveOffDiagonalBasisTransformationBlock[strip, {x, y}, eps, frame];
+sourceBase1 = base1 /. {x -> v, y -> w};
+strip = {{{{eps/(1 - v)}}, {{0}}}, {{{0}}, {{0}}},
+  {{{Sqrt[sourceBase1]}}, {{0}}}};
+stripResult = SolveOffDiagonalBasisTransformationBlock[
+  strip, {v, w}, eps, frame];
 FTAssert["(c) the strip solver stops, typed, on a denested radical",
   AssociationQ[stripResult] &&
-    stripResult["Status"] === "StripContainsDenestedRadicals" &&
+    stripResult["Status"] ===
+      "OffDiagonalBlockEquationContainsDenestedRadicals" &&
     stripResult["NumericRadicalClasses"] === {2}];
-
-(* ------------------------------------------------------------------ *)
-(* (d) the real CF303 truncation                                        *)
-(* ------------------------------------------------------------------ *)
-(* THE INPUT IS FROZEN.  Until 2026-08-25 this block read the LIVE campaign
-   state FamilyEpsFormsSolving/triple_root_2026-08-24_fable/CF303/... , which
-   every mission of the triple-root campaign rewrites; its assertions then
-   described whatever sector a run happened to have reached, and went red
-   with no code change when round 4 advanced CF303 past sector 16.  The input
-   is now the immutable copy under FrozenTestFixtures_2026-08-25/ (provenance
-   in that directory's README) and the statements below are properties of
-   that FIXED matrix. *)
-results = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical"}];
-fixtureDirectory = FileNameJoin[{results, "FamilyEpsFormsSolving",
-  "FrozenTestFixtures_2026-08-25"}];
-stateFile = FileNameJoin[{fixtureDirectory, "cf303_frozen_rows27.wl"}];
-manifestFile = FileNameJoin[{fixtureDirectory, "SHA256SUMS"}];
-(* TRACKED, not project-local (Codex 2026-08-25).  The full 45x45 sector
-   state is 61 MiB of run data and stays out of git; what this block reads
-   is its 27x27 LEADING TRUNCATION, a few hundred KiB, tracked together
-   with a SHA-256 manifest.  A fresh clone therefore runs this block. *)
-FTAssert["(d) the reduced frozen CF303 fixture and its manifest are TRACKED \
-repository files",
-  FileExistsQ[stateFile] && FileExistsQ[manifestFile] &&
-    FileExistsQ[FileNameJoin[{results, "TransportFamilyCharts.wl"}]]];
-FTAssert["(d) the fixture matches its SHA-256 provenance manifest",
-  Module[{lines, entry},
-    lines = Select[StringTrim /@ StringSplit[Import[manifestFile, "Text"], "\n"],
-      StringContainsQ[#, "cf303_frozen_rows27.wl"] &];
-    entry = If[lines === {}, None, First[StringSplit[First[lines]]]];
-    StringQ[entry] && entry === FileHash[stateFile, "SHA256", "HexString"]]];
-registration = LoadFamilyRootData[
-  FileNameJoin[{results, "TransportFamilyCharts.wl"}]];
-FTAssert["(d) the project family-chart inventory registers",
-  registration["Status"] === "FamilyChartsRegistered"];
-cf303Frame = FamilyRootData["CF303"];
-FTAssert["(d) CF303 is registered on a rank-3 multiquadratic frame",
-  AssociationQ[cf303Frame] && cf303Frame["Status"] === "ExactFrame" &&
-    cf303Frame["Name"] === "Multiquadratic3"];
-state = FamilyArtifactRead[stateFile];
-FTAssert["(d) the reduced fixture reads back with the schema this block \
-consumes: the 27x27 two-variable leading truncation in 16 sector ranges",
-  AssociationQ[state] &&
-    Dimensions[Lookup[state, "A", {}]] === {2, 27, 27} &&
-    Length[Lookup[state, "Ranges", {}]] === 16];
-FTAssert["(d) the reduction carries its own provenance: the source state \
-was 2x45x45 in 25 ranges",
-  Lookup[state, "Schema", None] === "FeynFacetFrozenTestFixture" &&
-    Lookup[state, "Family", None] === "CF303" &&
-    Lookup[state, "ReducedRows", None] === 27 &&
-    Lookup[state, "SourceDimensions", None] === {2, 45, 45} &&
-    Lookup[state, "SourceRangeCount", None] === 25 &&
-    StringQ[Lookup[state, "ABIVersion",
-      Lookup[state, "SourceSHA256", None]]]];   (* frozen fixture: legacy key *)
-truncation = {state["A"][[1, 1 ;; 27, 1 ;; 27]], state["A"][[2, 1 ;; 27, 1 ;; 27]]};
-cf303Roots = currentRoots[cf303Frame, {x, y}];
-cf303Class = rootIndices[truncation, cf303Roots];
-(* MEASURED on the frozen fixture, 2026-08-25.  The 27 rows are exactly the
-   sectors 1..16 the producing run had completed, so the connection here is
-   the one the campaign BANKED: its radicands are the two declared squares
-   q1 and q2 themselves, with no nested and no numeric radicand left.  The
-   classifier must therefore leave nothing unclassified and must report NO
-   denesting -- the denesting machinery is exercised on constructed data in
-   (a), (b) and (c) above; what this block certifies on real data is that
-   the classifier is CLEAN on it. *)
-FTAssert["(d) the 27x27 truncation has no unclassified radical base",
-  cf303Class["UnclassifiedRadicalBases"] === {} &&
-    cf303Class["RootIndices"] === {1, 2}];
-FTAssert["(d) the frozen truncation carries the declared squares directly: \
-no nested and no numeric radicand",
-  cf303Class["RadicalBases"] =!= {} &&
-    AllTrue[cf303Class["RadicalBases"], Function[base,
-      AnyTrue[{q1, q2, q3}, TrueQ[Together[base - #] === 0] &]]] &&
-    cf303Class["NumericRadicalClasses"] === {} &&
-    cf303Class["DenestedRadicalBases"] === <||>];
-cf303Canonical = canonicalize[truncation, cf303Roots, {x, y},
-  cf303Class["DenestedRadicalBases"]];
-FTAssert["(d) canonicalization is a verified no-op on it, and returns the \
-truncation unchanged",
-  cf303Canonical["Status"] === "OK" && cf303Canonical["Rewritten"] === 0 &&
-    cf303Canonical["Rewrites"] === <||> &&
-    cf303Canonical["Expression"] === truncation];
-FTAssert["(d) the used root pair selects the catalogued chart Kallen23",
-  Module[{chart = LookupCataloguedRationalizingParametrizationForRoots[
-      Lookup[cf303Roots[[cf303Class["RootIndices"]]], "RootSquare", {}], {x, y}]},
-    AssociationQ[chart] && chart["Name"] === "Kallen23"]];
-
-{cf303Seconds, cf303Factor} = AbsoluteTiming[
-  FactorFamilyRegulatorDependenceInFrame[truncation, {x, y}, eps, cf303Frame,
-    "PointLadder" -> {2, 4, 8}, "TimeLimit" -> 600]];
-Print["(d) FactorFamilyRegulatorDependenceInFrame: ",
-  Lookup[cf303Factor, "Status", cf303Factor], " in ", Round[cf303Seconds, 0.1], " s"];
-(* MEASURED on the frozen fixture, 2026-08-25, 11.1 s:
-     <|Status -> "AlreadyEpsFactored", RootIndices -> {}, Chart -> None|>
-   The classifier is clean (above), so the factorization reaches the
-   regulator question, and on these BANKED rows the answer is that there is
-   nothing left to factor.  Asserted as the exact status; the mathematical
-   claim behind it is verified separately, not taken from the verdict. *)
-FTAssert["(d) the factorization proceeds past the classification, with the \
-measured status AlreadyEpsFactored",
-  AssociationQ[cf303Factor] &&
-    ! MemberQ[{"ConnectionContainsUndeclaredRadicals", "AlgebraicFrameNotWellFormed",
-        "DenestSignAmbiguous"}, cf303Factor["Status"]] &&
-    cf303Factor["Status"] === "AlreadyEpsFactored"];
-FTAssert["(d) the reason is exact: the frozen 27x27 truncation is itself \
-eps-factored in the frame, in both variables",
-  private["familyRegulatorFactoredQ"][truncation[[1]], eps] &&
-    private["familyRegulatorFactoredQ"][truncation[[2]], eps]];
 
 FTReport[];

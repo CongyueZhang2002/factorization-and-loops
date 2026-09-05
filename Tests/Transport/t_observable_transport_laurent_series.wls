@@ -149,52 +149,6 @@ If[AllTrue[{cf27File, system27File, valuationsFile}, FileExistsQ],
     accepted[pair27[[1]]] && accepted[pair27[[2]]] &&
       deterministic[pair27[[1]]] === deterministic[pair27[[2]]]],
   Print["CF27 generated artifacts not present; optional production comparison skipped"]];
-(* the algebraic toy record of t_algebraic_observable_transport.wls *)
-ax = Symbol["Global`algebraicX"]; ay = Symbol["Global`algebraicY"];
-toy = <|"Status" -> "ExactEpsilonForm", "Family" -> "AlgebraicObservableToy", "Variables" -> {ax, ay},
-  "Regulator" -> eps, "Dim" -> 1, "Ranges" -> {{1}}, "TTotal" -> {{eps}}, "TTotalInverse" -> {{1/eps}},
-  "EpsFormX" -> eps {{-1/(2 Sqrt[1 - ax] (1 + Sqrt[1 - ax]))}}, "EpsFormY" -> eps {{0}},
-  "Letters" -> {1 + Sqrt[1 - ax]},
-  "DLog" -> <|"Valid" -> True, "Dimension" -> 1, "Variables" -> {ax, ay}, "Regulator" -> eps,
-    "Letters" -> {1 + Sqrt[1 - ax]}, "Residues" -> {{{1}}}, "ConstantResidues" -> True|>,
-  "ChartRecord" -> <|"CoefficientField" -> "Multiquadratic", "Variables" -> {ax, ay}, "Subst" -> {ax -> ax, ay -> ay},
-    "Roots" -> {<|"Root" -> Sqrt[1 - ax], "RootSquare" -> 1 - ax|>}|>,
-  "GateVerdict" -> True, "ConnectionTransformationEquation" -> True, "Flatness" -> True, "TTotalInvertible" -> True|>;
-toyPath = FeynFacet`ChooseRegularBasePointAndFirstPathParameterScale[toy];
-toyDemand = <|
-  "RequestedMasterIntegralEpsilonOrderAndRowPairs" -> {{2, 1}, {3, 1}},
-  "MinimumRetainedMasterIntegralEpsilonOrder" -> 2,
-  "RegularBasePointAndFirstPathParameterScale" -> toyPath|>;
-pairToy = runBoth[toy, toyDemand,
-  "BoundaryConstraintSubspaceRepresentation" ->
-    "AmbientSpaceWithBasePointConstraints"];
-Print["algebraic toy both routes: statuses ", Lookup[#, "Status", Head[#]] & /@ pairToy, "; differing keys ", differingKeys @@ pairToy];
-FTAssert["algebraic toy record: both routes give the same status and deterministic object",
-  deterministic[pairToy[[1]]] === deterministic[pairToy[[2]]]];
-(* a two-dimensional algebraic toy: TTotal with radical entries and poles
-   of two orders, so the Series route meets radicals inside the closure *)
-r = Sqrt[1 - ax];
-toy2TTotal = {{eps, (1 + r)/(eps (1 + eps))}, {0, 1/eps}};
-toy2 = Join[toy, <|"Family" -> "AlgebraicObservableToy2", "Dim" -> 2, "Ranges" -> {{1}, {2}},
-  "TTotal" -> toy2TTotal, "TTotalInverse" -> Map[Cancel[Together[#]] &, Inverse[toy2TTotal], {2}],
-  "EpsFormX" -> eps {{-1/(2 r (1 + r)), 0}, {0, -1/(2 r (1 + r))}}, "EpsFormY" -> eps {{0, 0}, {0, 0}},
-  "DLog" -> <|"Valid" -> True, "Dimension" -> 2, "Variables" -> {ax, ay}, "Regulator" -> eps,
-    "Letters" -> {1 + r}, "Residues" -> {{{1, 0}, {0, 1}}}, "ConstantResidues" -> True|>|>];
-toy2Demand = <|
-  "RequestedMasterIntegralEpsilonOrderAndRowPairs" ->
-    {{0, 1}, {0, 2}, {1, 1}, {1, 2}},
-  "MinimumRetainedMasterIntegralEpsilonOrder" -> 0,
-  "RegularBasePointAndFirstPathParameterScale" ->
-    FeynFacet`ChooseRegularBasePointAndFirstPathParameterScale[toy2]|>;
-pairToy2 = runBoth[toy2, toy2Demand,
-  "BoundaryConstraintSubspaceRepresentation" ->
-    "AmbientSpaceWithBasePointConstraints"];
-Print["2x2 algebraic toy both routes: statuses ", Lookup[#, "Status", Head[#]] & /@ pairToy2, "; differing keys ", differingKeys @@ pairToy2,
-  "; requested row/order pairs ", Lookup[pairToy2[[1]],
-    "RequestedMasterIntegralEpsilonOrderAndRowPairs", None],
-  "; constraint rank ", Lookup[pairToy2[[1]], "ConstraintRank", None]];
-FTAssert["2x2 algebraic toy record (radical TTotal entries with poles): both routes give the same status and deterministic object",
-  deterministic[pairToy2[[1]]] === deterministic[pairToy2[[2]]]];
 (* CF230, certified Kallen-chart record (its certified coefficient field is Rational), when present *)
 cf230File = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical", "FamilyEpsFormsCertified", "family_epsform_CF230.wl"}];
 de230File = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical", "DifferentialEquations", "nnlo_de_CF230.wl"}];

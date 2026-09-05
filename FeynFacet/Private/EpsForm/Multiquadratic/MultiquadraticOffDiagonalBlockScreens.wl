@@ -1846,7 +1846,7 @@ multiquadraticOffDiagonalBasisTransformationBlockScreen[ansatz_Association, opts
         (Exponent[Together[offDiagonalBasisTransformationDenominator], #1] & /@ variables),
       "SupportCount" -> supportCount, "GradeCount" -> gradeCount,
       "Dimensions" -> {upper, lower}, "RootCount" -> rank,
-      "RootSquares" -> (squareRootRecordRadicand /@ roots)|>,
+      "QuadraticRadicands" -> (squareRootRecordRadicand /@ roots)|>,
     "Seconds" -> seconds|>
 ];
 multiquadraticOffDiagonalBasisTransformationBlockScreen[___] :=

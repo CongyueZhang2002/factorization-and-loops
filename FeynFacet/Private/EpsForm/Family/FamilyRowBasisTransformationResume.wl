@@ -164,7 +164,7 @@ familyRowBasisTransformationDirectAlphabetOptions[___] := $Failed;
    solutions are excluded. *)
 familyRowBasisTransformationSolverFailureSummary[candidate_] := Module[
   {keys, bounded, diagnostics, status},
-  keys = {"Method", "RootIndices", "RootSquares", "RadicalBases",
+  keys = {"Method", "RootIndices", "QuadraticRadicands", "RadicalBases",
     "UnclassifiedRadicalBases", "CoefficientField",
     "BackendRequested", "BackendUsed", "BackendFallbackReason",
     "BackendFailure", "PlanValidationStatus",

@@ -95,7 +95,7 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
    "multiquadraticOffDiagonalBlockIntegrabilityScreen",
    "multiquadraticOffDiagonalBlockRootCensus", "multiquadraticOffDiagonalBlockRootOrder",
    "multiquadraticRationalOffDiagonalBasisTransformationDenominator",
-   "transportChartCurrentRoots"};
+   "coefficientPresentationSquareRootsInVariables"};
 
 If[longTestsQ,
 (* ------------------------------------------------------------------ *)
@@ -129,7 +129,7 @@ order = rootOrder[chart, variables, census["RootIndices"], regulator];
 check["the fixture is a rank-2 multiquadratic strip over d1 and d2",
   Lookup[order, "Status", None] === "StableRootOrder" &&
     Length[order["Roots"]] === 2 &&
-    Sort[Together /@ Lookup[order["Roots"], "RootSquare", {}]] ===
+    Sort[Together /@ Lookup[order["Roots"], "QuadraticRadicand", {}]] ===
       Sort[Together /@ {delta1, delta2}]];
 roots = order["Roots"];
 dlogKernelText = Environment["FACET_MQ_TEST_DLOG_KERNELS"];

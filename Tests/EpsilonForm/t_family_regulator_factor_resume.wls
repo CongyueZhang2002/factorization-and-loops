@@ -46,8 +46,9 @@ extractSpan[source_String, head_String, terminator_String] :=
 
 putAtomicText = extractSpan[driverSource, "putAtomic[expr_, file_] :=",
   "OverwriteTarget -> True]];"];
-checkpointText = extractSpan[driverSource, "staleStripCheckpointFile[m_] :=",
-  "\"_strip_state.wl\"}];"];
+checkpointText = extractSpan[driverSource,
+  "staleOffDiagonalBlockCheckpointFile[m_] :=",
+  "\"_off_diagonal_block_state.wl\"}];"];
 resolvableText = extractSpan[driverSource, "$regulatorResolvableStops = {",
   "\"RegulatorPropagationRejected\"};"];
 staleStopText = extractSpan[driverSource, "staleRegulatorStop[m_] :=",
@@ -61,9 +62,9 @@ check["the driver has EXACTLY ONE factorTruncated definition (no parallel path)"
   StringCount[driverSource, "factorTruncated[m_] := Module["] === 1];
 (* the sector loop must no longer carry its own checkpoint deletion:
    factorTruncated owns discard-then-persist, in that order *)
-check["the sector loop no longer deletes the strip checkpoint itself",
+check["the sector loop no longer deletes the off-diagonal-block checkpoint itself",
   StringFreeQ[driverSource,
-    "If[FileExistsQ[cp], DeleteFile[cp]; log[\"  strip checkpoint of sector \""]];
+    "If[FileExistsQ[cp], DeleteFile[cp]; log[\"  off-diagonal-block checkpoint of sector \""]];
 
 Scan[ToExpression, {putAtomicText, checkpointText, resolvableText,
   staleStopText, factorText}];
@@ -125,19 +126,20 @@ logLines = {};
 Global`log[a___] := AppendTo[logLines,
   StringJoin[ToString[#, InputForm] & /@ {a}]];
 
-checkpointFile = FileNameJoin[{scratchRoot, "CFTEST_2_strip_state.wl"}];
+checkpointFile = FileNameJoin[{scratchRoot,
+  "CFTEST_2_off_diagonal_block_state.wl"}];
 freshState[stopRows_] := (
   Global`sectorDeadline = AbsoluteTime[] + 600;
   Quiet[DeleteFile[Global`stateFile]];
-  Export[checkpointFile, "stale strip checkpoint", "Text"];
+  Export[checkpointFile, "stale off-diagonal-block checkpoint", "Text"];
   logLines = {};
   Global`state = <|"A" -> A0, "S" -> IdentityMatrix[3],
     "SInverse" -> IdentityMatrix[3], "SectorCertificates" -> {},
     "Stop" -> <|"Status" -> "NeedsMultiquadraticRegulatorFactorization",
       "Rows" -> stopRows, "RootIndices" -> {1, 2, 3}|>|>);
 
-check["the driver's checkpoint path is the NEXT sector's strip state",
-  Global`staleStripCheckpointFile[1] === checkpointFile];
+check["the driver's checkpoint path is the next sector's off-diagonal-block state",
+  Global`staleOffDiagonalBlockCheckpointFile[1] === checkpointFile];
 
 (* ---- (a) the matching stale stop, one accepted factorization ---- *)
 freshState[1];
@@ -155,15 +157,15 @@ check["the IN-MEMORY state's prefix is eps-factored",
     Global`epsFormQ[Global`state["A"][[2, 1 ;; 2, 1 ;; 2]]]];
 check["the resolved stop is removed from the in-memory state",
   ! KeyExistsQ[Global`state, "Stop"]];
-check["the stale strip checkpoint of the next sector is deleted",
+check["the stale off-diagonal-block checkpoint of the next sector is deleted",
   ! FileExistsQ[checkpointFile]];
 check["the driver reports both the discard and the resolution",
-  AnyTrue[logLines, StringContainsQ[#, "strip checkpoint of sector"] &&
+  AnyTrue[logLines, StringContainsQ[#, "off-diagonal-block checkpoint of sector"] &&
       StringContainsQ[#, "discarded (connection transformed)"] &] &&
     AnyTrue[logLines, StringContainsQ[#, "stale"] &&
       StringContainsQ[#, "cleared and the resolution recorded"] &]];
 
-(* THE RESUME CRITERION: what is ON DISK before the next strip begins *)
+(* THE RESUME CRITERION: what is on disk before the next block begins *)
 check["the state was persisted before returning (the file exists)",
   FileExistsQ[Global`stateFile]];
 persisted = If[FileExistsQ[Global`stateFile], Get[Global`stateFile], $Failed];

@@ -39,7 +39,7 @@ compiled = FeynFacet`Private`observableTransportFFCompileAlgebraicMatrix[
   Join[space, candidates], {u, v}, squares];
 FTAssert["the compiled matrix records the radical constant 5 and no constant root square",
   AssociationQ[compiled] && compiled["RadicalConstants"] === {5} &&
-    Select[Lookup[compiled["Roots"], "RootSquare", {}],
+    Select[Lookup[compiled["Roots"], "QuadraticRadicand", {}],
       FreeQ[#, u | v] &] === {}];
 
 included = FeynFacet`Private`observableTransportModularAlgebraicSubspaceInclusion[

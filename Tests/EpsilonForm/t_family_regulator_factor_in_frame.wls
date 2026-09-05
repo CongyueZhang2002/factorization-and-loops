@@ -15,11 +15,8 @@ v = Symbol["Global`v"]; w = Symbol["Global`w"];
 lambda1[a_, b_] := (1 - a - b)^2 - 4 a b;
 (* identity frame on (x, y) with two declared roots: sqrt(lambda1) (chart
    Kallen1) and sqrt(1 - 4 x y) (chart Bilinear115); no joint chart *)
-frame = <|"Name" -> "TestMultiquadratic", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Multiquadratic", "Variables" -> {x, y},
-  "Subst" -> {v -> x, w -> y},
-  "Roots" -> {<|"Root" -> Sqrt[lambda1[x, y]], "RootSquare" -> lambda1[v, w]|>,
-    <|"Root" -> Sqrt[1 - 4 x y], "RootSquare" -> 1 - 4 v w|>}|>;
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {lambda1[v, w], 1 - 4 v w}, {v, w}, {x, y}];
 r1 = Sqrt[lambda1[x, y]]; r2 = Sqrt[1 - 4 x y];
 dl[L_] := Map[Together, {D[Log[L], x], D[Log[L], y]}];
 k1 = {{1, 0, 0}, {0, -1, 0}, {2, 0, 0}}; k2 = {{0, 1, 0}, {1, 0, 0}, {0, 0, 3}};

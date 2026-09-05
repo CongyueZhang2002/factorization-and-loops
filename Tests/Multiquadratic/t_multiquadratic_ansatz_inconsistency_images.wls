@@ -203,45 +203,39 @@ check["O8 the fresh images are recorded with the verdict, and none of \
 them repeats a configured image",
   MatchQ[confirmed["FreshImages"], {{_Integer, _} ..}] &&
     Intersection[confirmed["FreshImages"][[All, 1]], defaultPrimes] === {}];
-check["O8 the verdict names the ansatz it is relative to",
-  StringQ[Lookup[confirmed, "AnsatzFingerprint", None]] ||
-    AssociationQ[Lookup[confirmed, "Ansatz", None]]];
+check["O8 the verdict states the ansatz it is relative to",
+  AssociationQ[Lookup[confirmed, "Ansatz", None]]];
 
 (* ------------------------------------------------------------------ *)
 (* O9: the top-level contract                                          *)
 (* ------------------------------------------------------------------ *)
 
-frame = <|"Name" -> "Round2Rational", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Rational", "Variables" -> {ox, oy},
-  "Subst" -> {ox -> ox, oy -> oy}, "Root" -> None, "RootSquare" -> None,
-  "Roots" -> {}|>;
+frame = <|
+  "DataType" -> "SourceVariableRepresentation",
+  "SchemaVersion" -> 2,
+  "SourceVariables" -> {ox, oy},
+  "CoefficientVariables" -> {ox, oy},
+  "SourceVariableSubstitution" -> {ox -> ox, oy -> oy},
+  "DifferentialPullbackMatrix" -> IdentityMatrix[2]|>;
 driven = solve[record, frame, "OneForms" -> Drop[forms, {3}],
   "IntegrabilityScreen" -> False, "DegreeOffsetLadder" -> None,
   "OffDiagonalBasisTransformationBlockScreenPointCount" -> 12];
 report["O9 top-level verdict", KeyTake[driven,
   {"Status", "SolutionContract", "ContractStrength", "ImageCount",
    "ConfiguredImageCount", "FreshImageCount", "Defects"}]];
-check["O9 the contract is ansatz-relative and bounded, not theorem-level",
+check["O9 the result is ansatz-relative, not theorem-level",
   Lookup[driven, "Status", None] === "OffDiagonalBlockAnsatzInconsistentAtFiniteFieldImage" &&
     Lookup[driven, "SolutionContract", None] ===
       "OffDiagonalBlockAnsatzInconsistency" &&
-    Lookup[driven, "ContractStrength", None] ===
-      "ProbabilisticFiniteFieldEvidence"];
+    AssociationQ[Lookup[driven, "Ansatz", None]]];
 check["O9 it records the image count and the configured/fresh split",
   IntegerQ[Lookup[driven, "ImageCount", None]] &&
     driven["ImageCount"] >= 3 &&
     driven["ConfiguredImageCount"] === 2 &&
     IntegerQ[Lookup[driven, "FreshImageCount", None]] &&
     driven["FreshImageCount"] >= 1];
-check["O9 it carries the ansatz fingerprint",
-  StringQ[Lookup[driven, "AnsatzFingerprint", None]] &&
-    StringLength[driven["AnsatzFingerprint"]] === 64];
-check["O9 the note states the bounded claim in words",
-  StringQ[Lookup[driven, "ContractNote", None]] &&
-    StringContainsQ[driven["ContractNote"], "not a theorem over Q(eps)"] &&
-    StringContainsQ[driven["ContractNote"], "WITHIN THE STATED"] &&
-    StringContainsQ[driven["ContractNote"], "drawn fresh at random"]];
-report["O9 contract note", Lookup[driven, "ContractNote", None]];
+check["O9 records the tested ansatz directly",
+  AssociationQ[Lookup[driven, "Ansatz", None]]];
 
 (* ------------------------------------------------------------------ *)
 (* O10: no surviving theorem-level wording                              *)

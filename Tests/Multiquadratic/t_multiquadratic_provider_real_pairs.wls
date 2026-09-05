@@ -47,11 +47,9 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
   "multiquadraticOffDiagonalBlockProviderPreflight",
   "multiquadraticOffDiagonalBlockProviderChannels"};
 
-dataDirectory = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
-  "UU_08_10_canonical", "FamilyEpsFormsSolving",
+dataDirectory = FileNameJoin[{root, "Stale", "DifferentialEquationData",
+  "2026-09-03_pre_v2", "UU_08_10_canonical", "FamilyEpsFormsSolving",
   "triple_root_2026-08-24_fable", "CF259", "sector_CF259_standard"}];
-chartFile = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
-  "UU_08_10_canonical", "TransportFamilyCharts.wl"}];
 
 cases = {
   <|"Name" -> "CF259 (24,16) lambda1/lambda3",
@@ -65,18 +63,13 @@ cases = {
     "Sector" -> 23, "LowerSector" -> 11, "RootIndices" -> {2, 3}|>
 };
 
-check["the project chart table and all three real strip inputs exist",
-  FileExistsQ[chartFile] && AllTrue[Lookup[cases, "File"], FileExistsQ]];
-If[! (FileExistsQ[chartFile] &&
-    AllTrue[Lookup[cases, "File"], FileExistsQ]),
-  report["required files", Prepend[Lookup[cases, "File"], chartFile]];
+check["all three preserved real off-diagonal-block inputs exist",
+  AllTrue[Lookup[cases, "File"], FileExistsQ]];
+If[! AllTrue[Lookup[cases, "File"], FileExistsQ],
+  report["required files", Lookup[cases, "File"]];
   Print["t_multiquadratic_provider_real_pairs: ", pass, " OK, ", fail,
     " FAIL"];
   Exit[1]];
-
-registration = FeynFacet`LoadFamilyRootData[chartFile];
-check["the project family-chart inventory authenticates",
-  Lookup[registration, "Status", None] === "FamilyChartsRegistered"];
 
 prime = 2147483423;
 epsilonValue = 5;
@@ -89,16 +82,19 @@ coefficientKeys = {"Prime", "Point", "RegulatorValue", "EpsilonMod",
 coefficientPayload[value_Association] := KeyTake[value, coefficientKeys];
 
 runCase[case_Association] := Module[
-  {record, variables, epsilon, frame, allRoots, expectedIndices,
+  {legacyRecord, record, variables, epsilon, frame, allRoots, expectedIndices,
    expectedRoots, prepared, layout, splitProvider, quotientProvider,
    candidateGrid, squareValues, splitPointQ, nonsplitPointQ,
    splitCandidates, nonsplitPoint, nonsplitPreflight, splitPoint,
    splitImage, quotientImage, attemptedSplitPoints = {}, point,
    frameExactQ, sourceShape, payloadSameQ = False},
 
-  record = FeynFacet`FamilyArtifactRead[case["File"], "Global`"];
-  If[! AssociationQ[record],
+  legacyRecord = FeynFacet`FamilyArtifactRead[case["File"], "Global`"];
+  If[! AssociationQ[legacyRecord],
     Return[<|"Status" -> "InputUnreadable"|>]];
+  record = Join[KeyTake[legacyRecord,
+      {"Family", "Sector", "LowerSector", "Variables", "Regulator"}],
+    <|"OffDiagonalBlockEquation" -> legacyRecord["Strip"]|>];
   variables = Lookup[record, "Variables", $Failed];
   epsilon = Lookup[record, "Regulator", $Failed];
   sourceShape = Quiet[Check[Dimensions /@ record["OffDiagonalBlockEquation"], $Failed]];
@@ -113,12 +109,17 @@ runCase[case_Association] := Module[
      variables {x,y}.  Keep its authenticated source {v,w} -> target {x,y}
      identity map; rebuilding with {x,y} as BOTH source and target would
      destroy the distinction that BuildSquareRootGeneratorsAndQuadraticRelations certifies. *)
-  frame = FeynFacet`FamilyRootData["CF259"];
+  frame = BuildSquareRootGeneratorsAndQuadraticRelations[
+    {(1 - Global`v - Global`w)^2 - 4 Global`v Global`w,
+      (1 - Global`v + Global`w)^2 + 4 Global`v Global`w,
+      4 Global`v + Global`w^2},
+    {Global`v, Global`w}, variables];
   allRoots = If[AssociationQ[frame],
-    mq["transportChartCurrentRoots"][frame, variables], $Failed];
+    mq["coefficientPresentationSquareRootsInVariables"][frame, variables],
+    $Failed];
   expectedIndices = case["RootIndices"];
-  If[! (AssociationQ[frame] && frame["Status"] === "ExactFrame" &&
-      TrueQ[frame["ChartCertificate", "OK"]] &&
+  If[! (AssociationQ[frame] &&
+      frame["Status"] === "SquareRootGeneratorRelationsVerified" &&
       MatchQ[allRoots, {__Association}] && Length[allRoots] === 3),
     Return[<|"Status" -> "FamilyFrameInvalid"|>]];
   expectedRoots = allRoots[[expectedIndices]];

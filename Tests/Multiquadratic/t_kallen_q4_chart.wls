@@ -265,8 +265,8 @@ FTAssert["B4 KallenQ4b: v^2 + 4 w pulled back == (recorded root)^2",
   zeroQ[pullBack[kq4b, q3b[vv, ww]] -
     kq4b["RationalizedSquareRoots"][[2]]["RationalRoot"]^2]];
 FTAssert["B5 no duplicate primary-root fields survive in V2",
-  Intersection[Keys[kq4a], {"Root", "RootSquare", "Roots"}] === {} &&
-  Intersection[Keys[kq4b], {"Root", "RootSquare", "Roots"}] === {}];
+  Intersection[Keys[kq4a], {"Root", "QuadraticRadicand", "Roots"}] === {} &&
+  Intersection[Keys[kq4b], {"Root", "QuadraticRadicand", "Roots"}] === {}];
 
 (* ---- C. the Jacobian ---------------------------------------------- *)
 jacobianDet[parametrization_] := Module[
@@ -520,7 +520,8 @@ truncation (row bound read from the state's own \"Ranges\")",
     truncation = {state["A"][[1, 1 ;; rowBound, 1 ;; rowBound]],
       state["A"][[2, 1 ;; rowBound, 1 ;; rowBound]]};
     Print["T: rows 1..16 is the ", rowBound, "x", rowBound, " truncation"];
-    allRoots = FeynFacet`Private`transportChartCurrentRoots[frame, {xx, yy}];
+    allRoots = FeynFacet`Private`coefficientPresentationSquareRootsInVariables[
+      frame, {xx, yy}];
     classification = FeynFacet`Private`transportChartRootIndices[
       truncation, allRoots];
     FTAssert["T5 the truncation carries frame roots {1, 3} and no \
@@ -528,7 +529,7 @@ undeclared radical",
       classification["RootIndices"] === {1, 3} &&
       classification["UnclassifiedRadicalBases"] === {}];
     rootSquares = Lookup[allRoots[[classification["RootIndices"]]],
-      "RootSquare", {}];
+      "QuadraticRadicand", {}];
     chart = FeynFacet`LookupCataloguedRationalizingParametrizationForRoots[rootSquares, {xx, yy}];
     FTAssert["T6 that root pair now resolves to KallenQ4a (it was \
 Missing[\"NoRationalChart\"], which is what stopped the solve)",

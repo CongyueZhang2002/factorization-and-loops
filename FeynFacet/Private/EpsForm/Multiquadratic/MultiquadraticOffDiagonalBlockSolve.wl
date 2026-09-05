@@ -53,7 +53,7 @@
 
    Reused instead of ported: the off-diagonal block equation adapter's TRCurrentRoots,
    The retired prototype's classifier and sign-change helper were the package's
-   transportChartCurrentRoots, transportChartRootIndices and
+   coefficientPresentationSquareRootsInVariables, transportChartRootIndices and
    transportChartApplyRootBranches; only the census matcher is
    tightened here (see multiquadraticOffDiagonalBlockRootCensus).
 
@@ -419,11 +419,13 @@ $multiquadraticOffDiagonalBlockInhomogeneityChannelSchema =
   "MultiquadraticInhomogeneityChannelsV3";
 
 multiquadraticOffDiagonalBlockInhomogeneityChannelRecord[channels_, inhomogeneity_, roots_List,
-    variables_List, epsilon_] := Module[{rules},
+    variables_List, epsilon_] := Module[{rules, rootDefiningData},
   rules = multiquadraticOffDiagonalBlockCanonicalRules[variables, epsilon];
+  rootDefiningData = (<|"Generator" -> squareRootRecordExpression[#],
+      "QuadraticRadicand" -> squareRootRecordRadicand[#]|> &) /@ roots;
   <|"Schema" -> $multiquadraticOffDiagonalBlockInhomogeneityChannelSchema,
     "SchemaVersion" -> 3,
-    "DefiningData" -> ({inhomogeneity, roots} /. rules),
+    "DefiningData" -> ({inhomogeneity, rootDefiningData} /. rules),
     "GradeCount" -> 2^Length[roots],
     "Dimensions" -> Dimensions[inhomogeneity],
     "Channels" -> channels|>
@@ -433,7 +435,7 @@ multiquadraticOffDiagonalBlockInhomogeneityChannelRecord[channels_, inhomogeneit
    the caller turns into a failure record *)
 multiquadraticOffDiagonalBlockInhomogeneityChannelsAccept[supplied_, inhomogeneity_, roots_List,
     variables_List, epsilon_] := Module[
-  {definingData, gradeCount, channels, schema},
+  {definingData, rootDefiningData, gradeCount, channels, schema},
   If[supplied === Automatic || MissingQ[supplied] || supplied === None,
     Return[<|"Status" -> "NotSupplied"|>]];
   If[! AssociationQ[supplied],
@@ -450,9 +452,14 @@ multiquadraticOffDiagonalBlockInhomogeneityChannelsAccept[supplied_, inhomogenei
     Return[<|"Status" -> "InhomogeneityChannelShapeMismatch",
       "Expected" -> Append[Dimensions[inhomogeneity], gradeCount],
       "Actual" -> Dimensions[channels]|>]];
-  definingData = {inhomogeneity, roots} /.
+  rootDefiningData = (<|"Generator" -> squareRootRecordExpression[#],
+      "QuadraticRadicand" -> squareRootRecordRadicand[#]|> &) /@ roots;
+  definingData = {inhomogeneity, rootDefiningData} /.
     multiquadraticOffDiagonalBlockCanonicalRules[variables, epsilon];
-  If[! SameQ[Lookup[supplied, "DefiningData", Missing[]], definingData],
+  If[! SameQ[
+      Lookup[supplied, "DefiningData", Missing[]] /.
+        multiquadraticOffDiagonalBlockCanonicalRules[variables, epsilon],
+      definingData],
     Return[<|"Status" -> "InhomogeneityChannelDefiningDataMismatch"|>]];
   <|"Status" -> "Accepted", "Channels" -> channels|>
 ];

@@ -62,7 +62,7 @@ CF303PhysicalBoundaryCampaign[OptionsPattern[]] := Catch@Module[
       sourceCount =!= 287 || Length[boundaryColumns] =!= 293 ||
       completeIncomingCount =!= 90 ||
       artifact["HOrders"] =!= Range[-3, 4] ||
-      artifact["PhysicalOffDiagonalTransformationOrders"] =!= Range[0, 2],
+      artifact["PhysicalGaugeOrders"] =!= Range[0, 2],
     fail["CF303AcceptedTransportLayoutInvalid"]];
 
   sourcePath = artifact["SourceArtifact", "Path"];
@@ -124,8 +124,8 @@ CF303PhysicalBoundaryCampaign[OptionsPattern[]] := Catch@Module[
     "SelectionReason" ->
       "For 0<p<1/Sqrt[2], the path from the physical interior reaches u=2p with sqrt(1-4vw)=1-2p^2>0; rho=2p-u makes s/rho positive"|>;
 
-  stateFile = FileNameJoin[{repository, "ppHX_NNLO_DoubleReal", "Results",
-    "UU_08_10_canonical", "FamilyEpsFormsSolving",
+  stateFile = FileNameJoin[{repository, "Stale", "DifferentialEquationData",
+    "2026-09-03_pre_v2", "UU_08_10_canonical", "FamilyEpsFormsSolving",
     "triple_root_2026-08-28_codex_clean", "CF303",
     "sector_state_CF303_standard.wl"}];
 
@@ -142,7 +142,7 @@ CF303PhysicalBoundaryCampaign[OptionsPattern[]] := Catch@Module[
       "Rows" -> targetRows, "Status" -> "AcceptedPathGauge",
       "Orientation" -> artifact["PhysicalRelation"],
       "GaugeByOrderPairs" -> artifact["PhysicalGaugeByOrderPairs"],
-      "Orders" -> artifact["PhysicalOffDiagonalTransformationOrders"]|>,
+      "Orders" -> artifact["PhysicalGaugeOrders"]|>,
     "MissingDatum" ->
       "The selected normal modes and their tangential soft-stratum evolution"|>;
 

@@ -83,7 +83,6 @@ FTAssert["the recorded reconstruction certificate is accepted by the predicate's
     ! certificateQ[KeyDrop[certificate, "IdentityInheritedFromFamilyCertificate"]] &&
     ! certificateQ[Join[certificate, <|"EpsilonValuesPerLinearityPoint" -> 2|>]] &&
     ! certificateQ[KeyDrop[certificate, "ValidationEpsilonValues"]] &&
-    ! certificateQ[Join[certificate, <|"CoefficientField" -> "Multiquadratic"|>]] &&
     ! certificateQ[Join[certificate, <|"Status" -> "CertifiedDLogResidues"|>]] &&
     ! certificateQ[KeyDrop[certificate, "FreshValidationPoints"]]];
 

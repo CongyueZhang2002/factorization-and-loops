@@ -57,8 +57,10 @@ standalone_only() {
   case "$1" in
     t_transport_chart_extension|t_kallen_q4_chart|\
     t_family_regulator_factor_in_frame|t_radical_denesting|\
+    t_diagonal_block_dlog_epsilon_form_v2|t_construction_dag|\
+    t_multiquadratic_follower_image_wave|t_follower_image_whole_wave_dispatch|\
     t_canonical_pipeline|t_pair_queue_schedule|\
-    t_kernelpool_return_marker|t_kernelpool_resource_policy|\
+    t_kernelpool_return_marker|t_kernelpool_resource_policy|t_solver_budget|\
     t_multiquadratic_off_diagonal_basis_transformation_ladder|t_multiquadratic_off_diagonal_basis_transformation_screen|\
     t_multiquadratic_letters) return 0 ;;
     *) return 1 ;;

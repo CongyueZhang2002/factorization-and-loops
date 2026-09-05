@@ -59,6 +59,20 @@ and complete degree-one rectangular ansatzes are both inconsistent, while the
 This narrows the mathematical problem but does not yet prove that no rational
 dlog epsilon form exists.
 
+A bounded mixed-grade divisor search found one new three-root letter in 204.7 s,
+with grade support `{4,5,6}`. It was tested outside the package in three
+controlled variants and is rejected:
+
+| `(27,19)` variant | Result | Same-block comparison |
+|---|---:|---|
+| Automatic norm enlargement, denominator bidegree `{21,29}` | 10,224-unknown denominator-support system inconsistent; 21,264-unknown complete rectangle exceeded the configured sample-memory limit; 53.8 s total | Not a comparable improvement because the denominator and support changed; no solution was obtained. |
+| Algebraic norm factor suppressed, base denominator bidegree `{14,17}` | 4,528-unknown denominator-support and 8,784-unknown complete rectangle both inconsistent; 44.8 s total | Useful negative diagnostic only; it tested a smaller denominator than the recorded block and obtained no solution. |
+| Original recorded denominator `{19,23}`, original 480-monomial complete support | 15,504 unknowns; terminal inconsistency after 203.5 s, including 169.0 s in the complete system | **Reject.** The current 35-letter method reaches the same terminal result in 151.2 s. The added direction is 1.35 times slower and does not resolve the block. |
+
+The mixed-grade prototype is therefore not connected to production. Any
+further alphabet extension must first enlarge the constant-coefficient
+one-form span and then beat the current same-block timing.
+
 ## Regression evidence
 
 The following focused suites pass after the retained changes:

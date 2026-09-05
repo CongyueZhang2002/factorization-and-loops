@@ -735,7 +735,7 @@ blockEquationDeferredActiveGradeCensus[preparation_Association,
       If[! AllTrue[deltaResults, Lookup[#1, "Status", None] === "OK" &],
         failureStatus = Lookup[FirstCase[deltaResults,
           result_ /; Lookup[result, "Status", None] =!= "OK"],
-          "Status", "RootSquareEvaluationFailed"];
+          "Status", "QuadraticRadicandEvaluationFailed"];
         If[MemberQ[{"UnsupportedExpression", "UnassignedSymbol",
             "AlgebraicOperandUnsupported"}, failureStatus],
           Return[<|"Status" -> "ActiveGradeCensusInconclusive",
@@ -1825,8 +1825,8 @@ blockEquationDeferredDivisorMetadata[___] := <|"Status" -> "InvalidInput"|>;
    materialization only as the explicit oracle/artifact mode of the
    driver entry point.  Typed refusals: DeferredRootFrameRequired
    (algebraic content, no frame), RadicalOutsideDeclaredFrame (a radical
-   outside the declared square-class span), DependentRootSquares /
-   DuplicateRootSquares (an invalid frame, refused BEFORE orbit
+   outside the declared square-class span), DependentQuadraticRadicands /
+   DuplicateQuadraticRadicands (an invalid frame, refused BEFORE orbit
    generation).
 
    POLE-ORDER LABELS (Codex A3, "do not overstate pre-cancellation
@@ -1863,13 +1863,13 @@ blockEquationDeferredValidateSquareRootGenerators[roots_List, variables_List, re
   duplicates = Select[Subsets[Range[Length[roots]], {2}],
     TrueQ[Together[squares[[#1[[1]]]] - squares[[#1[[2]]]]] === 0] &];
   If[duplicates =!= {},
-    Return[<|"Status" -> "DuplicateRootSquares",
+    Return[<|"Status" -> "DuplicateQuadraticRadicands",
       "DuplicatePairs" -> duplicates|>]];
   dependent = FirstCase[Rest[Subsets[Range[Length[roots]]]],
     subset_ /; TrueQ[multiquadraticOffDiagonalBlockSquareClassSquareQ[
       Times @@ squares[[subset]]]] :> subset, None];
   If[dependent =!= None,
-    Return[<|"Status" -> "DependentRootSquares",
+    Return[<|"Status" -> "DependentQuadraticRadicands",
       "RootIndices" -> dependent|>]];
   <|"Status" -> "SquareRootGeneratorsValidated",
     "SquareRootGenerators" -> roots|>
@@ -2088,7 +2088,7 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
    classification, indices, syntacticIndices, usedRoots, rootSquares, chart,
    properChartableQ, activeCensus = Missing["NotNeeded"], reducedIndices,
    reducedRoots, reducedSquares, reducedChart, denestedQ,
-   declaredRootSquares, method = "SyntacticRootUnion", diagonalStarted,
+   declaredQuadraticRadicands, method = "SyntacticRootUnion", diagonalStarted,
    projectionIndices},
   variables = Lookup[preparation, "Variables", {}];
   regulator = Lookup[preparation, "Regulator", None];
@@ -2122,7 +2122,7 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
      only for a chartless or denested raw union. *)
   If[! denestedQ && (indices === {} || AssociationQ[chart]),
     Return[<|"Status" -> "OK", "RootIndices" -> indices,
-      "RootSquares" -> rootSquares, "ChartAvailableQ" -> True,
+      "QuadraticRadicands" -> rootSquares, "ChartAvailableQ" -> True,
       "Chart" -> If[AssociationQ[chart], Lookup[chart, "Name", None], None],
       "Method" -> method, "SyntacticRootIndices" -> syntacticIndices,
       "ActiveGradeCensus" -> activeCensus,
@@ -2134,10 +2134,10 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
      test; otherwise retain the complete declared frame and let the exact
      bundle compiler validate it.  An inconclusive modular probe falls
      through to the older exact classifier below. *)
-  declaredRootSquares = squareRootRecordRadicand /@ roots;
-  If[Length[roots] >= 2 && ListQ[declaredRootSquares] &&
-      Length[declaredRootSquares] === Length[roots] &&
-      ! AssociationQ[LookupCataloguedRationalizingParametrizationForRoots[declaredRootSquares, variables]],
+  declaredQuadraticRadicands = squareRootRecordRadicand /@ roots;
+  If[Length[roots] >= 2 && ListQ[declaredQuadraticRadicands] &&
+      Length[declaredQuadraticRadicands] === Length[roots] &&
+      ! AssociationQ[LookupCataloguedRationalizingParametrizationForRoots[declaredQuadraticRadicands, variables]],
     Print["[deferred-router] modular-first chart decision: rank ",
       Length[roots], ", records ", Length[records]];
     diagonalStarted = AbsoluteTime[];
@@ -2171,7 +2171,7 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
           Complement[Range[Length[roots]], reducedIndices]];
         If[reducedIndices === {} || AssociationQ[reducedChart],
           Return[<|"Status" -> "OK", "RootIndices" -> reducedIndices,
-            "RootSquares" -> reducedSquares, "ChartAvailableQ" -> True,
+            "QuadraticRadicands" -> reducedSquares, "ChartAvailableQ" -> True,
             "Chart" -> If[AssociationQ[reducedChart],
               Lookup[reducedChart, "Name", None], None],
             "Method" -> If[projectionIndices === {},
@@ -2182,7 +2182,7 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
             "ExpressionCount" -> Length[records]|>],
           Return[<|"Status" -> "OK",
             "RootIndices" -> Range[Length[roots]],
-            "RootSquares" -> declaredRootSquares,
+            "QuadraticRadicands" -> declaredQuadraticRadicands,
             "ChartAvailableQ" -> False,
             "Chart" -> None, "Method" -> "ModularDeclaredFrame",
             "SyntacticRootIndices" -> Missing["ModularPreclassification"],
@@ -2224,7 +2224,7 @@ blockEquationDeferredChartDecision[connection_, preparation_Association,
             rootSquares = reducedSquares; chart = reducedChart;
             method = "ModularActiveGrades"]]]]];
   <|"Status" -> "OK", "RootIndices" -> indices,
-    "RootSquares" -> rootSquares,
+    "QuadraticRadicands" -> rootSquares,
     "ChartAvailableQ" -> (indices === {} || AssociationQ[chart]),
     "Chart" -> If[AssociationQ[chart], Lookup[chart, "Name", None], None],
     "Method" -> method, "SyntacticRootIndices" -> syntacticIndices,

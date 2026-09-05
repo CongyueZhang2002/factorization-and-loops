@@ -27,8 +27,8 @@ Get[FileNameJoin[{DirectoryName[DirectoryName[$InputFileName]], "TestKit.wl"}]];
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Scripts", "EpsilonGraded.wl"}]];
 x = Global`x; y = Global`y; v = Global`v; w = Global`w; eps = Global`eps;
-hardDir = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
-   "UU_08_10_canonical", "HardClasses"}];
+hardDir = FileNameJoin[{root, "Stale", "DifferentialEquationData",
+   "2026-09-03_pre_v2", "UU_08_10_canonical", "HardClasses"}];
 
 (* ---------------------------------------------------------------- A ---- *)
 out = EGSolve[{0, -eps/x, 1}, {0, 0}, x, x, eps, "Depth" -> 3];

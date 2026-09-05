@@ -85,7 +85,8 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
    "multiquadraticOffDiagonalBlockNormDenominatorFactor",
    "multiquadraticOffDiagonalBlockMergeOffDiagonalBasisTransformationDenominator",
    "multiquadraticRationalOffDiagonalBasisTransformationDenominator",
-   "multiquadraticOffDiagonalBlockRootCensus", "transportChartCurrentRoots"};
+   "multiquadraticOffDiagonalBlockRootCensus",
+   "coefficientPresentationSquareRootsInVariables"};
 
 (* ------------------------------------------------------------------ *)
 (* L1-L2: the environment parse                                         *)
@@ -254,7 +255,7 @@ denominator = 1 - x - y;
 support = Sort[{{0, 0}, {0, 1}, {1, 0}}];
 diagonalForm[residues_List] := Table[
    Sum[residues[[a]] oneForms[[a, mu]], {a, Length[letters]}], {mu, 2}];
-mqRoots = Lookup[rootOrder[frame, {x, y}, {1}, eps]["Roots"], "Root", {}];
+mqRoots = Lookup[rootOrder[frame, {x, y}, {1}, eps]["Roots"], "Generator", {}];
 gradeFactor[grade_, roots_] :=
   Product[If[BitGet[grade, k - 1] === 1, roots[[k]], 1], {k, Length[roots]}];
 mqCoefficients = BlockRandom[SeedRandom[202];

@@ -349,10 +349,10 @@ multiquadraticOffDiagonalBlockAssemblePointInternal[assembly_Association,
     (* separate the two admissible reasons for a bad point: a ramified
        or non-split root image, and a zero of the basis-transformation block denominator *)
     primitiveEvaluated = Catch[multiquadraticOffDiagonalBlockEvaluateForms[
-      KeyTake[forms, {"RootSquares", "OffDiagonalBasisTransformationDenominator"}], xPowers, yPowers,
+      KeyTake[forms, {"QuadraticRadicands", "OffDiagonalBasisTransformationDenominator"}], xPowers, yPowers,
       prime], "MultiquadraticOffDiagonalBlockBadPoint"];
     If[AssociationQ[primitiveEvaluated],
-      primitiveDeltaValues = primitiveEvaluated["RootSquares"];
+      primitiveDeltaValues = primitiveEvaluated["QuadraticRadicands"];
       If[VectorQ[primitiveDeltaValues, IntegerQ] &&
           Length[primitiveDeltaValues] === assembly["RootCount"] &&
           MemberQ[primitiveDeltaValues, 0],
@@ -366,7 +366,7 @@ multiquadraticOffDiagonalBlockAssemblePointInternal[assembly_Association,
           <|"Point" -> point|>], "MultiquadraticOffDiagonalBlockAssemblyFailure"]]];
     Throw[multiquadraticOffDiagonalBlockFailure["RationalChannelPole", <|"Point" -> point|>],
       "MultiquadraticOffDiagonalBlockAssemblyFailure"]];
-  deltaValues = evaluated["RootSquares"];
+  deltaValues = evaluated["QuadraticRadicands"];
   If[! VectorQ[deltaValues, IntegerQ] ||
       Length[deltaValues] =!= assembly["RootCount"] || MemberQ[deltaValues, 0],
     Throw[multiquadraticOffDiagonalBlockFailure["DegenerateRootImage",

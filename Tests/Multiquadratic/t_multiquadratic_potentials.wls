@@ -76,7 +76,9 @@ reset[];
 good = verify[1 + px + py, dlogOf[1 + px + py], {px, py}, pe];
 check["P1 a genuine (one-form, letter) pair is verified",
   Lookup[good, "Status", None] === "PotentialVerified" &&
-    TrueQ[good["Verified"]] && StringQ[good["PairKey"]]];
+    TrueQ[good["Verified"]] &&
+    good["Letter"] === 1 + px + py &&
+    good["OneForm"] === dlogOf[1 + px + py]];
 report["P1 verdict", KeyTake[good, {"Status", "Verified", "Cached"}]];
 
 wrong = verify[1 + px + py, dlogOf[1 + px - py], {px, py}, pe];
@@ -166,10 +168,13 @@ report["P8 counts", KeyTake[letters,
   {"PotentialsVerified", "PotentialsRefused", "PotentialsCertified"}]];
 
 (* ---- P9 / P10: the preparation ---- *)
-frame = <|"Name" -> "Round2Rational", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Rational", "Variables" -> {px, py},
-  "Subst" -> {px -> px, py -> py}, "Root" -> None, "RootSquare" -> None,
-  "Roots" -> {}|>;
+frame = <|
+  "DataType" -> "SourceVariableRepresentation",
+  "SchemaVersion" -> 2,
+  "SourceVariables" -> {px, py},
+  "CoefficientVariables" -> {px, py},
+  "SourceVariableSubstitution" -> {px -> px, py -> py},
+  "DifferentialPullbackMatrix" -> IdentityMatrix[2]|>;
 prepared = prepare[record, frame, "RegulatorSampleCount" -> 2];
 check["P9 the preparation records the per-letter potentials and the verdict",
   Lookup[prepared, "Status", None] === "PreparedMultiquadraticOffDiagonalBlockV1" &&

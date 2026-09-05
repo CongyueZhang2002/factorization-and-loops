@@ -47,7 +47,7 @@ sourceRoots = {
   <|"Generator" -> Sqrt[bilinear[v, w]],
     "QuadraticRadicand" -> bilinear[v, w],
     "SourceRadicand" -> bilinear[v, w]|>};
-pulledRootSquares = Map[
+pulledQuadraticRadicands = Map[
   <|"QuadraticRadicand" -> Together[
       #1["QuadraticRadicand"] /.
         data["SourceVariableSubstitution"]]|> &,
@@ -59,7 +59,7 @@ inverseU = Together[(sourceRoots[[2, "Generator"]] - 1)/inverseA];
 roundTrip = Map[Together,
   FeynFacet`Private`transportChartApplyRootBranches[
     {inverseP, inverseU} /. data["SourceVariableSubstitution"],
-    pulledRootSquares, rootImages] - chart["ParametrizingVariables"]];
+    pulledQuadraticRadicands, rootImages] - chart["ParametrizingVariables"]];
 FTAssert["A5 explicit inverse composes exactly on the declared branches",
   roundTrip === {0, 0}];
 
@@ -89,7 +89,7 @@ k2sourceRoots = {
   <|"Generator" -> Sqrt[bilinear[v, w]],
     "QuadraticRadicand" -> bilinear[v, w],
     "SourceRadicand" -> bilinear[v, w]|>};
-k2pulledRootSquares = Map[
+k2pulledQuadraticRadicands = Map[
   <|"QuadraticRadicand" -> Together[
       #1["QuadraticRadicand"] /.
         k2data["SourceVariableSubstitution"]]|> &,
@@ -101,7 +101,7 @@ k2inverseU = Together[(k2sourceRoots[[2, "Generator"]] - 1)/k2inverseA];
 k2roundTrip = Map[Together,
   FeynFacet`Private`transportChartApplyRootBranches[
     {k2inverseP, k2inverseU} /.
-      k2data["SourceVariableSubstitution"], k2pulledRootSquares,
+      k2data["SourceVariableSubstitution"], k2pulledQuadraticRadicands,
     k2rootImages] - k2chart["ParametrizingVariables"]];
 FTAssert["A9 lambda2 explicit inverse composes on the declared branches",
   k2roundTrip === {0, 0}];

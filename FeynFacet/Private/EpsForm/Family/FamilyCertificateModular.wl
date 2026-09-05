@@ -676,7 +676,7 @@ familyCertMQValidateRegulatorRootFrames[baseRoots_List, frames_List,
         <|"FrameIndex" -> frameIndex|>], Module]];
     stable = familyRegulatorGradedRootFrame[frameRoots];
     If[Lookup[stable, "Status", None] =!= "StableRootFrame" ||
-        AnyTrue[Lookup[stable, "RootSquares", {}],
+        AnyTrue[Lookup[stable, "QuadraticRadicands", {}],
           ! FreeQ[#1, regulator] &],
       Return[familyCertMQFailure["RegulatorRootFrameRelationsInvalid",
         <|"FrameIndex" -> frameIndex, "RelationCheck" -> stable|>],
@@ -759,7 +759,7 @@ familyCertMQPrepare[objects_Association, roots_List,
       {0, Infinity}] &, objects];
   If[AnyTrue[squareRootRecordRadicand /@ orderedRoots,
       ! FreeQ[#, regulator] &],
-    Return[familyCertMQFailure["RegulatorDependentRootSquare"]]];
+    Return[familyCertMQFailure["RegulatorDependentQuadraticRadicand"]]];
   census = transportChartRootIndices[Values[normalObjects], orderedRoots];
   If[! AssociationQ[census], Return[familyCertMQFailure["RootCensusFailed"]]];
   If[Lookup[census, "UnclassifiedRadicalBases", {}] =!= {},
@@ -778,7 +778,7 @@ familyCertMQPrepare[objects_Association, roots_List,
   If[undeclaredNumericClasses =!= {},
     Return[familyCertMQFailure["UndeclaredNumericRootClasses",
       <|"SquareClasses" -> undeclaredNumericClasses,
-        "DeclaredRootSquares" ->
+        "DeclaredQuadraticRadicands" ->
           (squareRootRecordRadicand /@ orderedRoots)|>]]];
   denested = Lookup[census, "DenestedRadicalBases", <||>];
   canonical = If[denested === <||>,
@@ -827,7 +827,7 @@ familyCertMQPrepare[objects_Association, roots_List,
   If[surviving =!= {},
     Return[familyCertMQFailure["UndeclaredRadicalsAfterDenesting",
       <|"RadicalBases" -> surviving,
-        "DeclaredRootSquares" ->
+        "DeclaredQuadraticRadicands" ->
           (squareRootRecordRadicand /@ orderedRoots),
         "DenestedRadicalBases" -> Keys[denested],
         "PerObjectRadicals" -> Select[
@@ -968,7 +968,7 @@ familyCertMQSelectModalPivotTrials[___] :=
    InsufficientFreshValidationPrimes after InsufficientUsablePoints at
    p == 7 (mod 12).  Now only admissible primes are drawn (bounded raw
    draws) and only trials consume the budget. *)
-familyCertMQNumericRootSquares[roots_List] :=
+familyCertMQNumericQuadraticRadicands[roots_List] :=
   Select[squareRootRecordRadicand /@ roots,
     MatchQ[#, _Integer | _Rational] &];
 familyCertMQPrimeAdmissibleQ[numericSquares_List, p_Integer] :=
@@ -977,7 +977,7 @@ familyCertMQPrimeAdmissibleQ[numericSquares_List, p_Integer] :=
     a =!= 0 && b =!= 0 &&
       TrueQ[modularResidueQ[Mod[a PowerMod[b, -1, p], p], p]]]]];
 familyCertMQDrawPrime[roots_List, attempted_List, range_List] := Module[
-  {numeric = familyCertMQNumericRootSquares[roots], p, draws = 0, found = None},
+  {numeric = familyCertMQNumericQuadraticRadicands[roots], p, draws = 0, found = None},
   While[found === None && draws < 4096,
     draws++;
     p = RandomPrime[range];

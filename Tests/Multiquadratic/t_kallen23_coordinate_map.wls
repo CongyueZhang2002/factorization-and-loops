@@ -49,13 +49,13 @@ vv = Symbol["Global`v"]; ww = Symbol["Global`w"];
 (* CF303's declared field, verbatim from the project's family-chart table
    (three root squares in the source variables).  Kept inline so a fresh
    clone runs this suite without any campaign artifact. *)
-cf303RootSquares = {
+cf303QuadraticRadicands = {
   (1 + vv - ww)^2 + 4 vv ww,
   (1 - vv + ww)^2 + 4 vv ww,
   1 - 4 vv ww};
 registration = FeynFacet`RegisterFamilyRootData[
   <|"CF303CoordinateMapTest" ->
-    <|"SourceRadicands" -> cf303RootSquares|>|>];
+    <|"SourceRadicands" -> cf303QuadraticRadicands|>|>];
 check["the three-root generator presentation registers",
   Lookup[registration, "Status", None], "FamilyRootDataRegistered"];
 frame = FeynFacet`FamilyRootData["CF303CoordinateMapTest"];

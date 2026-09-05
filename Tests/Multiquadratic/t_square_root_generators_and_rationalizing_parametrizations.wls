@@ -22,7 +22,7 @@ FTAssert["catalog entries use only the rationalizing-parametrization schema",
     kallen1["DataType"] === "RationalizingParametrization" &&
     kallen1["SchemaVersion"] === 2 &&
     Intersection[Keys[kallen1],
-      {"Variables", "Subst", "Root", "RootSquare", "Roots", "Parents",
+      {"Variables", "Subst", "Root", "QuadraticRadicand", "Roots", "Parents",
        "ParentCharts", "ChartCertificate"}] === {} &&
     MatchQ[kallen1["ParametrizingVariables"], {_Symbol, _Symbol}] &&
     MatchQ[kallen1["SourceVariableSubstitution"], {_Rule, _Rule}] &&

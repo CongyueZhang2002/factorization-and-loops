@@ -111,7 +111,7 @@ modularSplitPoints[variables : {__Symbol}, radicands_List,
      roots = modularSquareRoot[#, prime] & /@ deltas;
      If[FreeQ[roots, $Failed],
       AppendTo[points,
-       <|"Point" -> candidate, "RootSquares" -> deltas,
+       <|"Point" -> candidate, "QuadraticRadicands" -> deltas,
          "RootValues" -> roots|>]]]]];
   If[Length[points] === count,
    <|"Status" -> "ModularSplitPointsV1", "Prime" -> prime,

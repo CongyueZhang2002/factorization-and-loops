@@ -112,7 +112,7 @@ minimalObjects = <|"S" -> {{1}}, "Si" -> {{1}}, "B1" -> {{0}},
 dependent = FeynFacet`Private`familyCertMQPrepare[
   minimalObjects, dependentRoots, coefficientVariables, eps, 3];
 check["dependent radicands are refused before sampling",
-  dependent["Status"] === "DependentRootSquares"];
+  dependent["Status"] === "DependentQuadraticRadicands"];
 
 pivotTrial[prime_, pivots_] := <|"Status" -> "UsablePrime",
   "Prime" -> prime, "PivotColumns" -> pivots,

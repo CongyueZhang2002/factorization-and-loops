@@ -216,8 +216,8 @@ FTAssert["C10c an assembled one-root inhomogeneity bypasses a syntactic three-ro
       "CanonicalizedPlaceholderCount", -1] === 0 &&
     Lookup[cancelChartFast["ChartDecision", "ActiveGradeCensus"],
       "DenominatorRootIndices", None] === {} &&
-    Length[cancelChartFast["ChartDecision", "RootSquares"]] === 1 &&
-    TrueQ[Together[First[cancelChartFast["ChartDecision", "RootSquares"]] -
+    Length[cancelChartFast["ChartDecision", "QuadraticRadicands"]] === 1 &&
+    TrueQ[Together[First[cancelChartFast["ChartDecision", "QuadraticRadicands"]] -
       kallenSquares[[1]]] === 0] &&
     cancelChartFast["ChartDecision", "Chart"] === "Kallen1"];
 
@@ -244,23 +244,23 @@ FTAssert["C10d canceled inactive algebraic denominators route through exact post
       "DenominatorRootIndices", {}], {2, 3}]];
 
 denominatorChart = LookupCataloguedRationalizingParametrizationForRoots[
-  denominatorDecision["RootSquares"], variables];
+  denominatorDecision["QuadraticRadicands"], variables];
 denominatorRekeyed = chartRekey[
   denominatorChart, variables, chartVariables];
 denominatorData = chartData[denominatorRekeyed, variables];
 denominatorChartRoots = currentRoots[denominatorRekeyed, chartVariables];
 denominatorChartRoot = SelectFirst[denominatorChartRoots,
   TrueQ[Together[Lookup[#1, "SourceRadicand", 0] -
-    First[denominatorDecision["RootSquares"]]] === 0] &];
+    First[denominatorDecision["QuadraticRadicands"]]] === 0] &];
 denominatorBranchRoots = {
   <|"Generator" -> Sqrt[Together[
-      First[denominatorDecision["RootSquares"]] /.
+      First[denominatorDecision["QuadraticRadicands"]] /.
         mq["masterTransportPresentationSubstitution"][denominatorData]]],
     "QuadraticRadicand" -> Together[
-    First[denominatorDecision["RootSquares"]] /.
+    First[denominatorDecision["QuadraticRadicands"]] /.
       mq["masterTransportPresentationSubstitution"][denominatorData]],
     "SourceRadicand" ->
-      First[denominatorDecision["RootSquares"]]|>};
+      First[denominatorDecision["QuadraticRadicands"]]|>};
 denominatorRootImages = {rootExpression[denominatorChartRoot]};
 denominatorDeferredRecord = <|
   "Preparation" -> denominatorPreparation,

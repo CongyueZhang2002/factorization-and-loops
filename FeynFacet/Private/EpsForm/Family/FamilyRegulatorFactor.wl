@@ -684,16 +684,16 @@ familyRegulatorGradedRootFrame[roots_List] := Module[
   duplicates = Select[Subsets[Range[Length[roots]], {2}],
     TrueQ[Together[squares[[#1[[1]]]] - squares[[#1[[2]]]]] === 0] &];
   If[duplicates =!= {},
-    Return[<|"Status" -> "DuplicateRootSquares",
+    Return[<|"Status" -> "DuplicateQuadraticRadicands",
       "DuplicatePairs" -> duplicates|>]];
   dependent = FirstCase[Rest[Subsets[Range[Length[roots]]]],
     subset_ /; TrueQ[multiquadraticOffDiagonalBlockSquareClassSquareQ[
       Times @@ squares[[subset]]]] :> subset, None];
   If[dependent =!= None,
-    Return[<|"Status" -> "DependentRootSquares",
+    Return[<|"Status" -> "DependentQuadraticRadicands",
       "RootIndices" -> dependent|>]];
   <|"Status" -> "StableRootFrame", "Roots" -> roots,
-    "RootSquares" -> squares|>
+    "QuadraticRadicands" -> squares|>
 ];
 familyRegulatorGradedRootFrame[___] := <|"Status" -> "InvalidRootMetadata"|>;
 
@@ -710,7 +710,7 @@ familyRegulatorGradedFrameEvidence[roots_List,
   If[Lookup[frame, "Status", None] =!= "StableRootFrame", Return[frame]];
   If[AnyTrue[squareRootRecordRadicand /@ frame["Roots"],
       ! FreeQ[#1, regulator] &],
-    Return[<|"Status" -> "RegulatorDependentRootSquare"|>]];
+    Return[<|"Status" -> "RegulatorDependentQuadraticRadicand"|>]];
   numericIndices = Flatten[Position[
     squareRootRecordRadicand /@ frame["Roots"],
     value_ /; familyRegulatorNonSquareRationalQ[value], {1},
@@ -724,7 +724,7 @@ familyRegulatorGradedFrameEvidence[roots_List,
     "GradeCount" -> 2^Length[frame["Roots"]],
     "MaximumRank" -> $familyRegulatorMaximumGradedRank,
     "NumericRootIndices" -> numericIndices,
-    "NumericRootSquares" ->
+    "NumericQuadraticRadicands" ->
       (squareRootRecordRadicand /@ frame["Roots"][[numericIndices]])|>
 ];
 familyRegulatorGradedFrameEvidence[___] :=
@@ -955,7 +955,7 @@ familyRegulatorGradedPointSampleTask[payload_Association,
       ! AllTrue[indices, Between[#1, {1, Length[rules]}] &],
     Return[$Failed]];
   samples = familyRegulatorGradedPointSample[
-      payload["Connection"], payload["Tags"], payload["RootSquares"],
+      payload["Connection"], payload["Tags"], payload["QuadraticRadicands"],
       #1] & /@ rules[[indices]];
   <|"Indices" -> indices, "Samples" -> samples|>
 ];
@@ -980,7 +980,7 @@ familyRegulatorGradedPointSampleBatch[connection : {_List, _List},
     Ceiling[(count - Range[workerCount] + 1)/workerCount]];
   helperGroups = Most[groups]; localGroup = Last[groups];
   payload = <|"Connection" -> connection, "Tags" -> tags,
-    "RootSquares" -> rootSquares, "Rules" -> rules|>;
+    "QuadraticRadicands" -> rootSquares, "Rules" -> rules|>;
   dataFile = If[helperGroups === {}, None,
     taskBrokerDataFile["frfpoints_" <>
       StringReplace[CreateUUID[], "-" -> ""], payload]];
@@ -1959,7 +1959,7 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     gradedRoots = familyRegulatorGradedRoots[usedRoots, numericClasses];
     If[! ListQ[gradedRoots],
       Return[<|"Status" -> "InvalidGradedRootFrame",
-        "RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+        "RootIndices" -> rootIndices, "QuadraticRadicands" -> rootSquares,
         "GradedRootFrame" -> gradedRoots,
         "RadicalCanonicalization" -> canonicalRecord,
         "NumericRadicalClasses" -> numericClasses,
@@ -1974,8 +1974,8 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
         "Method" -> "MultiquadraticGradedAlgebra/" <>
           Lookup[multiquadratic, "Method", "Unknown"],
         "Chart" -> None, "RootIndices" -> rootIndices,
-        "RootSquares" -> rootSquares,
-        "GradedRootSquares" ->
+        "QuadraticRadicands" -> rootSquares,
+        "GradedQuadraticRadicands" ->
           (squareRootRecordRadicand /@ gradedRoots),
         "RadicalCanonicalization" -> canonicalRecord,
         "NumericRadicalClasses" -> numericClasses,
@@ -1992,13 +1992,13 @@ FactorFamilyRegulatorDependenceInFrame[{ax_List, ay_List},
     If[AssociationQ[multiquadratic] &&
         multiquadratic["Status"] === "RegulatorFactorizationDeadlineExpired",
       Return[Join[multiquadratic,
-        <|"RootIndices" -> rootIndices, "RootSquares" -> rootSquares,
+        <|"RootIndices" -> rootIndices, "QuadraticRadicands" -> rootSquares,
           "Chart" -> None,
-          "GradedRootSquares" ->
+          "GradedQuadraticRadicands" ->
             (squareRootRecordRadicand /@ gradedRoots)|>]]];
     Return[<|"Status" -> "NoRationalChart", "RootIndices" -> rootIndices,
-      "RootSquares" -> rootSquares,
-      "GradedRootSquares" -> (squareRootRecordRadicand /@ gradedRoots),
+      "QuadraticRadicands" -> rootSquares,
+      "GradedQuadraticRadicands" -> (squareRootRecordRadicand /@ gradedRoots),
       "RadicalCanonicalization" -> canonicalRecord,
       "NumericRadicalClasses" -> numericClasses,
       "MultiquadraticFactorization" -> If[AssociationQ[multiquadratic],

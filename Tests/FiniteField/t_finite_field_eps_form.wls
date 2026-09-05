@@ -19,12 +19,34 @@ $HistoryLength = 0;
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 
+legacyOffDiagonalBlockRecord[value_Association] :=
+  Join[KeyTake[value,
+    {"Family", "Sector", "LowerSector", "Variables", "Regulator"}],
+    <|"OffDiagonalBlockEquation" -> value["Strip"]|>];
+legacyFiniteFieldKey[key_] := Switch[key,
+  "Gauge", "OffDiagonalBasisTransformationBlock",
+  "GaugeUnknownCount", "OffDiagonalBasisTransformationUnknownCount",
+  "GaugeNumeratorDegrees", "OffDiagonalBasisTransformationNumeratorDegrees",
+  "GaugeDenominatorDegrees", "OffDiagonalBasisTransformationDenominatorDegrees",
+  "GaugeNumeratorSupport", "OffDiagonalBasisTransformationNumeratorSupport",
+  "GaugeSupport", "OffDiagonalBasisTransformationNumeratorSupport",
+  "GaugeDenominator", "OffDiagonalBasisTransformationDenominator",
+  _, key];
+legacyFiniteFieldRecord[value_Association] := Association[
+  KeyValueMap[legacyFiniteFieldKey[#1] -> #2 &, value]];
+legacyOffDiagonalBlockSolution[value_Association] :=
+  legacyFiniteFieldRecord[value];
+
 artifactDirectory = FileNameJoin[{root, "Codex", "TwoRootCF254Sector9Lower"}];
-record = FeynFacet`FamilyArtifactRead[FileNameJoin[{artifactDirectory, "CF254_9_6_input.wl"}]];
-modularData = FeynFacet`FamilyArtifactRead /@ Sort[FileNames[
-  "CF254_9_6_raw_epsilon_interpolation_mod_*.wl", artifactDirectory]];
-expected = FeynFacet`FamilyArtifactRead[FileNameJoin[{artifactDirectory,
-  "CF254_9_6_raw_lifted_candidate.wl"}]];
+record = legacyOffDiagonalBlockRecord[
+  FeynFacet`FamilyArtifactRead[FileNameJoin[
+    {artifactDirectory, "CF254_9_6_input.wl"}]]];
+modularData = legacyFiniteFieldRecord /@ (FeynFacet`FamilyArtifactRead /@
+  Sort[FileNames[
+    "CF254_9_6_raw_epsilon_interpolation_mod_*.wl", artifactDirectory]]);
+expected = legacyOffDiagonalBlockSolution[
+  FeynFacet`FamilyArtifactRead[FileNameJoin[{artifactDirectory,
+    "CF254_9_6_raw_lifted_candidate.wl"}]]];
 
 affineSample = <|
   "ParticularSolution" -> {3, 4, 5},
@@ -53,12 +75,17 @@ badResidueInstalled = Quiet[Check[FeynFacet`Private`RecordVerifiedOffDiagonalBas
   FeynFacet`Private`RecordVerifiedOffDiagonalBasisTransformationBlock::state];
 
 (* the canonical-benchmark (9,6) fixture: the A4 acceptance artifacts *)
-benchmark = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results", "UU_08_10_canonical", "BenchmarkStripBackends"}];
-fixture = FeynFacet`FamilyArtifactRead[FileNameJoin[{benchmark, "fixtures", "fixture_CF254_9_6.wl"}]];
-canonicalData = FeynFacet`FamilyArtifactRead /@ FileNames["*_mod_*.wl",
-  FileNameJoin[{benchmark, "frozen_M0", "a4_run", "ff_artifacts_A4_CF254_9_6_155035"}]];
-stored = FeynFacet`FamilyArtifactRead[FileNameJoin[{benchmark, "frozen_M0", "a4_run",
-  "result_A4_CF254_9_6_FiniteField.wl"}]]["BackendResult"];
+benchmark = FileNameJoin[{root, "Stale", "DifferentialEquationData",
+  "2026-09-03_pre_v2", "UU_08_10_canonical", "BenchmarkStripBackends"}];
+fixture = legacyOffDiagonalBlockRecord[
+  FeynFacet`FamilyArtifactRead[FileNameJoin[
+    {benchmark, "fixtures", "fixture_CF254_9_6.wl"}]]];
+canonicalData = legacyFiniteFieldRecord /@ (FeynFacet`FamilyArtifactRead /@
+  FileNames["*_mod_*.wl", FileNameJoin[{benchmark, "frozen_M0", "a4_run",
+    "ff_artifacts_A4_CF254_9_6_155035"}]]);
+stored = legacyOffDiagonalBlockSolution[
+  FeynFacet`FamilyArtifactRead[FileNameJoin[{benchmark, "frozen_M0", "a4_run",
+    "result_A4_CF254_9_6_FiniteField.wl"}]]["BackendResult"]];
 benchmarkLift = FeynFacet`ReconstructOffDiagonalBasisTransformationBlock[fixture, canonicalData, "KernelCount" -> 1];
 
 checks = <|

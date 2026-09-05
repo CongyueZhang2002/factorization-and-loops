@@ -119,14 +119,14 @@ multiquadraticOffDiagonalBlockRootOrder[frame_Association, variables : {_Symbol,
     TrueQ[Together[squareRootRecordRadicand[roots[[#1[[1]]]]] -
       squareRootRecordRadicand[roots[[#1[[2]]]]]] === 0] &];
   If[duplicates =!= {},
-    Return[multiquadraticOffDiagonalBlockFailure["DuplicateRootSquares",
+    Return[multiquadraticOffDiagonalBlockFailure["DuplicateQuadraticRadicands",
       <|"DuplicatePairs" -> duplicates|>]]];
   dependent = FirstCase[Rest[Subsets[Range[Length[roots]]]],
     subset_ /; multiquadraticOffDiagonalBlockSquareClassSquareQ[
       Times @@ (squareRootRecordRadicand /@ roots[[subset]])] :> subset,
     None];
   If[dependent =!= None,
-    Return[multiquadraticOffDiagonalBlockFailure["DependentRootSquares",
+    Return[multiquadraticOffDiagonalBlockFailure["DependentQuadraticRadicands",
       <|"RootIndices" -> indices[[dependent]]|>]]];
   roots = MapThread[Join[#1, <|"SourceIndex" -> #2|>] &, {roots, indices}];
   <|"Status" -> "StableRootOrder", "Roots" -> roots,
@@ -1330,7 +1330,7 @@ multiquadraticOffDiagonalBlockPrepare[sourceRecord_Association, frame_Associatio
       {"Status", "Rewritten", "Bases", "Signs"}],
     (* Which declaration slot each selected generator came from. *)
     "RootSourceIndices" -> order["SourceIndices"],
-    "RootSquares" -> (squareRootRecordRadicand /@ roots),
+    "QuadraticRadicands" -> (squareRootRecordRadicand /@ roots),
     "OneForms" -> oneForms, "OneFormMetadata" -> oneFormData,
     (* The letters and exact inhomogeneity channels of this call; the compiler reuses
        the channels rather than decomposing the inhomogeneity again *)
@@ -1667,7 +1667,7 @@ multiquadraticOffDiagonalBlockInternProbe[pool_String, key_] :=
    though it contains no $Failed. *)
 multiquadraticOffDiagonalBlockInternValidQ["Core", value_] :=
   AssociationQ[value] && FreeQ[value, $Failed] &&
-    AllTrue[{"E", "C", "Inhomogeneity", "RootSquares", "RootLogDerivatives"},
+    AllTrue[{"E", "C", "Inhomogeneity", "QuadraticRadicands", "RootLogDerivatives"},
       AssociationQ[Lookup[value, #1, $Failed]] &];
 multiquadraticOffDiagonalBlockInternValidQ["OffDiagonalBasisTransformationDenominator", value_] :=
   AssociationQ[value] && FreeQ[value, $Failed] &&
@@ -2300,7 +2300,7 @@ multiquadraticOffDiagonalBlockCompileCoreRecord[offDiagonalBlockEquation_, roots
     If[MemberQ[{eData, cData, bData, rootSquareData, rootLogData}, $Failed],
       $Failed,
       <|"E" -> eData, "C" -> cData, "Inhomogeneity" -> bData,
-        "RootSquares" -> rootSquareData, "RootLogDerivatives" -> rootLogData|>]];
+        "QuadraticRadicands" -> rootSquareData, "RootLogDerivatives" -> rootLogData|>]];
   If[TrueQ[useCacheQ] && coreKey =!= $Failed,
     multiquadraticOffDiagonalBlockIntern["Core", coreKey, Function[build[]]],
     build[]]
@@ -2362,7 +2362,7 @@ multiquadraticOffDiagonalBlockCompileLegacyCore[preparation_Association, roots_L
   If[MemberQ[{eData, cData, bData, rootSquareData, rootLogData}, $Failed],
     $Failed,
     <|"E" -> eData, "C" -> cData, "Inhomogeneity" -> bData,
-      "RootSquares" -> rootSquareData, "RootLogDerivatives" -> rootLogData|>]
+      "QuadraticRadicands" -> rootSquareData, "RootLogDerivatives" -> rootLogData|>]
 ];
 
 multiquadraticOffDiagonalBlockCompileLegacyDenominator[denominator_,
@@ -2605,7 +2605,7 @@ multiquadraticOffDiagonalBlockCompile[preparation_Association,
     multiquadraticOffDiagonalBlockInternReset["Rational"];
     Return[multiquadraticOffDiagonalBlockFailure["ExactChannelDecompositionFailed"]]];
   {eData, cData, bData, rootSquareData, rootLogData} =
-    Lookup[core, {"E", "C", "Inhomogeneity", "RootSquares", "RootLogDerivatives"}];
+    Lookup[core, {"E", "C", "Inhomogeneity", "QuadraticRadicands", "RootLogDerivatives"}];
   If[compileGuard["OneForms"],
     multiquadraticOffDiagonalBlockInternReset["Scalar"];
     multiquadraticOffDiagonalBlockInternReset["Rational"];
@@ -2703,13 +2703,13 @@ multiquadraticOffDiagonalBlockCompile[preparation_Association,
   multiquadraticOffDiagonalBlockInternReset["Rational"];
   exactForms = <|"E" -> eData["Channels"], "C" -> cData["Channels"],
     "Inhomogeneity" -> bData["Channels"], "OneForms" -> oneData["Channels"],
-    "RootSquares" -> (First /@ rootSquareData["Channels"]),
+    "QuadraticRadicands" -> (First /@ rootSquareData["Channels"]),
     "RootLogDerivatives" -> Map[First, rootLogData["Channels"], {2}],
     "OffDiagonalBasisTransformationDenominator" -> First[First[denominatorData["Channels"]]],
     "OffDiagonalBasisTransformationDenominatorLogDerivatives" -> First /@ denominatorLogData["Channels"]|>;
   compiledForms = <|"E" -> eData["Compiled"], "C" -> cData["Compiled"],
     "Inhomogeneity" -> bData["Compiled"], "OneForms" -> oneData["Compiled"],
-    "RootSquares" -> (First /@ rootSquareData["Compiled"]),
+    "QuadraticRadicands" -> (First /@ rootSquareData["Compiled"]),
     "RootLogDerivatives" -> Map[First, rootLogData["Compiled"], {2}],
     "OffDiagonalBasisTransformationDenominator" -> First[First[denominatorData["Compiled"]]],
     "OffDiagonalBasisTransformationDenominatorLogDerivatives" -> First /@ denominatorLogData["Compiled"]|>;
@@ -2816,7 +2816,7 @@ multiquadraticOffDiagonalBlockCoefficientData[
       canonicalDenominator}, $Failed], Return[$Failed]];
   <|"Schema" -> "MultiquadraticCoefficientDataV2",
     "Dimensions" -> dimensions,
-    "RootSquares" -> canonicalSquares,
+    "QuadraticRadicands" -> canonicalSquares,
     "RootExpressions" -> canonicalExpressions,
     "OneForms" -> canonicalForms,
     "OffDiagonalBasisTransformationDenominator" -> canonicalDenominator|>

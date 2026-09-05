@@ -56,10 +56,10 @@ It still depends on the package for
 `multiquadraticStripFailure`, so it is loaded inside
 `FeynFacet`Private`` and is not standalone.
 
-## `FamilyRowGaugeFiniteField.wl`
+## `FamilyRowBasisTransformationFiniteField.wl`
 
-The isolated finite-field row-gauge oracle: its own canonical root
-order, all `2^r` sign branches, a tagged modular evaluator, and
+The isolated finite-field row-basis-transformation evaluator: declared
+square-root generator order, all `2^r` sign-change images, a tagged modular evaluator, and
 sparse-support statistics. Moved from `FeynFacet/Private/`, where it sat
 without being listed in the package's file list — it was never loaded by
 `FeynFacet.m`.
@@ -67,8 +67,8 @@ without being listed in the package's file list — it was never loaded by
 Its remaining value is as a **differential oracle**: it normalizes the
 modular square-root sign representative where `MultiquadraticAlgebra.wl`
 returns the raw exponentiation, and `Tests/Multiquadratic/t_multiquadratic_algebra_differential.wls`
-holds the neutral algebra to it. `Tests/FiniteField/t_family_row_gauge_finite_field.wls`
-is its own adversarial suite. Both now `Get` it from here.
+holds the neutral algebra to it. The direct test is
+`Tests/FiniteField/t_family_row_basis_transformation_finite_field.wls`.
 
 Codex §4.2 asks that its useful modular evaluator be extracted into the
 common coefficient provider; when that happens the remainder stays here

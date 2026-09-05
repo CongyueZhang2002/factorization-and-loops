@@ -31,9 +31,10 @@ Clear[bx, by, be, bcx, bcy];
 badPrime = 2147483423;
 primePool = {badPrime, 2147483399, 2147483587, 2147483579};
 height = 10^12/badPrime;
+sourceDelta = 1 + bcx;
 delta = 1 + bx;
 frame = BuildSquareRootGeneratorsAndQuadraticRelations[
-  {delta}, {bx, by}, {bcx, bcy}];
+  {sourceDelta}, {bcx, bcy}, {bx, by}];
 rootRecord = First[presentationRoots[frame, {bx, by}]];
 zero11 = {{{0}}, {{0}}};
 knownOffDiagonalBasisTransformationBlock = {{Together[height be Sqrt[delta]/((be - 1) (1 - by))]}};

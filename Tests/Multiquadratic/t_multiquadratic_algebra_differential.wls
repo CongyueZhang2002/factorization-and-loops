@@ -17,17 +17,11 @@
      - every symbol on the deletion list has NO definitions after the
        consumer is loaded, and every neutral symbol it delegates to
        does have definitions;
-     - the consumer's canonical root ORDER is the neutral order on the
-       randomized frame-realistic class where the two used to disagree
-       (measured agreement 7/12 before the deletion; 12/12 required
-       now), it is permutation invariant, and it does not change with
-       the reader's $Context/$ContextPath (the deleted key was the
-       printed text of the root square in the CALLER's symbols and never
-       reached FullForm at all -- pool defect 3);
-     - the consumer's root records carry the neutral canonical text as
-       their sort key, and the relabeling the deletion caused is the
-       pinned one: {x, y, x + y} ordered as {x, x + y, y} before and
-       orders as {x + y, x, y} now;
+     - the consumer and the neutral representation preserve the declared
+       generator order, so a permutation of the declarations induces the
+       same permutation of the grade-mask convention;
+     - the consumer's root records carry neutral canonical text as
+       descriptive metadata without using it to reorder generators;
      - the boundary normalization is applied and is not vacuous: at
        p == 3 (mod 4) the consumer's modular square root is
        Min[r, p - r] of the neutral module's raw representative, and at
@@ -111,21 +105,22 @@ check["every neutral symbol the consumer delegates to is defined (" <>
 (* ---- root order: the consumer's order IS the neutral order ---- *)
 squarePool = {x, y, 1 + x + y, 1 - x, 1 - y, x + y, 1 + x - y, 2 + x + 3 y,
   x^2 + y, 1 + 2 x + y^2, 3 - x - 2 y, x y + 1};
-declared[squares_] := <|"Root" -> Sqrt[#], "RootSquare" -> #|> & /@ squares;
+declared[squares_] := <|"Generator" -> Sqrt[#], "QuadraticRadicand" -> #|> & /@ squares;
 frameOrder[squares_] := Module[{frame, order},
   frame = BuildSquareRootGeneratorsAndQuadraticRelations[squares /. {x -> v, y -> w}, {v, w},
-    {cx, cy}];
-  If[! AssociationQ[frame] || frame["Status"] =!= "ExactFrame",
+    {x, y}];
+  If[! AssociationQ[frame] ||
+      frame["Status"] =!= "SquareRootGeneratorRelationsVerified",
     Return[$Failed]];
   order = rootOrder[frame, {x, y}, Range[Length[squares]], eps];
   If[Lookup[order, "Status", None] =!= "StableRootOrder", Return[order]];
-  Together /@ Lookup[order["Roots"], "RootSquare", {}]];
+  Together /@ Lookup[order["Roots"], "QuadraticRadicand", {}]];
 consumerOrder[squares_] := Module[{result},
   result = canonicalize[declared[squares], {x, y}];
   If[Lookup[result, "Status", None] =!= "OK", Return[result]];
-  Together /@ Lookup[result["Roots"], "RootSquare", {}]];
+  Together /@ Lookup[result["Roots"], "QuadraticRadicand", {}]];
 
-orderTrials = 0; orderAgreements = 0; orderStable = 0; orderPermutation = 0;
+orderTrials = 0; orderAgreements = 0; declarationOrderPreserved = 0;
 Do[
   Module[{squares, permutations, consumerOrders, neutralOrders},
     squares = RandomSample[squarePool, RandomChoice[{1, 2, 3}]];
@@ -138,26 +133,17 @@ Do[
     consumerOrders = consumerOrder /@ permutations;
     neutralOrders = frameOrder /@ permutations;
     orderTrials++;
-    If[AllTrue[consumerOrders, ListQ] && AllTrue[neutralOrders, ListQ] &&
-        Length[DeleteDuplicates[consumerOrders]] === 1 &&
-        Length[DeleteDuplicates[neutralOrders]] === 1, orderStable++];
-    If[AllTrue[consumerOrders, ListQ] && AllTrue[neutralOrders, ListQ] &&
-        Sort[First[consumerOrders]] === Sort[First[neutralOrders]],
-      orderPermutation++];
-    If[AllTrue[consumerOrders, ListQ] && AllTrue[neutralOrders, ListQ] &&
-        DeleteDuplicates[consumerOrders] === DeleteDuplicates[neutralOrders],
+    If[consumerOrders === permutations && neutralOrders === permutations,
+      declarationOrderPreserved++];
+    If[consumerOrders === neutralOrders,
       orderAgreements++];
   ],
   {trial, 12}];
-check["both root orders are permutation invariant on every trial (" <>
-  ToString[orderStable] <> "/" <> ToString[orderTrials] <> ")",
-  orderTrials >= 8 && orderStable === orderTrials];
-check["both root orders select the same root set on every trial (" <>
-  ToString[orderPermutation] <> "/" <> ToString[orderTrials] <> ")",
-  orderTrials >= 8 && orderPermutation === orderTrials];
-check["the consumer's order IS the neutral order on every trial (" <>
-  ToString[orderAgreements] <> "/" <> ToString[orderTrials] <>
-  "; 7/12 before the deletion)",
+check["both paths preserve declaration order on every trial (" <>
+  ToString[declarationOrderPreserved] <> "/" <> ToString[orderTrials] <> ")",
+  orderTrials >= 8 && declarationOrderPreserved === orderTrials];
+check["the consumer's order equals the neutral order on every trial (" <>
+  ToString[orderAgreements] <> "/" <> ToString[orderTrials] <> ")",
   orderTrials >= 8 && orderAgreements === orderTrials];
 
 canonicalRules = FeynFacet`Private`multiquadraticOffDiagonalBlockCanonicalRules[{x, y}, eps];
@@ -165,7 +151,7 @@ canonicalText[expression_] :=
   FeynFacet`Private`multiquadraticOffDiagonalBlockCanonicalText[expression, canonicalRules];
 check["the consumer's sort key is the neutral canonical text",
   Lookup[canonicalize[declared[{x, 1 + x + y}], {x, y}]["Roots"],
-      "CanonicalRootSquare", {}] === (canonicalText /@ {x, 1 + x + y})];
+      "CanonicalQuadraticRadicand", {}] === (canonicalText /@ {x, 1 + x + y})];
 check["the consumer's root order does not depend on the reader's context",
   consumerOrder[{x, 1 + x + y}] ===
       Block[{$ContextPath = {"System`"}, $Context = "FeynFacet`"},
@@ -173,11 +159,9 @@ check["the consumer's root order does not depend on the reader's context",
     consumerOrder[{x, y, x + y}] ===
       Block[{$ContextPath = {"System`"}, $Context = "FeynFacet`"},
         consumerOrder[{x, y, x + y}]]];
-(* the relabeling the deletion caused, pinned: the deleted key sorted
-   {x, 1 + x + y} as {1 + x + y, x} and {x, y, x + y} as {x, x + y, y} *)
-check["the grade masks relabel exactly as the deletion gate measured",
+check["the grade masks follow the declared generator order",
   consumerOrder[{x, 1 + x + y}] === {x, 1 + x + y} &&
-    consumerOrder[{x, y, x + y}] === {x + y, x, y} &&
+    consumerOrder[{x, y, x + y}] === {x, y, x + y} &&
     frameOrder[{x, 1 + x + y}] === {x, 1 + x + y}];
 
 (* ---- the sign representative is normalized at the consumer boundary ---- *)
@@ -211,8 +195,8 @@ check["p == 1 (mod 4) is served by the shared modular square root",
 (* ---- dependence screen ---- *)
 check["both reject the rank-two square class {x, y, x y}",
   Lookup[canonicalize[declared[{x, y, x y}], {x, y}], "Status", None] ===
-      "DependentRootSquares" &&
-    Lookup[frameOrder[{x, y, x y}], "Status", None] === "DependentRootSquares"];
+      "DependentQuadraticRadicands" &&
+    Lookup[frameOrder[{x, y, x y}], "Status", None] === "DependentQuadraticRadicands"];
 check["both accept the independent class {x, y, 1 + x + y}",
   Lookup[canonicalize[declared[{x, y, 1 + x + y}], {x, y}], "Status", None] ===
       "OK" && ListQ[frameOrder[{x, y, 1 + x + y}]]];
@@ -227,22 +211,22 @@ check["the neutral square-class predicate is the only one left, verdicts pinned"
 (* ---- end to end: the consumer's oracle channels are the exact
    channel decomposition evaluated in F_p ---- *)
 Module[{n = 5, rows = {4, 5}, prime = 2147483423, regulator = 7/11, roots,
-   declaredRoots, grades, connection, gauge, identity, preparation, evaluation,
+   declaredRoots, grades, connection, basisTransformationBlock, identity, preparation, evaluation,
    canonical, orderedRoots, point, deltaValues, rootValues, kinds, comparisons},
-  declaredRoots = {<|"Root" -> Sqrt[1 + x + y], "RootSquare" -> 1 + x + y|>,
-    <|"Root" -> Sqrt[x], "RootSquare" -> x|>,
-    <|"Root" -> Sqrt[y], "RootSquare" -> y|>};
+  declaredRoots = {<|"Generator" -> Sqrt[1 + x + y], "QuadraticRadicand" -> 1 + x + y|>,
+    <|"Generator" -> Sqrt[x], "QuadraticRadicand" -> x|>,
+    <|"Generator" -> Sqrt[y], "QuadraticRadicand" -> y|>};
   canonical = canonicalize[declaredRoots, {x, y}];
   check["the consumer canonicalizes the declared rank-three roots",
     AssociationQ[canonical] && canonical["Status"] === "OK"];
   orderedRoots = canonical["Roots"];
-  roots = Lookup[orderedRoots, "Root", {}];
+  roots = Lookup[orderedRoots, "Generator", {}];
   grades = Table[Times @@ Pick[roots, Reverse[IntegerDigits[mask, 2, 3]], 1],
     {mask, 0, 7}];
   connection = Table[Table[If[i < j, 0,
       grades[[1 + Mod[5 mu + 3 i + j, 8]]] (eps + mu + i x + j y)/
         (1 + x + y + i + j)], {i, n}, {j, n}], {mu, 2}];
-  gauge = {{roots[[1]]/(1 + y), roots[[2]] roots[[3]]/(2 + x), x/(3 + y)},
+  basisTransformationBlock = {{roots[[1]]/(1 + y), roots[[2]] roots[[3]]/(2 + x), x/(3 + y)},
     {0, (roots[[1]] + roots[[2]])/(2 + x + y),
       roots[[1]] roots[[2]] roots[[3]]/(4 + x)}};
   identity = IdentityMatrix[n];
@@ -254,14 +238,14 @@ Module[{n = 5, rows = {4, 5}, prime = 2147483423, regulator = 7/11, roots,
     Missing["NoSplitPoint"]];
   check["a split point exists for the declared rank-three frame",
     MatchQ[point, {_Integer, _Integer}]];
-  preparation = consumerPrepare[connection, identity, identity, rows, gauge,
+  preparation = consumerPrepare[connection, identity, identity, rows, basisTransformationBlock,
     {x, y}, declaredRoots];
   evaluation = consumerEvaluate[preparation, point, prime, {eps -> regulator}];
   check["the consumer's oracle evaluates the randomized rank-three block",
     AssociationQ[preparation] && preparation["Status"] === "Prepared" &&
       AssociationQ[evaluation] && evaluation["Status"] === "OK" &&
       TrueQ[evaluation["HadamardRoundTrip"]]];
-  deltaValues = Lookup[evaluation, "RootSquareValues", {}];
+  deltaValues = Lookup[evaluation, "QuadraticRadicandValues", {}];
   rootValues = Lookup[evaluation, "CanonicalRootValues", {}];
   check["the canonical root values square to the reported root squares",
     Mod[rootValues^2 - deltaValues, prime] === ConstantArray[0, 3]];
@@ -279,7 +263,7 @@ Module[{n = 5, rows = {4, 5}, prime = 2147483423, regulator = 7/11, roots,
         (* the exact entry the consumer compiled, with its root
            placeholders resolved back to the canonical roots *)
         expression = Total[Lookup[compiled["Terms"], "Expression", {}]] /.
-          consumerRoot[index_] :> orderedRoots[[index, "Root"]];
+          consumerRoot[index_] :> orderedRoots[[index, "Generator"]];
         channels = fieldDecompose[expression, orderedRoots];
         compiled["Target"] === evaluated["Target"] && ListQ[channels] &&
           Module[{values = modRational[

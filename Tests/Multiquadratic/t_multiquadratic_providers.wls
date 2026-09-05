@@ -70,7 +70,7 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
    "multiquadraticOffDiagonalBlockDirectProvider",
    "multiquadraticOffDiagonalBlockProviderChannels",
    "multiquadraticFieldDecompose", "multiquadraticFieldCompose",
-   "transportChartCurrentRoots", "multiquadraticOffDiagonalBlockRootCensus",
+   "coefficientPresentationSquareRootsInVariables", "multiquadraticOffDiagonalBlockRootCensus",
    "multiquadraticOffDiagonalBlockRootOrder", "multiquadraticMultiply",
    "multiquadraticLiftLocalChannels"};
 
@@ -104,8 +104,8 @@ check["D1 a zero element is refused at rank 0",
 Clear[dx, dy, de];
 delta1 = 1 + dx;
 delta2 = 1 + dy;
-roots = {<|"Root" -> Sqrt[delta1], "RootSquare" -> delta1|>,
-  <|"Root" -> Sqrt[delta2], "RootSquare" -> delta2|>};
+roots = {<|"Generator" -> Sqrt[delta1], "QuadraticRadicand" -> delta1|>,
+  <|"Generator" -> Sqrt[delta2], "QuadraticRadicand" -> delta2|>};
 (* an entry using BOTH roots, with an algebraic denominator so the tower
    inverse is genuinely exercised *)
 entryBoth = Together[(de + dx Sqrt[delta1] + dy Sqrt[delta2] +
@@ -222,23 +222,28 @@ about the zero norm and not about the entry",
 (* D8 - D10: the frozen CF300 (12,9) anchor                             *)
 (* ------------------------------------------------------------------ *)
 
-fixtureDirectory = FileNameJoin[{root, "ppHX_NNLO_DoubleReal", "Results",
-  "UU_08_10_canonical", "FamilyEpsFormsSolving",
+fixtureDirectory = FileNameJoin[{root, "Stale", "DifferentialEquationData",
+  "2026-09-03_pre_v2", "UU_08_10_canonical", "FamilyEpsFormsSolving",
   "FrozenTestFixtures_2026-08-25"}];
 stripFile = FileNameJoin[{fixtureDirectory, "cf300_frozen_strip_12_9_input.wl"}];
 channelFile = FileNameJoin[{fixtureDirectory,
-  "cf300_frozen_channel_inhomogeneity.wl"}];
+  "cf300_frozen_channel_forcing.wl"}];
 check["the frozen CF300 (12,9) strip and its exact channels are in the \
 repository",
   FileExistsQ[stripFile] && FileExistsQ[channelFile]];
 
-FeynFacet`LoadFamilyRootData[FileNameJoin[{root, "ppHX_NNLO_DoubleReal",
-  "Results", "UU_08_10_canonical", "TransportFamilyCharts.wl"}]];
-chart = FeynFacet`FamilyRootData["CF300"];
-cfRecord = FeynFacet`FamilyArtifactRead[stripFile, "Global`"];
+legacyCFRecord = FeynFacet`FamilyArtifactRead[stripFile, "Global`"];
+cfRecord = Join[KeyTake[legacyCFRecord,
+    {"Family", "Sector", "LowerSector", "Variables", "Regulator"}],
+  <|"OffDiagonalBlockEquation" -> legacyCFRecord["Strip"]|>];
 frozenChannels = FeynFacet`FamilyArtifactRead[channelFile, "Global`"];
 cfVariables = cfRecord["Variables"];
 cfRegulator = cfRecord["Regulator"];
+chart = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {(1 + Global`v - Global`w)^2 + 4 Global`v Global`w,
+    (1 - Global`v + Global`w)^2 + 4 Global`v Global`w,
+    1 - 4 Global`v Global`w},
+  {Global`v, Global`w}, cfVariables];
 cfAllRoots = currentRoots[chart, cfVariables];
 cfCensus = rootCensus[cfRecord["OffDiagonalBlockEquation"], cfAllRoots];
 cfOrder = rootOrder[chart, cfVariables, cfCensus["RootIndices"], cfRegulator];
@@ -255,7 +260,7 @@ report["D7 CF300 census seconds",
   Round[Lookup[cfQuotient, "CensusSeconds", 0], 0.01]];
 
 cfEpsilon = 5;
-cfDeltas = Lookup[cfRoots, "RootSquare", {}];
+cfDeltas = Lookup[cfRoots, "QuadraticRadicand", {}];
 cfSplitPoint = SelectFirst[Tuples[Range[2, 60], 2],
   Function[point, Module[{d = Mod[cfDeltas /.
       Thread[cfVariables -> point], prime]},

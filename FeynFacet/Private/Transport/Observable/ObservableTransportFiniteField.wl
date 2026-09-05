@@ -330,7 +330,7 @@ observableTransportFFAlgebraicRoots[expressions_, declaredSquares_List] :=
         transportChartRootBranchScale[square, #] =!= None &],
       AppendTo[squares, square]],
     {square, Join[declaredSquares, bases]}];
-  (<|"Root" -> Sqrt[#], "RootSquare" -> #|> &) /@ squares
+  (<|"Generator" -> Sqrt[#], "QuadraticRadicand" -> #|> &) /@ squares
 ];
 
 observableTransportFFAlgebraicMatrixValue[m_, variables_List,
@@ -396,7 +396,7 @@ observableTransportFFSquareFreeSplit[c_] /; MatchQ[c, _Integer | _Rational] && c
    (the compiler then refuses the radical as before, a typed failure). *)
 $observableTransportFFRadicalScaleDigitLimit = 30;
 observableTransportFFNormalizeRadicals[expr_, rootRecords_List] := Module[
-  {squares = Lookup[rootRecords, "RootSquare", {}], scale, ratios},
+  {squares = Lookup[rootRecords, "QuadraticRadicand", {}], scale, ratios},
   scale[base_] := scale[base] = Module[{found = None},
     ratios = (Quiet[Check[Together[base/#], $Failed]] &) /@
       Select[squares, ! TrueQ[Together[#] === 0] &];
@@ -421,14 +421,14 @@ observableTransportFFCompileAlgebraicMatrix[m_, variables_List,
     rootSymbols = Table[Unique["observableTransportRoot"],
       {Length[rootRecords]}];
     rootSquareCompiler = observableTransportFFCompileExpressions[
-      Lookup[rootRecords, "RootSquare", {}], variables];
+      Lookup[rootRecords, "QuadraticRadicand", {}], variables];
     If[MemberQ[rootSquareCompiler, $Failed], Return[$Failed, Module]];
     template = Quiet[Check[transportChartApplyRootBranches[
       observableTransportFFNormalizeRadicals[Normal[m], rootRecords],
       rootRecords, rootSymbols], $Failed]];
     If[template === $Failed,
       $observableTransportFFCompileFailure = <|"Stage" -> "RootBranchSubstitution",
-        "RootSquares" -> Lookup[rootRecords, "RootSquare", {}]|>;
+        "QuadraticRadicands" -> Lookup[rootRecords, "QuadraticRadicand", {}]|>;
       Return[$Failed, Module]];
     compiled = observableTransportFFCompileMatrix[
       template, Join[variables, rootSymbols]];
@@ -439,14 +439,14 @@ observableTransportFFCompileAlgebraicMatrix[m_, variables_List,
          without rerunning the transport *)
       $observableTransportFFCompileFailure = <|"Stage" -> "Grammar",
         "Variables" -> Join[variables, rootSymbols],
-        "RootSquares" -> Lookup[rootRecords, "RootSquare", {}],
+        "QuadraticRadicands" -> Lookup[rootRecords, "QuadraticRadicand", {}],
         "Offending" -> observableTransportFFGrammarOffenders[template,
           Join[variables, rootSymbols], 6]|>];
     If[compiled === $Failed, $Failed,
       <|"Roots" -> rootRecords, "Variables" -> variables,
         "Dimensions" -> Dimensions[template],
         "RootSymbols" -> rootSymbols,
-        "RootSquareCompiler" -> rootSquareCompiler,
+        "QuadraticRadicandCompiler" -> rootSquareCompiler,
         (* the numeric radical constants of the normalized matrix, found
            once here so that the samplers need no scan per call *)
         "RadicalConstants" -> DeleteDuplicates[Cases[compiled,
@@ -473,7 +473,7 @@ observableTransportFFAlgebraicCompiledMatrixValueWithDerivative[
   If[MissingQ[position], Return[$Failed, Module]];
   baseTangent = UnitVector[Length[variables], First[position]];
   rootPairs = observableTransportFFEvaluateExpressionsWithDerivative[
-    compiled["RootSquareCompiler"], point, baseTangent, prime];
+    compiled["QuadraticRadicandCompiler"], point, baseTangent, prime];
   If[rootPairs === $Failed, Return[$Failed, Module]];
   signedRoots = Mod[signs rootValues, prime];
   If[MemberQ[signedRoots, 0], Return[$Failed, Module]];
@@ -507,7 +507,7 @@ observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
         "Detail" -> $observableTransportFFCompileFailure|>;
     Return[ConstantArray[$Failed, Length[samples]], Module]];
   roots = compiledMatrix["Roots"];
-  rootSquares = Lookup[roots, "RootSquare", {}];
+  rootSquares = Lookup[roots, "QuadraticRadicand", {}];
   rootCount = Length[roots];
   If[rootCount === 0,
     $observableTransportFFRankDiagnostics = <|"Reason" -> "NoRoots"|>;
@@ -516,7 +516,7 @@ observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
     rootSquares, variables];
   If[MemberQ[rootCompiler, $Failed],
     $observableTransportFFRankDiagnostics =
-      <|"Reason" -> "RootSquareCompileFailed", "RootSquares" -> rootSquares|>;
+      <|"Reason" -> "QuadraticRadicandCompileFailed", "QuadraticRadicands" -> rootSquares|>;
     Return[ConstantArray[$Failed, Length[samples]]]];
   (* numeric radical constants introduced by the radical normalization
      ({"SquareRootConstant", s} nodes) must be residues at the prime, or
@@ -527,7 +527,7 @@ observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
     {point, deltaValues, rootValues, image, reduced, pivots, prime,
      rejections = <|"PrimeNotThreeModFour" -> 0, "PointNotReducible" -> 0,
        "NumericRadicalNonResidue" -> 0,
-       "RootSquareZeroOrNonResidue" -> 0, "SquareRootFailed" -> 0,
+       "QuadraticRadicandZeroOrNonResidue" -> 0, "SquareRootFailed" -> 0,
        "MatrixPole" -> 0, "RowReduceFailed" -> 0|>},
     If[Sort[First /@ rules] =!= Sort[variables],
       $observableTransportFFRankDiagnostics[sampleIndex] =
@@ -552,7 +552,7 @@ observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
           rootCompiler, point, prime];
         If[MemberQ[deltaValues, $Failed | 0] ||
             ! AllTrue[deltaValues, modularResidueQ[#, prime] &],
-          rejections["RootSquareZeroOrNonResidue"]++; Continue[]];
+          rejections["QuadraticRadicandZeroOrNonResidue"]++; Continue[]];
         rootValues = multiquadraticSquareRoots[deltaValues, prime];
         If[rootValues === $Failed,
           rejections["SquareRootFailed"]++; Continue[]];
@@ -576,7 +576,7 @@ observableTransportFFAlgebraicIndependentRowsAtSamples[m_, variables_List,
     $observableTransportFFRankDiagnostics[sampleIndex] = <|
       "Sample" -> rules, "Attempts" -> maximumAttempts,
       "Rejections" -> rejections,
-      "RootSquares" -> rootSquares, "RootCount" -> rootCount|>;
+      "QuadraticRadicands" -> rootSquares, "RootCount" -> rootCount|>;
     $Failed
   ];
   $observableTransportFFRankDiagnostics = <||>;
@@ -606,7 +606,7 @@ observableTransportFFCompileAlgebraicCovariant[basis_, connection_,
       "CompiledMatrix" -> Drop[
         compiled["CompiledMatrix"], basisRows]|>],
     "Roots" -> compiled["Roots"],
-    "RootSquareCompiler" -> compiled["RootSquareCompiler"]|>
+    "QuadraticRadicandCompiler" -> compiled["QuadraticRadicandCompiler"]|>
 ];
 
 observableTransportFFAlgebraicCovariantImages[compiled_Association,
@@ -739,7 +739,7 @@ observableTransportFFAlgebraicCovariantIndependentRowsAtSamples[
   If[Length[dimensions] =!= 2,
     Return[ConstantArray[$Failed, Length[samples]]]];
   roots = compiled["Roots"];
-  rootCompiler = compiled["RootSquareCompiler"];
+  rootCompiler = compiled["QuadraticRadicandCompiler"];
   rootCount = Length[roots];
   radicalConstants = Lookup[compiled["Basis"], "RadicalConstants", {}];
   proposal[rules_List, sampleIndex_Integer] := Module[
@@ -912,7 +912,7 @@ observableTransportModularAlgebraicSubspaceInclusion[space_, candidates_,
   {spaceDimensions, candidateDimensions, primeCount, pointsPerPrime, seed,
    compiledJoined, joinedImage, roots, rootSquares, rootCompiler, rootCount,
    branchCount, primes,
-   constantRootSquares, constantRootCompiler, constantRootValues,
+   constantQuadraticRadicands, constantRootCompiler, constantRootValues,
    primeAttemptLimit, radicalConstants,
    accepted = {}, rejected = {}, attemptsPerPrime, acceptedForPrime,
    candidatePoints, point, deltaValues, rootValues, signs, mask,
@@ -941,7 +941,7 @@ observableTransportModularAlgebraicSubspaceInclusion[space_, candidates_,
     Return[observableTransportFFFailure[
       "AlgebraicFiniteFieldCompilationFailed"]]];
   roots = compiledJoined["Roots"];
-  rootSquares = Lookup[roots, "RootSquare", {}];
+  rootSquares = Lookup[roots, "QuadraticRadicand", {}];
   rootCount = Length[roots];
   radicalConstants = Lookup[compiledJoined, "RadicalConstants", {}];
   If[rootCount === 0,
@@ -954,15 +954,15 @@ observableTransportModularAlgebraicSubspaceInclusion[space_, candidates_,
     rootSquares, variables];
   If[MemberQ[rootCompiler, $Failed],
     Return[observableTransportFFFailure[
-      "AlgebraicRootSquaresNotRational"]]];
-  constantRootSquares = Select[rootSquares,
+      "AlgebraicQuadraticRadicandsNotRational"]]];
+  constantQuadraticRadicands = Select[rootSquares,
     FreeQ[#, Alternatives @@ variables] &];
   constantRootCompiler = observableTransportFFCompileExpressions[
-    constantRootSquares, variables];
+    constantQuadraticRadicands, variables];
   branchCount = 2^rootCount;
   attemptsPerPrime = Max[64, 16 branchCount pointsPerPrime];
   primeAttemptLimit = Max[1000, 200 primeCount 2^(Length[
-    constantRootSquares] + Length[radicalConstants])];
+    constantQuadraticRadicands] + Length[radicalConstants])];
   primes = BlockRandom[Module[{selected = {}, prime, primeAttempts = 0},
     SeedRandom[seed];
     While[Length[selected] < primeCount &&
@@ -991,7 +991,7 @@ observableTransportModularAlgebraicSubspaceInclusion[space_, candidates_,
         "AcceptedPrimeCount" -> Length[primes],
         "RequiredPrimeCount" -> primeCount,
         "PrimeAttemptLimit" -> primeAttemptLimit,
-        "ConstantRootSquares" -> constantRootSquares,
+        "ConstantQuadraticRadicands" -> constantQuadraticRadicands,
         "RadicalConstants" -> radicalConstants|>]]];
   Do[
     acceptedForPrime = 0;
@@ -1048,7 +1048,7 @@ observableTransportModularAlgebraicSubspaceInclusion[space_, candidates_,
         "InsufficientFreshModularAlgebraicPoints", <|
           "Prime" -> prime, "Accepted" -> acceptedForPrime,
           "Required" -> pointsPerPrime,
-          "RootSquares" -> rootSquares,
+          "QuadraticRadicands" -> rootSquares,
           "RejectedReasons" -> Counts[Lookup[
             Select[rejected, Lookup[#, "Prime", None] === prime &],
             "Reason", "Unknown"]]|>], Module]],
@@ -1067,7 +1067,7 @@ observableTransportModularAlgebraicCovariantSubspaceInclusion[
     OptionsPattern[]] := Module[
   {basisDimensions, connectionDimensions, primeCount, pointsPerPrime, seed,
    roots, rootSquares, rootCompiler, rootCount, branchCount, primes,
-   constantRootSquares, constantRootCompiler, constantRootValues,
+   constantQuadraticRadicands, constantRootCompiler, constantRootValues,
    primeAttemptLimit, radicalConstants, accepted = {}, rejected = {},
    attemptsPerPrime,
    acceptedForPrime, candidatePoints, point, deltaValues, rootValues,
@@ -1093,26 +1093,26 @@ observableTransportModularAlgebraicCovariantSubspaceInclusion[
     Return[observableTransportFFFailure[
       "ModularAlgebraicCovariantOptionsInvalid"]]];
   roots = compiled["Roots"];
-  rootSquares = Lookup[roots, "RootSquare", {}];
-  rootCompiler = compiled["RootSquareCompiler"];
+  rootSquares = Lookup[roots, "QuadraticRadicand", {}];
+  rootCompiler = compiled["QuadraticRadicandCompiler"];
   rootCount = Length[roots];
   radicalConstants = DeleteDuplicates[Join[
     Lookup[compiled["Basis"], "RadicalConstants", {}],
     Lookup[compiled["Connection"], "RadicalConstants", {}]]];
   If[! ListQ[rootCompiler] || MemberQ[rootCompiler, $Failed],
     Return[observableTransportFFFailure[
-      "AlgebraicRootSquaresNotRational"]]];
-  constantRootSquares = Select[rootSquares,
+      "AlgebraicQuadraticRadicandsNotRational"]]];
+  constantQuadraticRadicands = Select[rootSquares,
     FreeQ[#, Alternatives @@ variables] &];
   constantRootCompiler = observableTransportFFCompileExpressions[
-    constantRootSquares, variables];
+    constantQuadraticRadicands, variables];
   If[MemberQ[constantRootCompiler, $Failed],
     Return[observableTransportFFFailure[
-      "AlgebraicRootSquaresNotRational"]]];
+      "AlgebraicQuadraticRadicandsNotRational"]]];
   branchCount = 2^rootCount;
   attemptsPerPrime = Max[64, 16 branchCount pointsPerPrime];
   primeAttemptLimit = Max[1000, 200 primeCount 2^(Length[
-    constantRootSquares] + Length[radicalConstants])];
+    constantQuadraticRadicands] + Length[radicalConstants])];
   primes = BlockRandom[Module[{selected = {}, prime, primeAttempts = 0},
     SeedRandom[seed];
     While[Length[selected] < primeCount &&
@@ -1141,7 +1141,7 @@ observableTransportModularAlgebraicCovariantSubspaceInclusion[
         "AcceptedPrimeCount" -> Length[primes],
         "RequiredPrimeCount" -> primeCount,
         "PrimeAttemptLimit" -> primeAttemptLimit,
-        "ConstantRootSquares" -> constantRootSquares,
+        "ConstantQuadraticRadicands" -> constantQuadraticRadicands,
         "RadicalConstants" -> radicalConstants|>]]];
   Do[
     acceptedForPrime = 0;
@@ -1197,7 +1197,7 @@ observableTransportModularAlgebraicCovariantSubspaceInclusion[
         "InsufficientFreshModularAlgebraicPoints", <|
           "Prime" -> prime, "Accepted" -> acceptedForPrime,
           "Required" -> pointsPerPrime,
-          "RootSquares" -> rootSquares,
+          "QuadraticRadicands" -> rootSquares,
           "RejectedReasons" -> Counts[Lookup[
             Select[rejected, Lookup[#, "Prime", None] === prime &],
             "Reason", "Unknown"]]|>], Module]],

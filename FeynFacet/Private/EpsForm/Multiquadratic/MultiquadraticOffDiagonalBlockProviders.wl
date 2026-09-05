@@ -1542,7 +1542,7 @@ multiquadraticOffDiagonalBlockChartInhomogeneityProvider[sourceProvider_Associat
   If[pulledSourceSquares === $Failed ||
       ! FreeQ[pulledSourceSquares, $Failed],
     Return[multiquadraticOffDiagonalBlockFailure[
-      "ChartInhomogeneityRootSquarePullBackFailed"]]];
+      "ChartInhomogeneityQuadraticRadicandPullBackFailed"]]];
   rootIdentities = MapThread[TrueQ[Quiet[Check[
         Together[#1^2 - #2], $Failed]] === 0] &,
     {sourceRootImages, pulledSourceSquares}];
@@ -1641,7 +1641,7 @@ multiquadraticOffDiagonalBlockChartInhomogeneityPreflight[provider_Association, 
    evaluateScalar, sourcePoint, jacobian, jacobianDet, targetDeltaValues,
    sourceRootImageChannels, sourceRootImageChannelValues,
    targetSheetMonomials, sourceRootSheetValues, sourcePreflight,
-  sourceRootSquares, failure},
+  sourceQuadraticRadicands, failure},
   failure[status_String, data_: <||>] := multiquadraticOffDiagonalBlockFailure[status,
     Join[<|"Prime" -> prime, "RegulatorValue" -> epsilonValue,
       "Point" -> Mod[targetPoint, prime],
@@ -1713,10 +1713,10 @@ multiquadraticOffDiagonalBlockChartInhomogeneityPreflight[provider_Association, 
       "MultiquadraticProviderPreflightV1",
     Return[failure["ChartInhomogeneitySourcePreflightFailed",
       <|"Detail" -> sourcePreflight|>]]];
-  sourceRootSquares = Lookup[sourcePreflight, "QuadraticRadicands", {}];
-  If[Length[sourceRootSquares] =!= Length[sourceRoots] ||
+  sourceQuadraticRadicands = Lookup[sourcePreflight, "QuadraticRadicands", {}];
+  If[Length[sourceQuadraticRadicands] =!= Length[sourceRoots] ||
       ! AllTrue[Range[Length[sourceRoots]], Mod[
-          sourceRootSheetValues[[1, #1]]^2 - sourceRootSquares[[#1]],
+          sourceRootSheetValues[[1, #1]]^2 - sourceQuadraticRadicands[[#1]],
           prime] === 0 &],
     Return[failure["ChartInhomogeneitySourceSquareRootImageMismatch"]]];
   sourcePreflight = Join[sourcePreflight, <|
@@ -2127,13 +2127,13 @@ multiquadraticOffDiagonalBlockProviderPreflight[provider_Association, epsilonVal
       PowerMod[x, #1, prime] & /@ requiredXExponents];
     yPowers = AssociationThread[requiredYExponents,
       PowerMod[y, #1, prime] & /@ requiredYExponents];
-    primitiveForms = KeyTake[forms, {"RootSquares", "OffDiagonalBasisTransformationDenominator"}];
+    primitiveForms = KeyTake[forms, {"QuadraticRadicands", "OffDiagonalBasisTransformationDenominator"}];
     primitiveEvaluated = Catch[multiquadraticOffDiagonalBlockEvaluateForms[
       primitiveForms, xPowers, yPowers, prime],
       "MultiquadraticOffDiagonalBlockBadPoint"];
     If[! AssociationQ[primitiveEvaluated],
       Return[failure["RationalChannelPole"]]];
-    deltaValues = primitiveEvaluated["RootSquares"];
+    deltaValues = primitiveEvaluated["QuadraticRadicands"];
     denominatorValue = primitiveEvaluated["OffDiagonalBasisTransformationDenominator"];
     If[! VectorQ[deltaValues, IntegerQ] ||
         Length[deltaValues] =!= assembly["RootCount"] ||
@@ -2226,7 +2226,7 @@ multiquadraticOffDiagonalBlockCompiledProviderChannels[provider_Association,
   assembly = provider["Assembly"];
   prime = preflight["Prime"];
   forms = preflight["EpsilonForms"]["Forms"];
-  remaining = KeyDrop[forms, {"RootSquares", "OffDiagonalBasisTransformationDenominator"}];
+  remaining = KeyDrop[forms, {"QuadraticRadicands", "OffDiagonalBasisTransformationDenominator"}];
   evaluated = Catch[multiquadraticOffDiagonalBlockEvaluateForms[remaining,
     preflight["XPowers"], preflight["YPowers"], prime],
     "MultiquadraticOffDiagonalBlockBadPoint"];

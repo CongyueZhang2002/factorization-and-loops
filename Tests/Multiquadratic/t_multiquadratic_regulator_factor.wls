@@ -26,12 +26,9 @@ v = Symbol["Global`v"]; w = Symbol["Global`w"];
 q1 = (1 - x - y)^2 - 4 x y;
 q2 = (1 - x + y)^2 + 4 x y;
 q3 = 4 x + y^2;
-frame = <|"Name" -> "TestTripleRoot", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Multiquadratic", "Variables" -> {x, y},
-  "Subst" -> {v -> x, w -> y},
-  "Roots" -> {<|"Root" -> Sqrt[q1], "RootSquare" -> (1 - v - w)^2 - 4 v w|>,
-    <|"Root" -> Sqrt[q2], "RootSquare" -> (1 - v + w)^2 + 4 v w|>,
-    <|"Root" -> Sqrt[q3], "RootSquare" -> 4 v + w^2|>}|>;
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {(1 - v - w)^2 - 4 v w, (1 - v + w)^2 + 4 v w,
+    4 v + w^2}, {v, w}, {x, y}];
 r1 = Sqrt[q1]; r2 = Sqrt[q2]; r3 = Sqrt[q3];
 dl[L_] := Map[Together, {D[Log[L], x], D[Log[L], y]}];
 
@@ -60,7 +57,8 @@ tKnown = {{1, eps, 0}, {0, 1 + 4 eps, 0}, {eps^2, 0, 1/(1 - 2 eps)}};
 tKnownInverse = Map[Together, Inverse[tKnown], {2}];
 connection = Table[
   Map[Together, tKnown . canonical[[mu]] . tKnownInverse, {2}], {mu, 2}];
-literalRoots = FeynFacet`Private`transportChartCurrentRoots[frame, {x, y}];
+literalRoots = FeynFacet`Private`coefficientPresentationSquareRootsInVariables[
+  frame, {x, y}];
 (* the radicands are compared through the frame's classifier, not
    syntactically: Together writes Sqrt[(1-x-y)^2-4xy] in expanded form
    and a FreeQ on the unexpanded radicand is then false for a connection
@@ -118,7 +116,8 @@ If[AssociationQ[f] && f["Status"] === "OK",
   (* the returned connection is eps-factored, decided grade by grade in
      the algebra (never by Together on an entry carrying a radical) *)
   gradedRoots = FeynFacet`Private`familyRegulatorGradedRoots[
-    FeynFacet`Private`transportChartCurrentRoots[frame, {x, y}],
+    FeynFacet`Private`coefficientPresentationSquareRootsInVariables[
+      frame, {x, y}],
     Lookup[f, "NumericRadicalClasses", {}]];
   newGrades = FeynFacet`Private`familyRegulatorGradedMatrices[
     f["Connection"], gradedRoots];
@@ -134,7 +133,8 @@ If[AssociationQ[f] && f["Status"] === "OK",
       FeynFacet`Private`transportChartAlgebraicZeroQ[
         Sum[tRecInverse[[i, a]] connection[[mu, a, b]] tRec[[b, j]],
           {a, 3}, {b, 3}] - f["Connection"][[mu, i, j]],
-        FeynFacet`Private`transportChartCurrentRoots[frame, {x, y}]] === True,
+        FeynFacet`Private`coefficientPresentationSquareRootsInVariables[
+          frame, {x, y}]] === True,
       {mu, 2}, {i, 3}, {j, 3}]]];
   (* the recovered T is equivalent to the planted one: the residual
      conjugation tKnown . tRec is eps-free up to the free constants Libra
@@ -260,7 +260,8 @@ check["non-factorable: no transformation is returned",
   AssociationQ[fBad] && ! KeyExistsQ[fBad, "Transformation"]];
 
 (* ---- the graded decomposition itself ---- *)
-gr = FeynFacet`Private`transportChartCurrentRoots[frame, {x, y}];
+gr = FeynFacet`Private`coefficientPresentationSquareRootsInVariables[
+  frame, {x, y}];
 ch = FeynFacet`Private`familyRegulatorGradedDecompose[
   (3 + r1 r3)/(2 - r2 + x r1 r2 r3), gr];
 check["graded decompose: a rank-3 field element gives 8 rational channels",
@@ -273,7 +274,7 @@ check["graded decompose: an undeclared radical fails closed",
   FeynFacet`Private`familyRegulatorGradedDecompose[Sqrt[1 + x + y^3], gr] === $Failed];
 formalTags = Table[Unique["formalRoot"], {3}];
 formalRoots = MapThread[
-  <|"Root" -> #1, "RootSquare" -> #2, "FormalGenerator" -> True|> &,
+  <|"Generator" -> #1, "QuadraticRadicand" -> #2, "FormalGenerator" -> True|> &,
   {formalTags, {2, 3, 5}}];
 formalSum = 1/(1 + formalTags[[1]]) +
   formalTags[[2]]/(2 + formalTags[[2]]) +
@@ -289,7 +290,7 @@ check["formal grade decomposition splits sums without changing the field element
 (* a numeric square class becomes an extra graded generator *)
 gr4 = FeynFacet`Private`familyRegulatorGradedRoots[gr, {2}];
 check["graded roots: a numeric square class raises the rank to 4",
-  Length[gr4] === 4 && TrueQ[Together[gr4[[4]]["RootSquare"] - 2] === 0]];
+  Length[gr4] === 4 && TrueQ[Together[gr4[[4]]["QuadraticRadicand"] - 2] === 0]];
 ch4 = FeynFacet`Private`familyRegulatorGradedDecompose[
   (1 + r1)/(1 + Sqrt[2] r2), gr4];
 check["graded decompose: Sqrt[2] is carried as a generator, 16 channels",
@@ -378,8 +379,8 @@ check["the modular-rational image fails closed on a vanishing denominator",
   FeynFacet`Private`familyRegulatorModularImage[
     1/(x - y), {x -> 3, y -> 3}, 101] === $Failed];
 rationalRoots = {
-  <|"Root" -> Sqrt[(1 + x)/(1 - y)], "RootSquare" -> (1 + x)/(1 - y)|>,
-  <|"Root" -> Sqrt[(2 + y)/(1 + x y)], "RootSquare" -> (2 + y)/(1 + x y)|>};
+  <|"Generator" -> Sqrt[(1 + x)/(1 - y)], "QuadraticRadicand" -> (1 + x)/(1 - y)|>,
+  <|"Generator" -> Sqrt[(2 + y)/(1 + x y)], "QuadraticRadicand" -> (2 + y)/(1 + x y)|>};
 constantGrades = {{{1, 2}, {0, -1}}, {{0, 1}, {3, 0}}, {{2, 0}, {0, 2}},
   {{0, 0}, {1, 1}}};
 (* an eps-factored graded connection: every grade is eps times a constant
@@ -407,7 +408,7 @@ modular image of its root square",
         pt = recordEntry["Point"], rv = recordEntry["RootValues"]},
       AllTrue[Range[2], Mod[rv[[#]]^2 -
         FeynFacet`Private`familyRegulatorModularImage[
-          rationalRoots[[#]]["RootSquare"], Thread[{x, y} -> pt], p], p] === 0 &]]]]];
+          rationalRoots[[#]]["QuadraticRadicand"], Thread[{x, y} -> pt], p], p] === 0 &]]]]];
 
 (* ------------------------------------------------------------------ *)
 (* Codex 0830 P2 -- the cooperative absolute deadline                   *)

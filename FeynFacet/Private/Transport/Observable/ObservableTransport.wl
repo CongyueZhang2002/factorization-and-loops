@@ -623,7 +623,7 @@ observableTransportCertifyEpsilonValuations[record_Association,
     "Tight" -> tight,
     "Trials" -> trials, "RejectedTrials" -> rejected,
     "Seed" -> seed,
-    "RootSquares" -> rootSquares,
+    "QuadraticRadicands" -> rootSquares,
     "Seconds" -> N[AbsoluteTime[] - start]|>;
   valuations = Join[If[AssociationQ[claimed], claimed, <||>], <|
     "TMin" -> claimedTMin, "BlockLower" -> claimedBlockLower,
@@ -2698,7 +2698,7 @@ ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
      the original samples, some of them proved inadmissible. *)
   sampleExhaustion = None;
   If[presentationType === "SquareRootGeneratorsAndQuadraticRelations" && OptionValue["RankSamples"] === Automatic,
-    Module[{rootSquaresHere = Lookup[algebraicRootRecords, "RootSquare", {}],
+    Module[{rootSquaresHere = Lookup[algebraicRootRecords, "QuadraticRadicand", {}],
         lettersHere = Replace[letters, Except[_List] -> {}],
         rankPoint, admissibleRank, residueAdmissible, candidatesRank,
         candidatesResidue},
@@ -2748,7 +2748,7 @@ ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
       "Family" -> Lookup[record, "Family", Missing[]],
       "CoefficientPresentationType" -> presentationType,
       "LetterCount" -> Length[Replace[letters, Except[_List] -> {}]],
-      "RootSquareCount" -> Length[Lookup[algebraicRootRecords, "RootSquare", {}]]|>],
+      "QuadraticRadicandCount" -> Length[Lookup[algebraicRootRecords, "QuadraticRadicand", {}]]|>],
       Module]
   ];
   firstSupport = If[recordTransportReadyQ,
@@ -2893,7 +2893,7 @@ ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
       forbiddenMap, lifted, tau, {tau, secondVariable}, rankSamples,
       closureSteps, OptionValue["ValidationPrimeCount"],
       OptionValue["ValidationPointsPerPrime"], verbose,
-      (Lookup[algebraicRootRecords, "RootSquare", {}] /. pathRules)];
+      (Lookup[algebraicRootRecords, "QuadraticRadicand", {}] /. pathRules)];
     If[! AssociationQ[closureRecord] ||
         Lookup[closureRecord, "Status", None] =!=
           "CovariantRowClosureAccepted",
@@ -2924,7 +2924,7 @@ ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
     constraintPivots = observableTransportMaximalIndependentRows[
       constraintMatrix,
       ({secondVariable -> (secondVariable /. #)} &) /@ rankSamples,
-      (Lookup[algebraicRootRecords, "RootSquare", {}] /.
+      (Lookup[algebraicRootRecords, "QuadraticRadicand", {}] /.
         firstVariable -> firstBase)];
     (* Overhaul 2026-09-02: a failed rank sampling reports WHY (per-sample
        rejection counts from the finite-field sampler) and, when
@@ -2937,7 +2937,7 @@ ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
         "ConstraintMatrix" -> constraintMatrix, "Embedding" -> embedding,
         "RankSamples" -> rankSamples, "SecondVariable" -> secondVariable,
         "FirstVariable" -> firstVariable, "FirstBase" -> firstBase,
-        "RootSquares" -> (Lookup[algebraicRootRecords, "RootSquare", {}] /.
+        "QuadraticRadicands" -> (Lookup[algebraicRootRecords, "QuadraticRadicand", {}] /.
           firstVariable -> firstBase),
         "Diagnostics" -> $observableTransportFFRankDiagnostics|>;
       If[StringQ[directory],
@@ -3053,7 +3053,7 @@ ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
       {secondVariable}, secondRankSamples, Length[extendedSlots],
       OptionValue["ValidationPrimeCount"],
       OptionValue["ValidationPointsPerPrime"], verbose,
-      (Lookup[algebraicRootRecords, "RootSquare", {}] /.
+      (Lookup[algebraicRootRecords, "QuadraticRadicand", {}] /.
         firstVariable -> firstBase)];
     If[! AssociationQ[secondClosureRecord] ||
         Lookup[secondClosureRecord, "Status", None] =!=
@@ -3390,7 +3390,7 @@ ConstructIteratedIntegralCoefficientOperatorForRequestedOutputs[
       observableTransportModularAlgebraicCovariantSubspaceInclusion[
         extendedConstraintMatrix, liftedSecond, secondVariable,
         {secondVariable},
-        (Lookup[algebraicRootRecords, "RootSquare", {}] /.
+        (Lookup[algebraicRootRecords, "QuadraticRadicand", {}] /.
           firstVariable -> firstBase),
         "ValidationPrimeCount" -> OptionValue["ValidationPrimeCount"],
         "ValidationPointsPerPrime" ->

@@ -76,9 +76,11 @@ deadlineTag = mq["$multiquadraticOffDiagonalBlockDeadlineTag"];
 (* ------------------------------------------------------------------ *)
 
 Clear[x, y, eps, v, w, cx, cy];
-frame = BuildSquareRootGeneratorsAndQuadraticRelations[{v, w, 1 + v + w}, {v, w}, {cx, cy}];
-check["the rank-three multiquadratic frame is exact",
-  AssociationQ[frame] && frame["Status"] === "ExactFrame"];
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {v, w, 1 + v + w}, {v, w}, {x, y}];
+check["the rank-three square-root presentation is valid",
+  AssociationQ[frame] &&
+    frame["Status"] === "SquareRootGeneratorRelationsVerified"];
 
 dlog[letter_] := {D[Log[letter], x], D[Log[letter], y]};
 letters = {x, y, 1 - x - y};
@@ -92,7 +94,7 @@ diagonalForm[residues_List] := Table[
 canonicalRoots[indices_] := Module[
   {order = rootOrder[frame, {x, y}, indices, eps]},
   If[Lookup[order, "Status", None] =!= "StableRootOrder", $Failed,
-    Lookup[order["Roots"], "Root", {}]]];
+    Lookup[order["Roots"], "Generator", {}]]];
 
 gradeFactor[grade_, roots_] :=
   Product[If[BitGet[grade, k - 1] === 1, roots[[k]], 1], {k, Length[roots]}];
@@ -166,10 +168,9 @@ check["E2 the early-core preparation is SameQ to the HEAD-route \
 preparation, up to channel-path telemetry",
   SameQ[KeyDrop[prepCore, telemetryKeys], KeyDrop[prepPlain, telemetryKeys]]];
 
-check["E2b the sealed inhomogeneity channels and the whole ABI are identical",
-  SameQ[prepCore["InhomogeneityChannels"], prepPlain["InhomogeneityChannels"]] &&
-    SameQ[prepCore["ABIPayload"], prepPlain["ABIPayload"]] &&
-    prepCore["ABIFingerprint"] === prepPlain["ABIFingerprint"]];
+check["E2b the inhomogeneity channels are identical",
+  SameQ[prepCore["InhomogeneityChannels"],
+    prepPlain["InhomogeneityChannels"]]];
 
 check["E3 no wall clock entered the preparation record",
   FreeQ[KeyDrop[prepCore, {"Record", "Frame", "Roots", "OneForms",
@@ -182,14 +183,11 @@ asmCore = compile[prepare[record, frame, Sequence @@ prepareArgs,
 clearCaches[];
 asmPlain = compile[prepare[record, frame, Sequence @@ prepareArgs,
   "CompileCore" -> False],   "CompileCore" -> False];
-check["E4 both compiled assemblies agree on every semantic fingerprint",
+check["E4 both compiled assemblies agree directly",
   Lookup[asmCore, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1" &&
     Lookup[asmPlain, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1" &&
-    asmCore["AssemblyFingerprint"] === asmPlain["AssemblyFingerprint"] &&
-    asmCore["ExactChannelFormsFingerprint"] ===
-      asmPlain["ExactChannelFormsFingerprint"] &&
-    asmCore["CompiledFormsFingerprint"] ===
-      asmPlain["CompiledFormsFingerprint"]];
+    SameQ[KeyDrop[asmCore, {"CompileStatistics", "Preparation"}],
+      KeyDrop[asmPlain, {"CompileStatistics", "Preparation"}]]];
 
 (* ------------------------------------------------------------------ *)
 (* R1-R3  the core is built ONCE for prepare and compile together       *)
@@ -236,7 +234,7 @@ check["N2 and leaves NO entry in the pool",
     Lookup[Lookup[internStatistics[], "Core", <||>], "Rejected", 0] === 1];
 
 goodCore = <|"E" -> <||>, "C" -> <||>, "Inhomogeneity" -> <||>,
-  "RootSquares" -> <||>, "RootLogDerivatives" -> <||>|>;
+  "QuadraticRadicands" -> <||>, "RootLogDerivatives" -> <||>|>;
 check["N3 a later GOOD build for the same key succeeds and is cached",
   intern["Core", negKey, Function[goodCore]] === goodCore &&
     internProbe["Core", negKey] === goodCore];
@@ -289,7 +287,8 @@ check["F2 the Core pool holds NO negative entry for the faulted key",
 asmAfterFault = compile[prepFaulted,   "InhomogeneityChannels" -> Lookup[prepFaulted, "InhomogeneityChannels", Automatic]];
 check["F3 the compile that follows rebuilds the core and succeeds",
   Lookup[asmAfterFault, "Status", None] === "CompiledMultiquadraticOffDiagonalBlockV1" &&
-    asmAfterFault["AssemblyFingerprint"] === asmCore["AssemblyFingerprint"]];
+    SameQ[KeyDrop[asmAfterFault, {"CompileStatistics", "Preparation"}],
+      KeyDrop[asmCore, {"CompileStatistics", "Preparation"}]]];
 check["F3b the faulted preparation is SameQ to the unfaulted one, up to \
 channel-path telemetry",
   SameQ[KeyDrop[prepFaulted, telemetryKeys], KeyDrop[prepCore, telemetryKeys]]];

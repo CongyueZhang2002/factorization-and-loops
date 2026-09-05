@@ -77,10 +77,13 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
   "multiquadraticOffDiagonalBlockUnpackVector"};
 
 Clear[vx, vy, ve];
-frame = <|"Name" -> "Round2Rational", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Rational", "Variables" -> {vx, vy},
-  "Subst" -> {vx -> vx, vy -> vy}, "Root" -> None, "RootSquare" -> None,
-  "Roots" -> {}|>;
+frame = <|
+  "DataType" -> "SourceVariableRepresentation",
+  "SchemaVersion" -> 2,
+  "SourceVariables" -> {vx, vy},
+  "CoefficientVariables" -> {vx, vy},
+  "SourceVariableSubstitution" -> {vx -> vx, vy -> vy},
+  "DifferentialPullbackMatrix" -> IdentityMatrix[2]|>;
 
 zero11 = {{{0}}, {{0}}};
 

@@ -129,7 +129,8 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
    "multiquadraticOffDiagonalBlockMergeOffDiagonalBasisTransformationDenominator",
    "multiquadraticRationalOffDiagonalBasisTransformationDenominator",
    "multiquadraticOffDiagonalBlockRootCensus", "multiquadraticOffDiagonalBlockRootOrder",
-   "transportChartCurrentRoots", "multiquadraticOffDiagonalBlockLetterOneForm",
+   "coefficientPresentationSquareRootsInVariables",
+   "multiquadraticOffDiagonalBlockLetterOneForm",
    "multiquadraticOffDiagonalBlockNormInAlphabetQ",
    "multiquadraticOffDiagonalBlockRationalPolarCurves",
    "multiquadraticOffDiagonalBlockFormTextKey", "multiquadraticOffDiagonalBlockFieldMemberQ"};

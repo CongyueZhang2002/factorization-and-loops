@@ -118,11 +118,11 @@ FTAssert["forward and reversed declarations give permutation-equivalent defining
 
 FTAssert["each layout records its ordered coefficient data explicitly",
   KeyDrop[forwardLayout["CoefficientData"],
-      {"RootSquares", "RootExpressions"}] ===
+      {"QuadraticRadicands", "RootExpressions"}] ===
     KeyDrop[reversedLayout["CoefficientData"],
-      {"RootSquares", "RootExpressions"}] &&
-    forwardLayout["CoefficientData", "RootSquares"] ===
-      Reverse[reversedLayout["CoefficientData", "RootSquares"]] &&
+      {"QuadraticRadicands", "RootExpressions"}] &&
+    forwardLayout["CoefficientData", "QuadraticRadicands"] ===
+      Reverse[reversedLayout["CoefficientData", "QuadraticRadicands"]] &&
     forwardLayout["CoefficientData", "RootExpressions"] ===
       Reverse[reversedLayout["CoefficientData", "RootExpressions"]]];
 

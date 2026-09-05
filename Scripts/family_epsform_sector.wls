@@ -755,7 +755,8 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
         Missing["NotAttempted"]],
       "; stopping before the next row"];
     state["Stop"] = <|"Status" -> "NeedsMultiquadraticRegulatorFactorization", "Rows" -> m,
-      "RootIndices" -> factor["RootIndices"], "RootSquares" -> factor["RootSquares"],
+      "RootIndices" -> factor["RootIndices"],
+      "QuadraticRadicands" -> factor["QuadraticRadicands"],
       "MultiquadraticFactorization" ->
         Lookup[factor, "MultiquadraticFactorization", Missing["NotAttempted"]]|>;
     putAtomic[state, stateFile]; Exit[2]];
@@ -829,7 +830,7 @@ factorTruncated[m_] := Module[{nm = bounds[[m, 2]], aT, factor, tFull,
   If[! MissingQ[staleStop], state = KeyDrop[state, "Stop"]];
   checkpointFile = staleOffDiagonalBlockCheckpointFile[m];
   If[FileExistsQ[checkpointFile], DeleteFile[checkpointFile];
-    log["  strip checkpoint of sector ", m + 1,
+    log["  off-diagonal-block checkpoint of sector ", m + 1,
       " discarded (connection transformed)"]];
   saveSeconds = First[AbsoluteTiming[putAtomic[state, stateFile]]];
   If[! MissingQ[staleStop],
@@ -1397,7 +1398,7 @@ Do[
               algebraicFrameQ,
             log["    finite field found no gauge in frame: ",
               If[AssociationQ[solution], KeyTake[solution,
-                {"Status", "RootIndices", "RootSquares", "Method",
+                {"Status", "RootIndices", "QuadraticRadicands", "Method",
                  "PassingBranchCount", "BranchCount"}], solution]]];
           (* An ALGEBRAIC frame has no rational-gauge obstruction series
              to compute -- AnalyzeOffDiagonalBlockEpsilonFormObstructions expands a rational
@@ -1493,7 +1494,7 @@ Do[
                "SelectedSupportShell", "ProbeCount", "RegulatorValue",
                "UnknownCount", "RootCount", "BrokerActive",
                "Substage", "ConstructionTimings", "RootIndices",
-               "RootSquares", "RationalizingParametrizationName",
+               "QuadraticRadicands", "RationalizingParametrizationName",
                "OffDiagonalBlockDimensions", "InnerStatus"}],
             "OffDiagonalBlockCheckpointFile" -> offDiagonalBlockCheckpointFile|>;
           putAtomic[state, stateFile]; Exit[2]];
@@ -1521,7 +1522,7 @@ Do[
                 AllTrue[modularBranches,
                   TrueQ[Lookup[#, "ResidualZero", False]] &]),
               "Artifact" -> modularArtifact|>,
-            KeyTake[solution, {"RootIndices", "RootSquares", "Dimensions",
+            KeyTake[solution, {"RootIndices", "QuadraticRadicands", "Dimensions",
               "UnknownCount", "EquationsPerPoint", "PreparationSchema",
               "SamplePrimes", "RegulatorValues",
               "HeldOutPrime", "HeldOutRegulatorValue", "ExactLift",
@@ -1809,7 +1810,8 @@ finalRegulatorFactorizationRecord[entry_Association] := Module[
   {mapped = entry /. fromXY, evidence, roots, refreshed},
   evidence = Lookup[mapped, "GradedRootFrame", Missing["NotGraded"]];
   If[! AssociationQ[evidence], Return[mapped]];
-  roots = KeyTake[#1, {"Root", "RootSquare"}] & /@
+  roots = KeyTake[#1,
+      {"Generator", "QuadraticRadicand", "SourceRadicand"}] & /@
     Lookup[evidence, "Roots", {}];
   refreshed = FeynFacet`Private`familyRegulatorGradedFrameEvidence[
     roots, {c1, c2}, ee];

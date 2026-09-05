@@ -402,11 +402,11 @@ FTAssert["a different seed gives different points",
 FTAssert["every accepted point carries the independently evaluated root squares and verified roots",
   AllTrue[splitA["Points"],
    Function[record,
-    record["RootSquares"] ===
+    record["QuadraticRadicands"] ===
       Mod[radicands /. Thread[{vx, vy} -> record["Point"]], p3] &&
-     Mod[record["RootValues"]^2 - record["RootSquares"], p3] ===
+     Mod[record["RootValues"]^2 - record["QuadraticRadicands"], p3] ===
       ConstantArray[0, Length[radicands]] &&
-     FreeQ[record["RootSquares"], 0] &&
+     FreeQ[record["QuadraticRadicands"], 0] &&
      AllTrue[record["Point"], 2 <= # <= p3 - 2 &] &&
      splitQ[record["Point"], radicands, {vx, vy}, p3] === True]]];
 splitOne = splitPts[{vx, vy}, radicands, p1, 3, 20260902, 500];
@@ -414,7 +414,7 @@ FTAssert["p == 1 (mod 4) is admitted and its roots are verified",
   splitOne["Status"] === "ModularSplitPointsV1" &&
    Length[splitOne["Points"]] === 3 &&
    AllTrue[splitOne["Points"],
-    Mod[#["RootValues"]^2 - #["RootSquares"], p1] ===
+    Mod[#["RootValues"]^2 - #["QuadraticRadicands"], p1] ===
       ConstantArray[0, Length[radicands]] &]];
 FTAssert["the attempt budget is respected and reported",
   With[{exhausted = splitPts[{vx, vy}, radicands, p3, 5, 1, 1]},

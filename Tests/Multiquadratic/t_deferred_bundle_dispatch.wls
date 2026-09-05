@@ -13,32 +13,35 @@ Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
 mq[name_String] := Symbol["FeynFacet`Private`" <> name];
 {inhomogeneityOf, validateBundle, currentRoots} = mq /@
   {"blockEquationDeferredInhomogeneity", "blockEquationDeferredBundleValidate",
-   "transportChartCurrentRoots"};
+   "coefficientPresentationSquareRootsInVariables"};
 
 Clear[dbx, dby, dbe, dbcx, dbcy];
-variables = {dbx, dby};
+sourceVariables = {dbx, dby};
+variables = {dbcx, dbcy};
 epsilon = dbe;
-rootSquares = {dbx, dby, 1 - dbx - dby};
-rawFrame = BuildSquareRootGeneratorsAndQuadraticRelations[rootSquares, variables, {dbcx, dbcy}];
+sourceRootSquares = {dbx, dby, 1 - dbx - dby};
+rootSquares = {dbcx, dbcy, 1 - dbcx - dbcy};
+rawFrame = BuildSquareRootGeneratorsAndQuadraticRelations[
+  sourceRootSquares, sourceVariables, variables];
 FTAssert["D0 the independent triple-root frame is exact",
-  Lookup[rawFrame, "Status", None] === "ExactFrame" &&
-    MissingQ[LookupCataloguedRationalizingParametrizationForRoots[rootSquares, variables]]];
+  Lookup[rawFrame, "Status", None] ===
+      "SquareRootGeneratorRelationsVerified" &&
+    MissingQ[LookupCataloguedRationalizingParametrizationForRoots[
+      sourceRootSquares, sourceVariables]]];
 
 (* Deliberately scramble the catalog declaration.  The bundle compiler and
    the solver both use the canonical square/root order, not this order. *)
 permutation = {3, 1, 2};
-permutedRoots = rawFrame["Roots"][[permutation]];
-frame = Join[rawFrame, <|"Roots" -> permutedRoots,
-  "Root" -> permutedRoots[[1, "Root"]],
-  "RootSquare" -> permutedRoots[[1, "RootSquare"]]|>];
+permutedRoots = rawFrame["SquareRootGenerators"][[permutation]];
+frame = Join[rawFrame, <|"SquareRootGenerators" -> permutedRoots|>];
 frameRoots = currentRoots[frame, variables];
 
 (* Two one-by-one diagonal blocks.  Every radical occurs only in the lower
    off-diagonal inhomogeneity; the strip handed to the dispatcher below contains
    none of them because its Inhomogeneity is the provider placeholder. *)
 connection = {
-  {{0, 0}, {frameRoots[[2, "Root"]] + frameRoots[[3, "Root"]], 0}},
-  {{0, 0}, {frameRoots[[1, "Root"]], 0}}
+  {{0, 0}, {frameRoots[[2, "Generator"]] + frameRoots[[3, "Generator"]], 0}},
+  {{0, 0}, {frameRoots[[1, "Generator"]], 0}}
 };
 ranges = {{1}, {2}};
 bundle = inhomogeneityOf[connection, ranges, 2, 1, <||>, variables, epsilon,
@@ -58,11 +61,11 @@ dispatched = SolveOffDiagonalBasisTransformationBlock[placeholderStrip, variable
 
 FTAssert["D2 an authenticated deferred inhomogeneity cannot become ZeroInhomogeneity",
   Lookup[dispatched, "Method", None] =!= "ZeroInhomogeneity" &&
-    Lookup[dispatched, "Status", None] === "NoRationalStripChart" &&
+    Lookup[dispatched, "Status", None] ===
+      "NoCataloguedRationalizingParametrization" &&
     Lookup[dispatched, "MultiquadraticDispatch", None] === "Disabled"];
-FTAssert["D3 inhomogeneity-only roots join the canonical frame order",
-  Lookup[dispatched, "RootIndices", None] === {2, 3, 1} &&
-    Lookup[dispatched, "RootSquares", None] === rootSquares];
+FTAssert["D3 inhomogeneity-only roots use the declared generator order",
+  Lookup[dispatched, "SquareRootGeneratorIndices", None] === {1, 2, 3}];
 
 fakeChart = <|"Name" -> "MustNotConsumeAPlaceholder"|>;
 forcedChart = Block[{LookupCataloguedRationalizingParametrizationForRoots = Function[{squares, vars}, fakeChart]},
@@ -71,7 +74,8 @@ forcedChart = Block[{LookupCataloguedRationalizingParametrizationForRoots = Func
     "MultiquadraticOptions" -> {"DeferredBundle" -> bundle},
     "Verbose" -> False]];
 FTAssert["D4 bundle presence no longer suppresses an available chart",
-  Lookup[forcedChart, "Status", None] === "ChartNotWellFormed"];
+  Lookup[forcedChart, "Status", None] ===
+    "CoefficientPresentationNotWellFormed"];
 
 ordinaryZero = SolveOffDiagonalBasisTransformationBlock[placeholderStrip, variables, epsilon,
   frame, "MultiquadraticDispatch" -> False, "Verbose" -> False];
@@ -79,7 +83,8 @@ FTAssert["D5 a genuine zero strip without a bundle keeps the exact fast path",
   Lookup[ordinaryZero, "Status", None] === "Solved" &&
     Lookup[ordinaryZero, "Method", None] === "ZeroInhomogeneity"];
 
-mutated = ReplacePart[bundle, {"Jobs", 1, "Terms"} -> {{2, {1}}}];
+mutated = ReplacePart[bundle, {"OperandTable", 1, "RootMask"} ->
+  Mod[bundle["OperandTable", 1, "RootMask"] + 1, 2^Length[frameRoots]]];
 refused = SolveOffDiagonalBasisTransformationBlock[placeholderStrip, variables, epsilon,
   frame, "MultiquadraticDispatch" -> False,
   "MultiquadraticOptions" -> {"DeferredBundle" -> mutated},
@@ -87,6 +92,6 @@ refused = SolveOffDiagonalBasisTransformationBlock[placeholderStrip, variables, 
 FTAssert["D6 a stale or mutated bundle is refused before dispatch",
   Lookup[refused, "Status", None] === "InvalidDeferredBundle" &&
     Lookup[Lookup[refused, "Detail", <||>], "Status", None] ===
-      "BundleFingerprintMismatch"];
+      "OperandRootMaskMismatch"];
 
 FTSummary[];

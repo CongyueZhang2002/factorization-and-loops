@@ -845,7 +845,7 @@ multiquadraticOffDiagonalBlockReconstructRegulator[preparation_Association,
       Count[structuralStructures, #1] >= 1 &];
     If[modalStructuralCandidates =!= {},
       modalStructuralStructure = First[modalStructuralCandidates]; Break[]],
-    {structuralPrimeIndex, Min[1, Length[structuralCandidatePrimes]]}];
+    {structuralPrimeIndex, Length[structuralCandidatePrimes]}];
   If[modalStructuralStructure === Automatic,
     structuralStructures = Lookup[Select[structuralPilotEvidence,
       Lookup[#1, "Status", None] === "StructuralPilotStructure" &],

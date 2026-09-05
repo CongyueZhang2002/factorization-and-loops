@@ -18,11 +18,11 @@ dlogData = mq["multiquadraticOffDiagonalBlockLetterDLogDataInField"];
 pairKey = mq["multiquadraticOffDiagonalBlockPotentialPairKey"];
 letters = {x, y, 1 - x - y, x + y, x^2 + y, 1 + x y, x - 2 y};
 serial = batch[letters, {}, {x, y}, 1];
-check["constructed dlogs retain their canonical pair key and zero verdict",
+check["constructed dlogs agree with their canonical mathematical pair and zero verdict",
   And @@ MapThread[
-    StringQ[Lookup[#2, "PotentialPairKey", None]] &&
-      Lookup[#2, "PotentialPairKey", None] ===
-        pairKey[#1, #2["OneForm"], {x, y}, \[FormalE]] &&
+    MatchQ[pairKey[#1, #2["OneForm"], {x, y}, \[FormalE]], {_, {_, _}}] &&
+      #2["OneForm"] ===
+        {Together[D[#1, x]/#1], Together[D[#1, y]/#1]} &&
       Lookup[#2, "ChannelZeroQ", None] === False &,
     {letters, serial["Data"]}]];
 

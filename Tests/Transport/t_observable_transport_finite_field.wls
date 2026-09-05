@@ -98,21 +98,21 @@ FTAssert["fresh modular points reject a false row-space inclusion",
   Lookup[excluded, "Status", None] ===
     "FreshModularSubspaceInclusionRejected"];
 
-tripleRootSquares = {1 + u, 1 + v, 1 + u + v};
+tripleQuadraticRadicands = {1 + u, 1 + v, 1 + u + v};
 tripleTemplateMatrix = {
   {Sqrt[1 + u]/(2 + v), Sqrt[1 + v] Sqrt[1 + u + v]},
   {(1 + u)/(Sqrt[1 + v] (3 + u + v)),
     1 + Sqrt[1 + u + v]}};
 tripleCompiled =
   FeynFacet`Private`observableTransportFFCompileAlgebraicMatrix[
-    tripleTemplateMatrix, {u, v}, tripleRootSquares];
+    tripleTemplateMatrix, {u, v}, tripleQuadraticRadicands];
 tripleDiscovered =
   FeynFacet`Private`observableTransportFFCompileAlgebraicMatrix[
-    tripleTemplateMatrix, {u, v}, Take[tripleRootSquares, 2]];
+    tripleTemplateMatrix, {u, v}, Take[tripleQuadraticRadicands, 2]];
 triplePrime = 1000003;
 triplePoint = {3, 5};
 tripleRootValues = FeynFacet`Private`multiquadraticSquareRoots[
-  Mod[tripleRootSquares /. Thread[{u, v} -> triplePoint], triplePrime],
+  Mod[tripleQuadraticRadicands /. Thread[{u, v} -> triplePoint], triplePrime],
   triplePrime];
 tripleCompiledSheets = Table[With[
     {sheetSigns = Table[
@@ -157,11 +157,11 @@ covariantClosedConnection = ConstantArray[0, {2, 2}];
 covariantOpenConnection = {{0, 1}, {0, 0}};
 covariantCompiled =
   FeynFacet`Private`observableTransportFFCompileAlgebraicCovariant[
-    covariantBasis, covariantClosedConnection, {u, v}, tripleRootSquares];
+    covariantBasis, covariantClosedConnection, {u, v}, tripleQuadraticRadicands];
 covariantPivots =
   FeynFacet`Private`observableTransportFFAlgebraicCovariantIndependentRowsAtSamples[
     covariantBasis, covariantOpenConnection, u, {u, v},
-    {{u -> 3, v -> 5}, {u -> 8, v -> 7}}, tripleRootSquares];
+    {{u -> 3, v -> 5}, {u -> 8, v -> 7}}, tripleQuadraticRadicands];
 covariantIncluded =
   FeynFacet`Private`observableTransportModularAlgebraicCovariantSubspaceInclusion[
     covariantCompiled, u, {u, v},
@@ -169,13 +169,13 @@ covariantIncluded =
     "ValidationSeed" -> 1015];
 covariantExcluded =
   FeynFacet`Private`observableTransportModularAlgebraicCovariantSubspaceInclusion[
-    covariantBasis, covariantOpenConnection, u, {u, v}, tripleRootSquares,
+    covariantBasis, covariantOpenConnection, u, {u, v}, tripleQuadraticRadicands,
     "ValidationPrimeCount" -> 2, "ValidationPointsPerPrime" -> 1,
     "ValidationSeed" -> 1016];
 covariantClosure = FeynFacet`Private`observableTransportCovariantRowClosure[
   covariantBasis, covariantOpenConnection, u, {u, v},
   {{u -> 3, v -> 5}, {u -> 8, v -> 7}}, 2, 2, 1, False,
-  tripleRootSquares];
+  tripleQuadraticRadicands];
 FTAssert["modular covariant images find a genuine extension",
   AllTrue[covariantPivots, # === {1, 2} &] &&
     Lookup[covariantClosure, "RankHistory", {}] === {1, 2}];
@@ -191,13 +191,13 @@ FTAssert["covariant images reject a non-invariant row space",
 tripleIncluded =
   FeynFacet`Private`observableTransportModularAlgebraicSubspaceInclusion[
     {{Sqrt[1 + u], Sqrt[1 + v]}},
-    {{3 Sqrt[1 + u], 3 Sqrt[1 + v]}}, {u, v}, tripleRootSquares,
+    {{3 Sqrt[1 + u], 3 Sqrt[1 + v]}}, {u, v}, tripleQuadraticRadicands,
     "ValidationPrimeCount" -> 2, "ValidationPointsPerPrime" -> 1,
     "ValidationSeed" -> 1013];
 tripleExcluded =
   FeynFacet`Private`observableTransportModularAlgebraicSubspaceInclusion[
     {{Sqrt[1 + u], Sqrt[1 + v]}},
-    {{Sqrt[1 + u + v], 0}}, {u, v}, tripleRootSquares,
+    {{Sqrt[1 + u + v], 0}}, {u, v}, tripleQuadraticRadicands,
     "ValidationPrimeCount" -> 2, "ValidationPointsPerPrime" -> 1,
     "ValidationSeed" -> 1014];
 FTAssert["all eight embeddings certify a genuine three-root inclusion",

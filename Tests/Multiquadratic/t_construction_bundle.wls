@@ -39,8 +39,8 @@
        the TWO declared generators (shared exact denester, sign fixed);
        no third generator appears anywhere in the bundle.
 
-   (f) A DEPENDENT declared frame is refused with DependentRootSquares
-       BEFORE orbit generation; duplicates with DuplicateRootSquares.
+   (f) A DEPENDENT declared frame is refused with DependentQuadraticRadicands
+       BEFORE orbit generation; duplicates with DuplicateQuadraticRadicands.
 
    (g) An out-of-frame radical is refused with
        RadicalOutsideDeclaredFrame; algebraic content with no frame at
@@ -304,9 +304,9 @@ dependentBundle = inhomogeneityOf[algebraicConnection, ranges, 3, 1, solved,
       "SourceRadicand" -> gy|>,
     <|"Generator" -> Sqrt[gx gy], "QuadraticRadicand" -> gx gy,
       "SourceRadicand" -> gx gy|>}];
-FTAssert["(f) a dependent declared frame is the typed DependentRootSquares, \
+FTAssert["(f) a dependent declared frame is the typed DependentQuadraticRadicands, \
 with no orbit ever generated",
-  Lookup[dependentBundle, "Status", None] === "DependentRootSquares" &&
+  Lookup[dependentBundle, "Status", None] === "DependentQuadraticRadicands" &&
     ! KeyExistsQ[dependentBundle, "DivisorSummary"] &&
     ! KeyExistsQ[dependentBundle, "GaloisOrbits"]];
 duplicateBundle = inhomogeneityOf[algebraicConnection, ranges, 3, 1, solved,
@@ -314,8 +314,8 @@ duplicateBundle = inhomogeneityOf[algebraicConnection, ranges, 3, 1, solved,
   "BundleRoots" -> {deltaRoot, <|"Generator" -> Sqrt[1 + gx],
     "QuadraticRadicand" -> 1 + gx,
     "SourceRadicand" -> 1 + gx|>}];
-FTAssert["(f) a duplicate square is the typed DuplicateRootSquares",
-  Lookup[duplicateBundle, "Status", None] === "DuplicateRootSquares"];
+FTAssert["(f) a duplicate square is the typed DuplicateQuadraticRadicands",
+  Lookup[duplicateBundle, "Status", None] === "DuplicateQuadraticRadicands"];
 
 (* ---- (g) out-of-frame radical; no synthesis without a frame --------- *)
 outsideBundle = inhomogeneityOf[algebraicConnection, ranges, 3, 1, solved,

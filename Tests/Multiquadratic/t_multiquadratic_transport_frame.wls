@@ -88,7 +88,7 @@ FTAssert["zero inhomogeneity bypasses a missing joint root chart",
     TrueQ[zeroNoChartSolution["Validation", "Passed"]] &&
     zeroNoChartSolution["Validation", "SamplingEntered"] === False &&
     Intersection[Keys[zeroNoChartSolution],
-      {"Chart", "FrameCertificate", "RootIndices", "RootSquares"}] === {}];
+      {"Chart", "FrameCertificate", "RootIndices", "QuadraticRadicands"}] === {}];
 
 (* {lambda1, 4 v + w^2} was the negative control here until 2026-08-24,
    when the iterated-pencil chart KallenQ4a was derived for exactly that
@@ -135,7 +135,7 @@ FTAssert["a one-root algebraic strip is solved in its rational chart and pulled 
     stripSolution["Validation"]["Method"] === "Exact" &&
     TrueQ[stripSolution["Validation"]["Passed"]] &&
     Intersection[Keys[stripSolution],
-      {"Chart", "FrameCertificate", "RootIndices", "RootSquares"}] === {}];
+      {"Chart", "FrameCertificate", "RootIndices", "QuadraticRadicands"}] === {}];
 
 FTAssert["exact chart pullback remains the default",
   ("BasisTransformationReexpressionMode" /.
@@ -172,7 +172,7 @@ FTAssert["core data preserves the generator-and-relation presentation",
     data["SquareClassIndependenceStatus"] === "NotChecked" &&
     data["GaloisConjugatesCertified"] === False &&
     Intersection[Keys[data],
-      {"Variables", "Subst", "Roots", "Root", "RootSquare",
+      {"Variables", "Subst", "Roots", "Root", "QuadraticRadicand",
        "CoefficientField", "Frame", "Chart", "QuadraticRelations",
        "GeneratorOrdering", "GeneratorExpression", "GeneratorIndex"}] === {}];
 

@@ -119,7 +119,7 @@ finiteFieldBasisTransformationReexpressionPlan[parametrizedBasisTransformationBl
     "ParametrizingVariables" -> parametrizingVariables,
     "Regulator" -> epsilon,
     "Roots" -> roots,
-    "RootSquares" -> rootSquares,
+    "QuadraticRadicands" -> rootSquares,
     "RootCount" -> rank,
     "GradeCount" -> width,
     "CoordinateChannels" -> coordinateChannels,
@@ -189,7 +189,7 @@ finiteFieldBasisTransformationReexpressionEvaluatePoint[specialized_Association,
   variables = specialized["Variables"];
   sourceRules = Thread[variables -> Mod[sourcePoint, prime]];
   deltas = finiteFieldBasisTransformationReexpressionModRational[# /. sourceRules, prime] & /@
-    specialized["RootSquares"];
+    specialized["QuadraticRadicands"];
   p = finiteFieldBasisTransformationReexpressionModRational[# /. sourceRules, prime] & /@
     specialized["CoordinateChannels"][[1]];
   q = finiteFieldBasisTransformationReexpressionModRational[# /. sourceRules, prime] & /@

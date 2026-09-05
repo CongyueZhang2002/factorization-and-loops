@@ -1,5 +1,5 @@
 #!/usr/bin/env wolframscript
-(* Adversarial checks for the isolated finite-field row-gauge oracle. *)
+(* Adversarial checks for the isolated finite-field row-basis-transformation oracle. *)
 
 root = DirectoryName[ExpandFileName[$InputFileName], 3];
 Get[FileNameJoin[{root, "Addon", "Load", "LoadFACET.wl"}]];
@@ -12,9 +12,9 @@ Clear[x, y, eps, z];
 n = 5; rows = {4, 5}; columns = Range[3];
 r1 = Sqrt[x]; r2 = Sqrt[y]; r3 = Sqrt[x + y];
 rootsNatural = {
-  <|"Root" -> r1, "RootSquare" -> x|>,
-  <|"Root" -> r2, "RootSquare" -> y|>,
-  <|"Root" -> r3, "RootSquare" -> x + y|>};
+  <|"Generator" -> r1, "QuadraticRadicand" -> x|>,
+  <|"Generator" -> r2, "QuadraticRadicand" -> y|>,
+  <|"Generator" -> r3, "QuadraticRadicand" -> x + y|>};
 rootsReversed = Reverse[rootsNatural];
 grades = {1, r1, r2, r1 r2, r3, r1 r3, r2 r3, r1 r2 r3};
 
@@ -24,29 +24,25 @@ connection = Table[
       (eps + mu + i x + j y)/(1 + x + y + i + j)],
     {i, n}, {j, n}],
   {mu, 2}];
-gauge = {
+basisTransformationBlock = {
   {r1/(1 + y), r2 r3/(2 + x), x/(3 + y)},
   {0, (r1 + r2)/(2 + x + y), r1 r2 r3/(4 + x)}};
 identity = IdentityMatrix[n];
 
 prep = FeynFacet`Private`familyRowBasisTransformationFiniteFieldPrepare[
-  connection, identity, identity, rows, gauge, {x, y}, rootsReversed];
+  connection, identity, identity, rows, basisTransformationBlock, {x, y}, rootsReversed];
 prepNatural = FeynFacet`Private`familyRowBasisTransformationFiniteFieldPrepare[
-  connection, identity, identity, rows, gauge, {x, y}, rootsNatural];
+  connection, identity, identity, rows, basisTransformationBlock, {x, y}, rootsNatural];
 
 FTTest`FTAssert["rank-three preparation accepted",
   AssociationQ[prep] && prep["Status"] === "Prepared" &&
     prep["RootCount"] === 3 && prep["BranchCount"] === 8];
-FTTest`FTAssert["root declaration order has a canonical ABI",
+FTTest`FTAssert["the coefficient presentation owns generator order",
   prepNatural["Status"] === "Prepared" &&
-    prepNatural["CanonicalRoots"] === prep["CanonicalRoots"] &&
-    prepNatural["FieldFingerprint"] === prep["FieldFingerprint"] &&
-    prepNatural["Fingerprint"] === prep["Fingerprint"]];
-FTTest`FTAssert["field and preparation fingerprints are SHA-256 strings",
-  StringQ[prep["FieldFingerprint"]] &&
-    StringLength[prep["FieldFingerprint"]] === 64 &&
-    StringQ[prep["Fingerprint"]] &&
-    StringLength[prep["Fingerprint"]] === 64];
+    Lookup[prepNatural["CanonicalRoots"], "QuadraticRadicand", {}] ===
+      {x, y, x + y} &&
+    Lookup[prep["CanonicalRoots"], "QuadraticRadicand", {}] ===
+      Reverse[{x, y, x + y}]];
 FTTest`FTAssert["dD is precomputed and represented in touched records",
   prep["DerivativeMode"] === "PrecomputedExact" &&
     prep["Statistics", "DerivativeTerms"] > 0];
@@ -77,7 +73,7 @@ FTTest`FTAssert["rank-three split sample accepted",
     sample["HadamardRoundTrip"] === True];
 FTTest`FTAssert["Tonelli--Shanks roots match all root squares",
   sampleOK && Mod[sample["CanonicalRootValues"]^2 -
-      sample["RootSquareValues"], prime] === ConstantArray[0, 3]];
+      sample["QuadraticRadicandValues"], prime] === ConstantArray[0, 3]];
 FTTest`FTAssert["all eight sign branches were materially exercised",
   sampleOK && sample["BranchMasks"] === Range[0, 7] &&
     AnyTrue[Flatten[Values[sample["Records"]]],
@@ -89,9 +85,9 @@ FTTest`FTAssert["term evaluation accounting covers every branch",
       sample["Statistics", "HadamardTransforms"]];
 
 (* Independent exact oracle: compare each sparse record with the full
-   matrix gauge formula for every one of the eight sign conjugates. *)
+   matrix basis-transformation formula for every one of the eight sign conjugates. *)
 dFull = ConstantArray[0, {n, n}];
-dFull[[rows, columns]] = gauge;
+dFull[[rows, columns]] = basisTransformationBlock;
 t = identity + dFull; tInverse = identity - dFull;
 expectedConnection = Table[
   tInverse . connection[[mu]] . t -
@@ -105,7 +101,7 @@ expectedExpression[kind_, target_] := Switch[kind,
 
 (* familyRowBasisTransformationFFReplaceRoots delegates to the package's
    transportChartApplyRootBranches since 2026-08-23, so it keys on the
-   canonical ROOT RECORDS ("Root"/"RootSquare"), not on bare squares. *)
+   canonical ROOT RECORDS ("Generator"/"QuadraticRadicand"), not on bare squares. *)
 canonicalRoots = prep["CanonicalRoots"];
 directBranchOracleQ[modularSample_Association, samplePoint_List,
     samplePrime_Integer, epsilonValue_Integer] := If[
@@ -146,10 +142,8 @@ unseenSample = FeynFacet`Private`familyRowBasisTransformationFiniteFieldEvaluate
   prep, unseenPoint, unseenPrime, {eps -> unseenEpsilon}];
 FTTest`FTAssert["a distinct unseen prime and split point are accepted",
   unseenSample["Status"] === "OK" &&
-    unseenSample["FieldFingerprint"] === sample["FieldFingerprint"] &&
-    unseenSample["PreparationFingerprint"] ===
-      sample["PreparationFingerprint"] &&
-    unseenSample["SampleFingerprint"] =!= sample["SampleFingerprint"]];
+    unseenSample["Prime"] === unseenPrime &&
+    unseenSample["Point"] === unseenPoint];
 FTTest`FTAssert["unseen-prime signs equal the full exact formula",
   directBranchOracleQ[unseenSample, unseenPoint, unseenPrime,
     unseenEpsilon]];
@@ -160,7 +154,7 @@ rankCases = Table[Module[{rules, rankConnection, rankOffDiagonalBasisTransformat
       rankSample},
     rules = Drop[{r1 -> x, r2 -> y, r3 -> x + y}, rank];
     rankConnection = connection /. rules;
-    rankOffDiagonalBasisTransformationBlock = gauge /. rules;
+    rankOffDiagonalBasisTransformationBlock = basisTransformationBlock /. rules;
     rankPrep = FeynFacet`Private`familyRowBasisTransformationFiniteFieldPrepare[
       rankConnection, identity, identity, rows, rankOffDiagonalBasisTransformationBlock, {x, y},
       Take[rootsNatural, rank]];
@@ -177,7 +171,7 @@ rankCases = Table[Module[{rules, rankConnection, rankOffDiagonalBasisTransformat
 FTTest`FTAssert["the modular path covers ranks zero through three",
   And @@ rankCases];
 
-unknownOffDiagonalBasisTransformationBlock = gauge;
+unknownOffDiagonalBasisTransformationBlock = basisTransformationBlock;
 unknownOffDiagonalBasisTransformationBlock[[1, 1]] = Sqrt[1 + x y]/(1 + y);
 unknown = FeynFacet`Private`familyRowBasisTransformationFiniteFieldPrepare[
   connection, identity, identity, rows, unknownOffDiagonalBasisTransformationBlock, {x, y},
@@ -185,7 +179,7 @@ unknown = FeynFacet`Private`familyRowBasisTransformationFiniteFieldPrepare[
 FTTest`FTAssert["undeclared radicals are rejected before sampling",
   unknown["Status"] === "UnknownRadicals"];
 
-nonQuadraticBasisTransformationBlock = gauge;
+nonQuadraticBasisTransformationBlock = basisTransformationBlock;
 nonQuadraticBasisTransformationBlock[[1, 1]] = (1 + x)^(1/3);
 cubic = FeynFacet`Private`familyRowBasisTransformationFiniteFieldPrepare[
   connection, identity, identity, rows, nonQuadraticBasisTransformationBlock, {x, y},
@@ -196,43 +190,43 @@ FTTest`FTAssert["non-multiquadratic powers are typed",
 duplicateRoots = {rootsNatural[[1]], rootsNatural[[2]],
   rootsNatural[[1]]};
 duplicate = FeynFacet`Private`familyRowBasisTransformationFiniteFieldPrepare[
-  connection, identity, identity, rows, gauge, {x, y}, duplicateRoots];
+  connection, identity, identity, rows, basisTransformationBlock, {x, y}, duplicateRoots];
 FTTest`FTAssert["duplicate declared root squares are rejected",
-  duplicate["Status"] === "DuplicateRootSquare"];
+  duplicate["Status"] === "DuplicateQuadraticRadicands"];
 
 dependentRoots = {
-  <|"Root" -> Sqrt[x], "RootSquare" -> x|>,
-  <|"Root" -> Sqrt[y], "RootSquare" -> y|>,
-  <|"Root" -> Sqrt[x y], "RootSquare" -> x y|>};
+  <|"Generator" -> Sqrt[x], "QuadraticRadicand" -> x|>,
+  <|"Generator" -> Sqrt[y], "QuadraticRadicand" -> y|>,
+  <|"Generator" -> Sqrt[x y], "QuadraticRadicand" -> x y|>};
 dependent = FeynFacet`Private`familyRowBasisTransformationFFCanonicalizeRoots[
   dependentRoots, {x, y}];
 FTTest`FTAssert["square-class dependent radicands are rejected",
-  dependent["Status"] === "DependentRootSquares" &&
+  dependent["Status"] === "DependentQuadraticRadicands" &&
     dependent["RootIndices"] === {1, 2, 3}];
 trivialRoot = FeynFacet`Private`familyRowBasisTransformationFFCanonicalizeRoots[{
-  <|"Root" -> Sqrt[x^2], "RootSquare" -> x^2|>}, {x, y}];
+  <|"Generator" -> Sqrt[x^2], "QuadraticRadicand" -> x^2|>}, {x, y}];
 FTTest`FTAssert["trivial rational-function square extensions are rejected",
-  trivialRoot["Status"] === "DependentRootSquares" &&
+  trivialRoot["Status"] === "DependentQuadraticRadicands" &&
     trivialRoot["RootIndices"] === {1}];
 nonkinematicRoot = FeynFacet`Private`familyRowBasisTransformationFFCanonicalizeRoots[{
-  <|"Root" -> Sqrt[x + eps], "RootSquare" -> x + eps|>}, {x, y}];
+  <|"Generator" -> Sqrt[x + eps], "QuadraticRadicand" -> x + eps|>}, {x, y}];
 FTTest`FTAssert["root squares cannot depend on the regulator",
-  nonkinematicRoot["Status"] === "NonKinematicRootSquare" &&
+  nonkinematicRoot["Status"] === "NonKinematicQuadraticRadicand" &&
     MemberQ[nonkinematicRoot["Symbols"], eps]];
 
 badConnection = connection;
 badConnection[[1, 1, First[rows]]] = 1;
 badStructure = FeynFacet`Private`familyRowBasisTransformationFiniteFieldPrepare[
-  badConnection, identity, identity, rows, gauge, {x, y}, rootsNatural];
+  badConnection, identity, identity, rows, basisTransformationBlock, {x, y}, rootsNatural];
 FTTest`FTAssert["D.A.D structural violations are rejected",
   badStructure["Status"] === "InvalidBlockStructure"];
 badDimensions = FeynFacet`Private`familyRowBasisTransformationFiniteFieldPrepare[
   connection, identity, identity, rows, {{1, 2}}, {x, y}, rootsNatural];
-FTTest`FTAssert["malformed gauge dimensions are typed",
+FTTest`FTAssert["malformed basis-transformation-block dimensions are typed",
   badDimensions["Status"] === "InvalidOffDiagonalBasisTransformationBlockDimensions"];
 
-badPrimeBasisTransformationBlock = gauge;
-badPrimeBasisTransformationBlock[[1, 1]] = gauge[[1, 1]]/5;
+badPrimeBasisTransformationBlock = basisTransformationBlock;
+badPrimeBasisTransformationBlock[[1, 1]] = basisTransformationBlock[[1, 1]]/5;
 badPrimePrep = FeynFacet`Private`familyRowBasisTransformationFiniteFieldPrepare[
   connection, identity, identity, rows, badPrimeBasisTransformationBlock, {x, y},
   rootsNatural];
@@ -270,7 +264,7 @@ FTTest`FTAssert["ramified and nonsplit points are distinguished",
       prep, {2, 4}, prime, parameterRules]["Status"] ===
         "NonSplitPoint"];
 
-singularBasisTransformationBlock = gauge;
+singularBasisTransformationBlock = basisTransformationBlock;
 singularBasisTransformationBlock[[1, 1]] = r1/(x - 1);
 singularPrep = FeynFacet`Private`familyRowBasisTransformationFiniteFieldPrepare[
   connection, identity, identity, rows, singularBasisTransformationBlock, {x, y},
@@ -280,32 +274,6 @@ singular = FeynFacet`Private`familyRowBasisTransformationFiniteFieldEvaluate[
 FTTest`FTAssert["entry poles at otherwise split points are typed",
   singular["Status"] === "SingularPoint"];
 
-tamperedTerm = Join[
-  prep["Records", "Connection"][[1, "Terms", 1]],
-  <|"Expression" ->
-    (prep["Records", "Connection"][[1, "Terms", 1, "Expression"]]
-      + 1)|>];
-tamperedRecord = Join[prep["Records", "Connection"][[1]],
-  <|"Terms" -> ReplacePart[
-    prep["Records", "Connection"][[1, "Terms"]], 1 -> tamperedTerm]|>];
-tamperedRecords = Join[prep["Records"],
-  <|"Connection" -> ReplacePart[
-    prep["Records", "Connection"], 1 -> tamperedRecord]|>];
-tampered = Join[prep, <|"Records" -> tamperedRecords|>];
-FTTest`FTAssert["record mutation is caught by the strong fingerprint",
-  FeynFacet`Private`familyRowBasisTransformationFiniteFieldEvaluate[
-    tampered, point, prime, parameterRules]["Status"] ===
-      "PreparationFingerprintMismatch"];
-
-changedBasisTransformationBlock = gauge;
-changedBasisTransformationBlock[[1, 3]] = changedBasisTransformationBlock[[1, 3]] + 1;
-changedPrep = FeynFacet`Private`familyRowBasisTransformationFiniteFieldPrepare[
-  connection, identity, identity, rows, changedBasisTransformationBlock, {x, y},
-  rootsNatural];
-FTTest`FTAssert["field fingerprint is stable but work fingerprint is strong",
-  changedPrep["Status"] === "Prepared" &&
-    changedPrep["FieldFingerprint"] === prep["FieldFingerprint"] &&
-    changedPrep["Fingerprint"] =!= prep["Fingerprint"]];
 FTTest`FTAssert["Tonelli--Shanks covers both odd-prime congruence classes",
   Mod[FeynFacet`Private`familyRowBasisTransformationFFSquareRoot[5, 101]^2, 101]
       === 5 &&

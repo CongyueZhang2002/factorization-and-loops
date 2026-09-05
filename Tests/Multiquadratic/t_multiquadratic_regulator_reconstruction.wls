@@ -76,10 +76,13 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
    "multiquadraticOffDiagonalBlockLetterOneForm"};
 
 Clear[rx, ry, re];
-frame = <|"Name" -> "Round2Rational", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Rational", "Variables" -> {rx, ry},
-  "Subst" -> {rx -> rx, ry -> ry}, "Root" -> None, "RootSquare" -> None,
-  "Roots" -> {}|>;
+frame = <|
+  "DataType" -> "SourceVariableRepresentation",
+  "SchemaVersion" -> 2,
+  "SourceVariables" -> {rx, ry},
+  "CoefficientVariables" -> {rx, ry},
+  "SourceVariableSubstitution" -> {rx -> rx, ry -> ry},
+  "DifferentialPullbackMatrix" -> IdentityMatrix[2]|>;
 
 letters = {rx, ry, 1 - rx - ry, 1 + rx + ry};
 forms = letterOneForm[#1, {rx, ry}] & /@ letters;

@@ -561,7 +561,7 @@ multiquadraticOffDiagonalBlockAlgebraicLetters[roots_List, alphabet_List,
          alphabet (it always does when delta is a declared polar curve) *)
       If[multiquadraticOffDiagonalBlockNormInAlphabetQ[-delta, alphabet, variables],
         AppendTo[records, <|"Kind" -> "Algebraic", "Letter" -> rootExpression,
-          "A" -> 0, "RootSquare" -> delta, "Norm" -> Expand[-delta],
+          "A" -> 0, "QuadraticRadicand" -> delta, "Norm" -> Expand[-delta],
           "NormInAlphabet" -> True|>]];
       Do[
         constants = multiquadraticOffDiagonalBlockSquareCompletionConstants[delta,
@@ -582,10 +582,10 @@ multiquadraticOffDiagonalBlockAlgebraicLetters[roots_List, alphabet_List,
           AppendTo[seen, key];
           AppendTo[records, <|"Kind" -> "Algebraic",
             "Letter" -> Together[a + rootExpression], "A" -> a,
-            "RootSquare" -> delta, "Norm" -> norm, "NormInAlphabet" -> True|>];
+            "QuadraticRadicand" -> delta, "Norm" -> norm, "NormInAlphabet" -> True|>];
           AppendTo[records, <|"Kind" -> "Algebraic",
             "Letter" -> Together[a - rootExpression], "A" -> a,
-            "RootSquare" -> delta, "Norm" -> norm, "NormInAlphabet" -> True|>],
+            "QuadraticRadicand" -> delta, "Norm" -> norm, "NormInAlphabet" -> True|>],
           {constant, constants}],
         {monomial, monomials}],
       {root, roots}]];
@@ -1056,7 +1056,11 @@ multiquadraticOffDiagonalBlockVerifyPotential[letter_, form_,
     Return[<|"Schema" -> $multiquadraticOffDiagonalBlockPotentialSchema,
       "Status" -> "PairNotNormalizable", "Verified" -> False,
       "Letter" -> letter, "OneForm" -> form, "Cached" -> False|>]];
-  cached = Lookup[$multiquadraticOffDiagonalBlockPotentialCache, key, Missing["NoEntry"]];
+  (* key is the single structural pair {canonical letter, canonical form}.
+     Lookup treats a list as a list of independent keys, so use the
+     association's single-key form here. *)
+  cached = If[KeyExistsQ[$multiquadraticOffDiagonalBlockPotentialCache, key],
+    $multiquadraticOffDiagonalBlockPotentialCache[key], Missing["NoEntry"]];
   If[! MissingQ[cached],
     $multiquadraticOffDiagonalBlockPotentialCounters["Hits"] += 1;
     Return[Join[cached, <|"Cached" -> True|>]]];
@@ -1834,7 +1838,7 @@ multiquadraticOffDiagonalBlockCandidateLetters[offDiagonalBlockEquation : {e_Lis
   MapThread[Function[{recordItem, dlogItem},
       add["Algebraic", recordItem["Letter"], dlogItem,
         KeyTake[recordItem,
-          {"A", "Norm", "RootSquare", "NormInAlphabet"}]]],
+          {"A", "Norm", "QuadraticRadicand", "NormInAlphabet"}]]],
     {algebraic, algebraicData}];
   multiquadraticOffDiagonalBlockStageDone["candidate letters: algebraic records",
     <|"records" -> Length[records]|>];

@@ -67,18 +67,15 @@ mq[name_String] := Symbol["FeynFacet`Private`" <> name];
   frameIndices} = mq /@ {"multiquadraticOffDiagonalBlockRootCensus",
   "multiquadraticOffDiagonalBlockCanonicalizeRadicals", "multiquadraticOffDiagonalBlockPrepare",
   "multiquadraticFieldDecompose", "multiquadraticFieldCompose",
-  "transportChartCurrentRoots", "transportChartRootIndices"};
+  "coefficientPresentationSquareRootsInVariables", "transportChartRootIndices"};
 
-Clear[cx, cy, ce];
-frame = <|"Name" -> "Round2TwoRoot", "Kind" -> "TwoVariable",
-  "CoefficientField" -> "Multiquadratic", "Variables" -> {cx, cy},
-  "Subst" -> {cx -> cx, cy -> cy},
-  "Roots" -> {<|"Root" -> Sqrt[cx], "RootSquare" -> cx|>,
-    <|"Root" -> Sqrt[cy], "RootSquare" -> cy|>}|>;
+Clear[v, w, cx, cy, ce];
+frame = BuildSquareRootGeneratorsAndQuadraticRelations[
+  {v, w}, {v, w}, {cx, cy}];
 declaredRoots = currentRoots[frame, {cx, cy}];
 check["the frame declares the two roots Sqrt[x] and Sqrt[y]",
   MatchQ[declaredRoots, {_Association, _Association}] &&
-    Lookup[declaredRoots, "RootSquare", {}] === {cx, cy}];
+    Lookup[declaredRoots, "QuadraticRadicand", {}] === {cx, cy}];
 
 (* the strip: a 1x1 block whose inhomogeneity carries Sqrt[x y], which is
    Sqrt[x] Sqrt[y] and therefore IN the declared field, spelled the way
@@ -184,7 +181,7 @@ unclassified",
     Length[Lookup[badCensus, "UnclassifiedRadicalBases", {}]] === 1];
 check["C8 and prepare still refuses it, typed",
   Lookup[prepare[badRecord, frame, "OneForms" -> {}], "Status", None] ===
-    "StripContainsUndeclaredRadicals"];
+    "OffDiagonalBlockEquationContainsUndeclaredRadicals"];
 report["C8 refused bases", Lookup[badCensus, "UnclassifiedRadicalBases", {}]];
 
 (* ---- C9: no-op on an all-declared strip ---- *)
@@ -205,8 +202,8 @@ check["C9 the canonicalizer is then a NO-OP and says so",
 
 (* ---- C10: literal algebra-generator symbols ---- *)
 Clear[taggedRoot, taggedDelta];
-taggedRoots = {<|"Root" -> taggedRoot,
-  "RootSquare" -> taggedDelta|>};
+taggedRoots = {<|"Generator" -> taggedRoot,
+  "QuadraticRadicand" -> taggedDelta|>};
 taggedChannels = decompose[(1 + taggedRoot)/(2 + taggedRoot),
   taggedRoots, False, False];
 check["C10 a literal declared root symbol enters the algebraic path",

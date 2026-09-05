@@ -11,7 +11,7 @@ check[label_, ok_] := If[TrueQ[ok], pass++; Print["OK   ", label],
   fail++; Print["FAIL ", label]];
 
 Clear[x, y, eps];
-rootRecord[q_] := <|"Root" -> Sqrt[q], "RootSquare" -> q|>;
+rootRecord[q_] := <|"Generator" -> Sqrt[q], "QuadraticRadicand" -> q|>;
 frame = FeynFacet`Private`familyRegulatorGradedRootFrame;
 gradedRoots = FeynFacet`Private`familyRegulatorGradedRoots;
 decompose = FeynFacet`Private`familyRegulatorGradedDecompose;
@@ -25,20 +25,20 @@ check["two square classes whose quotient is nonsquare are independent",
 dependent = gradedRoots[base, {2}];
 check["a numeric class that closes a square relation is refused",
   AssociationQ[dependent] &&
-    Lookup[dependent, "Status", None] === "DependentRootSquares" &&
+    Lookup[dependent, "Status", None] === "DependentQuadraticRadicands" &&
     Sort[Lookup[dependent, "RootIndices", {}]] === {1, 2, 3}];
 
 duplicate = gradedRoots[{rootRecord[2]}, {2}];
 check["a numeric class cannot duplicate a declared generator",
   AssociationQ[duplicate] &&
-    Lookup[duplicate, "Status", None] === "DuplicateRootSquares"];
+    Lookup[duplicate, "Status", None] === "DuplicateQuadraticRadicands"];
 
 directRefusal = FeynFacet`FactorFamilyRegulatorDependenceMultiquadratic[
   {{{0}} , {{0}}}, {x, y}, eps,
   Join[base, {rootRecord[2]}]];
 check["the public graded factorizer validates a directly supplied frame",
   AssociationQ[directRefusal] &&
-    Lookup[directRefusal, "Status", None] === "DependentRootSquares" &&
+    Lookup[directRefusal, "Status", None] === "DependentQuadraticRadicands" &&
     ! KeyExistsQ[directRefusal, "Transformation"]];
 
 (* Rank five is the current family-factor ceiling.  Exercising it keeps
@@ -55,21 +55,20 @@ check["rank-five decomposition uses the full dynamic 32-grade ABI",
         expression5, roots5] === True]];
 
 evidence5 = frameEvidence[roots5, {x, y}, eps];
-check["rank-five graded frame evidence binds the producer ceiling and grade ABI",
+check["rank-five square-root grade data bind the producer ceiling and grade dimension",
   evidence5["Status"] === "StableRootFrame" &&
-    evidence5["Schema"] === "FamilyRegulatorGradedRootFrameV1" &&
+    evidence5["DataType"] === "SquareRootGradeDecompositionData" &&
+    evidence5["SchemaVersion"] === 2 &&
+    evidence5["Roots"] === roots5 &&
     evidence5["RootCount"] === 5 && evidence5["GradeCount"] === 32 &&
-    evidence5["MaximumRank"] === 5 &&
-    Length[evidence5["RootFingerprints"]] === 5 &&
-    StringQ[evidence5["OrderingFingerprint"]] &&
-    StringQ[evidence5["FrameFingerprint"]]];
+    evidence5["MaximumRank"] === 5];
 
 genericNumericEvidence = frameEvidence[
   rootRecord /@ {1 + x, 3, 5}, {x, y}, eps];
 check["generic independent numeric square classes are explicit graded generators",
   genericNumericEvidence["Status"] === "StableRootFrame" &&
     genericNumericEvidence["RootCount"] === 3 &&
-    Sort[genericNumericEvidence["NumericRootSquares"]] === {3, 5} &&
+    Sort[genericNumericEvidence["NumericQuadraticRadicands"]] === {3, 5} &&
     Length[genericNumericEvidence["NumericRootIndices"]] === 2];
 check["whole-family certification resolves its Automatic ceiling from the graded producer",
   ("MultiquadraticRootRankLimit" /.

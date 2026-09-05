@@ -66,9 +66,8 @@ FTAssert["the physical low-p sheet and inward endpoint coordinate are explicit",
   Lookup[campaign["Stage3NeedsLedger"], "Status"] ===
       {"Unevaluated", "Unevaluated"}];
 
-refusal = BuildTransportBoundaryVector[
-  campaign["BoundaryModeMapInput"], <||>, {-4, 2},
-  "MissingPeriodAction" -> "Formal"];
+refusal = LazyTransportCampaignBoundary[campaign,
+  campaign["BoundaryModeMapInput"], <||>, {-4, 2}, "Formal"];
 FTAssert["the formal Stage-3 ledger is preserved by the package boundary API",
   refusal["Status"] === "CompleteBoundaryModeMapRequired" &&
   refusal["Stage3NeedsLedger"] === campaign["Stage3NeedsLedger"]];
